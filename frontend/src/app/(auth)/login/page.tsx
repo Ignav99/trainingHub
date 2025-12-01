@@ -4,11 +4,12 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { useAuthStore } from '@/stores/authStore'
 
 export default function LoginPage() {
   const router = useRouter()
+  const { login, isLoading } = useAuthStore()
   const [showPassword, setShowPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [formData, setFormData] = useState({
     email: '',
@@ -17,24 +18,18 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
     setError('')
 
-    try {
-      // TODO: Implementar login real con Supabase
-      console.log('Login:', formData)
-      
-      // Simular delay
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // Redirigir al dashboard
+    const result = await login(formData.email, formData.password)
+
+    if (result.success) {
       router.push('/')
-    } catch (err) {
-      setError('Credenciales inválidas. Por favor, inténtalo de nuevo.')
-    } finally {
-      setLoading(false)
+    } else {
+      setError(result.error || 'Credenciales inválidas. Por favor, inténtalo de nuevo.')
     }
   }
+
+  const loading = isLoading
 
   return (
     <div className="min-h-screen flex">
