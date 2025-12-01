@@ -2,18 +2,20 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { 
-  LayoutDashboard, 
-  ClipboardList, 
-  Calendar, 
-  Library, 
+import { usePathname, useRouter } from 'next/navigation'
+import {
+  LayoutDashboard,
+  ClipboardList,
+  Calendar,
+  Library,
   Settings,
   ChevronDown,
   LogOut,
   Menu,
-  X
+  X,
+  User
 } from 'lucide-react'
+import { useAuthStore } from '@/stores/authStore'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -29,8 +31,17 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
+  const router = useRouter()
+  const { user, logout } = useAuthStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [equipoActual, setEquipoActual] = useState('Juvenil A')
+
+  const handleLogout = async () => {
+    await logout()
+    router.push('/login')
+  }
+
+  const equipoActual = 'Juvenil A' // TODO: Obtener de contexto/store
+  const orgName = user?.organizacion?.nombre || 'Mi Organización'
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -38,10 +49,12 @@ export default function DashboardLayout({
       <div className={`fixed inset-0 z-50 lg:hidden ${sidebarOpen ? '' : 'hidden'}`}>
         <div className="fixed inset-0 bg-gray-900/80" onClick={() => setSidebarOpen(false)} />
         <div className="fixed inset-y-0 left-0 w-64 bg-white">
-          <SidebarContent 
-            pathname={pathname} 
+          <SidebarContent
+            pathname={pathname}
             equipoActual={equipoActual}
+            user={user}
             onClose={() => setSidebarOpen(false)}
+            onLogout={handleLogout}
           />
         </div>
       </div>
@@ -49,7 +62,12 @@ export default function DashboardLayout({
       {/* Sidebar desktop */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
         <div className="flex min-h-0 flex-1 flex-col border-r border-gray-200 bg-white">
-          <SidebarContent pathname={pathname} equipoActual={equipoActual} />
+          <SidebarContent
+            pathname={pathname}
+            equipoActual={equipoActual}
+            user={user}
+            onLogout={handleLogout}
+          />
         </div>
       </div>
 
@@ -65,6 +83,13 @@ export default function DashboardLayout({
             <Menu className="h-6 w-6" />
           </button>
           <div className="flex-1 text-sm font-semibold">TrainingHub Pro</div>
+          {user && (
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                <User className="h-4 w-4 text-primary" />
+              </div>
+            </div>
+          )}
         </div>
 
         <main className="py-6 px-4 sm:px-6 lg:px-8">
@@ -75,14 +100,18 @@ export default function DashboardLayout({
   )
 }
 
-function SidebarContent({ 
-  pathname, 
+function SidebarContent({
+  pathname,
   equipoActual,
-  onClose 
-}: { 
+  user,
+  onClose,
+  onLogout
+}: {
   pathname: string
   equipoActual: string
-  onClose?: () => void 
+  user: any
+  onClose?: () => void
+  onLogout: () => void
 }) {
   return (
     <div className="flex grow flex-col gap-y-5 overflow-y-auto px-6 pb-4">
@@ -101,13 +130,32 @@ function SidebarContent({
         )}
       </div>
 
+      {/* Usuario info */}
+      {user && (
+        <div className="flex items-center gap-3 px-2 py-3 bg-gray-50 rounded-lg">
+          <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+            <span className="text-primary font-bold text-sm">
+              {user.nombre?.charAt(0)?.toUpperCase() || 'U'}
+            </span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-900 truncate">
+              {user.nombre} {user.apellidos}
+            </p>
+            <p className="text-xs text-gray-500 truncate">
+              {user.organizacion?.nombre || 'Sin organización'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Navegación */}
       <nav className="flex flex-1 flex-col">
         <ul role="list" className="flex flex-1 flex-col gap-y-7">
           <li>
             <ul role="list" className="-mx-2 space-y-1">
               {navigation.map((item) => {
-                const isActive = pathname === item.href || 
+                const isActive = pathname === item.href ||
                   (item.href !== '/' && pathname.startsWith(item.href))
                 return (
                   <li key={item.name}>
@@ -115,8 +163,8 @@ function SidebarContent({
                       href={item.href}
                       className={`
                         group flex gap-x-3 rounded-md p-2 text-sm font-medium
-                        ${isActive 
-                          ? 'bg-gray-100 text-primary' 
+                        ${isActive
+                          ? 'bg-gray-100 text-primary'
                           : 'text-gray-700 hover:bg-gray-50 hover:text-primary'
                         }
                       `}
@@ -146,7 +194,10 @@ function SidebarContent({
 
           {/* Cerrar sesión */}
           <li className="-mx-2">
-            <button className="group flex w-full gap-x-3 rounded-md p-2 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-red-600">
+            <button
+              onClick={onLogout}
+              className="group flex w-full gap-x-3 rounded-md p-2 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-red-600"
+            >
               <LogOut className="h-5 w-5 shrink-0" />
               Cerrar sesión
             </button>
