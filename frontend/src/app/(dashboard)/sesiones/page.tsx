@@ -157,6 +157,13 @@ export default function SesionesPage() {
         </div>
         <div className="flex gap-3">
           <Link
+            href="/sesiones/calendario"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <CalendarIcon className="h-4 w-4" />
+            Calendario
+          </Link>
+          <Link
             href="/sesiones/nueva?mode=assisted"
             className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
           >
