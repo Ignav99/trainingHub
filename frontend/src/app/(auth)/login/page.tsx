@@ -23,7 +23,7 @@ export default function LoginPage() {
     const result = await login(formData.email, formData.password)
 
     if (result.success) {
-      router.push('/')
+      window.location.href = '/'
     } else {
       setError(result.error || 'Credenciales inválidas. Por favor, inténtalo de nuevo.')
     }
