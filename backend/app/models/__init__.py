@@ -63,6 +63,20 @@ from app.models.usuario import (
     RefreshTokenRequest,
 )
 
+from app.models.jugador import (
+    PiernaDominante,
+    EstadoJugador,
+    Posicion,
+    JugadorBase,
+    JugadorCreate,
+    JugadorUpdate,
+    JugadorResponse,
+    JugadorListResponse,
+    JugadorFiltros,
+    PosicionResponse,
+    PosicionListResponse,
+)
+
 __all__ = [
     # Tarea
     "FaseJuego",
@@ -118,4 +132,16 @@ __all__ = [
     "LoginRequest",
     "TokenResponse",
     "RefreshTokenRequest",
+    # Jugador
+    "PiernaDominante",
+    "EstadoJugador",
+    "Posicion",
+    "JugadorBase",
+    "JugadorCreate",
+    "JugadorUpdate",
+    "JugadorResponse",
+    "JugadorListResponse",
+    "JugadorFiltros",
+    "PosicionResponse",
+    "PosicionListResponse",
 ]

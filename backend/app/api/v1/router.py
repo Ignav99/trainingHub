@@ -5,7 +5,7 @@ Agrupa todos los routers de la API v1.
 
 from fastapi import APIRouter
 
-from app.api.v1 import auth, tareas, sesiones, equipos, usuarios, recomendador
+from app.api.v1 import auth, tareas, sesiones, equipos, usuarios, recomendador, jugadores
 
 api_router = APIRouter()
 
@@ -44,6 +44,12 @@ api_router.include_router(
     recomendador.router,
     prefix="/recomendador",
     tags=["Recomendador"]
+)
+
+api_router.include_router(
+    jugadores.router,
+    prefix="/jugadores",
+    tags=["Jugadores"]
 )
 
 
