@@ -30,6 +30,7 @@ interface ListSesionesParams {
   fecha_hasta?: string
   estado?: string
   busqueda?: string
+  [key: string]: string | number | boolean | undefined
 }
 
 export const sesionesApi = {
