@@ -11,50 +11,73 @@ const publicRoutes = ['/login', '/register', '/forgot-password']
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  const { isAuthenticated, refreshUser, isLoading } = useAuthStore()
-  const [checking, setChecking] = useState(true)
+  const { isAuthenticated, setUser } = useAuthStore()
+  const [isReady, setIsReady] = useState(false)
 
   useEffect(() => {
+    let mounted = true
+
     const checkAuth = async () => {
-      // Verificar sesión actual
-      const { data: { session } } = await supabase.auth.getSession()
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
 
-      if (session) {
-        await refreshUser()
+        if (session && mounted) {
+          // Get user data
+          const { data: userData } = await supabase
+            .from('usuarios')
+            .select('*')
+            .eq('id', session.user.id)
+            .single()
+
+          if (userData && mounted) {
+            let organizacion = null
+            if (userData.organizacion_id) {
+              const { data: orgData } = await supabase
+                .from('organizaciones')
+                .select('*')
+                .eq('id', userData.organizacion_id)
+                .single()
+              organizacion = orgData
+            }
+
+            useAuthStore.setState({
+              user: { ...userData, organizacion },
+              accessToken: session.access_token,
+              isAuthenticated: true,
+              isLoading: false,
+            })
+          }
+        }
+      } catch (error) {
+        console.error('Auth check error:', error)
+      } finally {
+        if (mounted) {
+          setIsReady(true)
+        }
       }
-
-      setChecking(false)
     }
 
     checkAuth()
 
-    // Escuchar cambios de autenticación
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_IN' && session) {
-          await refreshUser()
-        } else if (event === 'SIGNED_OUT') {
-          useAuthStore.getState().setUser(null)
-        }
-      }
-    )
-
-    return () => subscription.unsubscribe()
-  }, [refreshUser])
-
-  useEffect(() => {
-    if (checking) return
-
-    const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route))
-
-    if (!isAuthenticated && !isPublicRoute) {
-      router.push('/login')
-    } else if (isAuthenticated && isPublicRoute) {
-      router.push('/')
+    return () => {
+      mounted = false
     }
-  }, [isAuthenticated, pathname, checking, router])
+  }, [])
 
-  if (checking || isLoading) {
+  // Handle redirects only after ready
+  useEffect(() => {
+    if (!isReady) return
+
+    const isPublicRoute = publicRoutes.some((route) => pathname === route || pathname.startsWith(route + '/'))
+
+    if (!isAuthenticated && !isPublicRoute && pathname !== '/') {
+      router.replace('/login')
+    } else if (isAuthenticated && isPublicRoute) {
+      router.replace('/')
+    }
+  }, [isAuthenticated, pathname, isReady, router])
+
+  if (!isReady) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
