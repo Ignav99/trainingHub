@@ -1,17 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/authStore'
 import { Loader2 } from 'lucide-react'
 
-const publicRoutes = ['/login', '/register', '/forgot-password']
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const { isAuthenticated, setUser } = useAuthStore()
   const [isReady, setIsReady] = useState(false)
 
   useEffect(() => {
@@ -22,7 +16,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data: { session } } = await supabase.auth.getSession()
 
         if (session && mounted) {
-          // Get user data
           const { data: userData } = await supabase
             .from('usuarios')
             .select('*')
@@ -63,19 +56,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mounted = false
     }
   }, [])
-
-  // Handle redirects only after ready
-  useEffect(() => {
-    if (!isReady) return
-
-    const isPublicRoute = publicRoutes.some((route) => pathname === route || pathname.startsWith(route + '/'))
-
-    if (!isAuthenticated && !isPublicRoute && pathname !== '/') {
-      router.replace('/login')
-    } else if (isAuthenticated && isPublicRoute) {
-      router.replace('/')
-    }
-  }, [isAuthenticated, pathname, isReady, router])
 
   if (!isReady) {
     return (
