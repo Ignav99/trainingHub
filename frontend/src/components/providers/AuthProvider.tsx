@@ -1,60 +1,38 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/authStore'
 import { Loader2 } from 'lucide-react'
+
+// MODO DEMO - Usuario de prueba
+const DEMO_USER = {
+  id: 'demo-user-id',
+  email: 'demo@traininghub.com',
+  nombre: 'Usuario',
+  apellidos: 'Demo',
+  rol: 'admin',
+  organizacion_id: 'demo-org-id',
+  organizacion: {
+    id: 'demo-org-id',
+    nombre: 'Club Demo FC',
+  },
+  activo: true,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isReady, setIsReady] = useState(false)
 
   useEffect(() => {
-    let mounted = true
-
-    const checkAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-
-        if (session && mounted) {
-          const { data: userData } = await supabase
-            .from('usuarios')
-            .select('*')
-            .eq('id', session.user.id)
-            .single()
-
-          if (userData && mounted) {
-            let organizacion = null
-            if (userData.organizacion_id) {
-              const { data: orgData } = await supabase
-                .from('organizaciones')
-                .select('*')
-                .eq('id', userData.organizacion_id)
-                .single()
-              organizacion = orgData
-            }
-
-            useAuthStore.setState({
-              user: { ...userData, organizacion },
-              accessToken: session.access_token,
-              isAuthenticated: true,
-              isLoading: false,
-            })
-          }
-        }
-      } catch (error) {
-        console.error('Auth check error:', error)
-      } finally {
-        if (mounted) {
-          setIsReady(true)
-        }
-      }
-    }
-
-    checkAuth()
-
-    return () => {
-      mounted = false
-    }
+    // Modo demo: establecer usuario de prueba inmediatamente
+    useAuthStore.setState({
+      user: DEMO_USER as any,
+      accessToken: 'demo-token',
+      isAuthenticated: true,
+      isLoading: false,
+    })
+    setIsReady(true)
   }, [])
 
   if (!isReady) {
