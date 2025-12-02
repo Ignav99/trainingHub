@@ -49,6 +49,7 @@ interface ListTareasParams {
   solo_plantillas?: boolean
   equipo_id?: string
   busqueda?: string
+  [key: string]: string | number | boolean | undefined
 }
 
 export const tareasApi = {
