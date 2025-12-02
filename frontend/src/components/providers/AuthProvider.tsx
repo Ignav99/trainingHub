@@ -1,60 +1,41 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
-import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/authStore'
 import { Loader2 } from 'lucide-react'
 
-const publicRoutes = ['/login', '/register', '/forgot-password']
+// MODO DEMO - Usuario de prueba
+const DEMO_USER = {
+  id: 'demo-user-id',
+  email: 'demo@traininghub.com',
+  nombre: 'Usuario',
+  apellidos: 'Demo',
+  rol: 'admin',
+  organizacion_id: 'demo-org-id',
+  organizacion: {
+    id: 'demo-org-id',
+    nombre: 'Club Demo FC',
+  },
+  activo: true,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const { isAuthenticated, refreshUser, isLoading } = useAuthStore()
-  const [checking, setChecking] = useState(true)
+  const [isReady, setIsReady] = useState(false)
 
   useEffect(() => {
-    const checkAuth = async () => {
-      // Verificar sesión actual
-      const { data: { session } } = await supabase.auth.getSession()
+    // Modo demo: establecer usuario de prueba inmediatamente
+    useAuthStore.setState({
+      user: DEMO_USER as any,
+      accessToken: 'demo-token',
+      isAuthenticated: true,
+      isLoading: false,
+    })
+    setIsReady(true)
+  }, [])
 
-      if (session) {
-        await refreshUser()
-      }
-
-      setChecking(false)
-    }
-
-    checkAuth()
-
-    // Escuchar cambios de autenticación
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_IN' && session) {
-          await refreshUser()
-        } else if (event === 'SIGNED_OUT') {
-          useAuthStore.getState().setUser(null)
-        }
-      }
-    )
-
-    return () => subscription.unsubscribe()
-  }, [refreshUser])
-
-  useEffect(() => {
-    if (checking) return
-
-    const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route))
-
-    if (!isAuthenticated && !isPublicRoute) {
-      router.push('/login')
-    } else if (isAuthenticated && isPublicRoute) {
-      router.push('/')
-    }
-  }, [isAuthenticated, pathname, checking, router])
-
-  if (checking || isLoading) {
+  if (!isReady) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
