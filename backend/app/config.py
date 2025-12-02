@@ -4,23 +4,38 @@ TrainingHub Pro - Configuración del Backend
 
 from functools import lru_cache
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 from typing import List
 
 
 class Settings(BaseSettings):
     """Configuración de la aplicación."""
-    
+
     # App
     APP_NAME: str = "TrainingHub Pro API"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
-    
+
     # Server
     HOST: str = "0.0.0.0"
     PORT: int = 8000
-    
-    # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:3000"]
+
+    # CORS - accepts "*" or comma-separated URLs
+    CORS_ORIGINS: str = "http://localhost:3000"
+
+    @field_validator('CORS_ORIGINS', mode='before')
+    @classmethod
+    def parse_cors_origins(cls, v):
+        if isinstance(v, list):
+            return ','.join(v)
+        return v
+
+    @property
+    def cors_origins_list(self) -> List[str]:
+        """Returns CORS origins as a list."""
+        if self.CORS_ORIGINS == "*":
+            return ["*"]
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(',')]
     
     # Supabase
     SUPABASE_URL: str
