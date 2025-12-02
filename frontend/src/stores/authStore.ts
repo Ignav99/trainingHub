@@ -56,7 +56,7 @@ export const useAuthStore = create<AuthState>()(
           // Obtener datos del usuario de nuestra tabla
           const { data: userData, error: userError } = await supabase
             .from('usuarios')
-            .select('*, organizaciones(*)')
+            .select('*')
             .eq('id', data.user.id)
             .single()
 
@@ -67,9 +67,20 @@ export const useAuthStore = create<AuthState>()(
             return { success: false, error: 'Usuario no encontrado en el sistema' }
           }
 
+          // Obtener organización si existe
+          let organizacion = null
+          if (userData.organizacion_id) {
+            const { data: orgData } = await supabase
+              .from('organizaciones')
+              .select('*')
+              .eq('id', userData.organizacion_id)
+              .single()
+            organizacion = orgData
+          }
+
           const user: Usuario = {
             ...userData,
-            organizacion: userData.organizaciones,
+            organizacion,
           }
 
           set({
@@ -107,6 +118,7 @@ export const useAuthStore = create<AuthState>()(
           }
 
           // Crear organización si se proporciona nombre
+          let organizacion = null
           let organizacionId: string | null = null
           if (data.organizacion_nombre) {
             const { data: orgData, error: orgError } = await supabase
@@ -119,6 +131,7 @@ export const useAuthStore = create<AuthState>()(
               set({ isLoading: false })
               return { success: false, error: 'Error al crear organización' }
             }
+            organizacion = orgData
             organizacionId = orgData.id
           }
 
@@ -133,7 +146,7 @@ export const useAuthStore = create<AuthState>()(
               rol: organizacionId ? 'admin' : 'tecnico_asistente',
               organizacion_id: organizacionId,
             })
-            .select('*, organizaciones(*)')
+            .select('*')
             .single()
 
           if (userError) {
@@ -143,7 +156,7 @@ export const useAuthStore = create<AuthState>()(
 
           const user: Usuario = {
             ...userData,
-            organizacion: userData.organizaciones,
+            organizacion,
           }
 
           set({
@@ -179,13 +192,24 @@ export const useAuthStore = create<AuthState>()(
 
         const { data: userData } = await supabase
           .from('usuarios')
-          .select('*, organizaciones(*)')
+          .select('*')
           .eq('id', session.user.id)
           .single()
 
         if (userData) {
+          // Obtener organización si existe
+          let organizacion = null
+          if (userData.organizacion_id) {
+            const { data: orgData } = await supabase
+              .from('organizaciones')
+              .select('*')
+              .eq('id', userData.organizacion_id)
+              .single()
+            organizacion = orgData
+          }
+
           set({
-            user: { ...userData, organizacion: userData.organizaciones },
+            user: { ...userData, organizacion },
             accessToken: session.access_token,
             isAuthenticated: true,
           })
