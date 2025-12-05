@@ -88,6 +88,26 @@ class ApiClient {
     return response.json()
   }
 
+  async patch<T>(path: string, data?: unknown, options?: FetchOptions): Promise<T> {
+    const url = this.buildUrl(path, options?.params)
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...this.getAuthHeaders(),
+        ...options?.headers,
+      },
+      body: data ? JSON.stringify(data) : undefined,
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.detail || `API Error: ${response.status}`)
+    }
+
+    return response.json()
+  }
+
   async delete(path: string, options?: FetchOptions): Promise<void> {
     const url = this.buildUrl(path, options?.params)
     const response = await fetch(url, {

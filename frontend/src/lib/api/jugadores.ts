@@ -119,7 +119,7 @@ export const jugadoresApi = {
     const params: Record<string, string> = { estado }
     if (motivo) params.motivo = motivo
     if (fechaVuelta) params.fecha_vuelta = fechaVuelta
-    return api.patch(`/jugadores/${id}/estado`, { params })
+    return api.patch<{ message: string; jugador: Jugador }>(`/jugadores/${id}/estado`, undefined, { params })
   },
 
   async getEstadisticas(equipoId: string): Promise<EstadisticasEquipo> {
