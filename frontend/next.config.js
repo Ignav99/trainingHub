@@ -3,7 +3,6 @@ const nextConfig = {
   reactStrictMode: true,
   // Optimizaciones para reducir uso de memoria en build
   swcMinify: true,
-  output: 'standalone',
 
   images: {
     remotePatterns: [
