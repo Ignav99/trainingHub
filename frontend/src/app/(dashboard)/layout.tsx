@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
@@ -14,9 +14,11 @@ import {
   Menu,
   X,
   User,
-  Users
+  Users,
+  Check
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
+import { useEquipoStore } from '@/stores/equipoStore'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -35,15 +37,18 @@ export default function DashboardLayout({
   const pathname = usePathname()
   const router = useRouter()
   const { user, logout } = useAuthStore()
+  const { equipos, equipoActivo, loadEquipos, setEquipoActivo } = useEquipoStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Cargar equipos al montar
+  useEffect(() => {
+    loadEquipos()
+  }, [loadEquipos])
 
   const handleLogout = async () => {
     await logout()
     router.push('/login')
   }
-
-  const equipoActual = 'Juvenil A' // TODO: Obtener de contexto/store
-  const orgName = user?.organizacion?.nombre || 'Mi Organización'
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -53,7 +58,9 @@ export default function DashboardLayout({
         <div className="fixed inset-y-0 left-0 w-64 bg-white">
           <SidebarContent
             pathname={pathname}
-            equipoActual={equipoActual}
+            equipos={equipos}
+            equipoActivo={equipoActivo}
+            onSelectEquipo={setEquipoActivo}
             user={user}
             onClose={() => setSidebarOpen(false)}
             onLogout={handleLogout}
@@ -66,7 +73,9 @@ export default function DashboardLayout({
         <div className="flex min-h-0 flex-1 flex-col border-r border-gray-200 bg-white">
           <SidebarContent
             pathname={pathname}
-            equipoActual={equipoActual}
+            equipos={equipos}
+            equipoActivo={equipoActivo}
+            onSelectEquipo={setEquipoActivo}
             user={user}
             onLogout={handleLogout}
           />
@@ -104,17 +113,39 @@ export default function DashboardLayout({
 
 function SidebarContent({
   pathname,
-  equipoActual,
+  equipos,
+  equipoActivo,
+  onSelectEquipo,
   user,
   onClose,
   onLogout
 }: {
   pathname: string
-  equipoActual: string
+  equipos: any[]
+  equipoActivo: any | null
+  onSelectEquipo: (equipo: any) => void
   user: any
   onClose?: () => void
   onLogout: () => void
 }) {
+  const [equipoDropdownOpen, setEquipoDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Cerrar dropdown al hacer click fuera
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setEquipoDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const getEquipoInitials = (nombre: string) => {
+    return nombre.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+  }
+
   return (
     <div className="flex grow flex-col gap-y-5 overflow-y-auto px-6 pb-4">
       {/* Logo */}
@@ -181,17 +212,61 @@ function SidebarContent({
           </li>
 
           {/* Selector de equipo */}
-          <li className="mt-auto">
+          <li className="mt-auto" ref={dropdownRef}>
             <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
               Equipo actual
             </div>
-            <button className="flex w-full items-center gap-x-2 rounded-md bg-gray-100 p-2 text-sm font-medium text-gray-900 hover:bg-gray-200">
-              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                <span className="text-primary text-xs font-bold">JA</span>
-              </div>
-              <span className="flex-1 text-left">{equipoActual}</span>
-              <ChevronDown className="h-4 w-4 text-gray-500" />
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setEquipoDropdownOpen(!equipoDropdownOpen)}
+                className="flex w-full items-center gap-x-2 rounded-md bg-gray-100 p-2 text-sm font-medium text-gray-900 hover:bg-gray-200"
+              >
+                <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                  <span className="text-primary text-xs font-bold">
+                    {equipoActivo ? getEquipoInitials(equipoActivo.nombre) : '??'}
+                  </span>
+                </div>
+                <span className="flex-1 text-left truncate">
+                  {equipoActivo?.nombre || 'Seleccionar equipo'}
+                </span>
+                <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${equipoDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Dropdown */}
+              {equipoDropdownOpen && (
+                <div className="absolute bottom-full left-0 right-0 mb-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                  {equipos.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-gray-500">
+                      No hay equipos disponibles
+                    </div>
+                  ) : (
+                    <ul className="py-1 max-h-48 overflow-y-auto">
+                      {equipos.map((equipo) => (
+                        <li key={equipo.id}>
+                          <button
+                            onClick={() => {
+                              onSelectEquipo(equipo)
+                              setEquipoDropdownOpen(false)
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <div className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center">
+                              <span className="text-primary text-xs font-bold">
+                                {getEquipoInitials(equipo.nombre)}
+                              </span>
+                            </div>
+                            <span className="flex-1 text-left truncate">{equipo.nombre}</span>
+                            {equipoActivo?.id === equipo.id && (
+                              <Check className="h-4 w-4 text-primary" />
+                            )}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
           </li>
 
           {/* Cerrar sesión */}

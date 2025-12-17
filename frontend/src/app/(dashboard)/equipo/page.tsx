@@ -1,130 +1,67 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Plus,
   Search,
-  Filter,
   User,
   Edit,
   Trash2,
   Activity,
   AlertCircle,
-  ChevronDown,
-  X
+  X,
+  Loader2,
+  RefreshCw
 } from 'lucide-react'
-import { jugadoresApi, Jugador, JugadorCreate, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
-
-// Datos demo mientras no haya conexión real
-const DEMO_JUGADORES: Jugador[] = [
-  {
-    id: '1',
-    equipo_id: 'demo-team',
-    nombre: 'Marc',
-    apellidos: 'García López',
-    fecha_nacimiento: '2005-03-15',
-    dorsal: 1,
-    posicion_principal: 'POR',
-    posiciones_secundarias: [],
-    pierna_dominante: 'derecha',
-    nivel_tecnico: 7,
-    nivel_tactico: 6,
-    nivel_fisico: 8,
-    nivel_mental: 7,
-    estado: 'activo',
-    es_capitan: false,
-    es_convocable: true,
-    es_portero: true,
-    created_at: '',
-    updated_at: '',
-    edad: 19,
-    nivel_global: 7.0,
-  },
-  {
-    id: '2',
-    equipo_id: 'demo-team',
-    nombre: 'Pablo',
-    apellidos: 'Martínez Ruiz',
-    fecha_nacimiento: '2004-07-22',
-    dorsal: 4,
-    posicion_principal: 'DFC',
-    posiciones_secundarias: ['MCD'],
-    pierna_dominante: 'derecha',
-    nivel_tecnico: 6,
-    nivel_tactico: 8,
-    nivel_fisico: 7,
-    nivel_mental: 8,
-    estado: 'activo',
-    es_capitan: true,
-    es_convocable: true,
-    es_portero: false,
-    created_at: '',
-    updated_at: '',
-    edad: 20,
-    nivel_global: 7.3,
-  },
-  {
-    id: '3',
-    equipo_id: 'demo-team',
-    nombre: 'Alejandro',
-    apellidos: 'Fernández Gil',
-    fecha_nacimiento: '2005-11-08',
-    dorsal: 10,
-    posicion_principal: 'MCO',
-    posiciones_secundarias: ['MP', 'EXD'],
-    pierna_dominante: 'izquierda',
-    nivel_tecnico: 9,
-    nivel_tactico: 7,
-    nivel_fisico: 6,
-    nivel_mental: 7,
-    estado: 'activo',
-    es_capitan: false,
-    es_convocable: true,
-    es_portero: false,
-    created_at: '',
-    updated_at: '',
-    edad: 19,
-    nivel_global: 7.3,
-  },
-  {
-    id: '4',
-    equipo_id: 'demo-team',
-    nombre: 'Carlos',
-    apellidos: 'Sánchez Mora',
-    fecha_nacimiento: '2004-02-14',
-    dorsal: 9,
-    posicion_principal: 'DC',
-    posiciones_secundarias: ['SD'],
-    pierna_dominante: 'derecha',
-    nivel_tecnico: 8,
-    nivel_tactico: 6,
-    nivel_fisico: 8,
-    nivel_mental: 6,
-    estado: 'lesionado',
-    fecha_lesion: '2024-11-20',
-    fecha_vuelta_estimada: '2024-12-15',
-    motivo_baja: 'Esguince de tobillo',
-    es_capitan: false,
-    es_convocable: true,
-    es_portero: false,
-    created_at: '',
-    updated_at: '',
-    edad: 20,
-    nivel_global: 7.0,
-  },
-]
+import { jugadoresApi, Jugador, JugadorCreate, JugadorUpdate, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
+import { useEquipoStore } from '@/stores/equipoStore'
 
 export default function EquipoPage() {
-  const [jugadores, setJugadores] = useState<Jugador[]>(DEMO_JUGADORES)
-  const [filteredJugadores, setFilteredJugadores] = useState<Jugador[]>(DEMO_JUGADORES)
-  const [isLoading, setIsLoading] = useState(false)
+  const { equipoActivo, loadEquipos, isLoading: loadingEquipos } = useEquipoStore()
+
+  const [jugadores, setJugadores] = useState<Jugador[]>([])
+  const [filteredJugadores, setFilteredJugadores] = useState<Jugador[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterPosicion, setFilterPosicion] = useState<string>('')
   const [filterEstado, setFilterEstado] = useState<string>('')
   const [showModal, setShowModal] = useState(false)
   const [editingJugador, setEditingJugador] = useState<Jugador | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
 
-  // Filtrar jugadores
+  // Cargar equipos al montar
+  useEffect(() => {
+    loadEquipos()
+  }, [loadEquipos])
+
+  // Cargar jugadores cuando hay equipo activo
+  const loadJugadores = useCallback(async () => {
+    if (!equipoActivo) {
+      setJugadores([])
+      setIsLoading(false)
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const response = await jugadoresApi.list({ equipo_id: equipoActivo.id })
+      setJugadores(response.data || [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al cargar jugadores')
+      setJugadores([])
+    } finally {
+      setIsLoading(false)
+    }
+  }, [equipoActivo])
+
+  useEffect(() => {
+    loadJugadores()
+  }, [loadJugadores])
+
+  // Filtrar jugadores localmente
   useEffect(() => {
     let filtered = [...jugadores]
 
@@ -159,39 +96,33 @@ export default function EquipoPage() {
 
   const handleDeleteJugador = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar este jugador?')) return
-    setJugadores(prev => prev.filter(j => j.id !== id))
+
+    try {
+      await jugadoresApi.delete(id)
+      setJugadores(prev => prev.filter(j => j.id !== id))
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al eliminar jugador')
+    }
   }
 
-  const handleSaveJugador = (data: JugadorCreate) => {
-    if (editingJugador) {
-      // Editar
-      setJugadores(prev => prev.map(j =>
-        j.id === editingJugador.id
-          ? { ...j, ...data, updated_at: new Date().toISOString() }
-          : j
-      ))
-    } else {
-      // Crear
-      const newJugador: Jugador = {
-        ...data,
-        id: Math.random().toString(36).substr(2, 9),
-        posiciones_secundarias: data.posiciones_secundarias || [],
-        pierna_dominante: data.pierna_dominante || 'derecha',
-        nivel_tecnico: data.nivel_tecnico || 5,
-        nivel_tactico: data.nivel_tactico || 5,
-        nivel_fisico: data.nivel_fisico || 5,
-        nivel_mental: data.nivel_mental || 5,
-        estado: data.estado || 'activo',
-        es_capitan: data.es_capitan || false,
-        es_convocable: data.es_convocable !== false,
-        es_portero: data.posicion_principal === 'POR',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        nivel_global: ((data.nivel_tecnico || 5) + (data.nivel_tactico || 5) + (data.nivel_fisico || 5) + (data.nivel_mental || 5)) / 4,
+  const handleSaveJugador = async (data: JugadorCreate) => {
+    if (!equipoActivo) return
+
+    setIsSaving(true)
+    try {
+      if (editingJugador) {
+        const updated = await jugadoresApi.update(editingJugador.id, data as JugadorUpdate)
+        setJugadores(prev => prev.map(j => j.id === editingJugador.id ? updated : j))
+      } else {
+        const created = await jugadoresApi.create({ ...data, equipo_id: equipoActivo.id })
+        setJugadores(prev => [...prev, created])
       }
-      setJugadores(prev => [...prev, newJugador])
+      setShowModal(false)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al guardar jugador')
+    } finally {
+      setIsSaving(false)
     }
-    setShowModal(false)
   }
 
   // Estadísticas
@@ -202,21 +133,52 @@ export default function EquipoPage() {
     porteros: jugadores.filter(j => j.es_portero).length,
   }
 
+  // Estado sin equipo
+  if (!loadingEquipos && !equipoActivo) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+        <User className="h-16 w-16 text-gray-300 mb-4" />
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">No hay equipo seleccionado</h2>
+        <p className="text-gray-500 mb-4">
+          Necesitas tener un equipo para gestionar la plantilla de jugadores.
+        </p>
+        <button
+          onClick={() => loadEquipos()}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Recargar equipos
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Gestión de Equipo</h1>
-          <p className="text-gray-500">Administra la plantilla y fichas de jugadores</p>
+          <p className="text-gray-500">
+            {equipoActivo ? `${equipoActivo.nombre} - ${equipoActivo.categoria || 'Sin categoría'}` : 'Administra la plantilla y fichas de jugadores'}
+          </p>
         </div>
-        <button
-          onClick={handleAddJugador}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          Añadir Jugador
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={loadJugadores}
+            className="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            onClick={handleAddJugador}
+            disabled={!equipoActivo}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Plus className="h-4 w-4" />
+            Añadir Jugador
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -303,127 +265,154 @@ export default function EquipoPage() {
         </div>
       </div>
 
-      {/* Lista de jugadores */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Jugador
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Posición
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Edad
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Nivel
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Estado
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Acciones
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filteredJugadores.map((jugador) => {
-                const posicion = POSICIONES[jugador.posicion_principal as keyof typeof POSICIONES]
-                const estado = ESTADOS_JUGADOR[jugador.estado as keyof typeof ESTADOS_JUGADOR]
+      {/* Error */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
+          <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+          <p className="text-red-700">{error}</p>
+          <button
+            onClick={loadJugadores}
+            className="ml-auto text-sm text-red-600 hover:text-red-800 underline"
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
 
-                return (
-                  <tr key={jugador.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
+      {/* Loading */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 text-primary animate-spin" />
+        </div>
+      )}
+
+      {/* Lista de jugadores */}
+      {!isLoading && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Jugador
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Posición
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Edad
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Nivel
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Estado
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {filteredJugadores.map((jugador) => {
+                  const posicion = POSICIONES[jugador.posicion_principal as keyof typeof POSICIONES]
+                  const estado = ESTADOS_JUGADOR[jugador.estado as keyof typeof ESTADOS_JUGADOR]
+
+                  return (
+                    <tr key={jugador.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
+                            style={{ backgroundColor: posicion?.color || '#6B7280' }}
+                          >
+                            {jugador.dorsal || '?'}
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              {jugador.nombre} {jugador.apellidos}
+                              {jugador.es_capitan && (
+                                <span className="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
+                                  C
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              {jugador.pierna_dominante === 'izquierda' ? 'Zurdo' :
+                               jugador.pierna_dominante === 'ambas' ? 'Ambidiestro' : 'Diestro'}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span
+                          className="inline-flex items-center px-2.5 py-1 rounded text-xs font-medium text-white"
                           style={{ backgroundColor: posicion?.color || '#6B7280' }}
                         >
-                          {jugador.dorsal || '?'}
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            {jugador.nombre} {jugador.apellidos}
-                            {jugador.es_capitan && (
-                              <span className="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
-                                C
-                              </span>
-                            )}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            {jugador.pierna_dominante === 'izquierda' ? 'Zurdo' :
-                             jugador.pierna_dominante === 'ambas' ? 'Ambidiestro' : 'Diestro'}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span
-                        className="inline-flex items-center px-2.5 py-1 rounded text-xs font-medium text-white"
-                        style={{ backgroundColor: posicion?.color || '#6B7280' }}
-                      >
-                        {jugador.posicion_principal}
-                      </span>
-                      {jugador.posiciones_secundarias.length > 0 && (
-                        <span className="ml-2 text-xs text-gray-500">
-                          +{jugador.posiciones_secundarias.length}
+                          {jugador.posicion_principal}
                         </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 text-center text-sm text-gray-900">
-                      {jugador.edad || '-'}
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <span className={`
-                        inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold
-                        ${(jugador.nivel_global || 5) >= 7 ? 'bg-green-100 text-green-700' :
-                          (jugador.nivel_global || 5) >= 5 ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-red-100 text-red-700'}
-                      `}>
-                        {jugador.nivel_global?.toFixed(1) || '5.0'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <span
-                        className="inline-flex items-center px-2.5 py-1 rounded text-xs font-medium text-white"
-                        style={{ backgroundColor: estado?.color || '#6B7280' }}
-                      >
-                        {estado?.nombre || jugador.estado}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleEditJugador(jugador)}
-                          className="p-1.5 text-gray-500 hover:text-primary hover:bg-gray-100 rounded"
+                        {jugador.posiciones_secundarias && jugador.posiciones_secundarias.length > 0 && (
+                          <span className="ml-2 text-xs text-gray-500">
+                            +{jugador.posiciones_secundarias.length}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-center text-sm text-gray-900">
+                        {jugador.edad || '-'}
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <span className={`
+                          inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold
+                          ${(jugador.nivel_global || 5) >= 7 ? 'bg-green-100 text-green-700' :
+                            (jugador.nivel_global || 5) >= 5 ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-red-100 text-red-700'}
+                        `}>
+                          {jugador.nivel_global?.toFixed(1) || '5.0'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <span
+                          className="inline-flex items-center px-2.5 py-1 rounded text-xs font-medium text-white"
+                          style={{ backgroundColor: estado?.color || '#6B7280' }}
                         >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteJugador(jugador.id)}
-                          className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-gray-100 rounded"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {filteredJugadores.length === 0 && (
-          <div className="text-center py-12">
-            <User className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">No se encontraron jugadores</p>
+                          {estado?.nombre || jugador.estado}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleEditJugador(jugador)}
+                            className="p-1.5 text-gray-500 hover:text-primary hover:bg-gray-100 rounded"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteJugador(jugador.id)}
+                            className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-gray-100 rounded"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+
+          {filteredJugadores.length === 0 && !isLoading && (
+            <div className="text-center py-12">
+              <User className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500">
+                {jugadores.length === 0
+                  ? 'No hay jugadores en la plantilla. ¡Añade el primero!'
+                  : 'No se encontraron jugadores con los filtros aplicados'}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Modal */}
       {showModal && (
@@ -431,6 +420,7 @@ export default function EquipoPage() {
           jugador={editingJugador}
           onClose={() => setShowModal(false)}
           onSave={handleSaveJugador}
+          isSaving={isSaving}
         />
       )}
     </div>
@@ -442,13 +432,15 @@ function JugadorModal({
   jugador,
   onClose,
   onSave,
+  isSaving,
 }: {
   jugador: Jugador | null
   onClose: () => void
   onSave: (data: JugadorCreate) => void
+  isSaving: boolean
 }) {
   const [formData, setFormData] = useState<JugadorCreate>({
-    equipo_id: jugador?.equipo_id || 'demo-team',
+    equipo_id: jugador?.equipo_id || '',
     nombre: jugador?.nombre || '',
     apellidos: jugador?.apellidos || '',
     fecha_nacimiento: jugador?.fecha_nacimiento || '',
@@ -556,7 +548,7 @@ function JugadorModal({
                   <label className="block text-sm text-gray-600 mb-1">Pierna Dominante</label>
                   <select
                     value={formData.pierna_dominante}
-                    onChange={(e) => setFormData({ ...formData, pierna_dominante: e.target.value as any })}
+                    onChange={(e) => setFormData({ ...formData, pierna_dominante: e.target.value as 'derecha' | 'izquierda' | 'ambas' })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                   >
                     <option value="derecha">Diestro</option>
@@ -663,14 +655,17 @@ function JugadorModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                disabled={isSaving}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+                disabled={isSaving}
+                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 inline-flex items-center gap-2"
               >
+                {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
                 {jugador ? 'Guardar Cambios' : 'Crear Jugador'}
               </button>
             </div>
