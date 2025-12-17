@@ -129,7 +129,7 @@ function SidebarContent({
   onLogout: () => void
 }) {
   const [equipoDropdownOpen, setEquipoDropdownOpen] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLLIElement>(null)
 
   // Cerrar dropdown al hacer click fuera
   useEffect(() => {
