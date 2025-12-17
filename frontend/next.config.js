@@ -10,10 +10,17 @@ const nextConfig = {
     ],
   },
   async rewrites() {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+    // Solo configurar rewrites si hay una URL de API definida
+    if (!apiUrl) {
+      return [];
+    }
+
     return [
       {
         source: '/api/v1/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL}/v1/:path*`,
+        destination: `${apiUrl}/v1/:path*`,
       },
     ];
   },
