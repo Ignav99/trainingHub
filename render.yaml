@@ -10,8 +10,10 @@ services:
     plan: free
     rootDir: frontend
     buildCommand: npm install && npm run build
-    startCommand: npm run start
+    startCommand: npm start -- -p $PORT
     envVars:
+      - key: NODE_VERSION
+        value: "20"
       - key: NODE_ENV
         value: production
       - key: NEXT_PUBLIC_API_URL
@@ -31,6 +33,8 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.0"
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_ANON_KEY
