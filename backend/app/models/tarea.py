@@ -16,6 +16,8 @@ class FaseJuego(str, Enum):
     DEFENSA_ORGANIZADA = "defensa_organizada"
     TRANSICION_AD = "transicion_ataque_defensa"
     TRANSICION_DA = "transicion_defensa_ataque"
+    BALON_PARADO_OFENSIVO = "balon_parado_ofensivo"
+    BALON_PARADO_DEFENSIVO = "balon_parado_defensivo"
 
 
 class Densidad(str, Enum):
@@ -114,8 +116,8 @@ class TareaBase(BaseModel):
     tipo_esfuerzo: Optional[str] = None
     ratio_trabajo_descanso: Optional[str] = None
     densidad: Optional[Densidad] = None
-    fc_esperada_min: Optional[int] = Field(None, ge=0, le=100)
-    fc_esperada_max: Optional[int] = Field(None, ge=0, le=100)
+    fc_esperada_min: Optional[int] = Field(None, ge=0, le=220)
+    fc_esperada_max: Optional[int] = Field(None, ge=0, le=220)
     
     # Carga cognitiva
     nivel_cognitivo: Optional[NivelCognitivo] = None
@@ -201,7 +203,7 @@ class TareaResponse(TareaBase):
     categoria_id: UUID
     organizacion_id: UUID
     equipo_id: Optional[UUID]
-    creado_por: UUID
+    creado_por: Optional[UUID] = None
     
     grafico_url: Optional[str] = None
     
