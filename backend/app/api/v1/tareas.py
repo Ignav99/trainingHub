@@ -18,7 +18,7 @@ from app.models import (
     NivelCognitivo,
 )
 from app.database import get_supabase
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_optional_user
 
 router = APIRouter()
 
@@ -43,12 +43,15 @@ async def list_tareas(
     # Ordenación
     orden: str = Query("created_at", pattern="^(created_at|titulo|duracion_total|num_usos)$"),
     direccion: str = Query("desc", pattern="^(asc|desc)$"),
-    # Auth
-    current_user = Depends(get_current_user),
+    # Auth (opcional - si no hay auth, devuelve solo tareas públicas)
+    current_user = Depends(get_optional_user),
 ):
     """
     Lista tareas con filtros y paginación.
-    
+
+    - Sin autenticación: devuelve solo tareas públicas
+    - Con autenticación: devuelve tareas de la organización del usuario
+
     - **categoria**: Código de categoría (RND, JDP, etc.)
     - **fase_juego**: Fase táctica
     - **jugadores_min/max**: Rango de jugadores
@@ -57,15 +60,20 @@ async def list_tareas(
     - **busqueda**: Búsqueda en título y descripción
     """
     supabase = get_supabase()
-    
+
     # Construir query base
     query = supabase.table("tareas").select(
         "*, categorias_tarea(*)",
         count="exact"
     )
-    
-    # Filtrar por organización del usuario
-    query = query.eq("organizacion_id", current_user.organizacion_id)
+
+    # Filtrar según autenticación
+    if current_user:
+        # Usuario autenticado: tareas de su organización
+        query = query.eq("organizacion_id", current_user.organizacion_id)
+    else:
+        # Sin autenticación: solo tareas públicas
+        query = query.eq("es_publica", True)
     
     # Aplicar filtros
     if categoria:
