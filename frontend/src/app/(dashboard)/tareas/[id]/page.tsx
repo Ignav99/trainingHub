@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import { tareasApi } from '@/lib/api/tareas'
 import { Tarea } from '@/types'
+import { TareaGraphicEditor } from '@/components/tarea-editor'
 
 // Helpers para formatear valores
 const formatFaseJuego = (fase?: string) => {
@@ -234,6 +235,17 @@ export default function TareaDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column - Main info */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Diagram */}
+          {tarea.grafico_data && (tarea.grafico_data as any).elements?.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Grafico de la tarea</h2>
+              <TareaGraphicEditor
+                value={tarea.grafico_data as any}
+                readOnly={true}
+              />
+            </div>
+          )}
+
           {/* Description */}
           {tarea.descripcion && (
             <div className="bg-white rounded-xl border border-gray-200 p-6">

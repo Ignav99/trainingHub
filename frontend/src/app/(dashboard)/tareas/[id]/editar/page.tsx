@@ -12,10 +12,12 @@ import {
   Maximize2,
   Target,
   Brain,
-  MessageCircle
+  MessageCircle,
+  PenTool
 } from 'lucide-react'
 import { tareasApi, catalogosApi, TareaUpdateData } from '@/lib/api/tareas'
 import { Tarea } from '@/types'
+import { TareaGraphicEditor, DiagramData, emptyDiagramData } from '@/components/tarea-editor'
 
 const FASES_JUEGO = [
   { value: 'ataque_organizado', label: 'Ataque Organizado' },
@@ -41,7 +43,10 @@ export default function EditarTareaPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [step, setStep] = useState(1)
-  const totalSteps = 4
+  const totalSteps = 5
+
+  // Grafico de la tarea
+  const [graficoData, setGraficoData] = useState<DiagramData>(emptyDiagramData)
 
   // Catalogos
   const [categorias, setCategorias] = useState<Array<{ codigo: string; nombre: string; color: string }>>([])
@@ -141,6 +146,11 @@ export default function EditarTareaPage() {
         es_plantilla: tarea.es_plantilla,
         tags: tarea.tags || [],
       })
+
+      // Cargar grafico si existe
+      if (tarea.grafico_data) {
+        setGraficoData(tarea.grafico_data)
+      }
     } catch (err: any) {
       setError(err.message || 'Error al cargar la tarea')
     } finally {
@@ -162,7 +172,14 @@ export default function EditarTareaPage() {
     setError(null)
 
     try {
-      await tareasApi.update(tareaId, formData)
+      // Incluir grafico_data en la actualizacion
+      const dataToUpdate = {
+        ...formData,
+        grafico_data: graficoData.elements.length > 0 || graficoData.arrows.length > 0
+          ? graficoData
+          : undefined,
+      }
+      await tareasApi.update(tareaId, dataToUpdate as any)
       router.push(`/tareas/${tareaId}`)
     } catch (err: any) {
       setError(err.message || 'Error al guardar la tarea')
@@ -193,6 +210,8 @@ export default function EditarTareaPage() {
         return true
       case 4:
         return true
+      case 5:
+        return true // El grafico es opcional
       default:
         return false
     }
@@ -691,6 +710,25 @@ export default function EditarTareaPage() {
                 </div>
               </label>
             </div>
+          </div>
+        )}
+
+        {/* Paso 5: Grafico de la tarea */}
+        {step === 5 && (
+          <div className="space-y-6">
+            <div className="flex items-center gap-2 text-primary mb-4">
+              <PenTool className="h-5 w-5" />
+              <h2 className="text-lg font-semibold">Grafico de la tarea</h2>
+            </div>
+
+            <p className="text-sm text-gray-500 mb-4">
+              Dibuja el grafico de la tarea colocando jugadores, conos, balones y flechas de movimiento.
+            </p>
+
+            <TareaGraphicEditor
+              value={graficoData}
+              onChange={setGraficoData}
+            />
           </div>
         )}
 

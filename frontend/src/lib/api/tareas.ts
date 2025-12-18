@@ -29,6 +29,8 @@ export interface TareaCreateData {
   es_plantilla?: boolean
   tags?: string[]
   equipo_id?: string
+  // Grafico
+  grafico_data?: Record<string, any>
 }
 
 export interface TareaUpdateData extends Partial<TareaCreateData> {}
