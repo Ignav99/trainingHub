@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     
     # Optional: Claude API
     ANTHROPIC_API_KEY: str | None = None
+
+    # Google Gemini API for AI recommendations
+    GEMINI_API_KEY: str | None = None
+    GEMINI_MODEL: str = "gemini-1.5-flash"
+    GEMINI_TEMPERATURE: float = 0.3
     
     class Config:
         env_file = ".env"

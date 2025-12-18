@@ -284,6 +284,55 @@ export interface RecomendadorOutput {
   }
 }
 
+// ============================================
+// RECOMENDADOR AI
+// ============================================
+
+export interface AIRecomendadorInput {
+  match_day: MatchDay
+  num_jugadores: number
+  num_porteros?: number
+  espacio_disponible?: 'campo_completo' | 'medio_campo' | 'area_doble' | 'area_simple'
+  duracion_total: number
+  fase_juego?: string
+  principio_tactico?: string
+  notas_rival?: string
+  areas_enfoque?: string[]
+  notas_ultimo_partido?: string
+  notas_plantilla?: string
+  excluir_tareas?: string[]
+}
+
+export interface AIFaseRecomendacion {
+  tarea_id: string
+  tarea?: Tarea
+  duracion_sugerida: number
+  razon: string
+  adaptaciones: string[]
+  coaching_points: string[]
+}
+
+export interface AICargaEstimada {
+  fisica: string
+  cognitiva: string
+  duracion_total: number
+}
+
+export interface AIRecomendadorOutput {
+  titulo_sugerido: string
+  resumen: string
+  fases: {
+    activacion?: AIFaseRecomendacion
+    desarrollo_1?: AIFaseRecomendacion
+    desarrollo_2?: AIFaseRecomendacion
+    vuelta_calma?: AIFaseRecomendacion
+  }
+  coherencia_tactica: string
+  carga_estimada: AICargaEstimada
+  match_day: string
+  generado_por: 'gemini' | 'reglas'
+}
+
 // Auth
 export interface LoginCredentials {
   email: string
