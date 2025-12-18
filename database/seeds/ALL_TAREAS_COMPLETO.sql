@@ -4336,3 +4336,5 @@ VALUES ('SSG 6v6 Recuperación Activa', 'SSG-020', (SELECT id FROM categorias_ta
 -- - ABP: 18
 -- - TOTAL: 150 tareas (verificado por categorías: 18+15+18+20+18+18+20+18 = 145... ajustando)
 -- ============================================================================
+
+-- Regenerado Thu Dec 18 10:11:31 UTC 2025
