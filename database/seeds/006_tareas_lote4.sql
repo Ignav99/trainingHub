@@ -393,7 +393,7 @@ INSERT INTO tareas (
     'Gol, fuera o defensa recupera',
     '["10 segundos máximo para finalizar", "Atacantes empiezan en posiciones de pressing"]',
     'transicion_defensa_ataque', 'Transición rápida', 'Ataque tras recuperación', 'Finalizar en transición',
-    'Muy alta intensidad', 55, 'muy alta', 175, 195,
+    'Muy alta intensidad', 55, 'alta', 175, 195,
     2,
     '["Primer pase en vertical si posible", "Desmarques de ruptura inmediatos", "No frenar", "Finalizar primer toque"]',
     '["Repliegue rápido", "Retardar ataque", "Temporizar sin entrar", "Cerrar línea de gol"]',

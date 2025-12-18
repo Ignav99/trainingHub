@@ -577,7 +577,7 @@ INSERT INTO tareas (
     'Gol o fuera (reinicio inmediato)',
     '["Sin porteros", "Reinicio inmediato tras gol", "Máximo 5 toques por jugador"]',
     'transicion_defensa_ataque', 'Transiciones', 'Ganar duelos y transicionar',
-    'Muy alta intensidad', 75, 'muy alta', 175, 195,
+    'Muy alta intensidad', 75, 'alta', 175, 195,
     1,
     '["Duelos 1v1", "Transición inmediata", "Finalización rápida"]',
     '["Presión inmediata", "Ganar duelos", "Repliegue intenso"]',
