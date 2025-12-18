@@ -150,28 +150,42 @@ async def list_tareas(
 @router.get("/{tarea_id}", response_model=TareaResponse)
 async def get_tarea(
     tarea_id: UUID,
-    current_user = Depends(get_current_user),
+    current_user = Depends(get_optional_user),
 ):
-    """Obtiene una tarea por ID."""
+    """
+    Obtiene una tarea por ID.
+
+    - Sin autenticación: solo permite acceso a tareas públicas
+    - Con autenticación: permite acceso a tareas de la organización
+    """
     supabase = get_supabase()
-    
+
     response = supabase.table("tareas").select(
         "*, categorias_tarea(*)"
     ).eq("id", str(tarea_id)).single().execute()
-    
+
     if not response.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Tarea no encontrada"
         )
-    
-    # Verificar que pertenece a la organización del usuario
-    if response.data["organizacion_id"] != str(current_user.organizacion_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes acceso a esta tarea"
-        )
-    
+
+    # Verificar acceso
+    if current_user:
+        # Usuario autenticado: verificar que pertenece a su organización
+        if response.data["organizacion_id"] != str(current_user.organizacion_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes acceso a esta tarea"
+            )
+    else:
+        # Sin autenticación: solo tareas públicas
+        if not response.data.get("es_publica", False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Esta tarea no es pública"
+            )
+
     return TareaResponse(**response.data)
 
 
