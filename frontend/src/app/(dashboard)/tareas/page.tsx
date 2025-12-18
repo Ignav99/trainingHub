@@ -338,7 +338,8 @@ export default function TareasPage() {
             {tareas.map((tarea) => (
               <div
                 key={tarea.id}
-                className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow"
+                className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group"
+                onClick={() => router.push(`/tareas/${tarea.id}`)}
               >
                 {/* Header de la tarjeta */}
                 <div className="flex items-start justify-between mb-3">
@@ -346,7 +347,7 @@ export default function TareasPage() {
                     codigo={tarea.categoria?.codigo || ''}
                     nombre={tarea.categoria?.nombre_corto || tarea.categoria?.nombre || ''}
                   />
-                  <div className="relative">
+                  <div className="relative" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => setActiveMenu(activeMenu === tarea.id ? null : tarea.id)}
                       className="p-1 text-gray-400 hover:text-gray-600 rounded"
@@ -362,7 +363,7 @@ export default function TareasPage() {
                           className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                         >
                           <Edit className="h-4 w-4" />
-                          Editar
+                          Ver detalle
                         </Link>
                         <button
                           onClick={() => handleDuplicate(tarea)}
@@ -384,7 +385,7 @@ export default function TareasPage() {
                 </div>
 
                 {/* Título */}
-                <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">
+                <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2 group-hover:text-primary transition-colors">
                   {tarea.titulo}
                 </h3>
 
