@@ -15,7 +15,7 @@ INSERT INTO tareas (
     espacio_largo, espacio_ancho, espacio_forma,
     num_jugadores_min, num_jugadores_max, num_porteros, estructura_equipos,
     descripcion, como_inicia, como_finaliza,
-    reglas_tacnicas, reglas_tacticas,
+    reglas_tecnicas, reglas_tacticas,
     forma_puntuar,
     fase_juego, principio_tactico, subprincipio_tactico, accion_tecnica, intencion_tactica,
     tipo_esfuerzo, m2_por_jugador, densidad, fc_esperada_min, fc_esperada_max,

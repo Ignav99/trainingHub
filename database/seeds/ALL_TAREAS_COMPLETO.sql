@@ -407,7 +407,7 @@ INSERT INTO tareas (
     'Silbato del entrenador',
     'Gol, parada o fuera',
     '["Esperar silbato", "No cambiar decisión tras iniciar carrera", "Rutina personal respetada"]',
-    'balon_parado_ofensivo', 'Penalti', 'Ejecutar con confianza',
+    'ataque_organizado', 'Penalti', 'Ejecutar con confianza',
     'Muy baja intensidad', 'baja', 90, 110,
     1,
     '["Elegir lado antes de carrera", "Golpeo firme", "No mirar al portero en el golpeo", "Rutina consistente"]',
@@ -445,7 +445,7 @@ INSERT INTO tareas (
     'Señal del entrenador',
     'Gol, despeje o atrapada',
     '["3 variantes de movimiento en área", "Señalización visual", "Siempre vigilar rechace"]',
-    'balon_parado_ofensivo', 'Estrategia ofensiva', 'Saque de banda largo', 'Generar ocasión desde banda',
+    'ataque_organizado', 'Estrategia ofensiva', 'Saque de banda largo', 'Generar ocasión desde banda',
     'Baja intensidad con picos', 'baja', 105, 130,
     2,
     '["Timing de carrera al área", "Ataque al primer palo", "Bloqueos en zona", "Rechace vigilado"]',
@@ -1182,7 +1182,7 @@ INSERT INTO tareas (
     'Señal del entrenador',
     'Gol, parada o fuera',
     '["Barrera de 3-4 jugadores", "Alternar lanzadores", "Variar posición de falta"]',
-    'balon_parado_ofensivo', 'Falta directa', 'Lanzamiento de falta', 'Marcar de falta directa',
+    'ataque_organizado', 'Falta directa', 'Lanzamiento de falta', 'Marcar de falta directa',
     'Muy baja intensidad', 'baja', 90, 115,
     2,
     '["Elegir tipo de golpeo antes", "Carrera consistente", "Punto de golpeo preciso", "Seguir el balón tras golpeo"]',
@@ -1221,7 +1221,7 @@ INSERT INTO tareas (
     'Señal visual del lanzador',
     'Despeje con salida o gol',
     '["3 en zona siempre", "Resto marcaje nominal", "Comunicación portero", "Primer despeje a banda", "Salida rápida si se despeja"]',
-    'balon_parado_defensivo', 'Defensa de córner', 'Sistema mixto', 'Evitar gol y salir rápido',
+    'defensa_organizada', 'Defensa de córner', 'Sistema mixto', 'Evitar gol y salir rápido',
     'Baja intensidad con picos', 'baja', 105, 135,
     2,
     '["Zona siempre ocupada", "No perder marca", "Atacar el balón en despeje", "Comunicar quién va", "Primer despeje afuera"]',
@@ -1807,7 +1807,7 @@ INSERT INTO tareas (
     espacio_largo, espacio_ancho, espacio_forma,
     num_jugadores_min, num_jugadores_max, num_porteros, estructura_equipos,
     descripcion, como_inicia, como_finaliza,
-    reglas_tacnicas, reglas_tacticas,
+    reglas_tecnicas, reglas_tacticas,
     forma_puntuar,
     fase_juego, principio_tactico, subprincipio_tactico, accion_tecnica, intencion_tactica,
     tipo_esfuerzo, m2_por_jugador, densidad, fc_esperada_min, fc_esperada_max,
@@ -3033,7 +3033,7 @@ INSERT INTO tareas (
     'Señal del entrenador indica variante',
     'Gol, parada o fuera',
     '["4 variantes diferentes", "Señalización acordada", "Barrera reglamentaria"]',
-    'balon_parado_ofensivo', 'Falta indirecta', 'Jugadas ensayadas', 'Generar gol de falta indirecta',
+    'ataque_organizado', 'Falta indirecta', 'Jugadas ensayadas', 'Generar gol de falta indirecta',
     'Baja intensidad', 'baja', 95, 120,
     2,
     '["Conocer todas las variantes", "Comunicación clara", "Timing de movimientos", "Remate decidido"]',
@@ -3071,7 +3071,7 @@ INSERT INTO tareas (
     'Portero con balón',
     'Balón supera pressing o robo',
     '["Obligatorio salir en corto", "Portero puede volver a recibir", "Superación = pase a jugador en zona segura"]',
-    'balon_parado_ofensivo', 'Saque de puerta', 'Salida construida', 'Superar pressing desde saque',
+    'ataque_organizado', 'Saque de puerta', 'Salida construida', 'Superar pressing desde saque',
     'Baja intensidad', 'baja', 115, 140,
     3,
     '["Portero lee presión", "Centrales abiertos", "Pivote se ofrece", "Laterales dan opción"]',
@@ -3112,7 +3112,7 @@ INSERT INTO tareas (
     'Capitán elige orden',
     'Victoria de un equipo',
     '["Tanda a 5 penaltis", "Simulación de presión con gritos", "Perdedor = ejercicio físico"]',
-    'balon_parado_ofensivo', 'Penalti bajo presión', 'Ejecutar bajo máxima presión',
+    'ataque_organizado', 'Penalti bajo presión', 'Ejecutar bajo máxima presión',
     'Muy baja intensidad', 'baja', 100, 130,
     1,
     '["Rutina invariable", "No escuchar ruido", "Confianza en decisión"]',
@@ -3151,7 +3151,7 @@ INSERT INTO tareas (
     'Saque de banda atacante',
     'Despeje, gol o pérdida de balón',
     '["Defensores en marcaje nominal", "Comunicación portero", "Despeje a zona segura"]',
-    'balon_parado_defensivo', 'Defensa de saque banda', 'Marcaje en zona peligrosa', 'Evitar ocasión de saque de banda',
+    'defensa_organizada', 'Defensa de saque banda', 'Marcaje en zona peligrosa', 'Evitar ocasión de saque de banda',
     'Baja intensidad con picos', 'baja', 110, 135,
     2,
     '["Marcaje pegado", "Anticipar movimientos", "Comunicar", "Despeje lejos de portería"]',
@@ -4083,7 +4083,7 @@ INSERT INTO tareas (
     'Señal del lanzador indica variante',
     'Gol o despeje',
     '["5 variantes codificadas", "Todos conocen todas", "Señalización visual acordada"]',
-    'balon_parado_ofensivo', 'Córner ofensivo', '5 variantes de córner', 'Generar gol con variedad',
+    'ataque_organizado', 'Córner ofensivo', '5 variantes de córner', 'Generar gol con variedad',
     'Baja intensidad con picos', 'baja', 105, 135,
     2,
     '["Conocer señales", "Timing de carrera", "Atacar balón", "Vigiar rechace"]',
@@ -4121,7 +4121,7 @@ INSERT INTO tareas (
     'Lanzador indica tipo de falta',
     'Despeje con contraataque o gol',
     '["4 en zona línea de gol", "Resto marcaje nominal", "Barrera si necesario", "Salida rápida tras despeje"]',
-    'balon_parado_defensivo', 'Defensa falta lateral', 'Sistema mixto', 'Evitar gol y salir rápido',
+    'defensa_organizada', 'Defensa falta lateral', 'Sistema mixto', 'Evitar gol y salir rápido',
     'Baja intensidad con picos', 'baja', 100, 130,
     2,
     '["Zona siempre ocupada", "No perder marca", "Comunicar con portero", "Despejar a banda", "Transición si despejamos"]',
@@ -4160,7 +4160,7 @@ INSERT INTO tareas (
     'Saque de centro rival',
     '10 segundos o robo',
     '["Pressing inmediato al saque", "Objetivo: robar en primeros 10 seg", "Si roban, transición a mini portería"]',
-    'balon_parado_defensivo', 'Pressing saque centro', 'Presión inicial', 'Robar inmediatamente tras saque',
+    'defensa_organizada', 'Pressing saque centro', 'Presión inicial', 'Robar inmediatamente tras saque',
     'Alta intensidad', 'alta', 165, 185,
     2,
     '["Pressing agresivo desde el inicio", "Cercar al receptor", "No dejar progresión", "Transición si roban"]',
@@ -4272,19 +4272,19 @@ VALUES ('Rondo Klopp: 4v4+4 Tres Equipos', 'RND-018', (SELECT id FROM categorias
 -- ============================================================================
 
 INSERT INTO tareas (titulo, codigo, categoria_id, organizacion_id, duracion_total, num_series, duracion_serie, tiempo_descanso, espacio_largo, espacio_ancho, espacio_forma, num_jugadores_min, num_jugadores_max, num_porteros, estructura_equipos, descripcion, como_inicia, como_finaliza, reglas_tacticas, fase_juego, principio_tactico, intencion_tactica, tipo_esfuerzo, densidad, fc_esperada_min, fc_esperada_max, nivel_cognitivo, consignas_ofensivas, errores_comunes, variantes, material, match_days_recomendados, es_plantilla, es_publica, tags)
-VALUES ('Falta Frontal con Barrera Móvil', 'ABP-014', (SELECT id FROM categorias_tarea WHERE codigo = 'ABP'), '00000000-0000-0000-0000-000000000001', 18, 10, 1.25, 0.5, 25, 30, 'area_grande', 8, 10, 1, 'Lanzadores + Barrera + POR', 'Práctica de faltas frontales donde la barrera puede moverse (saltar/agacharse) simulando situación real. Lanzador debe leer la barrera.', 'Señal del entrenador', 'Gol o parada', '["Barrera de 4 jugadores", "Barrera puede moverse al golpeo", "Lanzador debe leer"]', 'balon_parado_ofensivo', 'Falta con lectura', 'Superar barrera reactiva', 'Muy baja intensidad', 'baja', 90, 115, 2, '["Leer intención de barrera", "Decidir: arriba, abajo, lado", "Golpeo decidido"]', '["Golpeo predecible", "No leer barrera"]', '[{"nombre": "Barrera fija", "descripcion": "No se mueve", "dificultad": "-1"}]', '["Portería reglamentaria", "Conos", "Balones x10"]', '["MD-2", "MD-1"]', true, true, '["falta frontal", "barrera", "lectura", "ABP"]');
+VALUES ('Falta Frontal con Barrera Móvil', 'ABP-014', (SELECT id FROM categorias_tarea WHERE codigo = 'ABP'), '00000000-0000-0000-0000-000000000001', 18, 10, 1.25, 0.5, 25, 30, 'area_grande', 8, 10, 1, 'Lanzadores + Barrera + POR', 'Práctica de faltas frontales donde la barrera puede moverse (saltar/agacharse) simulando situación real. Lanzador debe leer la barrera.', 'Señal del entrenador', 'Gol o parada', '["Barrera de 4 jugadores", "Barrera puede moverse al golpeo", "Lanzador debe leer"]', 'ataque_organizado', 'Falta con lectura', 'Superar barrera reactiva', 'Muy baja intensidad', 'baja', 90, 115, 2, '["Leer intención de barrera", "Decidir: arriba, abajo, lado", "Golpeo decidido"]', '["Golpeo predecible", "No leer barrera"]', '[{"nombre": "Barrera fija", "descripcion": "No se mueve", "dificultad": "-1"}]', '["Portería reglamentaria", "Conos", "Balones x10"]', '["MD-2", "MD-1"]', true, true, '["falta frontal", "barrera", "lectura", "ABP"]');
 
 INSERT INTO tareas (titulo, codigo, categoria_id, organizacion_id, duracion_total, num_series, duracion_serie, tiempo_descanso, espacio_largo, espacio_ancho, espacio_forma, num_jugadores_min, num_jugadores_max, num_porteros, estructura_equipos, descripcion, como_inicia, como_finaliza, reglas_tacticas, fase_juego, principio_tactico, intencion_tactica, tipo_esfuerzo, densidad, fc_esperada_min, fc_esperada_max, nivel_cognitivo, consignas_defensivas, errores_comunes, variantes, material, match_days_recomendados, es_plantilla, es_publica, tags)
-VALUES ('Defensa de Córner: Salida al Contraataque', 'ABP-015', (SELECT id FROM categorias_tarea WHERE codigo = 'ABP'), '00000000-0000-0000-0000-000000000001', 22, 10, 1.75, 0.5, 60, 68, 'campo_propio', 14, 18, 1, '7-9 defensores + POR vs atacantes', 'Defensa de córner con énfasis en salida al contraataque tras despeje. 2 jugadores se quedan adelantados para transición. Trabaja despeje + salida rápida.', 'Córner', 'Despeje + contraataque o gol', '["2 jugadores quedan adelantados para contra", "Tras despeje: transición inmediata", "Mini portería para contraataque"]', 'balon_parado_defensivo', 'Córner + contraataque', 'Defender y salir rápido', 'Baja intensidad con picos', 'baja', 110, 140, 2, '["Despejar hacia jugadores adelantados", "Transición inmediata", "Atacar mini portería"]', '["Despeje corto", "No salir en contra"]', '[{"nombre": "Sin contra", "descripcion": "Solo defensa", "dificultad": "-1"}]', '["Portería reglamentaria", "Mini portería x1", "Conos", "Balones x10"]', '["MD-2", "MD-1"]', true, true, '["córner", "contraataque", "defensa", "transición", "ABP"]');
+VALUES ('Defensa de Córner: Salida al Contraataque', 'ABP-015', (SELECT id FROM categorias_tarea WHERE codigo = 'ABP'), '00000000-0000-0000-0000-000000000001', 22, 10, 1.75, 0.5, 60, 68, 'campo_propio', 14, 18, 1, '7-9 defensores + POR vs atacantes', 'Defensa de córner con énfasis en salida al contraataque tras despeje. 2 jugadores se quedan adelantados para transición. Trabaja despeje + salida rápida.', 'Córner', 'Despeje + contraataque o gol', '["2 jugadores quedan adelantados para contra", "Tras despeje: transición inmediata", "Mini portería para contraataque"]', 'defensa_organizada', 'Córner + contraataque', 'Defender y salir rápido', 'Baja intensidad con picos', 'baja', 110, 140, 2, '["Despejar hacia jugadores adelantados", "Transición inmediata", "Atacar mini portería"]', '["Despeje corto", "No salir en contra"]', '[{"nombre": "Sin contra", "descripcion": "Solo defensa", "dificultad": "-1"}]', '["Portería reglamentaria", "Mini portería x1", "Conos", "Balones x10"]', '["MD-2", "MD-1"]', true, true, '["córner", "contraataque", "defensa", "transición", "ABP"]');
 
 INSERT INTO tareas (titulo, codigo, categoria_id, organizacion_id, duracion_total, num_series, duracion_serie, tiempo_descanso, espacio_largo, espacio_ancho, espacio_forma, num_jugadores_min, num_jugadores_max, num_porteros, estructura_equipos, descripcion, como_inicia, como_finaliza, reglas_tacticas, fase_juego, principio_tactico, intencion_tactica, tipo_esfuerzo, densidad, fc_esperada_min, fc_esperada_max, nivel_cognitivo, consignas_ofensivas, errores_comunes, variantes, material, match_days_recomendados, es_plantilla, es_publica, tags)
-VALUES ('Córner en Corto: Variantes', 'ABP-016', (SELECT id FROM categorias_tarea WHERE codigo = 'ABP'), '00000000-0000-0000-0000-000000000001', 18, 10, 1.5, 0.5, 30, 40, 'area_grande', 10, 14, 1, 'Atacantes + POR', 'Práctica de córner en corto con 3 variantes: pared y centro, conducción y centro, pared+pared+centro. Trabajo de combinación desde esquina.', 'Señal indica variante', 'Gol o despeje', '["3 variantes de córner corto", "Señalización visual", "Llegadas coordinadas al área"]', 'balon_parado_ofensivo', 'Córner en corto', 'Crear ocasión con combinación', 'Baja intensidad', 'baja', 100, 125, 2, '["Conocer señales", "Timing de combinación", "Llegadas escalonadas al área"]', '["Confusión en variante", "Timing malo"]', '[{"nombre": "Solo 1 variante", "descripcion": "Repetir misma", "dificultad": "-1"}]', '["Portería reglamentaria", "Conos", "Balones x10"]', '["MD-2", "MD-1"]', true, true, '["córner corto", "combinación", "variantes", "ABP"]');
+VALUES ('Córner en Corto: Variantes', 'ABP-016', (SELECT id FROM categorias_tarea WHERE codigo = 'ABP'), '00000000-0000-0000-0000-000000000001', 18, 10, 1.5, 0.5, 30, 40, 'area_grande', 10, 14, 1, 'Atacantes + POR', 'Práctica de córner en corto con 3 variantes: pared y centro, conducción y centro, pared+pared+centro. Trabajo de combinación desde esquina.', 'Señal indica variante', 'Gol o despeje', '["3 variantes de córner corto", "Señalización visual", "Llegadas coordinadas al área"]', 'ataque_organizado', 'Córner en corto', 'Crear ocasión con combinación', 'Baja intensidad', 'baja', 100, 125, 2, '["Conocer señales", "Timing de combinación", "Llegadas escalonadas al área"]', '["Confusión en variante", "Timing malo"]', '[{"nombre": "Solo 1 variante", "descripcion": "Repetir misma", "dificultad": "-1"}]', '["Portería reglamentaria", "Conos", "Balones x10"]', '["MD-2", "MD-1"]', true, true, '["córner corto", "combinación", "variantes", "ABP"]');
 
 INSERT INTO tareas (titulo, codigo, categoria_id, organizacion_id, duracion_total, num_series, duracion_serie, tiempo_descanso, espacio_largo, espacio_ancho, espacio_forma, num_jugadores_min, num_jugadores_max, num_porteros, estructura_equipos, descripcion, como_inicia, como_finaliza, reglas_tacticas, fase_juego, principio_tactico, intencion_tactica, tipo_esfuerzo, densidad, fc_esperada_min, fc_esperada_max, nivel_cognitivo, consignas_defensivas, errores_comunes, variantes, material, match_days_recomendados, es_plantilla, es_publica, tags)
-VALUES ('Defensa Pressing Post-Córner', 'ABP-017', (SELECT id FROM categorias_tarea WHERE codigo = 'ABP'), '00000000-0000-0000-0000-000000000001', 16, 8, 1.5, 0.5, 50, 65, 'medio_campo', 16, 18, 1, 'Defensores + POR vs Atacantes', 'Trabajo de pressing inmediato tras córner a favor que no termina en gol. Al despejar rival, activar pressing alto para recuperar en zona de finalización.', 'Córner a favor que rival despeja', 'Robo alto o balón supera pressing', '["Córner sale rechazado", "Pressing inmediato", "5 segundos para recuperar alto"]', 'balon_parado_defensivo', 'Pressing post-córner', 'Recuperar tras córner fallido', 'Alta intensidad', 'alta', 160, 180, 2, '["Pressing inmediato tras despeje", "5 seg máximo de pressing", "Cercar balón"]', '["Pressing lento", "No coordinar"]', '[{"nombre": "Sin pressing", "descripcion": "Replegar", "dificultad": "-1"}]', '["Portería reglamentaria", "Conos", "Petos", "Balones x8"]', '["MD-2", "MD-3"]', true, true, '["pressing", "post-córner", "recuperación", "ABP"]');
+VALUES ('Defensa Pressing Post-Córner', 'ABP-017', (SELECT id FROM categorias_tarea WHERE codigo = 'ABP'), '00000000-0000-0000-0000-000000000001', 16, 8, 1.5, 0.5, 50, 65, 'medio_campo', 16, 18, 1, 'Defensores + POR vs Atacantes', 'Trabajo de pressing inmediato tras córner a favor que no termina en gol. Al despejar rival, activar pressing alto para recuperar en zona de finalización.', 'Córner a favor que rival despeja', 'Robo alto o balón supera pressing', '["Córner sale rechazado", "Pressing inmediato", "5 segundos para recuperar alto"]', 'defensa_organizada', 'Pressing post-córner', 'Recuperar tras córner fallido', 'Alta intensidad', 'alta', 160, 180, 2, '["Pressing inmediato tras despeje", "5 seg máximo de pressing", "Cercar balón"]', '["Pressing lento", "No coordinar"]', '[{"nombre": "Sin pressing", "descripcion": "Replegar", "dificultad": "-1"}]', '["Portería reglamentaria", "Conos", "Petos", "Balones x8"]', '["MD-2", "MD-3"]', true, true, '["pressing", "post-córner", "recuperación", "ABP"]');
 
 INSERT INTO tareas (titulo, codigo, categoria_id, organizacion_id, duracion_total, num_series, duracion_serie, tiempo_descanso, espacio_largo, espacio_ancho, espacio_forma, num_jugadores_min, num_jugadores_max, num_porteros, estructura_equipos, descripcion, como_inicia, como_finaliza, reglas_tacticas, fase_juego, principio_tactico, intencion_tactica, tipo_esfuerzo, densidad, fc_esperada_min, fc_esperada_max, nivel_cognitivo, consignas_ofensivas, errores_comunes, variantes, material, match_days_recomendados, es_plantilla, es_publica, tags)
-VALUES ('Penalti: Rutina de Portero', 'ABP-018', (SELECT id FROM categorias_tarea WHERE codigo = 'ABP'), '00000000-0000-0000-0000-000000000001', 18, 1, 16, 2, 20, 20, 'area_grande', 6, 8, 2, 'Lanzadores + 2 Porteros', 'Práctica de penaltis desde perspectiva del portero. Trabajo de lectura del lanzador, posición, movimiento lateral y reacción. Porteros alternan.', 'Lanzador listo', 'Parada o gol', '["Portero: leer antes del golpeo", "Trabajo de posición y reacción", "Alternancia de porteros"]', 'balon_parado_defensivo', 'Defensa de penalti', 'Parar penaltis con lectura', 'Muy baja intensidad', 'baja', 95, 120, 2, '["Elegir lado", "Mantener decisión", "Golpeo firme"]', '["Anticipar demasiado", "Dudar"]', '[{"nombre": "Sin lanzador fijo", "descripcion": "Todos lanzan", "dificultad": "="}]', '["Portería reglamentaria", "Balones x8"]', '["MD-2", "MD-1"]', true, true, '["penalti", "portero", "parada", "lectura", "ABP"]');
+VALUES ('Penalti: Rutina de Portero', 'ABP-018', (SELECT id FROM categorias_tarea WHERE codigo = 'ABP'), '00000000-0000-0000-0000-000000000001', 18, 1, 16, 2, 20, 20, 'area_grande', 6, 8, 2, 'Lanzadores + 2 Porteros', 'Práctica de penaltis desde perspectiva del portero. Trabajo de lectura del lanzador, posición, movimiento lateral y reacción. Porteros alternan.', 'Lanzador listo', 'Parada o gol', '["Portero: leer antes del golpeo", "Trabajo de posición y reacción", "Alternancia de porteros"]', 'defensa_organizada', 'Defensa de penalti', 'Parar penaltis con lectura', 'Muy baja intensidad', 'baja', 95, 120, 2, '["Elegir lado", "Mantener decisión", "Golpeo firme"]', '["Anticipar demasiado", "Dudar"]', '[{"nombre": "Sin lanzador fijo", "descripcion": "Todos lanzan", "dificultad": "="}]', '["Portería reglamentaria", "Balones x8"]', '["MD-2", "MD-1"]', true, true, '["penalti", "portero", "parada", "lectura", "ABP"]');
 
 -- ============================================================================
 -- SSG/EVO/AVD - 10 tareas adicionales para completar 150
