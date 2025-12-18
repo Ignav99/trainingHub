@@ -1,5 +1,13 @@
 import { api } from './client'
-import { Sesion, SesionFiltros, PaginatedResponse, RecomendadorInput, RecomendadorOutput } from '@/types'
+import {
+  Sesion,
+  SesionFiltros,
+  PaginatedResponse,
+  RecomendadorInput,
+  RecomendadorOutput,
+  AIRecomendadorInput,
+  AIRecomendadorOutput
+} from '@/types'
 
 export interface SesionCreateData {
   titulo: string
@@ -70,5 +78,9 @@ export const sesionesApi = {
 export const recomendadorApi = {
   async getRecomendaciones(input: RecomendadorInput): Promise<RecomendadorOutput> {
     return api.post<RecomendadorOutput>('/recomendador/sesion', input)
+  },
+
+  async getAIRecomendaciones(input: AIRecomendadorInput): Promise<AIRecomendadorOutput> {
+    return api.post<AIRecomendadorOutput>('/recomendador/ai-sesion', input)
   },
 }

@@ -35,6 +35,11 @@ from app.models.sesion import (
     RecomendadorOutput,
     TareaRecomendada,
     MatchDayConfig,
+    # AI Recommender
+    AIRecomendadorInput,
+    AIRecomendadorOutput,
+    AIFaseRecomendacion,
+    AICargaEstimada,
 )
 
 from app.models.usuario import (
@@ -108,6 +113,10 @@ __all__ = [
     "RecomendadorOutput",
     "TareaRecomendada",
     "MatchDayConfig",
+    "AIRecomendadorInput",
+    "AIRecomendadorOutput",
+    "AIFaseRecomendacion",
+    "AICargaEstimada",
     # Usuario
     "RolUsuario",
     "RolEnEquipo",

@@ -237,3 +237,75 @@ class MatchDayConfig(BaseModel):
     descripcion: str
     categorias_preferidas: List[str] = []
     categorias_evitar: List[str] = []
+
+
+# ============ Schemas para Recomendador AI ============
+
+class AIRecomendadorInput(BaseModel):
+    """Input para el recomendador con IA (Gemini)."""
+    match_day: MatchDay
+    num_jugadores: int = Field(..., ge=4, le=30)
+    num_porteros: int = Field(default=2, ge=0, le=4)
+    espacio_disponible: str = Field(
+        default="campo_completo",
+        pattern="^(campo_completo|medio_campo|area_doble|area_simple)$"
+    )
+    duracion_total: int = Field(..., ge=30, le=150)
+
+    # Objetivo táctico
+    fase_juego: Optional[str] = None
+    principio_tactico: Optional[str] = None
+
+    # Contexto adicional para la IA
+    notas_rival: Optional[str] = Field(
+        None,
+        description="Info sobre el rival: sistema, estilo de juego",
+        max_length=500
+    )
+    areas_enfoque: Optional[List[str]] = Field(
+        None,
+        description="Áreas específicas a trabajar"
+    )
+    notas_ultimo_partido: Optional[str] = Field(
+        None,
+        description="Aspectos a mejorar del último partido",
+        max_length=500
+    )
+    notas_plantilla: Optional[str] = Field(
+        None,
+        description="Lesiones, ausencias, etc.",
+        max_length=300
+    )
+
+    # Preferencias
+    excluir_tareas: Optional[List[UUID]] = None
+
+
+class AIFaseRecomendacion(BaseModel):
+    """Recomendación de tarea para una fase de sesión."""
+    tarea_id: str
+    tarea: Optional[TareaResponse] = None
+    duracion_sugerida: int
+    razon: str
+    adaptaciones: List[str] = []
+    coaching_points: List[str] = []
+
+
+class AICargaEstimada(BaseModel):
+    """Estimación de carga de la sesión."""
+    fisica: str
+    cognitiva: str
+    duracion_total: int
+
+
+class AIRecomendadorOutput(BaseModel):
+    """Output del recomendador con IA."""
+    titulo_sugerido: str
+    resumen: str
+    fases: dict[str, AIFaseRecomendacion]
+    coherencia_tactica: str
+    carga_estimada: AICargaEstimada
+
+    # Metadatos
+    match_day: str
+    generado_por: str = "gemini"
