@@ -228,7 +228,7 @@ INSERT INTO tareas (
     '["Primer pase obligatorio hacia adelante", "No está permitido volver atrás"]',
     'Gol = 3 puntos, Disparo = 1 punto, >10 segundos = 0 puntos',
     'transicion_defensa_ataque', 'Contraataque', 'Velocidad en transición', 'Conducción a máxima velocidad', 'Finalizar en transición rápida',
-    'Muy alta intensidad', 81.3, 'muy alta', 170, 190,
+    'Muy alta intensidad', 81.3, 'alta', 170, 190,
     2,
     '["Verticalidad máxima", "Desmarques de ruptura", "No frenar el juego", "Finalizar primer toque"]',
     '["Repliegue rápido", "Retrasar ataque", "No entrar a la desesperada"]',
@@ -319,7 +319,7 @@ INSERT INTO tareas (
     '["Sin porteros", "Gol desde cualquier distancia vale", "Reinicio inmediato tras gol"]',
     'Victoria = 3 puntos, Empate = 1 punto',
     'transicion_defensa_ataque', 'Duelos 1v1', 'Ganar duelos y marcar',
-    'Muy alta intensidad', 50, 'muy alta', 175, 195,
+    'Muy alta intensidad', 50, 'alta', 175, 195,
     1,
     '["Duelos 1v1", "Desmarques cortos", "Finalización rápida"]',
     '["Pressing inmediato", "Ganar duelos", "No dejar tiempo"]',
@@ -508,7 +508,7 @@ INSERT INTO tareas (
     'Gol, fuera o recuperación defensiva',
     '["Atacantes máximo 8 segundos para finalizar", "Defensores empiezan 50m de su portería"]',
     'transicion_ataque_defensa', 'Repliegue', 'Recuperación de posiciones', 'Ganar terreno al balón',
-    'Muy alta intensidad', 'muy alta', 170, 190,
+    'Muy alta intensidad', 'alta', 170, 190,
     2,
     '["Verticalidad", "Superioridad numérica", "No dar tiempo al repliegue", "Finalizar rápido"]',
     '["Sprint de repliegue", "Retardar balón", "Cerrar línea de gol primero", "No entrar, temporizar"]',
@@ -590,7 +590,7 @@ INSERT INTO tareas (
     'Gol, fuera o robo con contragol',
     '["Máximo 6 segundos para finalizar", "Defensor puede marcar en mini portería si roba"]',
     'ataque_organizado', 'Duelo individual', 'Regate y finalización', 'Superar al rival en 1v1',
-    'Muy alta intensidad', 150, 'muy alta', 170, 195,
+    'Muy alta intensidad', 150, 'alta', 170, 195,
     1,
     '["Encarar al defensor", "Amago antes de regate", "Cambio de ritmo", "Finalización rápida"]',
     '["Posición corporal", "No entrar", "Orientar hacia fuera", "Tackle solo cuando seguro"]',
@@ -673,7 +673,7 @@ INSERT INTO tareas (
     'Gol en mini, 6 pases del equipo recuperador, o tiempo',
     '["6 segundos máximo de pressing tras pérdida", "Si no recuperan en 6s, repliegue", "Gol en mini portería vale si roban en pressing"]',
     'transicion_ataque_defensa', 'Gegenpressing', 'Recuperación inmediata', 'Robar en 6 segundos o replegar',
-    'Muy alta intensidad', 43.8, 'muy alta', 175, 195,
+    'Muy alta intensidad', 43.8, 'alta', 175, 195,
     2,
     '["Transición inmediata al robar", "Verticalidad hacia mini portería", "Apoyo cercano"]',
     '["Pressing inmediato coordinado", "Cercar al poseedor", "Si no recuperan, replegar juntos"]',
@@ -759,7 +759,7 @@ INSERT INTO tareas (
     'Tiempo de serie',
     '["Gol en primeros 8 segundos tras robo = 2 puntos", "Gol normal = 1 punto", "Fuera de juego activo"]',
     'transicion_defensa_ataque', 'Transiciones', 'Marcar en transición rápida',
-    'Muy alta intensidad', 'muy alta', 165, 185,
+    'Muy alta intensidad', 'alta', 165, 185,
     2,
     '["Transición inmediata", "Verticalidad tras robo", "No especular", "Finalizar rápido"]',
     '["Pressing tras pérdida", "Evitar contraataque", "Repliegue rápido"]',
@@ -1723,7 +1723,7 @@ INSERT INTO tareas (
     'Gol, fuera o defensa recupera',
     '["10 segundos máximo para finalizar", "Atacantes empiezan en posiciones de pressing"]',
     'transicion_defensa_ataque', 'Transición rápida', 'Ataque tras recuperación', 'Finalizar en transición',
-    'Muy alta intensidad', 55, 'muy alta', 175, 195,
+    'Muy alta intensidad', 55, 'alta', 175, 195,
     2,
     '["Primer pase en vertical si posible", "Desmarques de ruptura inmediatos", "No frenar", "Finalizar primer toque"]',
     '["Repliegue rápido", "Retardar ataque", "Temporizar sin entrar", "Cerrar línea de gol"]',
@@ -2114,7 +2114,7 @@ INSERT INTO tareas (
     '5 segundos o robo',
     '["5 segundos exactos de pressing", "Cronómetro visible", "Si no recuperan, pierden punto"]',
     'transicion_ataque_defensa', 'Pressing tras pérdida', 'Reacción inmediata', 'Automatizar reacción a pérdida',
-    'Muy alta intensidad', 'muy alta', 175, 195,
+    'Muy alta intensidad', 'alta', 175, 195,
     2,
     '["Cercar al poseedor", "Coberturas rápidas", "5 segundos máxima intensidad"]',
     '["Resistir 5 segundos", "Pase rápido", "Abrir espacio"]',
@@ -2201,7 +2201,7 @@ INSERT INTO tareas (
     'Centro y remate, o robo con despeje',
     '["1v1 puro, sin ayudas", "Si supera, obligatorio centrar", "2 llegadas al área"]',
     'ataque_organizado', 'Duelo en banda', 'Regate y centro', 'Superar en 1v1 y centrar',
-    'Alta intensidad', 87.5, 'muy alta', 170, 190,
+    'Alta intensidad', 87.5, 'alta', 170, 190,
     1,
     '["Encarar al defensor", "Cambio de ritmo", "Centro tenso al área"]',
     '["Posición corporal", "No entrar", "Orientar hacia fuera", "Defender el centro"]',
@@ -2329,7 +2329,7 @@ INSERT INTO tareas (
     '["2 balones siempre en juego", "Si uno sale, entrenador mete otro inmediatamente", "No se puede tener los 2 balones"]',
     'Gol con cualquier balón = 1 punto',
     'transicion_defensa_ataque', 'Atención dividida', 'Gestionar el caos',
-    'Muy alta intensidad', 46.9, 'muy alta', 170, 190,
+    'Muy alta intensidad', 46.9, 'alta', 170, 190,
     3,
     '["Comunicar qué balón atacar", "Visión periférica", "Decisiones rápidas"]',
     '["Comunicar qué balón defender", "Organizar prioridades", "No perder los 2"]',
@@ -2414,7 +2414,7 @@ INSERT INTO tareas (
     '["El que marca gol se queda", "El que recibe gol sale", "Entra siguiente equipo", "Sin tiempo límite por partido"]',
     'Partidos ganados consecutivos',
     'transicion_defensa_ataque', 'Competición máxima', 'Ganar y mantenerse',
-    'Muy alta intensidad', 50, 'muy alta', 175, 195,
+    'Muy alta intensidad', 50, 'alta', 175, 195,
     1,
     '["Intensidad máxima desde inicio", "Finalizar rápido", "No especular"]',
     '["Evitar gol a toda costa", "Concentración total", "No regalar"]',
@@ -2863,7 +2863,7 @@ INSERT INTO tareas (
     '["Tras gol/fuera: equipo atacante sale, entra otro atacando al que defendía", "Rotación inmediata", "No hay pausa"]',
     'Goles acumulados por equipo',
     'transicion_defensa_ataque', 'Transición continua', 'Adaptarse a cambios continuos',
-    'Muy alta intensidad', 'muy alta', 170, 190,
+    'Muy alta intensidad', 'alta', 170, 190,
     2,
     '["Atacar rápido", "Aprovechar desorganización", "Intensidad constante"]',
     '["Transición mental inmediata", "De defender a ser atacado", "Organización rápida"]',
@@ -2990,7 +2990,7 @@ INSERT INTO tareas (
     '["Gol en 0-6 seg tras robo = 3 puntos", "Gol en 6-10 seg = 2 puntos", "Gol normal = 1 punto", "Cronómetro visible"]',
     'Gol 0-6s = 3 pts, 6-10s = 2 pts, +10s = 1 pt',
     'transicion_defensa_ataque', 'Transición ultra rápida', 'Marcar en transición inmediata',
-    'Muy alta intensidad', 'muy alta', 168, 188,
+    'Muy alta intensidad', 'alta', 168, 188,
     2,
     '["Robar y atacar inmediato", "Primer pase en vertical", "No frenar", "Finalizar a la primera"]',
     '["Repliegue instantáneo", "Evitar gol rápido", "Transición defensiva"]',
@@ -3495,7 +3495,7 @@ INSERT INTO tareas (
     'Gol o pérdida',
     '["Robo simulado (entrenador señala momento)", "Máximo 4 toques tras robo", "Finalizar en 5 segundos"]',
     'transicion_defensa_ataque', 'Finalización tras robo', 'Pase de transición y remate', 'Convertir robo en gol inmediato',
-    'Muy alta intensidad', 'muy alta', 170, 190,
+    'Muy alta intensidad', 'alta', 170, 190,
     2,
     '["Primer pase vertical", "Delanteros preparados para recibir", "Finalización primer toque", "Atacar rechace"]',
     '["Transición lenta", "Exceso de toques", "Delanteros mal posicionados"]',
@@ -3658,7 +3658,7 @@ INSERT INTO tareas (
     'Gol, fuera, o defensa recupera y controla',
     '["Pérdida simulada", "6 defensores empiezan en posición de ataque", "8 segundos para evitar gol"]',
     'transicion_ataque_defensa', 'Transición defensiva', 'Repliegue colectivo', 'Organizarse defensivamente tras pérdida',
-    'Muy alta intensidad', 'muy alta', 170, 190,
+    'Muy alta intensidad', 'alta', 170, 190,
     2,
     '["Contraataque rápido", "Verticalidad", "Aprovechar desorganización", "Finalizar pronto"]',
     '["Repliegue inmediato", "Priorizar zona central", "Temporizar", "No entrar individual"]',
@@ -3867,7 +3867,7 @@ INSERT INTO tareas (
     '["Partidos de 2 minutos exactos", "Ganador = 3pts, empate = 1pt", "Diferencia de goles desempata"]',
     'Victoria = 3pts, Empate = 1pt, Derrota = 0pts',
     'transicion_defensa_ataque', 'Competición exprés', 'Ganar partidos cortos',
-    'Muy alta intensidad', 41.3, 'muy alta', 175, 195,
+    'Muy alta intensidad', 41.3, 'alta', 175, 195,
     1,
     '["Intensidad desde el inicio", "Marcar rápido", "No relajarse"]',
     '["No permitir goles", "Defender como final", "Concentración total"]',
@@ -3910,7 +3910,7 @@ INSERT INTO tareas (
     '["Partidos de 3 min", "Ganador sube campo, perdedor baja", "Empate = se queda", "Campo A = máximo nivel"]',
     'Terminar en campo A = ganador',
     'transicion_defensa_ataque', 'Ascenso-descenso', 'Ganar para subir',
-    'Muy alta intensidad', 33.3, 'muy alta', 170, 190,
+    'Muy alta intensidad', 33.3, 'alta', 170, 190,
     1,
     '["Ganar para ascender", "Intensidad máxima", "No permitir descenso"]',
     '["Evitar goles para no bajar", "Defender nivel", "Presión constante"]',
@@ -3952,7 +3952,7 @@ INSERT INTO tareas (
     '["Reinicio inmediato tras gol", "Saque desde donde el balón salió/quedó", "No hay pausa", "Jugador más cercano saca"]',
     'Goles acumulados',
     'transicion_defensa_ataque', 'Transiciones continuas', 'Estar siempre activo',
-    'Muy alta intensidad', 49, 'muy alta', 170, 190,
+    'Muy alta intensidad', 49, 'alta', 170, 190,
     2,
     '["Estar siempre preparado", "No celebrar goles", "Transición inmediata", "Atacar reinicio rápido"]',
     '["Nunca bajar guardia", "Posicionarse tras gol", "Transición defensiva constante"]',
@@ -4262,10 +4262,10 @@ INSERT INTO tareas (titulo, codigo, categoria_id, organizacion_id, duracion_tota
 VALUES ('Rondo 6v2 con Portería de Escape', 'RND-016', (SELECT id FROM categorias_tarea WHERE codigo = 'RND'), '00000000-0000-0000-0000-000000000001', 14, 5, 2, 0.75, 15, 15, 'cuadrado', 8, 8, 0, '6v2', 'Rondo 6v2 con mini portería en un lado. Los defensores pueden escapar del pressing haciendo gol en la portería tras robar. Trabaja transición inmediata.', 'Entrenador pasa al equipo de 6', '10 pases o gol de escape', '["6v2 rondo normal", "Si 2 roban: pueden hacer gol en mini portería", "Gol de escape = victoria inmediata"]', '10 pases = 1pt poseedores, Gol escape = 2pts defensores', 'transicion_defensa_ataque', 'Rondo con transición', 'Transicionar tras robo', 'Alta intensidad', 28.1, 'alta', 160, 180, 2, '["No perder en transición", "Pressing inmediato si pierden"]', '["Robar y atacar portería", "Transición rápida"]', '["No presionar tras pérdida", "No atacar portería tras robo"]', '[{"nombre": "Sin portería", "descripcion": "Rondo clásico", "dificultad": "-1"}]', '["Mini portería x1", "Conos x4", "Petos 2 colores", "Balones x6"]', '["MD-4", "MD-3"]', true, true, '["rondo", "escape", "transición", "mini portería"]');
 
 INSERT INTO tareas (titulo, codigo, categoria_id, organizacion_id, duracion_total, num_series, duracion_serie, tiempo_descanso, espacio_largo, espacio_ancho, espacio_forma, num_jugadores_min, num_jugadores_max, num_porteros, estructura_equipos, descripcion, como_inicia, como_finaliza, reglas_tacticas, forma_puntuar, fase_juego, principio_tactico, intencion_tactica, tipo_esfuerzo, m2_por_jugador, densidad, fc_esperada_min, fc_esperada_max, nivel_cognitivo, consignas_ofensivas, consignas_defensivas, errores_comunes, variantes, material, match_days_recomendados, es_plantilla, es_publica, tags)
-VALUES ('Rondo 5v2+2 con Relevo', 'RND-017', (SELECT id FROM categorias_tarea WHERE codigo = 'RND'), '00000000-0000-0000-0000-000000000001', 16, 4, 3, 1, 14, 14, 'cuadrado', 9, 9, 0, '5v2+2 en espera', 'Rondo 5v2 donde cada 30 segundos los 2 defensores hacen relevo con los 2 en espera. Mantiene intensidad alta en pressing.', 'Entrenador pasa al equipo de 5', 'Tiempo de serie', '["2 defienden, 2 esperan", "Relevo cada 30 seg", "Defensores que salen van a espera"]', 'Robos acumulados por pareja de defensores', 'ataque_organizado', 'Pressing intenso con relevo', 'Mantener pressing fresco', 'Muy alta intensidad', 21.8, 'muy alta', 165, 185, 2, '["Mantener posesión contra pressing fresco"]', '["30 seg de pressing máximo", "Robar antes del relevo"]', '["Bajar intensidad antes de relevo"]', '[{"nombre": "Relevo cada 20 seg", "descripcion": "Más frecuente", "dificultad": "+1"}]', '["Conos x4", "Petos 2 colores", "Balones x4", "Silbato"]', '["MD-4"]', true, true, '["rondo", "relevo", "pressing", "intensidad"]');
+VALUES ('Rondo 5v2+2 con Relevo', 'RND-017', (SELECT id FROM categorias_tarea WHERE codigo = 'RND'), '00000000-0000-0000-0000-000000000001', 16, 4, 3, 1, 14, 14, 'cuadrado', 9, 9, 0, '5v2+2 en espera', 'Rondo 5v2 donde cada 30 segundos los 2 defensores hacen relevo con los 2 en espera. Mantiene intensidad alta en pressing.', 'Entrenador pasa al equipo de 5', 'Tiempo de serie', '["2 defienden, 2 esperan", "Relevo cada 30 seg", "Defensores que salen van a espera"]', 'Robos acumulados por pareja de defensores', 'ataque_organizado', 'Pressing intenso con relevo', 'Mantener pressing fresco', 'Muy alta intensidad', 21.8, 'alta', 165, 185, 2, '["Mantener posesión contra pressing fresco"]', '["30 seg de pressing máximo", "Robar antes del relevo"]', '["Bajar intensidad antes de relevo"]', '[{"nombre": "Relevo cada 20 seg", "descripcion": "Más frecuente", "dificultad": "+1"}]', '["Conos x4", "Petos 2 colores", "Balones x4", "Silbato"]', '["MD-4"]', true, true, '["rondo", "relevo", "pressing", "intensidad"]');
 
 INSERT INTO tareas (titulo, codigo, categoria_id, organizacion_id, duracion_total, num_series, duracion_serie, tiempo_descanso, espacio_largo, espacio_ancho, espacio_forma, num_jugadores_min, num_jugadores_max, num_porteros, estructura_equipos, descripcion, como_inicia, como_finaliza, reglas_tacticas, forma_puntuar, fase_juego, principio_tactico, intencion_tactica, tipo_esfuerzo, m2_por_jugador, densidad, fc_esperada_min, fc_esperada_max, nivel_cognitivo, consignas_ofensivas, consignas_defensivas, errores_comunes, variantes, material, match_days_recomendados, es_plantilla, es_publica, tags)
-VALUES ('Rondo Klopp: 4v4+4 Tres Equipos', 'RND-018', (SELECT id FROM categorias_tarea WHERE codigo = 'RND'), '00000000-0000-0000-0000-000000000001', 18, 3, 5, 1, 25, 25, 'cuadrado', 12, 12, 0, '4v4+4 (tres equipos)', 'Rondo estilo Klopp con 3 equipos de 4. Dos equipos juegan 8v4, el que pierde balón pasa a defender. Gegenpressing: al perder, 6 segundos de pressing máximo.', 'Entrenador pasa a un equipo', 'Tiempo de serie', '["2 equipos atacan (8v4)", "Equipo que pierde: pasa a defender", "6 seg de gegenpressing tras pérdida"]', 'Robos por equipo', 'transicion_ataque_defensa', 'Gegenpressing Klopp', 'Pressing tras pérdida inmediato', 'Muy alta intensidad', 52.1, 'muy alta', 170, 190, 2, '["No perder", "Si pierden: 6 seg pressing máximo"]', '["Robar rápido para no ser equipo defensor"]', '["Gegenpressing lento", "No presionar tras pérdida"]', '[{"nombre": "Sin gegenpressing", "descripcion": "Cambio normal", "dificultad": "-1"}]', '["Conos x4", "Petos 3 colores", "Balones x6", "Cronómetro"]', '["MD-4", "MD-3"]', true, true, '["Klopp", "gegenpressing", "tres equipos", "intensidad"]');
+VALUES ('Rondo Klopp: 4v4+4 Tres Equipos', 'RND-018', (SELECT id FROM categorias_tarea WHERE codigo = 'RND'), '00000000-0000-0000-0000-000000000001', 18, 3, 5, 1, 25, 25, 'cuadrado', 12, 12, 0, '4v4+4 (tres equipos)', 'Rondo estilo Klopp con 3 equipos de 4. Dos equipos juegan 8v4, el que pierde balón pasa a defender. Gegenpressing: al perder, 6 segundos de pressing máximo.', 'Entrenador pasa a un equipo', 'Tiempo de serie', '["2 equipos atacan (8v4)", "Equipo que pierde: pasa a defender", "6 seg de gegenpressing tras pérdida"]', 'Robos por equipo', 'transicion_ataque_defensa', 'Gegenpressing Klopp', 'Pressing tras pérdida inmediato', 'Muy alta intensidad', 52.1, 'alta', 170, 190, 2, '["No perder", "Si pierden: 6 seg pressing máximo"]', '["Robar rápido para no ser equipo defensor"]', '["Gegenpressing lento", "No presionar tras pérdida"]', '[{"nombre": "Sin gegenpressing", "descripcion": "Cambio normal", "dificultad": "-1"}]', '["Conos x4", "Petos 3 colores", "Balones x6", "Cronómetro"]', '["MD-4", "MD-3"]', true, true, '["Klopp", "gegenpressing", "tres equipos", "intensidad"]');
 
 -- ============================================================================
 -- BALÓN PARADO (ABP) - 5 tareas adicionales (Total: 18)
@@ -4291,10 +4291,10 @@ VALUES ('Penalti: Rutina de Portero', 'ABP-018', (SELECT id FROM categorias_tare
 -- ============================================================================
 
 INSERT INTO tareas (titulo, codigo, categoria_id, organizacion_id, duracion_total, num_series, duracion_serie, tiempo_descanso, espacio_largo, espacio_ancho, espacio_forma, num_jugadores_min, num_jugadores_max, num_porteros, estructura_equipos, descripcion, como_inicia, como_finaliza, reglas_tacticas, forma_puntuar, fase_juego, principio_tactico, intencion_tactica, tipo_esfuerzo, m2_por_jugador, densidad, fc_esperada_min, fc_esperada_max, nivel_cognitivo, consignas_ofensivas, consignas_defensivas, errores_comunes, variantes, material, match_days_recomendados, es_plantilla, es_publica, tags)
-VALUES ('SSG 4v4+4 (Tres Equipos Rotación)', 'SSG-017', (SELECT id FROM categorias_tarea WHERE codigo = 'SSG'), '00000000-0000-0000-0000-000000000001', 20, 1, 18, 2, 35, 28, 'rectangular', 12, 12, 0, '4v4+4 (3 equipos)', 'Tres equipos de 4. 8v4: dos equipos atacan, uno defiende. Al robar, equipo que perdió pasa a defender. Similar al rondo Klopp pero con mini porterías.', 'Entrenador pasa balón', 'Gol o robo (rotación)', '["2 equipos atacan vs 1 defiende", "Equipo que pierde: pasa a defender", "Gol = punto para ambos atacantes"]', 'Goles acumulados por equipo', 'transicion_defensa_ataque', 'SSG con rotación', 'Atacar y no perder', 'Muy alta intensidad', 40.8, 'muy alta', 170, 190, 2, '["Atacar rápido", "No perder para no defender"]', '["Robar y cambiar rol"]', '["Perder balón fácil"]', '[{"nombre": "3v3+3", "descripcion": "Menos jugadores", "dificultad": "+1"}]', '["Mini porterías x2", "Conos", "Petos 3 colores", "Balones x6"]', '["MD-4"]', true, true, '["tres equipos", "rotación", "SSG", "intensidad"]');
+VALUES ('SSG 4v4+4 (Tres Equipos Rotación)', 'SSG-017', (SELECT id FROM categorias_tarea WHERE codigo = 'SSG'), '00000000-0000-0000-0000-000000000001', 20, 1, 18, 2, 35, 28, 'rectangular', 12, 12, 0, '4v4+4 (3 equipos)', 'Tres equipos de 4. 8v4: dos equipos atacan, uno defiende. Al robar, equipo que perdió pasa a defender. Similar al rondo Klopp pero con mini porterías.', 'Entrenador pasa balón', 'Gol o robo (rotación)', '["2 equipos atacan vs 1 defiende", "Equipo que pierde: pasa a defender", "Gol = punto para ambos atacantes"]', 'Goles acumulados por equipo', 'transicion_defensa_ataque', 'SSG con rotación', 'Atacar y no perder', 'Muy alta intensidad', 40.8, 'alta', 170, 190, 2, '["Atacar rápido", "No perder para no defender"]', '["Robar y cambiar rol"]', '["Perder balón fácil"]', '[{"nombre": "3v3+3", "descripcion": "Menos jugadores", "dificultad": "+1"}]', '["Mini porterías x2", "Conos", "Petos 3 colores", "Balones x6"]', '["MD-4"]', true, true, '["tres equipos", "rotación", "SSG", "intensidad"]');
 
 INSERT INTO tareas (titulo, codigo, categoria_id, organizacion_id, duracion_total, num_series, duracion_serie, tiempo_descanso, espacio_largo, espacio_ancho, espacio_forma, num_jugadores_min, num_jugadores_max, num_porteros, estructura_equipos, descripcion, como_inicia, como_finaliza, reglas_tacticas, forma_puntuar, fase_juego, principio_tactico, intencion_tactica, tipo_esfuerzo, m2_por_jugador, densidad, fc_esperada_min, fc_esperada_max, nivel_cognitivo, consignas_ofensivas, consignas_defensivas, errores_comunes, variantes, material, match_days_recomendados, es_plantilla, es_publica, tags)
-VALUES ('SSG Futsal 5v5 (Reglas Futsal)', 'SSG-018', (SELECT id FROM categorias_tarea WHERE codigo = 'SSG'), '00000000-0000-0000-0000-000000000001', 20, 2, 8, 2, 40, 20, 'rectangular', 12, 12, 2, '5v5 (4+POR vs 4+POR)', 'Partido con reglas de futsal: saque de banda con pie, faltas acumulativas, 4 segundos para sacar. Trabaja velocidad de juego y técnica en espacio reducido.', 'Saque de centro', 'Tiempo de serie', '["Reglas futsal completas", "4 seg para sacar", "Faltas acumulan"]', 'Goles', 'ataque_organizado', 'Futsal: velocidad y técnica', 'Dominar futsal', 'Muy alta intensidad', 40, 'muy alta', 170, 190, 2, '["Velocidad de juego", "Técnica depurada", "Pase y desmarque rápido"]', '["Pressing alto", "No dar tiempo"]', '["Lentitud", "Técnica imprecisa"]', '[{"nombre": "Sin reglas futsal", "descripcion": "Reglas normales", "dificultad": "-1"}]', '["Porterías futsal", "Balón futsal", "Petos"]', '["MD-4", "MD+1"]', true, true, '["futsal", "velocidad", "técnica", "reducido"]');
+VALUES ('SSG Futsal 5v5 (Reglas Futsal)', 'SSG-018', (SELECT id FROM categorias_tarea WHERE codigo = 'SSG'), '00000000-0000-0000-0000-000000000001', 20, 2, 8, 2, 40, 20, 'rectangular', 12, 12, 2, '5v5 (4+POR vs 4+POR)', 'Partido con reglas de futsal: saque de banda con pie, faltas acumulativas, 4 segundos para sacar. Trabaja velocidad de juego y técnica en espacio reducido.', 'Saque de centro', 'Tiempo de serie', '["Reglas futsal completas", "4 seg para sacar", "Faltas acumulan"]', 'Goles', 'ataque_organizado', 'Futsal: velocidad y técnica', 'Dominar futsal', 'Muy alta intensidad', 40, 'alta', 170, 190, 2, '["Velocidad de juego", "Técnica depurada", "Pase y desmarque rápido"]', '["Pressing alto", "No dar tiempo"]', '["Lentitud", "Técnica imprecisa"]', '[{"nombre": "Sin reglas futsal", "descripcion": "Reglas normales", "dificultad": "-1"}]', '["Porterías futsal", "Balón futsal", "Petos"]', '["MD-4", "MD+1"]', true, true, '["futsal", "velocidad", "técnica", "reducido"]');
 
 INSERT INTO tareas (titulo, codigo, categoria_id, organizacion_id, duracion_total, num_series, duracion_serie, tiempo_descanso, espacio_largo, espacio_ancho, espacio_forma, num_jugadores_min, num_jugadores_max, num_porteros, estructura_equipos, descripcion, como_inicia, como_finaliza, reglas_tacticas, fase_juego, principio_tactico, intencion_tactica, tipo_esfuerzo, densidad, fc_esperada_min, fc_esperada_max, nivel_cognitivo, consignas_ofensivas, errores_comunes, variantes, material, match_days_recomendados, es_plantilla, es_publica, tags)
 VALUES ('Evolución: Rechace al Segundo Palo', 'EVO-017', (SELECT id FROM categorias_tarea WHERE codigo = 'EVO'), '00000000-0000-0000-0000-000000000001', 16, 10, 1.25, 0.5, 40, 45, 'area_grande', 8, 10, 1, 'Centrador + Atacantes + POR', 'Trabajo específico de atacar rechaces. Extremo centra, portero despeja, atacantes deben rematar el rechace. Énfasis en segunda jugada.', 'Extremo centra', 'Gol de rechace o despeje definitivo', '["Centro, portero despeja, atacar rechace", "Siempre 2 jugadores vigilando rechace", "Rápidos al segundo balón"]', 'ataque_organizado', 'Segunda jugada', 'Atacar rechaces', 'Media intensidad', 'media', 145, 165, 2, '["Vigilar rechace siempre", "Llegar rápido al segundo balón", "Remate decidido"]', '["No vigilar rechace", "Llegar tarde"]', '[{"nombre": "Sin rechace", "descripcion": "Centro directo", "dificultad": "-1"}]', '["Portería reglamentaria", "Conos", "Balones x12"]', '["MD-2", "MD-3"]', true, true, '["rechace", "segunda jugada", "finalización"]');
