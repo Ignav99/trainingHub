@@ -37,6 +37,7 @@ async def list_tareas(
     duracion_min: Optional[int] = Query(None, ge=1),
     duracion_max: Optional[int] = Query(None, ge=1),
     nivel_cognitivo: Optional[NivelCognitivo] = None,
+    densidad: Optional[str] = Query(None, pattern="^(alta|media|baja)$"),
     solo_plantillas: bool = False,
     equipo_id: Optional[UUID] = None,
     busqueda: Optional[str] = None,
@@ -102,7 +103,10 @@ async def list_tareas(
     
     if nivel_cognitivo:
         query = query.eq("nivel_cognitivo", nivel_cognitivo.value)
-    
+
+    if densidad:
+        query = query.eq("densidad", densidad)
+
     if solo_plantillas:
         query = query.eq("es_plantilla", True)
     

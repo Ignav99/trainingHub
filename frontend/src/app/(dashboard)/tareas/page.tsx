@@ -77,6 +77,7 @@ export default function TareasPage() {
   const [busqueda, setBusqueda] = useState('')
   const [categoriaFilter, setCategoriaFilter] = useState('')
   const [faseFilter, setFaseFilter] = useState('')
+  const [densidadFilter, setDensidadFilter] = useState('')
 
   // Menú de acciones
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
@@ -87,7 +88,7 @@ export default function TareasPage() {
 
   useEffect(() => {
     loadTareas()
-  }, [page, categoriaFilter, faseFilter])
+  }, [page, categoriaFilter, faseFilter, densidadFilter])
 
   const loadCategorias = async () => {
     try {
@@ -108,6 +109,7 @@ export default function TareasPage() {
         limit,
         categoria: categoriaFilter || undefined,
         fase_juego: faseFilter || undefined,
+        densidad: densidadFilter || undefined,
         busqueda: busqueda || undefined,
       })
 
@@ -154,10 +156,11 @@ export default function TareasPage() {
     setBusqueda('')
     setCategoriaFilter('')
     setFaseFilter('')
+    setDensidadFilter('')
     setPage(1)
   }
 
-  const hasActiveFilters = busqueda || categoriaFilter || faseFilter
+  const hasActiveFilters = busqueda || categoriaFilter || faseFilter || densidadFilter
 
   return (
     <div className="space-y-6">
@@ -205,6 +208,33 @@ export default function TareasPage() {
                 {cat.nombre}
               </option>
             ))}
+          </select>
+
+          {/* Fase de Juego */}
+          <select
+            value={faseFilter}
+            onChange={(e) => { setFaseFilter(e.target.value); setPage(1) }}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+          >
+            <option value="">Todas las fases</option>
+            <option value="ataque_organizado">Ataque Organizado</option>
+            <option value="defensa_organizada">Defensa Organizada</option>
+            <option value="transicion_defensa_ataque">Transición Def→Ata</option>
+            <option value="transicion_ataque_defensa">Transición Ata→Def</option>
+            <option value="balon_parado_ofensivo">Balón Parado Ofensivo</option>
+            <option value="balon_parado_defensivo">Balón Parado Defensivo</option>
+          </select>
+
+          {/* Densidad/Intensidad */}
+          <select
+            value={densidadFilter}
+            onChange={(e) => { setDensidadFilter(e.target.value); setPage(1) }}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+          >
+            <option value="">Toda intensidad</option>
+            <option value="alta">Alta intensidad</option>
+            <option value="media">Media intensidad</option>
+            <option value="baja">Baja intensidad</option>
           </select>
 
           {/* Botón de búsqueda */}
