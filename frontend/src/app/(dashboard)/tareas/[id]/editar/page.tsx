@@ -106,12 +106,16 @@ export default function EditarTareaPage() {
     setLoading(true)
     setError(null)
     try {
-      const tarea = await tareasApi.get(tareaId)
+      const tarea: any = await tareasApi.get(tareaId)
+
+      // La API puede devolver 'categoria' o 'categorias_tarea'
+      const cat = tarea.categoria || tarea.categorias_tarea
+      const categoriaCode = cat?.codigo || ''
 
       // Mapear datos de la tarea al formulario
       setFormData({
         titulo: tarea.titulo,
-        categoria_id: tarea.categoria?.codigo || '',
+        categoria_id: categoriaCode,
         duracion_total: tarea.duracion_total,
         num_jugadores_min: tarea.num_jugadores_min,
         num_jugadores_max: tarea.num_jugadores_max,
