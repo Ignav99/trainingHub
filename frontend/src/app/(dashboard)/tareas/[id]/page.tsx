@@ -309,6 +309,27 @@ export default function TareaDetailPage() {
                 </div>
               )}
             </div>
+
+            {/* Objetivos */}
+            {(tarea.objetivo_fisico || tarea.objetivo_psicologico) && (
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">Objetivos</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  {tarea.objetivo_fisico && (
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500 mb-1">Objetivo fisico</h4>
+                      <p className="text-gray-700">{tarea.objetivo_fisico}</p>
+                    </div>
+                  )}
+                  {tarea.objetivo_psicologico && (
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500 mb-1">Objetivo psicologico</h4>
+                      <p className="text-gray-700">{tarea.objetivo_psicologico}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Rules */}
@@ -455,6 +476,89 @@ export default function TareaDetailPage() {
               )}
             </div>
           </div>
+
+          {/* Variantes, Progresiones, Material */}
+          {((tarea.variantes && tarea.variantes.length > 0) ||
+            (tarea.progresiones && tarea.progresiones.length > 0) ||
+            (tarea.regresiones && tarea.regresiones.length > 0) ||
+            (tarea.material && tarea.material.length > 0) ||
+            tarea.video_url) && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Variantes y Material</h2>
+              <div className="space-y-4">
+                {/* Variantes */}
+                {tarea.variantes && tarea.variantes.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-medium text-purple-600 mb-2">Variantes</h3>
+                    <ul className="space-y-1">
+                      {tarea.variantes.map((v, i) => (
+                        <li key={i} className="px-3 py-2 bg-purple-50 rounded-lg text-sm text-purple-700">
+                          {v}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Progresiones */}
+                {tarea.progresiones && tarea.progresiones.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-medium text-green-600 mb-2">Progresiones (mas dificil)</h3>
+                    <ul className="space-y-1">
+                      {tarea.progresiones.map((p, i) => (
+                        <li key={i} className="px-3 py-2 bg-green-50 rounded-lg text-sm text-green-700">
+                          {p}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Regresiones */}
+                {tarea.regresiones && tarea.regresiones.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-medium text-orange-600 mb-2">Regresiones (mas facil)</h3>
+                    <ul className="space-y-1">
+                      {tarea.regresiones.map((r, i) => (
+                        <li key={i} className="px-3 py-2 bg-orange-50 rounded-lg text-sm text-orange-700">
+                          {r}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Material */}
+                {tarea.material && tarea.material.length > 0 && (
+                  <div className="pt-3 border-t border-gray-200">
+                    <h3 className="text-sm font-medium text-gray-600 mb-2">Material necesario</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {tarea.material.map((m, i) => (
+                        <span key={i} className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
+                          {m}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Video */}
+                {tarea.video_url && (
+                  <div className="pt-3 border-t border-gray-200">
+                    <h3 className="text-sm font-medium text-gray-600 mb-2">Video demostrativo</h3>
+                    <a
+                      href={tarea.video_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline text-sm"
+                    >
+                      Ver video
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right column - Stats & metadata */}

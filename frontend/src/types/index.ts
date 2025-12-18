@@ -132,12 +132,25 @@ export interface Tarea {
   consignas_ofensivas: string[]
   consignas_defensivas: string[]
   errores_comunes: string[]
-  
+
+  // Objetivos
+  objetivo_fisico?: string
+  objetivo_psicologico?: string
+
+  // Variantes y progresiones
+  variantes?: string[]
+  progresiones?: string[]
+  regresiones?: string[]
+
+  // Material y recursos
+  material?: string[]
+  video_url?: string
+
   // Gráfico
   grafico_url?: string
   grafico_svg?: string
   grafico_data?: Record<string, any>
-  
+
   // Metadatos
   es_plantilla: boolean
   es_publica: boolean
