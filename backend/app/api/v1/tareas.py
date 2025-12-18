@@ -37,6 +37,9 @@ async def list_tareas(
     duracion_min: Optional[int] = Query(None, ge=1),
     duracion_max: Optional[int] = Query(None, ge=1),
     nivel_cognitivo: Optional[NivelCognitivo] = None,
+    densidad: Optional[str] = Query(None, pattern="^(alta|media|baja)$"),
+    match_day: Optional[str] = Query(None, pattern="^MD[-+]?[0-4]?$"),
+    tipo_esfuerzo: Optional[str] = None,
     solo_plantillas: bool = False,
     equipo_id: Optional[UUID] = None,
     busqueda: Optional[str] = None,
@@ -102,7 +105,17 @@ async def list_tareas(
     
     if nivel_cognitivo:
         query = query.eq("nivel_cognitivo", nivel_cognitivo.value)
-    
+
+    if densidad:
+        query = query.eq("densidad", densidad)
+
+    if match_day:
+        # match_days_recomendados es un array JSONB, buscamos si contiene el valor
+        query = query.contains("match_days_recomendados", [match_day])
+
+    if tipo_esfuerzo:
+        query = query.ilike("tipo_esfuerzo", f"%{tipo_esfuerzo}%")
+
     if solo_plantillas:
         query = query.eq("es_plantilla", True)
     
