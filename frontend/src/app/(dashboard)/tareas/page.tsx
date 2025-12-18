@@ -78,6 +78,8 @@ export default function TareasPage() {
   const [categoriaFilter, setCategoriaFilter] = useState('')
   const [faseFilter, setFaseFilter] = useState('')
   const [densidadFilter, setDensidadFilter] = useState('')
+  const [matchDayFilter, setMatchDayFilter] = useState('')
+  const [tipoEsfuerzoFilter, setTipoEsfuerzoFilter] = useState('')
 
   // Menú de acciones
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
@@ -88,7 +90,7 @@ export default function TareasPage() {
 
   useEffect(() => {
     loadTareas()
-  }, [page, categoriaFilter, faseFilter, densidadFilter])
+  }, [page, categoriaFilter, faseFilter, densidadFilter, matchDayFilter, tipoEsfuerzoFilter])
 
   const loadCategorias = async () => {
     try {
@@ -110,6 +112,8 @@ export default function TareasPage() {
         categoria: categoriaFilter || undefined,
         fase_juego: faseFilter || undefined,
         densidad: densidadFilter || undefined,
+        match_day: matchDayFilter || undefined,
+        tipo_esfuerzo: tipoEsfuerzoFilter || undefined,
         busqueda: busqueda || undefined,
       })
 
@@ -157,10 +161,12 @@ export default function TareasPage() {
     setCategoriaFilter('')
     setFaseFilter('')
     setDensidadFilter('')
+    setMatchDayFilter('')
+    setTipoEsfuerzoFilter('')
     setPage(1)
   }
 
-  const hasActiveFilters = busqueda || categoriaFilter || faseFilter || densidadFilter
+  const hasActiveFilters = busqueda || categoriaFilter || faseFilter || densidadFilter || matchDayFilter || tipoEsfuerzoFilter
 
   return (
     <div className="space-y-6">
@@ -235,6 +241,36 @@ export default function TareasPage() {
             <option value="alta">Alta intensidad</option>
             <option value="media">Media intensidad</option>
             <option value="baja">Baja intensidad</option>
+          </select>
+
+          {/* Match Day */}
+          <select
+            value={matchDayFilter}
+            onChange={(e) => { setMatchDayFilter(e.target.value); setPage(1) }}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+          >
+            <option value="">Todos los días</option>
+            <option value="MD-4">MD-4 (Fuerza)</option>
+            <option value="MD-3">MD-3 (Resistencia)</option>
+            <option value="MD-2">MD-2 (Velocidad)</option>
+            <option value="MD-1">MD-1 (Activación)</option>
+            <option value="MD">MD (Partido)</option>
+            <option value="MD+1">MD+1 (Recuperación)</option>
+            <option value="MD+2">MD+2 (Regeneración)</option>
+          </select>
+
+          {/* Tipo de Esfuerzo */}
+          <select
+            value={tipoEsfuerzoFilter}
+            onChange={(e) => { setTipoEsfuerzoFilter(e.target.value); setPage(1) }}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+          >
+            <option value="">Todo tipo esfuerzo</option>
+            <option value="Alta intensidad">Alta intensidad</option>
+            <option value="Media intensidad">Media intensidad</option>
+            <option value="Baja intensidad">Baja intensidad</option>
+            <option value="Intermitente">Intermitente</option>
+            <option value="Muy alta intensidad">Muy alta intensidad</option>
           </select>
 
           {/* Botón de búsqueda */}
