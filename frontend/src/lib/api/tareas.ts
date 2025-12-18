@@ -29,6 +29,16 @@ export interface TareaCreateData {
   es_plantilla?: boolean
   tags?: string[]
   equipo_id?: string
+  // Objetivos
+  objetivo_fisico?: string
+  objetivo_psicologico?: string
+  // Variantes y progresiones
+  variantes?: string[]
+  progresiones?: string[]
+  regresiones?: string[]
+  // Material y recursos
+  material?: string[]
+  video_url?: string
   // Grafico
   grafico_data?: Record<string, any>
 }

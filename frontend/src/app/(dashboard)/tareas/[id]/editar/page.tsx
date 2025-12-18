@@ -13,7 +13,10 @@ import {
   Target,
   Brain,
   MessageCircle,
-  PenTool
+  PenTool,
+  Layers,
+  Package,
+  Video
 } from 'lucide-react'
 import { tareasApi, catalogosApi, TareaUpdateData } from '@/lib/api/tareas'
 import { Tarea } from '@/types'
@@ -43,7 +46,7 @@ export default function EditarTareaPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [step, setStep] = useState(1)
-  const totalSteps = 5
+  const totalSteps = 6
 
   // Grafico de la tarea
   const [graficoData, setGraficoData] = useState<DiagramData>(emptyDiagramData)
@@ -70,6 +73,7 @@ export default function EditarTareaPage() {
     principio_tactico: '',
     nivel_cognitivo: 2,
     densidad: 'media',
+    tipo_esfuerzo: '',
     reglas_tecnicas: [],
     reglas_tacticas: [],
     consignas_ofensivas: [],
@@ -77,6 +81,14 @@ export default function EditarTareaPage() {
     errores_comunes: [],
     es_plantilla: false,
     tags: [],
+    // Nuevos campos
+    objetivo_fisico: '',
+    objetivo_psicologico: '',
+    variantes: [],
+    progresiones: [],
+    regresiones: [],
+    material: [],
+    video_url: '',
   })
 
   // Inputs temporales para arrays
@@ -84,6 +96,10 @@ export default function EditarTareaPage() {
   const [newReglaTactica, setNewReglaTactica] = useState('')
   const [newConsignaOfensiva, setNewConsignaOfensiva] = useState('')
   const [newConsignaDefensiva, setNewConsignaDefensiva] = useState('')
+  const [newVariante, setNewVariante] = useState('')
+  const [newProgresion, setNewProgresion] = useState('')
+  const [newRegresion, setNewRegresion] = useState('')
+  const [newMaterial, setNewMaterial] = useState('')
 
   useEffect(() => {
     loadCategorias()
@@ -145,6 +161,14 @@ export default function EditarTareaPage() {
         errores_comunes: tarea.errores_comunes || [],
         es_plantilla: tarea.es_plantilla,
         tags: tarea.tags || [],
+        // Nuevos campos
+        objetivo_fisico: tarea.objetivo_fisico || '',
+        objetivo_psicologico: tarea.objetivo_psicologico || '',
+        variantes: tarea.variantes || [],
+        progresiones: tarea.progresiones || [],
+        regresiones: tarea.regresiones || [],
+        material: tarea.material || [],
+        video_url: tarea.video_url || '',
       })
 
       // Cargar grafico si existe
@@ -207,10 +231,12 @@ export default function EditarTareaPage() {
       case 2:
         return (formData.num_jugadores_min || 0) > 0
       case 3:
-        return true
+        return true // Contenido tactico y objetivos
       case 4:
-        return true
+        return true // Reglas y coaching points
       case 5:
+        return true // Variantes y material
+      case 6:
         return true // El grafico es opcional
       default:
         return false
@@ -521,6 +547,37 @@ export default function EditarTareaPage() {
               </div>
             )}
 
+            {/* Objetivos */}
+            <div className="pt-4 border-t border-gray-200">
+              <h3 className="text-sm font-semibold text-gray-900 mb-3">Objetivos de la tarea</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Objetivo fisico
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.objetivo_fisico || ''}
+                    onChange={(e) => setFormData({ ...formData, objetivo_fisico: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                    placeholder="Ej: Resistencia aerobica, Velocidad..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Objetivo psicologico
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.objetivo_psicologico || ''}
+                    onChange={(e) => setFormData({ ...formData, objetivo_psicologico: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                    placeholder="Ej: Concentracion, Toma de decisiones..."
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Reglas tecnicas */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -713,16 +770,174 @@ export default function EditarTareaPage() {
           </div>
         )}
 
-        {/* Paso 5: Grafico de la tarea */}
+        {/* Paso 5: Variantes, progresiones y material */}
         {step === 5 && (
           <div className="space-y-6">
             <div className="flex items-center gap-2 text-primary mb-4">
+              <Layers className="h-5 w-5" />
+              <h2 className="text-lg font-semibold">Variantes y Material</h2>
+            </div>
+
+            {/* Variantes */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Variantes de la tarea
+              </label>
+              <p className="text-xs text-gray-500 mb-2">Modificaciones que cambian la dinamica</p>
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  value={newVariante}
+                  onChange={(e) => setNewVariante(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addToArray('variantes', newVariante, setNewVariante))}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                  placeholder="Ej: Jugar a 1 toque en vez de 2"
+                />
+                <button
+                  type="button"
+                  onClick={() => addToArray('variantes', newVariante, setNewVariante)}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                >
+                  Anadir
+                </button>
+              </div>
+              <div className="space-y-1">
+                {(formData.variantes || []).map((item, i) => (
+                  <div key={i} className="flex items-center justify-between px-3 py-2 bg-purple-50 rounded-lg">
+                    <span className="text-sm text-purple-700">{item}</span>
+                    <button type="button" onClick={() => removeFromArray('variantes', i)} className="text-purple-500 hover:text-purple-700">x</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Progresiones */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Progresiones (mas dificil)
+              </label>
+              <p className="text-xs text-gray-500 mb-2">Como aumentar la dificultad</p>
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  value={newProgresion}
+                  onChange={(e) => setNewProgresion(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addToArray('progresiones', newProgresion, setNewProgresion))}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                  placeholder="Ej: Reducir espacio, anadir defensores..."
+                />
+                <button
+                  type="button"
+                  onClick={() => addToArray('progresiones', newProgresion, setNewProgresion)}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                >
+                  Anadir
+                </button>
+              </div>
+              <div className="space-y-1">
+                {(formData.progresiones || []).map((item, i) => (
+                  <div key={i} className="flex items-center justify-between px-3 py-2 bg-green-50 rounded-lg">
+                    <span className="text-sm text-green-700">{item}</span>
+                    <button type="button" onClick={() => removeFromArray('progresiones', i)} className="text-green-500 hover:text-green-700">x</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Regresiones */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Regresiones (mas facil)
+              </label>
+              <p className="text-xs text-gray-500 mb-2">Como reducir la dificultad</p>
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  value={newRegresion}
+                  onChange={(e) => setNewRegresion(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addToArray('regresiones', newRegresion, setNewRegresion))}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                  placeholder="Ej: Aumentar espacio, quitar presion..."
+                />
+                <button
+                  type="button"
+                  onClick={() => addToArray('regresiones', newRegresion, setNewRegresion)}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                >
+                  Anadir
+                </button>
+              </div>
+              <div className="space-y-1">
+                {(formData.regresiones || []).map((item, i) => (
+                  <div key={i} className="flex items-center justify-between px-3 py-2 bg-orange-50 rounded-lg">
+                    <span className="text-sm text-orange-700">{item}</span>
+                    <button type="button" onClick={() => removeFromArray('regresiones', i)} className="text-orange-500 hover:text-orange-700">x</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Material */}
+            <div className="pt-4 border-t border-gray-200">
+              <div className="flex items-center gap-2 mb-3">
+                <Package className="h-4 w-4 text-gray-500" />
+                <label className="block text-sm font-medium text-gray-700">Material necesario</label>
+              </div>
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  value={newMaterial}
+                  onChange={(e) => setNewMaterial(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addToArray('material', newMaterial, setNewMaterial))}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                  placeholder="Ej: 10 conos, 4 petos, 2 porterias..."
+                />
+                <button
+                  type="button"
+                  onClick={() => addToArray('material', newMaterial, setNewMaterial)}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                >
+                  Anadir
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(formData.material || []).map((item, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
+                    {item}
+                    <button type="button" onClick={() => removeFromArray('material', i)} className="hover:text-gray-900">x</button>
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Video URL */}
+            <div className="pt-4 border-t border-gray-200">
+              <div className="flex items-center gap-2 mb-2">
+                <Video className="h-4 w-4 text-gray-500" />
+                <label className="block text-sm font-medium text-gray-700">Video demostrativo (opcional)</label>
+              </div>
+              <input
+                type="url"
+                value={formData.video_url || ''}
+                onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                placeholder="https://youtube.com/watch?v=..."
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Paso 6: Grafico de la tarea */}
+        {step === 6 && (
+          <div className="space-y-6">
+            <div className="flex items-center gap-2 text-primary mb-4">
               <PenTool className="h-5 w-5" />
-              <h2 className="text-lg font-semibold">Grafico de la tarea</h2>
+              <h2 className="text-lg font-semibold">Grafico de la tarea (opcional)</h2>
             </div>
 
             <p className="text-sm text-gray-500 mb-4">
               Dibuja el grafico de la tarea colocando jugadores, conos, balones y flechas de movimiento.
+              Este paso es opcional - el grafico se puede generar automaticamente al exportar.
             </p>
 
             <TareaGraphicEditor
