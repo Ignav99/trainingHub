@@ -127,7 +127,7 @@ export default function NuevaSesionAIPage() {
       const sessionData: SesionCreateData = {
         titulo: formData.titulo || aiRecommendation.titulo_sugerido,
         fecha: formData.fecha,
-        equipo_id: '00000000-0000-0000-0000-000000000000', // TODO: Get from context
+        // equipo_id not sent - backend will use default team in test mode
         match_day: formData.match_day,
         rival: formData.rival,
         competicion: formData.competicion,

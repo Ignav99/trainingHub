@@ -12,7 +12,7 @@ import {
 export interface SesionCreateData {
   titulo: string
   fecha: string
-  equipo_id: string
+  equipo_id?: string  // Optional: backend will use default in test mode
   match_day: string
   rival?: string
   competicion?: string

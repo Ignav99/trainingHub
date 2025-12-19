@@ -149,8 +149,25 @@ async def create_sesion(sesion: SesionCreate):
     sesion_data = sesion.model_dump(exclude_unset=True)
     sesion_data["creado_por"] = DEFAULT_USER_ID
 
-    # Convertir UUIDs
-    if sesion_data.get("equipo_id"):
+    # Usar equipo por defecto si no se proporciona
+    if not sesion_data.get("equipo_id"):
+        # Obtener primer equipo de la organización
+        equipos = supabase.table("equipos").select("id").eq(
+            "organizacion_id", DEFAULT_ORG_ID
+        ).limit(1).execute()
+
+        if equipos.data:
+            sesion_data["equipo_id"] = equipos.data[0]["id"]
+        else:
+            # Crear equipo por defecto si no existe
+            nuevo_equipo = supabase.table("equipos").insert({
+                "nombre": "Equipo Principal",
+                "organizacion_id": DEFAULT_ORG_ID,
+                "categoria": "Senior",
+                "temporada": "2024-2025"
+            }).execute()
+            sesion_data["equipo_id"] = nuevo_equipo.data[0]["id"]
+    else:
         sesion_data["equipo_id"] = str(sesion_data["equipo_id"])
 
     # Convertir fecha a string
