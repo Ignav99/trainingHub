@@ -5,7 +5,7 @@ Incluye recomendador con IA (Google Gemini).
 """
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from typing import List, Optional
 
 from app.models import (
@@ -20,7 +20,6 @@ from app.models import (
     AICargaEstimada,
 )
 from app.database import get_supabase
-from app.dependencies import get_current_user
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -137,7 +136,6 @@ def calcular_score(tarea: dict, params: RecomendadorInput, fase: str) -> tuple[f
 @router.post("/sesion", response_model=RecomendadorOutput)
 async def recomendar_sesion(
     params: RecomendadorInput,
-    current_user = Depends(get_current_user),
 ):
     """
     Genera recomendaciones de tareas para una sesión.
@@ -148,20 +146,17 @@ async def recomendar_sesion(
     - desarrollo_2: 25-30 min (trabajo colectivo)
     - vuelta_calma: 10 min
     """
-    # Verificar que el usuario tiene organización
-    if not current_user.organizacion_id:
-        raise HTTPException(
-            status_code=400,
-            detail="Usuario sin organización. Configure su perfil primero."
-        )
+    # TODO: Añadir autenticación después de pruebas
+    # Por ahora usamos la organización por defecto
+    DEFAULT_ORG_ID = "454b26bf-8e28-4dc0-b85c-ba1108d982b6"
 
     supabase = get_supabase()
-    
+
     # Obtener todas las tareas disponibles
     response = supabase.table("tareas").select(
         "*, categorias_tarea!inner(codigo, nombre)"
     ).eq(
-        "organizacion_id", str(current_user.organizacion_id)
+        "organizacion_id", DEFAULT_ORG_ID
     ).execute()
     
     tareas = response.data
@@ -240,7 +235,6 @@ async def recomendar_sesion(
 @router.post("/ai-sesion", response_model=AIRecomendadorOutput)
 async def recomendar_sesion_ai(
     params: AIRecomendadorInput,
-    current_user = Depends(get_current_user),
 ):
     """
     Genera recomendaciones de sesión usando IA (Google Gemini).
@@ -255,6 +249,9 @@ async def recomendar_sesion_ai(
     - notas_ultimo_partido: Feedback del partido anterior
     - notas_plantilla: Estado de la plantilla (lesiones, etc.)
     """
+    # TODO: Añadir autenticación después de pruebas
+    DEFAULT_ORG_ID = "454b26bf-8e28-4dc0-b85c-ba1108d982b6"
+
     settings = get_settings()
 
     # Verificar que Gemini está configurado
@@ -264,20 +261,13 @@ async def recomendar_sesion_ai(
             detail="Servicio de IA no disponible. Configure GEMINI_API_KEY."
         )
 
-    # Verificar que el usuario tiene organización
-    if not current_user.organizacion_id:
-        raise HTTPException(
-            status_code=400,
-            detail="Usuario sin organización. Configure su perfil primero."
-        )
-
     supabase = get_supabase()
 
     # Obtener tareas disponibles
     response = supabase.table("tareas").select(
         "*, categorias_tarea!inner(codigo, nombre)"
     ).eq(
-        "organizacion_id", str(current_user.organizacion_id)
+        "organizacion_id", DEFAULT_ORG_ID
     ).execute()
 
     tareas = response.data
@@ -383,7 +373,7 @@ async def recomendar_sesion_ai(
         )
 
         # Obtener recomendaciones básicas
-        basic_result = await recomendar_sesion(basic_input, current_user)
+        basic_result = await recomendar_sesion(basic_input)
 
         # Convertir a formato AI
         fases_convertidas = {}
