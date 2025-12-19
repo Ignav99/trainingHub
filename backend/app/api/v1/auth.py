@@ -6,6 +6,7 @@ Endpoints para login, registro y gestión de tokens.
 from fastapi import APIRouter, HTTPException, Depends, status
 from app.models import LoginRequest, TokenResponse, UsuarioCreate, UsuarioResponse
 from app.database import get_supabase
+from app.dependencies import get_current_user
 
 router = APIRouter()
 
@@ -102,11 +103,11 @@ async def refresh_token(refresh_token: str):
     try:
         supabase = get_supabase()
         response = supabase.auth.refresh_session(refresh_token)
-        
+
         user_data = supabase.table("usuarios").select("*").eq(
             "id", response.user.id
         ).single().execute()
-        
+
         return TokenResponse(
             access_token=response.session.access_token,
             refresh_token=response.session.refresh_token,
@@ -118,3 +119,12 @@ async def refresh_token(refresh_token: str):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido o expirado"
         )
+
+
+@router.get("/me", response_model=UsuarioResponse)
+async def get_current_user_info(current_user: UsuarioResponse = Depends(get_current_user)):
+    """
+    Obtiene información del usuario actual.
+    Útil para verificar que la autenticación funciona correctamente.
+    """
+    return current_user

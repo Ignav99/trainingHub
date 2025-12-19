@@ -144,18 +144,18 @@ class UsuarioUpdateAdmin(UsuarioUpdate):
 class UsuarioResponse(UsuarioBase):
     """Schema de respuesta de usuario."""
     id: UUID
-    organizacion_id: UUID
+    organizacion_id: Optional[UUID] = None  # Optional: user may not have org yet
     avatar_url: Optional[str] = None
-    activo: bool
+    activo: bool = True  # Default to True if not set
     created_at: datetime
     updated_at: datetime
-    
+
     # Equipos del usuario
     equipos: List[EquipoResponse] = []
-    
+
     # Organización
     organizacion: Optional[OrganizacionResponse] = None
-    
+
     class Config:
         from_attributes = True
 
