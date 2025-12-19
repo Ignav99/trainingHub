@@ -141,13 +141,20 @@ async def recomendar_sesion(
 ):
     """
     Genera recomendaciones de tareas para una sesión.
-    
+
     Devuelve tareas recomendadas para cada fase:
     - activacion: 15-20 min
     - desarrollo_1: 20-25 min (trabajo sectorial)
     - desarrollo_2: 25-30 min (trabajo colectivo)
     - vuelta_calma: 10 min
     """
+    # Verificar que el usuario tiene organización
+    if not current_user.organizacion_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Usuario sin organización. Configure su perfil primero."
+        )
+
     supabase = get_supabase()
     
     # Obtener todas las tareas disponibles
@@ -255,6 +262,13 @@ async def recomendar_sesion_ai(
         raise HTTPException(
             status_code=503,
             detail="Servicio de IA no disponible. Configure GEMINI_API_KEY."
+        )
+
+    # Verificar que el usuario tiene organización
+    if not current_user.organizacion_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Usuario sin organización. Configure su perfil primero."
         )
 
     supabase = get_supabase()

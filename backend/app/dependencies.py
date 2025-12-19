@@ -50,11 +50,12 @@ async def get_current_user(
                 detail="Usuario no encontrado en la base de datos",
             )
         
-        # Verificar que el usuario está activo
-        if not db_user.data.get("activo", True):
+        # Verificar que el usuario está activo (default True si no está definido)
+        activo = db_user.data.get("activo")
+        if activo is False:  # Explicit check for False, not None
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Usuario desactivado",
+                detail="Usuario desactivado. Contacte al administrador.",
             )
         
         # Mapear organización
