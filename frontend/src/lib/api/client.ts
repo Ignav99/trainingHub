@@ -1,4 +1,4 @@
-import { useAuthStore } from '@/stores/authStore'
+import { supabase } from '@/lib/supabase/client'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/v1'
 
@@ -13,8 +13,10 @@ class ApiClient {
     this.baseUrl = baseUrl
   }
 
-  private getAuthHeaders(): HeadersInit {
-    const token = useAuthStore.getState().accessToken
+  private async getAuthHeaders(): Promise<HeadersInit> {
+    // Get token directly from Supabase session
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
     return token ? { Authorization: `Bearer ${token}` } : {}
   }
 
@@ -32,17 +34,22 @@ class ApiClient {
 
   async get<T>(path: string, options?: FetchOptions): Promise<T> {
     const url = this.buildUrl(path, options?.params)
+    const authHeaders = await this.getAuthHeaders()
     const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        ...this.getAuthHeaders(),
+        ...authHeaders,
         ...options?.headers,
       },
     })
 
     if (!response.ok) {
-      throw new Error(`API Error: ${response.status}`)
+      const error = await response.json().catch(() => ({}))
+      if (response.status === 401) {
+        throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
+      }
+      throw new Error(error.detail || `API Error: ${response.status}`)
     }
 
     return response.json()
@@ -50,11 +57,12 @@ class ApiClient {
 
   async post<T>(path: string, data?: unknown, options?: FetchOptions): Promise<T> {
     const url = this.buildUrl(path, options?.params)
+    const authHeaders = await this.getAuthHeaders()
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...this.getAuthHeaders(),
+        ...authHeaders,
         ...options?.headers,
       },
       body: data ? JSON.stringify(data) : undefined,
@@ -62,6 +70,9 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
+      if (response.status === 401) {
+        throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
+      }
       throw new Error(error.detail || `API Error: ${response.status}`)
     }
 
@@ -70,11 +81,12 @@ class ApiClient {
 
   async put<T>(path: string, data?: unknown, options?: FetchOptions): Promise<T> {
     const url = this.buildUrl(path, options?.params)
+    const authHeaders = await this.getAuthHeaders()
     const response = await fetch(url, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        ...this.getAuthHeaders(),
+        ...authHeaders,
         ...options?.headers,
       },
       body: data ? JSON.stringify(data) : undefined,
@@ -82,6 +94,9 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
+      if (response.status === 401) {
+        throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
+      }
       throw new Error(error.detail || `API Error: ${response.status}`)
     }
 
@@ -90,11 +105,12 @@ class ApiClient {
 
   async patch<T>(path: string, data?: unknown, options?: FetchOptions): Promise<T> {
     const url = this.buildUrl(path, options?.params)
+    const authHeaders = await this.getAuthHeaders()
     const response = await fetch(url, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        ...this.getAuthHeaders(),
+        ...authHeaders,
         ...options?.headers,
       },
       body: data ? JSON.stringify(data) : undefined,
@@ -102,6 +118,9 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
+      if (response.status === 401) {
+        throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
+      }
       throw new Error(error.detail || `API Error: ${response.status}`)
     }
 
@@ -110,21 +129,24 @@ class ApiClient {
 
   async delete(path: string, options?: FetchOptions): Promise<void> {
     const url = this.buildUrl(path, options?.params)
+    const authHeaders = await this.getAuthHeaders()
     const response = await fetch(url, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
-        ...this.getAuthHeaders(),
+        ...authHeaders,
         ...options?.headers,
       },
     })
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
+      if (response.status === 401) {
+        throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
+      }
       throw new Error(error.detail || `API Error: ${response.status}`)
     }
   }
-
 }
 
 export const api = new ApiClient(API_URL)
