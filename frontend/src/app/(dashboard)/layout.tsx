@@ -36,14 +36,42 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname()
   const router = useRouter()
-  const { user, logout } = useAuthStore()
+  const { user, logout, isLoading, isAuthenticated, initializeAuth } = useAuthStore()
   const { equipos, equipoActivo, loadEquipos, setEquipoActivo } = useEquipoStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  // Cargar equipos al montar
+  // Inicializar autenticación y cargar equipos al montar
   useEffect(() => {
-    loadEquipos()
-  }, [loadEquipos])
+    initializeAuth()
+  }, [initializeAuth])
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push('/login')
+    }
+  }, [isLoading, isAuthenticated, router])
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadEquipos()
+    }
+  }, [isAuthenticated, loadEquipos])
+
+  // Mostrar loading mientras inicializa
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-500">Cargando...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return null
+  }
 
   const handleLogout = async () => {
     await logout()
