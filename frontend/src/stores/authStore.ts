@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import { supabase } from '@/lib/supabase/client'
 import { Usuario } from '@/types'
 
@@ -12,6 +13,7 @@ interface AuthState {
   register: (data: RegisterData) => Promise<{ success: boolean; error?: string }>
   logout: () => Promise<void>
   setUser: (user: Usuario | null) => void
+  initializeAuth: () => Promise<void>
 }
 
 interface RegisterData {
@@ -22,13 +24,67 @@ interface RegisterData {
   organizacion_nombre?: string
 }
 
-export const useAuthStore = create<AuthState>()((set) => ({
-  user: null,
-  accessToken: null,
-  isLoading: false,
-  isAuthenticated: false,
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set, get) => ({
+      user: null,
+      accessToken: null,
+      isLoading: true,
+      isAuthenticated: false,
 
-  login: async (email: string, password: string) => {
+      initializeAuth: async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession()
+
+          if (session?.user) {
+            const { data: userData } = await supabase
+              .from('usuarios')
+              .select('*')
+              .eq('id', session.user.id)
+              .single()
+
+            if (userData) {
+              let organizacion = null
+              if (userData.organizacion_id) {
+                const { data: orgData } = await supabase
+                  .from('organizaciones')
+                  .select('*')
+                  .eq('id', userData.organizacion_id)
+                  .single()
+                organizacion = orgData
+              }
+
+              set({
+                user: { ...userData, organizacion },
+                accessToken: session.access_token,
+                isAuthenticated: true,
+                isLoading: false,
+              })
+              return
+            }
+          }
+
+          set({ isLoading: false })
+        } catch (error) {
+          console.error('Error initializing auth:', error)
+          set({ isLoading: false })
+        }
+
+        // Listen for auth changes
+        supabase.auth.onAuthStateChange(async (event, session) => {
+          if (event === 'SIGNED_OUT') {
+            set({
+              user: null,
+              accessToken: null,
+              isAuthenticated: false,
+            })
+          } else if (session?.access_token && event === 'TOKEN_REFRESHED') {
+            set({ accessToken: session.access_token })
+          }
+        })
+      },
+
+      login: async (email: string, password: string) => {
     set({ isLoading: true })
 
     try {
@@ -171,4 +227,14 @@ export const useAuthStore = create<AuthState>()((set) => ({
   },
 
   setUser: (user) => set({ user, isAuthenticated: !!user }),
-}))
+    }),
+    {
+      name: 'traininghub-auth',
+      partialize: (state) => ({
+        accessToken: state.accessToken,
+        user: state.user,
+        isAuthenticated: state.isAuthenticated,
+      }),
+    }
+  )
+)
