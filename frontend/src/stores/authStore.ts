@@ -26,7 +26,7 @@ interface RegisterData {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       user: null,
       accessToken: null,
       isLoading: true,
@@ -85,148 +85,148 @@ export const useAuthStore = create<AuthState>()(
       },
 
       login: async (email: string, password: string) => {
-    set({ isLoading: true })
+        set({ isLoading: true })
 
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          })
 
-      if (error) {
-        set({ isLoading: false })
-        return { success: false, error: error.message }
-      }
+          if (error) {
+            set({ isLoading: false })
+            return { success: false, error: error.message }
+          }
 
-      if (!data.user || !data.session) {
-        set({ isLoading: false })
-        return { success: false, error: 'Error al iniciar sesión' }
-      }
+          if (!data.user || !data.session) {
+            set({ isLoading: false })
+            return { success: false, error: 'Error al iniciar sesión' }
+          }
 
-      const { data: userData, error: userError } = await supabase
-        .from('usuarios')
-        .select('*')
-        .eq('id', data.user.id)
-        .single()
+          const { data: userData, error: userError } = await supabase
+            .from('usuarios')
+            .select('*')
+            .eq('id', data.user.id)
+            .single()
 
-      if (userError || !userData) {
-        await supabase.auth.signOut()
-        set({ isLoading: false })
-        return { success: false, error: 'Usuario no encontrado en el sistema' }
-      }
+          if (userError || !userData) {
+            await supabase.auth.signOut()
+            set({ isLoading: false })
+            return { success: false, error: 'Usuario no encontrado en el sistema' }
+          }
 
-      let organizacion = null
-      if (userData.organizacion_id) {
-        const { data: orgData } = await supabase
-          .from('organizaciones')
-          .select('*')
-          .eq('id', userData.organizacion_id)
-          .single()
-        organizacion = orgData
-      }
+          let organizacion = null
+          if (userData.organizacion_id) {
+            const { data: orgData } = await supabase
+              .from('organizaciones')
+              .select('*')
+              .eq('id', userData.organizacion_id)
+              .single()
+            organizacion = orgData
+          }
 
-      const user: Usuario = {
-        ...userData,
-        organizacion,
-      }
+          const user: Usuario = {
+            ...userData,
+            organizacion,
+          }
 
-      set({
-        user,
-        accessToken: data.session.access_token,
-        isAuthenticated: true,
-        isLoading: false,
-      })
+          set({
+            user,
+            accessToken: data.session.access_token,
+            isAuthenticated: true,
+            isLoading: false,
+          })
 
-      return { success: true }
-    } catch (error) {
-      set({ isLoading: false })
-      return { success: false, error: 'Error de conexión' }
-    }
-  },
-
-  register: async (data: RegisterData) => {
-    set({ isLoading: true })
-
-    try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.password,
-      })
-
-      if (authError) {
-        set({ isLoading: false })
-        return { success: false, error: authError.message }
-      }
-
-      if (!authData.user) {
-        set({ isLoading: false })
-        return { success: false, error: 'Error al crear usuario' }
-      }
-
-      let organizacion = null
-      let organizacionId: string | null = null
-      if (data.organizacion_nombre) {
-        const { data: orgData, error: orgError } = await supabase
-          .from('organizaciones')
-          .insert({ nombre: data.organizacion_nombre })
-          .select()
-          .single()
-
-        if (orgError) {
+          return { success: true }
+        } catch (error) {
           set({ isLoading: false })
-          return { success: false, error: 'Error al crear organización' }
+          return { success: false, error: 'Error de conexión' }
         }
-        organizacion = orgData
-        organizacionId = orgData.id
-      }
+      },
 
-      const { data: userData, error: userError } = await supabase
-        .from('usuarios')
-        .insert({
-          id: authData.user.id,
-          email: data.email,
-          nombre: data.nombre,
-          apellidos: data.apellidos || null,
-          rol: organizacionId ? 'admin' : 'tecnico_asistente',
-          organizacion_id: organizacionId,
+      register: async (data: RegisterData) => {
+        set({ isLoading: true })
+
+        try {
+          const { data: authData, error: authError } = await supabase.auth.signUp({
+            email: data.email,
+            password: data.password,
+          })
+
+          if (authError) {
+            set({ isLoading: false })
+            return { success: false, error: authError.message }
+          }
+
+          if (!authData.user) {
+            set({ isLoading: false })
+            return { success: false, error: 'Error al crear usuario' }
+          }
+
+          let organizacion = null
+          let organizacionId: string | null = null
+          if (data.organizacion_nombre) {
+            const { data: orgData, error: orgError } = await supabase
+              .from('organizaciones')
+              .insert({ nombre: data.organizacion_nombre })
+              .select()
+              .single()
+
+            if (orgError) {
+              set({ isLoading: false })
+              return { success: false, error: 'Error al crear organización' }
+            }
+            organizacion = orgData
+            organizacionId = orgData.id
+          }
+
+          const { data: userData, error: userError } = await supabase
+            .from('usuarios')
+            .insert({
+              id: authData.user.id,
+              email: data.email,
+              nombre: data.nombre,
+              apellidos: data.apellidos || null,
+              rol: organizacionId ? 'admin' : 'tecnico_asistente',
+              organizacion_id: organizacionId,
+            })
+            .select('*')
+            .single()
+
+          if (userError) {
+            set({ isLoading: false })
+            return { success: false, error: 'Error al crear perfil de usuario' }
+          }
+
+          const user: Usuario = {
+            ...userData,
+            organizacion,
+          }
+
+          set({
+            user,
+            accessToken: authData.session?.access_token || null,
+            isAuthenticated: !!authData.session,
+            isLoading: false,
+          })
+
+          return { success: true }
+        } catch (error) {
+          set({ isLoading: false })
+          return { success: false, error: 'Error de conexión' }
+        }
+      },
+
+      logout: async () => {
+        await supabase.auth.signOut()
+        set({
+          user: null,
+          accessToken: null,
+          isAuthenticated: false,
         })
-        .select('*')
-        .single()
+      },
 
-      if (userError) {
-        set({ isLoading: false })
-        return { success: false, error: 'Error al crear perfil de usuario' }
-      }
-
-      const user: Usuario = {
-        ...userData,
-        organizacion,
-      }
-
-      set({
-        user,
-        accessToken: authData.session?.access_token || null,
-        isAuthenticated: !!authData.session,
-        isLoading: false,
-      })
-
-      return { success: true }
-    } catch (error) {
-      set({ isLoading: false })
-      return { success: false, error: 'Error de conexión' }
-    }
-  },
-
-  logout: async () => {
-    await supabase.auth.signOut()
-    set({
-      user: null,
-      accessToken: null,
-      isAuthenticated: false,
-    })
-  },
-
-  setUser: (user) => set({ user, isAuthenticated: !!user }),
+      setUser: (user) => set({ user, isAuthenticated: !!user }),
     }),
     {
       name: 'traininghub-auth',
