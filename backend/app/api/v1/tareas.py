@@ -421,7 +421,7 @@ async def create_tarea_from_ai(
 
     categoria_id = cat_response.data["id"]
 
-    # Preparar datos de la tarea
+    # Preparar datos de la tarea (mapear campos de IA a campos de BD)
     tarea_data = {
         "titulo": tarea_ai.titulo,
         "descripcion": tarea_ai.descripcion,
@@ -436,8 +436,14 @@ async def create_tarea_from_ai(
         "estructura_equipos": tarea_ai.estructura_equipos,
         "fase_juego": tarea_ai.fase_juego,
         "principio_tactico": tarea_ai.principio_tactico,
-        "reglas_principales": tarea_ai.reglas_principales,
-        "consignas": tarea_ai.consignas,
+        # Mapear reglas_principales a reglas_tecnicas
+        "reglas_tecnicas": tarea_ai.reglas_principales,
+        "reglas_tacticas": [],
+        "reglas_psicologicas": [],
+        # Mapear consignas a consignas_ofensivas
+        "consignas_ofensivas": tarea_ai.consignas,
+        "consignas_defensivas": [],
+        "errores_comunes": [],
         "nivel_cognitivo": tarea_ai.nivel_cognitivo,
         "densidad": tarea_ai.densidad,
         # Campos de autoría (modo prueba)
