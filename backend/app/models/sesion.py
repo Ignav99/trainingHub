@@ -241,6 +241,43 @@ class MatchDayConfig(BaseModel):
 
 # ============ Schemas para Recomendador AI ============
 
+class AITareaNueva(BaseModel):
+    """Tarea nueva sugerida por la IA cuando no encuentra una existente."""
+    # Identificador temporal (no es UUID aún)
+    temp_id: str = Field(..., description="ID temporal para referencia")
+
+    # Campos básicos de la tarea
+    titulo: str = Field(..., min_length=5, max_length=255)
+    descripcion: str
+    categoria_codigo: str = Field(..., description="Código de categoría: RND, JDP, SSG, etc.")
+
+    # Tiempo
+    duracion_total: int = Field(..., gt=0)
+    num_series: int = Field(default=1, ge=1)
+
+    # Espacio
+    espacio_largo: Optional[float] = None
+    espacio_ancho: Optional[float] = None
+
+    # Jugadores
+    num_jugadores_min: int = Field(..., ge=1)
+    num_jugadores_max: Optional[int] = None
+    num_porteros: int = Field(default=0)
+    estructura_equipos: Optional[str] = None
+
+    # Contenido táctico
+    fase_juego: Optional[str] = None
+    principio_tactico: Optional[str] = None
+
+    # Reglas
+    reglas_principales: List[str] = Field(default_factory=list)
+    consignas: List[str] = Field(default_factory=list)
+
+    # Carga
+    nivel_cognitivo: int = Field(default=2, ge=1, le=3)
+    densidad: str = Field(default="media")
+
+
 class AIRecomendadorInput(BaseModel):
     """Input para el recomendador con IA (Gemini)."""
     match_day: MatchDay
@@ -283,8 +320,15 @@ class AIRecomendadorInput(BaseModel):
 
 class AIFaseRecomendacion(BaseModel):
     """Recomendación de tarea para una fase de sesión."""
-    tarea_id: str
-    tarea: Optional[TareaResponse] = None
+    # Puede ser tarea existente O tarea nueva
+    tarea_id: Optional[str] = None  # ID de tarea existente
+    tarea: Optional[TareaResponse] = None  # Tarea existente completa
+
+    # O puede ser una tarea nueva sugerida por la IA
+    tarea_nueva: Optional[AITareaNueva] = None
+    es_tarea_nueva: bool = False
+
+    # Común para ambos
     duracion_sugerida: int
     razon: str
     adaptaciones: List[str] = []

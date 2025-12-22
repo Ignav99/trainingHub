@@ -16,9 +16,14 @@ from app.models import (
     TareaFiltros,
     FaseJuego,
     NivelCognitivo,
+    AITareaNueva,
 )
 from app.database import get_supabase
 from app.dependencies import get_current_user, get_optional_user
+
+# Default IDs for test mode
+DEFAULT_ORG_ID = "454b26bf-8e28-4dc0-b85c-ba1108d982b6"
+DEFAULT_USER_ID = "b6959185-b797-4266-8e89-33e39b876ccc"
 
 router = APIRouter()
 
@@ -349,43 +354,116 @@ async def duplicar_tarea(
 ):
     """
     Duplica una tarea existente.
-    
+
     Crea una copia con el usuario actual como creador.
     """
     supabase = get_supabase()
-    
+
     # Obtener tarea original
     original = supabase.table("tareas").select("*").eq("id", str(tarea_id)).single().execute()
-    
+
     if not original.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Tarea no encontrada"
         )
-    
+
     # Preparar copia
     nueva_tarea = original.data.copy()
-    
+
     # Limpiar campos que se regeneran
     del nueva_tarea["id"]
     del nueva_tarea["created_at"]
     del nueva_tarea["updated_at"]
-    
+
     # Asignar nuevo propietario
     nueva_tarea["creado_por"] = str(current_user.id)
     nueva_tarea["organizacion_id"] = str(current_user.organizacion_id)
     nueva_tarea["num_usos"] = 0
     nueva_tarea["valoracion_media"] = None
-    
+
     # Título
     nueva_tarea["titulo"] = nuevo_titulo or f"{original.data['titulo']} (copia)"
-    
+
     # Insertar
     response = supabase.table("tareas").insert(nueva_tarea).execute()
-    
+
     # Obtener con relaciones
     tarea_completa = supabase.table("tareas").select(
         "*, categorias_tarea(*)"
     ).eq("id", response.data[0]["id"]).single().execute()
-    
+
+    return TareaResponse(**tarea_completa.data)
+
+
+@router.post("/from-ai", response_model=TareaResponse, status_code=status.HTTP_201_CREATED)
+async def create_tarea_from_ai(
+    tarea_ai: AITareaNueva,
+):
+    """
+    Crea una tarea a partir de una sugerencia de la IA.
+
+    Convierte los datos del modelo AITareaNueva al formato de tarea normal.
+    No requiere autenticación (modo prueba).
+    """
+    supabase = get_supabase()
+
+    # Buscar el ID de la categoría por código
+    cat_response = supabase.table("categorias_tarea").select("id").eq(
+        "codigo", tarea_ai.categoria_codigo
+    ).single().execute()
+
+    if not cat_response.data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Categoría '{tarea_ai.categoria_codigo}' no encontrada"
+        )
+
+    categoria_id = cat_response.data["id"]
+
+    # Preparar datos de la tarea
+    tarea_data = {
+        "titulo": tarea_ai.titulo,
+        "descripcion": tarea_ai.descripcion,
+        "categoria_id": categoria_id,
+        "duracion_total": tarea_ai.duracion_total,
+        "num_series": tarea_ai.num_series,
+        "espacio_largo": tarea_ai.espacio_largo,
+        "espacio_ancho": tarea_ai.espacio_ancho,
+        "num_jugadores_min": tarea_ai.num_jugadores_min,
+        "num_jugadores_max": tarea_ai.num_jugadores_max,
+        "num_porteros": tarea_ai.num_porteros,
+        "estructura_equipos": tarea_ai.estructura_equipos,
+        "fase_juego": tarea_ai.fase_juego,
+        "principio_tactico": tarea_ai.principio_tactico,
+        "reglas_principales": tarea_ai.reglas_principales,
+        "consignas": tarea_ai.consignas,
+        "nivel_cognitivo": tarea_ai.nivel_cognitivo,
+        "densidad": tarea_ai.densidad,
+        # Campos de autoría (modo prueba)
+        "organizacion_id": DEFAULT_ORG_ID,
+        "creado_por": DEFAULT_USER_ID,
+        "es_publica": True,
+        "es_plantilla": True,
+    }
+
+    # Calcular m² por jugador si hay dimensiones
+    if tarea_data.get("espacio_largo") and tarea_data.get("espacio_ancho"):
+        area = tarea_data["espacio_largo"] * tarea_data["espacio_ancho"]
+        tarea_data["m2_por_jugador"] = round(area / tarea_data["num_jugadores_min"], 1)
+
+    # Insertar
+    response = supabase.table("tareas").insert(tarea_data).execute()
+
+    if not response.data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Error al crear tarea desde IA"
+        )
+
+    # Obtener con relaciones
+    tarea_completa = supabase.table("tareas").select(
+        "*, categorias_tarea(*)"
+    ).eq("id", response.data[0]["id"]).single().execute()
+
     return TareaResponse(**tarea_completa.data)

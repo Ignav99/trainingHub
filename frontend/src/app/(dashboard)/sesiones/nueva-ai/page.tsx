@@ -21,7 +21,8 @@ import {
 } from 'lucide-react'
 import { recomendadorApi } from '@/lib/api/sesiones'
 import { sesionesApi, SesionCreateData } from '@/lib/api/sesiones'
-import { AIRecomendadorInput, AIRecomendadorOutput, AIFaseRecomendacion, MatchDay } from '@/types'
+import { tareasApi } from '@/lib/api/tareas'
+import { AIRecomendadorInput, AIRecomendadorOutput, AIFaseRecomendacion, MatchDay, AITareaNueva } from '@/types'
 
 const MATCH_DAYS = [
   { value: 'MD+1' as MatchDay, label: 'Recuperación', color: 'bg-green-100 text-green-800', desc: 'Carga muy baja' },
@@ -124,6 +125,18 @@ export default function NuevaSesionAIPage() {
     setError(null)
 
     try {
+      // First, create any new tasks suggested by AI
+      const newTaskIds: Record<string, string> = {} // temp_id -> real_id mapping
+
+      for (const [faseName, faseData] of Object.entries(aiRecommendation.fases)) {
+        if (faseData?.es_tarea_nueva && faseData.tarea_nueva) {
+          console.log(`Creating new task for phase ${faseName}:`, faseData.tarea_nueva.titulo)
+          const createdTask = await tareasApi.createFromAI(faseData.tarea_nueva)
+          newTaskIds[faseData.tarea_nueva.temp_id] = createdTask.id
+          console.log(`Created task with ID: ${createdTask.id}`)
+        }
+      }
+
       const sessionData: SesionCreateData = {
         titulo: formData.titulo || aiRecommendation.titulo_sugerido,
         fecha: formData.fecha,
@@ -143,12 +156,24 @@ export default function NuevaSesionAIPage() {
       // Add tasks to session
       let orden = 1
       for (const [faseName, faseData] of Object.entries(aiRecommendation.fases)) {
-        if (faseData && faseData.tarea_id && faseData.tarea) {
-          await sesionesApi.addTarea(sesion.id, {
-            tarea_id: faseData.tarea_id,
-            orden: orden++,
-            fase_sesion: faseName,
-          })
+        if (faseData) {
+          let tareaId: string | null = null
+
+          if (faseData.es_tarea_nueva && faseData.tarea_nueva) {
+            // Use the newly created task ID
+            tareaId = newTaskIds[faseData.tarea_nueva.temp_id]
+          } else if (faseData.tarea_id && faseData.tarea) {
+            // Use existing task ID
+            tareaId = faseData.tarea_id
+          }
+
+          if (tareaId) {
+            await sesionesApi.addTarea(sesion.id, {
+              tarea_id: tareaId,
+              orden: orden++,
+              fase_sesion: faseName,
+            })
+          }
         }
       }
 
@@ -516,43 +541,113 @@ function FaseCard({ faseName, faseData }: { faseName: string; faseData: AIFaseRe
     vuelta_calma: 'Vuelta a calma',
   }
 
+  const isNewTask = faseData.es_tarea_nueva && faseData.tarea_nueva
+  const hasTarea = faseData.tarea || isNewTask
+
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
+    <div className={`bg-white rounded-xl border p-5 ${isNewTask ? 'border-purple-300 ring-1 ring-purple-100' : 'border-gray-200'}`}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-            <CheckCircle className="h-4 w-4 text-primary" />
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isNewTask ? 'bg-purple-100' : 'bg-primary/10'}`}>
+            {isNewTask ? (
+              <Sparkles className="h-4 w-4 text-purple-600" />
+            ) : (
+              <CheckCircle className="h-4 w-4 text-primary" />
+            )}
           </div>
           <div>
             <h3 className="font-semibold text-gray-900">{faseLabels[faseName] || faseName}</h3>
             <p className="text-sm text-gray-500">{faseData.duracion_sugerida} min</p>
           </div>
         </div>
-        {faseData.tarea && (
-          <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded">
-            {faseData.tarea.categoria?.nombre || 'Tarea'}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {isNewTask && (
+            <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full font-medium">
+              Nueva tarea IA
+            </span>
+          )}
+          {faseData.tarea && (
+            <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded">
+              {faseData.tarea.categoria?.nombre || 'Tarea'}
+            </span>
+          )}
+          {isNewTask && faseData.tarea_nueva && (
+            <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded">
+              {faseData.tarea_nueva.categoria_codigo}
+            </span>
+          )}
+        </div>
       </div>
 
-      {faseData.tarea ? (
+      {hasTarea ? (
         <>
+          {/* Task Title and Details */}
           <div className="mb-4">
-            <h4 className="font-medium text-gray-900">{faseData.tarea.titulo}</h4>
-            <p className="text-sm text-gray-500 mt-1">
-              {faseData.tarea.num_jugadores_min} jugadores · {faseData.tarea.duracion_total} min original
-            </p>
+            {faseData.tarea ? (
+              <>
+                <h4 className="font-medium text-gray-900">{faseData.tarea.titulo}</h4>
+                <p className="text-sm text-gray-500 mt-1">
+                  {faseData.tarea.num_jugadores_min} jugadores · {faseData.tarea.duracion_total} min original
+                </p>
+              </>
+            ) : isNewTask && faseData.tarea_nueva && (
+              <>
+                <h4 className="font-medium text-gray-900">{faseData.tarea_nueva.titulo}</h4>
+                <p className="text-sm text-gray-500 mt-1">
+                  {faseData.tarea_nueva.num_jugadores_min} jugadores · {faseData.tarea_nueva.duracion_total} min
+                </p>
+                <p className="text-sm text-gray-600 mt-2">{faseData.tarea_nueva.descripcion}</p>
+                {/* Show structure if available */}
+                {faseData.tarea_nueva.estructura_equipos && (
+                  <p className="text-sm text-gray-500 mt-1">
+                    Estructura: {faseData.tarea_nueva.estructura_equipos}
+                  </p>
+                )}
+              </>
+            )}
           </div>
+
+          {/* New task details: rules and consignas */}
+          {isNewTask && faseData.tarea_nueva && (
+            <div className="mb-4 space-y-3">
+              {faseData.tarea_nueva.reglas_principales.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase mb-2">Reglas principales</p>
+                  <ul className="text-sm text-gray-700 space-y-1">
+                    {faseData.tarea_nueva.reglas_principales.map((r, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="text-purple-500">•</span>
+                        {r}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {faseData.tarea_nueva.consignas.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase mb-2">Consignas</p>
+                  <ul className="text-sm text-gray-700 space-y-1">
+                    {faseData.tarea_nueva.consignas.map((c, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="text-purple-500">•</span>
+                        {c}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* AI Reason */}
-          <div className="bg-blue-50 rounded-lg p-3 mb-4">
-            <p className="text-sm text-blue-800">
-              <strong>Por qué esta tarea:</strong> {faseData.razon}
+          <div className={`rounded-lg p-3 mb-4 ${isNewTask ? 'bg-purple-50' : 'bg-blue-50'}`}>
+            <p className={`text-sm ${isNewTask ? 'text-purple-800' : 'text-blue-800'}`}>
+              <strong>{isNewTask ? 'Por qué crear esta tarea:' : 'Por qué esta tarea:'}</strong> {faseData.razon}
             </p>
           </div>
 
-          {/* Adaptations */}
-          {faseData.adaptaciones.length > 0 && (
+          {/* Adaptations (only for existing tasks) */}
+          {!isNewTask && faseData.adaptaciones.length > 0 && (
             <div className="mb-4">
               <p className="text-xs font-medium text-gray-500 uppercase mb-2">Adaptaciones sugeridas</p>
               <ul className="text-sm text-gray-700 space-y-1">

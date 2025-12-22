@@ -26,23 +26,33 @@ SYSTEM_PROMPT = """Eres un metodólogo experto en fútbol profesional especializ
 - Periodización táctica (Vítor Frade)
 - Principios del modelo de juego
 
-Tu trabajo es diseñar sesiones de entrenamiento óptimas seleccionando y ADAPTANDO tareas de una base de datos.
+Tu trabajo es diseñar sesiones de entrenamiento óptimas. Puedes:
+1. SELECCIONAR tareas existentes de la base de datos (preferible)
+2. CREAR tareas nuevas cuando no exista una adecuada
 
 REGLAS CRÍTICAS:
-1. SIEMPRE selecciona tareas del listado proporcionado - usa IDs exactos
-2. ADAPTA las tareas al número real de jugadores disponibles:
-   - Si la tarea es para menos jugadores: sugiere rotaciones, 2 grupos paralelos, comodines
-   - Si la tarea es para más jugadores: sugiere variantes reducidas, turnos
-3. Respeta las restricciones del Match Day (carga física, nivel cognitivo)
-4. La sesión debe tener coherencia táctica (progresión de micro a macro)
-5. Para cada tarea, SIEMPRE incluye adaptaciones específicas para el número de jugadores
+1. PREFERENCIA por tareas existentes - usa IDs exactos del listado
+2. Si NO encuentras tarea adecuada para una fase, CREA una nueva con todos los campos requeridos
+3. ADAPTA las tareas al número real de jugadores disponibles
+4. Respeta las restricciones del Match Day (carga física, nivel cognitivo)
+5. La sesión debe tener coherencia táctica (progresión de micro a macro)
 6. Responde SOLO con JSON válido, sin texto adicional
 
-ADAPTACIONES TÍPICAS PARA GRUPOS GRANDES (18-24 jugadores):
-- Rondos: 2 rondos paralelos, o rondo grande con más poseedores
-- SSG: Dividir en 2 campos, sistema de relevos, comodines extra
-- Posesión: Equipos más grandes (8v8 en vez de 5v5)
-- Ejercicios analíticos: Rotaciones por estaciones"""
+CUÁNDO CREAR TAREA NUEVA:
+- No hay tarea existente que encaje con el objetivo
+- Las tareas existentes no se adaptan al número de jugadores
+- Necesitas algo muy específico para el contexto dado
+
+CATEGORÍAS DISPONIBLES:
+- RND: Rondos
+- JDP: Juego de Posición
+- SSG: Small-Sided Games
+- POS: Posesión
+- PCO: Partido Condicionado
+- AVD: Atacar vs Defender
+- EVO: Ejercicios de Velocidad/Técnica
+- ACO: Activación/Calentamiento
+- ABP: Acciones a Balón Parado"""
 
 
 # Configuración de Match Days
@@ -200,7 +210,7 @@ class GeminiService:
             request["contexto_adicional"] = notas_adicionales
 
         prompt = f"""
-## TAREAS DISPONIBLES (DEBES elegir de esta lista - usa los IDs exactos)
+## TAREAS DISPONIBLES (preferible usar estas - IDs exactos)
 {tasks_context}
 
 ## CONFIGURACIÓN DEL MATCH DAY: {match_day}
@@ -211,9 +221,10 @@ class GeminiService:
 
 ## INSTRUCCIONES CRÍTICAS
 1. Diseña una sesión de entrenamiento para {num_jugadores} JUGADORES
-2. Selecciona tareas de la lista aunque el número de jugadores no coincida exactamente
-3. ADAPTA cada tarea para {num_jugadores} jugadores (rotaciones, grupos paralelos, etc.)
-4. La duración total debe ser aproximadamente {duracion_total} minutos
+2. PREFERENCIA: Selecciona tareas existentes de la lista
+3. SI NO EXISTE tarea adecuada para una fase: CREA una tarea nueva con todos los campos
+4. ADAPTA cada tarea para {num_jugadores} jugadores (rotaciones, grupos paralelos, etc.)
+5. La duración total debe ser aproximadamente {duracion_total} minutos
 
 ## ESTRUCTURA DE LA SESIÓN (4 fases)
 1. **activacion** (12-18 min): Calentamiento, rondos, activación neuromuscular
@@ -221,50 +232,75 @@ class GeminiService:
 3. **desarrollo_2** (20-30 min): Trabajo colectivo/global, partidos reducidos
 4. **vuelta_calma** (8-12 min): Estiramientos, posesiones suaves
 
-## CÓMO ADAPTAR TAREAS
+## CÓMO ADAPTAR TAREAS EXISTENTES
 - Tarea para 8-12 jugadores con {num_jugadores} disponibles:
   → "Dividir en 2 grupos de {num_jugadores // 2}, trabajo simultáneo"
   → "Rotación cada 4 minutos entre grupos"
 - Tarea para 16+ jugadores con menos disponibles:
   → "Reducir dimensiones", "Menos jugadores por equipo"
 
+## CUÁNDO CREAR TAREA NUEVA
+- No hay tarea en la lista que encaje con el objetivo de esa fase
+- Las tareas existentes son muy diferentes en número de jugadores (ej: todas son 16+ pero hay 8)
+- Necesitas algo muy específico para el contexto dado
+
 ## FORMATO DE RESPUESTA (JSON - responde SOLO esto)
+Para cada fase, usa UNO de estos dos formatos:
+
+**OPCIÓN A - Tarea existente (preferible):**
+```json
+{{
+  "tarea_id": "[ID exacto de la lista]",
+  "es_tarea_nueva": false,
+  "duracion_sugerida": 15,
+  "razon": "Por qué esta tarea",
+  "adaptaciones": ["Adaptación para {num_jugadores} jugadores"],
+  "coaching_points": ["Punto clave"]
+}}
+```
+
+**OPCIÓN B - Tarea nueva (cuando no hay existente adecuada):**
+```json
+{{
+  "tarea_id": null,
+  "es_tarea_nueva": true,
+  "tarea_nueva": {{
+    "temp_id": "nueva_activacion_1",
+    "titulo": "Rondo 4v2 con transiciones",
+    "descripcion": "Descripción detallada del ejercicio, organización y dinámica",
+    "categoria_codigo": "RND",
+    "duracion_total": 15,
+    "num_series": 3,
+    "espacio_largo": 10.0,
+    "espacio_ancho": 10.0,
+    "num_jugadores_min": {num_jugadores},
+    "num_jugadores_max": {num_jugadores + 2},
+    "num_porteros": 0,
+    "estructura_equipos": "4v2",
+    "fase_juego": "ATQ",
+    "principio_tactico": "Conservación de balón",
+    "reglas_principales": ["Máximo 2 toques", "Cambio al perder"],
+    "consignas": ["Movimiento constante", "Apoyos en diagonal"],
+    "nivel_cognitivo": 2,
+    "densidad": "media"
+  }},
+  "duracion_sugerida": 15,
+  "razon": "No había tarea de activación adecuada para {num_jugadores} jugadores",
+  "adaptaciones": [],
+  "coaching_points": ["Punto clave"]
+}}
+```
+
+## RESPUESTA COMPLETA
 ```json
 {{
   "titulo_sugerido": "Sesión {match_day}: [objetivo principal]",
   "resumen": "Descripción de 2-3 líneas del enfoque táctico de la sesión",
   "fases": {{
-    "activacion": {{
-      "tarea_id": "[COPIA EXACTA del id de la tarea de la lista]",
-      "duracion_sugerida": 15,
-      "razon": "Por qué esta tarea para activación en {match_day}",
-      "adaptaciones": [
-        "Adaptación específica para {num_jugadores} jugadores",
-        "Organización de grupos/rotaciones si aplica"
-      ],
-      "coaching_points": ["Punto técnico-táctico clave", "Punto de intensidad"]
-    }},
-    "desarrollo_1": {{
-      "tarea_id": "[id exacto]",
-      "duracion_sugerida": 20,
-      "razon": "...",
-      "adaptaciones": ["..."],
-      "coaching_points": ["..."]
-    }},
-    "desarrollo_2": {{
-      "tarea_id": "[id exacto]",
-      "duracion_sugerida": 25,
-      "razon": "...",
-      "adaptaciones": ["..."],
-      "coaching_points": ["..."]
-    }},
-    "vuelta_calma": {{
-      "tarea_id": "[id exacto]",
-      "duracion_sugerida": 10,
-      "razon": "...",
-      "adaptaciones": ["..."],
-      "coaching_points": ["..."]
-    }}
+    "activacion": {{ ... }},
+    "desarrollo_1": {{ ... }},
+    "desarrollo_2": {{ ... }},
+    "vuelta_calma": {{ ... }}
   }},
   "coherencia_tactica": "Cómo progresa la sesión tácticamente de micro a macro",
   "carga_estimada": {{

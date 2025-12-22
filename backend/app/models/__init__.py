@@ -36,6 +36,7 @@ from app.models.sesion import (
     TareaRecomendada,
     MatchDayConfig,
     # AI Recommender
+    AITareaNueva,
     AIRecomendadorInput,
     AIRecomendadorOutput,
     AIFaseRecomendacion,
@@ -113,6 +114,7 @@ __all__ = [
     "RecomendadorOutput",
     "TareaRecomendada",
     "MatchDayConfig",
+    "AITareaNueva",
     "AIRecomendadorInput",
     "AIRecomendadorOutput",
     "AIFaseRecomendacion",

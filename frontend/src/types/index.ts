@@ -303,9 +303,33 @@ export interface AIRecomendadorInput {
   excluir_tareas?: string[]
 }
 
+// Nueva tarea sugerida por la IA (cuando no existe una adecuada)
+export interface AITareaNueva {
+  temp_id: string
+  titulo: string
+  descripcion: string
+  categoria_codigo: string
+  duracion_total: number
+  num_series: number
+  espacio_largo?: number
+  espacio_ancho?: number
+  num_jugadores_min: number
+  num_jugadores_max?: number
+  num_porteros: number
+  estructura_equipos?: string
+  fase_juego?: string
+  principio_tactico?: string
+  reglas_principales: string[]
+  consignas: string[]
+  nivel_cognitivo: number
+  densidad: string
+}
+
 export interface AIFaseRecomendacion {
-  tarea_id: string
+  tarea_id: string | null  // null if es_tarea_nueva
   tarea?: Tarea
+  tarea_nueva?: AITareaNueva  // NEW: when AI creates a new task
+  es_tarea_nueva?: boolean    // NEW: flag for new task
   duracion_sugerida: number
   razon: string
   adaptaciones: string[]
