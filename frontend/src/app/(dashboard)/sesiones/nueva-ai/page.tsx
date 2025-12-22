@@ -17,7 +17,9 @@ import {
   CheckCircle,
   AlertCircle,
   Lightbulb,
-  Zap
+  Zap,
+  Edit3,
+  MessageSquare
 } from 'lucide-react'
 import { recomendadorApi } from '@/lib/api/sesiones'
 import { sesionesApi, SesionCreateData } from '@/lib/api/sesiones'
@@ -69,6 +71,14 @@ interface FormData {
   competicion?: string
 }
 
+// Ediciones por fase
+interface FaseEdits {
+  duracion?: number
+  notas?: string
+}
+
+type FasesEdits = Record<string, FaseEdits>
+
 export default function NuevaSesionAIPage() {
   const router = useRouter()
   const [step, setStep] = useState(1)
@@ -85,6 +95,18 @@ export default function NuevaSesionAIPage() {
   })
 
   const [aiRecommendation, setAiRecommendation] = useState<AIRecomendadorOutput | null>(null)
+  const [fasesEdits, setFasesEdits] = useState<FasesEdits>({})
+
+  // Handler para editar campos de una fase
+  const handleFaseEdit = (faseName: string, field: keyof FaseEdits, value: string | number) => {
+    setFasesEdits(prev => ({
+      ...prev,
+      [faseName]: {
+        ...prev[faseName],
+        [field]: value
+      }
+    }))
+  }
 
   const handleGenerateAI = async () => {
     setLoading(true)
@@ -168,10 +190,16 @@ export default function NuevaSesionAIPage() {
           }
 
           if (tareaId) {
+            // Get edits for this phase (duration override and notes)
+            const faseEdits = fasesEdits[faseName]
+            const duracionOverride = faseEdits?.duracion ?? faseData.duracion_sugerida
+
             await sesionesApi.addTarea(sesion.id, {
               tarea_id: tareaId,
               orden: orden++,
               fase_sesion: faseName,
+              duracion_override: duracionOverride,
+              notas: faseEdits?.notas || undefined,
             })
           }
         }
@@ -487,6 +515,8 @@ export default function NuevaSesionAIPage() {
                   key={faseName}
                   faseName={faseName}
                   faseData={faseData}
+                  edits={fasesEdits[faseName] || {}}
+                  onEdit={(field, value) => handleFaseEdit(faseName, field, value)}
                 />
               )
             ))}
@@ -533,9 +563,16 @@ export default function NuevaSesionAIPage() {
 }
 
 // Component for each phase
-function FaseCard({ faseName, faseData }: { faseName: string; faseData: AIFaseRecomendacion }) {
+interface FaseCardProps {
+  faseName: string
+  faseData: AIFaseRecomendacion
+  edits: FaseEdits
+  onEdit: (field: keyof FaseEdits, value: string | number) => void
+}
+
+function FaseCard({ faseName, faseData, edits, onEdit }: FaseCardProps) {
   const faseLabels: Record<string, string> = {
-    activacion: 'Activación',
+    activacion: 'Activacion',
     desarrollo_1: 'Desarrollo 1',
     desarrollo_2: 'Desarrollo 2',
     vuelta_calma: 'Vuelta a calma',
@@ -543,6 +580,10 @@ function FaseCard({ faseName, faseData }: { faseName: string; faseData: AIFaseRe
 
   const isNewTask = faseData.es_tarea_nueva && faseData.tarea_nueva
   const hasTarea = faseData.tarea || isNewTask
+
+  // Usar edits si existen, sino valores de la IA
+  const duracion = edits.duracion ?? faseData.duracion_sugerida
+  const notas = edits.notas ?? ''
 
   return (
     <div className={`bg-white rounded-xl border p-5 ${isNewTask ? 'border-purple-300 ring-1 ring-purple-100' : 'border-gray-200'}`}>
@@ -557,7 +598,19 @@ function FaseCard({ faseName, faseData }: { faseName: string; faseData: AIFaseRe
           </div>
           <div>
             <h3 className="font-semibold text-gray-900">{faseLabels[faseName] || faseName}</h3>
-            <p className="text-sm text-gray-500">{faseData.duracion_sugerida} min</p>
+            {/* Duracion editable */}
+            <div className="flex items-center gap-2">
+              <Clock className="h-3 w-3 text-gray-400" />
+              <input
+                type="number"
+                min={5}
+                max={60}
+                value={duracion}
+                onChange={(e) => onEdit('duracion', parseInt(e.target.value) || 15)}
+                className="w-14 px-1 py-0.5 text-sm text-gray-600 border border-transparent hover:border-gray-300 focus:border-primary rounded outline-none text-center"
+              />
+              <span className="text-sm text-gray-500">min</span>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -597,7 +650,6 @@ function FaseCard({ faseName, faseData }: { faseName: string; faseData: AIFaseRe
                   {faseData.tarea_nueva.num_jugadores_min} jugadores · {faseData.tarea_nueva.duracion_total} min
                 </p>
                 <p className="text-sm text-gray-600 mt-2">{faseData.tarea_nueva.descripcion}</p>
-                {/* Show structure if available */}
                 {faseData.tarea_nueva.estructura_equipos && (
                   <p className="text-sm text-gray-500 mt-1">
                     Estructura: {faseData.tarea_nueva.estructura_equipos}
@@ -642,7 +694,7 @@ function FaseCard({ faseName, faseData }: { faseName: string; faseData: AIFaseRe
           {/* AI Reason */}
           <div className={`rounded-lg p-3 mb-4 ${isNewTask ? 'bg-purple-50' : 'bg-blue-50'}`}>
             <p className={`text-sm ${isNewTask ? 'text-purple-800' : 'text-blue-800'}`}>
-              <strong>{isNewTask ? 'Por qué crear esta tarea:' : 'Por qué esta tarea:'}</strong> {faseData.razon}
+              <strong>{isNewTask ? 'Por que crear esta tarea:' : 'Por que esta tarea:'}</strong> {faseData.razon}
             </p>
           </div>
 
@@ -663,7 +715,7 @@ function FaseCard({ faseName, faseData }: { faseName: string; faseData: AIFaseRe
 
           {/* Coaching Points */}
           {faseData.coaching_points.length > 0 && (
-            <div>
+            <div className="mb-4">
               <p className="text-xs font-medium text-gray-500 uppercase mb-2">Coaching points</p>
               <div className="flex flex-wrap gap-2">
                 {faseData.coaching_points.map((cp, i) => (
@@ -674,9 +726,24 @@ function FaseCard({ faseName, faseData }: { faseName: string; faseData: AIFaseRe
               </div>
             </div>
           )}
+
+          {/* Notas del entrenador - EDITABLE */}
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <div className="flex items-center gap-2 mb-2">
+              <MessageSquare className="h-4 w-4 text-gray-400" />
+              <label className="text-xs font-medium text-gray-500 uppercase">Notas del entrenador</label>
+            </div>
+            <textarea
+              value={notas}
+              onChange={(e) => onEdit('notas', e.target.value)}
+              rows={2}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none"
+              placeholder="Añade notas especificas para esta fase..."
+            />
+          </div>
         </>
       ) : (
-        <p className="text-gray-500 italic">No se encontró tarea adecuada para esta fase</p>
+        <p className="text-gray-500 italic">No se encontro tarea adecuada para esta fase</p>
       )}
     </div>
   )
