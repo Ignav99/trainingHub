@@ -155,7 +155,7 @@ async def recomendar_sesion(
 
     # Obtener todas las tareas disponibles
     response = supabase.table("tareas").select(
-        "*, categorias_tarea!inner(codigo, nombre)"
+        "*, categorias_tarea(*)"
     ).eq(
         "organizacion_id", DEFAULT_ORG_ID
     ).execute()
@@ -266,7 +266,7 @@ async def recomendar_sesion_ai(
 
     # Obtener tareas disponibles
     response = supabase.table("tareas").select(
-        "*, categorias_tarea!inner(codigo, nombre)"
+        "*, categorias_tarea(*)"
     ).eq(
         "organizacion_id", DEFAULT_ORG_ID
     ).execute()
