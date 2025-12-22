@@ -25,6 +25,23 @@ from app.dependencies import get_current_user, get_optional_user
 DEFAULT_ORG_ID = "454b26bf-8e28-4dc0-b85c-ba1108d982b6"
 DEFAULT_USER_ID = "b6959185-b797-4266-8e89-33e39b876ccc"
 
+# Mapeo de códigos cortos de IA a valores de BD para fase_juego
+FASE_JUEGO_MAP = {
+    "ATQ": "ataque_organizado",
+    "DEF": "defensa_organizada",
+    "TAD": "transicion_ataque_defensa",
+    "TDA": "transicion_defensa_ataque",
+    "BPO": "balon_parado_ofensivo",
+    "BPD": "balon_parado_defensivo",
+    # También aceptar valores completos
+    "ataque_organizado": "ataque_organizado",
+    "defensa_organizada": "defensa_organizada",
+    "transicion_ataque_defensa": "transicion_ataque_defensa",
+    "transicion_defensa_ataque": "transicion_defensa_ataque",
+    "balon_parado_ofensivo": "balon_parado_ofensivo",
+    "balon_parado_defensivo": "balon_parado_defensivo",
+}
+
 router = APIRouter()
 
 
@@ -421,6 +438,12 @@ async def create_tarea_from_ai(
 
     categoria_id = cat_response.data["id"]
 
+    # Mapear fase_juego de código corto a valor de BD
+    fase_juego_valor = None
+    if tarea_ai.fase_juego:
+        fase_juego_valor = FASE_JUEGO_MAP.get(tarea_ai.fase_juego)
+        # Si no está en el mapa, dejarlo como None para evitar error de constraint
+
     # Preparar datos de la tarea (mapear campos de IA a campos de BD)
     tarea_data = {
         "titulo": tarea_ai.titulo,
@@ -434,7 +457,7 @@ async def create_tarea_from_ai(
         "num_jugadores_max": tarea_ai.num_jugadores_max,
         "num_porteros": tarea_ai.num_porteros,
         "estructura_equipos": tarea_ai.estructura_equipos,
-        "fase_juego": tarea_ai.fase_juego,
+        "fase_juego": fase_juego_valor,
         "principio_tactico": tarea_ai.principio_tactico,
         # Mapear reglas_principales a reglas_tecnicas
         "reglas_tecnicas": tarea_ai.reglas_principales,
