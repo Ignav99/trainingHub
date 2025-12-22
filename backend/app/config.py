@@ -57,7 +57,7 @@ class Settings(BaseSettings):
 
     # Google Gemini API for AI recommendations
     GEMINI_API_KEY: str | None = None
-    GEMINI_MODEL: str = "gemini-3-flash"  # Fast, capable, with free tier
+    GEMINI_MODEL: str = "gemini-3-flash-preview"  # Correct model ID with -preview suffix
     GEMINI_TEMPERATURE: float = 1.0  # Gemini 3 recommends keeping at 1.0
     
     class Config:
