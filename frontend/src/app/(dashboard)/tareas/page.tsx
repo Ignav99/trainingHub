@@ -17,7 +17,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
-  X
+  X,
+  Maximize2,
+  Zap,
+  Eye
 } from 'lucide-react'
 import { Tarea, CategoriaTarea } from '@/types'
 import { tareasApi, catalogosApi } from '@/lib/api/tareas'
@@ -59,6 +62,18 @@ function CognitiveLevel({ level }: { level?: number }) {
   )
 }
 
+// Indicador de intensidad
+function IntensityIndicator({ densidad }: { densidad?: string }) {
+  const colors: Record<string, string> = {
+    alta: 'bg-red-500',
+    media: 'bg-amber-500',
+    baja: 'bg-green-500',
+  }
+  return (
+    <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-xl ${colors[densidad || ''] || 'bg-gray-200'}`} />
+  )
+}
+
 export default function TareasPage() {
   const router = useRouter()
   const [tareas, setTareas] = useState<Tarea[]>([])
@@ -78,8 +93,8 @@ export default function TareasPage() {
   const [categoriaFilter, setCategoriaFilter] = useState('')
   const [faseFilter, setFaseFilter] = useState('')
   const [densidadFilter, setDensidadFilter] = useState('')
-  const [matchDayFilter, setMatchDayFilter] = useState('')
-  const [tipoEsfuerzoFilter, setTipoEsfuerzoFilter] = useState('')
+  const [jugadoresMin, setJugadoresMin] = useState('')
+  const [jugadoresMax, setJugadoresMax] = useState('')
 
   // Menú de acciones
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
@@ -90,7 +105,16 @@ export default function TareasPage() {
 
   useEffect(() => {
     loadTareas()
-  }, [page, categoriaFilter, faseFilter, densidadFilter, matchDayFilter, tipoEsfuerzoFilter])
+  }, [page, categoriaFilter, faseFilter, densidadFilter, jugadoresMin, jugadoresMax])
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => setActiveMenu(null)
+    if (activeMenu) {
+      document.addEventListener('click', handleClickOutside)
+      return () => document.removeEventListener('click', handleClickOutside)
+    }
+  }, [activeMenu])
 
   const loadCategorias = async () => {
     try {
@@ -112,8 +136,8 @@ export default function TareasPage() {
         categoria: categoriaFilter || undefined,
         fase_juego: faseFilter || undefined,
         densidad: densidadFilter || undefined,
-        match_day: matchDayFilter || undefined,
-        tipo_esfuerzo: tipoEsfuerzoFilter || undefined,
+        jugadores_min: jugadoresMin ? parseInt(jugadoresMin) : undefined,
+        jugadores_max: jugadoresMax ? parseInt(jugadoresMax) : undefined,
         busqueda: busqueda || undefined,
       })
 
@@ -134,7 +158,8 @@ export default function TareasPage() {
     loadTareas()
   }
 
-  const handleDuplicate = async (tarea: Tarea) => {
+  const handleDuplicate = async (tarea: Tarea, e: React.MouseEvent) => {
+    e.stopPropagation()
     try {
       await tareasApi.duplicate(tarea.id)
       loadTareas()
@@ -144,7 +169,8 @@ export default function TareasPage() {
     setActiveMenu(null)
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
     if (!confirm('¿Estás seguro de que quieres eliminar esta tarea?')) return
 
     try {
@@ -161,12 +187,12 @@ export default function TareasPage() {
     setCategoriaFilter('')
     setFaseFilter('')
     setDensidadFilter('')
-    setMatchDayFilter('')
-    setTipoEsfuerzoFilter('')
+    setJugadoresMin('')
+    setJugadoresMax('')
     setPage(1)
   }
 
-  const hasActiveFilters = busqueda || categoriaFilter || faseFilter || densidadFilter || matchDayFilter || tipoEsfuerzoFilter
+  const hasActiveFilters = categoriaFilter || faseFilter || densidadFilter || jugadoresMin || jugadoresMax
 
   return (
     <div className="space-y-6">
@@ -189,107 +215,135 @@ export default function TareasPage() {
 
       {/* Barra de búsqueda y filtros */}
       <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-4">
-          {/* Búsqueda */}
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar tareas..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-            />
-          </div>
+        <form onSubmit={handleSearch} className="space-y-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Búsqueda */}
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar por título, descripción..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+              />
+            </div>
 
-          {/* Categoría */}
-          <select
-            value={categoriaFilter}
-            onChange={(e) => { setCategoriaFilter(e.target.value); setPage(1) }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
-          >
-            <option value="">Todas las categorías</option>
-            {categorias.map((cat) => (
-              <option key={cat.codigo} value={cat.codigo}>
-                {cat.nombre}
-              </option>
-            ))}
-          </select>
+            {/* Categoría */}
+            <select
+              value={categoriaFilter}
+              onChange={(e) => { setCategoriaFilter(e.target.value); setPage(1) }}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+            >
+              <option value="">Todas las categorías</option>
+              {categorias.map((cat) => (
+                <option key={cat.codigo} value={cat.codigo}>
+                  {cat.nombre}
+                </option>
+              ))}
+            </select>
 
-          {/* Fase de Juego */}
-          <select
-            value={faseFilter}
-            onChange={(e) => { setFaseFilter(e.target.value); setPage(1) }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
-          >
-            <option value="">Todas las fases</option>
-            <option value="ataque_organizado">Ataque Organizado</option>
-            <option value="defensa_organizada">Defensa Organizada</option>
-            <option value="transicion_defensa_ataque">Transición Def→Ata</option>
-            <option value="transicion_ataque_defensa">Transición Ata→Def</option>
-            <option value="balon_parado_ofensivo">Balón Parado Ofensivo</option>
-            <option value="balon_parado_defensivo">Balón Parado Defensivo</option>
-          </select>
-
-          {/* Densidad/Intensidad */}
-          <select
-            value={densidadFilter}
-            onChange={(e) => { setDensidadFilter(e.target.value); setPage(1) }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
-          >
-            <option value="">Toda intensidad</option>
-            <option value="alta">Alta intensidad</option>
-            <option value="media">Media intensidad</option>
-            <option value="baja">Baja intensidad</option>
-          </select>
-
-          {/* Match Day */}
-          <select
-            value={matchDayFilter}
-            onChange={(e) => { setMatchDayFilter(e.target.value); setPage(1) }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
-          >
-            <option value="">Todos los días</option>
-            <option value="MD-4">MD-4 (Fuerza)</option>
-            <option value="MD-3">MD-3 (Resistencia)</option>
-            <option value="MD-2">MD-2 (Velocidad)</option>
-            <option value="MD-1">MD-1 (Activación)</option>
-            <option value="MD">MD (Partido)</option>
-            <option value="MD+1">MD+1 (Recuperación)</option>
-            <option value="MD+2">MD+2 (Regeneración)</option>
-          </select>
-
-          {/* Tipo de Esfuerzo */}
-          <select
-            value={tipoEsfuerzoFilter}
-            onChange={(e) => { setTipoEsfuerzoFilter(e.target.value); setPage(1) }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
-          >
-            <option value="">Todo tipo esfuerzo</option>
-            <option value="Alta intensidad">Alta intensidad</option>
-            <option value="Media intensidad">Media intensidad</option>
-            <option value="Baja intensidad">Baja intensidad</option>
-            <option value="Intermitente">Intermitente</option>
-            <option value="Muy alta intensidad">Muy alta intensidad</option>
-          </select>
-
-          {/* Botón de búsqueda */}
-          <button
-            type="submit"
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-          >
-            Buscar
-          </button>
-
-          {/* Limpiar filtros */}
-          {hasActiveFilters && (
+            {/* Más filtros toggle */}
             <button
               type="button"
-              onClick={clearFilters}
-              className="px-3 py-2 text-gray-500 hover:text-gray-700"
+              onClick={() => setShowFilters(!showFilters)}
+              className={`inline-flex items-center gap-2 px-4 py-2 border rounded-lg transition-colors ${
+                hasActiveFilters
+                  ? 'border-primary bg-primary/5 text-primary'
+                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+              }`}
             >
-              <X className="h-5 w-5" />
+              <Filter className="h-4 w-4" />
+              Filtros
+              {hasActiveFilters && (
+                <span className="w-2 h-2 bg-primary rounded-full" />
+              )}
             </button>
+
+            {/* Botón de búsqueda */}
+            <button
+              type="submit"
+              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+            >
+              Buscar
+            </button>
+          </div>
+
+          {/* Filtros expandidos */}
+          {showFilters && (
+            <div className="flex flex-wrap gap-4 pt-4 border-t border-gray-200">
+              {/* Fase de Juego */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Fase de juego</label>
+                <select
+                  value={faseFilter}
+                  onChange={(e) => { setFaseFilter(e.target.value); setPage(1) }}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+                >
+                  <option value="">Todas</option>
+                  <option value="ataque_organizado">Ataque Organizado</option>
+                  <option value="defensa_organizada">Defensa Organizada</option>
+                  <option value="transicion_defensa_ataque">Transición D→A</option>
+                  <option value="transicion_ataque_defensa">Transición A→D</option>
+                  <option value="balon_parado_ofensivo">ABP Ofensivo</option>
+                  <option value="balon_parado_defensivo">ABP Defensivo</option>
+                </select>
+              </div>
+
+              {/* Intensidad */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Intensidad</label>
+                <select
+                  value={densidadFilter}
+                  onChange={(e) => { setDensidadFilter(e.target.value); setPage(1) }}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+                >
+                  <option value="">Todas</option>
+                  <option value="alta">Alta</option>
+                  <option value="media">Media</option>
+                  <option value="baja">Baja</option>
+                </select>
+              </div>
+
+              {/* Jugadores mín */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Jug. mínimo</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={jugadoresMin}
+                  onChange={(e) => { setJugadoresMin(e.target.value); setPage(1) }}
+                  placeholder="Min"
+                  className="w-20 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                />
+              </div>
+
+              {/* Jugadores máx */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Jug. máximo</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={jugadoresMax}
+                  onChange={(e) => { setJugadoresMax(e.target.value); setPage(1) }}
+                  placeholder="Max"
+                  className="w-20 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                />
+              </div>
+
+              {/* Limpiar filtros */}
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="self-end px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Limpiar filtros
+                </button>
+              )}
+            </div>
           )}
         </form>
       </div>
@@ -338,9 +392,12 @@ export default function TareasPage() {
             {tareas.map((tarea) => (
               <div
                 key={tarea.id}
-                className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group"
+                className="relative bg-white rounded-xl border border-gray-200 p-5 pl-6 hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group overflow-hidden"
                 onClick={() => router.push(`/tareas/${tarea.id}`)}
               >
+                {/* Indicador de intensidad */}
+                <IntensityIndicator densidad={tarea.densidad} />
+
                 {/* Header de la tarjeta */}
                 <div className="flex items-start justify-between mb-3">
                   <CategoryBadge
@@ -349,7 +406,10 @@ export default function TareasPage() {
                   />
                   <div className="relative" onClick={(e) => e.stopPropagation()}>
                     <button
-                      onClick={() => setActiveMenu(activeMenu === tarea.id ? null : tarea.id)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setActiveMenu(activeMenu === tarea.id ? null : tarea.id)
+                      }}
                       className="p-1 text-gray-400 hover:text-gray-600 rounded"
                     >
                       <MoreHorizontal className="h-5 w-5" />
@@ -361,19 +421,20 @@ export default function TareasPage() {
                         <Link
                           href={`/tareas/${tarea.id}`}
                           className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <Edit className="h-4 w-4" />
+                          <Eye className="h-4 w-4" />
                           Ver detalle
                         </Link>
                         <button
-                          onClick={() => handleDuplicate(tarea)}
+                          onClick={(e) => handleDuplicate(tarea, e)}
                           className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
                         >
                           <Copy className="h-4 w-4" />
                           Duplicar
                         </button>
                         <button
-                          onClick={() => handleDelete(tarea.id)}
+                          onClick={(e) => handleDelete(tarea.id, e)}
                           className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -391,13 +452,13 @@ export default function TareasPage() {
 
                 {/* Descripción */}
                 {tarea.descripcion && (
-                  <p className="text-sm text-gray-500 mb-4 line-clamp-2">
+                  <p className="text-sm text-gray-500 mb-3 line-clamp-2">
                     {tarea.descripcion}
                   </p>
                 )}
 
-                {/* Metadatos */}
-                <div className="flex items-center gap-4 text-sm text-gray-500">
+                {/* Metadatos principales */}
+                <div className="flex items-center gap-4 text-sm text-gray-500 mb-3">
                   <div className="flex items-center gap-1">
                     <Clock className="h-4 w-4" />
                     <span>{tarea.duracion_total} min</span>
@@ -416,6 +477,31 @@ export default function TareasPage() {
                       <Brain className="h-4 w-4" />
                       <CognitiveLevel level={tarea.nivel_cognitivo} />
                     </div>
+                  )}
+                </div>
+
+                {/* Metadatos secundarios */}
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  {tarea.espacio_largo && tarea.espacio_ancho && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-600 rounded">
+                      <Maximize2 className="h-3 w-3" />
+                      {tarea.espacio_largo}x{tarea.espacio_ancho}m
+                    </span>
+                  )}
+                  {tarea.estructura_equipos && (
+                    <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded">
+                      {tarea.estructura_equipos}
+                    </span>
+                  )}
+                  {tarea.densidad && (
+                    <span className={`px-2 py-0.5 rounded ${
+                      tarea.densidad === 'alta' ? 'bg-red-100 text-red-700' :
+                      tarea.densidad === 'media' ? 'bg-amber-100 text-amber-700' :
+                      'bg-green-100 text-green-700'
+                    }`}>
+                      <Zap className="h-3 w-3 inline mr-0.5" />
+                      {tarea.densidad}
+                    </span>
                   )}
                 </div>
 
