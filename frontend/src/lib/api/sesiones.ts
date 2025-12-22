@@ -62,7 +62,13 @@ export const sesionesApi = {
     return api.delete(`/sesiones/${id}`)
   },
 
-  async addTarea(sesionId: string, data: { tarea_id: string; orden: number; fase_sesion: string }): Promise<void> {
+  async addTarea(sesionId: string, data: {
+    tarea_id: string
+    orden: number
+    fase_sesion: string
+    duracion_override?: number
+    notas?: string
+  }): Promise<void> {
     return api.post(`/sesiones/${sesionId}/tareas`, data)
   },
 
