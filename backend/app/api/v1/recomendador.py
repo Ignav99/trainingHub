@@ -277,14 +277,21 @@ async def recomendar_sesion_ai(
         excluir_ids = [str(t) for t in params.excluir_tareas]
         tareas = [t for t in tareas if t["id"] not in excluir_ids]
 
-    # Pre-filtrar tareas por número de jugadores (para reducir contexto)
-    tareas_filtradas = [
-        t for t in tareas
-        if t.get("num_jugadores_min", 0) <= params.num_jugadores + 4
-    ]
+    # NO filtrar por número de jugadores - la IA adaptará las tareas
+    # Ordenar por relevancia: primero las más cercanas al número de jugadores
+    def relevancia_jugadores(t):
+        min_j = t.get("num_jugadores_min", 0)
+        max_j = t.get("num_jugadores_max") or min_j + 6
+        # Si el número de jugadores está en rango, prioridad máxima
+        if min_j <= params.num_jugadores <= max_j:
+            return 0
+        # Si no, ordenar por distancia al rango
+        return min(abs(params.num_jugadores - min_j), abs(params.num_jugadores - max_j))
 
-    # Limitar a 80 tareas para no exceder contexto
-    tareas_filtradas = tareas_filtradas[:80]
+    tareas_ordenadas = sorted(tareas, key=relevancia_jugadores)
+
+    # Limitar a 100 tareas para no exceder contexto (aumentado de 80)
+    tareas_para_ia = tareas_ordenadas[:100]
 
     # Construir notas adicionales
     notas_adicionales = []
@@ -307,7 +314,7 @@ async def recomendar_sesion_ai(
 
         # Generar recomendaciones
         ai_response = await gemini.generate_session_recommendations(
-            tareas=tareas_filtradas,
+            tareas=tareas_para_ia,
             match_day=params.match_day.value,
             num_jugadores=params.num_jugadores,
             duracion_total=params.duracion_total,

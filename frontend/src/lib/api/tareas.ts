@@ -1,5 +1,5 @@
 import { api } from './client'
-import { Tarea, TareaFiltros, PaginatedResponse } from '@/types'
+import { Tarea, TareaFiltros, PaginatedResponse, AITareaNueva } from '@/types'
 
 export interface TareaCreateData {
   titulo: string
@@ -89,6 +89,10 @@ export const tareasApi = {
     return api.post<Tarea>(`/tareas/${id}/duplicar`, null, {
       params: nuevoTitulo ? { nuevo_titulo: nuevoTitulo } : undefined
     })
+  },
+
+  async createFromAI(tareaNueva: AITareaNueva): Promise<Tarea> {
+    return api.post<Tarea>('/tareas/from-ai', tareaNueva)
   },
 }
 

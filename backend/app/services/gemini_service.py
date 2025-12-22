@@ -26,15 +26,33 @@ SYSTEM_PROMPT = """Eres un metodólogo experto en fútbol profesional especializ
 - Periodización táctica (Vítor Frade)
 - Principios del modelo de juego
 
-Tu trabajo es diseñar sesiones de entrenamiento óptimas seleccionando tareas de una base de datos disponible.
+Tu trabajo es diseñar sesiones de entrenamiento óptimas. Puedes:
+1. SELECCIONAR tareas existentes de la base de datos (preferible)
+2. CREAR tareas nuevas cuando no exista una adecuada
 
-REGLAS IMPORTANTES:
-1. SOLO puedes seleccionar tareas del listado que se te proporciona
-2. Debes respetar las restricciones del Match Day (carga física, nivel cognitivo)
-3. La sesión debe tener coherencia táctica (progresión de micro a macro)
-4. Explica brevemente POR QUÉ seleccionas cada tarea
-5. Sugiere adaptaciones específicas cuando sea relevante
-6. Responde SIEMPRE en formato JSON válido"""
+REGLAS CRÍTICAS:
+1. PREFERENCIA por tareas existentes - usa IDs exactos del listado
+2. Si NO encuentras tarea adecuada para una fase, CREA una nueva con todos los campos requeridos
+3. ADAPTA las tareas al número real de jugadores disponibles
+4. Respeta las restricciones del Match Day (carga física, nivel cognitivo)
+5. La sesión debe tener coherencia táctica (progresión de micro a macro)
+6. Responde SOLO con JSON válido, sin texto adicional
+
+CUÁNDO CREAR TAREA NUEVA:
+- No hay tarea existente que encaje con el objetivo
+- Las tareas existentes no se adaptan al número de jugadores
+- Necesitas algo muy específico para el contexto dado
+
+CATEGORÍAS DISPONIBLES:
+- RND: Rondos
+- JDP: Juego de Posición
+- SSG: Small-Sided Games
+- POS: Posesión
+- PCO: Partido Condicionado
+- AVD: Atacar vs Defender
+- EVO: Ejercicios de Velocidad/Técnica
+- ACO: Activación/Calentamiento
+- ABP: Acciones a Balón Parado"""
 
 
 # Configuración de Match Days
@@ -192,7 +210,7 @@ class GeminiService:
             request["contexto_adicional"] = notas_adicionales
 
         prompt = f"""
-## TAREAS DISPONIBLES (solo puedes elegir de esta lista)
+## TAREAS DISPONIBLES (preferible usar estas - IDs exactos)
 {tasks_context}
 
 ## CONFIGURACIÓN DEL MATCH DAY: {match_day}
@@ -201,42 +219,97 @@ class GeminiService:
 ## SOLICITUD DE SESIÓN
 {json.dumps(request, ensure_ascii=False, indent=2)}
 
-## INSTRUCCIONES
-Diseña una sesión de entrenamiento completa con 4 fases:
-1. **activacion** (12-18 min): Calentamiento, activación neuromuscular
-2. **desarrollo_1** (18-25 min): Trabajo sectorial/posicional
-3. **desarrollo_2** (20-30 min): Trabajo colectivo/global
-4. **vuelta_calma** (8-12 min): Recuperación, estiramientos
+## INSTRUCCIONES CRÍTICAS
+1. Diseña una sesión de entrenamiento para {num_jugadores} JUGADORES
+2. PREFERENCIA: Selecciona tareas existentes de la lista
+3. SI NO EXISTE tarea adecuada para una fase: CREA una tarea nueva con todos los campos
+4. ADAPTA cada tarea para {num_jugadores} jugadores (rotaciones, grupos paralelos, etc.)
+5. La duración total debe ser aproximadamente {duracion_total} minutos
 
-Para cada fase, selecciona UNA tarea principal de la lista y explica por qué.
+## ESTRUCTURA DE LA SESIÓN (4 fases)
+1. **activacion** (12-18 min): Calentamiento, rondos, activación neuromuscular
+2. **desarrollo_1** (18-25 min): Trabajo sectorial/posicional, ejercicios más específicos
+3. **desarrollo_2** (20-30 min): Trabajo colectivo/global, partidos reducidos
+4. **vuelta_calma** (8-12 min): Estiramientos, posesiones suaves
 
-## FORMATO DE RESPUESTA (JSON)
+## CÓMO ADAPTAR TAREAS EXISTENTES
+- Tarea para 8-12 jugadores con {num_jugadores} disponibles:
+  → "Dividir en 2 grupos de {num_jugadores // 2}, trabajo simultáneo"
+  → "Rotación cada 4 minutos entre grupos"
+- Tarea para 16+ jugadores con menos disponibles:
+  → "Reducir dimensiones", "Menos jugadores por equipo"
+
+## CUÁNDO CREAR TAREA NUEVA
+- No hay tarea en la lista que encaje con el objetivo de esa fase
+- Las tareas existentes son muy diferentes en número de jugadores (ej: todas son 16+ pero hay 8)
+- Necesitas algo muy específico para el contexto dado
+
+## FORMATO DE RESPUESTA (JSON - responde SOLO esto)
+Para cada fase, usa UNO de estos dos formatos:
+
+**OPCIÓN A - Tarea existente (preferible):**
 ```json
 {{
-  "titulo_sugerido": "Sesión MD-X: [objetivo principal]",
-  "resumen": "Breve descripción de 2-3 líneas sobre el enfoque de la sesión",
+  "tarea_id": "[ID exacto de la lista]",
+  "es_tarea_nueva": false,
+  "duracion_sugerida": 15,
+  "razon": "Por qué esta tarea",
+  "adaptaciones": ["Adaptación para {num_jugadores} jugadores"],
+  "coaching_points": ["Punto clave"]
+}}
+```
+
+**OPCIÓN B - Tarea nueva (cuando no hay existente adecuada):**
+```json
+{{
+  "tarea_id": null,
+  "es_tarea_nueva": true,
+  "tarea_nueva": {{
+    "temp_id": "nueva_activacion_1",
+    "titulo": "Rondo 4v2 con transiciones",
+    "descripcion": "Descripción detallada del ejercicio, organización y dinámica",
+    "categoria_codigo": "RND",
+    "duracion_total": 15,
+    "num_series": 3,
+    "espacio_largo": 10.0,
+    "espacio_ancho": 10.0,
+    "num_jugadores_min": {num_jugadores},
+    "num_jugadores_max": {num_jugadores + 2},
+    "num_porteros": 0,
+    "estructura_equipos": "4v2",
+    "fase_juego": "ATQ",
+    "principio_tactico": "Conservación de balón",
+    "reglas_principales": ["Máximo 2 toques", "Cambio al perder"],
+    "consignas": ["Movimiento constante", "Apoyos en diagonal"],
+    "nivel_cognitivo": 2,
+    "densidad": "media"
+  }},
+  "duracion_sugerida": 15,
+  "razon": "No había tarea de activación adecuada para {num_jugadores} jugadores",
+  "adaptaciones": [],
+  "coaching_points": ["Punto clave"]
+}}
+```
+
+## RESPUESTA COMPLETA
+```json
+{{
+  "titulo_sugerido": "Sesión {match_day}: [objetivo principal]",
+  "resumen": "Descripción de 2-3 líneas del enfoque táctico de la sesión",
   "fases": {{
-    "activacion": {{
-      "tarea_id": "uuid-de-la-tarea",
-      "duracion_sugerida": 15,
-      "razon": "Explicación de por qué esta tarea es ideal para esta fase",
-      "adaptaciones": ["Adaptación 1 si aplica", "Adaptación 2"],
-      "coaching_points": ["Punto clave 1", "Punto clave 2"]
-    }},
+    "activacion": {{ ... }},
     "desarrollo_1": {{ ... }},
     "desarrollo_2": {{ ... }},
     "vuelta_calma": {{ ... }}
   }},
-  "coherencia_tactica": "Explicación de cómo las tareas se conectan tácticamente",
+  "coherencia_tactica": "Cómo progresa la sesión tácticamente de micro a macro",
   "carga_estimada": {{
     "fisica": "Alta/Media/Baja",
     "cognitiva": "Alta/Media/Baja",
-    "duracion_total": 85
+    "duracion_total": {duracion_total}
   }}
 }}
 ```
-
-IMPORTANTE: Responde SOLO con el JSON, sin texto adicional antes o después.
 """
 
         try:
