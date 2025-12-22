@@ -18,6 +18,7 @@ from app.models import (
     AIRecomendadorOutput,
     AIFaseRecomendacion,
     AICargaEstimada,
+    AITareaNueva,
 )
 from app.database import get_supabase
 from app.config import get_settings
@@ -330,15 +331,44 @@ async def recomendar_sesion_ai(
         for fase_nombre, fase_data in ai_response.get("fases", {}).items():
             tarea_id = fase_data.get("tarea_id")
             tarea_obj = None
+            tarea_nueva_obj = None
+            es_tarea_nueva = fase_data.get("es_tarea_nueva", False)
 
-            if tarea_id and tarea_id in tareas_map:
+            # Si es tarea existente, buscar en el mapa
+            if tarea_id and tarea_id in tareas_map and not es_tarea_nueva:
                 tarea_dict = tareas_map[tarea_id]
                 tarea_dict["categoria"] = tarea_dict.get("categorias_tarea", {})
                 tarea_obj = TareaResponse(**tarea_dict)
 
+            # Si es tarea nueva, crear objeto AITareaNueva
+            if es_tarea_nueva and fase_data.get("tarea_nueva"):
+                tarea_nueva_data = fase_data["tarea_nueva"]
+                tarea_nueva_obj = AITareaNueva(
+                    temp_id=tarea_nueva_data.get("temp_id", f"nueva_{fase_nombre}"),
+                    titulo=tarea_nueva_data.get("titulo", "Nueva tarea"),
+                    descripcion=tarea_nueva_data.get("descripcion", ""),
+                    categoria_codigo=tarea_nueva_data.get("categoria_codigo", "ACO"),
+                    duracion_total=tarea_nueva_data.get("duracion_total", 15),
+                    num_series=tarea_nueva_data.get("num_series", 1),
+                    espacio_largo=tarea_nueva_data.get("espacio_largo"),
+                    espacio_ancho=tarea_nueva_data.get("espacio_ancho"),
+                    num_jugadores_min=tarea_nueva_data.get("num_jugadores_min", params.num_jugadores),
+                    num_jugadores_max=tarea_nueva_data.get("num_jugadores_max"),
+                    num_porteros=tarea_nueva_data.get("num_porteros", 0),
+                    estructura_equipos=tarea_nueva_data.get("estructura_equipos"),
+                    fase_juego=tarea_nueva_data.get("fase_juego"),
+                    principio_tactico=tarea_nueva_data.get("principio_tactico"),
+                    reglas_principales=tarea_nueva_data.get("reglas_principales", []),
+                    consignas=tarea_nueva_data.get("consignas", []),
+                    nivel_cognitivo=tarea_nueva_data.get("nivel_cognitivo", 2),
+                    densidad=tarea_nueva_data.get("densidad", "media"),
+                )
+
             fases_con_tareas[fase_nombre] = AIFaseRecomendacion(
-                tarea_id=tarea_id or "",
+                tarea_id=tarea_id if not es_tarea_nueva else None,
                 tarea=tarea_obj,
+                tarea_nueva=tarea_nueva_obj,
+                es_tarea_nueva=es_tarea_nueva,
                 duracion_sugerida=fase_data.get("duracion_sugerida", 15),
                 razon=fase_data.get("razon", ""),
                 adaptaciones=fase_data.get("adaptaciones", []),
