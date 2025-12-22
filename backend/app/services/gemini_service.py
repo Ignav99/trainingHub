@@ -26,15 +26,23 @@ SYSTEM_PROMPT = """Eres un metodólogo experto en fútbol profesional especializ
 - Periodización táctica (Vítor Frade)
 - Principios del modelo de juego
 
-Tu trabajo es diseñar sesiones de entrenamiento óptimas seleccionando tareas de una base de datos disponible.
+Tu trabajo es diseñar sesiones de entrenamiento óptimas seleccionando y ADAPTANDO tareas de una base de datos.
 
-REGLAS IMPORTANTES:
-1. SOLO puedes seleccionar tareas del listado que se te proporciona
-2. Debes respetar las restricciones del Match Day (carga física, nivel cognitivo)
-3. La sesión debe tener coherencia táctica (progresión de micro a macro)
-4. Explica brevemente POR QUÉ seleccionas cada tarea
-5. Sugiere adaptaciones específicas cuando sea relevante
-6. Responde SIEMPRE en formato JSON válido"""
+REGLAS CRÍTICAS:
+1. SIEMPRE selecciona tareas del listado proporcionado - usa IDs exactos
+2. ADAPTA las tareas al número real de jugadores disponibles:
+   - Si la tarea es para menos jugadores: sugiere rotaciones, 2 grupos paralelos, comodines
+   - Si la tarea es para más jugadores: sugiere variantes reducidas, turnos
+3. Respeta las restricciones del Match Day (carga física, nivel cognitivo)
+4. La sesión debe tener coherencia táctica (progresión de micro a macro)
+5. Para cada tarea, SIEMPRE incluye adaptaciones específicas para el número de jugadores
+6. Responde SOLO con JSON válido, sin texto adicional
+
+ADAPTACIONES TÍPICAS PARA GRUPOS GRANDES (18-24 jugadores):
+- Rondos: 2 rondos paralelos, o rondo grande con más poseedores
+- SSG: Dividir en 2 campos, sistema de relevos, comodines extra
+- Posesión: Equipos más grandes (8v8 en vez de 5v5)
+- Ejercicios analíticos: Rotaciones por estaciones"""
 
 
 # Configuración de Match Days
@@ -192,7 +200,7 @@ class GeminiService:
             request["contexto_adicional"] = notas_adicionales
 
         prompt = f"""
-## TAREAS DISPONIBLES (solo puedes elegir de esta lista)
+## TAREAS DISPONIBLES (DEBES elegir de esta lista - usa los IDs exactos)
 {tasks_context}
 
 ## CONFIGURACIÓN DEL MATCH DAY: {match_day}
@@ -201,42 +209,71 @@ class GeminiService:
 ## SOLICITUD DE SESIÓN
 {json.dumps(request, ensure_ascii=False, indent=2)}
 
-## INSTRUCCIONES
-Diseña una sesión de entrenamiento completa con 4 fases:
-1. **activacion** (12-18 min): Calentamiento, activación neuromuscular
-2. **desarrollo_1** (18-25 min): Trabajo sectorial/posicional
-3. **desarrollo_2** (20-30 min): Trabajo colectivo/global
-4. **vuelta_calma** (8-12 min): Recuperación, estiramientos
+## INSTRUCCIONES CRÍTICAS
+1. Diseña una sesión de entrenamiento para {num_jugadores} JUGADORES
+2. Selecciona tareas de la lista aunque el número de jugadores no coincida exactamente
+3. ADAPTA cada tarea para {num_jugadores} jugadores (rotaciones, grupos paralelos, etc.)
+4. La duración total debe ser aproximadamente {duracion_total} minutos
 
-Para cada fase, selecciona UNA tarea principal de la lista y explica por qué.
+## ESTRUCTURA DE LA SESIÓN (4 fases)
+1. **activacion** (12-18 min): Calentamiento, rondos, activación neuromuscular
+2. **desarrollo_1** (18-25 min): Trabajo sectorial/posicional, ejercicios más específicos
+3. **desarrollo_2** (20-30 min): Trabajo colectivo/global, partidos reducidos
+4. **vuelta_calma** (8-12 min): Estiramientos, posesiones suaves
 
-## FORMATO DE RESPUESTA (JSON)
+## CÓMO ADAPTAR TAREAS
+- Tarea para 8-12 jugadores con {num_jugadores} disponibles:
+  → "Dividir en 2 grupos de {num_jugadores // 2}, trabajo simultáneo"
+  → "Rotación cada 4 minutos entre grupos"
+- Tarea para 16+ jugadores con menos disponibles:
+  → "Reducir dimensiones", "Menos jugadores por equipo"
+
+## FORMATO DE RESPUESTA (JSON - responde SOLO esto)
 ```json
 {{
-  "titulo_sugerido": "Sesión MD-X: [objetivo principal]",
-  "resumen": "Breve descripción de 2-3 líneas sobre el enfoque de la sesión",
+  "titulo_sugerido": "Sesión {match_day}: [objetivo principal]",
+  "resumen": "Descripción de 2-3 líneas del enfoque táctico de la sesión",
   "fases": {{
     "activacion": {{
-      "tarea_id": "uuid-de-la-tarea",
+      "tarea_id": "[COPIA EXACTA del id de la tarea de la lista]",
       "duracion_sugerida": 15,
-      "razon": "Explicación de por qué esta tarea es ideal para esta fase",
-      "adaptaciones": ["Adaptación 1 si aplica", "Adaptación 2"],
-      "coaching_points": ["Punto clave 1", "Punto clave 2"]
+      "razon": "Por qué esta tarea para activación en {match_day}",
+      "adaptaciones": [
+        "Adaptación específica para {num_jugadores} jugadores",
+        "Organización de grupos/rotaciones si aplica"
+      ],
+      "coaching_points": ["Punto técnico-táctico clave", "Punto de intensidad"]
     }},
-    "desarrollo_1": {{ ... }},
-    "desarrollo_2": {{ ... }},
-    "vuelta_calma": {{ ... }}
+    "desarrollo_1": {{
+      "tarea_id": "[id exacto]",
+      "duracion_sugerida": 20,
+      "razon": "...",
+      "adaptaciones": ["..."],
+      "coaching_points": ["..."]
+    }},
+    "desarrollo_2": {{
+      "tarea_id": "[id exacto]",
+      "duracion_sugerida": 25,
+      "razon": "...",
+      "adaptaciones": ["..."],
+      "coaching_points": ["..."]
+    }},
+    "vuelta_calma": {{
+      "tarea_id": "[id exacto]",
+      "duracion_sugerida": 10,
+      "razon": "...",
+      "adaptaciones": ["..."],
+      "coaching_points": ["..."]
+    }}
   }},
-  "coherencia_tactica": "Explicación de cómo las tareas se conectan tácticamente",
+  "coherencia_tactica": "Cómo progresa la sesión tácticamente de micro a macro",
   "carga_estimada": {{
     "fisica": "Alta/Media/Baja",
     "cognitiva": "Alta/Media/Baja",
-    "duracion_total": 85
+    "duracion_total": {duracion_total}
   }}
 }}
 ```
-
-IMPORTANTE: Responde SOLO con el JSON, sin texto adicional antes o después.
 """
 
         try:
