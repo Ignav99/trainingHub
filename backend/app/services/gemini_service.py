@@ -219,14 +219,21 @@ class GeminiService:
 ## SOLICITUD DE SESIÓN
 {json.dumps(request, ensure_ascii=False, indent=2)}
 
-## INSTRUCCIONES CRÍTICAS
+## REGLA FUNDAMENTAL - MUY IMPORTANTE
+CADA FASE DEBE TENER UNA TAREA. No puede haber fases vacías.
+- Si encuentras una tarea existente adecuada → úsala (con su ID exacto)
+- Si NO encuentras una tarea adecuada → CREA una nueva con todos los campos
+
+NUNCA dejes una fase sin tarea. SIEMPRE debe haber 4 tareas (una por fase).
+
+## INSTRUCCIONES
 1. Diseña una sesión de entrenamiento para {num_jugadores} JUGADORES
 2. PREFERENCIA: Selecciona tareas existentes de la lista
-3. SI NO EXISTE tarea adecuada para una fase: CREA una tarea nueva con todos los campos
+3. SI NO HAY tarea adecuada para una fase: CREA una tarea nueva con TODOS los campos
 4. ADAPTA cada tarea para {num_jugadores} jugadores (rotaciones, grupos paralelos, etc.)
 5. La duración total debe ser aproximadamente {duracion_total} minutos
 
-## ESTRUCTURA DE LA SESIÓN (4 fases)
+## ESTRUCTURA DE LA SESIÓN (4 fases - TODAS obligatorias)
 1. **activacion** (12-18 min): Calentamiento, rondos, activación neuromuscular
 2. **desarrollo_1** (18-25 min): Trabajo sectorial/posicional, ejercicios más específicos
 3. **desarrollo_2** (20-30 min): Trabajo colectivo/global, partidos reducidos
@@ -239,15 +246,11 @@ class GeminiService:
 - Tarea para 16+ jugadores con menos disponibles:
   → "Reducir dimensiones", "Menos jugadores por equipo"
 
-## CUÁNDO CREAR TAREA NUEVA
-- No hay tarea en la lista que encaje con el objetivo de esa fase
-- Las tareas existentes son muy diferentes en número de jugadores (ej: todas son 16+ pero hay 8)
-- Necesitas algo muy específico para el contexto dado
+## FORMATO DE RESPUESTA (JSON válido - SOLO esto)
 
-## FORMATO DE RESPUESTA (JSON - responde SOLO esto)
-Para cada fase, usa UNO de estos dos formatos:
+Para CADA fase usa UNO de estos dos formatos:
 
-**OPCIÓN A - Tarea existente (preferible):**
+**OPCIÓN A - Tarea existente:**
 ```json
 {{
   "tarea_id": "[ID exacto de la lista]",
@@ -259,14 +262,14 @@ Para cada fase, usa UNO de estos dos formatos:
 }}
 ```
 
-**OPCIÓN B - Tarea nueva (cuando no hay existente adecuada):**
+**OPCIÓN B - Tarea nueva (OBLIGATORIA si no hay existente adecuada):**
 ```json
 {{
   "tarea_id": null,
   "es_tarea_nueva": true,
   "tarea_nueva": {{
-    "temp_id": "nueva_activacion_1",
-    "titulo": "Rondo 4v2 con transiciones",
+    "temp_id": "nueva_[fase]_1",
+    "titulo": "Nombre descriptivo del ejercicio",
     "descripcion": "Descripción detallada del ejercicio, organización y dinámica",
     "categoria_codigo": "RND",
     "duracion_total": 15,
@@ -279,19 +282,19 @@ Para cada fase, usa UNO de estos dos formatos:
     "estructura_equipos": "4v2",
     "fase_juego": "ATQ",
     "principio_tactico": "Conservación de balón",
-    "reglas_principales": ["Máximo 2 toques", "Cambio al perder"],
-    "consignas": ["Movimiento constante", "Apoyos en diagonal"],
+    "reglas_principales": ["Regla 1", "Regla 2"],
+    "consignas": ["Consigna 1", "Consigna 2"],
     "nivel_cognitivo": 2,
     "densidad": "media"
   }},
   "duracion_sugerida": 15,
-  "razon": "No había tarea de activación adecuada para {num_jugadores} jugadores",
+  "razon": "Por qué crear esta tarea nueva",
   "adaptaciones": [],
   "coaching_points": ["Punto clave"]
 }}
 ```
 
-## RESPUESTA COMPLETA
+## RESPUESTA COMPLETA (las 4 fases son OBLIGATORIAS)
 ```json
 {{
   "titulo_sugerido": "Sesión {match_day}: [objetivo principal]",
