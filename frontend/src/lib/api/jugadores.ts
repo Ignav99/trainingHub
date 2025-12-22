@@ -18,7 +18,7 @@ export interface Jugador {
   nivel_tactico: number
   nivel_fisico: number
   nivel_mental: number
-  estado: 'activo' | 'lesionado' | 'sancionado' | 'baja'
+  estado: 'activo' | 'lesionado' | 'enfermo' | 'sancionado' | 'viaje' | 'permiso' | 'seleccion' | 'baja'
   fecha_lesion?: string
   fecha_vuelta_estimada?: string
   motivo_baja?: string
@@ -49,7 +49,7 @@ export interface JugadorCreate {
   nivel_tactico?: number
   nivel_fisico?: number
   nivel_mental?: number
-  estado?: 'activo' | 'lesionado' | 'sancionado' | 'baja'
+  estado?: 'activo' | 'lesionado' | 'enfermo' | 'sancionado' | 'viaje' | 'permiso' | 'seleccion' | 'baja'
   es_capitan?: boolean
   es_convocable?: boolean
   notas?: string
@@ -152,8 +152,12 @@ export const POSICIONES = {
 } as const
 
 export const ESTADOS_JUGADOR = {
-  activo: { nombre: 'Activo', color: '#10B981' },
-  lesionado: { nombre: 'Lesionado', color: '#EF4444' },
-  sancionado: { nombre: 'Sancionado', color: '#F59E0B' },
-  baja: { nombre: 'Baja', color: '#6B7280' },
+  activo: { nombre: 'Disponible', color: '#10B981', icon: 'check' },
+  lesionado: { nombre: 'Lesionado', color: '#EF4444', icon: 'activity' },
+  enfermo: { nombre: 'Enfermo', color: '#F97316', icon: 'thermometer' },
+  sancionado: { nombre: 'Sancionado', color: '#EAB308', icon: 'alert-triangle' },
+  viaje: { nombre: 'Viaje', color: '#8B5CF6', icon: 'plane' },
+  permiso: { nombre: 'Permiso', color: '#6366F1', icon: 'calendar-off' },
+  seleccion: { nombre: 'Selección', color: '#0EA5E9', icon: 'flag' },
+  baja: { nombre: 'Baja', color: '#6B7280', icon: 'x-circle' },
 } as const

@@ -24,7 +24,7 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Tareas', href: '/tareas', icon: ClipboardList },
   { name: 'Sesiones', href: '/sesiones', icon: Calendar },
-  { name: 'Equipo', href: '/equipo', icon: Users },
+  { name: 'Plantilla', href: '/plantilla', icon: Users },
   { name: 'Biblioteca', href: '/biblioteca', icon: Library },
   { name: 'Configuración', href: '/configuracion', icon: Settings },
 ]
