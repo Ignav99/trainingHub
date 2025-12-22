@@ -57,8 +57,8 @@ class Settings(BaseSettings):
 
     # Google Gemini API for AI recommendations
     GEMINI_API_KEY: str | None = None
-    GEMINI_MODEL: str = "gemini-2.5-pro"  # Most powerful model for best recommendations
-    GEMINI_TEMPERATURE: float = 0.3
+    GEMINI_MODEL: str = "gemini-3-pro-preview"  # Latest & most powerful (Dec 2025)
+    GEMINI_TEMPERATURE: float = 1.0  # Gemini 3 recommends keeping at 1.0
     
     class Config:
         env_file = ".env"
