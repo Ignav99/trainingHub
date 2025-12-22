@@ -3,7 +3,7 @@ TrainingHub Pro - Router de Sesiones
 CRUD para sesiones de entrenamiento.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from typing import Optional
 from uuid import UUID
@@ -22,9 +22,12 @@ from app.models import (
     EstadoSesion,
 )
 from app.database import get_supabase
-from app.dependencies import get_current_user
 
 router = APIRouter()
+
+# TODO: Reactivar autenticación después de pruebas
+DEFAULT_ORG_ID = "454b26bf-8e28-4dc0-b85c-ba1108d982b6"
+DEFAULT_USER_ID = "b6959185-b797-4266-8e89-33e39b876ccc"
 
 
 @router.get("", response_model=SesionListResponse)
@@ -37,7 +40,6 @@ async def list_sesiones(
     fecha_hasta: Optional[date] = None,
     estado: Optional[EstadoSesion] = None,
     busqueda: Optional[str] = None,
-    current_user = Depends(get_current_user),
 ):
     """Lista sesiones con filtros."""
     supabase = get_supabase()
@@ -48,9 +50,9 @@ async def list_sesiones(
         count="exact"
     )
 
-    # Filtrar por equipos del usuario (basado en organización)
+    # Filtrar por equipos de la organización por defecto
     equipos = supabase.table("equipos").select("id").eq(
-        "organizacion_id", str(current_user.organizacion_id)
+        "organizacion_id", DEFAULT_ORG_ID
     ).execute()
 
     equipo_ids = [e["id"] for e in equipos.data]
@@ -104,10 +106,7 @@ async def list_sesiones(
 
 
 @router.get("/{sesion_id}", response_model=SesionResponse)
-async def get_sesion(
-    sesion_id: UUID,
-    current_user = Depends(get_current_user),
-):
+async def get_sesion(sesion_id: UUID):
     """Obtiene una sesión con todas sus tareas."""
     supabase = get_supabase()
 
@@ -142,19 +141,33 @@ async def get_sesion(
 
 
 @router.post("", response_model=SesionResponse, status_code=status.HTTP_201_CREATED)
-async def create_sesion(
-    sesion: SesionCreate,
-    current_user = Depends(get_current_user),
-):
+async def create_sesion(sesion: SesionCreate):
     """Crea una nueva sesión."""
     supabase = get_supabase()
 
     # Preparar datos
     sesion_data = sesion.model_dump(exclude_unset=True)
-    sesion_data["creado_por"] = str(current_user.id)
+    sesion_data["creado_por"] = DEFAULT_USER_ID
 
-    # Convertir UUIDs
-    if sesion_data.get("equipo_id"):
+    # Usar equipo por defecto si no se proporciona
+    if not sesion_data.get("equipo_id"):
+        # Obtener primer equipo de la organización
+        equipos = supabase.table("equipos").select("id").eq(
+            "organizacion_id", DEFAULT_ORG_ID
+        ).limit(1).execute()
+
+        if equipos.data:
+            sesion_data["equipo_id"] = equipos.data[0]["id"]
+        else:
+            # Crear equipo por defecto si no existe
+            nuevo_equipo = supabase.table("equipos").insert({
+                "nombre": "Equipo Principal",
+                "organizacion_id": DEFAULT_ORG_ID,
+                "categoria": "Senior",
+                "temporada": "2024-2025"
+            }).execute()
+            sesion_data["equipo_id"] = nuevo_equipo.data[0]["id"]
+    else:
         sesion_data["equipo_id"] = str(sesion_data["equipo_id"])
 
     # Convertir fecha a string
@@ -174,11 +187,7 @@ async def create_sesion(
 
 
 @router.put("/{sesion_id}", response_model=SesionResponse)
-async def update_sesion(
-    sesion_id: UUID,
-    sesion: SesionUpdate,
-    current_user = Depends(get_current_user),
-):
+async def update_sesion(sesion_id: UUID, sesion: SesionUpdate):
     """Actualiza una sesión."""
     supabase = get_supabase()
 
@@ -215,10 +224,7 @@ async def update_sesion(
 
 
 @router.delete("/{sesion_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_sesion(
-    sesion_id: UUID,
-    current_user = Depends(get_current_user),
-):
+async def delete_sesion(sesion_id: UUID):
     """Elimina una sesión."""
     supabase = get_supabase()
 
@@ -240,11 +246,7 @@ async def delete_sesion(
 
 
 @router.post("/{sesion_id}/tareas", response_model=SesionResponse)
-async def add_tarea_to_sesion(
-    sesion_id: UUID,
-    tarea_data: SesionTareaCreate,
-    current_user = Depends(get_current_user),
-):
+async def add_tarea_to_sesion(sesion_id: UUID, tarea_data: SesionTareaCreate):
     """Añade una tarea a la sesión."""
     supabase = get_supabase()
 
@@ -286,15 +288,11 @@ async def add_tarea_to_sesion(
     }).eq("id", str(sesion_id)).execute()
 
     # Devolver sesión actualizada
-    return await get_sesion(sesion_id, current_user)
+    return await get_sesion(sesion_id)
 
 
 @router.delete("/{sesion_id}/tareas/{tarea_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_tarea_from_sesion(
-    sesion_id: UUID,
-    tarea_id: UUID,
-    current_user = Depends(get_current_user),
-):
+async def remove_tarea_from_sesion(sesion_id: UUID, tarea_id: UUID):
     """Elimina una tarea de la sesión."""
     supabase = get_supabase()
 
@@ -307,10 +305,7 @@ async def remove_tarea_from_sesion(
 
 
 @router.post("/{sesion_id}/pdf")
-async def generate_pdf(
-    sesion_id: UUID,
-    current_user = Depends(get_current_user),
-):
+async def generate_pdf(sesion_id: UUID):
     """Genera el PDF de la sesión."""
     supabase = get_supabase()
 

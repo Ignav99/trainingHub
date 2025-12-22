@@ -114,7 +114,7 @@ class SesionBase(BaseModel):
 
 class SesionCreate(SesionBase):
     """Schema para crear sesión."""
-    equipo_id: UUID
+    equipo_id: Optional[UUID] = None  # Optional for testing mode
     tareas: Optional[List[SesionTareaCreate]] = None
 
 

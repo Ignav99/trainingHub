@@ -57,8 +57,8 @@ class Settings(BaseSettings):
 
     # Google Gemini API for AI recommendations
     GEMINI_API_KEY: str | None = None
-    GEMINI_MODEL: str = "gemini-1.5-flash"
-    GEMINI_TEMPERATURE: float = 0.3
+    GEMINI_MODEL: str = "gemini-3-flash"  # Fast, capable, with free tier
+    GEMINI_TEMPERATURE: float = 1.0  # Gemini 3 recommends keeping at 1.0
     
     class Config:
         env_file = ".env"
