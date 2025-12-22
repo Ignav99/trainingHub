@@ -42,6 +42,15 @@ FASE_JUEGO_MAP = {
     "balon_parado_defensivo": "balon_parado_defensivo",
 }
 
+# Mapeo de densidad de IA a valores válidos de BD (alta, media, baja)
+DENSIDAD_MAP = {
+    "muy alta": "alta",
+    "alta": "alta",
+    "media": "media",
+    "baja": "baja",
+    "muy baja": "baja",
+}
+
 router = APIRouter()
 
 
@@ -444,6 +453,11 @@ async def create_tarea_from_ai(
         fase_juego_valor = FASE_JUEGO_MAP.get(tarea_ai.fase_juego)
         # Si no está en el mapa, dejarlo como None para evitar error de constraint
 
+    # Mapear densidad a valores válidos de BD
+    densidad_valor = None
+    if tarea_ai.densidad:
+        densidad_valor = DENSIDAD_MAP.get(tarea_ai.densidad.lower())
+
     # Preparar datos de la tarea (mapear campos de IA a campos de BD)
     tarea_data = {
         "titulo": tarea_ai.titulo,
@@ -468,7 +482,7 @@ async def create_tarea_from_ai(
         "consignas_defensivas": [],
         "errores_comunes": [],
         "nivel_cognitivo": tarea_ai.nivel_cognitivo,
-        "densidad": tarea_ai.densidad,
+        "densidad": densidad_valor,
         # Campos de autoría (modo prueba)
         "organizacion_id": DEFAULT_ORG_ID,
         "creado_por": DEFAULT_USER_ID,
