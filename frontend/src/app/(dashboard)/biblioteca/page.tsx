@@ -284,6 +284,7 @@ export default function BibliotecaPage() {
         limit,
         categoria: categoriaFilter || undefined,
         busqueda: busqueda || undefined,
+        biblioteca: true,  // Modo biblioteca: muestra TODAS las tareas públicas
       })
       setTareas(response.data)
       setTotal(response.total)
