@@ -121,13 +121,14 @@ async def create_jugador(jugador: JugadorCreate, current_user=Depends(get_curren
     """Crea un nuevo jugador."""
     supabase = get_supabase()
 
-    data = jugador.model_dump(mode='json')
+    data = jugador.model_dump(mode='json', exclude_none=True)
     data["equipo_id"] = str(data["equipo_id"])
-    if data.get("equipo_origen_id"):
-        data["equipo_origen_id"] = str(data["equipo_origen_id"])
+
+    # Eliminar campos que no existen en la tabla
+    data.pop("equipo_origen_id", None)
 
     # Determinar si es portero
-    data["es_portero"] = data["posicion_principal"] == "POR"
+    data["es_portero"] = data.get("posicion_principal") == "POR"
 
     response = supabase.table("jugadores").insert(data).execute()
 
