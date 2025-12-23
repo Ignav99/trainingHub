@@ -6,6 +6,21 @@ interface FetchOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>
 }
 
+// Helper to get token from localStorage (zustand persist)
+function getPersistedToken(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const stored = localStorage.getItem('traininghub-auth')
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      return parsed?.state?.accessToken || null
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return null
+}
+
 class ApiClient {
   private baseUrl: string
 
@@ -14,9 +29,15 @@ class ApiClient {
   }
 
   private async getAuthHeaders(): Promise<HeadersInit> {
-    // Get token directly from Supabase session
-    const { data: { session } } = await supabase.auth.getSession()
-    const token = session?.access_token
+    // First try to get from persisted zustand state (faster)
+    let token = getPersistedToken()
+
+    // Fallback to Supabase session if not in store
+    if (!token) {
+      const { data: { session } } = await supabase.auth.getSession()
+      token = session?.access_token || null
+    }
+
     return token ? { Authorization: `Bearer ${token}` } : {}
   }
 
