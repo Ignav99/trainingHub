@@ -46,7 +46,7 @@ CREATE POLICY "Usuarios pueden ver rivales de su organización"
     ON rivales FOR SELECT
     USING (
         organizacion_id IN (
-            SELECT organizacion_id FROM usuarios WHERE auth_id = auth.uid()
+            SELECT organizacion_id FROM usuarios WHERE id = auth.uid()
         )
     );
 
@@ -55,7 +55,7 @@ CREATE POLICY "Técnicos pueden gestionar rivales"
     USING (
         organizacion_id IN (
             SELECT organizacion_id FROM usuarios
-            WHERE auth_id = auth.uid()
+            WHERE id = auth.uid()
             AND rol IN ('admin', 'tecnico_principal', 'tecnico_asistente')
         )
     );
@@ -141,7 +141,7 @@ CREATE POLICY "Usuarios pueden ver partidos de equipos de su organización"
         equipo_id IN (
             SELECT e.id FROM equipos e
             JOIN usuarios u ON e.organizacion_id = u.organizacion_id
-            WHERE u.auth_id = auth.uid()
+            WHERE u.id = auth.uid()
         )
     );
 
@@ -151,7 +151,7 @@ CREATE POLICY "Técnicos pueden gestionar partidos"
         equipo_id IN (
             SELECT e.id FROM equipos e
             JOIN usuarios u ON e.organizacion_id = u.organizacion_id
-            WHERE u.auth_id = auth.uid()
+            WHERE u.id = auth.uid()
             AND u.rol IN ('admin', 'tecnico_principal', 'tecnico_asistente')
         )
     );
