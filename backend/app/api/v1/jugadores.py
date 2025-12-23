@@ -3,9 +3,9 @@ TrainingHub Pro - Router de Jugadores
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Query, status
-from typing import Optional
+from typing import Optional, Union
 from uuid import UUID
-from datetime import date
+from datetime import date, datetime
 
 from app.models import (
     JugadorCreate,
@@ -21,10 +21,18 @@ from app.dependencies import get_current_user
 router = APIRouter()
 
 
-def calculate_age(birth_date: date) -> int:
+def calculate_age(birth_date: Union[date, str, None]) -> Optional[int]:
     """Calcula la edad a partir de la fecha de nacimiento."""
     if not birth_date:
         return None
+
+    # Si es string, convertir a date
+    if isinstance(birth_date, str):
+        try:
+            birth_date = datetime.strptime(birth_date, "%Y-%m-%d").date()
+        except ValueError:
+            return None
+
     today = date.today()
     return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
 
