@@ -83,6 +83,23 @@ from app.models.jugador import (
     PosicionListResponse,
 )
 
+from app.models.partido import (
+    TipoCompeticion,
+    LocaliaPartido,
+    ResultadoPartido,
+    RivalBase,
+    RivalCreate,
+    RivalUpdate,
+    RivalResponse,
+    RivalListResponse,
+    PartidoBase,
+    PartidoCreate,
+    PartidoUpdate,
+    PartidoResponse,
+    PartidoListResponse,
+    PartidoFiltros,
+)
+
 __all__ = [
     # Tarea
     "FaseJuego",
@@ -155,4 +172,19 @@ __all__ = [
     "JugadorFiltros",
     "PosicionResponse",
     "PosicionListResponse",
+    # Partido y Rival
+    "TipoCompeticion",
+    "LocaliaPartido",
+    "ResultadoPartido",
+    "RivalBase",
+    "RivalCreate",
+    "RivalUpdate",
+    "RivalResponse",
+    "RivalListResponse",
+    "PartidoBase",
+    "PartidoCreate",
+    "PartidoUpdate",
+    "PartidoResponse",
+    "PartidoListResponse",
+    "PartidoFiltros",
 ]
