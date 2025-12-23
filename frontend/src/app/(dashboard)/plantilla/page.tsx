@@ -24,9 +24,11 @@ import {
   XCircle,
   Star,
   Eye,
-  UserCog
+  UserCog,
+  ChevronDown
 } from 'lucide-react'
 import { Jugador, jugadoresApi, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
+import { useEquipoStore } from '@/stores/equipoStore'
 
 // Avatar del jugador
 function PlayerAvatar({ jugador, size = 'md' }: { jugador: Jugador; size?: 'sm' | 'md' | 'lg' }) {
@@ -345,9 +347,11 @@ function EstadoModal({
 
 export default function PlantillaPage() {
   const router = useRouter()
+  const { equipos, equipoActivo, setEquipoActivo, loadEquipos, isLoading: equiposLoading } = useEquipoStore()
   const [jugadores, setJugadores] = useState<Jugador[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [equipoDropdownOpen, setEquipoDropdownOpen] = useState(false)
 
   // Filtros
   const [busqueda, setBusqueda] = useState('')
@@ -366,16 +370,27 @@ export default function PlantillaPage() {
     porZona: Record<string, number>
   } | null>(null)
 
+  // Cargar equipos al montar
   useEffect(() => {
-    loadJugadores()
-  }, [posicionFilter, estadoFilter])
+    loadEquipos()
+  }, [loadEquipos])
+
+  // Cargar jugadores cuando cambia el equipo activo
+  useEffect(() => {
+    if (equipoActivo) {
+      loadJugadores()
+    }
+  }, [equipoActivo, posicionFilter, estadoFilter])
 
   const loadJugadores = async () => {
+    if (!equipoActivo) return
+
     setLoading(true)
     setError(null)
 
     try {
       const response = await jugadoresApi.list({
+        equipo_id: equipoActivo.id,
         posicion: posicionFilter || undefined,
         estado: estadoFilter || undefined,
         busqueda: busqueda || undefined,
@@ -465,28 +480,90 @@ export default function PlantillaPage() {
     ataque: 'border-red-500',
   }
 
+  // Si no hay equipos cargados, mostrar loading o error
+  if (equiposLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  if (equipos.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+        <h2 className="text-lg font-medium text-gray-900 mb-2">No hay equipos</h2>
+        <p className="text-gray-500">Contacta con el administrador para crear equipos</p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Plantilla</h1>
-          <p className="text-gray-500">
-            {stats ? `${stats.disponibles} disponibles de ${stats.total} jugadores` : 'Cargando...'}
-          </p>
+      {/* Header con selector de equipo */}
+      <div className="flex flex-col gap-4">
+        {/* Selector de equipo */}
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <button
+              onClick={() => setEquipoDropdownOpen(!equipoDropdownOpen)}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <Users className="h-5 w-5 text-primary" />
+              <span className="font-medium text-gray-900">
+                {equipoActivo?.nombre || 'Seleccionar equipo'}
+              </span>
+              {equipoActivo?.categoria && (
+                <span className="text-sm text-gray-500">({equipoActivo.categoria})</span>
+              )}
+              <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${equipoDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {equipoDropdownOpen && (
+              <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                {equipos.map((equipo) => (
+                  <button
+                    key={equipo.id}
+                    onClick={() => {
+                      setEquipoActivo(equipo)
+                      setEquipoDropdownOpen(false)
+                    }}
+                    className={`flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-gray-50 ${
+                      equipoActivo?.id === equipo.id ? 'bg-primary/5 text-primary' : 'text-gray-700'
+                    }`}
+                  >
+                    <span className="font-medium">{equipo.nombre}</span>
+                    {equipo.categoria && (
+                      <span className="text-xs text-gray-500">{equipo.categoria}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-        <div className="flex gap-3">
-          <Link
-            href="/plantilla/invitados"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            <UserPlus className="h-4 w-4" />
-            Invitados
-          </Link>
-          <Link
-            href="/plantilla/nuevo"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-          >
+
+        {/* Título y acciones */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Plantilla</h1>
+            <p className="text-gray-500">
+              {stats ? `${stats.disponibles} disponibles de ${stats.total} jugadores` : 'Selecciona un equipo'}
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <Link
+              href="/plantilla/invitados"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <UserPlus className="h-4 w-4" />
+              Invitados
+            </Link>
+            <Link
+              href="/plantilla/nuevo"
+              className={`inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors ${!equipoActivo ? 'opacity-50 pointer-events-none' : ''}`}
+            >
             <Plus className="h-4 w-4" />
             Nuevo Jugador
           </Link>
