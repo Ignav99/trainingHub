@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   ClipboardList,
   Calendar,
+  CalendarDays,
   Library,
   Settings,
   ChevronDown,
@@ -22,8 +23,9 @@ import { useEquipoStore } from '@/stores/equipoStore'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Tareas', href: '/tareas', icon: ClipboardList },
+  { name: 'Calendario', href: '/calendario', icon: CalendarDays },
   { name: 'Sesiones', href: '/sesiones', icon: Calendar },
+  { name: 'Tareas', href: '/tareas', icon: ClipboardList },
   { name: 'Plantilla', href: '/plantilla', icon: Users },
   { name: 'Biblioteca', href: '/biblioteca', icon: Library },
   { name: 'Configuración', href: '/configuracion', icon: Settings },

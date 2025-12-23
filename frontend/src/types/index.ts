@@ -372,3 +372,68 @@ export interface AuthTokens {
 export interface AuthResponse extends AuthTokens {
   user: Usuario
 }
+
+// ============================================
+// CALENDARIO Y PARTIDOS
+// ============================================
+
+export type TipoEvento = 'sesion' | 'partido' | 'descanso' | 'festivo'
+export type ResultadoPartido = 'victoria' | 'empate' | 'derrota' | null
+export type TipoCompeticion = 'liga' | 'copa' | 'amistoso' | 'torneo' | 'otro'
+export type LocaliaPartido = 'local' | 'visitante' | 'neutral'
+
+// Rival/Equipo contrario
+export interface Rival {
+  id: string
+  nombre: string
+  nombre_corto?: string
+  escudo_url?: string
+  estadio?: string
+  ciudad?: string
+  notas?: string
+  created_at: string
+  updated_at: string
+}
+
+// Partido
+export interface Partido {
+  id: string
+  equipo_id: string
+  rival_id: string
+  fecha: string
+  hora?: string
+  localia: LocaliaPartido
+  competicion: TipoCompeticion
+  jornada?: number
+
+  // Resultado
+  goles_favor?: number
+  goles_contra?: number
+  resultado?: ResultadoPartido
+
+  // Análisis
+  notas_pre?: string
+  notas_post?: string
+  video_url?: string
+  informe_url?: string
+
+  created_at: string
+  updated_at: string
+
+  // Relaciones
+  rival?: Rival
+  equipo?: Equipo
+}
+
+// Evento de calendario (unifica sesiones, partidos, descansos)
+export interface EventoCalendario {
+  id: string
+  tipo: TipoEvento
+  fecha: string
+  titulo: string
+  // Datos específicos según tipo
+  sesion?: Sesion
+  partido?: Partido
+  match_day?: MatchDay
+  notas?: string
+}
