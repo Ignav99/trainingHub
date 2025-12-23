@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { Sesion, Partido, MatchDay } from '@/types'
 import { sesionesApi } from '@/lib/api/sesiones'
+import { partidosApi } from '@/lib/api/partidos'
 import { useEquipoStore } from '@/stores/equipoStore'
 import {
   format,
@@ -55,30 +56,6 @@ const matchDayColors: Record<string, { bg: string; border: string; text: string;
   'MD-1': { bg: 'bg-purple-100', border: 'border-purple-400', text: 'text-purple-800', label: 'Activación' },
   'MD': { bg: 'bg-gray-900', border: 'border-gray-900', text: 'text-white', label: 'Partido' },
 }
-
-// Datos mock de partidos (después conectaremos con API)
-const mockPartidos: Partido[] = [
-  {
-    id: '1',
-    equipo_id: '1',
-    rival_id: '1',
-    fecha: format(new Date(), 'yyyy-MM-dd'),
-    hora: '18:00',
-    localia: 'local',
-    competicion: 'liga',
-    jornada: 15,
-    created_at: '',
-    updated_at: '',
-    rival: {
-      id: '1',
-      nombre: 'Real Madrid CF',
-      nombre_corto: 'RMA',
-      escudo_url: '/escudos/real-madrid.png',
-      created_at: '',
-      updated_at: ''
-    }
-  }
-]
 
 // Card de sesión en el calendario
 function SesionCard({ sesion, onClick, compact = false }: { sesion: Sesion; onClick: () => void; compact?: boolean }) {
@@ -535,7 +512,7 @@ export default function CalendarioPage() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewMode, setViewMode] = useState<ViewMode>('microciclo')
   const [sesiones, setSesiones] = useState<Sesion[]>([])
-  const [partidos, setPartidos] = useState<Partido[]>(mockPartidos) // TODO: cargar de API
+  const [partidos, setPartidos] = useState<Partido[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedDay, setSelectedDay] = useState<{
     date: Date
@@ -545,10 +522,10 @@ export default function CalendarioPage() {
   const [selectedSesion, setSelectedSesion] = useState<Sesion | null>(null)
 
   useEffect(() => {
-    loadSesiones()
+    loadData()
   }, [currentDate, viewMode, equipoActivo])
 
-  const loadSesiones = async () => {
+  const loadData = async () => {
     setLoading(true)
     try {
       let start: Date, end: Date
@@ -561,16 +538,29 @@ export default function CalendarioPage() {
         end = endOfWeek(currentDate, { weekStartsOn: 1 })
       }
 
-      const response = await sesionesApi.list({
-        fecha_desde: format(start, 'yyyy-MM-dd'),
-        fecha_hasta: format(end, 'yyyy-MM-dd'),
-        equipo_id: equipoActivo?.id,
-        limit: 100,
-      })
+      const fechaDesde = format(start, 'yyyy-MM-dd')
+      const fechaHasta = format(end, 'yyyy-MM-dd')
 
-      setSesiones(response.data)
+      // Cargar sesiones y partidos en paralelo
+      const [sesionesResponse, partidosResponse] = await Promise.all([
+        sesionesApi.list({
+          fecha_desde: fechaDesde,
+          fecha_hasta: fechaHasta,
+          equipo_id: equipoActivo?.id,
+          limit: 100,
+        }),
+        partidosApi.list({
+          fecha_desde: fechaDesde,
+          fecha_hasta: fechaHasta,
+          equipo_id: equipoActivo?.id,
+          limit: 100,
+        }).catch(() => ({ data: [] })) // Si falla, devolver array vacío
+      ])
+
+      setSesiones(sesionesResponse.data)
+      setPartidos(partidosResponse.data)
     } catch (err) {
-      console.error('Error loading sesiones:', err)
+      console.error('Error loading data:', err)
     } finally {
       setLoading(false)
     }
