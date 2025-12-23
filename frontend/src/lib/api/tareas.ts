@@ -61,6 +61,7 @@ interface ListTareasParams {
   solo_plantillas?: boolean
   equipo_id?: string
   busqueda?: string
+  biblioteca?: boolean  // Modo biblioteca: muestra TODAS las tareas públicas
   [key: string]: string | number | boolean | undefined
 }
 

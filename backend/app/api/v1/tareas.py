@@ -74,6 +74,8 @@ async def list_tareas(
     solo_plantillas: bool = False,
     equipo_id: Optional[UUID] = None,
     busqueda: Optional[str] = None,
+    # Modo biblioteca: muestra TODAS las tareas públicas de TODOS los usuarios
+    biblioteca: bool = False,
     # Ordenación
     orden: str = Query("created_at", pattern="^(created_at|titulo|duracion_total|num_usos)$"),
     direccion: str = Query("desc", pattern="^(asc|desc)$"),
@@ -85,6 +87,7 @@ async def list_tareas(
 
     - Sin autenticación: devuelve solo tareas públicas
     - Con autenticación: devuelve tareas de la organización del usuario
+    - Con biblioteca=true: devuelve TODAS las tareas públicas (biblioteca compartida)
 
     - **categoria**: Código de categoría (RND, JDP, etc.)
     - **fase_juego**: Fase táctica
@@ -92,6 +95,7 @@ async def list_tareas(
     - **duracion_min/max**: Rango de duración en minutos
     - **solo_plantillas**: Filtrar solo plantillas
     - **busqueda**: Búsqueda en título y descripción
+    - **biblioteca**: Modo biblioteca compartida (todas las tareas públicas)
     """
     supabase = get_supabase()
 
@@ -101,8 +105,11 @@ async def list_tareas(
         count="exact"
     )
 
-    # Filtrar según autenticación
-    if current_user:
+    # Filtrar según modo
+    if biblioteca:
+        # Modo biblioteca: TODAS las tareas públicas de TODOS los usuarios
+        query = query.eq("es_publica", True)
+    elif current_user:
         # Usuario autenticado: tareas de su organización
         query = query.eq("organizacion_id", current_user.organizacion_id)
     else:
@@ -237,7 +244,11 @@ async def create_tarea(
     tarea_data = tarea.model_dump(exclude_unset=True)
     tarea_data["organizacion_id"] = str(current_user.organizacion_id)
     tarea_data["creado_por"] = str(current_user.id)
-    
+
+    # Por defecto, las tareas son públicas para aparecer en la biblioteca compartida
+    if "es_publica" not in tarea_data:
+        tarea_data["es_publica"] = True
+
     # Convertir UUIDs a strings
     tarea_data["categoria_id"] = str(tarea_data["categoria_id"])
     if tarea_data.get("equipo_id"):
