@@ -158,22 +158,40 @@ async def create_partido(
     """
     supabase = get_supabase()
 
-    # Verificar que el equipo pertenece a la organización
-    equipo = supabase.table("equipos").select("organizacion_id").eq(
-        "id", str(partido.equipo_id)
-    ).single().execute()
+    partido_data = partido.model_dump(mode='json')
 
-    if not equipo.data:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Equipo no encontrado"
-        )
+    # Use default equipo if not provided
+    if not partido.equipo_id:
+        equipos = supabase.table("equipos").select("id").eq(
+            "organizacion_id", str(current_user.organizacion_id)
+        ).limit(1).execute()
 
-    if equipo.data["organizacion_id"] != str(current_user.organizacion_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes acceso a este equipo"
-        )
+        if equipos.data:
+            partido_data["equipo_id"] = equipos.data[0]["id"]
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No tienes equipos. Crea uno primero."
+            )
+    else:
+        # Verificar que el equipo pertenece a la organización
+        equipo = supabase.table("equipos").select("organizacion_id").eq(
+            "id", str(partido.equipo_id)
+        ).single().execute()
+
+        if not equipo.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Equipo no encontrado"
+            )
+
+        if equipo.data["organizacion_id"] != str(current_user.organizacion_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes acceso a este equipo"
+            )
+
+        partido_data["equipo_id"] = str(partido.equipo_id)
 
     # Verificar que el rival existe y pertenece a la organización
     rival = supabase.table("rivales").select("organizacion_id").eq(
@@ -192,8 +210,6 @@ async def create_partido(
             detail="El rival no pertenece a tu organización"
         )
 
-    partido_data = partido.model_dump(mode='json')
-    partido_data["equipo_id"] = str(partido_data["equipo_id"])
     partido_data["rival_id"] = str(partido_data["rival_id"])
 
     response = supabase.table("partidos").insert(partido_data).execute()

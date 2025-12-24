@@ -48,7 +48,7 @@ export const rivalesApi = {
 // ============ Partidos ============
 
 export interface PartidoCreateData {
-  equipo_id: string
+  equipo_id?: string  // Optional: backend will use default
   rival_id: string
   fecha: string  // YYYY-MM-DD
   hora?: string  // HH:MM
@@ -61,6 +61,7 @@ export interface PartidoCreateData {
   notas_post?: string
   video_url?: string
   informe_url?: string
+  ubicacion?: string
 }
 
 export interface PartidoUpdateData extends Partial<Omit<PartidoCreateData, 'equipo_id'>> {}
