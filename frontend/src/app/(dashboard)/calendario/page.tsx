@@ -22,7 +22,10 @@ import {
   Users,
   Sparkles,
   Palmtree,
-  Edit3
+  Edit3,
+  Copy,
+  Home,
+  Plane
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Sesion, Partido, MatchDay } from '@/types'
@@ -110,16 +113,24 @@ function SesionCard({ sesion, onClick, compact = false }: { sesion: Sesion; onCl
 // Card de partido
 function PartidoCard({ partido, onClick, compact = false }: { partido: Partido; onClick: () => void; compact?: boolean }) {
   const isLocal = partido.localia === 'local'
+  const isVisitante = partido.localia === 'visitante'
 
   if (compact) {
     return (
       <button
         onClick={onClick}
-        className="w-full text-left p-1.5 rounded bg-gray-900 hover:bg-gray-800 transition-colors"
+        className={`w-full text-left p-1.5 rounded transition-colors ${
+          isLocal
+            ? 'bg-gradient-to-r from-green-700 to-green-800 hover:from-green-600 hover:to-green-700'
+            : 'bg-gradient-to-r from-blue-700 to-blue-800 hover:from-blue-600 hover:to-blue-700'
+        }`}
       >
         <div className="flex items-center gap-1.5">
-          <Trophy className="h-3 w-3 text-amber-400" />
-          <span className="text-xs font-bold text-white">MD</span>
+          {isLocal ? (
+            <Home className="h-3 w-3 text-green-300" />
+          ) : (
+            <Plane className="h-3 w-3 text-blue-300" />
+          )}
           {partido.rival?.escudo_url ? (
             <Image
               src={partido.rival.escudo_url}
@@ -129,11 +140,14 @@ function PartidoCard({ partido, onClick, compact = false }: { partido: Partido; 
               className="rounded-sm"
             />
           ) : (
-            <div className="w-3.5 h-3.5 bg-gray-600 rounded-sm" />
+            <div className="w-3.5 h-3.5 bg-white/20 rounded-sm" />
           )}
-          <span className="text-xs text-gray-300 truncate">
+          <span className="text-xs text-white truncate flex-1">
             {partido.rival?.nombre_corto || partido.rival?.nombre}
           </span>
+          {partido.hora && (
+            <span className="text-xs text-white/70">{partido.hora}</span>
+          )}
         </div>
       </button>
     )
@@ -142,14 +156,28 @@ function PartidoCard({ partido, onClick, compact = false }: { partido: Partido; 
   return (
     <button
       onClick={onClick}
-      className="w-full text-left p-4 rounded-lg bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700 transition-all shadow-lg"
+      className={`w-full text-left p-4 rounded-lg transition-all shadow-lg ${
+        isLocal
+          ? 'bg-gradient-to-r from-green-700 to-green-800 hover:from-green-600 hover:to-green-700'
+          : 'bg-gradient-to-r from-blue-700 to-blue-800 hover:from-blue-600 hover:to-blue-700'
+      }`}
     >
       <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-bold text-amber-400 flex items-center gap-1.5">
-          <Trophy className="h-4 w-4" />
-          Match Day
+        <span className="text-sm font-bold text-white flex items-center gap-1.5">
+          {isLocal ? (
+            <>
+              <Home className="h-4 w-4" />
+              Local
+            </>
+          ) : (
+            <>
+              <Plane className="h-4 w-4" />
+              Visitante
+            </>
+          )}
         </span>
-        <span className="text-xs text-gray-400">
+        <span className="text-sm text-white/80 flex items-center gap-1">
+          <Clock className="h-3.5 w-3.5" />
           {partido.hora || 'Por definir'}
         </span>
       </div>
@@ -164,20 +192,19 @@ function PartidoCard({ partido, onClick, compact = false }: { partido: Partido; 
             className="rounded"
           />
         ) : (
-          <div className="w-10 h-10 bg-gray-600 rounded flex items-center justify-center">
-            <Users className="h-5 w-5 text-gray-400" />
+          <div className="w-10 h-10 bg-white/20 rounded flex items-center justify-center">
+            <Users className="h-5 w-5 text-white/60" />
           </div>
         )}
         <div>
           <div className="text-white font-medium">
             vs {partido.rival?.nombre || 'Rival'}
           </div>
-          <div className="text-xs text-gray-400 flex items-center gap-2">
-            <span className={isLocal ? 'text-green-400' : 'text-blue-400'}>
-              {isLocal ? 'Local' : 'Visitante'}
-            </span>
+          <div className="text-xs text-white/70 flex items-center gap-2">
+            <Trophy className="h-3 w-3 text-amber-400" />
+            <span>{partido.competicion === 'liga' ? 'Liga' : partido.competicion === 'copa' ? 'Copa' : partido.competicion}</span>
             {partido.jornada && (
-              <span>• Jornada {partido.jornada}</span>
+              <span>• J{partido.jornada}</span>
             )}
           </div>
         </div>
@@ -219,9 +246,17 @@ function DayDetailModal({
       href: `/sesiones/nueva-ai?fecha=${fechaParam}`
     },
     {
+      id: 'sesion-existente',
+      label: 'Usar Existente',
+      description: 'Copiar una sesión que ya diseñaste',
+      icon: Copy,
+      color: 'bg-blue-500 text-white',
+      href: `/sesiones?seleccionar=true&fecha=${fechaParam}`
+    },
+    {
       id: 'sesion',
       label: 'Sesión Manual',
-      description: 'Crear sesión de entrenamiento manualmente',
+      description: 'Crear sesión de entrenamiento desde cero',
       icon: Dumbbell,
       color: 'bg-primary text-white',
       href: `/sesiones/nueva?fecha=${fechaParam}`
@@ -331,7 +366,7 @@ function DayDetailModal({
               <Plus className="h-4 w-4" />
               Añadir evento
             </h4>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {createOptions.map((option) => (
                 option.href ? (
                   <Link
