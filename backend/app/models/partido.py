@@ -104,7 +104,7 @@ class PartidoBase(BaseModel):
 
 class PartidoCreate(PartidoBase):
     """Schema para crear partido."""
-    equipo_id: UUID
+    equipo_id: Optional[UUID] = None  # Optional: backend will use default in test mode
 
 
 class PartidoUpdate(BaseModel):

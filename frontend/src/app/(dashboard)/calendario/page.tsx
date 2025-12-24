@@ -19,8 +19,12 @@ import {
   MapPin,
   Video,
   FileText,
-  Users
+  Users,
+  Sparkles,
+  Palmtree,
+  Edit3
 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { Sesion, Partido, MatchDay } from '@/types'
 import { sesionesApi } from '@/lib/api/sesiones'
 import { partidosApi } from '@/lib/api/partidos'
@@ -196,12 +200,52 @@ function DayDetailModal({
   onClose: () => void
   onSelectSesion: (sesion: Sesion) => void
 }) {
+  const router = useRouter()
   const dayName = format(date, 'EEEE', { locale: es })
   const fullDate = format(date, "d 'de' MMMM, yyyy", { locale: es })
+  const fechaParam = format(date, 'yyyy-MM-dd')
 
   // Determinar el Match Day del día basado en las sesiones
   const matchDay = sesiones[0]?.match_day || (partidos.length > 0 ? 'MD' : null)
   const mdConfig = matchDay ? matchDayColors[matchDay] : null
+
+  const createOptions = [
+    {
+      id: 'sesion-ai',
+      label: 'Sesión con IA',
+      description: 'Crear sesión asistida por inteligencia artificial',
+      icon: Sparkles,
+      color: 'bg-gradient-to-r from-purple-500 to-pink-500 text-white',
+      href: `/sesiones/nueva-ai?fecha=${fechaParam}`
+    },
+    {
+      id: 'sesion',
+      label: 'Sesión Manual',
+      description: 'Crear sesión de entrenamiento manualmente',
+      icon: Dumbbell,
+      color: 'bg-primary text-white',
+      href: `/sesiones/nueva?fecha=${fechaParam}`
+    },
+    {
+      id: 'partido',
+      label: 'Partido',
+      description: 'Añadir un partido o competición',
+      icon: Trophy,
+      color: 'bg-amber-500 text-white',
+      href: `/partidos/nuevo?fecha=${fechaParam}`
+    },
+    {
+      id: 'descanso',
+      label: 'Día Libre / Festivo',
+      description: 'Marcar como día de descanso',
+      icon: Palmtree,
+      color: 'bg-green-500 text-white',
+      action: () => {
+        // TODO: Implement marking day as rest
+        alert('Funcionalidad próximamente')
+      }
+    }
+  ]
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -281,20 +325,38 @@ function DayDetailModal({
             </div>
           )}
 
-          {/* Sin eventos */}
-          {sesiones.length === 0 && partidos.length === 0 && (
-            <div className="text-center py-8">
-              <Coffee className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">No hay eventos programados</p>
-              <Link
-                href="/sesiones/nueva"
-                className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-primary text-white rounded-lg text-sm hover:bg-primary/90"
-              >
-                <Plus className="h-4 w-4" />
-                Crear sesión
-              </Link>
+          {/* Opciones de crear - siempre visible */}
+          <div className={sesiones.length > 0 || partidos.length > 0 ? 'pt-4 border-t border-gray-200' : ''}>
+            <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Añadir evento
+            </h4>
+            <div className="grid grid-cols-2 gap-2">
+              {createOptions.map((option) => (
+                option.href ? (
+                  <Link
+                    key={option.id}
+                    href={option.href}
+                    className={`p-3 rounded-lg ${option.color} hover:opacity-90 transition-all hover:scale-[1.02]`}
+                  >
+                    <option.icon className="h-5 w-5 mb-1" />
+                    <div className="font-medium text-sm">{option.label}</div>
+                    <div className="text-xs opacity-80 line-clamp-1">{option.description}</div>
+                  </Link>
+                ) : (
+                  <button
+                    key={option.id}
+                    onClick={option.action}
+                    className={`p-3 rounded-lg ${option.color} hover:opacity-90 transition-all hover:scale-[1.02] text-left`}
+                  >
+                    <option.icon className="h-5 w-5 mb-1" />
+                    <div className="font-medium text-sm">{option.label}</div>
+                    <div className="text-xs opacity-80 line-clamp-1">{option.description}</div>
+                  </button>
+                )
+              ))}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
@@ -541,6 +603,8 @@ export default function CalendarioPage() {
       const fechaDesde = format(start, 'yyyy-MM-dd')
       const fechaHasta = format(end, 'yyyy-MM-dd')
 
+      console.log('[Calendario] Cargando datos:', { fechaDesde, fechaHasta, equipo_id: equipoActivo?.id })
+
       // Cargar sesiones y partidos en paralelo
       const [sesionesResponse, partidosResponse] = await Promise.all([
         sesionesApi.list({
@@ -554,13 +618,21 @@ export default function CalendarioPage() {
           fecha_hasta: fechaHasta,
           equipo_id: equipoActivo?.id,
           limit: 100,
-        }).catch(() => ({ data: [] })) // Si falla, devolver array vacío
+        }).catch((err) => {
+          console.error('[Calendario] Error cargando partidos:', err)
+          return { data: [] }
+        })
       ])
+
+      console.log('[Calendario] Datos cargados:', {
+        sesiones: sesionesResponse.data.length,
+        partidos: partidosResponse.data.length
+      })
 
       setSesiones(sesionesResponse.data)
       setPartidos(partidosResponse.data)
     } catch (err) {
-      console.error('Error loading data:', err)
+      console.error('[Calendario] Error loading data:', err)
     } finally {
       setLoading(false)
     }
@@ -674,13 +746,28 @@ export default function CalendarioPage() {
         </div>
 
         {/* Leyenda Match Days */}
-        <div className="flex flex-wrap gap-2 mb-4 pb-4 border-b border-gray-200">
-          {Object.entries(matchDayColors).map(([md, colors]) => (
-            <div key={md} className={`flex items-center gap-1.5 px-2 py-1 rounded ${colors.bg}`}>
-              <span className={`text-xs font-bold ${colors.text}`}>{md}</span>
-              <span className="text-xs text-gray-600 hidden sm:inline">{colors.label}</span>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4 pb-4 border-b border-gray-200">
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(matchDayColors).map(([md, colors]) => (
+              <div key={md} className={`flex items-center gap-1.5 px-2 py-1 rounded ${colors.bg}`}>
+                <span className={`text-xs font-bold ${colors.text}`}>{md}</span>
+                <span className="text-xs text-gray-600 hidden sm:inline">{colors.label}</span>
+              </div>
+            ))}
+          </div>
+          {/* Contador de eventos */}
+          {!loading && (
+            <div className="flex items-center gap-3 text-xs text-gray-500">
+              <span className="flex items-center gap-1">
+                <Dumbbell className="h-3 w-3" />
+                {sesiones.length} sesiones
+              </span>
+              <span className="flex items-center gap-1">
+                <Trophy className="h-3 w-3" />
+                {partidos.length} partidos
+              </span>
             </div>
-          ))}
+          )}
         </div>
 
         {/* Contenido */}
