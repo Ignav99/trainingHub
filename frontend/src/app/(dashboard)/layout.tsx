@@ -16,7 +16,8 @@ import {
   X,
   User,
   Users,
-  Check
+  Check,
+  Target
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useEquipoStore } from '@/stores/equipoStore'
@@ -27,6 +28,7 @@ const navigation = [
   { name: 'Sesiones', href: '/sesiones', icon: Calendar },
   { name: 'Tareas', href: '/tareas', icon: ClipboardList },
   { name: 'Plantilla', href: '/plantilla', icon: Users },
+  { name: 'Análisis', href: '/analisis', icon: Target },
   { name: 'Biblioteca', href: '/biblioteca', icon: Library },
   { name: 'Configuración', href: '/configuracion', icon: Settings },
 ]
