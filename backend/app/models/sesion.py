@@ -139,7 +139,7 @@ class SesionResponse(SesionBase):
     """Schema de respuesta de sesión."""
     id: UUID
     equipo_id: UUID
-    creado_por: UUID
+    creado_por: Optional[UUID] = None
     
     duracion_total: Optional[int] = None
     estado: EstadoSesion
