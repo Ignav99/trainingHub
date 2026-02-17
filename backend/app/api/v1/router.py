@@ -22,6 +22,9 @@ from app.api.v1 import (
     comunicacion,
     ai_chat,
     knowledge_base,
+    onboarding,
+    rfef,
+    dashboard,
 )
 
 api_router = APIRouter()
@@ -124,6 +127,24 @@ api_router.include_router(
     knowledge_base.router,
     prefix="/kb",
     tags=["Knowledge Base"]
+)
+
+api_router.include_router(
+    onboarding.router,
+    prefix="/onboarding",
+    tags=["Onboarding"]
+)
+
+api_router.include_router(
+    rfef.router,
+    prefix="/rfef",
+    tags=["RFEF"]
+)
+
+api_router.include_router(
+    dashboard.router,
+    prefix="/dashboard",
+    tags=["Dashboard"]
 )
 
 

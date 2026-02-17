@@ -133,6 +133,7 @@ class SesionUpdate(BaseModel):
     notas_pre: Optional[str] = None
     notas_post: Optional[str] = None
     estado: Optional[EstadoSesion] = None
+    microciclo_id: Optional[UUID] = None
 
 
 class SesionResponse(SesionBase):
@@ -144,6 +145,7 @@ class SesionResponse(SesionBase):
     duracion_total: Optional[int] = None
     estado: EstadoSesion
     pdf_url: Optional[str] = None
+    microciclo_id: Optional[UUID] = None
     
     created_at: datetime
     updated_at: datetime
