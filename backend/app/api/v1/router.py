@@ -25,6 +25,7 @@ from app.api.v1 import (
     onboarding,
     rfef,
     dashboard,
+    exports,
 )
 
 api_router = APIRouter()
@@ -145,6 +146,12 @@ api_router.include_router(
     dashboard.router,
     prefix="/dashboard",
     tags=["Dashboard"]
+)
+
+api_router.include_router(
+    exports.router,
+    prefix="/exports",
+    tags=["Exportaciones"]
 )
 
 

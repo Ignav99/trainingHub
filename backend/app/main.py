@@ -3,6 +3,8 @@ TrainingHub Pro - API Backend
 Punto de entrada principal de la aplicación FastAPI.
 """
 
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -10,6 +12,18 @@ from contextlib import asynccontextmanager
 from app.config import get_settings
 from app.api.v1.router import api_router
 from app.database import init_supabase
+from app.middleware import (
+    SecurityHeadersMiddleware,
+    RequestLoggingMiddleware,
+    RateLimitMiddleware,
+)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 
 settings = get_settings()
@@ -49,7 +63,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS
+# Middleware stack (order matters: last added = first executed)
+# 1. CORS (outermost)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
@@ -57,9 +72,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# 2. Rate limiting
+app.add_middleware(RateLimitMiddleware, max_requests=100, window_seconds=60)
+# 3. Security headers
+app.add_middleware(SecurityHeadersMiddleware)
+# 4. Request logging (innermost - logs after processing)
+app.add_middleware(RequestLoggingMiddleware)
 
 # Incluir routers
 app.include_router(api_router, prefix="/v1")
+
+# WebSocket routes
+from app.api.v1.websocket import router as ws_router
+app.include_router(ws_router, prefix="/v1")
 
 
 @app.get("/")
