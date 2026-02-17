@@ -5,11 +5,29 @@ Agrupa todos los routers de la API v1.
 
 from fastapi import APIRouter
 
-from app.api.v1 import auth, tareas, sesiones, equipos, usuarios, recomendador, jugadores, rivales, partidos
+from app.api.v1 import (
+    auth,
+    tareas,
+    sesiones,
+    equipos,
+    usuarios,
+    recomendador,
+    jugadores,
+    rivales,
+    partidos,
+    microciclos,
+    rpe,
+    convocatorias,
+    notificaciones,
+    comunicacion,
+    ai_chat,
+    knowledge_base,
+)
 
 api_router = APIRouter()
 
-# Incluir todos los routers
+# ============ Core ============
+
 api_router.include_router(
     auth.router,
     prefix="/auth",
@@ -64,12 +82,56 @@ api_router.include_router(
     tags=["Partidos"]
 )
 
+# ============ Nuevos módulos ============
 
-# Endpoints de catálogos
+api_router.include_router(
+    microciclos.router,
+    prefix="/microciclos",
+    tags=["Microciclos"]
+)
+
+api_router.include_router(
+    rpe.router,
+    prefix="/rpe",
+    tags=["RPE"]
+)
+
+api_router.include_router(
+    convocatorias.router,
+    prefix="/convocatorias",
+    tags=["Convocatorias"]
+)
+
+api_router.include_router(
+    notificaciones.router,
+    prefix="/notificaciones",
+    tags=["Notificaciones"]
+)
+
+api_router.include_router(
+    comunicacion.router,
+    prefix="/comunicacion",
+    tags=["Comunicación"]
+)
+
+api_router.include_router(
+    ai_chat.router,
+    prefix="/ai",
+    tags=["AI Chat"]
+)
+
+api_router.include_router(
+    knowledge_base.router,
+    prefix="/kb",
+    tags=["Knowledge Base"]
+)
+
+
+# ============ Catálogos ============
+
 @api_router.get("/catalogos/categorias-tarea", tags=["Catálogos"])
 async def get_categorias_tarea():
     """Obtiene todas las categorías de tareas."""
-    # TODO: Implementar
     return {
         "data": [
             {"codigo": "RND", "nombre": "Rondo", "color": "#3B82F6"},
@@ -211,5 +273,5 @@ async def get_principios_por_fase(fase: str):
             "Cambio de orientación",
         ],
     }
-    
+
     return {"data": principios.get(fase, [])}
