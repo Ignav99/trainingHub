@@ -100,6 +100,72 @@ from app.models.partido import (
     PartidoFiltros,
 )
 
+from app.models.microciclo import (
+    EstadoMicrociclo,
+    MicrocicloBase,
+    MicrocicloCreate,
+    MicrocicloUpdate,
+    MicrocicloResponse,
+    MicrocicloListResponse,
+)
+
+from app.models.rpe import (
+    RPEBase,
+    RPECreate,
+    RPEResponse,
+    RPEListResponse,
+)
+
+from app.models.convocatoria import (
+    ConvocatoriaBase,
+    ConvocatoriaCreate,
+    ConvocatoriaUpdate,
+    ConvocatoriaResponse,
+    ConvocatoriaListResponse,
+)
+
+from app.models.comunicacion import (
+    TipoConversacion,
+    TipoMensaje,
+    RolParticipante,
+    PrioridadNotificacion,
+    ConversacionBase,
+    ConversacionCreate,
+    ConversacionResponse,
+    MensajeBase,
+    MensajeCreate,
+    MensajeResponse,
+    ParticipanteResponse,
+    NotificacionBase,
+    NotificacionCreate,
+    NotificacionResponse,
+    NotificacionListResponse,
+)
+
+from app.models.ai_chat import (
+    RolMensajeAI,
+    AIConversacionBase,
+    AIConversacionCreate,
+    AIConversacionResponse,
+    AIMensajeBase,
+    AIMensajeCreate,
+    AIMensajeResponse,
+    AIChatRequest,
+    AIChatResponse,
+)
+
+from app.models.knowledge_base import (
+    TipoDocumentoKB,
+    EstadoDocumentoKB,
+    DocumentoKBBase,
+    DocumentoKBCreate,
+    DocumentoKBResponse,
+    ChunkKBResponse,
+    KBSearchRequest,
+    KBSearchResult,
+    KBSearchResponse,
+)
+
 __all__ = [
     # Tarea
     "FaseJuego",
@@ -187,4 +253,58 @@ __all__ = [
     "PartidoResponse",
     "PartidoListResponse",
     "PartidoFiltros",
+    # Microciclo
+    "EstadoMicrociclo",
+    "MicrocicloBase",
+    "MicrocicloCreate",
+    "MicrocicloUpdate",
+    "MicrocicloResponse",
+    "MicrocicloListResponse",
+    # RPE
+    "RPEBase",
+    "RPECreate",
+    "RPEResponse",
+    "RPEListResponse",
+    # Convocatoria
+    "ConvocatoriaBase",
+    "ConvocatoriaCreate",
+    "ConvocatoriaUpdate",
+    "ConvocatoriaResponse",
+    "ConvocatoriaListResponse",
+    # Comunicacion
+    "TipoConversacion",
+    "TipoMensaje",
+    "RolParticipante",
+    "PrioridadNotificacion",
+    "ConversacionBase",
+    "ConversacionCreate",
+    "ConversacionResponse",
+    "MensajeBase",
+    "MensajeCreate",
+    "MensajeResponse",
+    "ParticipanteResponse",
+    "NotificacionBase",
+    "NotificacionCreate",
+    "NotificacionResponse",
+    "NotificacionListResponse",
+    # AI Chat
+    "RolMensajeAI",
+    "AIConversacionBase",
+    "AIConversacionCreate",
+    "AIConversacionResponse",
+    "AIMensajeBase",
+    "AIMensajeCreate",
+    "AIMensajeResponse",
+    "AIChatRequest",
+    "AIChatResponse",
+    # Knowledge Base
+    "TipoDocumentoKB",
+    "EstadoDocumentoKB",
+    "DocumentoKBBase",
+    "DocumentoKBCreate",
+    "DocumentoKBResponse",
+    "ChunkKBResponse",
+    "KBSearchRequest",
+    "KBSearchResult",
+    "KBSearchResponse",
 ]

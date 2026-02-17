@@ -17,13 +17,10 @@ from app.models import (
     FaseJuego,
     NivelCognitivo,
     AITareaNueva,
+    UsuarioResponse,
 )
 from app.database import get_supabase
 from app.dependencies import get_current_user, get_optional_user
-
-# Default IDs for test mode
-DEFAULT_ORG_ID = "454b26bf-8e28-4dc0-b85c-ba1108d982b6"
-DEFAULT_USER_ID = "b6959185-b797-4266-8e89-33e39b876ccc"
 
 # Mapeo de códigos cortos de IA a valores de BD para fase_juego
 FASE_JUEGO_MAP = {
@@ -436,12 +433,12 @@ async def duplicar_tarea(
 @router.post("/from-ai", response_model=TareaResponse, status_code=status.HTTP_201_CREATED)
 async def create_tarea_from_ai(
     tarea_ai: AITareaNueva,
+    current_user: UsuarioResponse = Depends(get_current_user),
 ):
     """
     Crea una tarea a partir de una sugerencia de la IA.
 
     Convierte los datos del modelo AITareaNueva al formato de tarea normal.
-    No requiere autenticación (modo prueba).
     """
     supabase = get_supabase()
 
@@ -494,9 +491,9 @@ async def create_tarea_from_ai(
         "errores_comunes": [],
         "nivel_cognitivo": tarea_ai.nivel_cognitivo,
         "densidad": densidad_valor,
-        # Campos de autoría (modo prueba)
-        "organizacion_id": DEFAULT_ORG_ID,
-        "creado_por": DEFAULT_USER_ID,
+        # Campos de autoría
+        "organizacion_id": str(current_user.organizacion_id),
+        "creado_por": str(current_user.id),
         "es_publica": True,
         "es_plantilla": True,
     }

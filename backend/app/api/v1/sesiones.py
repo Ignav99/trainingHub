@@ -3,7 +3,7 @@ TrainingHub Pro - Router de Sesiones
 CRUD para sesiones de entrenamiento.
 """
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Depends, Query, status
 from fastapi.responses import StreamingResponse
 from typing import Optional
 from uuid import UUID
@@ -20,14 +20,15 @@ from app.models import (
     SesionTareaResponse,
     MatchDay,
     EstadoSesion,
+    UsuarioResponse,
 )
 from app.database import get_supabase
+from app.dependencies import get_current_user
+from app.services.pdf_service import generate_sesion_pdf
+from app.services.storage_service import upload_file
+from app.config import get_settings
 
 router = APIRouter()
-
-# TODO: Reactivar autenticación después de pruebas
-DEFAULT_ORG_ID = "454b26bf-8e28-4dc0-b85c-ba1108d982b6"
-DEFAULT_USER_ID = "b6959185-b797-4266-8e89-33e39b876ccc"
 
 
 @router.get("", response_model=SesionListResponse)
@@ -40,6 +41,7 @@ async def list_sesiones(
     fecha_hasta: Optional[date] = None,
     estado: Optional[EstadoSesion] = None,
     busqueda: Optional[str] = None,
+    current_user: UsuarioResponse = Depends(get_current_user),
 ):
     """Lista sesiones con filtros."""
     supabase = get_supabase()
@@ -50,9 +52,9 @@ async def list_sesiones(
         count="exact"
     )
 
-    # Filtrar por equipos de la organización por defecto
+    # Filtrar por equipos de la organización del usuario
     equipos = supabase.table("equipos").select("id").eq(
-        "organizacion_id", DEFAULT_ORG_ID
+        "organizacion_id", str(current_user.organizacion_id)
     ).execute()
 
     equipo_ids = [e["id"] for e in equipos.data]
@@ -106,7 +108,10 @@ async def list_sesiones(
 
 
 @router.get("/{sesion_id}", response_model=SesionResponse)
-async def get_sesion(sesion_id: UUID):
+async def get_sesion(
+    sesion_id: UUID,
+    current_user: UsuarioResponse = Depends(get_current_user),
+):
     """Obtiene una sesión con todas sus tareas."""
     supabase = get_supabase()
 
@@ -141,32 +146,31 @@ async def get_sesion(sesion_id: UUID):
 
 
 @router.post("", response_model=SesionResponse, status_code=status.HTTP_201_CREATED)
-async def create_sesion(sesion: SesionCreate):
+async def create_sesion(
+    sesion: SesionCreate,
+    current_user: UsuarioResponse = Depends(get_current_user),
+):
     """Crea una nueva sesión."""
     supabase = get_supabase()
 
     # Preparar datos
     sesion_data = sesion.model_dump(exclude_unset=True)
-    sesion_data["creado_por"] = DEFAULT_USER_ID
+    sesion_data["creado_por"] = str(current_user.id)
 
     # Usar equipo por defecto si no se proporciona
     if not sesion_data.get("equipo_id"):
         # Obtener primer equipo de la organización
         equipos = supabase.table("equipos").select("id").eq(
-            "organizacion_id", DEFAULT_ORG_ID
+            "organizacion_id", str(current_user.organizacion_id)
         ).limit(1).execute()
 
         if equipos.data:
             sesion_data["equipo_id"] = equipos.data[0]["id"]
         else:
-            # Crear equipo por defecto si no existe
-            nuevo_equipo = supabase.table("equipos").insert({
-                "nombre": "Equipo Principal",
-                "organizacion_id": DEFAULT_ORG_ID,
-                "categoria": "Senior",
-                "temporada": "2024-2025"
-            }).execute()
-            sesion_data["equipo_id"] = nuevo_equipo.data[0]["id"]
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No se encontró ningún equipo en la organización"
+            )
     else:
         sesion_data["equipo_id"] = str(sesion_data["equipo_id"])
 
@@ -187,7 +191,11 @@ async def create_sesion(sesion: SesionCreate):
 
 
 @router.put("/{sesion_id}", response_model=SesionResponse)
-async def update_sesion(sesion_id: UUID, sesion: SesionUpdate):
+async def update_sesion(
+    sesion_id: UUID,
+    sesion: SesionUpdate,
+    current_user: UsuarioResponse = Depends(get_current_user),
+):
     """Actualiza una sesión."""
     supabase = get_supabase()
 
@@ -224,7 +232,10 @@ async def update_sesion(sesion_id: UUID, sesion: SesionUpdate):
 
 
 @router.delete("/{sesion_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_sesion(sesion_id: UUID):
+async def delete_sesion(
+    sesion_id: UUID,
+    current_user: UsuarioResponse = Depends(get_current_user),
+):
     """Elimina una sesión."""
     supabase = get_supabase()
 
@@ -246,7 +257,11 @@ async def delete_sesion(sesion_id: UUID):
 
 
 @router.post("/{sesion_id}/tareas", response_model=SesionResponse)
-async def add_tarea_to_sesion(sesion_id: UUID, tarea_data: SesionTareaCreate):
+async def add_tarea_to_sesion(
+    sesion_id: UUID,
+    tarea_data: SesionTareaCreate,
+    current_user: UsuarioResponse = Depends(get_current_user),
+):
     """Añade una tarea a la sesión."""
     supabase = get_supabase()
 
@@ -288,11 +303,15 @@ async def add_tarea_to_sesion(sesion_id: UUID, tarea_data: SesionTareaCreate):
     }).eq("id", str(sesion_id)).execute()
 
     # Devolver sesión actualizada
-    return await get_sesion(sesion_id)
+    return await get_sesion(sesion_id, current_user)
 
 
 @router.delete("/{sesion_id}/tareas/{tarea_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_tarea_from_sesion(sesion_id: UUID, tarea_id: UUID):
+async def remove_tarea_from_sesion(
+    sesion_id: UUID,
+    tarea_id: UUID,
+    current_user: UsuarioResponse = Depends(get_current_user),
+):
     """Elimina una tarea de la sesión."""
     supabase = get_supabase()
 
@@ -304,9 +323,12 @@ async def remove_tarea_from_sesion(sesion_id: UUID, tarea_id: UUID):
     return None
 
 
-@router.post("/{sesion_id}/pdf")
-async def generate_pdf(sesion_id: UUID):
-    """Genera el PDF de la sesión."""
+@router.get("/{sesion_id}/pdf")
+async def generate_pdf(
+    sesion_id: UUID,
+    current_user: UsuarioResponse = Depends(get_current_user),
+):
+    """Genera el PDF de la sesión, lo sube a Storage y lo devuelve."""
     supabase = get_supabase()
 
     # Obtener sesión completa
@@ -331,121 +353,34 @@ async def generate_pdf(sesion_id: UUID):
 
     tareas = tareas_response.data
 
-    # Generar HTML para el PDF (versión simplificada)
-    html_content = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <style>
-            body {{ font-family: Arial, sans-serif; margin: 40px; color: #333; }}
-            .header {{ text-align: center; margin-bottom: 40px; border-bottom: 2px solid #1a365d; padding-bottom: 20px; }}
-            .title {{ font-size: 24px; font-weight: bold; color: #1a365d; }}
-            .subtitle {{ color: #666; margin-top: 10px; }}
-            .section {{ margin: 30px 0; }}
-            .section-title {{ font-size: 18px; font-weight: bold; color: #1a365d; border-bottom: 1px solid #ddd; padding-bottom: 10px; }}
-            .info-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0; }}
-            .info-item {{ }}
-            .info-label {{ font-weight: bold; color: #666; font-size: 12px; text-transform: uppercase; }}
-            .info-value {{ font-size: 16px; margin-top: 5px; }}
-            .tarea {{ background: #f9fafb; padding: 20px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #1a365d; }}
-            .tarea-title {{ font-weight: bold; font-size: 16px; }}
-            .tarea-meta {{ color: #666; font-size: 14px; margin-top: 5px; }}
-            .tarea-desc {{ margin-top: 10px; }}
-            .fase-label {{ display: inline-block; padding: 4px 12px; background: #e5e7eb; border-radius: 4px; font-size: 12px; font-weight: bold; text-transform: uppercase; margin-bottom: 10px; }}
-            .footer {{ margin-top: 40px; text-align: center; color: #999; font-size: 12px; }}
-        </style>
-    </head>
-    <body>
-        <div class="header">
-            <div class="title">SESIÓN DE ENTRENAMIENTO</div>
-            <div class="subtitle">{organizacion.get('nombre', 'TrainingHub Pro')} - {equipo.get('nombre', '')}</div>
-        </div>
+    # Generar PDF con el servicio
+    pdf_bytes = generate_sesion_pdf(sesion, tareas, organizacion)
 
-        <div class="info-grid">
-            <div class="info-item">
-                <div class="info-label">Fecha</div>
-                <div class="info-value">{sesion.get('fecha', '')}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Match Day</div>
-                <div class="info-value">{sesion.get('match_day', '')}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Objetivo</div>
-                <div class="info-value">{sesion.get('objetivo_principal', '-')}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Duración Total</div>
-                <div class="info-value">{sesion.get('duracion_total', 0)} minutos</div>
-            </div>
-        </div>
-
-        <div class="section">
-            <div class="section-title">ESTRUCTURA DE LA SESIÓN</div>
-    """
-
-    fases = {
-        'activacion': 'Activación',
-        'desarrollo_1': 'Desarrollo 1',
-        'desarrollo_2': 'Desarrollo 2',
-        'vuelta_calma': 'Vuelta a calma'
-    }
-
-    for tarea_sesion in tareas:
-        tarea = tarea_sesion.get('tareas', {})
-        categoria = tarea.get('categorias_tarea', {})
-        fase = fases.get(tarea_sesion.get('fase_sesion', ''), '')
-
-        html_content += f"""
-            <div class="tarea">
-                <div class="fase-label">{fase}</div>
-                <div class="tarea-title">{tarea.get('titulo', '')}</div>
-                <div class="tarea-meta">
-                    {categoria.get('nombre', '')} | {tarea.get('duracion_total', 0)} min | {tarea.get('num_jugadores_min', 0)} jugadores
-                </div>
-                <div class="tarea-desc">{tarea.get('descripcion', '')}</div>
-            </div>
-        """
-
-    if sesion.get('notas_pre'):
-        html_content += f"""
-        <div class="section">
-            <div class="section-title">NOTAS</div>
-            <p>{sesion.get('notas_pre')}</p>
-        </div>
-        """
-
-    html_content += """
-        </div>
-        <div class="footer">
-            Generado con TrainingHub Pro
-        </div>
-    </body>
-    </html>
-    """
+    # Subir a Storage
+    settings = get_settings()
+    storage_path = f"sesiones/{current_user.organizacion_id}/{sesion_id}.pdf"
 
     try:
-        from weasyprint import HTML
-
-        # Generar PDF
-        pdf_bytes = HTML(string=html_content).write_pdf()
-
-        # Por ahora devolvemos el PDF directamente
-        # En producción, se subiría a Supabase Storage
-        return StreamingResponse(
-            io.BytesIO(pdf_bytes),
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f'attachment; filename="sesion_{sesion_id}.pdf"'
-            }
+        pdf_url = upload_file(
+            bucket=settings.STORAGE_BUCKET_PDFS,
+            path=storage_path,
+            data=pdf_bytes,
+            content_type="application/pdf",
         )
-    except ImportError:
-        # Si WeasyPrint no está disponible, devolver HTML
-        return StreamingResponse(
-            io.BytesIO(html_content.encode()),
-            media_type="text/html",
-            headers={
-                "Content-Disposition": f'attachment; filename="sesion_{sesion_id}.html"'
-            }
-        )
+
+        # Guardar URL en la sesión
+        supabase.table("sesiones").update({
+            "pdf_url": pdf_url
+        }).eq("id", str(sesion_id)).execute()
+    except Exception:
+        # Si falla el upload, devolvemos el PDF de todas formas
+        pass
+
+    # Devolver PDF como streaming response
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="sesion_{sesion_id}.pdf"'
+        }
+    )

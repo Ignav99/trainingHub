@@ -74,12 +74,28 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check detallado."""
-    return {
-        "status": "healthy",
-        "database": "connected",  # TODO: verificar conexión real
-        "version": settings.APP_VERSION,
-    }
+    """Health check detallado con verificación real de BD."""
+    from fastapi.responses import JSONResponse
+    from app.database import get_supabase
+
+    try:
+        supabase = get_supabase()
+        result = supabase.table("organizaciones").select("id", count="exact").limit(0).execute()
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "version": settings.APP_VERSION,
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "database": "disconnected",
+                "detail": str(e),
+                "version": settings.APP_VERSION,
+            }
+        )
 
 
 if __name__ == "__main__":
