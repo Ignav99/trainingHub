@@ -19,6 +19,7 @@ from app.models import (
 )
 from app.database import get_supabase
 from app.dependencies import get_current_user
+from app.services.audit_service import log_create, log_update, log_delete
 
 router = APIRouter()
 
@@ -230,6 +231,8 @@ async def create_partido(
     if rival_data:
         result.rival = RivalResponse(**rival_data)
 
+    log_create(str(current_user.id), "partido", str(result.id))
+
     return result
 
 
@@ -292,6 +295,8 @@ async def update_partido(
     if rival_data:
         result.rival = RivalResponse(**rival_data)
 
+    log_update(str(current_user.id), "partido", str(partido_id), datos_nuevos=update_data)
+
     return result
 
 
@@ -328,6 +333,8 @@ async def delete_partido(
         )
 
     supabase.table("partidos").delete().eq("id", str(partido_id)).execute()
+
+    log_delete(str(current_user.id), "partido", str(partido_id))
 
     return None
 

@@ -26,6 +26,7 @@ from app.database import get_supabase
 from app.dependencies import get_current_user
 from app.services.pdf_service import generate_sesion_pdf
 from app.services.storage_service import upload_file
+from app.services.audit_service import log_create, log_update, log_delete
 from app.config import get_settings
 
 router = APIRouter()
@@ -187,7 +188,10 @@ async def create_sesion(
             detail="Error al crear sesión"
         )
 
-    return SesionResponse(**response.data[0])
+    created = response.data[0]
+    log_create(str(current_user.id), "sesion", created["id"], {"titulo": created.get("titulo")})
+
+    return SesionResponse(**created)
 
 
 @router.put("/{sesion_id}", response_model=SesionResponse)
@@ -228,6 +232,8 @@ async def update_sesion(
         "id", str(sesion_id)
     ).execute()
 
+    log_update(str(current_user.id), "sesion", str(sesion_id), datos_nuevos=update_data)
+
     return SesionResponse(**response.data[0])
 
 
@@ -252,6 +258,8 @@ async def delete_sesion(
 
     # Las tareas se eliminan en cascada por la FK
     supabase.table("sesiones").delete().eq("id", str(sesion_id)).execute()
+
+    log_delete(str(current_user.id), "sesion", str(sesion_id))
 
     return None
 

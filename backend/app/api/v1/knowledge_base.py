@@ -1,9 +1,10 @@
 """
 TrainingHub Pro - Router de Knowledge Base
-Gestión de documentos y búsqueda semántica.
+Gestion de documentos y busqueda semantica con embeddings.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query, status, UploadFile, File
+import logging
+from fastapi import APIRouter, HTTPException, Depends, Query, status, BackgroundTasks
 from typing import Optional
 from uuid import UUID
 from math import ceil
@@ -20,6 +21,9 @@ from app.models import (
 from app.database import get_supabase
 from app.dependencies import get_current_user
 from app.config import get_settings
+from app.services import task_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -92,18 +96,18 @@ async def get_documento(
 @router.post("/documentos", response_model=DocumentoKBResponse, status_code=status.HTTP_201_CREATED)
 async def create_documento(
     documento: DocumentoKBCreate,
+    background_tasks: BackgroundTasks,
     current_user: UsuarioResponse = Depends(get_current_user),
 ):
     """
     Crea un documento en la base de conocimiento.
-    El procesamiento/indexación se realiza de forma asíncrona.
+    Si tiene contenido_texto, la indexacion se ejecuta en background.
     """
     supabase = get_supabase()
 
     data = documento.model_dump(mode="json")
     data["organizacion_id"] = str(current_user.organizacion_id)
 
-    # Si tiene contenido_texto, marcarlo como pendiente de indexación
     if data.get("contenido_texto"):
         data["estado"] = "pendiente"
 
@@ -115,21 +119,39 @@ async def create_documento(
             detail="Error al crear documento"
         )
 
-    return DocumentoKBResponse(**response.data[0])
+    doc = response.data[0]
+
+    # Auto-index if it has text content
+    if data.get("contenido_texto"):
+        task = task_service.create_task(
+            tipo="indexar_documento",
+            usuario_id=str(current_user.id),
+            organizacion_id=str(current_user.organizacion_id),
+            entidad_tipo="documento_kb",
+            entidad_id=doc["id"],
+        )
+        background_tasks.add_task(
+            _indexar_documento_background,
+            doc["id"],
+            data["contenido_texto"],
+            task["id"],
+        )
+
+    return DocumentoKBResponse(**doc)
 
 
 @router.post("/documentos/{documento_id}/indexar")
 async def indexar_documento(
     documento_id: UUID,
+    background_tasks: BackgroundTasks,
     current_user: UsuarioResponse = Depends(get_current_user),
 ):
     """
-    Indexa un documento: divide en chunks y genera embeddings.
-    Requiere contenido_texto en el documento.
+    Indexa un documento: divide en chunks y genera embeddings vectoriales.
+    La indexacion se ejecuta en background.
     """
     supabase = get_supabase()
 
-    # Obtener documento
     doc = supabase.table("documentos_kb").select("*").eq(
         "id", str(documento_id)
     ).eq("organizacion_id", str(current_user.organizacion_id)).single().execute()
@@ -146,51 +168,31 @@ async def indexar_documento(
             detail="El documento no tiene contenido de texto"
         )
 
-    # Marcar como procesando
+    # Mark as processing
     supabase.table("documentos_kb").update({
         "estado": "procesando"
     }).eq("id", str(documento_id)).execute()
 
-    try:
-        texto = doc.data["contenido_texto"]
+    # Run indexation in background
+    task = task_service.create_task(
+        tipo="indexar_documento",
+        usuario_id=str(current_user.id),
+        organizacion_id=str(current_user.organizacion_id),
+        entidad_tipo="documento_kb",
+        entidad_id=str(documento_id),
+    )
+    background_tasks.add_task(
+        _indexar_documento_background,
+        str(documento_id),
+        doc.data["contenido_texto"],
+        task["id"],
+    )
 
-        # Dividir en chunks (por párrafos, ~500 chars)
-        chunks = _split_into_chunks(texto, max_chars=500)
-
-        # Insertar chunks (sin embeddings por ahora)
-        chunk_records = []
-        for i, chunk_text in enumerate(chunks):
-            chunk_records.append({
-                "documento_id": str(documento_id),
-                "contenido": chunk_text,
-                "posicion": i,
-                "metadata": {"chars": len(chunk_text)},
-            })
-
-        if chunk_records:
-            supabase.table("chunks_kb").insert(chunk_records).execute()
-
-        # Actualizar documento
-        supabase.table("documentos_kb").update({
-            "estado": "indexado",
-            "num_chunks": len(chunk_records),
-        }).eq("id", str(documento_id)).execute()
-
-        return {
-            "message": "Documento indexado",
-            "num_chunks": len(chunk_records),
-        }
-
-    except Exception as e:
-        supabase.table("documentos_kb").update({
-            "estado": "error",
-            "metadata": {"error": str(e)},
-        }).eq("id", str(documento_id)).execute()
-
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al indexar documento: {str(e)}"
-        )
+    return {
+        "message": "Indexacion iniciada en background",
+        "documento_id": str(documento_id),
+        "task_id": task["id"],
+    }
 
 
 @router.post("/buscar", response_model=KBSearchResponse)
@@ -199,15 +201,17 @@ async def search_kb(
     current_user: UsuarioResponse = Depends(get_current_user),
 ):
     """
-    Búsqueda en la base de conocimiento.
-    Por ahora búsqueda por texto; cuando se integren embeddings
-    se usará búsqueda vectorial con pgvector.
+    Busqueda semantica en la base de conocimiento.
+    Usa embeddings vectoriales (pgvector) si estan disponibles,
+    con fallback a busqueda por texto.
     """
     supabase = get_supabase()
+    settings = get_settings()
+    org_id = str(current_user.organizacion_id)
 
-    # Obtener documentos de la organización
+    # Get indexed documents for org
     docs = supabase.table("documentos_kb").select("id, titulo").eq(
-        "organizacion_id", str(current_user.organizacion_id)
+        "organizacion_id", org_id
     ).eq("estado", "indexado").execute()
 
     doc_ids = [d["id"] for d in docs.data]
@@ -216,24 +220,17 @@ async def search_kb(
     if not doc_ids:
         return KBSearchResponse(resultados=[], query=request.query, total=0)
 
-    # Búsqueda por texto en chunks
-    query = supabase.table("chunks_kb").select("*").in_(
-        "documento_id", doc_ids
-    ).ilike("contenido", f"%{request.query}%").limit(request.limite).execute()
+    # Try vector search if Gemini API is available
+    if settings.GEMINI_API_KEY:
+        try:
+            return await _vector_search(
+                request.query, doc_ids, doc_map, request.limite, org_id
+            )
+        except Exception as e:
+            logger.warning(f"Vector search failed, falling back to text: {e}")
 
-    resultados = []
-    for chunk in query.data:
-        resultados.append(KBSearchResult(
-            chunk=ChunkKBResponse(**chunk),
-            similitud=0.5,  # Placeholder hasta tener embeddings
-            documento_titulo=doc_map.get(chunk["documento_id"]),
-        ))
-
-    return KBSearchResponse(
-        resultados=resultados,
-        query=request.query,
-        total=len(resultados),
-    )
+    # Fallback: text search
+    return _text_search(request.query, doc_ids, doc_map, request.limite)
 
 
 @router.delete("/documentos/{documento_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -244,7 +241,6 @@ async def delete_documento(
     """Elimina un documento y sus chunks."""
     supabase = get_supabase()
 
-    # Chunks se eliminan en cascada por FK
     supabase.table("documentos_kb").delete().eq(
         "id", str(documento_id)
     ).eq("organizacion_id", str(current_user.organizacion_id)).execute()
@@ -252,8 +248,10 @@ async def delete_documento(
     return None
 
 
+# ============ Helper Functions ============
+
 def _split_into_chunks(text: str, max_chars: int = 500) -> list[str]:
-    """Divide texto en chunks por párrafos."""
+    """Divide texto en chunks por parrafos."""
     paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
 
     chunks = []
@@ -269,9 +267,181 @@ def _split_into_chunks(text: str, max_chars: int = 500) -> list[str]:
     if current.strip():
         chunks.append(current.strip())
 
-    # Si no hay párrafos, dividir por caracteres
     if not chunks and text.strip():
         for i in range(0, len(text), max_chars):
             chunks.append(text[i:i + max_chars].strip())
 
     return chunks
+
+
+def _indexar_documento_background(documento_id: str, texto: str, bg_task_id: str = None):
+    """
+    Background task: split document into chunks and generate embeddings.
+    Tracks progress via task_service if bg_task_id is provided.
+    """
+    supabase = get_supabase()
+    settings = get_settings()
+
+    if bg_task_id:
+        task_service.mark_started(bg_task_id, "Dividiendo documento en chunks...")
+
+    try:
+        # Split into chunks
+        chunks = _split_into_chunks(texto, max_chars=500)
+
+        if not chunks:
+            supabase.table("documentos_kb").update({
+                "estado": "error",
+                "metadata": {"error": "No se generaron chunks"},
+            }).eq("id", documento_id).execute()
+            if bg_task_id:
+                task_service.mark_failed(bg_task_id, "No se generaron chunks")
+            return
+
+        if bg_task_id:
+            task_service.mark_progress(bg_task_id, 20, f"{len(chunks)} chunks generados")
+
+        # Delete existing chunks (re-indexing)
+        supabase.table("chunks_kb").delete().eq(
+            "documento_id", documento_id
+        ).execute()
+
+        # Generate embeddings if API available
+        embeddings = None
+        if settings.GEMINI_API_KEY:
+            if bg_task_id:
+                task_service.mark_progress(bg_task_id, 30, "Generando embeddings...")
+            try:
+                from app.services.embedding_service import generate_embeddings_batch
+                embeddings = generate_embeddings_batch(chunks)
+            except Exception as e:
+                logger.warning(f"Embedding generation failed, indexing without vectors: {e}")
+
+        if bg_task_id:
+            task_service.mark_progress(bg_task_id, 60, "Insertando chunks en BD...")
+
+        # Insert chunks
+        chunk_records = []
+        for i, chunk_text in enumerate(chunks):
+            record = {
+                "documento_id": documento_id,
+                "contenido": chunk_text,
+                "posicion": i,
+                "metadata": {"chars": len(chunk_text)},
+            }
+            if embeddings and i < len(embeddings):
+                record["embedding"] = embeddings[i]
+
+            chunk_records.append(record)
+
+        # Insert in batches of 20 to avoid payload limits
+        total_batches = max(1, len(chunk_records) // 20 + 1)
+        for batch_idx, batch_start in enumerate(range(0, len(chunk_records), 20)):
+            batch = chunk_records[batch_start:batch_start + 20]
+            supabase.table("chunks_kb").insert(batch).execute()
+            if bg_task_id:
+                progress = 60 + int(30 * (batch_idx + 1) / total_batches)
+                task_service.mark_progress(bg_task_id, progress, f"Batch {batch_idx + 1}/{total_batches}")
+
+        # Update document status
+        has_embeddings = embeddings is not None
+        supabase.table("documentos_kb").update({
+            "estado": "indexado",
+            "num_chunks": len(chunk_records),
+            "metadata": {
+                "has_embeddings": has_embeddings,
+                "embedding_model": "text-embedding-004" if has_embeddings else None,
+            },
+        }).eq("id", documento_id).execute()
+
+        logger.info(
+            f"Document {documento_id} indexed: {len(chunk_records)} chunks, "
+            f"embeddings={'yes' if has_embeddings else 'no'}"
+        )
+
+        if bg_task_id:
+            task_service.mark_completed(bg_task_id, resultado={
+                "documento_id": documento_id,
+                "num_chunks": len(chunk_records),
+                "has_embeddings": has_embeddings,
+            })
+
+    except Exception as e:
+        logger.error(f"Error indexing document {documento_id}: {e}")
+        supabase.table("documentos_kb").update({
+            "estado": "error",
+            "metadata": {"error": str(e)},
+        }).eq("id", documento_id).execute()
+        if bg_task_id:
+            task_service.mark_failed(bg_task_id, str(e))
+
+
+async def _vector_search(
+    query: str,
+    doc_ids: list[str],
+    doc_map: dict[str, str],
+    limite: int,
+    org_id: str,
+) -> KBSearchResponse:
+    """Search using vector similarity (pgvector cosine distance)."""
+    from app.services.embedding_service import generate_query_embedding
+
+    query_embedding = generate_query_embedding(query)
+    supabase = get_supabase()
+
+    # Use Supabase RPC for vector similarity search
+    # This requires a SQL function in the database
+    result = supabase.rpc("search_kb_chunks", {
+        "query_embedding": query_embedding,
+        "match_count": limite,
+        "filter_doc_ids": doc_ids,
+    }).execute()
+
+    resultados = []
+    for row in result.data:
+        resultados.append(KBSearchResult(
+            chunk=ChunkKBResponse(
+                id=row["id"],
+                documento_id=row["documento_id"],
+                contenido=row["contenido"],
+                posicion=row["posicion"],
+                metadata=row.get("metadata", {}),
+                created_at=row["created_at"],
+            ),
+            similitud=round(1 - row.get("distance", 0.5), 3),
+            documento_titulo=doc_map.get(row["documento_id"]),
+        ))
+
+    return KBSearchResponse(
+        resultados=resultados,
+        query=query,
+        total=len(resultados),
+    )
+
+
+def _text_search(
+    query: str,
+    doc_ids: list[str],
+    doc_map: dict[str, str],
+    limite: int,
+) -> KBSearchResponse:
+    """Fallback text search using ILIKE."""
+    supabase = get_supabase()
+
+    response = supabase.table("chunks_kb").select("*").in_(
+        "documento_id", doc_ids
+    ).ilike("contenido", f"%{query}%").limit(limite).execute()
+
+    resultados = []
+    for chunk in response.data:
+        resultados.append(KBSearchResult(
+            chunk=ChunkKBResponse(**chunk),
+            similitud=0.5,
+            documento_titulo=doc_map.get(chunk["documento_id"]),
+        ))
+
+    return KBSearchResponse(
+        resultados=resultados,
+        query=query,
+        total=len(resultados),
+    )

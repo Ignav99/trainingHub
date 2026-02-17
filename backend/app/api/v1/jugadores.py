@@ -17,6 +17,7 @@ from app.models import (
 )
 from app.database import get_supabase
 from app.dependencies import get_current_user
+from app.services.audit_service import log_create, log_update, log_delete
 
 router = APIRouter()
 
@@ -132,7 +133,10 @@ async def create_jugador(jugador: JugadorCreate, current_user=Depends(get_curren
 
     response = supabase.table("jugadores").insert(data).execute()
 
-    return JugadorResponse(**enrich_jugador(response.data[0]))
+    created = response.data[0]
+    log_create(str(current_user.id), "jugador", created["id"], {"nombre": created.get("nombre")})
+
+    return JugadorResponse(**enrich_jugador(created))
 
 
 @router.put("/{jugador_id}", response_model=JugadorResponse)
@@ -151,6 +155,8 @@ async def update_jugador(jugador_id: UUID, jugador: JugadorUpdate, current_user=
     if not response.data:
         raise HTTPException(status_code=404, detail="Jugador no encontrado")
 
+    log_update(str(current_user.id), "jugador", str(jugador_id), datos_nuevos=data)
+
     return JugadorResponse(**enrich_jugador(response.data[0]))
 
 
@@ -159,6 +165,7 @@ async def delete_jugador(jugador_id: UUID, current_user=Depends(get_current_user
     """Elimina un jugador."""
     supabase = get_supabase()
     supabase.table("jugadores").delete().eq("id", str(jugador_id)).execute()
+    log_delete(str(current_user.id), "jugador", str(jugador_id))
     return None
 
 

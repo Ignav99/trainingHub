@@ -26,6 +26,7 @@ from app.api.v1 import (
     rfef,
     dashboard,
     exports,
+    background_tasks,
 )
 
 api_router = APIRouter()
@@ -152,6 +153,12 @@ api_router.include_router(
     exports.router,
     prefix="/exports",
     tags=["Exportaciones"]
+)
+
+api_router.include_router(
+    background_tasks.router,
+    prefix="/tasks",
+    tags=["Background Tasks"]
 )
 
 
