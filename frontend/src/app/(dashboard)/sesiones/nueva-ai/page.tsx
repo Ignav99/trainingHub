@@ -1,206 +1,420 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowLeft,
+  Send,
   Save,
   Loader2,
-  Calendar,
-  Target,
+  Bot,
   Sparkles,
-  Users,
   Clock,
-  ChevronRight,
-  RefreshCw,
   CheckCircle,
-  AlertCircle,
-  Lightbulb,
+  RefreshCw,
+  Calendar,
+  Users,
+  Target,
   Zap,
   Edit3,
-  MessageSquare
+  Brain,
+  Flame,
+  Maximize2,
+  MessageCircle,
+  ChevronDown,
+  ChevronUp,
+  Pencil,
 } from 'lucide-react'
-import { recomendadorApi } from '@/lib/api/sesiones'
-import { sesionesApi, SesionCreateData } from '@/lib/api/sesiones'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Textarea } from '@/components/ui/textarea'
+import { useEquipoStore } from '@/stores/equipoStore'
+import {
+  sessionDesignApi,
+  SessionDesignMessage,
+  sesionesApi,
+  SesionCreateData,
+} from '@/lib/api/sesiones'
 import { tareasApi } from '@/lib/api/tareas'
-import { AIRecomendadorInput, AIRecomendadorOutput, AIFaseRecomendacion, MatchDay, AITareaNueva } from '@/types'
+import type { AITareaNueva } from '@/types'
 
+// Quick-select chips data
 const MATCH_DAYS = [
-  { value: 'MD+1' as MatchDay, label: 'Recuperación', color: 'bg-green-100 text-green-800', desc: 'Carga muy baja' },
-  { value: 'MD-4' as MatchDay, label: 'Fuerza', color: 'bg-red-100 text-red-800', desc: 'Carga alta' },
-  { value: 'MD-3' as MatchDay, label: 'Resistencia', color: 'bg-orange-100 text-orange-800', desc: 'Volumen alto' },
-  { value: 'MD-2' as MatchDay, label: 'Velocidad', color: 'bg-blue-100 text-blue-800', desc: 'Carga media' },
-  { value: 'MD-1' as MatchDay, label: 'Activación', color: 'bg-purple-100 text-purple-800', desc: 'Carga baja' },
+  { value: 'MD+1', label: 'MD+1 Recuperacion', color: 'bg-green-100 text-green-800' },
+  { value: 'MD-4', label: 'MD-4 Fuerza', color: 'bg-red-100 text-red-800' },
+  { value: 'MD-3', label: 'MD-3 Resistencia', color: 'bg-orange-100 text-orange-800' },
+  { value: 'MD-2', label: 'MD-2 Velocidad', color: 'bg-blue-100 text-blue-800' },
+  { value: 'MD-1', label: 'MD-1 Activacion', color: 'bg-purple-100 text-purple-800' },
+  { value: 'MD', label: 'MD Partido', color: 'bg-amber-100 text-amber-800' },
 ]
 
-const FASES_JUEGO = [
-  { value: 'ataque_organizado', label: 'Ataque Organizado' },
-  { value: 'defensa_organizada', label: 'Defensa Organizada' },
-  { value: 'transicion_ataque_defensa', label: 'Transición A-D' },
-  { value: 'transicion_defensa_ataque', label: 'Transición D-A' },
-]
-
-const AREAS_ENFOQUE = [
-  'Salida de balón',
-  'Progresión',
-  'Finalización',
-  'Presión alta',
-  'Repliegue',
-  'Transiciones rápidas',
+const QUICK_OBJECTIVES = [
+  'Salida de balon',
+  'Presion alta',
+  'Transiciones rapidas',
   'Juego por bandas',
-  'Juego interior',
-  'Balón parado ofensivo',
-  'Balón parado defensivo',
+  'Finalizacion',
+  'Repliegue defensivo',
 ]
 
-interface FormData {
-  match_day: MatchDay
-  num_jugadores: number
-  duracion_total: number
+const FASE_LABELS: Record<string, string> = {
+  activacion: 'Activacion',
+  desarrollo_1: 'Desarrollo 1',
+  desarrollo_2: 'Desarrollo 2',
+  vuelta_calma: 'Vuelta a calma',
+}
+
+const FASE_COLORS: Record<string, string> = {
+  activacion: 'bg-green-500',
+  desarrollo_1: 'bg-blue-500',
+  desarrollo_2: 'bg-orange-500',
+  vuelta_calma: 'bg-purple-500',
+}
+
+const DENSIDAD_STYLES: Record<string, string> = {
+  alta: 'bg-red-100 text-red-700',
+  media: 'bg-yellow-100 text-yellow-700',
+  baja: 'bg-green-100 text-green-700',
+}
+
+const NIVEL_COG_LABELS: Record<number, string> = {
+  1: 'Bajo',
+  2: 'Medio',
+  3: 'Alto',
+}
+
+interface FaseData {
+  fase: string
+  duracion: number
+  tarea_id?: string
+  titulo: string
+  descripcion: string
+  categoria?: string
+  num_jugadores?: string
+  estructura_equipos?: string
+  espacio?: string
+  num_series?: number
+  duracion_serie?: number
+  densidad?: string
+  nivel_cognitivo?: number
   fase_juego?: string
   principio_tactico?: string
-  notas_rival?: string
-  areas_enfoque: string[]
-  notas_ultimo_partido?: string
-  notas_plantilla?: string
-  // Session data
-  titulo?: string
-  fecha: string
-  rival?: string
-  competicion?: string
+  reglas?: string[]
+  coaching_points?: string[]
+  razon?: string
+  grafico_data?: Record<string, unknown>
+  variantes?: string[]
+  material_necesario?: string[]
+  posicion_entrenador?: string
+  errores_comunes?: string[]
+  consignas_defensivas?: string[]
 }
 
-// Ediciones por fase
-interface FaseEdits {
-  duracion?: number
-  notas?: string
+interface Proposal {
+  titulo_sugerido: string
+  match_day: string
+  resumen: string
+  fases: FaseData[]
+  coherencia_tactica: string
+  carga_estimada: {
+    fisica: string
+    cognitiva: string
+    duracion_total: number
+  }
 }
 
-type FasesEdits = Record<string, FaseEdits>
+interface ChatMessage {
+  rol: 'user' | 'assistant'
+  contenido: string
+  timestamp: Date
+  isLoading?: boolean
+}
+
+const INITIAL_MESSAGE: ChatMessage = {
+  rol: 'assistant',
+  contenido: 'Soy tu asistente de diseno de sesiones. Voy a ayudarte a crear una sesion de entrenamiento paso a paso.\n\n¿Para que **Match Day** es esta sesion? Selecciona una opcion o dime directamente.',
+  timestamp: new Date(),
+}
+
+// Normalize match_day value to valid enum
+function normalizeMatchDay(value: string): string {
+  const map: Record<string, string> = {
+    'md+1': 'MD+1', 'md+2': 'MD+2',
+    'md-4': 'MD-4', 'md-3': 'MD-3', 'md-2': 'MD-2', 'md-1': 'MD-1',
+    'md': 'MD',
+  }
+  return map[value.toLowerCase()] || value
+}
+
+// Normalize intensidad value
+function normalizeIntensidad(value?: string): string | undefined {
+  if (!value) return undefined
+  const map: Record<string, string> = {
+    'muy baja': 'muy_baja', 'muy_baja': 'muy_baja',
+    'baja': 'baja', 'media': 'media', 'alta': 'alta',
+    'moderada': 'media', 'moderate': 'media',
+    'low': 'baja', 'high': 'alta', 'very low': 'muy_baja',
+  }
+  return map[value.toLowerCase()] || 'media'
+}
 
 export default function NuevaSesionAIPage() {
   const router = useRouter()
-  const [step, setStep] = useState(1)
-  const [loading, setLoading] = useState(false)
+  const { equipoActivo } = useEquipoStore()
+
+  // Chat state
+  const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_MESSAGE])
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
-  const [formData, setFormData] = useState<FormData>({
-    match_day: 'MD-3',
-    num_jugadores: 18,
-    duracion_total: 90,
-    areas_enfoque: [],
-    fecha: new Date().toISOString().split('T')[0],
-  })
+  // Session proposal from AI
+  const [proposal, setProposal] = useState<Proposal | null>(null)
+  const [showProposal, setShowProposal] = useState(false)
 
-  const [aiRecommendation, setAiRecommendation] = useState<AIRecomendadorOutput | null>(null)
-  const [fasesEdits, setFasesEdits] = useState<FasesEdits>({})
+  // Session save fields
+  const [sessionTitle, setSessionTitle] = useState('')
+  const [sessionDate, setSessionDate] = useState(
+    new Date().toISOString().split('T')[0]
+  )
 
-  // Handler para editar campos de una fase
-  const handleFaseEdit = (faseName: string, field: keyof FaseEdits, value: string | number) => {
-    setFasesEdits(prev => ({
-      ...prev,
-      [faseName]: {
-        ...prev[faseName],
-        [field]: value
-      }
-    }))
+  // Expanded task cards
+  const [expandedFases, setExpandedFases] = useState<Set<string>>(new Set())
+
+  // Quick-select state
+  const [showMatchDayChips, setShowMatchDayChips] = useState(true)
+  const [showObjectiveChips, setShowObjectiveChips] = useState(false)
+
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [])
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages, scrollToBottom])
+
+  const toggleFaseExpand = (fase: string) => {
+    setExpandedFases(prev => {
+      const next = new Set(prev)
+      if (next.has(fase)) next.delete(fase)
+      else next.add(fase)
+      return next
+    })
   }
 
-  const handleGenerateAI = async () => {
-    setLoading(true)
-    setError(null)
+  const sendMessage = async (text: string) => {
+    if (!text.trim() || sending) return
 
-    try {
-      const input: AIRecomendadorInput = {
-        match_day: formData.match_day,
-        num_jugadores: formData.num_jugadores,
-        duracion_total: formData.duracion_total,
-        fase_juego: formData.fase_juego,
-        principio_tactico: formData.principio_tactico,
-        notas_rival: formData.notas_rival,
-        areas_enfoque: formData.areas_enfoque.length > 0 ? formData.areas_enfoque : undefined,
-        notas_ultimo_partido: formData.notas_ultimo_partido,
-        notas_plantilla: formData.notas_plantilla,
-      }
-
-      const result = await recomendadorApi.getAIRecomendaciones(input)
-      setAiRecommendation(result)
-      setFormData(prev => ({
-        ...prev,
-        titulo: result.titulo_sugerido,
-      }))
-      setStep(2)
-    } catch (err: any) {
-      console.error('Error generating AI recommendations:', err)
-      setError(err.response?.data?.detail || 'Error al generar recomendaciones. Inténtalo de nuevo.')
-    } finally {
-      setLoading(false)
+    const userMsg: ChatMessage = {
+      rol: 'user',
+      contenido: text.trim(),
+      timestamp: new Date(),
     }
-  }
+    setMessages((prev) => [...prev, userMsg])
+    setInput('')
+    setSending(true)
+    setShowMatchDayChips(false)
+    setShowObjectiveChips(false)
 
-  const handleSaveSesion = async () => {
-    if (!aiRecommendation) return
-
-    setSaving(true)
-    setError(null)
+    // Add loading placeholder
+    setMessages((prev) => [
+      ...prev,
+      { rol: 'assistant', contenido: '', timestamp: new Date(), isLoading: true },
+    ])
 
     try {
-      // First, create any new tasks suggested by AI
-      const newTaskIds: Record<string, string> = {} // temp_id -> real_id mapping
+      const allMessages: SessionDesignMessage[] = [
+        ...messages.filter((m) => !m.isLoading).map((m) => ({
+          rol: m.rol,
+          contenido: m.contenido,
+        })),
+        { rol: 'user' as const, contenido: text.trim() },
+      ]
 
-      for (const [faseName, faseData] of Object.entries(aiRecommendation.fases)) {
-        if (faseData?.es_tarea_nueva && faseData.tarea_nueva) {
-          console.log(`Creating new task for phase ${faseName}:`, faseData.tarea_nueva.titulo)
-          const createdTask = await tareasApi.createFromAI(faseData.tarea_nueva)
-          newTaskIds[faseData.tarea_nueva.temp_id] = createdTask.id
-          console.log(`Created task with ID: ${createdTask.id}`)
+      const response = await sessionDesignApi.chat(
+        allMessages,
+        equipoActivo?.id
+      )
+
+      setMessages((prev) => {
+        const withoutLoading = prev.filter((m) => !m.isLoading)
+        return [
+          ...withoutLoading,
+          {
+            rol: 'assistant' as const,
+            contenido: response.respuesta,
+            timestamp: new Date(),
+          },
+        ]
+      })
+
+      // Check if AI proposed a session
+      if (response.sesion_propuesta) {
+        const p = response.sesion_propuesta as Proposal
+        setProposal(p)
+        setSessionTitle(p.titulo_sugerido || '')
+        setShowProposal(true)
+        // Expand all fases by default
+        if (Array.isArray(p.fases)) {
+          setExpandedFases(new Set(p.fases.map((f: FaseData) => f.fase)))
         }
       }
 
+      if (!response.sesion_propuesta && messages.length <= 3) {
+        setShowObjectiveChips(true)
+      }
+    } catch (err: any) {
+      console.error('Session design chat error:', err)
+      setMessages((prev) => {
+        const withoutLoading = prev.filter((m) => !m.isLoading)
+        return [
+          ...withoutLoading,
+          {
+            rol: 'assistant' as const,
+            contenido: 'Lo siento, ha ocurrido un error. Por favor, intentalo de nuevo.',
+            timestamp: new Date(),
+          },
+        ]
+      })
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      sendMessage(input)
+    }
+  }
+
+  const handleEditFase = (fase: FaseData) => {
+    setShowProposal(false)
+    const msg = `Quiero modificar el ejercicio de la fase "${FASE_LABELS[fase.fase] || fase.fase}" (${fase.titulo}). `
+    setInput(msg)
+    setTimeout(() => textareaRef.current?.focus(), 100)
+  }
+
+  const handleSaveSession = async () => {
+    if (!proposal || !equipoActivo?.id) return
+
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const fases = Array.isArray(proposal.fases) ? proposal.fases : []
+
+      // Create new tasks for each fase that doesn't have a tarea_id
+      const faseTaskIds: Record<string, string> = {}
+
+      for (const fase of fases) {
+        if (fase.tarea_id) {
+          faseTaskIds[fase.fase] = fase.tarea_id
+        } else {
+          // Parse space dimensions
+          let espacio_largo: number | undefined
+          let espacio_ancho: number | undefined
+          if (fase.espacio) {
+            const match = fase.espacio.match(/(\d+)\s*x\s*(\d+)/)
+            if (match) {
+              espacio_largo = parseInt(match[1])
+              espacio_ancho = parseInt(match[2])
+            }
+          }
+
+          // Parse num_jugadores
+          let num_jugadores_min = 10
+          let num_jugadores_max: number | undefined
+          let num_porteros = 0
+          if (fase.num_jugadores) {
+            const jugMatch = fase.num_jugadores.match(/(\d+)(?:\s*-\s*(\d+))?/)
+            if (jugMatch) {
+              num_jugadores_min = parseInt(jugMatch[1])
+              num_jugadores_max = jugMatch[2] ? parseInt(jugMatch[2]) : undefined
+            }
+            const gkMatch = fase.num_jugadores.match(/(\d+)\s*GK/i)
+            if (gkMatch) num_porteros = parseInt(gkMatch[1])
+          }
+
+          // Use createFromAI which resolves categoria_codigo to UUID on the backend
+          const aiTarea: AITareaNueva = {
+            temp_id: `ai_${fase.fase}`,
+            titulo: fase.titulo,
+            descripcion: fase.descripcion || '',
+            categoria_codigo: fase.categoria || 'PCO',
+            duracion_total: fase.duracion,
+            num_series: fase.num_series || 1,
+            espacio_largo,
+            espacio_ancho,
+            num_jugadores_min,
+            num_jugadores_max,
+            num_porteros,
+            estructura_equipos: fase.estructura_equipos,
+            fase_juego: fase.fase_juego,
+            principio_tactico: fase.principio_tactico,
+            reglas_principales: fase.reglas || [],
+            consignas: fase.coaching_points || [],
+            nivel_cognitivo: fase.nivel_cognitivo || 2,
+            densidad: fase.densidad || 'media',
+            grafico_data: fase.grafico_data,
+            variantes: fase.variantes || [],
+            material: fase.material_necesario || [],
+            posicion_entrenador: fase.posicion_entrenador,
+            errores_comunes: fase.errores_comunes || [],
+            consignas_defensivas: fase.consignas_defensivas || [],
+          }
+
+          try {
+            const created = await tareasApi.createFromAI(aiTarea)
+            faseTaskIds[fase.fase] = created.id
+          } catch (taskErr: any) {
+            console.warn(`Could not create task for ${fase.fase}:`, taskErr)
+            setSaveError(`Error creando tarea "${fase.titulo}": ${taskErr.message || 'error desconocido'}`)
+          }
+        }
+      }
+
+      // Create session
+      const matchDay = normalizeMatchDay(proposal.match_day)
+      const intensidad = normalizeIntensidad(proposal.carga_estimada?.fisica)
+
+      // Aggregate materials from all phases
+      const allMateriales = fases
+        .flatMap((f: FaseData) => f.material_necesario || [])
+        .filter(Boolean)
+      const uniqueMateriales = [...new Set(allMateriales)]
+
       const sessionData: SesionCreateData = {
-        titulo: formData.titulo || aiRecommendation.titulo_sugerido,
-        fecha: formData.fecha,
-        // equipo_id not sent - backend will use default team in test mode
-        match_day: formData.match_day,
-        rival: formData.rival,
-        competicion: formData.competicion,
-        objetivo_principal: aiRecommendation.resumen,
-        fase_juego_principal: formData.fase_juego,
-        principio_tactico_principal: formData.principio_tactico,
-        intensidad_objetivo: aiRecommendation.carga_estimada.fisica.toLowerCase() as any,
-        notas_pre: `Generado por IA (${aiRecommendation.generado_por})\n\n${aiRecommendation.coherencia_tactica}`,
+        titulo: sessionTitle || proposal.titulo_sugerido,
+        fecha: sessionDate,
+        match_day: matchDay,
+        objetivo_principal: proposal.resumen,
+        intensidad_objetivo: intensidad,
+        notas_pre: proposal.coherencia_tactica || undefined,
+        materiales: uniqueMateriales.length > 0 ? uniqueMateriales : undefined,
       }
 
       const sesion = await sesionesApi.create(sessionData)
 
-      // Add tasks to session
+      // Add tasks to session phases
       let orden = 1
-      for (const [faseName, faseData] of Object.entries(aiRecommendation.fases)) {
-        if (faseData) {
-          let tareaId: string | null = null
-
-          if (faseData.es_tarea_nueva && faseData.tarea_nueva) {
-            // Use the newly created task ID
-            tareaId = newTaskIds[faseData.tarea_nueva.temp_id]
-          } else if (faseData.tarea_id && faseData.tarea) {
-            // Use existing task ID
-            tareaId = faseData.tarea_id
-          }
-
-          if (tareaId) {
-            // Get edits for this phase (duration override and notes)
-            const faseEdits = fasesEdits[faseName]
-            const duracionOverride = faseEdits?.duracion ?? faseData.duracion_sugerida
-
+      for (const fase of fases) {
+        const tareaId = faseTaskIds[fase.fase]
+        if (tareaId) {
+          try {
             await sesionesApi.addTarea(sesion.id, {
               tarea_id: tareaId,
               orden: orden++,
-              fase_sesion: faseName,
-              duracion_override: duracionOverride,
-              notas: faseEdits?.notas || undefined,
+              fase_sesion: fase.fase,
+              duracion_override: fase.duracion,
             })
+          } catch (addErr: any) {
+            console.warn(`Could not add task to session for ${fase.fase}:`, addErr)
           }
         }
       }
@@ -208,543 +422,423 @@ export default function NuevaSesionAIPage() {
       router.push(`/sesiones/${sesion.id}`)
     } catch (err: any) {
       console.error('Error saving session:', err)
-      setError(err.response?.data?.detail || 'Error al guardar la sesión')
+      const detail = err.response?.data?.detail || err.detail || err.message || 'Error desconocido'
+      setSaveError(typeof detail === 'string' ? detail : JSON.stringify(detail))
     } finally {
       setSaving(false)
     }
   }
 
-  const toggleAreaEnfoque = (area: string) => {
-    setFormData(prev => ({
-      ...prev,
-      areas_enfoque: prev.areas_enfoque.includes(area)
-        ? prev.areas_enfoque.filter(a => a !== area)
-        : [...prev.areas_enfoque, area]
-    }))
+  const handleRegenerate = () => {
+    setProposal(null)
+    setShowProposal(false)
+    sendMessage('Regenera la sesion con un enfoque diferente, por favor.')
   }
 
+  const totalDuration = proposal && Array.isArray(proposal.fases)
+    ? proposal.fases.reduce((sum, f) => sum + (f.duracion || 0), 0)
+    : proposal?.carga_estimada?.duracion_total || 0
+
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="flex flex-col h-[calc(100vh-7rem)]">
       {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
-        <Link
-          href="/sesiones"
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-        >
+      <div className="flex items-center gap-4 mb-4 shrink-0">
+        <Link href="/sesiones" className="p-2 hover:bg-muted rounded-lg transition-colors">
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-gray-900">Nueva Sesión</h1>
-            <span className="inline-flex items-center gap-1 px-2 py-1 bg-gradient-to-r from-purple-100 to-blue-100 text-purple-700 rounded-full text-xs font-medium">
-              <Sparkles className="h-3 w-3" />
-              Con IA
-            </span>
+            <h1 className="text-2xl font-bold">Disenar Sesion</h1>
+            <Badge className="bg-primary/10 text-primary border-primary/20">
+              <Sparkles className="h-3 w-3 mr-1" />
+              IA
+            </Badge>
           </div>
-          <p className="text-gray-500">
-            {step === 1 ? 'Describe tu sesión y la IA generará una propuesta' : 'Revisa y ajusta la propuesta'}
+          <p className="text-muted-foreground text-sm">
+            {equipoActivo?.nombre || 'Selecciona un equipo'}
           </p>
         </div>
+        {proposal && (
+          <Button onClick={() => setShowProposal(!showProposal)} variant="outline" size="sm">
+            {showProposal ? 'Ver chat' : 'Ver propuesta'}
+          </Button>
+        )}
       </div>
 
-      {/* Progress */}
-      <div className="flex gap-2 mb-8">
-        <div className={`flex-1 h-2 rounded-full ${step >= 1 ? 'bg-primary' : 'bg-gray-200'}`} />
-        <div className={`flex-1 h-2 rounded-full ${step >= 2 ? 'bg-primary' : 'bg-gray-200'}`} />
-      </div>
-
-      {/* Error */}
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-red-700 font-medium">Error</p>
-            <p className="text-red-600 text-sm">{error}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Step 1: Input */}
-      {step === 1 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
-          {/* Match Day */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              <Calendar className="h-4 w-4 inline mr-1" />
-              Match Day
-            </label>
-            <div className="grid grid-cols-5 gap-2">
-              {MATCH_DAYS.map((md) => (
-                <button
-                  key={md.value}
-                  type="button"
-                  onClick={() => setFormData({ ...formData, match_day: md.value })}
-                  className={`p-3 rounded-lg border text-center transition-all ${
-                    formData.match_day === md.value
-                      ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
-                      : 'border-gray-200 hover:border-gray-300'
+      {/* Main content area */}
+      <div className="flex-1 flex gap-4 overflow-hidden">
+        {/* Chat panel */}
+        <div className={`flex flex-col ${showProposal ? 'hidden lg:flex lg:w-1/2' : 'w-full'}`}>
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto space-y-4 pr-2 pb-4">
+            {messages.map((msg, i) => (
+              <div key={i} className={`flex ${msg.rol === 'user' ? 'justify-end' : 'justify-start'}`}>
+                {msg.rol === 'assistant' && (
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mr-3 shrink-0 mt-1">
+                    <Bot className="h-4 w-4 text-primary" />
+                  </div>
+                )}
+                <div
+                  className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                    msg.rol === 'user'
+                      ? 'bg-primary text-primary-foreground rounded-br-md'
+                      : 'bg-muted rounded-bl-md'
                   }`}
                 >
-                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold mb-1 ${md.color}`}>
-                    {md.value}
-                  </span>
-                  <p className="text-xs text-gray-500">{md.label}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Players & Duration */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <Users className="h-4 w-4 inline mr-1" />
-                Jugadores disponibles
-              </label>
-              <input
-                type="number"
-                min={4}
-                max={30}
-                value={formData.num_jugadores}
-                onChange={(e) => setFormData({ ...formData, num_jugadores: parseInt(e.target.value) || 18 })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <Clock className="h-4 w-4 inline mr-1" />
-                Duración total (min)
-              </label>
-              <input
-                type="number"
-                min={30}
-                max={150}
-                value={formData.duracion_total}
-                onChange={(e) => setFormData({ ...formData, duracion_total: parseInt(e.target.value) || 90 })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-              />
-            </div>
-          </div>
-
-          {/* Tactical Objective */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Target className="h-4 w-4 inline mr-1" />
-              Objetivo táctico (opcional)
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {FASES_JUEGO.map((fase) => (
-                <button
-                  key={fase.value}
-                  type="button"
-                  onClick={() => setFormData({
-                    ...formData,
-                    fase_juego: formData.fase_juego === fase.value ? undefined : fase.value
-                  })}
-                  className={`p-3 rounded-lg border text-left transition-all ${
-                    formData.fase_juego === fase.value
-                      ? 'border-primary bg-primary/5'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <span className="text-sm font-medium">{fase.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Focus Areas */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Lightbulb className="h-4 w-4 inline mr-1" />
-              Áreas de enfoque (opcional)
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {AREAS_ENFOQUE.map((area) => (
-                <button
-                  key={area}
-                  type="button"
-                  onClick={() => toggleAreaEnfoque(area)}
-                  className={`px-3 py-1.5 rounded-full text-sm transition-all ${
-                    formData.areas_enfoque.includes(area)
-                      ? 'bg-primary text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {area}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Optional Context */}
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Información del rival (opcional)
-              </label>
-              <textarea
-                value={formData.notas_rival || ''}
-                onChange={(e) => setFormData({ ...formData, notas_rival: e.target.value })}
-                rows={2}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none"
-                placeholder="Ej: Equipo que presiona alto con 4-3-3, lateral derecho muy ofensivo..."
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Notas del último partido (opcional)
-              </label>
-              <textarea
-                value={formData.notas_ultimo_partido || ''}
-                onChange={(e) => setFormData({ ...formData, notas_ultimo_partido: e.target.value })}
-                rows={2}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none"
-                placeholder="Ej: Dificultades en salida de balón, pérdidas en zona 2, falta de profundidad..."
-              />
-            </div>
-          </div>
-
-          {/* Generate Button */}
-          <div className="pt-4">
-            <button
-              type="button"
-              onClick={handleGenerateAI}
-              disabled={loading}
-              className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Generando con IA...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-5 w-5" />
-                  Generar sesión con IA
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 2: AI Recommendation Review */}
-      {step === 2 && aiRecommendation && (
-        <div className="space-y-6">
-          {/* AI Summary Card */}
-          <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl border border-purple-200 p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <Sparkles className="h-5 w-5 text-purple-600" />
-                  <span className="text-xs font-medium text-purple-600 uppercase">
-                    Generado por {aiRecommendation.generado_por === 'gemini' ? 'Gemini AI' : 'Sistema de reglas'}
-                  </span>
+                  {msg.isLoading ? (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-sm">Pensando...</span>
+                    </div>
+                  ) : (
+                    <div className="text-sm whitespace-pre-wrap leading-relaxed">
+                      {msg.contenido.split('**').map((part, j) =>
+                        j % 2 === 1 ? (
+                          <strong key={j}>{part}</strong>
+                        ) : (
+                          <span key={j}>{part}</span>
+                        )
+                      )}
+                    </div>
+                  )}
                 </div>
-                <input
-                  type="text"
-                  value={formData.titulo || ''}
-                  onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
-                  className="text-xl font-bold text-gray-900 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-primary outline-none w-full"
-                />
               </div>
-              <button
-                onClick={() => setStep(1)}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-purple-600 hover:bg-purple-100 rounded-lg"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Regenerar
-              </button>
-            </div>
-            <p className="text-gray-700">{aiRecommendation.resumen}</p>
-            <div className="flex gap-4 mt-4 text-sm">
-              <span className="text-gray-600">
-                <strong>Carga física:</strong> {aiRecommendation.carga_estimada.fisica}
-              </span>
-              <span className="text-gray-600">
-                <strong>Carga cognitiva:</strong> {aiRecommendation.carga_estimada.cognitiva}
-              </span>
-              <span className="text-gray-600">
-                <strong>Duración:</strong> {aiRecommendation.carga_estimada.duracion_total} min
-              </span>
-            </div>
+            ))}
+
+            {/* Quick-select chips: Match Day */}
+            {showMatchDayChips && !sending && (
+              <div className="flex flex-wrap gap-2 pl-11">
+                {MATCH_DAYS.map((md) => (
+                  <button
+                    key={md.value}
+                    onClick={() => sendMessage(md.value)}
+                    className={`${md.color} px-3 py-1.5 rounded-full text-xs font-medium hover:opacity-80 transition-opacity`}
+                  >
+                    {md.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Quick-select chips: Objectives */}
+            {showObjectiveChips && !sending && (
+              <div className="flex flex-wrap gap-2 pl-11">
+                {QUICK_OBJECTIVES.map((obj) => (
+                  <button
+                    key={obj}
+                    onClick={() => sendMessage(obj)}
+                    className="bg-muted px-3 py-1.5 rounded-full text-xs font-medium hover:bg-muted/80 transition-colors"
+                  >
+                    {obj}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
           </div>
 
-          {/* Session Details */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="font-semibold text-gray-900 mb-4">Detalles de la sesión</h3>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
+          {/* Input */}
+          <div className="shrink-0 border-t pt-3">
+            <div className="flex gap-2">
+              <Textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Escribe aqui... (Enter para enviar)"
+                className="resize-none min-h-[44px] max-h-32"
+                rows={1}
+                disabled={sending}
+              />
+              <Button
+                onClick={() => sendMessage(input)}
+                disabled={!input.trim() || sending}
+                size="icon"
+                className="shrink-0 h-[44px] w-[44px]"
+              >
+                {sending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Proposal panel */}
+        {showProposal && proposal && (
+          <div className={`flex flex-col overflow-y-auto ${showProposal ? 'w-full lg:w-1/2' : 'hidden'}`}>
+            <div className="space-y-4 pb-4">
+              {/* Proposal header */}
+              <Card className="border-primary/20 bg-primary/5">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-primary" />
+                      <span className="text-xs font-medium text-primary uppercase">
+                        Propuesta de sesion
+                      </span>
+                    </div>
+                    <button
+                      onClick={handleRegenerate}
+                      className="text-xs text-primary hover:text-primary/80 flex items-center gap-1"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Regenerar
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={sessionTitle}
+                    onChange={(e) => setSessionTitle(e.target.value)}
+                    className="text-lg font-bold bg-transparent border-b border-transparent hover:border-border focus:border-primary outline-none w-full mb-2"
+                    placeholder="Titulo de la sesion"
+                  />
+                  <p className="text-sm text-muted-foreground">{proposal.resumen}</p>
+                  <div className="flex flex-wrap gap-3 mt-3 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3.5 w-3.5" />
+                      {proposal.match_day}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Flame className="h-3.5 w-3.5" />
+                      Fisica: {proposal.carga_estimada?.fisica}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Brain className="h-3.5 w-3.5" />
+                      Cognitiva: {proposal.carga_estimada?.cognitiva}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5" />
+                      {totalDuration} min
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Session date */}
+              <div className="flex items-center gap-3 px-1">
+                <label className="text-sm font-medium">Fecha:</label>
                 <input
                   type="date"
-                  value={formData.fecha}
-                  onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                  value={sessionDate}
+                  onChange={(e) => setSessionDate(e.target.value)}
+                  className="px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Rival</label>
-                <input
-                  type="text"
-                  value={formData.rival || ''}
-                  onChange={(e) => setFormData({ ...formData, rival: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                  placeholder="Próximo rival"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Competición</label>
-                <input
-                  type="text"
-                  value={formData.competicion || ''}
-                  onChange={(e) => setFormData({ ...formData, competicion: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                  placeholder="Liga, copa..."
-                />
-              </div>
-            </div>
-          </div>
 
-          {/* Phases */}
-          <div className="space-y-4">
-            {Object.entries(aiRecommendation.fases).map(([faseName, faseData]) => (
-              faseData && (
-                <FaseCard
-                  key={faseName}
-                  faseName={faseName}
-                  faseData={faseData}
-                  edits={fasesEdits[faseName] || {}}
-                  onEdit={(field, value) => handleFaseEdit(faseName, field, value)}
-                />
-              )
-            ))}
-          </div>
-
-          {/* Tactical Coherence */}
-          <div className="bg-amber-50 rounded-xl border border-amber-200 p-6">
-            <div className="flex items-start gap-3">
-              <Zap className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <h3 className="font-semibold text-amber-800 mb-2">Coherencia táctica</h3>
-                <p className="text-amber-700 text-sm">{aiRecommendation.coherencia_tactica}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex justify-between">
-            <button
-              type="button"
-              onClick={() => setStep(1)}
-              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-            >
-              Volver
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveSesion}
-              disabled={saving}
-              className="inline-flex items-center gap-2 px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
-            >
-              {saving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4" />
+              {/* Timeline bar */}
+              {Array.isArray(proposal.fases) && (
+                <div className="px-1">
+                  <div className="flex rounded-lg overflow-hidden h-2">
+                    {proposal.fases.map((fase) => (
+                      <div
+                        key={fase.fase}
+                        className={`${FASE_COLORS[fase.fase] || 'bg-gray-400'}`}
+                        style={{ width: `${totalDuration > 0 ? (fase.duracion / totalDuration) * 100 : 25}%` }}
+                        title={`${FASE_LABELS[fase.fase] || fase.fase}: ${fase.duracion} min`}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex justify-between mt-1 text-[10px] text-muted-foreground">
+                    {proposal.fases.map((fase) => (
+                      <span key={fase.fase}>{fase.duracion}′</span>
+                    ))}
+                  </div>
+                </div>
               )}
-              {saving ? 'Guardando...' : 'Guardar sesión'}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
 
-// Component for each phase
-interface FaseCardProps {
-  faseName: string
-  faseData: AIFaseRecomendacion
-  edits: FaseEdits
-  onEdit: (field: keyof FaseEdits, value: string | number) => void
-}
+              {/* Phases - detailed task cards */}
+              {Array.isArray(proposal.fases) && proposal.fases.map((fase) => {
+                const isExpanded = expandedFases.has(fase.fase)
 
-function FaseCard({ faseName, faseData, edits, onEdit }: FaseCardProps) {
-  const faseLabels: Record<string, string> = {
-    activacion: 'Activacion',
-    desarrollo_1: 'Desarrollo 1',
-    desarrollo_2: 'Desarrollo 2',
-    vuelta_calma: 'Vuelta a calma',
-  }
+                return (
+                  <Card key={fase.fase} className="overflow-hidden">
+                    {/* Phase header bar */}
+                    <div
+                      className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors"
+                      onClick={() => toggleFaseExpand(fase.fase)}
+                    >
+                      <div className={`w-1.5 h-10 rounded-full ${FASE_COLORS[fase.fase] || 'bg-gray-400'}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-muted-foreground uppercase">
+                            {FASE_LABELS[fase.fase] || fase.fase}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {fase.duracion} min
+                          </span>
+                          {fase.categoria && (
+                            <Badge variant="outline" className="text-[10px] h-5">
+                              {fase.categoria}
+                            </Badge>
+                          )}
+                          {fase.densidad && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${DENSIDAD_STYLES[fase.densidad] || 'bg-gray-100 text-gray-600'}`}>
+                              {fase.densidad}
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="text-sm font-semibold truncate">{fase.titulo}</h3>
+                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleEditFase(fase) }}
+                        className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors"
+                        title="Modificar en chat"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      {isExpanded ? (
+                        <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                      )}
+                    </div>
 
-  const isNewTask = faseData.es_tarea_nueva && faseData.tarea_nueva
-  const hasTarea = faseData.tarea || isNewTask
+                    {/* Expanded content */}
+                    {isExpanded && (
+                      <CardContent className="px-4 pb-4 pt-0 border-t">
+                        {/* Description */}
+                        <p className="text-sm text-muted-foreground mt-3 mb-3">{fase.descripcion}</p>
 
-  // Usar edits si existen, sino valores de la IA
-  const duracion = edits.duracion ?? faseData.duracion_sugerida
-  const notas = edits.notas ?? ''
+                        {/* Info grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
+                          {fase.num_jugadores && (
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span>{fase.num_jugadores}</span>
+                            </div>
+                          )}
+                          {fase.estructura_equipos && (
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <Target className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span>{fase.estructura_equipos}</span>
+                            </div>
+                          )}
+                          {fase.espacio && (
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span>{fase.espacio}</span>
+                            </div>
+                          )}
+                          {fase.num_series && (
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span>{fase.num_series}x{fase.duracion_serie || '?'}min</span>
+                            </div>
+                          )}
+                          {fase.nivel_cognitivo && (
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <Brain className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span>Cog: {NIVEL_COG_LABELS[fase.nivel_cognitivo] || fase.nivel_cognitivo}</span>
+                            </div>
+                          )}
+                          {fase.fase_juego && (
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <Zap className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="truncate">{fase.fase_juego}</span>
+                            </div>
+                          )}
+                        </div>
 
-  return (
-    <div className={`bg-white rounded-xl border p-5 ${isNewTask ? 'border-purple-300 ring-1 ring-purple-100' : 'border-gray-200'}`}>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isNewTask ? 'bg-purple-100' : 'bg-primary/10'}`}>
-            {isNewTask ? (
-              <Sparkles className="h-4 w-4 text-purple-600" />
-            ) : (
-              <CheckCircle className="h-4 w-4 text-primary" />
-            )}
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-900">{faseLabels[faseName] || faseName}</h3>
-            {/* Duracion editable */}
-            <div className="flex items-center gap-2">
-              <Clock className="h-3 w-3 text-gray-400" />
-              <input
-                type="number"
-                min={5}
-                max={60}
-                value={duracion}
-                onChange={(e) => onEdit('duracion', parseInt(e.target.value) || 15)}
-                className="w-14 px-1 py-0.5 text-sm text-gray-600 border border-transparent hover:border-gray-300 focus:border-primary rounded outline-none text-center"
-              />
-              <span className="text-sm text-gray-500">min</span>
+                        {/* Rules */}
+                        {fase.reglas && fase.reglas.length > 0 && (
+                          <div className="mb-3">
+                            <h4 className="text-[11px] font-medium text-muted-foreground uppercase mb-1.5">Reglas</h4>
+                            <div className="space-y-1">
+                              {fase.reglas.map((r, i) => (
+                                <div key={i} className="flex items-start gap-2 text-xs">
+                                  <span className="text-primary font-bold mt-0.5">{i + 1}.</span>
+                                  <span>{r}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Coaching points */}
+                        {fase.coaching_points && fase.coaching_points.length > 0 && (
+                          <div className="mb-3">
+                            <h4 className="text-[11px] font-medium text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
+                              <MessageCircle className="h-3 w-3" />
+                              Coaching Points
+                            </h4>
+                            <div className="flex flex-wrap gap-1.5">
+                              {fase.coaching_points.map((cp, i) => (
+                                <span key={i} className="text-[11px] px-2 py-1 bg-amber-50 text-amber-700 rounded-lg">
+                                  {cp}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Justification */}
+                        {fase.razon && (
+                          <div className="p-2.5 rounded-lg bg-muted/50 text-xs text-muted-foreground italic">
+                            {fase.razon}
+                          </div>
+                        )}
+                      </CardContent>
+                    )}
+                  </Card>
+                )
+              })}
+
+              {/* Tactical coherence */}
+              {proposal.coherencia_tactica && (
+                <Card className="border-amber-200 bg-amber-50/50">
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-2">
+                      <Zap className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                      <div>
+                        <h3 className="text-sm font-semibold text-amber-800 mb-1">Coherencia tactica</h3>
+                        <p className="text-xs text-amber-700">{proposal.coherencia_tactica}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Save error */}
+              {saveError && (
+                <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-600">
+                  Error al guardar: {saveError}
+                </div>
+              )}
+
+              {/* Save button */}
+              <div className="flex gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowProposal(false)
+                    textareaRef.current?.focus()
+                  }}
+                  className="flex-1"
+                >
+                  <Edit3 className="h-4 w-4 mr-2" />
+                  Modificar en chat
+                </Button>
+                <Button
+                  onClick={handleSaveSession}
+                  disabled={saving}
+                  className="flex-1"
+                >
+                  {saving ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4 mr-2" />
+                  )}
+                  {saving ? 'Guardando...' : 'Guardar sesion'}
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {isNewTask && (
-            <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full font-medium">
-              Nueva tarea IA
-            </span>
-          )}
-          {faseData.tarea && (
-            <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded">
-              {faseData.tarea.categoria?.nombre || 'Tarea'}
-            </span>
-          )}
-          {isNewTask && faseData.tarea_nueva && (
-            <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded">
-              {faseData.tarea_nueva.categoria_codigo}
-            </span>
-          )}
-        </div>
+        )}
       </div>
-
-      {hasTarea ? (
-        <>
-          {/* Task Title and Details */}
-          <div className="mb-4">
-            {faseData.tarea ? (
-              <>
-                <h4 className="font-medium text-gray-900">{faseData.tarea.titulo}</h4>
-                <p className="text-sm text-gray-500 mt-1">
-                  {faseData.tarea.num_jugadores_min} jugadores · {faseData.tarea.duracion_total} min original
-                </p>
-              </>
-            ) : isNewTask && faseData.tarea_nueva && (
-              <>
-                <h4 className="font-medium text-gray-900">{faseData.tarea_nueva.titulo}</h4>
-                <p className="text-sm text-gray-500 mt-1">
-                  {faseData.tarea_nueva.num_jugadores_min} jugadores · {faseData.tarea_nueva.duracion_total} min
-                </p>
-                <p className="text-sm text-gray-600 mt-2">{faseData.tarea_nueva.descripcion}</p>
-                {faseData.tarea_nueva.estructura_equipos && (
-                  <p className="text-sm text-gray-500 mt-1">
-                    Estructura: {faseData.tarea_nueva.estructura_equipos}
-                  </p>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* New task details: rules and consignas */}
-          {isNewTask && faseData.tarea_nueva && (
-            <div className="mb-4 space-y-3">
-              {faseData.tarea_nueva.reglas_principales.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-gray-500 uppercase mb-2">Reglas principales</p>
-                  <ul className="text-sm text-gray-700 space-y-1">
-                    {faseData.tarea_nueva.reglas_principales.map((r, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <span className="text-purple-500">•</span>
-                        {r}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {faseData.tarea_nueva.consignas.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-gray-500 uppercase mb-2">Consignas</p>
-                  <ul className="text-sm text-gray-700 space-y-1">
-                    {faseData.tarea_nueva.consignas.map((c, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <span className="text-purple-500">•</span>
-                        {c}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* AI Reason */}
-          <div className={`rounded-lg p-3 mb-4 ${isNewTask ? 'bg-purple-50' : 'bg-blue-50'}`}>
-            <p className={`text-sm ${isNewTask ? 'text-purple-800' : 'text-blue-800'}`}>
-              <strong>{isNewTask ? 'Por que crear esta tarea:' : 'Por que esta tarea:'}</strong> {faseData.razon}
-            </p>
-          </div>
-
-          {/* Adaptations (only for existing tasks) */}
-          {!isNewTask && faseData.adaptaciones.length > 0 && (
-            <div className="mb-4">
-              <p className="text-xs font-medium text-gray-500 uppercase mb-2">Adaptaciones sugeridas</p>
-              <ul className="text-sm text-gray-700 space-y-1">
-                {faseData.adaptaciones.map((a, i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <ChevronRight className="h-4 w-4 text-gray-400 flex-shrink-0 mt-0.5" />
-                    {a}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Coaching Points */}
-          {faseData.coaching_points.length > 0 && (
-            <div className="mb-4">
-              <p className="text-xs font-medium text-gray-500 uppercase mb-2">Coaching points</p>
-              <div className="flex flex-wrap gap-2">
-                {faseData.coaching_points.map((cp, i) => (
-                  <span key={i} className="text-xs px-2 py-1 bg-amber-50 text-amber-700 rounded">
-                    {cp}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Notas del entrenador - EDITABLE */}
-          <div className="mt-4 pt-4 border-t border-gray-100">
-            <div className="flex items-center gap-2 mb-2">
-              <MessageSquare className="h-4 w-4 text-gray-400" />
-              <label className="text-xs font-medium text-gray-500 uppercase">Notas del entrenador</label>
-            </div>
-            <textarea
-              value={notas}
-              onChange={(e) => onEdit('notas', e.target.value)}
-              rows={2}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none"
-              placeholder="Añade notas especificas para esta fase..."
-            />
-          </div>
-        </>
-      ) : (
-        <p className="text-gray-500 italic">No se encontro tarea adecuada para esta fase</p>
-      )}
     </div>
   )
 }

@@ -4,9 +4,11 @@ CRUD completo para tareas de entrenamiento.
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Query, status
+from fastapi.responses import StreamingResponse
 from typing import Optional, List
 from uuid import UUID
 from math import ceil
+import io
 
 from app.models import (
     TareaCreate,
@@ -20,7 +22,8 @@ from app.models import (
     UsuarioResponse,
 )
 from app.database import get_supabase
-from app.dependencies import get_current_user, get_optional_user
+from app.dependencies import get_optional_user, require_permission, AuthContext
+from app.security.permissions import Permission
 
 # Mapeo de códigos cortos de IA a valores de BD para fase_juego
 FASE_JUEGO_MAP = {
@@ -74,7 +77,7 @@ async def list_tareas(
     # Modo biblioteca: muestra TODAS las tareas públicas de TODOS los usuarios
     biblioteca: bool = False,
     # Ordenación
-    orden: str = Query("created_at", pattern="^(created_at|titulo|duracion_total|num_usos)$"),
+    orden: str = Query("created_at", pattern="^(created_at|titulo|duracion_total|num_usos|valoracion_media)$"),
     direccion: str = Query("desc", pattern="^(asc|desc)$"),
     # Auth (opcional - si no hay auth, devuelve solo tareas públicas)
     current_user = Depends(get_optional_user),
@@ -96,16 +99,16 @@ async def list_tareas(
     """
     supabase = get_supabase()
 
-    # Construir query base
+    # Construir query base con joins para creador y equipo
     query = supabase.table("tareas").select(
-        "*, categorias_tarea(*)",
+        "*, categorias_tarea(*), usuarios!creado_por(nombre, apellidos), equipos(nombre)",
         count="exact"
     )
 
     # Filtrar según modo
-    if biblioteca:
-        # Modo biblioteca: TODAS las tareas públicas de TODOS los usuarios
-        query = query.eq("es_publica", True)
+    if biblioteca and current_user:
+        # Modo biblioteca del club: TODAS las tareas de la organización (cross-team)
+        query = query.eq("organizacion_id", current_user.organizacion_id)
     elif current_user:
         # Usuario autenticado: tareas de su organización
         query = query.eq("organizacion_id", current_user.organizacion_id)
@@ -173,8 +176,24 @@ async def list_tareas(
     total = response.count or 0
     pages = ceil(total / limit) if total > 0 else 1
     
+    # Enriquecer con nombre del creador y equipo
+    tareas_data = []
+    for t in response.data:
+        # Extraer y flatten datos del JOIN
+        usuario_data = t.pop("usuarios", None)
+        equipo_data = t.pop("equipos", None)
+
+        if usuario_data:
+            nombre = usuario_data.get("nombre", "")
+            apellidos = usuario_data.get("apellidos", "")
+            t["creador_nombre"] = f"{nombre} {apellidos}".strip() if nombre else None
+        if equipo_data:
+            t["equipo_nombre"] = equipo_data.get("nombre")
+
+        tareas_data.append(TareaResponse(**t))
+
     return TareaListResponse(
-        data=[TareaResponse(**t) for t in response.data],
+        data=tareas_data,
         total=total,
         page=page,
         limit=limit,
@@ -227,7 +246,7 @@ async def get_tarea(
 @router.post("", response_model=TareaResponse, status_code=status.HTTP_201_CREATED)
 async def create_tarea(
     tarea: TareaCreate,
-    current_user = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.TASK_CREATE)),
 ):
     """
     Crea una nueva tarea.
@@ -239,8 +258,8 @@ async def create_tarea(
     
     # Preparar datos
     tarea_data = tarea.model_dump(exclude_unset=True)
-    tarea_data["organizacion_id"] = str(current_user.organizacion_id)
-    tarea_data["creado_por"] = str(current_user.id)
+    tarea_data["organizacion_id"] = str(auth.user.organizacion_id)
+    tarea_data["creado_por"] = str(auth.user.id)
 
     # Por defecto, las tareas son públicas para aparecer en la biblioteca compartida
     if "es_publica" not in tarea_data:
@@ -277,7 +296,7 @@ async def create_tarea(
 async def update_tarea(
     tarea_id: UUID,
     tarea: TareaUpdate,
-    current_user = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.TASK_UPDATE)),
 ):
     """
     Actualiza una tarea existente.
@@ -293,14 +312,6 @@ async def update_tarea(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Tarea no encontrada"
-        )
-    
-    # Verificar permisos
-    if (existing.data["creado_por"] != str(current_user.id) and 
-        current_user.rol not in ["admin", "tecnico_principal"]):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permiso para editar esta tarea"
         )
     
     # Preparar datos (solo campos con valor)
@@ -338,7 +349,7 @@ async def update_tarea(
 @router.delete("/{tarea_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_tarea(
     tarea_id: UUID,
-    current_user = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.TASK_DELETE)),
 ):
     """
     Elimina una tarea.
@@ -355,14 +366,6 @@ async def delete_tarea(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Tarea no encontrada"
-        )
-    
-    # Verificar permisos
-    if (existing.data["creado_por"] != str(current_user.id) and 
-        current_user.rol != "admin"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permiso para eliminar esta tarea"
         )
     
     # Verificar si está en uso
@@ -384,7 +387,7 @@ async def delete_tarea(
 async def duplicar_tarea(
     tarea_id: UUID,
     nuevo_titulo: Optional[str] = None,
-    current_user = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.TASK_CREATE)),
 ):
     """
     Duplica una tarea existente.
@@ -411,8 +414,8 @@ async def duplicar_tarea(
     del nueva_tarea["updated_at"]
 
     # Asignar nuevo propietario
-    nueva_tarea["creado_por"] = str(current_user.id)
-    nueva_tarea["organizacion_id"] = str(current_user.organizacion_id)
+    nueva_tarea["creado_por"] = str(auth.user.id)
+    nueva_tarea["organizacion_id"] = str(auth.user.organizacion_id)
     nueva_tarea["num_usos"] = 0
     nueva_tarea["valoracion_media"] = None
 
@@ -433,7 +436,7 @@ async def duplicar_tarea(
 @router.post("/from-ai", response_model=TareaResponse, status_code=status.HTTP_201_CREATED)
 async def create_tarea_from_ai(
     tarea_ai: AITareaNueva,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.TASK_CREATE, Permission.AI_USE)),
 ):
     """
     Crea una tarea a partir de una sugerencia de la IA.
@@ -466,10 +469,15 @@ async def create_tarea_from_ai(
     if tarea_ai.densidad:
         densidad_valor = DENSIDAD_MAP.get(tarea_ai.densidad.lower())
 
+    # Append posicion_entrenador to description if provided
+    descripcion = tarea_ai.descripcion
+    if tarea_ai.posicion_entrenador:
+        descripcion += f"\n\nPOSICIÓN ENTRENADOR: {tarea_ai.posicion_entrenador}"
+
     # Preparar datos de la tarea (mapear campos de IA a campos de BD)
     tarea_data = {
         "titulo": tarea_ai.titulo,
-        "descripcion": tarea_ai.descripcion,
+        "descripcion": descripcion,
         "categoria_id": categoria_id,
         "duracion_total": tarea_ai.duracion_total,
         "num_series": tarea_ai.num_series,
@@ -487,13 +495,18 @@ async def create_tarea_from_ai(
         "reglas_psicologicas": [],
         # Mapear consignas a consignas_ofensivas
         "consignas_ofensivas": tarea_ai.consignas,
-        "consignas_defensivas": [],
-        "errores_comunes": [],
+        "consignas_defensivas": tarea_ai.consignas_defensivas,
+        "errores_comunes": tarea_ai.errores_comunes,
+        # Diagrama táctico
+        "grafico_data": tarea_ai.grafico_data,
+        # Variantes y material
+        "variantes": tarea_ai.variantes,
+        "material": tarea_ai.material,
         "nivel_cognitivo": tarea_ai.nivel_cognitivo,
         "densidad": densidad_valor,
         # Campos de autoría
-        "organizacion_id": str(current_user.organizacion_id),
-        "creado_por": str(current_user.id),
+        "organizacion_id": str(auth.user.organizacion_id),
+        "creado_por": str(auth.user.id),
         "es_publica": True,
         "es_plantilla": True,
     }
@@ -518,3 +531,38 @@ async def create_tarea_from_ai(
     ).eq("id", response.data[0]["id"]).single().execute()
 
     return TareaResponse(**tarea_completa.data)
+
+
+@router.get("/{tarea_id}/pdf")
+async def generate_tarea_pdf_endpoint(
+    tarea_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.EXPORT_DATA)),
+):
+    """Genera un PDF de ficha de tarea con diseño corporativo."""
+    from app.services.pdf_service import generate_tarea_pdf as gen_pdf
+
+    supabase = get_supabase()
+
+    tarea_resp = supabase.table("tareas").select(
+        "*, categorias_tarea(*)"
+    ).eq("id", str(tarea_id)).single().execute()
+
+    if not tarea_resp.data:
+        raise HTTPException(status_code=404, detail="Tarea no encontrada")
+
+    org_resp = supabase.table("organizaciones").select("*").eq(
+        "id", tarea_resp.data["organizacion_id"]
+    ).single().execute()
+
+    pdf_bytes = gen_pdf(
+        tarea=tarea_resp.data,
+        organizacion=org_resp.data or {},
+    )
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="tarea_{tarea_id}.pdf"'
+        },
+    )

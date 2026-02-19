@@ -160,9 +160,36 @@ export interface Tarea {
   
   created_at: string
   updated_at: string
-  
+
   // Relaciones
   categoria?: CategoriaTarea
+
+  // Campos enriquecidos (del JOIN)
+  creador_nombre?: string
+  equipo_nombre?: string
+}
+
+// ============================================
+// FORMACION DE EQUIPOS (per-task)
+// ============================================
+
+export interface GrupoFormacion {
+  nombre: string
+  color: string
+  tipo: 'equipo' | 'comodin' | 'portero'
+  jugador_ids: string[]
+}
+
+export interface EspacioFormacion {
+  nombre: string
+  estructura: string
+  grupos: GrupoFormacion[]
+}
+
+export interface FormacionEquipos {
+  estructura_original: string
+  auto_generado: boolean
+  espacios: EspacioFormacion[]
 }
 
 // Sesión-Tarea (relación)
@@ -177,6 +204,8 @@ export interface SesionTarea {
   created_at: string
   // Relación
   tarea?: Tarea
+  // Formacion de equipos per-tarea
+  formacion_equipos?: FormacionEquipos | null
 }
 
 // Sesión
@@ -186,33 +215,108 @@ export interface Sesion {
   fecha: string
   equipo_id: string
   creado_por: string
-  
+
   match_day: MatchDay
   rival?: string
   competicion?: string
-  
+
   duracion_total?: number
   objetivo_principal?: string
-  
+
   fase_juego_principal?: FaseJuego
   principio_tactico_principal?: string
-  
+
   carga_fisica_objetivo?: string
   intensidad_objetivo?: Intensidad
-  
+
   estado: EstadoSesion
-  
+
   notas_pre?: string
   notas_post?: string
-  
+
   pdf_url?: string
-  
+  microciclo_id?: string
+
+  // Personalizacion
+  materiales?: string[]
+  staff_asistentes?: StaffAsistente[]
+  fase_notas?: Record<string, string>
+
   created_at: string
   updated_at: string
-  
+
   // Relaciones
   tareas?: SesionTarea[]
   equipo?: Equipo
+}
+
+export interface StaffAsistente {
+  nombre: string
+  rol: string
+  presente?: boolean
+}
+
+// ============================================
+// ASISTENCIA
+// ============================================
+
+export type MotivoAusencia = 'lesion' | 'enfermedad' | 'sancion' | 'permiso' | 'seleccion' | 'viaje' | 'otro'
+
+export interface Asistencia {
+  id: string
+  sesion_id: string
+  jugador_id: string
+  presente: boolean
+  motivo_ausencia?: MotivoAusencia
+  notas?: string
+  hora_llegada?: string
+  created_at: string
+  updated_at: string
+  jugador?: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'foto_url' | 'es_portero'>
+}
+
+export interface AsistenciaListResponse {
+  data: Asistencia[]
+  total: number
+  presentes: number
+  ausentes: number
+}
+
+export interface AsistenciaResumen {
+  total: number
+  presentes: number
+  ausentes: number
+  por_posicion: Record<string, { presentes: number; ausentes: number }>
+  motivos_ausencia: Record<string, number>
+}
+
+export interface EquipoFormado {
+  nombre: string
+  jugadores: {
+    id: string
+    nombre: string
+    apellidos: string
+    dorsal?: number
+    posicion_principal: string
+    nivel_global: number
+    foto_url?: string
+  }[]
+  nivel_promedio: number
+  num_jugadores: number
+}
+
+export interface SugerirEquiposResponse {
+  estructura: string
+  criterio: string
+  equipos: EquipoFormado[]
+  comodines: EquipoFormado['jugadores']
+  porteros: { equipo: string; jugador: EquipoFormado['jugadores'][0] }[]
+  estadisticas: {
+    total_jugadores: number
+    jugadores_asignados: number
+    diferencia_nivel_max: number
+    equilibrado: boolean
+  }
 }
 
 // Respuestas de API con paginación
@@ -323,6 +427,12 @@ export interface AITareaNueva {
   consignas: string[]
   nivel_cognitivo: number
   densidad: string
+  grafico_data?: Record<string, unknown>
+  variantes?: string[]
+  material?: string[]
+  posicion_entrenador?: string
+  errores_comunes?: string[]
+  consignas_defensivas?: string[]
 }
 
 export interface AIFaseRecomendacion {
@@ -354,7 +464,470 @@ export interface AIRecomendadorOutput {
   coherencia_tactica: string
   carga_estimada: AICargaEstimada
   match_day: string
-  generado_por: 'gemini' | 'reglas'
+  generado_por: 'claude' | 'reglas'
+}
+
+// ============================================
+// JUGADORES
+// ============================================
+
+export type PiernaDominante = 'derecha' | 'izquierda' | 'ambas'
+export type EstadoJugador = 'activo' | 'lesionado' | 'enfermo' | 'sancionado' | 'viaje' | 'permiso' | 'seleccion' | 'baja'
+export type Posicion = 'POR' | 'DFC' | 'LTD' | 'LTI' | 'CAD' | 'CAI' | 'MCD' | 'MC' | 'MCO' | 'MID' | 'MII' | 'EXD' | 'EXI' | 'MP' | 'DC' | 'SD'
+
+export interface Jugador {
+  id: string
+  equipo_id: string
+  equipo_origen_id?: string
+  nombre: string
+  apellidos: string
+  apodo?: string
+  fecha_nacimiento?: string
+  dorsal?: number
+  posicion_principal: Posicion
+  posiciones_secundarias: string[]
+  altura?: number
+  peso?: number
+  pierna_dominante: PiernaDominante
+  nivel_tecnico: number
+  nivel_tactico: number
+  nivel_fisico: number
+  nivel_mental: number
+  estado: EstadoJugador
+  fecha_lesion?: string
+  fecha_vuelta_estimada?: string
+  motivo_baja?: string
+  es_capitan: boolean
+  es_convocable: boolean
+  es_portero: boolean
+  es_invitado?: boolean
+  foto_url?: string
+  notas?: string
+  created_at: string
+  updated_at: string
+  edad?: number
+  nivel_global?: number
+}
+
+export interface PosicionInfo {
+  codigo: string
+  nombre: string
+  nombre_corto: string
+  zona: string
+  orden: number
+}
+
+export interface EstadisticasEquipo {
+  total_jugadores: number
+  por_posicion: Record<string, number>
+  por_estado: Record<string, number>
+  niveles_promedio: { tecnico: number; tactico: number; fisico: number; mental: number }
+  edad_promedio?: number
+}
+
+// ============================================
+// RPE (Rating of Perceived Exertion)
+// ============================================
+
+export interface RPERegistro {
+  id: string
+  jugador_id: string
+  sesion_id?: string
+  fecha: string
+  rpe: number
+  duracion_percibida?: number
+  sueno?: number
+  fatiga?: number
+  dolor?: number
+  estres?: number
+  humor?: number
+  notas?: string
+  carga_sesion?: number
+  created_at: string
+}
+
+export interface RPEResumenJugador {
+  jugador: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal'>
+  num_registros: number
+  rpe_promedio?: number
+  carga_promedio?: number
+  ultimo_registro?: RPERegistro
+}
+
+export interface RPEResumenEquipo {
+  data: RPEResumenJugador[]
+  promedios_equipo: {
+    rpe_promedio?: number
+    carga_promedio?: number
+    total_registros: number
+  }
+}
+
+// ============================================
+// CONVOCATORIAS
+// ============================================
+
+export interface Convocatoria {
+  id: string
+  partido_id: string
+  jugador_id: string
+  titular: boolean
+  posicion_asignada?: string
+  dorsal?: number
+  minutos_jugados: number
+  goles: number
+  asistencias: number
+  tarjeta_amarilla: boolean
+  tarjeta_roja: boolean
+  notas?: string
+  created_at: string
+  updated_at: string
+  // Join data
+  jugador?: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'foto_url' | 'apodo'>
+  jugadores?: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'foto_url' | 'apodo'>
+}
+
+export interface ConvocatoriasJugadorStats {
+  total_convocatorias: number
+  titularidades: number
+  minutos_totales: number
+  goles: number
+  asistencias: number
+  amarillas: number
+  rojas: number
+}
+
+// ============================================
+// MICROCICLOS
+// ============================================
+
+export type EstadoMicrociclo = 'borrador' | 'planificado' | 'en_curso' | 'completado'
+
+export interface Microciclo {
+  id: string
+  equipo_id: string
+  fecha_inicio: string
+  fecha_fin: string
+  partido_id?: string
+  objetivo_principal?: string
+  objetivo_tactico?: string
+  objetivo_fisico?: string
+  estado: EstadoMicrociclo
+  notas?: string
+  created_at: string
+  updated_at: string
+}
+
+// ============================================
+// COMUNICACION
+// ============================================
+
+export type TipoConversacion = 'directa' | 'grupo' | 'canal'
+export type TipoMensaje = 'texto' | 'imagen' | 'archivo' | 'sistema'
+
+export interface Conversacion {
+  id: string
+  equipo_id?: string
+  tipo: TipoConversacion
+  nombre?: string
+  creado_por: string
+  activa: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface Mensaje {
+  id: string
+  conversacion_id: string
+  autor_id: string
+  contenido: string
+  tipo: TipoMensaje
+  archivo_url?: string
+  fijado: boolean
+  editado: boolean
+  created_at: string
+  updated_at: string
+}
+
+// ============================================
+// NOTIFICACIONES
+// ============================================
+
+export type PrioridadNotificacion = 'baja' | 'normal' | 'alta' | 'urgente'
+
+export interface Notificacion {
+  id: string
+  usuario_id: string
+  tipo: string
+  titulo: string
+  contenido?: string
+  entidad_tipo?: string
+  entidad_id?: string
+  prioridad: PrioridadNotificacion
+  leida: boolean
+  created_at: string
+}
+
+// ============================================
+// SUSCRIPCIONES
+// ============================================
+
+export type TipoLicencia = 'equipo' | 'club'
+export type EstadoSuscripcion = 'trial' | 'active' | 'past_due' | 'grace_period' | 'suspended' | 'cancelled'
+export type CicloSuscripcion = 'mensual' | 'anual'
+
+export interface Plan {
+  id: string
+  codigo: string
+  nombre: string
+  tipo_licencia: TipoLicencia
+  max_equipos: number
+  max_usuarios_por_equipo: number
+  max_jugadores_por_equipo: number
+  max_storage_mb: number
+  max_ai_calls_month: number
+  max_kb_documents: number
+  features: Record<string, any>
+  precio_mensual_cents: number
+  precio_anual_cents: number
+  dias_prueba: number
+  orden: number
+  activo: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface Suscripcion {
+  id: string
+  organizacion_id: string
+  plan_id: string
+  estado: EstadoSuscripcion
+  ciclo: CicloSuscripcion
+  fecha_inicio: string
+  fecha_fin?: string
+  fecha_proximo_pago?: string
+  fecha_cancelacion?: string
+  trial_fin?: string
+  trial_convertido: boolean
+  stripe_subscription_id?: string
+  stripe_customer_id?: string
+  uso_equipos: number
+  uso_storage_mb: number
+  uso_ai_calls_month: number
+  created_at: string
+  updated_at: string
+  plan?: Plan
+}
+
+export interface UsageLimits {
+  equipos: number
+  max_equipos: number
+  storage_mb: number
+  max_storage_mb: number
+  ai_calls_month: number
+  max_ai_calls_month: number
+  kb_documents: number
+  max_kb_documents: number
+}
+
+export interface TrialStatus {
+  is_trial: boolean
+  is_valid: boolean
+  days_remaining?: number
+}
+
+// ============================================
+// GDPR
+// ============================================
+
+export type TipoConsentimiento =
+  | 'terminos_servicio' | 'politica_privacidad' | 'datos_personales'
+  | 'datos_medicos' | 'comunicaciones_marketing' | 'tratamiento_imagen'
+  | 'transferencia_datos' | 'menor_representacion'
+
+export type TipoSolicitudGDPR = 'acceso' | 'rectificacion' | 'supresion' | 'portabilidad' | 'oposicion' | 'limitacion'
+export type EstadoSolicitudGDPR = 'pendiente' | 'en_proceso' | 'completada' | 'rechazada'
+
+export interface ConsentimientoGDPR {
+  id: string
+  usuario_id: string
+  tipo: TipoConsentimiento
+  version: string
+  otorgado: boolean
+  fecha: string
+  revocado: boolean
+  revocado_fecha?: string
+  created_at: string
+}
+
+export interface SolicitudGDPR {
+  id: string
+  usuario_id: string
+  tipo: TipoSolicitudGDPR
+  estado: EstadoSolicitudGDPR
+  descripcion?: string
+  respuesta?: string
+  fecha_limite: string
+  fecha_completada?: string
+  created_at: string
+  updated_at: string
+}
+
+// ============================================
+// MEDICO
+// ============================================
+
+export type TipoRegistroMedico =
+  | 'lesion' | 'enfermedad' | 'reconocimiento_medico' | 'prueba_esfuerzo'
+  | 'rehabilitacion' | 'alta_medica' | 'informe_fisioterapia' | 'otro'
+
+export type EstadoRegistroMedico = 'activo' | 'en_recuperacion' | 'alta' | 'cronico'
+
+export interface RegistroMedico {
+  id: string
+  jugador_id: string
+  equipo_id: string
+  tipo: TipoRegistroMedico
+  titulo: string
+  descripcion?: string
+  diagnostico?: string
+  tratamiento?: string
+  medicacion?: string
+  fecha_inicio: string
+  fecha_fin?: string
+  fecha_alta?: string
+  dias_baja_estimados?: number
+  dias_baja_reales?: number
+  estado: EstadoRegistroMedico
+  solo_medico: boolean
+  created_at: string
+  updated_at: string
+}
+
+// ============================================
+// INVITACIONES
+// ============================================
+
+export type EstadoInvitacion = 'pendiente' | 'aceptada' | 'rechazada' | 'expirada' | 'revocada'
+
+export interface Invitacion {
+  id: string
+  email: string
+  nombre?: string
+  organizacion_id: string
+  equipo_id?: string
+  rol_organizacion?: string
+  rol_en_equipo?: string
+  estado: EstadoInvitacion
+  expira_en: string
+  invitado_por: string
+  es_invitacion_tutor: boolean
+  jugador_id?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface InvitacionVerify {
+  organizacion_nombre: string
+  equipo_nombre?: string
+  rol_en_equipo?: string
+  invitado_por_nombre: string
+  es_invitacion_tutor: boolean
+  jugador_nombre?: string
+}
+
+// ============================================
+// KNOWLEDGE BASE
+// ============================================
+
+export type TipoDocumentoKB = 'manual' | 'pdf' | 'url' | 'seed'
+export type EstadoDocumentoKB = 'pendiente' | 'procesando' | 'indexado' | 'error'
+
+export interface DocumentoKB {
+  id: string
+  organizacion_id?: string
+  titulo: string
+  fuente?: string
+  tipo: TipoDocumentoKB
+  contenido_texto?: string
+  archivo_url?: string
+  estado: EstadoDocumentoKB
+  num_chunks: number
+  metadata: Record<string, any>
+  created_at: string
+  updated_at: string
+}
+
+export interface KBSearchResult {
+  contenido: string
+  similitud: number
+  documento_titulo?: string
+}
+
+// ============================================
+// AI CHAT
+// ============================================
+
+export interface AIConversacion {
+  id: string
+  usuario_id: string
+  equipo_id?: string
+  titulo?: string
+  contexto: Record<string, any>
+  created_at: string
+  updated_at: string
+}
+
+export interface AIMensaje {
+  id: string
+  conversacion_id: string
+  rol: 'user' | 'assistant' | 'system'
+  contenido: string
+  herramientas_usadas: any[]
+  tokens_input?: number
+  tokens_output?: number
+  created_at: string
+}
+
+export interface AIChatRequest {
+  mensaje: string
+  conversacion_id?: string
+  equipo_id?: string
+  contexto: Record<string, any>
+}
+
+export interface AIChatResponse {
+  conversacion_id: string
+  mensaje: string
+  herramientas_usadas: any[]
+  tokens_input?: number
+  tokens_output?: number
+}
+
+// ============================================
+// ONBOARDING
+// ============================================
+
+export interface OnboardingPaso {
+  numero: number
+  clave: string
+  titulo: string
+  descripcion: string
+}
+
+export interface OnboardingProgreso {
+  usuario_id: string
+  paso_actual: number
+  pasos_completados: Record<string, boolean>
+  completado: boolean
+}
+
+export interface OnboardingCheckResponse {
+  pasos_completados: Record<string, boolean>
+  total_completados: number
+  total_pasos: number
+  completado: boolean
+  siguiente_paso?: number
 }
 
 // Auth

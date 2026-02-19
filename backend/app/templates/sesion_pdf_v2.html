@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>{{ org_nombre }} — {{ sesion.get('match_day','') }} Sesion {{ sesion.get('fecha','') }}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;900&family=Barlow:wght@300;400;500;600&display=swap');
+
+/* ============ RESET ============ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: 'Barlow', sans-serif;
+    color: #111;
+    font-size: 10px;
+    line-height: 1.4;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+/* ============ WEASYPRINT PAGE RULES ============ */
+@page cover { size: A4 landscape; margin: 0; }
+@page detail { size: A4 portrait; margin: 0; }
+
+/* ============ PAGE 1: LANDSCAPE ============ */
+.page-landscape {
+    page: cover;
+    width: 297mm;
+    height: 210mm;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: white;
+}
+
+/* --- Landscape Header --- */
+.lh {
+    background: #0a0a0a;
+    height: 22mm;
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    gap: 10px;
+    flex-shrink: 0;
+    position: relative;
+}
+.lh::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, {{ color_primario }} 0%, {{ color_secundario }} 100%);
+}
+.lh-logo {
+    width: 36px; height: 36px; flex-shrink: 0;
+}
+.lh-logo img { width: 100%; height: 100%; object-fit: contain; border-radius: 4px; }
+.lh-logo svg { width: 100%; height: 100%; }
+.lh-divider {
+    width: 1px; height: 30px; background: rgba(255,255,255,0.15); flex-shrink: 0;
+}
+.lh-title { flex: 1; min-width: 0; }
+.lh-title-club {
+    font-size: 7px; color: #888; text-transform: uppercase; letter-spacing: 3px;
+    font-family: 'Barlow', sans-serif; font-weight: 400;
+}
+.lh-title-name {
+    font-size: 20px; color: white; text-transform: uppercase;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 900;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lh-title-sub {
+    font-size: 8px; color: #aaa;
+    font-family: 'Barlow', sans-serif;
+}
+.lh-metrics {
+    display: flex; gap: 16px; flex-shrink: 0;
+}
+.lh-metric { text-align: center; }
+.lh-metric-val {
+    font-size: 16px; color: white;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 900;
+}
+.lh-metric-label {
+    font-size: 7px; color: #666; text-transform: uppercase; letter-spacing: 1px;
+}
+.lh-badges { display: flex; gap: 6px; flex-shrink: 0; }
+.lh-badge {
+    padding: 4px 10px; border-radius: 4px;
+    background: #1a1a1a; border: 1px solid #333;
+    font-size: 10px; color: {{ color_primario }};
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+    text-transform: uppercase;
+}
+
+/* --- Exercise Grid (2×2) --- */
+.ex-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    min-height: 0;
+    overflow: hidden;
+}
+.ex-card {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #2a2a2a;
+    border-bottom: 1px solid #2a2a2a;
+    overflow: hidden;
+    min-height: 0;
+}
+.ex-card:nth-child(even) { border-right: none; }
+.ex-card:nth-child(n+3) { border-bottom: none; }
+
+/* Card header */
+.ex-card-header {
+    background: #111;
+    padding: 4px 8px;
+    display: flex; align-items: center; gap: 5px;
+    flex-shrink: 0;
+}
+.ex-num {
+    font-size: 14px; color: rgba(255,255,255,0.15);
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 900;
+}
+.ex-type-badge {
+    padding: 1px 6px; border-radius: 2px;
+    font-size: 6px; text-transform: uppercase; letter-spacing: 0.5px;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+}
+.badge-rnd { background: {{ color_primario }}; color: #000; }
+.badge-jdp { background: {{ color_primario }}; color: #000; }
+.badge-pos { background: #3498db; color: white; }
+.badge-evo { background: #8e44ad; color: white; }
+.badge-avd { background: #555; color: white; }
+.badge-pco { background: #e67e22; color: white; }
+.badge-aco { background: #1abc9c; color: white; }
+.badge-ssg { background: white; color: #000; }
+.badge-abp { background: #333; color: #aaa; }
+.badge-par { background: #222; color: white; }
+.badge-default { background: #444; color: white; }
+.ex-name {
+    font-size: 10px; color: white;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    flex: 1;
+}
+
+/* Mini field */
+.campo-mini-wrap {
+    flex: 1;
+    background: #1a1a1a;
+    padding: 3px 5px;
+    min-height: 0;
+    max-height: 42mm;
+    overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+}
+.campo-mini-wrap svg { width: 100%; height: 100%; }
+
+/* Petos band */
+.ex-petos {
+    background: #0e0e0e;
+    padding: 5px 8px 6px;
+    border-top: 2px solid #111;
+    order: 1;
+    flex-shrink: 0;
+}
+.ex-petos-title {
+    font-size: 6px; color: #444; text-transform: uppercase; letter-spacing: 1.5px;
+    margin-bottom: 3px;
+    font-family: 'Barlow', sans-serif; font-weight: 600;
+}
+.ex-petos-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px 8px;
+}
+.ex-peto-row {
+    display: flex; align-items: flex-start; gap: 5px;
+}
+.ex-peto-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0; margin-top: 1px;
+}
+.peto-negro { background: #111; border: 1px solid #555; }
+.peto-blanco { background: #fff; border: 1px solid #888; }
+.peto-verde { background: #2ecc71; border: 1px solid #27ae60; }
+.peto-gris { background: #888; border: 1px solid #aaa; }
+.peto-rojo { background: #e74c3c; border: 1px solid #c0392b; }
+.peto-azul { background: #3498db; border: 1px solid #2980b9; }
+.peto-amarillo { background: #f1c40f; border: 1px solid #f39c12; }
+.ex-peto-label {
+    font-size: 8px; color: #ddd; font-weight: 700; text-transform: uppercase;
+    font-family: 'Barlow Condensed', sans-serif;
+}
+.ex-peto-players {
+    font-size: 7px; color: #888; line-height: 1.4;
+    white-space: normal; word-break: break-word;
+}
+
+/* Info band (white) */
+.ex-info {
+    padding: 6px 12px;
+    background: white;
+    flex-shrink: 0;
+    order: 2;
+    display: flex; flex-direction: column; justify-content: center;
+}
+.ex-tiempo {
+    font-size: 28px; color: #111;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 900;
+    line-height: 1;
+}
+.ex-tiempo span {
+    font-size: 14px; color: #888; font-weight: 400;
+}
+.ex-espacio {
+    font-size: 11px; color: #333; font-weight: 700;
+    font-family: 'Barlow', sans-serif;
+}
+.ex-fase {
+    font-size: 8px; color: #bbb; text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-family: 'Barlow', sans-serif;
+}
+
+/* --- Landscape Footer --- */
+.lf {
+    height: 6mm;
+    background: #f4f4f4;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 14px;
+    flex-shrink: 0;
+}
+.lf-text {
+    font-size: 7px; color: #aaa;
+    font-family: 'Barlow', sans-serif;
+}
+
+/* ============ PAGES 2+: PORTRAIT ============ */
+.page-portrait {
+    page: detail;
+    width: 210mm;
+    height: 297mm;
+    break-before: page;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: white;
+}
+
+/* --- Portrait Header --- */
+.ph {
+    background: #0a0a0a;
+    height: 28mm;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 12px;
+    flex-shrink: 0;
+    position: relative;
+}
+.ph::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, {{ color_primario }} 0%, {{ color_secundario }} 100%);
+}
+.ph-logo { width: 38px; height: 38px; flex-shrink: 0; }
+.ph-logo img { width: 100%; height: 100%; object-fit: contain; border-radius: 4px; }
+.ph-divider { width: 1px; height: 34px; background: rgba(255,255,255,0.15); flex-shrink: 0; }
+.ph-left { flex: 1; min-width: 0; }
+.ph-breadcrumb {
+    font-size: 7px; color: #555; text-transform: uppercase; letter-spacing: 1.5px;
+    font-family: 'Barlow', sans-serif;
+}
+.ph-title {
+    font-size: 22px; color: white; text-transform: uppercase;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 900;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ph-subtitle {
+    font-size: 9px; color: #777;
+    font-family: 'Barlow', sans-serif;
+}
+.ph-right { text-align: right; flex-shrink: 0; }
+.ph-num {
+    font-size: 32px; color: rgba(255,255,255,0.08);
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 900;
+}
+.ph-type {
+    font-size: 10px; color: {{ color_primario }}; text-transform: uppercase;
+    letter-spacing: 2px;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+}
+
+/* --- Quick Bar --- */
+.quick-bar {
+    background: #111;
+    display: flex;
+    height: 11mm;
+    flex-shrink: 0;
+}
+.qb-cell {
+    flex: 1;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    border-right: 1px solid #222;
+    padding: 0 6px;
+}
+.qb-cell:last-child { border-right: none; }
+.qb-val {
+    font-size: 14px; color: white;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+}
+.qb-label {
+    font-size: 7px; color: #555; text-transform: uppercase; letter-spacing: 1px;
+}
+
+/* --- Material pills bar --- */
+.material-bar {
+    background: #111;
+    padding: 4px 14px;
+    display: flex; align-items: center; gap: 5px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+.material-label {
+    font-size: 7px; color: #555; text-transform: uppercase; letter-spacing: 1px;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 600;
+    margin-right: 4px;
+}
+.material-pill {
+    font-size: 7px; color: #ccc;
+    background: #222; border: 1px solid #333;
+    padding: 2px 7px; border-radius: 10px;
+    font-family: 'Barlow', sans-serif;
+}
+
+/* --- Coach position note --- */
+.coach-note {
+    background: #0e0e0e; color: #aaa;
+    border-left: 3px solid #F59E0B;
+    padding: 5px 10px;
+    font-size: 7.5px; line-height: 1.5;
+    margin: 0 14px 4px;
+    font-family: 'Barlow', sans-serif;
+    flex-shrink: 0;
+}
+.coach-note strong {
+    color: #F59E0B;
+    text-transform: uppercase;
+    font-size: 6.5px;
+    letter-spacing: 1px;
+}
+
+/* --- Large Field Section --- */
+.campo-section {
+    padding: 10px 14px 6px;
+    background: #0a0a0a;
+    flex-shrink: 0;
+}
+.campo-section-title {
+    font-size: 7px; color: #444; text-transform: uppercase;
+    letter-spacing: 2px; margin-bottom: 5px;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 600;
+}
+.campo-grande-wrap {
+    background: #1d5c1d;
+    border: 2px solid #333;
+    overflow: hidden;
+    height: 95mm;
+}
+.campo-grande-wrap svg { width: 100%; height: 100%; display: block; }
+
+/* --- Info Section (2 columns) --- */
+.info-section {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-top: 1px solid #eee;
+    overflow: hidden;
+}
+.info-col {
+    padding: 10px 14px;
+    overflow: hidden;
+}
+.info-col:first-child {
+    border-right: 1px solid #eee;
+}
+.info-col-title {
+    font-size: 9px; font-weight: 700; color: #111;
+    text-transform: uppercase; letter-spacing: 2px;
+    padding-bottom: 5px; border-bottom: 1px solid #111;
+    margin-bottom: 8px;
+    font-family: 'Barlow Condensed', sans-serif;
+}
+.info-label {
+    font-size: 8px; font-weight: 600; color: #999;
+    text-transform: uppercase; letter-spacing: 1px;
+    margin-top: 8px; margin-bottom: 3px;
+    font-family: 'Barlow Condensed', sans-serif;
+}
+.info-text {
+    font-size: 8.5px; color: #333; line-height: 1.6;
+    font-family: 'Barlow', sans-serif;
+}
+
+/* Team blocks */
+.equipo-block { margin-bottom: 6px; }
+.equipo-name {
+    font-size: 10px; text-transform: uppercase;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+    display: flex; align-items: center; gap: 4px;
+    margin-bottom: 2px;
+}
+.equipo-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    display: inline-block; flex-shrink: 0;
+}
+.equipo-jugadores {
+    font-size: 7.5px; color: #555; line-height: 1.6;
+    padding-left: 12px;
+    font-family: 'Barlow', sans-serif;
+}
+
+/* Consignas */
+.consigna-item {
+    display: flex; gap: 6px; align-items: flex-start;
+    margin-bottom: 4px;
+}
+.consigna-bullet {
+    width: 14px; height: 14px;
+    background: #111; color: white;
+    font-size: 7px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 1px;
+    font-family: 'Barlow Condensed', sans-serif;
+}
+.consigna-text {
+    font-size: 8.5px; color: #333; line-height: 1.4;
+    font-family: 'Barlow', sans-serif;
+}
+
+/* Tactical note */
+.nota-tactica {
+    background: #111; color: white;
+    border-left: 3px solid {{ color_primario }};
+    padding: 6px 10px;
+    font-size: 8px; line-height: 1.5;
+    margin: 6px 0;
+    font-family: 'Barlow', sans-serif; font-weight: 500;
+}
+
+/* Variants box */
+.variante-box {
+    background: #f9f9f9; border: 1px solid #e0e0e0;
+    padding: 6px 10px; margin-top: 6px;
+}
+.variante-title {
+    font-size: 7px; color: #999; text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 3px;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 600;
+}
+.variante-text {
+    font-size: 8px; color: #555; line-height: 1.5;
+    font-family: 'Barlow', sans-serif;
+}
+
+/* Errors box */
+.errores-box {
+    background: #fff5f5; border: 1px solid #fed7d7;
+    padding: 6px 10px; margin-top: 6px;
+}
+.errores-title {
+    font-size: 7px; color: #c53030; text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 3px;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 600;
+}
+.errores-text {
+    font-size: 8px; color: #555; line-height: 1.5;
+    font-family: 'Barlow', sans-serif;
+}
+
+/* Rules list */
+.rules-list {
+    list-style: none; padding: 0;
+}
+.rules-list li {
+    font-size: 8px; color: #333; padding: 2px 0 2px 10px;
+    position: relative; line-height: 1.5;
+    font-family: 'Barlow', sans-serif;
+}
+.rules-list li::before {
+    content: "\2022";
+    color: {{ color_primario }};
+    font-weight: bold;
+    position: absolute; left: 0;
+}
+
+/* --- Portrait Footer --- */
+.pf {
+    height: 8mm;
+    background: #f4f4f4;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    flex-shrink: 0;
+}
+.pf-text {
+    font-size: 7px; color: #aaa;
+    font-family: 'Barlow', sans-serif;
+}
+.pf-center {
+    font-size: 9px; color: #ccc;
+    font-family: 'Barlow Condensed', sans-serif;
+    text-transform: uppercase; letter-spacing: 2px;
+}
+</style>
+</head>
+<body>
+
+<!-- ==================== PAGE 1: LANDSCAPE RESUMEN ==================== -->
+<div class="page-landscape">
+
+    <!-- Header -->
+    <div class="lh">
+        <div class="lh-logo">
+            {% if logo_url %}
+            <img src="{{ logo_url }}" alt="Logo"/>
+            {% else %}
+            <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="19" fill="#222" stroke="{{ color_primario }}" stroke-width="2"/><text x="20" y="25" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-size="16" fill="white" font-weight="900">{{ org_nombre[:1] }}</text></svg>
+            {% endif %}
+        </div>
+        <div class="lh-divider"></div>
+        <div class="lh-title">
+            <div class="lh-title-club">{{ org_nombre }} · {{ equipo_categoria }} · Temporada 2025-26</div>
+            <div class="lh-title-name">{{ sesion.get('titulo', 'Sesion de Entrenamiento') }}</div>
+            <div class="lh-title-sub">{{ sesion.get('fecha', '') }}{% if sesion.get('rival') %} · Rival: {{ sesion.get('rival') }}{% endif %}</div>
+        </div>
+        <div class="lh-metrics">
+            <div class="lh-metric">
+                <div class="lh-metric-val">{{ duracion_total }}</div>
+                <div class="lh-metric-label">Duracion</div>
+            </div>
+            <div class="lh-metric">
+                <div class="lh-metric-val">{{ num_ejercicios }}</div>
+                <div class="lh-metric-label">Ejercicios</div>
+            </div>
+        </div>
+        <div class="lh-divider"></div>
+        <div class="lh-badges">
+            {% if sesion.get('intensidad_objetivo') %}
+            <div class="lh-badge">{{ sesion.get('intensidad_objetivo', '').replace('_', ' ').upper() }}</div>
+            {% endif %}
+            <div class="lh-badge">{{ sesion.get('match_day', '') }}</div>
+            {% if microciclo_nombre %}
+            <div class="lh-badge">{{ microciclo_nombre }}</div>
+            {% endif %}
+            {% if lugar %}
+            <div class="lh-badge">{{ lugar }}</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Exercise Grid -->
+    <div class="ex-grid">
+        {% for tarea in all_tareas[:4] %}
+        <div class="ex-card">
+            <div class="ex-card-header">
+                <span class="ex-num">{{ '%02d' % loop.index }}</span>
+                <span class="ex-type-badge badge-{{ tarea.badge_class }}">{{ tarea.categoria_codigo or 'EJ' }}</span>
+                <div class="ex-name">{{ tarea.titulo }}</div>
+            </div>
+            <div class="campo-mini-wrap">
+                {{ tarea.svg_thumbnail }}
+            </div>
+            <div class="ex-info">
+                <div class="ex-tiempo">{{ tarea.duracion }}' {% if tarea.num_series %}<span>· {{ tarea.num_series }} series</span>{% endif %}</div>
+                <div class="ex-espacio">{% if tarea.espacio_largo and tarea.espacio_ancho %}{{ tarea.espacio_largo|int }}x{{ tarea.espacio_ancho|int }}m · {% endif %}{{ tarea.num_jugadores_min }}{% if tarea.num_jugadores_max %}-{{ tarea.num_jugadores_max }}{% endif %} jug.</div>
+                <div class="ex-fase">{{ tarea.fase_label }}</div>
+            </div>
+            <div class="ex-petos">
+                <div class="ex-petos-title">Reparto de Petos</div>
+                <div class="ex-petos-grid">
+                    {{ tarea.petos_html }}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        {# Fill empty slots if less than 4 exercises #}
+        {% for i in range(all_tareas[:4]|length, 4) %}
+        <div class="ex-card" style="background:#0a0a0a;display:flex;align-items:center;justify-content:center;">
+            <div style="color:#333;font-size:12px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:3px;">Sin ejercicio</div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Footer -->
+    <div class="lf">
+        <div class="lf-text">{{ org_nombre }} · {{ equipo_nombre }} · {{ sesion.get('fecha', '') }}</div>
+        <div class="lf-text" style="display:flex;gap:8px;align-items:center;">
+            <span style="display:inline-flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#111;border:1px solid #555;display:inline-block;"></span> Equipo</span>
+            <span style="display:inline-flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#fff;border:1px solid #888;display:inline-block;"></span> Rival</span>
+            <span style="display:inline-flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#2ecc71;border:1px solid #27ae60;display:inline-block;"></span> Portero</span>
+            <span style="display:inline-flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#888;border:1px solid #aaa;display:inline-block;"></span> Comodin</span>
+        </div>
+        <div class="lf-text">Documento interno · No distribuir</div>
+    </div>
+</div>
+
+<!-- ==================== PAGES 2+: PORTRAIT DETAIL ==================== -->
+{% for tarea in all_tareas %}
+<div class="page-portrait">
+
+    <!-- Header -->
+    <div class="ph">
+        <div class="ph-logo">
+            {% if logo_url %}
+            <img src="{{ logo_url }}" alt="Logo"/>
+            {% else %}
+            <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="19" fill="#222" stroke="{{ color_primario }}" stroke-width="2"/><text x="20" y="25" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-size="16" fill="white" font-weight="900">{{ org_nombre[:1] }}</text></svg>
+            {% endif %}
+        </div>
+        <div class="ph-divider"></div>
+        <div class="ph-left">
+            <div class="ph-breadcrumb">{{ org_nombre }} · {{ sesion.get('match_day','') }} · {{ sesion.get('fecha','') }}</div>
+            <div class="ph-title">{{ tarea.titulo }}</div>
+            <div class="ph-subtitle">{{ tarea.fase_label }}{% if tarea.fase_juego %} · {{ tarea.fase_juego.replace('_', ' ').title() }}{% endif %}</div>
+        </div>
+        <div class="ph-right">
+            <div class="ph-num">{{ '%02d' % loop.index }}</div>
+            <div class="ph-type">{{ tarea.categoria or 'Ejercicio' }}</div>
+        </div>
+    </div>
+
+    <!-- Quick Bar -->
+    <div class="quick-bar">
+        <div class="qb-cell">
+            <div class="qb-val">{{ tarea.duracion }}'</div>
+            <div class="qb-label">Duracion</div>
+        </div>
+        <div class="qb-cell">
+            <div class="qb-val">{{ tarea.num_series or '-' }}</div>
+            <div class="qb-label">Series</div>
+        </div>
+        <div class="qb-cell">
+            <div class="qb-val">{{ tarea.num_jugadores_min }}{% if tarea.num_jugadores_max %}-{{ tarea.num_jugadores_max }}{% endif %}</div>
+            <div class="qb-label">Jugadores</div>
+        </div>
+        <div class="qb-cell">
+            <div class="qb-val">{% if tarea.espacio_largo and tarea.espacio_ancho %}{{ tarea.espacio_largo|int }}x{{ tarea.espacio_ancho|int }}m{% else %}-{% endif %}</div>
+            <div class="qb-label">Espacio</div>
+        </div>
+        <div class="qb-cell">
+            <div class="qb-val">{% if tarea.densidad %}{{ tarea.densidad.title() }}{% else %}-{% endif %}</div>
+            <div class="qb-label">Intensidad</div>
+        </div>
+    </div>
+
+    <!-- Material pills -->
+    {% if tarea.material %}
+    <div class="material-bar">
+        <span class="material-label">Material</span>
+        {% for m in tarea.material %}
+        <span class="material-pill">{{ m }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Large Field -->
+    <div class="campo-section">
+        <div class="campo-section-title">Descripcion Grafica</div>
+        <div class="campo-grande-wrap">
+            {{ tarea.svg_large }}
+        </div>
+    </div>
+
+    <!-- Coach position -->
+    {% if tarea.posicion_entrenador %}
+    <div class="coach-note">
+        <strong>Posicion Entrenador: </strong>{{ tarea.posicion_entrenador }}
+    </div>
+    {% endif %}
+
+    <!-- Info Section (2 columns) -->
+    <div class="info-section">
+        <!-- Left Column: Description, Tactical, Teams -->
+        <div class="info-col">
+            {% if tarea.descripcion %}
+            <div class="info-col-title">Descripcion</div>
+            <div class="info-text">{{ tarea.descripcion }}</div>
+            {% endif %}
+
+            {% if tarea.fase_juego or tarea.principio_tactico or tarea.subprincipio_tactico %}
+            <div class="info-label">Situacion de Juego</div>
+            {% if tarea.fase_juego %}
+            <div class="info-text" style="font-weight:600;">{{ tarea.fase_juego.replace('_', ' ').title() }}</div>
+            {% endif %}
+            {% if tarea.principio_tactico %}
+            <div class="info-text">{{ tarea.principio_tactico }}</div>
+            {% endif %}
+            {% if tarea.subprincipio_tactico %}
+            <div class="nota-tactica">{{ tarea.subprincipio_tactico }}</div>
+            {% endif %}
+            {% endif %}
+
+            {% if tarea.formation_html %}
+            <div class="info-label">Equipos</div>
+            {{ tarea.formation_html }}
+            {% endif %}
+        </div>
+
+        <!-- Right Column: Consignas, Rules, Variants -->
+        <div class="info-col">
+            {% if tarea.consignas_ofensivas or tarea.consignas_defensivas %}
+            <div class="info-col-title">Consignas</div>
+            {% for c in tarea.consignas_ofensivas %}
+            <div class="consigna-item">
+                <div class="consigna-bullet">{{ loop.index }}</div>
+                <div class="consigna-text">{{ c }}</div>
+            </div>
+            {% endfor %}
+            {% for c in tarea.consignas_defensivas %}
+            <div class="consigna-item">
+                <div class="consigna-bullet">D{{ loop.index }}</div>
+                <div class="consigna-text">{{ c }}</div>
+            </div>
+            {% endfor %}
+            {% endif %}
+
+            {% if tarea.reglas_tecnicas or tarea.reglas_tacticas %}
+            <div class="info-label">Normas</div>
+            <ul class="rules-list">
+                {% for r in tarea.reglas_tecnicas %}<li>{{ r }}</li>{% endfor %}
+                {% for r in tarea.reglas_tacticas %}<li>{{ r }}</li>{% endfor %}
+            </ul>
+            {% endif %}
+
+            {% if tarea.variantes or tarea.progresiones %}
+            <div class="variante-box">
+                <div class="variante-title">Variante · Progresion</div>
+                {% for v in (tarea.variantes or []) %}
+                <div class="variante-text">{{ v }}</div>
+                {% endfor %}
+                {% for p in (tarea.progresiones or []) %}
+                <div class="variante-text">{{ p }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if tarea.errores_comunes %}
+            <div class="errores-box">
+                <div class="errores-title">Errores Comunes</div>
+                {% for e in tarea.errores_comunes %}
+                <div class="errores-text">· {{ e }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="pf">
+        <div class="pf-text">{{ org_nombre }} · {{ sesion.get('match_day','') }} · {{ sesion.get('titulo','') }} · {{ sesion.get('fecha','') }}</div>
+        <div class="pf-center">{{ org_nombre }}</div>
+        <div class="pf-text">Pag. {{ loop.index + 1 }} / {{ all_tareas|length + 1 }}</div>
+    </div>
+</div>
+{% endfor %}
+
+</body>
+</html>

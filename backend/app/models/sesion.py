@@ -49,6 +49,33 @@ class Intensidad(str, Enum):
 
 # ============ Schemas de Sesión-Tarea (relación) ============
 
+class GrupoFormacion(BaseModel):
+    """Un grupo dentro de un espacio de formacion."""
+    nombre: str                    # "Equipo Rojo"
+    color: str                     # "#EF4444"
+    tipo: str                      # "equipo" | "comodin" | "portero"
+    jugador_ids: List[str]         # UUIDs de jugadores
+
+
+class EspacioFormacion(BaseModel):
+    """Un espacio (instancia) de la formacion."""
+    nombre: str                    # "Espacio 1"
+    estructura: str                # "4v4+2" (adaptada al num real)
+    grupos: List[GrupoFormacion]
+
+
+class FormacionEquipos(BaseModel):
+    """Formacion completa de equipos para una tarea."""
+    estructura_original: str       # La estructura de la tarea
+    auto_generado: bool = False    # True si fue generado por IA
+    espacios: List[EspacioFormacion]
+
+
+class FormacionEquiposUpdate(BaseModel):
+    """Schema para actualizar formacion de equipos."""
+    formacion_equipos: Optional[FormacionEquipos] = None
+
+
 class SesionTareaBase(BaseModel):
     """Schema base para tarea dentro de sesión."""
     tarea_id: UUID
@@ -68,9 +95,12 @@ class SesionTareaResponse(SesionTareaBase):
     id: UUID
     sesion_id: UUID
     created_at: datetime
-    
+
     # Tarea completa incluida
     tarea: Optional[TareaResponse] = None
+
+    # Formacion de equipos per-tarea
+    formacion_equipos: Optional[dict] = None
     
     @computed_field
     @property
@@ -88,28 +118,46 @@ class SesionTareaResponse(SesionTareaBase):
 
 # ============ Schemas de Sesión ============
 
+class SesionTareaUpdate(BaseModel):
+    """Schema para actualizar una tarea individual dentro de sesion."""
+    orden: Optional[int] = None
+    fase_sesion: Optional[FaseSesion] = None
+    duracion_override: Optional[int] = None
+    notas: Optional[str] = None
+
+
+class SesionTareasBatchUpdate(BaseModel):
+    """Schema para reemplazar todas las tareas de una sesion en batch."""
+    tareas: List[SesionTareaCreate]
+
+
 class SesionBase(BaseModel):
     """Schema base de sesión."""
     titulo: str = Field(..., min_length=3, max_length=255)
     fecha: date
-    
+
     # Match Day
     match_day: MatchDay
     rival: Optional[str] = Field(None, max_length=255)
     competicion: Optional[str] = Field(None, max_length=255)
-    
+
     # Objetivo
     objetivo_principal: Optional[str] = None
     fase_juego_principal: Optional[str] = None
     principio_tactico_principal: Optional[str] = None
-    
+
     # Carga
     carga_fisica_objetivo: Optional[str] = None
     intensidad_objetivo: Optional[Intensidad] = None
-    
+
     # Notas
     notas_pre: Optional[str] = None
     notas_post: Optional[str] = None
+
+    # Personalizacion
+    materiales: Optional[List[str]] = None
+    staff_asistentes: Optional[List[dict]] = None
+    fase_notas: Optional[dict] = None
 
 
 class SesionCreate(SesionBase):
@@ -134,6 +182,9 @@ class SesionUpdate(BaseModel):
     notas_post: Optional[str] = None
     estado: Optional[EstadoSesion] = None
     microciclo_id: Optional[UUID] = None
+    materiales: Optional[List[str]] = None
+    staff_asistentes: Optional[List[dict]] = None
+    fase_notas: Optional[dict] = None
 
 
 class SesionResponse(SesionBase):
@@ -146,10 +197,15 @@ class SesionResponse(SesionBase):
     estado: EstadoSesion
     pdf_url: Optional[str] = None
     microciclo_id: Optional[UUID] = None
-    
+
+    # Personalizacion
+    materiales: Optional[List[str]] = None
+    staff_asistentes: Optional[List[dict]] = None
+    fase_notas: Optional[dict] = None
+
     created_at: datetime
     updated_at: datetime
-    
+
     # Tareas de la sesión (ordenadas)
     tareas: List[SesionTareaResponse] = []
     
@@ -279,9 +335,19 @@ class AITareaNueva(BaseModel):
     nivel_cognitivo: int = Field(default=2, ge=1, le=3)
     densidad: str = Field(default="media")
 
+    # Diagrama táctico
+    grafico_data: Optional[dict] = None
+
+    # Detalles adicionales
+    variantes: List[str] = Field(default_factory=list)
+    material: List[str] = Field(default_factory=list)
+    posicion_entrenador: Optional[str] = None
+    errores_comunes: List[str] = Field(default_factory=list)
+    consignas_defensivas: List[str] = Field(default_factory=list)
+
 
 class AIRecomendadorInput(BaseModel):
-    """Input para el recomendador con IA (Gemini)."""
+    """Input para el recomendador con IA (Claude)."""
     match_day: MatchDay
     num_jugadores: int = Field(..., ge=4, le=30)
     num_porteros: int = Field(default=2, ge=0, le=4)
@@ -354,4 +420,4 @@ class AIRecomendadorOutput(BaseModel):
 
     # Metadatos
     match_day: str
-    generado_por: str = "gemini"
+    generado_por: str = "claude"
