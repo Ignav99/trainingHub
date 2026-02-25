@@ -1027,6 +1027,81 @@ export interface Partido {
   equipo?: Equipo
 }
 
+// ============================================
+// RFEF ACTAS
+// ============================================
+
+export interface RFEFActaJugador {
+  dorsal: number | null
+  nombre: string
+  tarjeta: 'amarilla' | 'roja' | null
+}
+
+export interface RFEFActaGol {
+  minuto: number
+  jugador: string
+  parcial_local: number | null
+  parcial_visitante: number | null
+}
+
+export interface RFEFActaTarjeta {
+  jugador: string
+  tipo: 'amarilla' | 'roja'
+}
+
+export interface RFEFActaSustitucion {
+  minuto: number
+  jugador: string
+}
+
+export interface RFEFActa {
+  id: string
+  competicion_id: string
+  jornada_numero: number
+  cod_acta: string
+  local_nombre: string
+  visitante_nombre: string
+  local_escudo_url?: string
+  visitante_escudo_url?: string
+  goles_local: number | null
+  goles_visitante: number | null
+  estadio?: string
+  ciudad?: string
+  fecha?: string
+  hora?: string
+  titulares_local: RFEFActaJugador[]
+  suplentes_local: RFEFActaJugador[]
+  titulares_visitante: RFEFActaJugador[]
+  suplentes_visitante: RFEFActaJugador[]
+  goles: RFEFActaGol[]
+  tarjetas_local: RFEFActaTarjeta[]
+  tarjetas_visitante: RFEFActaTarjeta[]
+  sustituciones_local: RFEFActaSustitucion[]
+  sustituciones_visitante: RFEFActaSustitucion[]
+  cuerpo_tecnico_local: Record<string, string>
+  cuerpo_tecnico_visitante: Record<string, string>
+  created_at: string
+  updated_at: string
+}
+
+export interface RFEFActaResumen {
+  id: string
+  competicion_id: string
+  jornada_numero: number
+  cod_acta: string
+  local_nombre: string
+  visitante_nombre: string
+  local_escudo_url?: string
+  visitante_escudo_url?: string
+  goles_local: number | null
+  goles_visitante: number | null
+  estadio?: string
+  ciudad?: string
+  fecha?: string
+  hora?: string
+  created_at: string
+}
+
 // Evento de calendario (unifica sesiones, partidos, descansos)
 export interface EventoCalendario {
   id: string

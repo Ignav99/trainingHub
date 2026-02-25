@@ -25,6 +25,7 @@ export interface RFEFGoleador {
   jugador: string
   equipo: string
   goles: number
+  pj?: number
 }
 
 export interface RFEFPartidoJornada {
@@ -35,6 +36,7 @@ export interface RFEFPartidoJornada {
   fecha: string
   hora: string
   campo: string
+  cod_acta?: string
 }
 
 export interface RFEFJornada {
@@ -202,5 +204,26 @@ export const rfefApi = {
   ): Promise<RivalPerfilCompeticion> {
     const params = competicionId ? { competicion_id: competicionId } : {}
     return api.get(`/rivales/${rivalId}/perfil-competicion`, { params })
+  },
+
+  // Actas
+  async syncActas(
+    competicionId: string,
+    jornadas?: number[],
+  ): Promise<{ status: string; actas_scraped: number; errors: number; total_available: number }> {
+    return api.post(`/rfef/competiciones/${competicionId}/sync-actas`, { jornadas })
+  },
+
+  async listActas(
+    competicionId: string,
+    jornada?: number,
+  ): Promise<{ data: import('@/types').RFEFActaResumen[]; total: number }> {
+    const params: Record<string, any> = {}
+    if (jornada !== undefined) params.jornada = jornada
+    return api.get(`/rfef/competiciones/${competicionId}/actas`, { params })
+  },
+
+  async getActa(codActa: string): Promise<import('@/types').RFEFActa> {
+    return api.get(`/rfef/actas/${codActa}`)
   },
 }

@@ -66,6 +66,7 @@ async def _upsert_jornada(supabase, comp_id: str, jornada: dict):
 async def _sync_one(supabase, scraper: RFAFScraper, comp: dict):
     """Sincroniza una competición individual.
     Refreshes current jornada plus jornada-1 and jornada+1.
+    Uses clasificación page for reliable scores (no ntype obfuscation).
     If mi_equipo_nombre is set, triggers auto-link.
     """
     comp_id = comp["id"]
@@ -95,14 +96,15 @@ async def _sync_one(supabase, scraper: RFAFScraper, comp: dict):
             jornada_num = jornada["numero"]
             await _upsert_jornada(supabase, comp_id, jornada)
 
-        # Also refresh jornada-1 and jornada+1 for adjacent results
+        # Also refresh adjacent jornadas (N-1 and N+1) using combined approach
+        # (scores from clasificación + fecha/hora/campo from jornada page)
         if jornada_num:
             import asyncio
             for adj_num in [jornada_num - 1, jornada_num + 1]:
                 if adj_num < 1:
                     continue
                 try:
-                    adj_jornada = await scraper.scrape_jornada(
+                    adj_jornada = await scraper.scrape_jornada_combined(
                         codcompeticion, codgrupo, str(adj_num), codtemporada
                     )
                     if adj_jornada.get("partidos"):

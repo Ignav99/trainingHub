@@ -115,20 +115,51 @@ def link_competition(supabase, comp: dict) -> dict:
         if r.get("rfef_nombre"):
             rival_lookup[r["rfef_nombre"].lower()] = r
 
+    # Build escudo lookup from rfef_actas if available
+    escudo_lookup = {}
+    try:
+        actas_res = supabase.table("rfef_actas").select(
+            "local_nombre, visitante_nombre, local_escudo_url, visitante_escudo_url"
+        ).eq("competicion_id", comp_id).execute()
+        for acta in actas_res.data or []:
+            if acta.get("local_escudo_url"):
+                escudo_lookup[acta["local_nombre"].lower()] = acta["local_escudo_url"]
+            if acta.get("visitante_escudo_url"):
+                escudo_lookup[acta["visitante_nombre"].lower()] = acta["visitante_escudo_url"]
+    except Exception:
+        pass  # Actas table might not exist yet
+
     # Create missing rivales
     rivales_created = 0
     for name in rival_names:
         name_lower = name.lower()
         if name_lower not in rival_lookup:
-            new_rival = supabase.table("rivales").insert({
+            rival_data = {
                 "organizacion_id": organizacion_id,
                 "nombre": name,
                 "rfef_nombre": name,
-            }).execute()
+            }
+            # Add escudo if available from actas
+            escudo = escudo_lookup.get(name_lower)
+            if escudo:
+                rival_data["escudo_url"] = escudo
+
+            new_rival = supabase.table("rivales").insert(rival_data).execute()
             if new_rival.data:
                 rival_lookup[name_lower] = new_rival.data[0]
                 rivales_created += 1
                 logger.info("Created rival: %s", name)
+        else:
+            # Update escudo if missing
+            existing = rival_lookup[name_lower]
+            escudo = escudo_lookup.get(name_lower)
+            if escudo and not existing.get("escudo_url"):
+                try:
+                    supabase.table("rivales").update({"escudo_url": escudo}).eq(
+                        "id", existing["id"]
+                    ).execute()
+                except Exception:
+                    pass
 
     # Load existing partidos for this competition
     existing_partidos_res = supabase.table("partidos").select("*").eq(

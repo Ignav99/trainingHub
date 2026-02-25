@@ -1,6 +1,6 @@
 """
 TrainingHub Pro - Router de RFEF
-Gestión de competiciones y jornadas RFEF con scraping automático.
+Gestión de competiciones, jornadas y actas RFEF con scraping automático.
 """
 
 import logging
@@ -317,7 +317,8 @@ async def sync_competicion_full(
     competicion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
 ):
-    """Sync completo: descarga TODAS las jornadas y las guarda, luego auto-link si mi_equipo está puesto."""
+    """Sync completo: descarga TODAS las jornadas con scores desde clasificación (texto plano),
+    luego auto-link si mi_equipo está puesto."""
     supabase = get_supabase()
 
     comp = supabase.table("rfef_competiciones").select("*").eq(
@@ -364,6 +365,18 @@ async def sync_competicion_full(
     supabase.table("rfef_competiciones").update(update).eq(
         "id", str(competicion_id)
     ).execute()
+
+    # Clean bad data: delete auto-created partidos with scores > 20
+    try:
+        supabase.table("partidos").delete().eq(
+            "rfef_competicion_id", str(competicion_id)
+        ).eq("auto_creado", True).gt("goles_favor", 20).execute()
+
+        supabase.table("partidos").delete().eq(
+            "rfef_competicion_id", str(competicion_id)
+        ).eq("auto_creado", True).gt("goles_contra", 20).execute()
+    except Exception as e:
+        logger.warning("Error cleaning bad match data: %s", e)
 
     # Upsert ALL jornadas
     jornadas_saved = 0
@@ -427,6 +440,191 @@ async def link_competicion(
 
     result = link_competition(supabase, comp.data)
     return result
+
+
+# ============ Actas ============
+
+class SyncActasRequest(BaseModel):
+    jornadas: Optional[list[int]] = None  # Specific jornadas, or None for all
+
+
+@router.post("/competiciones/{competicion_id}/sync-actas")
+async def sync_actas(
+    competicion_id: UUID,
+    body: SyncActasRequest = Body(default=SyncActasRequest()),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
+):
+    """Scrape actas de jornada(s) específica(s) o todas.
+    Saves detailed match reports (lineups, goals, cards, substitutions).
+    """
+    supabase = get_supabase()
+
+    comp = supabase.table("rfef_competiciones").select("*").eq(
+        "id", str(competicion_id)
+    ).single().execute()
+
+    if not comp.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Competición no encontrada",
+        )
+
+    # Get jornadas with cod_acta info
+    jornadas_query = supabase.table("rfef_jornadas").select("*").eq(
+        "competicion_id", str(competicion_id)
+    ).order("numero")
+
+    if body.jornadas:
+        jornadas_query = jornadas_query.in_("numero", body.jornadas)
+
+    jornadas_res = jornadas_query.execute()
+    jornadas = jornadas_res.data or []
+
+    # Collect all cod_actas from jornadas
+    actas_to_scrape = []
+    for jornada in jornadas:
+        for partido in jornada.get("partidos", []):
+            cod_acta = partido.get("cod_acta")
+            if cod_acta:
+                actas_to_scrape.append({
+                    "cod_acta": cod_acta,
+                    "jornada_numero": jornada["numero"],
+                })
+
+    if not actas_to_scrape:
+        return {
+            "status": "ok",
+            "message": "No hay actas disponibles para scraping",
+            "actas_scraped": 0,
+        }
+
+    scraper = RFAFScraper()
+    actas_saved = 0
+    errors = 0
+
+    try:
+        import asyncio
+        for acta_info in actas_to_scrape:
+            try:
+                acta_data = await scraper.scrape_acta(acta_info["cod_acta"])
+
+                # Parse fecha/hora from jornada data
+                fecha = None
+                hora = None
+                for jornada in jornadas:
+                    if jornada["numero"] == acta_info["jornada_numero"]:
+                        for p in jornada.get("partidos", []):
+                            if p.get("cod_acta") == acta_info["cod_acta"]:
+                                if p.get("fecha"):
+                                    try:
+                                        from datetime import datetime as dt
+                                        fecha = dt.strptime(p["fecha"], "%d-%m-%Y").date().isoformat()
+                                    except ValueError:
+                                        pass
+                                hora = p.get("hora") or None
+                                break
+
+                # Upsert acta
+                acta_record = {
+                    "competicion_id": str(competicion_id),
+                    "jornada_numero": acta_info["jornada_numero"],
+                    "cod_acta": acta_info["cod_acta"],
+                    "local_nombre": acta_data["local"]["nombre"],
+                    "visitante_nombre": acta_data["visitante"]["nombre"],
+                    "local_escudo_url": acta_data["local"].get("escudo_url"),
+                    "visitante_escudo_url": acta_data["visitante"].get("escudo_url"),
+                    "goles_local": acta_data.get("goles_local"),
+                    "goles_visitante": acta_data.get("goles_visitante"),
+                    "estadio": acta_data.get("estadio", ""),
+                    "ciudad": acta_data.get("ciudad", ""),
+                    "fecha": fecha,
+                    "hora": hora,
+                    "titulares_local": acta_data.get("titulares_local", []),
+                    "suplentes_local": acta_data.get("suplentes_local", []),
+                    "titulares_visitante": acta_data.get("titulares_visitante", []),
+                    "suplentes_visitante": acta_data.get("suplentes_visitante", []),
+                    "goles": acta_data.get("goles", []),
+                    "tarjetas_local": acta_data.get("tarjetas_local", []),
+                    "tarjetas_visitante": acta_data.get("tarjetas_visitante", []),
+                    "sustituciones_local": acta_data.get("sustituciones_local", []),
+                    "sustituciones_visitante": acta_data.get("sustituciones_visitante", []),
+                    "cuerpo_tecnico_local": acta_data.get("cuerpo_tecnico_local", {}),
+                    "cuerpo_tecnico_visitante": acta_data.get("cuerpo_tecnico_visitante", {}),
+                    "updated_at": datetime.utcnow().isoformat(),
+                }
+
+                existing = supabase.table("rfef_actas").select("id").eq(
+                    "cod_acta", acta_info["cod_acta"]
+                ).execute()
+
+                if existing.data:
+                    supabase.table("rfef_actas").update(acta_record).eq(
+                        "id", existing.data[0]["id"]
+                    ).execute()
+                else:
+                    supabase.table("rfef_actas").insert(acta_record).execute()
+
+                actas_saved += 1
+                await asyncio.sleep(0.5)
+
+            except Exception as e:
+                logger.warning("Error scraping acta %s: %s", acta_info["cod_acta"], e)
+                errors += 1
+                continue
+    finally:
+        await scraper.close()
+
+    return {
+        "status": "ok",
+        "actas_scraped": actas_saved,
+        "errors": errors,
+        "total_available": len(actas_to_scrape),
+    }
+
+
+@router.get("/competiciones/{competicion_id}/actas")
+async def list_actas(
+    competicion_id: UUID,
+    jornada: Optional[int] = None,
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """Lista actas guardadas de una competición."""
+    supabase = get_supabase()
+
+    query = supabase.table("rfef_actas").select(
+        "id, competicion_id, jornada_numero, cod_acta, "
+        "local_nombre, visitante_nombre, local_escudo_url, visitante_escudo_url, "
+        "goles_local, goles_visitante, estadio, ciudad, fecha, hora, created_at"
+    ).eq("competicion_id", str(competicion_id))
+
+    if jornada is not None:
+        query = query.eq("jornada_numero", jornada)
+
+    query = query.order("jornada_numero")
+    response = query.execute()
+
+    return {"data": response.data, "total": len(response.data)}
+
+
+@router.get("/actas/{cod_acta}")
+async def get_acta(
+    cod_acta: str,
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """Detalle completo de un acta."""
+    supabase = get_supabase()
+
+    response = supabase.table("rfef_actas").select("*").eq(
+        "cod_acta", cod_acta
+    ).single().execute()
+
+    if not response.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Acta no encontrada",
+        )
+
+    return response.data
 
 
 # ============ Scraping / Sync ============
