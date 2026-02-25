@@ -985,6 +985,9 @@ export interface Rival {
   estadio?: string
   ciudad?: string
   notas?: string
+  rfef_nombre?: string
+  sistema_juego?: string
+  estilo?: string
   created_at: string
   updated_at: string
 }
@@ -1010,6 +1013,11 @@ export interface Partido {
   notas_post?: string
   video_url?: string
   informe_url?: string
+
+  // Competition link
+  rfef_competicion_id?: string
+  auto_creado?: boolean
+  ubicacion?: string
 
   created_at: string
   updated_at: string

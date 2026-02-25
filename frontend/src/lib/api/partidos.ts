@@ -10,6 +10,9 @@ export interface RivalCreateData {
   estadio?: string
   ciudad?: string
   notas?: string
+  rfef_nombre?: string
+  sistema_juego?: string
+  estilo?: string
 }
 
 export interface RivalUpdateData extends Partial<RivalCreateData> {}
@@ -116,5 +119,9 @@ export const partidosApi = {
       params.notas_post = notas_post
     }
     return api.post<Partido>(`/partidos/${id}/resultado`, null, { params })
+  },
+
+  async generarInforme(id: string): Promise<{ informe_url: string }> {
+    return api.post<{ informe_url: string }>(`/partidos/${id}/informe`)
   },
 }

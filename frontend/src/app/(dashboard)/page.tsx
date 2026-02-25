@@ -734,6 +734,9 @@ export default function DashboardPage() {
                             {p.localia === 'local' ? 'vs' : '@'}{' '}
                             {p.rival?.nombre_corto || p.rival?.nombre || 'Rival'}
                           </span>
+                          {p.auto_creado && (
+                            <span className="text-[8px] font-medium bg-blue-100 text-blue-700 px-1 rounded">RFAF</span>
+                          )}
                         </div>
                         {p.hora && (
                           <span className="text-[9px] text-amber-600 ml-4">{p.hora}</span>

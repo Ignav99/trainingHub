@@ -43,6 +43,9 @@ class RivalBase(BaseModel):
     estadio: Optional[str] = Field(None, max_length=100)
     ciudad: Optional[str] = Field(None, max_length=100)
     notas: Optional[str] = None
+    rfef_nombre: Optional[str] = None
+    sistema_juego: Optional[str] = Field(None, max_length=20)
+    estilo: Optional[str] = Field(None, max_length=50)
 
 
 class RivalCreate(RivalBase):
@@ -58,6 +61,9 @@ class RivalUpdate(BaseModel):
     estadio: Optional[str] = Field(None, max_length=100)
     ciudad: Optional[str] = Field(None, max_length=100)
     notas: Optional[str] = None
+    rfef_nombre: Optional[str] = None
+    sistema_juego: Optional[str] = Field(None, max_length=20)
+    estilo: Optional[str] = Field(None, max_length=50)
 
 
 class RivalResponse(RivalBase):
@@ -101,6 +107,11 @@ class PartidoBase(BaseModel):
     video_url: Optional[str] = None
     informe_url: Optional[str] = None
 
+    # Competition link
+    rfef_competicion_id: Optional[UUID] = None
+    auto_creado: Optional[bool] = False
+    ubicacion: Optional[str] = None
+
 
 class PartidoCreate(PartidoBase):
     """Schema para crear partido."""
@@ -121,6 +132,7 @@ class PartidoUpdate(BaseModel):
     notas_post: Optional[str] = None
     video_url: Optional[str] = None
     informe_url: Optional[str] = None
+    ubicacion: Optional[str] = None
 
 
 class PartidoResponse(PartidoBase):
