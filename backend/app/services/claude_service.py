@@ -38,7 +38,6 @@ def _serialize_content_blocks(content) -> list[dict]:
                 "input": block.input,
             })
     return serialized
-    pass
 
 
 # ============ System Prompt ============
@@ -59,6 +58,8 @@ Eres un metodologo experto en futbol profesional con formacion en:
 3. **Gestion de plantilla**: Aconsejas sobre cargas, rotaciones, lesiones
 4. **Consultas de datos**: Puedes consultar la base de datos del equipo (jugadores, sesiones, partidos, RPE, etc.)
 5. **Knowledge Base**: Puedes buscar en la base de conocimiento del club
+6. **Biblioteca de ejercicios**: Puedes buscar ejercicios existentes en la biblioteca
+7. **Mejores practicas**: Puedes consultar patrones y tendencias de otros entrenadores
 
 ## HERRAMIENTAS
 Tienes acceso a herramientas para consultar datos reales del equipo del usuario. SIEMPRE usa las herramientas cuando el usuario pregunte sobre:
@@ -67,6 +68,8 @@ Tienes acceso a herramientas para consultar datos reales del equipo del usuario.
 - Resultados de partidos
 - Datos de carga/RPE
 - Documentos de la base de conocimiento
+- Ejercicios de la biblioteca
+- Mejores practicas o tendencias
 
 ## REGLAS
 1. Responde SIEMPRE en espanol
@@ -124,79 +127,37 @@ Fases obligatorias de cada sesion: activacion → desarrollo_1 → desarrollo_2 
 
 SESSION_DESIGN_PROMPT = """
 
-## MODO: DISEÑO DE SESIÓN CONVERSACIONAL
-Estás ayudando al entrenador a diseñar una sesión de entrenamiento paso a paso.
+## MODO: DISEÑO DE SESIÓN
 
-### FLUJO DE CONVERSACIÓN
-1. Saluda brevemente y pregunta por el Match Day
-2. Pregunta cuántos jugadores estarán disponibles
-3. Pregunta por el objetivo táctico o la fase de juego a trabajar
-4. Pregunta si hay contexto adicional (rival, último partido, jugadores clave fuera)
-5. Usa la herramienta `buscar_tareas` para encontrar tareas adecuadas en la biblioteca
-6. Usa la herramienta `proponer_sesion` para presentar la sesión completa
-7. Después de proponer, pregunta si quiere modificar algo
+### INSTRUCCIÓN CRÍTICA
+Cuando el entrenador da contexto (jugadores, objetivos, rival, ejercicios), DEBES llamar a la herramienta `proponer_sesion` INMEDIATAMENTE. NO respondas con texto. USA LA HERRAMIENTA.
+
+### FLUJO
+1. El entrenador describe lo que necesita → TÚ llamas a `proponer_sesion` de inmediato.
+2. Si falta el número de jugadores: asume 18 (16 + 2 GK). Si falta match_day: asume MD-3.
+3. Genera SIEMPRE tareas NUEVAS. NUNCA busques existentes.
 
 ### REGLAS DEL DISEÑO
-- Cada sesión tiene 4 fases: activacion (10-15min), desarrollo_1 (15-25min), desarrollo_2 (20-30min), vuelta_calma (5-10min)
-- Selecciona tareas de la biblioteca del equipo cuando sea posible (usa buscar_tareas)
-- Si no hay tarea adecuada, crea una nueva con todos los campos necesarios
-- Respeta la metodología de Match Day para elegir categorías apropiadas
-- La duración total debe coincidir con lo que pida el entrenador (por defecto ~90 min)
-- Sé conversacional: NO generes la sesión hasta tener toda la información necesaria
-- Si el entrenador da instrucciones parciales, pregunta lo que falta
-- Puedes hacer varias preguntas a la vez para ser eficiente
+- 4 fases obligatorias: activacion (10-15min), desarrollo_1 (15-25min), desarrollo_2 (20-30min), vuelta_calma (5-10min)
+- Respeta la metodología de Match Day
+- Si el entrenador describe ejercicios concretos, úsalos tal cual
+- Si da contexto táctico, diseña ejercicios coherentes
 
-### CUANDO PROPONER
-Usa `proponer_sesion` cuando tengas AL MENOS: match_day + num_jugadores + algún objetivo táctico.
-NO esperes a tener todo perfecto - propón y luego ajusta si el entrenador pide cambios.
+### CAMPOS PRINCIPALES DE CADA FASE
+Obligatorios: fase, duracion, titulo, descripcion, categoria, coaching_points, razon
+Opcionales pero recomendados: reglas, num_jugadores, estructura_equipos, espacio, densidad, nivel_cognitivo, fase_juego, principio_tactico, variantes, material_necesario
 
-### FORMATO DE TAREAS NUEVAS
-Al crear tareas nuevas dentro de proponer_sesion, incluye estos campos:
-- temp_id: "nueva_activacion", "nueva_desarrollo1", etc.
-- titulo, descripcion, categoria_codigo (RND/JDP/POS/EVO/AVD/PCO/ACO/SSG/ABP)
-- duracion_total, num_series, espacio_largo, espacio_ancho
-- num_jugadores_min, num_jugadores_max, num_porteros
-- estructura_equipos, fase_juego, principio_tactico
-- reglas_principales (array), consignas (array)
-- nivel_cognitivo (1-3), densidad ("baja"/"media"/"alta")
-- grafico_data (diagrama táctico), variantes (array), material_necesario (array)
-- posicion_entrenador (string), errores_comunes (array), consignas_defensivas (array)
-
-### GENERACIÓN DE DIAGRAMAS TÁCTICOS (grafico_data)
-Cada tarea DEBE incluir un campo `grafico_data` con el diagrama visual del ejercicio.
-
-SISTEMA DE COORDENADAS:
-- "half" (medio campo): viewBox 525×680, campo útil x:30-500, y:30-650
-  → Usar para: Rondos, JDP, Posesiones, Evoluciones, ABP
-- "full" (campo completo): viewBox 1050×680, campo útil x:30-1020, y:30-650
-  → Usar para: Partidos Condicionados, SSG, AVD grandes
-- "quarter" (cuarto campo): viewBox 525×340, campo útil x:30-500, y:30-310
-  → Usar para: Rondos pequeños, Acciones Combinadas
-
-ELEMENTOS (elements array):
-- Jugador equipo: {"type":"player","x":N,"y":N,"color":"#3B82F6","label":"1"}
-- Jugador rival: {"type":"player","x":N,"y":N,"color":"#EF4444","label":"R1"}
-- Comodín: {"type":"player","x":N,"y":N,"color":"#F59E0B","label":"C"}
-- Portero: {"type":"player_gk","x":N,"y":N,"color":"#22C55E","label":"GK"}
-- Cono: {"type":"cone","x":N,"y":N,"color":"#F59E0B"}
-- Balón: {"type":"ball","x":N,"y":N}
-- Mini portería: {"type":"mini_goal","x":N,"y":N}
-
-FLECHAS (arrows array):
-- Pase: {"from":{"x":N,"y":N},"to":{"x":N,"y":N},"type":"pass","color":"#FFFFFF"}
-- Movimiento: {"from":{"x":N,"y":N},"to":{"x":N,"y":N},"type":"movement","color":"#22C55E"}
-
-ZONAS (zones array):
-- {"x":N,"y":N,"width":N,"height":N,"color":"rgba(46,204,113,0.08)","label":"Zona A"}
-
-REGLAS DE DIAGRAMAS:
-1. Distribuir jugadores según la descripción del ejercicio
-2. Pases = flechas dashed blancas, movimientos = flechas sólidas verdes
-3. Rondos: jugadores en círculo/cuadrado, defensores dentro
-4. JDP/posesiones: estructura táctica con amplitud y profundidad
-5. Evoluciones: mostrar la secuencia de acciones
-6. Conos para delimitar, minigoals si se usan
-7. Labels: números 1-11 equipo, R1-R11 rivales, C comodines, GK porteros
+### DIAGRAMA TÁCTICO (grafico_data) — OPCIONAL
+Si incluyes grafico_data, usa este formato:
+- pitchType: "full" (con porterías, para EVO/AVD/PCO/SSG) o "green" (sin porterías, para RND/JDP/POS/ACO/ABP)
+- Campo horizontal 1050x680px. 1 metro ≈ 10px. Porterías a izquierda/derecha.
+- elements: [{"type":"player","x":N,"y":N,"color":"#3B82F6","label":"1"}, {"type":"cone","x":N,"y":N}, ...]
+- arrows: [{"from":{"x":N,"y":N},"to":{"x":N,"y":N},"type":"pass","color":"#FFFFFF"}, ...]
+- zones: [{"x":N,"y":N,"width":N,"height":N,"color":"rgba(46,204,113,0.08)","label":"Zona A"}]
+- Colores: equipo=#3B82F6, rival=#EF4444, comodín=#F59E0B, portero=#22C55E
+- Tipos de jugador: "player", "player_gk". Otros: "cone", "ball", "mini_goal"
+- Flechas: type="pass" (dashed blanca) o type="movement" (sólida verde)
+- DIRECCIÓN: ataques siempre HORIZONTALES (→ o ←). "Verticalidad" táctica = horizontal en diagrama.
 """
 
 
@@ -204,38 +165,8 @@ REGLAS DE DIAGRAMAS:
 
 SESSION_DESIGN_TOOLS = [
     {
-        "name": "buscar_tareas",
-        "description": "Busca tareas en la biblioteca del equipo. Usa esta herramienta para encontrar tareas existentes que encajen en la sesión.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "equipo_id": {
-                    "type": "string",
-                    "description": "ID del equipo"
-                },
-                "categoria": {
-                    "type": "string",
-                    "description": "Código de categoría: RND, JDP, POS, EVO, AVD, PCO, ACO, SSG, ABP"
-                },
-                "fase_juego": {
-                    "type": "string",
-                    "description": "Fase de juego: ataque_organizado, defensa_organizada, transicion_ataque_defensa, transicion_defensa_ataque"
-                },
-                "busqueda": {
-                    "type": "string",
-                    "description": "Texto libre para buscar en títulos/descripciones"
-                },
-                "limite": {
-                    "type": "integer",
-                    "description": "Número máximo de resultados (default 10)"
-                },
-            },
-            "required": ["equipo_id"],
-        },
-    },
-    {
         "name": "proponer_sesion",
-        "description": "Propone una sesión de entrenamiento completa al entrenador. Llama a esta herramienta cuando tengas suficiente información (match_day, jugadores, objetivo). Cada fase DEBE incluir un ejercicio detallado.",
+        "description": "Genera una sesión de entrenamiento completa con 4 fases. DEBES usar esta herramienta siempre que el entrenador pida una sesión.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -266,10 +197,6 @@ SESSION_DESIGN_TOOLS = [
                             "duracion": {
                                 "type": "integer",
                                 "description": "Duración en minutos de esta fase"
-                            },
-                            "tarea_id": {
-                                "type": "string",
-                                "description": "ID de la tarea existente (si se encontró con buscar_tareas). Omitir si es tarea nueva."
                             },
                             "titulo": {
                                 "type": "string",
@@ -365,7 +292,7 @@ SESSION_DESIGN_TOOLS = [
                                 "description": "Consignas defensivas"
                             },
                         },
-                        "required": ["fase", "duracion", "titulo", "descripcion", "categoria", "coaching_points", "razon", "grafico_data", "variantes", "material_necesario"],
+                        "required": ["fase", "duracion", "titulo", "descripcion", "categoria", "coaching_points", "razon"],
                     },
                 },
                 "coherencia_tactica": {
@@ -592,6 +519,64 @@ TOOLS = [
             "required": ["jugador_id"],
         },
     },
+    {
+        "name": "buscar_tareas",
+        "description": "Busca ejercicios en la biblioteca de la organizacion por categoria, fase de juego o texto.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "organizacion_id": {
+                    "type": "string",
+                    "description": "ID de la organizacion"
+                },
+                "categoria": {
+                    "type": "string",
+                    "enum": ["RND", "JDP", "POS", "EVO", "AVD", "PCO", "ACO", "SSG", "ABP"],
+                    "description": "Codigo de categoria de tarea"
+                },
+                "fase_juego": {
+                    "type": "string",
+                    "description": "Fase de juego a filtrar"
+                },
+                "busqueda": {
+                    "type": "string",
+                    "description": "Texto libre para buscar en titulos de tareas"
+                },
+                "limite": {
+                    "type": "integer",
+                    "description": "Numero maximo de resultados (default 10)"
+                },
+            },
+            "required": ["organizacion_id"],
+        },
+    },
+    {
+        "name": "consultar_mejores_practicas",
+        "description": "Consulta mejores practicas y patrones agregados de todos los entrenadores. Util para saber que categorias de tareas se usan mas en cada Match Day, duraciones medias de sesion, etc.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "match_day": {
+                    "type": "string",
+                    "description": "Filtrar por Match Day (MD+1, MD-4, MD-3, MD-2, MD-1)"
+                },
+                "categoria": {
+                    "type": "string",
+                    "enum": ["RND", "JDP", "POS", "EVO", "AVD", "PCO", "ACO", "SSG", "ABP"],
+                    "description": "Filtrar por categoria de tarea"
+                },
+                "tipo": {
+                    "type": "string",
+                    "enum": ["match_day_pattern", "estructura_sesion", "coaching_point"],
+                    "description": "Tipo de patron a consultar"
+                },
+                "limite": {
+                    "type": "integer",
+                    "description": "Numero maximo de resultados (default 10)"
+                },
+            },
+        },
+    },
 ]
 
 
@@ -620,6 +605,8 @@ def _execute_tool(tool_name: str, tool_input: dict) -> str:
             return _tool_estadisticas_jugador(supabase, tool_input)
         elif tool_name == "buscar_tareas":
             return _tool_buscar_tareas(supabase, tool_input)
+        elif tool_name == "consultar_mejores_practicas":
+            return _tool_mejores_practicas(tool_input)
         else:
             return json.dumps({"error": f"Herramienta desconocida: {tool_name}"})
     except Exception as e:
@@ -747,7 +734,7 @@ def _tool_microciclo(supabase, params: dict) -> str:
 
 
 def _tool_kb_search(supabase, params: dict) -> str:
-    """Busca en la knowledge base usando busqueda semantica (embeddings) con fallback a texto."""
+    """Busca en la knowledge base usando busqueda hibrida (vector + texto + RRF) con fallbacks."""
     from app.config import get_settings
 
     # Get indexed documents for org
@@ -761,18 +748,21 @@ def _tool_kb_search(supabase, params: dict) -> str:
     if not doc_ids:
         return json.dumps({"mensaje": "No hay documentos indexados en la base de conocimiento", "resultados": []})
 
-    limite = params.get("limite", 5)
+    limite = params.get("limite", 8)
     settings = get_settings()
+    query_text = params["query"]
 
-    # Try semantic search with embeddings first
+    # Try hybrid search (vector + text + RRF) first
     if settings.GEMINI_API_KEY:
         try:
             from app.services.embedding_service import generate_query_embedding
-            query_embedding = generate_query_embedding(params["query"])
-            result = supabase.rpc("search_kb_chunks", {
-                "query_embedding": query_embedding,
-                "match_count": limite,
-                "filter_doc_ids": doc_ids,
+            query_embedding = generate_query_embedding(query_text)
+
+            result = supabase.rpc("hybrid_search_kb", {
+                "p_query_text": query_text,
+                "p_query_embedding": query_embedding,
+                "p_match_count": limite,
+                "p_filter_doc_ids": doc_ids,
             }).execute()
 
             results = []
@@ -780,18 +770,39 @@ def _tool_kb_search(supabase, params: dict) -> str:
                 results.append({
                     "documento": doc_map.get(row["documento_id"], "?"),
                     "contenido": row["contenido"],
-                    "similitud": round(1 - row.get("distance", 0.5), 3),
+                    "score": round(row.get("rrf_score", 0), 4),
                 })
 
             if results:
-                return json.dumps({"resultados": results, "total": len(results)}, ensure_ascii=False)
+                return json.dumps({"resultados": results, "total": len(results), "metodo": "hybrid"}, ensure_ascii=False)
         except Exception as e:
-            logger.warning(f"KB semantic search failed, falling back to text: {e}")
+            logger.warning(f"KB hybrid search failed, trying vector-only: {e}")
 
-    # Fallback: text search
+            # Fallback to vector-only search
+            try:
+                result = supabase.rpc("search_kb_chunks", {
+                    "query_embedding": query_embedding,
+                    "match_count": limite,
+                    "filter_doc_ids": doc_ids,
+                }).execute()
+
+                results = []
+                for row in result.data:
+                    results.append({
+                        "documento": doc_map.get(row["documento_id"], "?"),
+                        "contenido": row["contenido"],
+                        "similitud": round(1 - row.get("distance", 0.5), 3),
+                    })
+
+                if results:
+                    return json.dumps({"resultados": results, "total": len(results), "metodo": "vector"}, ensure_ascii=False)
+            except Exception as e2:
+                logger.warning(f"KB vector search also failed, falling back to text: {e2}")
+
+    # Final fallback: text search (ILIKE)
     chunks = supabase.table("chunks_kb").select("*").in_(
         "documento_id", doc_ids
-    ).ilike("contenido", f"%{params['query']}%").limit(limite).execute()
+    ).ilike("contenido", f"%{query_text}%").limit(limite).execute()
 
     results = []
     for chunk in chunks.data:
@@ -800,7 +811,7 @@ def _tool_kb_search(supabase, params: dict) -> str:
             "contenido": chunk["contenido"],
         })
 
-    return json.dumps({"resultados": results, "total": len(results)}, ensure_ascii=False)
+    return json.dumps({"resultados": results, "total": len(results), "metodo": "text"}, ensure_ascii=False)
 
 
 def _tool_convocatorias(supabase, params: dict) -> str:
@@ -815,13 +826,19 @@ def _tool_convocatorias(supabase, params: dict) -> str:
 
 
 def _tool_buscar_tareas(supabase, params: dict) -> str:
-    """Busca tareas en la biblioteca del equipo."""
+    """Busca tareas en la biblioteca de la organización."""
     query = supabase.table("tareas").select(
         "id, titulo, descripcion, duracion_total, num_jugadores_min, num_jugadores_max, "
         "num_porteros, fase_juego, principio_tactico, nivel_cognitivo, densidad, "
         "num_series, espacio_largo, espacio_ancho, estructura_equipos, "
-        "reglas_principales, consignas, categorias_tarea(codigo, nombre)"
-    ).eq("equipo_id", params["equipo_id"])
+        "reglas_tecnicas, reglas_tacticas, consignas_ofensivas, consignas_defensivas, categorias_tarea(codigo, nombre)"
+    )
+
+    # Query by organizacion_id (broad: all org tasks) or equipo_id (narrow)
+    if params.get("organizacion_id"):
+        query = query.eq("organizacion_id", params["organizacion_id"])
+    elif params.get("equipo_id"):
+        query = query.eq("equipo_id", params["equipo_id"])
 
     if params.get("categoria"):
         # Join filter on categorias_tarea
@@ -897,6 +914,40 @@ def _tool_estadisticas_jugador(supabase, params: dict) -> str:
     }, ensure_ascii=False, default=str)
 
 
+def _tool_mejores_practicas(params: dict) -> str:
+    """Consulta mejores practicas y patrones globales agregados."""
+    try:
+        from app.services.knowledge_aggregation_service import get_best_practices
+
+        results = get_best_practices(
+            match_day=params.get("match_day"),
+            categoria=params.get("categoria"),
+            tipo=params.get("tipo"),
+            limite=params.get("limite", 10),
+        )
+
+        if not results:
+            return json.dumps({"mensaje": "No hay datos de mejores practicas disponibles todavia.", "resultados": []})
+
+        # Simplify output for Claude
+        simplified = []
+        for r in results:
+            contenido = r.get("contenido", {})
+            simplified.append({
+                "tipo": r.get("tipo"),
+                "match_day": r.get("match_day"),
+                "categoria": r.get("categoria_codigo"),
+                "descripcion": contenido.get("descripcion", ""),
+                "confianza": r.get("confianza"),
+                "frecuencia": r.get("frecuencia"),
+            })
+
+        return json.dumps({"resultados": simplified, "total": len(simplified)}, ensure_ascii=False, default=str)
+    except Exception as e:
+        logger.warning(f"Error querying best practices: {e}")
+        return json.dumps({"mensaje": "Datos de mejores practicas no disponibles.", "resultados": []})
+
+
 # ============ Claude Service ============
 
 class ClaudeService:
@@ -908,7 +959,11 @@ class ClaudeService:
         if not settings.ANTHROPIC_API_KEY:
             raise ClaudeError("ANTHROPIC_API_KEY no configurada")
 
-        self.client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        self.client = anthropic.Anthropic(
+            api_key=settings.ANTHROPIC_API_KEY,
+            timeout=300.0,  # 5 min timeout for large requests
+            max_retries=2,  # Retry on connection errors
+        )
         self.model = "claude-sonnet-4-5-20250929"
 
     async def chat(
@@ -945,6 +1000,8 @@ class ClaudeService:
         herramientas_usadas = []
         total_input_tokens = 0
         total_output_tokens = 0
+        total_cache_read = 0
+        total_cache_creation = 0
 
         # Tool use loop (max 5 iterations to prevent infinite loops)
         max_iterations = 5
@@ -963,6 +1020,18 @@ class ClaudeService:
 
                 total_input_tokens += response.usage.input_tokens
                 total_output_tokens += response.usage.output_tokens
+
+                # Track prompt caching stats
+                usage = response.usage
+                cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
+                cache_creation = getattr(usage, "cache_creation_input_tokens", 0) or 0
+                total_cache_read += cache_read
+                total_cache_creation += cache_creation
+                if cache_read or cache_creation:
+                    logger.info(
+                        f"Prompt cache: read={cache_read}, creation={cache_creation}, "
+                        f"input={usage.input_tokens}, output={usage.output_tokens}"
+                    )
 
             except anthropic.APIError as e:
                 logger.error(f"Claude API error: {e}")
@@ -986,8 +1055,8 @@ class ClaudeService:
                             if "equipo_id" not in tool_input:
                                 tool_input["equipo_id"] = equipo_id
 
-                        # Inject organizacion_id for KB search
-                        if tool_name == "buscar_knowledge_base" and organizacion_id:
+                        # Inject organizacion_id for KB search and buscar_tareas
+                        if tool_name in ("buscar_knowledge_base", "buscar_tareas") and organizacion_id:
                             if "organizacion_id" not in tool_input:
                                 tool_input["organizacion_id"] = organizacion_id
 
@@ -1022,6 +1091,9 @@ class ClaudeService:
                     "respuesta": text_response,
                     "tokens_input": total_input_tokens,
                     "tokens_output": total_output_tokens,
+                    "cache_read_input_tokens": total_cache_read,
+                    "cache_creation_input_tokens": total_cache_creation,
+                    "modelo": self.model,
                     "herramientas_usadas": herramientas_usadas,
                 }
 
@@ -1031,8 +1103,86 @@ class ClaudeService:
             "respuesta": "He consultado mucha informacion. Dejame resumir lo que encontre.",
             "tokens_input": total_input_tokens,
             "tokens_output": total_output_tokens,
+            "cache_read_input_tokens": total_cache_read,
+            "cache_creation_input_tokens": total_cache_creation,
+            "modelo": self.model,
             "herramientas_usadas": herramientas_usadas,
         }
+
+    async def edit_task_with_ai(
+        self,
+        tarea: dict,
+        instruccion: str,
+        equipo_id: Optional[str] = None,
+    ) -> dict:
+        """
+        Modifica una tarea de entrenamiento segun las instrucciones del usuario usando IA.
+
+        Args:
+            tarea: Datos actuales de la tarea (dict)
+            instruccion: Instruccion del usuario (e.g. "Hazla mas intensa")
+            equipo_id: ID del equipo (para contexto)
+
+        Returns:
+            dict con los campos modificados de la tarea
+        """
+        # Build a compact representation of the task
+        task_fields = {
+            k: tarea.get(k)
+            for k in [
+                "titulo", "descripcion", "duracion_total", "num_jugadores_min",
+                "num_jugadores_max", "espacio_largo", "espacio_ancho",
+                "reglas_tecnicas", "reglas_tacticas",
+                "consignas_ofensivas", "consignas_defensivas",
+                "errores_comunes", "variantes", "progresiones",
+                "estructura_equipos", "material",
+                "posicion_entrenador", "situacion_tactica",
+            ]
+            if tarea.get(k) is not None
+        }
+
+        system_prompt = [
+            {
+                "type": "text",
+                "text": (
+                    "Eres un asistente experto en metodologia de entrenamiento de futbol. "
+                    "Tu tarea es modificar un ejercicio de entrenamiento segun la instruccion del usuario. "
+                    "Responde SOLO con un JSON valido que contenga UNICAMENTE los campos que modificas. "
+                    "Los campos posibles son: titulo, descripcion, duracion_total (int minutos), "
+                    "num_jugadores_min (int), num_jugadores_max (int), espacio_largo (int metros), "
+                    "espacio_ancho (int metros), reglas_tecnicas (str), reglas_tacticas (str), "
+                    "consignas_ofensivas (str), consignas_defensivas (str), errores_comunes (str), "
+                    "variantes (str), progresiones (str), estructura_equipos (str como '4v4+2'), "
+                    "material (array str), posicion_entrenador (str), situacion_tactica (str). "
+                    "NO incluyas campos que no cambias. NO incluyas explicaciones fuera del JSON."
+                ),
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
+
+        user_message = (
+            f"## Tarea actual\n```json\n{json.dumps(task_fields, ensure_ascii=False, indent=2)}\n```\n\n"
+            f"## Instruccion\n{instruccion}"
+        )
+
+        try:
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=2048,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_message}],
+            )
+
+            text = ""
+            for block in response.content:
+                if block.type == "text":
+                    text += block.text
+
+            return self._parse_json_response(text)
+
+        except anthropic.APIError as e:
+            logger.error(f"Claude API error in edit_task_with_ai: {e}")
+            raise ClaudeError(f"Error al editar tarea con IA: {str(e)}")
 
     async def generate_session_recommendations(
         self,
@@ -1111,7 +1261,17 @@ Responde SOLO con JSON válido:
             response = self.client.messages.create(
                 model=self.model,
                 max_tokens=4096,
-                system=SYSTEM_PROMPT + "\n\nIMPORTANTE: Responde SOLO con JSON válido, sin texto adicional ni bloques de código markdown.",
+                system=[
+                    {
+                        "type": "text",
+                        "text": SYSTEM_PROMPT,
+                        "cache_control": {"type": "ephemeral"},
+                    },
+                    {
+                        "type": "text",
+                        "text": "IMPORTANTE: Responde SOLO con JSON válido, sin texto adicional ni bloques de código markdown.",
+                    },
+                ],
                 messages=[{"role": "user", "content": prompt}],
             )
 
@@ -1166,24 +1326,45 @@ Responde SOLO con JSON válido:
         equipo_id: Optional[str],
         organizacion_id: Optional[str],
         contexto: Optional[dict],
-    ) -> str:
-        """Construye el system prompt con contexto del equipo."""
-        system = SYSTEM_PROMPT
+    ) -> list[dict]:
+        """Construye el system prompt con contexto del equipo.
 
+        Returns a list of content blocks for prompt caching support.
+        The static part uses cache_control for Anthropic prompt caching.
+        """
+        # Static block — cached across requests (saves ~90% on repeated calls)
+        blocks = [
+            {
+                "type": "text",
+                "text": SYSTEM_PROMPT,
+                "cache_control": {"type": "ephemeral"},
+            },
+        ]
+
+        # Dynamic block — changes per request, NOT cached
+        dynamic_parts = []
         if equipo_id:
-            system += f"\n\n## CONTEXTO ACTUAL\n- ID del equipo activo: {equipo_id}"
+            dynamic_parts.append(f"## CONTEXTO ACTUAL\n- ID del equipo activo: {equipo_id}")
             if organizacion_id:
-                system += f"\n- ID de la organizacion: {organizacion_id}"
-
-            system += "\n\nCuando el usuario pregunte sobre su equipo, jugadores, sesiones o partidos, USA las herramientas disponibles para consultar datos reales. No inventes datos."
+                dynamic_parts.append(f"- ID de la organizacion: {organizacion_id}")
+            dynamic_parts.append(
+                "Cuando el usuario pregunte sobre su equipo, jugadores, sesiones o partidos, "
+                "USA las herramientas disponibles para consultar datos reales. No inventes datos."
+            )
 
         if contexto:
             if contexto.get("equipo_nombre"):
-                system += f"\n- Equipo: {contexto['equipo_nombre']}"
+                dynamic_parts.append(f"- Equipo: {contexto['equipo_nombre']}")
             if contexto.get("equipo_categoria"):
-                system += f"\n- Categoria: {contexto['equipo_categoria']}"
+                dynamic_parts.append(f"- Categoria: {contexto['equipo_categoria']}")
 
-        return system
+        if dynamic_parts:
+            blocks.append({
+                "type": "text",
+                "text": "\n".join(dynamic_parts),
+            })
+
+        return blocks
 
     # ============ Session Design Chat ============
 
@@ -1200,11 +1381,19 @@ Responde SOLO con JSON válido:
         Returns:
             dict con: respuesta, sesion_propuesta (si el AI la generó), herramientas_usadas
         """
-        # Build system prompt for session design
-        system = SYSTEM_PROMPT + SESSION_DESIGN_PROMPT
-        system += f"\n\n## CONTEXTO ACTUAL\n- ID del equipo activo: {equipo_id}"
-        if organizacion_id:
-            system += f"\n- ID de la organizacion: {organizacion_id}"
+        # Build system prompt for session design with prompt caching
+        system = [
+            {
+                "type": "text",
+                "text": SYSTEM_PROMPT + SESSION_DESIGN_PROMPT,
+                "cache_control": {"type": "ephemeral"},
+            },
+            {
+                "type": "text",
+                "text": f"## CONTEXTO ACTUAL\n- ID del equipo activo: {equipo_id}"
+                + (f"\n- ID de la organizacion: {organizacion_id}" if organizacion_id else ""),
+            },
+        ]
 
         # Build messages
         messages = []
@@ -1216,31 +1405,54 @@ Responde SOLO con JSON válido:
             elif rol == "user":
                 messages.append({"role": "user", "content": contenido})
 
-        # Tools: regular team tools + session-specific tools
-        tools = TOOLS + SESSION_DESIGN_TOOLS
+        # Tools: only session design tools (proponer_sesion)
+        # No team query tools — the AI should generate directly from user context
+        tools = SESSION_DESIGN_TOOLS
 
         herramientas_usadas = []
         sesion_propuesta = None
         total_input_tokens = 0
         total_output_tokens = 0
 
-        max_iterations = 8
-        for _ in range(max_iterations):
+        # Count user messages to decide if we should force tool use
+        user_msg_count = sum(1 for m in messages if m.get("role") == "user")
+        first_user_msg = messages[-1].get("content", "") if messages else ""
+        first_msg_is_substantial = isinstance(first_user_msg, str) and len(first_user_msg) > 80
+
+        max_iterations = 3
+        for iteration in range(max_iterations):
             try:
-                response = self.client.messages.create(
-                    model=self.model,
-                    max_tokens=8192,
-                    system=system,
-                    messages=messages,
-                    tools=tools,
-                )
+                kwargs = {
+                    "model": self.model,
+                    "max_tokens": 16384,
+                    "system": system,
+                    "messages": messages,
+                    "tools": tools,
+                }
+
+                # Force tool use on the first API call if user gave enough context
+                if iteration == 0 and user_msg_count == 1 and first_msg_is_substantial:
+                    kwargs["tool_choice"] = {"type": "tool", "name": "proponer_sesion"}
+                    logger.info("Forcing proponer_sesion tool use (substantial first message)")
+
+                response = self.client.messages.create(**kwargs)
 
                 total_input_tokens += response.usage.input_tokens
                 total_output_tokens += response.usage.output_tokens
 
+            except anthropic.APIConnectionError as e:
+                logger.error(f"Claude connection error in session design: {e}")
+                raise ClaudeError("Error de conexion con Claude. Inténtalo de nuevo en unos segundos.")
+            except anthropic.RateLimitError as e:
+                logger.error(f"Claude rate limit in session design: {e}")
+                raise ClaudeError("Claude está saturado. Espera unos segundos e inténtalo de nuevo.")
             except anthropic.APIError as e:
                 logger.error(f"Claude API error in session design: {e}")
                 raise ClaudeError(f"Error de comunicacion con Claude: {str(e)}")
+
+            logger.info(f"Session design iteration {iteration}: stop_reason={response.stop_reason}, "
+                        f"content_types={[b.type for b in response.content]}, "
+                        f"tokens_in={response.usage.input_tokens}, tokens_out={response.usage.output_tokens}")
 
             if response.stop_reason == "tool_use":
                 assistant_content = response.content
@@ -1264,26 +1476,14 @@ Responde SOLO con JSON válido:
                             herramientas_usadas.append({"nombre": tool_name})
                             continue
 
-                        # Inject equipo_id for team tools
-                        if "equipo_id" in tool_input or any(
-                            t["name"] == tool_name and "equipo_id" in t["input_schema"].get("required", [])
-                            for t in tools
-                        ):
-                            if "equipo_id" not in tool_input:
-                                tool_input["equipo_id"] = equipo_id
-
-                        if tool_name == "buscar_knowledge_base" and organizacion_id:
-                            if "organizacion_id" not in tool_input:
-                                tool_input["organizacion_id"] = organizacion_id
-
-                        result = _execute_tool(tool_name, tool_input)
-
-                        herramientas_usadas.append({"nombre": tool_name, "input": tool_input})
+                        # Unknown tool in session design — skip
+                        logger.warning(f"Unexpected tool in session design: {tool_name}")
                         tool_results.append({
                             "type": "tool_result",
                             "tool_use_id": block.id,
-                            "content": result,
+                            "content": "Herramienta no disponible. Usa proponer_sesion para generar la sesión directamente.",
                         })
+                        herramientas_usadas.append({"nombre": tool_name})
 
                 messages.append({"role": "assistant", "content": _serialize_content_blocks(assistant_content)})
                 messages.append({"role": "user", "content": tool_results})

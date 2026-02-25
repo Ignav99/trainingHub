@@ -6,7 +6,13 @@ import {
   RecomendadorInput,
   RecomendadorOutput,
   AIRecomendadorInput,
-  AIRecomendadorOutput
+  AIRecomendadorOutput,
+  AsistenciaListResponse,
+  Asistencia,
+  AsistenciaResumen,
+  SugerirEquiposResponse,
+  FormacionEquipos,
+  Jugador,
 } from '@/types'
 
 export interface SesionCreateData {
@@ -22,11 +28,15 @@ export interface SesionCreateData {
   carga_fisica_objetivo?: string
   intensidad_objetivo?: string
   notas_pre?: string
+  materiales?: string[]
+  staff_asistentes?: { nombre: string; rol: string; presente?: boolean }[]
+  fase_notas?: Record<string, string>
 }
 
 export interface SesionUpdateData extends Partial<SesionCreateData> {
   estado?: string
   notas_post?: string
+  microciclo_id?: string
 }
 
 interface ListSesionesParams {
@@ -76,8 +86,154 @@ export const sesionesApi = {
     return api.delete(`/sesiones/${sesionId}/tareas/${tareaId}`)
   },
 
-  async generatePdf(id: string): Promise<{ pdf_url: string }> {
-    return api.post(`/sesiones/${id}/pdf`)
+  async updateTarea(sesionId: string, sesionTareaId: string, data: {
+    orden?: number
+    fase_sesion?: string
+    duracion_override?: number
+    notas?: string
+  }): Promise<Sesion> {
+    return api.put<Sesion>(`/sesiones/${sesionId}/tareas/${sesionTareaId}`, data)
+  },
+
+  async batchUpdateTareas(sesionId: string, tareas: {
+    tarea_id: string
+    orden: number
+    fase_sesion: string
+    duracion_override?: number
+    notas?: string
+  }[]): Promise<Sesion> {
+    return api.put<Sesion>(`/sesiones/${sesionId}/tareas-batch`, { tareas })
+  },
+
+  async generatePdf(id: string): Promise<void> {
+    const blob = await api.getBlob(`/sesiones/${id}/pdf`)
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `sesion_${id}.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+  },
+
+  // Asistencia
+  async getAsistencias(sesionId: string): Promise<AsistenciaListResponse> {
+    return api.get<AsistenciaListResponse>(`/sesiones/${sesionId}/asistencias`)
+  },
+
+  async saveAsistenciasBatch(sesionId: string, asistencias: {
+    jugador_id: string
+    presente: boolean
+    motivo_ausencia?: string
+    notas?: string
+  }[]): Promise<AsistenciaListResponse> {
+    return api.post<AsistenciaListResponse>(`/sesiones/${sesionId}/asistencias/batch`, { asistencias })
+  },
+
+  async updateAsistencia(sesionId: string, asistenciaId: string, data: {
+    presente?: boolean
+    motivo_ausencia?: string
+    notas?: string
+  }): Promise<Asistencia> {
+    return api.put<Asistencia>(`/sesiones/${sesionId}/asistencias/${asistenciaId}`, data)
+  },
+
+  async getAsistenciaResumen(sesionId: string): Promise<AsistenciaResumen> {
+    return api.get<AsistenciaResumen>(`/sesiones/${sesionId}/asistencias/resumen`)
+  },
+
+  // Equipos IA (legacy session-level)
+  async sugerirEquipos(sesionId: string, params: {
+    estructura: string
+    criterio?: string
+  }): Promise<SugerirEquiposResponse> {
+    return api.post<SugerirEquiposResponse>(`/sesiones/${sesionId}/sugerir-equipos`, params)
+  },
+
+  // Task editing endpoints
+  async duplicarYEditarTarea(sesionId: string, sesionTareaId: string, cambios: Record<string, any>): Promise<any> {
+    return api.post(`/sesiones/${sesionId}/tareas/${sesionTareaId}/duplicar-y-editar`, cambios)
+  },
+
+  async aiEditTarea(sesionId: string, sesionTareaId: string, instruccion: string): Promise<any> {
+    return api.post(`/sesiones/${sesionId}/tareas/${sesionTareaId}/ai-edit`, { instruccion })
+  },
+
+  // Per-task formation endpoints
+  async generarEquiposTarea(sesionId: string, sesionTareaId: string, criterio?: string): Promise<FormacionEquipos> {
+    return api.post<FormacionEquipos>(`/sesiones/${sesionId}/tareas/${sesionTareaId}/generar-equipos`, {
+      criterio: criterio || 'equilibrado',
+    })
+  },
+
+  async guardarFormacion(sesionId: string, sesionTareaId: string, formacion: FormacionEquipos): Promise<FormacionEquipos> {
+    return api.put<FormacionEquipos>(`/sesiones/${sesionId}/tareas/${sesionTareaId}/formacion`, formacion)
+  },
+
+  async limpiarFormacion(sesionId: string, sesionTareaId: string): Promise<void> {
+    return api.delete(`/sesiones/${sesionId}/tareas/${sesionTareaId}/formacion`)
+  },
+
+  // Asistencia historico
+  async getAsistenciaHistorico(equipoId: string, desde?: string, hasta?: string): Promise<{
+    data: {
+      jugador_id: string
+      nombre: string
+      apellidos: string
+      dorsal: number | null
+      posicion_principal: string
+      total_sesiones: number
+      presencias: number
+      ausencias: number
+      porcentaje: number
+      motivos: Record<string, number>
+      ultima_ausencia: string | null
+    }[]
+    periodo: { desde: string | null; hasta: string | null }
+    media_equipo: number
+  }> {
+    const params: Record<string, string> = { equipo_id: equipoId }
+    if (desde) params.fecha_desde = desde
+    if (hasta) params.fecha_hasta = hasta
+    return api.get('/sesiones/asistencia-historico', { params })
+  },
+
+  // Invitados
+  async addCrossTeamPlayer(sesionId: string, jugadorId: string): Promise<Asistencia> {
+    return api.post<Asistencia>(`/sesiones/${sesionId}/invitados/from-org`, { jugador_id: jugadorId })
+  },
+
+  async quickAddGuest(sesionId: string, data: {
+    nombre: string
+    apellidos?: string
+    posicion_principal?: string
+    nivel_tecnico?: number
+    nivel_tactico?: number
+    nivel_fisico?: number
+    nivel_mental?: number
+    notas?: string
+  }): Promise<{ jugador: Jugador; asistencia: Asistencia }> {
+    return api.post<{ jugador: Jugador; asistencia: Asistencia }>(`/sesiones/${sesionId}/invitados/quick-add`, data)
+  },
+}
+
+// Session Design Chat (conversational AI)
+export interface SessionDesignMessage {
+  rol: 'user' | 'assistant'
+  contenido: string
+}
+
+export interface SessionDesignResponse {
+  respuesta: string
+  sesion_propuesta?: any // structured session proposal from AI
+  herramientas_usadas: any[]
+}
+
+export const sessionDesignApi = {
+  async chat(mensajes: SessionDesignMessage[], equipo_id?: string): Promise<SessionDesignResponse> {
+    return api.post<SessionDesignResponse>('/sesiones/design-chat', {
+      mensajes,
+      equipo_id,
+    })
   },
 }
 

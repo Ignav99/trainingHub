@@ -34,6 +34,8 @@ from app.models import (
     AsistenciaResponse,
     AsistenciaListResponse,
     AsistenciaResumen,
+    AsistenciaHistoricoJugador,
+    AsistenciaHistoricoResponse,
     JugadorInvitadoCreate,
     JugadorResponse,
 )
@@ -122,6 +124,107 @@ async def list_sesiones(
         page=page,
         limit=limit,
         pages=pages,
+    )
+
+
+@router.get("/asistencia-historico", response_model=AsistenciaHistoricoResponse)
+async def get_asistencia_historico(
+    equipo_id: UUID = Query(...),
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
+):
+    """Estadísticas históricas de asistencia por jugador."""
+    supabase = get_supabase()
+
+    # Get all sessions for the team in the date range
+    sesiones_query = supabase.table("sesiones").select("id, fecha").eq(
+        "equipo_id", str(equipo_id)
+    )
+    if fecha_desde:
+        sesiones_query = sesiones_query.gte("fecha", fecha_desde.isoformat())
+    if fecha_hasta:
+        sesiones_query = sesiones_query.lte("fecha", fecha_hasta.isoformat())
+
+    sesiones_response = sesiones_query.order("fecha", desc=True).execute()
+    sesion_ids = [s["id"] for s in sesiones_response.data]
+
+    if not sesion_ids:
+        return AsistenciaHistoricoResponse(
+            data=[],
+            periodo={"desde": fecha_desde, "hasta": fecha_hasta},
+            media_equipo=0.0,
+        )
+
+    # Get all attendance records for these sessions
+    asistencias_response = supabase.table("asistencias_sesion").select(
+        "jugador_id, presente, motivo_ausencia, sesion_id, sesiones(fecha)"
+    ).in_("sesion_id", sesion_ids).execute()
+
+    # Get player info
+    jugadores_response = supabase.table("jugadores").select(
+        "id, nombre, apellidos, dorsal, posicion_principal"
+    ).eq("equipo_id", str(equipo_id)).eq("estado", "activo").execute()
+
+    jugadores_map = {j["id"]: j for j in jugadores_response.data}
+
+    # Aggregate per player
+    stats: dict = {}
+    for a in asistencias_response.data:
+        jid = a["jugador_id"]
+        if jid not in stats:
+            stats[jid] = {
+                "total": 0, "presencias": 0, "ausencias": 0,
+                "motivos": {}, "ultima_ausencia": None,
+            }
+        s = stats[jid]
+        s["total"] += 1
+        if a["presente"]:
+            s["presencias"] += 1
+        else:
+            s["ausencias"] += 1
+            motivo = a.get("motivo_ausencia") or "otro"
+            s["motivos"][motivo] = s["motivos"].get(motivo, 0) + 1
+            # Track most recent absence date
+            sesion_data = a.get("sesiones", {}) or {}
+            fecha_str = sesion_data.get("fecha")
+            if fecha_str:
+                if s["ultima_ausencia"] is None or fecha_str > s["ultima_ausencia"]:
+                    s["ultima_ausencia"] = fecha_str
+
+    # Build response
+    resultado = []
+    total_porcentajes = []
+
+    for jid, s in stats.items():
+        jugador = jugadores_map.get(jid, {})
+        if not jugador:
+            continue
+        pct = (s["presencias"] / s["total"] * 100) if s["total"] > 0 else 100.0
+        total_porcentajes.append(pct)
+        resultado.append(AsistenciaHistoricoJugador(
+            jugador_id=jid,
+            nombre=jugador.get("nombre", ""),
+            apellidos=jugador.get("apellidos", ""),
+            dorsal=jugador.get("dorsal"),
+            posicion_principal=jugador.get("posicion_principal", ""),
+            total_sesiones=s["total"],
+            presencias=s["presencias"],
+            ausencias=s["ausencias"],
+            porcentaje=round(pct, 1),
+            motivos=s["motivos"],
+            ultima_ausencia=s["ultima_ausencia"],
+        ))
+
+    # Sort by % ascending (worst attendance first)
+    resultado.sort(key=lambda x: x.porcentaje)
+
+    media = round(sum(total_porcentajes) / len(total_porcentajes), 1) if total_porcentajes else 0.0
+
+    return AsistenciaHistoricoResponse(
+        data=resultado,
+        periodo={"desde": str(fecha_desde) if fecha_desde else None, "hasta": str(fecha_hasta) if fecha_hasta else None},
+        media_equipo=media,
     )
 
 
@@ -624,6 +727,183 @@ async def sugerir_equipos(
 # ============ Per-Task Formation Endpoints ============
 
 
+class DuplicarYEditarTareaRequest(BaseModel):
+    titulo: Optional[str] = None
+    descripcion: Optional[str] = None
+    duracion_total: Optional[int] = None
+    num_jugadores_min: Optional[int] = None
+    num_jugadores_max: Optional[int] = None
+    espacio_largo: Optional[int] = None
+    espacio_ancho: Optional[int] = None
+    reglas_tecnicas: Optional[str] = None
+    reglas_tacticas: Optional[str] = None
+    consignas_ofensivas: Optional[str] = None
+    consignas_defensivas: Optional[str] = None
+    errores_comunes: Optional[str] = None
+    variantes: Optional[str] = None
+    progresiones: Optional[str] = None
+    estructura_equipos: Optional[str] = None
+    material: Optional[list] = None
+    posicion_entrenador: Optional[str] = None
+    situacion_tactica: Optional[str] = None
+
+
+@router.post("/{sesion_id}/tareas/{sesion_tarea_id}/duplicar-y-editar")
+async def duplicar_y_editar_tarea(
+    sesion_id: UUID,
+    sesion_tarea_id: UUID,
+    cambios: DuplicarYEditarTareaRequest,
+    auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
+):
+    """Duplica una tarea de la biblioteca, aplica cambios, y la reemplaza en la sesion."""
+    supabase = get_supabase()
+
+    # 1. Fetch the sesion_tarea to get the current tarea_id
+    st_response = supabase.table("sesion_tareas").select(
+        "*, tareas(*)"
+    ).eq("id", str(sesion_tarea_id)).eq("sesion_id", str(sesion_id)).single().execute()
+
+    if not st_response.data:
+        raise HTTPException(status_code=404, detail="Tarea de sesion no encontrada")
+
+    original_tarea = st_response.data.get("tareas", {})
+    if not original_tarea:
+        raise HTTPException(status_code=404, detail="Tarea original no encontrada")
+
+    # 2. Build the duplicated tarea data
+    campos_copiables = [
+        "descripcion", "duracion_total", "num_jugadores_min", "num_jugadores_max",
+        "espacio_largo", "espacio_ancho", "reglas_tecnicas", "reglas_tacticas",
+        "consignas_ofensivas", "consignas_defensivas", "errores_comunes",
+        "variantes", "progresiones", "estructura_equipos", "material",
+        "posicion_entrenador", "situacion_tactica", "fase_juego",
+        "principio_tactico", "subprincipio_tactico", "densidad",
+        "nivel_cognitivo", "num_series", "grafico_data",
+        "categoria_id", "equipo_id", "organizacion_id",
+    ]
+
+    nueva_tarea = {}
+    for campo in campos_copiables:
+        if campo in original_tarea and original_tarea[campo] is not None:
+            nueva_tarea[campo] = original_tarea[campo]
+
+    # Default title with prefix
+    nueva_tarea["titulo"] = f"(Editada) {original_tarea.get('titulo', 'Sin titulo')}"
+    nueva_tarea["es_plantilla"] = False
+    nueva_tarea["creado_por"] = str(auth.user_id)
+
+    # 3. Apply changes from request
+    cambios_dict = cambios.model_dump(exclude_none=True)
+    nueva_tarea.update(cambios_dict)
+
+    # 4. Insert the new tarea
+    insert_response = supabase.table("tareas").insert(nueva_tarea).execute()
+    if not insert_response.data:
+        raise HTTPException(status_code=500, detail="Error al duplicar tarea")
+
+    new_tarea_id = insert_response.data[0]["id"]
+
+    # 5. Update sesion_tareas to point to the new tarea
+    supabase.table("sesion_tareas").update(
+        {"tarea_id": new_tarea_id}
+    ).eq("id", str(sesion_tarea_id)).execute()
+
+    # 6. Return the updated sesion_tarea with new tarea data
+    updated = supabase.table("sesion_tareas").select(
+        "*, tareas(*)"
+    ).eq("id", str(sesion_tarea_id)).single().execute()
+
+    return updated.data
+
+
+class AIEditTareaRequest(BaseModel):
+    instruccion: str = Field(..., min_length=3, max_length=2000)
+
+
+@router.post("/{sesion_id}/tareas/{sesion_tarea_id}/ai-edit")
+async def ai_edit_tarea(
+    sesion_id: UUID,
+    sesion_tarea_id: UUID,
+    request: AIEditTareaRequest,
+    auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
+):
+    """Usa IA para editar una tarea en la sesion segun instrucciones del usuario."""
+    supabase = get_supabase()
+
+    # 1. Fetch the sesion_tarea and current tarea
+    st_response = supabase.table("sesion_tareas").select(
+        "*, tareas(*)"
+    ).eq("id", str(sesion_tarea_id)).eq("sesion_id", str(sesion_id)).single().execute()
+
+    if not st_response.data:
+        raise HTTPException(status_code=404, detail="Tarea de sesion no encontrada")
+
+    tarea_actual = st_response.data.get("tareas", {})
+    if not tarea_actual:
+        raise HTTPException(status_code=404, detail="Tarea no encontrada")
+
+    # 2. Call Claude to get modifications
+    try:
+        from app.services.claude_service import ClaudeService, ClaudeError
+        claude = ClaudeService()
+        cambios_ia = await claude.edit_task_with_ai(
+            tarea=tarea_actual,
+            instruccion=request.instruccion,
+        )
+    except Exception as e:
+        logger.error(f"AI edit error: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al procesar con IA: {str(e)}")
+
+    if not cambios_ia:
+        raise HTTPException(status_code=400, detail="La IA no genero cambios")
+
+    # 3. Duplicate the tarea and apply AI changes (same logic as duplicar-y-editar)
+    campos_copiables = [
+        "descripcion", "duracion_total", "num_jugadores_min", "num_jugadores_max",
+        "espacio_largo", "espacio_ancho", "reglas_tecnicas", "reglas_tacticas",
+        "consignas_ofensivas", "consignas_defensivas", "errores_comunes",
+        "variantes", "progresiones", "estructura_equipos", "material",
+        "posicion_entrenador", "situacion_tactica", "fase_juego",
+        "principio_tactico", "subprincipio_tactico", "densidad",
+        "nivel_cognitivo", "num_series", "grafico_data",
+        "categoria_id", "equipo_id", "organizacion_id",
+    ]
+
+    nueva_tarea = {}
+    for campo in campos_copiables:
+        if campo in tarea_actual and tarea_actual[campo] is not None:
+            nueva_tarea[campo] = tarea_actual[campo]
+
+    nueva_tarea["titulo"] = f"(Editada) {tarea_actual.get('titulo', 'Sin titulo')}"
+    nueva_tarea["es_plantilla"] = False
+    nueva_tarea["creado_por"] = str(auth.user_id)
+
+    # Apply AI changes (only known fields)
+    allowed_fields = set(campos_copiables) | {"titulo"}
+    for k, v in cambios_ia.items():
+        if k in allowed_fields:
+            nueva_tarea[k] = v
+
+    # 4. Insert duplicated tarea
+    insert_response = supabase.table("tareas").insert(nueva_tarea).execute()
+    if not insert_response.data:
+        raise HTTPException(status_code=500, detail="Error al crear tarea editada")
+
+    new_tarea_id = insert_response.data[0]["id"]
+
+    # 5. Update sesion_tareas
+    supabase.table("sesion_tareas").update(
+        {"tarea_id": new_tarea_id}
+    ).eq("id", str(sesion_tarea_id)).execute()
+
+    # 6. Return updated data
+    updated = supabase.table("sesion_tareas").select(
+        "*, tareas(*)"
+    ).eq("id", str(sesion_tarea_id)).single().execute()
+
+    return updated.data
+
+
 class GenerarEquiposTareaRequest(BaseModel):
     criterio: str = Field(default="equilibrado", pattern="^(equilibrado|por_nivel)$")
 
@@ -797,12 +1077,39 @@ async def generate_pdf(
     if not lugar and organizacion.get("config") and isinstance(organizacion["config"], dict):
         lugar = organizacion["config"].get("lugar_entrenamiento")
 
+    # Fetch ausencias (jugadores no presentes)
+    ausencias = []
+    try:
+        ausencias_response = supabase.table("asistencias_sesion").select(
+            "motivo_ausencia, jugadores(nombre, apellidos, dorsal)"
+        ).eq("sesion_id", str(sesion_id)).eq("presente", False).execute()
+
+        for a in ausencias_response.data:
+            jugador = a.get("jugadores", {}) or {}
+            ausencias.append({
+                "dorsal": jugador.get("dorsal"),
+                "nombre": jugador.get("nombre", ""),
+                "apellidos": jugador.get("apellidos", ""),
+                "motivo": a.get("motivo_ausencia", "otro") or "otro",
+            })
+    except Exception:
+        pass  # Non-critical — PDF still generates without ausencias
+
     # Generar PDF con el servicio v2
-    pdf_bytes = generate_sesion_pdf_v2(
-        sesion, tareas, organizacion, jugadores_map,
-        microciclo_nombre=microciclo_nombre,
-        lugar=lugar,
-    )
+    try:
+        pdf_bytes = generate_sesion_pdf_v2(
+            sesion, tareas, organizacion, jugadores_map,
+            microciclo_nombre=microciclo_nombre,
+            lugar=lugar,
+            ausencias=ausencias,
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger("traininghub.pdf").error("Error generando PDF: %s", str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generando PDF: {str(e)}"
+        )
 
     # Subir a Storage
     settings = get_settings()

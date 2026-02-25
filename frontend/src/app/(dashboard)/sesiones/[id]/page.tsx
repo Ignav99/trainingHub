@@ -1,33 +1,91 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import {
+  DndContext,
+  DragOverlay,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragStartEvent,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import {
   ArrowLeft,
   Calendar,
   Clock,
   Users,
   Target,
-  Edit,
   Trash2,
-  FileText,
   Loader2,
   AlertCircle,
   CheckCircle,
-  PlayCircle,
-  ChevronRight,
+  AlertTriangle,
   Sparkles,
+  Plus,
+  Download,
+  CircleDot,
+  ChevronUp,
+  ChevronDown,
+  X,
+  Search,
+  Shuffle,
+  Save,
+  GripVertical,
+  Package,
+  UserCheck,
+  UserX,
+  RefreshCw,
+  Minus,
+  UserPlus,
+  Pencil,
+  Wand2,
+  Send,
 } from 'lucide-react'
-import { sesionesApi } from '@/lib/api/sesiones'
-import { Sesion, SesionTarea } from '@/types'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { sesionesApi, SesionUpdateData } from '@/lib/api/sesiones'
+import { tareasApi } from '@/lib/api/tareas'
+import { jugadoresApi } from '@/lib/api/jugadores'
+import {
+  Sesion,
+  SesionTarea,
+  EstadoSesion,
+  FaseSesion,
+  Tarea,
+  Jugador,
+  Asistencia,
+  AsistenciaListResponse,
+  MotivoAusencia,
+  FormacionEquipos,
+  GrupoFormacion,
+  EspacioFormacion,
+} from '@/types'
 
 const MATCH_DAY_COLORS: Record<string, string> = {
   'MD+1': 'bg-green-100 text-green-800',
+  'MD+2': 'bg-green-50 text-green-700',
   'MD-4': 'bg-red-100 text-red-800',
   'MD-3': 'bg-orange-100 text-orange-800',
   'MD-2': 'bg-blue-100 text-blue-800',
   'MD-1': 'bg-purple-100 text-purple-800',
+  'MD': 'bg-amber-100 text-amber-800',
 }
 
 const FASE_LABELS: Record<string, string> = {
@@ -37,23 +95,626 @@ const FASE_LABELS: Record<string, string> = {
   vuelta_calma: 'Vuelta a Calma',
 }
 
-const ESTADO_CONFIG: Record<string, { color: string; icon: any; label: string }> = {
-  borrador: { color: 'bg-gray-100 text-gray-700', icon: Edit, label: 'Borrador' },
-  planificada: { color: 'bg-blue-100 text-blue-700', icon: Calendar, label: 'Planificada' },
-  completada: { color: 'bg-green-100 text-green-700', icon: CheckCircle, label: 'Completada' },
-  cancelada: { color: 'bg-red-100 text-red-700', icon: AlertCircle, label: 'Cancelada' },
+const ALL_FASES: FaseSesion[] = ['activacion', 'desarrollo_1', 'desarrollo_2', 'vuelta_calma']
+
+const ESTADO_CONFIG: Record<string, { color: string; label: string }> = {
+  borrador: { color: 'bg-amber-100 text-amber-700 border-amber-200', label: 'Borrador' },
+  planificada: { color: 'bg-blue-100 text-blue-700 border-blue-200', label: 'Planificada' },
+  completada: { color: 'bg-green-100 text-green-700 border-green-200', label: 'Completada' },
+  cancelada: { color: 'bg-red-100 text-red-700 border-red-200', label: 'Cancelada' },
 }
 
+const MATCH_DAYS = ['MD+1', 'MD+2', 'MD-4', 'MD-3', 'MD-2', 'MD-1', 'MD']
+const INTENSIDADES = ['alta', 'media', 'baja', 'muy_baja']
+const MATERIALES_SUGERIDOS = ['Petos', 'Conos', 'Vallas', 'Porterias reducidas', 'Balones', 'Picas', 'Escaleras', 'Gomas']
+const MOTIVOS_AUSENCIA: { value: MotivoAusencia; label: string }[] = [
+  { value: 'lesion', label: 'Lesion' },
+  { value: 'enfermedad', label: 'Enfermedad' },
+  { value: 'sancion', label: 'Sancion' },
+  { value: 'permiso', label: 'Permiso' },
+  { value: 'seleccion', label: 'Seleccion' },
+  { value: 'viaje', label: 'Viaje' },
+  { value: 'otro', label: 'Otro' },
+]
+
+const POSITION_ORDER: Record<string, number> = {
+  POR: 0, DFC: 1, LTD: 2, LTI: 3, CAD: 4, CAI: 5,
+  MCD: 6, MC: 7, MCO: 8, MID: 9, MII: 10,
+  EXD: 11, EXI: 12, MP: 13, DC: 14, SD: 15,
+}
+
+const COLORES_EQUIPO = [
+  { color: '#EF4444', nombre: 'Equipo Rojo' },
+  { color: '#3B82F6', nombre: 'Equipo Azul' },
+  { color: '#22C55E', nombre: 'Equipo Verde' },
+  { color: '#F97316', nombre: 'Equipo Naranja' },
+  { color: '#8B5CF6', nombre: 'Equipo Morado' },
+  { color: '#EC4899', nombre: 'Equipo Rosa' },
+]
+const COLOR_SIN_ASIGNAR = { color: '#6B7280', nombre: 'Sin asignar' }
+
+function cleanEmptyTeams(formacion: FormacionEquipos): FormacionEquipos {
+  return {
+    ...formacion,
+    auto_generado: false,
+    espacios: formacion.espacios.map(esp => ({
+      ...esp,
+      grupos: esp.grupos.filter(g =>
+        (g.tipo !== 'equipo' && g.tipo !== 'sin_asignar') || g.jugador_ids.length > 0
+      ),
+    })),
+  }
+}
+
+// ============ Helper: Debounced auto-save ============
+function useAutoSave(sesionId: string, delay = 800) {
+  const timerRef = useRef<NodeJS.Timeout>()
+  const [saving, setSaving] = useState(false)
+
+  const save = useCallback(
+    (data: SesionUpdateData) => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(async () => {
+        setSaving(true)
+        try {
+          await sesionesApi.update(sesionId, data)
+        } catch (err) {
+          console.error('Auto-save failed:', err)
+        } finally {
+          setSaving(false)
+        }
+      }, delay)
+    },
+    [sesionId, delay]
+  )
+
+  return { save, saving }
+}
+
+// ============ DnD: Sortable Player Item ============
+function SortablePlayer({ id, jugador, color }: { id: string; jugador: Jugador | undefined; color: string }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-background border border-border/50 cursor-grab active:cursor-grabbing hover:border-border transition-colors text-xs"
+    >
+      <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
+      <span className="font-bold text-muted-foreground w-5 text-center">
+        {jugador?.dorsal || '?'}
+      </span>
+      <span className="truncate">
+        {jugador ? `${jugador.nombre} ${jugador.apellidos?.charAt(0) || ''}.` : id.slice(0, 8)}
+      </span>
+    </div>
+  )
+}
+
+// ============ DnD: Droppable Group Container ============
+function DroppableGroup({
+  grupo,
+  jugadoresMap,
+  espacioIdx,
+  grupoIdx,
+  onRemoveGroup,
+}: {
+  grupo: GrupoFormacion
+  jugadoresMap: Map<string, Jugador>
+  espacioIdx: number
+  grupoIdx: number
+  onRemoveGroup?: (espacioIdx: number, grupoIdx: number) => void
+}) {
+  const isSinAsignar = grupo.tipo === 'sin_asignar'
+  // Use 15% opacity for background color
+  const bgStyle = { backgroundColor: isSinAsignar ? '#6B728015' : `${grupo.color}15` }
+  const borderStyle = {
+    borderColor: isSinAsignar ? '#6B728040' : `${grupo.color}40`,
+    borderStyle: isSinAsignar ? 'dashed' as const : 'solid' as const,
+  }
+  const dotStyle = { backgroundColor: grupo.color }
+
+  const droppableId = `${espacioIdx}-${grupoIdx}`
+  // Create sortable IDs that encode the group they belong to
+  const itemIds = grupo.jugador_ids.map((jid) => `${droppableId}::${jid}`)
+
+  return (
+    <div
+      className={`rounded-lg border p-2 min-w-[140px] flex-1 ${isSinAsignar ? 'bg-muted/30' : ''}`}
+      style={{ ...bgStyle, ...borderStyle }}
+    >
+      <div className="flex items-center gap-1.5 mb-2 px-1">
+        {isSinAsignar ? (
+          <UserPlus className="h-3 w-3 text-muted-foreground shrink-0" />
+        ) : (
+          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={dotStyle} />
+        )}
+        <span className="text-xs font-semibold truncate">{grupo.nombre}</span>
+        <span className="text-[10px] text-muted-foreground ml-auto">{grupo.jugador_ids.length}</span>
+        {grupo.tipo === 'equipo' && onRemoveGroup && (
+          <button
+            onClick={() => onRemoveGroup(espacioIdx, grupoIdx)}
+            className="p-0.5 rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-colors"
+            title="Eliminar equipo"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+      <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
+        <div className="space-y-1 min-h-[32px]">
+          {grupo.jugador_ids.map((jid) => (
+            <SortablePlayer
+              key={`${droppableId}::${jid}`}
+              id={`${droppableId}::${jid}`}
+              jugador={jugadoresMap.get(jid)}
+              color={grupo.color}
+            />
+          ))}
+          {isSinAsignar && grupo.jugador_ids.length === 0 && (
+            <div className="text-[10px] text-muted-foreground text-center py-2 italic">
+              Arrastra jugadores aqui
+            </div>
+          )}
+        </div>
+      </SortableContext>
+    </div>
+  )
+}
+
+// ============ Formation Panel for a Task ============
+function FormacionPanel({
+  sesionId,
+  sesionTarea,
+  jugadoresMap,
+  onFormacionChange,
+}: {
+  sesionId: string
+  sesionTarea: SesionTarea
+  jugadoresMap: Map<string, Jugador>
+  onFormacionChange: (stId: string, formacion: FormacionEquipos | null) => void
+}) {
+  const [generating, setGenerating] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const saveTimerRef = useRef<NodeJS.Timeout>()
+  const statusTimerRef = useRef<NodeJS.Timeout>()
+
+  const formacion = sesionTarea.formacion_equipos
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor)
+  )
+
+  const handleGenerar = async () => {
+    setGenerating(true)
+    try {
+      const result = await sesionesApi.generarEquiposTarea(sesionId, sesionTarea.id)
+      onFormacionChange(sesionTarea.id, result)
+      setLastSaved(new Date())
+      setSaveStatus('saved')
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
+      statusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 4000)
+    } catch (err: any) {
+      console.error('Error generating formation:', err)
+      setSaveStatus('error')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const handleLimpiar = async () => {
+    try {
+      await sesionesApi.limpiarFormacion(sesionId, sesionTarea.id)
+      onFormacionChange(sesionTarea.id, null)
+      setSaveStatus('idle')
+      setLastSaved(null)
+    } catch (err) {
+      console.error('Error clearing formation:', err)
+    }
+  }
+
+  const debouncedSave = useCallback((newFormacion: FormacionEquipos) => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    setSaveStatus('saving')
+    saveTimerRef.current = setTimeout(async () => {
+      setSaving(true)
+      try {
+        await sesionesApi.guardarFormacion(sesionId, sesionTarea.id, newFormacion)
+        setLastSaved(new Date())
+        setSaveStatus('saved')
+        if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
+        statusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 4000)
+      } catch (err) {
+        console.error('Error saving formation:', err)
+        setSaveStatus('error')
+      } finally {
+        setSaving(false)
+      }
+    }, 500)
+  }, [sesionId, sesionTarea.id])
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string)
+  }
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveId(null)
+    const { active, over } = event
+    if (!over || !formacion) return
+
+    const activeIdStr = active.id as string
+    const overIdStr = over.id as string
+
+    // Parse IDs: format is "espacioIdx-grupoIdx::jugadorId"
+    const [activeGroup, activeJugadorId] = activeIdStr.split('::')
+    const [overGroup, overJugadorId] = overIdStr.split('::')
+
+    if (!activeJugadorId) return
+
+    // If dropped on same position, do nothing
+    if (activeIdStr === overIdStr) return
+
+    // Parse group coords
+    const [activeEspIdx, activeGrpIdx] = activeGroup.split('-').map(Number)
+
+    // Determine target group
+    let targetEspIdx: number
+    let targetGrpIdx: number
+    if (overJugadorId) {
+      // Dropped on another player - use that player's group
+      ;[targetEspIdx, targetGrpIdx] = overGroup.split('-').map(Number)
+    } else {
+      // Dropped on a group container directly (shouldn't happen with sortable, but handle)
+      return
+    }
+
+    // Build updated formation
+    const rawFormacion: FormacionEquipos = {
+      ...formacion,
+      auto_generado: false,
+      espacios: formacion.espacios.map((espacio, ei) => ({
+        ...espacio,
+        grupos: espacio.grupos.map((grupo, gi) => {
+          let newIds = [...grupo.jugador_ids]
+
+          // Remove from source group
+          if (ei === activeEspIdx && gi === activeGrpIdx) {
+            newIds = newIds.filter((id) => id !== activeJugadorId)
+          }
+
+          // Add to target group
+          if (ei === targetEspIdx && gi === targetGrpIdx) {
+            if (!newIds.includes(activeJugadorId)) {
+              // Insert at the position of the over item
+              if (overJugadorId && overJugadorId !== activeJugadorId) {
+                const overIdx = newIds.indexOf(overJugadorId)
+                if (overIdx >= 0) {
+                  newIds.splice(overIdx, 0, activeJugadorId)
+                } else {
+                  newIds.push(activeJugadorId)
+                }
+              } else {
+                newIds.push(activeJugadorId)
+              }
+            }
+          }
+
+          return { ...grupo, jugador_ids: newIds }
+        }),
+      })),
+    }
+
+    // Clean empty equipo and sin_asignar groups
+    const newFormacion = cleanEmptyTeams(rawFormacion)
+
+    onFormacionChange(sesionTarea.id, newFormacion)
+    debouncedSave(newFormacion)
+  }
+
+  const handleAddEquipo = (espacioIdx: number) => {
+    if (!formacion) return
+    const espacio = formacion.espacios[espacioIdx]
+    if (!espacio) return
+
+    // Find first unused color
+    const usedColors = new Set(espacio.grupos.filter(g => g.tipo === 'equipo').map(g => g.color))
+    const available = COLORES_EQUIPO.find(c => !usedColors.has(c.color))
+    if (!available) return // All colors used
+
+    const newGrupo: GrupoFormacion = {
+      nombre: available.nombre,
+      color: available.color,
+      tipo: 'equipo',
+      jugador_ids: [],
+    }
+
+    // Insert before comodin/portero/sin_asignar groups
+    const insertIdx = espacio.grupos.findIndex(g => g.tipo !== 'equipo')
+    const newGrupos = [...espacio.grupos]
+    if (insertIdx >= 0) {
+      newGrupos.splice(insertIdx, 0, newGrupo)
+    } else {
+      newGrupos.push(newGrupo)
+    }
+
+    const newFormacion: FormacionEquipos = {
+      ...formacion,
+      auto_generado: false,
+      espacios: formacion.espacios.map((esp, ei) =>
+        ei === espacioIdx ? { ...esp, grupos: newGrupos } : esp
+      ),
+    }
+
+    onFormacionChange(sesionTarea.id, newFormacion)
+    debouncedSave(newFormacion)
+  }
+
+  const handleRemoveGroup = (espacioIdx: number, grupoIdx: number) => {
+    if (!formacion) return
+    const espacio = formacion.espacios[espacioIdx]
+    const grupo = espacio?.grupos[grupoIdx]
+    if (!grupo || grupo.tipo !== 'equipo') return
+
+    const displacedPlayers = grupo.jugador_ids
+
+    let newGrupos = espacio.grupos.filter((_, gi) => gi !== grupoIdx)
+
+    // If there are displaced players, move them to sin_asignar
+    if (displacedPlayers.length > 0) {
+      const sinAsignarIdx = newGrupos.findIndex(g => g.tipo === 'sin_asignar')
+      if (sinAsignarIdx >= 0) {
+        // Add to existing sin_asignar group
+        newGrupos = newGrupos.map((g, gi) =>
+          gi === sinAsignarIdx
+            ? { ...g, jugador_ids: [...g.jugador_ids, ...displacedPlayers] }
+            : g
+        )
+      } else {
+        // Create new sin_asignar group
+        newGrupos.push({
+          nombre: COLOR_SIN_ASIGNAR.nombre,
+          color: COLOR_SIN_ASIGNAR.color,
+          tipo: 'sin_asignar',
+          jugador_ids: displacedPlayers,
+        })
+      }
+    }
+
+    const newFormacion: FormacionEquipos = {
+      ...formacion,
+      auto_generado: false,
+      espacios: formacion.espacios.map((esp, ei) =>
+        ei === espacioIdx ? { ...esp, grupos: newGrupos } : esp
+      ),
+    }
+
+    onFormacionChange(sesionTarea.id, newFormacion)
+    debouncedSave(newFormacion)
+  }
+
+  // Find the active player for the drag overlay
+  const activeJugadorId = activeId?.split('::')[1]
+  const activeJugador = activeJugadorId ? jugadoresMap.get(activeJugadorId) : undefined
+
+  if (!formacion) {
+    return (
+      <div className="flex items-center justify-center py-4 gap-3">
+        <Button size="sm" onClick={handleGenerar} disabled={generating}>
+          {generating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
+          Auto-generar equipos
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-[10px]">
+            {formacion.estructura_original}
+          </Badge>
+          {formacion.auto_generado && (
+            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+              <Sparkles className="h-3 w-3" /> Auto-generado
+            </span>
+          )}
+          {saveStatus === 'saving' && (
+            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" /> Guardando...
+            </span>
+          )}
+          {saveStatus === 'saved' && (
+            <span className="text-[10px] text-green-600 flex items-center gap-1">
+              <CheckCircle className="h-3 w-3" /> Guardado
+            </span>
+          )}
+          {saveStatus === 'error' && (
+            <span className="text-[10px] text-destructive flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" /> Error al guardar
+            </span>
+          )}
+          {lastSaved && saveStatus === 'idle' && (
+            <span className="text-[10px] text-muted-foreground">
+              Guardado {lastSaved.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleGenerar} disabled={generating}>
+            {generating ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+            Regenerar
+          </Button>
+          <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={handleLimpiar}>
+            <Trash2 className="h-3 w-3 mr-1" /> Limpiar
+          </Button>
+          {formacion.espacios.length === 1 ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => handleAddEquipo(0)}
+              disabled={formacion.espacios[0].grupos.filter(g => g.tipo === 'equipo').length >= COLORES_EQUIPO.length}
+            >
+              <Plus className="h-3 w-3 mr-1" /> Equipo
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        {formacion.espacios.map((espacio, espacioIdx) => (
+          <div key={espacioIdx}>
+            {formacion.espacios.length > 1 && (
+              <div className="flex items-center gap-2 mb-1.5">
+                <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  {espacio.nombre} ({espacio.estructura})
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 text-[10px] px-1.5"
+                  onClick={() => handleAddEquipo(espacioIdx)}
+                  disabled={espacio.grupos.filter(g => g.tipo === 'equipo').length >= COLORES_EQUIPO.length}
+                >
+                  <Plus className="h-2.5 w-2.5 mr-0.5" /> Equipo
+                </Button>
+              </div>
+            )}
+            <div className="flex gap-2 flex-wrap">
+              {espacio.grupos.filter(g => g.tipo !== 'sin_asignar').map((grupo, grupoIdx) => {
+                const realIdx = espacio.grupos.indexOf(grupo)
+                return (
+                  <DroppableGroup
+                    key={`${espacioIdx}-${realIdx}`}
+                    grupo={grupo}
+                    jugadoresMap={jugadoresMap}
+                    espacioIdx={espacioIdx}
+                    grupoIdx={realIdx}
+                    onRemoveGroup={handleRemoveGroup}
+                  />
+                )
+              })}
+            </div>
+            {/* Sin asignar zone - rendered separately at bottom */}
+            {espacio.grupos.filter(g => g.tipo === 'sin_asignar').map((grupo) => {
+              const realIdx = espacio.grupos.indexOf(grupo)
+              return (
+                <div key={`sin-asignar-${espacioIdx}`} className="mt-2">
+                  <DroppableGroup
+                    grupo={grupo}
+                    jugadoresMap={jugadoresMap}
+                    espacioIdx={espacioIdx}
+                    grupoIdx={realIdx}
+                  />
+                </div>
+              )
+            })}
+          </div>
+        ))}
+
+        <DragOverlay>
+          {activeId && activeJugador ? (
+            <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-background border-2 border-primary shadow-lg text-xs">
+              <GripVertical className="h-3 w-3 text-primary shrink-0" />
+              <span className="font-bold w-5 text-center">{activeJugador.dorsal || '?'}</span>
+              <span>{activeJugador.nombre} {activeJugador.apellidos?.charAt(0) || ''}.</span>
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+    </div>
+  )
+}
+
+// ============ Main Component ============
 export default function SesionDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const sesionId = params.id as string
+
+  // Core state
   const [sesion, setSesion] = useState<Sesion | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Action states
   const [deleting, setDeleting] = useState(false)
+  const [generatingPdf, setGeneratingPdf] = useState(false)
+  const [savingTareas, setSavingTareas] = useState(false)
 
-  const sesionId = params.id as string
+  // Task picker
+  const [taskPickerOpen, setTaskPickerOpen] = useState(false)
+  const [taskPickerFase, setTaskPickerFase] = useState<FaseSesion>('activacion')
+  const [taskSearchQuery, setTaskSearchQuery] = useState('')
+  const [taskSearchCategory, setTaskSearchCategory] = useState('')
+  const [taskSearchResults, setTaskSearchResults] = useState<Tarea[]>([])
+  const [searchingTasks, setSearchingTasks] = useState(false)
 
+  // Asistencia state
+  const [jugadores, setJugadores] = useState<Jugador[]>([])
+  const [asistencias, setAsistencias] = useState<Map<string, { presente: boolean; motivo?: MotivoAusencia; notas?: string }>>(new Map())
+  const [asistenciasLoaded, setAsistenciasLoaded] = useState(false)
+  const [savingAsistencias, setSavingAsistencias] = useState(false)
+
+  // Per-task formation panel state
+  const [expandedFormaciones, setExpandedFormaciones] = useState<Set<string>>(new Set())
+
+  // Invitados state
+  const [crossTeamDialogOpen, setCrossTeamDialogOpen] = useState(false)
+  const [quickAddDialogOpen, setQuickAddDialogOpen] = useState(false)
+  const [orgJugadores, setOrgJugadores] = useState<Jugador[]>([])
+  const [orgJugadoresLoading, setOrgJugadoresLoading] = useState(false)
+  const [orgSearchQuery, setOrgSearchQuery] = useState('')
+  const [addingInvitado, setAddingInvitado] = useState(false)
+  const [quickAddForm, setQuickAddForm] = useState({
+    nombre: '',
+    apellidos: '',
+    posicion_principal: 'MC',
+  })
+
+  // Task editing state
+  const [editingTarea, setEditingTarea] = useState<SesionTarea | null>(null)
+  const [editForm, setEditForm] = useState<Record<string, any>>({})
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [aiInstruction, setAiInstruction] = useState('')
+  const [aiProcessing, setAiProcessing] = useState(false)
+  const [aiPreview, setAiPreview] = useState<Record<string, any> | null>(null)
+
+  const { save: autoSave, saving: autoSaving } = useAutoSave(sesionId)
+
+  // Build jugadores lookup map
+  const jugadoresMap = new Map<string, Jugador>()
+  for (const j of jugadores) {
+    jugadoresMap.set(j.id, j)
+  }
+
+  // ============ Load data ============
   useEffect(() => {
     loadSesion()
   }, [sesionId])
@@ -64,28 +725,83 @@ export default function SesionDetailPage() {
       const data = await sesionesApi.get(sesionId)
       setSesion(data)
     } catch (err: any) {
-      console.error('Error loading session:', err)
-      setError(err.response?.data?.detail || 'Error al cargar la sesion')
+      setError(err.message || 'Error al cargar la sesion')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleDelete = async () => {
-    if (!confirm('¿Estas seguro de que quieres eliminar esta sesion?')) return
+  const loadJugadores = async () => {
+    if (!sesion?.equipo_id || jugadores.length > 0) return
+    try {
+      const response = await jugadoresApi.list({ equipo_id: sesion.equipo_id, limit: 100 })
+      setJugadores(response.data as unknown as Jugador[])
+    } catch (err) {
+      console.error('Error loading jugadores:', err)
+    }
+  }
 
+  const loadAsistencias = async () => {
+    if (asistenciasLoaded) return
+    try {
+      const response = await sesionesApi.getAsistencias(sesionId)
+      const map = new Map<string, { presente: boolean; motivo?: MotivoAusencia; notas?: string }>()
+      for (const a of response.data) {
+        map.set(a.jugador_id, {
+          presente: a.presente,
+          motivo: a.motivo_ausencia as MotivoAusencia | undefined,
+          notas: a.notas,
+        })
+      }
+      setAsistencias(map)
+      setAsistenciasLoaded(true)
+    } catch (err) {
+      console.error('Error loading asistencias:', err)
+    }
+  }
+
+  // ============ Field update with autosave ============
+  const updateField = (field: string, value: any) => {
+    setSesion((prev) => prev ? { ...prev, [field]: value } : prev)
+    autoSave({ [field]: value } as SesionUpdateData)
+  }
+
+  // ============ Estado ============
+  const handleUpdateEstado = async (nuevoEstado: EstadoSesion) => {
+    try {
+      await sesionesApi.update(sesionId, { estado: nuevoEstado } as SesionUpdateData)
+      setSesion((prev) => prev ? { ...prev, estado: nuevoEstado } : prev)
+    } catch (err) {
+      console.error('Error updating estado:', err)
+    }
+  }
+
+  // ============ Delete ============
+  const handleDelete = async () => {
+    if (!confirm('Estas seguro de que quieres eliminar esta sesion?')) return
     setDeleting(true)
     try {
       await sesionesApi.delete(sesionId)
       router.push('/sesiones')
     } catch (err: any) {
-      console.error('Error deleting session:', err)
-      setError(err.response?.data?.detail || 'Error al eliminar la sesion')
+      setError(err.message || 'Error al eliminar')
       setDeleting(false)
     }
   }
 
-  // Group tasks by phase
+  // ============ PDF ============
+  const handleGeneratePdf = async () => {
+    setGeneratingPdf(true)
+    try {
+      await sesionesApi.generatePdf(sesionId)
+    } catch (err) {
+      console.error('Error generating PDF:', err)
+    } finally {
+      setGeneratingPdf(false)
+    }
+  }
+
+  // ============ Tareas management ============
   const tareasByFase = sesion?.tareas?.reduce((acc, st) => {
     const fase = st.fase_sesion || 'sin_fase'
     if (!acc[fase]) acc[fase] = []
@@ -93,6 +809,339 @@ export default function SesionDetailPage() {
     return acc
   }, {} as Record<string, SesionTarea[]>) || {}
 
+  const allTareas = sesion?.tareas || []
+
+  const saveTareasBatch = async (newTareas: SesionTarea[]) => {
+    setSavingTareas(true)
+    try {
+      const batch = newTareas.map((t, i) => ({
+        tarea_id: t.tarea_id,
+        orden: i + 1,
+        fase_sesion: t.fase_sesion,
+        duracion_override: t.duracion_override,
+        notas: t.notas,
+      }))
+      const updated = await sesionesApi.batchUpdateTareas(sesionId, batch)
+      setSesion(updated)
+    } catch (err) {
+      console.error('Error saving tareas:', err)
+    } finally {
+      setSavingTareas(false)
+    }
+  }
+
+  const handleAddTarea = async (tarea: Tarea, fase: FaseSesion) => {
+    const existingInFase = tareasByFase[fase] || []
+    const newSesionTarea: SesionTarea = {
+      id: `temp-${Date.now()}`,
+      sesion_id: sesionId,
+      tarea_id: tarea.id,
+      orden: existingInFase.length + 1,
+      fase_sesion: fase,
+      created_at: new Date().toISOString(),
+      tarea,
+    }
+    const newAll = [...allTareas, newSesionTarea]
+    setSesion((prev) => prev ? { ...prev, tareas: newAll } : prev)
+    setTaskPickerOpen(false)
+    await saveTareasBatch(newAll)
+  }
+
+  const handleRemoveTarea = async (tareaToRemove: SesionTarea) => {
+    const newAll = allTareas.filter((t) => t.id !== tareaToRemove.id)
+    setSesion((prev) => prev ? { ...prev, tareas: newAll } : prev)
+    await saveTareasBatch(newAll)
+  }
+
+  const handleMoveTarea = async (tareaToMove: SesionTarea, direction: 'up' | 'down') => {
+    const fase = tareaToMove.fase_sesion
+    const faseTareas = [...(tareasByFase[fase] || [])]
+    const idx = faseTareas.findIndex((t) => t.id === tareaToMove.id)
+    if (idx < 0) return
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= faseTareas.length) return
+
+    ;[faseTareas[idx], faseTareas[swapIdx]] = [faseTareas[swapIdx], faseTareas[idx]]
+
+    // Rebuild full list maintaining phase order
+    const newAll: SesionTarea[] = []
+    for (const f of ALL_FASES) {
+      if (f === fase) {
+        newAll.push(...faseTareas)
+      } else {
+        newAll.push(...(tareasByFase[f] || []))
+      }
+    }
+    setSesion((prev) => prev ? { ...prev, tareas: newAll } : prev)
+    await saveTareasBatch(newAll)
+  }
+
+  const handleUpdateTareaDuration = (tareaId: string, duration: number) => {
+    const newAll = allTareas.map((t) =>
+      t.id === tareaId ? { ...t, duracion_override: duration } : t
+    )
+    setSesion((prev) => prev ? { ...prev, tareas: newAll } : prev)
+    // Debounced save
+    const timer = setTimeout(() => saveTareasBatch(newAll), 600)
+    return () => clearTimeout(timer)
+  }
+
+  const handleUpdateTareaNotas = (tareaId: string, notas: string) => {
+    const newAll = allTareas.map((t) =>
+      t.id === tareaId ? { ...t, notas } : t
+    )
+    setSesion((prev) => prev ? { ...prev, tareas: newAll } : prev)
+  }
+
+  // ============ Per-task formation ============
+  const toggleFormacionPanel = (stId: string) => {
+    setExpandedFormaciones((prev) => {
+      const next = new Set(prev)
+      if (next.has(stId)) {
+        next.delete(stId)
+      } else {
+        next.add(stId)
+        // Ensure jugadores are loaded for the formation panel
+        loadJugadores()
+      }
+      return next
+    })
+  }
+
+  const handleFormacionChange = (stId: string, formacion: FormacionEquipos | null) => {
+    setSesion((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        tareas: prev.tareas?.map((t) =>
+          t.id === stId ? { ...t, formacion_equipos: formacion } : t
+        ),
+      }
+    })
+  }
+
+  // ============ Task editing ============
+  const openEditTarea = (st: SesionTarea) => {
+    setEditingTarea(st)
+    setEditForm({
+      titulo: st.tarea?.titulo || '',
+      descripcion: st.tarea?.descripcion || '',
+      duracion_total: st.tarea?.duracion_total || 0,
+      reglas_tecnicas: st.tarea?.reglas_tecnicas || '',
+      reglas_tacticas: st.tarea?.reglas_tacticas || '',
+      consignas_ofensivas: st.tarea?.consignas_ofensivas || '',
+      consignas_defensivas: st.tarea?.consignas_defensivas || '',
+      variantes: st.tarea?.variantes || '',
+      espacio_largo: st.tarea?.espacio_largo || 0,
+      espacio_ancho: st.tarea?.espacio_ancho || 0,
+    })
+    setAiInstruction('')
+    setAiPreview(null)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editingTarea) return
+    setSavingEdit(true)
+    try {
+      const result = await sesionesApi.duplicarYEditarTarea(sesionId, editingTarea.id, editForm)
+      // Update the local session state
+      setSesion((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          tareas: prev.tareas?.map((t) =>
+            t.id === editingTarea.id
+              ? { ...t, tarea_id: result.tarea_id, tarea: result.tareas || result.tarea }
+              : t
+          ),
+        }
+      })
+      setEditingTarea(null)
+    } catch (err) {
+      console.error('Error saving edit:', err)
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  const handleAiEdit = async () => {
+    if (!editingTarea || !aiInstruction.trim()) return
+    setAiProcessing(true)
+    setAiPreview(null)
+    try {
+      const result = await sesionesApi.aiEditTarea(sesionId, editingTarea.id, aiInstruction)
+      // The AI has already duplicated and applied changes — update local state
+      setSesion((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          tareas: prev.tareas?.map((t) =>
+            t.id === editingTarea.id
+              ? { ...t, tarea_id: result.tarea_id, tarea: result.tareas || result.tarea }
+              : t
+          ),
+        }
+      })
+      setEditingTarea(null)
+      setAiInstruction('')
+    } catch (err) {
+      console.error('Error with AI edit:', err)
+    } finally {
+      setAiProcessing(false)
+    }
+  }
+
+  // ============ Task picker search ============
+  const searchTasks = async () => {
+    setSearchingTasks(true)
+    try {
+      const res = await tareasApi.list({
+        busqueda: taskSearchQuery || undefined,
+        categoria: taskSearchCategory || undefined,
+        limit: 20,
+        biblioteca: true,
+      })
+      setTaskSearchResults(res.data)
+    } catch (err) {
+      console.error('Error searching tasks:', err)
+    } finally {
+      setSearchingTasks(false)
+    }
+  }
+
+  useEffect(() => {
+    if (taskPickerOpen) searchTasks()
+  }, [taskPickerOpen, taskSearchQuery, taskSearchCategory])
+
+  // ============ Asistencia ============
+  const handleTabChange = (tab: string) => {
+    if (tab === 'asistencia') {
+      loadJugadores()
+      loadAsistencias()
+    }
+  }
+
+  const toggleAsistencia = (jugadorId: string) => {
+    setAsistencias((prev) => {
+      const next = new Map(prev)
+      const current = next.get(jugadorId)
+      if (current) {
+        next.set(jugadorId, { ...current, presente: !current.presente, motivo: !current.presente ? undefined : current.motivo })
+      } else {
+        next.set(jugadorId, { presente: false })
+      }
+      return next
+    })
+  }
+
+  const setMotivoAusencia = (jugadorId: string, motivo: MotivoAusencia) => {
+    setAsistencias((prev) => {
+      const next = new Map(prev)
+      const current = next.get(jugadorId) || { presente: false }
+      next.set(jugadorId, { ...current, motivo })
+      return next
+    })
+  }
+
+  const saveAsistencias = async () => {
+    setSavingAsistencias(true)
+    try {
+      const list = jugadores.map((j) => {
+        const a = asistencias.get(j.id)
+        return {
+          jugador_id: j.id,
+          presente: a?.presente ?? true,
+          motivo_ausencia: a?.presente === false ? a?.motivo : undefined,
+          notas: a?.notas,
+        }
+      })
+      await sesionesApi.saveAsistenciasBatch(sesionId, list)
+    } catch (err) {
+      console.error('Error saving asistencias:', err)
+    } finally {
+      setSavingAsistencias(false)
+    }
+  }
+
+  // ============ Invitados ============
+  const loadOrgJugadores = async () => {
+    if (orgJugadores.length > 0) return
+    setOrgJugadoresLoading(true)
+    try {
+      const response = await jugadoresApi.list({ organizacion_completa: true, limit: 200 })
+      setOrgJugadores(response.data as unknown as Jugador[])
+    } catch (err) {
+      console.error('Error loading org jugadores:', err)
+    } finally {
+      setOrgJugadoresLoading(false)
+    }
+  }
+
+  const handleAddCrossTeamPlayer = async (jugadorId: string) => {
+    setAddingInvitado(true)
+    try {
+      await sesionesApi.addCrossTeamPlayer(sesionId, jugadorId)
+      // Refresh asistencias
+      setAsistenciasLoaded(false)
+      await loadAsistencias()
+      // Add to local jugadores list if not already there
+      const existing = jugadores.find((j) => j.id === jugadorId)
+      if (!existing) {
+        const orgJug = orgJugadores.find((j) => j.id === jugadorId)
+        if (orgJug) {
+          setJugadores((prev) => [...prev, orgJug as unknown as Jugador])
+          setAsistencias((prev) => {
+            const next = new Map(prev)
+            next.set(jugadorId, { presente: true })
+            return next
+          })
+        }
+      }
+      setCrossTeamDialogOpen(false)
+    } catch (err: any) {
+      console.error('Error adding cross-team player:', err)
+      alert(err?.message || 'Error al anadir jugador')
+    } finally {
+      setAddingInvitado(false)
+    }
+  }
+
+  const handleQuickAddGuest = async () => {
+    if (!quickAddForm.nombre.trim()) return
+    setAddingInvitado(true)
+    try {
+      const result = await sesionesApi.quickAddGuest(sesionId, {
+        nombre: quickAddForm.nombre.trim(),
+        apellidos: quickAddForm.apellidos.trim(),
+        posicion_principal: quickAddForm.posicion_principal,
+      })
+      // Add to local lists
+      setJugadores((prev) => [...prev, result.jugador])
+      setAsistencias((prev) => {
+        const next = new Map(prev)
+        next.set(result.jugador.id, { presente: true })
+        return next
+      })
+      setQuickAddDialogOpen(false)
+      setQuickAddForm({ nombre: '', apellidos: '', posicion_principal: 'MC' })
+    } catch (err: any) {
+      console.error('Error quick-adding guest:', err)
+      alert(err?.message || 'Error al crear jugador')
+    } finally {
+      setAddingInvitado(false)
+    }
+  }
+
+  const presentesCount = jugadores.filter((j) => {
+    const a = asistencias.get(j.id)
+    return a?.presente ?? true
+  }).length
+
+  // ============ Derived ============
+  const completedFases = ALL_FASES.filter((f) => tareasByFase[f]?.length > 0)
+  const totalDuration = allTareas.reduce((sum, st) => sum + (st.duracion_override || st.tarea?.duracion_total || 0), 0)
+
+  // ============ Render ============
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -104,213 +1153,917 @@ export default function SesionDetailPage() {
   if (error || !sesion) {
     return (
       <div className="max-w-4xl mx-auto">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-lg font-semibold text-red-800 mb-2">Error</h2>
-          <p className="text-red-600 mb-4">{error || 'Sesion no encontrada'}</p>
-          <Link
-            href="/sesiones"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Volver a sesiones
-          </Link>
+        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-6 text-center">
+          <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+          <h2 className="text-lg font-semibold mb-2">Error</h2>
+          <p className="text-destructive mb-4">{error || 'Sesion no encontrada'}</p>
+          <Button variant="outline" asChild>
+            <Link href="/sesiones"><ArrowLeft className="h-4 w-4 mr-2" />Volver a sesiones</Link>
+          </Button>
         </div>
       </div>
     )
   }
 
   const estadoConfig = ESTADO_CONFIG[sesion.estado] || ESTADO_CONFIG.borrador
-  const EstadoIcon = estadoConfig.icon
+
+  // Group jugadores by position for asistencia
+  const jugadoresByPosition = jugadores.reduce((acc, j) => {
+    const pos = j.posicion_principal || 'Otro'
+    if (!acc[pos]) acc[pos] = []
+    acc[pos].push(j)
+    return acc
+  }, {} as Record<string, Jugador[]>)
+
+  const sortedPositions = Object.keys(jugadoresByPosition).sort(
+    (a, b) => (POSITION_ORDER[a] ?? 99) - (POSITION_ORDER[b] ?? 99)
+  )
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div className="flex items-start gap-4">
-          <Link
-            href="/sesiones"
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors mt-1"
-          >
+          <Link href="/sesiones" className="p-2 hover:bg-muted rounded-lg transition-colors mt-1">
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-2xl font-bold text-gray-900">{sesion.titulo}</h1>
-              <span className={`px-2 py-1 rounded text-xs font-bold ${MATCH_DAY_COLORS[sesion.match_day] || 'bg-gray-100'}`}>
-                {sesion.match_day}
-              </span>
-              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${estadoConfig.color}`}>
-                <EstadoIcon className="h-3 w-3" />
-                {estadoConfig.label}
-              </span>
+          <div className="flex-1">
+            {/* Editable title */}
+            <div className="flex items-center gap-3 mb-2 flex-wrap">
+              <input
+                className="text-2xl font-bold bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none transition-colors py-0.5 min-w-[200px]"
+                value={sesion.titulo}
+                onChange={(e) => updateField('titulo', e.target.value)}
+              />
+              {/* Match Day selector */}
+              <select
+                className={`text-xs font-bold px-2.5 py-1 rounded border-0 cursor-pointer ${MATCH_DAY_COLORS[sesion.match_day] || 'bg-muted'}`}
+                value={sesion.match_day}
+                onChange={(e) => updateField('match_day', e.target.value)}
+              >
+                {MATCH_DAYS.map((md) => (
+                  <option key={md} value={md}>{md}</option>
+                ))}
+              </select>
+              {/* Estado dropdown */}
+              <select
+                className={`text-xs font-medium px-2 py-1 rounded border cursor-pointer ${estadoConfig.color}`}
+                value={sesion.estado}
+                onChange={(e) => handleUpdateEstado(e.target.value as EstadoSesion)}
+              >
+                <option value="borrador">Borrador</option>
+                <option value="planificada">Planificada</option>
+                <option value="completada">Completada</option>
+                <option value="cancelada">Cancelada</option>
+              </select>
+              {autoSaving && (
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Guardando...
+                </span>
+              )}
             </div>
-            <div className="flex items-center gap-4 text-sm text-gray-500">
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Calendar className="h-4 w-4" />
-                {new Date(sesion.fecha).toLocaleDateString('es-ES', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
+                <input
+                  type="date"
+                  className="bg-transparent border-none outline-none cursor-pointer"
+                  value={sesion.fecha}
+                  onChange={(e) => updateField('fecha', e.target.value)}
+                />
               </span>
-              {sesion.rival && (
-                <span>vs {sesion.rival}</span>
-              )}
-              {sesion.competicion && (
-                <span className="text-gray-400">| {sesion.competicion}</span>
-              )}
+              <span className="flex items-center gap-1">
+                <Clock className="h-4 w-4" />
+                {totalDuration || sesion.duracion_total || 0} min
+              </span>
+              <span className="flex items-center gap-1">
+                <Users className="h-4 w-4" />
+                {allTareas.length} tareas
+              </span>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleDelete}
-            disabled={deleting}
-            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            title="Eliminar sesion"
-          >
-            {deleting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
-          </button>
+          <Button variant="outline" size="icon" onClick={handleGeneratePdf} disabled={generatingPdf} title="Exportar PDF">
+            {generatingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          </Button>
+          <Button variant="outline" size="icon" onClick={handleDelete} disabled={deleting} className="text-destructive hover:bg-destructive/10" title="Eliminar">
+            {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+          </Button>
         </div>
       </div>
 
-      {/* Session Info */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-        <h2 className="font-semibold text-gray-900 mb-4">Informacion de la Sesion</h2>
-
-        {sesion.objetivo_principal && (
-          <div className="mb-4">
-            <p className="text-sm font-medium text-gray-500 mb-1">Objetivo Principal</p>
-            <p className="text-gray-700">{sesion.objetivo_principal}</p>
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {sesion.duracion_total && (
-            <div className="bg-gray-50 rounded-lg p-3">
-              <div className="flex items-center gap-2 text-gray-500 mb-1">
-                <Clock className="h-4 w-4" />
-                <span className="text-xs">Duracion</span>
-              </div>
-              <p className="font-semibold">{sesion.duracion_total} min</p>
-            </div>
-          )}
-
-          {sesion.intensidad_objetivo && (
-            <div className="bg-gray-50 rounded-lg p-3">
-              <div className="flex items-center gap-2 text-gray-500 mb-1">
-                <Target className="h-4 w-4" />
-                <span className="text-xs">Intensidad</span>
-              </div>
-              <p className="font-semibold capitalize">{sesion.intensidad_objetivo}</p>
-            </div>
-          )}
-
-          {sesion.fase_juego_principal && (
-            <div className="bg-gray-50 rounded-lg p-3">
-              <div className="text-gray-500 mb-1">
-                <span className="text-xs">Fase de Juego</span>
-              </div>
-              <p className="font-semibold text-sm">{sesion.fase_juego_principal.replace(/_/g, ' ')}</p>
-            </div>
-          )}
-
-          <div className="bg-gray-50 rounded-lg p-3">
-            <div className="flex items-center gap-2 text-gray-500 mb-1">
-              <Users className="h-4 w-4" />
-              <span className="text-xs">Tareas</span>
-            </div>
-            <p className="font-semibold">{sesion.tareas?.length || 0}</p>
-          </div>
+      {/* Completeness bar */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="flex-1 flex gap-1">
+          {ALL_FASES.map((fase) => (
+            <div
+              key={fase}
+              className={`h-2 flex-1 rounded-full transition-colors ${tareasByFase[fase]?.length ? 'bg-primary' : 'bg-muted'}`}
+              title={`${FASE_LABELS[fase]}: ${tareasByFase[fase]?.length ? 'Completa' : 'Vacia'}`}
+            />
+          ))}
         </div>
-
-        {sesion.notas_pre && (
-          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-            <p className="text-sm font-medium text-blue-700 mb-1">Notas</p>
-            <p className="text-sm text-blue-600 whitespace-pre-wrap">{sesion.notas_pre}</p>
-          </div>
-        )}
+        <span className="text-xs text-muted-foreground shrink-0">
+          {completedFases.length}/{ALL_FASES.length} fases
+        </span>
       </div>
 
-      {/* Tasks by Phase */}
-      <div className="space-y-4">
-        <h2 className="font-semibold text-gray-900">Tareas de la Sesion</h2>
+      {/* Tabs - only 2: Diseno and Asistencia */}
+      <Tabs defaultValue="diseno" onValueChange={handleTabChange}>
+        <TabsList className="mb-6">
+          <TabsTrigger value="diseno">Diseno</TabsTrigger>
+          <TabsTrigger value="asistencia">Asistencia</TabsTrigger>
+        </TabsList>
 
-        {Object.keys(tareasByFase).length === 0 ? (
-          <div className="bg-gray-50 rounded-xl border border-gray-200 p-8 text-center">
-            <p className="text-gray-500">No hay tareas en esta sesion</p>
-          </div>
-        ) : (
-          ['activacion', 'desarrollo_1', 'desarrollo_2', 'vuelta_calma'].map(fase => {
-            const tareas = tareasByFase[fase]
-            if (!tareas || tareas.length === 0) return null
-
-            return (
-              <div key={fase} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                  <h3 className="font-medium text-gray-900">{FASE_LABELS[fase] || fase}</h3>
+        {/* ==================== TAB: DISENO ==================== */}
+        <TabsContent value="diseno">
+          {/* Metadata */}
+          <Card className="mb-6">
+            <CardContent className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Objetivo principal</label>
+                  <Textarea
+                    value={sesion.objetivo_principal || ''}
+                    onChange={(e) => updateField('objetivo_principal', e.target.value)}
+                    placeholder="Ej: Mejorar salida de balon bajo presion"
+                    rows={2}
+                  />
                 </div>
-                <div className="divide-y divide-gray-100">
-                  {tareas.map((st, idx) => (
-                    <div key={st.id} className="p-4 hover:bg-gray-50">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-3">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-sm">
-                            {idx + 1}
-                          </div>
-                          <div>
-                            <h4 className="font-medium text-gray-900">
-                              {st.tarea?.titulo || 'Tarea sin titulo'}
-                            </h4>
-                            <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
-                              <span>{st.duracion_override || st.tarea?.duracion_total || 0} min</span>
-                              {st.tarea?.num_jugadores_min && (
-                                <span>{st.tarea.num_jugadores_min} jugadores</span>
-                              )}
-                              {st.tarea?.categoria && (
-                                <span className="px-2 py-0.5 bg-gray-100 rounded text-xs">
-                                  {st.tarea.categoria.nombre}
-                                </span>
-                              )}
-                            </div>
-                            {st.notas && (
-                              <p className="text-sm text-gray-600 mt-2">{st.notas}</p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Intensidad</label>
+                  <select
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    value={sesion.intensidad_objetivo || ''}
+                    onChange={(e) => updateField('intensidad_objetivo', e.target.value || null)}
+                  >
+                    <option value="">Sin definir</option>
+                    {INTENSIDADES.map((i) => (
+                      <option key={i} value={i}>{i.charAt(0).toUpperCase() + i.slice(1).replace('_', ' ')}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Rival</label>
+                  <Input
+                    value={sesion.rival || ''}
+                    onChange={(e) => updateField('rival', e.target.value || null)}
+                    placeholder="Nombre del rival"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Competicion</label>
+                  <Input
+                    value={sesion.competicion || ''}
+                    onChange={(e) => updateField('competicion', e.target.value || null)}
+                    placeholder="Liga, Copa..."
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Notas pre-sesion</label>
+                  <Textarea
+                    value={sesion.notas_pre || ''}
+                    onChange={(e) => updateField('notas_pre', e.target.value || null)}
+                    placeholder="Notas para antes de la sesion"
+                    rows={2}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Notas post-sesion</label>
+                  <Textarea
+                    value={sesion.notas_post || ''}
+                    onChange={(e) => updateField('notas_post', e.target.value || null)}
+                    placeholder="Notas despues de la sesion"
+                    rows={2}
+                  />
+                </div>
+              </div>
+
+              {/* Materiales */}
+              <div className="mt-4">
+                <label className="text-xs font-medium text-muted-foreground mb-2 block">Materiales</label>
+                <div className="flex flex-wrap gap-2">
+                  {(sesion.materiales || []).map((mat, idx) => (
+                    <Badge key={idx} variant="secondary" className="gap-1">
+                      {mat}
+                      <button
+                        onClick={() => {
+                          const newMats = (sesion.materiales || []).filter((_, i) => i !== idx)
+                          updateField('materiales', newMats)
+                        }}
+                        className="ml-1 hover:text-destructive"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                  {MATERIALES_SUGERIDOS.filter((m) => !(sesion.materiales || []).includes(m)).map((mat) => (
+                    <button
+                      key={mat}
+                      onClick={() => updateField('materiales', [...(sesion.materiales || []), mat])}
+                      className="px-2 py-1 text-xs border border-dashed rounded-full text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+                    >
+                      + {mat}
+                    </button>
                   ))}
                 </div>
               </div>
-            )
-          })
-        )}
-      </div>
+            </CardContent>
+          </Card>
 
-      {/* Footer Actions */}
+          {/* Fases de sesion */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold">Tareas de la Sesion</h2>
+              {savingTareas && (
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Guardando tareas...
+                </span>
+              )}
+            </div>
+
+            {ALL_FASES.map((fase) => {
+              const tareas = tareasByFase[fase] || []
+              const hasTareas = tareas.length > 0
+              const faseDuration = tareas.reduce((s, t) => s + (t.duracion_override || t.tarea?.duracion_total || 0), 0)
+              const faseNota = sesion.fase_notas?.[fase]
+
+              return (
+                <Card key={fase} className={!hasTareas ? 'border-dashed' : ''}>
+                  <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
+                    <div className="flex items-center gap-2">
+                      <CircleDot className={`h-4 w-4 ${hasTareas ? 'text-primary' : 'text-muted-foreground'}`} />
+                      <h3 className="font-medium">{FASE_LABELS[fase]}</h3>
+                      {hasTareas && (
+                        <span className="text-xs text-muted-foreground">{faseDuration} min</span>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setTaskPickerFase(fase)
+                        setTaskPickerOpen(true)
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-1" /> Anadir tarea
+                    </Button>
+                  </div>
+
+                  {hasTareas ? (
+                    <div className="divide-y">
+                      {tareas.map((st, idx) => {
+                        const isExpanded = expandedFormaciones.has(st.id)
+                        const hasFormacion = !!st.formacion_equipos
+                        const hasEstructura = !!st.tarea?.estructura_equipos
+
+                        return (
+                          <div key={st.id}>
+                            <div className="p-4 hover:bg-muted/30 transition-colors group">
+                              <div className="flex items-start gap-3">
+                                <div className="flex flex-col items-center gap-1 pt-1">
+                                  <button
+                                    onClick={() => handleMoveTarea(st, 'up')}
+                                    disabled={idx === 0}
+                                    className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                  >
+                                    <ChevronUp className="h-3 w-3" />
+                                  </button>
+                                  <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-xs">
+                                    {idx + 1}
+                                  </div>
+                                  <button
+                                    onClick={() => handleMoveTarea(st, 'down')}
+                                    disabled={idx === tareas.length - 1}
+                                    className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                  >
+                                    <ChevronDown className="h-3 w-3" />
+                                  </button>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="font-medium">{st.tarea?.titulo || 'Tarea sin titulo'}</h4>
+                                    {st.tarea?.categoria && (
+                                      <Badge variant="outline" className="text-[10px]">
+                                        {st.tarea.categoria.nombre}
+                                      </Badge>
+                                    )}
+                                    {hasEstructura && (
+                                      <Badge variant="outline" className="text-[10px]">
+                                        {st.tarea?.estructura_equipos}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-3 mt-1">
+                                    <div className="flex items-center gap-1">
+                                      <Clock className="h-3 w-3 text-muted-foreground" />
+                                      <input
+                                        type="number"
+                                        className="w-12 text-sm bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none text-center"
+                                        value={st.duracion_override || st.tarea?.duracion_total || 0}
+                                        onChange={(e) => handleUpdateTareaDuration(st.id, parseInt(e.target.value) || 0)}
+                                      />
+                                      <span className="text-xs text-muted-foreground">min</span>
+                                    </div>
+                                    {st.tarea?.num_jugadores_min && (
+                                      <span className="text-xs text-muted-foreground">
+                                        {st.tarea.num_jugadores_min}{st.tarea.num_jugadores_max ? `-${st.tarea.num_jugadores_max}` : ''} jug.
+                                      </span>
+                                    )}
+                                  </div>
+                                  <input
+                                    className="mt-1 text-sm text-muted-foreground bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none w-full italic"
+                                    placeholder="Notas de la tarea..."
+                                    value={st.notas || ''}
+                                    onChange={(e) => handleUpdateTareaNotas(st.id, e.target.value)}
+                                    onBlur={() => saveTareasBatch(allTareas)}
+                                  />
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  {/* Edit task button */}
+                                  <button
+                                    onClick={() => openEditTarea(st)}
+                                    className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                    title="Editar tarea"
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </button>
+                                  {/* Equipos toggle button */}
+                                  <button
+                                    onClick={() => toggleFormacionPanel(st.id)}
+                                    className={`p-1.5 rounded-md transition-colors ${
+                                      isExpanded
+                                        ? 'bg-primary/10 text-primary'
+                                        : hasFormacion
+                                          ? 'text-primary hover:bg-primary/10'
+                                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                                    }`}
+                                    title="Equipos"
+                                  >
+                                    <Users className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleRemoveTarea(st)}
+                                    className="p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                    title="Eliminar tarea"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Inline Formation Panel */}
+                            {isExpanded && (
+                              <div className="px-4 pb-4 pt-0 ml-10 mr-4">
+                                <div className="border rounded-lg p-3 bg-muted/20">
+                                  <FormacionPanel
+                                    sesionId={sesionId}
+                                    sesionTarea={st}
+                                    jugadoresMap={jugadoresMap}
+                                    onFormacionChange={handleFormacionChange}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-6 text-center">
+                      {faseNota ? (
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground italic">{faseNota}</p>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Sin tareas asignadas</p>
+                      )}
+                      <input
+                        className="mt-2 text-sm text-center bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none w-full"
+                        placeholder="Nota para esta fase (ej: Reservado para PF)..."
+                        value={sesion.fase_notas?.[fase] || ''}
+                        onChange={(e) => {
+                          const newNotas = { ...(sesion.fase_notas || {}), [fase]: e.target.value }
+                          updateField('fase_notas', newNotas)
+                        }}
+                      />
+                    </div>
+                  )}
+                </Card>
+              )
+            })}
+          </div>
+        </TabsContent>
+
+        {/* ==================== TAB: ASISTENCIA ==================== */}
+        <TabsContent value="asistencia">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Control de Asistencia
+                </CardTitle>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    <UserCheck className="h-4 w-4 text-green-600" />
+                    <span className="font-medium">{presentesCount}</span>
+                    <span className="text-muted-foreground">/</span>
+                    <span className="font-medium">{jugadores.length}</span>
+                    <span className="text-muted-foreground">presentes</span>
+                  </div>
+                  <Button onClick={saveAsistencias} disabled={savingAsistencias} size="sm">
+                    {savingAsistencias ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
+                    Guardar
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {jugadores.length === 0 ? (
+                <div className="text-center py-8">
+                  <Users className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">Cargando jugadores...</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {sortedPositions.map((pos) => (
+                    <div key={pos}>
+                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{pos}</h4>
+                      <div className="space-y-1">
+                        {jugadoresByPosition[pos].map((jugador) => {
+                          const asistencia = asistencias.get(jugador.id)
+                          const presente = asistencia?.presente ?? true
+
+                          return (
+                            <div
+                              key={jugador.id}
+                              className={`flex items-center justify-between py-2 px-3 rounded-lg transition-colors ${
+                                presente ? 'bg-green-50/50' : 'bg-red-50/50'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold">
+                                  {jugador.dorsal || '?'}
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium">
+                                    {jugador.nombre} {jugador.apellidos}
+                                    {jugador.es_invitado && (
+                                      <Badge variant="outline" className="text-[10px] ml-2 border-amber-300 text-amber-700 bg-amber-50">
+                                        Invitado
+                                      </Badge>
+                                    )}
+                                    {jugador.estado === 'lesionado' && (
+                                      <Badge variant="outline" className="text-[10px] ml-2 border-amber-300 text-amber-700 bg-amber-50">
+                                        Lesionado
+                                      </Badge>
+                                    )}
+                                  </p>
+                                  {jugador.estado !== 'activo' && jugador.estado !== 'lesionado' && (
+                                    <Badge variant="outline" className="text-[10px] mt-0.5">
+                                      {jugador.estado}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                {!presente && (
+                                  <select
+                                    className="text-xs border rounded px-2 py-1 bg-background"
+                                    value={asistencia?.motivo || ''}
+                                    onChange={(e) => setMotivoAusencia(jugador.id, e.target.value as MotivoAusencia)}
+                                  >
+                                    <option value="">Motivo...</option>
+                                    {MOTIVOS_AUSENCIA.map((m) => (
+                                      <option key={m.value} value={m.value}>{m.label}</option>
+                                    ))}
+                                  </select>
+                                )}
+                                <Switch
+                                  checked={presente}
+                                  onCheckedChange={() => toggleAsistencia(jugador.id)}
+                                />
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Invitados section */}
+                  <div className="border-t pt-4 mt-4">
+                    <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                      <Plus className="h-4 w-4" />
+                      Anadir jugadores
+                    </h4>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setCrossTeamDialogOpen(true)
+                          loadOrgJugadores()
+                        }}
+                      >
+                        <Users className="h-4 w-4 mr-1" />
+                        De otro equipo
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setQuickAddDialogOpen(true)}
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Jugador manual
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Footer */}
       <div className="mt-8 flex justify-between items-center">
-        <Link
-          href="/sesiones"
-          className="inline-flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Volver a sesiones
-        </Link>
-
-        <div className="flex items-center gap-3">
-          <Link
-            href="/sesiones/nueva-ai"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700"
-          >
-            <Sparkles className="h-4 w-4" />
-            Nueva sesion con IA
-          </Link>
-        </div>
+        <Button variant="ghost" asChild>
+          <Link href="/sesiones"><ArrowLeft className="h-4 w-4 mr-2" />Volver a sesiones</Link>
+        </Button>
+        <Button asChild>
+          <Link href="/sesiones/nueva-ai"><Sparkles className="h-4 w-4 mr-2" />Nueva sesion con IA</Link>
+        </Button>
       </div>
+
+      {/* ==================== TASK PICKER DIALOG ==================== */}
+      <Dialog open={taskPickerOpen} onOpenChange={setTaskPickerOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Anadir tarea a {FASE_LABELS[taskPickerFase]}</DialogTitle>
+            <DialogDescription>Busca en la biblioteca de tareas y selecciona una para anadir.</DialogDescription>
+          </DialogHeader>
+
+          <div className="flex gap-2 mb-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                placeholder="Buscar tareas..."
+                value={taskSearchQuery}
+                onChange={(e) => setTaskSearchQuery(e.target.value)}
+              />
+            </div>
+            <select
+              className="rounded-md border bg-background px-3 py-2 text-sm"
+              value={taskSearchCategory}
+              onChange={(e) => setTaskSearchCategory(e.target.value)}
+            >
+              <option value="">Todas las categorias</option>
+              <option value="RND">Rondo</option>
+              <option value="JDP">Juego de Posicion</option>
+              <option value="POS">Posesion</option>
+              <option value="EVO">Evoluciones</option>
+              <option value="AVD">Ataque vs Defensa</option>
+              <option value="PCO">Partido Condicionado</option>
+              <option value="ACO">Acc. Combinadas</option>
+              <option value="SSG">Futbol Reducido</option>
+              <option value="ABP">Balon Parado</option>
+            </select>
+          </div>
+
+          <div className="flex-1 overflow-y-auto space-y-2 min-h-[200px]">
+            {searchingTasks ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : taskSearchResults.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No se encontraron tareas
+              </div>
+            ) : (
+              taskSearchResults.map((tarea) => (
+                <button
+                  key={tarea.id}
+                  onClick={() => handleAddTarea(tarea, taskPickerFase)}
+                  className="w-full text-left p-3 rounded-lg border hover:bg-muted/50 hover:border-primary/50 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-sm">{tarea.titulo}</p>
+                      <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                        {tarea.categoria && (
+                          <Badge variant="outline" className="text-[10px]">{tarea.categoria.nombre}</Badge>
+                        )}
+                        <span>{tarea.duracion_total} min</span>
+                        <span>{tarea.num_jugadores_min}{tarea.num_jugadores_max ? `-${tarea.num_jugadores_max}` : ''} jug.</span>
+                        {tarea.estructura_equipos && (
+                          <Badge variant="outline" className="text-[10px]">{tarea.estructura_equipos}</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <Plus className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ==================== CROSS-TEAM PLAYER DIALOG ==================== */}
+      <Dialog open={crossTeamDialogOpen} onOpenChange={setCrossTeamDialogOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[70vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Anadir jugador de otro equipo</DialogTitle>
+            <DialogDescription>Selecciona un jugador de otro equipo de tu organizacion.</DialogDescription>
+          </DialogHeader>
+
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              placeholder="Buscar por nombre..."
+              value={orgSearchQuery}
+              onChange={(e) => setOrgSearchQuery(e.target.value)}
+            />
+          </div>
+
+          <div className="flex-1 overflow-y-auto space-y-1 min-h-[150px]">
+            {orgJugadoresLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : (() => {
+              const currentTeamPlayerIds = new Set(jugadores.map((j) => j.id))
+              const filtered = orgJugadores.filter((j) => {
+                // Exclude players already in the session's team
+                if (j.equipo_id === sesion?.equipo_id && !j.es_invitado) return false
+                // Exclude players already added
+                if (currentTeamPlayerIds.has(j.id)) return false
+                // Search filter
+                if (orgSearchQuery) {
+                  const q = orgSearchQuery.toLowerCase()
+                  const fullName = `${j.nombre} ${j.apellidos}`.toLowerCase()
+                  if (!fullName.includes(q)) return false
+                }
+                return true
+              })
+
+              // Group by team
+              const byTeam = filtered.reduce((acc, j) => {
+                const teamName = (j as any).equipos?.nombre || 'Sin equipo'
+                if (!acc[teamName]) acc[teamName] = []
+                acc[teamName].push(j)
+                return acc
+              }, {} as Record<string, typeof filtered>)
+
+              if (Object.keys(byTeam).length === 0) {
+                return (
+                  <div className="text-center py-8 text-muted-foreground text-sm">
+                    No se encontraron jugadores disponibles
+                  </div>
+                )
+              }
+
+              return Object.entries(byTeam).map(([teamName, players]) => (
+                <div key={teamName}>
+                  <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider py-2 px-1">
+                    {teamName}
+                  </h5>
+                  {players.map((j) => (
+                    <button
+                      key={j.id}
+                      onClick={() => handleAddCrossTeamPlayer(j.id)}
+                      disabled={addingInvitado}
+                      className="w-full text-left flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors disabled:opacity-50"
+                    >
+                      <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-bold">
+                        {j.dorsal || '?'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{j.nombre} {j.apellidos}</p>
+                        <p className="text-xs text-muted-foreground">{j.posicion_principal}</p>
+                      </div>
+                      <Plus className="h-4 w-4 text-muted-foreground shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              ))
+            })()}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ==================== QUICK-ADD GUEST DIALOG ==================== */}
+      <Dialog open={quickAddDialogOpen} onOpenChange={setQuickAddDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Anadir jugador manual</DialogTitle>
+            <DialogDescription>Crea un jugador temporal para esta sesion (pruebas, invitados, etc.)</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="text-sm font-medium mb-1 block">Nombre *</label>
+              <Input
+                value={quickAddForm.nombre}
+                onChange={(e) => setQuickAddForm((f) => ({ ...f, nombre: e.target.value }))}
+                placeholder="Nombre del jugador"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Apellidos</label>
+              <Input
+                value={quickAddForm.apellidos}
+                onChange={(e) => setQuickAddForm((f) => ({ ...f, apellidos: e.target.value }))}
+                placeholder="Apellidos"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Posicion</label>
+              <select
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={quickAddForm.posicion_principal}
+                onChange={(e) => setQuickAddForm((f) => ({ ...f, posicion_principal: e.target.value }))}
+              >
+                <option value="POR">Portero</option>
+                <option value="DFC">Defensa Central</option>
+                <option value="LTD">Lateral Derecho</option>
+                <option value="LTI">Lateral Izquierdo</option>
+                <option value="MCD">Mediocentro Defensivo</option>
+                <option value="MC">Mediocentro</option>
+                <option value="MCO">Mediocentro Ofensivo</option>
+                <option value="EXD">Extremo Derecho</option>
+                <option value="EXI">Extremo Izquierdo</option>
+                <option value="DC">Delantero Centro</option>
+              </select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setQuickAddDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleQuickAddGuest}
+              disabled={addingInvitado || !quickAddForm.nombre.trim()}
+            >
+              {addingInvitado ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
+              Anadir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ==================== EDIT TASK DIALOG ==================== */}
+      <Dialog open={!!editingTarea} onOpenChange={(open) => { if (!open) setEditingTarea(null) }}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5" />
+              Editar tarea
+            </DialogTitle>
+            <DialogDescription>
+              Los cambios se guardan como copia — la tarea original en la biblioteca no se modifica.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto space-y-4 py-2">
+            {/* Manual edit fields */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Titulo</label>
+                <Input
+                  value={editForm.titulo || ''}
+                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, titulo: e.target.value }))}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Descripcion</label>
+                <Textarea
+                  value={editForm.descripcion || ''}
+                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, descripcion: e.target.value }))}
+                  rows={3}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Duracion (min)</label>
+                <Input
+                  type="number"
+                  value={editForm.duracion_total || 0}
+                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, duracion_total: parseInt(e.target.value) || 0 }))}
+                />
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Espacio largo (m)</label>
+                  <Input
+                    type="number"
+                    value={editForm.espacio_largo || 0}
+                    onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, espacio_largo: parseInt(e.target.value) || 0 }))}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Espacio ancho (m)</label>
+                  <Input
+                    type="number"
+                    value={editForm.espacio_ancho || 0}
+                    onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, espacio_ancho: parseInt(e.target.value) || 0 }))}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Reglas tecnicas</label>
+                <Textarea
+                  value={editForm.reglas_tecnicas || ''}
+                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, reglas_tecnicas: e.target.value }))}
+                  rows={2}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Reglas tacticas</label>
+                <Textarea
+                  value={editForm.reglas_tacticas || ''}
+                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, reglas_tacticas: e.target.value }))}
+                  rows={2}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Consignas ofensivas</label>
+                <Textarea
+                  value={editForm.consignas_ofensivas || ''}
+                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, consignas_ofensivas: e.target.value }))}
+                  rows={2}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Consignas defensivas</label>
+                <Textarea
+                  value={editForm.consignas_defensivas || ''}
+                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, consignas_defensivas: e.target.value }))}
+                  rows={2}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Variantes</label>
+                <Textarea
+                  value={editForm.variantes || ''}
+                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, variantes: e.target.value }))}
+                  rows={2}
+                />
+              </div>
+            </div>
+
+            {/* AI Edit section */}
+            <div className="border-t pt-4 mt-4">
+              <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                <Wand2 className="h-4 w-4 text-primary" />
+                Editar con IA
+              </h4>
+              <p className="text-xs text-muted-foreground mb-3">
+                Describe los cambios que quieres y la IA modificara la tarea automaticamente.
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  value={aiInstruction}
+                  onChange={(e) => setAiInstruction(e.target.value)}
+                  placeholder="Ej: Hazla mas intensa, anade variante con presion tras perdida..."
+                  className="flex-1"
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAiEdit() } }}
+                />
+                <Button
+                  onClick={handleAiEdit}
+                  disabled={aiProcessing || !aiInstruction.trim()}
+                  size="sm"
+                >
+                  {aiProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+                  Aplicar
+                </Button>
+              </div>
+              {aiProcessing && (
+                <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" /> Procesando cambios con IA...
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingTarea(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={savingEdit}>
+              {savingEdit ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
+              Guardar cambios
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
