@@ -176,7 +176,7 @@ export interface Tarea {
 export interface GrupoFormacion {
   nombre: string
   color: string
-  tipo: 'equipo' | 'comodin' | 'portero'
+  tipo: 'equipo' | 'comodin' | 'portero' | 'sin_asignar'
   jugador_ids: string[]
 }
 
@@ -616,6 +616,26 @@ export interface Microciclo {
   notas?: string
   created_at: string
   updated_at: string
+  // Joined relations (from /completo or list with joins)
+  equipos?: { id: string; nombre: string; categoria?: string }
+  partidos?: Partido
+}
+
+export interface MicrocicloCompleto {
+  microciclo: Microciclo
+  sesiones: (Pick<Sesion, 'id' | 'titulo' | 'fecha' | 'match_day' | 'estado' | 'duracion_total' | 'objetivo_principal' | 'intensidad_objetivo' | 'fase_juego_principal' | 'notas_pre' | 'notas_post'> & { num_tareas: number })[]
+  plantilla: {
+    total: number
+    disponibles: number
+    lesionados: number
+    sancionados: number
+    jugadores_lesionados: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado' | 'fecha_lesion' | 'fecha_vuelta_estimada'>[]
+    jugadores_sancionados: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado'>[]
+  }
+  rpe: {
+    registros_por_sesion: Record<string, { rpe_promedio: number; num_registros: number }>
+    rpe_promedio_semana: number | null
+  }
 }
 
 // ============================================
@@ -886,6 +906,7 @@ export interface AIMensaje {
   herramientas_usadas: any[]
   tokens_input?: number
   tokens_output?: number
+  feedback?: 'positivo' | 'negativo' | null
   created_at: string
 }
 
