@@ -20,7 +20,13 @@ import {
   X,
   Maximize2,
   Zap,
-  Eye
+  Eye,
+  Library,
+  ArrowUpDown,
+  BookCopy,
+  User2,
+  FolderOpen,
+  Bot
 } from 'lucide-react'
 import { Tarea, CategoriaTarea } from '@/types'
 import { tareasApi, catalogosApi } from '@/lib/api/tareas'
@@ -74,6 +80,15 @@ function IntensityIndicator({ densidad }: { densidad?: string }) {
   )
 }
 
+const SORT_OPTIONS = [
+  { value: 'created_at:desc', label: 'Más recientes' },
+  { value: 'created_at:asc', label: 'Más antiguas' },
+  { value: 'num_usos:desc', label: 'Más usadas' },
+  { value: 'valoracion_media:desc', label: 'Mejor valoradas' },
+  { value: 'titulo:asc', label: 'A-Z' },
+  { value: 'duracion_total:asc', label: 'Menor duración' },
+]
+
 export default function TareasPage() {
   const router = useRouter()
   const [tareas, setTareas] = useState<Tarea[]>([])
@@ -87,6 +102,9 @@ export default function TareasPage() {
   const [total, setTotal] = useState(0)
   const limit = 12
 
+  // Tabs: mis tareas vs biblioteca
+  const [tab, setTab] = useState<'mis_tareas' | 'biblioteca'>('mis_tareas')
+
   // Filtros
   const [showFilters, setShowFilters] = useState(false)
   const [busqueda, setBusqueda] = useState('')
@@ -95,9 +113,11 @@ export default function TareasPage() {
   const [densidadFilter, setDensidadFilter] = useState('')
   const [jugadoresMin, setJugadoresMin] = useState('')
   const [jugadoresMax, setJugadoresMax] = useState('')
+  const [sortBy, setSortBy] = useState('created_at:desc')
 
   // Menú de acciones
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
+  const [copying, setCopying] = useState<string | null>(null)
 
   useEffect(() => {
     loadCategorias()
@@ -105,7 +125,7 @@ export default function TareasPage() {
 
   useEffect(() => {
     loadTareas()
-  }, [page, categoriaFilter, faseFilter, densidadFilter, jugadoresMin, jugadoresMax])
+  }, [page, tab, categoriaFilter, faseFilter, densidadFilter, jugadoresMin, jugadoresMax, sortBy])
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -129,16 +149,21 @@ export default function TareasPage() {
     setLoading(true)
     setError(null)
 
+    const [orden, direccion] = sortBy.split(':')
+
     try {
       const response = await tareasApi.list({
         page,
         limit,
+        orden,
+        direccion: direccion as 'asc' | 'desc',
         categoria: categoriaFilter || undefined,
         fase_juego: faseFilter || undefined,
         densidad: densidadFilter || undefined,
         jugadores_min: jugadoresMin ? parseInt(jugadoresMin) : undefined,
         jugadores_max: jugadoresMax ? parseInt(jugadoresMax) : undefined,
         busqueda: busqueda || undefined,
+        biblioteca: tab === 'biblioteca',
       })
 
       setTareas(response.data)
@@ -158,6 +183,11 @@ export default function TareasPage() {
     loadTareas()
   }
 
+  const handleTabChange = (newTab: 'mis_tareas' | 'biblioteca') => {
+    setTab(newTab)
+    setPage(1)
+  }
+
   const handleDuplicate = async (tarea: Tarea, e: React.MouseEvent) => {
     e.stopPropagation()
     try {
@@ -165,6 +195,20 @@ export default function TareasPage() {
       loadTareas()
     } catch (err) {
       console.error('Error duplicating tarea:', err)
+    }
+    setActiveMenu(null)
+  }
+
+  const handleCopyToMyTeam = async (tarea: Tarea, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setCopying(tarea.id)
+    try {
+      await tareasApi.duplicate(tarea.id, tarea.titulo)
+      loadTareas()
+    } catch (err) {
+      console.error('Error copying tarea:', err)
+    } finally {
+      setCopying(null)
     }
     setActiveMenu(null)
   }
@@ -199,33 +243,68 @@ export default function TareasPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tareas</h1>
-          <p className="text-gray-500">
-            {total} tareas en tu biblioteca
+          <h1 className="text-2xl font-bold">Tareas</h1>
+          <p className="text-muted-foreground">
+            {total} tareas {tab === 'biblioteca' ? 'en la biblioteca del club' : 'en tu colección'}
           </p>
         </div>
-        <Link
-          href="/tareas/nueva"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+        <div className="flex gap-2">
+          <Link
+            href="/tareas/nueva"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Nueva Tarea
+          </Link>
+          <Link
+            href="/tareas/nueva-ai"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Bot className="h-4 w-4" />
+            Crear con IA
+          </Link>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b">
+        <button
+          onClick={() => handleTabChange('mis_tareas')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            tab === 'mis_tareas'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
         >
-          <Plus className="h-4 w-4" />
-          Nueva Tarea
-        </Link>
+          <FolderOpen className="h-4 w-4" />
+          Mis tareas
+        </button>
+        <button
+          onClick={() => handleTabChange('biblioteca')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            tab === 'biblioteca'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Library className="h-4 w-4" />
+          Biblioteca del Club
+        </button>
       </div>
 
       {/* Barra de búsqueda y filtros */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
+      <div className="bg-card rounded-xl border p-4">
         <form onSubmit={handleSearch} className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-4">
             {/* Búsqueda */}
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
                 type="text"
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
                 placeholder="Buscar por título, descripción..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
               />
             </div>
 
@@ -233,12 +312,25 @@ export default function TareasPage() {
             <select
               value={categoriaFilter}
               onChange={(e) => { setCategoriaFilter(e.target.value); setPage(1) }}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
             >
               <option value="">Todas las categorías</option>
               {categorias.map((cat) => (
                 <option key={cat.codigo} value={cat.codigo}>
                   {cat.nombre}
+                </option>
+              ))}
+            </select>
+
+            {/* Sort */}
+            <select
+              value={sortBy}
+              onChange={(e) => { setSortBy(e.target.value); setPage(1) }}
+              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white text-sm"
+            >
+              {SORT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
                 </option>
               ))}
             </select>
@@ -250,7 +342,7 @@ export default function TareasPage() {
               className={`inline-flex items-center gap-2 px-4 py-2 border rounded-lg transition-colors ${
                 hasActiveFilters
                   ? 'border-primary bg-primary/5 text-primary'
-                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                  : 'hover:bg-muted'
               }`}
             >
               <Filter className="h-4 w-4" />
@@ -271,14 +363,14 @@ export default function TareasPage() {
 
           {/* Filtros expandidos */}
           {showFilters && (
-            <div className="flex flex-wrap gap-4 pt-4 border-t border-gray-200">
+            <div className="flex flex-wrap gap-4 pt-4 border-t">
               {/* Fase de Juego */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Fase de juego</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Fase de juego</label>
                 <select
                   value={faseFilter}
                   onChange={(e) => { setFaseFilter(e.target.value); setPage(1) }}
-                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+                  className="px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
                 >
                   <option value="">Todas</option>
                   <option value="ataque_organizado">Ataque Organizado</option>
@@ -292,11 +384,11 @@ export default function TareasPage() {
 
               {/* Intensidad */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Intensidad</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Intensidad</label>
                 <select
                   value={densidadFilter}
                   onChange={(e) => { setDensidadFilter(e.target.value); setPage(1) }}
-                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+                  className="px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
                 >
                   <option value="">Todas</option>
                   <option value="alta">Alta</option>
@@ -307,7 +399,7 @@ export default function TareasPage() {
 
               {/* Jugadores mín */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Jug. mínimo</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Jug. mínimo</label>
                 <input
                   type="number"
                   min={1}
@@ -315,13 +407,13 @@ export default function TareasPage() {
                   value={jugadoresMin}
                   onChange={(e) => { setJugadoresMin(e.target.value); setPage(1) }}
                   placeholder="Min"
-                  className="w-20 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                  className="w-20 px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                 />
               </div>
 
               {/* Jugadores máx */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Jug. máximo</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Jug. máximo</label>
                 <input
                   type="number"
                   min={1}
@@ -329,7 +421,7 @@ export default function TareasPage() {
                   value={jugadoresMax}
                   onChange={(e) => { setJugadoresMax(e.target.value); setPage(1) }}
                   placeholder="Max"
-                  className="w-20 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                  className="w-20 px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                 />
               </div>
 
@@ -338,7 +430,7 @@ export default function TareasPage() {
                 <button
                   type="button"
                   onClick={clearFilters}
-                  className="self-end px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900"
+                  className="self-end px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
                 >
                   Limpiar filtros
                 </button>
@@ -364,18 +456,26 @@ export default function TareasPage() {
           </button>
         </div>
       ) : tareas.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Search className="h-8 w-8 text-gray-400" />
+        <div className="text-center py-12 bg-card rounded-xl border">
+          <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+            {tab === 'biblioteca' ? (
+              <Library className="h-8 w-8 text-muted-foreground" />
+            ) : (
+              <Search className="h-8 w-8 text-muted-foreground" />
+            )}
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No hay tareas</h3>
-          <p className="text-gray-500 mb-4">
+          <h3 className="text-lg font-medium mb-2">
+            {tab === 'biblioteca' ? 'Biblioteca vacía' : 'No hay tareas'}
+          </h3>
+          <p className="text-muted-foreground mb-4">
             {hasActiveFilters
               ? 'No se encontraron tareas con los filtros aplicados'
+              : tab === 'biblioteca'
+              ? 'Las tareas creadas por cualquier miembro del club aparecerán aquí'
               : 'Comienza creando tu primera tarea de entrenamiento'
             }
           </p>
-          {!hasActiveFilters && (
+          {!hasActiveFilters && tab === 'mis_tareas' && (
             <Link
               href="/tareas/nueva"
               className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90"
@@ -392,153 +492,193 @@ export default function TareasPage() {
             {tareas.map((tarea) => (
               <div
                 key={tarea.id}
-                className="relative bg-white rounded-xl border border-gray-200 p-5 pl-6 hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group overflow-hidden"
+                className="relative bg-card rounded-xl border hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group overflow-hidden"
                 onClick={() => router.push(`/tareas/${tarea.id}`)}
               >
-                {/* Indicador de intensidad */}
+                {/* Intensity left bar */}
                 <IntensityIndicator densidad={tarea.densidad} />
 
-                {/* Header de la tarjeta */}
-                <div className="flex items-start justify-between mb-3">
-                  <CategoryBadge
-                    codigo={tarea.categoria?.codigo || ''}
-                    nombre={tarea.categoria?.nombre_corto || tarea.categoria?.nombre || ''}
-                  />
-                  <div className="relative" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setActiveMenu(activeMenu === tarea.id ? null : tarea.id)
-                      }}
-                      className="p-1 text-gray-400 hover:text-gray-600 rounded"
-                    >
-                      <MoreHorizontal className="h-5 w-5" />
-                    </button>
+                <div className="p-5 pl-6">
+                  {/* Header */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <CategoryBadge
+                        codigo={tarea.categoria?.codigo || ''}
+                        nombre={tarea.categoria?.nombre_corto || tarea.categoria?.nombre || ''}
+                      />
+                      {tarea.nivel_cognitivo && (
+                        <CognitiveLevel level={tarea.nivel_cognitivo} />
+                      )}
+                    </div>
+                    <div className="relative" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setActiveMenu(activeMenu === tarea.id ? null : tarea.id)
+                        }}
+                        className="p-1 text-muted-foreground hover:text-foreground rounded"
+                      >
+                        <MoreHorizontal className="h-5 w-5" />
+                      </button>
 
-                    {/* Menú desplegable */}
-                    {activeMenu === tarea.id && (
-                      <div className="absolute right-0 top-8 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
-                        <Link
-                          href={`/tareas/${tarea.id}`}
-                          className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Eye className="h-4 w-4" />
-                          Ver detalle
-                        </Link>
-                        <button
-                          onClick={(e) => handleDuplicate(tarea, e)}
-                          className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
-                        >
-                          <Copy className="h-4 w-4" />
-                          Duplicar
-                        </button>
-                        <button
-                          onClick={(e) => handleDelete(tarea.id, e)}
-                          className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Eliminar
-                        </button>
-                      </div>
+                      {activeMenu === tarea.id && (
+                        <div className="absolute right-0 top-8 w-48 bg-popover rounded-lg shadow-lg border py-1 z-10">
+                          <Link
+                            href={`/tareas/${tarea.id}`}
+                            className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-muted"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Eye className="h-4 w-4" />
+                            Ver detalle
+                          </Link>
+                          <button
+                            onClick={(e) => handleDuplicate(tarea, e)}
+                            className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-muted w-full"
+                          >
+                            <Copy className="h-4 w-4" />
+                            Duplicar
+                          </button>
+                          {tab === 'biblioteca' && (
+                            <button
+                              onClick={(e) => handleCopyToMyTeam(tarea, e)}
+                              className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-muted w-full text-primary"
+                              disabled={copying === tarea.id}
+                            >
+                              {copying === tarea.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <BookCopy className="h-4 w-4" />
+                              )}
+                              Copiar a mi equipo
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => handleDelete(tarea.id, e)}
+                            className="flex items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-destructive/10 w-full"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Eliminar
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Title */}
+                  <h3 className="font-semibold mb-1.5 line-clamp-2 group-hover:text-primary transition-colors">
+                    {tarea.titulo}
+                  </h3>
+
+                  {/* Description */}
+                  {tarea.descripcion && (
+                    <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                      {tarea.descripcion}
+                    </p>
+                  )}
+
+                  {/* Primary metadata row */}
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5" />
+                      <span>{tarea.duracion_total} min</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Users className="h-3.5 w-3.5" />
+                      <span>
+                        {tarea.num_jugadores_min}
+                        {tarea.num_jugadores_max && tarea.num_jugadores_max !== tarea.num_jugadores_min
+                          ? `-${tarea.num_jugadores_max}`
+                          : ''} jug.
+                      </span>
+                    </div>
+                    {tarea.num_series > 1 && (
+                      <span>{tarea.num_series} series</span>
+                    )}
+                    {tarea.num_usos > 0 && (
+                      <span className="text-xs">{tarea.num_usos}x usada</span>
                     )}
                   </div>
-                </div>
 
-                {/* Título */}
-                <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2 group-hover:text-primary transition-colors">
-                  {tarea.titulo}
-                </h3>
-
-                {/* Descripción */}
-                {tarea.descripcion && (
-                  <p className="text-sm text-gray-500 mb-3 line-clamp-2">
-                    {tarea.descripcion}
-                  </p>
-                )}
-
-                {/* Metadatos principales */}
-                <div className="flex items-center gap-4 text-sm text-gray-500 mb-3">
-                  <div className="flex items-center gap-1">
-                    <Clock className="h-4 w-4" />
-                    <span>{tarea.duracion_total} min</span>
+                  {/* Secondary metadata chips */}
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                    {tarea.espacio_largo && tarea.espacio_ancho && (
+                      <span className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-muted text-muted-foreground rounded">
+                        <Maximize2 className="h-3 w-3" />
+                        {tarea.espacio_largo}x{tarea.espacio_ancho}m
+                      </span>
+                    )}
+                    {tarea.estructura_equipos && (
+                      <span className="px-2 py-0.5 bg-muted text-muted-foreground rounded">
+                        {tarea.estructura_equipos}
+                      </span>
+                    )}
+                    {tarea.densidad && (
+                      <span className={`px-2 py-0.5 rounded font-medium ${
+                        tarea.densidad === 'alta' ? 'bg-red-100 text-red-700' :
+                        tarea.densidad === 'media' ? 'bg-amber-100 text-amber-700' :
+                        'bg-green-100 text-green-700'
+                      }`}>
+                        <Zap className="h-3 w-3 inline mr-0.5" />
+                        {tarea.densidad}
+                      </span>
+                    )}
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Users className="h-4 w-4" />
-                    <span>
-                      {tarea.num_jugadores_min}
-                      {tarea.num_jugadores_max && tarea.num_jugadores_max !== tarea.num_jugadores_min
-                        ? `-${tarea.num_jugadores_max}`
-                        : ''}
-                    </span>
-                  </div>
-                  {tarea.nivel_cognitivo && (
-                    <div className="flex items-center gap-1">
-                      <Brain className="h-4 w-4" />
-                      <CognitiveLevel level={tarea.nivel_cognitivo} />
+
+                  {/* Phase + tactical principle */}
+                  {tarea.fase_juego && (
+                    <div className="mt-3 pt-3 border-t border-border/50">
+                      <span className="text-xs text-muted-foreground capitalize">
+                        {tarea.fase_juego.replace(/_/g, ' ')}
+                        {tarea.principio_tactico && (
+                          <span className="text-primary font-medium"> → {tarea.principio_tactico}</span>
+                        )}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Creator and team info (library mode) */}
+                  {(tarea.creador_nombre || tarea.equipo_nombre) && (
+                    <div className="mt-2 pt-2 border-t border-border/50 flex items-center gap-3 text-[11px] text-muted-foreground">
+                      {tarea.creador_nombre && (
+                        <span className="flex items-center gap-1">
+                          <User2 className="h-3 w-3" />
+                          {tarea.creador_nombre}
+                        </span>
+                      )}
+                      {tarea.equipo_nombre && (
+                        <span className="flex items-center gap-1">
+                          <Users className="h-3 w-3" />
+                          {tarea.equipo_nombre}
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
-
-                {/* Metadatos secundarios */}
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  {tarea.espacio_largo && tarea.espacio_ancho && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-600 rounded">
-                      <Maximize2 className="h-3 w-3" />
-                      {tarea.espacio_largo}x{tarea.espacio_ancho}m
-                    </span>
-                  )}
-                  {tarea.estructura_equipos && (
-                    <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded">
-                      {tarea.estructura_equipos}
-                    </span>
-                  )}
-                  {tarea.densidad && (
-                    <span className={`px-2 py-0.5 rounded ${
-                      tarea.densidad === 'alta' ? 'bg-red-100 text-red-700' :
-                      tarea.densidad === 'media' ? 'bg-amber-100 text-amber-700' :
-                      'bg-green-100 text-green-700'
-                    }`}>
-                      <Zap className="h-3 w-3 inline mr-0.5" />
-                      {tarea.densidad}
-                    </span>
-                  )}
-                </div>
-
-                {/* Fase de juego */}
-                {tarea.fase_juego && (
-                  <div className="mt-3 pt-3 border-t border-gray-100">
-                    <span className="text-xs text-gray-500">
-                      {tarea.fase_juego.replace(/_/g, ' ')}
-                      {tarea.principio_tactico && ` → ${tarea.principio_tactico}`}
-                    </span>
-                  </div>
-                )}
               </div>
             ))}
           </div>
 
           {/* Paginación */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-4 py-3">
-              <div className="text-sm text-gray-500">
+            <div className="flex items-center justify-between bg-card rounded-xl border px-4 py-3">
+              <div className="text-sm text-muted-foreground">
                 Mostrando {((page - 1) * limit) + 1} - {Math.min(page * limit, total)} de {total}
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setPage(page - 1)}
                   disabled={page === 1}
-                  className="p-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  className="p-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-muted"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
-                <span className="text-sm text-gray-700">
+                <span className="text-sm">
                   Página {page} de {totalPages}
                 </span>
                 <button
                   onClick={() => setPage(page + 1)}
                   disabled={page === totalPages}
-                  className="p-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  className="p-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-muted"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>

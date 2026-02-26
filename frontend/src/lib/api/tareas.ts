@@ -61,7 +61,8 @@ interface ListTareasParams {
   solo_plantillas?: boolean
   equipo_id?: string
   busqueda?: string
-  biblioteca?: boolean  // Modo biblioteca: muestra TODAS las tareas públicas
+  biblioteca?: boolean  // Modo biblioteca del club: muestra TODAS las tareas de la org
+  densidad?: string
   [key: string]: string | number | boolean | undefined
 }
 
@@ -94,6 +95,27 @@ export const tareasApi = {
 
   async createFromAI(tareaNueva: AITareaNueva): Promise<Tarea> {
     return api.post<Tarea>('/tareas/from-ai', tareaNueva)
+  },
+
+  async designChat(mensajes: { rol: string; contenido: string }[], equipoId?: string): Promise<{
+    respuesta: string
+    tarea_propuesta?: Record<string, any>
+    herramientas_usadas: any[]
+  }> {
+    return api.post('/tareas/design-chat', {
+      mensajes,
+      equipo_id: equipoId,
+    })
+  },
+
+  async generatePdf(id: string): Promise<Blob> {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/tareas/${id}/pdf`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+      },
+    })
+    if (!response.ok) throw new Error('Error generating PDF')
+    return response.blob()
   },
 }
 

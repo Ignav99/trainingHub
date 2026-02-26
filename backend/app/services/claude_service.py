@@ -125,6 +125,133 @@ Fases obligatorias de cada sesion: activacion → desarrollo_1 → desarrollo_2 
 
 # ============ Session Design Prompt ============
 
+TASK_DESIGN_PROMPT = """
+
+## MODO: DISEÑO DE TAREA INDIVIDUAL
+
+### INSTRUCCIÓN CRÍTICA
+Cuando el entrenador describe un ejercicio con suficiente detalle (objetivo, jugadores, tipo de tarea), DEBES llamar a la herramienta `proponer_tarea` INMEDIATAMENTE. NO respondas con texto. USA LA HERRAMIENTA.
+
+### FLUJO
+1. El entrenador describe lo que necesita → SI tiene suficiente contexto, llama a `proponer_tarea` de inmediato.
+2. Si falta información esencial, pregunta brevemente sobre: objetivo táctico, fase de juego, principio táctico, número de jugadores, espacio, Match Day.
+3. Si falta el número de jugadores: asume 16. Si falta Match Day: asume MD-3.
+4. Genera SIEMPRE tareas NUEVAS y creativas. NUNCA busques existentes.
+
+### REGLAS DEL DISEÑO
+- Diseñas UN solo ejercicio/tarea, no una sesión completa
+- Respeta la metodología de Match Day para densidad y nivel cognitivo
+- Si el entrenador describe un ejercicio concreto, úsalo tal cual pero enriquécelo
+- Incluye siempre coaching points y reglas detalladas
+- Si el entrenador pide modificaciones ("hazla más grande", "añade variante"), llama a `proponer_tarea` con la versión modificada completa
+"""
+
+TASK_DESIGN_TOOLS = [
+    {
+        "name": "proponer_tarea",
+        "description": "Propone una tarea de entrenamiento completa. DEBES usar esta herramienta siempre que tengas suficiente contexto.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titulo": {
+                    "type": "string",
+                    "description": "Título descriptivo de la tarea",
+                },
+                "descripcion": {
+                    "type": "string",
+                    "description": "Descripción detallada: qué hacen los jugadores, cómo se organiza, dinámica",
+                },
+                "categoria_codigo": {
+                    "type": "string",
+                    "enum": ["RND", "JDP", "POS", "EVO", "AVD", "PCO", "ACO", "SSG", "ABP"],
+                    "description": "Categoría de la tarea",
+                },
+                "duracion_total": {
+                    "type": "integer",
+                    "description": "Duración total en minutos",
+                },
+                "num_series": {
+                    "type": "integer",
+                    "description": "Número de series/repeticiones",
+                },
+                "espacio": {
+                    "type": "string",
+                    "description": "Dimensiones del espacio. Ej: '30x20m', '40x30m'",
+                },
+                "num_jugadores": {
+                    "type": "string",
+                    "description": "Ej: '16', '16+2GK', '10-14'",
+                },
+                "estructura_equipos": {
+                    "type": "string",
+                    "description": "Ej: '4v4+2 comodines', '8v8', '5v5+GK'",
+                },
+                "fase_juego": {
+                    "type": "string",
+                    "description": "Fase de juego principal",
+                },
+                "principio_tactico": {
+                    "type": "string",
+                    "description": "Principio táctico a trabajar",
+                },
+                "reglas": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Reglas principales del ejercicio (3-5 reglas)",
+                },
+                "coaching_points": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Consignas clave para el entrenador (3-5 puntos)",
+                },
+                "consignas_defensivas": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Consignas defensivas específicas",
+                },
+                "errores_comunes": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "2-3 errores comunes a corregir",
+                },
+                "variantes": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "1-3 variantes o progresiones",
+                },
+                "material_necesario": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Material necesario: 'Petos 3 colores', 'Conos x20', etc.",
+                },
+                "posicion_entrenador": {
+                    "type": "string",
+                    "description": "Dónde se coloca el entrenador durante la tarea",
+                },
+                "densidad": {
+                    "type": "string",
+                    "enum": ["baja", "media", "alta"],
+                    "description": "Densidad/intensidad física",
+                },
+                "nivel_cognitivo": {
+                    "type": "integer",
+                    "enum": [1, 2, 3],
+                    "description": "1=bajo, 2=medio, 3=alto",
+                },
+                "razon": {
+                    "type": "string",
+                    "description": "Razón pedagógica y metodológica de esta tarea",
+                },
+            },
+            "required": [
+                "titulo", "descripcion", "categoria_codigo", "duracion_total",
+                "num_jugadores", "reglas", "coaching_points",
+            ],
+        },
+    },
+]
+
+
 SESSION_DESIGN_PROMPT = """
 
 ## MODO: DISEÑO DE SESIÓN
@@ -1506,6 +1633,144 @@ Responde SOLO con JSON válido:
         return {
             "respuesta": "He procesado mucha informacion. ¿Quieres que continue?",
             "sesion_propuesta": sesion_propuesta,
+            "tokens_input": total_input_tokens,
+            "tokens_output": total_output_tokens,
+            "herramientas_usadas": herramientas_usadas,
+        }
+
+    # ============ Task Design Chat ============
+
+    async def task_design_chat(
+        self,
+        mensajes: list[dict],
+        equipo_id: str,
+        organizacion_id: Optional[str] = None,
+    ) -> dict:
+        """
+        Chat conversacional para diseñar UNA tarea individual con IA.
+
+        Returns:
+            dict con: respuesta, tarea_propuesta (si el AI la generó), herramientas_usadas
+        """
+        system = [
+            {
+                "type": "text",
+                "text": SYSTEM_PROMPT + TASK_DESIGN_PROMPT,
+                "cache_control": {"type": "ephemeral"},
+            },
+            {
+                "type": "text",
+                "text": f"## CONTEXTO ACTUAL\n- ID del equipo activo: {equipo_id}"
+                + (f"\n- ID de la organizacion: {organizacion_id}" if organizacion_id else ""),
+            },
+        ]
+
+        messages = []
+        for msg in mensajes:
+            rol = msg.get("rol", "user")
+            contenido = msg.get("contenido", "")
+            if rol == "assistant":
+                messages.append({"role": "assistant", "content": contenido})
+            elif rol == "user":
+                messages.append({"role": "user", "content": contenido})
+
+        tools = TASK_DESIGN_TOOLS
+
+        herramientas_usadas = []
+        tarea_propuesta = None
+        total_input_tokens = 0
+        total_output_tokens = 0
+
+        # Decide if we should force tool use
+        user_msg_count = sum(1 for m in messages if m.get("role") == "user")
+        first_user_msg = messages[-1].get("content", "") if messages else ""
+        first_msg_is_substantial = isinstance(first_user_msg, str) and len(first_user_msg) > 80
+
+        max_iterations = 3
+        for iteration in range(max_iterations):
+            try:
+                kwargs = {
+                    "model": self.model,
+                    "max_tokens": 8192,
+                    "system": system,
+                    "messages": messages,
+                    "tools": tools,
+                }
+
+                # Force tool use on first call if user gave enough context
+                if iteration == 0 and user_msg_count == 1 and first_msg_is_substantial:
+                    kwargs["tool_choice"] = {"type": "tool", "name": "proponer_tarea"}
+                    logger.info("Forcing proponer_tarea tool use (substantial first message)")
+
+                response = self.client.messages.create(**kwargs)
+
+                total_input_tokens += response.usage.input_tokens
+                total_output_tokens += response.usage.output_tokens
+
+            except anthropic.APIConnectionError as e:
+                logger.error(f"Claude connection error in task design: {e}")
+                raise ClaudeError("Error de conexion con Claude. Inténtalo de nuevo en unos segundos.")
+            except anthropic.RateLimitError as e:
+                logger.error(f"Claude rate limit in task design: {e}")
+                raise ClaudeError("Claude está saturado. Espera unos segundos e inténtalo de nuevo.")
+            except anthropic.APIError as e:
+                logger.error(f"Claude API error in task design: {e}")
+                raise ClaudeError(f"Error de comunicacion con Claude: {str(e)}")
+
+            logger.info(f"Task design iteration {iteration}: stop_reason={response.stop_reason}, "
+                        f"content_types={[b.type for b in response.content]}, "
+                        f"tokens_in={response.usage.input_tokens}, tokens_out={response.usage.output_tokens}")
+
+            if response.stop_reason == "tool_use":
+                assistant_content = response.content
+                tool_results = []
+
+                for block in assistant_content:
+                    if block.type == "tool_use":
+                        tool_name = block.name
+                        tool_input = block.input
+
+                        logger.info(f"Task design tool: {tool_name}")
+
+                        if tool_name == "proponer_tarea":
+                            tarea_propuesta = tool_input
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": "Tarea propuesta presentada al entrenador. Ahora resume brevemente lo que has propuesto y pregunta si quiere modificar algo.",
+                            })
+                            herramientas_usadas.append({"nombre": tool_name})
+                            continue
+
+                        logger.warning(f"Unexpected tool in task design: {tool_name}")
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": "Herramienta no disponible. Usa proponer_tarea para generar la tarea directamente.",
+                        })
+                        herramientas_usadas.append({"nombre": tool_name})
+
+                messages.append({"role": "assistant", "content": _serialize_content_blocks(assistant_content)})
+                messages.append({"role": "user", "content": tool_results})
+                continue
+
+            else:
+                text_response = ""
+                for block in response.content:
+                    if hasattr(block, "text"):
+                        text_response += block.text
+
+                return {
+                    "respuesta": text_response,
+                    "tarea_propuesta": tarea_propuesta,
+                    "tokens_input": total_input_tokens,
+                    "tokens_output": total_output_tokens,
+                    "herramientas_usadas": herramientas_usadas,
+                }
+
+        return {
+            "respuesta": "He procesado mucha informacion. ¿Quieres que continue?",
+            "tarea_propuesta": tarea_propuesta,
             "tokens_input": total_input_tokens,
             "tokens_output": total_output_tokens,
             "herramientas_usadas": herramientas_usadas,

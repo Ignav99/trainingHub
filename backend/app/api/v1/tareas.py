@@ -5,10 +5,14 @@ CRUD completo para tareas de entrenamiento.
 
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from typing import Optional, List
 from uuid import UUID
 from math import ceil
 import io
+import logging
+
+logger = logging.getLogger(__name__)
 
 from app.models import (
     TareaCreate,
@@ -431,6 +435,71 @@ async def duplicar_tarea(
     ).eq("id", response.data[0]["id"]).single().execute()
 
     return TareaResponse(**tarea_completa.data)
+
+
+# ============ Task Design Chat ============
+
+class TaskDesignMessage(BaseModel):
+    rol: str
+    contenido: str
+
+
+class TaskDesignRequest(BaseModel):
+    mensajes: List[TaskDesignMessage]
+    equipo_id: Optional[UUID] = None
+
+
+class TaskDesignResponse(BaseModel):
+    respuesta: str
+    tarea_propuesta: Optional[dict] = None
+    herramientas_usadas: list = []
+
+
+@router.post("/design-chat", response_model=TaskDesignResponse)
+async def task_design_chat(
+    request: TaskDesignRequest,
+    auth: AuthContext = Depends(require_permission(Permission.TASK_CREATE)),
+):
+    """
+    Chat conversacional con IA para diseñar una tarea individual paso a paso.
+    Envía mensajes y recibe respuesta del asistente + propuesta de tarea cuando esté lista.
+    """
+    from app.config import get_settings
+
+    settings = get_settings()
+
+    if not settings.ANTHROPIC_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="Servicio de IA no disponible. Configure ANTHROPIC_API_KEY."
+        )
+
+    equipo_id = str(request.equipo_id) if request.equipo_id else auth.equipo_id
+    if not equipo_id:
+        raise HTTPException(status_code=400, detail="Se requiere equipo_id")
+
+    try:
+        from app.services.claude_service import ClaudeService
+
+        claude = ClaudeService()
+        result = await claude.task_design_chat(
+            mensajes=[{"rol": m.rol, "contenido": m.contenido} for m in request.mensajes],
+            equipo_id=equipo_id,
+            organizacion_id=auth.organizacion_id,
+        )
+
+        return TaskDesignResponse(
+            respuesta=result["respuesta"],
+            tarea_propuesta=result.get("tarea_propuesta"),
+            herramientas_usadas=result.get("herramientas_usadas", []),
+        )
+
+    except Exception as e:
+        logger.error(f"Error in task design chat: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al comunicarse con la IA: {str(e)}"
+        )
 
 
 @router.post("/from-ai", response_model=TareaResponse, status_code=status.HTTP_201_CREATED)
