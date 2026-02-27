@@ -33,6 +33,12 @@
     --success: 142 76% 36%;
     --warning: 38 92% 50%;
     --info: 199 89% 48%;
+
+    /* Club colors (overridden by ThemeProvider) */
+    --club-primary: 217 91% 24%;
+    --club-primary-foreground: 0 0% 100%;
+    --club-secondary: 210 40% 96%;
+    --club-secondary-foreground: 222.2 84% 4.9%;
   }
 
   .dark {
@@ -114,6 +120,15 @@
 /* ============================================
    UTILIDADES
    ============================================ */
+
+/* ============================================
+   ANIMACIONES
+   ============================================ */
+
+@keyframes dotPulse {
+  0%, 100% { opacity: 0.25; transform: translate(-50%, -50%) scale(0.8); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+}
 
 @layer utilities {
   .text-balance {

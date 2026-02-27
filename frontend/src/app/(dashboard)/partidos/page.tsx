@@ -187,6 +187,11 @@ export default function PartidosPage() {
                 <Plus className="h-4 w-4 mr-2" /> Nuevo Partido
               </Link>
             </Button>
+            <p className="text-xs text-muted-foreground mt-3">
+              O <Link href="/competicion" className="text-primary hover:underline">
+                importa tu competicion
+              </Link> para generar partidos automaticamente.
+            </p>
           </CardContent>
         </Card>
       ) : (

@@ -11,7 +11,6 @@ import {
   RFEFPartidoJornada,
 } from '@/lib/api/rfef'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import {
   Trophy,
@@ -22,7 +21,11 @@ import {
   Link2,
   Check,
   Clock,
+  Trash2,
+  Users,
+  Swords,
 } from 'lucide-react'
+import Link from 'next/link'
 
 export default function CompeticionPage() {
   const { equipoActivo } = useEquipoStore()
@@ -30,6 +33,7 @@ export default function CompeticionPage() {
   const [jornadas, setJornadas] = useState<RFEFJornada[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
+  const [syncStatus, setSyncStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   // Setup state
@@ -39,9 +43,13 @@ export default function CompeticionPage() {
 
   // Mi equipo selection
   const [selectingEquipo, setSelectingEquipo] = useState(false)
+  const [savingEquipo, setSavingEquipo] = useState(false)
 
   // Jornada navigation
   const [currentJornada, setCurrentJornada] = useState(1)
+
+  // Delete confirmation
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const loadCompeticion = useCallback(async () => {
     if (!equipoActivo?.id) return
@@ -68,7 +76,7 @@ export default function CompeticionPage() {
         setCompeticion(null)
       }
     } catch (err: any) {
-      setError(err.message || 'Error al cargar competición')
+      setError(err.message || 'Error al cargar competicion')
     } finally {
       setLoading(false)
     }
@@ -77,6 +85,13 @@ export default function CompeticionPage() {
   useEffect(() => {
     loadCompeticion()
   }, [loadCompeticion])
+
+  // Show team selector when competition loaded but no team selected
+  useEffect(() => {
+    if (competicion && !competicion.mi_equipo_nombre && !selectingEquipo) {
+      setSelectingEquipo(true)
+    }
+  }, [competicion, selectingEquipo])
 
   const handleSetup = async () => {
     if (!equipoActivo?.id || !setupUrl) return
@@ -91,10 +106,17 @@ export default function CompeticionPage() {
       setCompeticion(comp)
       setSetupUrl('')
       setSetupName('')
+      // Show team selector immediately
+      setSelectingEquipo(true)
       // Reload to get jornadas
       await loadCompeticion()
     } catch (err: any) {
-      setError(err.message || 'Error al importar competición')
+      const msg = err.message || 'Error al importar'
+      if (msg.includes('0 bytes') || msg.includes('502')) {
+        setError('La web de la RFAF no responde en este momento. Intentalo de nuevo en unos minutos.')
+      } else {
+        setError(msg)
+      }
     } finally {
       setSettingUp(false)
     }
@@ -103,11 +125,27 @@ export default function CompeticionPage() {
   const handleSync = async () => {
     if (!competicion) return
     setSyncing(true)
+    setSyncStatus('Sincronizando clasificacion...')
+    setError(null)
     try {
-      await rfefApi.syncFull(competicion.id)
+      const result = await rfefApi.syncFull(competicion.id)
+      if (result.jornadas_saved === 0 && result.equipos_clasificacion === 0) {
+        setError('La RFAF no devolvio datos. Es posible que este caida temporalmente. Intentalo mas tarde.')
+      } else {
+        setSyncStatus(
+          `Listo: ${result.equipos_clasificacion} equipos, ${result.jornadas_saved}/${result.jornadas_total || '?'} jornadas` +
+          (result.actas_saved ? `, ${result.actas_saved} actas` : '') +
+          (result.errors?.length ? ` (${result.errors.length} errores)` : '')
+        )
+      }
       await loadCompeticion()
     } catch (err: any) {
-      setError(err.message || 'Error al sincronizar')
+      const msg = err.message || 'Error al sincronizar'
+      if (msg.includes('502') || msg.includes('RFAF')) {
+        setError('La web de la RFAF no responde. Intentalo mas tarde.')
+      } else {
+        setError(msg)
+      }
     } finally {
       setSyncing(false)
     }
@@ -115,14 +153,38 @@ export default function CompeticionPage() {
 
   const handleSetMiEquipo = async (nombre: string) => {
     if (!competicion) return
+    setSavingEquipo(true)
+    setError(null)
     try {
       await rfefApi.setMiEquipo(competicion.id, nombre)
       setCompeticion(prev => prev ? { ...prev, mi_equipo_nombre: nombre } : null)
       setSelectingEquipo(false)
-      // Trigger link after setting equipo
-      await rfefApi.linkCompeticion(competicion.id)
+      // Trigger link to create rivals and matches
+      try {
+        const linkResult = await rfefApi.linkCompeticion(competicion.id)
+        setSyncStatus(
+          `Equipo seleccionado. Rivales creados: ${linkResult.rivales_created}, Partidos: ${linkResult.partidos_created}`
+        )
+      } catch {
+        // Link might fail if no jornadas yet — that's ok
+      }
     } catch (err: any) {
       setError(err.message || 'Error al seleccionar equipo')
+    } finally {
+      setSavingEquipo(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!competicion) return
+    try {
+      await rfefApi.deleteCompeticion(competicion.id)
+      setCompeticion(null)
+      setJornadas([])
+      setConfirmDelete(false)
+      setSyncStatus(null)
+    } catch (err: any) {
+      setError(err.message || 'Error al eliminar')
     }
   }
 
@@ -134,19 +196,35 @@ export default function CompeticionPage() {
     )
   }
 
-  // No competición: setup screen
+  // ============ No competition: Setup screen ============
   if (!competicion) {
     return (
       <div className="max-w-xl mx-auto py-12">
         <div className="text-center mb-8">
           <Trophy className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-          <h1 className="text-2xl font-bold">Competición</h1>
+          <h1 className="text-2xl font-bold">Competicion</h1>
           <p className="text-muted-foreground mt-1">
-            Importa tu competición desde la web de la RFAF
+            Configura tu competicion para ver clasificacion, jornadas y resultados
           </p>
         </div>
 
+        {error && (
+          <div className="flex items-start gap-2 text-destructive text-sm bg-destructive/10 p-3 rounded-lg mb-6">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Option A: Import from RFAF */}
         <div className="bg-card rounded-xl border p-6 space-y-4">
+          <div className="flex items-center gap-2 mb-1">
+            <Link2 className="h-5 w-5 text-primary" />
+            <h2 className="font-semibold">Importar desde RFAF</h2>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Pega la URL de rfaf.es para importar clasificacion, jornadas y resultados automaticamente.
+          </p>
+
           <div>
             <label className="text-sm font-medium mb-1.5 block">URL de la RFAF</label>
             <input
@@ -156,30 +234,20 @@ export default function CompeticionPage() {
               placeholder="https://www.rfaf.es/pnfg/NPcd/NFG_VisClasificacion?..."
               className="w-full px-3 py-2 rounded-lg border bg-background text-sm"
             />
-            <p className="text-xs text-muted-foreground mt-1">
-              Pega la URL de la clasificación o jornada de rfaf.es
-            </p>
           </div>
 
           <div>
             <label className="text-sm font-medium mb-1.5 block">
-              Nombre (opcional)
+              Nombre de la competicion (opcional)
             </label>
             <input
               type="text"
               value={setupName}
               onChange={e => setSetupName(e.target.value)}
-              placeholder="Ej: 2a Andaluza Senior Grupo 3"
+              placeholder="Ej: 3a Andaluza Senior Grupo 4"
               className="w-full px-3 py-2 rounded-lg border bg-background text-sm"
             />
           </div>
-
-          {error && (
-            <div className="flex items-center gap-2 text-destructive text-sm">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              {error}
-            </div>
-          )}
 
           <button
             onClick={handleSetup}
@@ -199,29 +267,54 @@ export default function CompeticionPage() {
             )}
           </button>
         </div>
+
+        {/* Divider */}
+        <div className="flex items-center gap-4 my-6">
+          <div className="flex-1 border-t" />
+          <span className="text-sm text-muted-foreground">o</span>
+          <div className="flex-1 border-t" />
+        </div>
+
+        {/* Option B: Manual setup */}
+        <div className="bg-card rounded-xl border p-6">
+          <div className="flex items-center gap-2 mb-1">
+            <Swords className="h-5 w-5 text-primary" />
+            <h2 className="font-semibold">Crear datos manualmente</h2>
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">
+            Si tu liga no esta en la RFAF, crea rivales y partidos desde las secciones correspondientes.
+          </p>
+          <div className="flex gap-3">
+            <Link
+              href="/partidos"
+              className="flex-1 py-2.5 rounded-lg border text-sm font-medium text-center hover:bg-muted transition-colors"
+            >
+              Ir a Partidos
+            </Link>
+            <Link
+              href="/rivales"
+              className="flex-1 py-2.5 rounded-lg border text-sm font-medium text-center hover:bg-muted transition-colors"
+            >
+              Ir a Rivales
+            </Link>
+          </div>
+        </div>
       </div>
     )
   }
 
-  // No mi_equipo: selection screen
-  if (!competicion.mi_equipo_nombre && !selectingEquipo) {
-    setSelectingEquipo(true)
-  }
-
+  // ============ Competition loaded ============
   const clasificacion = competicion.clasificacion || []
   const goleadores = competicion.goleadores || []
   const miEquipo = competicion.mi_equipo_nombre || ''
 
-  // Find my team's stats
   const miEquipoStats = clasificacion.find(
     e => e.equipo.toLowerCase() === miEquipo.toLowerCase()
   )
 
-  // Get current jornada's partidos
   const currentJornadaData = jornadas.find(j => j.numero === currentJornada)
   const totalJornadas = competicion.calendario?.length || jornadas.length || 30
 
-  // Calculate racha (last 5)
   const racha = miEquipoStats?.ultimos_5 || []
 
   return (
@@ -233,36 +326,121 @@ export default function CompeticionPage() {
             <Trophy className="h-6 w-6" />
             {competicion.nombre}
           </h1>
-          {competicion.ultima_sincronizacion && (
-            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              Sync: {new Date(competicion.ultima_sincronizacion).toLocaleString('es-ES')}
-            </p>
-          )}
+          <div className="flex items-center gap-3 mt-1">
+            {competicion.ultima_sincronizacion && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Sync: {new Date(competicion.ultima_sincronizacion).toLocaleString('es-ES')}
+              </p>
+            )}
+            {miEquipo && (
+              <p className="text-xs font-medium flex items-center gap-1">
+                <Users className="h-3 w-3" />
+                {miEquipo}
+              </p>
+            )}
+          </div>
         </div>
-        <button
-          onClick={handleSync}
-          disabled={syncing}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-          {syncing ? 'Sincronizando...' : 'Sync completo'}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Sincronizando...' : 'Sync completo'}
+          </button>
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm text-muted-foreground hover:text-destructive hover:border-destructive transition-colors"
+            title="Eliminar competicion"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
+      {/* Delete confirmation */}
+      {confirmDelete && (
+        <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 flex items-center justify-between gap-4">
+          <p className="text-sm text-destructive">
+            Eliminar competicion? Se borraran partidos importados, jornadas y datos de clasificacion.
+          </p>
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={() => setConfirmDelete(false)}
+              className="px-3 py-1.5 rounded-lg border text-sm hover:bg-muted"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleDelete}
+              className="px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground text-sm hover:bg-destructive/90"
+            >
+              Eliminar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Status messages */}
       {error && (
-        <div className="flex items-center gap-2 text-destructive text-sm bg-destructive/10 p-3 rounded-lg">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          {error}
+        <div className="flex items-start gap-2 text-destructive text-sm bg-destructive/10 p-3 rounded-lg">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>{error}</span>
+        </div>
+      )}
+      {syncStatus && !error && (
+        <div className="flex items-center gap-2 text-sm bg-muted/50 p-3 rounded-lg text-muted-foreground">
+          <Check className="h-4 w-4 shrink-0 text-green-500" />
+          <span>{syncStatus}</span>
+        </div>
+      )}
+
+      {/* Mi equipo selector */}
+      {selectingEquipo && clasificacion.length > 0 && (
+        <div className="bg-card rounded-xl border p-4">
+          <p className="text-sm font-medium mb-3">
+            Selecciona tu equipo en la clasificacion:
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto">
+            {clasificacion.map(e => (
+              <button
+                key={e.equipo}
+                onClick={() => handleSetMiEquipo(e.equipo)}
+                disabled={savingEquipo}
+                className={`flex items-center justify-between px-3 py-2 rounded-lg border text-sm text-left hover:bg-muted transition-colors disabled:opacity-50 ${
+                  miEquipo.toLowerCase() === e.equipo.toLowerCase()
+                    ? 'border-primary bg-primary/5'
+                    : ''
+                }`}
+              >
+                <span>
+                  {e.posicion}. {e.equipo}
+                </span>
+                {miEquipo.toLowerCase() === e.equipo.toLowerCase() && (
+                  <Check className="h-4 w-4 text-primary" />
+                )}
+              </button>
+            ))}
+          </div>
+          {miEquipo && (
+            <button
+              onClick={() => setSelectingEquipo(false)}
+              className="mt-3 text-sm text-muted-foreground hover:text-foreground"
+            >
+              Cancelar
+            </button>
+          )}
         </div>
       )}
 
       {/* Summary cards */}
-      {miEquipoStats && (
+      {miEquipoStats && !selectingEquipo && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <SummaryCard
-            label="Posición"
-            value={`${miEquipoStats.posicion}°`}
+            label="Posicion"
+            value={`${miEquipoStats.posicion}${String.fromCharCode(186)}`}
             sub={`de ${clasificacion.length}`}
           />
           <SummaryCard
@@ -297,50 +475,15 @@ export default function CompeticionPage() {
         </div>
       )}
 
-      {/* Mi equipo selector */}
-      {selectingEquipo && (
-        <div className="bg-card rounded-xl border p-4">
-          <p className="text-sm font-medium mb-3">Selecciona tu equipo en la clasificación:</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto">
-            {clasificacion.map(e => (
-              <button
-                key={e.equipo}
-                onClick={() => handleSetMiEquipo(e.equipo)}
-                className={`flex items-center justify-between px-3 py-2 rounded-lg border text-sm text-left hover:bg-muted transition-colors ${
-                  miEquipo.toLowerCase() === e.equipo.toLowerCase()
-                    ? 'border-primary bg-primary/5'
-                    : ''
-                }`}
-              >
-                <span>
-                  {e.posicion}. {e.equipo}
-                </span>
-                {miEquipo.toLowerCase() === e.equipo.toLowerCase() && (
-                  <Check className="h-4 w-4 text-primary" />
-                )}
-              </button>
-            ))}
-          </div>
-          {miEquipo && (
-            <button
-              onClick={() => setSelectingEquipo(false)}
-              className="mt-3 text-sm text-muted-foreground hover:text-foreground"
-            >
-              Cancelar
-            </button>
-          )}
-        </div>
-      )}
-
       {/* Tabs */}
       <Tabs defaultValue="clasificacion">
         <TabsList className="w-full sm:w-auto">
-          <TabsTrigger value="clasificacion">Clasificación</TabsTrigger>
+          <TabsTrigger value="clasificacion">Clasificacion</TabsTrigger>
           <TabsTrigger value="jornada">Jornada</TabsTrigger>
           <TabsTrigger value="goleadores">Goleadores</TabsTrigger>
         </TabsList>
 
-        {/* Clasificación tab */}
+        {/* Clasificacion tab */}
         <TabsContent value="clasificacion">
           <div className="bg-card rounded-xl border overflow-hidden">
             <div className="overflow-x-auto">
@@ -408,7 +551,7 @@ export default function CompeticionPage() {
             </div>
             {clasificacion.length === 0 && (
               <div className="py-8 text-center text-muted-foreground">
-                No hay datos de clasificación. Sincroniza la competición.
+                No hay datos de clasificacion. Pulsa &quot;Sync completo&quot; para importar.
               </div>
             )}
           </div>
@@ -449,7 +592,7 @@ export default function CompeticionPage() {
               ) : (
                 <div className="py-8 text-center text-muted-foreground text-sm">
                   {jornadas.length === 0
-                    ? 'No hay jornadas. Haz un sync completo para importar todas.'
+                    ? 'No hay jornadas. Pulsa "Sync completo" para importar todas.'
                     : 'No hay datos para esta jornada.'}
                 </div>
               )}
