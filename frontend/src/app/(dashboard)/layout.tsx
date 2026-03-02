@@ -33,6 +33,7 @@ import { useClubStore } from '@/stores/clubStore'
 import { ClubAvatar, Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
+import { PageReadyGate } from '@/components/providers/PageReadyProvider'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -174,7 +175,7 @@ export default function DashboardLayout({
         </div>
 
         <main className="py-6 px-4 sm:px-6 lg:px-8">
-          {children}
+          <PageReadyGate>{children}</PageReadyGate>
         </main>
       </div>
     </div>

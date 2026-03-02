@@ -18,6 +18,8 @@ import {
   Package,
   Video
 } from 'lucide-react'
+import { PageLoader } from '@/components/ui/page-loader'
+import { usePageReady } from '@/components/providers/PageReadyProvider'
 import { tareasApi, catalogosApi, TareaUpdateData } from '@/lib/api/tareas'
 import { Tarea } from '@/types'
 import { TareaGraphicEditor, DiagramData, emptyDiagramData } from '@/components/tarea-editor'
@@ -105,6 +107,8 @@ export default function EditarTareaPage() {
     loadCategorias()
     loadTarea()
   }, [tareaId])
+
+  usePageReady(loading)
 
   useEffect(() => {
     if (formData.fase_juego) {
@@ -244,11 +248,7 @@ export default function EditarTareaPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    )
+    return <PageLoader />
   }
 
   if (error && !formData.titulo) {

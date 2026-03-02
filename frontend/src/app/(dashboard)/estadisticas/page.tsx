@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { PageLoader } from '@/components/ui/page-loader'
+import { usePageReady } from '@/components/providers/PageReadyProvider'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { dashboardApi } from '@/lib/api/dashboard'
 import { partidosApi } from '@/lib/api/partidos'
@@ -111,6 +113,8 @@ export default function EstadisticasPage() {
     }
   }
 
+  usePageReady(loading)
+
   const handleTabChange = (tab: string) => {
     if (tab === 'asistencia' && !asistenciaLoaded) {
       loadAsistenciaHistorico()
@@ -127,20 +131,7 @@ export default function EstadisticasPage() {
   }
 
   if (loading) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><BarChart3 className="h-6 w-6 text-primary" />Estadísticas</h1>
-          <p className="text-muted-foreground text-sm">{equipoActivo.nombre}</p>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 rounded-lg" />
-          ))}
-        </div>
-        <Skeleton className="h-64 rounded-lg" />
-      </div>
-    )
+    return <PageLoader />
   }
 
   if (!data) {

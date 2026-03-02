@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            margin: 30px 40px;
+            color: #1a1a2e;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid {{ organizacion.get('color_primario', '#1a365d') }};
+        }
+
+        .header .org-name {
+            font-size: 14px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 5px;
+        }
+
+        .header .title {
+            font-size: 22px;
+            font-weight: 700;
+            color: {{ organizacion.get('color_primario', '#1a365d') }};
+        }
+
+        .header .subtitle {
+            font-size: 14px;
+            color: #555;
+            margin-top: 5px;
+        }
+
+        .match-card {
+            background: #f8f9fa;
+            border: 2px solid {{ organizacion.get('color_primario', '#1a365d') }};
+            border-radius: 10px;
+            padding: 25px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .match-teams {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 30px;
+            margin: 15px 0;
+        }
+
+        .match-team {
+            flex: 1;
+            text-align: center;
+        }
+
+        .match-team-name {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .match-team-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #888;
+            letter-spacing: 1px;
+        }
+
+        .match-score {
+            font-size: 36px;
+            font-weight: 900;
+            color: {{ organizacion.get('color_primario', '#1a365d') }};
+            padding: 0 15px;
+        }
+
+        .match-vs {
+            font-size: 20px;
+            font-weight: 700;
+            color: #999;
+        }
+
+        .match-result {
+            display: inline-block;
+            padding: 4px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 10px;
+        }
+
+        .result-victoria { background: #d1fae5; color: #065f46; }
+        .result-empate { background: #fef3c7; color: #92400e; }
+        .result-derrota { background: #fee2e2; color: #991b1b; }
+
+        .info-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .info-item {
+            flex: 1 1 22%;
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 12px 15px;
+            border-left: 3px solid {{ organizacion.get('color_primario', '#1a365d') }};
+        }
+
+        .info-label {
+            font-size: 10px;
+            font-weight: 700;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .info-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1a1a2e;
+            margin-top: 3px;
+        }
+
+        .section {
+            margin: 25px 0;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: {{ organizacion.get('color_primario', '#1a365d') }};
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        table th {
+            text-align: left;
+            font-size: 10px;
+            font-weight: 700;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 8px 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        table td {
+            padding: 7px 10px;
+            font-size: 12px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        table tr:nth-child(even) {
+            background: #fafbfc;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 700;
+        }
+
+        .badge-titular { background: {{ organizacion.get('color_primario', '#1a365d') }}; color: white; }
+        .badge-suplente { background: #e5e7eb; color: #555; }
+
+        .stat-icon {
+            display: inline-block;
+            width: 14px;
+            text-align: center;
+            font-size: 11px;
+        }
+
+        .notas-section {
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+
+        .notas-section h3 {
+            font-size: 13px;
+            font-weight: 700;
+            color: #92400e;
+            margin-bottom: 8px;
+        }
+
+        .notas-section p {
+            font-size: 12px;
+            color: #78350f;
+            white-space: pre-wrap;
+        }
+
+        .footer {
+            margin-top: 40px;
+            padding-top: 15px;
+            border-top: 1px solid #e2e8f0;
+            text-align: center;
+            color: #aaa;
+            font-size: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="org-name">{{ organizacion.get('nombre', 'TrainingHub Pro') }}</div>
+        <div class="title">Informe de Partido</div>
+        <div class="subtitle">
+            {% if partido.get('competicion') %}{{ partido.get('competicion', '') | capitalize }}{% endif %}
+            {% if partido.get('jornada') %} &mdash; Jornada {{ partido.get('jornada') }}{% endif %}
+        </div>
+    </div>
+
+    <!-- Match card -->
+    <div class="match-card">
+        <div class="match-teams">
+            <div class="match-team">
+                <div class="match-team-name">{{ equipo_nombre }}</div>
+                <div class="match-team-label">
+                    {% if partido.get('localia') == 'local' %}Local{% else %}Visitante{% endif %}
+                </div>
+            </div>
+
+            {% if partido.get('goles_favor') is not none %}
+            <div class="match-score">
+                {{ partido.get('goles_favor', 0) }} - {{ partido.get('goles_contra', 0) }}
+            </div>
+            {% else %}
+            <div class="match-vs">VS</div>
+            {% endif %}
+
+            <div class="match-team">
+                <div class="match-team-name">{{ rival.get('nombre', 'Rival') }}</div>
+                <div class="match-team-label">
+                    {% if partido.get('localia') == 'local' %}Visitante{% else %}Local{% endif %}
+                </div>
+            </div>
+        </div>
+
+        {% if partido.get('resultado') %}
+        <div class="match-result result-{{ partido.get('resultado') }}">
+            {{ partido.get('resultado', '') | upper }}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Match info -->
+    <div class="info-grid">
+        <div class="info-item">
+            <div class="info-label">Fecha</div>
+            <div class="info-value">{{ partido.get('fecha', '') }}</div>
+        </div>
+        {% if partido.get('hora') %}
+        <div class="info-item">
+            <div class="info-label">Hora</div>
+            <div class="info-value">{{ partido.get('hora') }}h</div>
+        </div>
+        {% endif %}
+        <div class="info-item">
+            <div class="info-label">Localía</div>
+            <div class="info-value">{{ partido.get('localia', '') | capitalize }}</div>
+        </div>
+        <div class="info-item">
+            <div class="info-label">Competición</div>
+            <div class="info-value">{{ partido.get('competicion', '') | capitalize }}</div>
+        </div>
+    </div>
+
+    <!-- Rival info -->
+    {% if rival.get('ciudad') or rival.get('estadio') or rival.get('notas') %}
+    <div class="section">
+        <div class="section-title">Datos del Rival</div>
+        <div class="info-grid">
+            {% if rival.get('ciudad') %}
+            <div class="info-item">
+                <div class="info-label">Ciudad</div>
+                <div class="info-value">{{ rival.get('ciudad') }}</div>
+            </div>
+            {% endif %}
+            {% if rival.get('estadio') %}
+            <div class="info-item">
+                <div class="info-label">Estadio</div>
+                <div class="info-value">{{ rival.get('estadio') }}</div>
+            </div>
+            {% endif %}
+        </div>
+        {% if rival.get('notas') %}
+        <p style="font-size: 12px; color: #555; margin-top: 8px;">{{ rival.get('notas') }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Convocatoria -->
+    {% if convocatoria %}
+    <div class="section">
+        <div class="section-title">Convocatoria</div>
+
+        {% set titulares = convocatoria | selectattr('titular') | list %}
+        {% set suplentes = convocatoria | rejectattr('titular') | list %}
+
+        {% if titulares %}
+        <h4 style="font-size: 12px; font-weight: 700; color: #555; margin-bottom: 8px; text-transform: uppercase;">Titulares ({{ titulares | length }})</h4>
+        <table style="margin-bottom: 20px;">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Jugador</th>
+                    <th>Posición</th>
+                    <th style="text-align: center;">Min</th>
+                    <th style="text-align: center;">Gol</th>
+                    <th style="text-align: center;">Asist</th>
+                    <th style="text-align: center;">TA</th>
+                    <th style="text-align: center;">TR</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in titulares %}
+                <tr>
+                    <td><strong>{{ c.get('dorsal', '') }}</strong></td>
+                    <td>{{ c.get('jugador_nombre', '') }}</td>
+                    <td>{{ c.get('posicion_asignada', '') }}</td>
+                    <td style="text-align: center;">{{ c.get('minutos_jugados', 0) }}</td>
+                    <td style="text-align: center;">{% if c.get('goles', 0) > 0 %}{{ c.get('goles') }}{% endif %}</td>
+                    <td style="text-align: center;">{% if c.get('asistencias', 0) > 0 %}{{ c.get('asistencias') }}{% endif %}</td>
+                    <td style="text-align: center;">{% if c.get('tarjeta_amarilla') %}🟨{% endif %}</td>
+                    <td style="text-align: center;">{% if c.get('tarjeta_roja') %}🟥{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        {% if suplentes %}
+        <h4 style="font-size: 12px; font-weight: 700; color: #555; margin-bottom: 8px; text-transform: uppercase;">Suplentes ({{ suplentes | length }})</h4>
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Jugador</th>
+                    <th>Posición</th>
+                    <th style="text-align: center;">Min</th>
+                    <th style="text-align: center;">Gol</th>
+                    <th style="text-align: center;">Asist</th>
+                    <th style="text-align: center;">TA</th>
+                    <th style="text-align: center;">TR</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in suplentes %}
+                <tr>
+                    <td><strong>{{ c.get('dorsal', '') }}</strong></td>
+                    <td>{{ c.get('jugador_nombre', '') }}</td>
+                    <td>{{ c.get('posicion_asignada', '') }}</td>
+                    <td style="text-align: center;">{{ c.get('minutos_jugados', 0) }}</td>
+                    <td style="text-align: center;">{% if c.get('goles', 0) > 0 %}{{ c.get('goles') }}{% endif %}</td>
+                    <td style="text-align: center;">{% if c.get('asistencias', 0) > 0 %}{{ c.get('asistencias') }}{% endif %}</td>
+                    <td style="text-align: center;">{% if c.get('tarjeta_amarilla') %}🟨{% endif %}</td>
+                    <td style="text-align: center;">{% if c.get('tarjeta_roja') %}🟥{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Stats summary -->
+    {% if convocatoria %}
+    {% set total_goles = convocatoria | map(attribute='goles') | select('number') | sum %}
+    {% set total_asistencias = convocatoria | map(attribute='asistencias') | select('number') | sum %}
+    {% set total_amarillas = convocatoria | selectattr('tarjeta_amarilla') | list | length %}
+    {% set total_rojas = convocatoria | selectattr('tarjeta_roja') | list | length %}
+    {% if total_goles > 0 or total_asistencias > 0 or total_amarillas > 0 or total_rojas > 0 %}
+    <div class="info-grid">
+        <div class="info-item">
+            <div class="info-label">Goles</div>
+            <div class="info-value">{{ total_goles }}</div>
+        </div>
+        <div class="info-item">
+            <div class="info-label">Asistencias</div>
+            <div class="info-value">{{ total_asistencias }}</div>
+        </div>
+        <div class="info-item">
+            <div class="info-label">T. Amarillas</div>
+            <div class="info-value">{{ total_amarillas }}</div>
+        </div>
+        <div class="info-item">
+            <div class="info-label">T. Rojas</div>
+            <div class="info-value">{{ total_rojas }}</div>
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <!-- Notes -->
+    {% if partido.get('notas_pre') %}
+    <div class="notas-section">
+        <h3>Notas Pre-Partido</h3>
+        <p>{{ partido.get('notas_pre') }}</p>
+    </div>
+    {% endif %}
+
+    {% if partido.get('notas_post') %}
+    <div class="notas-section" style="margin-top: 10px;">
+        <h3>Notas Post-Partido</h3>
+        <p>{{ partido.get('notas_post') }}</p>
+    </div>
+    {% endif %}
+
+    <div class="footer">
+        Generado con TrainingHub Pro &bull; {{ organizacion.get('nombre', '') }}
+    </div>
+</body>
+</html>

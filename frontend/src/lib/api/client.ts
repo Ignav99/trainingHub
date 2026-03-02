@@ -29,14 +29,9 @@ class ApiClient {
   }
 
   private async getAuthHeaders(): Promise<HeadersInit> {
-    // First try to get from persisted zustand state (faster)
-    let token = getPersistedToken()
-
-    // Fallback to Supabase session if not in store
-    if (!token) {
-      const { data: { session } } = await supabase.auth.getSession()
-      token = session?.access_token || null
-    }
+    // Always get fresh token from Supabase (handles refresh automatically)
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token || getPersistedToken()
 
     return token ? { Authorization: `Bearer ${token}` } : {}
   }
@@ -146,6 +141,49 @@ class ApiClient {
     }
 
     return response.json()
+  }
+
+  async upload<T>(path: string, formData: FormData, options?: FetchOptions): Promise<T> {
+    const url = this.buildUrl(path, options?.params)
+    const authHeaders = await this.getAuthHeaders()
+    // Don't set Content-Type for FormData - browser sets it with boundary
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        ...authHeaders,
+        ...options?.headers,
+      },
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      if (response.status === 401) {
+        throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
+      }
+      throw new Error(error.detail || `API Error: ${response.status}`)
+    }
+
+    return response.json()
+  }
+
+  async getBlob(path: string, options?: FetchOptions): Promise<Blob> {
+    const url = this.buildUrl(path, options?.params)
+    const authHeaders = await this.getAuthHeaders()
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        ...authHeaders,
+        ...options?.headers,
+      },
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.detail || `API Error: ${response.status}`)
+    }
+
+    return response.blob()
   }
 
   async delete(path: string, options?: FetchOptions): Promise<void> {

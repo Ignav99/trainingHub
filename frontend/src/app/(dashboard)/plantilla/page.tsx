@@ -28,6 +28,7 @@ import {
   ChevronDown
 } from 'lucide-react'
 import { Jugador, jugadoresApi, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
+import { usePageReady } from '@/components/providers/PageReadyProvider'
 import { useEquipoStore } from '@/stores/equipoStore'
 
 // Avatar del jugador
@@ -149,7 +150,7 @@ function JugadorCard({
         </div>
         <div className="flex-1 min-w-0">
           <h3 className={`font-semibold truncate ${isNoDisponible ? 'text-gray-500' : 'text-gray-900'}`}>
-            {jugador.nombre} {jugador.apellidos}
+            {jugador.apodo || `${jugador.nombre} ${jugador.apellidos}`}
           </h3>
           <div className="flex items-center gap-2 mt-1">
             <PosicionBadge posicion={jugador.posicion_principal} />
@@ -370,6 +371,8 @@ export default function PlantillaPage() {
     porZona: Record<string, number>
   } | null>(null)
 
+  usePageReady(loading)
+
   // Cargar equipos al montar
   useEffect(() => {
     loadEquipos()
@@ -547,8 +550,8 @@ export default function PlantillaPage() {
         {/* Título y acciones */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Plantilla</h1>
-            <p className="text-gray-500">
+            <h1 className="text-2xl font-bold">Plantilla</h1>
+            <p className="text-muted-foreground">
               {stats ? `${stats.disponibles} disponibles de ${stats.total} jugadores` : 'Selecciona un equipo'}
             </p>
           </div>

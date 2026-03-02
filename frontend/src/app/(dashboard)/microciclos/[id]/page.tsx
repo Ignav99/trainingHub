@@ -39,6 +39,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { PageLoader } from '@/components/ui/page-loader'
+import { usePageReady } from '@/components/providers/PageReadyProvider'
 import { microciclosApi, CreateMicrocicloData } from '@/lib/api/microciclos'
 import { partidosApi } from '@/lib/api/partidos'
 import { useEquipoStore } from '@/stores/equipoStore'
@@ -137,6 +139,8 @@ export default function MicrocicloDetallePage() {
       .catch(() => {})
   }, [equipoActivo?.id])
 
+  usePageReady(loading)
+
   async function fetchData() {
     setLoading(true)
     setError(null)
@@ -218,18 +222,7 @@ export default function MicrocicloDetallePage() {
 
   // Loading state
   if (loading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-32 w-full" />
-        <div className="grid grid-cols-7 gap-2">
-          {Array.from({ length: 7 }).map((_, i) => (
-            <Skeleton key={i} className="h-40" />
-          ))}
-        </div>
-        <Skeleton className="h-48 w-full" />
-      </div>
-    )
+    return <PageLoader />
   }
 
   // Error state

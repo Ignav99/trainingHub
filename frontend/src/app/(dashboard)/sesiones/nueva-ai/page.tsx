@@ -134,7 +134,7 @@ interface ChatMessage {
 
 const INITIAL_MESSAGE: ChatMessage = {
   rol: 'assistant',
-  contenido: 'Soy tu asistente de diseno de sesiones. Voy a ayudarte a crear una sesion de entrenamiento paso a paso.\n\n¿Para que **Match Day** es esta sesion? Selecciona una opcion o dime directamente.',
+  contenido: 'Soy tu asistente de diseno de sesiones. Descríbeme lo que necesitas en un solo mensaje:\n\n- **Match Day** (MD-1, MD-2, MD-3...)\n- **Jugadores** disponibles y porteros\n- **Contexto tactico**: rival, plan de partido, objetivos\n- **Ejercicios** que tienes en mente (si los tienes)\n\nCuanto mas detalle me des, mejor sera la sesion. También puedes seleccionar las opciones rapidas de abajo.',
   timestamp: new Date(),
 }
 
@@ -184,9 +184,9 @@ export default function NuevaSesionAIPage() {
   // Expanded task cards
   const [expandedFases, setExpandedFases] = useState<Set<string>>(new Set())
 
-  // Quick-select state
+  // Quick-select state — show both from the start
   const [showMatchDayChips, setShowMatchDayChips] = useState(true)
-  const [showObjectiveChips, setShowObjectiveChips] = useState(false)
+  const [showObjectiveChips, setShowObjectiveChips] = useState(true)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -219,6 +219,7 @@ export default function NuevaSesionAIPage() {
     setMessages((prev) => [...prev, userMsg])
     setInput('')
     setSending(true)
+    // Hide chips after first user message — they're just helpers for the initial input
     setShowMatchDayChips(false)
     setShowObjectiveChips(false)
 
@@ -229,8 +230,10 @@ export default function NuevaSesionAIPage() {
     ])
 
     try {
+      // Skip the initial hardcoded greeting — only send real conversation to Claude
+      const realMessages = messages.filter((m) => !m.isLoading).slice(1)
       const allMessages: SessionDesignMessage[] = [
-        ...messages.filter((m) => !m.isLoading).map((m) => ({
+        ...realMessages.map((m) => ({
           rol: m.rol,
           contenido: m.contenido,
         })),
@@ -266,8 +269,10 @@ export default function NuevaSesionAIPage() {
         }
       }
 
-      if (!response.sesion_propuesta && messages.length <= 3) {
-        setShowObjectiveChips(true)
+      // Hide chips once we have a proposal
+      if (response.sesion_propuesta) {
+        setShowMatchDayChips(false)
+        setShowObjectiveChips(false)
       }
     } catch (err: any) {
       console.error('Session design chat error:', err)
@@ -505,33 +510,43 @@ export default function NuevaSesionAIPage() {
               </div>
             ))}
 
-            {/* Quick-select chips: Match Day */}
-            {showMatchDayChips && !sending && (
-              <div className="flex flex-wrap gap-2 pl-11">
-                {MATCH_DAYS.map((md) => (
-                  <button
-                    key={md.value}
-                    onClick={() => sendMessage(md.value)}
-                    className={`${md.color} px-3 py-1.5 rounded-full text-xs font-medium hover:opacity-80 transition-opacity`}
-                  >
-                    {md.label}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Quick-select chips: Objectives */}
-            {showObjectiveChips && !sending && (
-              <div className="flex flex-wrap gap-2 pl-11">
-                {QUICK_OBJECTIVES.map((obj) => (
-                  <button
-                    key={obj}
-                    onClick={() => sendMessage(obj)}
-                    className="bg-muted px-3 py-1.5 rounded-full text-xs font-medium hover:bg-muted/80 transition-colors"
-                  >
-                    {obj}
-                  </button>
-                ))}
+            {/* Quick-select chips: Match Day + Objectives — append to input */}
+            {(showMatchDayChips || showObjectiveChips) && !sending && (
+              <div className="space-y-2 pl-11">
+                {showMatchDayChips && (
+                  <div className="flex flex-wrap gap-2">
+                    <span className="text-[10px] text-muted-foreground self-center mr-1">Match Day:</span>
+                    {MATCH_DAYS.map((md) => (
+                      <button
+                        key={md.value}
+                        onClick={() => {
+                          setInput((prev) => (prev ? `${prev} ${md.value}.` : `${md.value}. `))
+                          textareaRef.current?.focus()
+                        }}
+                        className={`${md.color} px-3 py-1.5 rounded-full text-xs font-medium hover:opacity-80 transition-opacity`}
+                      >
+                        {md.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {showObjectiveChips && (
+                  <div className="flex flex-wrap gap-2">
+                    <span className="text-[10px] text-muted-foreground self-center mr-1">Objetivos:</span>
+                    {QUICK_OBJECTIVES.map((obj) => (
+                      <button
+                        key={obj}
+                        onClick={() => {
+                          setInput((prev) => (prev ? `${prev} ${obj}.` : `${obj}. `))
+                          textareaRef.current?.focus()
+                        }}
+                        className="bg-muted px-3 py-1.5 rounded-full text-xs font-medium hover:bg-muted/80 transition-colors"
+                      >
+                        {obj}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

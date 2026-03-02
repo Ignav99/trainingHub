@@ -1,6 +1,7 @@
 """
 TrainingHub Pro - Dependencias
-Funciones de dependencia para inyección en endpoints.
+Funciones de dependencia para inyeccion en endpoints.
+Mantiene compatibilidad con el sistema anterior mientras integra el nuevo sistema de permisos.
 """
 
 from fastapi import Depends, HTTPException, status
@@ -9,6 +10,14 @@ from typing import Optional
 
 from app.database import get_supabase
 from app.models import UsuarioResponse
+
+# Re-export from new security module for backwards compatibility
+from app.security.dependencies import (
+    get_current_user_from_token,
+    require_permission,
+    require_any_permission,
+    AuthContext,
+)
 
 # Security scheme
 security = HTTPBearer()
@@ -19,59 +28,9 @@ async def get_current_user(
 ) -> UsuarioResponse:
     """
     Obtiene el usuario actual a partir del token JWT.
-    
-    Valida el token con Supabase y obtiene los datos del usuario.
+    Wrapper de compatibilidad que delega al nuevo sistema.
     """
-    token = credentials.credentials
-    
-    try:
-        supabase = get_supabase()
-        
-        # Verificar token con Supabase
-        user_response = supabase.auth.get_user(token)
-        
-        if not user_response or not user_response.user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token inválido o expirado",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        
-        user_id = user_response.user.id
-        
-        # Obtener datos del usuario de nuestra tabla
-        db_user = supabase.table("usuarios").select(
-            "*, organizaciones(*)"
-        ).eq("id", user_id).single().execute()
-        
-        if not db_user.data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Usuario no encontrado en la base de datos",
-            )
-        
-        # Verificar que el usuario está activo (default True si no está definido)
-        activo = db_user.data.get("activo")
-        if activo is False:  # Explicit check for False, not None
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Usuario desactivado. Contacte al administrador.",
-            )
-        
-        # Mapear organización
-        user_data = db_user.data
-        user_data["organizacion"] = user_data.pop("organizaciones", None)
-        
-        return UsuarioResponse(**user_data)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Error de autenticación: {str(e)}",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    return await get_current_user_from_token(credentials)
 
 
 async def get_current_admin_user(
@@ -79,8 +38,10 @@ async def get_current_admin_user(
 ) -> UsuarioResponse:
     """
     Verifica que el usuario actual es administrador.
+    Ahora soporta superadmin_plataforma y admin.
     """
-    if current_user.rol != "admin":
+    admin_roles = {"admin", "superadmin_plataforma"}
+    if current_user.rol not in admin_roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Se requiere rol de administrador",
@@ -95,11 +56,11 @@ async def get_optional_user(
 ) -> Optional[UsuarioResponse]:
     """
     Obtiene el usuario actual si hay token, None si no.
-    Útil para endpoints que funcionan con o sin auth.
+    Util para endpoints que funcionan con o sin auth.
     """
     if not credentials:
         return None
-    
+
     try:
         return await get_current_user(credentials)
     except HTTPException:

@@ -21,6 +21,7 @@ import {
   ListChecks,
   Eye
 } from 'lucide-react'
+import { usePageReady } from '@/components/providers/PageReadyProvider'
 import { Sesion, MatchDay } from '@/types'
 import { sesionesApi } from '@/lib/api/sesiones'
 import { format, parseISO } from 'date-fns'
@@ -85,6 +86,8 @@ export default function SesionesPage() {
 
   // Menú de acciones
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
+
+  usePageReady(loading)
 
   useEffect(() => {
     loadSesiones()
@@ -198,8 +201,8 @@ export default function SesionesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Sesiones</h1>
-          <p className="text-gray-500">
+          <h1 className="text-2xl font-bold">Sesiones</h1>
+          <p className="text-muted-foreground">
             {total} sesiones en total
           </p>
         </div>
@@ -220,7 +223,7 @@ export default function SesionesPage() {
           </Link>
           <Link
             href="/sesiones/nueva-ai"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg text-sm font-medium hover:from-purple-700 hover:to-blue-700 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
           >
             <Sparkles className="h-4 w-4" />
             Nueva con IA

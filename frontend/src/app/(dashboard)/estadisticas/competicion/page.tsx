@@ -23,6 +23,8 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { PageLoader } from '@/components/ui/page-loader'
+import { usePageReady } from '@/components/providers/PageReadyProvider'
 import { useEquipoStore } from '@/stores/equipoStore'
 import {
   rfefApi,
@@ -219,6 +221,8 @@ export default function CompeticionPage() {
     }
   }
 
+  usePageReady(loading)
+
   if (!equipoActivo) {
     return (
       <div className="text-center py-12">
@@ -229,22 +233,7 @@ export default function CompeticionPage() {
   }
 
   if (loading) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Trophy className="h-6 w-6 text-primary" />
-            Competicion
-          </h1>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 rounded-lg" />
-          ))}
-        </div>
-        <Skeleton className="h-96 rounded-lg" />
-      </div>
-    )
+    return <PageLoader />
   }
 
   const clasificacion = selected?.clasificacion || []

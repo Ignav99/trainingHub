@@ -54,6 +54,7 @@ class JugadorBase(BaseModel):
     """Schema base de jugador."""
     nombre: str = Field(..., min_length=1, max_length=100)
     apellidos: str = Field(..., min_length=1, max_length=150)
+    apodo: Optional[str] = Field(None, max_length=50)
     fecha_nacimiento: Optional[date] = None
     dorsal: Optional[int] = Field(None, ge=1, le=99)
 
@@ -82,6 +83,7 @@ class JugadorBase(BaseModel):
     es_capitan: bool = Field(default=False)
     es_convocable: bool = Field(default=True)
     es_portero: bool = Field(default=False)
+    es_invitado: bool = Field(default=False)
 
     # Notas
     notas: Optional[str] = None
@@ -97,6 +99,7 @@ class JugadorUpdate(BaseModel):
     """Schema para actualizar jugador."""
     nombre: Optional[str] = Field(None, min_length=1, max_length=100)
     apellidos: Optional[str] = Field(None, min_length=1, max_length=150)
+    apodo: Optional[str] = Field(None, max_length=50)
     fecha_nacimiento: Optional[date] = None
     dorsal: Optional[int] = Field(None, ge=1, le=99)
     foto_url: Optional[str] = None
@@ -156,6 +159,18 @@ class JugadorFiltros(BaseModel):
     es_portero: Optional[bool] = None
     es_convocable: Optional[bool] = None
     busqueda: Optional[str] = None
+
+
+class JugadorInvitadoCreate(BaseModel):
+    """Schema para crear un jugador invitado (quick-add temporal)."""
+    nombre: str = Field(..., min_length=1, max_length=100)
+    apellidos: str = Field(default="", max_length=150)
+    posicion_principal: Posicion = Field(default=Posicion.MC)
+    nivel_tecnico: int = Field(default=5, ge=1, le=10)
+    nivel_tactico: int = Field(default=5, ge=1, le=10)
+    nivel_fisico: int = Field(default=5, ge=1, le=10)
+    nivel_mental: int = Field(default=5, ge=1, le=10)
+    notas: Optional[str] = None
 
 
 class PosicionResponse(BaseModel):

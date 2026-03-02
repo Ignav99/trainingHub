@@ -25,6 +25,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { usePageReady } from '@/components/providers/PageReadyProvider'
 import { rivalesApi, RivalCreateData } from '@/lib/api/partidos'
 import type { Rival } from '@/types'
 
@@ -61,6 +62,8 @@ export default function RivalesPage() {
       setLoading(false)
     }
   }
+
+  usePageReady(loading)
 
   useEffect(() => {
     fetchRivales()

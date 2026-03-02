@@ -115,21 +115,55 @@ class RFAFScraper:
         except Exception as e:
             logger.warning("Failed to get RFAF session cookie: %s", e)
 
-    def _fetch_page(self, action: str, params: dict) -> BeautifulSoup:
-        """Fetch and parse an RFAF page (sync, using requests.Session)."""
+    def _fetch_page(self, action: str, params: dict, max_retries: int = 3) -> BeautifulSoup:
+        """Fetch and parse an RFAF page with retries for empty responses.
+
+        RFAF is unreliable and often returns 0 bytes. Retries with backoff.
+        """
         self._warmup()
         full_params = {"cod_primaria": "1000120", **params}
         url = f"{BASE_URL}/{action}"
 
-        response = self._session.get(url, params=full_params, timeout=30)
-        response.raise_for_status()
+        for attempt in range(max_retries):
+            try:
+                response = self._session.get(url, params=full_params, timeout=30)
+                response.raise_for_status()
 
-        html = response.content.decode(CHARSET, errors="replace")
-        if len(html) < 100:
-            logger.warning(
-                "RFAF page %s returned very small response (%d bytes)", action, len(html)
-            )
-        return BeautifulSoup(html, "html.parser")
+                content = response.content
+                if len(content) > 0:
+                    html = content.decode(CHARSET, errors="replace")
+                    if len(html) < 100:
+                        logger.warning(
+                            "RFAF page %s returned very small response (%d bytes)",
+                            action, len(html),
+                        )
+                    return BeautifulSoup(html, "html.parser")
+
+                # 0 bytes — retry with backoff
+                wait = (attempt + 1) * 2
+                logger.warning(
+                    "RFAF page %s returned 0 bytes (attempt %d/%d), retrying in %ds...",
+                    action, attempt + 1, max_retries, wait,
+                )
+                time.sleep(wait)
+
+                # Re-warmup: get a fresh session cookie
+                self._warmed_up = False
+                self._warmup()
+
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    wait = (attempt + 1) * 2
+                    logger.warning(
+                        "RFAF page %s error (attempt %d/%d): %s, retrying in %ds...",
+                        action, attempt + 1, max_retries, e, wait,
+                    )
+                    time.sleep(wait)
+                else:
+                    raise
+
+        logger.error("RFAF page %s returned 0 bytes after %d retries", action, max_retries)
+        return BeautifulSoup("", "html.parser")
 
     async def close(self):
         """Cierra la sesión HTTP."""
@@ -414,8 +448,12 @@ class RFAFScraper:
                 logger.warning("Error getting jornada details: %s", e)
                 jornada_actual = {"numero": jornada_num, "partidos": jornada_resultados}
 
+        # Calendario: try scraping, fallback to 1..30
         time.sleep(0.3)
         calendario = self._scrape_calendario(codcompeticion, codgrupo, codtemporada)
+        if len(calendario) < 20:
+            calendario = [{"numero": n, "texto": f"Jornada {n}"} for n in range(1, 31)]
+
         time.sleep(0.3)
         goleadores = self._scrape_goleadores(codcompeticion, codgrupo, codtemporada)
 
@@ -440,9 +478,11 @@ class RFAFScraper:
         full_data = self._scrape_clasificacion_full(codcompeticion, codgrupo, codtemporada)
         clasificacion = full_data["clasificacion"]
 
-        # 2. Calendario (jornada numbers)
+        # 2. Calendario (jornada numbers) — fallback to 1..30 if scraping fails
         time.sleep(0.3)
         calendario = self._scrape_calendario(codcompeticion, codgrupo, codtemporada)
+        if len(calendario) < 20:
+            calendario = [{"numero": n, "texto": f"Jornada {n}"} for n in range(1, 31)]
 
         # 3. Goleadores
         time.sleep(0.3)

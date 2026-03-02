@@ -216,7 +216,11 @@ class TareaResponse(TareaBase):
     
     # Relaciones
     categoria: Optional[CategoriaTareaResponse] = None
-    
+
+    # Campos enriquecidos (vienen del JOIN, no de la tabla)
+    creador_nombre: Optional[str] = None
+    equipo_nombre: Optional[str] = None
+
     @computed_field
     @property
     def m2_calculado(self) -> Optional[float]:

@@ -28,6 +28,7 @@ import {
   FolderOpen,
   Bot
 } from 'lucide-react'
+import { usePageReady } from '@/components/providers/PageReadyProvider'
 import { Tarea, CategoriaTarea } from '@/types'
 import { tareasApi, catalogosApi } from '@/lib/api/tareas'
 
@@ -118,6 +119,8 @@ export default function TareasPage() {
   // Menú de acciones
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
   const [copying, setCopying] = useState<string | null>(null)
+
+  usePageReady(loading)
 
   useEffect(() => {
     loadCategorias()

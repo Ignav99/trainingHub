@@ -12,6 +12,8 @@ import {
 } from '@/lib/api/rfef'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Spinner } from '@/components/ui/spinner'
+import { PageLoader } from '@/components/ui/page-loader'
+import { usePageReady } from '@/components/providers/PageReadyProvider'
 import {
   Trophy,
   RefreshCw,
@@ -93,6 +95,8 @@ export default function CompeticionPage() {
     }
   }, [competicion, selectingEquipo])
 
+  usePageReady(loading)
+
   const handleSetup = async () => {
     if (!equipoActivo?.id || !setupUrl) return
     setSettingUp(true)
@@ -119,6 +123,30 @@ export default function CompeticionPage() {
       }
     } finally {
       setSettingUp(false)
+    }
+  }
+
+  // After selecting team, trigger full sync to download ALL jornadas
+  const handleSetMiEquipoAndSync = async (nombre: string) => {
+    await handleSetMiEquipo(nombre)
+    // Now trigger sync-full to get all jornadas (without waiting for actas)
+    if (competicion) {
+      setSyncing(true)
+      setSyncStatus('Descargando todas las jornadas...')
+      try {
+        const result = await rfefApi.syncFull(competicion.id)
+        setSyncStatus(
+          `Listo: ${result.equipos_clasificacion} equipos, ${result.jornadas_saved}/${result.jornadas_total || '?'} jornadas` +
+          (result.link_result ? `, ${result.link_result.partidos_created || 0} partidos creados` : '') +
+          (result.errors?.length ? ` (${result.errors.length} errores)` : '')
+        )
+        await loadCompeticion()
+      } catch (err: any) {
+        // Non-critical — the setup itself already worked
+        console.error('Sync-full after setup:', err)
+      } finally {
+        setSyncing(false)
+      }
     }
   }
 
@@ -189,11 +217,7 @@ export default function CompeticionPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Spinner size="lg" />
-      </div>
-    )
+    return <PageLoader />
   }
 
   // ============ No competition: Setup screen ============
@@ -407,8 +431,8 @@ export default function CompeticionPage() {
             {clasificacion.map(e => (
               <button
                 key={e.equipo}
-                onClick={() => handleSetMiEquipo(e.equipo)}
-                disabled={savingEquipo}
+                onClick={() => handleSetMiEquipoAndSync(e.equipo)}
+                disabled={savingEquipo || syncing}
                 className={`flex items-center justify-between px-3 py-2 rounded-lg border text-sm text-left hover:bg-muted transition-colors disabled:opacity-50 ${
                   miEquipo.toLowerCase() === e.equipo.toLowerCase()
                     ? 'border-primary bg-primary/5'

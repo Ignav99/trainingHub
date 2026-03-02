@@ -31,6 +31,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { PageLoader } from '@/components/ui/page-loader'
+import { usePageReady } from '@/components/providers/PageReadyProvider'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { partidosApi } from '@/lib/api/partidos'
 import { formatDate } from '@/lib/utils'
@@ -72,6 +74,8 @@ export default function PartidoDetailPage() {
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [id])
+
+  usePageReady(loading)
 
   const handleSaveResult = async () => {
     setSaving(true)
@@ -119,13 +123,7 @@ export default function PartidoDetailPage() {
   }
 
   if (loading) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-40 w-full rounded-lg" />
-        <Skeleton className="h-32 w-full rounded-lg" />
-      </div>
-    )
+    return <PageLoader />
   }
 
   if (!partido) {

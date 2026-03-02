@@ -18,8 +18,11 @@ from app.models import (
     RivalResponse,
 )
 from app.database import get_supabase
-from app.dependencies import get_current_user
+from app.dependencies import require_permission, AuthContext
+from app.security.permissions import Permission
 from app.services.audit_service import log_create, log_update, log_delete
+from app.services.notification_service import notify_partido_resultado
+from app.services.pdf_service import generate_informe_partido_pdf
 
 router = APIRouter()
 
@@ -37,7 +40,7 @@ async def list_partidos(
     solo_pendientes: bool = False,
     orden: str = Query("fecha", pattern="^(fecha|jornada|created_at)$"),
     direccion: str = Query("desc", pattern="^(asc|desc)$"),
-    current_user = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
     """
     Lista partidos con filtros.
@@ -56,7 +59,7 @@ async def list_partidos(
     else:
         # Obtener todos los equipos de la organización
         equipos = supabase.table("equipos").select("id").eq(
-            "organizacion_id", str(current_user.organizacion_id)
+            "organizacion_id", auth.organizacion_id
         ).execute()
         equipo_ids = [e["id"] for e in equipos.data]
         if equipo_ids:
@@ -113,7 +116,7 @@ async def list_partidos(
 @router.get("/{partido_id}", response_model=PartidoResponse)
 async def get_partido(
     partido_id: UUID,
-    current_user = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
     """
     Obtiene un partido por ID.
@@ -130,17 +133,6 @@ async def get_partido(
             detail="Partido no encontrado"
         )
 
-    # Verificar que el equipo pertenece a la organización
-    equipo = supabase.table("equipos").select("organizacion_id").eq(
-        "id", response.data["equipo_id"]
-    ).single().execute()
-
-    if equipo.data["organizacion_id"] != str(current_user.organizacion_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes acceso a este partido"
-        )
-
     rival_data = response.data.pop("rivales", None)
     partido = PartidoResponse(**response.data)
     if rival_data:
@@ -152,7 +144,7 @@ async def get_partido(
 @router.post("", response_model=PartidoResponse, status_code=status.HTTP_201_CREATED)
 async def create_partido(
     partido: PartidoCreate,
-    current_user = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_CREATE)),
 ):
     """
     Crea un nuevo partido.
@@ -164,7 +156,7 @@ async def create_partido(
     # Use default equipo if not provided
     if not partido.equipo_id:
         equipos = supabase.table("equipos").select("id").eq(
-            "organizacion_id", str(current_user.organizacion_id)
+            "organizacion_id", auth.organizacion_id
         ).limit(1).execute()
 
         if equipos.data:
@@ -175,41 +167,7 @@ async def create_partido(
                 detail="No tienes equipos. Crea uno primero."
             )
     else:
-        # Verificar que el equipo pertenece a la organización
-        equipo = supabase.table("equipos").select("organizacion_id").eq(
-            "id", str(partido.equipo_id)
-        ).single().execute()
-
-        if not equipo.data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Equipo no encontrado"
-            )
-
-        if equipo.data["organizacion_id"] != str(current_user.organizacion_id):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No tienes acceso a este equipo"
-            )
-
         partido_data["equipo_id"] = str(partido.equipo_id)
-
-    # Verificar que el rival existe y pertenece a la organización
-    rival = supabase.table("rivales").select("organizacion_id").eq(
-        "id", str(partido.rival_id)
-    ).single().execute()
-
-    if not rival.data:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Rival no encontrado"
-        )
-
-    if rival.data["organizacion_id"] != str(current_user.organizacion_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="El rival no pertenece a tu organización"
-        )
 
     partido_data["rival_id"] = str(partido_data["rival_id"])
 
@@ -231,7 +189,7 @@ async def create_partido(
     if rival_data:
         result.rival = RivalResponse(**rival_data)
 
-    log_create(str(current_user.id), "partido", str(result.id))
+    log_create(auth.user_id, "partido", str(result.id))
 
     return result
 
@@ -240,7 +198,7 @@ async def create_partido(
 async def update_partido(
     partido_id: UUID,
     partido: PartidoUpdate,
-    current_user = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
 ):
     """
     Actualiza un partido existente.
@@ -256,17 +214,6 @@ async def update_partido(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Partido no encontrado"
-        )
-
-    # Verificar permisos
-    equipo = supabase.table("equipos").select("organizacion_id").eq(
-        "id", existing.data["equipo_id"]
-    ).single().execute()
-
-    if equipo.data["organizacion_id"] != str(current_user.organizacion_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes acceso a este partido"
         )
 
     update_data = partido.model_dump(exclude_unset=True, mode='json')
@@ -295,7 +242,7 @@ async def update_partido(
     if rival_data:
         result.rival = RivalResponse(**rival_data)
 
-    log_update(str(current_user.id), "partido", str(partido_id), datos_nuevos=update_data)
+    log_update(auth.user_id, "partido", str(partido_id), datos_nuevos=update_data)
 
     return result
 
@@ -303,7 +250,7 @@ async def update_partido(
 @router.delete("/{partido_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_partido(
     partido_id: UUID,
-    current_user = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_DELETE)),
 ):
     """
     Elimina un partido.
@@ -321,20 +268,9 @@ async def delete_partido(
             detail="Partido no encontrado"
         )
 
-    # Verificar permisos
-    equipo = supabase.table("equipos").select("organizacion_id").eq(
-        "id", existing.data["equipo_id"]
-    ).single().execute()
-
-    if equipo.data["organizacion_id"] != str(current_user.organizacion_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes acceso a este partido"
-        )
-
     supabase.table("partidos").delete().eq("id", str(partido_id)).execute()
 
-    log_delete(str(current_user.id), "partido", str(partido_id))
+    log_delete(auth.user_id, "partido", str(partido_id))
 
     return None
 
@@ -345,7 +281,7 @@ async def registrar_resultado(
     goles_favor: int = Query(..., ge=0),
     goles_contra: int = Query(..., ge=0),
     notas_post: Optional[str] = None,
-    current_user = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
 ):
     """
     Registra el resultado de un partido.
@@ -362,17 +298,6 @@ async def registrar_resultado(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Partido no encontrado"
-        )
-
-    # Verificar permisos
-    equipo = supabase.table("equipos").select("organizacion_id").eq(
-        "id", existing.data["equipo_id"]
-    ).single().execute()
-
-    if equipo.data["organizacion_id"] != str(current_user.organizacion_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes acceso a este partido"
         )
 
     update_data = {
@@ -396,4 +321,98 @@ async def registrar_resultado(
     if rival_data:
         result.rival = RivalResponse(**rival_data)
 
+    # Notify team staff about match result
+    notify_partido_resultado(
+        partido_id=str(partido_id),
+        rival_nombre=rival_data.get("nombre", "Rival") if rival_data else "Rival",
+        goles_favor=goles_favor,
+        goles_contra=goles_contra,
+        equipo_id=existing.data["equipo_id"],
+    )
+
     return result
+
+
+@router.post("/{partido_id}/informe")
+async def generar_informe_partido(
+    partido_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """
+    Genera un informe PDF del partido y lo sube a Supabase Storage.
+    Retorna la URL del informe.
+    """
+    supabase = get_supabase()
+
+    # 1. Obtener partido con rival
+    partido_resp = supabase.table("partidos").select(
+        "*, rivales(*)"
+    ).eq("id", str(partido_id)).single().execute()
+
+    if not partido_resp.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Partido no encontrado"
+        )
+
+    partido_data = partido_resp.data
+    rival_data = partido_data.pop("rivales", {}) or {}
+
+    # 2. Obtener convocatoria con datos de jugadores
+    convocatoria_resp = supabase.table("convocatorias").select(
+        "*, jugadores(nombre, apellidos, dorsal, posicion_principal)"
+    ).eq("partido_id", str(partido_id)).order("titular", desc=True).execute()
+
+    convocatoria = convocatoria_resp.data or []
+
+    # 3. Obtener organización
+    org_resp = supabase.table("organizaciones").select(
+        "nombre, color_primario, color_secundario, logo_url"
+    ).eq("id", auth.organizacion_id).single().execute()
+
+    organizacion = org_resp.data or {}
+
+    # 4. Obtener nombre del equipo
+    equipo_resp = supabase.table("equipos").select(
+        "nombre"
+    ).eq("id", partido_data["equipo_id"]).single().execute()
+
+    equipo_nombre = equipo_resp.data.get("nombre", "") if equipo_resp.data else ""
+
+    # 5. Generar PDF
+    pdf_bytes = generate_informe_partido_pdf(
+        partido=partido_data,
+        rival=rival_data,
+        convocatoria=convocatoria,
+        organizacion=organizacion,
+        equipo_nombre=equipo_nombre,
+    )
+
+    # 6. Subir a Supabase Storage
+    file_name = f"informes/partido_{partido_id}.pdf"
+    try:
+        # Try to remove old file first (ignore errors)
+        try:
+            supabase.storage.from_("documentos").remove([file_name])
+        except Exception:
+            pass
+
+        supabase.storage.from_("documentos").upload(
+            file_name,
+            pdf_bytes,
+            {"content-type": "application/pdf"},
+        )
+
+        informe_url = supabase.storage.from_("documentos").get_public_url(file_name)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al subir el PDF: {str(e)}"
+        )
+
+    # 7. Actualizar partido con la URL del informe
+    supabase.table("partidos").update(
+        {"informe_url": informe_url}
+    ).eq("id", str(partido_id)).execute()
+
+    return {"informe_url": informe_url}

@@ -3,9 +3,16 @@ TrainingHub Pro - Test Configuration
 Fixtures and shared configuration for pytest.
 """
 
+import os
 import pytest
 from datetime import date, datetime
 from uuid import uuid4
+
+# Set required env vars before any app imports
+os.environ.setdefault("SUPABASE_URL", "http://localhost:54321")
+os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon-key")
+os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
+os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only-32chars!")
 
 
 # ============ Fixtures: IDs ============

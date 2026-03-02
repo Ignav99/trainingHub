@@ -60,6 +60,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { PageLoader } from '@/components/ui/page-loader'
+import { usePageReady } from '@/components/providers/PageReadyProvider'
 import { sesionesApi, SesionUpdateData } from '@/lib/api/sesiones'
 import { tareasApi } from '@/lib/api/tareas'
 import { jugadoresApi } from '@/lib/api/jugadores'
@@ -1137,17 +1139,15 @@ export default function SesionDetailPage() {
     return a?.presente ?? true
   }).length
 
+  usePageReady(loading)
+
   // ============ Derived ============
   const completedFases = ALL_FASES.filter((f) => tareasByFase[f]?.length > 0)
   const totalDuration = allTareas.reduce((sum, st) => sum + (st.duracion_override || st.tarea?.duracion_total || 0), 0)
 
   // ============ Render ============
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    )
+    return <PageLoader />
   }
 
   if (error || !sesion) {

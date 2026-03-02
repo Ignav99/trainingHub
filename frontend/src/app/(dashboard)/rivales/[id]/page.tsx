@@ -19,6 +19,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
+import { PageLoader } from '@/components/ui/page-loader'
+import { usePageReady } from '@/components/providers/PageReadyProvider'
 import { rfefApi, RFEFCompeticion, RivalPerfilCompeticion } from '@/lib/api/rfef'
 import { rivalesApi } from '@/lib/api/partidos'
 import { useEquipoStore } from '@/stores/equipoStore'
@@ -63,6 +65,8 @@ export default function RivalDetailPage() {
     if (!id) return
     loadData()
   }, [id, equipoActivo?.id])
+
+  usePageReady(loading)
 
   async function loadData() {
     setLoading(true)
@@ -114,13 +118,7 @@ export default function RivalDetailPage() {
   }
 
   if (loading) {
-    return (
-      <div className="space-y-4 max-w-3xl">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-40 rounded-lg" />
-        <Skeleton className="h-32 rounded-lg" />
-      </div>
-    )
+    return <PageLoader />
   }
 
   if (!rival) {

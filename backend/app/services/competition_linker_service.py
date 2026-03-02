@@ -1,6 +1,11 @@
 """
 TrainingHub Pro - Competition Linker Service
 Auto-creates rivales and partidos from RFEF jornadas data.
+
+When mi_equipo_nombre is set:
+1. Creates rivales for all teams mi_equipo plays against
+2. Creates/updates partidos for each match involving mi_equipo
+3. Cleans up old auto-created partidos if mi_equipo changed
 """
 
 import logging
@@ -29,6 +34,20 @@ def _parse_hora(hora_str: str) -> str | None:
     return None
 
 
+def _is_same_team(mi_equipo: str, team_name: str) -> bool:
+    """Check if team_name matches mi_equipo. Uses exact match first, then substring."""
+    a = mi_equipo.lower().strip()
+    b = team_name.lower().strip()
+    if a == b:
+        return True
+    # Substring match (handles "CLUB ATLÉTICO CENTRAL" vs "C. ATLETICO CENTRAL")
+    # Only if the shorter name is at least 6 chars to avoid false positives
+    if len(a) >= 6 and len(b) >= 6:
+        if a in b or b in a:
+            return True
+    return False
+
+
 def link_competition(supabase, comp: dict) -> dict:
     """
     Auto-link a competition: create rivales and partidos from RFEF jornadas.
@@ -38,8 +57,8 @@ def link_competition(supabase, comp: dict) -> dict:
     3. Match with existing rivales by rfef_nombre or nombre (case-insensitive)
     4. Create missing rivales
     5. For each match where mi_equipo plays:
-       - Parse fecha/hora
        - Upsert partido (create if missing, update result if auto_creado)
+    6. Clean up stale auto-created partidos from old mi_equipo
     """
     comp_id = comp["id"]
     equipo_id = comp["equipo_id"]
@@ -57,8 +76,6 @@ def link_competition(supabase, comp: dict) -> dict:
         else:
             return {"error": "equipo not found", "rivales_created": 0, "partidos_created": 0, "partidos_updated": 0}
 
-    mi_equipo_lower = mi_equipo.lower()
-
     # Fetch all jornadas
     jornadas_res = supabase.table("rfef_jornadas").select("*").eq(
         "competicion_id", comp_id
@@ -68,7 +85,6 @@ def link_competition(supabase, comp: dict) -> dict:
     if not jornadas:
         return {"rivales_created": 0, "partidos_created": 0, "partidos_updated": 0, "message": "No jornadas found"}
 
-    # Names that indicate a bye / rest, not a real rival
     SKIP_NAMES = {"descansa", "descanso", "bye", "libre", ""}
 
     # Collect all unique rival names from matches involving mi_equipo
@@ -79,13 +95,11 @@ def link_competition(supabase, comp: dict) -> dict:
         for partido in jornada.get("partidos", []):
             local = (partido.get("local") or "").strip()
             visitante = (partido.get("visitante") or "").strip()
-            local_lower = local.lower()
-            visitante_lower = visitante.lower()
 
-            is_local = mi_equipo_lower == local_lower or mi_equipo_lower in local_lower or local_lower in mi_equipo_lower
-            is_visitante = mi_equipo_lower == visitante_lower or mi_equipo_lower in visitante_lower or visitante_lower in mi_equipo_lower
+            is_local = _is_same_team(mi_equipo, local)
+            is_visitante = _is_same_team(mi_equipo, visitante)
 
-            if is_local and visitante_lower not in SKIP_NAMES:
+            if is_local and visitante.lower() not in SKIP_NAMES:
                 rival_names.add(visitante)
                 my_matches.append({
                     "jornada_num": jornada["numero"],
@@ -93,7 +107,7 @@ def link_competition(supabase, comp: dict) -> dict:
                     "localia": "local",
                     **partido,
                 })
-            elif is_visitante and local_lower not in SKIP_NAMES:
+            elif is_visitante and local.lower() not in SKIP_NAMES:
                 rival_names.add(local)
                 my_matches.append({
                     "jornada_num": jornada["numero"],
@@ -139,7 +153,6 @@ def link_competition(supabase, comp: dict) -> dict:
                 "nombre": name,
                 "rfef_nombre": name,
             }
-            # Add escudo if available from actas
             escudo = escudo_lookup.get(name_lower)
             if escudo:
                 rival_data["escudo_url"] = escudo
@@ -173,6 +186,20 @@ def link_competition(supabase, comp: dict) -> dict:
         if p.get("jornada"):
             partido_by_jornada[p["jornada"]] = p
 
+    # Clean up: delete auto-created partidos for jornadas where mi_equipo
+    # is NOT in the match anymore (e.g., mi_equipo changed)
+    my_jornadas = {m["jornada_num"] for m in my_matches}
+    partidos_deleted = 0
+    for p in existing_partidos:
+        if p.get("auto_creado") and p.get("jornada") and p["jornada"] not in my_jornadas:
+            try:
+                supabase.table("partidos").delete().eq("id", p["id"]).execute()
+                partidos_deleted += 1
+            except Exception:
+                pass
+    if partidos_deleted > 0:
+        logger.info("Cleaned up %d stale auto-created partidos", partidos_deleted)
+
     # Create/update partidos
     partidos_created = 0
     partidos_updated = 0
@@ -190,12 +217,6 @@ def link_competition(supabase, comp: dict) -> dict:
         fecha = _parse_fecha(match.get("fecha", ""))
         hora = _parse_hora(match.get("hora", ""))
 
-        # Default: Sunday 12:00 if no date
-        if not fecha:
-            # Use a reasonable default — we can't create without a date
-            # Skip if no date available
-            continue
-
         # Determine goals
         is_local = match["localia"] == "local"
         goles_local = match.get("goles_local")
@@ -209,16 +230,21 @@ def link_competition(supabase, comp: dict) -> dict:
         existing = partido_by_jornada.get(jornada_num)
 
         if existing and existing.get("auto_creado"):
-            # Update result if played
+            # Update existing auto-created partido
             update_data = {}
             if goles_favor is not None and goles_contra is not None:
                 if existing.get("goles_favor") != goles_favor or existing.get("goles_contra") != goles_contra:
                     update_data["goles_favor"] = goles_favor
                     update_data["goles_contra"] = goles_contra
+            # Update rival if it changed
+            if existing.get("rival_id") != rival_record["id"]:
+                update_data["rival_id"] = rival_record["id"]
             if campo and not existing.get("ubicacion"):
                 update_data["ubicacion"] = campo
             if hora and not existing.get("hora"):
                 update_data["hora"] = hora
+            if fecha and not existing.get("fecha"):
+                update_data["fecha"] = fecha.isoformat()
 
             if update_data:
                 supabase.table("partidos").update(update_data).eq(
@@ -231,8 +257,6 @@ def link_competition(supabase, comp: dict) -> dict:
             partido_data = {
                 "equipo_id": equipo_id,
                 "rival_id": rival_record["id"],
-                "fecha": fecha.isoformat(),
-                "hora": hora,
                 "localia": match["localia"],
                 "competicion": "liga",
                 "jornada": jornada_num,
@@ -240,6 +264,12 @@ def link_competition(supabase, comp: dict) -> dict:
                 "auto_creado": True,
                 "ubicacion": campo or None,
             }
+
+            # Only set fecha if available (don't skip the match)
+            if fecha:
+                partido_data["fecha"] = fecha.isoformat()
+            if hora:
+                partido_data["hora"] = hora
 
             if goles_favor is not None and goles_contra is not None:
                 partido_data["goles_favor"] = goles_favor
@@ -251,8 +281,8 @@ def link_competition(supabase, comp: dict) -> dict:
                 partidos_created += 1
 
     logger.info(
-        "Link competition %s: %d rivales created, %d partidos created, %d updated",
-        comp_id, rivales_created, partidos_created, partidos_updated,
+        "Link competition %s: %d rivales created, %d partidos created, %d updated, %d deleted",
+        comp_id, rivales_created, partidos_created, partidos_updated, partidos_deleted,
     )
 
     return {

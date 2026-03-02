@@ -6,9 +6,8 @@ Flujo guiado para nuevos usuarios.
 from fastapi import APIRouter, HTTPException, Depends, status
 from uuid import UUID
 
-from app.models import UsuarioResponse
 from app.database import get_supabase
-from app.dependencies import get_current_user
+from app.dependencies import require_permission, AuthContext
 
 router = APIRouter()
 
@@ -61,19 +60,19 @@ PASOS_ONBOARDING = [
 
 @router.get("/progreso")
 async def get_onboarding_progreso(
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission()),
 ):
     """Obtiene el progreso de onboarding del usuario."""
     supabase = get_supabase()
 
     response = supabase.table("onboarding_progreso").select("*").eq(
-        "usuario_id", str(current_user.id)
+        "usuario_id", auth.user_id
     ).execute()
 
     if not response.data:
         # Crear registro de onboarding si no existe
         nuevo = supabase.table("onboarding_progreso").insert({
-            "usuario_id": str(current_user.id),
+            "usuario_id": auth.user_id,
             "paso_actual": 1,
             "pasos_completados": {},
             "completado": False,
@@ -92,7 +91,7 @@ async def get_onboarding_progreso(
 @router.post("/completar-paso/{paso}")
 async def completar_paso(
     paso: str,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission()),
 ):
     """Marca un paso del onboarding como completado."""
     supabase = get_supabase()
@@ -107,14 +106,14 @@ async def completar_paso(
 
     # Obtener progreso actual
     response = supabase.table("onboarding_progreso").select("*").eq(
-        "usuario_id", str(current_user.id)
+        "usuario_id", auth.user_id
     ).execute()
 
     if not response.data:
         # Crear si no existe
         pasos_completados = {paso: True}
         supabase.table("onboarding_progreso").insert({
-            "usuario_id": str(current_user.id),
+            "usuario_id": auth.user_id,
             "paso_actual": 2,
             "pasos_completados": pasos_completados,
             "completado": False,
@@ -136,30 +135,30 @@ async def completar_paso(
             "pasos_completados": pasos_completados,
             "paso_actual": min(siguiente, len(PASOS_ONBOARDING)),
             "completado": completado,
-        }).eq("usuario_id", str(current_user.id)).execute()
+        }).eq("usuario_id", auth.user_id).execute()
 
     return {"message": f"Paso '{paso}' completado", "paso": paso}
 
 
 @router.post("/skip")
 async def skip_onboarding(
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission()),
 ):
     """Salta el onboarding completo."""
     supabase = get_supabase()
 
     response = supabase.table("onboarding_progreso").select("id").eq(
-        "usuario_id", str(current_user.id)
+        "usuario_id", auth.user_id
     ).execute()
 
     if response.data:
         supabase.table("onboarding_progreso").update({
             "completado": True,
             "paso_actual": len(PASOS_ONBOARDING),
-        }).eq("usuario_id", str(current_user.id)).execute()
+        }).eq("usuario_id", auth.user_id).execute()
     else:
         supabase.table("onboarding_progreso").insert({
-            "usuario_id": str(current_user.id),
+            "usuario_id": auth.user_id,
             "paso_actual": len(PASOS_ONBOARDING),
             "pasos_completados": {},
             "completado": True,
@@ -170,24 +169,24 @@ async def skip_onboarding(
 
 @router.get("/check")
 async def check_onboarding_auto(
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission()),
 ):
     """
     Verifica automaticamente que pasos del onboarding estan hechos
     basandose en el estado real de la base de datos.
     """
     supabase = get_supabase()
-    org_id = str(current_user.organizacion_id)
-    user_id = str(current_user.id)
+    org_id = auth.organizacion_id
+    user_id = auth.user_id
 
     pasos_detectados = {}
 
     # Paso 1: perfil - usuario tiene nombre
-    if current_user.nombre and len(current_user.nombre) > 1:
+    if auth.user.nombre and len(auth.user.nombre) > 1:
         pasos_detectados["perfil"] = True
 
     # Paso 2: organizacion - org existe con nombre
-    if current_user.organizacion and current_user.organizacion.nombre:
+    if auth.user.organizacion and auth.user.organizacion.nombre:
         pasos_detectados["organizacion"] = True
 
     # Paso 3: equipo - al menos un equipo

@@ -49,6 +49,7 @@ import { microciclosApi } from '@/lib/api/microciclos'
 import { partidosApi } from '@/lib/api/partidos'
 import { rfefApi, RFEFCompeticion } from '@/lib/api/rfef'
 import { CreateMicrocicloData } from '@/lib/api/microciclos'
+import { usePageReady } from '@/components/providers/PageReadyProvider'
 import { formatDate } from '@/lib/utils'
 import type { Sesion, Microciclo, Partido } from '@/types'
 
@@ -145,6 +146,8 @@ export default function DashboardPage() {
   // RFAF liga position
   const [rfefComp, setRfefComp] = useState<RFEFCompeticion | null>(null)
   const [ligaPosition, setLigaPosition] = useState<{ posicion: number; puntos: number } | null>(null)
+
+  usePageReady(loading)
 
   // Close add menu on outside click
   useEffect(() => {

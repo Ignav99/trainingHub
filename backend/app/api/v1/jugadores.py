@@ -16,8 +16,10 @@ from app.models import (
     PosicionResponse,
 )
 from app.database import get_supabase
-from app.dependencies import get_current_user
+from app.dependencies import require_permission, require_any_permission, AuthContext
+from app.security.permissions import Permission
 from app.services.audit_service import log_create, log_update, log_delete
+from app.services.notification_service import notify_jugador_lesion
 
 router = APIRouter()
 
@@ -62,19 +64,38 @@ def enrich_jugador(jugador: dict) -> dict:
 @router.get("", response_model=JugadorListResponse)
 async def list_jugadores(
     equipo_id: Optional[UUID] = Query(None, description="Filtrar por equipo"),
+    organizacion_completa: bool = Query(False, description="Incluir jugadores de todos los equipos de la organizacion"),
     posicion: Optional[str] = Query(None, description="Filtrar por posición"),
     estado: Optional[str] = Query(None, description="Filtrar por estado"),
     es_convocable: Optional[bool] = Query(None, description="Solo convocables"),
     busqueda: Optional[str] = Query(None, description="Buscar por nombre"),
-    current_user=Depends(get_current_user)
+    auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_READ)),
 ):
-    """Lista jugadores con filtros opcionales."""
+    """Lista jugadores con filtros opcionales.
+
+    Si se pasa equipo_id, filtra por ese equipo.
+    Si se pasa organizacion_completa=true sin equipo_id, devuelve jugadores
+    de todos los equipos de la organizacion (acceso cross-team).
+    """
     supabase = get_supabase()
 
-    query = supabase.table("jugadores").select("*")
-
+    # Get org team IDs to scope the query
     if equipo_id:
-        query = query.eq("equipo_id", str(equipo_id))
+        query = supabase.table("jugadores").select("*, equipos(nombre, categoria)").eq("equipo_id", str(equipo_id))
+    elif organizacion_completa and auth.organizacion_id:
+        # Get all team IDs for this organization
+        equipos_res = supabase.table("equipos").select("id").eq("organizacion_id", auth.organizacion_id).execute()
+        equipo_ids = [e["id"] for e in (equipos_res.data or [])]
+        if not equipo_ids:
+            return JugadorListResponse(data=[], total=0)
+        query = supabase.table("jugadores").select("*, equipos(nombre, categoria)").in_("equipo_id", equipo_ids)
+    else:
+        # Default: scope to org teams for security
+        equipos_res = supabase.table("equipos").select("id").eq("organizacion_id", auth.organizacion_id).execute()
+        equipo_ids = [e["id"] for e in (equipos_res.data or [])]
+        if not equipo_ids:
+            return JugadorListResponse(data=[], total=0)
+        query = supabase.table("jugadores").select("*, equipos(nombre, categoria)").in_("equipo_id", equipo_ids)
 
     if posicion:
         query = query.eq("posicion_principal", posicion)
@@ -106,7 +127,7 @@ async def list_posiciones():
 
 
 @router.get("/{jugador_id}", response_model=JugadorResponse)
-async def get_jugador(jugador_id: UUID, current_user=Depends(get_current_user)):
+async def get_jugador(jugador_id: UUID, auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_READ))):
     """Obtiene un jugador por ID."""
     supabase = get_supabase()
     response = supabase.table("jugadores").select("*").eq("id", str(jugador_id)).single().execute()
@@ -118,7 +139,7 @@ async def get_jugador(jugador_id: UUID, current_user=Depends(get_current_user)):
 
 
 @router.post("", response_model=JugadorResponse, status_code=status.HTTP_201_CREATED)
-async def create_jugador(jugador: JugadorCreate, current_user=Depends(get_current_user)):
+async def create_jugador(jugador: JugadorCreate, auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_MANAGE))):
     """Crea un nuevo jugador."""
     supabase = get_supabase()
 
@@ -134,13 +155,13 @@ async def create_jugador(jugador: JugadorCreate, current_user=Depends(get_curren
     response = supabase.table("jugadores").insert(data).execute()
 
     created = response.data[0]
-    log_create(str(current_user.id), "jugador", created["id"], {"nombre": created.get("nombre")})
+    log_create(auth.user_id, "jugador", created["id"], {"nombre": created.get("nombre")})
 
     return JugadorResponse(**enrich_jugador(created))
 
 
 @router.put("/{jugador_id}", response_model=JugadorResponse)
-async def update_jugador(jugador_id: UUID, jugador: JugadorUpdate, current_user=Depends(get_current_user)):
+async def update_jugador(jugador_id: UUID, jugador: JugadorUpdate, auth: AuthContext = Depends(require_permission(Permission.JUGADOR_UPDATE))):
     """Actualiza un jugador."""
     supabase = get_supabase()
 
@@ -155,17 +176,17 @@ async def update_jugador(jugador_id: UUID, jugador: JugadorUpdate, current_user=
     if not response.data:
         raise HTTPException(status_code=404, detail="Jugador no encontrado")
 
-    log_update(str(current_user.id), "jugador", str(jugador_id), datos_nuevos=data)
+    log_update(auth.user_id, "jugador", str(jugador_id), datos_nuevos=data)
 
     return JugadorResponse(**enrich_jugador(response.data[0]))
 
 
 @router.delete("/{jugador_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_jugador(jugador_id: UUID, current_user=Depends(get_current_user)):
+async def delete_jugador(jugador_id: UUID, auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_MANAGE))):
     """Elimina un jugador."""
     supabase = get_supabase()
     supabase.table("jugadores").delete().eq("id", str(jugador_id)).execute()
-    log_delete(str(current_user.id), "jugador", str(jugador_id))
+    log_delete(auth.user_id, "jugador", str(jugador_id))
     return None
 
 
@@ -175,7 +196,7 @@ async def update_estado_jugador(
     estado: str = Query(..., description="Nuevo estado"),
     motivo: Optional[str] = Query(None, description="Motivo del cambio"),
     fecha_vuelta: Optional[date] = Query(None, description="Fecha estimada de vuelta"),
-    current_user=Depends(get_current_user)
+    auth: AuthContext = Depends(require_permission(Permission.JUGADOR_UPDATE)),
 ):
     """Actualiza el estado de un jugador (lesión, sanción, etc)."""
     supabase = get_supabase()
@@ -201,11 +222,20 @@ async def update_estado_jugador(
     if not response.data:
         raise HTTPException(status_code=404, detail="Jugador no encontrado")
 
+    # Notify staff if player was marked as injured
+    if estado == "lesionado":
+        jugador_data = response.data[0]
+        notify_jugador_lesion(
+            jugador_nombre=f"{jugador_data.get('nombre', '')} {jugador_data.get('apellidos', '')}".strip(),
+            equipo_id=jugador_data["equipo_id"],
+            jugador_id=str(jugador_id),
+        )
+
     return {"message": "Estado actualizado", "jugador": enrich_jugador(response.data[0])}
 
 
 @router.get("/equipo/{equipo_id}/estadisticas")
-async def get_estadisticas_equipo(equipo_id: UUID, current_user=Depends(get_current_user)):
+async def get_estadisticas_equipo(equipo_id: UUID, auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_READ, equipo_id_param="equipo_id"))):
     """Obtiene estadísticas del equipo."""
     supabase = get_supabase()
 

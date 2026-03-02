@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { usePageReady } from '@/components/providers/PageReadyProvider'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { partidosApi } from '@/lib/api/partidos'
 import { formatDate } from '@/lib/utils'
@@ -74,6 +75,8 @@ export default function PartidosPage() {
       setLoading(false)
     }
   }
+
+  usePageReady(loading)
 
   useEffect(() => {
     fetchPartidos()

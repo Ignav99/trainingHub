@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Loader2, Building2 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 
+const STADIUM_BG = 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?w=1920&q=80'
+
 export default function RegisterPage() {
   const router = useRouter()
   const { register, isLoading } = useAuthStore()
@@ -34,7 +36,7 @@ export default function RegisterPage() {
     })
 
     if (result.success) {
-      router.push('/')
+      router.push('/onboarding')
     } else {
       setError(result.error || 'Error al crear la cuenta. Por favor, inténtalo de nuevo.')
     }
@@ -248,43 +250,55 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      {/* Panel derecho - Imagen/Branding */}
-      <div className="hidden lg:flex lg:flex-1 bg-primary relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary to-primary/80" />
+      {/* Panel derecho - Imagen de estadio */}
+      <div className="hidden lg:flex lg:flex-1 relative overflow-hidden">
+        <img
+          src={STADIUM_BG}
+          alt="Estadio de fútbol"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70" />
         <div className="relative z-10 flex flex-col items-center justify-center p-12 text-white">
           <div className="max-w-md text-center">
-            <h2 className="text-3xl font-bold mb-4">
+            <div className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-xl backdrop-blur-sm bg-white/10">
+              <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
+                <span className="text-primary font-bold text-sm">TH</span>
+              </div>
+              <span className="text-xl font-extrabold tracking-tight">TrainingHub</span>
+            </div>
+            <h2
+              className="text-3xl font-extrabold mb-4"
+              style={{ textShadow: '0 2px 8px rgba(0,0,0,0.4)' }}
+            >
               Únete a TrainingHub Pro
             </h2>
-            <p className="text-white/80 text-lg">
+            <p
+              className="text-white/90 text-lg mb-8"
+              style={{ textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}
+            >
               Crea tu organización, gestiona tus equipos y lleva tus entrenamientos al siguiente nivel.
             </p>
-            <div className="mt-8 space-y-4 text-left">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-                  <span className="text-sm">1</span>
+            <div className="space-y-3 text-left">
+              <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-3">
+                <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center shrink-0">
+                  <span className="text-sm font-bold">1</span>
                 </div>
-                <span>Crea tareas con metodología UEFA</span>
+                <span style={{ textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>Crea tareas con metodología UEFA</span>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-                  <span className="text-sm">2</span>
+              <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-3">
+                <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center shrink-0">
+                  <span className="text-sm font-bold">2</span>
                 </div>
-                <span>Planifica sesiones inteligentes</span>
+                <span style={{ textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>Planifica sesiones inteligentes</span>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-                  <span className="text-sm">3</span>
+              <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-3">
+                <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center shrink-0">
+                  <span className="text-sm font-bold">3</span>
                 </div>
-                <span>Genera PDFs profesionales</span>
+                <span style={{ textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>Genera PDFs profesionales</span>
               </div>
             </div>
           </div>
-
-          {/* Decoración */}
-          <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-black/20 to-transparent" />
-          <div className="absolute -bottom-20 -right-20 w-96 h-96 bg-white/5 rounded-full" />
-          <div className="absolute -top-20 -left-20 w-64 h-64 bg-white/5 rounded-full" />
         </div>
       </div>
     </div>

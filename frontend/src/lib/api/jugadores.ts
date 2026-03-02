@@ -6,6 +6,7 @@ export interface Jugador {
   equipo_origen_id?: string
   nombre: string
   apellidos: string
+  apodo?: string
   fecha_nacimiento?: string
   foto_url?: string
   dorsal?: number
@@ -31,6 +32,8 @@ export interface Jugador {
   // Calculados
   edad?: number
   nivel_global?: number
+  // Relacion (from cross-team queries)
+  equipos?: { nombre: string; categoria?: string }
 }
 
 export interface JugadorCreate {
@@ -38,6 +41,7 @@ export interface JugadorCreate {
   equipo_origen_id?: string
   nombre: string
   apellidos: string
+  apodo?: string
   fecha_nacimiento?: string
   dorsal?: number
   posicion_principal: string
@@ -69,6 +73,7 @@ export interface Posicion {
 
 interface ListJugadoresParams {
   equipo_id?: string
+  organizacion_completa?: boolean
   posicion?: string
   estado?: string
   es_convocable?: boolean

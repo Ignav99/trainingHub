@@ -14,10 +14,10 @@ from app.models import (
     MensajeCreate,
     MensajeResponse,
     ParticipanteResponse,
-    UsuarioResponse,
 )
 from app.database import get_supabase
-from app.dependencies import get_current_user
+from app.dependencies import require_permission, AuthContext
+from app.security.permissions import Permission
 
 router = APIRouter()
 
@@ -26,7 +26,7 @@ router = APIRouter()
 
 @router.get("/conversaciones")
 async def list_conversaciones(
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.COMUNICACION_SEND_MESSAGE)),
 ):
     """Lista conversaciones del usuario actual."""
     supabase = get_supabase()
@@ -34,7 +34,7 @@ async def list_conversaciones(
     # Obtener conversaciones donde el usuario es participante
     participaciones = supabase.table("conversacion_participantes").select(
         "conversacion_id"
-    ).eq("usuario_id", str(current_user.id)).execute()
+    ).eq("usuario_id", auth.user_id).execute()
 
     conv_ids = [p["conversacion_id"] for p in participaciones.data]
 
@@ -51,7 +51,7 @@ async def list_conversaciones(
 @router.get("/conversaciones/{conversacion_id}")
 async def get_conversacion(
     conversacion_id: UUID,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.COMUNICACION_SEND_MESSAGE)),
 ):
     """Obtiene una conversación con sus participantes."""
     supabase = get_supabase()
@@ -72,7 +72,7 @@ async def get_conversacion(
 @router.post("/conversaciones", status_code=status.HTTP_201_CREATED)
 async def create_conversacion(
     conv: ConversacionCreate,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.COMUNICACION_CREATE_GRUPO)),
 ):
     """Crea una conversación y añade participantes."""
     supabase = get_supabase()
@@ -81,7 +81,7 @@ async def create_conversacion(
     conv_data = {
         "tipo": conv.tipo.value,
         "nombre": conv.nombre,
-        "creado_por": str(current_user.id),
+        "creado_por": auth.user_id,
     }
     if conv.equipo_id:
         conv_data["equipo_id"] = str(conv.equipo_id)
@@ -99,13 +99,13 @@ async def create_conversacion(
     # Añadir creador como admin
     participantes = [{
         "conversacion_id": conv_id,
-        "usuario_id": str(current_user.id),
+        "usuario_id": auth.user_id,
         "rol": "admin",
     }]
 
     # Añadir otros participantes
     for uid in conv.participantes:
-        if str(uid) != str(current_user.id):
+        if str(uid) != auth.user_id:
             participantes.append({
                 "conversacion_id": conv_id,
                 "usuario_id": str(uid),
@@ -125,7 +125,7 @@ async def list_mensajes(
     conversacion_id: UUID,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.COMUNICACION_SEND_MESSAGE)),
 ):
     """Lista mensajes de una conversación."""
     supabase = get_supabase()
@@ -149,7 +149,7 @@ async def list_mensajes(
     supabase.table("conversacion_participantes").update({
         "ultimo_leido": "now()"
     }).eq("conversacion_id", str(conversacion_id)).eq(
-        "usuario_id", str(current_user.id)
+        "usuario_id", auth.user_id
     ).execute()
 
     return {
@@ -164,14 +164,14 @@ async def list_mensajes(
 @router.post("/mensajes", status_code=status.HTTP_201_CREATED)
 async def create_mensaje(
     mensaje: MensajeCreate,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.COMUNICACION_SEND_MESSAGE)),
 ):
     """Envía un mensaje en una conversación."""
     supabase = get_supabase()
 
     data = {
         "conversacion_id": str(mensaje.conversacion_id),
-        "autor_id": str(current_user.id),
+        "autor_id": auth.user_id,
         "contenido": mensaje.contenido,
         "tipo": mensaje.tipo.value,
     }
@@ -198,7 +198,7 @@ async def create_mensaje(
 async def update_mensaje(
     mensaje_id: UUID,
     contenido: str = Query(..., min_length=1),
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.COMUNICACION_SEND_MESSAGE)),
 ):
     """Edita un mensaje propio."""
     supabase = get_supabase()
@@ -207,7 +207,7 @@ async def update_mensaje(
         "contenido": contenido,
         "editado": True,
     }).eq("id", str(mensaje_id)).eq(
-        "autor_id", str(current_user.id)
+        "autor_id", auth.user_id
     ).execute()
 
     if not response.data:
@@ -222,13 +222,13 @@ async def update_mensaje(
 @router.delete("/mensajes/{mensaje_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_mensaje(
     mensaje_id: UUID,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.COMUNICACION_SEND_MESSAGE)),
 ):
     """Elimina un mensaje propio."""
     supabase = get_supabase()
 
     supabase.table("mensajes").delete().eq(
         "id", str(mensaje_id)
-    ).eq("autor_id", str(current_user.id)).execute()
+    ).eq("autor_id", auth.user_id).execute()
 
     return None

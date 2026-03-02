@@ -64,6 +64,10 @@ class AIMensajeResponse(AIMensajeBase):
     herramientas_usadas: list = Field(default_factory=list)
     tokens_input: Optional[int] = None
     tokens_output: Optional[int] = None
+    cache_read_input_tokens: Optional[int] = None
+    cache_creation_input_tokens: Optional[int] = None
+    modelo: Optional[str] = None
+    feedback: Optional[str] = None
     created_at: datetime
 
     class Config:

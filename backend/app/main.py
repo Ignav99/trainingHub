@@ -1,12 +1,13 @@
 """
 TrainingHub Pro - API Backend
-Punto de entrada principal de la aplicación FastAPI.
+Punto de entrada principal de la aplicacion FastAPI.
 """
 
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 
 from app.config import get_settings
@@ -16,6 +17,7 @@ from app.middleware import (
     SecurityHeadersMiddleware,
     RequestLoggingMiddleware,
     RateLimitMiddleware,
+    LicenseEnforcementMiddleware,
 )
 
 # Configure logging
@@ -31,13 +33,27 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifecycle del servidor - inicialización y cleanup."""
+    """Lifecycle del servidor - inicializacion y cleanup."""
     # Startup
-    print(f"🚀 Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    print(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     init_supabase()
+
+    # Start RFAF scraping scheduler
+    from app.services.rfef_scheduler_service import start_scheduler, stop_scheduler
+    try:
+        start_scheduler()
+        print("✅ RFAF scheduler started")
+    except Exception as e:
+        print(f"⚠️ RFAF scheduler failed to start: {e}")
+
     yield
+
     # Shutdown
-    print("👋 Shutting down...")
+    try:
+        stop_scheduler()
+    except Exception:
+        pass
+    print("Shutting down...")
 
 
 app = FastAPI(
@@ -45,17 +61,20 @@ app = FastAPI(
     version=settings.APP_VERSION,
     description="""
     ## TrainingHub Pro API
-    
-    API para gestión de sesiones y tareas de entrenamiento de fútbol profesional.
-    
-    ### Características:
-    - 📋 Gestión de tareas de entrenamiento
-    - 📅 Planificación de sesiones
-    - 🤖 Sistema de recomendación inteligente
-    - 📄 Generación de PDFs profesionales
-    - 👥 Multi-equipo con roles
-    
-    ### Autenticación:
+
+    API para gestion de sesiones y tareas de entrenamiento de futbol profesional.
+
+    ### Caracteristicas:
+    - Gestion de tareas de entrenamiento
+    - Planificacion de sesiones
+    - Sistema de recomendacion inteligente
+    - Generacion de PDFs profesionales
+    - Multi-equipo con roles granulares
+    - Sistema de licencias y suscripciones
+    - Control parental (RGPD/LOPD)
+    - Modulo medico con cifrado
+
+    ### Autenticacion:
     Usar token JWT en header `Authorization: Bearer <token>`
     """,
     docs_url="/docs" if settings.DEBUG else None,
@@ -63,21 +82,38 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Middleware stack (order matters: last added = first executed)
-# 1. CORS (outermost)
+# Middleware stack (order matters: last added = outermost = first executed)
+# Add in reverse order: innermost first, outermost last
+# 1. Request logging (innermost - logs after processing)
+app.add_middleware(RequestLoggingMiddleware)
+# 2. Security headers
+app.add_middleware(SecurityHeadersMiddleware)
+# 3. License enforcement
+app.add_middleware(LicenseEnforcementMiddleware)
+# 4. Rate limiting
+app.add_middleware(RateLimitMiddleware, max_requests=100, window_seconds=60)
+# 5. CORS (outermost - MUST wrap everything so error responses get CORS headers)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
-# 2. Rate limiting
-app.add_middleware(RateLimitMiddleware, max_requests=100, window_seconds=60)
-# 3. Security headers
-app.add_middleware(SecurityHeadersMiddleware)
-# 4. Request logging (innermost - logs after processing)
-app.add_middleware(RequestLoggingMiddleware)
+
+# Global exception handler — ensures unhandled errors return JSON with CORS headers
+# (Without this, exceptions propagate to Starlette's ServerErrorMiddleware which
+# sits outside CORSMiddleware, producing 500 responses without CORS headers)
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger = logging.getLogger("traininghub.errors")
+    logger.error(f"Unhandled error on {request.method} {request.url.path}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Error interno del servidor. Revisa los logs."},
+    )
+
 
 # Incluir routers
 app.include_router(api_router, prefix="/v1")
@@ -99,7 +135,7 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check detallado con verificación real de BD."""
+    """Health check detallado con verificacion real de BD."""
     from fastapi.responses import JSONResponse
     from app.database import get_supabase
 

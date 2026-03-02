@@ -24,7 +24,10 @@ import {
   Activity,
   Ruler,
   Heart,
+  Download,
 } from 'lucide-react'
+import { PageLoader } from '@/components/ui/page-loader'
+import { usePageReady } from '@/components/providers/PageReadyProvider'
 import { tareasApi } from '@/lib/api/tareas'
 import { Tarea } from '@/types'
 import { TareaGraphicEditor } from '@/components/tarea-editor'
@@ -70,12 +73,15 @@ export default function TareaDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [generatingPdf, setGeneratingPdf] = useState(false)
 
   useEffect(() => {
     if (tareaId) {
       loadTarea()
     }
   }, [tareaId])
+
+  usePageReady(loading)
 
   const loadTarea = async () => {
     setLoading(true)
@@ -100,6 +106,20 @@ export default function TareaDetailPage() {
     }
   }
 
+  const handleGeneratePdf = async () => {
+    setGeneratingPdf(true)
+    try {
+      const blob = await tareasApi.generatePdf(tareaId)
+      const url = URL.createObjectURL(blob)
+      window.open(url, '_blank')
+      setTimeout(() => URL.revokeObjectURL(url), 30000)
+    } catch (err: any) {
+      setError(err.message || 'Error al generar PDF')
+    } finally {
+      setGeneratingPdf(false)
+    }
+  }
+
   const handleDelete = async () => {
     if (!tarea) return
     setDeleting(true)
@@ -114,11 +134,7 @@ export default function TareaDetailPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    )
+    return <PageLoader />
   }
 
   if (error || !tarea) {
@@ -179,6 +195,14 @@ export default function TareaDetailPage() {
 
         {/* Action buttons */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleGeneratePdf}
+            disabled={generatingPdf}
+            className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 disabled:opacity-50"
+          >
+            {generatingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            PDF
+          </button>
           <button
             onClick={handleDuplicate}
             className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"

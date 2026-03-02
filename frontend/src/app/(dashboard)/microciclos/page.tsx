@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { CalendarDays, Loader2 } from 'lucide-react'
+import { usePageReady } from '@/components/providers/PageReadyProvider'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { microciclosApi } from '@/lib/api/microciclos'
 
@@ -10,6 +11,8 @@ export default function MicrociclosRedirectPage() {
   const router = useRouter()
   const { equipoActivo } = useEquipoStore()
   const [checked, setChecked] = useState(false)
+
+  usePageReady()
 
   useEffect(() => {
     if (!equipoActivo?.id) {

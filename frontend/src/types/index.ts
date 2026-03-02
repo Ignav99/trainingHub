@@ -838,6 +838,7 @@ export interface Invitacion {
   equipo_id?: string
   rol_organizacion?: string
   rol_en_equipo?: string
+  token?: string
   estado: EstadoInvitacion
   expira_en: string
   invitado_por: string
@@ -848,6 +849,7 @@ export interface Invitacion {
 }
 
 export interface InvitacionVerify {
+  email: string
   organizacion_nombre: string
   equipo_nombre?: string
   rol_en_equipo?: string

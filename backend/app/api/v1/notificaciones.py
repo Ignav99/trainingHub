@@ -11,10 +11,10 @@ from math import ceil
 from app.models import (
     NotificacionResponse,
     NotificacionListResponse,
-    UsuarioResponse,
 )
 from app.database import get_supabase
-from app.dependencies import get_current_user
+from app.dependencies import require_permission, AuthContext
+from app.security.permissions import Permission
 
 router = APIRouter()
 
@@ -24,14 +24,14 @@ async def list_notificaciones(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     solo_no_leidas: bool = False,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
     """Lista notificaciones del usuario actual."""
     supabase = get_supabase()
 
     query = supabase.table("notificaciones").select(
         "*", count="exact"
-    ).eq("usuario_id", str(current_user.id))
+    ).eq("usuario_id", auth.user_id)
 
     if solo_no_leidas:
         query = query.eq("leida", False)
@@ -57,14 +57,14 @@ async def list_notificaciones(
 
 @router.get("/count")
 async def count_no_leidas(
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
     """Cuenta notificaciones no leídas."""
     supabase = get_supabase()
 
     response = supabase.table("notificaciones").select(
         "id", count="exact"
-    ).eq("usuario_id", str(current_user.id)).eq("leida", False).execute()
+    ).eq("usuario_id", auth.user_id).eq("leida", False).execute()
 
     return {"no_leidas": response.count or 0}
 
@@ -72,7 +72,7 @@ async def count_no_leidas(
 @router.put("/{notificacion_id}/leer")
 async def marcar_leida(
     notificacion_id: UUID,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
     """Marca una notificación como leída."""
     supabase = get_supabase()
@@ -80,7 +80,7 @@ async def marcar_leida(
     response = supabase.table("notificaciones").update(
         {"leida": True}
     ).eq("id", str(notificacion_id)).eq(
-        "usuario_id", str(current_user.id)
+        "usuario_id", auth.user_id
     ).execute()
 
     if not response.data:
@@ -94,14 +94,14 @@ async def marcar_leida(
 
 @router.put("/leer-todas")
 async def marcar_todas_leidas(
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
     """Marca todas las notificaciones como leídas."""
     supabase = get_supabase()
 
     supabase.table("notificaciones").update(
         {"leida": True}
-    ).eq("usuario_id", str(current_user.id)).eq("leida", False).execute()
+    ).eq("usuario_id", auth.user_id).eq("leida", False).execute()
 
     return {"message": "Todas las notificaciones marcadas como leídas"}
 
@@ -109,13 +109,13 @@ async def marcar_todas_leidas(
 @router.delete("/{notificacion_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_notificacion(
     notificacion_id: UUID,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
     """Elimina una notificación."""
     supabase = get_supabase()
 
     supabase.table("notificaciones").delete().eq(
         "id", str(notificacion_id)
-    ).eq("usuario_id", str(current_user.id)).execute()
+    ).eq("usuario_id", auth.user_id).execute()
 
     return None

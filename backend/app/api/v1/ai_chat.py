@@ -15,10 +15,11 @@ from app.models import (
     AIMensajeResponse,
     AIChatRequest,
     AIChatResponse,
-    UsuarioResponse,
 )
 from app.database import get_supabase
-from app.dependencies import get_current_user
+from app.dependencies import require_permission, AuthContext
+from app.security.permissions import Permission
+from app.security.license_checker import LicenseChecker
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -30,14 +31,14 @@ router = APIRouter()
 async def list_ai_conversaciones(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.AI_USE)),
 ):
     """Lista conversaciones AI del usuario actual."""
     supabase = get_supabase()
 
     query = supabase.table("ai_conversaciones").select(
         "*", count="exact"
-    ).eq("usuario_id", str(current_user.id))
+    ).eq("usuario_id", auth.user_id)
 
     query = query.order("updated_at", desc=True)
 
@@ -61,14 +62,14 @@ async def list_ai_conversaciones(
 @router.get("/conversaciones/{conversacion_id}")
 async def get_ai_conversacion(
     conversacion_id: UUID,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.AI_USE)),
 ):
     """Obtiene una conversacion AI con sus mensajes."""
     supabase = get_supabase()
 
     conv = supabase.table("ai_conversaciones").select("*").eq(
         "id", str(conversacion_id)
-    ).eq("usuario_id", str(current_user.id)).single().execute()
+    ).eq("usuario_id", auth.user_id).single().execute()
 
     if not conv.data:
         raise HTTPException(
@@ -89,7 +90,7 @@ async def get_ai_conversacion(
 @router.post("/chat", response_model=AIChatResponse)
 async def chat_with_ai(
     request: AIChatRequest,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.AI_USE)),
 ):
     """
     Envia un mensaje al asistente de IA (Claude) y obtiene respuesta.
@@ -100,6 +101,11 @@ async def chat_with_ai(
     """
     settings = get_settings()
     supabase = get_supabase()
+
+    # Check AI calls quota
+    allowed, msg = LicenseChecker.check_ai_calls_limit(auth.organizacion_id)
+    if not allowed:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg)
 
     if not settings.ANTHROPIC_API_KEY:
         raise HTTPException(
@@ -112,7 +118,7 @@ async def chat_with_ai(
 
     if not conversacion_id:
         conv_data = {
-            "usuario_id": str(current_user.id),
+            "usuario_id": auth.user_id,
             "titulo": request.mensaje[:50],
             "contexto": request.contexto,
         }
@@ -169,7 +175,7 @@ async def chat_with_ai(
             mensaje=request.mensaje,
             historial=historial_previo,
             equipo_id=equipo_id,
-            organizacion_id=str(current_user.organizacion_id),
+            organizacion_id=auth.organizacion_id,
             contexto=contexto,
         )
 
@@ -177,6 +183,9 @@ async def chat_with_ai(
         tokens_input = result["tokens_input"]
         tokens_output = result["tokens_output"]
         herramientas_usadas = result["herramientas_usadas"]
+        cache_read_tokens = result.get("cache_read_input_tokens", 0)
+        cache_creation_tokens = result.get("cache_creation_input_tokens", 0)
+        modelo = result.get("modelo")
 
     except Exception as e:
         logger.error(f"Error in Claude AI chat: {e}")
@@ -187,16 +196,30 @@ async def chat_with_ai(
         tokens_input = None
         tokens_output = None
         herramientas_usadas = []
+        cache_read_tokens = 0
+        cache_creation_tokens = 0
+        modelo = None
 
-    # Save AI response
-    supabase.table("ai_mensajes").insert({
+    # Increment AI usage counter
+    LicenseChecker.increment_ai_calls(auth.organizacion_id)
+
+    # Save AI response (including cache token metrics for cost analysis)
+    msg_data = {
         "conversacion_id": str(conversacion_id),
         "rol": "assistant",
         "contenido": ai_response,
         "tokens_input": tokens_input,
         "tokens_output": tokens_output,
         "herramientas_usadas": herramientas_usadas,
-    }).execute()
+    }
+    if cache_read_tokens:
+        msg_data["cache_read_input_tokens"] = cache_read_tokens
+    if cache_creation_tokens:
+        msg_data["cache_creation_input_tokens"] = cache_creation_tokens
+    if modelo:
+        msg_data["modelo"] = modelo
+
+    supabase.table("ai_mensajes").insert(msg_data).execute()
 
     # Update conversation timestamp
     supabase.table("ai_conversaciones").update({
@@ -212,16 +235,55 @@ async def chat_with_ai(
     )
 
 
+@router.patch("/mensajes/{mensaje_id}/feedback")
+async def feedback_ai_mensaje(
+    mensaje_id: UUID,
+    feedback: str = Query(..., regex="^(positivo|negativo)$"),
+    auth: AuthContext = Depends(require_permission(Permission.AI_USE)),
+):
+    """
+    Registra feedback (positivo/negativo) en un mensaje del asistente AI.
+    Solo se puede dar feedback a mensajes del asistente en conversaciones propias.
+    """
+    supabase = get_supabase()
+
+    # Verify the message belongs to a conversation owned by this user
+    msg = supabase.table("ai_mensajes").select(
+        "id, conversacion_id, rol"
+    ).eq("id", str(mensaje_id)).single().execute()
+
+    if not msg.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mensaje no encontrado")
+
+    if msg.data["rol"] != "assistant":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Solo se puede dar feedback a mensajes del asistente")
+
+    # Verify conversation ownership
+    conv = supabase.table("ai_conversaciones").select("id").eq(
+        "id", msg.data["conversacion_id"]
+    ).eq("usuario_id", auth.user_id).single().execute()
+
+    if not conv.data:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes acceso a esta conversacion")
+
+    # Update feedback
+    supabase.table("ai_mensajes").update({
+        "feedback": feedback
+    }).eq("id", str(mensaje_id)).execute()
+
+    return {"message": "Feedback registrado", "feedback": feedback}
+
+
 @router.delete("/conversaciones/{conversacion_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_ai_conversacion(
     conversacion_id: UUID,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.AI_USE)),
 ):
     """Elimina una conversacion AI y sus mensajes."""
     supabase = get_supabase()
 
     supabase.table("ai_conversaciones").delete().eq(
         "id", str(conversacion_id)
-    ).eq("usuario_id", str(current_user.id)).execute()
+    ).eq("usuario_id", auth.user_id).execute()
 
     return None

@@ -4,18 +4,20 @@ Gestión de convocatorias y estadísticas de partido.
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Query, status
+from fastapi.responses import StreamingResponse
 from typing import Optional
 from uuid import UUID
+import io
 
 from app.models import (
     ConvocatoriaCreate,
     ConvocatoriaUpdate,
     ConvocatoriaResponse,
     ConvocatoriaListResponse,
-    UsuarioResponse,
 )
 from app.database import get_supabase
-from app.dependencies import get_current_user
+from app.dependencies import require_permission, AuthContext
+from app.security.permissions import Permission
 
 router = APIRouter()
 
@@ -23,7 +25,7 @@ router = APIRouter()
 @router.get("/partido/{partido_id}", response_model=ConvocatoriaListResponse)
 async def list_convocatorias_partido(
     partido_id: UUID,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_READ)),
 ):
     """Lista convocatorias de un partido."""
     supabase = get_supabase()
@@ -48,7 +50,7 @@ async def list_convocatorias_partido(
 async def list_convocatorias_jugador(
     jugador_id: UUID,
     limit: int = Query(20, ge=1, le=100),
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_READ)),
 ):
     """Historial de convocatorias de un jugador con estadísticas acumuladas."""
     supabase = get_supabase()
@@ -75,7 +77,7 @@ async def list_convocatorias_jugador(
 @router.get("/{convocatoria_id}", response_model=ConvocatoriaResponse)
 async def get_convocatoria(
     convocatoria_id: UUID,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_READ)),
 ):
     """Obtiene una convocatoria por ID."""
     supabase = get_supabase()
@@ -96,7 +98,7 @@ async def get_convocatoria(
 @router.post("", response_model=ConvocatoriaResponse, status_code=status.HTTP_201_CREATED)
 async def create_convocatoria(
     convocatoria: ConvocatoriaCreate,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_CREATE)),
 ):
     """Crea una convocatoria."""
     supabase = get_supabase()
@@ -119,7 +121,7 @@ async def create_convocatoria(
 @router.post("/batch", status_code=status.HTTP_201_CREATED)
 async def create_convocatorias_batch(
     convocatorias: list[ConvocatoriaCreate],
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_CREATE)),
 ):
     """Crea múltiples convocatorias a la vez (ej: toda la lista de un partido)."""
     supabase = get_supabase()
@@ -140,7 +142,7 @@ async def create_convocatorias_batch(
 async def update_convocatoria(
     convocatoria_id: UUID,
     convocatoria: ConvocatoriaUpdate,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_UPDATE)),
 ):
     """Actualiza una convocatoria (ej: registrar estadísticas post-partido)."""
     supabase = get_supabase()
@@ -173,7 +175,7 @@ async def update_convocatoria(
 @router.delete("/{convocatoria_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_convocatoria(
     convocatoria_id: UUID,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_CREATE)),
 ):
     """Elimina una convocatoria."""
     supabase = get_supabase()
@@ -183,3 +185,49 @@ async def delete_convocatoria(
     ).execute()
 
     return None
+
+
+@router.get("/partido/{partido_id}/pdf")
+async def generate_convocatoria_pdf(
+    partido_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.EXPORT_DATA)),
+):
+    """Genera un PDF de la convocatoria del partido."""
+    from app.services.pdf_service import generate_convocatoria_pdf as gen_pdf
+
+    supabase = get_supabase()
+
+    # Obtener partido con rival y equipo
+    partido_resp = supabase.table("partidos").select(
+        "*, rivales(*), equipos(*, organizaciones(*))"
+    ).eq("id", str(partido_id)).single().execute()
+
+    if not partido_resp.data:
+        raise HTTPException(status_code=404, detail="Partido no encontrado")
+
+    partido = partido_resp.data
+    rival = partido.pop("rivales", {}) or {}
+    equipo = partido.pop("equipos", {}) or {}
+    organizacion = equipo.pop("organizaciones", {}) or {}
+
+    # Obtener convocatoria con jugadores
+    conv_resp = supabase.table("convocatorias").select(
+        "*, jugadores(nombre, apellidos, dorsal, posicion_principal)"
+    ).eq("partido_id", str(partido_id)).order("titular", desc=True).execute()
+
+    pdf_bytes = gen_pdf(
+        partido=partido,
+        rival=rival,
+        convocatoria=conv_resp.data or [],
+        organizacion=organizacion,
+        equipo_nombre=equipo.get("nombre", ""),
+        equipo_categoria=equipo.get("categoria", ""),
+    )
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="convocatoria_{partido_id}.pdf"'
+        },
+    )

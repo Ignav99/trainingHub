@@ -10,9 +10,9 @@ from uuid import UUID
 from datetime import date
 import io
 
-from app.models import UsuarioResponse
 from app.database import get_supabase
-from app.dependencies import get_current_user
+from app.dependencies import require_permission, AuthContext
+from app.security.permissions import Permission
 from app.services.export_service import (
     export_jugadores_csv,
     export_sesiones_csv,
@@ -38,7 +38,7 @@ def _csv_response(content: str, filename: str) -> StreamingResponse:
 @router.get("/jugadores")
 async def export_jugadores(
     equipo_id: UUID = Query(...),
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.EXPORT_DATA)),
 ):
     """Exporta la plantilla de jugadores en CSV."""
     supabase = get_supabase()
@@ -58,7 +58,7 @@ async def export_sesiones(
     equipo_id: UUID = Query(...),
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.EXPORT_DATA)),
 ):
     """Exporta sesiones de entrenamiento en CSV."""
     supabase = get_supabase()
@@ -85,7 +85,7 @@ async def export_rpe(
     equipo_id: UUID = Query(...),
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.EXPORT_DATA)),
 ):
     """Exporta registros RPE del equipo en CSV."""
     supabase = get_supabase()
@@ -122,7 +122,7 @@ async def export_partidos(
     equipo_id: UUID = Query(...),
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.EXPORT_DATA)),
 ):
     """Exporta partidos del equipo en CSV."""
     supabase = get_supabase()
@@ -151,7 +151,7 @@ async def export_partidos(
 @router.get("/convocatoria/{partido_id}")
 async def export_convocatoria(
     partido_id: UUID,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.EXPORT_DATA)),
 ):
     """Exporta la convocatoria de un partido en CSV."""
     supabase = get_supabase()

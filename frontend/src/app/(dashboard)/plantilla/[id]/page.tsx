@@ -19,6 +19,8 @@ import {
   Activity,
   Camera
 } from 'lucide-react'
+import { PageLoader } from '@/components/ui/page-loader'
+import { usePageReady } from '@/components/providers/PageReadyProvider'
 import { Jugador, JugadorUpdate, jugadoresApi, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
 
 export default function JugadorDetailPage() {
@@ -32,10 +34,13 @@ export default function JugadorDetailPage() {
 
   // Form state
   const [formData, setFormData] = useState<JugadorUpdate>({})
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
   useEffect(() => {
     loadJugador()
   }, [params.id])
+
+  usePageReady(loading)
 
   const loadJugador = async () => {
     setLoading(true)
@@ -47,6 +52,7 @@ export default function JugadorDetailPage() {
       setFormData({
         nombre: data.nombre,
         apellidos: data.apellidos,
+        apodo: data.apodo,
         fecha_nacimiento: data.fecha_nacimiento,
         dorsal: data.dorsal,
         posicion_principal: data.posicion_principal,
@@ -86,6 +92,43 @@ export default function JugadorDetailPage() {
     }
   }
 
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !jugador) return
+
+    setUploadingPhoto(true)
+    try {
+      const { createClient } = await import('@supabase/supabase-js')
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+
+      const ext = file.name.split('.').pop()
+      const path = `player-photos/${jugador.id}.${ext}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('player-photos')
+        .upload(path, file, { upsert: true })
+
+      if (uploadError) throw uploadError
+
+      const { data: urlData } = supabase.storage
+        .from('player-photos')
+        .getPublicUrl(path)
+
+      if (urlData?.publicUrl) {
+        await jugadoresApi.update(jugador.id, { foto_url: urlData.publicUrl })
+        await loadJugador()
+      }
+    } catch (err) {
+      console.error('Error uploading photo:', err)
+      alert('Error al subir la foto')
+    } finally {
+      setUploadingPhoto(false)
+    }
+  }
+
   const handleDelete = async () => {
     if (!jugador) return
     if (!confirm('¿Estás seguro de que quieres eliminar este jugador?')) return
@@ -99,11 +142,7 @@ export default function JugadorDetailPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    )
+    return <PageLoader />
   }
 
   if (error || !jugador) {
@@ -134,9 +173,12 @@ export default function JugadorDetailPage() {
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
-              {jugador.nombre} {jugador.apellidos}
+              {jugador.apodo || `${jugador.nombre} ${jugador.apellidos}`}
             </h1>
-            <p className="text-gray-500">Ficha del jugador</p>
+            {jugador.apodo && (
+              <p className="text-gray-500">{jugador.nombre} {jugador.apellidos}</p>
+            )}
+            {!jugador.apodo && <p className="text-gray-500">Ficha del jugador</p>}
           </div>
         </div>
         <div className="flex gap-2">
@@ -209,12 +251,31 @@ export default function JugadorDetailPage() {
                   <Star className="h-5 w-5 text-white fill-white" />
                 </div>
               )}
+              {isEditing && (
+                <label className="absolute bottom-2 left-2 bg-gray-900/70 text-white rounded-full p-2 cursor-pointer hover:bg-gray-900/90 transition-colors">
+                  {uploadingPhoto ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Camera className="h-5 w-5" />
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handlePhotoUpload}
+                    disabled={uploadingPhoto}
+                  />
+                </label>
+              )}
             </div>
 
             <div className="text-center">
               <h2 className="text-xl font-bold text-gray-900">
-                {jugador.nombre} {jugador.apellidos}
+                {jugador.apodo || `${jugador.nombre} ${jugador.apellidos}`}
               </h2>
+              {jugador.apodo && (
+                <p className="text-sm text-gray-500">{jugador.nombre} {jugador.apellidos}</p>
+              )}
               <div className="flex items-center justify-center gap-2 mt-2">
                 <span
                   className="px-3 py-1 rounded-full text-white text-sm font-medium"
@@ -356,7 +417,7 @@ export default function JugadorDetailPage() {
                         />
                       </svg>
                       <span className="absolute inset-0 flex items-center justify-center text-xl font-bold">
-                        {jugador[key as keyof Jugador]}
+                        {String(jugador[key as keyof Jugador] ?? '')}
                       </span>
                     </div>
                     <p className="text-sm text-gray-600">{label}</p>
@@ -413,6 +474,16 @@ export default function JugadorDetailPage() {
                     value={formData.apellidos || ''}
                     onChange={(e) => setFormData({ ...formData, apellidos: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Apodo</label>
+                  <input
+                    type="text"
+                    value={formData.apodo || ''}
+                    onChange={(e) => setFormData({ ...formData, apodo: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                    placeholder="Nombre preferente (opcional)"
                   />
                 </div>
                 <div>

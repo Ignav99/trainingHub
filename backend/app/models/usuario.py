@@ -1,36 +1,56 @@
 """
-TrainingHub Pro - Modelos de Usuario, Equipo y Organización
+TrainingHub Pro - Modelos de Usuario, Equipo y Organizacion
 """
 
 from pydantic import BaseModel, Field, EmailStr
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, date
 from uuid import UUID
 from enum import Enum
 
 
 class RolUsuario(str, Enum):
     """Roles de usuario en el sistema."""
+    # Platform
+    SUPERADMIN_PLATAFORMA = "superadmin_plataforma"
+    # Legacy (backwards compat)
     ADMIN = "admin"
     TECNICO_PRINCIPAL = "tecnico_principal"
     TECNICO_ASISTENTE = "tecnico_asistente"
     VISUALIZADOR = "visualizador"
-
-
-class RolEnEquipo(str, Enum):
-    """Roles específicos dentro de un equipo."""
+    # Club roles
+    PRESIDENTE = "presidente"
+    DIRECTOR_DEPORTIVO = "director_deportivo"
+    SECRETARIO = "secretario"
+    # Team roles (when used as global rol)
     ENTRENADOR_PRINCIPAL = "entrenador_principal"
     SEGUNDO_ENTRENADOR = "segundo_entrenador"
     PREPARADOR_FISICO = "preparador_fisico"
     ENTRENADOR_PORTEROS = "entrenador_porteros"
     ANALISTA = "analista"
+    FISIO = "fisio"
     DELEGADO = "delegado"
+    # Player/Tutor
+    JUGADOR = "jugador"
+    TUTOR = "tutor"
 
 
-# ============ Organización ============
+class RolEnEquipo(str, Enum):
+    """Roles especificos dentro de un equipo."""
+    ENTRENADOR_PRINCIPAL = "entrenador_principal"
+    SEGUNDO_ENTRENADOR = "segundo_entrenador"
+    PREPARADOR_FISICO = "preparador_fisico"
+    ENTRENADOR_PORTEROS = "entrenador_porteros"
+    ANALISTA = "analista"
+    FISIO = "fisio"
+    DELEGADO = "delegado"
+    JUGADOR = "jugador"
+
+
+# ============ Organizacion ============
 
 class OrganizacionBase(BaseModel):
-    """Schema base de organización."""
+    """Schema base de organizacion."""
     nombre: str = Field(..., min_length=2, max_length=255)
     color_primario: str = Field(default="#1a365d", pattern="^#[0-9A-Fa-f]{6}$")
     color_secundario: str = Field(default="#ffffff", pattern="^#[0-9A-Fa-f]{6}$")
@@ -38,25 +58,28 @@ class OrganizacionBase(BaseModel):
 
 
 class OrganizacionCreate(OrganizacionBase):
-    """Schema para crear organización."""
-    pass
+    """Schema para crear organizacion."""
+    tipo_licencia: str = Field(default="equipo")
 
 
 class OrganizacionUpdate(BaseModel):
-    """Schema para actualizar organización."""
+    """Schema para actualizar organizacion."""
     nombre: Optional[str] = Field(None, min_length=2, max_length=255)
     color_primario: Optional[str] = None
     color_secundario: Optional[str] = None
     config: Optional[dict] = None
+    tipo_licencia: Optional[str] = None
 
 
 class OrganizacionResponse(OrganizacionBase):
-    """Schema de respuesta de organización."""
+    """Schema de respuesta de organizacion."""
     id: UUID
     logo_url: Optional[str] = None
+    tipo_licencia: str = "equipo"
+    owner_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
 
@@ -75,7 +98,7 @@ class EquipoBase(BaseModel):
 
 class EquipoCreate(EquipoBase):
     """Schema para crear equipo."""
-    organizacion_id: UUID
+    organizacion_id: Optional[UUID] = None
 
 
 class EquipoUpdate(BaseModel):
@@ -96,11 +119,11 @@ class EquipoResponse(EquipoBase):
     activo: bool
     created_at: datetime
     updated_at: datetime
-    
-    # Estadísticas
+
+    # Estadisticas
     num_sesiones: Optional[int] = None
     num_tareas: Optional[int] = None
-    
+
     class Config:
         from_attributes = True
 
@@ -125,7 +148,9 @@ class UsuarioBase(BaseModel):
 class UsuarioCreate(UsuarioBase):
     """Schema para crear usuario (registro)."""
     password: str = Field(..., min_length=8)
-    organizacion_nombre: Optional[str] = None  # Si crea nueva org
+    organizacion_nombre: Optional[str] = None
+    fecha_nacimiento: Optional[date] = None
+    gdpr_consentimiento: bool = False
 
 
 class UsuarioUpdate(BaseModel):
@@ -133,27 +158,35 @@ class UsuarioUpdate(BaseModel):
     nombre: Optional[str] = Field(None, min_length=2, max_length=255)
     apellidos: Optional[str] = None
     config: Optional[dict] = None
+    fecha_nacimiento: Optional[date] = None
 
 
 class UsuarioUpdateAdmin(UsuarioUpdate):
     """Schema para que admin actualice usuario."""
     rol: Optional[RolUsuario] = None
     activo: Optional[bool] = None
+    mfa_enabled: Optional[bool] = None
 
 
 class UsuarioResponse(UsuarioBase):
     """Schema de respuesta de usuario."""
     id: UUID
-    organizacion_id: Optional[UUID] = None  # Optional: user may not have org yet
+    organizacion_id: Optional[UUID] = None
     avatar_url: Optional[str] = None
-    activo: bool = True  # Default to True if not set
+    activo: bool = True
+    es_menor: bool = False
+    fecha_nacimiento: Optional[date] = None
+    mfa_enabled: bool = False
+    gdpr_consentimiento: bool = False
+    gdpr_consentimiento_fecha: Optional[datetime] = None
+    ultimo_acceso: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 
     # Equipos del usuario
     equipos: List[EquipoResponse] = []
 
-    # Organización
+    # Organizacion
     organizacion: Optional[OrganizacionResponse] = None
 
     class Config:
@@ -166,10 +199,10 @@ class UsuarioListResponse(BaseModel):
     total: int
 
 
-# ============ Relación Usuario-Equipo ============
+# ============ Relacion Usuario-Equipo ============
 
 class UsuarioEquipoBase(BaseModel):
-    """Schema base de relación usuario-equipo."""
+    """Schema base de relacion usuario-equipo."""
     usuario_id: UUID
     equipo_id: UUID
     rol_en_equipo: RolEnEquipo = Field(default=RolEnEquipo.SEGUNDO_ENTRENADOR)
@@ -181,13 +214,13 @@ class UsuarioEquipoCreate(UsuarioEquipoBase):
 
 
 class UsuarioEquipoResponse(UsuarioEquipoBase):
-    """Schema de respuesta de relación."""
+    """Schema de respuesta de relacion."""
     id: UUID
     created_at: datetime
-    
+
     usuario: Optional[UsuarioResponse] = None
     equipo: Optional[EquipoResponse] = None
-    
+
     class Config:
         from_attributes = True
 

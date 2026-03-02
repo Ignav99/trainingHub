@@ -19,10 +19,10 @@ from app.models import (
     AIFaseRecomendacion,
     AICargaEstimada,
     AITareaNueva,
-    UsuarioResponse,
 )
 from app.database import get_supabase
-from app.dependencies import get_current_user
+from app.dependencies import require_permission, AuthContext
+from app.security.permissions import Permission
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -66,6 +66,12 @@ MATCH_DAY_CONFIG = {
         "nivel_cognitivo_max": 2,
         "intensidad": "baja",
     },
+    "MD": {
+        "categorias_preferidas": [],
+        "categorias_evitar": [],
+        "nivel_cognitivo_max": 3,
+        "intensidad": "competicion",
+    },
 }
 
 # Categorías recomendadas por fase de sesión
@@ -81,12 +87,12 @@ def calcular_score(tarea: dict, params: RecomendadorInput, fase: str) -> tuple[f
     """Calcula el score de una tarea para los parámetros dados."""
     score = 0.0
     razones = []
-    
+
     md_config = MATCH_DAY_CONFIG.get(params.match_day.value, {})
-    
+
     # Obtener código de categoría
     cat_codigo = tarea.get("categoria", {}).get("codigo", "")
-    
+
     # Factor 1: Compatibilidad con Match Day (30%)
     if cat_codigo in md_config.get("categorias_preferidas", []):
         score += 0.30
@@ -96,42 +102,42 @@ def calcular_score(tarea: dict, params: RecomendadorInput, fase: str) -> tuple[f
         razones.append("Categoría no recomendada para este día")
     else:
         score += 0.15
-    
+
     # Factor 2: Fase de sesión (25%)
     if cat_codigo in FASE_CATEGORIAS.get(fase, []):
         score += 0.25
         razones.append(f"Ideal para fase de {fase}")
     else:
         score += 0.10
-    
+
     # Factor 3: Ajuste de jugadores (20%)
     jug_min = tarea.get("num_jugadores_min", 0)
     jug_max = tarea.get("num_jugadores_max") or jug_min + 4
-    
+
     if jug_min <= params.num_jugadores <= jug_max:
         score += 0.20
         razones.append("Número de jugadores óptimo")
     elif abs(params.num_jugadores - jug_min) <= 2:
         score += 0.10
-    
+
     # Factor 4: Nivel cognitivo (15%)
     nivel = tarea.get("nivel_cognitivo", 2)
     nivel_max = md_config.get("nivel_cognitivo_max", 3)
-    
+
     if nivel <= nivel_max:
         score += 0.15
     else:
         score -= 0.10
         razones.append("Nivel cognitivo alto para este día")
-    
+
     # Factor 5: Coincidencia táctica (10%)
     if params.fase_juego and tarea.get("fase_juego") == params.fase_juego:
         score += 0.10
         razones.append("Coincide con objetivo táctico")
-    
+
     # Normalizar score
     score = max(0, min(1, score))
-    
+
     razon = ". ".join(razones) if razones else "Tarea compatible"
     return score, razon
 
@@ -139,7 +145,7 @@ def calcular_score(tarea: dict, params: RecomendadorInput, fase: str) -> tuple[f
 @router.post("/sesion", response_model=RecomendadorOutput)
 async def recomendar_sesion(
     params: RecomendadorInput,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.TASK_READ)),
 ):
     """
     Genera recomendaciones de tareas para una sesión.
@@ -156,11 +162,11 @@ async def recomendar_sesion(
     response = supabase.table("tareas").select(
         "*, categorias_tarea(*)"
     ).eq(
-        "organizacion_id", str(current_user.organizacion_id)
+        "organizacion_id", auth.organizacion_id
     ).execute()
-    
+
     tareas = response.data
-    
+
     # Preparar recomendaciones por fase
     recomendaciones = {
         "activacion": [],
@@ -168,7 +174,7 @@ async def recomendar_sesion(
         "desarrollo_2": [],
         "vuelta_calma": [],
     }
-    
+
     # Duraciones objetivo por fase
     duraciones_objetivo = {
         "activacion": (12, 20),
@@ -176,51 +182,51 @@ async def recomendar_sesion(
         "desarrollo_2": (20, 30),
         "vuelta_calma": (8, 15),
     }
-    
+
     for fase in recomendaciones.keys():
         dur_min, dur_max = duraciones_objetivo[fase]
-        
+
         # Filtrar y puntuar tareas
         candidatas = []
         for tarea in tareas:
             # Mapear categoría
             tarea["categoria"] = tarea.get("categorias_tarea", {})
-            
+
             # Filtrar por duración
             duracion = tarea.get("duracion_total", 0)
             if duracion < dur_min - 5 or duracion > dur_max + 10:
                 continue
-            
+
             # Filtrar excluidas
             if params.excluir_tareas and tarea["id"] in [str(t) for t in params.excluir_tareas]:
                 continue
-            
+
             # Calcular score
             score, razon = calcular_score(tarea, params, fase)
-            
+
             if score > 0.3:  # Umbral mínimo
                 candidatas.append(TareaRecomendada(
                     tarea=TareaResponse(**tarea),
                     score=round(score, 2),
                     razon=razon,
                 ))
-        
+
         # Ordenar por score y tomar top 3
         candidatas.sort(key=lambda x: x.score, reverse=True)
         recomendaciones[fase] = candidatas[:3]
-    
+
     # Calcular metadata
     duracion_total = 0
     niveles = []
-    
+
     for fase, recs in recomendaciones.items():
         if recs:
             duracion_total += recs[0].tarea.duracion_total
             if recs[0].tarea.nivel_cognitivo:
                 niveles.append(recs[0].tarea.nivel_cognitivo.value)
-    
+
     md_config = MATCH_DAY_CONFIG.get(params.match_day.value, {})
-    
+
     return RecomendadorOutput(
         recomendaciones=recomendaciones,
         metadata={
@@ -235,7 +241,7 @@ async def recomendar_sesion(
 @router.post("/ai-sesion", response_model=AIRecomendadorOutput)
 async def recomendar_sesion_ai(
     params: AIRecomendadorInput,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.AI_USE)),
 ):
     """
     Genera recomendaciones de sesión usando IA (Google Gemini).
@@ -252,11 +258,11 @@ async def recomendar_sesion_ai(
     """
     settings = get_settings()
 
-    # Verificar que Gemini está configurado
-    if not settings.GEMINI_API_KEY:
+    # Verificar que Claude está configurado
+    if not settings.ANTHROPIC_API_KEY:
         raise HTTPException(
             status_code=503,
-            detail="Servicio de IA no disponible. Configure GEMINI_API_KEY."
+            detail="Servicio de IA no disponible. Configure ANTHROPIC_API_KEY."
         )
 
     supabase = get_supabase()
@@ -265,7 +271,7 @@ async def recomendar_sesion_ai(
     response = supabase.table("tareas").select(
         "*, categorias_tarea(*)"
     ).eq(
-        "organizacion_id", str(current_user.organizacion_id)
+        "organizacion_id", auth.organizacion_id
     ).execute()
 
     tareas = response.data
@@ -305,13 +311,13 @@ async def recomendar_sesion_ai(
     notas_str = "\n".join(notas_adicionales) if notas_adicionales else None
 
     try:
-        # Importar servicio de Gemini
-        from app.services.gemini_service import GeminiService, GeminiError
+        # Importar servicio de Claude
+        from app.services.claude_service import ClaudeService, ClaudeError
 
-        gemini = GeminiService()
+        claude = ClaudeService()
 
         # Generar recomendaciones
-        ai_response = await gemini.generate_session_recommendations(
+        ai_response = await claude.generate_session_recommendations(
             tareas=tareas_para_ia,
             match_day=params.match_day.value,
             num_jugadores=params.num_jugadores,
@@ -386,7 +392,7 @@ async def recomendar_sesion_ai(
                 duracion_total=carga.get("duracion_total", params.duracion_total),
             ),
             match_day=params.match_day.value,
-            generado_por="gemini",
+            generado_por="claude",
         )
 
     except Exception as e:
@@ -407,7 +413,7 @@ async def recomendar_sesion_ai(
         )
 
         # Obtener recomendaciones básicas
-        basic_result = await recomendar_sesion(basic_input, current_user)
+        basic_result = await recomendar_sesion(basic_input, auth)
 
         # Convertir a formato AI
         fases_convertidas = {}

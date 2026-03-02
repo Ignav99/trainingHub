@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            margin: 30px 40px;
+            color: #1a1a2e;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid {{ color_primario }};
+        }
+        .header .org-name {
+            font-size: 14px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 5px;
+        }
+        .header .title {
+            font-size: 22px;
+            font-weight: 700;
+            color: {{ color_primario }};
+        }
+        .header .subtitle {
+            font-size: 14px;
+            color: #555;
+            margin-top: 5px;
+        }
+        .match-bar {
+            background: {{ color_primario }};
+            color: white;
+            border-radius: 8px;
+            padding: 18px 25px;
+            margin: 20px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .match-bar .team {
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .match-bar .vs {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+        .match-bar .info {
+            font-size: 11px;
+            opacity: 0.9;
+        }
+        .section-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: {{ color_primario }};
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 6px;
+            margin: 20px 0 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+        table th {
+            text-align: left;
+            font-size: 10px;
+            font-weight: 700;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 8px 10px;
+            border-bottom: 2px solid {{ color_primario }};
+        }
+        table td {
+            padding: 8px 10px;
+            font-size: 12px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        table tr:nth-child(even) { background: #fafbfc; }
+        .dorsal {
+            display: inline-block;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: {{ color_primario }};
+            color: white;
+            text-align: center;
+            line-height: 28px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .pos-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #f1f5f9;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 700;
+            color: #555;
+        }
+        .stats-row {
+            display: flex;
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .stat-box {
+            flex: 1;
+            text-align: center;
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 12px;
+            border-left: 3px solid {{ color_primario }};
+        }
+        .stat-box .number {
+            font-size: 22px;
+            font-weight: 800;
+            color: {{ color_primario }};
+        }
+        .stat-box .label {
+            font-size: 10px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 15px;
+            border-top: 1px solid #e2e8f0;
+            text-align: center;
+            color: #aaa;
+            font-size: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="org-name">{{ org_nombre }}</div>
+        <div class="title">Convocatoria</div>
+        <div class="subtitle">{{ equipo_nombre }}{% if equipo_categoria %} &mdash; {{ equipo_categoria }}{% endif %}</div>
+    </div>
+
+    <div class="match-bar">
+        <div>
+            <div class="team">{{ equipo_nombre }} vs {{ rival_nombre }}</div>
+            <div class="info">
+                {{ fecha }}{% if hora %} &bull; {{ hora }}h{% endif %}
+                {% if competicion %} &bull; {{ competicion | capitalize }}{% endif %}
+                {% if jornada %} &bull; Jornada {{ jornada }}{% endif %}
+            </div>
+        </div>
+        <div class="info">{{ localia | capitalize }}</div>
+    </div>
+
+    <div class="stats-row">
+        <div class="stat-box">
+            <div class="number">{{ total_convocados }}</div>
+            <div class="label">Convocados</div>
+        </div>
+        <div class="stat-box">
+            <div class="number">{{ titulares | length }}</div>
+            <div class="label">Titulares</div>
+        </div>
+        <div class="stat-box">
+            <div class="number">{{ suplentes | length }}</div>
+            <div class="label">Suplentes</div>
+        </div>
+    </div>
+
+    {% if titulares %}
+    <div class="section-title">Titulares ({{ titulares | length }})</div>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 45px;">#</th>
+                <th>Jugador</th>
+                <th>Posición</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in titulares %}
+            <tr>
+                <td><span class="dorsal">{{ c.dorsal or '-' }}</span></td>
+                <td style="font-weight: 600;">{{ c.jugador_nombre }}</td>
+                <td><span class="pos-badge">{{ c.posicion or '-' }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% if suplentes %}
+    <div class="section-title">Suplentes ({{ suplentes | length }})</div>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 45px;">#</th>
+                <th>Jugador</th>
+                <th>Posición</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in suplentes %}
+            <tr>
+                <td><span class="dorsal" style="background: #94a3b8;">{{ c.dorsal or '-' }}</span></td>
+                <td style="font-weight: 600;">{{ c.jugador_nombre }}</td>
+                <td><span class="pos-badge">{{ c.posicion or '-' }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <div class="footer">
+        Generado con TrainingHub Pro &bull; {{ org_nombre }}
+    </div>
+</body>
+</html>

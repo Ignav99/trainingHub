@@ -13,10 +13,11 @@ from app.models import (
     RPECreate,
     RPEResponse,
     RPEListResponse,
-    UsuarioResponse,
 )
 from app.database import get_supabase
-from app.dependencies import get_current_user
+from app.dependencies import require_permission, AuthContext
+from app.security.permissions import Permission
+from app.services.notification_service import notify_rpe_alerta
 
 router = APIRouter()
 
@@ -30,7 +31,7 @@ async def list_rpe(
     equipo_id: Optional[UUID] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.RPE_READ)),
 ):
     """Lista registros RPE con filtros."""
     supabase = get_supabase()
@@ -85,7 +86,7 @@ async def resumen_rpe(
     equipo_id: UUID = Query(...),
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.RPE_READ)),
 ):
     """
     Resumen de RPE por equipo: promedios por jugador, tendencias.
@@ -163,7 +164,7 @@ async def resumen_rpe(
 @router.get("/{rpe_id}", response_model=RPEResponse)
 async def get_rpe(
     rpe_id: UUID,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.RPE_READ)),
 ):
     """Obtiene un registro RPE por ID."""
     supabase = get_supabase()
@@ -184,7 +185,7 @@ async def get_rpe(
 @router.post("", response_model=RPEResponse, status_code=status.HTTP_201_CREATED)
 async def create_rpe(
     rpe: RPECreate,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
 ):
     """Crea un nuevo registro RPE."""
     supabase = get_supabase()
@@ -206,13 +207,32 @@ async def create_rpe(
             detail="Error al crear registro RPE"
         )
 
-    return RPEResponse(**response.data[0])
+    # Alert staff if RPE is high (>= 8)
+    created = response.data[0]
+    if created["rpe"] >= 8:
+        jugador = supabase.table("jugadores").select(
+            "nombre, apellidos, equipo_id"
+        ).eq("id", data["jugador_id"]).single().execute()
+        if jugador.data:
+            # Get staff user IDs for the team
+            staff = supabase.table("usuarios_equipos").select(
+                "usuario_id"
+            ).eq("equipo_id", jugador.data["equipo_id"]).execute()
+            staff_ids = [s["usuario_id"] for s in staff.data if s["usuario_id"] != auth.user_id]
+            notify_rpe_alerta(
+                jugador_nombre=f"{jugador.data['nombre']} {jugador.data.get('apellidos', '')}".strip(),
+                rpe_valor=created["rpe"],
+                usuario_ids=staff_ids,
+                jugador_id=data["jugador_id"],
+            )
+
+    return RPEResponse(**created)
 
 
 @router.post("/batch", status_code=status.HTTP_201_CREATED)
 async def create_rpe_batch(
     registros: list[RPECreate],
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
 ):
     """Crea múltiples registros RPE (ej: post-sesión para todo el equipo)."""
     supabase = get_supabase()
@@ -235,7 +255,7 @@ async def create_rpe_batch(
 @router.delete("/{rpe_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_rpe(
     rpe_id: UUID,
-    current_user: UsuarioResponse = Depends(get_current_user),
+    auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
 ):
     """Elimina un registro RPE."""
     supabase = get_supabase()

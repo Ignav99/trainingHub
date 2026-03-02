@@ -33,6 +33,19 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
 
       initializeAuth: async () => {
+        // Register auth listener FIRST so we never miss a token refresh
+        supabase.auth.onAuthStateChange(async (event, session) => {
+          if (event === 'SIGNED_OUT') {
+            set({
+              user: null,
+              accessToken: null,
+              isAuthenticated: false,
+            })
+          } else if (session?.access_token && (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN')) {
+            set({ accessToken: session.access_token })
+          }
+        })
+
         try {
           const { data: { session } } = await supabase.auth.getSession()
 
@@ -69,19 +82,6 @@ export const useAuthStore = create<AuthState>()(
           console.error('Error initializing auth:', error)
           set({ isLoading: false })
         }
-
-        // Listen for auth changes
-        supabase.auth.onAuthStateChange(async (event, session) => {
-          if (event === 'SIGNED_OUT') {
-            set({
-              user: null,
-              accessToken: null,
-              isAuthenticated: false,
-            })
-          } else if (session?.access_token && event === 'TOKEN_REFRESHED') {
-            set({ accessToken: session.access_token })
-          }
-        })
       },
 
       login: async (email: string, password: string) => {

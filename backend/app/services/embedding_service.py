@@ -13,10 +13,11 @@ from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# Gemini embedding model produces 768-dim vectors
-# Our pgvector column is 1536-dim, so we pad with zeros
-GEMINI_EMBEDDING_DIM = 768
+# Gemini embedding model: gemini-embedding-001 produces 3072-dim vectors
+# Our pgvector column is 1536-dim, so we truncate to fit
+GEMINI_EMBEDDING_DIM = 3072
 TARGET_DIM = 1536
+EMBEDDING_MODEL = "models/gemini-embedding-001"
 
 
 class EmbeddingError(Exception):
@@ -53,7 +54,7 @@ def generate_embedding(text: str) -> list[float]:
 
     try:
         result = genai.embed_content(
-            model="models/text-embedding-004",
+            model=EMBEDDING_MODEL,
             content=text,
             task_type="RETRIEVAL_DOCUMENT",
         )
@@ -79,7 +80,7 @@ def generate_query_embedding(query: str) -> list[float]:
 
     try:
         result = genai.embed_content(
-            model="models/text-embedding-004",
+            model=EMBEDDING_MODEL,
             content=query,
             task_type="RETRIEVAL_QUERY",
         )
@@ -108,7 +109,7 @@ def generate_embeddings_batch(texts: list[str]) -> list[list[float]]:
     try:
         # Gemini supports batch embedding
         result = genai.embed_content(
-            model="models/text-embedding-004",
+            model=EMBEDDING_MODEL,
             content=texts,
             task_type="RETRIEVAL_DOCUMENT",
         )

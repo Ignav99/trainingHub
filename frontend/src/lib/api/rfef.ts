@@ -90,11 +90,14 @@ export interface SyncFullResult {
   equipos_clasificacion: number
   goleadores: number
   jornadas_saved: number
+  jornadas_total?: number
+  actas_saved?: number
   link_result?: {
     rivales_created: number
     partidos_created: number
     partidos_updated: number
   }
+  errors?: string[]
   sincronizado_en: string
 }
 
@@ -150,6 +153,10 @@ export const rfefApi = {
 
   async getCompeticion(id: string): Promise<RFEFCompeticion> {
     return api.get(`/rfef/competiciones/${id}`)
+  },
+
+  async deleteCompeticion(id: string): Promise<void> {
+    return api.delete(`/rfef/competiciones/${id}`)
   },
 
   async setupFromUrl(data: {
