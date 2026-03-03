@@ -1,99 +1,121 @@
 """
-TrainingHub Pro - Middleware
+TrainingHub Pro - Middleware (Pure ASGI)
 Security headers, request logging, rate limiting, and license enforcement.
+
+Uses pure ASGI instead of BaseHTTPMiddleware to avoid the known
+"No response returned" bug with stacked BaseHTTPMiddleware classes.
+See: https://github.com/encode/starlette/issues/1012
 """
 
 import time
 import logging
 from collections import defaultdict
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response, JSONResponse
+from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.responses import JSONResponse
 
 logger = logging.getLogger("traininghub.requests")
 
 
 # ============ Security Headers Middleware ============
 
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """Adds security headers to all responses."""
+class SecurityHeadersMiddleware:
+    """Adds security headers to all responses (pure ASGI)."""
 
-    async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
+    HEADERS = [
+        (b"x-content-type-options", b"nosniff"),
+        (b"x-frame-options", b"DENY"),
+        (b"x-xss-protection", b"1; mode=block"),
+        (b"referrer-policy", b"strict-origin-when-cross-origin"),
+        (b"permissions-policy", b"camera=(), microphone=(), geolocation=()"),
+    ]
 
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    def __init__(self, app: ASGIApp):
+        self.app = app
 
-        return response
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_headers(message):
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                headers.extend(self.HEADERS)
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
 
 
 # ============ Request Logging Middleware ============
 
-class RequestLoggingMiddleware(BaseHTTPMiddleware):
-    """Logs request method, path, status code and duration."""
+class RequestLoggingMiddleware:
+    """Logs request method, path, status code and duration (pure ASGI)."""
 
     SKIP_PATHS = {"/", "/health", "/docs", "/redoc", "/openapi.json"}
 
-    async def dispatch(self, request: Request, call_next):
-        if request.url.path in self.SKIP_PATHS:
-            return await call_next(request)
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        if scope["type"] != "http" or scope["path"] in self.SKIP_PATHS:
+            await self.app(scope, receive, send)
+            return
 
         start = time.time()
-        response = await call_next(request)
-        duration_ms = round((time.time() - start) * 1000, 1)
 
-        logger.info(
-            "%s %s %s %sms",
-            request.method,
-            request.url.path,
-            response.status_code,
-            duration_ms,
-        )
+        async def send_with_logging(message):
+            if message["type"] == "http.response.start":
+                duration_ms = round((time.time() - start) * 1000, 1)
+                logger.info(
+                    "%s %s %s %sms",
+                    scope["method"],
+                    scope["path"],
+                    message["status"],
+                    duration_ms,
+                )
+                headers = list(message.get("headers", []))
+                headers.append((b"x-response-time", str(duration_ms).encode()))
+                message = {**message, "headers": headers}
+            await send(message)
 
-        response.headers["X-Response-Time"] = f"{duration_ms}ms"
-
-        return response
+        await self.app(scope, receive, send_with_logging)
 
 
 # ============ Rate Limiting Middleware ============
 
-class RateLimitMiddleware(BaseHTTPMiddleware):
-    """
-    Simple in-memory rate limiter per IP.
-    Limits to max_requests per window_seconds.
-    """
+class RateLimitMiddleware:
+    """Simple in-memory rate limiter per IP (pure ASGI)."""
 
-    def __init__(self, app, max_requests: int = 100, window_seconds: int = 60):
-        super().__init__(app)
+    def __init__(self, app: ASGIApp, max_requests: int = 100, window_seconds: int = 60):
+        self.app = app
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self.requests: dict[str, list[float]] = defaultdict(list)
 
-    def _get_client_ip(self, request: Request) -> str:
-        forwarded = request.headers.get("X-Forwarded-For")
+    def _get_client_ip(self, scope: Scope) -> str:
+        headers = dict(scope.get("headers", []))
+        forwarded = headers.get(b"x-forwarded-for")
         if forwarded:
-            return forwarded.split(",")[0].strip()
-        return request.client.host if request.client else "unknown"
+            return forwarded.decode().split(",")[0].strip()
+        client = scope.get("client")
+        return client[0] if client else "unknown"
 
     def _clean_old_requests(self, ip: str, now: float):
         cutoff = now - self.window_seconds
         self.requests[ip] = [t for t in self.requests[ip] if t > cutoff]
 
-    async def dispatch(self, request: Request, call_next):
-        # Skip rate limiting for health checks
-        if request.url.path in ("/", "/health"):
-            return await call_next(request)
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        if scope["type"] != "http" or scope["path"] in ("/", "/health"):
+            await self.app(scope, receive, send)
+            return
 
-        ip = self._get_client_ip(request)
+        ip = self._get_client_ip(scope)
         now = time.time()
-
         self._clean_old_requests(ip, now)
 
         if len(self.requests[ip]) >= self.max_requests:
-            return JSONResponse(
+            response = JSONResponse(
                 status_code=429,
                 content={
                     "detail": "Demasiadas solicitudes. Intenta de nuevo en un momento.",
@@ -101,33 +123,33 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 },
                 headers={"Retry-After": str(self.window_seconds)},
             )
+            await response(scope, receive, send)
+            return
 
         self.requests[ip].append(now)
-
-        response = await call_next(request)
-
         remaining = self.max_requests - len(self.requests[ip])
-        response.headers["X-RateLimit-Limit"] = str(self.max_requests)
-        response.headers["X-RateLimit-Remaining"] = str(max(0, remaining))
 
-        return response
+        async def send_with_rate_headers(message):
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                headers.extend([
+                    (b"x-ratelimit-limit", str(self.max_requests).encode()),
+                    (b"x-ratelimit-remaining", str(max(0, remaining)).encode()),
+                ])
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, send_with_rate_headers)
 
 
 # ============ License Enforcement Middleware ============
 
-class LicenseEnforcementMiddleware(BaseHTTPMiddleware):
+class LicenseEnforcementMiddleware:
     """
-    Checks subscription status on authenticated requests.
-    - active/trial: allow all
-    - past_due: allow all (7-day grace before moving to grace_period)
-    - grace_period: read-only (GET allowed, mutations blocked)
-    - suspended: only /auth/me, /suscripcion/*, /gdpr/* allowed
-    - cancelled: only /auth/me, /suscripcion/*, /gdpr/* allowed
-
-    Uses in-memory cache with 5-minute TTL to avoid DB queries on every request.
+    License check placeholder (pure ASGI).
+    Currently pass-through - real enforcement in security/dependencies.py.
     """
 
-    # Paths that are always allowed regardless of subscription status
     ALWAYS_ALLOWED_PATHS = {
         "/", "/health", "/docs", "/redoc", "/openapi.json",
         "/v1/auth/login", "/v1/auth/register", "/v1/auth/refresh", "/v1/auth/logout",
@@ -147,42 +169,11 @@ class LicenseEnforcementMiddleware(BaseHTTPMiddleware):
         "/v1/stripe/",
     )
 
-    def __init__(self, app):
-        super().__init__(app)
-        self._cache: dict[str, tuple[str, float]] = {}  # org_id -> (status, timestamp)
-        self._cache_ttl = 300  # 5 minutes
+    def __init__(self, app: ASGIApp):
+        self.app = app
+        self._cache: dict[str, tuple[str, float]] = {}
+        self._cache_ttl = 300
 
-    def _get_cached_status(self, org_id: str) -> str | None:
-        if org_id in self._cache:
-            status, ts = self._cache[org_id]
-            if time.time() - ts < self._cache_ttl:
-                return status
-            del self._cache[org_id]
-        return None
-
-    def _set_cached_status(self, org_id: str, status: str):
-        self._cache[org_id] = (status, time.time())
-
-    async def dispatch(self, request: Request, call_next):
-        path = request.url.path
-
-        # Always allow certain paths
-        if path in self.ALWAYS_ALLOWED_PATHS:
-            return await call_next(request)
-
-        for prefix in self.ALWAYS_ALLOWED_PREFIXES:
-            if path.startswith(prefix):
-                return await call_next(request)
-
-        # Only check authenticated requests (has Authorization header)
-        auth_header = request.headers.get("authorization")
-        if not auth_header:
-            return await call_next(request)
-
-        # Try to extract org_id from the request (set by auth dependency)
-        # This middleware runs before dependencies, so we need to check subscription
-        # based on the token. For efficiency, we rely on the require_permission
-        # dependency for actual enforcement and only do a lightweight check here.
-        # The real enforcement happens in security/dependencies.py
-
-        return await call_next(request)
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        # Pass through - actual enforcement in dependencies
+        await self.app(scope, receive, send)
