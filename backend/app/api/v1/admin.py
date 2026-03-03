@@ -537,5 +537,5 @@ async def admin_delete_user(
 async def admin_list_planes(admin: UsuarioResponse = Depends(require_superadmin)):
     """Lista todos los planes disponibles."""
     supabase = get_supabase()
-    result = supabase.table("planes").select("*").eq("activo", True).order("precio_mensual").execute()
+    result = supabase.table("planes").select("*").eq("activo", True).order("precio_mensual_cents").execute()
     return result.data or []
