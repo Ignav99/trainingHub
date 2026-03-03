@@ -1595,13 +1595,18 @@ Responde SOLO con JSON válido:
                 total_output_tokens += response.usage.output_tokens
 
             except anthropic.APIConnectionError as e:
-                logger.error(f"Claude connection error in session design: {e}")
+                cause = e.__cause__
+                logger.error(
+                    f"Claude connection error in session design: {e} | "
+                    f"cause={type(cause).__name__}: {cause}" if cause else f"Claude connection error: {e}",
+                    exc_info=True,
+                )
                 raise ClaudeError("Error de conexion con Claude. Inténtalo de nuevo en unos segundos.")
             except anthropic.RateLimitError as e:
                 logger.error(f"Claude rate limit in session design: {e}")
                 raise ClaudeError("Claude está saturado. Espera unos segundos e inténtalo de nuevo.")
             except anthropic.APIError as e:
-                logger.error(f"Claude API error in session design: {e}")
+                logger.error(f"Claude API error in session design: status={e.status_code} body={e.body}", exc_info=True)
                 raise ClaudeError(f"Error de comunicacion con Claude: {str(e)}")
 
             logger.info(f"Session design iteration {iteration}: stop_reason={response.stop_reason}, "
