@@ -149,8 +149,13 @@ async def admin_list_organizaciones(admin: UsuarioResponse = Depends(require_sup
             .execute()
         )
 
-        subs = org.pop("suscripciones", [])
-        sub = subs[0] if subs else None
+        subs = org.pop("suscripciones", None)
+        if isinstance(subs, dict):
+            sub = subs
+        elif isinstance(subs, list):
+            sub = subs[0] if subs else None
+        else:
+            sub = None
 
         result.append({
             **org,
