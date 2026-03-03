@@ -475,7 +475,7 @@ async def admin_create_invite(
         "token_hash": token_hash,
         "estado": "pendiente",
         "expira_en": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
-        "invitado_por": admin.id,
+        "invitado_por": str(admin.id),
     }
     if data.rol_organizacion:
         invite_data["rol_organizacion"] = data.rol_organizacion
