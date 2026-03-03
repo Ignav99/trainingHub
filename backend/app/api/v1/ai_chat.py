@@ -188,7 +188,7 @@ async def chat_with_ai(
         modelo = result.get("modelo")
 
     except Exception as e:
-        logger.error(f"Error in Claude AI chat: {e}")
+        logger.error(f"Error in Claude AI chat: {e}", exc_info=True)
         ai_response = (
             "Lo siento, hubo un error procesando tu consulta. "
             "Por favor, intenta de nuevo."

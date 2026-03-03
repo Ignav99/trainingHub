@@ -479,7 +479,7 @@ async def task_design_chat(
         raise HTTPException(status_code=400, detail="Se requiere equipo_id")
 
     try:
-        from app.services.claude_service import ClaudeService
+        from app.services.claude_service import ClaudeService, ClaudeError
 
         claude = ClaudeService()
         result = await claude.task_design_chat(
@@ -494,11 +494,19 @@ async def task_design_chat(
             herramientas_usadas=result.get("herramientas_usadas", []),
         )
 
+    except ClaudeError as e:
+        logger.error(f"ClaudeError in task design chat: {e}")
+        error_msg = str(e)
+        if "conexion" in error_msg.lower():
+            raise HTTPException(status_code=503, detail=error_msg)
+        elif "saturado" in error_msg.lower():
+            raise HTTPException(status_code=429, detail=error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
     except Exception as e:
-        logger.error(f"Error in task design chat: {e}")
+        logger.error(f"Unexpected error in task design chat: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Error al comunicarse con la IA: {str(e)}"
+            detail="Error inesperado al comunicarse con la IA. Inténtalo de nuevo."
         )
 
 

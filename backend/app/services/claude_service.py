@@ -15,6 +15,24 @@ from app.database import get_supabase
 
 logger = logging.getLogger(__name__)
 
+# Singleton AsyncAnthropic client — reused across requests for connection pooling
+_async_client: anthropic.AsyncAnthropic | None = None
+
+
+def _get_async_client() -> anthropic.AsyncAnthropic:
+    """Return a shared AsyncAnthropic client (created once, reused)."""
+    global _async_client
+    if _async_client is None:
+        settings = get_settings()
+        if not settings.ANTHROPIC_API_KEY:
+            raise ClaudeError("ANTHROPIC_API_KEY no configurada")
+        _async_client = anthropic.AsyncAnthropic(
+            api_key=settings.ANTHROPIC_API_KEY,
+            timeout=120.0,
+            max_retries=3,
+        )
+    return _async_client
+
 
 class ClaudeError(Exception):
     """Error en la comunicacion con Claude API."""
@@ -1078,19 +1096,10 @@ def _tool_mejores_practicas(params: dict) -> str:
 # ============ Claude Service ============
 
 class ClaudeService:
-    """Servicio para interactuar con Claude API con tool use."""
+    """Servicio para interactuar con Claude API con tool use (async)."""
 
     def __init__(self):
-        settings = get_settings()
-
-        if not settings.ANTHROPIC_API_KEY:
-            raise ClaudeError("ANTHROPIC_API_KEY no configurada")
-
-        self.client = anthropic.Anthropic(
-            api_key=settings.ANTHROPIC_API_KEY,
-            timeout=300.0,  # 5 min timeout for large requests
-            max_retries=2,  # Retry on connection errors
-        )
+        self.client = _get_async_client()
         self.model = "claude-sonnet-4-5-20250929"
 
     async def chat(
@@ -1143,7 +1152,7 @@ class ClaudeService:
                 if tools:
                     kwargs["tools"] = tools
 
-                response = self.client.messages.create(**kwargs)
+                response = await self.client.messages.create(**kwargs)
 
                 total_input_tokens += response.usage.input_tokens
                 total_output_tokens += response.usage.output_tokens
@@ -1160,6 +1169,12 @@ class ClaudeService:
                         f"input={usage.input_tokens}, output={usage.output_tokens}"
                     )
 
+            except anthropic.APIConnectionError as e:
+                logger.error(f"Claude connection error in chat: {e}")
+                raise ClaudeError("Error de conexion con Claude. Inténtalo de nuevo en unos segundos.")
+            except anthropic.RateLimitError as e:
+                logger.error(f"Claude rate limit in chat: {e}")
+                raise ClaudeError("Claude está saturado. Espera unos segundos e inténtalo de nuevo.")
             except anthropic.APIError as e:
                 logger.error(f"Claude API error: {e}")
                 raise ClaudeError(f"Error de comunicacion con Claude: {str(e)}")
@@ -1293,7 +1308,7 @@ class ClaudeService:
         )
 
         try:
-            response = self.client.messages.create(
+            response = await self.client.messages.create(
                 model=self.model,
                 max_tokens=2048,
                 system=system_prompt,
@@ -1307,6 +1322,12 @@ class ClaudeService:
 
             return self._parse_json_response(text)
 
+        except anthropic.APIConnectionError as e:
+            logger.error(f"Claude connection error in edit_task_with_ai: {e}")
+            raise ClaudeError("Error de conexion con Claude. Inténtalo de nuevo en unos segundos.")
+        except anthropic.RateLimitError as e:
+            logger.error(f"Claude rate limit in edit_task_with_ai: {e}")
+            raise ClaudeError("Claude está saturado. Espera unos segundos e inténtalo de nuevo.")
         except anthropic.APIError as e:
             logger.error(f"Claude API error in edit_task_with_ai: {e}")
             raise ClaudeError(f"Error al editar tarea con IA: {str(e)}")
@@ -1385,7 +1406,7 @@ Responde SOLO con JSON válido:
 {{"titulo_sugerido": "...", "resumen": "...", "fases": {{"activacion": {{...}}, "desarrollo_1": {{...}}, "desarrollo_2": {{...}}, "vuelta_calma": {{...}}}}, "coherencia_tactica": "...", "carga_estimada": {{"fisica": "Alta/Media/Baja", "cognitiva": "Alta/Media/Baja", "duracion_total": {duracion_total}}}}}"""
 
         try:
-            response = self.client.messages.create(
+            response = await self.client.messages.create(
                 model=self.model,
                 max_tokens=4096,
                 system=[
@@ -1409,6 +1430,12 @@ Responde SOLO con JSON válido:
 
             return self._parse_json_response(text)
 
+        except anthropic.APIConnectionError as e:
+            logger.error(f"Claude connection error in session recommendations: {e}")
+            raise ClaudeError("Error de conexion con Claude. Inténtalo de nuevo en unos segundos.")
+        except anthropic.RateLimitError as e:
+            logger.error(f"Claude rate limit in session recommendations: {e}")
+            raise ClaudeError("Claude está saturado. Espera unos segundos e inténtalo de nuevo.")
         except anthropic.APIError as e:
             logger.error(f"Claude API error in session recommendations: {e}")
             raise ClaudeError(f"Error generando recomendaciones: {str(e)}")
@@ -1562,7 +1589,7 @@ Responde SOLO con JSON válido:
                     kwargs["tool_choice"] = {"type": "tool", "name": "proponer_sesion"}
                     logger.info("Forcing proponer_sesion tool use (substantial first message)")
 
-                response = self.client.messages.create(**kwargs)
+                response = await self.client.messages.create(**kwargs)
 
                 total_input_tokens += response.usage.input_tokens
                 total_output_tokens += response.usage.output_tokens
@@ -1702,7 +1729,7 @@ Responde SOLO con JSON válido:
                     kwargs["tool_choice"] = {"type": "tool", "name": "proponer_tarea"}
                     logger.info("Forcing proponer_tarea tool use (substantial first message)")
 
-                response = self.client.messages.create(**kwargs)
+                response = await self.client.messages.create(**kwargs)
 
                 total_input_tokens += response.usage.input_tokens
                 total_output_tokens += response.usage.output_tokens

@@ -850,9 +850,17 @@ async def ai_edit_tarea(
             tarea=tarea_actual,
             instruccion=request.instruccion,
         )
+    except ClaudeError as e:
+        logger.error(f"AI edit ClaudeError: {e}")
+        error_msg = str(e)
+        if "conexion" in error_msg.lower():
+            raise HTTPException(status_code=503, detail=error_msg)
+        elif "saturado" in error_msg.lower():
+            raise HTTPException(status_code=429, detail=error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
     except Exception as e:
-        logger.error(f"AI edit error: {e}")
-        raise HTTPException(status_code=500, detail=f"Error al procesar con IA: {str(e)}")
+        logger.error(f"AI edit unexpected error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error inesperado al procesar con IA.")
 
     if not cambios_ia:
         raise HTTPException(status_code=400, detail="La IA no genero cambios")
@@ -1334,7 +1342,7 @@ async def design_session_chat(
         raise HTTPException(status_code=400, detail="Se requiere equipo_id")
 
     try:
-        from app.services.claude_service import ClaudeService
+        from app.services.claude_service import ClaudeService, ClaudeError
 
         claude = ClaudeService()
         result = await claude.session_design_chat(
@@ -1349,9 +1357,17 @@ async def design_session_chat(
             herramientas_usadas=result.get("herramientas_usadas", []),
         )
 
+    except ClaudeError as e:
+        logger.error(f"ClaudeError in session design chat: {e}")
+        error_msg = str(e)
+        if "conexion" in error_msg.lower():
+            raise HTTPException(status_code=503, detail=error_msg)
+        elif "saturado" in error_msg.lower():
+            raise HTTPException(status_code=429, detail=error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
     except Exception as e:
-        logger.error(f"Error in session design chat: {e}")
+        logger.error(f"Unexpected error in session design chat: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Error al comunicarse con la IA: {str(e)}"
+            detail="Error inesperado al comunicarse con la IA. Inténtalo de nuevo."
         )
