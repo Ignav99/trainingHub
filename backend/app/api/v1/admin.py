@@ -71,6 +71,19 @@ class AdminInviteCreate(BaseModel):
     email: str
     nombre: Optional[str] = None
     rol_en_equipo: str = "segundo_entrenador"
+    rol_organizacion: Optional[str] = None
+
+
+class AdminOrgCreate(BaseModel):
+    nombre: str
+    plan_codigo: str = "free_trial"
+    dias_trial: int = 14
+
+
+class AdminTeamCreate(BaseModel):
+    nombre: str
+    categoria: Optional[str] = None
+    temporada: Optional[str] = None
 
 
 # ============ Endpoints ============
@@ -149,6 +162,118 @@ async def admin_list_organizaciones(admin: UsuarioResponse = Depends(require_sup
     return result
 
 
+@router.post("/organizaciones")
+async def admin_create_organizacion(
+    data: AdminOrgCreate,
+    admin: UsuarioResponse = Depends(require_superadmin),
+):
+    """Crea una nueva organizacion con suscripcion inicial."""
+    supabase = get_supabase()
+
+    # Lookup plan
+    plan = (
+        supabase.table("planes")
+        .select("*")
+        .eq("codigo", data.plan_codigo)
+        .single()
+        .execute()
+    )
+    if not plan.data:
+        raise HTTPException(status_code=400, detail=f"Plan '{data.plan_codigo}' no encontrado")
+
+    # Create org
+    org_result = (
+        supabase.table("organizaciones")
+        .insert({"nombre": data.nombre})
+        .execute()
+    )
+    if not org_result.data:
+        raise HTTPException(status_code=500, detail="Error al crear organizacion")
+
+    org = org_result.data[0]
+
+    # Create subscription
+    is_trial = data.plan_codigo == "free_trial" or data.dias_trial > 0
+    sub_data = {
+        "organizacion_id": org["id"],
+        "plan_id": plan.data["id"],
+        "estado": "trial" if is_trial else "active",
+    }
+    if is_trial:
+        sub_data["trial_fin"] = (
+            datetime.now(timezone.utc) + timedelta(days=data.dias_trial)
+        ).isoformat()
+
+    sub_result = supabase.table("suscripciones").insert(sub_data).execute()
+
+    return {
+        "organizacion": org,
+        "suscripcion": sub_result.data[0] if sub_result.data else None,
+    }
+
+
+@router.post("/organizaciones/{org_id}/equipos")
+async def admin_create_equipo(
+    org_id: str,
+    data: AdminTeamCreate,
+    admin: UsuarioResponse = Depends(require_superadmin),
+):
+    """Crea un equipo dentro de una organizacion, verificando limites del plan."""
+    supabase = get_supabase()
+
+    # Verify org exists
+    org = (
+        supabase.table("organizaciones")
+        .select("id")
+        .eq("id", org_id)
+        .single()
+        .execute()
+    )
+    if not org.data:
+        raise HTTPException(status_code=404, detail="Organizacion no encontrada")
+
+    # Check plan limits
+    sub = (
+        supabase.table("suscripciones")
+        .select("*, planes(*)")
+        .eq("organizacion_id", org_id)
+        .execute()
+    )
+    if sub.data:
+        plan_data = sub.data[0].get("planes", {})
+        max_equipos = plan_data.get("max_equipos", 1)
+
+        current_teams = (
+            supabase.table("equipos")
+            .select("id", count="exact")
+            .eq("organizacion_id", org_id)
+            .eq("activo", True)
+            .execute()
+        )
+        if (current_teams.count or 0) >= max_equipos:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Limite de equipos alcanzado ({max_equipos}). Cambia el plan para crear mas.",
+            )
+
+    # Create team
+    team_data = {
+        "organizacion_id": org_id,
+        "nombre": data.nombre,
+        "activo": True,
+    }
+    if data.categoria:
+        team_data["categoria"] = data.categoria
+    if data.temporada:
+        team_data["temporada"] = data.temporada
+
+    result = supabase.table("equipos").insert(team_data).execute()
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Error al crear equipo")
+
+    return result.data[0]
+
+
 @router.get("/organizaciones/{org_id}/detalle")
 async def admin_org_detail(
     org_id: str,
@@ -190,18 +315,50 @@ async def admin_org_detail(
 
     invites = (
         supabase.table("invitaciones")
-        .select("id, email, nombre, rol_en_equipo, estado, token, expira_en, created_at")
+        .select("id, email, nombre, rol_en_equipo, rol_organizacion, estado, token, expira_en, created_at")
         .eq("organizacion_id", org_id)
         .eq("estado", "pendiente")
         .execute()
     )
 
+    # Build plan limits and usage info
+    suscripcion = sub.data[0] if sub.data else None
+    limites = None
+    if suscripcion and suscripcion.get("planes"):
+        p = suscripcion["planes"]
+        active_teams = [t for t in (teams.data or []) if t.get("activo", True)]
+        limites = {
+            "max_equipos": p.get("max_equipos", 1),
+            "max_usuarios_por_equipo": p.get("max_usuarios_por_equipo", 5),
+            "max_jugadores_por_equipo": p.get("max_jugadores_por_equipo", 25),
+            "max_storage_mb": p.get("max_storage_mb", 500),
+            "max_ai_calls_month": p.get("max_ai_calls_month", 50),
+            "equipos_usados": len(active_teams),
+            "uso_storage_mb": suscripcion.get("uso_storage_mb", 0),
+            "uso_ai_calls_month": suscripcion.get("uso_ai_calls_month", 0),
+        }
+
+    # Count members per team
+    teams_with_members = []
+    for team in (teams.data or []):
+        team_members = (
+            supabase.table("usuarios_equipos")
+            .select("id", count="exact")
+            .eq("equipo_id", team["id"])
+            .execute()
+        )
+        teams_with_members.append({
+            **team,
+            "num_miembros": team_members.count or 0,
+        })
+
     return {
         "organizacion": org.data,
         "miembros": members.data or [],
-        "equipos": teams.data or [],
-        "suscripcion": sub.data[0] if sub.data else None,
+        "equipos": teams_with_members,
+        "suscripcion": suscripcion,
         "invitaciones_pendientes": invites.data or [],
+        "limites": limites,
     }
 
 
@@ -315,6 +472,8 @@ async def admin_create_invite(
         "expira_en": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
         "invitado_por": admin.id,
     }
+    if data.rol_organizacion:
+        invite_data["rol_organizacion"] = data.rol_organizacion
 
     result = supabase.table("invitaciones").insert(invite_data).execute()
 
