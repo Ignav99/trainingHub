@@ -150,10 +150,7 @@ export default function SesionesPage() {
   const handleGeneratePdf = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
     try {
-      const result = await sesionesApi.generatePdf(id)
-      if (result.pdf_url) {
-        window.open(result.pdf_url, '_blank')
-      }
+      await sesionesApi.generatePdf(id)
     } catch (err) {
       console.error('Error generating PDF:', err)
       alert('Error al generar el PDF')

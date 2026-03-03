@@ -392,7 +392,7 @@ export default function NuevaSesionAIPage() {
       const allMateriales = fases
         .flatMap((f: FaseData) => f.material_necesario || [])
         .filter(Boolean)
-      const uniqueMateriales = [...new Set(allMateriales)]
+      const uniqueMateriales = Array.from(new Set(allMateriales))
 
       const sessionData: SesionCreateData = {
         titulo: sessionTitle || proposal.titulo_sugerido,
