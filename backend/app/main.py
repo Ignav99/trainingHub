@@ -165,26 +165,30 @@ async def debug_test_claude():
     import anthropic as anth
     from fastapi.responses import JSONResponse
 
-    api_key = settings.ANTHROPIC_API_KEY
-    if not api_key:
+    raw_key = settings.ANTHROPIC_API_KEY
+    if not raw_key:
         return JSONResponse(status_code=503, content={"error": "ANTHROPIC_API_KEY not set"})
+
+    # Clean the key (remove newlines, spaces from copy-paste in Render)
+    api_key = "".join(raw_key.split())
 
     # Show key info (masked)
     key_info = f"{api_key[:12]}...{api_key[-4:]}" if len(api_key) > 16 else "TOO_SHORT"
     key_len = len(api_key)
+    raw_len = len(raw_key)
 
     # Check for common issues
     issues = []
-    if api_key != api_key.strip():
-        issues.append("KEY_HAS_WHITESPACE")
-    if '"' in api_key or "'" in api_key:
+    if raw_key != api_key:
+        issues.append("KEY_HAD_WHITESPACE_OR_NEWLINES (auto-cleaned)")
+    if '"' in raw_key or "'" in raw_key:
         issues.append("KEY_HAS_QUOTES")
     if not api_key.startswith("sk-ant-"):
         issues.append("KEY_WRONG_PREFIX")
 
     # Test actual connection
     try:
-        client = anth.AsyncAnthropic(api_key=api_key.strip(), timeout=30.0)
+        client = anth.AsyncAnthropic(api_key=api_key, timeout=30.0)
         response = await client.messages.create(
             model="claude-sonnet-4-5-20250929",
             max_tokens=10,

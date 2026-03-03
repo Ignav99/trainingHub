@@ -26,8 +26,10 @@ def _get_async_client() -> anthropic.AsyncAnthropic:
         settings = get_settings()
         if not settings.ANTHROPIC_API_KEY:
             raise ClaudeError("ANTHROPIC_API_KEY no configurada")
+        # Clean the key: Render env vars sometimes include newlines/spaces from copy-paste
+        clean_key = "".join(settings.ANTHROPIC_API_KEY.split())
         _async_client = anthropic.AsyncAnthropic(
-            api_key=settings.ANTHROPIC_API_KEY,
+            api_key=clean_key,
             timeout=120.0,
             max_retries=3,
         )
