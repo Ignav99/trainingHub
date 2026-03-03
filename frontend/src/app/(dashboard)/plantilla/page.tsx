@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import useSWR, { mutate } from 'swr'
 import {
   Plus,
   Search,
@@ -28,8 +29,9 @@ import {
   ChevronDown
 } from 'lucide-react'
 import { Jugador, jugadoresApi, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
 import { useEquipoStore } from '@/stores/equipoStore'
+import { apiKey } from '@/lib/swr'
+import { CardGridSkeleton } from '@/components/ui/page-skeletons'
 
 // Avatar del jugador
 function PlayerAvatar({ jugador, size = 'md' }: { jugador: Jugador; size?: 'sm' | 'md' | 'lg' }) {
@@ -349,13 +351,11 @@ function EstadoModal({
 export default function PlantillaPage() {
   const router = useRouter()
   const { equipos, equipoActivo, setEquipoActivo, loadEquipos, isLoading: equiposLoading } = useEquipoStore()
-  const [jugadores, setJugadores] = useState<Jugador[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [equipoDropdownOpen, setEquipoDropdownOpen] = useState(false)
 
   // Filtros
   const [busqueda, setBusqueda] = useState('')
+  const [busquedaActiva, setBusquedaActiva] = useState('')
   const [posicionFilter, setPosicionFilter] = useState('')
   const [estadoFilter, setEstadoFilter] = useState('')
   const [showFilters, setShowFilters] = useState(false)
@@ -363,71 +363,54 @@ export default function PlantillaPage() {
   // Modal estado
   const [estadoModal, setEstadoModal] = useState<Jugador | null>(null)
 
-  // Estadisticas
-  const [stats, setStats] = useState<{
-    total: number
-    disponibles: number
-    noDisponibles: number
-    porZona: Record<string, number>
-  } | null>(null)
-
-  usePageReady(loading)
-
   // Cargar equipos al montar
   useEffect(() => {
     loadEquipos()
   }, [loadEquipos])
 
-  // Cargar jugadores cuando cambia el equipo activo
-  useEffect(() => {
-    if (equipoActivo) {
-      loadJugadores()
+  const equipoId = equipoActivo?.id
+
+  // SWR para jugadores
+  const { data: jugadoresResponse, isLoading: loading, error: swrError } = useSWR<{ data: Jugador[]; total: number }>(
+    apiKey('/jugadores', {
+      equipo_id: equipoId,
+      posicion: posicionFilter || undefined,
+      estado: estadoFilter || undefined,
+      busqueda: busquedaActiva || undefined,
+    }, ['equipo_id'])
+  )
+
+  const jugadores = jugadoresResponse?.data || []
+  const error = swrError ? 'Error al cargar la plantilla' : null
+
+  // Calcular stats derivados de los datos
+  const stats = useMemo(() => {
+    if (jugadores.length === 0 && !jugadoresResponse) return null
+
+    const disponibles = jugadores.filter((j) => j.estado === 'activo').length
+    const porZona: Record<string, number> = { porteria: 0, defensa: 0, mediocampo: 0, ataque: 0 }
+    jugadores.forEach((j) => {
+      const pos = POSICIONES[j.posicion_principal as keyof typeof POSICIONES]
+      if (pos) {
+        porZona[pos.zona] = (porZona[pos.zona] || 0) + 1
+      }
+    })
+
+    return {
+      total: jugadores.length,
+      disponibles,
+      noDisponibles: jugadores.length - disponibles,
+      porZona,
     }
-  }, [equipoActivo, posicionFilter, estadoFilter])
-
-  const loadJugadores = async () => {
-    if (!equipoActivo) return
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      const response = await jugadoresApi.list({
-        equipo_id: equipoActivo.id,
-        posicion: posicionFilter || undefined,
-        estado: estadoFilter || undefined,
-        busqueda: busqueda || undefined,
-      })
-
-      setJugadores(response.data)
-
-      // Calcular stats
-      const disponibles = response.data.filter((j) => j.estado === 'activo').length
-      const porZona: Record<string, number> = { porteria: 0, defensa: 0, mediocampo: 0, ataque: 0 }
-      response.data.forEach((j) => {
-        const pos = POSICIONES[j.posicion_principal as keyof typeof POSICIONES]
-        if (pos) {
-          porZona[pos.zona] = (porZona[pos.zona] || 0) + 1
-        }
-      })
-
-      setStats({
-        total: response.data.length,
-        disponibles,
-        noDisponibles: response.data.length - disponibles,
-        porZona,
-      })
-    } catch (err) {
-      setError('Error al cargar la plantilla')
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [jugadores, jugadoresResponse])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    loadJugadores()
+    setBusquedaActiva(busqueda)
+  }
+
+  const invalidateJugadores = () => {
+    mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'), undefined, { revalidate: true })
   }
 
   const handleDelete = async (id: string) => {
@@ -435,7 +418,7 @@ export default function PlantillaPage() {
 
     try {
       await jugadoresApi.delete(id)
-      loadJugadores()
+      invalidateJugadores()
     } catch (err) {
       console.error('Error deleting jugador:', err)
     }
@@ -447,7 +430,7 @@ export default function PlantillaPage() {
     try {
       await jugadoresApi.updateEstado(estadoModal.id, estado, motivo, fechaVuelta)
       setEstadoModal(null)
-      loadJugadores()
+      invalidateJugadores()
     } catch (err) {
       console.error('Error updating estado:', err)
     }
@@ -455,6 +438,7 @@ export default function PlantillaPage() {
 
   const clearFilters = () => {
     setBusqueda('')
+    setBusquedaActiva('')
     setPosicionFilter('')
     setEstadoFilter('')
   }
@@ -485,11 +469,7 @@ export default function PlantillaPage() {
 
   // Si no hay equipos cargados, mostrar loading o error
   if (equiposLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    )
+    return <CardGridSkeleton />
   }
 
   if (equipos.length === 0) {
@@ -675,7 +655,7 @@ export default function PlantillaPage() {
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
           <p className="text-red-600 mb-4">{error}</p>
           <button
-            onClick={loadJugadores}
+            onClick={invalidateJugadores}
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
           >
             Reintentar

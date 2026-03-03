@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import useSWR, { mutate } from 'swr'
 import {
   ChevronLeft,
   Save,
@@ -20,12 +21,9 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-import { Skeleton } from '@/components/ui/skeleton'
-import { PageLoader } from '@/components/ui/page-loader'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
+import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { partidosApi } from '@/lib/api/partidos'
-import { convocatoriasApi } from '@/lib/api/convocatorias'
 import { formatDate } from '@/lib/utils'
 import type { Partido, Convocatoria } from '@/types'
 
@@ -110,48 +108,37 @@ export default function MatchPlanPage() {
   const { equipoActivo } = useEquipoStore()
   const id = params.id as string
 
-  const [partido, setPartido] = useState<Partido | null>(null)
-  const [convocatoria, setConvocatoria] = useState<Convocatoria[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: partido, isLoading: loadingPartido } = useSWR<Partido>(
+    id ? `/partidos/${id}` : null
+  )
+  const { data: convoData, isLoading: loadingConvo } = useSWR<{ data: Convocatoria[]; total: number }>(
+    id ? `/convocatorias/partido/${id}` : null
+  )
+
+  const convocatoria = convoData?.data || []
+  const loading = loadingPartido || loadingConvo
+
   const [saving, setSaving] = useState(false)
   const [plan, setPlan] = useState<PlanData>(EMPTY_PLAN)
   const [hasChanges, setHasChanges] = useState(false)
+  const [planInitialized, setPlanInitialized] = useState(false)
 
+  // Parse plan from notas_pre when partido data loads
   useEffect(() => {
-    if (!id) return
-    loadData()
-  }, [id])
-
-  usePageReady(loading)
-
-  const loadData = async () => {
-    setLoading(true)
-    try {
-      const [partidoData, convoData] = await Promise.all([
-        partidosApi.get(id),
-        convocatoriasApi.listByPartido(id).catch(() => ({ data: [], total: 0 })),
-      ])
-      setPartido(partidoData)
-      setConvocatoria(convoData.data || [])
-
-      // Parse plan from notas_pre if it's JSON
-      if (partidoData.notas_pre) {
-        try {
-          const parsed = JSON.parse(partidoData.notas_pre)
-          if (parsed.enfoque_tactico !== undefined) {
-            setPlan(parsed)
-          }
-        } catch {
-          // Not JSON - use as enfoque_tactico
-          setPlan({ ...EMPTY_PLAN, enfoque_tactico: partidoData.notas_pre })
+    if (!partido || planInitialized) return
+    if (partido.notas_pre) {
+      try {
+        const parsed = JSON.parse(partido.notas_pre)
+        if (parsed.enfoque_tactico !== undefined) {
+          setPlan(parsed)
         }
+      } catch {
+        // Not JSON - use as enfoque_tactico
+        setPlan({ ...EMPTY_PLAN, enfoque_tactico: partido.notas_pre })
       }
-    } catch (err) {
-      console.error('Error loading match data:', err)
-    } finally {
-      setLoading(false)
     }
-  }
+    setPlanInitialized(true)
+  }, [partido, planInitialized])
 
   const handlePlanChange = (key: keyof PlanData, value: string) => {
     setPlan((prev) => ({ ...prev, [key]: value }))
@@ -163,6 +150,7 @@ export default function MatchPlanPage() {
     setSaving(true)
     try {
       await partidosApi.update(id, { notas_pre: JSON.stringify(plan) })
+      mutate((key: string) => typeof key === 'string' && key.includes('/partidos'), undefined, { revalidate: true })
       setHasChanges(false)
     } catch (err) {
       console.error('Error saving plan:', err)
@@ -180,7 +168,7 @@ export default function MatchPlanPage() {
   const suplentes = convocatoria.filter((c) => !c.titular)
 
   if (loading) {
-    return <PageLoader />
+    return <DetailPageSkeleton />
   }
 
   if (!partido) {

@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import useSWR, { mutate } from 'swr'
 import {
   Swords,
   ChevronLeft,
@@ -22,7 +23,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Skeleton } from '@/components/ui/skeleton'
 import {
   Dialog,
   DialogContent,
@@ -31,8 +31,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { PageLoader } from '@/components/ui/page-loader'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
+import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { partidosApi } from '@/lib/api/partidos'
 import { formatDate } from '@/lib/utils'
@@ -50,8 +49,9 @@ export default function PartidoDetailPage() {
   const { equipoActivo } = useEquipoStore()
   const id = params.id as string
 
-  const [partido, setPartido] = useState<Partido | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { data: partido, isLoading } = useSWR<Partido>(
+    id ? `/partidos/${id}` : null
+  )
 
   // Result dialog
   const [showResult, setShowResult] = useState(false)
@@ -65,28 +65,16 @@ export default function PartidoDetailPage() {
   const [showDelete, setShowDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
-  useEffect(() => {
-    if (!id) return
-    setLoading(true)
-    partidosApi
-      .get(id)
-      .then(setPartido)
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [id])
-
-  usePageReady(loading)
-
   const handleSaveResult = async () => {
     setSaving(true)
     try {
-      const updated = await partidosApi.registrarResultado(
+      await partidosApi.registrarResultado(
         id,
         resultForm.goles_favor,
         resultForm.goles_contra,
         resultForm.notas_post || undefined
       )
-      setPartido(updated)
+      mutate((key: string) => typeof key === 'string' && key.includes('/partidos'), undefined, { revalidate: true })
       setShowResult(false)
     } catch (err: any) {
       alert(err.message || 'Error al registrar resultado')
@@ -101,7 +89,7 @@ export default function PartidoDetailPage() {
       const result = await partidosApi.generarInforme(id)
       if (result.informe_url) {
         window.open(result.informe_url, '_blank')
-        setPartido((prev) => prev ? { ...prev, informe_url: result.informe_url } : prev)
+        mutate((key: string) => typeof key === 'string' && key.includes('/partidos'), undefined, { revalidate: true })
       }
     } catch (err: any) {
       alert(err.message || 'Error al generar el informe')
@@ -114,6 +102,7 @@ export default function PartidoDetailPage() {
     setDeleting(true)
     try {
       await partidosApi.delete(id)
+      mutate((key: string) => typeof key === 'string' && key.includes('/partidos'), undefined, { revalidate: true })
       router.push('/partidos')
     } catch (err) {
       console.error(err)
@@ -122,8 +111,8 @@ export default function PartidoDetailPage() {
     }
   }
 
-  if (loading) {
-    return <PageLoader />
+  if (isLoading) {
+    return <DetailPageSkeleton />
   }
 
   if (!partido) {

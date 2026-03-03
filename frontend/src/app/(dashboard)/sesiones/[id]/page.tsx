@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import useSWR, { mutate } from 'swr'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -60,8 +61,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
-import { PageLoader } from '@/components/ui/page-loader'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
+import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { sesionesApi, SesionUpdateData } from '@/lib/api/sesiones'
 import { tareasApi } from '@/lib/api/tareas'
 import { jugadoresApi } from '@/lib/api/jugadores'
@@ -660,10 +660,20 @@ export default function SesionDetailPage() {
   const router = useRouter()
   const sesionId = params.id as string
 
-  // Core state
+  // Core data fetching via SWR
+  const { data: sesionData, error: swrError, isLoading } = useSWR<Sesion>(
+    sesionId ? `/sesiones/${sesionId}` : null
+  )
   const [sesion, setSesion] = useState<Sesion | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const loading = isLoading && !sesion
+  const error = swrError ? (swrError.message || 'Error al cargar la sesion') : null
+
+  // Sync SWR data to local state (local state is needed for optimistic mutations)
+  useEffect(() => {
+    if (sesionData) {
+      setSesion(sesionData)
+    }
+  }, [sesionData])
 
   // Action states
   const [deleting, setDeleting] = useState(false)
@@ -717,22 +727,6 @@ export default function SesionDetailPage() {
   }
 
   // ============ Load data ============
-  useEffect(() => {
-    loadSesion()
-  }, [sesionId])
-
-  const loadSesion = async () => {
-    try {
-      setLoading(true)
-      const data = await sesionesApi.get(sesionId)
-      setSesion(data)
-    } catch (err: any) {
-      setError(err.message || 'Error al cargar la sesion')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const loadJugadores = async () => {
     if (!sesion?.equipo_id || jugadores.length > 0) return
     try {
@@ -773,6 +767,7 @@ export default function SesionDetailPage() {
     try {
       await sesionesApi.update(sesionId, { estado: nuevoEstado } as SesionUpdateData)
       setSesion((prev) => prev ? { ...prev, estado: nuevoEstado } : prev)
+      mutate((key: string) => typeof key === 'string' && key.includes('/sesiones'), undefined, { revalidate: true })
     } catch (err) {
       console.error('Error updating estado:', err)
     }
@@ -784,9 +779,10 @@ export default function SesionDetailPage() {
     setDeleting(true)
     try {
       await sesionesApi.delete(sesionId)
+      mutate((key: string) => typeof key === 'string' && key.includes('/sesiones'), undefined, { revalidate: true })
       router.push('/sesiones')
     } catch (err: any) {
-      setError(err.message || 'Error al eliminar')
+      alert(err.message || 'Error al eliminar')
       setDeleting(false)
     }
   }
@@ -1139,15 +1135,13 @@ export default function SesionDetailPage() {
     return a?.presente ?? true
   }).length
 
-  usePageReady(loading)
-
   // ============ Derived ============
   const completedFases = ALL_FASES.filter((f) => tareasByFase[f]?.length > 0)
   const totalDuration = allTareas.reduce((sum, st) => sum + (st.duracion_override || st.tarea?.duracion_total || 0), 0)
 
   // ============ Render ============
   if (loading) {
-    return <PageLoader />
+    return <DetailPageSkeleton />
   }
 
   if (error || !sesion) {

@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
+import useSWR, { mutate } from 'swr'
 import {
   Shield,
   Plus,
@@ -17,7 +18,6 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Skeleton } from '@/components/ui/skeleton'
 import {
   Dialog,
   DialogContent,
@@ -25,14 +25,23 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
+import { apiKey } from '@/lib/swr'
+import { CardGridSkeleton } from '@/components/ui/page-skeletons'
 import { rivalesApi, RivalCreateData } from '@/lib/api/partidos'
-import type { Rival } from '@/types'
+import type { Rival, PaginatedResponse } from '@/types'
 
 export default function RivalesPage() {
-  const [rivales, setRivales] = useState<Rival[]>([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+
+  // SWR for rivales list
+  const { data: rivalesResponse, isLoading: loading } = useSWR<PaginatedResponse<Rival>>(
+    apiKey('/rivales', {
+      busqueda: search || undefined,
+      orden: 'nombre',
+      direccion: 'asc',
+    })
+  )
+  const rivales = rivalesResponse?.data || []
 
   // Create/Edit dialog
   const [showForm, setShowForm] = useState(false)
@@ -51,24 +60,6 @@ export default function RivalesPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  const fetchRivales = async () => {
-    setLoading(true)
-    try {
-      const res = await rivalesApi.list({ busqueda: search || undefined, orden: 'nombre', direccion: 'asc' })
-      setRivales(res?.data || [])
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  usePageReady(loading)
-
-  useEffect(() => {
-    fetchRivales()
-  }, [search])
-
   const handleSave = async () => {
     if (!form.nombre.trim()) return
     setSaving(true)
@@ -81,7 +72,7 @@ export default function RivalesPage() {
       setShowForm(false)
       setEditingId(null)
       setForm({ nombre: '', nombre_corto: '', escudo_url: '', estadio: '', ciudad: '', notas: '' })
-      fetchRivales()
+      mutate((key: string) => typeof key === 'string' && key.includes('/rivales'), undefined, { revalidate: true })
     } catch (err: any) {
       alert(err.message || 'Error')
     } finally {
@@ -108,7 +99,7 @@ export default function RivalesPage() {
     try {
       await rivalesApi.delete(deleteId)
       setDeleteId(null)
-      fetchRivales()
+      mutate((key: string) => typeof key === 'string' && key.includes('/rivales'), undefined, { revalidate: true })
     } catch (err) {
       console.error(err)
     } finally {
@@ -146,9 +137,7 @@ export default function RivalesPage() {
 
       {/* List */}
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-28 rounded-lg" />)}
-        </div>
+        <CardGridSkeleton />
       ) : rivales.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">

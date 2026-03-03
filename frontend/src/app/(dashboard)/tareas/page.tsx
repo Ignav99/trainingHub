@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import useSWR, { mutate } from 'swr'
 import {
   Plus,
   Search,
@@ -28,9 +29,10 @@ import {
   FolderOpen,
   Bot
 } from 'lucide-react'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
-import { Tarea, CategoriaTarea } from '@/types'
-import { tareasApi, catalogosApi } from '@/lib/api/tareas'
+import { Tarea, CategoriaTarea, PaginatedResponse } from '@/types'
+import { tareasApi } from '@/lib/api/tareas'
+import { apiKey } from '@/lib/swr'
+import { ListPageSkeleton } from '@/components/ui/page-skeletons'
 
 // Componente Badge de categoría
 function CategoryBadge({ codigo, nombre, color }: { codigo: string; nombre: string; color?: string }) {
@@ -92,15 +94,9 @@ const SORT_OPTIONS = [
 
 export default function TareasPage() {
   const router = useRouter()
-  const [tareas, setTareas] = useState<Tarea[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [categorias, setCategorias] = useState<Array<{ codigo: string; nombre: string; color: string }>>([])
 
   // Paginación
   const [page, setPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [total, setTotal] = useState(0)
   const limit = 12
 
   // Tabs: mis tareas vs biblioteca
@@ -109,6 +105,7 @@ export default function TareasPage() {
   // Filtros
   const [showFilters, setShowFilters] = useState(false)
   const [busqueda, setBusqueda] = useState('')
+  const [busquedaActiva, setBusquedaActiva] = useState('')
   const [categoriaFilter, setCategoriaFilter] = useState('')
   const [faseFilter, setFaseFilter] = useState('')
   const [densidadFilter, setDensidadFilter] = useState('')
@@ -120,15 +117,35 @@ export default function TareasPage() {
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
   const [copying, setCopying] = useState<string | null>(null)
 
-  usePageReady(loading)
+  const [orden, direccion] = sortBy.split(':')
 
-  useEffect(() => {
-    loadCategorias()
-  }, [])
+  // SWR: Categorias
+  const { data: categoriasRes } = useSWR<{ data: Array<{ codigo: string; nombre: string; color: string }> }>(
+    apiKey('/catalogos/categorias-tarea')
+  )
+  const categorias = categoriasRes?.data || []
 
-  useEffect(() => {
-    loadTareas()
-  }, [page, tab, categoriaFilter, faseFilter, densidadFilter, jugadoresMin, jugadoresMax, sortBy])
+  // SWR: Tareas list
+  const { data: tareasRes, error: tareasError, isLoading } = useSWR<PaginatedResponse<Tarea>>(
+    apiKey('/tareas', {
+      page,
+      limit,
+      orden,
+      direccion,
+      categoria: categoriaFilter || undefined,
+      fase_juego: faseFilter || undefined,
+      densidad: densidadFilter || undefined,
+      jugadores_min: jugadoresMin ? parseInt(jugadoresMin) : undefined,
+      jugadores_max: jugadoresMax ? parseInt(jugadoresMax) : undefined,
+      busqueda: busquedaActiva || undefined,
+      biblioteca: tab === 'biblioteca' ? true : undefined,
+    })
+  )
+
+  const tareas = tareasRes?.data || []
+  const totalPages = tareasRes?.pages || 1
+  const total = tareasRes?.total || 0
+  const error = tareasError ? 'Error al cargar las tareas' : null
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -139,51 +156,10 @@ export default function TareasPage() {
     }
   }, [activeMenu])
 
-  const loadCategorias = async () => {
-    try {
-      const response = await catalogosApi.getCategorias()
-      setCategorias(response.data)
-    } catch (err) {
-      console.error('Error loading categorias:', err)
-    }
-  }
-
-  const loadTareas = async () => {
-    setLoading(true)
-    setError(null)
-
-    const [orden, direccion] = sortBy.split(':')
-
-    try {
-      const response = await tareasApi.list({
-        page,
-        limit,
-        orden,
-        direccion: direccion as 'asc' | 'desc',
-        categoria: categoriaFilter || undefined,
-        fase_juego: faseFilter || undefined,
-        densidad: densidadFilter || undefined,
-        jugadores_min: jugadoresMin ? parseInt(jugadoresMin) : undefined,
-        jugadores_max: jugadoresMax ? parseInt(jugadoresMax) : undefined,
-        busqueda: busqueda || undefined,
-        biblioteca: tab === 'biblioteca',
-      })
-
-      setTareas(response.data)
-      setTotalPages(response.pages)
-      setTotal(response.total)
-    } catch (err) {
-      setError('Error al cargar las tareas')
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
+    setBusquedaActiva(busqueda)
     setPage(1)
-    loadTareas()
   }
 
   const handleTabChange = (newTab: 'mis_tareas' | 'biblioteca') => {
@@ -191,11 +167,15 @@ export default function TareasPage() {
     setPage(1)
   }
 
+  const invalidateTareas = () => {
+    mutate((key: string) => typeof key === 'string' && key.includes('/tareas'), undefined, { revalidate: true })
+  }
+
   const handleDuplicate = async (tarea: Tarea, e: React.MouseEvent) => {
     e.stopPropagation()
     try {
       await tareasApi.duplicate(tarea.id)
-      loadTareas()
+      invalidateTareas()
     } catch (err) {
       console.error('Error duplicating tarea:', err)
     }
@@ -207,7 +187,7 @@ export default function TareasPage() {
     setCopying(tarea.id)
     try {
       await tareasApi.duplicate(tarea.id, tarea.titulo)
-      loadTareas()
+      invalidateTareas()
     } catch (err) {
       console.error('Error copying tarea:', err)
     } finally {
@@ -222,7 +202,7 @@ export default function TareasPage() {
 
     try {
       await tareasApi.delete(id)
-      loadTareas()
+      invalidateTareas()
     } catch (err) {
       console.error('Error deleting tarea:', err)
     }
@@ -231,6 +211,7 @@ export default function TareasPage() {
 
   const clearFilters = () => {
     setBusqueda('')
+    setBusquedaActiva('')
     setCategoriaFilter('')
     setFaseFilter('')
     setDensidadFilter('')
@@ -444,15 +425,13 @@ export default function TareasPage() {
       </div>
 
       {/* Lista de tareas */}
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
+      {isLoading ? (
+        <ListPageSkeleton />
       ) : error ? (
         <div className="text-center py-12">
           <p className="text-red-600 mb-4">{error}</p>
           <button
-            onClick={loadTareas}
+            onClick={() => invalidateTareas()}
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
           >
             Reintentar

@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
+import useSWR from 'swr'
 import { BarChart3, Trophy, Target, Shield, Activity, Loader2, ArrowRight, Users, Calendar, UserCheck, UserX } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -9,26 +10,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { PageLoader } from '@/components/ui/page-loader'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
+import { ListPageSkeleton } from '@/components/ui/page-skeletons'
 import { useEquipoStore } from '@/stores/equipoStore'
-import { dashboardApi } from '@/lib/api/dashboard'
-import { partidosApi } from '@/lib/api/partidos'
 import { sesionesApi } from '@/lib/api/sesiones'
-import type { Partido } from '@/types'
-
-interface EstadisticasData {
-  partidos: Partido[]
-  resumen: {
-    jugados: number
-    victorias: number
-    empates: number
-    derrotas: number
-    golesFavor: number
-    golesContra: number
-  }
-  cargaSemanal: { semanas: { semana_inicio: string; rpe_promedio: number }[]; promedio_global: number | null }
-}
+import { apiKey } from '@/lib/swr'
+import type { Partido, PaginatedResponse } from '@/types'
+import type { CargaSemanalData } from '@/lib/api/dashboard'
 
 interface AsistenciaHistorico {
   jugador_id: string
@@ -56,43 +43,45 @@ const MOTIVO_LABELS: Record<string, string> = {
 
 export default function EstadisticasPage() {
   const { equipoActivo } = useEquipoStore()
-  const [data, setData] = useState<EstadisticasData | null>(null)
-  const [loading, setLoading] = useState(true)
 
-  // Asistencia historico state
+  // SWR: partidos jugados
+  const { data: partidosRes, isLoading: loadingPartidos } = useSWR<PaginatedResponse<Partido>>(
+    apiKey('/partidos', {
+      equipo_id: equipoActivo?.id,
+      solo_jugados: true,
+      limit: 50,
+      direccion: 'desc',
+    }, ['equipo_id'])
+  )
+
+  // SWR: carga semanal
+  const { data: cargaSemanal, isLoading: loadingCarga } = useSWR<CargaSemanalData>(
+    apiKey('/dashboard/carga-semanal', {
+      equipo_id: equipoActivo?.id,
+      semanas: 8,
+    }, ['equipo_id'])
+  )
+
+  const loading = loadingPartidos || loadingCarga
+
+  const partidos = partidosRes?.data || []
+
+  const resumen = useMemo(() => {
+    const victorias = partidos.filter((p) => p.resultado === 'victoria').length
+    const empates = partidos.filter((p) => p.resultado === 'empate').length
+    const derrotas = partidos.filter((p) => p.resultado === 'derrota').length
+    const golesFavor = partidos.reduce((s, p) => s + (p.goles_favor || 0), 0)
+    const golesContra = partidos.reduce((s, p) => s + (p.goles_contra || 0), 0)
+    return { jugados: partidos.length, victorias, empates, derrotas, golesFavor, golesContra }
+  }, [partidos])
+
+  // Asistencia historico state (loaded on-demand when tab is clicked)
   const [asistenciaData, setAsistenciaData] = useState<AsistenciaHistorico[]>([])
   const [asistenciaMedia, setAsistenciaMedia] = useState(0)
   const [asistenciaLoading, setAsistenciaLoading] = useState(false)
   const [asistenciaLoaded, setAsistenciaLoaded] = useState(false)
   const [fechaDesde, setFechaDesde] = useState('')
   const [fechaHasta, setFechaHasta] = useState('')
-
-  useEffect(() => {
-    if (!equipoActivo?.id) return
-
-    setLoading(true)
-
-    Promise.all([
-      partidosApi.list({ equipo_id: equipoActivo.id, solo_jugados: true, limit: 50, direccion: 'desc' }),
-      dashboardApi.getCargaSemanal(equipoActivo.id, 8),
-    ])
-      .then(([partidosRes, cargaRes]) => {
-        const partidos = partidosRes.data
-        const victorias = partidos.filter((p) => p.resultado === 'victoria').length
-        const empates = partidos.filter((p) => p.resultado === 'empate').length
-        const derrotas = partidos.filter((p) => p.resultado === 'derrota').length
-        const golesFavor = partidos.reduce((s, p) => s + (p.goles_favor || 0), 0)
-        const golesContra = partidos.reduce((s, p) => s + (p.goles_contra || 0), 0)
-
-        setData({
-          partidos,
-          resumen: { jugados: partidos.length, victorias, empates, derrotas, golesFavor, golesContra },
-          cargaSemanal: cargaRes,
-        })
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [equipoActivo?.id])
 
   const loadAsistenciaHistorico = async () => {
     if (!equipoActivo?.id) return
@@ -113,8 +102,6 @@ export default function EstadisticasPage() {
     }
   }
 
-  usePageReady(loading)
-
   const handleTabChange = (tab: string) => {
     if (tab === 'asistencia' && !asistenciaLoaded) {
       loadAsistenciaHistorico()
@@ -131,19 +118,10 @@ export default function EstadisticasPage() {
   }
 
   if (loading) {
-    return <PageLoader />
+    return <ListPageSkeleton />
   }
 
-  if (!data) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-muted-foreground">No se pudieron cargar las estadísticas</p>
-      </div>
-    )
-  }
-
-  const { resumen, partidos, cargaSemanal } = data
-  const maxRPE = cargaSemanal.semanas.length > 0
+  const maxRPE = cargaSemanal && cargaSemanal.semanas.length > 0
     ? Math.max(...cargaSemanal.semanas.map((s) => s.rpe_promedio), 10)
     : 10
 
@@ -236,7 +214,7 @@ export default function EstadisticasPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold">
-                  {cargaSemanal.promedio_global ?? '-'}
+                  {cargaSemanal?.promedio_global ?? '-'}
                 </p>
                 <p className="text-xs text-muted-foreground">RPE medio</p>
               </div>
@@ -307,7 +285,7 @@ export default function EstadisticasPage() {
           )}
 
           {/* RPE weekly load chart */}
-          {cargaSemanal.semanas.length > 0 && (
+          {cargaSemanal && cargaSemanal.semanas.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Carga semanal (RPE)</CardTitle>

@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import useSWR, { mutate } from 'swr'
 import {
   ArrowLeft,
   HeartPulse,
@@ -24,11 +25,11 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
-import { PageLoader } from '@/components/ui/page-loader'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
+import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { useAuthStore } from '@/stores/authStore'
 import { medicoApi } from '@/lib/api/medico'
-import { jugadoresApi, Jugador, POSICIONES } from '@/lib/api/jugadores'
+import { Jugador, POSICIONES } from '@/lib/api/jugadores'
+import { apiKey } from '@/lib/swr'
 import type { RegistroMedico } from '@/types'
 
 const ESTADO_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -64,10 +65,18 @@ export default function EnfermeriaDetailPage() {
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
 
-  const [registro, setRegistro] = useState<RegistroMedico | null>(null)
-  const [jugador, setJugador] = useState<Jugador | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  // SWR: registro medico
+  const { data: registro, isLoading: loadingRegistro, error: registroError } = useSWR<RegistroMedico>(
+    params.id ? apiKey(`/medico/${params.id}`) : null
+  )
+
+  // SWR: jugador data (depends on registro being loaded)
+  const { data: jugador } = useSWR<Jugador>(
+    registro?.jugador_id ? apiKey(`/jugadores/${registro.jugador_id}`) : null
+  )
+
+  const loading = loadingRegistro
+  const error = registroError ? 'Error al cargar el registro médico' : null
 
   // Edit mode
   const [isEditing, setIsEditing] = useState(false)
@@ -81,49 +90,28 @@ export default function EnfermeriaDetailPage() {
   // Check if user has medical role (médico or fisio)
   const isMedicalStaff = user?.rol === 'admin' || user?.rol === 'tecnico_principal'
 
-  useEffect(() => {
-    loadRegistro()
-  }, [params.id])
-
-  usePageReady(loading)
-
-  async function loadRegistro() {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await medicoApi.get(params.id as string)
-      setRegistro(data)
-      setEditForm({
-        titulo: data.titulo,
-        descripcion: data.descripcion,
-        diagnostico: data.diagnostico,
-        tratamiento: data.tratamiento,
-        medicacion: data.medicacion,
-        dias_baja_estimados: data.dias_baja_estimados,
-      })
-
-      // Load player info
-      try {
-        const jugadorData = await jugadoresApi.get(data.jugador_id)
-        setJugador(jugadorData)
-      } catch {
-        // Player might not be accessible
-      }
-    } catch (err) {
-      setError('Error al cargar el registro médico')
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
+  // Initialize edit form when registro is loaded
+  const startEditing = () => {
+    if (!registro) return
+    setEditForm({
+      titulo: registro.titulo,
+      descripcion: registro.descripcion,
+      diagnostico: registro.diagnostico,
+      tratamiento: registro.tratamiento,
+      medicacion: registro.medicacion,
+      dias_baja_estimados: registro.dias_baja_estimados,
+    })
+    setIsEditing(true)
   }
 
   const handleSave = async () => {
     if (!registro) return
     setSaving(true)
     try {
-      const updated = await medicoApi.update(registro.id, editForm)
-      setRegistro(updated)
+      await medicoApi.update(registro.id, editForm)
       setIsEditing(false)
+      // Invalidate medico caches
+      mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
     } catch (err) {
       console.error('Error saving:', err)
       alert('Error al guardar los cambios')
@@ -141,7 +129,8 @@ export default function EnfermeriaDetailPage() {
         dias_baja_reales: daysSince(registro.fecha_inicio),
       })
       setShowAlta(false)
-      await loadRegistro()
+      // Invalidate medico caches
+      mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
     } catch (err) {
       console.error('Error giving alta:', err)
       alert('Error al dar de alta')
@@ -151,7 +140,7 @@ export default function EnfermeriaDetailPage() {
   }
 
   if (loading) {
-    return <PageLoader />
+    return <DetailPageSkeleton />
   }
 
   if (error || !registro) {
@@ -219,7 +208,7 @@ export default function EnfermeriaDetailPage() {
               </Button>
             </>
           ) : (
-            <Button variant="outline" onClick={() => setIsEditing(true)}>
+            <Button variant="outline" onClick={startEditing}>
               <Edit className="h-4 w-4 mr-2" />
               Editar
             </Button>

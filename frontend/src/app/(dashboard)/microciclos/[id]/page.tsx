@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import useSWR, { mutate } from 'swr'
 import {
   ArrowLeft,
   Calendar,
@@ -30,7 +31,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Skeleton } from '@/components/ui/skeleton'
 import {
   Dialog,
   DialogContent,
@@ -39,13 +39,12 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { PageLoader } from '@/components/ui/page-loader'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
+import { apiKey } from '@/lib/swr'
+import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { microciclosApi, CreateMicrocicloData } from '@/lib/api/microciclos'
-import { partidosApi } from '@/lib/api/partidos'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { formatDate } from '@/lib/utils'
-import type { MicrocicloCompleto, Partido, MatchDay } from '@/types'
+import type { MicrocicloCompleto, Partido, PaginatedResponse, MatchDay } from '@/types'
 
 // ============ Match Day color palette ============
 const MATCH_DAY_COLORS: Record<string, { border: string; bg: string; text: string; label: string; carga: string }> = {
@@ -107,14 +106,29 @@ export default function MicrocicloDetallePage() {
   const { equipoActivo } = useEquipoStore()
   const id = params.id as string
 
-  const [data, setData] = useState<MicrocicloCompleto | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  // SWR for microciclo completo
+  const { data, isLoading: loading, error: swrError } = useSWR<MicrocicloCompleto>(
+    apiKey(`/microciclos/${id}/completo`)
+  )
+  const error = swrError ? (swrError.message || 'Error al cargar microciclo') : null
+
+  // SWR for upcoming matches (for the edit dialog)
+  const { data: matchesResponse } = useSWR<PaginatedResponse<Partido>>(
+    equipoActivo?.id
+      ? apiKey('/partidos', {
+          equipo_id: equipoActivo.id,
+          solo_pendientes: true,
+          orden: 'fecha',
+          direccion: 'asc',
+          limit: 20,
+        })
+      : null
+  )
+  const upcomingMatches = matchesResponse?.data || []
 
   // Edit dialog
   const [showEdit, setShowEdit] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [upcomingMatches, setUpcomingMatches] = useState<Partido[]>([])
   const [form, setForm] = useState({
     partido_id: '',
     objetivo_principal: '',
@@ -126,33 +140,6 @@ export default function MicrocicloDetallePage() {
   // Delete dialog
   const [showDelete, setShowDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
-
-  useEffect(() => {
-    fetchData()
-  }, [id])
-
-  useEffect(() => {
-    if (!equipoActivo?.id) return
-    partidosApi
-      .list({ equipo_id: equipoActivo.id, solo_pendientes: true, orden: 'fecha', direccion: 'asc', limit: 20 })
-      .then((res) => setUpcomingMatches(res?.data || []))
-      .catch(() => {})
-  }, [equipoActivo?.id])
-
-  usePageReady(loading)
-
-  async function fetchData() {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await microciclosApi.getCompleto(id)
-      setData(res)
-    } catch (err: any) {
-      setError(err.message || 'Error al cargar microciclo')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const openEdit = () => {
     if (!data) return
@@ -179,7 +166,7 @@ export default function MicrocicloDetallePage() {
         notas: form.notas || undefined,
       })
       setShowEdit(false)
-      fetchData()
+      mutate((key: string) => typeof key === 'string' && key.includes('/microciclos'), undefined, { revalidate: true })
     } catch (err: any) {
       alert(err.message || 'Error al guardar')
     } finally {
@@ -222,7 +209,7 @@ export default function MicrocicloDetallePage() {
 
   // Loading state
   if (loading) {
-    return <PageLoader />
+    return <DetailPageSkeleton />
   }
 
   // Error state

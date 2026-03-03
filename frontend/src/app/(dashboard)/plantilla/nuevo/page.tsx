@@ -12,8 +12,7 @@ import {
   AlertCircle,
   Users
 } from 'lucide-react'
-import { PageLoader } from '@/components/ui/page-loader'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
+import { CardGridSkeleton } from '@/components/ui/page-skeletons'
 import { jugadoresApi, JugadorCreate, POSICIONES } from '@/lib/api/jugadores'
 import { useEquipoStore } from '@/stores/equipoStore'
 
@@ -48,11 +47,9 @@ export default function NuevoJugadorPage() {
     loadEquipos()
   }, [loadEquipos])
 
-  usePageReady(isLoading)
-
   // Si no hay equipo activo, mostrar mensaje
   if (isLoading) {
-    return <PageLoader />
+    return <CardGridSkeleton />
   }
 
   if (!equipoActivo) {

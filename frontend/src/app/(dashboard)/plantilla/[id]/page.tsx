@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import useSWR, { mutate } from 'swr'
 import {
   ArrowLeft,
   Edit,
@@ -19,61 +20,53 @@ import {
   Activity,
   Camera
 } from 'lucide-react'
-import { PageLoader } from '@/components/ui/page-loader'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
+import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { Jugador, JugadorUpdate, jugadoresApi, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
 
 export default function JugadorDetailPage() {
   const params = useParams()
   const router = useRouter()
-  const [jugador, setJugador] = useState<Jugador | null>(null)
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
 
   // Form state
   const [formData, setFormData] = useState<JugadorUpdate>({})
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
+  // SWR for jugador detail
+  const { data: jugador, isLoading: loading, error: swrError } = useSWR<Jugador>(
+    `/jugadores/${params.id}`
+  )
+
+  const error = swrError ? 'Error al cargar el jugador' : null
+
+  // Sync form data when jugador data loads or changes
   useEffect(() => {
-    loadJugador()
-  }, [params.id])
-
-  usePageReady(loading)
-
-  const loadJugador = async () => {
-    setLoading(true)
-    setError(null)
-
-    try {
-      const data = await jugadoresApi.get(params.id as string)
-      setJugador(data)
+    if (jugador) {
       setFormData({
-        nombre: data.nombre,
-        apellidos: data.apellidos,
-        apodo: data.apodo,
-        fecha_nacimiento: data.fecha_nacimiento,
-        dorsal: data.dorsal,
-        posicion_principal: data.posicion_principal,
-        posiciones_secundarias: data.posiciones_secundarias,
-        altura: data.altura,
-        peso: data.peso,
-        pierna_dominante: data.pierna_dominante,
-        nivel_tecnico: data.nivel_tecnico,
-        nivel_tactico: data.nivel_tactico,
-        nivel_fisico: data.nivel_fisico,
-        nivel_mental: data.nivel_mental,
-        es_capitan: data.es_capitan,
-        es_convocable: data.es_convocable,
-        notas: data.notas,
+        nombre: jugador.nombre,
+        apellidos: jugador.apellidos,
+        apodo: jugador.apodo,
+        fecha_nacimiento: jugador.fecha_nacimiento,
+        dorsal: jugador.dorsal,
+        posicion_principal: jugador.posicion_principal,
+        posiciones_secundarias: jugador.posiciones_secundarias,
+        altura: jugador.altura,
+        peso: jugador.peso,
+        pierna_dominante: jugador.pierna_dominante,
+        nivel_tecnico: jugador.nivel_tecnico,
+        nivel_tactico: jugador.nivel_tactico,
+        nivel_fisico: jugador.nivel_fisico,
+        nivel_mental: jugador.nivel_mental,
+        es_capitan: jugador.es_capitan,
+        es_convocable: jugador.es_convocable,
+        notas: jugador.notas,
       })
-    } catch (err) {
-      setError('Error al cargar el jugador')
-      console.error(err)
-    } finally {
-      setLoading(false)
     }
+  }, [jugador])
+
+  const invalidateJugadores = () => {
+    mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'), undefined, { revalidate: true })
   }
 
   const handleSave = async () => {
@@ -82,7 +75,7 @@ export default function JugadorDetailPage() {
     setSaving(true)
     try {
       await jugadoresApi.update(jugador.id, formData)
-      await loadJugador()
+      invalidateJugadores()
       setIsEditing(false)
     } catch (err) {
       console.error('Error saving jugador:', err)
@@ -119,7 +112,7 @@ export default function JugadorDetailPage() {
 
       if (urlData?.publicUrl) {
         await jugadoresApi.update(jugador.id, { foto_url: urlData.publicUrl })
-        await loadJugador()
+        invalidateJugadores()
       }
     } catch (err) {
       console.error('Error uploading photo:', err)
@@ -142,7 +135,7 @@ export default function JugadorDetailPage() {
   }
 
   if (loading) {
-    return <PageLoader />
+    return <DetailPageSkeleton />
   }
 
   if (error || !jugador) {

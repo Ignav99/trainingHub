@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
+import useSWR, { mutate } from 'swr'
 import {
   ArrowLeft,
   Save,
@@ -18,9 +19,9 @@ import {
   Package,
   Video
 } from 'lucide-react'
-import { PageLoader } from '@/components/ui/page-loader'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
-import { tareasApi, catalogosApi, TareaUpdateData } from '@/lib/api/tareas'
+import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
+import { tareasApi, TareaUpdateData } from '@/lib/api/tareas'
+import { apiKey } from '@/lib/swr'
 import { Tarea } from '@/types'
 import { TareaGraphicEditor, DiagramData, emptyDiagramData } from '@/components/tarea-editor'
 
@@ -44,18 +45,14 @@ export default function EditarTareaPage() {
   const params = useParams()
   const tareaId = params.id as string
 
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [step, setStep] = useState(1)
   const totalSteps = 6
+  const [formPopulated, setFormPopulated] = useState(false)
 
   // Grafico de la tarea
   const [graficoData, setGraficoData] = useState<DiagramData>(emptyDiagramData)
-
-  // Catalogos
-  const [categorias, setCategorias] = useState<Array<{ codigo: string; nombre: string; color: string }>>([])
-  const [principios, setPrincipios] = useState<string[]>([])
 
   // Form data
   const [formData, setFormData] = useState<TareaUpdateData>({
@@ -103,41 +100,32 @@ export default function EditarTareaPage() {
   const [newRegresion, setNewRegresion] = useState('')
   const [newMaterial, setNewMaterial] = useState('')
 
+  // SWR: Tarea data
+  const { data: tarea, isLoading: loadingTarea, error: tareaError } = useSWR<Tarea>(
+    tareaId ? apiKey(`/tareas/${tareaId}`) : null
+  )
+
+  // SWR: Categorias catalog
+  const { data: categoriasRes } = useSWR<{ data: Array<{ codigo: string; nombre: string; color: string }> }>(
+    apiKey('/catalogos/categorias-tarea')
+  )
+  const categorias = categoriasRes?.data || []
+
+  // SWR: Principios (depends on fase_juego)
+  const { data: principiosRes } = useSWR<{ data: string[] }>(
+    formData.fase_juego ? apiKey(`/catalogos/principios/${formData.fase_juego}`) : null
+  )
+  const principios = principiosRes?.data || []
+
+  const loading = loadingTarea
+
+  // Populate form when tarea data first arrives
   useEffect(() => {
-    loadCategorias()
-    loadTarea()
-  }, [tareaId])
-
-  usePageReady(loading)
-
-  useEffect(() => {
-    if (formData.fase_juego) {
-      loadPrincipios(formData.fase_juego)
-    } else {
-      setPrincipios([])
-    }
-  }, [formData.fase_juego])
-
-  const loadCategorias = async () => {
-    try {
-      const response = await catalogosApi.getCategorias()
-      setCategorias(response.data)
-    } catch (err) {
-      console.error('Error loading categorias:', err)
-    }
-  }
-
-  const loadTarea = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const tarea: any = await tareasApi.get(tareaId)
-
-      // La API puede devolver 'categoria' o 'categorias_tarea'
-      const cat = tarea.categoria || tarea.categorias_tarea
+    if (tarea && !formPopulated) {
+      const tareaAny: any = tarea
+      const cat = tareaAny.categoria || tareaAny.categorias_tarea
       const categoriaCode = cat?.codigo || ''
 
-      // Mapear datos de la tarea al formulario
       setFormData({
         titulo: tarea.titulo,
         categoria_id: categoriaCode,
@@ -165,7 +153,6 @@ export default function EditarTareaPage() {
         errores_comunes: tarea.errores_comunes || [],
         es_plantilla: tarea.es_plantilla,
         tags: tarea.tags || [],
-        // Nuevos campos
         objetivo_fisico: tarea.objetivo_fisico || '',
         objetivo_psicologico: tarea.objetivo_psicologico || '',
         variantes: tarea.variantes || [],
@@ -175,25 +162,13 @@ export default function EditarTareaPage() {
         video_url: tarea.video_url || '',
       })
 
-      // Cargar grafico si existe
       if (tarea.grafico_data) {
-        setGraficoData(tarea.grafico_data)
+        setGraficoData(tarea.grafico_data as any)
       }
-    } catch (err: any) {
-      setError(err.message || 'Error al cargar la tarea')
-    } finally {
-      setLoading(false)
-    }
-  }
 
-  const loadPrincipios = async (fase: string) => {
-    try {
-      const response = await catalogosApi.getPrincipios(fase)
-      setPrincipios(response.data)
-    } catch (err) {
-      console.error('Error loading principios:', err)
+      setFormPopulated(true)
     }
-  }
+  }, [tarea, formPopulated])
 
   const handleSubmit = async () => {
     setSaving(true)
@@ -208,6 +183,7 @@ export default function EditarTareaPage() {
           : undefined,
       }
       await tareasApi.update(tareaId, dataToUpdate as any)
+      mutate((key: string) => typeof key === 'string' && key.includes('/tareas'), undefined, { revalidate: true })
       router.push(`/tareas/${tareaId}`)
     } catch (err: any) {
       setError(err.message || 'Error al guardar la tarea')
@@ -248,10 +224,10 @@ export default function EditarTareaPage() {
   }
 
   if (loading) {
-    return <PageLoader />
+    return <DetailPageSkeleton />
   }
 
-  if (error && !formData.titulo) {
+  if ((tareaError || !tarea) && !formData.titulo) {
     return (
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center gap-4 mb-6">
@@ -264,7 +240,7 @@ export default function EditarTareaPage() {
           <h1 className="text-2xl font-bold text-gray-900">Error</h1>
         </div>
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-600">
-          {error}
+          {tareaError?.message || 'Error al cargar la tarea'}
         </div>
       </div>
     )

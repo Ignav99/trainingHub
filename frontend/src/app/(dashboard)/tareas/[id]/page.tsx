@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
+import useSWR, { mutate } from 'swr'
 import {
   ArrowLeft,
   Edit,
@@ -26,9 +27,9 @@ import {
   Heart,
   Download,
 } from 'lucide-react'
-import { PageLoader } from '@/components/ui/page-loader'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
+import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { tareasApi } from '@/lib/api/tareas'
+import { apiKey } from '@/lib/swr'
 import { Tarea } from '@/types'
 import { TareaGraphicEditor } from '@/components/tarea-editor'
 
@@ -68,41 +69,30 @@ export default function TareaDetailPage() {
   const params = useParams()
   const tareaId = params.id as string
 
-  const [tarea, setTarea] = useState<Tarea | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (tareaId) {
-      loadTarea()
-    }
-  }, [tareaId])
+  // SWR: Tarea detail
+  const { data: tarea, error: swrError, isLoading } = useSWR<Tarea>(
+    tareaId ? apiKey(`/tareas/${tareaId}`) : null
+  )
 
-  usePageReady(loading)
+  const error = actionError || (swrError ? (swrError.message || 'Error al cargar la tarea') : null)
 
-  const loadTarea = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await tareasApi.get(tareaId)
-      setTarea(data)
-    } catch (err: any) {
-      setError(err.message || 'Error al cargar la tarea')
-    } finally {
-      setLoading(false)
-    }
+  const invalidateTareas = () => {
+    mutate((key: string) => typeof key === 'string' && key.includes('/tareas'), undefined, { revalidate: true })
   }
 
   const handleDuplicate = async () => {
     if (!tarea) return
     try {
       const duplicated = await tareasApi.duplicate(tareaId)
+      invalidateTareas()
       router.push(`/tareas/${duplicated.id}`)
     } catch (err: any) {
-      setError(err.message || 'Error al duplicar la tarea')
+      setActionError(err.message || 'Error al duplicar la tarea')
     }
   }
 
@@ -114,7 +104,7 @@ export default function TareaDetailPage() {
       window.open(url, '_blank')
       setTimeout(() => URL.revokeObjectURL(url), 30000)
     } catch (err: any) {
-      setError(err.message || 'Error al generar PDF')
+      setActionError(err.message || 'Error al generar PDF')
     } finally {
       setGeneratingPdf(false)
     }
@@ -125,16 +115,17 @@ export default function TareaDetailPage() {
     setDeleting(true)
     try {
       await tareasApi.delete(tareaId)
+      invalidateTareas()
       router.push('/tareas')
     } catch (err: any) {
-      setError(err.message || 'Error al eliminar la tarea')
+      setActionError(err.message || 'Error al eliminar la tarea')
       setDeleting(false)
       setShowDeleteConfirm(false)
     }
   }
 
-  if (loading) {
-    return <PageLoader />
+  if (isLoading) {
+    return <DetailPageSkeleton />
   }
 
   if (error || !tarea) {

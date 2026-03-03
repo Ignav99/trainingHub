@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import Link from 'next/link'
+import useSWR, { mutate } from 'swr'
 import {
   Trophy,
   RefreshCw,
@@ -23,8 +24,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { PageLoader } from '@/components/ui/page-loader'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
+import { ListPageSkeleton } from '@/components/ui/page-skeletons'
 import { useEquipoStore } from '@/stores/equipoStore'
 import {
   rfefApi,
@@ -32,6 +32,7 @@ import {
   RFEFJornada,
 } from '@/lib/api/rfef'
 import { partidosApi } from '@/lib/api/partidos'
+import { apiKey } from '@/lib/swr'
 import type { Partido } from '@/types'
 
 // ============ Helpers ============
@@ -72,11 +73,9 @@ function timeAgo(dateStr?: string): string {
 
 export default function CompeticionPage() {
   const { equipoActivo } = useEquipoStore()
-  const [competiciones, setCompeticiones] = useState<RFEFCompeticion[]>([])
   const [selected, setSelected] = useState<RFEFCompeticion | null>(null)
   const [jornadas, setJornadas] = useState<RFEFJornada[]>([])
   const [misPartidos, setMisPartidos] = useState<Partido[]>([])
-  const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [syncingFull, setSyncingFull] = useState(false)
 
@@ -94,26 +93,25 @@ export default function CompeticionPage() {
   // Jornada navigator
   const [currentJornada, setCurrentJornada] = useState(1)
 
-  const fetchCompeticiones = useCallback(async () => {
-    if (!equipoActivo?.id) return
-    setLoading(true)
-    try {
-      const res = await rfefApi.listCompeticiones({ equipo_id: equipoActivo.id })
-      setCompeticiones(res.data || [])
-
-      const withRfef = (res.data || []).find((c) => c.rfef_codcompeticion)
-      if (withRfef) {
-        setSelected(withRfef)
-        await loadCompeticionData(withRfef)
-      } else if (res.data?.length === 0) {
-        setShowSetup(true)
-      }
-    } catch (err) {
-      console.error('Error fetching competiciones:', err)
-    } finally {
-      setLoading(false)
+  // SWR: Load competiciones
+  const { data: competicionesRes, isLoading: loading } = useSWR<{ data: RFEFCompeticion[]; total: number }>(
+    apiKey('/rfef/competiciones', {
+      equipo_id: equipoActivo?.id,
+    }, ['equipo_id']),
+    {
+      onSuccess: (res) => {
+        const comps = res.data || []
+        const withRfef = comps.find((c) => c.rfef_codcompeticion)
+        if (withRfef && !selected) {
+          setSelected(withRfef)
+          loadCompeticionData(withRfef)
+        } else if (comps.length === 0) {
+          setShowSetup(true)
+        }
+      },
     }
-  }, [equipoActivo?.id])
+  )
+  const competiciones = competicionesRes?.data || []
 
   async function loadCompeticionData(comp: RFEFCompeticion) {
     // Load jornadas
@@ -146,10 +144,6 @@ export default function CompeticionPage() {
     }
   }
 
-  useEffect(() => {
-    fetchCompeticiones()
-  }, [fetchCompeticiones])
-
   async function handleSetup() {
     if (!equipoActivo?.id || !setupUrl.trim()) return
     setSetupLoading(true)
@@ -164,7 +158,7 @@ export default function CompeticionPage() {
       setShowSetup(false)
       setSetupUrl('')
       setSetupNombre('')
-      await fetchCompeticiones()
+      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, { revalidate: true })
       await loadCompeticionData(comp)
     } catch (err: any) {
       setSetupError(err.message || 'Error al conectar con la RFAF')
@@ -181,6 +175,7 @@ export default function CompeticionPage() {
       const updated = await rfefApi.getCompeticion(selected.id)
       setSelected(updated)
       await loadCompeticionData(updated)
+      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, { revalidate: true })
     } catch (err) {
       console.error('Sync error:', err)
     } finally {
@@ -196,6 +191,7 @@ export default function CompeticionPage() {
       const updated = await rfefApi.getCompeticion(selected.id)
       setSelected(updated)
       await loadCompeticionData(updated)
+      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, { revalidate: true })
     } catch (err) {
       console.error('Full sync error:', err)
     } finally {
@@ -214,14 +210,13 @@ export default function CompeticionPage() {
       setSelected(updated)
       setSelectingEquipo(false)
       await loadCompeticionData(updated)
+      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, { revalidate: true })
     } catch (err: any) {
       console.error('Error setting mi equipo:', err)
     } finally {
       setSettingEquipo(false)
     }
   }
-
-  usePageReady(loading)
 
   if (!equipoActivo) {
     return (
@@ -233,7 +228,7 @@ export default function CompeticionPage() {
   }
 
   if (loading) {
-    return <PageLoader />
+    return <ListPageSkeleton />
   }
 
   const clasificacion = selected?.clasificacion || []

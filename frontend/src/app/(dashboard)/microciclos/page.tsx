@@ -1,18 +1,31 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import useSWR from 'swr'
 import { CalendarDays, Loader2 } from 'lucide-react'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
+import { apiKey } from '@/lib/swr'
 import { useEquipoStore } from '@/stores/equipoStore'
-import { microciclosApi } from '@/lib/api/microciclos'
+import type { Microciclo, PaginatedResponse } from '@/types'
 
 export default function MicrociclosRedirectPage() {
   const router = useRouter()
   const { equipoActivo } = useEquipoStore()
-  const [checked, setChecked] = useState(false)
 
-  usePageReady()
+  // Fetch active (en_curso) microciclo
+  const { data: activoRes, error: activoError } = useSWR<PaginatedResponse<Microciclo>>(
+    equipoActivo?.id
+      ? apiKey('/microciclos', { equipo_id: equipoActivo.id, estado: 'en_curso', limit: 1 })
+      : null
+  )
+
+  // Fetch latest microciclo (fallback if no en_curso)
+  const hasNoActivo = activoRes && (activoRes.data?.length === 0)
+  const { data: latestRes, error: latestError } = useSWR<PaginatedResponse<Microciclo>>(
+    hasNoActivo
+      ? apiKey('/microciclos', { equipo_id: equipoActivo?.id, limit: 1 })
+      : null
+  )
 
   useEffect(() => {
     if (!equipoActivo?.id) {
@@ -20,32 +33,34 @@ export default function MicrociclosRedirectPage() {
       return
     }
 
-    microciclosApi
-      .list({ equipo_id: equipoActivo.id, estado: 'en_curso', limit: 1 })
-      .then((res) => {
-        const activo = res.data?.[0]
-        if (activo) {
-          router.replace(`/microciclos/${activo.id}`)
-        } else {
-          // Try planificado
-          return microciclosApi.list({ equipo_id: equipoActivo.id, limit: 1 })
-        }
-      })
-      .then((res) => {
-        if (res) {
-          const latest = res.data?.[0]
-          if (latest) {
-            router.replace(`/microciclos/${latest.id}`)
-          } else {
-            router.replace('/')
-          }
-        }
-      })
-      .catch(() => {
-        router.replace('/')
-      })
-      .finally(() => setChecked(true))
-  }, [equipoActivo?.id, router])
+    // Wait for active microciclo response
+    if (!activoRes && !activoError) return
+
+    // If active found, redirect
+    const activo = activoRes?.data?.[0]
+    if (activo) {
+      router.replace(`/microciclos/${activo.id}`)
+      return
+    }
+
+    // Wait for latest microciclo response
+    if (!latestRes && !latestError) return
+
+    // If latest found, redirect
+    const latest = latestRes?.data?.[0]
+    if (latest) {
+      router.replace(`/microciclos/${latest.id}`)
+    } else {
+      router.replace('/')
+    }
+  }, [equipoActivo?.id, router, activoRes, activoError, latestRes, latestError])
+
+  // On error, redirect home
+  useEffect(() => {
+    if (activoError) {
+      router.replace('/')
+    }
+  }, [activoError, router])
 
   return (
     <div className="flex flex-col items-center justify-center py-20 gap-4">

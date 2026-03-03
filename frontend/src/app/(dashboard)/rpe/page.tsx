@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import useSWR, { mutate } from 'swr'
 import {
   Activity,
   Calendar,
@@ -29,13 +30,13 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { ListPageSkeleton } from '@/components/ui/page-skeletons'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { rpeApi } from '@/lib/api/rpe'
-import { sesionesApi } from '@/lib/api/sesiones'
 import { jugadoresApi, Jugador } from '@/lib/api/jugadores'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
+import { apiKey } from '@/lib/swr'
 import { formatDate } from '@/lib/utils'
-import type { RPEResumenEquipo, Sesion } from '@/types'
+import type { RPEResumenEquipo, Sesion, PaginatedResponse } from '@/types'
 
 const WELLNESS_FIELDS = [
   { key: 'sueno', label: 'Sueno', icon: Moon, color: 'text-indigo-600' },
@@ -54,10 +55,30 @@ function getRPEColor(rpe: number): string {
 
 export default function RPEPage() {
   const { equipoActivo } = useEquipoStore()
-  const [resumen, setResumen] = useState<RPEResumenEquipo | null>(null)
-  const [sesiones, setSesiones] = useState<Sesion[]>([])
-  const [jugadores, setJugadores] = useState<Jugador[]>([])
-  const [loading, setLoading] = useState(true)
+
+  // SWR data fetching
+  const { data: resumen, isLoading: loadingResumen } = useSWR<RPEResumenEquipo>(
+    apiKey(`/rpe/resumen/${equipoActivo?.id}`, {}, equipoActivo?.id ? [] : ['__missing__'])
+  )
+
+  const { data: sesionesData, isLoading: loadingSesiones } = useSWR<PaginatedResponse<Sesion>>(
+    apiKey('/sesiones', {
+      equipo_id: equipoActivo?.id,
+      estado: 'completada',
+      limit: 10,
+    }, ['equipo_id'])
+  )
+
+  const { data: jugadoresData, isLoading: loadingJugadores } = useSWR<{ data: Jugador[]; total: number }>(
+    apiKey('/jugadores', {
+      equipo_id: equipoActivo?.id,
+      estado: 'activo',
+    }, ['equipo_id'])
+  )
+
+  const sesiones = sesionesData?.data || []
+  const jugadores = jugadoresData?.data || []
+  const loading = loadingResumen || loadingSesiones || loadingJugadores
 
   // Register RPE dialog
   const [showRegister, setShowRegister] = useState(false)
@@ -74,25 +95,6 @@ export default function RPEPage() {
     notas: '',
   })
   const [saving, setSaving] = useState(false)
-
-  usePageReady(loading)
-
-  useEffect(() => {
-    if (!equipoActivo?.id) return
-    setLoading(true)
-
-    Promise.allSettled([
-      rpeApi.getResumen(equipoActivo.id),
-      sesionesApi.list({ equipo_id: equipoActivo.id, estado: 'completada', limit: 10 }),
-      jugadoresApi.list({ equipo_id: equipoActivo.id, estado: 'activo' }),
-    ])
-      .then(([resRes, sesRes, jugRes]) => {
-        if (resRes.status === 'fulfilled') setResumen(resRes.value)
-        if (sesRes.status === 'fulfilled') setSesiones(sesRes.value?.data || [])
-        if (jugRes.status === 'fulfilled') setJugadores(jugRes.value?.data || [])
-      })
-      .finally(() => setLoading(false))
-  }, [equipoActivo?.id])
 
   const handleSave = async () => {
     if (!selectedJugador) return
@@ -112,10 +114,8 @@ export default function RPEPage() {
         notas: rpeForm.notas || undefined,
       })
       setShowRegister(false)
-      // Refresh
-      if (equipoActivo?.id) {
-        rpeApi.getResumen(equipoActivo.id).then(setResumen).catch(console.error)
-      }
+      // Invalidate RPE caches
+      mutate((key: string) => typeof key === 'string' && key.includes('/rpe'), undefined, { revalidate: true })
     } catch (err: any) {
       alert(err.message || 'Error al registrar RPE')
     } finally {

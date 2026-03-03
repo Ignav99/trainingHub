@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
+import useSWR from 'swr'
 import {
   Swords,
   Plus,
@@ -16,12 +17,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
+import { ListPageSkeleton } from '@/components/ui/page-skeletons'
 import { useEquipoStore } from '@/stores/equipoStore'
-import { partidosApi } from '@/lib/api/partidos'
+import { apiKey } from '@/lib/swr'
 import { formatDate } from '@/lib/utils'
-import type { Partido } from '@/types'
+import type { Partido, PaginatedResponse } from '@/types'
 
 const RESULTADO_COLORS: Record<string, string> = {
   victoria: 'bg-emerald-100 text-emerald-800',
@@ -45,42 +45,25 @@ const COMP_COLORS: Record<string, string> = {
 
 export default function PartidosPage() {
   const { equipoActivo } = useEquipoStore()
-  const [partidos, setPartidos] = useState<Partido[]>([])
-  const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'todos' | 'pendientes' | 'jugados'>('todos')
   const [sourceFilter, setSourceFilter] = useState<'todos' | 'rfaf' | 'manual'>('todos')
 
-  const fetchPartidos = async () => {
-    if (!equipoActivo?.id) return
-    setLoading(true)
-    try {
-      const params: Record<string, any> = {
-        equipo_id: equipoActivo.id,
-        orden: 'fecha',
-        direccion: 'desc',
-        limit: 50,
-      }
-      if (filter === 'pendientes') params.solo_pendientes = true
-      if (filter === 'jugados') params.solo_jugados = true
+  const { data, isLoading } = useSWR<PaginatedResponse<Partido>>(
+    apiKey('/partidos', {
+      equipo_id: equipoActivo?.id,
+      orden: 'fecha',
+      direccion: 'desc',
+      limit: 50,
+      ...(filter === 'pendientes' ? { solo_pendientes: true } : {}),
+      ...(filter === 'jugados' ? { solo_jugados: true } : {}),
+    }, ['equipo_id'])
+  )
 
-      const res = await partidosApi.list(params)
-      let data = res?.data || []
-      // Client-side source filter
-      if (sourceFilter === 'rfaf') data = data.filter(p => p.auto_creado)
-      if (sourceFilter === 'manual') data = data.filter(p => !p.auto_creado)
-      setPartidos(data)
-    } catch (err) {
-      console.error('Error:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  usePageReady(loading)
-
-  useEffect(() => {
-    fetchPartidos()
-  }, [equipoActivo?.id, filter, sourceFilter])
+  const loading = isLoading
+  // Client-side source filter
+  let partidos = data?.data || []
+  if (sourceFilter === 'rfaf') partidos = partidos.filter(p => p.auto_creado)
+  if (sourceFilter === 'manual') partidos = partidos.filter(p => !p.auto_creado)
 
   // Stats
   const jugados = partidos.filter((p) => p.resultado)
@@ -172,11 +155,7 @@ export default function PartidosPage() {
 
       {/* Match list */}
       {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-20 w-full rounded-lg" />
-          ))}
-        </div>
+        <ListPageSkeleton />
       ) : partidos.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">

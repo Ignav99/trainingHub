@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import useSWR, { mutate } from 'swr'
 import {
   Shield,
   ChevronLeft,
@@ -17,11 +18,10 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
-import { PageLoader } from '@/components/ui/page-loader'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
-import { rfefApi, RFEFCompeticion, RivalPerfilCompeticion } from '@/lib/api/rfef'
+import { apiKey } from '@/lib/swr'
+import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
+import { RFEFCompeticion, RivalPerfilCompeticion } from '@/lib/api/rfef'
 import { rivalesApi } from '@/lib/api/partidos'
 import { useEquipoStore } from '@/stores/equipoStore'
 import type { Rival } from '@/types'
@@ -55,61 +55,53 @@ export default function RivalDetailPage() {
   const id = params.id as string
   const { equipoActivo } = useEquipoStore()
 
-  const [rival, setRival] = useState<Rival | null>(null)
-  const [perfil, setPerfil] = useState<RivalPerfilCompeticion | null>(null)
-  const [loading, setLoading] = useState(true)
+  // SWR for rival data
+  const { data: rival, isLoading: loadingRival } = useSWR<Rival>(
+    apiKey(`/rivales/${id}`)
+  )
+
+  // SWR for RFEF competitions (to find the active one)
+  const { data: rfefRes } = useSWR<{ data: RFEFCompeticion[]; total: number }>(
+    equipoActivo?.id ? apiKey('/rfef/competiciones', { equipo_id: equipoActivo.id }) : null
+  )
+
+  // Derive the competition ID from the RFEF response
+  const competicionId = useMemo(() => {
+    if (!rfefRes?.data) return undefined
+    const comp = rfefRes.data.find((c: RFEFCompeticion) => c.mi_equipo_nombre)
+    return comp?.id
+  }, [rfefRes])
+
+  // SWR for rival competition profile
+  const { data: perfil } = useSWR<RivalPerfilCompeticion>(
+    id ? apiKey(`/rivales/${id}/perfil-competicion`, {
+      competicion_id: competicionId,
+    }) : null
+  )
+
   const [notas, setNotas] = useState('')
+  const [notasInitialized, setNotasInitialized] = useState(false)
   const [savingNotas, setSavingNotas] = useState(false)
 
+  // Initialize notas from rival data when it arrives
   useEffect(() => {
-    if (!id) return
-    loadData()
-  }, [id, equipoActivo?.id])
-
-  usePageReady(loading)
-
-  async function loadData() {
-    setLoading(true)
-    try {
-      // Load rival basic info
-      const rivalData = await rivalesApi.get(id)
-      setRival(rivalData)
-      setNotas(rivalData.notas || '')
-
-      // Load competition profile
-      if (equipoActivo?.id) {
-        try {
-          const rfefRes = await rfefApi.listCompeticiones({ equipo_id: equipoActivo.id })
-          const comp = (rfefRes.data || []).find((c: RFEFCompeticion) => c.mi_equipo_nombre)
-          if (comp) {
-            const perfilData = await rfefApi.getRivalPerfil(id, comp.id)
-            setPerfil(perfilData)
-          } else {
-            // Still try without competition
-            const perfilData = await rfefApi.getRivalPerfil(id)
-            setPerfil(perfilData)
-          }
-        } catch {
-          // Competition data is optional
-          try {
-            const perfilData = await rfefApi.getRivalPerfil(id)
-            setPerfil(perfilData)
-          } catch { /* ok */ }
-        }
-      }
-    } catch (err) {
-      console.error('Error loading rival:', err)
-    } finally {
-      setLoading(false)
+    if (rival && !notasInitialized) {
+      setNotas(rival.notas || '')
+      setNotasInitialized(true)
     }
-  }
+  }, [rival, notasInitialized])
+
+  // Reset notas initialization when ID changes
+  useEffect(() => {
+    setNotasInitialized(false)
+  }, [id])
 
   async function handleSaveNotas() {
     if (!rival) return
     setSavingNotas(true)
     try {
       await rivalesApi.update(id, { notas })
-      setRival({ ...rival, notas })
+      mutate((key: string) => typeof key === 'string' && key.includes('/rivales'), undefined, { revalidate: true })
     } catch (err) {
       console.error('Error saving notas:', err)
     } finally {
@@ -117,8 +109,8 @@ export default function RivalDetailPage() {
     }
   }
 
-  if (loading) {
-    return <PageLoader />
+  if (loadingRival) {
+    return <DetailPageSkeleton />
   }
 
   if (!rival) {

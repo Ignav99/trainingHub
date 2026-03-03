@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import useSWR, { mutate } from 'swr'
 import {
   Plus,
   Calendar as CalendarIcon,
@@ -14,15 +15,15 @@ import {
   FileText,
   ChevronLeft,
   ChevronRight,
-  Loader2,
   Search,
   Sparkles,
   Filter,
   ListChecks,
   Eye
 } from 'lucide-react'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
-import { Sesion, MatchDay } from '@/types'
+import { ListPageSkeleton } from '@/components/ui/page-skeletons'
+import { apiKey } from '@/lib/swr'
+import { Sesion, MatchDay, PaginatedResponse } from '@/types'
 import { sesionesApi } from '@/lib/api/sesiones'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -66,18 +67,14 @@ function EstadoBadge({ estado }: { estado: string }) {
 
 export default function SesionesPage() {
   const router = useRouter()
-  const [sesiones, setSesiones] = useState<Sesion[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   // Paginación
   const [page, setPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [total, setTotal] = useState(0)
   const limit = 10
 
   // Filtros
   const [busqueda, setBusqueda] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
   const [matchDayFilter, setMatchDayFilter] = useState('')
   const [estadoFilter, setEstadoFilter] = useState('')
   const [fechaDesde, setFechaDesde] = useState('')
@@ -87,11 +84,23 @@ export default function SesionesPage() {
   // Menú de acciones
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
 
-  usePageReady(loading)
+  // SWR data fetching
+  const { data, error, isLoading } = useSWR<PaginatedResponse<Sesion>>(
+    apiKey('/sesiones', {
+      page,
+      limit,
+      match_day: matchDayFilter || undefined,
+      estado: estadoFilter || undefined,
+      fecha_desde: fechaDesde || undefined,
+      fecha_hasta: fechaHasta || undefined,
+      busqueda: searchTerm || undefined,
+    })
+  )
 
-  useEffect(() => {
-    loadSesiones()
-  }, [page, matchDayFilter, estadoFilter, fechaDesde, fechaHasta])
+  const sesiones = data?.data || []
+  const totalPages = data?.pages || 1
+  const total = data?.total || 0
+  const loading = isLoading
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -102,36 +111,10 @@ export default function SesionesPage() {
     }
   }, [activeMenu])
 
-  const loadSesiones = async () => {
-    setLoading(true)
-    setError(null)
-
-    try {
-      const response = await sesionesApi.list({
-        page,
-        limit,
-        match_day: matchDayFilter || undefined,
-        estado: estadoFilter || undefined,
-        fecha_desde: fechaDesde || undefined,
-        fecha_hasta: fechaHasta || undefined,
-        busqueda: busqueda || undefined,
-      })
-
-      setSesiones(response.data)
-      setTotalPages(response.pages)
-      setTotal(response.total)
-    } catch (err) {
-      setError('Error al cargar las sesiones')
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
     setPage(1)
-    loadSesiones()
+    setSearchTerm(busqueda)
   }
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
@@ -140,7 +123,7 @@ export default function SesionesPage() {
 
     try {
       await sesionesApi.delete(id)
-      loadSesiones()
+      mutate((key: string) => typeof key === 'string' && key.includes('/sesiones'), undefined, { revalidate: true })
     } catch (err) {
       console.error('Error deleting sesion:', err)
     }
@@ -164,6 +147,7 @@ export default function SesionesPage() {
     setFechaDesde('')
     setFechaHasta('')
     setBusqueda('')
+    setSearchTerm('')
     setPage(1)
   }
 
@@ -338,14 +322,12 @@ export default function SesionesPage() {
 
       {/* Lista de sesiones */}
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
+        <ListPageSkeleton />
       ) : error ? (
         <div className="text-center py-12">
-          <p className="text-red-600 mb-4">{error}</p>
+          <p className="text-red-600 mb-4">Error al cargar las sesiones</p>
           <button
-            onClick={loadSesiones}
+            onClick={() => mutate((key: string) => typeof key === 'string' && key.includes('/sesiones'), undefined, { revalidate: true })}
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
           >
             Reintentar

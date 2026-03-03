@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import useSWR, { mutate } from 'swr'
 import {
   Plus,
   Bot,
@@ -22,13 +23,11 @@ import {
   Clock,
   Dumbbell,
   Moon,
-  Coffee,
   Zap,
   MoreHorizontal,
   Eye,
   ClipboardList,
   Trophy,
-  Brain,
   Loader2,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
@@ -39,19 +38,18 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ClubAvatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
+import { DashboardSkeleton } from '@/components/ui/page-skeletons'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { dashboardApi, DashboardResumen, DashboardSemana, DashboardPlantilla } from '@/lib/api/dashboard'
-import { sesionesApi } from '@/lib/api/sesiones'
+import { DashboardResumen, DashboardPlantilla } from '@/lib/api/dashboard'
 import { microciclosApi } from '@/lib/api/microciclos'
 import { partidosApi } from '@/lib/api/partidos'
-import { rfefApi, RFEFCompeticion } from '@/lib/api/rfef'
-import { CreateMicrocicloData } from '@/lib/api/microciclos'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
+import { RFEFCompeticion } from '@/lib/api/rfef'
+import { apiKey } from '@/lib/swr'
 import { formatDate } from '@/lib/utils'
-import type { Sesion, Microciclo, Partido } from '@/types'
+import type { Sesion, Microciclo, Partido, PaginatedResponse } from '@/types'
 
 // ============ Field pattern SVG background ============
 const FIELD_PATTERN = `url("data:image/svg+xml,%3Csvg width='200' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='10' y='10' width='180' height='180' fill='none' stroke='%23000' stroke-width='0.5' opacity='0.03'/%3E%3Cline x1='100' y1='10' x2='100' y2='190' stroke='%23000' stroke-width='0.5' opacity='0.03'/%3E%3Ccircle cx='100' cy='100' r='30' fill='none' stroke='%23000' stroke-width='0.5' opacity='0.03'/%3E%3C/svg%3E")`
@@ -98,40 +96,85 @@ export default function DashboardPage() {
   const { equipoActivo } = useEquipoStore()
   const { theme } = useClubStore()
 
-  // Data
-  const [resumen, setResumen] = useState<DashboardResumen | null>(null)
-  const [semana, setSemana] = useState<DashboardSemana | null>(null)
-  const [plantilla, setPlantilla] = useState<DashboardPlantilla | null>(null)
-  const [microcicloActivo, setMicrocicloActivo] = useState<Microciclo | null>(null)
-  const [sesionesMes, setSesionesMes] = useState<Sesion[]>([])
-  const [partidosMes, setPartidosMes] = useState<Partido[]>([])
-  const [sesionesBorrador, setSesionesBorrador] = useState(0)
-  const [loading, setLoading] = useState(true)
+  const equipoId = equipoActivo?.id
 
   // Calendar state
   const now = new Date()
   const [calYear, setCalYear] = useState(now.getFullYear())
   const [calMonth, setCalMonth] = useState(now.getMonth())
 
-  // Availability dialog
+  // ============ SWR data fetching ============
+  const { data: resumen, isLoading: l1 } = useSWR<DashboardResumen>(
+    apiKey('/dashboard/resumen', { equipo_id: equipoId }, ['equipo_id'])
+  )
+  const { data: plantilla, isLoading: l3 } = useSWR<DashboardPlantilla>(
+    apiKey('/dashboard/plantilla', { equipo_id: equipoId }, ['equipo_id'])
+  )
+  const { data: microActivoRes } = useSWR<PaginatedResponse<Microciclo>>(
+    apiKey('/microciclos', { equipo_id: equipoId, estado: 'en_curso', limit: 1 }, ['equipo_id'])
+  )
+  const { data: borradoresRes } = useSWR<PaginatedResponse<Sesion>>(
+    apiKey('/sesiones', { equipo_id: equipoId, estado: 'borrador', limit: 1 }, ['equipo_id'])
+  )
+  const { data: ultimoPartidoRes } = useSWR<PaginatedResponse<Partido>>(
+    apiKey('/partidos', { equipo_id: equipoId, solo_jugados: true, limit: 1, orden: 'fecha', direccion: 'desc' }, ['equipo_id'])
+  )
+  const { data: rfefRes } = useSWR<{ data: RFEFCompeticion[] }>(
+    apiKey('/rfef/competiciones', { equipo_id: equipoId }, ['equipo_id'])
+  )
+
+  // Calendar data
+  const fechaDesde = dateToStr(calYear, calMonth, 1)
+  const lastDay = getDaysInMonth(calYear, calMonth)
+  const fechaHasta = dateToStr(calYear, calMonth, lastDay)
+
+  const { data: calSesRes } = useSWR<PaginatedResponse<Sesion>>(
+    apiKey('/sesiones', { equipo_id: equipoId, fecha_desde: fechaDesde, fecha_hasta: fechaHasta, limit: 50 }, ['equipo_id'])
+  )
+  const { data: calParRes } = useSWR<PaginatedResponse<Partido>>(
+    apiKey('/partidos', { equipo_id: equipoId, fecha_desde: fechaDesde, fecha_hasta: fechaHasta, limit: 20 }, ['equipo_id'])
+  )
+  const { data: calMicroRes } = useSWR<PaginatedResponse<Microciclo>>(
+    apiKey('/microciclos', { equipo_id: equipoId, fecha_desde: fechaDesde, fecha_hasta: fechaHasta }, ['equipo_id'])
+  )
+
+  // Upcoming matches for create microciclo dialog
+  const { data: upcomingRes } = useSWR<PaginatedResponse<Partido>>(
+    apiKey('/partidos', { equipo_id: equipoId, solo_pendientes: true, orden: 'fecha', direccion: 'asc', limit: 20 }, ['equipo_id'])
+  )
+
+  // Derived data
+  const microcicloActivo = microActivoRes?.data?.[0] || null
+  const sesionesBorrador = borradoresRes?.total || 0
+  const ultimoPartido = ultimoPartidoRes?.data?.[0] || null
+  const sesionesMes = calSesRes?.data || []
+  const partidosMes = calParRes?.data || []
+  const microciclosMes = calMicroRes?.data || []
+  const upcomingMatches = upcomingRes?.data || []
+  const loading = l1 || l3
+
+  // RFEF liga position (derived)
+  const { rfefComp, ligaPosition } = useMemo(() => {
+    const comps = rfefRes?.data || []
+    const comp = comps.find((c) => c.rfef_codcompeticion && c.clasificacion?.length) || null
+    if (!comp || !equipoActivo?.nombre) return { rfefComp: comp, ligaPosition: null }
+    const nombreLower = equipoActivo.nombre.toLowerCase()
+    const miEquipo = comp.clasificacion?.find(
+      (e) => e.equipo.toLowerCase().includes(nombreLower) || nombreLower.includes(e.equipo.toLowerCase())
+    )
+    return {
+      rfefComp: comp,
+      ligaPosition: miEquipo ? { posicion: miEquipo.posicion, puntos: miEquipo.puntos } : null,
+    }
+  }, [rfefRes, equipoActivo?.nombre])
+
+  // UI state
   const [showDisponibilidad, setShowDisponibilidad] = useState(false)
-
-  // Day detail dialog
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
-
-  // Day action popover (for empty days)
   const [addMenuDay, setAddMenuDay] = useState<string | null>(null)
-
-  // Descanso days (local state — coach marks days as rest)
   const [descansos, setDescansos] = useState<Set<string>>(new Set())
-
-  // Microciclos del mes
-  const [microciclosMes, setMicrociclosMes] = useState<Microciclo[]>([])
-
-  // Create microciclo dialog
   const [showCreateMicro, setShowCreateMicro] = useState(false)
   const [creatingMicro, setCreatingMicro] = useState(false)
-  const [upcomingMatches, setUpcomingMatches] = useState<Partido[]>([])
   const [microForm, setMicroForm] = useState({
     partido_id: '',
     objetivo_principal: '',
@@ -139,15 +182,6 @@ export default function DashboardPage() {
     objetivo_fisico: '',
     notas: '',
   })
-
-  // Último partido completado
-  const [ultimoPartido, setUltimoPartido] = useState<Partido | null>(null)
-
-  // RFAF liga position
-  const [rfefComp, setRfefComp] = useState<RFEFCompeticion | null>(null)
-  const [ligaPosition, setLigaPosition] = useState<{ posicion: number; puntos: number } | null>(null)
-
-  usePageReady(loading)
 
   // Close add menu on outside click
   useEffect(() => {
@@ -159,114 +193,6 @@ export default function DashboardPage() {
       document.removeEventListener('click', handleClick)
     }
   }, [addMenuDay])
-
-  useEffect(() => {
-    fetchData()
-  }, [equipoActivo?.id])
-
-  useEffect(() => {
-    fetchCalendarData()
-  }, [equipoActivo?.id, calYear, calMonth])
-
-  async function fetchData() {
-    if (!equipoActivo?.id) {
-      setLoading(false)
-      return
-    }
-
-    setLoading(true)
-    try {
-      const [resumenRes, semanaRes, plantillaRes, microRes, borradoresRes, ultimoPartidoRes] =
-        await Promise.allSettled([
-          dashboardApi.getResumen(equipoActivo.id),
-          dashboardApi.getSemana(equipoActivo.id),
-          dashboardApi.getPlantilla(equipoActivo.id),
-          microciclosApi.list({ equipo_id: equipoActivo.id, estado: 'en_curso', limit: 1 }),
-          sesionesApi.list({ equipo_id: equipoActivo.id, estado: 'borrador', limit: 1 }),
-          partidosApi.list({ equipo_id: equipoActivo.id, solo_jugados: true, limit: 1, orden: 'fecha', direccion: 'desc' }),
-        ])
-
-      if (resumenRes.status === 'fulfilled') setResumen(resumenRes.value)
-      if (semanaRes.status === 'fulfilled') setSemana(semanaRes.value)
-      if (plantillaRes.status === 'fulfilled') setPlantilla(plantillaRes.value)
-      if (microRes.status === 'fulfilled') {
-        setMicrocicloActivo(microRes.value.data?.[0] || null)
-      }
-      if (borradoresRes.status === 'fulfilled') {
-        setSesionesBorrador(borradoresRes.value?.total || 0)
-      }
-      if (ultimoPartidoRes.status === 'fulfilled') {
-        setUltimoPartido(ultimoPartidoRes.value?.data?.[0] || null)
-      }
-
-      // Fetch RFAF competition position
-      try {
-        const rfefRes = await rfefApi.listCompeticiones({ equipo_id: equipoActivo.id })
-        const comp = (rfefRes.data || []).find((c) => c.rfef_codcompeticion && c.clasificacion?.length)
-        if (comp) {
-          setRfefComp(comp)
-          const nombreLower = (equipoActivo.nombre || '').toLowerCase()
-          const miEquipo = comp.clasificacion?.find(
-            (e) => e.equipo.toLowerCase().includes(nombreLower) || nombreLower.includes(e.equipo.toLowerCase())
-          )
-          if (miEquipo) {
-            setLigaPosition({ posicion: miEquipo.posicion, puntos: miEquipo.puntos })
-          }
-        }
-      } catch {
-        // RFEF data is optional
-      }
-    } catch (err) {
-      console.error('Dashboard fetch error:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function fetchCalendarData() {
-    if (!equipoActivo?.id) return
-
-    const fechaDesde = dateToStr(calYear, calMonth, 1)
-    const lastDay = getDaysInMonth(calYear, calMonth)
-    const fechaHasta = dateToStr(calYear, calMonth, lastDay)
-
-    try {
-      const [sesRes, parRes, microRes] = await Promise.allSettled([
-        sesionesApi.list({
-          equipo_id: equipoActivo.id,
-          fecha_desde: fechaDesde,
-          fecha_hasta: fechaHasta,
-          limit: 50,
-        }),
-        partidosApi.list({
-          equipo_id: equipoActivo.id,
-          fecha_desde: fechaDesde,
-          fecha_hasta: fechaHasta,
-          limit: 20,
-        }),
-        microciclosApi.list({
-          equipo_id: equipoActivo.id,
-          fecha_desde: fechaDesde,
-          fecha_hasta: fechaHasta,
-        }),
-      ])
-
-      if (sesRes.status === 'fulfilled') setSesionesMes(sesRes.value.data || [])
-      if (parRes.status === 'fulfilled') setPartidosMes(parRes.value.data || [])
-      if (microRes.status === 'fulfilled') setMicrociclosMes(microRes.value.data || [])
-    } catch (err) {
-      console.error('Calendar fetch error:', err)
-    }
-  }
-
-  // Fetch upcoming matches for create microciclo dialog
-  useEffect(() => {
-    if (!equipoActivo?.id) return
-    partidosApi
-      .list({ equipo_id: equipoActivo.id, solo_pendientes: true, orden: 'fecha', direccion: 'asc', limit: 20 })
-      .then((res) => setUpcomingMatches(res?.data || []))
-      .catch(() => {})
-  }, [equipoActivo?.id])
 
   const handlePrevMonth = () => {
     if (calMonth === 0) {
@@ -293,7 +219,6 @@ export default function DashboardPage() {
     try {
       // Use current month as default range (Mon of first week - Sun of last week)
       const firstDay = new Date(calYear, calMonth, 1)
-      const lastDay = new Date(calYear, calMonth + 1, 0)
       // Find the Monday of the week containing the 1st
       const mondayOffset = firstDay.getDay() === 0 ? -6 : 1 - firstDay.getDay()
       const startDate = new Date(firstDay)
@@ -314,9 +239,7 @@ export default function DashboardPage() {
       })
       setShowCreateMicro(false)
       setMicroForm({ partido_id: '', objetivo_principal: '', objetivo_tactico: '', objetivo_fisico: '', notas: '' })
-      fetchCalendarData()
-      fetchData()
-      // Navigate to the new microciclo detail
+      mutate((key: string) => typeof key === 'string' && key.includes('/microciclos'), undefined, { revalidate: true })
       router.push(`/microciclos/${res.id}`)
     } catch (err: any) {
       alert(err.message || 'Error al crear microciclo')

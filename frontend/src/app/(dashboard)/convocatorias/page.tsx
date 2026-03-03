@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
+import useSWR, { mutate } from 'swr'
 import {
   Users,
   Plus,
@@ -33,13 +34,13 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { ListPageSkeleton } from '@/components/ui/page-skeletons'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { convocatoriasApi, CreateConvocatoriaData, UpdateConvocatoriaData } from '@/lib/api/convocatorias'
-import { partidosApi } from '@/lib/api/partidos'
 import { jugadoresApi, Jugador } from '@/lib/api/jugadores'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
+import { apiKey } from '@/lib/swr'
 import { formatDate } from '@/lib/utils'
-import type { Convocatoria, Partido } from '@/types'
+import type { Convocatoria, Partido, PaginatedResponse } from '@/types'
 
 // Position coords for pitch diagram
 const POSITION_COORDS: Record<string, { top: string; left: string }> = {
@@ -82,13 +83,24 @@ function getPlayerFullName(conv: Convocatoria) {
 export default function ConvocatoriasPage() {
   const { equipoActivo } = useEquipoStore()
 
-  const [partidos, setPartidos] = useState<Partido[]>([])
-  const [loading, setLoading] = useState(true)
   const [selectedPartido, setSelectedPartido] = useState<Partido | null>(null)
 
-  // Convocatoria for selected partido
-  const [convocados, setConvocados] = useState<Convocatoria[]>([])
-  const [loadingConv, setLoadingConv] = useState(false)
+  // SWR: Load partidos
+  const { data: partidosData, isLoading: loading } = useSWR<PaginatedResponse<Partido>>(
+    apiKey('/partidos', {
+      equipo_id: equipoActivo?.id,
+      limit: 20,
+    }, ['equipo_id'])
+  )
+  const partidos = partidosData?.data || []
+
+  // SWR: Load convocatoria when partido selected (conditional)
+  const { data: convocadosData, isLoading: loadingConv } = useSWR<{ data: Convocatoria[]; total: number }>(
+    selectedPartido
+      ? apiKey(`/convocatorias/partido/${selectedPartido.id}`)
+      : null
+  )
+  const convocados = convocadosData?.data || []
 
   // Add players dialog
   const [showAdd, setShowAdd] = useState(false)
@@ -107,33 +119,6 @@ export default function ConvocatoriasPage() {
 
   // View toggle
   const [showPitch, setShowPitch] = useState(true)
-
-  usePageReady(loading)
-
-  // Load partidos
-  useEffect(() => {
-    if (!equipoActivo?.id) return
-    setLoading(true)
-    partidosApi
-      .list({ equipo_id: equipoActivo.id, limit: 20 })
-      .then((res) => setPartidos(res?.data || []))
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [equipoActivo?.id])
-
-  // Load convocatoria when partido selected
-  useEffect(() => {
-    if (!selectedPartido) {
-      setConvocados([])
-      return
-    }
-    setLoadingConv(true)
-    convocatoriasApi
-      .listByPartido(selectedPartido.id)
-      .then((res) => setConvocados(res?.data || []))
-      .catch(console.error)
-      .finally(() => setLoadingConv(false))
-  }, [selectedPartido?.id])
 
   // Load jugadores when opening add dialog
   const openAddDialog = () => {
@@ -175,9 +160,8 @@ export default function ConvocatoriasPage() {
       }))
       await convocatoriasApi.createBatch(batch)
       setShowAdd(false)
-      // Refresh
-      const res = await convocatoriasApi.listByPartido(selectedPartido.id)
-      setConvocados(res?.data || [])
+      // Invalidate convocatoria caches
+      mutate((key: string) => typeof key === 'string' && key.includes('/convocatorias'), undefined, { revalidate: true })
     } catch (err: any) {
       alert(err.message || 'Error al crear convocatoria')
     } finally {
@@ -188,9 +172,7 @@ export default function ConvocatoriasPage() {
   const handleToggleTitular = async (conv: Convocatoria) => {
     try {
       await convocatoriasApi.update(conv.id, { titular: !conv.titular })
-      setConvocados((prev) =>
-        prev.map((c) => (c.id === conv.id ? { ...c, titular: !c.titular } : c))
-      )
+      mutate((key: string) => typeof key === 'string' && key.includes('/convocatorias'), undefined, { revalidate: true })
     } catch (err) {
       console.error('Error toggling titular:', err)
     }
@@ -212,9 +194,9 @@ export default function ConvocatoriasPage() {
     if (!editingConv) return
     setSavingStats(true)
     try {
-      const updated = await convocatoriasApi.update(editingConv.id, statsForm)
-      setConvocados((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+      await convocatoriasApi.update(editingConv.id, statsForm)
       setEditingConv(null)
+      mutate((key: string) => typeof key === 'string' && key.includes('/convocatorias'), undefined, { revalidate: true })
     } catch (err: any) {
       alert(err.message || 'Error al guardar estadisticas')
     } finally {
@@ -225,7 +207,7 @@ export default function ConvocatoriasPage() {
   const handleRemove = async (convId: string) => {
     try {
       await convocatoriasApi.delete(convId)
-      setConvocados((prev) => prev.filter((c) => c.id !== convId))
+      mutate((key: string) => typeof key === 'string' && key.includes('/convocatorias'), undefined, { revalidate: true })
     } catch (err) {
       console.error(err)
     }

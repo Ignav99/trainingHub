@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import useSWR, { mutate } from 'swr'
 import {
   HeartPulse,
   Plus,
@@ -20,12 +21,12 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { PageLoader } from '@/components/ui/page-loader'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
+import { ListPageSkeleton } from '@/components/ui/page-skeletons'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { useAuthStore } from '@/stores/authStore'
 import { medicoApi, CreateRegistroMedicoData } from '@/lib/api/medico'
-import { jugadoresApi, Jugador } from '@/lib/api/jugadores'
+import { Jugador } from '@/lib/api/jugadores'
+import { apiKey } from '@/lib/swr'
 import type { RegistroMedico, TipoRegistroMedico, EstadoRegistroMedico } from '@/types'
 
 const TIPOS: { value: TipoRegistroMedico; label: string }[] = [
@@ -67,10 +68,27 @@ export default function EnfermeriaPage() {
   const { equipoActivo } = useEquipoStore()
   const user = useAuthStore((s) => s.user)
 
-  const [registros, setRegistros] = useState<RegistroMedico[]>([])
-  const [jugadores, setJugadores] = useState<Jugador[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  // SWR: medical records
+  const { data: registrosRaw, isLoading: loadingRegistros, error: registrosError } = useSWR<RegistroMedico[] | { data: RegistroMedico[] }>(
+    apiKey('/medico', {
+      equipo_id: equipoActivo?.id,
+    }, ['equipo_id'])
+  )
+
+  // SWR: jugadores
+  const { data: jugadoresData, isLoading: loadingJugadores } = useSWR<{ data: Jugador[]; total: number }>(
+    apiKey('/jugadores', {
+      equipo_id: equipoActivo?.id,
+    }, ['equipo_id'])
+  )
+
+  const registros = useMemo(() => {
+    if (!registrosRaw) return []
+    return Array.isArray(registrosRaw) ? registrosRaw : (registrosRaw as any).data || []
+  }, [registrosRaw])
+  const jugadores = jugadoresData?.data || []
+  const loading = loadingRegistros || loadingJugadores
+  const error = registrosError ? 'Error al cargar los datos médicos' : null
 
   // Filters
   const [busqueda, setBusqueda] = useState('')
@@ -86,44 +104,13 @@ export default function EnfermeriaPage() {
   })
 
   // Stats
-  const activos = registros.filter((r) => r.estado === 'activo').length
-  const enRecuperacion = registros.filter((r) => r.estado === 'en_recuperacion').length
-  const conAlta = registros.filter((r) => r.estado === 'alta').length
-
-  useEffect(() => {
-    if (equipoActivo?.id) {
-      loadData()
-    }
-  }, [equipoActivo?.id])
-
-  usePageReady(loading)
-
-  async function loadData() {
-    setLoading(true)
-    setError(null)
-    try {
-      const [registrosRes, jugadoresRes] = await Promise.allSettled([
-        medicoApi.list(equipoActivo!.id),
-        jugadoresApi.list({ equipo_id: equipoActivo!.id }),
-      ])
-
-      if (registrosRes.status === 'fulfilled') {
-        setRegistros(Array.isArray(registrosRes.value) ? registrosRes.value : (registrosRes.value as any).data || [])
-      }
-      if (jugadoresRes.status === 'fulfilled') {
-        setJugadores(jugadoresRes.value.data || [])
-      }
-    } catch (err) {
-      setError('Error al cargar los datos médicos')
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const activos = registros.filter((r: RegistroMedico) => r.estado === 'activo').length
+  const enRecuperacion = registros.filter((r: RegistroMedico) => r.estado === 'en_recuperacion').length
+  const conAlta = registros.filter((r: RegistroMedico) => r.estado === 'alta').length
 
   const jugadoresMap = new Map(jugadores.map((j) => [j.id, j]))
 
-  const filteredRegistros = registros.filter((r) => {
+  const filteredRegistros = registros.filter((r: RegistroMedico) => {
     if (tipoFilter && r.tipo !== tipoFilter) return false
     if (estadoFilter && r.estado !== estadoFilter) return false
     if (busqueda) {
@@ -156,7 +143,8 @@ export default function EnfermeriaPage() {
         tipo: 'lesion',
         fecha_inicio: new Date().toISOString().slice(0, 10),
       })
-      await loadData()
+      // Invalidate medico caches
+      mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
     } catch (err) {
       console.error('Error creating registro:', err)
       alert('Error al crear el registro médico')
@@ -166,7 +154,7 @@ export default function EnfermeriaPage() {
   }
 
   if (loading) {
-    return <PageLoader />
+    return <ListPageSkeleton />
   }
 
   return (
@@ -271,7 +259,7 @@ export default function EnfermeriaPage() {
         <div className="text-center py-12">
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
           <p className="text-red-600 mb-4">{error}</p>
-          <Button onClick={loadData}>Reintentar</Button>
+          <Button onClick={() => mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })}>Reintentar</Button>
         </div>
       ) : filteredRegistros.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-xl border">
@@ -300,7 +288,7 @@ export default function EnfermeriaPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredRegistros.map((registro) => {
+              {filteredRegistros.map((registro: RegistroMedico) => {
                 const jugador = jugadoresMap.get(registro.jugador_id)
                 const estadoConf = ESTADO_CONFIG[registro.estado] || ESTADO_CONFIG.activo
                 const tipoConf = TIPO_BADGE[registro.tipo] || TIPO_BADGE.otro

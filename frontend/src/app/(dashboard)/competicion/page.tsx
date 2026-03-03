@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
+import useSWR, { mutate } from 'swr'
 import { useEquipoStore } from '@/stores/equipoStore'
 import {
   rfefApi,
@@ -12,8 +13,8 @@ import {
 } from '@/lib/api/rfef'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Spinner } from '@/components/ui/spinner'
-import { PageLoader } from '@/components/ui/page-loader'
-import { usePageReady } from '@/components/providers/PageReadyProvider'
+import { ListPageSkeleton } from '@/components/ui/page-skeletons'
+import { apiKey } from '@/lib/swr'
 import {
   Trophy,
   RefreshCw,
@@ -33,7 +34,6 @@ export default function CompeticionPage() {
   const { equipoActivo } = useEquipoStore()
   const [competicion, setCompeticion] = useState<RFEFCompeticion | null>(null)
   const [jornadas, setJornadas] = useState<RFEFJornada[]>([])
-  const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [syncStatus, setSyncStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -53,19 +53,51 @@ export default function CompeticionPage() {
   // Delete confirmation
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  const loadCompeticion = useCallback(async () => {
+  // SWR: Load competiciones
+  const { data: competicionesRes, isLoading: loading } = useSWR<{ data: RFEFCompeticion[]; total: number }>(
+    apiKey('/rfef/competiciones', {
+      equipo_id: equipoActivo?.id,
+    }, ['equipo_id']),
+    {
+      onSuccess: async (res) => {
+        if (res.data.length > 0 && !competicion) {
+          const comp = res.data[0]
+          setCompeticion(comp)
+          // Load jornadas
+          try {
+            const jornadasRes = await rfefApi.listJornadas(comp.id)
+            setJornadas(jornadasRes.data)
+            // Set current jornada to latest with results
+            const withResults = jornadasRes.data.filter(j =>
+              j.partidos?.some(p => p.goles_local !== null)
+            )
+            if (withResults.length > 0) {
+              setCurrentJornada(withResults[withResults.length - 1].numero)
+            } else if (jornadasRes.data.length > 0) {
+              setCurrentJornada(jornadasRes.data[0].numero)
+            }
+          } catch { /* ok */ }
+        }
+      },
+    }
+  )
+
+  // Show team selector when competition loaded but no team selected
+  useEffect(() => {
+    if (competicion && !competicion.mi_equipo_nombre && !selectingEquipo) {
+      setSelectingEquipo(true)
+    }
+  }, [competicion, selectingEquipo])
+
+  const reloadCompeticion = async () => {
     if (!equipoActivo?.id) return
-    setLoading(true)
-    setError(null)
     try {
       const res = await rfefApi.listCompeticiones({ equipo_id: equipoActivo.id })
       if (res.data.length > 0) {
         const comp = res.data[0]
         setCompeticion(comp)
-        // Load jornadas
         const jornadasRes = await rfefApi.listJornadas(comp.id)
         setJornadas(jornadasRes.data)
-        // Set current jornada to latest with results
         const withResults = jornadasRes.data.filter(j =>
           j.partidos?.some(p => p.goles_local !== null)
         )
@@ -79,23 +111,8 @@ export default function CompeticionPage() {
       }
     } catch (err: any) {
       setError(err.message || 'Error al cargar competicion')
-    } finally {
-      setLoading(false)
     }
-  }, [equipoActivo?.id])
-
-  useEffect(() => {
-    loadCompeticion()
-  }, [loadCompeticion])
-
-  // Show team selector when competition loaded but no team selected
-  useEffect(() => {
-    if (competicion && !competicion.mi_equipo_nombre && !selectingEquipo) {
-      setSelectingEquipo(true)
-    }
-  }, [competicion, selectingEquipo])
-
-  usePageReady(loading)
+  }
 
   const handleSetup = async () => {
     if (!equipoActivo?.id || !setupUrl) return
@@ -113,7 +130,8 @@ export default function CompeticionPage() {
       // Show team selector immediately
       setSelectingEquipo(true)
       // Reload to get jornadas
-      await loadCompeticion()
+      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, { revalidate: true })
+      await reloadCompeticion()
     } catch (err: any) {
       const msg = err.message || 'Error al importar'
       if (msg.includes('0 bytes') || msg.includes('502')) {
@@ -140,7 +158,8 @@ export default function CompeticionPage() {
           (result.link_result ? `, ${result.link_result.partidos_created || 0} partidos creados` : '') +
           (result.errors?.length ? ` (${result.errors.length} errores)` : '')
         )
-        await loadCompeticion()
+        mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, { revalidate: true })
+        await reloadCompeticion()
       } catch (err: any) {
         // Non-critical — the setup itself already worked
         console.error('Sync-full after setup:', err)
@@ -166,7 +185,8 @@ export default function CompeticionPage() {
           (result.errors?.length ? ` (${result.errors.length} errores)` : '')
         )
       }
-      await loadCompeticion()
+      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, { revalidate: true })
+      await reloadCompeticion()
     } catch (err: any) {
       const msg = err.message || 'Error al sincronizar'
       if (msg.includes('502') || msg.includes('RFAF')) {
@@ -196,6 +216,7 @@ export default function CompeticionPage() {
       } catch {
         // Link might fail if no jornadas yet — that's ok
       }
+      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, { revalidate: true })
     } catch (err: any) {
       setError(err.message || 'Error al seleccionar equipo')
     } finally {
@@ -211,13 +232,14 @@ export default function CompeticionPage() {
       setJornadas([])
       setConfirmDelete(false)
       setSyncStatus(null)
+      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, { revalidate: true })
     } catch (err: any) {
       setError(err.message || 'Error al eliminar')
     }
   }
 
   if (loading) {
-    return <PageLoader />
+    return <ListPageSkeleton />
   }
 
   // ============ No competition: Setup screen ============
