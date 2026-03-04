@@ -51,28 +51,23 @@ def calculate_nivel_global(jugador: dict) -> float:
     return round(sum(niveles) / len(niveles), 1)
 
 
-# Pydantic model field name → Supabase column name
-_FIELD_RENAMES = {
-    "posiciones_secundarias": "posicion_secundaria",
-    "pierna_dominante": "pie_dominante",
+# Whitelist: only these fields exist in the Supabase jugadores table.
+# Any field NOT in this set will be silently dropped before insert/update.
+_DB_COLUMNS = {
+    "nombre", "apellidos", "dorsal", "fecha_nacimiento",
+    "posicion_principal",
+    "altura", "peso",
+    "nivel_tecnico", "nivel_tactico", "nivel_fisico", "nivel_mental",
+    "estado", "fecha_lesion", "fecha_vuelta_estimada", "motivo_baja",
+    "es_capitan", "es_convocable", "es_portero", "es_invitado",
+    "notas", "foto_url",
+    "equipo_id",
 }
-
-# Fields in the Pydantic model that do NOT exist in the Supabase table
-_FIELDS_NOT_IN_TABLE = {"apodo", "equipo_origen_id", "edad", "nivel_global"}
 
 
 def _sanitize_jugador_data(data: dict) -> dict:
-    """Rename and filter fields to match Supabase jugadores table columns."""
-    # Remove fields that don't exist in the table
-    for field in _FIELDS_NOT_IN_TABLE:
-        data.pop(field, None)
-
-    # Rename mismatched fields
-    for pydantic_name, db_name in _FIELD_RENAMES.items():
-        if pydantic_name in data:
-            data[db_name] = data.pop(pydantic_name)
-
-    return data
+    """Keep only fields that exist in the Supabase jugadores table."""
+    return {k: v for k, v in data.items() if k in _DB_COLUMNS}
 
 
 def enrich_jugador(jugador: dict) -> dict:

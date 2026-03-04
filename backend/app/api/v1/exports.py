@@ -44,8 +44,8 @@ async def export_jugadores(
     supabase = get_supabase()
 
     response = supabase.table("jugadores").select(
-        "dorsal, nombre, apellidos, posicion_principal, posicion_secundaria, "
-        "estado, pie_dominante, fecha_nacimiento, "
+        "dorsal, nombre, apellidos, posicion_principal, "
+        "estado, fecha_nacimiento, "
         "nivel_tecnico, nivel_tactico, nivel_fisico, nivel_mental, es_convocable"
     ).eq("equipo_id", str(equipo_id)).order("dorsal").execute()
 

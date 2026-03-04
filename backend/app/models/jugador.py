@@ -70,13 +70,13 @@ class JugadorBase(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _map_db_column_names(cls, data):
-        """Map Supabase column names to Pydantic field names."""
+        """Handle any DB column name differences gracefully."""
         if isinstance(data, dict):
-            # posicion_secundaria → posiciones_secundarias
+            # posicion_secundaria (if it exists in DB) → posiciones_secundarias
             if "posicion_secundaria" in data and "posiciones_secundarias" not in data:
                 val = data.pop("posicion_secundaria")
                 data["posiciones_secundarias"] = val if isinstance(val, list) else (val or [])
-            # pie_dominante → pierna_dominante
+            # pie_dominante (if it exists in DB) → pierna_dominante
             if "pie_dominante" in data and "pierna_dominante" not in data:
                 data["pierna_dominante"] = data.pop("pie_dominante")
         return data
