@@ -1,9 +1,12 @@
 """
 TrainingHub Pro - Router de Rivales
-CRUD para equipos rivales.
+CRUD para equipos rivales + inteligencia (once probable, tarjetas).
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query, status
+import logging
+from collections import Counter
+
+from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File, status
 from typing import Optional
 from uuid import UUID
 from math import ceil
@@ -18,6 +21,7 @@ from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -63,6 +67,225 @@ async def list_rivales(
         limit=limit,
         pages=pages,
     )
+
+
+@router.post("/{rival_id}/escudo")
+async def upload_escudo(
+    rival_id: UUID,
+    file: UploadFile = File(...),
+    auth: AuthContext = Depends(require_permission(Permission.RIVAL_UPDATE)),
+):
+    """Upload or update rival badge/escudo. Accepts PNG, JPG, SVG, WebP. Max 2MB."""
+    if not file.content_type or not file.content_type.startswith(("image/", "application/svg")):
+        raise HTTPException(status_code=400, detail="Solo se permiten imagenes (PNG, JPG, SVG, WebP)")
+
+    content = await file.read()
+    if len(content) > 2 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="El archivo no puede superar 2MB")
+
+    supabase = get_supabase()
+
+    # Verify rival exists and belongs to org
+    existing = supabase.table("rivales").select("id").eq(
+        "id", str(rival_id)
+    ).eq("organizacion_id", auth.organizacion_id).single().execute()
+
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Rival no encontrado")
+
+    extension = file.filename.rsplit(".", 1)[-1] if file.filename and "." in file.filename else "png"
+    storage_path = f"rivales/{auth.organizacion_id}/{rival_id}/escudo.{extension}"
+
+    try:
+        try:
+            supabase.storage.from_("logos").remove([storage_path])
+        except Exception:
+            pass
+
+        supabase.storage.from_("logos").upload(
+            storage_path,
+            content,
+            file_options={"content-type": file.content_type, "upsert": "true"},
+        )
+
+        escudo_url = supabase.storage.from_("logos").get_public_url(storage_path)
+    except Exception as e:
+        logger.error(f"Error uploading escudo: {e}")
+        raise HTTPException(status_code=500, detail="Error al subir el escudo")
+
+    supabase.table("rivales").update({
+        "escudo_url": escudo_url,
+    }).eq("id", str(rival_id)).execute()
+
+    return {"escudo_url": escudo_url}
+
+
+@router.get("/{rival_id}/once-probable")
+async def get_once_probable(
+    rival_id: UUID,
+    competicion_id: Optional[UUID] = None,
+    auth: AuthContext = Depends(require_permission(Permission.RIVAL_READ)),
+):
+    """
+    Calculates the probable starting XI for a rival based on the last 5 match reports.
+    Analyzes starters from the rival's side and returns top 11 by frequency.
+    """
+    supabase = get_supabase()
+
+    # Get rival name
+    rival_res = supabase.table("rivales").select("nombre, rfef_nombre").eq(
+        "id", str(rival_id)
+    ).single().execute()
+
+    if not rival_res.data:
+        raise HTTPException(status_code=404, detail="Rival no encontrado")
+
+    rival_nombre = rival_res.data.get("rfef_nombre") or rival_res.data.get("nombre", "")
+    rival_lower = rival_nombre.lower()
+
+    # Build query for actas
+    query = supabase.table("rfef_actas").select(
+        "local_nombre, visitante_nombre, titulares_local, titulares_visitante, jornada_numero"
+    )
+
+    if competicion_id:
+        query = query.eq("competicion_id", str(competicion_id))
+
+    # Get actas where rival plays (either side)
+    query = query.or_(
+        f"local_nombre.ilike.%{rival_nombre}%,visitante_nombre.ilike.%{rival_nombre}%"
+    ).order("jornada_numero", desc=True).limit(5)
+
+    actas_res = query.execute()
+    actas = actas_res.data or []
+
+    # Count appearances of each starter for the rival's side
+    player_counts: Counter = Counter()
+    player_dorsals: dict[str, int | None] = {}
+
+    for acta in actas:
+        local_lower = (acta.get("local_nombre") or "").lower()
+        if rival_lower in local_lower or local_lower in rival_lower:
+            titulares = acta.get("titulares_local", [])
+        else:
+            titulares = acta.get("titulares_visitante", [])
+
+        for jugador in titulares:
+            nombre = jugador.get("nombre", "").strip()
+            if nombre:
+                player_counts[nombre] += 1
+                if nombre not in player_dorsals:
+                    player_dorsals[nombre] = jugador.get("dorsal")
+
+    # Top 11 by frequency
+    top_11 = player_counts.most_common(11)
+    once_probable = [
+        {
+            "nombre": nombre,
+            "dorsal": player_dorsals.get(nombre),
+            "apariciones": count,
+        }
+        for nombre, count in top_11
+    ]
+
+    return {
+        "actas_analizadas": len(actas),
+        "once_probable": once_probable,
+    }
+
+
+@router.get("/{rival_id}/tarjetas")
+async def get_tarjetas_resumen(
+    rival_id: UUID,
+    competicion_id: Optional[UUID] = None,
+    auth: AuthContext = Depends(require_permission(Permission.RIVAL_READ)),
+):
+    """
+    Aggregates card statistics for a rival across all match reports in a competition.
+    Includes yellow/red cards, accumulated cycles (every 5 yellows = suspension).
+    """
+    supabase = get_supabase()
+
+    # Get rival name
+    rival_res = supabase.table("rivales").select("nombre, rfef_nombre").eq(
+        "id", str(rival_id)
+    ).single().execute()
+
+    if not rival_res.data:
+        raise HTTPException(status_code=404, detail="Rival no encontrado")
+
+    rival_nombre = rival_res.data.get("rfef_nombre") or rival_res.data.get("nombre", "")
+    rival_lower = rival_nombre.lower()
+
+    # Build query — get ALL actas for the competition where rival plays
+    query = supabase.table("rfef_actas").select(
+        "local_nombre, visitante_nombre, tarjetas_local, tarjetas_visitante, jornada_numero"
+    )
+
+    if competicion_id:
+        query = query.eq("competicion_id", str(competicion_id))
+
+    query = query.or_(
+        f"local_nombre.ilike.%{rival_nombre}%,visitante_nombre.ilike.%{rival_nombre}%"
+    ).order("jornada_numero")
+
+    actas_res = query.execute()
+    actas = actas_res.data or []
+
+    # Aggregate cards per player
+    player_cards: dict[str, dict] = {}
+
+    for acta in actas:
+        local_lower = (acta.get("local_nombre") or "").lower()
+        if rival_lower in local_lower or local_lower in rival_lower:
+            tarjetas = acta.get("tarjetas_local", [])
+        else:
+            tarjetas = acta.get("tarjetas_visitante", [])
+
+        for tarjeta in tarjetas:
+            nombre = tarjeta.get("jugador", "").strip()
+            tipo = tarjeta.get("tipo", "")
+            if not nombre:
+                continue
+
+            if nombre not in player_cards:
+                player_cards[nombre] = {"amarillas": 0, "rojas": 0}
+
+            if tipo == "amarilla":
+                player_cards[nombre]["amarillas"] += 1
+            elif tipo == "roja":
+                player_cards[nombre]["rojas"] += 1
+
+    # Build result with cycle calculation
+    jugadores = []
+    for nombre, cards in player_cards.items():
+        amarillas = cards["amarillas"]
+        rojas = cards["rojas"]
+        ciclos_cumplidos = amarillas // 5
+
+        # Estado: if just completed a cycle (amarillas is multiple of 5) and > 0
+        if amarillas > 0 and amarillas % 5 == 0:
+            estado = "Sancionado"
+        elif amarillas % 5 == 4:
+            estado = "Ciclo"  # 1 away from sanction
+        else:
+            estado = "OK"
+
+        jugadores.append({
+            "nombre": nombre,
+            "amarillas": amarillas,
+            "rojas": rojas,
+            "ciclos_cumplidos": ciclos_cumplidos,
+            "estado": estado,
+        })
+
+    # Sort by yellows desc
+    jugadores.sort(key=lambda j: (-j["amarillas"], -j["rojas"]))
+
+    return {
+        "total_actas": len(actas),
+        "jugadores": jugadores,
+    }
 
 
 @router.get("/{rival_id}/perfil-competicion")

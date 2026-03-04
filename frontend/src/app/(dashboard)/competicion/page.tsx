@@ -27,8 +27,17 @@ import {
   Trash2,
   Users,
   Swords,
+  FileText,
+  X,
 } from 'lucide-react'
 import Link from 'next/link'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import type { RFEFActa } from '@/types'
 
 export default function CompeticionPage() {
   const { equipoActivo } = useEquipoStore()
@@ -52,6 +61,9 @@ export default function CompeticionPage() {
 
   // Delete confirmation
   const [confirmDelete, setConfirmDelete] = useState(false)
+
+  // Acta modal
+  const [selectedActaCod, setSelectedActaCod] = useState<string | null>(null)
 
   // SWR: Load competiciones
   const { data: competicionesRes, isLoading: loading } = useSWR<{ data: RFEFCompeticion[]; total: number }>(
@@ -633,6 +645,7 @@ export default function CompeticionPage() {
                     key={idx}
                     partido={partido}
                     miEquipo={miEquipo}
+                    onActaClick={partido.cod_acta ? () => setSelectedActaCod(partido.cod_acta!) : undefined}
                   />
                 ))
               ) : (
@@ -692,6 +705,12 @@ export default function CompeticionPage() {
         </TabsContent>
       </Tabs>
 
+      {/* Acta Detail Modal */}
+      <ActaModal
+        codActa={selectedActaCod}
+        onClose={() => setSelectedActaCod(null)}
+      />
+
       {/* Change team button */}
       {competicion.mi_equipo_nombre && !selectingEquipo && (
         <div className="text-center">
@@ -719,17 +738,27 @@ function SummaryCard({ label, value, sub }: { label: string; value: string; sub?
   )
 }
 
-function PartidoRow({ partido, miEquipo }: { partido: RFEFPartidoJornada; miEquipo: string }) {
+function PartidoRow({
+  partido,
+  miEquipo,
+  onActaClick,
+}: {
+  partido: RFEFPartidoJornada
+  miEquipo: string
+  onActaClick?: () => void
+}) {
   const isMyTeam = (name: string) =>
     miEquipo && name.toLowerCase() === miEquipo.toLowerCase()
   const hasResult = partido.goles_local !== null && partido.goles_visitante !== null
   const isMyMatch = isMyTeam(partido.local) || isMyTeam(partido.visitante)
+  const hasActa = !!partido.cod_acta
 
   return (
     <div
+      onClick={hasActa ? onActaClick : undefined}
       className={`flex items-center gap-3 px-4 py-3 ${
         isMyMatch ? 'bg-yellow-50/50 dark:bg-yellow-950/10' : ''
-      }`}
+      } ${hasActa ? 'cursor-pointer hover:bg-muted/50 transition-colors' : ''}`}
     >
       {/* Local */}
       <div className="flex-1 text-right">
@@ -741,8 +770,9 @@ function PartidoRow({ partido, miEquipo }: { partido: RFEFPartidoJornada; miEqui
       {/* Score */}
       <div className="w-20 text-center shrink-0">
         {hasResult ? (
-          <span className="text-sm font-bold bg-muted px-3 py-1 rounded">
+          <span className="text-sm font-bold bg-muted px-3 py-1 rounded inline-flex items-center gap-1">
             {partido.goles_local} - {partido.goles_visitante}
+            {hasActa && <FileText className="h-3 w-3 text-muted-foreground" />}
           </span>
         ) : (
           <div className="text-xs text-muted-foreground">
@@ -758,5 +788,231 @@ function PartidoRow({ partido, miEquipo }: { partido: RFEFPartidoJornada; miEqui
         </span>
       </div>
     </div>
+  )
+}
+
+function ActaModal({ codActa, onClose }: { codActa: string | null; onClose: () => void }) {
+  const { data: acta, isLoading } = useSWR<RFEFActa>(
+    codActa ? apiKey(`/rfef/actas/${codActa}`) : null
+  )
+
+  return (
+    <Dialog open={!!codActa} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-base">Acta del partido</DialogTitle>
+        </DialogHeader>
+
+        {isLoading && (
+          <div className="flex items-center justify-center py-8">
+            <Spinner size="md" />
+          </div>
+        )}
+
+        {acta && (
+          <div className="space-y-5">
+            {/* Header: Teams + Score */}
+            <div className="text-center space-y-2">
+              <div className="flex items-center justify-center gap-4">
+                <div className="flex-1 text-right">
+                  <p className="font-bold text-sm">{acta.local_nombre}</p>
+                </div>
+                <div className="text-center">
+                  <span className="text-xl font-bold bg-muted px-4 py-1.5 rounded-lg inline-block">
+                    {acta.goles_local ?? '-'} - {acta.goles_visitante ?? '-'}
+                  </span>
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="font-bold text-sm">{acta.visitante_nombre}</p>
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground space-x-3">
+                {acta.fecha && <span>{acta.fecha}</span>}
+                {acta.hora && <span>{acta.hora}</span>}
+                {acta.estadio && <span>{acta.estadio}</span>}
+                <span>Jornada {acta.jornada_numero}</span>
+              </div>
+            </div>
+
+            {/* Lineups: Side by side */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Local */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Titulares Local</p>
+                <div className="space-y-1">
+                  {acta.titulares_local?.map((j, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs py-1 px-2 rounded border">
+                      <span className="font-bold text-muted-foreground w-6 text-right">{j.dorsal ?? '-'}</span>
+                      <span className="flex-1 truncate">{j.nombre}</span>
+                    </div>
+                  ))}
+                </div>
+                {acta.suplentes_local?.length > 0 && (
+                  <>
+                    <p className="text-xs text-muted-foreground mt-3 mb-1">Suplentes</p>
+                    <div className="space-y-1">
+                      {acta.suplentes_local.map((j, i) => (
+                        <div key={i} className="flex items-center gap-2 text-xs py-1 px-2 rounded text-muted-foreground">
+                          <span className="w-6 text-right">{j.dorsal ?? '-'}</span>
+                          <span className="flex-1 truncate">{j.nombre}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Visitante */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Titulares Visitante</p>
+                <div className="space-y-1">
+                  {acta.titulares_visitante?.map((j, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs py-1 px-2 rounded border">
+                      <span className="font-bold text-muted-foreground w-6 text-right">{j.dorsal ?? '-'}</span>
+                      <span className="flex-1 truncate">{j.nombre}</span>
+                    </div>
+                  ))}
+                </div>
+                {acta.suplentes_visitante?.length > 0 && (
+                  <>
+                    <p className="text-xs text-muted-foreground mt-3 mb-1">Suplentes</p>
+                    <div className="space-y-1">
+                      {acta.suplentes_visitante.map((j, i) => (
+                        <div key={i} className="flex items-center gap-2 text-xs py-1 px-2 rounded text-muted-foreground">
+                          <span className="w-6 text-right">{j.dorsal ?? '-'}</span>
+                          <span className="flex-1 truncate">{j.nombre}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Goals */}
+            {acta.goles?.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Goles</p>
+                <div className="space-y-1">
+                  {acta.goles.map((g, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs py-1.5 px-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/20">
+                      <span className="font-bold text-emerald-600 w-8">{g.minuto}&apos;</span>
+                      <span className="flex-1">{g.jugador}</span>
+                      {g.parcial_local !== null && (
+                        <span className="font-bold text-muted-foreground">
+                          {g.parcial_local} - {g.parcial_visitante}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Cards */}
+            {(acta.tarjetas_local?.length > 0 || acta.tarjetas_visitante?.length > 0) && (
+              <div className="grid grid-cols-2 gap-4">
+                {acta.tarjetas_local?.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Tarjetas Local</p>
+                    <div className="space-y-1">
+                      {acta.tarjetas_local.map((t, i) => (
+                        <div key={i} className="flex items-center gap-2 text-xs py-1 px-2">
+                          <span className={`w-3 h-4 rounded-sm ${t.tipo === 'amarilla' ? 'bg-yellow-400' : 'bg-red-500'}`} />
+                          <span>{t.jugador}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {acta.tarjetas_visitante?.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Tarjetas Visitante</p>
+                    <div className="space-y-1">
+                      {acta.tarjetas_visitante.map((t, i) => (
+                        <div key={i} className="flex items-center gap-2 text-xs py-1 px-2">
+                          <span className={`w-3 h-4 rounded-sm ${t.tipo === 'amarilla' ? 'bg-yellow-400' : 'bg-red-500'}`} />
+                          <span>{t.jugador}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Substitutions */}
+            {(acta.sustituciones_local?.length > 0 || acta.sustituciones_visitante?.length > 0) && (
+              <div className="grid grid-cols-2 gap-4">
+                {acta.sustituciones_local?.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Cambios Local</p>
+                    <div className="space-y-1">
+                      {acta.sustituciones_local.map((s, i) => (
+                        <div key={i} className="text-xs text-muted-foreground py-1 px-2">
+                          {s.minuto}&apos; {s.jugador}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {acta.sustituciones_visitante?.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Cambios Visitante</p>
+                    <div className="space-y-1">
+                      {acta.sustituciones_visitante.map((s, i) => (
+                        <div key={i} className="text-xs text-muted-foreground py-1 px-2">
+                          {s.minuto}&apos; {s.jugador}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Referees */}
+            {acta.arbitros?.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Arbitros</p>
+                <div className="flex flex-wrap gap-2">
+                  {acta.arbitros.map((a: any, i: number) => (
+                    <span key={i} className="text-xs py-1 px-2 rounded bg-muted">
+                      {typeof a === 'string' ? a : a.nombre || a.rol || JSON.stringify(a)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Technical staff */}
+            {(Object.keys(acta.cuerpo_tecnico_local || {}).length > 0 || Object.keys(acta.cuerpo_tecnico_visitante || {}).length > 0) && (
+              <div className="grid grid-cols-2 gap-4">
+                {Object.keys(acta.cuerpo_tecnico_local || {}).length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Cuerpo Tecnico Local</p>
+                    {Object.entries(acta.cuerpo_tecnico_local).map(([rol, nombre]) => (
+                      <div key={rol} className="text-xs py-0.5">
+                        <span className="text-muted-foreground">{rol}:</span> {nombre}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {Object.keys(acta.cuerpo_tecnico_visitante || {}).length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Cuerpo Tecnico Visitante</p>
+                    {Object.entries(acta.cuerpo_tecnico_visitante).map(([rol, nombre]) => (
+                      <div key={rol} className="text-xs py-0.5">
+                        <span className="text-muted-foreground">{rol}:</span> {nombre}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }

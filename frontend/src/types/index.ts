@@ -1082,6 +1082,7 @@ export interface RFEFActa {
   sustituciones_visitante: RFEFActaSustitucion[]
   cuerpo_tecnico_local: Record<string, string>
   cuerpo_tecnico_visitante: Record<string, string>
+  arbitros: any[]
   created_at: string
   updated_at: string
 }
@@ -1102,6 +1103,34 @@ export interface RFEFActaResumen {
   fecha?: string
   hora?: string
   created_at: string
+}
+
+// ============================================
+// RIVAL INTELLIGENCE
+// ============================================
+
+export interface OnceProbableJugador {
+  nombre: string
+  dorsal: number | null
+  apariciones: number
+}
+
+export interface OnceProbableResponse {
+  actas_analizadas: number
+  once_probable: OnceProbableJugador[]
+}
+
+export interface TarjetaJugadorResumen {
+  nombre: string
+  amarillas: number
+  rojas: number
+  ciclos_cumplidos: number
+  estado: 'OK' | 'Ciclo' | 'Sancionado'
+}
+
+export interface TarjetasResumenResponse {
+  total_actas: number
+  jugadores: TarjetaJugadorResumen[]
 }
 
 // Evento de calendario (unifica sesiones, partidos, descansos)

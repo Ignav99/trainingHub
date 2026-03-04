@@ -1,5 +1,5 @@
 import { api } from './client'
-import { Partido, Rival, PaginatedResponse, TipoCompeticion, LocaliaPartido } from '@/types'
+import { Partido, Rival, PaginatedResponse, TipoCompeticion, LocaliaPartido, OnceProbableResponse, TarjetasResumenResponse } from '@/types'
 
 // ============ Rivales ============
 
@@ -45,6 +45,24 @@ export const rivalesApi = {
 
   async delete(id: string): Promise<void> {
     return api.delete(`/rivales/${id}`)
+  },
+
+  async uploadEscudo(rivalId: string, file: File): Promise<{ escudo_url: string }> {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.upload<{ escudo_url: string }>(`/rivales/${rivalId}/escudo`, formData)
+  },
+
+  async getOnceProbable(rivalId: string, competicionId?: string): Promise<OnceProbableResponse> {
+    const params: Record<string, string> = {}
+    if (competicionId) params.competicion_id = competicionId
+    return api.get<OnceProbableResponse>(`/rivales/${rivalId}/once-probable`, { params })
+  },
+
+  async getTarjetasResumen(rivalId: string, competicionId?: string): Promise<TarjetasResumenResponse> {
+    const params: Record<string, string> = {}
+    if (competicionId) params.competicion_id = competicionId
+    return api.get<TarjetasResumenResponse>(`/rivales/${rivalId}/tarjetas`, { params })
   },
 }
 

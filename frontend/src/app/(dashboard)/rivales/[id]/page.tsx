@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import useSWR, { mutate } from 'swr'
@@ -14,6 +14,9 @@ import {
   FileText,
   Loader2,
   Star,
+  Users,
+  Camera,
+  AlertTriangle,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -24,7 +27,7 @@ import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { RFEFCompeticion, RivalPerfilCompeticion } from '@/lib/api/rfef'
 import { rivalesApi } from '@/lib/api/partidos'
 import { useEquipoStore } from '@/stores/equipoStore'
-import type { Rival } from '@/types'
+import type { Rival, OnceProbableResponse, TarjetasResumenResponse } from '@/types'
 
 function Ultimos5({ resultados }: { resultados?: ('V' | 'E' | 'D')[] }) {
   if (!resultados?.length) return null
@@ -54,6 +57,7 @@ export default function RivalDetailPage() {
   const params = useParams()
   const id = params.id as string
   const { equipoActivo } = useEquipoStore()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // SWR for rival data
   const { data: rival, isLoading: loadingRival } = useSWR<Rival>(
@@ -79,9 +83,24 @@ export default function RivalDetailPage() {
     }) : null
   )
 
+  // SWR for once probable
+  const { data: onceData } = useSWR<OnceProbableResponse>(
+    id && competicionId ? apiKey(`/rivales/${id}/once-probable`, {
+      competicion_id: competicionId,
+    }) : null
+  )
+
+  // SWR for tarjetas
+  const { data: tarjetasData } = useSWR<TarjetasResumenResponse>(
+    id && competicionId ? apiKey(`/rivales/${id}/tarjetas`, {
+      competicion_id: competicionId,
+    }) : null
+  )
+
   const [notas, setNotas] = useState('')
   const [notasInitialized, setNotasInitialized] = useState(false)
   const [savingNotas, setSavingNotas] = useState(false)
+  const [uploadingEscudo, setUploadingEscudo] = useState(false)
 
   // Initialize notas from rival data when it arrives
   useEffect(() => {
@@ -106,6 +125,21 @@ export default function RivalDetailPage() {
       console.error('Error saving notas:', err)
     } finally {
       setSavingNotas(false)
+    }
+  }
+
+  async function handleEscudoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingEscudo(true)
+    try {
+      await rivalesApi.uploadEscudo(id, file)
+      mutate((key: string) => typeof key === 'string' && key.includes('/rivales'), undefined, { revalidate: true })
+    } catch (err) {
+      console.error('Error uploading escudo:', err)
+    } finally {
+      setUploadingEscudo(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
@@ -135,15 +169,32 @@ export default function RivalDetailPage() {
         <ChevronLeft className="h-4 w-4" /> Rivales
       </Link>
 
-      {/* Header */}
+      {/* Header with escudo upload */}
       <div className="flex items-center gap-4">
-        <div className="w-16 h-16 rounded-xl bg-muted flex items-center justify-center shrink-0">
-          {rival.escudo_url ? (
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploadingEscudo}
+          className="relative w-16 h-16 rounded-xl bg-muted flex items-center justify-center shrink-0 group cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
+          title="Cambiar escudo"
+        >
+          {uploadingEscudo ? (
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          ) : rival.escudo_url ? (
             <img src={rival.escudo_url} alt="" className="w-12 h-12 object-contain" />
           ) : (
             <Shield className="h-8 w-8 text-muted-foreground" />
           )}
-        </div>
+          <div className="absolute inset-0 rounded-xl bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            <Camera className="h-5 w-5 text-white" />
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleEscudoUpload}
+          />
+        </button>
         <div>
           <h1 className="text-2xl font-bold">{rival.nombre}</h1>
           <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-muted-foreground">
@@ -229,6 +280,87 @@ export default function RivalDetailPage() {
                   )}
                 </div>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Once Probable */}
+      {onceData && onceData.once_probable.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Once probable
+              <span className="text-xs font-normal text-muted-foreground ml-auto">
+                {onceData.actas_analizadas} actas analizadas
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {onceData.once_probable.map((j, i) => (
+                <div key={i} className="flex items-center gap-3 py-2 px-3 rounded-lg border">
+                  <span className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold shrink-0">
+                    {j.dorsal ?? '-'}
+                  </span>
+                  <span className="flex-1 text-sm font-medium truncate">{j.nombre}</span>
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {j.apariciones}/{onceData.actas_analizadas}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tarjetas y Sanciones */}
+      {tarjetasData && tarjetasData.jugadores.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              Tarjetas y sanciones
+              <span className="text-xs font-normal text-muted-foreground ml-auto">
+                {tarjetasData.total_actas} actas
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 pr-3 font-medium text-muted-foreground">Jugador</th>
+                    <th className="text-center py-2 px-2 font-medium w-12" title="Amarillas">&#x1F7E8;</th>
+                    <th className="text-center py-2 px-2 font-medium w-12" title="Rojas">&#x1F7E5;</th>
+                    <th className="text-center py-2 px-2 font-medium text-muted-foreground w-16">Ciclos</th>
+                    <th className="text-center py-2 pl-2 font-medium text-muted-foreground w-24">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tarjetasData.jugadores.map((j, i) => (
+                    <tr key={i} className="border-b last:border-0">
+                      <td className="py-2 pr-3 font-medium">{j.nombre}</td>
+                      <td className="text-center py-2 px-2">{j.amarillas}</td>
+                      <td className="text-center py-2 px-2">{j.rojas || '-'}</td>
+                      <td className="text-center py-2 px-2 text-muted-foreground">{j.ciclos_cumplidos}</td>
+                      <td className="text-center py-2 pl-2">
+                        <Badge
+                          variant={
+                            j.estado === 'Sancionado' ? 'destructive' :
+                            j.estado === 'Ciclo' ? 'secondary' : 'outline'
+                          }
+                          className="text-[10px]"
+                        >
+                          {j.estado === 'Ciclo' ? '4/5' : j.estado}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </CardContent>
         </Card>
