@@ -21,6 +21,45 @@ from app.services.competition_linker_service import link_competition
 
 logger = logging.getLogger(__name__)
 
+
+def _parse_fecha_sanciones(fecha_str):
+    """Parse DD-MM-YYYY or DD/MM/YYYY to ISO date string."""
+    if not fecha_str:
+        return None
+    for fmt in ("%d-%m-%Y", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(fecha_str.strip(), fmt).date().isoformat()
+        except ValueError:
+            continue
+    return None
+
+
+def _upsert_sanciones(supabase, comp_id: str, sanciones: list[dict]) -> int:
+    """Upsert sanciones using ON CONFLICT. Returns count saved."""
+    saved = 0
+    for s in sanciones:
+        record = {
+            "competicion_id": comp_id,
+            "jornada_numero": s["jornada_numero"],
+            "jornada_fecha": _parse_fecha_sanciones(s.get("jornada_fecha")),
+            "reunion_fecha": _parse_fecha_sanciones(s.get("reunion_fecha")),
+            "categoria": s["categoria"],
+            "equipo_nombre": s["equipo_nombre"],
+            "persona_nombre": s.get("persona_nombre", ""),
+            "tipo_licencia": s.get("tipo_licencia"),
+            "articulo": s.get("articulo"),
+            "descripcion": s["descripcion"],
+        }
+        try:
+            supabase.table("rfef_sanciones").upsert(
+                record,
+                on_conflict="competicion_id,jornada_numero,equipo_nombre,persona_nombre,articulo,descripcion",
+            ).execute()
+            saved += 1
+        except Exception as e:
+            logger.debug("Upsert sancion error: %s", e)
+    return saved
+
 scheduler = AsyncIOScheduler()
 
 
@@ -146,6 +185,20 @@ async def _sync_one(supabase, scraper: RFAFScraper, comp: dict):
         # --- Sync actas for recent jornadas ---
         if jornada_num:
             await _sync_recent_actas(supabase, scraper, comp_id, jornada_num)
+
+        # --- Sync sanciones if configured ---
+        sancion_comp = comp.get("sancion_competicion_id")
+        sancion_grupo = comp.get("sancion_grupo_id")
+        if sancion_comp and sancion_grupo:
+            try:
+                sanciones_data = await scraper.scrape_sanciones(
+                    codtemporada, sancion_comp, sancion_grupo, ""
+                )
+                saved = _upsert_sanciones(supabase, comp_id, sanciones_data)
+                if saved > 0:
+                    logger.info("Synced %d sanciones for %s", saved, comp.get("nombre", comp_id))
+            except Exception as e:
+                logger.debug("Error syncing sanciones for %s: %s", comp_id, e)
 
         logger.info("Synced competition %s successfully", comp.get("nombre", comp_id))
 
