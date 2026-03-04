@@ -146,8 +146,10 @@ async def create_jugador(jugador: JugadorCreate, auth: AuthContext = Depends(req
     data = jugador.model_dump(mode='json', exclude_none=True)
     data["equipo_id"] = str(data["equipo_id"])
 
-    # Eliminar campos que no existen en la tabla
-    data.pop("equipo_origen_id", None)
+    # Eliminar campos que no existen en la tabla de Supabase
+    _FIELDS_NOT_IN_TABLE = {"apodo", "equipo_origen_id"}
+    for field in _FIELDS_NOT_IN_TABLE:
+        data.pop(field, None)
 
     # Determinar si es portero
     data["es_portero"] = data.get("posicion_principal") == "POR"
@@ -167,9 +169,17 @@ async def update_jugador(jugador_id: UUID, jugador: JugadorUpdate, auth: AuthCon
 
     data = jugador.model_dump(exclude_unset=True, mode='json')
 
+    # Eliminar campos que no existen en la tabla de Supabase
+    _FIELDS_NOT_IN_TABLE = {"apodo", "equipo_origen_id"}
+    for field in _FIELDS_NOT_IN_TABLE:
+        data.pop(field, None)
+
     # Actualizar flag de portero si cambia la posición
     if data.get("posicion_principal"):
         data["es_portero"] = data["posicion_principal"] == "POR"
+
+    if not data:
+        raise HTTPException(status_code=400, detail="No hay campos válidos para actualizar")
 
     response = supabase.table("jugadores").update(data).eq("id", str(jugador_id)).execute()
 

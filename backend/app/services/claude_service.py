@@ -763,7 +763,7 @@ def _execute_tool(tool_name: str, tool_input: dict) -> str:
 
 def _tool_jugadores(supabase, params: dict) -> str:
     select_fields = (
-        "id, nombre, apellidos, apodo, dorsal, posicion_principal, posicion_secundaria, "
+        "id, nombre, apellidos, dorsal, posicion_principal, posicion_secundaria, "
         "estado, fecha_nacimiento, pie_dominante, "
         "nivel_tecnico, nivel_tactico, nivel_fisico, nivel_mental, "
         "fecha_lesion, fecha_vuelta_estimada, es_convocable"
