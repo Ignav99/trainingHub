@@ -569,6 +569,7 @@ async def sync_competicion_full(
                             "sustituciones_visitante": acta_data.get("sustituciones_visitante", []),
                             "cuerpo_tecnico_local": acta_data.get("cuerpo_tecnico_local", {}),
                             "cuerpo_tecnico_visitante": acta_data.get("cuerpo_tecnico_visitante", {}),
+                            "arbitros": acta_data.get("arbitros", []),
                         }
 
                         supabase.table("rfef_actas").insert(acta_record).execute()
@@ -736,6 +737,7 @@ async def sync_actas(
                     "sustituciones_visitante": acta_data.get("sustituciones_visitante", []),
                     "cuerpo_tecnico_local": acta_data.get("cuerpo_tecnico_local", {}),
                     "cuerpo_tecnico_visitante": acta_data.get("cuerpo_tecnico_visitante", {}),
+                    "arbitros": acta_data.get("arbitros", []),
                     "updated_at": datetime.utcnow().isoformat(),
                 }
 

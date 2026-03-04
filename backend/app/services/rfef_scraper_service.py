@@ -791,22 +791,7 @@ class RFAFScraper:
 
     def _parse_acta(self, soup: BeautifulSoup, cod_acta: str) -> dict:
         """Parse a complete match report (acta).
-
-        Structure (19 tables):
-        - Table 0: Teams + Score (ntype in <h2>)
-        - Table 4: Goals (minute, player, partial score)
-        - Table 5: Info (stadium, city)
-        - Table 6: Home starters (dorsal + name + card icon)
-        - Table 7: Home subs
-        - Tables 8-11: Home technical staff
-        - Table 12: Home substitutions (minute + player)
-        - Table 13: Away starters
-        - Table 14: Away subs
-        - Tables 15-17: Away technical staff
-        - Table 18: Away substitutions
-        """
-        tables = soup.find_all("table")
-
+        Uses semantic parsing (section headers) with fallback to legacy index-based."""
         result = {
             "cod_acta": cod_acta,
             "local": {"nombre": "", "escudo_url": None},
@@ -826,14 +811,497 @@ class RFAFScraper:
             "sustituciones_visitante": [],
             "cuerpo_tecnico_local": {},
             "cuerpo_tecnico_visitante": {},
+            "arbitros": [],
         }
+
+        # Header: team names, escudos, score (works for both methods)
+        self._parse_acta_header(soup, result)
+
+        # Try semantic parsing first
+        try:
+            if self._parse_acta_semantic(soup, result, cod_acta):
+                return result
+        except Exception as e:
+            logger.warning("Acta %s: semantic parsing failed (%s), trying legacy", cod_acta, e)
+
+        # Fallback to legacy index-based parsing
+        self._parse_acta_legacy(soup, result, cod_acta)
+        return result
+
+    def _parse_acta_semantic(self, soup: BeautifulSoup, result: dict, cod_acta: str) -> bool:
+        """Semantic acta parsing — finds sections by headers/CSS classes instead of table indices.
+
+        Layout: 3 col-sm-4 columns:
+          - Center (col-sm-push-4): scoreboard, arbitros, goles
+          - Left (col-sm-pull-4): home team
+          - Right (plain col-sm-4): away team
+
+        Returns True if parsing succeeded, False to fall back to legacy.
+        """
+        # Find the main content row with the 3 columns
+        main_row = soup.find("div", class_="nova_text")
+        if not main_row:
+            return False
+
+        cols = main_row.find_all("div", class_="col-sm-4", recursive=False)
+        if len(cols) < 3:
+            return False
+
+        # Identify columns by push/pull classes
+        center_col = None
+        left_col = None
+        right_col = None
+
+        for col in cols:
+            classes = " ".join(col.get("class", []))
+            if "col-sm-push-4" in classes:
+                center_col = col
+            elif "col-sm-pull-4" in classes:
+                left_col = col
+            else:
+                right_col = col
+
+        if not center_col or not left_col or not right_col:
+            return False
+
+        # --- Center column: Arbitros, Goles, Stadium info ---
+
+        # Arbitros
+        result["arbitros"] = self._parse_acta_arbitros(center_col)
+
+        # Goles — find "Goles" section in center
+        goles_section = None
+        for div in center_col.find_all("div", class_="number"):
+            if "goles" in div.get_text(strip=True).lower():
+                goles_section = div.find_parent("div", class_="dashboard-stat")
+                break
+        if goles_section:
+            goles_table = goles_section.find("table")
+            if goles_table:
+                result["goles"] = self._parse_acta_goles_semantic(goles_section)
+
+        # Stadium/city from h4 tags (e.g., "Ciudad: Sevilla")
+        for h4 in soup.find_all("h4"):
+            text = h4.get_text(strip=True)
+            if text.lower().startswith("ciudad:"):
+                result["ciudad"] = text.split(":", 1)[1].strip()
+
+        # Stadium from info table (legacy fallback within semantic)
+        tables = soup.find_all("table")
+        for table in tables:
+            info = self._parse_acta_info(table)
+            if info.get("estadio") or info.get("ciudad"):
+                if info.get("estadio"):
+                    result["estadio"] = info["estadio"]
+                if info.get("ciudad") and not result["ciudad"]:
+                    result["ciudad"] = info["ciudad"]
+                break
+
+        # --- Left column: Home team ---
+        self._parse_team_column(left_col, result, "local")
+
+        # --- Right column: Away team ---
+        self._parse_team_column(right_col, result, "visitante")
+
+        logger.info(
+            "Parsed acta %s (semantic): %s %s-%s %s, %d goles, %d+%d local, %d+%d visitante, %d arbitros",
+            cod_acta,
+            result["local"]["nombre"],
+            result["goles_local"],
+            result["goles_visitante"],
+            result["visitante"]["nombre"],
+            len(result["goles"]),
+            len(result["titulares_local"]),
+            len(result["suplentes_local"]),
+            len(result["titulares_visitante"]),
+            len(result["suplentes_visitante"]),
+            len(result["arbitros"]),
+        )
+
+        return True
+
+    def _parse_team_column(self, col, result: dict, side: str):
+        """Parse a team column (local/visitante) finding sections by h4/h5 headers."""
+        # Titulares: find <h5><strong>Titulares</strong></h5> then next table
+        titulares_h5 = None
+        suplentes_h5 = None
+        tarjetas_h4 = None
+        cuerpo_h4 = None
+
+        for h5 in col.find_all("h5"):
+            text = h5.get_text(strip=True).lower()
+            if "titulares" in text:
+                titulares_h5 = h5
+            elif "suplentes" in text:
+                suplentes_h5 = h5
+
+        for h4 in col.find_all("h4"):
+            text = h4.get_text(strip=True).lower()
+            if "tarjetas" in text:
+                tarjetas_h4 = h4
+            elif "cuerpo" in text and "cnico" in text:
+                cuerpo_h4 = h4
+
+        # Titulares
+        if titulares_h5:
+            table = titulares_h5.find_next("table")
+            if table and table.find_parent("div", class_="col-sm-4") == col:
+                result[f"titulares_{side}"] = self._parse_acta_players_semantic(table)
+
+        # Suplentes
+        if suplentes_h5:
+            table = suplentes_h5.find_next("table")
+            if table and table.find_parent("div", class_="col-sm-4") == col:
+                result[f"suplentes_{side}"] = self._parse_acta_players_semantic(table)
+
+        # Tarjetas (with minuto)
+        if tarjetas_h4:
+            table = tarjetas_h4.find_next("table")
+            if table and table.find_parent("div", class_="col-sm-4") == col:
+                result[f"tarjetas_{side}"] = self._parse_acta_tarjetas(table)
+
+        # Cuerpo Técnico
+        if cuerpo_h4:
+            result[f"cuerpo_tecnico_{side}"] = self._parse_acta_staff_semantic(cuerpo_h4)
+
+        # Sustituciones — look for substitution entries in the column
+        # They appear after "Cambios" or as a table with minute + player pairs
+        # In the semantic layout, substitutions are part of the tarjetas/bottom section
+        # Try finding by the substitution icon pattern
+        result[f"sustituciones_{side}"] = self._parse_acta_subs_from_column(col)
+
+    def _parse_acta_arbitros(self, center_col) -> list[dict]:
+        """Parse referees from the center column 'Árbitros' section."""
+        arbitros = []
+
+        # Find the "Árbitros" header (may be "Árbitros" or "&Aacute;rbitros")
+        arb_section = None
+        for div in center_col.find_all("div", class_="number"):
+            text = div.get_text(strip=True).lower()
+            if "rbitro" in text:  # Matches "Árbitros", "Arbitros", etc.
+                arb_section = div.find_parent("div", class_="dashboard-stat")
+                break
+
+        if not arb_section:
+            return arbitros
+
+        # Each referee is in a separate <table class="table"> within the section
+        for table in arb_section.find_all("table", class_="table"):
+            for row in table.find_all("tr"):
+                td = row.find("td", class_=lambda c: c != "fotojug" if c else True)
+                # Find the td with the name (not the photo td)
+                name_td = None
+                for cell in row.find_all("td"):
+                    text = cell.get_text(strip=True)
+                    if text and len(text) > 3 and not cell.find("img", class_="fotojug"):
+                        name_td = cell
+                        break
+                    # Also check if td contains span with name
+                    span = cell.find("span", class_="font_responsive")
+                    if span:
+                        name_td = cell
+                        break
+
+                if not name_td:
+                    continue
+
+                # Extract name and delegation
+                nombre = ""
+                delegacion = ""
+
+                # Name is the direct text, delegation in <span class="txtcursiva">
+                cursiva = name_td.find("span", class_="txtcursiva")
+                if cursiva:
+                    delegacion = cursiva.get_text(strip=True)
+
+                # Get full text and remove delegation part
+                font_span = name_td.find("span", class_="font_responsive")
+                if font_span:
+                    full_text = font_span.get_text(separator="\n", strip=True)
+                else:
+                    full_text = name_td.get_text(separator="\n", strip=True)
+
+                lines = [l.strip() for l in full_text.split("\n") if l.strip()]
+                if lines:
+                    nombre = lines[0]
+                    if not delegacion and len(lines) > 1:
+                        delegacion = lines[1]
+
+                if nombre:
+                    arbitros.append({
+                        "nombre": nombre,
+                        "delegacion": delegacion,
+                    })
+
+        return arbitros
+
+    def _parse_acta_tarjetas(self, table) -> list[dict]:
+        """Parse cards table with minutes: img (type) + span.font-blue (minute) + name."""
+        tarjetas = []
+        for row in table.find_all("tr"):
+            tipo = None
+            minuto = None
+            jugador = ""
+
+            # Card type from img
+            for img in row.find_all("img"):
+                src = (img.get("src") or "").lower()
+                if "tarj_amar" in src:
+                    tipo = "amarilla"
+                elif "tarj_roja" in src:
+                    tipo = "roja"
+                elif "tarj_2am" in src or "doble_amar" in src:
+                    tipo = "doble_amarilla"
+
+            # Minute from span.font-blue: "(36')"
+            minute_span = row.find("span", class_="font-blue")
+            if minute_span:
+                m = re.search(r"\((\d+)'?\)", minute_span.get_text(strip=True))
+                if m:
+                    minuto = int(m.group(1))
+
+            # Player name: text in the td after removing the minute span
+            for cell in row.find_all("td"):
+                cell_text = cell.get_text(strip=True)
+                if cell_text and not cell_text.isdigit() and len(cell_text) > 3:
+                    # Remove the minute part
+                    name = re.sub(r"\(\d+'?\)\s*", "", cell_text).strip()
+                    if name and len(name) > 2:
+                        jugador = name
+                        break
+
+            if tipo and jugador:
+                entry = {"jugador": jugador, "tipo": tipo}
+                if minuto is not None:
+                    entry["minuto"] = minuto
+                tarjetas.append(entry)
+
+        return tarjetas
+
+    def _parse_acta_players_semantic(self, table) -> list[dict]:
+        """Parse players table with rfef_id from onclick, without tarjeta extraction."""
+        players = []
+        for row in table.find_all("tr"):
+            cells = row.find_all("td")
+            if len(cells) < 2:
+                continue
+
+            dorsal = None
+            nombre = ""
+            rfef_id = None
+
+            # Extract rfef_id from onclick attribute on the tr
+            onclick = row.get("onclick", "")
+            id_match = re.search(r"jugador=(\d+)", onclick)
+            if id_match:
+                rfef_id = id_match.group(1)
+
+            for cell in cells:
+                text = cell.get_text(strip=True)
+                # Skip photo cells
+                if cell.find("img", class_="fotojug"):
+                    continue
+                if text.isdigit() and dorsal is None:
+                    dorsal = int(text)
+                elif text and not text.isdigit() and not nombre and len(text) > 1:
+                    # Remove "No disponible" icon text if present
+                    nombre = text
+
+            if nombre:
+                entry = {"dorsal": dorsal, "nombre": nombre}
+                if rfef_id:
+                    entry["rfef_id"] = rfef_id
+                players.append(entry)
+
+        return players
+
+    def _parse_acta_staff_semantic(self, cuerpo_h4) -> dict:
+        """Parse technical staff from the h4 'Cuerpo Técnico' section."""
+        staff = {}
+        # Staff entries are in h5 elements after the h4
+        role_map = {
+            "del. campo": "delegado_campo",
+            "del campo": "delegado_campo",
+            "delegado campo": "delegado_campo",
+            "del. equipo": "delegado_equipo",
+            "del equipo": "delegado_equipo",
+            "delegado equipo": "delegado_equipo",
+            "entrenador": "entrenador",
+            "2": "segundo_entrenador",
+            "segundo": "segundo_entrenador",
+            "preparador": "preparador_fisico",
+        }
+
+        # Iterate siblings after h4
+        current = cuerpo_h4.find_next_sibling()
+        while current:
+            # Stop if we hit another h4 (next section)
+            if current.name == "h4":
+                break
+
+            if current.name == "h5":
+                text = current.get_text(strip=True)
+                strong = current.find("strong")
+                role_text = strong.get_text(strip=True).lower().rstrip(":") if strong else ""
+
+                # Find role
+                role_key = None
+                for key, value in role_map.items():
+                    if key in role_text:
+                        role_key = value
+                        break
+
+                if role_key:
+                    # Name is in a table inside the h5, or as text after the strong
+                    name_table = current.find("table")
+                    if name_table:
+                        for td in name_table.find_all("td"):
+                            td_text = td.get_text(strip=True)
+                            if td_text and len(td_text) > 2 and not td.find("img"):
+                                staff[role_key] = td_text
+                                break
+                    else:
+                        # Text after strong tag
+                        full = text
+                        if strong:
+                            full = full.replace(strong.get_text(strip=True), "").strip()
+                        if full and len(full) > 2:
+                            staff[role_key] = full
+
+            current = current.find_next_sibling()
+
+        return staff
+
+    def _parse_acta_subs_from_column(self, col) -> list[dict]:
+        """Parse substitutions from a team column.
+        Substitutions appear as table rows with minute + two player names (in/out)."""
+        subs = []
+
+        # Look for substitution icon pattern or table after "Cambios" / substitution area
+        # Substitutions have a swap icon (fa-exchange, fa-arrows-h) or specific img
+        for table in col.find_all("table"):
+            rows = table.find_all("tr")
+            is_sub_table = False
+
+            for row in rows:
+                # Check for substitution indicators
+                has_sub_icon = False
+                for img in row.find_all("img"):
+                    src = (img.get("src") or "").lower()
+                    if "cambio" in src or "sustitucion" in src or "icon_cambio" in src:
+                        has_sub_icon = True
+                for i_tag in row.find_all("i"):
+                    cls = " ".join(i_tag.get("class", []))
+                    if "exchange" in cls or "arrows" in cls or "repeat" in cls:
+                        has_sub_icon = True
+
+                if not has_sub_icon:
+                    continue
+
+                is_sub_table = True
+                cells = row.find_all("td")
+                texts = [c.get_text(strip=True) for c in cells]
+
+                minuto = None
+                jugador = ""
+
+                for text in texts:
+                    m = re.match(r"(\d+)", text.replace("'", ""))
+                    if m and minuto is None and int(m.group(1)) <= 130:
+                        minuto = int(m.group(1))
+                    elif text and not text.isdigit() and len(text) > 2 and not jugador:
+                        jugador = text
+
+                if minuto is not None and jugador:
+                    subs.append({"minuto": minuto, "jugador": jugador})
+
+        # If no substitution icons found, try legacy approach within this column's tables
+        if not subs:
+            # Find tables that look like substitutions (minute + player pattern)
+            # after the tarjetas section
+            tarjetas_h4 = None
+            for h4 in col.find_all("h4"):
+                if "tarjetas" in h4.get_text(strip=True).lower():
+                    tarjetas_h4 = h4
+                    break
+
+            if tarjetas_h4:
+                # Look for tables after tarjetas
+                current = tarjetas_h4
+                while current:
+                    current = current.find_next_sibling()
+                    if not current:
+                        break
+                    if current.name == "h4":
+                        break
+                    if current.name == "table" or (current.find("table") if hasattr(current, 'find') else False):
+                        sub_table = current if current.name == "table" else current.find("table")
+                        if sub_table:
+                            subs = self._parse_acta_substitutions(sub_table)
+                            if subs:
+                                break
+
+        return subs
+
+    def _parse_acta_goles_semantic(self, goles_section) -> list[dict]:
+        """Parse goals from the semantic 'Goles' dashboard section."""
+        goles = []
+        for table in goles_section.find_all("table"):
+            for row in table.find_all("tr"):
+                minuto = None
+                jugador = ""
+                parcial_local = None
+                parcial_visitante = None
+
+                # Minute from span.font-blue: "(16')"
+                minute_span = row.find("span", class_="font-blue")
+                if minute_span:
+                    m = re.search(r"\((\d+)'?\)", minute_span.get_text(strip=True))
+                    if m:
+                        minuto = int(m.group(1))
+
+                # Player name after the minute span
+                for cell in row.find_all("td"):
+                    font_span = cell.find("span", class_="font-blue")
+                    if font_span:
+                        # Get text of td, remove minute part
+                        cell_text = cell.get_text(strip=True)
+                        name = re.sub(r"\(\d+'?\)\s*", "", cell_text).strip()
+                        if name and len(name) > 2:
+                            jugador = name
+
+                # Partial score from the score cell (obfuscated, try ntype)
+                for cell in row.find_all("td"):
+                    text = cell.get_text(strip=True)
+                    pm = re.match(r"(\d+)\s*-\s*(\d+)", text)
+                    if pm:
+                        parcial_local = int(pm.group(1))
+                        parcial_visitante = int(pm.group(2))
+
+                if minuto is not None and jugador:
+                    goles.append({
+                        "minuto": minuto,
+                        "jugador": jugador,
+                        "parcial_local": parcial_local,
+                        "parcial_visitante": parcial_visitante,
+                    })
+
+        # If semantic parsing didn't find goals, try legacy table parsing
+        if not goles:
+            for table in goles_section.find_all("table"):
+                goles = self._parse_acta_goles(table)
+                if goles:
+                    break
+
+        return goles
+
+    def _parse_acta_legacy(self, soup: BeautifulSoup, result: dict, cod_acta: str):
+        """Legacy index-based acta parsing (fallback)."""
+        tables = soup.find_all("table")
 
         if len(tables) < 6:
             logger.warning("Acta %s has only %d tables, expected ~19", cod_acta, len(tables))
-            return result
-
-        # Header: team names, escudos, score
-        self._parse_acta_header(soup, result)
+            return
 
         # Table 4: Goals
         if len(tables) > 4:
@@ -904,7 +1372,7 @@ class RFAFScraper:
         ]
 
         logger.info(
-            "Parsed acta %s: %s %s-%s %s, %d goles, %d+%d local, %d+%d visitante",
+            "Parsed acta %s (legacy): %s %s-%s %s, %d goles, %d+%d local, %d+%d visitante",
             cod_acta,
             result["local"]["nombre"],
             result["goles_local"],
@@ -916,8 +1384,6 @@ class RFAFScraper:
             len(result["titulares_visitante"]),
             len(result["suplentes_visitante"]),
         )
-
-        return result
 
     def _parse_acta_header(self, soup: BeautifulSoup, result: dict):
         """Parse acta header: team names, escudos, and score."""
@@ -1054,7 +1520,7 @@ class RFAFScraper:
         return info
 
     def _parse_acta_players(self, table) -> list[dict]:
-        """Parse players table (starters or subs): dorsal, name, card."""
+        """Parse players table (starters or subs): dorsal, name, card, rfef_id."""
         players = []
         for row in table.find_all("tr"):
             cells = row.find_all("td")
@@ -1066,6 +1532,13 @@ class RFAFScraper:
             dorsal = None
             nombre = ""
             tarjeta = None
+            rfef_id = None
+
+            # Extract rfef_id from onclick
+            onclick = row.get("onclick", "")
+            id_match = re.search(r"jugador=(\d+)", onclick)
+            if id_match:
+                rfef_id = id_match.group(1)
 
             for text in texts:
                 if text.isdigit() and dorsal is None:
@@ -1082,11 +1555,10 @@ class RFAFScraper:
                     tarjeta = "roja"
 
             if nombre:
-                players.append({
-                    "dorsal": dorsal,
-                    "nombre": nombre,
-                    "tarjeta": tarjeta,
-                })
+                entry = {"dorsal": dorsal, "nombre": nombre, "tarjeta": tarjeta}
+                if rfef_id:
+                    entry["rfef_id"] = rfef_id
+                players.append(entry)
 
         return players
 
