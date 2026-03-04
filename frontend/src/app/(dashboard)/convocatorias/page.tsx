@@ -172,6 +172,27 @@ export default function ConvocatoriasPage() {
 
   const activeFormation = FORMATIONS.find((f) => f.name === selectedFormation) || null
 
+  // Auto-populate formation slots from existing convocados when formation changes
+  const autoPopulateSlots = (formation: Formation) => {
+    const assignments: Record<string, string> = {}
+    const usedConvIds = new Set<string>()
+
+    for (const slot of formation.slots) {
+      // Find a convocado matching this slot's position that hasn't been used yet
+      const match = convocados.find((c) => {
+        if (usedConvIds.has(c.id)) return false
+        const p = getPlayerData(c)
+        const pos = c.posicion_asignada || p?.posicion_principal || ''
+        return pos === slot.position
+      })
+      if (match) {
+        assignments[slot.id] = match.id
+        usedConvIds.add(match.id)
+      }
+    }
+    return assignments
+  }
+
   // Load jugadores when opening add dialog
   const openAddDialog = () => {
     if (!equipoActivo?.id) return
@@ -622,9 +643,11 @@ export default function ConvocatoriasPage() {
                             onClick={() => {
                               if (selectedFormation === f.name) {
                                 setSelectedFormation(null)
+                                setSlotAssignments({})
                                 setSwapSource(null)
                               } else {
                                 setSelectedFormation(f.name)
+                                setSlotAssignments(autoPopulateSlots(f))
                                 setSwapSource(null)
                               }
                             }}

@@ -31,7 +31,7 @@ async def list_convocatorias_partido(
     supabase = get_supabase()
 
     response = supabase.table("convocatorias").select(
-        "*, jugadores(nombre, apellidos, dorsal, posicion_principal, foto_url)",
+        "*, jugadores(nombre, apellidos, dorsal, posicion_principal, foto_url, apodo)",
         count="exact"
     ).eq("partido_id", str(partido_id)).order("titular", desc=True).order("dorsal").execute()
 
@@ -83,7 +83,7 @@ async def get_convocatoria(
     supabase = get_supabase()
 
     response = supabase.table("convocatorias").select(
-        "*, jugadores(nombre, apellidos, dorsal, posicion_principal)"
+        "*, jugadores(nombre, apellidos, dorsal, posicion_principal, apodo)"
     ).eq("id", str(convocatoria_id)).single().execute()
 
     if not response.data:
@@ -212,7 +212,7 @@ async def generate_convocatoria_pdf(
 
     # Obtener convocatoria con jugadores
     conv_resp = supabase.table("convocatorias").select(
-        "*, jugadores(nombre, apellidos, dorsal, posicion_principal)"
+        "*, jugadores(nombre, apellidos, dorsal, posicion_principal, apodo)"
     ).eq("partido_id", str(partido_id)).order("titular", desc=True).execute()
 
     pdf_bytes = gen_pdf(
