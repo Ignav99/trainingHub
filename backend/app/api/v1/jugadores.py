@@ -51,6 +51,30 @@ def calculate_nivel_global(jugador: dict) -> float:
     return round(sum(niveles) / len(niveles), 1)
 
 
+# Pydantic model field name → Supabase column name
+_FIELD_RENAMES = {
+    "posiciones_secundarias": "posicion_secundaria",
+    "pierna_dominante": "pie_dominante",
+}
+
+# Fields in the Pydantic model that do NOT exist in the Supabase table
+_FIELDS_NOT_IN_TABLE = {"apodo", "equipo_origen_id", "edad", "nivel_global"}
+
+
+def _sanitize_jugador_data(data: dict) -> dict:
+    """Rename and filter fields to match Supabase jugadores table columns."""
+    # Remove fields that don't exist in the table
+    for field in _FIELDS_NOT_IN_TABLE:
+        data.pop(field, None)
+
+    # Rename mismatched fields
+    for pydantic_name, db_name in _FIELD_RENAMES.items():
+        if pydantic_name in data:
+            data[db_name] = data.pop(pydantic_name)
+
+    return data
+
+
 def enrich_jugador(jugador: dict) -> dict:
     """Enriquece los datos del jugador con campos calculados."""
     if jugador.get('fecha_nacimiento'):
@@ -145,11 +169,7 @@ async def create_jugador(jugador: JugadorCreate, auth: AuthContext = Depends(req
 
     data = jugador.model_dump(mode='json', exclude_none=True)
     data["equipo_id"] = str(data["equipo_id"])
-
-    # Eliminar campos que no existen en la tabla de Supabase
-    _FIELDS_NOT_IN_TABLE = {"apodo", "equipo_origen_id"}
-    for field in _FIELDS_NOT_IN_TABLE:
-        data.pop(field, None)
+    data = _sanitize_jugador_data(data)
 
     # Determinar si es portero
     data["es_portero"] = data.get("posicion_principal") == "POR"
@@ -168,11 +188,7 @@ async def update_jugador(jugador_id: UUID, jugador: JugadorUpdate, auth: AuthCon
     supabase = get_supabase()
 
     data = jugador.model_dump(exclude_unset=True, mode='json')
-
-    # Eliminar campos que no existen en la tabla de Supabase
-    _FIELDS_NOT_IN_TABLE = {"apodo", "equipo_origen_id"}
-    for field in _FIELDS_NOT_IN_TABLE:
-        data.pop(field, None)
+    data = _sanitize_jugador_data(data)
 
     # Actualizar flag de portero si cambia la posición
     if data.get("posicion_principal"):

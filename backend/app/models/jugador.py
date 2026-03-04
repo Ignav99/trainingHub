@@ -2,7 +2,7 @@
 TrainingHub Pro - Modelos de Jugador
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional, List
 from datetime import datetime, date
 from uuid import UUID
@@ -58,14 +58,28 @@ class JugadorBase(BaseModel):
     fecha_nacimiento: Optional[date] = None
     dorsal: Optional[int] = Field(None, ge=1, le=99)
 
-    # Posiciones
+    # Posiciones (DB column: posicion_secundaria)
     posicion_principal: Posicion
     posiciones_secundarias: List[str] = Field(default_factory=list)
 
-    # Físico
+    # Físico (DB column: pie_dominante)
     altura: Optional[float] = Field(None, ge=1.0, le=2.5)  # metros
     peso: Optional[float] = Field(None, ge=30, le=150)  # kg
     pierna_dominante: PiernaDominante = Field(default=PiernaDominante.DERECHA)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _map_db_column_names(cls, data):
+        """Map Supabase column names to Pydantic field names."""
+        if isinstance(data, dict):
+            # posicion_secundaria → posiciones_secundarias
+            if "posicion_secundaria" in data and "posiciones_secundarias" not in data:
+                val = data.pop("posicion_secundaria")
+                data["posiciones_secundarias"] = val if isinstance(val, list) else (val or [])
+            # pie_dominante → pierna_dominante
+            if "pie_dominante" in data and "pierna_dominante" not in data:
+                data["pierna_dominante"] = data.pop("pie_dominante")
+        return data
 
     # Niveles (1-10)
     nivel_tecnico: int = Field(default=5, ge=1, le=10)
