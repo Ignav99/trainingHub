@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import useSWR, { mutate } from 'swr'
 import {
@@ -19,6 +19,7 @@ import {
   ClipboardList,
   FileText,
   ArrowRightLeft,
+  Save,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -37,12 +38,14 @@ import {
 import { ListPageSkeleton } from '@/components/ui/page-skeletons'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { convocatoriasApi, CreateConvocatoriaData, UpdateConvocatoriaData } from '@/lib/api/convocatorias'
-import { jugadoresApi, Jugador } from '@/lib/api/jugadores'
+import { partidosApi } from '@/lib/api/partidos'
+import { jugadoresApi, Jugador, POSICIONES } from '@/lib/api/jugadores'
+import { FORMATIONS, Formation, FormationSlot } from '@/lib/formations'
 import { apiKey } from '@/lib/swr'
 import { formatDate } from '@/lib/utils'
 import type { Convocatoria, Partido, PaginatedResponse } from '@/types'
 
-// Position coords for pitch diagram
+// Position coords for legacy pitch diagram (no formation selected)
 const POSITION_COORDS: Record<string, { top: string; left: string }> = {
   POR: { top: '88%', left: '50%' },
   DFC: { top: '72%', left: '40%' },
@@ -61,6 +64,19 @@ const POSITION_COORDS: Record<string, { top: string; left: string }> = {
   MP: { top: '25%', left: '50%' },
   DC: { top: '18%', left: '50%' },
   SD: { top: '30%', left: '50%' },
+}
+
+// Position zone color helper
+function getPositionColor(pos: string): string {
+  const info = POSICIONES[pos as keyof typeof POSICIONES]
+  if (!info) return 'bg-gray-100 text-gray-800'
+  switch (info.zona) {
+    case 'porteria': return 'bg-amber-100 text-amber-800'
+    case 'defensa': return 'bg-blue-100 text-blue-800'
+    case 'mediocampo': return 'bg-emerald-100 text-emerald-800'
+    case 'ataque': return 'bg-red-100 text-red-800'
+    default: return 'bg-gray-100 text-gray-800'
+  }
 }
 
 // Get player data from convocatoria (backend returns as "jugadores" from join)
@@ -120,6 +136,42 @@ export default function ConvocatoriasPage() {
   // View toggle
   const [showPitch, setShowPitch] = useState(true)
 
+  // Formation builder state
+  const [selectedFormation, setSelectedFormation] = useState<string | null>(null)
+  const [slotAssignments, setSlotAssignments] = useState<Record<string, string>>({}) // slotId -> convocatoriaId
+  const [pickingSlot, setPickingSlot] = useState<string | null>(null) // slot being filled
+  const [swapSource, setSwapSource] = useState<string | null>(null) // slot in swap mode
+  const [savingLineup, setSavingLineup] = useState(false)
+
+  // Load saved formation from partido.notas_pre
+  useEffect(() => {
+    if (!selectedPartido) {
+      setSelectedFormation(null)
+      setSlotAssignments({})
+      return
+    }
+    if (selectedPartido.notas_pre) {
+      try {
+        const parsed = JSON.parse(selectedPartido.notas_pre)
+        if (parsed.formacion) {
+          setSelectedFormation(parsed.formacion)
+          setSlotAssignments(parsed.formacion_slots || {})
+        } else {
+          setSelectedFormation(null)
+          setSlotAssignments({})
+        }
+      } catch {
+        setSelectedFormation(null)
+        setSlotAssignments({})
+      }
+    } else {
+      setSelectedFormation(null)
+      setSlotAssignments({})
+    }
+  }, [selectedPartido?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const activeFormation = FORMATIONS.find((f) => f.name === selectedFormation) || null
+
   // Load jugadores when opening add dialog
   const openAddDialog = () => {
     if (!equipoActivo?.id) return
@@ -160,7 +212,6 @@ export default function ConvocatoriasPage() {
       }))
       await convocatoriasApi.createBatch(batch)
       setShowAdd(false)
-      // Invalidate convocatoria caches
       mutate((key: string) => typeof key === 'string' && key.includes('/convocatorias'), undefined, { revalidate: true })
     } catch (err: any) {
       alert(err.message || 'Error al crear convocatoria')
@@ -205,6 +256,14 @@ export default function ConvocatoriasPage() {
   }
 
   const handleRemove = async (convId: string) => {
+    // Also remove from slot assignments
+    setSlotAssignments((prev) => {
+      const copy = { ...prev }
+      for (const [slotId, cId] of Object.entries(copy)) {
+        if (cId === convId) delete copy[slotId]
+      }
+      return copy
+    })
     try {
       await convocatoriasApi.delete(convId)
       mutate((key: string) => typeof key === 'string' && key.includes('/convocatorias'), undefined, { revalidate: true })
@@ -227,8 +286,143 @@ export default function ConvocatoriasPage() {
     }
   }
 
+  // Formation builder: handle slot click
+  const handleSlotClick = (slot: FormationSlot) => {
+    const assignedConvId = slotAssignments[slot.id]
+
+    if (assignedConvId) {
+      // Slot is occupied
+      if (swapSource) {
+        if (swapSource === slot.id) {
+          // Same slot — cancel swap
+          setSwapSource(null)
+        } else {
+          // Swap the two
+          setSlotAssignments((prev) => {
+            const copy = { ...prev }
+            const temp = copy[swapSource]
+            copy[swapSource] = copy[slot.id]
+            copy[slot.id] = temp
+            return copy
+          })
+          setSwapSource(null)
+        }
+      } else {
+        // Enter swap mode
+        setSwapSource(slot.id)
+      }
+    } else {
+      // Slot is empty
+      if (swapSource) {
+        // Move swapSource player to this empty slot
+        setSlotAssignments((prev) => {
+          const copy = { ...prev }
+          copy[slot.id] = copy[swapSource]
+          delete copy[swapSource]
+          return copy
+        })
+        setSwapSource(null)
+      } else {
+        // Open player picker
+        setPickingSlot(slot.id)
+      }
+    }
+  }
+
+  // Assign player to picking slot
+  const handlePickPlayer = (convId: string) => {
+    if (!pickingSlot) return
+    // Remove player from any previous slot
+    setSlotAssignments((prev) => {
+      const copy = { ...prev }
+      for (const [slotId, cId] of Object.entries(copy)) {
+        if (cId === convId) delete copy[slotId]
+      }
+      copy[pickingSlot] = convId
+      return copy
+    })
+    setPickingSlot(null)
+  }
+
+  // Remove player from slot (long press / right-click alternative: just click empty to remove)
+  const handleRemoveFromSlot = (slotId: string) => {
+    setSlotAssignments((prev) => {
+      const copy = { ...prev }
+      delete copy[slotId]
+      return copy
+    })
+    setSwapSource(null)
+  }
+
+  // Save lineup
+  const handleSaveLineup = async () => {
+    if (!selectedPartido || !activeFormation) return
+    setSavingLineup(true)
+    try {
+      // 1. Update each assigned player's posicion_asignada + titular
+      const updatePromises: Promise<any>[] = []
+      for (const slot of activeFormation.slots) {
+        const convId = slotAssignments[slot.id]
+        if (convId) {
+          updatePromises.push(
+            convocatoriasApi.update(convId, {
+              posicion_asignada: slot.position,
+              titular: true,
+            })
+          )
+        }
+      }
+      await Promise.all(updatePromises)
+
+      // 2. Save formation + slots in partido.notas_pre (merge with existing plan data)
+      let existingData: Record<string, any> = {}
+      if (selectedPartido.notas_pre) {
+        try {
+          existingData = JSON.parse(selectedPartido.notas_pre)
+        } catch {
+          existingData = { enfoque_tactico: selectedPartido.notas_pre }
+        }
+      }
+      const merged = {
+        ...existingData,
+        formacion: selectedFormation,
+        formacion_slots: slotAssignments,
+      }
+      await partidosApi.update(selectedPartido.id, {
+        notas_pre: JSON.stringify(merged),
+      })
+
+      // Update local state
+      setSelectedPartido({
+        ...selectedPartido,
+        notas_pre: JSON.stringify(merged),
+      })
+
+      mutate((key: string) => typeof key === 'string' && (key.includes('/convocatorias') || key.includes('/partidos')), undefined, { revalidate: true })
+    } catch (err) {
+      console.error('Error saving lineup:', err)
+      alert('Error al guardar la alineación')
+    } finally {
+      setSavingLineup(false)
+    }
+  }
+
   const titulares = convocados.filter((c) => c.titular)
   const suplentes = convocados.filter((c) => !c.titular)
+
+  // Players available for slot picking (convocados not yet assigned to a slot)
+  const assignedConvIds = new Set(Object.values(slotAssignments))
+  const pickingSlotData = activeFormation?.slots.find((s) => s.id === pickingSlot)
+
+  // Sort: matching position first
+  const sortedForPicker = [...convocados].sort((a, b) => {
+    if (!pickingSlotData) return 0
+    const aPos = a.posicion_asignada || getPlayerData(a)?.posicion_principal || ''
+    const bPos = b.posicion_asignada || getPlayerData(b)?.posicion_principal || ''
+    const aMatch = aPos === pickingSlotData.position ? 0 : 1
+    const bMatch = bPos === pickingSlotData.position ? 0 : 1
+    return aMatch - bMatch
+  })
 
   const RESULTADO_COLORS: Record<string, string> = {
     victoria: 'bg-emerald-100 text-emerald-800',
@@ -408,18 +602,117 @@ export default function ConvocatoriasPage() {
                     </div>
                   </div>
 
-                  {/* Pitch formation for titulares */}
-                  {showPitch && titulares.length > 0 && (
-                    <Card>
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm flex items-center gap-2">
-                          <Shirt className="h-4 w-4 text-primary" />
-                          Alineación
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
+                  {/* Formation selector */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Shirt className="h-4 w-4 text-primary" />
+                        Alineación
+                        {selectedFormation && (
+                          <Badge className="bg-primary/10 text-primary text-[10px]">{selectedFormation}</Badge>
+                        )}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {/* Formation buttons */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {FORMATIONS.map((f) => (
+                          <button
+                            key={f.name}
+                            onClick={() => {
+                              if (selectedFormation === f.name) {
+                                setSelectedFormation(null)
+                                setSwapSource(null)
+                              } else {
+                                setSelectedFormation(f.name)
+                                setSwapSource(null)
+                              }
+                            }}
+                            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                              selectedFormation === f.name
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+                            }`}
+                          >
+                            {f.name}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Pitch */}
+                      {activeFormation ? (
+                        /* Formation-based pitch */
                         <div className="relative bg-emerald-600/90 rounded-xl overflow-hidden mx-auto max-w-sm" style={{ aspectRatio: '3/4' }}>
                           {/* Pitch lines */}
+                          <div className="absolute inset-4">
+                            <div className="absolute inset-0 border-2 border-white/30 rounded" />
+                            <div className="absolute top-1/2 left-0 right-0 border-t-2 border-white/30" />
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 border-2 border-white/30 rounded-full" />
+                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-[18%] border-2 border-t-0 border-white/30" />
+                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2/3 h-[18%] border-2 border-b-0 border-white/30" />
+                          </div>
+                          {activeFormation.slots.map((slot) => {
+                            const convId = slotAssignments[slot.id]
+                            const conv = convId ? convocados.find((c) => c.id === convId) : null
+                            const posInfo = POSICIONES[slot.position as keyof typeof POSICIONES]
+                            const bgColor = posInfo?.color || '#9CA3AF'
+                            const isSwapActive = swapSource === slot.id
+
+                            if (conv) {
+                              // Occupied slot
+                              return (
+                                <button
+                                  key={slot.id}
+                                  className={`absolute -translate-x-1/2 -translate-y-1/2 text-center group cursor-pointer ${isSwapActive ? 'z-10' : ''}`}
+                                  style={{ top: slot.top, left: slot.left }}
+                                  onClick={() => handleSlotClick(slot)}
+                                  title={isSwapActive ? 'Click otro jugador para intercambiar' : 'Click para intercambiar'}
+                                >
+                                  <div
+                                    className={`w-9 h-9 rounded-full font-bold text-xs flex items-center justify-center shadow-md text-white transition-all ${
+                                      isSwapActive ? 'ring-2 ring-yellow-400 ring-offset-1 scale-110' : ''
+                                    }`}
+                                    style={{ backgroundColor: bgColor }}
+                                  >
+                                    {conv.dorsal || getPlayerData(conv)?.dorsal || '?'}
+                                  </div>
+                                  <span className="block text-[9px] text-white font-medium mt-0.5 max-w-[60px] truncate drop-shadow">
+                                    {getPlayerDisplayName(conv)}
+                                  </span>
+                                  {/* Remove button on hover */}
+                                  <button
+                                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                    onClick={(e) => { e.stopPropagation(); handleRemoveFromSlot(slot.id) }}
+                                    title="Quitar del puesto"
+                                  >
+                                    <X className="h-2.5 w-2.5" />
+                                  </button>
+                                </button>
+                              )
+                            } else {
+                              // Empty slot
+                              return (
+                                <button
+                                  key={slot.id}
+                                  className="absolute -translate-x-1/2 -translate-y-1/2 text-center cursor-pointer"
+                                  style={{ top: slot.top, left: slot.left }}
+                                  onClick={() => handleSlotClick(slot)}
+                                  title={`Añadir jugador: ${slot.label}`}
+                                >
+                                  <div className="w-9 h-9 rounded-full border-2 border-dashed border-white/50 flex items-center justify-center hover:border-white hover:bg-white/10 transition-colors">
+                                    <Plus className="h-3.5 w-3.5 text-white/70" />
+                                  </div>
+                                  <span className="block text-[9px] text-white/60 font-medium mt-0.5">
+                                    {slot.label}
+                                  </span>
+                                </button>
+                              )
+                            }
+                          })}
+                        </div>
+                      ) : showPitch && titulares.length > 0 ? (
+                        /* Legacy pitch (no formation) */
+                        <div className="relative bg-emerald-600/90 rounded-xl overflow-hidden mx-auto max-w-sm" style={{ aspectRatio: '3/4' }}>
                           <div className="absolute inset-4">
                             <div className="absolute inset-0 border-2 border-white/30 rounded" />
                             <div className="absolute top-1/2 left-0 right-0 border-t-2 border-white/30" />
@@ -430,13 +723,18 @@ export default function ConvocatoriasPage() {
                           {titulares.map((conv) => {
                             const pos = conv.posicion_asignada || getPlayerData(conv)?.posicion_principal || 'MC'
                             const coords = POSITION_COORDS[pos] || { top: '50%', left: '50%' }
+                            const posInfo = POSICIONES[pos as keyof typeof POSICIONES]
+                            const bgColor = posInfo?.color || '#ffffff'
                             return (
                               <div
                                 key={conv.id}
                                 className="absolute -translate-x-1/2 -translate-y-1/2 text-center"
                                 style={{ top: coords.top, left: coords.left }}
                               >
-                                <div className="w-8 h-8 rounded-full bg-white text-primary font-bold text-xs flex items-center justify-center shadow-md">
+                                <div
+                                  className="w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center shadow-md text-white"
+                                  style={{ backgroundColor: bgColor }}
+                                >
                                   {conv.dorsal || getPlayerData(conv)?.dorsal || '?'}
                                 </div>
                                 <span className="block text-[9px] text-white font-medium mt-0.5 max-w-[60px] truncate drop-shadow">
@@ -446,9 +744,26 @@ export default function ConvocatoriasPage() {
                             )
                           })}
                         </div>
-                      </CardContent>
-                    </Card>
-                  )}
+                      ) : !activeFormation && titulares.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          Selecciona una formación para construir tu alineación
+                        </p>
+                      ) : null}
+
+                      {/* Save lineup button */}
+                      {activeFormation && Object.keys(slotAssignments).length > 0 && (
+                        <Button
+                          onClick={handleSaveLineup}
+                          disabled={savingLineup}
+                          className="w-full"
+                          size="sm"
+                        >
+                          {savingLineup ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                          Guardar alineación
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
 
                   {/* Titulares list */}
                   <Card>
@@ -519,6 +834,7 @@ export default function ConvocatoriasPage() {
                   .map((jugador) => {
                     const isSelected = !!selected[jugador.id]
                     const info = selected[jugador.id]
+                    const posColor = getPositionColor(jugador.posicion_principal)
                     return (
                       <div
                         key={jugador.id}
@@ -544,7 +860,7 @@ export default function ConvocatoriasPage() {
                             <span className="text-sm font-medium truncate">
                               {jugador.apodo || `${jugador.nombre} ${jugador.apellidos}`}
                             </span>
-                            <Badge variant="outline" className="text-[9px]">
+                            <Badge className={`text-[9px] border-0 ${posColor}`}>
                               {jugador.posicion_principal}
                             </Badge>
                           </div>
@@ -598,6 +914,67 @@ export default function ConvocatoriasPage() {
               </div>
             </div>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Player picker dialog (for formation slots) */}
+      <Dialog open={pickingSlot !== null} onOpenChange={(open) => !open && setPickingSlot(null)}>
+        <DialogContent className="sm:max-w-md max-h-[70vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>
+              Seleccionar jugador
+              {pickingSlotData && (
+                <Badge className={`ml-2 text-[10px] ${getPositionColor(pickingSlotData.position)}`}>
+                  {pickingSlotData.label}
+                </Badge>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              Elige un jugador para esta posición
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto -mx-6 px-6">
+            <div className="space-y-1 py-2">
+              {sortedForPicker.map((conv) => {
+                const player = getPlayerData(conv)
+                const isAssigned = assignedConvIds.has(conv.id)
+                const pos = conv.posicion_asignada || player?.posicion_principal || ''
+                const posColor = getPositionColor(pos)
+                const isMatch = pickingSlotData && pos === pickingSlotData.position
+
+                return (
+                  <button
+                    key={conv.id}
+                    onClick={() => handlePickPlayer(conv.id)}
+                    disabled={isAssigned}
+                    className={`w-full flex items-center gap-3 p-2 rounded-lg transition-colors text-left ${
+                      isAssigned
+                        ? 'opacity-40 cursor-not-allowed'
+                        : 'hover:bg-primary/5'
+                    }`}
+                  >
+                    <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-bold shrink-0">
+                      {conv.dorsal || player?.dorsal || '?'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium truncate block">
+                        {player?.apodo || getPlayerFullName(conv)}
+                      </span>
+                    </div>
+                    <Badge className={`text-[9px] border-0 ${posColor}`}>
+                      {pos || '—'}
+                    </Badge>
+                    {isMatch && (
+                      <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                    )}
+                    {isAssigned && (
+                      <span className="text-[9px] text-muted-foreground">En campo</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -722,6 +1099,8 @@ function PlayerTable({
         <tbody>
           {convocados.map((conv) => {
             const player = getPlayerData(conv)
+            const pos = conv.posicion_asignada || player?.posicion_principal || ''
+            const posColor = getPositionColor(pos)
             return (
               <tr key={conv.id} className="border-b last:border-0 hover:bg-muted/30">
                 <td className="px-4 py-2.5">
@@ -740,8 +1119,8 @@ function PlayerTable({
                   )}
                 </td>
                 <td className="px-2 py-2.5 text-center">
-                  <Badge variant="outline" className="text-[9px]">
-                    {conv.posicion_asignada || player?.posicion_principal || '—'}
+                  <Badge className={`text-[9px] border-0 ${posColor}`}>
+                    {pos || '—'}
                   </Badge>
                 </td>
                 <td className="px-2 py-2.5 text-center text-muted-foreground">

@@ -24,10 +24,12 @@ import { Textarea } from '@/components/ui/textarea'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { partidosApi } from '@/lib/api/partidos'
+import { POSICIONES } from '@/lib/api/jugadores'
+import { FORMATIONS } from '@/lib/formations'
 import { formatDate } from '@/lib/utils'
 import type { Partido, Convocatoria } from '@/types'
 
-// Formation position map (CSS coordinates for a 4-3-3-like layout on a pitch)
+// Legacy position coords (fallback when no formation saved)
 const POSITION_COORDS: Record<string, { top: string; left: string }> = {
   POR: { top: '88%', left: '50%' },
   DFC: { top: '72%', left: '40%' },
@@ -46,6 +48,19 @@ const POSITION_COORDS: Record<string, { top: string; left: string }> = {
   MP: { top: '25%', left: '50%' },
   DC: { top: '18%', left: '50%' },
   SD: { top: '30%', left: '50%' },
+}
+
+// Position zone color helper
+function getPositionColor(pos: string): string {
+  const info = POSICIONES[pos as keyof typeof POSICIONES]
+  if (!info) return 'bg-gray-100 text-gray-800'
+  switch (info.zona) {
+    case 'porteria': return 'bg-amber-100 text-amber-800'
+    case 'defensa': return 'bg-blue-100 text-blue-800'
+    case 'mediocampo': return 'bg-emerald-100 text-emerald-800'
+    case 'ataque': return 'bg-red-100 text-red-800'
+    default: return 'bg-gray-100 text-gray-800'
+  }
 }
 
 interface PlanData {
@@ -123,14 +138,32 @@ export default function MatchPlanPage() {
   const [hasChanges, setHasChanges] = useState(false)
   const [planInitialized, setPlanInitialized] = useState(false)
 
+  // Formation data from notas_pre
+  const [savedFormation, setSavedFormation] = useState<string | null>(null)
+  const [savedSlots, setSavedSlots] = useState<Record<string, string>>({})
+  const [extraData, setExtraData] = useState<Record<string, any>>({})
+
   // Parse plan from notas_pre when partido data loads
   useEffect(() => {
     if (!partido || planInitialized) return
     if (partido.notas_pre) {
       try {
         const parsed = JSON.parse(partido.notas_pre)
-        if (parsed.enfoque_tactico !== undefined) {
-          setPlan(parsed)
+        if (parsed.enfoque_tactico !== undefined || parsed.formacion) {
+          setPlan({
+            enfoque_tactico: parsed.enfoque_tactico || '',
+            plan_ataque: parsed.plan_ataque || '',
+            plan_defensa: parsed.plan_defensa || '',
+            balon_parado: parsed.balon_parado || '',
+            plan_sustituciones: parsed.plan_sustituciones || '',
+          })
+          if (parsed.formacion) {
+            setSavedFormation(parsed.formacion)
+            setSavedSlots(parsed.formacion_slots || {})
+          }
+          // Store any extra keys for merge on save
+          const { enfoque_tactico, plan_ataque, plan_defensa, balon_parado, plan_sustituciones, formacion, formacion_slots, ...rest } = parsed
+          setExtraData(rest)
         }
       } catch {
         // Not JSON - use as enfoque_tactico
@@ -149,7 +182,16 @@ export default function MatchPlanPage() {
     if (!partido) return
     setSaving(true)
     try {
-      await partidosApi.update(id, { notas_pre: JSON.stringify(plan) })
+      // Merge plan data with formation data (preserve formation/slots)
+      const merged: Record<string, any> = {
+        ...extraData,
+        ...plan,
+      }
+      if (savedFormation) {
+        merged.formacion = savedFormation
+        merged.formacion_slots = savedSlots
+      }
+      await partidosApi.update(id, { notas_pre: JSON.stringify(merged) })
       mutate((key: string) => typeof key === 'string' && key.includes('/partidos'), undefined, { revalidate: true })
       setHasChanges(false)
     } catch (err) {
@@ -166,6 +208,9 @@ export default function MatchPlanPage() {
 
   const titulares = convocatoria.filter((c) => c.titular)
   const suplentes = convocatoria.filter((c) => !c.titular)
+
+  // Resolve formation for display
+  const activeFormation = savedFormation ? FORMATIONS.find((f) => f.name === savedFormation) : null
 
   if (loading) {
     return <DetailPageSkeleton />
@@ -193,7 +238,12 @@ export default function MatchPlanPage() {
           >
             <ChevronLeft className="h-4 w-4" /> Volver al partido
           </Link>
-          <h1 className="text-2xl font-bold">Plan de Partido</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            Plan de Partido
+            {savedFormation && (
+              <Badge className="bg-primary/10 text-primary text-xs">{savedFormation}</Badge>
+            )}
+          </h1>
           <p className="text-muted-foreground">
             {equipoActivo?.nombre} vs {partido.rival?.nombre} - {formatDate(partido.fecha)}
           </p>
@@ -246,6 +296,9 @@ export default function MatchPlanPage() {
             <CardTitle className="text-sm flex items-center gap-2">
               <Users className="h-4 w-4 text-primary" />
               Once titular ({titulares.length} jugadores)
+              {savedFormation && (
+                <Badge variant="outline" className="text-[10px]">{savedFormation}</Badge>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -262,28 +315,79 @@ export default function MatchPlanPage() {
                   Crear convocatoria
                 </Link>
               </div>
-            ) : (
+            ) : activeFormation ? (
+              /* Formation-based pitch */
               <div className="relative bg-emerald-600/90 rounded-xl overflow-hidden" style={{ aspectRatio: '3/4' }}>
                 {/* Pitch lines */}
                 <div className="absolute inset-4">
-                  {/* Outline */}
                   <div className="absolute inset-0 border-2 border-white/30 rounded" />
-                  {/* Center line */}
                   <div className="absolute top-1/2 left-0 right-0 border-t-2 border-white/30" />
-                  {/* Center circle */}
                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 border-2 border-white/30 rounded-full" />
-                  {/* Top box */}
                   <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-[18%] border-2 border-t-0 border-white/30" />
-                  {/* Bottom box */}
                   <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2/3 h-[18%] border-2 border-b-0 border-white/30" />
                 </div>
 
-                {/* Players */}
+                {/* Formation slots */}
+                {activeFormation.slots.map((slot) => {
+                  const convId = savedSlots[slot.id]
+                  const conv = convId ? convocatoria.find((c) => c.id === convId) : null
+                  const player = conv ? getPlayerData(conv) : null
+                  const posInfo = POSICIONES[slot.position as keyof typeof POSICIONES]
+                  const bgColor = posInfo?.color || '#9CA3AF'
+
+                  if (conv) {
+                    const displayName = player?.apodo || player?.apellidos || player?.nombre || `#${conv.dorsal || '?'}`
+                    return (
+                      <div
+                        key={slot.id}
+                        className="absolute -translate-x-1/2 -translate-y-1/2 text-center"
+                        style={{ top: slot.top, left: slot.left }}
+                      >
+                        <div
+                          className="w-9 h-9 rounded-full font-bold text-sm flex items-center justify-center shadow-md text-white"
+                          style={{ backgroundColor: bgColor }}
+                        >
+                          {conv.dorsal || player?.dorsal || '?'}
+                        </div>
+                        <span className="block text-[10px] text-white font-medium mt-0.5 max-w-[70px] truncate drop-shadow">
+                          {displayName}
+                        </span>
+                      </div>
+                    )
+                  } else {
+                    // Empty slot
+                    return (
+                      <div
+                        key={slot.id}
+                        className="absolute -translate-x-1/2 -translate-y-1/2 text-center"
+                        style={{ top: slot.top, left: slot.left }}
+                      >
+                        <div className="w-9 h-9 rounded-full border-2 border-dashed border-white/30 flex items-center justify-center">
+                          <span className="text-[10px] text-white/40">{slot.label}</span>
+                        </div>
+                      </div>
+                    )
+                  }
+                })}
+              </div>
+            ) : (
+              /* Legacy pitch (no formation) */
+              <div className="relative bg-emerald-600/90 rounded-xl overflow-hidden" style={{ aspectRatio: '3/4' }}>
+                <div className="absolute inset-4">
+                  <div className="absolute inset-0 border-2 border-white/30 rounded" />
+                  <div className="absolute top-1/2 left-0 right-0 border-t-2 border-white/30" />
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 border-2 border-white/30 rounded-full" />
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-[18%] border-2 border-t-0 border-white/30" />
+                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2/3 h-[18%] border-2 border-b-0 border-white/30" />
+                </div>
+
                 {titulares.map((conv) => {
                   const player = getPlayerData(conv)
                   const pos = conv.posicion_asignada || player?.posicion_principal || 'MC'
                   const coords = POSITION_COORDS[pos] || { top: '50%', left: '50%' }
                   const displayName = player?.apodo || player?.apellidos || player?.nombre || `#${conv.dorsal || '?'}`
+                  const posInfo = POSICIONES[pos as keyof typeof POSICIONES]
+                  const bgColor = posInfo?.color || '#ffffff'
 
                   return (
                     <div
@@ -291,7 +395,10 @@ export default function MatchPlanPage() {
                       className="absolute -translate-x-1/2 -translate-y-1/2 text-center"
                       style={{ top: coords.top, left: coords.left }}
                     >
-                      <div className="w-9 h-9 rounded-full bg-white text-primary font-bold text-sm flex items-center justify-center shadow-md">
+                      <div
+                        className="w-9 h-9 rounded-full font-bold text-sm flex items-center justify-center shadow-md text-white"
+                        style={{ backgroundColor: bgColor }}
+                      >
                         {conv.dorsal || player?.dorsal || '?'}
                       </div>
                       <span className="block text-[10px] text-white font-medium mt-0.5 max-w-[70px] truncate drop-shadow">
@@ -322,6 +429,8 @@ export default function MatchPlanPage() {
                 <div className="space-y-1.5">
                   {suplentes.map((conv) => {
                     const player = getPlayerData(conv)
+                    const pos = conv.posicion_asignada || player?.posicion_principal || ''
+                    const posColor = getPositionColor(pos)
                     return (
                       <div key={conv.id} className="flex items-center gap-3 py-1.5">
                         <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-medium">
@@ -332,8 +441,8 @@ export default function MatchPlanPage() {
                             {player?.apodo || `${player?.nombre || ''} ${player?.apellidos || ''}`.trim() || 'Jugador'}
                           </p>
                         </div>
-                        <Badge variant="outline" className="text-[10px] shrink-0">
-                          {conv.posicion_asignada || player?.posicion_principal || '—'}
+                        <Badge className={`text-[10px] border-0 shrink-0 ${posColor}`}>
+                          {pos || '—'}
                         </Badge>
                       </div>
                     )
