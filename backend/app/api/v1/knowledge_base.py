@@ -4,6 +4,8 @@ Gestion de documentos y busqueda semantica con embeddings.
 """
 
 import logging
+import re
+import unicodedata
 from fastapi import APIRouter, HTTPException, Depends, Query, status, BackgroundTasks, UploadFile, File, Form
 from typing import Optional
 from uuid import UUID
@@ -216,8 +218,15 @@ async def upload_documento_pdf(
 
     supabase = get_supabase()
 
+    # Sanitize filename for Supabase Storage (no accents, spaces, or special chars)
+    raw_name = file.filename or "documento.pdf"
+    safe_name = unicodedata.normalize("NFKD", raw_name).encode("ascii", "ignore").decode("ascii")
+    safe_name = re.sub(r"[^\w.\-]", "_", safe_name).strip("_")
+    if not safe_name.endswith(".pdf"):
+        safe_name += ".pdf"
+
     # Store the PDF in Supabase Storage
-    storage_path = f"kb/{auth.organizacion_id}/{file.filename or 'documento.pdf'}"
+    storage_path = f"kb/{auth.organizacion_id}/{safe_name}"
     try:
         try:
             supabase.storage.from_("documentos").remove([storage_path])

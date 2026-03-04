@@ -13,8 +13,8 @@ from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# Retry config for rate limits
-_MAX_RETRIES = 5
+# Retry config for rate limits (total max wait: 2+4+8 = 14s)
+_MAX_RETRIES = 3
 _BASE_DELAY = 2.0  # seconds
 
 # Gemini embedding model: gemini-embedding-001 produces 3072-dim vectors

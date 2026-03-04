@@ -67,7 +67,7 @@ def create_task(
         response = supabase.table("background_tasks").insert(record).execute()
         return response.data[0]
     except Exception as e:
-        logger.error(f"Error creating background task: {e}")
+        logger.debug(f"Background task tracking unavailable: {e}")
         raise
 
 
