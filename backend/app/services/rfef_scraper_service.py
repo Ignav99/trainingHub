@@ -115,13 +115,13 @@ class RFAFScraper:
         except Exception as e:
             logger.warning("Failed to get RFAF session cookie: %s", e)
 
-    def _fetch_page(self, action: str, params: dict, max_retries: int = 3) -> BeautifulSoup:
+    def _fetch_page(self, action: str, params: dict, max_retries: int = 3, cod_primaria: str = "1000120") -> BeautifulSoup:
         """Fetch and parse an RFAF page with retries for empty responses.
 
         RFAF is unreliable and often returns 0 bytes. Retries with backoff.
         """
         self._warmup()
-        full_params = {"cod_primaria": "1000120", **params}
+        full_params = {"cod_primaria": cod_primaria, **params}
         url = f"{BASE_URL}/{action}"
 
         for attempt in range(max_retries):
@@ -255,6 +255,26 @@ class RFAFScraper:
     async def scrape_acta(self, cod_acta: str) -> dict:
         """Parse a complete match report (acta)."""
         return await asyncio.to_thread(self._scrape_acta, cod_acta)
+
+    async def scrape_sanciones_competiciones(
+        self, codtemporada: str = "21",
+    ) -> list[dict]:
+        return await asyncio.to_thread(self._scrape_sanciones_competiciones, codtemporada)
+
+    async def scrape_sanciones_grupos(
+        self, codtemporada: str, competicion_id: str,
+    ) -> list[dict]:
+        return await asyncio.to_thread(self._scrape_sanciones_grupos, codtemporada, competicion_id)
+
+    async def scrape_sanciones_jornadas(
+        self, codtemporada: str, competicion_id: str, grupo_id: str,
+    ) -> list[dict]:
+        return await asyncio.to_thread(self._scrape_sanciones_jornadas, codtemporada, competicion_id, grupo_id)
+
+    async def scrape_sanciones(
+        self, codtemporada: str, competicion_id: str, grupo_id: str, jornada: str = "",
+    ) -> list[dict]:
+        return await asyncio.to_thread(self._scrape_sanciones, codtemporada, competicion_id, grupo_id, jornada)
 
     async def sync_competicion(
         self,
@@ -530,6 +550,212 @@ class RFAFScraper:
             "goleadores": goleadores,
             "sincronizado_en": datetime.utcnow().isoformat(),
         }
+
+    # ========================================================================
+    # Sanciones scraping
+    # ========================================================================
+
+    def _scrape_sanciones_competiciones(self, codtemporada="21"):
+        """Parse <select name="Sch_Competicion"> options from sanciones page."""
+        soup = self._fetch_page("NFG_ConsultaSanciones", {
+            "Rone": "1",
+            "Rone1": "1",
+            "Rone2": "1",
+            "Sch_Cod_Temporada": codtemporada,
+        }, cod_primaria="5002420")
+
+        options = []
+        select = soup.find("select", {"name": "Sch_Competicion"})
+        if not select:
+            logger.warning("Sanciones: no <select name='Sch_Competicion'> found")
+            return options
+
+        for opt in select.find_all("option"):
+            val = (opt.get("value") or "").strip()
+            text = opt.get_text(strip=True)
+            if val and val != "0" and text:
+                options.append({"id": val, "nombre": text})
+
+        logger.info("Sanciones competiciones: %d options", len(options))
+        return options
+
+    def _scrape_sanciones_grupos(self, codtemporada, competicion_id):
+        """Parse <select name="Sch_Grupo"> options from sanciones page."""
+        soup = self._fetch_page("NFG_ConsultaSanciones", {
+            "Sch_Cod_Temporada": codtemporada,
+            "Sch_Competicion": competicion_id,
+        }, cod_primaria="5002420")
+
+        options = []
+        select = soup.find("select", {"name": "Sch_Grupo"})
+        if not select:
+            logger.warning("Sanciones: no <select name='Sch_Grupo'> found")
+            return options
+
+        for opt in select.find_all("option"):
+            val = (opt.get("value") or "").strip()
+            text = opt.get_text(strip=True)
+            if val and val != "0" and text:
+                options.append({"id": val, "nombre": text})
+
+        logger.info("Sanciones grupos: %d options", len(options))
+        return options
+
+    def _scrape_sanciones_jornadas(self, codtemporada, competicion_id, grupo_id):
+        """Parse <select name="Sch_Jornada"> options from sanciones page."""
+        soup = self._fetch_page("NFG_ConsultaSanciones", {
+            "Sch_Cod_Temporada": codtemporada,
+            "Sch_Competicion": competicion_id,
+            "Sch_Grupo": grupo_id,
+        }, cod_primaria="5002420")
+
+        options = []
+        select = soup.find("select", {"name": "Sch_Jornada"})
+        if not select:
+            logger.warning("Sanciones: no <select name='Sch_Jornada'> found")
+            return options
+
+        for opt in select.find_all("option"):
+            val = (opt.get("value") or "").strip()
+            text = opt.get_text(strip=True)
+            if val and text:
+                # Parse jornada number and optional date from text like "Jornada 1 (15/11/2025)"
+                num_match = re.search(r"(\d+)", text)
+                fecha_match = re.search(r"\((\d{2}/\d{2}/\d{4})\)", text)
+                options.append({
+                    "id": val,
+                    "numero": int(num_match.group(1)) if num_match else 0,
+                    "texto": text,
+                    "fecha": fecha_match.group(1) if fecha_match else None,
+                })
+
+        logger.info("Sanciones jornadas: %d options", len(options))
+        return options
+
+    def _scrape_sanciones(self, codtemporada, competicion_id, grupo_id, jornada=""):
+        """Scrape sanciones data. Empty jornada = all jornadas."""
+        soup = self._fetch_page("NFG_ConsultaSanciones", {
+            "buscar": "1",
+            "Sch_Cod_Temporada": codtemporada,
+            "Sch_Competicion": competicion_id,
+            "Sch_Grupo": grupo_id,
+            "Sch_Jornada": jornada,
+        }, cod_primaria="5002420")
+        return self._parse_sanciones(soup)
+
+    def _parse_sanciones(self, soup):
+        """Parse sanciones HTML.
+
+        Structure:
+        - document.write() JS blocks contain "Jornada: N (DD/MM/YYYY)" and "reunión del día DD-MM-YYYY"
+        - <td colspan=100> headers contain category: "Jugadores", "Técnicos...", "Equipos"
+        - <tr> with 4 <td>: club+name (separated by <br>), tipo_licencia, artículo, descripción
+        """
+        sanciones = []
+        current_jornada = 0
+        current_jornada_fecha = None
+        current_reunion_fecha = None
+        current_categoria = "jugador"
+
+        # Get the full HTML text to find jornada markers in document.write() calls
+        full_html = str(soup)
+
+        # Find all script blocks that contain document.write with jornada info
+        # These appear before each jornada's data tables
+        scripts = soup.find_all("script")
+        jornada_markers = []
+        for script in scripts:
+            text = script.string or ""
+            if "document.write" in text and "Jornada" in text:
+                jnum = re.search(r"Jornada[:\s]+(\d+)", text)
+                jfecha = re.search(r"\((\d{2}/\d{2}/\d{4})\)", text)
+                rfecha = re.search(r"reuni[oó]n del d[ií]a\s+(\d{2}[-/]\d{2}[-/]\d{4})", text, re.IGNORECASE)
+                if jnum:
+                    jornada_markers.append({
+                        "numero": int(jnum.group(1)),
+                        "fecha": jfecha.group(1) if jfecha else None,
+                        "reunion": rfecha.group(1) if rfecha else None,
+                        "element": script,
+                    })
+
+        # Process all tables
+        for table in soup.find_all("table"):
+            rows = table.find_all("tr")
+            for row in rows:
+                # Check for category header: <td colspan=100>
+                colspan_td = row.find("td", colspan=True)
+                if colspan_td:
+                    colspan_val = colspan_td.get("colspan", "")
+                    if str(colspan_val) == "100" or int(colspan_val or 0) >= 4:
+                        header_text = colspan_td.get_text(strip=True).lower()
+                        if "jugador" in header_text:
+                            current_categoria = "jugador"
+                        elif "cnico" in header_text or "tecnico" in header_text:
+                            current_categoria = "tecnico"
+                        elif "equipo" in header_text:
+                            current_categoria = "equipo"
+
+                        # Also check if this is a jornada header
+                        jnum = re.search(r"Jornada[:\s]+(\d+)", colspan_td.get_text(strip=True))
+                        if jnum:
+                            current_jornada = int(jnum.group(1))
+                            jfecha = re.search(r"\((\d{2}/\d{2}/\d{4})\)", colspan_td.get_text(strip=True))
+                            current_jornada_fecha = jfecha.group(1) if jfecha else None
+                        continue
+
+                # Check if a jornada marker script precedes this table
+                for marker in jornada_markers:
+                    # If this marker's script is a previous sibling of the table
+                    if marker["element"] in table.find_all_previous("script"):
+                        if marker["numero"] > current_jornada or (
+                            marker["numero"] == current_jornada and not current_reunion_fecha
+                        ):
+                            current_jornada = marker["numero"]
+                            current_jornada_fecha = marker.get("fecha")
+                            current_reunion_fecha = marker.get("reunion")
+
+                cells = row.find_all("td")
+                if len(cells) < 4:
+                    continue
+
+                # Standard sancion row: 4 cells
+                # Cell 0: club + persona (separated by <br>)
+                cell0 = cells[0]
+                cell0_html = str(cell0)
+                # Get text parts separated by <br>
+                for br in cell0.find_all("br"):
+                    br.replace_with("\n")
+                parts = [p.strip() for p in cell0.get_text().split("\n") if p.strip()]
+
+                equipo_nombre = parts[0] if parts else ""
+                persona_nombre = parts[1] if len(parts) > 1 else ""
+
+                tipo_licencia = cells[1].get_text(strip=True) if len(cells) > 1 else ""
+                articulo = cells[2].get_text(strip=True) if len(cells) > 2 else ""
+                descripcion = cells[3].get_text(strip=True) if len(cells) > 3 else ""
+
+                if not equipo_nombre or not descripcion:
+                    continue
+
+                # Skip header rows
+                if equipo_nombre.lower() in ("club", "equipo") or descripcion.lower() in ("sanción", "sancion", "descripción"):
+                    continue
+
+                sancion = {
+                    "jornada_numero": current_jornada,
+                    "jornada_fecha": current_jornada_fecha,
+                    "reunion_fecha": current_reunion_fecha,
+                    "categoria": current_categoria,
+                    "equipo_nombre": equipo_nombre,
+                    "persona_nombre": persona_nombre,
+                    "tipo_licencia": tipo_licencia,
+                    "articulo": articulo,
+                    "descripcion": descripcion,
+                }
+                sanciones.append(sancion)
+
+        logger.info("Parsed sanciones: %d entries across jornadas", len(sanciones))
+        return sanciones
 
     # ========================================================================
     # Parsing helpers

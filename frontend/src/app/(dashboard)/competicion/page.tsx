@@ -10,6 +10,7 @@ import {
   RFEFGoleador,
   RFEFJornada,
   RFEFPartidoJornada,
+  RFEFSancion,
 } from '@/lib/api/rfef'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Spinner } from '@/components/ui/spinner'
@@ -29,6 +30,8 @@ import {
   Swords,
   FileText,
   X,
+  Shield,
+  Settings,
 } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -64,6 +67,21 @@ export default function CompeticionPage() {
 
   // Acta modal
   const [selectedActaCod, setSelectedActaCod] = useState<string | null>(null)
+
+  // Sanciones config
+  const [showSancionesConfig, setShowSancionesConfig] = useState(false)
+  const [sancionComps, setSancionComps] = useState<{ id: string; nombre: string }[]>([])
+  const [sancionGrupos, setSancionGrupos] = useState<{ id: string; nombre: string }[]>([])
+  const [selectedSancionComp, setSelectedSancionComp] = useState('')
+  const [selectedSancionGrupo, setSelectedSancionGrupo] = useState('')
+  const [loadingSancionConfig, setLoadingSancionConfig] = useState(false)
+  const [savingSancionConfig, setSavingSancionConfig] = useState(false)
+
+  // Sanciones tab
+  const [sancionesJornada, setSancionesJornada] = useState<number | undefined>(undefined)
+  const [sanciones, setSanciones] = useState<RFEFSancion[]>([])
+  const [loadingSanciones, setLoadingSanciones] = useState(false)
+  const [syncingSanciones, setSyncingSanciones] = useState(false)
 
   // SWR: Load competiciones
   const { data: competicionesRes, isLoading: loading } = useSWR<{ data: RFEFCompeticion[]; total: number }>(
@@ -194,6 +212,7 @@ export default function CompeticionPage() {
         setSyncStatus(
           `Listo: ${result.equipos_clasificacion} equipos, ${result.jornadas_saved}/${result.jornadas_total || '?'} jornadas` +
           (result.actas_saved ? `, ${result.actas_saved} actas` : '') +
+          (result.sanciones_saved ? `, ${result.sanciones_saved} sanciones` : '') +
           (result.errors?.length ? ` (${result.errors.length} errores)` : '')
         )
       }
@@ -247,6 +266,83 @@ export default function CompeticionPage() {
       mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, { revalidate: true })
     } catch (err: any) {
       setError(err.message || 'Error al eliminar')
+    }
+  }
+
+  const sancionesConfigured = !!(competicion?.sancion_competicion_id && competicion?.sancion_grupo_id)
+
+  const handleOpenSancionesConfig = async () => {
+    setShowSancionesConfig(true)
+    setLoadingSancionConfig(true)
+    try {
+      const res = await rfefApi.getSancionesCompeticiones(competicion?.rfef_codtemporada)
+      setSancionComps(res.data)
+    } catch { /* ok */ }
+    setLoadingSancionConfig(false)
+  }
+
+  const handleSancionCompChange = async (compId: string) => {
+    setSelectedSancionComp(compId)
+    setSelectedSancionGrupo('')
+    setSancionGrupos([])
+    if (!compId) return
+    try {
+      const res = await rfefApi.getSancionesGrupos(competicion?.rfef_codtemporada || '21', compId)
+      setSancionGrupos(res.data)
+    } catch { /* ok */ }
+  }
+
+  const handleSaveSancionesConfig = async () => {
+    if (!competicion || !selectedSancionComp || !selectedSancionGrupo) return
+    setSavingSancionConfig(true)
+    try {
+      const updated = await rfefApi.setSancionesConfig(competicion.id, {
+        sancion_competicion_id: selectedSancionComp,
+        sancion_grupo_id: selectedSancionGrupo,
+      })
+      setCompeticion(prev => prev ? {
+        ...prev,
+        sancion_competicion_id: updated.sancion_competicion_id,
+        sancion_grupo_id: updated.sancion_grupo_id,
+      } : null)
+      setShowSancionesConfig(false)
+      // Auto-sync after config
+      setSyncingSanciones(true)
+      const syncRes = await rfefApi.syncSanciones(competicion.id)
+      setSyncStatus(`Sanciones configuradas: ${syncRes.sanciones_saved} guardadas`)
+      // Load sanciones
+      await loadSanciones()
+    } catch (err: any) {
+      setError(err.message || 'Error al configurar sanciones')
+    } finally {
+      setSavingSancionConfig(false)
+      setSyncingSanciones(false)
+    }
+  }
+
+  const loadSanciones = async () => {
+    if (!competicion) return
+    setLoadingSanciones(true)
+    try {
+      const res = await rfefApi.listSanciones(competicion.id, {
+        jornada: sancionesJornada,
+      })
+      setSanciones(res.data)
+    } catch { /* ok */ }
+    setLoadingSanciones(false)
+  }
+
+  const handleSyncSanciones = async () => {
+    if (!competicion) return
+    setSyncingSanciones(true)
+    try {
+      const res = await rfefApi.syncSanciones(competicion.id)
+      setSyncStatus(`Sanciones sincronizadas: ${res.sanciones_saved} guardadas`)
+      await loadSanciones()
+    } catch (err: any) {
+      setError(err.message || 'Error al sincronizar sanciones')
+    } finally {
+      setSyncingSanciones(false)
     }
   }
 
@@ -539,6 +635,11 @@ export default function CompeticionPage() {
           <TabsTrigger value="clasificacion">Clasificacion</TabsTrigger>
           <TabsTrigger value="jornada">Jornada</TabsTrigger>
           <TabsTrigger value="goleadores">Goleadores</TabsTrigger>
+          {sancionesConfigured && (
+            <TabsTrigger value="sanciones" onClick={() => { if (sanciones.length === 0) loadSanciones() }}>
+              Sanciones
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* Clasificacion tab */}
@@ -703,6 +804,59 @@ export default function CompeticionPage() {
             )}
           </div>
         </TabsContent>
+        {/* Sanciones tab */}
+        {sancionesConfigured && (
+          <TabsContent value="sanciones">
+            <div className="space-y-4">
+              {/* Controls */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <select
+                  value={sancionesJornada ?? ''}
+                  onChange={e => {
+                    const val = e.target.value ? Number(e.target.value) : undefined
+                    setSancionesJornada(val)
+                    // Trigger reload
+                    setTimeout(async () => {
+                      if (!competicion) return
+                      setLoadingSanciones(true)
+                      try {
+                        const res = await rfefApi.listSanciones(competicion.id, { jornada: val })
+                        setSanciones(res.data)
+                      } catch { /* ok */ }
+                      setLoadingSanciones(false)
+                    }, 0)
+                  }}
+                  className="px-3 py-1.5 rounded-lg border bg-background text-sm"
+                >
+                  <option value="">Todas las jornadas</option>
+                  {(competicion.calendario || []).map(j => (
+                    <option key={j.numero} value={j.numero}>Jornada {j.numero}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleSyncSanciones}
+                  disabled={syncingSanciones}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm hover:bg-muted disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${syncingSanciones ? 'animate-spin' : ''}`} />
+                  {syncingSanciones ? 'Sincronizando...' : 'Sync sanciones'}
+                </button>
+              </div>
+
+              {loadingSanciones ? (
+                <div className="flex justify-center py-8">
+                  <Spinner size="md" />
+                </div>
+              ) : sanciones.length === 0 ? (
+                <div className="bg-card rounded-xl border py-8 text-center text-muted-foreground text-sm">
+                  No hay sanciones{sancionesJornada ? ` para la jornada ${sancionesJornada}` : ''}. Pulsa &quot;Sync sanciones&quot; para importar.
+                </div>
+              ) : (
+                <SancionesTable sanciones={sanciones} miEquipo={miEquipo} />
+              )}
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Acta Detail Modal */}
@@ -710,6 +864,101 @@ export default function CompeticionPage() {
         codActa={selectedActaCod}
         onClose={() => setSelectedActaCod(null)}
       />
+
+      {/* Sanciones config */}
+      {competicion.mi_equipo_nombre && !selectingEquipo && (
+        <div className="bg-card rounded-xl border p-4">
+          {sancionesConfigured && !showSancionesConfig ? (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4 text-green-500" />
+                <span className="text-sm font-medium text-green-600">Sanciones configuradas</span>
+              </div>
+              <button
+                onClick={handleOpenSancionesConfig}
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+              >
+                <Settings className="h-3 w-3" />
+                Reconfigurar
+              </button>
+            </div>
+          ) : showSancionesConfig ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Shield className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">Configurar Sanciones RFAF</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Los IDs de sanciones son diferentes a los de clasificacion. Selecciona la competicion y grupo correctos.
+              </p>
+
+              {loadingSancionConfig ? (
+                <div className="flex justify-center py-4"><Spinner size="sm" /></div>
+              ) : (
+                <>
+                  <div>
+                    <label className="text-xs font-medium mb-1 block">Competicion (sanciones)</label>
+                    <select
+                      value={selectedSancionComp}
+                      onChange={e => handleSancionCompChange(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border bg-background text-sm"
+                    >
+                      <option value="">Seleccionar...</option>
+                      {sancionComps.map(c => (
+                        <option key={c.id} value={c.id}>{c.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {selectedSancionComp && (
+                    <div>
+                      <label className="text-xs font-medium mb-1 block">Grupo (sanciones)</label>
+                      <select
+                        value={selectedSancionGrupo}
+                        onChange={e => setSelectedSancionGrupo(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border bg-background text-sm"
+                      >
+                        <option value="">Seleccionar...</option>
+                        {sancionGrupos.map(g => (
+                          <option key={g.id} value={g.id}>{g.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleSaveSancionesConfig}
+                      disabled={!selectedSancionComp || !selectedSancionGrupo || savingSancionConfig}
+                      className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {savingSancionConfig ? (
+                        <><Spinner size="sm" />Guardando...</>
+                      ) : (
+                        'Guardar y sincronizar'
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setShowSancionesConfig(false)}
+                      className="px-3 py-2 rounded-lg border text-sm hover:bg-muted"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={handleOpenSancionesConfig}
+              className="flex items-center gap-2 text-sm text-primary hover:text-primary/80"
+            >
+              <Shield className="h-4 w-4" />
+              Configurar sanciones RFAF
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Change team button */}
       {competicion.mi_equipo_nombre && !selectingEquipo && (
@@ -787,6 +1036,98 @@ function PartidoRow({
           {partido.visitante}
         </span>
       </div>
+    </div>
+  )
+}
+
+function SancionesTable({ sanciones, miEquipo }: { sanciones: RFEFSancion[]; miEquipo: string }) {
+  // Group by jornada, then by category
+  const byJornada = sanciones.reduce<Record<number, RFEFSancion[]>>((acc, s) => {
+    if (!acc[s.jornada_numero]) acc[s.jornada_numero] = []
+    acc[s.jornada_numero].push(s)
+    return acc
+  }, {})
+
+  const categoriaLabel: Record<string, string> = {
+    jugador: 'Jugadores',
+    tecnico: 'Tecnicos / Cuerpo tecnico',
+    equipo: 'Equipos',
+  }
+
+  const getBadgeColor = (desc: string) => {
+    const d = desc.toLowerCase()
+    if (d.includes('partido') && d.includes('suspensi')) return 'bg-red-500/15 text-red-600'
+    if (d.includes('multa')) return 'bg-orange-500/15 text-orange-600'
+    if (d.includes('amonesta')) return 'bg-yellow-500/15 text-yellow-700'
+    return 'bg-muted text-muted-foreground'
+  }
+
+  return (
+    <div className="space-y-6">
+      {Object.keys(byJornada).sort((a, b) => Number(b) - Number(a)).map(jStr => {
+        const jNum = Number(jStr)
+        const items = byJornada[jNum]
+        const byCategoria = items.reduce<Record<string, RFEFSancion[]>>((acc, s) => {
+          if (!acc[s.categoria]) acc[s.categoria] = []
+          acc[s.categoria].push(s)
+          return acc
+        }, {})
+
+        return (
+          <div key={jNum} className="bg-card rounded-xl border overflow-hidden">
+            <div className="px-4 py-2.5 border-b bg-muted/50 flex items-center justify-between">
+              <span className="font-semibold text-sm">Jornada {jNum}</span>
+              {items[0]?.jornada_fecha && (
+                <span className="text-xs text-muted-foreground">{items[0].jornada_fecha}</span>
+              )}
+            </div>
+
+            {['jugador', 'tecnico', 'equipo'].map(cat => {
+              const catItems = byCategoria[cat]
+              if (!catItems?.length) return null
+              return (
+                <div key={cat}>
+                  <div className="px-4 py-1.5 bg-muted/30 border-b">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase">
+                      {categoriaLabel[cat] || cat}
+                    </span>
+                  </div>
+                  <div className="divide-y">
+                    {catItems.map((s, idx) => {
+                      const isMyTeam = miEquipo && s.equipo_nombre.toLowerCase().includes(miEquipo.toLowerCase())
+                      return (
+                        <div
+                          key={idx}
+                          className={`px-4 py-2 flex items-start gap-3 text-sm ${
+                            isMyTeam ? 'bg-yellow-50/50 dark:bg-yellow-950/10' : ''
+                          }`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`font-medium ${isMyTeam ? 'font-bold' : ''}`}>
+                                {s.equipo_nombre}
+                              </span>
+                              {s.persona_nombre && (
+                                <span className="text-muted-foreground">— {s.persona_nombre}</span>
+                              )}
+                            </div>
+                            {s.articulo && (
+                              <span className="text-xs text-muted-foreground">Art. {s.articulo}</span>
+                            )}
+                          </div>
+                          <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap shrink-0 ${getBadgeColor(s.descripcion)}`}>
+                            {s.descripcion}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )
+      })}
     </div>
   )
 }

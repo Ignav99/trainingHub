@@ -585,6 +585,21 @@ async def sync_competicion_full(
             logger.warning("Sync-full: error in actas phase: %s", e)
             errors.append(f"actas: {e}")
 
+        # --- Step 9: Sync sanciones if configured ---
+        sanciones_saved = 0
+        sancion_comp = comp.data.get("sancion_competicion_id")
+        sancion_grupo = comp.data.get("sancion_grupo_id")
+        if sancion_comp and sancion_grupo:
+            try:
+                sanciones_data = await scraper.scrape_sanciones(
+                    codtemporada, sancion_comp, sancion_grupo, ""
+                )
+                sanciones_saved = _upsert_sanciones(supabase, comp_id, sanciones_data)
+                logger.info("Sync-full: saved %d sanciones", sanciones_saved)
+            except Exception as e:
+                logger.warning("Sync-full: error in sanciones: %s", e)
+                errors.append(f"sanciones: {e}")
+
     finally:
         await scraper.close()
 
@@ -595,6 +610,7 @@ async def sync_competicion_full(
         "jornadas_saved": jornadas_saved,
         "jornadas_total": len(calendario),
         "actas_saved": actas_saved,
+        "sanciones_saved": sanciones_saved,
         "link_result": link_result,
         "errors": errors[:5] if errors else None,
         "sincronizado_en": sync_time,
@@ -813,6 +829,200 @@ async def get_acta(
         )
 
     return response.data
+
+
+# ============ Sanciones ============
+
+@router.get("/sanciones/competiciones")
+async def sanciones_competiciones(
+    temporada: str = Query("21"),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """Cascade dropdown: competiciones available in sanciones page."""
+    scraper = RFAFScraper()
+    try:
+        data = await scraper.scrape_sanciones_competiciones(temporada)
+        return {"data": data}
+    finally:
+        await scraper.close()
+
+
+@router.get("/sanciones/grupos")
+async def sanciones_grupos(
+    temporada: str = Query("21"),
+    competicion_id: str = Query(...),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """Cascade dropdown: grupos for a sanciones competicion."""
+    scraper = RFAFScraper()
+    try:
+        data = await scraper.scrape_sanciones_grupos(temporada, competicion_id)
+        return {"data": data}
+    finally:
+        await scraper.close()
+
+
+@router.get("/sanciones/jornadas")
+async def sanciones_jornadas(
+    temporada: str = Query("21"),
+    competicion_id: str = Query(...),
+    grupo_id: str = Query(...),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """Cascade dropdown: jornadas available for sanciones."""
+    scraper = RFAFScraper()
+    try:
+        data = await scraper.scrape_sanciones_jornadas(temporada, competicion_id, grupo_id)
+        return {"data": data}
+    finally:
+        await scraper.close()
+
+
+class SancionesConfigRequest(BaseModel):
+    sancion_competicion_id: str
+    sancion_grupo_id: str
+
+
+@router.put("/competiciones/{competicion_id}/sanciones-config")
+async def set_sanciones_config(
+    competicion_id: UUID,
+    body: SancionesConfigRequest,
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
+):
+    """Save sanciones competition/group mapping for a competition."""
+    supabase = get_supabase()
+    response = supabase.table("rfef_competiciones").update({
+        "sancion_competicion_id": body.sancion_competicion_id,
+        "sancion_grupo_id": body.sancion_grupo_id,
+    }).eq("id", str(competicion_id)).execute()
+
+    if not response.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Competición no encontrada")
+
+    return response.data[0]
+
+
+def _parse_fecha_sanciones(fecha_str: Optional[str]) -> Optional[str]:
+    """Parse DD-MM-YYYY or DD/MM/YYYY to ISO date string."""
+    if not fecha_str:
+        return None
+    for fmt in ("%d-%m-%Y", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(fecha_str.strip(), fmt).date().isoformat()
+        except ValueError:
+            continue
+    return None
+
+
+def _upsert_sanciones(supabase, comp_id: str, sanciones: list[dict]) -> int:
+    """Upsert sanciones using ON CONFLICT. Returns count saved."""
+    saved = 0
+    for s in sanciones:
+        record = {
+            "competicion_id": comp_id,
+            "jornada_numero": s["jornada_numero"],
+            "jornada_fecha": _parse_fecha_sanciones(s.get("jornada_fecha")),
+            "reunion_fecha": _parse_fecha_sanciones(s.get("reunion_fecha")),
+            "categoria": s["categoria"],
+            "equipo_nombre": s["equipo_nombre"],
+            "persona_nombre": s.get("persona_nombre", ""),
+            "tipo_licencia": s.get("tipo_licencia"),
+            "articulo": s.get("articulo"),
+            "descripcion": s["descripcion"],
+        }
+        try:
+            supabase.table("rfef_sanciones").upsert(
+                record,
+                on_conflict="competicion_id,jornada_numero,equipo_nombre,persona_nombre,articulo,descripcion",
+            ).execute()
+            saved += 1
+        except Exception as e:
+            logger.debug("Upsert sancion error: %s", e)
+    return saved
+
+
+class SyncSancionesRequest(BaseModel):
+    jornadas: Optional[list[int]] = None
+
+
+@router.post("/competiciones/{competicion_id}/sync-sanciones")
+async def sync_sanciones(
+    competicion_id: UUID,
+    body: SyncSancionesRequest = Body(default=SyncSancionesRequest()),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
+):
+    """Scrape and save sanciones. Optionally filter by jornadas."""
+    supabase = get_supabase()
+    comp_id = str(competicion_id)
+
+    comp = supabase.table("rfef_competiciones").select(
+        "sancion_competicion_id, sancion_grupo_id, rfef_codtemporada"
+    ).eq("id", comp_id).single().execute()
+
+    if not comp.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Competición no encontrada")
+
+    sancion_comp = comp.data.get("sancion_competicion_id")
+    sancion_grupo = comp.data.get("sancion_grupo_id")
+    if not sancion_comp or not sancion_grupo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Sanciones no configuradas. Configura primero el mapeo de sanciones.",
+        )
+
+    codtemporada = comp.data.get("rfef_codtemporada", "21")
+    scraper = RFAFScraper()
+    total_saved = 0
+
+    try:
+        if body.jornadas:
+            # Scrape specific jornadas — need to get jornada IDs first
+            jornada_options = await scraper.scrape_sanciones_jornadas(
+                codtemporada, sancion_comp, sancion_grupo
+            )
+            jornada_map = {j["numero"]: j["id"] for j in jornada_options}
+            for jnum in body.jornadas:
+                jid = jornada_map.get(jnum, "")
+                if jid:
+                    sanciones = await scraper.scrape_sanciones(
+                        codtemporada, sancion_comp, sancion_grupo, jid
+                    )
+                    total_saved += _upsert_sanciones(supabase, comp_id, sanciones)
+        else:
+            # Scrape all jornadas at once (empty jornada param)
+            sanciones = await scraper.scrape_sanciones(
+                codtemporada, sancion_comp, sancion_grupo, ""
+            )
+            total_saved = _upsert_sanciones(supabase, comp_id, sanciones)
+    finally:
+        await scraper.close()
+
+    return {"status": "ok", "sanciones_saved": total_saved}
+
+
+@router.get("/competiciones/{competicion_id}/sanciones")
+async def list_sanciones(
+    competicion_id: UUID,
+    jornada: Optional[int] = None,
+    equipo: Optional[str] = None,
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """List stored sanciones, optionally filtered by jornada or equipo."""
+    supabase = get_supabase()
+
+    query = supabase.table("rfef_sanciones").select("*").eq(
+        "competicion_id", str(competicion_id)
+    )
+
+    if jornada is not None:
+        query = query.eq("jornada_numero", jornada)
+    if equipo:
+        query = query.ilike("equipo_nombre", f"%{equipo}%")
+
+    query = query.order("jornada_numero").order("categoria").order("equipo_nombre")
+    response = query.execute()
+
+    return {"data": response.data, "total": len(response.data)}
 
 
 # ============ Scraping / Sync ============

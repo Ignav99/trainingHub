@@ -64,7 +64,23 @@ export interface RFEFCompeticion {
   sync_habilitado?: boolean
   ultima_sincronizacion?: string
   mi_equipo_nombre?: string
+  sancion_competicion_id?: string
+  sancion_grupo_id?: string
   created_at?: string
+}
+
+export interface RFEFSancion {
+  id: string
+  competicion_id: string
+  jornada_numero: number
+  jornada_fecha?: string
+  reunion_fecha?: string
+  categoria: 'jugador' | 'tecnico' | 'equipo'
+  equipo_nombre: string
+  persona_nombre?: string
+  tipo_licencia?: string
+  articulo?: string
+  descripcion: string
 }
 
 export interface RFEFProximoRival {
@@ -92,6 +108,7 @@ export interface SyncFullResult {
   jornadas_saved: number
   jornadas_total?: number
   actas_saved?: number
+  sanciones_saved?: number
   link_result?: {
     rivales_created: number
     partidos_created: number
@@ -232,5 +249,50 @@ export const rfefApi = {
 
   async getActa(codActa: string): Promise<import('@/types').RFEFActa> {
     return api.get(`/rfef/actas/${codActa}`)
+  },
+
+  // Sanciones
+  async getSancionesCompeticiones(
+    temporada?: string,
+  ): Promise<{ data: { id: string; nombre: string }[] }> {
+    return api.get('/rfef/sanciones/competiciones', { params: { temporada: temporada || '21' } })
+  },
+
+  async getSancionesGrupos(
+    temporada: string,
+    compId: string,
+  ): Promise<{ data: { id: string; nombre: string }[] }> {
+    return api.get('/rfef/sanciones/grupos', { params: { temporada, competicion_id: compId } })
+  },
+
+  async getSancionesJornadas(
+    temporada: string,
+    compId: string,
+    grupoId: string,
+  ): Promise<{ data: { id: string; numero: number; texto: string; fecha?: string }[] }> {
+    return api.get('/rfef/sanciones/jornadas', {
+      params: { temporada, competicion_id: compId, grupo_id: grupoId },
+    })
+  },
+
+  async setSancionesConfig(
+    compId: string,
+    data: { sancion_competicion_id: string; sancion_grupo_id: string },
+  ): Promise<RFEFCompeticion> {
+    return api.put(`/rfef/competiciones/${compId}/sanciones-config`, data)
+  },
+
+  async syncSanciones(
+    compId: string,
+    jornadas?: number[],
+  ): Promise<{ status: string; sanciones_saved: number }> {
+    return api.post(`/rfef/competiciones/${compId}/sync-sanciones`, { jornadas })
+  },
+
+  async listSanciones(
+    compId: string,
+    params?: { jornada?: number; equipo?: string },
+  ): Promise<{ data: RFEFSancion[]; total: number }> {
+    return api.get(`/rfef/competiciones/${compId}/sanciones`, { params })
   },
 }
