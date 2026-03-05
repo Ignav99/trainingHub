@@ -9,7 +9,7 @@ export default function PlanRedirect() {
   const id = params.id as string
 
   useEffect(() => {
-    router.replace(`/partidos?match=${id}&tab=alineacion`)
+    router.replace(`/partidos?match=${id}&tab=pre-partido`)
   }, [id, router])
 
   return null

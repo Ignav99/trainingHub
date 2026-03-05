@@ -9,7 +9,7 @@ export default function PartidoRedirect() {
   const id = params.id as string
 
   useEffect(() => {
-    router.replace(`/partidos?match=${id}&tab=informe`)
+    router.replace(`/partidos?match=${id}&tab=post-partido`)
   }, [id, router])
 
   return null
