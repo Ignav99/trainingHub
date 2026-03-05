@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import useSWR, { mutate } from 'swr'
 import {
@@ -193,6 +193,20 @@ export default function ConvocatoriasPage() {
     return assignments
   }
 
+  // Zone order for sorting jugadores
+  const ZONA_ORDER: Record<string, number> = { porteria: 0, defensa: 1, mediocampo: 2, ataque: 3 }
+
+  const sortJugadoresByPosition = (list: Jugador[]) => {
+    return [...list].sort((a, b) => {
+      const posA = POSICIONES[a.posicion_principal as keyof typeof POSICIONES]
+      const posB = POSICIONES[b.posicion_principal as keyof typeof POSICIONES]
+      const zA = posA ? (ZONA_ORDER[posA.zona] ?? 99) : 99
+      const zB = posB ? (ZONA_ORDER[posB.zona] ?? 99) : 99
+      if (zA !== zB) return zA - zB
+      return (a.dorsal || 99) - (b.dorsal || 99)
+    })
+  }
+
   // Load jugadores when opening add dialog
   const openAddDialog = () => {
     if (!equipoActivo?.id) return
@@ -200,11 +214,21 @@ export default function ConvocatoriasPage() {
     setSelected({})
     setLoadingJug(true)
     jugadoresApi
-      .list({ equipo_id: equipoActivo.id, estado: 'activo' })
+      .list({ equipo_id: equipoActivo.id, estado: 'activo', organizacion_completa: true })
       .then((res) => setJugadores(res?.data || []))
       .catch(console.error)
       .finally(() => setLoadingJug(false))
   }
+
+  // Split jugadores: own team first, then cross-team, both sorted by position
+  const ownJugadores = useMemo(
+    () => sortJugadoresByPosition(jugadores.filter((j) => j.equipo_id === equipoActivo?.id)),
+    [jugadores, equipoActivo?.id]
+  )
+  const crossTeamJugadores = useMemo(
+    () => sortJugadoresByPosition(jugadores.filter((j) => j.equipo_id !== equipoActivo?.id)),
+    [jugadores, equipoActivo?.id]
+  )
 
   const togglePlayer = (jugador: Jugador) => {
     setSelected((prev) => {
@@ -451,6 +475,80 @@ export default function ConvocatoriasPage() {
     derrota: 'bg-red-100 text-red-800',
   }
 
+  // Chronology: split partidos into upcoming and past
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const { proximos, jugados } = useMemo(() => {
+    const prox: Partido[] = []
+    const past: Partido[] = []
+    for (const p of partidos) {
+      const fecha = new Date(p.fecha)
+      fecha.setHours(0, 0, 0, 0)
+      if (fecha >= today) {
+        prox.push(p)
+      } else {
+        past.push(p)
+      }
+    }
+    // Próximos: ascending (closest first)
+    prox.sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
+    // Jugados: descending (most recent first)
+    past.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
+    return { proximos: prox, jugados: past }
+  }, [partidos])
+
+  const nextPartido = proximos[0] || null
+
+  // Auto-select next match on load
+  useEffect(() => {
+    if (!selectedPartido && nextPartido) {
+      setSelectedPartido(nextPartido)
+    }
+  }, [nextPartido?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const renderPartidoButton = (partido: Partido, isNext?: boolean) => (
+    <button
+      key={partido.id}
+      onClick={() => setSelectedPartido(partido)}
+      className={`w-full text-left p-3 rounded-lg border transition-colors ${
+        selectedPartido?.id === partido.id
+          ? 'border-primary bg-primary/5'
+          : isNext
+            ? 'border-primary/30 bg-primary/[0.02] hover:bg-primary/5'
+            : 'border-transparent hover:bg-muted/50'
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <div className="min-w-0 flex-1">
+          <p className="font-medium text-sm truncate">
+            {partido.localia === 'local' ? 'vs' : '@'}{' '}
+            {(partido as any).rival?.nombre || 'Rival'}
+          </p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+              <Calendar className="h-3 w-3" />
+              {formatDate(partido.fecha)}
+            </span>
+            {partido.competicion && (
+              <Badge variant="outline" className="text-[9px]">
+                {partido.competicion}
+              </Badge>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {partido.resultado && (
+            <Badge className={`text-[10px] ${RESULTADO_COLORS[partido.resultado] || ''}`}>
+              {partido.goles_favor}-{partido.goles_contra}
+            </Badge>
+          )}
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </div>
+      </div>
+    </button>
+  )
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -467,9 +565,6 @@ export default function ConvocatoriasPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Partido list */}
         <div className="space-y-2">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">
-            Partidos
-          </h2>
           {loading ? (
             <div className="space-y-2">
               {[1, 2, 3, 4].map((i) => (
@@ -486,46 +581,32 @@ export default function ConvocatoriasPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-1">
-              {partidos.map((partido) => (
-                <button
-                  key={partido.id}
-                  onClick={() => setSelectedPartido(partido)}
-                  className={`w-full text-left p-3 rounded-lg border transition-colors ${
-                    selectedPartido?.id === partido.id
-                      ? 'border-primary bg-primary/5'
-                      : 'border-transparent hover:bg-muted/50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-sm truncate">
-                        {partido.localia === 'local' ? 'vs' : '@'}{' '}
-                        {(partido as any).rival?.nombre || 'Rival'}
-                      </p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                          <Calendar className="h-3 w-3" />
-                          {formatDate(partido.fecha)}
-                        </span>
-                        {partido.competicion && (
-                          <Badge variant="outline" className="text-[9px]">
-                            {partido.competicion}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {partido.resultado && (
-                        <Badge className={`text-[10px] ${RESULTADO_COLORS[partido.resultado] || ''}`}>
-                          {partido.goles_favor}-{partido.goles_contra}
-                        </Badge>
-                      )}
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    </div>
+            <div className="space-y-3">
+              {/* Próximos */}
+              {proximos.length > 0 && (
+                <div>
+                  <h2 className="text-xs font-semibold uppercase tracking-wider px-1 mb-1.5 text-primary flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5" />
+                    Próximos ({proximos.length})
+                  </h2>
+                  <div className="space-y-1">
+                    {proximos.map((p, i) => renderPartidoButton(p, i === 0))}
                   </div>
-                </button>
-              ))}
+                </div>
+              )}
+
+              {/* Jugados */}
+              {jugados.length > 0 && (
+                <div>
+                  <h2 className="text-xs font-semibold uppercase tracking-wider px-1 mb-1.5 text-muted-foreground flex items-center gap-1.5">
+                    <Trophy className="h-3.5 w-3.5" />
+                    Jugados ({jugados.length})
+                  </h2>
+                  <div className="space-y-1">
+                    {jugados.map((p) => renderPartidoButton(p))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -852,67 +933,27 @@ export default function ConvocatoriasPage() {
               </div>
             ) : (
               <div className="space-y-1 py-2">
-                {jugadores
+                {/* Own team jugadores */}
+                {ownJugadores
                   .filter((j) => !convocados.some((c) => c.jugador_id === j.id))
-                  .map((jugador) => {
-                    const isSelected = !!selected[jugador.id]
-                    const info = selected[jugador.id]
-                    const posColor = getPositionColor(jugador.posicion_principal)
-                    return (
-                      <div
-                        key={jugador.id}
-                        className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${
-                          isSelected ? 'bg-primary/5 border border-primary/20' : 'hover:bg-muted/50'
-                        }`}
-                      >
-                        <button
-                          onClick={() => togglePlayer(jugador)}
-                          className={`w-6 h-6 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                            isSelected
-                              ? 'bg-primary border-primary text-primary-foreground'
-                              : 'border-muted-foreground/30'
-                          }`}
-                        >
-                          {isSelected && <Check className="h-3.5 w-3.5" />}
-                        </button>
-                        <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-bold shrink-0">
-                          {jugador.dorsal || '?'}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium truncate">
-                              {jugador.apodo || `${jugador.nombre} ${jugador.apellidos}`}
-                            </span>
-                            <Badge className={`text-[9px] border-0 ${posColor}`}>
-                              {jugador.posicion_principal}
-                            </Badge>
-                          </div>
-                          {jugador.apodo && (
-                            <p className="text-[10px] text-muted-foreground">
-                              {jugador.nombre} {jugador.apellidos}
-                            </p>
-                          )}
-                        </div>
-                        {isSelected && (
-                          <button
-                            onClick={() =>
-                              setSelected((prev) => ({
-                                ...prev,
-                                [jugador.id]: { ...prev[jugador.id], titular: !prev[jugador.id].titular },
-                              }))
-                            }
-                            className={`text-[10px] px-2 py-0.5 rounded-full border font-medium transition-colors ${
-                              info?.titular
-                                ? 'bg-primary text-primary-foreground border-primary'
-                                : 'border-muted-foreground/30 text-muted-foreground'
-                            }`}
-                          >
-                            {info?.titular ? 'Titular' : 'Suplente'}
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
+                  .map((jugador) => (
+                    <PlayerSelectRow key={jugador.id} jugador={jugador} selected={selected} onToggle={togglePlayer} onToggleTitular={(id) => setSelected((prev) => ({ ...prev, [id]: { ...prev[id], titular: !prev[id].titular } }))} />
+                  ))}
+                {/* Cross-team jugadores */}
+                {crossTeamJugadores.filter((j) => !convocados.some((c) => c.jugador_id === j.id)).length > 0 && (
+                  <>
+                    <div className="flex items-center gap-2 pt-3 pb-1">
+                      <div className="h-px flex-1 bg-border" />
+                      <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Otros equipos</span>
+                      <div className="h-px flex-1 bg-border" />
+                    </div>
+                    {crossTeamJugadores
+                      .filter((j) => !convocados.some((c) => c.jugador_id === j.id))
+                      .map((jugador) => (
+                        <PlayerSelectRow key={jugador.id} jugador={jugador} selected={selected} onToggle={togglePlayer} onToggleTitular={(id) => setSelected((prev) => ({ ...prev, [id]: { ...prev[id], titular: !prev[id].titular } }))} crossTeam />
+                      ))}
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -1085,6 +1126,80 @@ export default function ConvocatoriasPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+// ============ Player Select Row (Add Dialog) ============
+
+function PlayerSelectRow({
+  jugador,
+  selected,
+  onToggle,
+  onToggleTitular,
+  crossTeam,
+}: {
+  jugador: Jugador
+  selected: Record<string, { titular: boolean; dorsal?: number; posicion?: string }>
+  onToggle: (j: Jugador) => void
+  onToggleTitular: (id: string) => void
+  crossTeam?: boolean
+}) {
+  const isSelected = !!selected[jugador.id]
+  const info = selected[jugador.id]
+  const posColor = getPositionColor(jugador.posicion_principal)
+
+  return (
+    <div
+      className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${
+        isSelected ? 'bg-primary/5 border border-primary/20' : 'hover:bg-muted/50'
+      }`}
+    >
+      <button
+        onClick={() => onToggle(jugador)}
+        className={`w-6 h-6 rounded border flex items-center justify-center shrink-0 transition-colors ${
+          isSelected
+            ? 'bg-primary border-primary text-primary-foreground'
+            : 'border-muted-foreground/30'
+        }`}
+      >
+        {isSelected && <Check className="h-3.5 w-3.5" />}
+      </button>
+      <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-bold shrink-0">
+        {jugador.dorsal || '?'}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium truncate">
+            {jugador.apodo || `${jugador.nombre} ${jugador.apellidos}`}
+          </span>
+          <Badge className={`text-[9px] border-0 ${posColor}`}>
+            {jugador.posicion_principal}
+          </Badge>
+          {crossTeam && jugador.equipos && (
+            <Badge variant="outline" className="text-[9px] border-dashed">
+              {jugador.equipos.nombre}
+            </Badge>
+          )}
+        </div>
+        {jugador.apodo && (
+          <p className="text-[10px] text-muted-foreground">
+            {jugador.nombre} {jugador.apellidos}
+          </p>
+        )}
+      </div>
+      {isSelected && (
+        <button
+          onClick={() => onToggleTitular(jugador.id)}
+          className={`text-[10px] px-2 py-0.5 rounded-full border font-medium transition-colors ${
+            info?.titular
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'border-muted-foreground/30 text-muted-foreground'
+          }`}
+        >
+          {info?.titular ? 'Titular' : 'Suplente'}
+        </button>
+      )}
     </div>
   )
 }

@@ -126,16 +126,34 @@ async def create_convocatorias_batch(
     """Crea múltiples convocatorias a la vez (ej: toda la lista de un partido)."""
     supabase = get_supabase()
 
+    if not convocatorias:
+        return {"created": 0, "skipped": 0, "data": []}
+
+    partido_id = str(convocatorias[0].partido_id)
+
+    # Query existing convocatorias for this partido to avoid duplicate key errors
+    existing = supabase.table("convocatorias").select("jugador_id").eq(
+        "partido_id", partido_id
+    ).execute()
+    existing_ids = {row["jugador_id"] for row in (existing.data or [])}
+
     items = []
+    skipped = 0
     for c in convocatorias:
         data = c.model_dump(mode="json")
         data["partido_id"] = str(data["partido_id"])
         data["jugador_id"] = str(data["jugador_id"])
+        if data["jugador_id"] in existing_ids:
+            skipped += 1
+            continue
         items.append(data)
+
+    if not items:
+        return {"created": 0, "skipped": skipped, "data": []}
 
     response = supabase.table("convocatorias").insert(items).execute()
 
-    return {"created": len(response.data), "data": response.data}
+    return {"created": len(response.data), "skipped": skipped, "data": response.data}
 
 
 @router.put("/{convocatoria_id}", response_model=ConvocatoriaResponse)

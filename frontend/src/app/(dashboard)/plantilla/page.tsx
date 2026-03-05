@@ -114,11 +114,13 @@ function JugadorCard({
   onEdit,
   onDelete,
   onChangeEstado,
+  isCrossTeam,
 }: {
   jugador: Jugador
   onEdit: () => void
   onDelete: () => void
   onChangeEstado: () => void
+  isCrossTeam?: boolean
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const router = useRouter()
@@ -129,7 +131,9 @@ function JugadorCard({
   return (
     <div
       className={`relative bg-white rounded-xl border p-4 transition-all cursor-pointer group hover:shadow-md ${
-        isNoDisponible ? 'border-gray-300 bg-gray-50' : 'border-gray-200 hover:border-primary/30'
+        isCrossTeam
+          ? 'border-dashed border-gray-400 bg-gray-50/50'
+          : isNoDisponible ? 'border-gray-300 bg-gray-50' : 'border-gray-200 hover:border-primary/30'
       }`}
       onClick={() => router.push(`/plantilla/${jugador.id}`)}
     >
@@ -154,9 +158,14 @@ function JugadorCard({
           <h3 className={`font-semibold truncate ${isNoDisponible ? 'text-gray-500' : 'text-gray-900'}`}>
             {jugador.apodo || `${jugador.nombre} ${jugador.apellidos}`}
           </h3>
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
             <PosicionBadge posicion={jugador.posicion_principal} />
             {pos && <span className="text-xs text-gray-500">{pos.nombre}</span>}
+            {isCrossTeam && jugador.equipos && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-dashed border-gray-400 text-gray-600 bg-gray-100">
+                {jugador.equipos.nombre}
+              </span>
+            )}
           </div>
         </div>
         <div className="relative" onClick={(e) => e.stopPropagation()}>
@@ -359,6 +368,7 @@ export default function PlantillaPage() {
   const [posicionFilter, setPosicionFilter] = useState('')
   const [estadoFilter, setEstadoFilter] = useState('')
   const [showFilters, setShowFilters] = useState(false)
+  const [showAllTeams, setShowAllTeams] = useState(false)
 
   // Modal estado
   const [estadoModal, setEstadoModal] = useState<Jugador | null>(null)
@@ -377,6 +387,7 @@ export default function PlantillaPage() {
       posicion: posicionFilter || undefined,
       estado: estadoFilter || undefined,
       busqueda: busquedaActiva || undefined,
+      organizacion_completa: showAllTeams || undefined,
     }, ['equipo_id'])
   )
 
@@ -642,6 +653,17 @@ export default function PlantillaPage() {
               </button>
             )}
           </div>
+          {/* Toggle todas las categorías */}
+          <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={() => setShowAllTeams(!showAllTeams)}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${showAllTeams ? 'bg-primary' : 'bg-gray-300'}`}
+            >
+              <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${showAllTeams ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} />
+            </button>
+            <span className="text-sm text-gray-600">Mostrar todas las categorías</span>
+          </div>
         </form>
       </div>
 
@@ -699,6 +721,7 @@ export default function PlantillaPage() {
                       onEdit={() => router.push(`/plantilla/${jugador.id}/editar`)}
                       onDelete={() => handleDelete(jugador.id)}
                       onChangeEstado={() => setEstadoModal(jugador)}
+                      isCrossTeam={showAllTeams && jugador.equipo_id !== equipoActivo?.id}
                     />
                   ))}
                 </div>
