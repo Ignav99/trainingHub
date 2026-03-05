@@ -18,6 +18,7 @@ from app.api.v1 import (
     microciclos,
     rpe,
     convocatorias,
+    estadisticas_partido,
     notificaciones,
     comunicacion,
     ai_chat,
@@ -120,6 +121,12 @@ api_router.include_router(
     convocatorias.router,
     prefix="/convocatorias",
     tags=["Convocatorias"]
+)
+
+api_router.include_router(
+    estadisticas_partido.router,
+    prefix="/estadisticas-partido",
+    tags=["Estadisticas Partido"]
 )
 
 api_router.include_router(

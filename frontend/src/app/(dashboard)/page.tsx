@@ -373,7 +373,7 @@ export default function DashboardPage() {
                   <Skeleton className="h-4 w-32 mt-1" />
                 ) : ultimoPartido ? (
                   <Link
-                    href={`/partidos?match=${ultimoPartido.id}&tab=partido`}
+                    href={`/partidos?match=${ultimoPartido.id}&tab=informe`}
                     className="text-sm text-blue-600 hover:underline mt-1 block"
                   >
                     {ultimoPartido.rival?.nombre || 'Último partido'} ·{' '}
@@ -405,7 +405,7 @@ export default function DashboardPage() {
                   <Skeleton className="h-4 w-32 mt-1" />
                 ) : proximoPartido ? (
                   <Link
-                    href={`/partidos?match=${proximoPartido.id}&tab=plan`}
+                    href={`/partidos?match=${proximoPartido.id}&tab=alineacion`}
                     className="text-sm text-emerald-600 hover:underline mt-1 block"
                   >
                     vs {proximoPartido.rival?.nombre || 'Próximo rival'}
@@ -983,7 +983,7 @@ export default function DashboardPage() {
                               size="sm"
                               variant="outline"
                               className="text-xs h-7"
-                              onClick={() => { setSelectedDay(null); router.push(`/partidos?match=${p.id}&tab=partido`) }}
+                              onClick={() => { setSelectedDay(null); router.push(`/partidos?match=${p.id}&tab=informe`) }}
                             >
                               <Eye className="h-3 w-3 mr-1" />
                               Ver partido
@@ -993,7 +993,7 @@ export default function DashboardPage() {
                                 size="sm"
                                 variant="outline"
                                 className="text-xs h-7 border-blue-200 text-blue-700 hover:bg-blue-50"
-                                onClick={() => { setSelectedDay(null); router.push(`/partidos?match=${p.id}&tab=partido`) }}
+                                onClick={() => { setSelectedDay(null); router.push(`/partidos?match=${p.id}&tab=informe`) }}
                               >
                                 <FileText className="h-3 w-3 mr-1" />
                                 Informe rival
@@ -1004,7 +1004,7 @@ export default function DashboardPage() {
                                 size="sm"
                                 variant="outline"
                                 className="text-xs h-7 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                                onClick={() => { setSelectedDay(null); router.push(`/partidos?match=${p.id}&tab=plan`) }}
+                                onClick={() => { setSelectedDay(null); router.push(`/partidos?match=${p.id}&tab=alineacion`) }}
                               >
                                 <Target className="h-3 w-3 mr-1" />
                                 Plan de partido

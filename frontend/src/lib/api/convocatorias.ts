@@ -40,6 +40,9 @@ export const convocatoriasApi = {
   delete: (id: string) =>
     api.delete(`/convocatorias/${id}`),
 
+  batchUpdateStats: (updates: Array<{ id: string; minutos_jugados?: number; goles?: number; asistencias?: number; tarjeta_amarilla?: boolean; tarjeta_roja?: boolean }>) =>
+    api.put<{ updated: number; data: any[] }>('/convocatorias/batch-update', updates),
+
   async generatePdf(partidoId: string): Promise<Blob> {
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/convocatorias/partido/${partidoId}/pdf`, {
       headers: {

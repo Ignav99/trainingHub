@@ -156,6 +156,36 @@ async def create_convocatorias_batch(
     return {"created": len(response.data), "skipped": skipped, "data": response.data}
 
 
+@router.put("/batch-update")
+async def batch_update_convocatorias(
+    updates: list[dict],
+    auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_UPDATE)),
+):
+    """Actualiza múltiples convocatorias de una vez (stats de jugadores post-partido)."""
+    supabase = get_supabase()
+
+    allowed_fields = {"minutos_jugados", "goles", "asistencias", "tarjeta_amarilla", "tarjeta_roja"}
+    results = []
+
+    for item in updates:
+        conv_id = item.get("id")
+        if not conv_id:
+            continue
+
+        update_data = {k: v for k, v in item.items() if k in allowed_fields and v is not None}
+        if not update_data:
+            continue
+
+        response = supabase.table("convocatorias").update(update_data).eq(
+            "id", str(conv_id)
+        ).execute()
+
+        if response.data:
+            results.append(response.data[0])
+
+    return {"updated": len(results), "data": results}
+
+
 @router.put("/{convocatoria_id}", response_model=ConvocatoriaResponse)
 async def update_convocatoria(
     convocatoria_id: UUID,

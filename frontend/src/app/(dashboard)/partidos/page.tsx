@@ -17,18 +17,14 @@ import {
   Shirt,
   Goal,
   Timer,
-  ClipboardList,
   FileText,
   ArrowRightLeft,
   Save,
   Swords,
-  Target,
-  Shield,
-  Flag,
   MapPin,
   Trash2,
-  Sparkles,
-  AlertCircle,
+  BarChart3,
+  MessageSquare,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -49,12 +45,13 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ListPageSkeleton } from '@/components/ui/page-skeletons'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { convocatoriasApi, CreateConvocatoriaData, UpdateConvocatoriaData } from '@/lib/api/convocatorias'
+import { estadisticasPartidoApi, EstadisticaPartidoUpdateData } from '@/lib/api/estadisticasPartido'
 import { partidosApi } from '@/lib/api/partidos'
 import { jugadoresApi, Jugador, POSICIONES } from '@/lib/api/jugadores'
 import { FORMATIONS, Formation, FormationSlot } from '@/lib/formations'
 import { apiKey } from '@/lib/swr'
 import { formatDate } from '@/lib/utils'
-import type { Convocatoria, Partido, PaginatedResponse } from '@/types'
+import type { Convocatoria, Partido, PaginatedResponse, EstadisticaPartido } from '@/types'
 
 // ============ Constants ============
 
@@ -92,6 +89,19 @@ const RESULTADO_LABELS: Record<string, { label: string; color: string }> = {
 
 const ZONA_ORDER: Record<string, number> = { porteria: 0, defensa: 1, mediocampo: 2, ataque: 3 }
 
+const TEAM_STAT_FIELDS = [
+  { key: 'tiros_a_puerta', label: 'Tiros a puerta' },
+  { key: 'ocasiones_gol', label: 'Ocasiones de gol' },
+  { key: 'saques_esquina', label: 'Saques de esquina' },
+  { key: 'penaltis', label: 'Penaltis' },
+  { key: 'fueras_juego', label: 'Fueras de juego' },
+  { key: 'faltas_cometidas', label: 'Faltas cometidas' },
+  { key: 'tarjetas_amarillas', label: 'T. Amarillas' },
+  { key: 'tarjetas_rojas', label: 'T. Rojas' },
+  { key: 'balones_perdidos', label: 'Balones perdidos' },
+  { key: 'balones_recuperados', label: 'Balones recuperados' },
+] as const
+
 // ============ Helpers ============
 
 function getPositionColor(pos: string): string {
@@ -122,32 +132,6 @@ function getPlayerFullName(conv: Convocatoria) {
   return `${p.nombre || ''} ${p.apellidos || ''}`.trim() || 'Jugador'
 }
 
-// ============ Plan types ============
-
-interface PlanData {
-  enfoque_tactico: string
-  plan_ataque: string
-  plan_defensa: string
-  balon_parado: string
-  plan_sustituciones: string
-}
-
-const EMPTY_PLAN: PlanData = {
-  enfoque_tactico: '',
-  plan_ataque: '',
-  plan_defensa: '',
-  balon_parado: '',
-  plan_sustituciones: '',
-}
-
-const PLAN_SECTIONS = [
-  { key: 'enfoque_tactico' as keyof PlanData, title: 'Enfoque Táctico', icon: Target, placeholder: 'Describe el enfoque general del partido: formación, ritmo de juego, presión...', color: 'text-primary' },
-  { key: 'plan_ataque' as keyof PlanData, title: 'Plan de Ataque', icon: Swords, placeholder: 'Estrategia ofensiva: salida de balón, zonas a explotar, movimientos clave...', color: 'text-emerald-600' },
-  { key: 'plan_defensa' as keyof PlanData, title: 'Plan Defensivo', icon: Shield, placeholder: 'Organización defensiva: tipo de pressing, línea defensiva, coberturas...', color: 'text-blue-600' },
-  { key: 'balon_parado' as keyof PlanData, title: 'Balón Parado', icon: Flag, placeholder: 'Córners, faltas, saques de banda: encargados, movimientos ensayados...', color: 'text-amber-600' },
-  { key: 'plan_sustituciones' as keyof PlanData, title: 'Plan de Sustituciones', icon: ArrowRightLeft, placeholder: 'Cambios planificados: minutos estimados, perfiles de recambio, escenarios...', color: 'text-violet-600' },
-]
-
 // ============ Main Page ============
 
 export default function PartidosPage() {
@@ -156,7 +140,7 @@ export default function PartidosPage() {
   const searchParams = useSearchParams()
 
   const matchParam = searchParams.get('match')
-  const tabParam = searchParams.get('tab') || 'convocatoria'
+  const tabParam = searchParams.get('tab') || 'alineacion'
 
   // ---- Data: partidos list ----
   const { data: partidosData, isLoading: loading } = useSWR<PaginatedResponse<Partido>>(
@@ -211,14 +195,13 @@ export default function PartidosPage() {
     setSelectedId(id)
     const params = new URLSearchParams(searchParams.toString())
     params.set('match', id)
-    // Keep tab if set
     router.replace(`/partidos?${params.toString()}`, { scroll: false })
   }
 
   const setTab = (tab: string) => {
     const params = new URLSearchParams(searchParams.toString())
     if (selectedId) params.set('match', selectedId)
-    if (tab === 'convocatoria') params.delete('tab')
+    if (tab === 'alineacion') params.delete('tab')
     else params.set('tab', tab)
     router.replace(`/partidos?${params.toString()}`, { scroll: false })
   }
@@ -231,6 +214,11 @@ export default function PartidosPage() {
   const titulares = convocados.filter((c) => c.titular)
   const suplentes = convocados.filter((c) => !c.titular)
 
+  // ---- Data: estadisticas for selected match ----
+  const { data: estadisticasData } = useSWR<EstadisticaPartido>(
+    selectedId ? apiKey(`/estadisticas-partido/${selectedId}`) : null
+  )
+
   // ---- Convocatoria state ----
   const [showAdd, setShowAdd] = useState(false)
   const [jugadores, setJugadores] = useState<Jugador[]>([])
@@ -241,9 +229,6 @@ export default function PartidosPage() {
   const [quickAddName, setQuickAddName] = useState('')
   const [quickAddPos, setQuickAddPos] = useState('MC')
   const [quickAddSaving, setQuickAddSaving] = useState(false)
-  const [editingConv, setEditingConv] = useState<Convocatoria | null>(null)
-  const [statsForm, setStatsForm] = useState<UpdateConvocatoriaData>({})
-  const [savingStats, setSavingStats] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
 
   // Formation builder state
@@ -253,6 +238,63 @@ export default function PartidosPage() {
   const [swapSource, setSwapSource] = useState<string | null>(null)
   const [savingLineup, setSavingLineup] = useState(false)
   const [showPitch, setShowPitch] = useState(true)
+
+  // ---- Informe state ----
+  const [showResult, setShowResult] = useState(false)
+  const [resultForm, setResultForm] = useState({ goles_favor: 0, goles_contra: 0, notas_post: '' })
+  const [savingResult, setSavingResult] = useState(false)
+  const [generatingInforme, setGeneratingInforme] = useState(false)
+  const [showDelete, setShowDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  // Team stats local state (for informe tab)
+  const [teamStats, setTeamStats] = useState<Record<string, number>>({})
+  const [comentarioTactico, setComentarioTactico] = useState('')
+  const [playerStats, setPlayerStats] = useState<Record<string, { minutos_jugados: number; goles: number; asistencias: number; tarjeta_amarilla: boolean; tarjeta_roja: boolean }>>({})
+  const [savingInforme, setSavingInforme] = useState(false)
+  const [informeInitialized, setInformeInitialized] = useState<string | null>(null)
+
+  // Initialize informe data from fetched stats + convocados
+  useEffect(() => {
+    if (!selectedId) return
+    if (informeInitialized === selectedId) return
+
+    // Team stats
+    if (estadisticasData) {
+      const stats: Record<string, number> = {}
+      for (const field of TEAM_STAT_FIELDS) {
+        stats[field.key] = (estadisticasData as any)[field.key] || 0
+        stats[`rival_${field.key}`] = (estadisticasData as any)[`rival_${field.key}`] || 0
+      }
+      setTeamStats(stats)
+      setComentarioTactico(estadisticasData.comentario_tactico || '')
+    } else {
+      setTeamStats({})
+      setComentarioTactico('')
+    }
+
+    // Player stats from convocados
+    if (convocados.length > 0) {
+      const ps: Record<string, { minutos_jugados: number; goles: number; asistencias: number; tarjeta_amarilla: boolean; tarjeta_roja: boolean }> = {}
+      for (const c of convocados) {
+        ps[c.id] = {
+          minutos_jugados: c.minutos_jugados || 0,
+          goles: c.goles || 0,
+          asistencias: c.asistencias || 0,
+          tarjeta_amarilla: c.tarjeta_amarilla || false,
+          tarjeta_roja: c.tarjeta_roja || false,
+        }
+      }
+      setPlayerStats(ps)
+    }
+
+    setInformeInitialized(selectedId)
+  }, [selectedId, estadisticasData, convocados]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset informe init when match changes
+  useEffect(() => {
+    setInformeInitialized(null)
+  }, [selectedId])
 
   // Load saved formation from partido.notas_pre
   useEffect(() => {
@@ -311,60 +353,6 @@ export default function PartidosPage() {
       return (a.dorsal || 99) - (b.dorsal || 99)
     })
   }
-
-  // ---- Plan state ----
-  const [plan, setPlan] = useState<PlanData>(EMPTY_PLAN)
-  const [hasChanges, setHasChanges] = useState(false)
-  const [planInitialized, setPlanInitialized] = useState(false)
-  const [savedFormation, setSavedFormation] = useState<string | null>(null)
-  const [savedSlots, setSavedSlots] = useState<Record<string, string>>({})
-  const [extraData, setExtraData] = useState<Record<string, any>>({})
-  const [savingPlan, setSavingPlan] = useState(false)
-
-  // Parse plan from notas_pre
-  useEffect(() => {
-    setPlanInitialized(false)
-    setHasChanges(false)
-    setPlan(EMPTY_PLAN)
-    setSavedFormation(null)
-    setSavedSlots({})
-    setExtraData({})
-  }, [selectedPartido?.id])
-
-  useEffect(() => {
-    if (!selectedPartido || planInitialized) return
-    if (selectedPartido.notas_pre) {
-      try {
-        const parsed = JSON.parse(selectedPartido.notas_pre)
-        if (parsed.enfoque_tactico !== undefined || parsed.formacion) {
-          setPlan({
-            enfoque_tactico: parsed.enfoque_tactico || '',
-            plan_ataque: parsed.plan_ataque || '',
-            plan_defensa: parsed.plan_defensa || '',
-            balon_parado: parsed.balon_parado || '',
-            plan_sustituciones: parsed.plan_sustituciones || '',
-          })
-          if (parsed.formacion) {
-            setSavedFormation(parsed.formacion)
-            setSavedSlots(parsed.formacion_slots || {})
-          }
-          const { enfoque_tactico, plan_ataque, plan_defensa, balon_parado, plan_sustituciones, formacion, formacion_slots, ...rest } = parsed
-          setExtraData(rest)
-        }
-      } catch {
-        setPlan({ ...EMPTY_PLAN, enfoque_tactico: selectedPartido.notas_pre })
-      }
-    }
-    setPlanInitialized(true)
-  }, [selectedPartido, planInitialized])
-
-  // ---- Partido detail state ----
-  const [showResult, setShowResult] = useState(false)
-  const [resultForm, setResultForm] = useState({ goles_favor: 0, goles_contra: 0, notas_post: '' })
-  const [savingResult, setSavingResult] = useState(false)
-  const [generatingInforme, setGeneratingInforme] = useState(false)
-  const [showDelete, setShowDelete] = useState(false)
-  const [deleting, setDeleting] = useState(false)
 
   // ============ Handlers: Convocatoria ============
 
@@ -465,32 +453,6 @@ export default function PartidosPage() {
       mutate((key: string) => typeof key === 'string' && key.includes('/convocatorias'), undefined, { revalidate: true })
     } catch (err) {
       console.error('Error toggling titular:', err)
-    }
-  }
-
-  const openStatsEdit = (conv: Convocatoria) => {
-    setEditingConv(conv)
-    setStatsForm({
-      minutos_jugados: conv.minutos_jugados || 0,
-      goles: conv.goles || 0,
-      asistencias: conv.asistencias || 0,
-      tarjeta_amarilla: conv.tarjeta_amarilla || false,
-      tarjeta_roja: conv.tarjeta_roja || false,
-      notas: conv.notas || '',
-    })
-  }
-
-  const handleSaveStats = async () => {
-    if (!editingConv) return
-    setSavingStats(true)
-    try {
-      await convocatoriasApi.update(editingConv.id, statsForm)
-      setEditingConv(null)
-      mutate((key: string) => typeof key === 'string' && key.includes('/convocatorias'), undefined, { revalidate: true })
-    } catch (err: any) {
-      alert(err.message || 'Error al guardar estadisticas')
-    } finally {
-      setSavingStats(false)
     }
   }
 
@@ -622,33 +584,7 @@ export default function PartidosPage() {
     return (aPos === pickingSlotData.position ? 0 : 1) - (bPos === pickingSlotData.position ? 0 : 1)
   })
 
-  // ============ Handlers: Plan ============
-
-  const handlePlanChange = (key: keyof PlanData, value: string) => {
-    setPlan((prev) => ({ ...prev, [key]: value }))
-    setHasChanges(true)
-  }
-
-  const handleSavePlan = async () => {
-    if (!selectedPartido) return
-    setSavingPlan(true)
-    try {
-      const merged: Record<string, any> = { ...extraData, ...plan }
-      if (savedFormation) {
-        merged.formacion = savedFormation
-        merged.formacion_slots = savedSlots
-      }
-      await partidosApi.update(selectedPartido.id, { notas_pre: JSON.stringify(merged) })
-      mutate((key: string) => typeof key === 'string' && key.includes('/partidos'), undefined, { revalidate: true })
-      setHasChanges(false)
-    } catch (err) {
-      console.error('Error saving plan:', err)
-    } finally {
-      setSavingPlan(false)
-    }
-  }
-
-  // ============ Handlers: Partido detail ============
+  // ============ Handlers: Informe ============
 
   const handleSaveResult = async () => {
     if (!selectedId) return
@@ -693,6 +629,38 @@ export default function PartidosPage() {
       console.error(err)
     } finally {
       setDeleting(false)
+    }
+  }
+
+  const handleSaveInforme = async () => {
+    if (!selectedId) return
+    setSavingInforme(true)
+    try {
+      // 1. Save team stats
+      const statsPayload: EstadisticaPartidoUpdateData = {
+        comentario_tactico: comentarioTactico,
+      }
+      for (const field of TEAM_STAT_FIELDS) {
+        (statsPayload as any)[field.key] = teamStats[field.key] || 0;
+        (statsPayload as any)[`rival_${field.key}`] = teamStats[`rival_${field.key}`] || 0
+      }
+      await estadisticasPartidoApi.upsert(selectedId, statsPayload)
+
+      // 2. Batch update player stats
+      const updates = Object.entries(playerStats).map(([convId, stats]) => ({
+        id: convId,
+        ...stats,
+      }))
+      if (updates.length > 0) {
+        await convocatoriasApi.batchUpdateStats(updates)
+      }
+
+      // Revalidate
+      mutate((key: string) => typeof key === 'string' && (key.includes('/estadisticas-partido') || key.includes('/convocatorias')), undefined, { revalidate: true })
+    } catch (err: any) {
+      alert(err.message || 'Error al guardar informe')
+    } finally {
+      setSavingInforme(false)
     }
   }
 
@@ -751,7 +719,7 @@ export default function PartidosPage() {
             <Swords className="h-6 w-6 text-primary" />
             Partidos
           </h1>
-          <p className="text-muted-foreground mt-1">Calendario, convocatorias y planes tácticos</p>
+          <p className="text-muted-foreground mt-1">Calendario, alineaciones e informes</p>
         </div>
         <Button asChild>
           <Link href="/partidos/nuevo">
@@ -819,7 +787,7 @@ export default function PartidosPage() {
                 <Swords className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
                 <h3 className="text-lg font-medium mb-1">Selecciona un partido</h3>
                 <p className="text-sm text-muted-foreground">
-                  Elige un partido de la lista para gestionar convocatoria, plan y detalles
+                  Elige un partido de la lista para gestionar alineación e informe
                 </p>
               </CardContent>
             </Card>
@@ -840,22 +808,18 @@ export default function PartidosPage() {
 
               <Tabs value={tabParam} onValueChange={setTab}>
                 <TabsList className="mb-4">
-                  <TabsTrigger value="convocatoria" className="gap-1.5">
+                  <TabsTrigger value="alineacion" className="gap-1.5">
                     <Users className="h-4 w-4" />
-                    Convocatoria
+                    Alineación
                   </TabsTrigger>
-                  <TabsTrigger value="plan" className="gap-1.5">
-                    <ClipboardList className="h-4 w-4" />
-                    Plan
-                  </TabsTrigger>
-                  <TabsTrigger value="partido" className="gap-1.5">
-                    <Swords className="h-4 w-4" />
-                    Partido
+                  <TabsTrigger value="informe" className="gap-1.5">
+                    <BarChart3 className="h-4 w-4" />
+                    Informe
                   </TabsTrigger>
                 </TabsList>
 
-                {/* ==================== TAB: CONVOCATORIA ==================== */}
-                <TabsContent value="convocatoria" className="space-y-4">
+                {/* ==================== TAB: ALINEACIÓN ==================== */}
+                <TabsContent value="alineacion" className="space-y-4">
                   {/* Actions bar */}
                   <div className="flex items-center gap-2 flex-wrap">
                     <Button onClick={openAddDialog} size="sm">
@@ -1069,7 +1033,7 @@ export default function PartidosPage() {
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="p-0">
-                          <PlayerTable convocados={titulares} onEdit={openStatsEdit} onRemove={handleRemoveConvocado} onToggleTitular={handleToggleTitular} />
+                          <PlayerTable convocados={titulares} onRemove={handleRemoveConvocado} onToggleTitular={handleToggleTitular} />
                         </CardContent>
                       </Card>
 
@@ -1085,7 +1049,7 @@ export default function PartidosPage() {
                           {suplentes.length === 0 ? (
                             <p className="text-sm text-muted-foreground p-4">Sin suplentes</p>
                           ) : (
-                            <PlayerTable convocados={suplentes} onEdit={openStatsEdit} onRemove={handleRemoveConvocado} onToggleTitular={handleToggleTitular} />
+                            <PlayerTable convocados={suplentes} onRemove={handleRemoveConvocado} onToggleTitular={handleToggleTitular} />
                           )}
                         </CardContent>
                       </Card>
@@ -1093,247 +1057,9 @@ export default function PartidosPage() {
                   )}
                 </TabsContent>
 
-                {/* ==================== TAB: PLAN ==================== */}
-                <TabsContent value="plan" className="space-y-4">
-                  {/* Save button */}
-                  <div className="flex justify-end">
-                    <Button onClick={handleSavePlan} disabled={savingPlan || !hasChanges}>
-                      {savingPlan ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                      Guardar plan
-                    </Button>
-                  </div>
-
-                  {/* Rival info */}
-                  {selectedPartido.rival?.notas && (
-                    <Card className="border-amber-200 bg-amber-50/50">
-                      <CardContent className="p-4">
-                        <div className="flex items-start gap-3">
-                          <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
-                          <div>
-                            <p className="text-sm font-medium text-amber-900 mb-1">Notas del rival: {selectedPartido.rival.nombre}</p>
-                            <p className="text-sm text-amber-800 whitespace-pre-wrap">{selectedPartido.rival.notas}</p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Formation pitch (read-only) + suplentes */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Card>
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm flex items-center gap-2">
-                          <Users className="h-4 w-4 text-primary" />
-                          Once titular ({titulares.length})
-                          {savedFormation && <Badge variant="outline" className="text-[10px]">{savedFormation}</Badge>}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        {titulares.length === 0 ? (
-                          <div className="text-center py-8">
-                            <Users className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                            <p className="text-sm text-muted-foreground">No hay convocatoria creada aún</p>
-                            <button onClick={() => setTab('convocatoria')} className="text-sm text-primary hover:underline mt-1 inline-block">
-                              Crear convocatoria
-                            </button>
-                          </div>
-                        ) : (() => {
-                          const planFormation = savedFormation ? FORMATIONS.find((f) => f.name === savedFormation) : null
-                          if (planFormation) {
-                            return (
-                              <div className="relative bg-emerald-600/90 rounded-xl overflow-hidden" style={{ aspectRatio: '3/4' }}>
-                                <div className="absolute inset-4">
-                                  <div className="absolute inset-0 border-2 border-white/30 rounded" />
-                                  <div className="absolute top-1/2 left-0 right-0 border-t-2 border-white/30" />
-                                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 border-2 border-white/30 rounded-full" />
-                                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-[18%] border-2 border-t-0 border-white/30" />
-                                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2/3 h-[18%] border-2 border-b-0 border-white/30" />
-                                </div>
-                                {planFormation.slots.map((slot) => {
-                                  const convId = savedSlots[slot.id]
-                                  const conv = convId ? convocados.find((c) => c.id === convId) : null
-                                  const player = conv ? getPlayerData(conv) : null
-                                  const posInfo = POSICIONES[slot.position as keyof typeof POSICIONES]
-                                  const bgColor = posInfo?.color || '#9CA3AF'
-                                  if (conv) {
-                                    const displayName = player?.apodo || player?.apellidos || player?.nombre || `#${conv.dorsal || '?'}`
-                                    return (
-                                      <div key={slot.id} className="absolute -translate-x-1/2 -translate-y-1/2 text-center" style={{ top: slot.top, left: slot.left }}>
-                                        <div className="w-9 h-9 rounded-full font-bold text-sm flex items-center justify-center shadow-md text-white" style={{ backgroundColor: bgColor }}>
-                                          {conv.dorsal || player?.dorsal || '?'}
-                                        </div>
-                                        <span className="block text-[10px] text-white font-medium mt-0.5 max-w-[70px] truncate drop-shadow">{displayName}</span>
-                                      </div>
-                                    )
-                                  } else {
-                                    return (
-                                      <div key={slot.id} className="absolute -translate-x-1/2 -translate-y-1/2 text-center" style={{ top: slot.top, left: slot.left }}>
-                                        <div className="w-9 h-9 rounded-full border-2 border-dashed border-white/30 flex items-center justify-center">
-                                          <span className="text-[10px] text-white/40">{slot.label}</span>
-                                        </div>
-                                      </div>
-                                    )
-                                  }
-                                })}
-                              </div>
-                            )
-                          }
-                          // Legacy pitch
-                          return (
-                            <div className="relative bg-emerald-600/90 rounded-xl overflow-hidden" style={{ aspectRatio: '3/4' }}>
-                              <div className="absolute inset-4">
-                                <div className="absolute inset-0 border-2 border-white/30 rounded" />
-                                <div className="absolute top-1/2 left-0 right-0 border-t-2 border-white/30" />
-                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 border-2 border-white/30 rounded-full" />
-                                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-[18%] border-2 border-t-0 border-white/30" />
-                                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2/3 h-[18%] border-2 border-b-0 border-white/30" />
-                              </div>
-                              {titulares.map((conv) => {
-                                const player = getPlayerData(conv)
-                                const pos = conv.posicion_asignada || player?.posicion_principal || 'MC'
-                                const coords = POSITION_COORDS[pos] || { top: '50%', left: '50%' }
-                                const displayName = player?.apodo || player?.apellidos || player?.nombre || `#${conv.dorsal || '?'}`
-                                const posInfo = POSICIONES[pos as keyof typeof POSICIONES]
-                                const bgColor = posInfo?.color || '#ffffff'
-                                return (
-                                  <div key={conv.id} className="absolute -translate-x-1/2 -translate-y-1/2 text-center" style={{ top: coords.top, left: coords.left }}>
-                                    <div className="w-9 h-9 rounded-full font-bold text-sm flex items-center justify-center shadow-md text-white" style={{ backgroundColor: bgColor }}>
-                                      {conv.dorsal || player?.dorsal || '?'}
-                                    </div>
-                                    <span className="block text-[10px] text-white font-medium mt-0.5 max-w-[70px] truncate drop-shadow">{displayName}</span>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )
-                        })()}
-                      </CardContent>
-                    </Card>
-
-                    <div className="space-y-4">
-                      {/* Suplentes */}
-                      <Card>
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-sm flex items-center gap-2">
-                            <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
-                            Suplentes ({suplentes.length})
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          {suplentes.length === 0 ? (
-                            <p className="text-sm text-muted-foreground py-2">Sin suplentes en convocatoria</p>
-                          ) : (
-                            <div className="space-y-1.5">
-                              {suplentes.map((conv) => {
-                                const player = getPlayerData(conv)
-                                const pos = conv.posicion_asignada || player?.posicion_principal || ''
-                                const posColor = getPositionColor(pos)
-                                return (
-                                  <div key={conv.id} className="flex items-center gap-3 py-1.5">
-                                    <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-medium">
-                                      {conv.dorsal || player?.dorsal || '?'}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-medium truncate">
-                                        {player?.apodo || `${player?.nombre || ''} ${player?.apellidos || ''}`.trim() || 'Jugador'}
-                                      </p>
-                                    </div>
-                                    <Badge className={`text-[10px] border-0 shrink-0 ${posColor}`}>
-                                      {pos || '—'}
-                                    </Badge>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-
-                      {/* Quick stats */}
-                      {convocados.length > 0 && (
-                        <Card>
-                          <CardContent className="p-4">
-                            <div className="grid grid-cols-3 gap-4 text-center">
-                              <div>
-                                <p className="text-2xl font-bold text-primary">{convocados.length}</p>
-                                <p className="text-xs text-muted-foreground">Convocados</p>
-                              </div>
-                              <div>
-                                <p className="text-2xl font-bold">{titulares.length}</p>
-                                <p className="text-xs text-muted-foreground">Titulares</p>
-                              </div>
-                              <div>
-                                <p className="text-2xl font-bold">{suplentes.length}</p>
-                                <p className="text-xs text-muted-foreground">Suplentes</p>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Plan sections */}
-                  <div className="space-y-4">
-                    <h2 className="text-lg font-semibold flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-primary" />
-                      Plan táctico
-                    </h2>
-                    {PLAN_SECTIONS.map((section) => {
-                      const Icon = section.icon
-                      return (
-                        <Card key={section.key}>
-                          <CardHeader className="pb-2">
-                            <CardTitle className="text-sm flex items-center gap-2">
-                              <Icon className={`h-4 w-4 ${section.color}`} />
-                              {section.title}
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <Textarea
-                              value={plan[section.key]}
-                              onChange={(e) => handlePlanChange(section.key, e.target.value)}
-                              placeholder={section.placeholder}
-                              rows={4}
-                              className="resize-none"
-                            />
-                          </CardContent>
-                        </Card>
-                      )
-                    })}
-                  </div>
-
-                  {/* Sticky save */}
-                  {hasChanges && (
-                    <div className="sticky bottom-4 flex justify-end">
-                      <Button onClick={handleSavePlan} disabled={savingPlan} size="lg" className="shadow-lg">
-                        {savingPlan ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                        Guardar plan
-                      </Button>
-                    </div>
-                  )}
-                </TabsContent>
-
-                {/* ==================== TAB: PARTIDO ==================== */}
-                <TabsContent value="partido" className="space-y-4">
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Button variant="outline" onClick={handleGenerarInforme} disabled={generatingInforme}>
-                      {generatingInforme ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileText className="h-4 w-4 mr-2" />}
-                      Generar informe
-                    </Button>
-                    {!selectedPartido.resultado && (
-                      <Button onClick={() => setShowResult(true)}>
-                        <Trophy className="h-4 w-4 mr-2" />
-                        Registrar resultado
-                      </Button>
-                    )}
-                    <Button variant="outline" size="icon" onClick={() => setShowDelete(true)} className="text-destructive ml-auto">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  {/* Main card */}
+                {/* ==================== TAB: INFORME ==================== */}
+                <TabsContent value="informe" className="space-y-4">
+                  {/* Result card */}
                   {(() => {
                     const resInfo = selectedPartido.resultado ? RESULTADO_LABELS[selectedPartido.resultado] : null
                     return (
@@ -1358,7 +1084,10 @@ export default function PartidosPage() {
                                 </div>
                               ) : (
                                 <div className="text-center px-4">
-                                  <p className="text-3xl font-bold text-muted-foreground">vs</p>
+                                  <Button onClick={() => setShowResult(true)} size="sm">
+                                    <Trophy className="h-4 w-4 mr-2" />
+                                    Registrar resultado
+                                  </Button>
                                 </div>
                               )}
                               <div className="text-left flex-1">
@@ -1381,54 +1110,196 @@ export default function PartidosPage() {
                                 </span>
                               )}
                             </div>
-                            {selectedPartido.auto_creado && (
-                              <p className="text-xs text-blue-600 bg-blue-50 px-3 py-1 rounded-md inline-block mt-2">
-                                Partido importado desde RFAF
-                              </p>
-                            )}
                           </div>
                         </CardContent>
                       </Card>
                     )
                   })()}
 
-                  {/* Notes */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {selectedPartido.notas_pre && (() => {
-                      // Try to show as plain text, skip if it's JSON plan data
-                      try { JSON.parse(selectedPartido.notas_pre); return null } catch { /* not JSON */ }
-                      return (
-                        <Card>
-                          <CardHeader className="pb-2"><CardTitle className="text-sm">Notas previas</CardTitle></CardHeader>
-                          <CardContent><p className="text-sm whitespace-pre-wrap">{selectedPartido.notas_pre}</p></CardContent>
-                        </Card>
-                      )
-                    })()}
-                    {selectedPartido.notas_post && (
-                      <Card>
-                        <CardHeader className="pb-2"><CardTitle className="text-sm">Notas post-partido</CardTitle></CardHeader>
-                        <CardContent><p className="text-sm whitespace-pre-wrap">{selectedPartido.notas_post}</p></CardContent>
-                      </Card>
+                  {/* Team stats */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <BarChart3 className="h-4 w-4 text-primary" />
+                        Estadísticas de equipo
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b text-center">
+                              <th className="px-3 pb-2 text-left font-medium">Estadística</th>
+                              <th className="px-3 pb-2 font-medium text-primary">{equipoActivo?.nombre || 'Nosotros'}</th>
+                              <th className="px-3 pb-2 font-medium text-destructive">{selectedPartido.rival?.nombre || 'Rival'}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {TEAM_STAT_FIELDS.map((field) => (
+                              <tr key={field.key} className="border-b last:border-0">
+                                <td className="px-3 py-2 text-muted-foreground">{field.label}</td>
+                                <td className="px-3 py-2 text-center">
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    className="w-16 mx-auto text-center h-8 text-sm"
+                                    value={teamStats[field.key] || 0}
+                                    onChange={(e) => setTeamStats((prev) => ({ ...prev, [field.key]: parseInt(e.target.value) || 0 }))}
+                                  />
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    className="w-16 mx-auto text-center h-8 text-sm"
+                                    value={teamStats[`rival_${field.key}`] || 0}
+                                    onChange={(e) => setTeamStats((prev) => ({ ...prev, [`rival_${field.key}`]: parseInt(e.target.value) || 0 }))}
+                                  />
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Player stats (inline editable) */}
+                  {convocados.length > 0 && (
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Users className="h-4 w-4 text-primary" />
+                          Rendimiento jugadores
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-0">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b text-left">
+                                <th className="px-4 pb-2 font-medium">#</th>
+                                <th className="px-2 pb-2 font-medium">Jugador</th>
+                                <th className="px-2 pb-2 font-medium text-center">Pos</th>
+                                <th className="px-2 pb-2 font-medium text-center">Min</th>
+                                <th className="px-2 pb-2 font-medium text-center"><Goal className="h-3.5 w-3.5 mx-auto" /></th>
+                                <th className="px-2 pb-2 font-medium text-center">Ast</th>
+                                <th className="px-1 pb-2 font-medium text-center"><div className="w-3.5 h-4.5 rounded-sm bg-yellow-400 mx-auto" /></th>
+                                <th className="px-1 pb-2 font-medium text-center"><div className="w-3.5 h-4.5 rounded-sm bg-red-500 mx-auto" /></th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {convocados.map((conv) => {
+                                const player = getPlayerData(conv)
+                                const pos = conv.posicion_asignada || player?.posicion_principal || ''
+                                const posColor = getPositionColor(pos)
+                                const ps = playerStats[conv.id] || { minutos_jugados: 0, goles: 0, asistencias: 0, tarjeta_amarilla: false, tarjeta_roja: false }
+                                const updatePS = (field: string, value: any) => {
+                                  setPlayerStats((prev) => ({ ...prev, [conv.id]: { ...ps, [field]: value } }))
+                                }
+                                return (
+                                  <tr key={conv.id} className="border-b last:border-0 hover:bg-muted/30">
+                                    <td className="px-4 py-2">
+                                      <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                                        {conv.dorsal || player?.dorsal || '-'}
+                                      </div>
+                                    </td>
+                                    <td className="px-2 py-2">
+                                      <p className="font-medium text-sm">{player?.apodo || getPlayerFullName(conv)}</p>
+                                    </td>
+                                    <td className="px-2 py-2 text-center">
+                                      <Badge className={`text-[9px] border-0 ${posColor}`}>{pos || '—'}</Badge>
+                                    </td>
+                                    <td className="px-2 py-2 text-center">
+                                      <Input type="number" min={0} max={120} className="w-14 mx-auto text-center h-7 text-xs" value={ps.minutos_jugados} onChange={(e) => updatePS('minutos_jugados', parseInt(e.target.value) || 0)} />
+                                    </td>
+                                    <td className="px-2 py-2 text-center">
+                                      <Input type="number" min={0} className="w-12 mx-auto text-center h-7 text-xs" value={ps.goles} onChange={(e) => updatePS('goles', parseInt(e.target.value) || 0)} />
+                                    </td>
+                                    <td className="px-2 py-2 text-center">
+                                      <Input type="number" min={0} className="w-12 mx-auto text-center h-7 text-xs" value={ps.asistencias} onChange={(e) => updatePS('asistencias', parseInt(e.target.value) || 0)} />
+                                    </td>
+                                    <td className="px-1 py-2 text-center">
+                                      <button
+                                        onClick={() => updatePS('tarjeta_amarilla', !ps.tarjeta_amarilla)}
+                                        className={`w-5 h-6 rounded-sm mx-auto transition-all ${ps.tarjeta_amarilla ? 'bg-yellow-400 shadow-md scale-110' : 'bg-yellow-400/20 hover:bg-yellow-400/40'}`}
+                                      />
+                                    </td>
+                                    <td className="px-1 py-2 text-center">
+                                      <button
+                                        onClick={() => updatePS('tarjeta_roja', !ps.tarjeta_roja)}
+                                        className={`w-5 h-6 rounded-sm mx-auto transition-all ${ps.tarjeta_roja ? 'bg-red-500 shadow-md scale-110' : 'bg-red-500/20 hover:bg-red-500/40'}`}
+                                      />
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Comentario táctico */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <MessageSquare className="h-4 w-4 text-primary" />
+                        Comentario táctico
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Textarea
+                        value={comentarioTactico}
+                        onChange={(e) => setComentarioTactico(e.target.value)}
+                        placeholder="Análisis del partido, aspectos a mejorar, puntos fuertes..."
+                        rows={4}
+                        className="resize-none"
+                      />
+                    </CardContent>
+                  </Card>
+
+                  {/* Save + Actions */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button onClick={handleSaveInforme} disabled={savingInforme}>
+                      {savingInforme ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                      Guardar informe
+                    </Button>
+                    <Button variant="outline" onClick={handleGenerarInforme} disabled={generatingInforme}>
+                      {generatingInforme ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileText className="h-4 w-4 mr-2" />}
+                      Generar PDF
+                    </Button>
+                    {selectedPartido.resultado && (
+                      <Button variant="outline" size="sm" onClick={() => setShowResult(true)}>
+                        <Trophy className="h-4 w-4 mr-1" />
+                        Editar resultado
+                      </Button>
                     )}
+                    <Button variant="outline" size="icon" onClick={() => setShowDelete(true)} className="text-destructive ml-auto">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
 
                   {/* Links */}
-                  <div className="flex gap-2 flex-wrap">
-                    {selectedPartido.video_url && (
-                      <Button variant="outline" size="sm" asChild>
-                        <a href={selectedPartido.video_url} target="_blank" rel="noopener noreferrer">
-                          <FileText className="h-4 w-4 mr-1" /> Video
-                        </a>
-                      </Button>
-                    )}
-                    {selectedPartido.informe_url && (
-                      <Button variant="outline" size="sm" asChild>
-                        <a href={selectedPartido.informe_url} target="_blank" rel="noopener noreferrer">
-                          <FileText className="h-4 w-4 mr-1" /> Informe
-                        </a>
-                      </Button>
-                    )}
-                  </div>
+                  {(selectedPartido.video_url || selectedPartido.informe_url) && (
+                    <div className="flex gap-2 flex-wrap">
+                      {selectedPartido.video_url && (
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={selectedPartido.video_url} target="_blank" rel="noopener noreferrer">
+                            <FileText className="h-4 w-4 mr-1" /> Video
+                          </a>
+                        </Button>
+                      )}
+                      {selectedPartido.informe_url && (
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={selectedPartido.informe_url} target="_blank" rel="noopener noreferrer">
+                            <FileText className="h-4 w-4 mr-1" /> Informe
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </TabsContent>
               </Tabs>
             </>
@@ -1580,51 +1451,6 @@ export default function PartidosPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit stats dialog */}
-      <Dialog open={editingConv !== null} onOpenChange={(open) => !open && setEditingConv(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Estadísticas del jugador</DialogTitle>
-            <DialogDescription>Registra las estadísticas post-partido</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-2">
-                <Label className="text-xs">Minutos</Label>
-                <Input type="number" min={0} max={120} value={statsForm.minutos_jugados || 0} onChange={(e) => setStatsForm({ ...statsForm, minutos_jugados: parseInt(e.target.value) || 0 })} />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs">Goles</Label>
-                <Input type="number" min={0} value={statsForm.goles || 0} onChange={(e) => setStatsForm({ ...statsForm, goles: parseInt(e.target.value) || 0 })} />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs">Asistencias</Label>
-                <Input type="number" min={0} value={statsForm.asistencias || 0} onChange={(e) => setStatsForm({ ...statsForm, asistencias: parseInt(e.target.value) || 0 })} />
-              </div>
-            </div>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={statsForm.tarjeta_amarilla || false} onChange={(e) => setStatsForm({ ...statsForm, tarjeta_amarilla: e.target.checked })} className="rounded" />
-                <span className="text-sm">Tarjeta amarilla</span>
-                <div className="w-4 h-5 rounded-sm bg-yellow-400" />
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={statsForm.tarjeta_roja || false} onChange={(e) => setStatsForm({ ...statsForm, tarjeta_roja: e.target.checked })} className="rounded" />
-                <span className="text-sm">Tarjeta roja</span>
-                <div className="w-4 h-5 rounded-sm bg-red-500" />
-              </label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingConv(null)}>Cancelar</Button>
-            <Button onClick={handleSaveStats} disabled={savingStats}>
-              {savingStats ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-              Guardar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Result dialog */}
       <Dialog open={showResult} onOpenChange={setShowResult}>
         <DialogContent className="sm:max-w-md">
@@ -1739,16 +1565,14 @@ function PlayerSelectRow({
   )
 }
 
-// ============ Player Table Component ============
+// ============ Player Table Component (for Alineación tab) ============
 
 function PlayerTable({
   convocados,
-  onEdit,
   onRemove,
   onToggleTitular,
 }: {
   convocados: Convocatoria[]
-  onEdit: (c: Convocatoria) => void
   onRemove: (id: string) => void
   onToggleTitular: (c: Convocatoria) => void
 }) {
@@ -1764,7 +1588,7 @@ function PlayerTable({
             <th className="px-2 pb-2 font-medium text-center"><Goal className="h-3.5 w-3.5 mx-auto" /></th>
             <th className="px-2 pb-2 font-medium text-center">Ast</th>
             <th className="px-2 pb-2 font-medium text-center">TC</th>
-            <th className="px-2 pb-2 font-medium w-24" />
+            <th className="px-2 pb-2 font-medium w-16" />
           </tr>
         </thead>
         <tbody>
@@ -1806,9 +1630,6 @@ function PlayerTable({
                       title={conv.titular ? 'Mover a suplente' : 'Mover a titular'}
                     >
                       <ArrowRightLeft className="h-3.5 w-3.5" />
-                    </button>
-                    <button onClick={() => onEdit(conv)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Editar estadísticas">
-                      <Timer className="h-3.5 w-3.5" />
                     </button>
                     <button onClick={() => onRemove(conv.id)} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive" title="Quitar de convocatoria">
                       <X className="h-3.5 w-3.5" />

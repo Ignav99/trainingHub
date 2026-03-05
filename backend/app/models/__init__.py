@@ -143,6 +143,13 @@ from app.models.convocatoria import (
     ConvocatoriaListResponse,
 )
 
+from app.models.estadistica_partido import (
+    EstadisticaPartidoBase,
+    EstadisticaPartidoCreate,
+    EstadisticaPartidoUpdate,
+    EstadisticaPartidoResponse,
+)
+
 from app.models.comunicacion import (
     TipoConversacion,
     TipoMensaje,
@@ -301,6 +308,9 @@ __all__ = [
     # Convocatoria
     "ConvocatoriaBase", "ConvocatoriaCreate", "ConvocatoriaUpdate",
     "ConvocatoriaResponse", "ConvocatoriaListResponse",
+    # Estadistica Partido
+    "EstadisticaPartidoBase", "EstadisticaPartidoCreate",
+    "EstadisticaPartidoUpdate", "EstadisticaPartidoResponse",
     # Comunicacion
     "TipoConversacion", "TipoMensaje", "RolParticipante", "PrioridadNotificacion",
     "ConversacionBase", "ConversacionCreate", "ConversacionResponse",

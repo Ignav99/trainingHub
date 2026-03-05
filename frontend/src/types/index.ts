@@ -598,6 +598,50 @@ export interface ConvocatoriasJugadorStats {
 }
 
 // ============================================
+// ESTADISTICAS PARTIDO
+// ============================================
+
+export interface EstadisticaPartido {
+  id: string
+  partido_id: string
+
+  // Nuestro equipo
+  tiros_a_puerta: number
+  ocasiones_gol: number
+  saques_esquina: number
+  penaltis: number
+  fueras_juego: number
+  faltas_cometidas: number
+  tarjetas_amarillas: number
+  tarjetas_rojas: number
+  balones_perdidos: number
+  balones_recuperados: number
+
+  // Rival
+  rival_tiros_a_puerta: number
+  rival_ocasiones_gol: number
+  rival_saques_esquina: number
+  rival_penaltis: number
+  rival_fueras_juego: number
+  rival_faltas_cometidas: number
+  rival_tarjetas_amarillas: number
+  rival_tarjetas_rojas: number
+  rival_balones_perdidos: number
+  rival_balones_recuperados: number
+
+  // Goal analysis
+  goles_por_periodo: Record<string, number>
+  tipos_gol_favor: Record<string, number>
+  tipos_gol_contra: Record<string, number>
+
+  // Tactical
+  comentario_tactico: string
+
+  created_at: string
+  updated_at: string
+}
+
+// ============================================
 // MICROCICLOS
 // ============================================
 
