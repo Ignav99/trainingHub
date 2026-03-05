@@ -23,7 +23,6 @@ import {
   Shield,
   BarChart3,
   Activity,
-  UserCheck,
   HeartPulse,
   Trophy,
 } from 'lucide-react'
@@ -41,7 +40,6 @@ const navigation = [
   { name: 'Tareas', href: '/tareas', icon: ClipboardList },
   { name: 'Plantilla', href: '/plantilla', icon: Users },
   { name: 'Partidos', href: '/partidos', icon: Swords },
-  { name: 'Convocatorias', href: '/convocatorias', icon: UserCheck },
   { name: 'Rivales', href: '/rivales', icon: Shield },
   { name: 'Enfermería', href: '/enfermeria', icon: HeartPulse },
   { name: 'RPE / Wellness', href: '/rpe', icon: Activity },
