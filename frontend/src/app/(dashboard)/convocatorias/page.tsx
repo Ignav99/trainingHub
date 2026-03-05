@@ -125,6 +125,12 @@ export default function ConvocatoriasPage() {
   const [selected, setSelected] = useState<Record<string, { titular: boolean; dorsal?: number; posicion?: string }>>({})
   const [saving, setSaving] = useState(false)
 
+  // Quick-add invitado
+  const [showQuickAdd, setShowQuickAdd] = useState(false)
+  const [quickAddName, setQuickAddName] = useState('')
+  const [quickAddPos, setQuickAddPos] = useState('MC')
+  const [quickAddSaving, setQuickAddSaving] = useState(false)
+
   // Stats dialog
   const [editingConv, setEditingConv] = useState<Convocatoria | null>(null)
   const [statsForm, setStatsForm] = useState<UpdateConvocatoriaData>({})
@@ -220,15 +226,54 @@ export default function ConvocatoriasPage() {
       .finally(() => setLoadingJug(false))
   }
 
-  // Split jugadores: own team first, then cross-team, both sorted by position
+  // Split jugadores: own team, invitados, cross-team — all sorted by position
   const ownJugadores = useMemo(
-    () => sortJugadoresByPosition(jugadores.filter((j) => j.equipo_id === equipoActivo?.id)),
+    () => sortJugadoresByPosition(jugadores.filter((j) => j.equipo_id === equipoActivo?.id && !j.es_invitado)),
     [jugadores, equipoActivo?.id]
+  )
+  const invitadoJugadores = useMemo(
+    () => sortJugadoresByPosition(jugadores.filter((j) => j.es_invitado)),
+    [jugadores]
   )
   const crossTeamJugadores = useMemo(
-    () => sortJugadoresByPosition(jugadores.filter((j) => j.equipo_id !== equipoActivo?.id)),
+    () => sortJugadoresByPosition(jugadores.filter((j) => j.equipo_id !== equipoActivo?.id && !j.es_invitado)),
     [jugadores, equipoActivo?.id]
   )
+
+  const handleQuickAddInvitado = async () => {
+    if (!equipoActivo?.id || !quickAddName.trim()) return
+    setQuickAddSaving(true)
+    try {
+      const parts = quickAddName.trim().split(' ')
+      const nombre = parts[0]
+      const apellidos = parts.slice(1).join(' ') || ''
+      const created = await jugadoresApi.create({
+        equipo_id: equipoActivo.id,
+        nombre,
+        apellidos,
+        posicion_principal: quickAddPos,
+        es_invitado: true,
+        es_convocable: true,
+        nivel_tecnico: 5,
+        nivel_tactico: 5,
+        nivel_fisico: 5,
+        nivel_mental: 5,
+      })
+      // Add to jugadores list and auto-select
+      setJugadores((prev) => [...prev, created])
+      setSelected((prev) => ({
+        ...prev,
+        [created.id]: { titular: false, dorsal: undefined, posicion: quickAddPos },
+      }))
+      setQuickAddName('')
+      setQuickAddPos('MC')
+      setShowQuickAdd(false)
+    } catch (err) {
+      console.error('Error creating invitado:', err)
+    } finally {
+      setQuickAddSaving(false)
+    }
+  }
 
   const togglePlayer = (jugador: Jugador) => {
     setSelected((prev) => {
@@ -939,6 +984,21 @@ export default function ConvocatoriasPage() {
                   .map((jugador) => (
                     <PlayerSelectRow key={jugador.id} jugador={jugador} selected={selected} onToggle={togglePlayer} onToggleTitular={(id) => setSelected((prev) => ({ ...prev, [id]: { ...prev[id], titular: !prev[id].titular } }))} />
                   ))}
+                {/* Invitados */}
+                {invitadoJugadores.filter((j) => !convocados.some((c) => c.jugador_id === j.id)).length > 0 && (
+                  <>
+                    <div className="flex items-center gap-2 pt-3 pb-1">
+                      <div className="h-px flex-1 bg-border" />
+                      <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Invitados</span>
+                      <div className="h-px flex-1 bg-border" />
+                    </div>
+                    {invitadoJugadores
+                      .filter((j) => !convocados.some((c) => c.jugador_id === j.id))
+                      .map((jugador) => (
+                        <PlayerSelectRow key={jugador.id} jugador={jugador} selected={selected} onToggle={togglePlayer} onToggleTitular={(id) => setSelected((prev) => ({ ...prev, [id]: { ...prev[id], titular: !prev[id].titular } }))} isInvitado />
+                      ))}
+                  </>
+                )}
                 {/* Cross-team jugadores */}
                 {crossTeamJugadores.filter((j) => !convocados.some((c) => c.jugador_id === j.id)).length > 0 && (
                   <>
@@ -954,6 +1014,50 @@ export default function ConvocatoriasPage() {
                       ))}
                   </>
                 )}
+                {/* Quick-add invitado */}
+                <div className="pt-3 border-t mt-2">
+                  {showQuickAdd ? (
+                    <div className="space-y-2 p-2 rounded-lg bg-muted/50">
+                      <p className="text-xs font-medium text-muted-foreground">Nuevo invitado</p>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={quickAddName}
+                          onChange={(e) => setQuickAddName(e.target.value)}
+                          placeholder="Nombre Apellidos"
+                          className="flex-1 px-2 py-1.5 text-sm border rounded-md focus:ring-1 focus:ring-primary outline-none"
+                          onKeyDown={(e) => e.key === 'Enter' && handleQuickAddInvitado()}
+                        />
+                        <select
+                          value={quickAddPos}
+                          onChange={(e) => setQuickAddPos(e.target.value)}
+                          className="px-2 py-1.5 text-sm border rounded-md bg-white"
+                        >
+                          {Object.entries(POSICIONES).map(([code, pos]) => (
+                            <option key={code} value={code}>{code}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex gap-2 justify-end">
+                        <Button variant="ghost" size="sm" onClick={() => { setShowQuickAdd(false); setQuickAddName('') }}>
+                          Cancelar
+                        </Button>
+                        <Button size="sm" onClick={handleQuickAddInvitado} disabled={quickAddSaving || !quickAddName.trim()}>
+                          {quickAddSaving ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Plus className="h-3 w-3 mr-1" />}
+                          Crear
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowQuickAdd(true)}
+                      className="w-full flex items-center justify-center gap-1.5 p-2 text-sm text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      Añadir invitado
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -1138,12 +1242,14 @@ function PlayerSelectRow({
   onToggle,
   onToggleTitular,
   crossTeam,
+  isInvitado,
 }: {
   jugador: Jugador
   selected: Record<string, { titular: boolean; dorsal?: number; posicion?: string }>
   onToggle: (j: Jugador) => void
   onToggleTitular: (id: string) => void
   crossTeam?: boolean
+  isInvitado?: boolean
 }) {
   const isSelected = !!selected[jugador.id]
   const info = selected[jugador.id]
@@ -1176,6 +1282,11 @@ function PlayerSelectRow({
           <Badge className={`text-[9px] border-0 ${posColor}`}>
             {jugador.posicion_principal}
           </Badge>
+          {isInvitado && (
+            <Badge variant="outline" className="text-[9px] border-dashed border-amber-400 text-amber-700 bg-amber-50">
+              Invitado
+            </Badge>
+          )}
           {crossTeam && jugador.equipos && (
             <Badge variant="outline" className="text-[9px] border-dashed">
               {jugador.equipos.nombre}

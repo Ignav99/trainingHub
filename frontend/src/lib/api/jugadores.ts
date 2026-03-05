@@ -26,6 +26,7 @@ export interface Jugador {
   es_capitan: boolean
   es_convocable: boolean
   es_portero: boolean
+  es_invitado?: boolean
   notas?: string
   created_at: string
   updated_at: string
@@ -56,6 +57,7 @@ export interface JugadorCreate {
   estado?: 'activo' | 'lesionado' | 'enfermo' | 'sancionado' | 'viaje' | 'permiso' | 'seleccion' | 'baja'
   es_capitan?: boolean
   es_convocable?: boolean
+  es_invitado?: boolean
   notas?: string
 }
 
