@@ -4,7 +4,7 @@ Gestión de convocatorias y estadísticas de partido.
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Any
 from datetime import datetime
 from uuid import UUID
 
@@ -49,6 +49,7 @@ class ConvocatoriaResponse(ConvocatoriaBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
+    jugadores: Optional[dict] = None  # Join data from Supabase
 
     class Config:
         from_attributes = True
