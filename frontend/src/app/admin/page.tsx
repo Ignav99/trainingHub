@@ -414,11 +414,9 @@ export default function AdminPage() {
       <header className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
-              <Shield className="h-4 w-4 text-white" />
-            </div>
+            <img src="/logo.png" alt="Kabin-e" className="h-8 w-8" />
             <div>
-              <h1 className="font-bold text-gray-900">TrainingHub Admin</h1>
+              <h1 className="font-bold text-gray-900">Kabin-e Admin</h1>
               <p className="text-xs text-gray-500">{user?.email}</p>
             </div>
           </div>

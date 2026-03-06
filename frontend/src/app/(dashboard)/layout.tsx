@@ -89,7 +89,7 @@ export default function DashboardLayout({
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <Spinner size="lg" className="mx-auto mb-4" />
+          <img src="/logo.png" alt="Kabin-e" className="h-16 w-16 mx-auto mb-4 animate-pulse" />
           <p className="text-muted-foreground">Cargando...</p>
         </div>
       </div>
@@ -162,7 +162,7 @@ export default function DashboardLayout({
               size="sm"
             />
             <span className="font-semibold text-sm truncate text-white">
-              {user?.organizacion?.nombre || 'TrainingHub Pro'}
+              {user?.organizacion?.nombre || 'Kabin-e'}
             </span>
           </div>
 
@@ -230,10 +230,11 @@ function SidebarContent({
           />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-white truncate group-hover:opacity-80 transition-opacity">
-              {user?.organizacion?.nombre || 'TrainingHub Pro'}
+              {user?.organizacion?.nombre || 'Kabin-e'}
             </p>
-            <p className="text-[10px] text-white/60 uppercase tracking-wider">
-              TrainingHub Pro
+            <p className="text-[10px] text-white/60 uppercase tracking-wider flex items-center gap-1">
+              <img src="/logo.png" alt="Kabin-e" className="h-3 w-3" />
+              Kabin-e
             </p>
           </div>
         </Link>

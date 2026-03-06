@@ -40,11 +40,9 @@ export default function LoginPage() {
         <div className="w-full max-w-md space-y-8">
           {/* Logo */}
           <div className="text-center">
-            <div className="inline-flex items-center gap-2 mb-2">
-              <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold">TH</span>
-              </div>
-              <span className="text-2xl font-bold text-gray-900">TrainingHub</span>
+            <div className="inline-flex items-center gap-3 mb-2">
+              <img src="/logo.png" alt="Kabin-e" className="h-10 w-10" />
+              <span className="text-2xl font-bold text-gray-900">Kabin-e</span>
             </div>
             <p className="text-gray-500">Accede a tu cuenta</p>
           </div>
@@ -139,10 +137,8 @@ export default function LoginPage() {
         <div className="relative z-10 flex flex-col items-center justify-center p-12 text-white">
           <div className="max-w-md text-center">
             <div className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-xl backdrop-blur-sm bg-white/10">
-              <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-                <span className="text-primary font-bold text-sm">TH</span>
-              </div>
-              <span className="text-xl font-extrabold tracking-tight">TrainingHub</span>
+              <img src="/logo.png" alt="Kabin-e" className="h-8 w-8" />
+              <span className="text-xl font-extrabold tracking-tight">Kabin-e</span>
             </div>
             <h2
               className="text-3xl font-extrabold mb-4"

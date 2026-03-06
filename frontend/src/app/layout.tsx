@@ -8,8 +8,12 @@ import { SWRProvider } from '@/components/providers/SWRProvider'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'TrainingHub Pro',
-  description: 'Sistema profesional de gestión de entrenamientos de fútbol',
+  title: 'Kabin-e',
+  description: 'Plataforma profesional de gestión deportiva',
+  icons: {
+    icon: '/logo.png',
+    apple: '/logo.png',
+  },
 }
 
 export default function RootLayout({

@@ -31,8 +31,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <Spinner size="lg" className="mx-auto mb-4" />
-          <p className="text-muted-foreground">Cargando TrainingHub Pro...</p>
+          <img src="/logo.png" alt="Kabin-e" className="h-16 w-16 mx-auto mb-4 animate-pulse" />
+          <p className="text-muted-foreground">Cargando Kabin-e...</p>
         </div>
       </div>
     )
