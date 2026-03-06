@@ -444,9 +444,16 @@ class RFAFScraper:
         return goleadores
 
     def _scrape_acta(self, cod_acta: str) -> dict:
-        """Parse a complete match report (acta)."""
+        """Parse a complete match report (acta).
+        Raises ValueError if the page was empty / scrape failed."""
         soup = self._fetch_page("NFG_CmpPartido", {"CodActa": cod_acta})
-        return self._parse_acta(soup, cod_acta)
+        result = self._parse_acta(soup, cod_acta)
+
+        # Guard: don't return empty actas (RFAF returned 0 bytes)
+        if not result["local"]["nombre"] and not result["titulares_local"]:
+            raise ValueError(f"Acta {cod_acta} scraped empty (RFAF returned no data)")
+
+        return result
 
     def _sync_competicion(self, codcompeticion, codgrupo, codtemporada="21"):
         """Quick sync: clasificación + current jornada (with merged details) + goleadores."""
