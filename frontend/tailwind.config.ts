@@ -94,6 +94,18 @@ const config: Config = {
           from: { transform: 'translateY(10px)', opacity: '0' },
           to: { transform: 'translateY(0)', opacity: '1' },
         },
+        'kabine-spin': {
+          '0%': { transform: 'rotateY(0deg) scale(1)', opacity: '1' },
+          '25%': { transform: 'rotateY(90deg) scale(0.9)', opacity: '0.7' },
+          '50%': { transform: 'rotateY(180deg) scale(1)', opacity: '1' },
+          '75%': { transform: 'rotateY(270deg) scale(0.9)', opacity: '0.7' },
+          '100%': { transform: 'rotateY(360deg) scale(1)', opacity: '1' },
+        },
+        'kabine-ping': {
+          '0%': { transform: 'scale(1)', opacity: '0.4' },
+          '50%': { transform: 'scale(1.8)', opacity: '0' },
+          '100%': { transform: 'scale(1)', opacity: '0.4' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -101,6 +113,8 @@ const config: Config = {
         'fade-in': 'fade-in 0.2s ease-out',
         'slide-in-from-top': 'slide-in-from-top 0.2s ease-out',
         'slide-in-from-bottom': 'slide-in-from-bottom 0.2s ease-out',
+        'kabine-spin': 'kabine-spin 2s cubic-bezier(0.4, 0, 0.2, 1) infinite',
+        'kabine-ping': 'kabine-ping 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
       },
     },
   },

@@ -414,7 +414,7 @@ export default function AdminPage() {
       <header className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Kabin-e" className="h-8 w-8" />
+            <img src="/logo-icon.png" alt="Kabin-e" className="h-8 w-8" />
             <div>
               <h1 className="font-bold text-gray-900">Kabin-e Admin</h1>
               <p className="text-xs text-gray-500">{user?.email}</p>

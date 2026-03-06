@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 import { useClubStore } from '@/stores/clubStore'
-import { Spinner } from '@/components/ui/spinner'
+import { KabineLoader } from '@/components/ui/kabine-loader'
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isReady, setIsReady] = useState(false)
@@ -28,14 +28,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [isAuthenticated, user?.organizacion, setOrganizacion])
 
   if (!isReady) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <img src="/logo.png" alt="Kabin-e" className="h-16 w-16 mx-auto mb-4 animate-pulse" />
-          <p className="text-muted-foreground">Cargando Kabin-e...</p>
-        </div>
-      </div>
-    )
+    return <KabineLoader fullScreen size="lg" text="Cargando Kabin-e..." />
   }
 
   return <>{children}</>

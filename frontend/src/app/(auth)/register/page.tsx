@@ -51,10 +51,7 @@ export default function RegisterPage() {
         <div className="w-full max-w-md space-y-8">
           {/* Logo */}
           <div className="text-center">
-            <div className="inline-flex items-center gap-3 mb-2">
-              <img src="/logo.png" alt="Kabin-e" className="h-10 w-10" />
-              <span className="text-2xl font-bold text-gray-900">Kabin-e</span>
-            </div>
+            <img src="/logo.png" alt="Kabin-e" className="h-20 mx-auto mb-3" />
             <p className="text-gray-500">Crea tu cuenta</p>
           </div>
 
@@ -258,9 +255,9 @@ export default function RegisterPage() {
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70" />
         <div className="relative z-10 flex flex-col items-center justify-center p-12 text-white">
           <div className="max-w-md text-center">
-            <div className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-xl backdrop-blur-sm bg-white/10">
-              <img src="/logo.png" alt="Kabin-e" className="h-8 w-8" />
-              <span className="text-xl font-extrabold tracking-tight">Kabin-e</span>
+            <div className="inline-flex items-center gap-3 mb-6 px-5 py-3 rounded-2xl backdrop-blur-sm bg-white/10">
+              <img src="/logo-icon.png" alt="Kabin-e" className="h-10 w-10 drop-shadow-lg" />
+              <span className="text-2xl font-extrabold tracking-tight">Kabin-e</span>
             </div>
             <h2
               className="text-3xl font-extrabold mb-4"

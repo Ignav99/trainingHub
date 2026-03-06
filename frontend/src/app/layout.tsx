@@ -11,8 +11,8 @@ export const metadata: Metadata = {
   title: 'Kabin-e',
   description: 'Plataforma profesional de gestión deportiva',
   icons: {
-    icon: '/logo.png',
-    apple: '/logo.png',
+    icon: '/logo-icon.png',
+    apple: '/logo-icon.png',
   },
 }
 

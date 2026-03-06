@@ -31,7 +31,7 @@ import { useEquipoStore } from '@/stores/equipoStore'
 import { useClubStore } from '@/stores/clubStore'
 import { ClubAvatar, Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { Spinner } from '@/components/ui/spinner'
+import { KabineLoader } from '@/components/ui/kabine-loader'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -86,14 +86,7 @@ export default function DashboardLayout({
   }, [isAuthenticated, isOnboardingComplete, pathname, router])
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <img src="/logo.png" alt="Kabin-e" className="h-16 w-16 mx-auto mb-4 animate-pulse" />
-          <p className="text-muted-foreground">Cargando...</p>
-        </div>
-      </div>
-    )
+    return <KabineLoader fullScreen size="lg" />
   }
 
   if (!isAuthenticated) {
@@ -233,7 +226,7 @@ function SidebarContent({
               {user?.organizacion?.nombre || 'Kabin-e'}
             </p>
             <p className="text-[10px] text-white/60 uppercase tracking-wider flex items-center gap-1">
-              <img src="/logo.png" alt="Kabin-e" className="h-3 w-3" />
+              <img src="/logo-icon.png" alt="Kabin-e" className="h-3.5 w-3.5" />
               Kabin-e
             </p>
           </div>
