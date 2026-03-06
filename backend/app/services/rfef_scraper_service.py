@@ -645,25 +645,15 @@ class RFAFScraper:
             "Sch_Grupo": grupo_id,
             "Sch_Jornada": jornada,
         }, cod_primaria="5002420")
-        html_text = str(soup)
-        logger.info("Sanciones HTML length: %d chars", len(html_text))
-        tables = soup.find_all("table")
-        logger.info("Sanciones HTML tables found: %d", len(tables))
-        scripts = soup.find_all("script")
-        script_with_jornada = [s for s in scripts if s.string and "Jornada" in s.string]
-        logger.info("Sanciones scripts with 'Jornada': %d", len(script_with_jornada))
-        # Log first 500 chars of body text for debugging
-        body = soup.find("body")
-        if body:
-            body_text = body.get_text(strip=True)[:500]
-            logger.info("Sanciones body preview: %s", body_text)
+        logger.info("Sanciones HTML length: %d chars", len(str(soup)))
         return self._parse_sanciones(soup)
 
     def _parse_sanciones(self, soup):
         """Parse sanciones HTML.
 
-        Structure:
-        - document.write() JS blocks contain "Jornada: N (DD/MM/YYYY)" and "reunión del día DD-MM-YYYY"
+        RFAF puts <tr> directly inside a <form>, NOT in <table> tags.
+        - <script> blocks with document.write() contain "Jornada: N (DD/MM/YYYY)"
+          and "reunión del día DD-MM-YYYY"
         - <td colspan=100> headers contain category: "Jugadores", "Técnicos...", "Equipos"
         - <tr> with 4 <td>: club+name (separated by <br>), tipo_licencia, artículo, descripción
         """
@@ -673,11 +663,13 @@ class RFAFScraper:
         current_reunion_fecha = None
         current_categoria = "jugador"
 
-        # Get the full HTML text to find jornada markers in document.write() calls
-        full_html = str(soup)
+        # Build position map for all elements (for O(1) position lookups)
+        body = soup.find("body") or soup
+        element_positions = {}
+        for idx, el in enumerate(body.descendants):
+            element_positions[id(el)] = idx
 
-        # Find all script blocks that contain document.write with jornada info
-        # These appear before each jornada's data tables
+        # Find jornada markers in script blocks and sort by document position
         scripts = soup.find_all("script")
         jornada_markers = []
         for script in scripts:
@@ -691,91 +683,90 @@ class RFAFScraper:
                         "numero": int(jnum.group(1)),
                         "fecha": jfecha.group(1) if jfecha else None,
                         "reunion": rfecha.group(1) if rfecha else None,
-                        "element": script,
+                        "pos": element_positions.get(id(script), -1),
                     })
+        jornada_markers.sort(key=lambda m: m["pos"])
 
-        logger.info("Sanciones parser: found %d jornada markers in scripts", len(jornada_markers))
-        for m in jornada_markers:
-            logger.info("  Jornada marker: numero=%s, fecha=%s", m["numero"], m.get("fecha"))
+        logger.info("Sanciones parser: found %d jornada markers", len(jornada_markers))
 
-        all_tables = soup.find_all("table")
-        logger.info("Sanciones parser: found %d tables total", len(all_tables))
+        # Iterate ALL <tr> tags in the page (they live outside <table> tags)
+        all_rows = soup.find_all("tr")
+        logger.info("Sanciones parser: found %d <tr> rows", len(all_rows))
 
-        # Process all tables
-        for table in all_tables:
-            rows = table.find_all("tr")
-            for row in rows:
-                # Check for category header: <td colspan=100>
-                colspan_td = row.find("td", colspan=True)
-                if colspan_td:
-                    colspan_val = colspan_td.get("colspan", "")
-                    if str(colspan_val) == "100" or int(colspan_val or 0) >= 4:
-                        header_text = colspan_td.get_text(strip=True).lower()
-                        if "jugador" in header_text:
-                            current_categoria = "jugador"
-                        elif "cnico" in header_text or "tecnico" in header_text:
-                            current_categoria = "tecnico"
-                        elif "equipo" in header_text:
-                            current_categoria = "equipo"
+        marker_idx = 0
 
-                        # Also check if this is a jornada header
-                        jnum = re.search(r"Jornada[:\s]+(\d+)", colspan_td.get_text(strip=True))
-                        if jnum:
-                            current_jornada = int(jnum.group(1))
-                            jfecha = re.search(r"\((\d{2}/\d{2}/\d{4})\)", colspan_td.get_text(strip=True))
-                            current_jornada_fecha = jfecha.group(1) if jfecha else None
-                        continue
+        for row in all_rows:
+            row_pos = element_positions.get(id(row), -1)
 
-                # Check if a jornada marker script precedes this table
-                for marker in jornada_markers:
-                    # If this marker's script is a previous sibling of the table
-                    if marker["element"] in table.find_all_previous("script"):
-                        if marker["numero"] > current_jornada or (
-                            marker["numero"] == current_jornada and not current_reunion_fecha
-                        ):
-                            current_jornada = marker["numero"]
-                            current_jornada_fecha = marker.get("fecha")
-                            current_reunion_fecha = marker.get("reunion")
+            # --- Check for category header: <td colspan=...> ---
+            colspan_td = row.find("td", colspan=True)
+            if colspan_td:
+                colspan_val = str(colspan_td.get("colspan", "0"))
+                try:
+                    is_header = colspan_val == "100" or int(colspan_val) >= 4
+                except (ValueError, TypeError):
+                    is_header = False
 
-                cells = row.find_all("td")
-                if len(cells) < 4:
+                if is_header:
+                    header_text = colspan_td.get_text(strip=True).lower()
+                    if "jugador" in header_text:
+                        current_categoria = "jugador"
+                    elif "cnico" in header_text or "tecnico" in header_text:
+                        current_categoria = "tecnico"
+                    elif "equipo" in header_text:
+                        current_categoria = "equipo"
                     continue
 
-                # Standard sancion row: 4 cells
-                # Cell 0: club + persona (separated by <br>)
-                cell0 = cells[0]
-                cell0_html = str(cell0)
-                # Get text parts separated by <br>
-                for br in cell0.find_all("br"):
-                    br.replace_with("\n")
-                parts = [p.strip() for p in cell0.get_text().split("\n") if p.strip()]
+            # --- Advance marker_idx to the last marker that precedes this row ---
+            while (
+                marker_idx < len(jornada_markers) - 1
+                and jornada_markers[marker_idx + 1]["pos"] < row_pos
+            ):
+                marker_idx += 1
 
-                equipo_nombre = parts[0] if parts else ""
-                persona_nombre = parts[1] if len(parts) > 1 else ""
+            if marker_idx < len(jornada_markers) and jornada_markers[marker_idx]["pos"] < row_pos:
+                m = jornada_markers[marker_idx]
+                current_jornada = m["numero"]
+                current_jornada_fecha = m.get("fecha")
+                current_reunion_fecha = m.get("reunion")
 
-                tipo_licencia = cells[1].get_text(strip=True) if len(cells) > 1 else ""
-                articulo = cells[2].get_text(strip=True) if len(cells) > 2 else ""
-                descripcion = cells[3].get_text(strip=True) if len(cells) > 3 else ""
+            # --- Parse sancion data row: 4 cells ---
+            cells = row.find_all("td")
+            if len(cells) < 4:
+                continue
 
-                if not equipo_nombre or not descripcion:
-                    continue
+            cell0 = cells[0]
+            # Get text parts separated by <br>
+            for br in cell0.find_all("br"):
+                br.replace_with("\n")
+            parts = [p.strip() for p in cell0.get_text().split("\n") if p.strip()]
 
-                # Skip header rows
-                if equipo_nombre.lower() in ("club", "equipo") or descripcion.lower() in ("sanción", "sancion", "descripción"):
-                    continue
+            equipo_nombre = parts[0] if parts else ""
+            persona_nombre = parts[1] if len(parts) > 1 else ""
 
-                sancion = {
-                    "jornada_numero": current_jornada,
-                    "jornada_fecha": current_jornada_fecha,
-                    "reunion_fecha": current_reunion_fecha,
-                    "categoria": current_categoria,
-                    "equipo_nombre": equipo_nombre,
-                    "persona_nombre": persona_nombre,
-                    "tipo_licencia": tipo_licencia,
-                    "articulo": articulo,
-                    "descripcion": descripcion,
-                }
-                sanciones.append(sancion)
+            tipo_licencia = cells[1].get_text(strip=True)
+            articulo = cells[2].get_text(strip=True)
+            descripcion = cells[3].get_text(strip=True)
+
+            if not equipo_nombre or not descripcion:
+                continue
+
+            # Skip header rows
+            if equipo_nombre.lower() in ("club", "equipo") or descripcion.lower() in ("sanción", "sancion", "descripción"):
+                continue
+
+            sancion = {
+                "jornada_numero": current_jornada,
+                "jornada_fecha": current_jornada_fecha,
+                "reunion_fecha": current_reunion_fecha,
+                "categoria": current_categoria,
+                "equipo_nombre": equipo_nombre,
+                "persona_nombre": persona_nombre,
+                "tipo_licencia": tipo_licencia,
+                "articulo": articulo,
+                "descripcion": descripcion,
+            }
+            sanciones.append(sancion)
 
         logger.info("Parsed sanciones: %d entries across jornadas", len(sanciones))
         return sanciones
