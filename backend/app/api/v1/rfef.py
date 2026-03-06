@@ -3,6 +3,7 @@ TrainingHub Pro - Router de RFEF
 Gestión de competiciones, jornadas y actas RFEF con scraping automático.
 """
 
+import asyncio
 import logging
 from datetime import datetime
 
@@ -998,6 +999,81 @@ async def sync_sanciones(
         await scraper.close()
 
     return {"status": "ok", "sanciones_saved": total_saved}
+
+
+@router.get("/competiciones/{competicion_id}/sanciones-debug")
+async def debug_sanciones(
+    competicion_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """Debug endpoint: show raw scraping info for sanciones."""
+    supabase = get_supabase()
+    comp_id = str(competicion_id)
+
+    comp = supabase.table("rfef_competiciones").select(
+        "sancion_competicion_id, sancion_grupo_id, rfef_codtemporada"
+    ).eq("id", comp_id).single().execute()
+
+    if not comp.data:
+        raise HTTPException(status_code=404, detail="Competition not found")
+
+    sancion_comp = comp.data.get("sancion_competicion_id")
+    sancion_grupo = comp.data.get("sancion_grupo_id")
+    codtemporada = comp.data.get("rfef_codtemporada", "21")
+
+    if not sancion_comp or not sancion_grupo:
+        return {
+            "error": "Sanciones not configured",
+            "sancion_competicion_id": sancion_comp,
+            "sancion_grupo_id": sancion_grupo,
+            "codtemporada": codtemporada,
+        }
+
+    scraper = RFAFScraper()
+    try:
+        # Fetch the raw page
+        soup = await asyncio.to_thread(
+            scraper._fetch_page, "NFG_ConsultaSanciones", {
+                "buscar": "1",
+                "Sch_Cod_Temporada": codtemporada,
+                "Sch_Competicion": sancion_comp,
+                "Sch_Grupo": sancion_grupo,
+                "Sch_Jornada": "",
+            }, 3, "5002420"
+        )
+
+        html_text = str(soup)
+        tables = soup.find_all("table")
+        scripts = soup.find_all("script")
+        script_with_jornada = [s for s in scripts if s.string and "Jornada" in (s.string or "")]
+
+        # Get body text
+        body = soup.find("body")
+        body_preview = body.get_text(strip=True)[:2000] if body else "No body found"
+
+        # Try to find form selects (to check if the page loaded correctly)
+        selects = soup.find_all("select")
+        select_info = []
+        for s in selects:
+            name = s.get("name", s.get("id", "unknown"))
+            options = [(o.get("value", ""), o.get_text(strip=True)[:50]) for o in s.find_all("option")[:5]]
+            select_info.append({"name": name, "options_sample": options, "total_options": len(s.find_all("option"))})
+
+        return {
+            "config": {
+                "sancion_competicion_id": sancion_comp,
+                "sancion_grupo_id": sancion_grupo,
+                "codtemporada": codtemporada,
+            },
+            "html_length": len(html_text),
+            "tables_found": len(tables),
+            "scripts_total": len(scripts),
+            "scripts_with_jornada": len(script_with_jornada),
+            "selects": select_info,
+            "body_preview": body_preview,
+        }
+    finally:
+        await scraper.close()
 
 
 @router.get("/competiciones/{competicion_id}/sanciones")

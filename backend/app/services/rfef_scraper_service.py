@@ -634,6 +634,10 @@ class RFAFScraper:
 
     def _scrape_sanciones(self, codtemporada, competicion_id, grupo_id, jornada=""):
         """Scrape sanciones data. Empty jornada = all jornadas."""
+        logger.info(
+            "Scraping sanciones: codtemporada=%s, comp=%s, grupo=%s, jornada=%s",
+            codtemporada, competicion_id, grupo_id, jornada,
+        )
         soup = self._fetch_page("NFG_ConsultaSanciones", {
             "buscar": "1",
             "Sch_Cod_Temporada": codtemporada,
@@ -641,6 +645,18 @@ class RFAFScraper:
             "Sch_Grupo": grupo_id,
             "Sch_Jornada": jornada,
         }, cod_primaria="5002420")
+        html_text = str(soup)
+        logger.info("Sanciones HTML length: %d chars", len(html_text))
+        tables = soup.find_all("table")
+        logger.info("Sanciones HTML tables found: %d", len(tables))
+        scripts = soup.find_all("script")
+        script_with_jornada = [s for s in scripts if s.string and "Jornada" in s.string]
+        logger.info("Sanciones scripts with 'Jornada': %d", len(script_with_jornada))
+        # Log first 500 chars of body text for debugging
+        body = soup.find("body")
+        if body:
+            body_text = body.get_text(strip=True)[:500]
+            logger.info("Sanciones body preview: %s", body_text)
         return self._parse_sanciones(soup)
 
     def _parse_sanciones(self, soup):
@@ -678,8 +694,15 @@ class RFAFScraper:
                         "element": script,
                     })
 
+        logger.info("Sanciones parser: found %d jornada markers in scripts", len(jornada_markers))
+        for m in jornada_markers:
+            logger.info("  Jornada marker: numero=%s, fecha=%s", m["numero"], m.get("fecha"))
+
+        all_tables = soup.find_all("table")
+        logger.info("Sanciones parser: found %d tables total", len(all_tables))
+
         # Process all tables
-        for table in soup.find_all("table"):
+        for table in all_tables:
             rows = table.find_all("tr")
             for row in rows:
                 # Check for category header: <td colspan=100>
