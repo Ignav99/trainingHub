@@ -915,10 +915,13 @@ def _parse_fecha_sanciones(fecha_str: Optional[str]) -> Optional[str]:
 
 
 def _upsert_sanciones(supabase, comp_id: str, sanciones: list[dict]) -> int:
-    """Upsert sanciones using ON CONFLICT. Returns count saved."""
-    saved = 0
+    """Upsert sanciones in batches using ON CONFLICT. Returns count saved."""
+    if not sanciones:
+        return 0
+
+    records = []
     for s in sanciones:
-        record = {
+        records.append({
             "competicion_id": comp_id,
             "jornada_numero": s["jornada_numero"],
             "jornada_fecha": _parse_fecha_sanciones(s.get("jornada_fecha")),
@@ -929,15 +932,31 @@ def _upsert_sanciones(supabase, comp_id: str, sanciones: list[dict]) -> int:
             "tipo_licencia": s.get("tipo_licencia"),
             "articulo": s.get("articulo"),
             "descripcion": s["descripcion"],
-        }
+        })
+
+    saved = 0
+    batch_size = 200
+    for i in range(0, len(records), batch_size):
+        batch = records[i:i + batch_size]
         try:
             supabase.table("rfef_sanciones").upsert(
-                record,
+                batch,
                 on_conflict="competicion_id,jornada_numero,equipo_nombre,persona_nombre,articulo,descripcion",
             ).execute()
-            saved += 1
+            saved += len(batch)
         except Exception as e:
-            logger.debug("Upsert sancion error: %s", e)
+            logger.warning("Batch upsert sanciones error (batch %d): %s", i // batch_size, e)
+            # Fallback: try individual inserts for this batch
+            for record in batch:
+                try:
+                    supabase.table("rfef_sanciones").upsert(
+                        record,
+                        on_conflict="competicion_id,jornada_numero,equipo_nombre,persona_nombre,articulo,descripcion",
+                    ).execute()
+                    saved += 1
+                except Exception as e2:
+                    logger.debug("Individual upsert sancion error: %s", e2)
+
     return saved
 
 
