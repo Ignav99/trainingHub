@@ -572,12 +572,18 @@ async def sync_competicion_full(
                             "arbitros": acta_data.get("arbitros", []),
                         }
 
-                        supabase.table("rfef_actas").insert(acta_record).execute()
+                        supabase.table("rfef_actas").upsert(
+                            acta_record, on_conflict="cod_acta"
+                        ).execute()
                         actas_saved += 1
+                        logger.info("Sync-full: scraped acta %s (%s vs %s)",
+                                    acta_info["cod_acta"],
+                                    acta_data["local"]["nombre"],
+                                    acta_data["visitante"]["nombre"])
                         await asyncio.sleep(0.5)
 
                     except Exception as e:
-                        logger.debug("Sync-full: error acta %s: %s", acta_info["cod_acta"], e)
+                        logger.warning("Sync-full: error acta %s: %s", acta_info["cod_acta"], e)
                         continue
 
                 logger.info("Sync-full: saved %d actas", actas_saved)

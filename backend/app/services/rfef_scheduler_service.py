@@ -212,12 +212,13 @@ async def _sync_recent_actas(supabase, scraper: RFAFScraper, comp_id: str, curre
     """
     try:
         jornada_nums = [n for n in [current_jornada - 1, current_jornada] if n >= 1]
+        logger.info("Scheduler: checking actas for jornadas %s (comp %s)", jornada_nums, comp_id)
 
         jornadas_res = supabase.table("rfef_jornadas").select("numero, partidos").eq(
             "competicion_id", comp_id
         ).in_("numero", jornada_nums).execute()
 
-        # Collect cod_actas that are not yet saved
+        # Collect cod_actas
         actas_to_scrape = []
         for jornada in jornadas_res.data or []:
             for partido in jornada.get("partidos", []):
@@ -227,6 +228,9 @@ async def _sync_recent_actas(supabase, scraper: RFAFScraper, comp_id: str, curre
                         "cod_acta": cod_acta,
                         "jornada_numero": jornada["numero"],
                     })
+
+        logger.info("Scheduler: found %d actas with cod_acta in jornadas %s",
+                    len(actas_to_scrape), jornada_nums)
 
         if not actas_to_scrape:
             return
@@ -238,6 +242,8 @@ async def _sync_recent_actas(supabase, scraper: RFAFScraper, comp_id: str, curre
         existing_codes = {a["cod_acta"] for a in (existing_actas_res.data or [])}
 
         new_actas = [a for a in actas_to_scrape if a["cod_acta"] not in existing_codes]
+        logger.info("Scheduler: %d new actas to scrape (%d already exist)",
+                    len(new_actas), len(existing_codes))
         if not new_actas:
             return
 
@@ -288,19 +294,25 @@ async def _sync_recent_actas(supabase, scraper: RFAFScraper, comp_id: str, curre
                     "cuerpo_tecnico_visitante": acta_data.get("cuerpo_tecnico_visitante", {}),
                 }
 
-                supabase.table("rfef_actas").insert(acta_record).execute()
+                supabase.table("rfef_actas").upsert(
+                    acta_record, on_conflict="cod_acta"
+                ).execute()
                 actas_saved += 1
+                logger.info("Scheduler: scraped acta %s (%s vs %s)",
+                            acta_info["cod_acta"],
+                            acta_data["local"]["nombre"],
+                            acta_data["visitante"]["nombre"])
                 await asyncio.sleep(0.5)
 
             except Exception as e:
-                logger.debug("Error scraping acta %s: %s", acta_info["cod_acta"], e)
+                logger.warning("Scheduler: error scraping acta %s: %s", acta_info["cod_acta"], e)
                 continue
 
         if actas_saved > 0:
-            logger.info("Synced %d actas for competition %s", actas_saved, comp_id)
+            logger.info("Scheduler: synced %d actas for competition %s", actas_saved, comp_id)
 
     except Exception as e:
-        logger.debug("Error syncing recent actas for %s: %s", comp_id, e)
+        logger.warning("Scheduler: error syncing recent actas for %s: %s", comp_id, e)
 
 
 def start_scheduler():

@@ -82,6 +82,7 @@ export default function CompeticionPage() {
   const [sanciones, setSanciones] = useState<RFEFSancion[]>([])
   const [loadingSanciones, setLoadingSanciones] = useState(false)
   const [syncingSanciones, setSyncingSanciones] = useState(false)
+  const [syncingActas, setSyncingActas] = useState(false)
 
   // SWR: Load competiciones
   const { data: competicionesRes, isLoading: loading } = useSWR<{ data: RFEFCompeticion[]; total: number }>(
@@ -346,6 +347,24 @@ export default function CompeticionPage() {
     }
   }
 
+  const handleSyncActas = async () => {
+    if (!competicion) return
+    setSyncingActas(true)
+    setError(null)
+    try {
+      const res = await rfefApi.syncActas(competicion.id)
+      setSyncStatus(
+        `Actas: ${res.actas_scraped} sincronizadas de ${res.total_available} disponibles` +
+        (res.errors ? ` (${res.errors} errores)` : '')
+      )
+      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, { revalidate: true })
+    } catch (err: any) {
+      setError(err.message || 'Error al sincronizar actas')
+    } finally {
+      setSyncingActas(false)
+    }
+  }
+
   if (loading) {
     return <ListPageSkeleton />
   }
@@ -504,6 +523,24 @@ export default function CompeticionPage() {
             <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
             {syncing ? 'Sincronizando...' : 'Sync completo'}
           </button>
+          <button
+            onClick={handleSyncActas}
+            disabled={syncingActas}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm hover:bg-muted disabled:opacity-50"
+          >
+            <FileText className={`h-4 w-4 ${syncingActas ? 'animate-spin' : ''}`} />
+            {syncingActas ? 'Actas...' : 'Sync Actas'}
+          </button>
+          {sancionesConfigured && (
+            <button
+              onClick={handleSyncSanciones}
+              disabled={syncingSanciones}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm hover:bg-muted disabled:opacity-50"
+            >
+              <Shield className={`h-4 w-4 ${syncingSanciones ? 'animate-spin' : ''}`} />
+              {syncingSanciones ? 'Sanciones...' : 'Sync Sanciones'}
+            </button>
+          )}
           <button
             onClick={() => setConfirmDelete(true)}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm text-muted-foreground hover:text-destructive hover:border-destructive transition-colors"
