@@ -1177,6 +1177,43 @@ export interface TarjetasResumenResponse {
   jugadores: TarjetaJugadorResumen[]
 }
 
+// ============================================
+// CARGA ACUMULADA
+// ============================================
+
+export type NivelCarga = 'bajo' | 'optimo' | 'alto' | 'critico'
+
+export interface CargaJugador {
+  jugador_id: string
+  equipo_id: string
+  carga_aguda: number
+  carga_cronica: number
+  ratio_acwr: number | null
+  nivel_carga: NivelCarga
+  ultima_carga: number
+  ultima_actividad_fecha: string | null
+  dias_sin_actividad: number
+  wellness_valor: number | null
+  wellness_fecha: string | null
+  updated_at: string | null
+  // Joined player info
+  nombre: string | null
+  apellidos: string | null
+  dorsal: number | null
+  posicion_principal: string | null
+  estado: string | null
+}
+
+export interface CargaEquipoResponse {
+  data: CargaJugador[]
+  resumen: {
+    carga_media: number
+    jugadores_riesgo: number
+    wellness_medio: number | null
+    total_jugadores: number
+  }
+}
+
 // Evento de calendario (unifica sesiones, partidos, descansos)
 export interface EventoCalendario {
   id: string

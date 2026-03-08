@@ -17,6 +17,7 @@ from app.api.v1 import (
     partidos,
     microciclos,
     rpe,
+    carga,
     convocatorias,
     estadisticas_partido,
     notificaciones,
@@ -115,6 +116,12 @@ api_router.include_router(
     rpe.router,
     prefix="/rpe",
     tags=["RPE"]
+)
+
+api_router.include_router(
+    carga.router,
+    prefix="/carga",
+    tags=["Carga"]
 )
 
 api_router.include_router(

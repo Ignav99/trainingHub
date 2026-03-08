@@ -4,15 +4,13 @@ import { useState } from 'react'
 import useSWR, { mutate } from 'swr'
 import {
   Activity,
-  Calendar,
   TrendingUp,
-  Users,
+  AlertTriangle,
+  Heart,
   Loader2,
-  ChevronLeft,
-  ChevronRight,
+  RefreshCw,
   Moon,
   Zap,
-  Heart,
   Brain,
   Smile,
 } from 'lucide-react'
@@ -31,12 +29,14 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { ListPageSkeleton } from '@/components/ui/page-skeletons'
+import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { rpeApi } from '@/lib/api/rpe'
+import { cargaApi } from '@/lib/api/carga'
 import { jugadoresApi, Jugador } from '@/lib/api/jugadores'
 import { apiKey } from '@/lib/swr'
 import { formatDate } from '@/lib/utils'
-import type { RPEResumenEquipo, Sesion, PaginatedResponse } from '@/types'
+import type { CargaEquipoResponse, CargaJugador, NivelCarga, Sesion, PaginatedResponse } from '@/types'
 
 const WELLNESS_FIELDS = [
   { key: 'sueno', label: 'Sueno', icon: Moon, color: 'text-indigo-600' },
@@ -46,22 +46,43 @@ const WELLNESS_FIELDS = [
   { key: 'humor', label: 'Humor', icon: Smile, color: 'text-emerald-600' },
 ] as const
 
-function getRPEColor(rpe: number): string {
-  if (rpe <= 3) return 'bg-green-100 text-green-800'
-  if (rpe <= 5) return 'bg-yellow-100 text-yellow-800'
-  if (rpe <= 7) return 'bg-orange-100 text-orange-800'
-  return 'bg-red-100 text-red-800'
+function getNivelColor(nivel: NivelCarga): string {
+  switch (nivel) {
+    case 'critico': return 'bg-red-500'
+    case 'alto': return 'bg-orange-500'
+    case 'optimo': return 'bg-green-500'
+    case 'bajo': return 'bg-blue-400'
+    default: return 'bg-gray-400'
+  }
+}
+
+function getNivelBadgeClass(nivel: NivelCarga): string {
+  switch (nivel) {
+    case 'critico': return 'bg-red-100 text-red-800 border-red-200'
+    case 'alto': return 'bg-orange-100 text-orange-800 border-orange-200'
+    case 'optimo': return 'bg-green-100 text-green-800 border-green-200'
+    case 'bajo': return 'bg-blue-100 text-blue-800 border-blue-200'
+    default: return 'bg-gray-100 text-gray-800'
+  }
+}
+
+function getRowHighlight(nivel: NivelCarga): string {
+  switch (nivel) {
+    case 'critico': return 'bg-red-50/60'
+    case 'alto': return 'bg-orange-50/40'
+    default: return ''
+  }
 }
 
 export default function RPEPage() {
   const { equipoActivo } = useEquipoStore()
 
   // SWR data fetching
-  const { data: resumen, isLoading: loadingResumen } = useSWR<RPEResumenEquipo>(
-    apiKey(`/rpe/resumen/${equipoActivo?.id}`, {}, equipoActivo?.id ? [] : ['__missing__'])
+  const { data: cargaData, isLoading: loadingCarga } = useSWR<CargaEquipoResponse>(
+    equipoActivo?.id ? `/carga/equipo/${equipoActivo.id}` : null
   )
 
-  const { data: sesionesData, isLoading: loadingSesiones } = useSWR<PaginatedResponse<Sesion>>(
+  const { data: sesionesData } = useSWR<PaginatedResponse<Sesion>>(
     apiKey('/sesiones', {
       equipo_id: equipoActivo?.id,
       estado: 'completada',
@@ -69,7 +90,7 @@ export default function RPEPage() {
     }, ['equipo_id'])
   )
 
-  const { data: jugadoresData, isLoading: loadingJugadores } = useSWR<{ data: Jugador[]; total: number }>(
+  const { data: jugadoresData } = useSWR<{ data: Jugador[]; total: number }>(
     apiKey('/jugadores', {
       equipo_id: equipoActivo?.id,
       estado: 'activo',
@@ -78,9 +99,53 @@ export default function RPEPage() {
 
   const sesiones = sesionesData?.data || []
   const jugadores = jugadoresData?.data || []
-  const loading = loadingResumen || loadingSesiones || loadingJugadores
+  const loading = loadingCarga
 
-  // Register RPE dialog
+  // Recalculating
+  const [recalculating, setRecalculating] = useState(false)
+
+  const handleRecalculate = async () => {
+    if (!equipoActivo?.id) return
+    setRecalculating(true)
+    try {
+      await cargaApi.recalcular(equipoActivo.id)
+      mutate((key: string) => typeof key === 'string' && key.includes('/carga'), undefined, { revalidate: true })
+    } catch (err: any) {
+      alert(err.message || 'Error al recalcular')
+    } finally {
+      setRecalculating(false)
+    }
+  }
+
+  // Wellness editing
+  const [editingWellness, setEditingWellness] = useState<string | null>(null)
+  const [wellnessInput, setWellnessInput] = useState('')
+  const [savingWellness, setSavingWellness] = useState(false)
+
+  const handleWellnessClick = (jugadorId: string, currentValue: number | null) => {
+    setEditingWellness(jugadorId)
+    setWellnessInput(currentValue?.toString() || '')
+  }
+
+  const handleWellnessSave = async (jugadorId: string) => {
+    const val = parseInt(wellnessInput)
+    if (isNaN(val) || val < 1 || val > 10) {
+      setEditingWellness(null)
+      return
+    }
+    setSavingWellness(true)
+    try {
+      await cargaApi.updateWellness(jugadorId, val)
+      mutate((key: string) => typeof key === 'string' && key.includes('/carga'), undefined, { revalidate: true })
+    } catch (err: any) {
+      console.error('Error saving wellness:', err)
+    } finally {
+      setSavingWellness(false)
+      setEditingWellness(null)
+    }
+  }
+
+  // Register RPE dialog (keep manual RPE)
   const [showRegister, setShowRegister] = useState(false)
   const [selectedSesion, setSelectedSesion] = useState('')
   const [selectedJugador, setSelectedJugador] = useState('')
@@ -114,14 +179,16 @@ export default function RPEPage() {
         notas: rpeForm.notas || undefined,
       })
       setShowRegister(false)
-      // Invalidate RPE caches
-      mutate((key: string) => typeof key === 'string' && key.includes('/rpe'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && (key.includes('/rpe') || key.includes('/carga')), undefined, { revalidate: true })
     } catch (err: any) {
       alert(err.message || 'Error al registrar RPE')
     } finally {
       setSaving(false)
     }
   }
+
+  const data = cargaData?.data || []
+  const resumen = cargaData?.resumen
 
   return (
     <div className="space-y-6">
@@ -130,63 +197,82 @@ export default function RPEPage() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Activity className="h-6 w-6 text-primary" />
-            RPE y Wellness
+            Carga y Bienestar
           </h1>
           <p className="text-muted-foreground mt-1">
-            Control de carga y bienestar de los jugadores
+            Control de carga auto-calculada y bienestar de los jugadores
           </p>
         </div>
-        <Button onClick={() => setShowRegister(true)}>
-          <Activity className="h-4 w-4 mr-2" />
-          Registrar RPE
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleRecalculate}
+            disabled={recalculating}
+          >
+            {recalculating ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            Recalcular
+          </Button>
+          <Button onClick={() => setShowRegister(true)}>
+            <Activity className="h-4 w-4 mr-2" />
+            Registrar RPE
+          </Button>
+        </div>
       </div>
 
-      {/* Team averages */}
+      {/* Summary cards */}
       {loading ? (
         <div className="grid grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
         </div>
-      ) : resumen?.promedios_equipo ? (
+      ) : resumen ? (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Card>
             <CardContent className="p-4 text-center">
-              <div className={`inline-flex px-3 py-1 rounded-full text-lg font-bold ${getRPEColor(resumen.promedios_equipo.rpe_promedio || 0)}`}>
-                {resumen.promedios_equipo.rpe_promedio?.toFixed(1) || '-'}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">RPE medio equipo</p>
+              <TrendingUp className="h-5 w-5 mx-auto mb-1 text-primary" />
+              <p className="text-2xl font-bold">{resumen.carga_media.toFixed(0)}</p>
+              <p className="text-xs text-muted-foreground">Carga media 7d (UA)</p>
+            </CardContent>
+          </Card>
+          <Card className={resumen.jugadores_riesgo > 0 ? 'border-orange-300' : ''}>
+            <CardContent className="p-4 text-center">
+              <AlertTriangle className={`h-5 w-5 mx-auto mb-1 ${resumen.jugadores_riesgo > 0 ? 'text-orange-500' : 'text-muted-foreground'}`} />
+              <p className={`text-2xl font-bold ${resumen.jugadores_riesgo > 0 ? 'text-orange-600' : ''}`}>
+                {resumen.jugadores_riesgo}
+              </p>
+              <p className="text-xs text-muted-foreground">Jugadores en riesgo</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold">{resumen.promedios_equipo.carga_promedio?.toFixed(0) || '-'}</p>
-              <p className="text-xs text-muted-foreground">Carga media (UA)</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold">{resumen.promedios_equipo.total_registros}</p>
-              <p className="text-xs text-muted-foreground">Registros totales</p>
+              <Heart className="h-5 w-5 mx-auto mb-1 text-rose-500" />
+              <p className="text-2xl font-bold">
+                {resumen.wellness_medio?.toFixed(1) || '-'}
+              </p>
+              <p className="text-xs text-muted-foreground">Wellness medio</p>
             </CardContent>
           </Card>
         </div>
       ) : null}
 
-      {/* Player list */}
+      {/* Player table */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Resumen por jugador</CardTitle>
+          <CardTitle className="text-lg">Carga por jugador</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="space-y-2">
               {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-12 w-full rounded" />)}
             </div>
-          ) : !resumen?.data?.length ? (
+          ) : data.length === 0 ? (
             <div className="text-center py-8">
               <Activity className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">
-                Sin datos de RPE todavia. Registra el primer RPE despues de una sesion.
+                Sin datos de carga. Pulsa "Recalcular" para generar datos desde sesiones y partidos.
               </p>
             </div>
           ) : (
@@ -194,53 +280,93 @@ export default function RPEPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left">
+                    <th className="pb-2 font-medium w-8">#</th>
                     <th className="pb-2 font-medium">Jugador</th>
-                    <th className="pb-2 font-medium text-center">Registros</th>
-                    <th className="pb-2 font-medium text-center">RPE medio</th>
-                    <th className="pb-2 font-medium text-center">Carga media</th>
-                    <th className="pb-2 font-medium text-center">Ultimo RPE</th>
+                    <th className="pb-2 font-medium">Estado</th>
+                    <th className="pb-2 font-medium text-center">Carga 7d</th>
+                    <th className="pb-2 font-medium text-center">ACWR</th>
+                    <th className="pb-2 font-medium text-center">Nivel</th>
+                    <th className="pb-2 font-medium text-center">Wellness</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {resumen.data.map((item) => (
-                    <tr key={item.jugador.id} className="border-b last:border-0 hover:bg-muted/30">
+                  {data.map((item) => (
+                    <tr
+                      key={item.jugador_id}
+                      className={`border-b last:border-0 hover:bg-muted/30 ${getRowHighlight(item.nivel_carga)}`}
+                    >
+                      <td className="py-2.5 text-xs font-bold text-muted-foreground text-center">
+                        {item.dorsal || '-'}
+                      </td>
                       <td className="py-2.5">
                         <div className="flex items-center gap-2">
-                          {item.jugador.dorsal && (
-                            <span className="text-xs font-bold text-muted-foreground w-6 text-center">
-                              {item.jugador.dorsal}
-                            </span>
-                          )}
                           <span className="font-medium">
-                            {item.jugador.nombre} {item.jugador.apellidos}
+                            {item.nombre} {item.apellidos}
                           </span>
-                          <Badge variant="outline" className="text-[9px]">
-                            {item.jugador.posicion_principal}
-                          </Badge>
+                          {item.posicion_principal && (
+                            <Badge variant="outline" className="text-[9px]">
+                              {item.posicion_principal}
+                            </Badge>
+                          )}
                         </div>
                       </td>
-                      <td className="py-2.5 text-center">{item.num_registros}</td>
-                      <td className="py-2.5 text-center">
-                        {item.rpe_promedio != null ? (
-                          <Badge className={getRPEColor(item.rpe_promedio)}>
-                            {item.rpe_promedio.toFixed(1)}
-                          </Badge>
-                        ) : '-'}
+                      <td className="py-2.5">
+                        <PlayerStatusBadges
+                          estado={item.estado || 'activo'}
+                          nivelCarga={item.nivel_carga}
+                        />
                       </td>
                       <td className="py-2.5 text-center">
-                        {item.carga_promedio?.toFixed(0) || '-'}
+                        <div className="flex items-center justify-center gap-1.5">
+                          <span className={`inline-block w-2 h-2 rounded-full ${getNivelColor(item.nivel_carga)}`} />
+                          <span className="font-medium">{item.carga_aguda.toFixed(0)}</span>
+                        </div>
                       </td>
                       <td className="py-2.5 text-center">
-                        {item.ultimo_registro ? (
-                          <div>
-                            <Badge className={getRPEColor(item.ultimo_registro.rpe)}>
-                              {item.ultimo_registro.rpe}
-                            </Badge>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">
-                              {formatDate(item.ultimo_registro.fecha)}
-                            </p>
-                          </div>
-                        ) : '-'}
+                        <span className="font-mono text-xs">
+                          {item.ratio_acwr != null ? item.ratio_acwr.toFixed(2) : '-'}
+                        </span>
+                      </td>
+                      <td className="py-2.5 text-center">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${getNivelBadgeClass(item.nivel_carga)}`}>
+                          {item.nivel_carga}
+                        </span>
+                      </td>
+                      <td className="py-2.5 text-center">
+                        {editingWellness === item.jugador_id ? (
+                          <input
+                            type="number"
+                            min={1}
+                            max={10}
+                            value={wellnessInput}
+                            onChange={(e) => setWellnessInput(e.target.value)}
+                            onBlur={() => handleWellnessSave(item.jugador_id)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleWellnessSave(item.jugador_id)
+                              if (e.key === 'Escape') setEditingWellness(null)
+                            }}
+                            autoFocus
+                            className="w-14 text-center border rounded px-1 py-0.5 text-sm"
+                          />
+                        ) : (
+                          <button
+                            onClick={() => handleWellnessClick(item.jugador_id, item.wellness_valor)}
+                            className="inline-flex items-center justify-center min-w-[2.5rem] px-2 py-0.5 rounded hover:bg-muted transition-colors cursor-pointer"
+                            title="Click para editar wellness"
+                          >
+                            {item.wellness_valor != null ? (
+                              <span className={`font-bold ${
+                                item.wellness_valor >= 7 ? 'text-green-600' :
+                                item.wellness_valor >= 4 ? 'text-amber-600' :
+                                'text-red-600'
+                              }`}>
+                                {item.wellness_valor}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">-</span>
+                            )}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -251,7 +377,7 @@ export default function RPEPage() {
         </CardContent>
       </Card>
 
-      {/* Register dialog */}
+      {/* Register RPE dialog */}
       <Dialog open={showRegister} onOpenChange={setShowRegister}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>

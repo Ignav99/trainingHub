@@ -9,6 +9,7 @@ from typing import Optional
 from uuid import UUID
 import io
 
+import logging
 from app.models import (
     ConvocatoriaCreate,
     ConvocatoriaUpdate,
@@ -18,6 +19,9 @@ from app.models import (
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
+from app.services.load_calculation_service import recalculate_player_load
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -182,6 +186,16 @@ async def batch_update_convocatorias(
 
         if response.data:
             results.append(response.data[0])
+
+    # Trigger load recalculation for players with updated minutes
+    try:
+        for item in results:
+            if item.get("minutos_jugados") and item.get("jugador_id"):
+                jugador = supabase.table("jugadores").select("equipo_id").eq("id", item["jugador_id"]).single().execute()
+                if jugador.data:
+                    recalculate_player_load(UUID(item["jugador_id"]), UUID(jugador.data["equipo_id"]))
+    except Exception as e:
+        logger.warning(f"Error recalculating load after stats update: {e}")
 
     return {"updated": len(results), "data": results}
 

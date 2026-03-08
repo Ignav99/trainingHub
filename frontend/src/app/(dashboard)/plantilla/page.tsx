@@ -32,6 +32,7 @@ import { Jugador, jugadoresApi, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/ju
 import { useEquipoStore } from '@/stores/equipoStore'
 import { apiKey } from '@/lib/swr'
 import { CardGridSkeleton } from '@/components/ui/page-skeletons'
+import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
 
 // Avatar del jugador
 function PlayerAvatar({ jugador, size = 'md' }: { jugador: Jugador; size?: 'sm' | 'md' | 'lg' }) {
@@ -161,6 +162,7 @@ function JugadorCard({
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             <PosicionBadge posicion={jugador.posicion_principal} />
             {pos && <span className="text-xs text-gray-500">{pos.nombre}</span>}
+            <PlayerStatusBadges estado={jugador.estado} />
             {isCrossTeam && jugador.equipos && (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-dashed border-gray-400 text-gray-600 bg-gray-100">
                 {jugador.equipos.nombre}

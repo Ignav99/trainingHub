@@ -46,6 +46,7 @@ from app.services.pdf_service import generate_sesion_pdf, generate_sesion_pdf_v2
 from app.services.storage_service import upload_file
 from app.services.audit_service import log_create, log_update, log_delete
 from app.services.notification_service import notify_sesion_created
+from app.services.load_calculation_service import recalculate_player_load
 from app.config import get_settings
 
 router = APIRouter()
@@ -600,6 +601,17 @@ async def batch_save_asistencias(
         supabase.table("asistencias_sesion").insert(data).execute()
 
     log_update(auth.user_id, "sesion", str(sesion_id), datos_nuevos={"asistencias_batch": len(batch.asistencias)})
+
+    # Trigger load recalculation for present players if session is completed
+    try:
+        sesion_data = supabase.table("sesiones").select("estado, equipo_id").eq("id", str(sesion_id)).single().execute()
+        if sesion_data.data and sesion_data.data.get("estado") == "completada":
+            equipo_id = sesion_data.data["equipo_id"]
+            for a in batch.asistencias:
+                if a.presente:
+                    recalculate_player_load(a.jugador_id, UUID(equipo_id))
+    except Exception as e:
+        logger.warning(f"Error recalculating load after attendance: {e}")
 
     return await get_asistencias(sesion_id, auth)
 
