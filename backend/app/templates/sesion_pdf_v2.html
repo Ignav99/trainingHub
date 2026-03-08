@@ -93,36 +93,47 @@ body {
     text-transform: uppercase;
 }
 
-/* --- Ausencias Bar --- */
-.ausencias-bar {
+/* --- Asistencia Roster Bar --- */
+.asistencia-roster {
     background: #111;
-    padding: 3px 14px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
+    padding: 4px 14px;
     flex-shrink: 0;
     border-bottom: 1px solid #222;
 }
-.ausencias-label {
+.asistencia-label {
     font-size: 7px; color: #666; text-transform: uppercase; letter-spacing: 1.5px;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
-    margin-right: 4px;
+    margin-bottom: 3px;
+}
+.asistencia-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(105px, 1fr));
+    gap: 2px 6px;
+}
+.asistencia-item {
+    display: flex; align-items: center; gap: 3px;
+    font-size: 7px; color: #ccc;
+    font-family: 'Barlow', sans-serif;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.asistencia-dorsal {
+    font-size: 7px; color: #888;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+    min-width: 16px;
+}
+.asistencia-nombre {
+    flex: 1; overflow: hidden; text-overflow: ellipsis;
+}
+.asistencia-badge {
+    padding: 0px 4px; border-radius: 2px;
+    font-size: 6px; text-transform: uppercase; letter-spacing: 0.3px;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
     flex-shrink: 0;
 }
-.ausencia-item {
-    display: inline-flex; align-items: center; gap: 3px;
-    font-size: 7.5px; color: #aaa;
-    font-family: 'Barlow', sans-serif;
-    background: #1a1a1a; border: 1px solid #2a2a2a;
-    padding: 1px 6px; border-radius: 3px;
-}
-.ausencia-x {
-    color: #ef4444; font-weight: 700; font-size: 8px;
-}
-.ausencia-motivo {
-    color: #666; font-style: italic;
-}
+.badge-sesion { background: #166534; color: #4ade80; }
+.badge-fisio { background: #581c87; color: #c084fc; }
+.badge-margen { background: #78350f; color: #fbbf24; }
+.badge-ausente { background: #7f1d1d; color: #f87171; }
 
 /* --- Exercise Grid (2×2) --- */
 .ex-grid {
@@ -620,18 +631,19 @@ body {
         </div>
     </div>
 
-    <!-- Ausencias Bar (only if there are absences) -->
-    {% if ausencias %}
-    <div class="ausencias-bar">
-        <span class="ausencias-label">Ausentes ({{ ausencias|length }})</span>
-        {% for a in ausencias %}
-        <span class="ausencia-item">
-            <span class="ausencia-x">✕</span>
-            {% if a.dorsal %}#{{ a.dorsal }}{% endif %}
-            {{ a.nombre }} {{ a.apellidos[:1] }}.
-            {% if a.motivo %}<span class="ausencia-motivo">— {{ a.motivo|capitalize }}</span>{% endif %}
-        </span>
-        {% endfor %}
+    <!-- Asistencia Roster -->
+    {% if asistencia_roster %}
+    <div class="asistencia-roster">
+        <div class="asistencia-label">Asistencia ({{ asistencia_roster|length }})</div>
+        <div class="asistencia-grid">
+            {% for p in asistencia_roster %}
+            <div class="asistencia-item">
+                <span class="asistencia-dorsal">{% if p.dorsal %}#{{ p.dorsal }}{% endif %}</span>
+                <span class="asistencia-nombre">{{ p.nombre }} {{ p.apellidos[:1] }}.</span>
+                <span class="asistencia-badge badge-{{ p.sort_key }}">{{ p.tipo_display }}</span>
+            </div>
+            {% endfor %}
+        </div>
     </div>
     {% endif %}
 

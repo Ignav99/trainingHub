@@ -706,9 +706,9 @@ async def sugerir_equipos(
     """Sugiere equipos equilibrados basandose en la lista de presentes."""
     supabase = get_supabase()
 
-    # Get present players from asistencia
+    # Get present players from asistencia (with tipo_participacion)
     asistencias = supabase.table("asistencias_sesion").select(
-        "jugador_id, jugadores(*)"
+        "jugador_id, tipo_participacion, jugadores(*)"
     ).eq("sesion_id", str(sesion_id)).eq("presente", True).execute()
 
     if not asistencias.data:
@@ -717,10 +717,14 @@ async def sugerir_equipos(
             detail="No hay jugadores presentes. Guarda la asistencia primero."
         )
 
+    # Only include players who participated in 'sesion' (or legacy empty tipo)
     jugadores_presentes = []
     for a in asistencias.data:
         jugador = a.get("jugadores")
-        if jugador:
+        if not jugador:
+            continue
+        tipos = a.get("tipo_participacion") or []
+        if not tipos or "sesion" in tipos:
             jugadores_presentes.append(jugador)
 
     if len(jugadores_presentes) < 4:
@@ -953,9 +957,9 @@ async def generar_equipos_tarea(
     tarea_data = st_response.data.get("tareas", {}) or {}
     estructura = tarea_data.get("estructura_equipos") or "4v4"
 
-    # Get present players from asistencia
+    # Get present players from asistencia (with tipo_participacion)
     asistencias = supabase.table("asistencias_sesion").select(
-        "jugador_id, jugadores(*)"
+        "jugador_id, tipo_participacion, jugadores(*)"
     ).eq("sesion_id", str(sesion_id)).eq("presente", True).execute()
 
     if not asistencias.data:
@@ -964,9 +968,15 @@ async def generar_equipos_tarea(
             detail="No hay jugadores presentes. Guarda la asistencia primero."
         )
 
-    jugadores_presentes = [
-        a["jugadores"] for a in asistencias.data if a.get("jugadores")
-    ]
+    # Only include players who participated in 'sesion' (or legacy empty tipo)
+    jugadores_presentes = []
+    for a in asistencias.data:
+        jugador = a.get("jugadores")
+        if not jugador:
+            continue
+        tipos = a.get("tipo_participacion") or []
+        if not tipos or "sesion" in tipos:
+            jugadores_presentes.append(jugador)
 
     if len(jugadores_presentes) < 4:
         raise HTTPException(
@@ -1101,23 +1111,51 @@ async def generate_pdf(
     if not lugar and organizacion.get("config") and isinstance(organizacion["config"], dict):
         lugar = organizacion["config"].get("lugar_entrenamiento")
 
-    # Fetch ausencias (jugadores no presentes)
-    ausencias = []
+    # Fetch full asistencia roster (present + absent with types)
+    asistencia_roster = []
+    TIPO_ORDER = {"sesion": 0, "fisio": 1, "margen": 2, "ausente": 3}
+    TIPO_DISPLAY = {"sesion": "Sesion", "fisio": "Fisio", "margen": "Margen"}
     try:
-        ausencias_response = supabase.table("asistencias_sesion").select(
-            "motivo_ausencia, jugadores(nombre, apellidos, dorsal)"
-        ).eq("sesion_id", str(sesion_id)).eq("presente", False).execute()
+        roster_response = supabase.table("asistencias_sesion").select(
+            "presente, tipo_participacion, motivo_ausencia, jugadores(nombre, apellidos, dorsal)"
+        ).eq("sesion_id", str(sesion_id)).execute()
 
-        for a in ausencias_response.data:
+        for a in roster_response.data or []:
             jugador = a.get("jugadores", {}) or {}
-            ausencias.append({
-                "dorsal": jugador.get("dorsal"),
-                "nombre": jugador.get("nombre", ""),
-                "apellidos": jugador.get("apellidos", ""),
-                "motivo": a.get("motivo_ausencia", "otro") or "otro",
-            })
+            dorsal = jugador.get("dorsal")
+            nombre = jugador.get("nombre", "")
+            apellidos = jugador.get("apellidos", "")
+
+            if a.get("presente"):
+                tipos = a.get("tipo_participacion") or []
+                if not tipos:
+                    tipos = ["sesion"]  # Legacy records
+                tipo_display = " + ".join(TIPO_DISPLAY.get(t, t.title()) for t in tipos)
+                # Sort key: use highest-priority type present
+                tipo_key = min((TIPO_ORDER.get(t, 99) for t in tipos), default=0)
+                asistencia_roster.append({
+                    "dorsal": dorsal,
+                    "nombre": nombre,
+                    "apellidos": apellidos,
+                    "tipo_display": tipo_display,
+                    "tipo_key": tipo_key,
+                    "sort_key": "sesion" if tipo_key == 0 else ("fisio" if tipo_key == 1 else "margen"),
+                })
+            else:
+                motivo = a.get("motivo_ausencia", "otro") or "otro"
+                asistencia_roster.append({
+                    "dorsal": dorsal,
+                    "nombre": nombre,
+                    "apellidos": apellidos,
+                    "tipo_display": f"Ausente — {motivo.replace('_', ' ').title()}",
+                    "tipo_key": TIPO_ORDER["ausente"],
+                    "sort_key": "ausente",
+                })
+
+        # Sort: sesion → fisio → margen → ausente, then by dorsal within group
+        asistencia_roster.sort(key=lambda x: (x["tipo_key"], x.get("dorsal") or 999))
     except Exception:
-        pass  # Non-critical — PDF still generates without ausencias
+        pass  # Non-critical — PDF still generates without roster
 
     # Generar PDF con el servicio v2
     try:
@@ -1125,7 +1163,7 @@ async def generate_pdf(
             sesion, tareas, organizacion, jugadores_map,
             microciclo_nombre=microciclo_nombre,
             lugar=lugar,
-            ausencias=ausencias,
+            asistencia_roster=asistencia_roster,
         )
     except Exception as e:
         import logging

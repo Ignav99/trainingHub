@@ -129,20 +129,30 @@ def recalculate_player_load(jugador_id: UUID, equipo_id: UUID) -> dict:
     try:
         asistencias = (
             supabase.table("asistencias_sesion")
-            .select("sesion_id")
+            .select("sesion_id, tipo_participacion")
             .eq("jugador_id", jid)
             .eq("presente", True)
             .execute()
         )
-        sesion_ids = [a["sesion_id"] for a in (asistencias.data or [])]
 
-        if sesion_ids:
+        # Build two sets: all sessions (for manual RPE) and sessions eligible for auto-estimation
+        all_sesion_ids = []
+        sesion_ids_for_auto = set()
+        for a in (asistencias.data or []):
+            sid = a["sesion_id"]
+            all_sesion_ids.append(sid)
+            tipos = a.get("tipo_participacion") or []
+            # Legacy empty tipo or includes 'sesion' → eligible for auto-estimation
+            if not tipos or "sesion" in tipos:
+                sesion_ids_for_auto.add(sid)
+
+        if all_sesion_ids:
             sesiones = (
                 supabase.table("sesiones")
                 .select("id, fecha, intensidad_objetivo, duracion_total, estado")
                 .eq("estado", "completada")
                 .gte("fecha", d28_ago.isoformat())
-                .in_("id", sesion_ids)
+                .in_("id", all_sesion_ids)
                 .execute()
             )
 
@@ -150,7 +160,7 @@ def recalculate_player_load(jugador_id: UUID, equipo_id: UUID) -> dict:
                 sid = s["id"]
                 fecha = date.fromisoformat(s["fecha"])
 
-                # Check if there's a manual RPE for this session
+                # Check if there's a manual RPE for this session (always counts)
                 manual_rpe = (
                     supabase.table("registros_rpe")
                     .select("rpe, duracion_percibida, carga_sesion")
@@ -167,6 +177,10 @@ def recalculate_player_load(jugador_id: UUID, equipo_id: UUID) -> dict:
                         load = mr["rpe"] * mr["duracion_percibida"]
                     if load:
                         loads.append((fecha, float(load)))
+                    continue
+
+                # Only auto-estimate for players who did 'sesion' (not fisio/margen only)
+                if sid not in sesion_ids_for_auto:
                     continue
 
                 # Estimate from tasks

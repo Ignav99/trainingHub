@@ -331,7 +331,7 @@ def generate_sesion_pdf_v2(
     jugadores_map: Optional[dict] = None,
     microciclo_nombre: Optional[str] = None,
     lugar: Optional[str] = None,
-    ausencias: Optional[list] = None,
+    asistencia_roster: Optional[list] = None,
 ) -> bytes:
     """
     Genera un PDF profesional v2 de una sesion de entrenamiento.
@@ -342,7 +342,7 @@ def generate_sesion_pdf_v2(
         tareas_sesion: Lista de sesion_tareas con tareas nested
         organizacion: Datos de la organizacion
         jugadores_map: {jugador_id: {nombre, apellidos, dorsal, posicion_principal}}
-        ausencias: Lista de jugadores ausentes [{dorsal, nombre, apellidos, motivo}]
+        asistencia_roster: Lista de asistencia [{dorsal, nombre, apellidos, tipo_display, sort_key}]
 
     Returns:
         PDF como bytes
@@ -454,7 +454,7 @@ def generate_sesion_pdf_v2(
         microciclo_nombre=microciclo_nombre or "",
         lugar=lugar or "",
         material_sesion=material_sesion,
-        ausencias=ausencias or [],
+        asistencia_roster=asistencia_roster or [],
     )
 
     # Generate PDF
