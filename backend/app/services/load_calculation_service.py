@@ -83,15 +83,20 @@ def estimate_session_load(
     return (session_rpe, total_duration, session_load)
 
 
-def calculate_match_load(minutos: int) -> tuple[float, float]:
+GK_MATCH_RPE_MAX = 6.0  # Goalkeeper max RPE at 90 min (vs 10.0 for outfield)
+
+
+def calculate_match_load(minutos: int, es_portero: bool = False) -> tuple[float, float]:
     """
     Calculate match load from minutes played.
+    Goalkeepers have a reduced RPE ceiling (6.0 vs 10.0 for outfield players).
     Returns (match_rpe, match_load).
     """
     if minutos <= 0:
         return (0.0, 0.0)
 
-    match_rpe = min(round(10.0 * minutos / 90.0, 2), 10.0)
+    rpe_max = GK_MATCH_RPE_MAX if es_portero else 10.0
+    match_rpe = min(round(rpe_max * minutos / 90.0, 2), rpe_max)
     match_load = round(match_rpe * minutos, 2)
     return (match_rpe, match_load)
 
@@ -122,6 +127,15 @@ def recalculate_player_load(jugador_id: UUID, equipo_id: UUID) -> dict:
 
     jid = str(jugador_id)
     eid = str(equipo_id)
+
+    # Fetch player's es_portero flag for match load adjustment
+    es_portero = False
+    try:
+        jug_resp = supabase.table("jugadores").select("es_portero").eq("id", jid).limit(1).execute()
+        if jug_resp.data:
+            es_portero = bool(jug_resp.data[0].get("es_portero"))
+    except Exception:
+        pass
 
     loads: list[tuple[date, float]] = []  # (fecha, load)
 
@@ -246,7 +260,7 @@ def recalculate_player_load(jugador_id: UUID, equipo_id: UUID) -> dict:
                 pid = c["partido_id"]
                 if pid in partido_fechas and c.get("minutos_jugados"):
                     fecha = date.fromisoformat(partido_fechas[pid])
-                    _, match_load = calculate_match_load(c["minutos_jugados"])
+                    _, match_load = calculate_match_load(c["minutos_jugados"], es_portero=es_portero)
                     if match_load > 0:
                         loads.append((fecha, match_load))
 
