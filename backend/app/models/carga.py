@@ -39,6 +39,10 @@ class CargaJugadorResponse(BaseModel):
     posicion_principal: Optional[str] = None
     estado: Optional[str] = None
 
+    # Aggregated from convocatorias
+    tarjetas_amarillas: int = 0
+    tarjetas_rojas: int = 0
+
     class Config:
         from_attributes = True
 

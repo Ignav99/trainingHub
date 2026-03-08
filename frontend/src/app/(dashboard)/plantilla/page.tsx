@@ -33,6 +33,7 @@ import { useEquipoStore } from '@/stores/equipoStore'
 import { apiKey } from '@/lib/swr'
 import { CardGridSkeleton } from '@/components/ui/page-skeletons'
 import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
+import type { CargaEquipoResponse, CargaJugador } from '@/types'
 
 // Avatar del jugador
 function PlayerAvatar({ jugador, size = 'md' }: { jugador: Jugador; size?: 'sm' | 'md' | 'lg' }) {
@@ -116,12 +117,14 @@ function JugadorCard({
   onDelete,
   onChangeEstado,
   isCrossTeam,
+  cargaData,
 }: {
   jugador: Jugador
   onEdit: () => void
   onDelete: () => void
   onChangeEstado: () => void
   isCrossTeam?: boolean
+  cargaData?: CargaJugador
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const router = useRouter()
@@ -162,7 +165,12 @@ function JugadorCard({
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             <PosicionBadge posicion={jugador.posicion_principal} />
             {pos && <span className="text-xs text-gray-500">{pos.nombre}</span>}
-            <PlayerStatusBadges estado={jugador.estado} />
+            <PlayerStatusBadges
+              estado={jugador.estado}
+              nivelCarga={cargaData?.nivel_carga}
+              tarjetasAmarillas={cargaData?.tarjetas_amarillas}
+              tarjetasRojas={cargaData?.tarjetas_rojas}
+            />
             {isCrossTeam && jugador.equipos && (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-dashed border-gray-400 text-gray-600 bg-gray-100">
                 {jugador.equipos.nombre}
@@ -392,6 +400,20 @@ export default function PlantillaPage() {
       organizacion_completa: showAllTeams || undefined,
     }, ['equipo_id'])
   )
+
+  // SWR para carga (tarjetas + nivel de carga)
+  const { data: cargaResponse } = useSWR<CargaEquipoResponse>(
+    equipoId ? `/carga/equipo/${equipoId}` : null
+  )
+
+  // Build lookup: jugador_id → CargaJugador
+  const cargaMap = useMemo(() => {
+    const map: Record<string, CargaJugador> = {}
+    for (const c of cargaResponse?.data || []) {
+      map[c.jugador_id] = c
+    }
+    return map
+  }, [cargaResponse])
 
   const jugadores = jugadoresResponse?.data || []
   const error = swrError ? 'Error al cargar la plantilla' : null
@@ -724,6 +746,7 @@ export default function PlantillaPage() {
                       onDelete={() => handleDelete(jugador.id)}
                       onChangeEstado={() => setEstadoModal(jugador)}
                       isCrossTeam={showAllTeams && jugador.equipo_id !== equipoActivo?.id}
+                      cargaData={cargaMap[jugador.id]}
                     />
                   ))}
                 </div>

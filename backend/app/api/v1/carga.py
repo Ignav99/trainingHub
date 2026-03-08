@@ -54,6 +54,27 @@ async def get_carga_equipo(
     )
     carga_map = {r["jugador_id"]: r for r in (carga_rows.data or [])}
 
+    # Aggregate tarjetas from convocatorias
+    jugador_ids = [j["id"] for j in jugadores.data]
+    tarjetas_map: dict[str, dict] = {}
+    try:
+        convs = (
+            supabase.table("convocatorias")
+            .select("jugador_id, tarjeta_amarilla, tarjeta_roja")
+            .in_("jugador_id", jugador_ids)
+            .execute()
+        )
+        for c in convs.data or []:
+            jid = c["jugador_id"]
+            if jid not in tarjetas_map:
+                tarjetas_map[jid] = {"amarillas": 0, "rojas": 0}
+            if c.get("tarjeta_amarilla"):
+                tarjetas_map[jid]["amarillas"] += 1
+            if c.get("tarjeta_roja"):
+                tarjetas_map[jid]["rojas"] += 1
+    except Exception as e:
+        logger.warning(f"Error fetching tarjetas for team {eid}: {e}")
+
     data = []
     total_carga = 0
     jugadores_riesgo = 0
@@ -66,6 +87,7 @@ async def get_carga_equipo(
         carga_aguda = float(c.get("carga_aguda", 0) or 0)
         wellness = c.get("wellness_valor")
 
+        tarjetas = tarjetas_map.get(j["id"], {})
         item = CargaJugadorResponse(
             jugador_id=j["id"],
             equipo_id=eid,
@@ -84,6 +106,8 @@ async def get_carga_equipo(
             dorsal=j.get("dorsal"),
             posicion_principal=j.get("posicion_principal"),
             estado=j.get("estado"),
+            tarjetas_amarillas=tarjetas.get("amarillas", 0),
+            tarjetas_rojas=tarjetas.get("rojas", 0),
         )
         data.append(item)
 

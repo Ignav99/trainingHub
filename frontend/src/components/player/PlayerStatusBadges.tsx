@@ -6,6 +6,8 @@ interface PlayerStatusBadgesProps {
   estado: string
   nivelCarga?: NivelCarga | null
   sancionado?: boolean
+  tarjetasAmarillas?: number
+  tarjetasRojas?: number
   className?: string
 }
 
@@ -15,14 +17,14 @@ const ESTADO_BADGES: Record<string, { label: string; className: string } | undef
   enfermo: { label: 'Enfermo', className: 'bg-orange-100 text-orange-700 border-orange-200' },
 }
 
-const NIVEL_BADGES: Record<string, { className: string } | undefined> = {
-  critico: { className: 'bg-red-500' },
-  alto: { className: 'bg-orange-500' },
-  optimo: { className: 'bg-green-500' },
-  bajo: { className: 'bg-blue-400' },
+const NIVEL_COLORS: Record<string, { bg: string; text: string; label: string } | undefined> = {
+  critico: { bg: 'bg-red-100', text: 'text-red-700', label: 'Critico' },
+  alto: { bg: 'bg-orange-100', text: 'text-orange-700', label: 'Alto' },
+  optimo: { bg: 'bg-green-100', text: 'text-green-700', label: 'Optimo' },
+  bajo: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Bajo' },
 }
 
-export function PlayerStatusBadges({ estado, nivelCarga, sancionado, className = '' }: PlayerStatusBadgesProps) {
+export function PlayerStatusBadges({ estado, nivelCarga, sancionado, tarjetasAmarillas, tarjetasRojas, className = '' }: PlayerStatusBadgesProps) {
   const badges: JSX.Element[] = []
 
   // Estado-based badges
@@ -50,16 +52,51 @@ export function PlayerStatusBadges({ estado, nivelCarga, sancionado, className =
     )
   }
 
-  // Nivel carga dot
-  if (nivelCarga && nivelCarga !== 'optimo') {
-    const nivelBadge = NIVEL_BADGES[nivelCarga]
-    if (nivelBadge) {
+  // Tarjetas amarillas
+  if (tarjetasAmarillas && tarjetasAmarillas > 0) {
+    badges.push(
+      <span
+        key="amarillas"
+        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold"
+        style={{ backgroundColor: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}
+        title={`${tarjetasAmarillas} tarjeta${tarjetasAmarillas > 1 ? 's' : ''} amarilla${tarjetasAmarillas > 1 ? 's' : ''}`}
+      >
+        <span style={{ width: 7, height: 9, backgroundColor: '#F59E0B', borderRadius: 1, display: 'inline-block', flexShrink: 0 }} />
+        {tarjetasAmarillas}
+      </span>
+    )
+  }
+
+  // Tarjetas rojas
+  if (tarjetasRojas && tarjetasRojas > 0) {
+    badges.push(
+      <span
+        key="rojas"
+        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold"
+        style={{ backgroundColor: '#FEE2E2', color: '#991B1B', border: '1px solid #FECACA' }}
+        title={`${tarjetasRojas} tarjeta${tarjetasRojas > 1 ? 's' : ''} roja${tarjetasRojas > 1 ? 's' : ''}`}
+      >
+        <span style={{ width: 7, height: 9, backgroundColor: '#EF4444', borderRadius: 1, display: 'inline-block', flexShrink: 0 }} />
+        {tarjetasRojas}
+      </span>
+    )
+  }
+
+  // Nivel carga badge (always show, with label)
+  if (nivelCarga) {
+    const nivelInfo = NIVEL_COLORS[nivelCarga]
+    if (nivelInfo) {
       badges.push(
         <span
           key="carga"
-          className={`inline-block w-2 h-2 rounded-full ${nivelBadge.className}`}
-          title={`Carga: ${nivelCarga}`}
-        />
+          className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium ${nivelInfo.bg} ${nivelInfo.text}`}
+          title={`Carga: ${nivelInfo.label}`}
+        >
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+            <circle cx="4" cy="4" r="3" fill="currentColor" opacity="0.6" />
+          </svg>
+          {nivelInfo.label}
+        </span>
       )
     }
   }
@@ -67,7 +104,7 @@ export function PlayerStatusBadges({ estado, nivelCarga, sancionado, className =
   if (badges.length === 0) return null
 
   return (
-    <span className={`inline-flex items-center gap-1 ${className}`}>
+    <span className={`inline-flex items-center gap-1 flex-wrap ${className}`}>
       {badges}
     </span>
   )

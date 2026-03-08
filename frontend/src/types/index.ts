@@ -1204,6 +1204,9 @@ export interface CargaJugador {
   dorsal: number | null
   posicion_principal: string | null
   estado: string | null
+  // Aggregated from convocatorias
+  tarjetas_amarillas: number
+  tarjetas_rojas: number
 }
 
 export interface CargaEquipoResponse {
