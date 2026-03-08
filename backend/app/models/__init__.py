@@ -51,6 +51,7 @@ from app.models.sesion import (
 
 from app.models.asistencia import (
     MotivoAusencia,
+    TipoParticipacion,
     AsistenciaCreate,
     AsistenciaBatchCreate,
     AsistenciaUpdate,
@@ -284,7 +285,7 @@ __all__ = [
     "AITareaNueva", "AIRecomendadorInput", "AIRecomendadorOutput",
     "AIFaseRecomendacion", "AICargaEstimada",
     # Asistencia
-    "MotivoAusencia", "AsistenciaCreate", "AsistenciaBatchCreate",
+    "MotivoAusencia", "TipoParticipacion", "AsistenciaCreate", "AsistenciaBatchCreate",
     "AsistenciaUpdate", "AsistenciaResponse", "AsistenciaListResponse",
     "AsistenciaResumen",
     "AsistenciaHistoricoJugador", "AsistenciaHistoricoResponse",

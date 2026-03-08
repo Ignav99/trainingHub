@@ -597,6 +597,7 @@ async def batch_save_asistencias(
             "motivo_ausencia": a.motivo_ausencia.value if a.motivo_ausencia else None,
             "notas": a.notas,
             "hora_llegada": a.hora_llegada.isoformat() if a.hora_llegada else None,
+            "tipo_participacion": [tp.value for tp in a.tipo_participacion] if a.tipo_participacion else [],
         }
         supabase.table("asistencias_sesion").insert(data).execute()
 
@@ -635,6 +636,9 @@ async def update_asistencia(
 
     if "hora_llegada" in update_data and update_data["hora_llegada"]:
         update_data["hora_llegada"] = update_data["hora_llegada"].isoformat()
+
+    if "tipo_participacion" in update_data and update_data["tipo_participacion"]:
+        update_data["tipo_participacion"] = [tp.value for tp in update_data["tipo_participacion"]]
 
     response = supabase.table("asistencias_sesion").update(update_data).eq(
         "id", str(asistencia_id)

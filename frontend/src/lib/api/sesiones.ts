@@ -125,6 +125,7 @@ export const sesionesApi = {
     presente: boolean
     motivo_ausencia?: string
     notas?: string
+    tipo_participacion?: string[]
   }[]): Promise<AsistenciaListResponse> {
     return api.post<AsistenciaListResponse>(`/sesiones/${sesionId}/asistencias/batch`, { asistencias })
   },
@@ -133,6 +134,7 @@ export const sesionesApi = {
     presente?: boolean
     motivo_ausencia?: string
     notas?: string
+    tipo_participacion?: string[]
   }): Promise<Asistencia> {
     return api.put<Asistencia>(`/sesiones/${sesionId}/asistencias/${asistenciaId}`, data)
   },

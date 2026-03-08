@@ -75,10 +75,12 @@ import {
   Asistencia,
   AsistenciaListResponse,
   MotivoAusencia,
+  TipoParticipacion,
   FormacionEquipos,
   GrupoFormacion,
   EspacioFormacion,
 } from '@/types'
+import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
 
 const MATCH_DAY_COLORS: Record<string, string> = {
   'MD+1': 'bg-green-100 text-green-800',
@@ -690,7 +692,7 @@ export default function SesionDetailPage() {
 
   // Asistencia state
   const [jugadores, setJugadores] = useState<Jugador[]>([])
-  const [asistencias, setAsistencias] = useState<Map<string, { presente: boolean; motivo?: MotivoAusencia; notas?: string }>>(new Map())
+  const [asistencias, setAsistencias] = useState<Map<string, { presente: boolean; motivo?: MotivoAusencia; notas?: string; tipo_participacion: TipoParticipacion[] }>>(new Map())
   const [asistenciasLoaded, setAsistenciasLoaded] = useState(false)
   const [savingAsistencias, setSavingAsistencias] = useState(false)
 
@@ -741,12 +743,14 @@ export default function SesionDetailPage() {
     if (asistenciasLoaded) return
     try {
       const response = await sesionesApi.getAsistencias(sesionId)
-      const map = new Map<string, { presente: boolean; motivo?: MotivoAusencia; notas?: string }>()
+      const map = new Map<string, { presente: boolean; motivo?: MotivoAusencia; notas?: string; tipo_participacion: TipoParticipacion[] }>()
       for (const a of response.data) {
+        const tp = (a.tipo_participacion as TipoParticipacion[] | undefined) || []
         map.set(a.jugador_id, {
           presente: a.presente,
           motivo: a.motivo_ausencia as MotivoAusencia | undefined,
           notas: a.notas,
+          tipo_participacion: a.presente && tp.length === 0 ? ['sesion'] : tp,
         })
       }
       setAsistencias(map)
@@ -1024,10 +1028,29 @@ export default function SesionDetailPage() {
       const next = new Map(prev)
       const current = next.get(jugadorId)
       if (current) {
-        next.set(jugadorId, { ...current, presente: !current.presente, motivo: !current.presente ? undefined : current.motivo })
+        const willBePresent = !current.presente
+        next.set(jugadorId, {
+          ...current,
+          presente: willBePresent,
+          motivo: willBePresent ? undefined : current.motivo,
+          tipo_participacion: willBePresent ? ['sesion'] : [],
+        })
       } else {
-        next.set(jugadorId, { presente: false })
+        next.set(jugadorId, { presente: false, tipo_participacion: [] })
       }
+      return next
+    })
+  }
+
+  const toggleTipoParticipacion = (jugadorId: string, tipo: TipoParticipacion) => {
+    setAsistencias((prev) => {
+      const next = new Map(prev)
+      const current = next.get(jugadorId)
+      if (!current) return next
+      const tipos = current.tipo_participacion || []
+      const has = tipos.includes(tipo)
+      const updated = has ? tipos.filter((t) => t !== tipo) : [...tipos, tipo]
+      next.set(jugadorId, { ...current, tipo_participacion: updated })
       return next
     })
   }
@@ -1035,7 +1058,7 @@ export default function SesionDetailPage() {
   const setMotivoAusencia = (jugadorId: string, motivo: MotivoAusencia) => {
     setAsistencias((prev) => {
       const next = new Map(prev)
-      const current = next.get(jugadorId) || { presente: false }
+      const current = next.get(jugadorId) || { presente: false, tipo_participacion: [] as TipoParticipacion[] }
       next.set(jugadorId, { ...current, motivo })
       return next
     })
@@ -1046,11 +1069,13 @@ export default function SesionDetailPage() {
     try {
       const list = jugadores.map((j) => {
         const a = asistencias.get(j.id)
+        const presente = a?.presente ?? true
         return {
           jugador_id: j.id,
-          presente: a?.presente ?? true,
-          motivo_ausencia: a?.presente === false ? a?.motivo : undefined,
+          presente,
+          motivo_ausencia: !presente ? a?.motivo : undefined,
           notas: a?.notas,
+          tipo_participacion: presente ? (a?.tipo_participacion?.length ? a.tipo_participacion : ['sesion']) : [],
         }
       })
       await sesionesApi.saveAsistenciasBatch(sesionId, list)
@@ -1090,7 +1115,7 @@ export default function SesionDetailPage() {
           setJugadores((prev) => [...prev, orgJug as unknown as Jugador])
           setAsistencias((prev) => {
             const next = new Map(prev)
-            next.set(jugadorId, { presente: true })
+            next.set(jugadorId, { presente: true, tipo_participacion: ['sesion'] })
             return next
           })
         }
@@ -1117,7 +1142,7 @@ export default function SesionDetailPage() {
       setJugadores((prev) => [...prev, result.jugador])
       setAsistencias((prev) => {
         const next = new Map(prev)
-        next.set(result.jugador.id, { presente: true })
+        next.set(result.jugador.id, { presente: true, tipo_participacion: ['sesion'] })
         return next
       })
       setQuickAddDialogOpen(false)
@@ -1591,6 +1616,7 @@ export default function SesionDetailPage() {
                         {jugadoresByPosition[pos].map((jugador) => {
                           const asistencia = asistencias.get(jugador.id)
                           const presente = asistencia?.presente ?? true
+                          const tipos = asistencia?.tipo_participacion || (presente ? ['sesion'] : [])
 
                           return (
                             <div
@@ -1604,27 +1630,39 @@ export default function SesionDetailPage() {
                                   {jugador.dorsal || '?'}
                                 </div>
                                 <div>
-                                  <p className="text-sm font-medium">
+                                  <p className="text-sm font-medium flex items-center gap-1.5">
                                     {jugador.nombre} {jugador.apellidos}
                                     {jugador.es_invitado && (
-                                      <Badge variant="outline" className="text-[10px] ml-2 border-amber-300 text-amber-700 bg-amber-50">
+                                      <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700 bg-amber-50">
                                         Invitado
                                       </Badge>
                                     )}
-                                    {jugador.estado === 'lesionado' && (
-                                      <Badge variant="outline" className="text-[10px] ml-2 border-amber-300 text-amber-700 bg-amber-50">
-                                        Lesionado
-                                      </Badge>
-                                    )}
+                                    <PlayerStatusBadges estado={jugador.estado} />
                                   </p>
-                                  {jugador.estado !== 'activo' && jugador.estado !== 'lesionado' && (
-                                    <Badge variant="outline" className="text-[10px] mt-0.5">
-                                      {jugador.estado}
-                                    </Badge>
-                                  )}
                                 </div>
                               </div>
-                              <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-2">
+                                {presente && (
+                                  <div className="flex items-center gap-1">
+                                    {([
+                                      { key: 'sesion' as TipoParticipacion, label: 'Sesion', activeClass: 'bg-blue-100 text-blue-700 border-blue-300' },
+                                      { key: 'fisio' as TipoParticipacion, label: 'Fisio', activeClass: 'bg-purple-100 text-purple-700 border-purple-300' },
+                                      { key: 'margen' as TipoParticipacion, label: 'Margen', activeClass: 'bg-amber-100 text-amber-700 border-amber-300' },
+                                    ] as const).map((chip) => (
+                                      <button
+                                        key={chip.key}
+                                        onClick={() => toggleTipoParticipacion(jugador.id, chip.key)}
+                                        className={`px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors ${
+                                          tipos.includes(chip.key)
+                                            ? chip.activeClass
+                                            : 'bg-muted/50 text-muted-foreground border-transparent hover:border-muted-foreground/30'
+                                        }`}
+                                      >
+                                        {chip.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
                                 {!presente && (
                                   <select
                                     className="text-xs border rounded px-2 py-1 bg-background"

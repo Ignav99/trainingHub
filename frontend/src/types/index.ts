@@ -261,6 +261,7 @@ export interface StaffAsistente {
 // ============================================
 
 export type MotivoAusencia = 'lesion' | 'enfermedad' | 'sancion' | 'permiso' | 'seleccion' | 'viaje' | 'otro'
+export type TipoParticipacion = 'sesion' | 'fisio' | 'margen'
 
 export interface Asistencia {
   id: string
@@ -270,6 +271,7 @@ export interface Asistencia {
   motivo_ausencia?: MotivoAusencia
   notas?: string
   hora_llegada?: string
+  tipo_participacion?: TipoParticipacion[]
   created_at: string
   updated_at: string
   jugador?: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'foto_url' | 'es_portero'>

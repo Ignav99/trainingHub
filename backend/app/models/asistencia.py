@@ -21,6 +21,13 @@ class MotivoAusencia(str, Enum):
     OTRO = "otro"
 
 
+class TipoParticipacion(str, Enum):
+    """Tipo de participacion en una sesion."""
+    SESION = "sesion"
+    FISIO = "fisio"
+    MARGEN = "margen"
+
+
 # ============ Schemas de Asistencia ============
 
 class AsistenciaCreate(BaseModel):
@@ -30,6 +37,7 @@ class AsistenciaCreate(BaseModel):
     motivo_ausencia: Optional[MotivoAusencia] = None
     notas: Optional[str] = None
     hora_llegada: Optional[time] = None
+    tipo_participacion: Optional[List[TipoParticipacion]] = None
 
 
 class AsistenciaBatchCreate(BaseModel):
@@ -43,6 +51,7 @@ class AsistenciaUpdate(BaseModel):
     motivo_ausencia: Optional[MotivoAusencia] = None
     notas: Optional[str] = None
     hora_llegada: Optional[time] = None
+    tipo_participacion: Optional[List[TipoParticipacion]] = None
 
 
 class AsistenciaResponse(BaseModel):
@@ -54,6 +63,7 @@ class AsistenciaResponse(BaseModel):
     motivo_ausencia: Optional[str] = None
     notas: Optional[str] = None
     hora_llegada: Optional[time] = None
+    tipo_participacion: Optional[List[str]] = None
     created_at: datetime
     updated_at: datetime
 

@@ -56,6 +56,7 @@ import { jugadoresApi, Jugador, POSICIONES } from '@/lib/api/jugadores'
 import { FORMATIONS, Formation, FormationSlot } from '@/lib/formations'
 import { apiKey } from '@/lib/swr'
 import { formatDate } from '@/lib/utils'
+import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
 import type { Convocatoria, Partido, PaginatedResponse, EstadisticaPartido } from '@/types'
 
 // ============ Constants ============
@@ -1383,7 +1384,10 @@ export default function PartidosPage() {
                                           {conv.dorsal || player?.dorsal || '?'}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                          <p className="text-xs font-medium truncate">{getPlayerDisplayName(conv)}</p>
+                                          <p className="text-xs font-medium truncate flex items-center gap-1">
+                                            {getPlayerDisplayName(conv)}
+                                            {(() => { const fullJ = jugadores.find((j) => j.id === conv.jugador_id); return fullJ ? <PlayerStatusBadges estado={fullJ.estado} /> : null })()}
+                                          </p>
                                         </div>
                                         <Badge className={`text-[8px] border-0 ${posColor}`}>{pos || '-'}</Badge>
                                         <button
@@ -1980,6 +1984,7 @@ function PlayerSelectRow({
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium truncate">{jugador.apodo || `${jugador.nombre} ${jugador.apellidos}`}</span>
           <Badge className={`text-[9px] border-0 ${posColor}`}>{jugador.posicion_principal}</Badge>
+          <PlayerStatusBadges estado={jugador.estado} />
           {isInvitado && (
             <Badge variant="outline" className="text-[9px] border-dashed border-amber-400 text-amber-700 bg-amber-50">Invitado</Badge>
           )}
