@@ -253,6 +253,11 @@ from app.models.gdpr import (
     DataExportResponse,
 )
 
+from app.models.descanso import (
+    DescansoCreate,
+    DescansoResponse,
+)
+
 from app.models.medico import (
     TipoRegistroMedico,
     EstadoRegistroMedico,
@@ -356,6 +361,8 @@ __all__ = [
     "SolicitudGDPRCreate", "SolicitudGDPRResponse", "SolicitudGDPRListResponse",
     "SolicitudGDPRUpdateAdmin",
     "TutorVerifyResponse", "TutorAcceptRequest", "DataExportResponse",
+    # Descansos
+    "DescansoCreate", "DescansoResponse",
     # Medico
     "TipoRegistroMedico", "EstadoRegistroMedico", "AccionMedica",
     "RegistroMedicoCreate", "RegistroMedicoUpdate", "RegistroMedicoResponse",

@@ -46,10 +46,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { DashboardResumen, DashboardPlantilla } from '@/lib/api/dashboard'
 import { microciclosApi } from '@/lib/api/microciclos'
 import { partidosApi } from '@/lib/api/partidos'
+import { descansosApi } from '@/lib/api/descansos'
 import { RFEFCompeticion } from '@/lib/api/rfef'
 import { apiKey } from '@/lib/swr'
 import { formatDate } from '@/lib/utils'
-import type { Sesion, Microciclo, Partido, PaginatedResponse } from '@/types'
+import type { Sesion, Microciclo, Partido, Descanso, PaginatedResponse } from '@/types'
 
 // ============ Field pattern SVG background ============
 const FIELD_PATTERN = `url("data:image/svg+xml,%3Csvg width='200' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='10' y='10' width='180' height='180' fill='none' stroke='%23000' stroke-width='0.5' opacity='0.03'/%3E%3Cline x1='100' y1='10' x2='100' y2='190' stroke='%23000' stroke-width='0.5' opacity='0.03'/%3E%3Ccircle cx='100' cy='100' r='30' fill='none' stroke='%23000' stroke-width='0.5' opacity='0.03'/%3E%3C/svg%3E")`
@@ -137,6 +138,8 @@ export default function DashboardPage() {
   const { data: calMicroRes } = useSWR<PaginatedResponse<Microciclo>>(
     apiKey('/microciclos', { equipo_id: equipoId, fecha_desde: fechaDesde, fecha_hasta: fechaHasta }, ['equipo_id'])
   )
+  const descansosKey = apiKey('/descansos', { equipo_id: equipoId, fecha_desde: fechaDesde, fecha_hasta: fechaHasta }, ['equipo_id'])
+  const { data: descansosRes, mutate: mutateDescansos } = useSWR<{ data: Descanso[] }>(descansosKey)
 
   // Upcoming matches for create microciclo dialog
   const { data: upcomingRes } = useSWR<PaginatedResponse<Partido>>(
@@ -152,6 +155,14 @@ export default function DashboardPage() {
   const microciclosMes = calMicroRes?.data || []
   const upcomingMatches = upcomingRes?.data || []
   const loading = l1 || l3
+
+  // Descansos derived from SWR
+  const descansos = useMemo(() => new Set((descansosRes?.data || []).map((d) => d.fecha)), [descansosRes])
+  const descansoIdByDate = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const d of descansosRes?.data || []) map[d.fecha] = d.id
+    return map
+  }, [descansosRes])
 
   // RFEF liga position (derived)
   const { rfefComp, ligaPosition } = useMemo(() => {
@@ -172,7 +183,6 @@ export default function DashboardPage() {
   const [showDisponibilidad, setShowDisponibilidad] = useState(false)
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const [addMenuDay, setAddMenuDay] = useState<string | null>(null)
-  const [descansos, setDescansos] = useState<Set<string>>(new Set())
   const [showCreateMicro, setShowCreateMicro] = useState(false)
   const [creatingMicro, setCreatingMicro] = useState(false)
   const [microForm, setMicroForm] = useState({
@@ -594,14 +604,12 @@ export default function DashboardPage() {
                       <div className="border-t my-1" />
                       <button
                         className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted transition-colors text-left"
-                        onClick={() => {
+                        onClick={async () => {
                           setAddMenuDay(null)
-                          setDescansos((prev) => {
-                            const next = new Set(prev)
-                            if (next.has(date)) next.delete(date)
-                            else next.add(date)
-                            return next
-                          })
+                          if (equipoId) {
+                            await descansosApi.toggle(equipoId, date)
+                            mutateDescansos()
+                          }
                         }}
                       >
                         <Moon className="h-3.5 w-3.5 text-slate-500" />
@@ -630,13 +638,13 @@ export default function DashboardPage() {
                         {!isPast && (
                           <button
                             className="ml-auto p-0.5 rounded hover:bg-slate-200 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={(e) => {
+                            onClick={async (e) => {
                               e.stopPropagation()
-                              setDescansos((prev) => {
-                                const next = new Set(prev)
-                                next.delete(date)
-                                return next
-                              })
+                              const did = descansoIdByDate[date]
+                              if (did) {
+                                await descansosApi.delete(did)
+                                mutateDescansos()
+                              }
                             }}
                             title="Quitar descanso"
                           >
@@ -1137,14 +1145,10 @@ export default function DashboardPage() {
                       size="sm"
                       variant="outline"
                       className="text-xs h-9"
-                      onClick={() => {
-                        if (selectedDay) {
-                          setDescansos((prev) => {
-                            const next = new Set(prev)
-                            if (next.has(selectedDay)) next.delete(selectedDay)
-                            else next.add(selectedDay)
-                            return next
-                          })
+                      onClick={async () => {
+                        if (selectedDay && equipoId) {
+                          await descansosApi.toggle(equipoId, selectedDay)
+                          mutateDescansos()
                         }
                         setSelectedDay(null)
                       }}

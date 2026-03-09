@@ -38,6 +38,7 @@ from app.api.v1 import (
     medico,
     stripe_webhook,
     admin,
+    descansos,
 )
 
 api_router = APIRouter()
@@ -232,6 +233,12 @@ api_router.include_router(
     admin.router,
     prefix="/admin",
     tags=["Admin Panel"]
+)
+
+api_router.include_router(
+    descansos.router,
+    prefix="/descansos",
+    tags=["Descansos"]
 )
 
 

@@ -279,6 +279,20 @@ def recalculate_player_load(jugador_id: UUID, equipo_id: UUID) -> dict:
     # Last activity
     ultima_actividad = max((d for d, _ in loads), default=None) if loads else None
     dias_sin = (today - ultima_actividad).days if ultima_actividad else 0
+
+    # Discount planned rest days from inactivity count
+    if dias_sin > 0 and ultima_actividad:
+        try:
+            desc_res = supabase.table("descansos").select("fecha") \
+                .eq("equipo_id", eid) \
+                .gt("fecha", ultima_actividad.isoformat()) \
+                .lte("fecha", today.isoformat()) \
+                .execute()
+            planned_rest_days = len(desc_res.data or [])
+            dias_sin = max(0, dias_sin - planned_rest_days)
+        except Exception as e:
+            logger.error(f"Error fetching descansos for {jid}: {e}")
+
     ultima_carga = loads[-1][1] if loads else 0
 
     # Sort by date to get most recent

@@ -28,9 +28,10 @@ import {
   Plane
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { Sesion, Partido, MatchDay } from '@/types'
+import { Sesion, Partido, Descanso, MatchDay } from '@/types'
 import { sesionesApi } from '@/lib/api/sesiones'
 import { partidosApi } from '@/lib/api/partidos'
+import { descansosApi } from '@/lib/api/descansos'
 import { useEquipoStore } from '@/stores/equipoStore'
 import {
   format,
@@ -219,13 +220,17 @@ function DayDetailModal({
   sesiones,
   partidos,
   onClose,
-  onSelectSesion
+  onSelectSesion,
+  onToggleDescanso,
+  isDescanso,
 }: {
   date: Date
   sesiones: Sesion[]
   partidos: Partido[]
   onClose: () => void
   onSelectSesion: (sesion: Sesion) => void
+  onToggleDescanso: (fecha: string) => void
+  isDescanso: boolean
 }) {
   const router = useRouter()
   const dayName = format(date, 'EEEE', { locale: es })
@@ -271,13 +276,13 @@ function DayDetailModal({
     },
     {
       id: 'descanso',
-      label: 'Día Libre / Festivo',
-      description: 'Marcar como día de descanso',
+      label: isDescanso ? 'Quitar descanso' : 'Día Libre / Festivo',
+      description: isDescanso ? 'Eliminar día de descanso' : 'Marcar como día de descanso',
       icon: Palmtree,
       color: 'bg-green-500 text-white',
       action: () => {
-        // TODO: Implement marking day as rest
-        alert('Funcionalidad próximamente')
+        onToggleDescanso(fechaParam)
+        onClose()
       }
     }
   ]
@@ -403,11 +408,13 @@ function MonthView({
   currentDate,
   sesiones,
   partidos,
+  descansosFechas,
   onDayClick
 }: {
   currentDate: Date
   sesiones: Sesion[]
   partidos: Partido[]
+  descansosFechas: Set<string>
   onDayClick: (date: Date, sesiones: Sesion[], partidos: Partido[]) => void
 }) {
   const calendarDays = useMemo(() => {
@@ -459,14 +466,15 @@ function MonthView({
           const dayPartidos = partidosByDate.get(dateKey) || []
           const isCurrentMonth = isSameMonth(day, currentDate)
           const isCurrentDay = isToday(day)
-          const hasEvents = daySesiones.length > 0 || dayPartidos.length > 0
+          const isDayDescanso = descansosFechas.has(dateKey)
+          const hasEvents = daySesiones.length > 0 || dayPartidos.length > 0 || isDayDescanso
 
           return (
             <div
               key={index}
               onClick={() => onDayClick(day, daySesiones, dayPartidos)}
               className={`min-h-[100px] p-2 cursor-pointer hover:bg-gray-50 transition-colors ${
-                isCurrentMonth ? 'bg-white' : 'bg-gray-50'
+                isCurrentMonth ? (isDayDescanso ? 'bg-green-50' : 'bg-white') : 'bg-gray-50'
               }`}
             >
               <div className={`flex items-center justify-center w-7 h-7 mb-1 rounded-full text-sm font-medium ${
@@ -480,6 +488,12 @@ function MonthView({
               </div>
 
               <div className="space-y-1">
+                {isDayDescanso && daySesiones.length === 0 && dayPartidos.length === 0 && (
+                  <div className="flex items-center gap-1 p-1 rounded bg-green-100 border border-green-200">
+                    <Palmtree className="h-3 w-3 text-green-600" />
+                    <span className="text-[10px] font-medium text-green-700">Descanso</span>
+                  </div>
+                )}
                 {dayPartidos.map((partido) => (
                   <PartidoCard key={partido.id} partido={partido} onClick={() => {}} compact />
                 ))}
@@ -505,11 +519,13 @@ function MicrocicloView({
   currentDate,
   sesiones,
   partidos,
+  descansosFechas,
   onDayClick
 }: {
   currentDate: Date
   sesiones: Sesion[]
   partidos: Partido[]
+  descansosFechas: Set<string>
   onDayClick: (date: Date, sesiones: Sesion[], partidos: Partido[]) => void
 }) {
   const weekDays = useMemo(() => {
@@ -545,6 +561,7 @@ function MicrocicloView({
         const daySesiones = sesionesByDate.get(dateKey) || []
         const dayPartidos = partidosByDate.get(dateKey) || []
         const isCurrentDay = isToday(day)
+        const isDayDescanso = descansosFechas.has(dateKey)
         const matchDay = daySesiones[0]?.match_day || (dayPartidos.length > 0 ? 'MD' : null)
         const mdConfig = matchDay ? matchDayColors[matchDay] : null
 
@@ -554,10 +571,10 @@ function MicrocicloView({
             onClick={() => onDayClick(day, daySesiones, dayPartidos)}
             className={`rounded-xl border-2 overflow-hidden cursor-pointer hover:shadow-lg transition-all ${
               isCurrentDay ? 'ring-2 ring-primary ring-offset-2' : ''
-            } ${mdConfig?.border || 'border-gray-200'}`}
+            } ${isDayDescanso ? 'border-green-300' : mdConfig?.border || 'border-gray-200'}`}
           >
             {/* Header del día */}
-            <div className={`p-3 ${mdConfig?.bg || 'bg-gray-50'}`}>
+            <div className={`p-3 ${isDayDescanso && !mdConfig ? 'bg-green-50' : mdConfig?.bg || 'bg-gray-50'}`}>
               <div className="text-center">
                 <div className="text-xs text-gray-500 uppercase">
                   {format(day, 'EEE', { locale: es })}
@@ -575,13 +592,19 @@ function MicrocicloView({
 
             {/* Contenido */}
             <div className="p-3 bg-white min-h-[200px] space-y-2">
+              {isDayDescanso && daySesiones.length === 0 && dayPartidos.length === 0 && (
+                <div className="h-full flex flex-col items-center justify-center text-green-500">
+                  <Palmtree className="h-8 w-8 mb-2" />
+                  <span className="text-xs font-medium">Descanso</span>
+                </div>
+              )}
               {dayPartidos.map((partido) => (
                 <PartidoCard key={partido.id} partido={partido} onClick={() => {}} />
               ))}
               {daySesiones.map((sesion) => (
                 <SesionCard key={sesion.id} sesion={sesion} onClick={() => {}} />
               ))}
-              {daySesiones.length === 0 && dayPartidos.length === 0 && (
+              {!isDayDescanso && daySesiones.length === 0 && dayPartidos.length === 0 && (
                 <div className="h-full flex flex-col items-center justify-center text-gray-400">
                   <Coffee className="h-8 w-8 mb-2" />
                   <span className="text-xs">Sin actividad</span>
@@ -610,6 +633,7 @@ export default function CalendarioPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('microciclo')
   const [sesiones, setSesiones] = useState<Sesion[]>([])
   const [partidos, setPartidos] = useState<Partido[]>([])
+  const [descansosList, setDescansosList] = useState<Descanso[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedDay, setSelectedDay] = useState<{
     date: Date
@@ -640,8 +664,8 @@ export default function CalendarioPage() {
 
       console.log('[Calendario] Cargando datos:', { fechaDesde, fechaHasta, equipo_id: equipoActivo?.id })
 
-      // Cargar sesiones y partidos en paralelo
-      const [sesionesResponse, partidosResponse] = await Promise.all([
+      // Cargar sesiones, partidos y descansos en paralelo
+      const [sesionesResponse, partidosResponse, descansosResponse] = await Promise.all([
         sesionesApi.list({
           fecha_desde: fechaDesde,
           fecha_hasta: fechaHasta,
@@ -656,21 +680,37 @@ export default function CalendarioPage() {
         }).catch((err) => {
           console.error('[Calendario] Error cargando partidos:', err)
           return { data: [] }
-        })
+        }),
+        equipoActivo?.id
+          ? descansosApi.list(equipoActivo.id, fechaDesde, fechaHasta).catch((err) => {
+              console.error('[Calendario] Error cargando descansos:', err)
+              return { data: [] as Descanso[] }
+            })
+          : Promise.resolve({ data: [] as Descanso[] })
       ])
 
       console.log('[Calendario] Datos cargados:', {
         sesiones: sesionesResponse.data.length,
-        partidos: partidosResponse.data.length
+        partidos: partidosResponse.data.length,
+        descansos: descansosResponse.data.length
       })
 
       setSesiones(sesionesResponse.data)
       setPartidos(partidosResponse.data)
+      setDescansosList(descansosResponse.data)
     } catch (err) {
       console.error('[Calendario] Error loading data:', err)
     } finally {
       setLoading(false)
     }
+  }
+
+  const descansosFechas = useMemo(() => new Set(descansosList.map((d) => d.fecha)), [descansosList])
+
+  const handleToggleDescanso = async (fecha: string) => {
+    if (!equipoActivo?.id) return
+    await descansosApi.toggle(equipoActivo.id, fecha)
+    loadData()
   }
 
   const navigatePrev = () => {
@@ -815,6 +855,7 @@ export default function CalendarioPage() {
             currentDate={currentDate}
             sesiones={sesiones}
             partidos={partidos}
+            descansosFechas={descansosFechas}
             onDayClick={handleDayClick}
           />
         ) : (
@@ -822,6 +863,7 @@ export default function CalendarioPage() {
             currentDate={currentDate}
             sesiones={sesiones}
             partidos={partidos}
+            descansosFechas={descansosFechas}
             onDayClick={handleDayClick}
           />
         )}
@@ -838,6 +880,8 @@ export default function CalendarioPage() {
             setSelectedDay(null)
             window.location.href = `/sesiones/${sesion.id}`
           }}
+          onToggleDescanso={handleToggleDescanso}
+          isDescanso={descansosFechas.has(format(selectedDay.date, 'yyyy-MM-dd'))}
         />
       )}
     </div>

@@ -667,6 +667,16 @@ export interface Microciclo {
   partidos?: Partido
 }
 
+export interface Descanso {
+  id: string
+  equipo_id: string
+  fecha: string
+  tipo: 'descanso' | 'festivo'
+  notas?: string
+  created_by?: string
+  created_at: string
+}
+
 export interface MicrocicloCompleto {
   microciclo: Microciclo
   sesiones: (Pick<Sesion, 'id' | 'titulo' | 'fecha' | 'match_day' | 'estado' | 'duracion_total' | 'objetivo_principal' | 'intensidad_objetivo' | 'fase_juego_principal' | 'notas_pre' | 'notas_post'> & { num_tareas: number })[]
