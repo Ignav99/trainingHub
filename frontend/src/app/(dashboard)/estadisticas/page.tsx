@@ -347,10 +347,15 @@ export default function EstadisticasPage() {
                             {new Date(p.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
                           </td>
                           <td className="py-2">
-                            <span className="text-[10px] text-muted-foreground mr-1">
-                              {p.localia === 'local' ? 'vs' : '@'}
+                            <span className="inline-flex items-center gap-1.5">
+                              {p.rival?.escudo_url && (
+                                <img src={p.rival.escudo_url} alt="" className="w-4 h-4 object-contain" />
+                              )}
+                              <span className="text-[10px] text-muted-foreground mr-1">
+                                {p.localia === 'local' ? 'vs' : '@'}
+                              </span>
+                              {p.rival?.nombre || 'Rival'}
                             </span>
-                            {p.rival?.nombre || 'Rival'}
                           </td>
                           <td className="py-2 text-center">
                             <Badge

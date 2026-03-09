@@ -317,7 +317,11 @@ export default function DashboardPage() {
                 )}
                 {proximoPartido ? (
                   <>
-                    <Swords className="h-4 w-4" />
+                    {proximoPartido.rival?.escudo_url ? (
+                      <img src={proximoPartido.rival.escudo_url} alt="" className="w-5 h-5 object-contain" />
+                    ) : (
+                      <Swords className="h-4 w-4" />
+                    )}
                     <span>
                       {proximoPartido.localia === 'local' ? 'vs' : '@ '}{' '}
                       <strong className="text-white">
@@ -663,7 +667,11 @@ export default function DashboardPage() {
                         className="block rounded-md px-1.5 py-1 bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-1">
-                          <Swords className="h-3 w-3 text-amber-600 shrink-0" />
+                          {p.rival?.escudo_url ? (
+                            <img src={p.rival.escudo_url} alt="" className="w-3.5 h-3.5 object-contain shrink-0" />
+                          ) : (
+                            <Swords className="h-3 w-3 text-amber-600 shrink-0" />
+                          )}
                           <span className="text-[10px] font-bold text-amber-800 truncate">
                             {p.localia === 'local' ? 'vs' : '@'}{' '}
                             {p.rival?.nombre_corto || p.rival?.nombre || 'Rival'}
@@ -939,6 +947,9 @@ export default function DashboardPage() {
                         <div key={p.id} className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
+                              {p.rival?.escudo_url && (
+                                <img src={p.rival.escudo_url} alt="" className="w-5 h-5 object-contain shrink-0" />
+                              )}
                               <span className="text-sm font-bold">
                                 {p.localia === 'local' ? 'vs' : '@'}{' '}
                                 {p.rival?.nombre || 'Rival'}

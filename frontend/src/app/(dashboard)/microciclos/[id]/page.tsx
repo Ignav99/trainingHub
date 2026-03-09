@@ -303,7 +303,11 @@ export default function MicrocicloDetallePage() {
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-4">
                 <div className="p-2.5 rounded-xl bg-amber-50">
-                  <Swords className="h-6 w-6 text-amber-600" />
+                  {partido.rival?.escudo_url ? (
+                    <img src={partido.rival.escudo_url} alt="" className="w-6 h-6 object-contain" />
+                  ) : (
+                    <Swords className="h-6 w-6 text-amber-600" />
+                  )}
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-1">

@@ -624,7 +624,10 @@ export default function CompeticionPage() {
                           <Badge variant="outline" className="text-[10px] shrink-0">
                             {p.localia === 'local' ? 'LOCAL' : 'VISIT'}
                           </Badge>
-                          <span className="flex-1 text-sm font-medium truncate">
+                          <span className="flex-1 text-sm font-medium truncate flex items-center gap-1.5">
+                            {p.rival?.escudo_url && (
+                              <img src={p.rival.escudo_url} alt="" className="w-4 h-4 object-contain shrink-0" />
+                            )}
                             {p.rival?.nombre || 'Rival'}
                           </span>
                           {p.fecha && (

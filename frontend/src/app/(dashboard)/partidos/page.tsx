@@ -652,7 +652,10 @@ export default function PartidosPage() {
     >
       <div className="flex items-center justify-between">
         <div className="min-w-0 flex-1">
-          <p className="font-medium text-sm truncate">
+          <p className="font-medium text-sm truncate flex items-center gap-1.5">
+            {(partido as any).rival?.escudo_url && (
+              <img src={(partido as any).rival.escudo_url} alt="" className="w-4 h-4 object-contain shrink-0 inline" />
+            )}
             {partido.localia === 'local' ? 'vs' : '@'}{' '}
             {(partido as any).rival?.nombre || 'Rival'}
           </p>
@@ -767,7 +770,10 @@ export default function PartidosPage() {
             <>
               {/* Match header */}
               <div className="mb-4">
-                <h2 className="text-lg font-bold">
+                <h2 className="text-lg font-bold flex items-center gap-2">
+                  {selectedPartido.rival?.escudo_url && (
+                    <img src={selectedPartido.rival.escudo_url} alt="" className="w-6 h-6 object-contain" />
+                  )}
                   {selectedPartido.localia === 'local' ? 'vs' : '@'}{' '}
                   {(selectedPartido as any).rival?.nombre || 'Rival'}
                 </h2>
@@ -1036,10 +1042,17 @@ export default function PartidosPage() {
                                 </div>
                               )}
                               <div className="text-left flex-1">
-                                <p className="text-lg font-bold">{selectedPartido.rival?.nombre || 'Rival'}</p>
-                                <p className="text-xs text-muted-foreground uppercase">
-                                  {selectedPartido.localia === 'local' ? 'Visitante' : 'Local'}
-                                </p>
+                                <div className="flex items-center gap-2">
+                                  {selectedPartido.rival?.escudo_url && (
+                                    <img src={selectedPartido.rival.escudo_url} alt="" className="w-8 h-8 object-contain" />
+                                  )}
+                                  <div>
+                                    <p className="text-lg font-bold">{selectedPartido.rival?.nombre || 'Rival'}</p>
+                                    <p className="text-xs text-muted-foreground uppercase">
+                                      {selectedPartido.localia === 'local' ? 'Visitante' : 'Local'}
+                                    </p>
+                                  </div>
+                                </div>
                               </div>
                             </div>
                             <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">

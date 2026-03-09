@@ -179,10 +179,8 @@ def _check_feature_gate(plan_info: dict, permissions_requested: tuple[Permission
         if perm_prefix == "ai" and not features.get("ai_enabled", True):
             return False, "El asistente AI no esta disponible en su plan actual."
 
-        # Rival analysis
-        if perm_prefix == "rival" and perm.value != Permission.RIVAL_READ.value:
-            if not features.get("rival_analysis_enabled", False):
-                return False, "El analisis de rivales no esta disponible en su plan actual."
+        # Rival analysis — only gate scouting AI, not basic CRUD
+        # (scouting-chat endpoint checks AI availability separately)
 
     return True, None
 
