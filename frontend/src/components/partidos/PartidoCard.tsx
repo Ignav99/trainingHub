@@ -23,7 +23,7 @@ export function PartidoCard({ partido, isSelected, isNext, onSelect }: PartidoCa
   return (
     <button
       onClick={() => onSelect(partido.id)}
-      className={`w-full text-left p-3 rounded-lg border transition-colors ${
+      className={`w-full text-left p-3 rounded-lg border card-interactive ${
         isSelected
           ? 'border-primary bg-primary/5'
           : isNext

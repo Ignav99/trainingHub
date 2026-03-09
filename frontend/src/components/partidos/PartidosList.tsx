@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { Calendar, Trophy, Swords, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/ui/empty-state'
 import { PartidoCard } from './PartidoCard'
 import type { Partido } from '@/types'
 
@@ -35,22 +35,23 @@ export function PartidosList({
 
   if (allPartidos.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-8 text-center">
-          <Swords className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-          <p className="text-sm text-muted-foreground mb-3">Sin partidos</p>
+      <EmptyState
+        icon={<Swords className="h-12 w-12" />}
+        title="Sin partidos"
+        description="Añade tu primer partido para empezar"
+        action={
           <Button asChild size="sm">
             <Link href="/partidos/nuevo">
               <Plus className="h-4 w-4 mr-2" /> Nuevo Partido
             </Link>
           </Button>
-        </CardContent>
-      </Card>
+        }
+      />
     )
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 animate-fade-in">
       {proximos.length > 0 && (
         <div>
           <h2 className="text-xs font-semibold uppercase tracking-wider px-1 mb-1.5 text-primary flex items-center gap-1.5">

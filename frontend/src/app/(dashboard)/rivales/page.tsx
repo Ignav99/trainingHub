@@ -29,6 +29,8 @@ import {
 import { toast } from 'sonner'
 import { apiKey } from '@/lib/swr'
 import { CardGridSkeleton } from '@/components/ui/page-skeletons'
+import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 import { rivalesApi, RivalCreateData } from '@/lib/api/partidos'
 import type { Rival, PaginatedResponse } from '@/types'
 
@@ -112,19 +114,16 @@ export default function RivalesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Shield className="h-6 w-6 text-primary" />
-            Rivales
-          </h1>
-          <p className="text-muted-foreground mt-1">Equipos rivales de la competicion</p>
-        </div>
-        <Button onClick={() => { setEditingId(null); setForm({ nombre: '', nombre_corto: '', escudo_url: '', estadio: '', ciudad: '', notas: '' }); setShowForm(true) }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nuevo Rival
-        </Button>
-      </div>
+      <PageHeader
+        title="Rivales"
+        description="Equipos rivales de la competicion"
+        actions={
+          <Button onClick={() => { setEditingId(null); setForm({ nombre: '', nombre_corto: '', escudo_url: '', estadio: '', ciudad: '', notas: '' }); setShowForm(true) }}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nuevo Rival
+          </Button>
+        }
+      />
 
       {/* Search */}
       <div className="relative max-w-md">
@@ -141,20 +140,20 @@ export default function RivalesPage() {
       {loading ? (
         <CardGridSkeleton />
       ) : rivales.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-            <h3 className="text-lg font-medium mb-1">Sin rivales</h3>
-            <p className="text-sm text-muted-foreground mb-4">Anade los equipos contra los que compites</p>
+        <EmptyState
+          icon={<Shield className="h-12 w-12" />}
+          title="Sin rivales"
+          description="Anade los equipos contra los que compites"
+          action={
             <Button onClick={() => setShowForm(true)}>
               <Plus className="h-4 w-4 mr-2" /> Nuevo Rival
             </Button>
-          </CardContent>
-        </Card>
+          }
+        />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {rivales.map((rival) => (
-            <Card key={rival.id} className="hover:shadow-sm transition-shadow">
+            <Card key={rival.id} className="card-interactive">
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
                   <Link href={`/rivales/${rival.id}`} className="flex items-start gap-3 flex-1 min-w-0">

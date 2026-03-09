@@ -18,7 +18,7 @@ export function QuickStats({ loading, ultimoPartido, proximoPartido }: QuickStat
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {/* Informe de Partido */}
-      <Card className="border-l-4 border-l-blue-500">
+      <Card className="border-l-4 border-l-blue-500 card-hover">
         <CardContent className="p-5">
           <div className="flex items-start gap-3">
             <div className="p-2 rounded-lg bg-blue-50">
@@ -50,7 +50,7 @@ export function QuickStats({ loading, ultimoPartido, proximoPartido }: QuickStat
       </Card>
 
       {/* Plan de Partido */}
-      <Card className="border-l-4 border-l-emerald-500">
+      <Card className="border-l-4 border-l-emerald-500 card-hover">
         <CardContent className="p-5">
           <div className="flex items-start gap-3">
             <div className="p-2 rounded-lg bg-emerald-50">

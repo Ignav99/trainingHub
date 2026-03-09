@@ -33,6 +33,8 @@ import { Tarea, CategoriaTarea, PaginatedResponse } from '@/types'
 import { tareasApi } from '@/lib/api/tareas'
 import { apiKey } from '@/lib/swr'
 import { ListPageSkeleton } from '@/components/ui/page-skeletons'
+import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 
 // Componente Badge de categoría
 function CategoryBadge({ codigo, nombre, color }: { codigo: string; nombre: string; color?: string }) {
@@ -225,30 +227,28 @@ export default function TareasPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Tareas</h1>
-          <p className="text-muted-foreground">
-            {total} tareas {tab === 'biblioteca' ? 'en la biblioteca del club' : 'en tu colección'}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Link
-            href="/tareas/nueva"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            Nueva Tarea
-          </Link>
-          <Link
-            href="/tareas/nueva-ai"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-          >
-            <Bot className="h-4 w-4" />
-            Crear con IA
-          </Link>
-        </div>
-      </div>
+      <PageHeader
+        title="Tareas"
+        description={`${total} tareas ${tab === 'biblioteca' ? 'en la biblioteca del club' : 'en tu colección'}`}
+        actions={
+          <>
+            <Link
+              href="/tareas/nueva"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              Nueva Tarea
+            </Link>
+            <Link
+              href="/tareas/nueva-ai"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Bot className="h-4 w-4" />
+              Crear con IA
+            </Link>
+          </>
+        }
+      />
 
       {/* Tabs */}
       <div className="flex border-b">
@@ -438,43 +438,36 @@ export default function TareasPage() {
           </button>
         </div>
       ) : tareas.length === 0 ? (
-        <div className="text-center py-12 bg-card rounded-xl border">
-          <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-            {tab === 'biblioteca' ? (
-              <Library className="h-8 w-8 text-muted-foreground" />
-            ) : (
-              <Search className="h-8 w-8 text-muted-foreground" />
-            )}
-          </div>
-          <h3 className="text-lg font-medium mb-2">
-            {tab === 'biblioteca' ? 'Biblioteca vacía' : 'No hay tareas'}
-          </h3>
-          <p className="text-muted-foreground mb-4">
-            {hasActiveFilters
+        <EmptyState
+          icon={tab === 'biblioteca' ? <Library className="h-12 w-12" /> : <Search className="h-12 w-12" />}
+          title={tab === 'biblioteca' ? 'Biblioteca vacía' : 'No hay tareas'}
+          description={
+            hasActiveFilters
               ? 'No se encontraron tareas con los filtros aplicados'
               : tab === 'biblioteca'
               ? 'Las tareas creadas por cualquier miembro del club aparecerán aquí'
               : 'Comienza creando tu primera tarea de entrenamiento'
-            }
-          </p>
-          {!hasActiveFilters && tab === 'mis_tareas' && (
-            <Link
-              href="/tareas/nueva"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90"
-            >
-              <Plus className="h-4 w-4" />
-              Crear tarea
-            </Link>
-          )}
-        </div>
+          }
+          action={
+            !hasActiveFilters && tab === 'mis_tareas' ? (
+              <Link
+                href="/tareas/nueva"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90"
+              >
+                <Plus className="h-4 w-4" />
+                Crear tarea
+              </Link>
+            ) : undefined
+          }
+        />
       ) : (
         <>
           {/* Grid de tareas */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
             {tareas.map((tarea) => (
               <div
                 key={tarea.id}
-                className="relative bg-card rounded-xl border hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group overflow-hidden"
+                className="relative card-interactive rounded-xl hover:border-primary/30 group overflow-hidden"
                 onClick={() => router.push(`/tareas/${tarea.id}`)}
               >
                 {/* Intensity left bar */}

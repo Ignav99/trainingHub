@@ -121,7 +121,7 @@ export default function EstadisticasPage() {
     : 0
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2"><BarChart3 className="h-6 w-6 text-primary" />Estadísticas</h1>
         <p className="text-muted-foreground text-sm">{equipoActivo.nombre}</p>

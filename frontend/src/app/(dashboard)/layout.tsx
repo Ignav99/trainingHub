@@ -35,6 +35,7 @@ import { Badge } from '@/components/ui/badge'
 import { KabineLoader } from '@/components/ui/kabine-loader'
 import { Toaster } from '@/components/ui/toast'
 import { MobileBottomNav } from '@/components/ui/mobile-nav'
+import { PageTransition } from '@/components/ui/page-transition'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -171,7 +172,9 @@ export default function DashboardLayout({
         </div>
 
         <main className="py-6 pb-24 lg:pb-6 px-4 sm:px-6 lg:px-8">
-          {children}
+          <PageTransition>
+            {children}
+          </PageTransition>
         </main>
       </div>
       <MobileBottomNav />

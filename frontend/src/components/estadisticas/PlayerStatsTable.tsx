@@ -118,7 +118,7 @@ export function PlayerStatsTable({
                         : 'text-red-700'
 
                     return (
-                      <tr key={j.jugador_id} className="border-b last:border-0 hover:bg-muted/30">
+                      <tr key={j.jugador_id} className="border-b last:border-0 row-hover">
                         <td className="py-2.5 font-medium">
                           {j.nombre} {j.apellidos}
                         </td>

@@ -5,8 +5,6 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import useSWR, { mutate } from 'swr'
 import {
-  ArrowLeft,
-  HeartPulse,
   Edit,
   Save,
   Loader2,
@@ -27,6 +25,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
+import { PageHeader } from '@/components/ui/page-header'
 import { useAuthStore } from '@/stores/authStore'
 import { medicoApi } from '@/lib/api/medico'
 import { Jugador, POSICIONES } from '@/lib/api/jugadores'
@@ -174,26 +173,25 @@ export default function EnfermeriaDetailPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-4">
-          <Link href="/enfermeria" className="p-2 hover:bg-gray-100 rounded-lg transition-colors mt-1">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-              {registro.titulo}
-            </h1>
-            <div className="flex items-center gap-2 mt-1">
-              <Badge className={`${estadoConf.bg} ${estadoConf.color} border-0`}>
-                {estadoConf.label}
-              </Badge>
-              <Badge variant="outline">
-                {TIPO_LABELS[registro.tipo] || registro.tipo}
-              </Badge>
-            </div>
+      <PageHeader
+        title={registro.titulo}
+        breadcrumbs={[
+          { label: 'Enfermería', href: '/enfermeria' },
+          { label: 'Detalle' },
+        ]}
+        actions={
+          <div className="flex items-center gap-2">
+            <Badge className={`${estadoConf.bg} ${estadoConf.color} border-0`}>
+              {estadoConf.label}
+            </Badge>
+            <Badge variant="outline">
+              {TIPO_LABELS[registro.tipo] || registro.tipo}
+            </Badge>
           </div>
-        </div>
-        <div className="flex gap-2">
+        }
+      />
+
+      <div className="flex justify-end gap-2">
           {registro.estado !== 'alta' && (
             <Button variant="outline" onClick={() => setShowAlta(true)} className="text-green-700 border-green-300 hover:bg-green-50">
               <CheckCircle className="h-4 w-4 mr-2" />
@@ -214,10 +212,9 @@ export default function EnfermeriaDetailPage() {
               Editar
             </Button>
           )}
-        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="animate-fade-in grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column - Player info */}
         <div className="space-y-6">
           <Card>

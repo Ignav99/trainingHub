@@ -163,7 +163,7 @@ export function CalendarSection({
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="p-0">
+      <CardContent className="p-0 animate-fade-in">
         {/* Day headers */}
         <div className="grid grid-cols-7 border-b bg-muted/30">
           {DAY_NAMES.map((d, i) => (
@@ -265,7 +265,7 @@ export function CalendarSection({
                     onClick={(e) => e.stopPropagation()}
                   >
                     <button
-                      className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-3 py-2 text-xs row-hover text-left"
                       onClick={() => {
                         setAddMenuDay(null)
                         onNavigate('/sesiones/nueva')
@@ -275,7 +275,7 @@ export function CalendarSection({
                       <span>Entreno (manual)</span>
                     </button>
                     <button
-                      className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-3 py-2 text-xs row-hover text-left"
                       onClick={() => {
                         setAddMenuDay(null)
                         onNavigate('/sesiones/nueva-ai')
@@ -286,7 +286,7 @@ export function CalendarSection({
                     </button>
                     <div className="border-t my-1" />
                     <button
-                      className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-3 py-2 text-xs row-hover text-left"
                       onClick={() => {
                         setAddMenuDay(null)
                         onNavigate('/partidos/nuevo')
@@ -297,7 +297,7 @@ export function CalendarSection({
                     </button>
                     <div className="border-t my-1" />
                     <button
-                      className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-3 py-2 text-xs row-hover text-left"
                       onClick={() => {
                         setAddMenuDay(null)
                         if (equipoId) {
@@ -309,7 +309,7 @@ export function CalendarSection({
                       <span>{isDescanso ? 'Quitar descanso' : 'Descanso'}</span>
                     </button>
                     <button
-                      className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-3 py-2 text-xs row-hover text-left"
                       onClick={() => {
                         setAddMenuDay(null)
                         // Placeholder for "Otro" type -- could be gym, recovery, etc.

@@ -208,7 +208,7 @@ export default function AIChatPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] gap-0">
+    <div className="animate-fade-in flex h-[calc(100vh-7rem)] gap-0">
       {/* Sidebar - conversation list */}
       {showSidebar && (
         <div className="w-72 shrink-0 border-r flex flex-col bg-card rounded-l-lg">

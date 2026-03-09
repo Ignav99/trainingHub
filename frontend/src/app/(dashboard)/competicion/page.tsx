@@ -15,6 +15,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Spinner } from '@/components/ui/spinner'
 import { ListPageSkeleton } from '@/components/ui/page-skeletons'
+import { PageHeader } from '@/components/ui/page-header'
 import { apiKey } from '@/lib/swr'
 import {
   Trophy,
@@ -491,65 +492,48 @@ export default function CompeticionPage() {
   const racha = miEquipoStats?.ultimos_5 || []
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Trophy className="h-6 w-6" />
-            {competicion.nombre}
-          </h1>
-          <div className="flex items-center gap-3 mt-1">
-            {competicion.ultima_sincronizacion && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                Sync: {new Date(competicion.ultima_sincronizacion).toLocaleString('es-ES')}
-              </p>
-            )}
-            {miEquipo && (
-              <p className="text-xs font-medium flex items-center gap-1">
-                <Users className="h-3 w-3" />
-                {miEquipo}
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
-          >
-            <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Sincronizando...' : 'Sync completo'}
-          </button>
-          <button
-            onClick={handleSyncActas}
-            disabled={syncingActas}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm hover:bg-muted disabled:opacity-50"
-          >
-            <FileText className={`h-4 w-4 ${syncingActas ? 'animate-spin' : ''}`} />
-            {syncingActas ? 'Actas...' : 'Sync Actas'}
-          </button>
-          {sancionesConfigured && (
+      <PageHeader
+        title={competicion.nombre}
+        actions={
+          <>
             <button
-              onClick={handleSyncSanciones}
-              disabled={syncingSanciones}
+              onClick={handleSync}
+              disabled={syncing}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Sincronizando...' : 'Sync completo'}
+            </button>
+            <button
+              onClick={handleSyncActas}
+              disabled={syncingActas}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm hover:bg-muted disabled:opacity-50"
             >
-              <Shield className={`h-4 w-4 ${syncingSanciones ? 'animate-spin' : ''}`} />
-              {syncingSanciones ? 'Sanciones...' : 'Sync Sanciones'}
+              <FileText className={`h-4 w-4 ${syncingActas ? 'animate-spin' : ''}`} />
+              {syncingActas ? 'Actas...' : 'Sync Actas'}
             </button>
-          )}
-          <button
-            onClick={() => setConfirmDelete(true)}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm text-muted-foreground hover:text-destructive hover:border-destructive transition-colors"
-            title="Eliminar competicion"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
+            {sancionesConfigured && (
+              <button
+                onClick={handleSyncSanciones}
+                disabled={syncingSanciones}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm hover:bg-muted disabled:opacity-50"
+              >
+                <Shield className={`h-4 w-4 ${syncingSanciones ? 'animate-spin' : ''}`} />
+                {syncingSanciones ? 'Sanciones...' : 'Sync Sanciones'}
+              </button>
+            )}
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm text-muted-foreground hover:text-destructive hover:border-destructive transition-colors"
+              title="Eliminar competicion"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </>
+        }
+      />
 
       {/* Delete confirmation */}
       {confirmDelete && (
@@ -704,10 +688,10 @@ export default function CompeticionPage() {
                     return (
                       <tr
                         key={e.equipo}
-                        className={`border-b last:border-0 transition-colors ${
+                        className={`border-b last:border-0 row-hover ${
                           isMyTeam
                             ? 'bg-yellow-50 dark:bg-yellow-950/20 font-medium'
-                            : 'hover:bg-muted/50'
+                            : ''
                         }`}
                       >
                         <td className="py-2 px-3 text-muted-foreground">{e.posicion}</td>
@@ -817,10 +801,10 @@ export default function CompeticionPage() {
                     return (
                       <tr
                         key={idx}
-                        className={`border-b last:border-0 ${
+                        className={`border-b last:border-0 row-hover ${
                           isMyTeam
                             ? 'bg-yellow-50 dark:bg-yellow-950/20'
-                            : 'hover:bg-muted/50'
+                            : ''
                         }`}
                       >
                         <td className="py-2 px-3 text-muted-foreground">{idx + 1}</td>

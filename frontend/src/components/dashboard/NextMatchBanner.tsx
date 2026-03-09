@@ -31,7 +31,7 @@ export function NextMatchBanner({
 }: NextMatchBannerProps) {
   return (
     <div
-      className="-mt-6 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-4 rounded-b-2xl shadow-sm mb-2"
+      className="-mt-6 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-4 rounded-b-2xl shadow-sm mb-2 animate-fade-in"
       style={{ backgroundColor: theme.colorPrimario }}
     >
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

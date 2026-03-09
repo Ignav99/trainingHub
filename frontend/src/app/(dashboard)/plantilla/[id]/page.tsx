@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
+import { PageHeader } from '@/components/ui/page-header'
 import { Jugador, JugadorUpdate, jugadoresApi, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
 
 export default function JugadorDetailPage() {
@@ -155,28 +156,17 @@ export default function JugadorDetailPage() {
   const estadoConfig = ESTADOS_JUGADOR[jugador.estado as keyof typeof ESTADOS_JUGADOR]
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/plantilla"
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              {jugador.apodo || `${jugador.nombre} ${jugador.apellidos}`}
-            </h1>
-            {jugador.apodo && (
-              <p className="text-gray-500">{jugador.nombre} {jugador.apellidos}</p>
-            )}
-            {!jugador.apodo && <p className="text-gray-500">Ficha del jugador</p>}
-          </div>
-        </div>
-        <div className="flex gap-2">
-          {isEditing ? (
+      <PageHeader
+        title={jugador.apodo || `${jugador.nombre} ${jugador.apellidos}`}
+        description={jugador.apodo ? `${jugador.nombre} ${jugador.apellidos}` : 'Ficha del jugador'}
+        breadcrumbs={[
+          { label: 'Plantilla', href: '/plantilla' },
+          { label: jugador.apodo || `${jugador.nombre} ${jugador.apellidos}` },
+        ]}
+        actions={
+          isEditing ? (
             <>
               <button
                 onClick={() => setIsEditing(false)}
@@ -210,16 +200,16 @@ export default function JugadorDetailPage() {
                 Eliminar
               </button>
             </>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
 
       {/* Main content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column - Photo and basic info */}
         <div className="space-y-6">
           {/* Photo card */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="bg-white rounded-xl border border-gray-200 p-6 card-hover">
             <div className="relative mx-auto w-40 h-40 mb-4">
               {jugador.foto_url ? (
                 <img
@@ -305,7 +295,7 @@ export default function JugadorDetailPage() {
           </div>
 
           {/* Personal info */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="bg-white rounded-xl border border-gray-200 p-6 card-hover">
             <h3 className="font-semibold text-gray-900 mb-4">Datos personales</h3>
             <div className="space-y-3">
               {jugador.fecha_nacimiento && (
@@ -352,7 +342,7 @@ export default function JugadorDetailPage() {
         {/* Right column - Stats and details */}
         <div className="lg:col-span-2 space-y-6">
           {/* Niveles */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="bg-white rounded-xl border border-gray-200 p-6 card-hover">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-gray-900">Niveles</h3>
               {jugador.nivel_global && (
@@ -422,7 +412,7 @@ export default function JugadorDetailPage() {
           </div>
 
           {/* Posiciones */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="bg-white rounded-xl border border-gray-200 p-6 card-hover">
             <h3 className="font-semibold text-gray-900 mb-4">Posiciones</h3>
             <div className="flex flex-wrap gap-2">
               <span
@@ -448,7 +438,7 @@ export default function JugadorDetailPage() {
 
           {/* Datos adicionales */}
           {isEditing ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+            <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4 card-hover">
               <h3 className="font-semibold text-gray-900">Datos adicionales</h3>
 
               <div className="grid grid-cols-2 gap-4">
@@ -558,7 +548,7 @@ export default function JugadorDetailPage() {
               </div>
             </div>
           ) : jugador.notas ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <div className="bg-white rounded-xl border border-gray-200 p-6 card-hover">
               <h3 className="font-semibold text-gray-900 mb-2">Notas</h3>
               <p className="text-gray-600">{jugador.notas}</p>
             </div>

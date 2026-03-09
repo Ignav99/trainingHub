@@ -74,7 +74,7 @@ export function DayDetailPanel({
                   </h4>
                   <div className="space-y-2">
                     {dayPartidos.map((p) => (
-                      <div key={p.id} className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
+                      <div key={p.id} className="card-interactive border-amber-200 bg-amber-50/50 p-3">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             {p.rival?.escudo_url && (
@@ -197,7 +197,7 @@ export function DayDetailPanel({
                       const badge = estadoBadge[s.estado] || estadoBadge.borrador
 
                       return (
-                        <div key={s.id} className="rounded-lg border p-3 hover:bg-muted/30 transition-colors">
+                        <div key={s.id} className="card-interactive p-3 row-hover">
                           <div className="flex items-start justify-between mb-2">
                             <div>
                               <div className="flex items-center gap-2">

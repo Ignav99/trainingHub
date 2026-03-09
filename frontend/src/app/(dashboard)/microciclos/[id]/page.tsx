@@ -218,7 +218,7 @@ export default function MicrocicloDetallePage() {
   const rangeLabel = `${formatDateShort(micro.fecha_inicio.slice(0, 10))} - ${formatDateShort(micro.fecha_fin.slice(0, 10))}`
 
   return (
-    <div className="space-y-6">
+    <div className="animate-fade-in space-y-6">
       {/* ============ Header ============ */}
       <div>
         <Link
@@ -351,19 +351,19 @@ export default function MicrocicloDetallePage() {
           Disponibilidad de Plantilla
         </h2>
         <div className="grid grid-cols-3 gap-4">
-          <Card className="border-t-4 border-t-green-500">
+          <Card className="card-hover border-t-4 border-t-green-500">
             <CardContent className="p-4 text-center">
               <p className="text-3xl font-bold text-green-700">{data.plantilla.disponibles}</p>
               <p className="text-sm text-green-600">Disponibles</p>
             </CardContent>
           </Card>
-          <Card className="border-t-4 border-t-red-500">
+          <Card className="card-hover border-t-4 border-t-red-500">
             <CardContent className="p-4 text-center">
               <p className="text-3xl font-bold text-red-700">{data.plantilla.lesionados}</p>
               <p className="text-sm text-red-600">Lesionados</p>
             </CardContent>
           </Card>
-          <Card className="border-t-4 border-t-amber-500">
+          <Card className="card-hover border-t-4 border-t-amber-500">
             <CardContent className="p-4 text-center">
               <p className="text-3xl font-bold text-amber-700">{data.plantilla.sancionados}</p>
               <p className="text-sm text-amber-600">Sancionados</p>

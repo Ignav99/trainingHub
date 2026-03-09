@@ -28,6 +28,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { apiKey } from '@/lib/swr'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
+import { PageHeader } from '@/components/ui/page-header'
 import { RFEFCompeticion } from '@/lib/api/rfef'
 import { rivalesApi } from '@/lib/api/partidos'
 import { useEquipoStore } from '@/stores/equipoStore'
@@ -195,11 +196,15 @@ export default function RivalDetailPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      {/* Back */}
-      <Link href="/rivales" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
-        <ChevronLeft className="h-4 w-4" /> Rivales
-      </Link>
+    <div className="space-y-6 max-w-3xl animate-fade-in">
+      {/* Header with breadcrumbs */}
+      <PageHeader
+        title={rival.nombre}
+        breadcrumbs={[
+          { label: 'Rivales', href: '/rivales' },
+          { label: rival.nombre },
+        ]}
+      />
 
       {/* Header with escudo upload */}
       <div className="flex items-center gap-4">

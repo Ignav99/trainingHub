@@ -32,6 +32,8 @@ import { Jugador, jugadoresApi, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/ju
 import { useEquipoStore } from '@/stores/equipoStore'
 import { apiKey } from '@/lib/swr'
 import { CardGridSkeleton } from '@/components/ui/page-skeletons'
+import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
 import type { CargaEquipoResponse, CargaJugador } from '@/types'
 
@@ -134,10 +136,10 @@ function JugadorCard({
 
   return (
     <div
-      className={`relative bg-white rounded-xl border p-4 transition-all cursor-pointer group hover:shadow-md ${
+      className={`relative card-interactive rounded-xl p-4 group ${
         isCrossTeam
           ? 'border-dashed border-gray-400 bg-gray-50/50'
-          : isNoDisponible ? 'border-gray-300 bg-gray-50' : 'border-gray-200 hover:border-primary/30'
+          : isNoDisponible ? 'border-gray-300 bg-gray-50' : 'hover:border-primary/30'
       }`}
       onClick={() => router.push(`/plantilla/${jugador.id}`)}
     >
@@ -563,30 +565,28 @@ export default function PlantillaPage() {
         </div>
 
         {/* Título y acciones */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Plantilla</h1>
-            <p className="text-muted-foreground">
-              {stats ? `${stats.disponibles} disponibles de ${stats.total} jugadores` : 'Selecciona un equipo'}
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <Link
-              href="/plantilla/invitados"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              <UserPlus className="h-4 w-4" />
-              Invitados
-            </Link>
-            <Link
-              href="/plantilla/nuevo"
-              className={`inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors ${!equipoActivo ? 'opacity-50 pointer-events-none' : ''}`}
-            >
-              <Plus className="h-4 w-4" />
-              Nuevo Jugador
-            </Link>
-          </div>
-        </div>
+        <PageHeader
+          title="Plantilla"
+          description={stats ? `${stats.disponibles} disponibles de ${stats.total} jugadores` : 'Selecciona un equipo'}
+          actions={
+            <>
+              <Link
+                href="/plantilla/invitados"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <UserPlus className="h-4 w-4" />
+                Invitados
+              </Link>
+              <Link
+                href="/plantilla/nuevo"
+                className={`inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors ${!equipoActivo ? 'opacity-50 pointer-events-none' : ''}`}
+              >
+                <Plus className="h-4 w-4" />
+                Nuevo Jugador
+              </Link>
+            </>
+          }
+        />
       </div>
 
       {/* Stats cards */}
@@ -708,27 +708,28 @@ export default function PlantillaPage() {
           </button>
         </div>
       ) : jugadores.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-          <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No hay jugadores</h3>
-          <p className="text-gray-500 mb-4">
-            {hasActiveFilters
+        <EmptyState
+          icon={<Users className="h-12 w-12" />}
+          title="No hay jugadores"
+          description={
+            hasActiveFilters
               ? 'No se encontraron jugadores con los filtros aplicados'
               : 'Comienza agregando jugadores a tu plantilla'
-            }
-          </p>
-          {!hasActiveFilters && (
-            <Link
-              href="/plantilla/nuevo"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90"
-            >
-              <Plus className="h-4 w-4" />
-              Agregar jugador
-            </Link>
-          )}
-        </div>
+          }
+          action={
+            !hasActiveFilters ? (
+              <Link
+                href="/plantilla/nuevo"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90"
+              >
+                <Plus className="h-4 w-4" />
+                Agregar jugador
+              </Link>
+            ) : undefined
+          }
+        />
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-8 animate-fade-in">
           {Object.entries(jugadoresPorZona).map(([zona, jugadoresZona]) => {
             if (jugadoresZona.length === 0) return null
 

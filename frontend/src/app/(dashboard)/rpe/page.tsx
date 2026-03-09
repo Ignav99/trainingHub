@@ -30,6 +30,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { ListPageSkeleton } from '@/components/ui/page-skeletons'
+import { PageHeader } from '@/components/ui/page-header'
 import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { rpeApi } from '@/lib/api/rpe'
@@ -194,37 +195,33 @@ export default function RPEPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Activity className="h-6 w-6 text-primary" />
-            Carga y Bienestar
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Control de carga auto-calculada y bienestar de los jugadores
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={handleRecalculate}
-            disabled={recalculating}
-          >
-            {recalculating ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4 mr-2" />
-            )}
-            Recalcular
-          </Button>
-          <Button onClick={() => setShowRegister(true)}>
-            <Activity className="h-4 w-4 mr-2" />
-            Registrar RPE
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="RPE / Wellness"
+        description="Control de carga auto-calculada y bienestar de los jugadores"
+        actions={
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleRecalculate}
+              disabled={recalculating}
+            >
+              {recalculating ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Recalcular
+            </Button>
+            <Button onClick={() => setShowRegister(true)}>
+              <Activity className="h-4 w-4 mr-2" />
+              Registrar RPE
+            </Button>
+          </div>
+        }
+      />
 
       {/* Summary cards */}
+      <div className="animate-fade-in">
       {loading ? (
         <div className="grid grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
@@ -294,7 +291,7 @@ export default function RPEPage() {
                   {data.map((item) => (
                     <tr
                       key={item.jugador_id}
-                      className={`border-b last:border-0 hover:bg-muted/30 ${getRowHighlight(item.nivel_carga)}`}
+                      className={`border-b last:border-0 row-hover ${getRowHighlight(item.nivel_carga)}`}
                     >
                       <td className="py-2.5 text-xs font-bold text-muted-foreground text-center">
                         {item.dorsal || '-'}
@@ -377,6 +374,8 @@ export default function RPEPage() {
           )}
         </CardContent>
       </Card>
+
+      </div>
 
       {/* Register RPE dialog */}
       <Dialog open={showRegister} onOpenChange={setShowRegister}>

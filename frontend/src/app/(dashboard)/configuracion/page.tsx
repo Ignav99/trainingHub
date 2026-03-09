@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import {
-  Settings,
   User,
   Building,
   CreditCard,
@@ -17,6 +16,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
+import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -200,14 +200,12 @@ export default function ConfiguracionPage() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Settings className="h-6 w-6 text-primary" />
-          Configuracion
-        </h1>
-        <p className="text-muted-foreground mt-1">Ajustes del club, perfil, equipo y suscripcion</p>
-      </div>
+      <PageHeader
+        title="Configuración"
+        description="Ajustes del club, perfil, equipo y suscripción"
+      />
 
+      <div className="animate-fade-in">
       <Tabs defaultValue="club" onValueChange={(v) => { if (v === 'equipo') loadTeamData() }}>
         <TabsList>
           <TabsTrigger value="club">
@@ -226,7 +224,7 @@ export default function ConfiguracionPage() {
 
         {/* Club tab */}
         <TabsContent value="club" className="space-y-6 mt-6">
-          <Card>
+          <Card className="card-hover">
             <CardHeader>
               <CardTitle className="text-lg">Identidad del club</CardTitle>
               <CardDescription>Nombre, colores y escudo de tu organizacion</CardDescription>
@@ -321,7 +319,7 @@ export default function ConfiguracionPage() {
 
         {/* Profile tab */}
         <TabsContent value="perfil" className="space-y-6 mt-6">
-          <Card>
+          <Card className="card-hover">
             <CardHeader>
               <CardTitle className="text-lg">Tu perfil</CardTitle>
             </CardHeader>
@@ -357,7 +355,7 @@ export default function ConfiguracionPage() {
           ) : (
             <>
               {/* Current members */}
-              <Card>
+              <Card className="card-hover">
                 <CardHeader>
                   <CardTitle className="text-lg">Miembros actuales</CardTitle>
                   <CardDescription>Usuarios con acceso a tu organizacion</CardDescription>
@@ -393,7 +391,7 @@ export default function ConfiguracionPage() {
               </Card>
 
               {/* Pending invitations */}
-              <Card>
+              <Card className="card-hover">
                 <CardHeader>
                   <CardTitle className="text-lg">Invitaciones pendientes</CardTitle>
                   <CardDescription>Invitaciones enviadas que aun no han sido aceptadas</CardDescription>
@@ -443,7 +441,7 @@ export default function ConfiguracionPage() {
               </Card>
 
               {/* New invitation */}
-              <Card>
+              <Card className="card-hover">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
@@ -575,7 +573,7 @@ export default function ConfiguracionPage() {
 
         {/* Subscription tab */}
         <TabsContent value="suscripcion" className="space-y-6 mt-6">
-          <Card>
+          <Card className="card-hover">
             <CardHeader>
               <CardTitle className="text-lg">Plan actual</CardTitle>
             </CardHeader>
@@ -628,6 +626,7 @@ export default function ConfiguracionPage() {
           </Card>
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   )
 }

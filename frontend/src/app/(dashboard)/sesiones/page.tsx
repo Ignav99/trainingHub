@@ -23,6 +23,8 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ListPageSkeleton } from '@/components/ui/page-skeletons'
+import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 import { apiKey } from '@/lib/swr'
 import { Sesion, MatchDay, PaginatedResponse } from '@/types'
 import { sesionesApi } from '@/lib/api/sesiones'
@@ -181,37 +183,35 @@ export default function SesionesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Sesiones</h1>
-          <p className="text-muted-foreground">
-            {total} sesiones en total
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <Link
-            href="/sesiones/calendario"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            <CalendarIcon className="h-4 w-4" />
-            Calendario
-          </Link>
-          <Link
-            href="/sesiones/nueva"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            Manual
-          </Link>
-          <Link
-            href="/sesiones/nueva-ai"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-          >
-            <Sparkles className="h-4 w-4" />
-            Nueva con IA
-          </Link>
-        </div>
-      </div>
+      <PageHeader
+        title="Sesiones"
+        description={`${total} sesiones en total`}
+        actions={
+          <>
+            <Link
+              href="/sesiones/calendario"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <CalendarIcon className="h-4 w-4" />
+              Calendario
+            </Link>
+            <Link
+              href="/sesiones/nueva"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              Manual
+            </Link>
+            <Link
+              href="/sesiones/nueva-ai"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Sparkles className="h-4 w-4" />
+              Nueva con IA
+            </Link>
+          </>
+        }
+      />
 
       {/* Filtros */}
       <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -335,38 +335,37 @@ export default function SesionesPage() {
           </button>
         </div>
       ) : sesiones.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CalendarIcon className="h-8 w-8 text-gray-400" />
-          </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No hay sesiones</h3>
-          <p className="text-gray-500 mb-4">
-            {hasActiveFilters
+        <EmptyState
+          icon={<CalendarIcon className="h-12 w-12" />}
+          title="Sin sesiones"
+          description={
+            hasActiveFilters
               ? 'No se encontraron sesiones con los filtros seleccionados'
-              : 'Comienza planificando tu primera sesión de entrenamiento'
-            }
-          </p>
-          {hasActiveFilters ? (
-            <button
-              onClick={clearFilters}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200"
-            >
-              Limpiar filtros
-            </button>
-          ) : (
-            <Link
-              href="/sesiones/nueva-ai"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg text-sm font-medium hover:from-purple-700 hover:to-blue-700"
-            >
-              <Sparkles className="h-4 w-4" />
-              Crear con IA
-            </Link>
-          )}
-        </div>
+              : 'Crea tu primera sesión de entrenamiento'
+          }
+          action={
+            hasActiveFilters ? (
+              <button
+                onClick={clearFilters}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200"
+              >
+                Limpiar filtros
+              </button>
+            ) : (
+              <Link
+                href="/sesiones/nueva-ai"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg text-sm font-medium hover:from-purple-700 hover:to-blue-700"
+              >
+                <Sparkles className="h-4 w-4" />
+                Crear con IA
+              </Link>
+            )
+          }
+        />
       ) : (
         <>
           {/* Tabla de sesiones */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden animate-fade-in">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -398,7 +397,7 @@ export default function SesionesPage() {
                   <tr
                     key={sesion.id}
                     onClick={() => router.push(`/sesiones/${sesion.id}`)}
-                    className="hover:bg-gray-50 cursor-pointer transition-colors"
+                    className="row-hover cursor-pointer"
                   >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">

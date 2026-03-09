@@ -15,10 +15,12 @@ import {
   ArrowRight,
   Users,
   Loader2,
+  Swords,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { useClubStore } from '@/stores/clubStore'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -252,6 +254,54 @@ export default function DashboardPage() {
         proximoPartido={proximoPartido}
       />
 
+      {/* ============ Empty states when no data ============ */}
+      {!loading && !microcicloActivo && !proximoPartido && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {!microcicloActivo && (
+            <Card>
+              <CardContent className="p-0">
+                <EmptyState
+                  icon={<CalendarDays className="h-12 w-12" />}
+                  title="Sin microciclo activo"
+                  description="Crea un microciclo semanal para organizar tus sesiones en torno al partido."
+                  action={
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setMicroForm({ partido_id: '', objetivo_principal: '', objetivo_tactico: '', objetivo_fisico: '', notas: '' })
+                        setShowCreateMicro(true)
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Nuevo Microciclo
+                    </Button>
+                  }
+                />
+              </CardContent>
+            </Card>
+          )}
+          {!proximoPartido && (
+            <Card>
+              <CardContent className="p-0">
+                <EmptyState
+                  icon={<Swords className="h-12 w-12" />}
+                  title="Sin partidos programados"
+                  description="Anade tu proximo partido para activar la inteligencia pre-partido."
+                  action={
+                    <Button size="sm" asChild>
+                      <Link href="/partidos/nuevo">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Nuevo Partido
+                      </Link>
+                    </Button>
+                  }
+                />
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
       {/* ============ SECTION 3: Interactive monthly calendar ============ */}
       <CalendarSection
         calYear={calYear}
@@ -317,7 +367,7 @@ export default function DashboardPage() {
             {sesionesBorrador > 0 && (
               <Link
                 href="/sesiones?estado=borrador"
-                className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors"
+                className="flex items-center gap-3 p-3 rounded-lg row-hover"
               >
                 <Edit className="h-4 w-4 text-primary" />
                 <div className="flex-1">
@@ -333,7 +383,7 @@ export default function DashboardPage() {
             {plantilla && plantilla.lesionados > 0 && (
               <Link
                 href="/enfermeria"
-                className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors"
+                className="flex items-center gap-3 p-3 rounded-lg row-hover"
               >
                 <Activity className="h-4 w-4 text-red-500" />
                 <div className="flex-1">
@@ -401,7 +451,7 @@ export default function DashboardPage() {
                   <h4 className="text-sm font-semibold mb-2">Desglose por estado</h4>
                   <div className="space-y-1">
                     {Object.entries(plantilla.por_estado).map(([estado, count]) => (
-                      <div key={estado} className="flex items-center justify-between py-1.5 px-2 rounded text-sm">
+                      <div key={estado} className="flex items-center justify-between py-1.5 px-2 rounded text-sm row-hover">
                         <span className="capitalize">{estado.replace('_', ' ')}</span>
                         <Badge variant="outline">{count as number}</Badge>
                       </div>

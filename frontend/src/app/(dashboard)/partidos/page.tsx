@@ -1,11 +1,14 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import useSWR from 'swr'
+import { Plus } from 'lucide-react'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { apiKey } from '@/lib/swr'
-import { PartidoFilters } from '@/components/partidos/PartidoFilters'
+import { PageHeader } from '@/components/ui/page-header'
+import { Button } from '@/components/ui/button'
 import { PartidosList } from '@/components/partidos/PartidosList'
 import { MatchDetailPanel } from '@/components/partidos/MatchDetailPanel'
 import type { Convocatoria, Partido, PaginatedResponse, EstadisticaPartido } from '@/types'
@@ -103,7 +106,18 @@ export default function PartidosPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <PartidoFilters />
+      <PageHeader
+        title="Partidos"
+        description="Pre-partido, convocatoria y post-partido"
+        actions={
+          <Button asChild>
+            <Link href="/partidos/nuevo">
+              <Plus className="h-4 w-4 mr-2" />
+              Nuevo Partido
+            </Link>
+          </Button>
+        }
+      />
 
       {/* Main layout */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

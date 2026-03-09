@@ -23,6 +23,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { ListPageSkeleton } from '@/components/ui/page-skeletons'
+import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { useAuthStore } from '@/stores/authStore'
 import { medicoApi, CreateRegistroMedicoData } from '@/lib/api/medico'
@@ -161,21 +163,16 @@ export default function EnfermeriaPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <HeartPulse className="h-6 w-6 text-red-500" />
-            Enfermería
-          </h1>
-          <p className="text-muted-foreground">
-            {registros.length} registro{registros.length !== 1 ? 's' : ''} médico{registros.length !== 1 ? 's' : ''}
-          </p>
-        </div>
-        <Button onClick={() => setShowNuevo(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nuevo Registro
-        </Button>
-      </div>
+      <PageHeader
+        title="Enfermería"
+        description={`${registros.length} registro${registros.length !== 1 ? 's' : ''} médico${registros.length !== 1 ? 's' : ''}`}
+        actions={
+          <Button onClick={() => setShowNuevo(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nuevo Registro
+          </Button>
+        }
+      />
 
       {/* Status cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -263,21 +260,25 @@ export default function EnfermeriaPage() {
           <Button onClick={() => mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })}>Reintentar</Button>
         </div>
       ) : filteredRegistros.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-xl border">
-          <HeartPulse className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium mb-2">Sin registros médicos</h3>
-          <p className="text-muted-foreground mb-4">
-            {busqueda || tipoFilter || estadoFilter
-              ? 'No se encontraron registros con los filtros aplicados'
-              : 'No hay registros médicos activos'}
-          </p>
-          <Button onClick={() => setShowNuevo(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Crear registro
-          </Button>
+        <div className="bg-white rounded-xl border">
+          <EmptyState
+            icon={<HeartPulse className="h-12 w-12" />}
+            title="Sin registros médicos"
+            description={
+              busqueda || tipoFilter || estadoFilter
+                ? 'No se encontraron registros con los filtros aplicados'
+                : 'No hay registros médicos activos'
+            }
+            action={
+              <Button onClick={() => setShowNuevo(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Crear registro
+              </Button>
+            }
+          />
         </div>
       ) : (
-        <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="animate-fade-in bg-white rounded-xl border overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -299,7 +300,7 @@ export default function EnfermeriaPage() {
                   <tr
                     key={registro.id}
                     onClick={() => router.push(`/enfermeria/${registro.id}`)}
-                    className="hover:bg-gray-50 cursor-pointer transition-colors"
+                    className="row-hover cursor-pointer"
                   >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">

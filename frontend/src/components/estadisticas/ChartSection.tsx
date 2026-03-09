@@ -126,7 +126,7 @@ export function ChartSection({ ultimosPartidos, partidos, cargaSemanal, maxRPE, 
                 </thead>
                 <tbody>
                   {partidos.slice(0, 15).map((p) => (
-                    <tr key={p.id} className="border-b last:border-0">
+                    <tr key={p.id} className="border-b last:border-0 row-hover">
                       <td className="py-2 text-muted-foreground">
                         {new Date(p.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
                       </td>

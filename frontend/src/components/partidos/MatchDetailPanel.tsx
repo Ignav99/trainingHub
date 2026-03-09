@@ -589,7 +589,7 @@ export function MatchDetailPanel({
   }
 
   return (
-    <>
+    <div className="animate-fade-in">
       {/* Match header */}
       <div className="mb-4">
         <h2 className="text-lg font-bold flex items-center gap-2">
@@ -836,7 +836,7 @@ export function MatchDetailPanel({
           {(() => {
             const resInfo = selectedPartido.resultado ? RESULTADO_LABELS[selectedPartido.resultado] : null
             return (
-              <Card className={resInfo ? `border-2 ${resInfo.color.split(' ')[0].replace('bg-', 'border-')}` : ''}>
+              <Card className={`card-hover ${resInfo ? `border-2 ${resInfo.color.split(' ')[0].replace('bg-', 'border-')}` : ''}`}>
                 <CardContent className="p-6">
                   <div className="text-center space-y-3">
                     <div className="flex items-center justify-center gap-2">
@@ -916,7 +916,7 @@ export function MatchDetailPanel({
                   </thead>
                   <tbody>
                     {TEAM_STAT_FIELDS.map((field) => (
-                      <tr key={field.key} className="border-b last:border-0">
+                      <tr key={field.key} className="border-b last:border-0 row-hover">
                         <td className="px-3 py-2 text-muted-foreground">{field.label}</td>
                         <td className="px-3 py-2 text-center">
                           <Input
@@ -978,7 +978,7 @@ export function MatchDetailPanel({
                           setPlayerStats((prev) => ({ ...prev, [conv.id]: { ...ps, [field]: value } }))
                         }
                         return (
-                          <tr key={conv.id} className="border-b last:border-0 hover:bg-muted/30">
+                          <tr key={conv.id} className="border-b last:border-0 row-hover">
                             <td className="px-4 py-2">
                               <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
                                 {conv.dorsal || player?.dorsal || '-'}
@@ -1278,7 +1278,7 @@ export function MatchDetailPanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   )
 }
 

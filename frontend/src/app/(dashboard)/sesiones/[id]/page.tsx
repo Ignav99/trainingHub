@@ -38,6 +38,7 @@ import {
   CircleDot,
   ChevronUp,
   ChevronDown,
+  ChevronRight,
   X,
   Search,
   Shuffle,
@@ -63,6 +64,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
+import { PageHeader } from '@/components/ui/page-header'
 import { sesionesApi, SesionUpdateData } from '@/lib/api/sesiones'
 import { tareasApi } from '@/lib/api/tareas'
 import { jugadoresApi } from '@/lib/api/jugadores'
@@ -1200,13 +1202,15 @@ export default function SesionDetailPage() {
   )
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-5xl mx-auto animate-fade-in">
       {/* Header */}
+      <nav className="flex items-center gap-1 text-sm text-muted-foreground mb-3">
+        <Link href="/sesiones" className="hover:text-foreground transition-colors">Sesiones</Link>
+        <ChevronRight className="h-3 w-3" />
+        <span className="text-foreground font-medium">{sesion.titulo}</span>
+      </nav>
       <div className="flex items-start justify-between mb-6">
         <div className="flex items-start gap-4">
-          <Link href="/sesiones" className="p-2 hover:bg-muted rounded-lg transition-colors mt-1">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
           <div className="flex-1">
             {/* Editable title */}
             <div className="flex items-center gap-3 mb-2 flex-wrap">
@@ -1411,7 +1415,7 @@ export default function SesionDetailPage() {
               const faseNota = sesion.fase_notas?.[fase]
 
               return (
-                <Card key={fase} className={!hasTareas ? 'border-dashed' : ''}>
+                <Card key={fase} className={`card-hover ${!hasTareas ? 'border-dashed' : ''}`}>
                   <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
                     <div className="flex items-center gap-2">
                       <CircleDot className={`h-4 w-4 ${hasTareas ? 'text-primary' : 'text-muted-foreground'}`} />
