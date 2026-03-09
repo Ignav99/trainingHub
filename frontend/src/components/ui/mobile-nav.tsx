@@ -9,7 +9,6 @@ import {
   Calendar,
   Users,
   MoreHorizontal,
-  CalendarDays,
   Shield,
   BarChart3,
   Settings,
@@ -27,7 +26,6 @@ const mainTabs = [
 ]
 
 const moreTabs = [
-  { name: 'Microciclos', href: '/microciclos', icon: CalendarDays },
   { name: 'Rivales', href: '/rivales', icon: Shield },
   { name: 'Competición', href: '/competicion', icon: Trophy },
   { name: 'Estadísticas', href: '/estadisticas', icon: BarChart3 },

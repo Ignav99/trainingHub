@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   ClipboardList,
   Calendar,
-  CalendarDays,
   Library,
   Settings,
   ChevronDown,
@@ -39,7 +38,6 @@ import { PageTransition } from '@/components/ui/page-transition'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Microciclos', href: '/microciclos', icon: CalendarDays },
   { name: 'Sesiones', href: '/sesiones', icon: Calendar },
   { name: 'Tareas', href: '/tareas', icon: ClipboardList },
   { name: 'Plantilla', href: '/plantilla', icon: Users },
