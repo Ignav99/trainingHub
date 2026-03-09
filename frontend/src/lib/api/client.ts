@@ -4,6 +4,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/v1'
 
 interface FetchOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>
+  timeout?: number
 }
 
 // Helper to get token from localStorage (zustand persist)
@@ -23,9 +24,11 @@ function getPersistedToken(): string | null {
 
 class ApiClient {
   private baseUrl: string
+  private defaultTimeout: number
 
-  constructor(baseUrl: string) {
+  constructor(baseUrl: string, defaultTimeout = 10000) {
     this.baseUrl = baseUrl
+    this.defaultTimeout = defaultTimeout
   }
 
   private async getAuthHeaders(): Promise<HeadersInit> {
@@ -48,9 +51,16 @@ class ApiClient {
     return url.toString()
   }
 
+  private createAbortSignal(timeoutMs?: number): { signal: AbortSignal; clear: () => void } {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), timeoutMs ?? this.defaultTimeout)
+    return { signal: controller.signal, clear: () => clearTimeout(timeout) }
+  }
+
   async get<T>(path: string, options?: FetchOptions): Promise<T> {
     const url = this.buildUrl(path, options?.params)
     const authHeaders = await this.getAuthHeaders()
+    const { signal, clear } = this.createAbortSignal(options?.timeout)
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -58,7 +68,9 @@ class ApiClient {
         ...authHeaders,
         ...options?.headers,
       },
+      signal,
     })
+    clear()
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
@@ -74,6 +86,7 @@ class ApiClient {
   async post<T>(path: string, data?: unknown, options?: FetchOptions): Promise<T> {
     const url = this.buildUrl(path, options?.params)
     const authHeaders = await this.getAuthHeaders()
+    const { signal, clear } = this.createAbortSignal(options?.timeout)
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -82,7 +95,9 @@ class ApiClient {
         ...options?.headers,
       },
       body: data ? JSON.stringify(data) : undefined,
+      signal,
     })
+    clear()
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
@@ -98,6 +113,7 @@ class ApiClient {
   async put<T>(path: string, data?: unknown, options?: FetchOptions): Promise<T> {
     const url = this.buildUrl(path, options?.params)
     const authHeaders = await this.getAuthHeaders()
+    const { signal, clear } = this.createAbortSignal(options?.timeout)
     const response = await fetch(url, {
       method: 'PUT',
       headers: {
@@ -106,7 +122,9 @@ class ApiClient {
         ...options?.headers,
       },
       body: data ? JSON.stringify(data) : undefined,
+      signal,
     })
+    clear()
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
@@ -122,6 +140,7 @@ class ApiClient {
   async patch<T>(path: string, data?: unknown, options?: FetchOptions): Promise<T> {
     const url = this.buildUrl(path, options?.params)
     const authHeaders = await this.getAuthHeaders()
+    const { signal, clear } = this.createAbortSignal(options?.timeout)
     const response = await fetch(url, {
       method: 'PATCH',
       headers: {
@@ -130,7 +149,9 @@ class ApiClient {
         ...options?.headers,
       },
       body: data ? JSON.stringify(data) : undefined,
+      signal,
     })
+    clear()
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
@@ -147,6 +168,8 @@ class ApiClient {
     const url = this.buildUrl(path, options?.params)
     const authHeaders = await this.getAuthHeaders()
     // Don't set Content-Type for FormData - browser sets it with boundary
+    // Use longer timeout for file uploads (60s)
+    const { signal, clear } = this.createAbortSignal(options?.timeout ?? 60000)
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -154,7 +177,9 @@ class ApiClient {
         ...options?.headers,
       },
       body: formData,
+      signal,
     })
+    clear()
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
@@ -170,13 +195,16 @@ class ApiClient {
   async getBlob(path: string, options?: FetchOptions): Promise<Blob> {
     const url = this.buildUrl(path, options?.params)
     const authHeaders = await this.getAuthHeaders()
+    const { signal, clear } = this.createAbortSignal(options?.timeout ?? 30000)
     const response = await fetch(url, {
       method: 'GET',
       headers: {
         ...authHeaders,
         ...options?.headers,
       },
+      signal,
     })
+    clear()
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
@@ -189,6 +217,7 @@ class ApiClient {
   async delete(path: string, options?: FetchOptions): Promise<void> {
     const url = this.buildUrl(path, options?.params)
     const authHeaders = await this.getAuthHeaders()
+    const { signal, clear } = this.createAbortSignal(options?.timeout)
     const response = await fetch(url, {
       method: 'DELETE',
       headers: {
@@ -196,7 +225,9 @@ class ApiClient {
         ...authHeaders,
         ...options?.headers,
       },
+      signal,
     })
+    clear()
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))

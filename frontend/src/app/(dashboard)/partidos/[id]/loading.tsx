@@ -1,0 +1,5 @@
+import { PartidoDetailSkeleton } from '@/components/ui/page-skeletons'
+
+export default function Loading() {
+  return <PartidoDetailSkeleton />
+}

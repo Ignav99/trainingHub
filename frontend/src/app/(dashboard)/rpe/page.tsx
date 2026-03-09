@@ -14,6 +14,7 @@ import {
   Brain,
   Smile,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -111,7 +112,7 @@ export default function RPEPage() {
       await cargaApi.recalcular(equipoActivo.id)
       mutate((key: string) => typeof key === 'string' && key.includes('/carga'), undefined, { revalidate: true })
     } catch (err: any) {
-      alert(err.message || 'Error al recalcular')
+      toast.error(err.message || 'Error al recalcular')
     } finally {
       setRecalculating(false)
     }
@@ -181,7 +182,7 @@ export default function RPEPage() {
       setShowRegister(false)
       mutate((key: string) => typeof key === 'string' && (key.includes('/rpe') || key.includes('/carga')), undefined, { revalidate: true })
     } catch (err: any) {
-      alert(err.message || 'Error al registrar RPE')
+      toast.error(err.message || 'Error al registrar RPE')
     } finally {
       setSaving(false)
     }

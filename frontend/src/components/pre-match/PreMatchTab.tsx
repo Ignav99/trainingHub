@@ -20,6 +20,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -127,7 +128,7 @@ export function PreMatchTab({ partido, onMutate }: PreMatchTabProps) {
       await partidosApi.update(partido.id, { notas_pre: JSON.stringify(merged) })
       onMutate()
     } catch (err: any) {
-      alert(err.message || 'Error al guardar pre-partido')
+      toast.error(err.message || 'Error al guardar pre-partido')
     } finally {
       setSavingPre(false)
     }
@@ -139,7 +140,7 @@ export function PreMatchTab({ partido, onMutate }: PreMatchTabProps) {
       await partidosApi.populatePreMatch(partido.id)
       onMutate()
     } catch (err: any) {
-      alert(err.message || 'Error al actualizar intel')
+      toast.error(err.message || 'Error al actualizar intel')
     } finally {
       setRefreshing(false)
     }

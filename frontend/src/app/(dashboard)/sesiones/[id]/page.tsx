@@ -53,6 +53,7 @@ import {
   Wand2,
   Send,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -786,7 +787,7 @@ export default function SesionDetailPage() {
       mutate((key: string) => typeof key === 'string' && key.includes('/sesiones'), undefined, { revalidate: true })
       router.push('/sesiones')
     } catch (err: any) {
-      alert(err.message || 'Error al eliminar')
+      toast.error(err.message || 'Error al eliminar')
       setDeleting(false)
     }
   }
@@ -1123,7 +1124,7 @@ export default function SesionDetailPage() {
       setCrossTeamDialogOpen(false)
     } catch (err: any) {
       console.error('Error adding cross-team player:', err)
-      alert(err?.message || 'Error al anadir jugador')
+      toast.error(err?.message || 'Error al anadir jugador')
     } finally {
       setAddingInvitado(false)
     }
@@ -1149,7 +1150,7 @@ export default function SesionDetailPage() {
       setQuickAddForm({ nombre: '', apellidos: '', posicion_principal: 'MC' })
     } catch (err: any) {
       console.error('Error quick-adding guest:', err)
-      alert(err?.message || 'Error al crear jugador')
+      toast.error(err?.message || 'Error al crear jugador')
     } finally {
       setAddingInvitado(false)
     }

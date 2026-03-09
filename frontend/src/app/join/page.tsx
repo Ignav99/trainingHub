@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import Image from 'next/image'
 import { Eye, EyeOff, Loader2, CheckCircle, AlertCircle, Users } from 'lucide-react'
 import { invitacionesApi } from '@/lib/api/invitaciones'
 import { supabase } from '@/lib/supabase/client'
@@ -87,7 +88,7 @@ export default function JoinPage() {
         <div className="w-full max-w-md space-y-8">
           {/* Logo */}
           <div className="text-center">
-            <img src="/logo.png" alt="Kabin-e" className="h-20 mx-auto mb-3" />
+            <Image src="/logo.png" alt="Kabin-e" width={120} height={80} className="mx-auto mb-3" />
           </div>
 
           {loading ? (
@@ -238,16 +239,18 @@ export default function JoinPage() {
 
       {/* Right panel - Stadium image */}
       <div className="hidden lg:flex lg:flex-1 relative overflow-hidden">
-        <img
+        <Image
           src={STADIUM_BG}
           alt="Estadio de futbol"
-          className="absolute inset-0 w-full h-full object-cover"
+          fill
+          className="object-cover"
+          unoptimized
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70" />
         <div className="relative z-10 flex flex-col items-center justify-center p-12 text-white">
           <div className="max-w-md text-center">
             <div className="inline-flex items-center gap-3 mb-6 px-5 py-3 rounded-2xl backdrop-blur-sm bg-white/10">
-              <img src="/logo-icon.png" alt="Kabin-e" className="h-10 w-10 drop-shadow-lg" />
+              <Image src="/logo-icon.png" alt="Kabin-e" width={40} height={40} className="drop-shadow-lg" />
               <span className="text-2xl font-extrabold tracking-tight">Kabin-e</span>
             </div>
             <h2

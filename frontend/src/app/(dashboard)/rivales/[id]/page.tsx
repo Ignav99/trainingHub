@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
+import Image from 'next/image'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import useSWR, { mutate } from 'swr'
 import {
   Shield,
@@ -23,20 +25,26 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
+import { Skeleton } from '@/components/ui/skeleton'
 import { apiKey } from '@/lib/swr'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { RFEFCompeticion } from '@/lib/api/rfef'
 import { rivalesApi } from '@/lib/api/partidos'
 import { useEquipoStore } from '@/stores/equipoStore'
-import { ClasificacionWidget } from '@/components/pre-match/ClasificacionWidget'
-import { GoleadoresWidget } from '@/components/pre-match/GoleadoresWidget'
-import { OnceProbableWidget } from '@/components/pre-match/OnceProbableWidget'
-import { TarjetasWidget } from '@/components/pre-match/TarjetasWidget'
-import { ResultadosWidget } from '@/components/pre-match/ResultadosWidget'
-import { HeadToHeadWidget } from '@/components/pre-match/HeadToHeadWidget'
-import { InformeRivalSection } from '@/components/pre-match/InformeRivalSection'
-import { PlanPartidoSection } from '@/components/pre-match/PlanPartidoSection'
 import type { Rival, PreMatchIntel, RivalInforme, AIInformeRival, AIPlanPartido } from '@/types'
+
+// Dynamic imports for heavy pre-match widgets
+const WidgetSkeleton = () => (
+  <Card><CardContent className="p-4"><Skeleton className="h-32 w-full" /></CardContent></Card>
+)
+const ClasificacionWidget = dynamic(() => import('@/components/pre-match/ClasificacionWidget').then(m => ({ default: m.ClasificacionWidget })), { loading: () => <WidgetSkeleton /> })
+const GoleadoresWidget = dynamic(() => import('@/components/pre-match/GoleadoresWidget').then(m => ({ default: m.GoleadoresWidget })), { loading: () => <WidgetSkeleton /> })
+const OnceProbableWidget = dynamic(() => import('@/components/pre-match/OnceProbableWidget').then(m => ({ default: m.OnceProbableWidget })), { loading: () => <WidgetSkeleton /> })
+const TarjetasWidget = dynamic(() => import('@/components/pre-match/TarjetasWidget').then(m => ({ default: m.TarjetasWidget })), { loading: () => <WidgetSkeleton /> })
+const ResultadosWidget = dynamic(() => import('@/components/pre-match/ResultadosWidget').then(m => ({ default: m.ResultadosWidget })), { loading: () => <WidgetSkeleton /> })
+const HeadToHeadWidget = dynamic(() => import('@/components/pre-match/HeadToHeadWidget').then(m => ({ default: m.HeadToHeadWidget })), { loading: () => <WidgetSkeleton /> })
+const InformeRivalSection = dynamic(() => import('@/components/pre-match/InformeRivalSection').then(m => ({ default: m.InformeRivalSection })), { loading: () => <WidgetSkeleton /> })
+const PlanPartidoSection = dynamic(() => import('@/components/pre-match/PlanPartidoSection').then(m => ({ default: m.PlanPartidoSection })), { loading: () => <WidgetSkeleton /> })
 
 type TabId = 'scouting' | 'informes' | 'info'
 
@@ -204,7 +212,7 @@ export default function RivalDetailPage() {
           {uploadingEscudo ? (
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           ) : rival.escudo_url ? (
-            <img src={rival.escudo_url} alt="" className="w-12 h-12 object-contain" />
+            <Image src={rival.escudo_url} alt="" width={48} height={48} className="object-contain" unoptimized />
           ) : (
             <Shield className="h-8 w-8 text-muted-foreground" />
           )}

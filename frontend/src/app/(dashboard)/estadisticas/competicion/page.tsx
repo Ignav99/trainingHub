@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import useSWR, { mutate } from 'swr'
 import {
@@ -626,7 +627,7 @@ export default function CompeticionPage() {
                           </Badge>
                           <span className="flex-1 text-sm font-medium truncate flex items-center gap-1.5">
                             {p.rival?.escudo_url && (
-                              <img src={p.rival.escudo_url} alt="" className="w-4 h-4 object-contain shrink-0" />
+                              <Image src={p.rival.escudo_url} alt="" width={16} height={16} className="object-contain shrink-0" unoptimized />
                             )}
                             {p.rival?.nombre || 'Rival'}
                           </span>

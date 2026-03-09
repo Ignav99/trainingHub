@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { Shield, Users, Palette, Bot, Bell, CheckCircle2 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
@@ -32,7 +33,7 @@ export function PreferencesStep({ data, onChange, clubData, teamData, playersCou
             style={{ backgroundColor: clubData.colorPrimario }}
           >
             {clubData.logoPreview ? (
-              <img src={clubData.logoPreview} alt="" className="w-7 h-7 object-contain" />
+              <Image src={clubData.logoPreview} alt="Club logo" width={28} height={28} className="object-contain" unoptimized />
             ) : (
               <Shield className="h-5 w-5" />
             )}

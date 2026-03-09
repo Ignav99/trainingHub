@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import useSWR, { mutate } from 'swr'
 import {
@@ -25,6 +26,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { toast } from 'sonner'
 import { apiKey } from '@/lib/swr'
 import { CardGridSkeleton } from '@/components/ui/page-skeletons'
 import { rivalesApi, RivalCreateData } from '@/lib/api/partidos'
@@ -74,7 +76,7 @@ export default function RivalesPage() {
       setForm({ nombre: '', nombre_corto: '', escudo_url: '', estadio: '', ciudad: '', notas: '' })
       mutate((key: string) => typeof key === 'string' && key.includes('/rivales'), undefined, { revalidate: true })
     } catch (err: any) {
-      alert(err.message || 'Error')
+      toast.error(err.message || 'Error')
     } finally {
       setSaving(false)
     }
@@ -158,7 +160,7 @@ export default function RivalesPage() {
                   <Link href={`/rivales/${rival.id}`} className="flex items-start gap-3 flex-1 min-w-0">
                     <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
                       {rival.escudo_url ? (
-                        <img src={rival.escudo_url} alt="" className="w-8 h-8 object-contain" />
+                        <Image src={rival.escudo_url} alt="" width={32} height={32} className="object-contain" unoptimized />
                       ) : (
                         <Shield className="h-5 w-5 text-muted-foreground" />
                       )}

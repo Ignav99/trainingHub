@@ -21,6 +21,7 @@ import {
   ListChecks,
   Eye
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { ListPageSkeleton } from '@/components/ui/page-skeletons'
 import { apiKey } from '@/lib/swr'
 import { Sesion, MatchDay, PaginatedResponse } from '@/types'
@@ -136,7 +137,7 @@ export default function SesionesPage() {
       await sesionesApi.generatePdf(id)
     } catch (err) {
       console.error('Error generating PDF:', err)
-      alert('Error al generar el PDF')
+      toast.error('Error al generar el PDF')
     }
     setActiveMenu(null)
   }

@@ -13,6 +13,7 @@ import {
   Loader2,
   RefreshCw
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { jugadoresApi, Jugador, JugadorCreate, JugadorUpdate, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
 import { useEquipoStore } from '@/stores/equipoStore'
 
@@ -101,7 +102,7 @@ export default function EquipoPage() {
       await jugadoresApi.delete(id)
       setJugadores(prev => prev.filter(j => j.id !== id))
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Error al eliminar jugador')
+      toast.error(err instanceof Error ? err.message : 'Error al eliminar jugador')
     }
   }
 
@@ -119,7 +120,7 @@ export default function EquipoPage() {
       }
       setShowModal(false)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Error al guardar jugador')
+      toast.error(err instanceof Error ? err.message : 'Error al guardar jugador')
     } finally {
       setIsSaving(false)
     }

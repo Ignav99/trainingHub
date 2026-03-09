@@ -14,6 +14,7 @@ import {
   Loader2,
   Plus
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { partidosApi, rivalesApi } from '@/lib/api/partidos'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { Rival } from '@/types'
@@ -74,7 +75,7 @@ export default function NuevoPartidoPage() {
       setShowNewRival(false)
     } catch (err) {
       console.error('Error creating rival:', err)
-      alert('Error al crear el rival')
+      toast.error('Error al crear el rival')
     }
   }
 
@@ -82,7 +83,7 @@ export default function NuevoPartidoPage() {
     e.preventDefault()
 
     if (!formData.rival_id) {
-      alert('Selecciona un rival')
+      toast.error('Selecciona un rival')
       return
     }
 
@@ -97,7 +98,7 @@ export default function NuevoPartidoPage() {
       router.push('/calendario')
     } catch (err) {
       console.error('Error creating partido:', err)
-      alert('Error al crear el partido')
+      toast.error('Error al crear el partido')
     } finally {
       setLoading(false)
     }

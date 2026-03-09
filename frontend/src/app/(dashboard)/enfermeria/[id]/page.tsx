@@ -19,6 +19,7 @@ import {
   Shield,
   Lock,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -114,7 +115,7 @@ export default function EnfermeriaDetailPage() {
       mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
     } catch (err) {
       console.error('Error saving:', err)
-      alert('Error al guardar los cambios')
+      toast.error('Error al guardar los cambios')
     } finally {
       setSaving(false)
     }
@@ -133,7 +134,7 @@ export default function EnfermeriaDetailPage() {
       mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
     } catch (err) {
       console.error('Error giving alta:', err)
-      alert('Error al dar de alta')
+      toast.error('Error al dar de alta')
     } finally {
       setGivingAlta(false)
     }

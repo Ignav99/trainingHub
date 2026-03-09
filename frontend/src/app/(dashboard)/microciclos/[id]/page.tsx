@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import Link from 'next/link'
 import useSWR, { mutate } from 'swr'
 import {
@@ -13,7 +15,6 @@ import {
   Dumbbell,
   Swords,
   Users,
-  Activity,
   Clock,
   FileText,
   Edit3,
@@ -21,7 +22,6 @@ import {
   Loader2,
   ChevronRight,
   AlertCircle,
-  Zap,
   ClipboardList,
   Plus,
 } from 'lucide-react'
@@ -46,17 +46,11 @@ import { useEquipoStore } from '@/stores/equipoStore'
 import { formatDate } from '@/lib/utils'
 import type { MicrocicloCompleto, Partido, PaginatedResponse, MatchDay } from '@/types'
 
-// ============ Match Day color palette ============
-const MATCH_DAY_COLORS: Record<string, { border: string; bg: string; text: string; label: string; carga: string }> = {
-  'MD+1': { border: 'border-t-green-500', bg: 'bg-green-50', text: 'text-green-700', label: 'Recuperacion', carga: 'Muy baja' },
-  'MD+2': { border: 'border-t-lime-500', bg: 'bg-lime-50', text: 'text-lime-700', label: 'Regeneracion', carga: 'Baja' },
-  'MD-4': { border: 'border-t-red-500', bg: 'bg-red-50', text: 'text-red-700', label: 'Fuerza', carga: 'ALTA' },
-  'MD-3': { border: 'border-t-orange-500', bg: 'bg-orange-50', text: 'text-orange-700', label: 'Resistencia', carga: 'ALTA' },
-  'MD-2': { border: 'border-t-blue-500', bg: 'bg-blue-50', text: 'text-blue-700', label: 'Velocidad', carga: 'MEDIA' },
-  'MD-1': { border: 'border-t-purple-500', bg: 'bg-purple-50', text: 'text-purple-700', label: 'Activacion', carga: 'BAJA' },
-  'MD':   { border: 'border-t-amber-500', bg: 'bg-amber-50', text: 'text-amber-700', label: 'PARTIDO', carga: 'Competicion' },
-}
+import { WeekView } from '@/components/microciclos/WeekView'
+import { LoadChart } from '@/components/microciclos/LoadChart'
+import { MATCH_DAY_COLORS } from '@/components/microciclos/SessionCard'
 
+// ============ Constants ============
 const ESTADO_COLORS: Record<string, string> = {
   borrador: 'bg-gray-100 text-gray-700',
   planificado: 'bg-blue-100 text-blue-700',
@@ -71,14 +65,7 @@ const ESTADO_SESION_COLORS: Record<string, { bg: string; label: string }> = {
   cancelada: { bg: 'bg-red-100 text-red-800', label: 'Cancelada' },
 }
 
-const DAY_NAMES = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom']
-
-function dateToWeekday(dateStr: string): number {
-  const d = new Date(dateStr + 'T12:00:00')
-  const day = d.getDay()
-  return day === 0 ? 6 : day - 1 // Monday=0 ... Sunday=6
-}
-
+// ============ Helpers ============
 function formatDateShort(dateStr: string): string {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
 }
@@ -168,7 +155,7 @@ export default function MicrocicloDetallePage() {
       setShowEdit(false)
       mutate((key: string) => typeof key === 'string' && key.includes('/microciclos'), undefined, { revalidate: true })
     } catch (err: any) {
-      alert(err.message || 'Error al guardar')
+      toast.error(err.message || 'Error al guardar')
     } finally {
       setSaving(false)
     }
@@ -181,7 +168,7 @@ export default function MicrocicloDetallePage() {
       await microciclosApi.delete(data.microciclo.id)
       router.replace('/')
     } catch (err: any) {
-      alert(err.message || 'Error al eliminar')
+      toast.error(err.message || 'Error al eliminar')
     } finally {
       setDeleting(false)
     }
@@ -232,7 +219,7 @@ export default function MicrocicloDetallePage() {
 
   return (
     <div className="space-y-6">
-      {/* ============ 3.1 Header ============ */}
+      {/* ============ Header ============ */}
       <div>
         <Link
           href="/"
@@ -296,7 +283,7 @@ export default function MicrocicloDetallePage() {
         </div>
       </div>
 
-      {/* ============ 3.2 Card de Partido ============ */}
+      {/* ============ Card de Partido ============ */}
       {partido && (
         <Card className="border-l-4 border-l-amber-500">
           <CardContent className="p-5">
@@ -304,7 +291,7 @@ export default function MicrocicloDetallePage() {
               <div className="flex items-center gap-4">
                 <div className="p-2.5 rounded-xl bg-amber-50">
                   {partido.rival?.escudo_url ? (
-                    <img src={partido.rival.escudo_url} alt="" className="w-6 h-6 object-contain" />
+                    <Image src={partido.rival.escudo_url} alt="" width={24} height={24} className="object-contain" unoptimized />
                   ) : (
                     <Swords className="h-6 w-6 text-amber-600" />
                   )}
@@ -357,7 +344,7 @@ export default function MicrocicloDetallePage() {
         </Card>
       )}
 
-      {/* ============ 3.3 Disponibilidad de Plantilla ============ */}
+      {/* ============ Disponibilidad de Plantilla ============ */}
       <div>
         <h2 className="text-base font-semibold mb-3 flex items-center gap-2">
           <Users className="h-5 w-5" />
@@ -436,115 +423,14 @@ export default function MicrocicloDetallePage() {
         )}
       </div>
 
-      {/* ============ 3.4 Timeline Semanal ============ */}
-      <div>
-        <h2 className="text-base font-semibold mb-3 flex items-center gap-2">
-          <CalendarDays className="h-5 w-5" />
-          Timeline Semanal
-        </h2>
-        <div className="grid grid-cols-7 gap-2">
-          {weekDates.map((dateStr) => {
-            const daySessions = sessionsByDate[dateStr] || []
-            const weekday = dateToWeekday(dateStr)
-            const isToday = dateStr === new Date().toISOString().split('T')[0]
-            const isMatchDay = partido && partido.fecha.slice(0, 10) === dateStr
+      {/* ============ Timeline Semanal ============ */}
+      <WeekView
+        weekDates={weekDates}
+        sessionsByDate={sessionsByDate}
+        partido={partido}
+      />
 
-            // Determine the dominant match_day for this day
-            const dominantMD = isMatchDay ? 'MD' : daySessions[0]?.match_day || null
-            const mdColors = dominantMD ? MATCH_DAY_COLORS[dominantMD] : null
-
-            return (
-              <div
-                key={dateStr}
-                className={`rounded-lg border min-h-[180px] flex flex-col overflow-hidden ${
-                  isToday ? 'ring-2 ring-primary/30' : ''
-                } ${mdColors ? `border-t-4 ${mdColors.border}` : 'border-t-4 border-t-transparent'}`}
-              >
-                {/* Day header */}
-                <div className={`px-2 py-1.5 border-b text-center ${mdColors ? mdColors.bg : 'bg-muted/30'}`}>
-                  <p className="text-[10px] font-semibold text-muted-foreground">{DAY_NAMES[weekday]}</p>
-                  <p className={`text-sm font-bold ${isToday ? 'text-primary' : ''}`}>
-                    {new Date(dateStr + 'T12:00:00').getDate()}
-                  </p>
-                  {dominantMD && (
-                    <Badge variant="outline" className={`text-[9px] px-1 py-0 mt-0.5 ${mdColors?.text || ''}`}>
-                      {dominantMD}
-                    </Badge>
-                  )}
-                </div>
-
-                {/* Day content */}
-                <div className="flex-1 p-1.5 space-y-1.5">
-                  {/* Match card */}
-                  {isMatchDay && (
-                    <Link
-                      href={`/partidos/${partido.id}`}
-                      className="block p-1.5 rounded bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors"
-                    >
-                      <div className="flex items-center gap-1">
-                        <Swords className="h-3 w-3 text-amber-600" />
-                        <span className="text-[10px] font-bold text-amber-800">PARTIDO</span>
-                      </div>
-                      <p className="text-xs font-medium truncate mt-0.5">
-                        {partido.localia === 'local' ? 'vs' : '@'} {partido.rival?.nombre || 'Rival'}
-                      </p>
-                      {partido.hora && <p className="text-[10px] text-amber-700">{partido.hora}h</p>}
-                    </Link>
-                  )}
-
-                  {/* Session cards */}
-                  {daySessions.map((s) => (
-                    <Link
-                      key={s.id}
-                      href={`/sesiones/${s.id}`}
-                      className="block p-1.5 rounded border hover:shadow-sm transition-all"
-                    >
-                      <div className="flex items-center gap-1 mb-0.5">
-                        {s.match_day && (
-                          <span className={`text-[9px] font-bold px-1 rounded ${
-                            MATCH_DAY_COLORS[s.match_day]?.bg || 'bg-gray-100'
-                          } ${MATCH_DAY_COLORS[s.match_day]?.text || 'text-gray-700'}`}>
-                            {s.match_day}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs font-medium truncate">{s.titulo}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {s.duracion_total && (
-                          <span className="text-[10px] text-muted-foreground">{s.duracion_total}min</span>
-                        )}
-                        {s.num_tareas > 0 && (
-                          <span className="text-[10px] text-muted-foreground">{s.num_tareas} tareas</span>
-                        )}
-                      </div>
-                    </Link>
-                  ))}
-
-                  {/* Empty */}
-                  {!isMatchDay && daySessions.length === 0 && (
-                    <div className="flex items-center justify-center h-full min-h-[60px] text-muted-foreground/30">
-                      <span className="text-[10px]">-</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-
-        {/* MD Legend */}
-        <div className="flex flex-wrap gap-2 mt-3">
-          {Object.entries(MATCH_DAY_COLORS).map(([md, colors]) => (
-            <div key={md} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] ${colors.bg} ${colors.text}`}>
-              <span className="font-bold">{md}</span>
-              <span>{colors.label}</span>
-              <span className="text-[9px] opacity-60">({colors.carga})</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ============ 3.5 Lista de Sesiones ============ */}
+      {/* ============ Lista de Sesiones ============ */}
       <div>
         <h2 className="text-base font-semibold mb-3 flex items-center gap-2">
           <ClipboardList className="h-5 w-5" />
@@ -578,7 +464,7 @@ export default function MicrocicloDetallePage() {
                   <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
                     mdColors ? `${mdColors.bg} ${mdColors.text}` : 'bg-gray-100 text-gray-600'
                   }`}>
-                    {s.match_day || '—'}
+                    {s.match_day || '\u2014'}
                   </div>
 
                   {/* Session info */}
@@ -622,70 +508,10 @@ export default function MicrocicloDetallePage() {
         )}
       </div>
 
-      {/* ============ 3.6 Carga de Entrenamiento (RPE) ============ */}
-      {(data.rpe.rpe_promedio_semana !== null || Object.keys(data.rpe.registros_por_sesion).length > 0) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Activity className="h-5 w-5" />
-              Carga de Entrenamiento
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {/* Weekly average */}
-            {data.rpe.rpe_promedio_semana !== null && (
-              <div className="flex items-center gap-4 mb-4 pb-4 border-b">
-                <div className={`text-3xl font-bold ${
-                  data.rpe.rpe_promedio_semana >= 7 ? 'text-red-600'
-                    : data.rpe.rpe_promedio_semana >= 5 ? 'text-amber-600'
-                      : 'text-green-600'
-                }`}>
-                  {data.rpe.rpe_promedio_semana}
-                </div>
-                <div>
-                  <p className="text-sm font-medium">RPE Promedio Semanal</p>
-                  <p className="text-xs text-muted-foreground">Media de todas las sesiones del microciclo</p>
-                </div>
-              </div>
-            )}
+      {/* ============ Carga de Entrenamiento (RPE) ============ */}
+      <LoadChart sesiones={data.sesiones} rpe={data.rpe} />
 
-            {/* Per-session RPE bars */}
-            {data.sesiones.filter((s) => data.rpe.registros_por_sesion[s.id]).length > 0 && (
-              <div className="space-y-3">
-                {data.sesiones
-                  .filter((s) => data.rpe.registros_por_sesion[s.id])
-                  .map((s) => {
-                    const rpe = data.rpe.registros_por_sesion[s.id]
-                    const pct = Math.min((rpe.rpe_promedio / 10) * 100, 100)
-                    const color = rpe.rpe_promedio >= 7 ? 'bg-red-500' : rpe.rpe_promedio >= 5 ? 'bg-amber-500' : 'bg-green-500'
-                    const mdColors = s.match_day ? MATCH_DAY_COLORS[s.match_day] : null
-
-                    return (
-                      <div key={s.id} className="flex items-center gap-3">
-                        <div className={`w-10 text-center text-[10px] font-bold rounded px-1 py-0.5 shrink-0 ${
-                          mdColors ? `${mdColors.bg} ${mdColors.text}` : 'bg-gray-100 text-gray-600'
-                        }`}>
-                          {s.match_day || '—'}
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-medium truncate">{s.titulo}</span>
-                            <span className="text-xs font-bold ml-2">{rpe.rpe_promedio}</span>
-                          </div>
-                          <div className="h-2 rounded-full bg-muted overflow-hidden">
-                            <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${pct}%` }} />
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ============ 3.7 Notas ============ */}
+      {/* ============ Notas ============ */}
       {micro.notas && (
         <Card>
           <CardHeader>
@@ -700,7 +526,7 @@ export default function MicrocicloDetallePage() {
         </Card>
       )}
 
-      {/* ============ 3.8 Edit Dialog ============ */}
+      {/* ============ Edit Dialog ============ */}
       <Dialog open={showEdit} onOpenChange={(open) => !open && setShowEdit(false)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>

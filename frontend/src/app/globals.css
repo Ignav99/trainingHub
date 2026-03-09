@@ -118,8 +118,34 @@
 }
 
 /* ============================================
-   UTILIDADES
+   TYPOGRAPHY SCALE
    ============================================ */
+
+@layer components {
+  .text-page-title { @apply text-2xl font-bold tracking-tight; }
+  .text-section-title { @apply text-lg font-semibold; }
+  .text-card-title { @apply text-sm font-medium; }
+  .text-body { @apply text-sm text-muted-foreground; }
+}
+
+/* ============================================
+   CARD HIERARCHY
+   ============================================ */
+
+@layer components {
+  .card-primary { @apply bg-card border shadow-sm rounded-lg; }
+  .card-secondary { @apply bg-muted/50 border-none rounded-lg; }
+  .card-interactive { @apply bg-card border shadow-sm rounded-lg hover:shadow-md transition-shadow cursor-pointer; }
+}
+
+/* ============================================
+   MICRO-INTERACTIONS
+   ============================================ */
+
+@layer components {
+  .row-hover { @apply hover:bg-muted/50 transition-colors; }
+  .card-hover { @apply hover:shadow-md transition-all duration-200; }
+}
 
 /* ============================================
    ANIMACIONES
@@ -130,28 +156,50 @@
   50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
 }
 
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
-  
+
+  .animate-fade-in {
+    animation: fadeIn 0.2s ease-out;
+  }
+
   /* Scrollbar personalizado */
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted)) transparent;
   }
-  
+
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
-  
+
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
   }
-  
+
   .scrollbar-thin::-webkit-scrollbar-thumb {
     background-color: hsl(var(--muted));
     border-radius: 3px;
+  }
+}
+
+/* ============================================
+   MOBILE SAFE AREAS
+   ============================================ */
+
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
   }
 }

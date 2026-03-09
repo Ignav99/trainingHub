@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import {
   Shield,
@@ -20,6 +21,7 @@ import {
   X,
   BarChart3,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api/client'
 
@@ -250,7 +252,7 @@ export default function AdminPage() {
         loadOrgDetail(result.organizacion.id)
       }
     } catch (err: any) {
-      alert(err.message || 'Error al crear organizacion')
+      toast.error(err.message || 'Error al crear organizacion')
     } finally {
       setCreatingOrg(false)
     }
@@ -274,7 +276,7 @@ export default function AdminPage() {
       setTimeout(() => loadOrgDetail(orgId), 100)
       loadData()
     } catch (err: any) {
-      alert(err.message || 'Error al crear equipo')
+      toast.error(err.message || 'Error al crear equipo')
     } finally {
       setCreatingTeam(false)
     }
@@ -295,7 +297,7 @@ export default function AdminPage() {
       })
       setGeneratedLink(`${window.location.origin}/join?token=${result.token}`)
     } catch (err: any) {
-      alert(err.message || 'Error al crear invitacion')
+      toast.error(err.message || 'Error al crear invitacion')
     } finally {
       setCreatingInvite(false)
     }
@@ -319,7 +321,7 @@ export default function AdminPage() {
       setSelectedPlan('')
       loadData()
     } catch (err: any) {
-      alert(err.message || 'Error al cambiar plan')
+      toast.error(err.message || 'Error al cambiar plan')
     } finally {
       setSavingPlan(false)
     }
@@ -414,7 +416,7 @@ export default function AdminPage() {
       <header className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo-icon.png" alt="Kabin-e" className="h-8 w-8" />
+            <Image src="/logo-icon.png" alt="Kabin-e" width={32} height={32} />
             <div>
               <h1 className="font-bold text-gray-900">Kabin-e Admin</h1>
               <p className="text-xs text-gray-500">{user?.email}</p>

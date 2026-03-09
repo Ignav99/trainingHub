@@ -15,6 +15,7 @@ import {
   CheckCircle,
   Clock,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -147,7 +148,7 @@ export default function EnfermeriaPage() {
       mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
     } catch (err) {
       console.error('Error creating registro:', err)
-      alert('Error al crear el registro médico')
+      toast.error('Error al crear el registro médico')
     } finally {
       setSaving(false)
     }

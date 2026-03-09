@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { Shield } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -81,8 +82,8 @@ export function ClubIdentityStep({ data, onChange }: Props) {
             >
               <div className="flex justify-center mb-3">
                 {data.logoPreview ? (
-                  <div className="w-20 h-20 bg-white/10 rounded-2xl p-2 backdrop-blur-sm">
-                    <img src={data.logoPreview} alt="Escudo" className="w-full h-full object-contain" />
+                  <div className="w-20 h-20 bg-white/10 rounded-2xl p-2 backdrop-blur-sm relative">
+                    <Image src={data.logoPreview} alt="Escudo" fill className="object-contain" unoptimized />
                   </div>
                 ) : (
                   <div className="w-20 h-20 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-sm">

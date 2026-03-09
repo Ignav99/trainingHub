@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import {
   Settings,
   User,
@@ -24,6 +25,7 @@ import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/authStore'
 import { useClubStore } from '@/stores/clubStore'
 import { organizacionApi, type Miembro } from '@/lib/api/organizacion'
@@ -130,7 +132,7 @@ export default function ConfiguracionPage() {
       setSavedClub(true)
       setTimeout(() => setSavedClub(false), 2000)
     } catch (err: any) {
-      alert(err.message || 'Error al guardar')
+      toast.error(err.message || 'Error al guardar')
     } finally {
       setSavingClub(false)
     }
@@ -144,7 +146,7 @@ export default function ConfiguracionPage() {
       const res = await organizacionApi.uploadLogo(file)
       updateTheme({ logoUrl: res.logo_url })
     } catch (err: any) {
-      alert(err.message || 'Error al subir logo')
+      toast.error(err.message || 'Error al subir logo')
     } finally {
       setUploadingLogo(false)
     }
@@ -164,7 +166,7 @@ export default function ConfiguracionPage() {
       const invRes = await invitacionesApi.list({ estado: 'pendiente' })
       setInvitaciones(invRes.data)
     } catch (err: any) {
-      alert(err.message || 'Error al crear invitacion')
+      toast.error(err.message || 'Error al crear invitacion')
     } finally {
       setCreatingInvite(false)
     }
@@ -182,7 +184,7 @@ export default function ConfiguracionPage() {
       await invitacionesApi.revoke(id)
       setInvitaciones((prev) => prev.filter((i) => i.id !== id))
     } catch (err: any) {
-      alert(err.message || 'Error al revocar')
+      toast.error(err.message || 'Error al revocar')
     } finally {
       setRevokingId(null)
     }
@@ -279,7 +281,7 @@ export default function ConfiguracionPage() {
                 <Label>Escudo / Logo</Label>
                 <div className="flex items-center gap-4">
                   {theme.logoUrl ? (
-                    <img src={theme.logoUrl} alt="Logo" className="w-16 h-16 object-contain rounded-lg border" />
+                    <Image src={theme.logoUrl} alt="Logo" width={64} height={64} className="object-contain rounded-lg border" unoptimized />
                   ) : (
                     <div
                       className="w-16 h-16 rounded-lg flex items-center justify-center text-white font-bold text-xl"

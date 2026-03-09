@@ -20,6 +20,7 @@ import {
   Activity,
   Camera
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { Jugador, JugadorUpdate, jugadoresApi, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
 
@@ -79,7 +80,7 @@ export default function JugadorDetailPage() {
       setIsEditing(false)
     } catch (err) {
       console.error('Error saving jugador:', err)
-      alert('Error al guardar los cambios')
+      toast.error('Error al guardar los cambios')
     } finally {
       setSaving(false)
     }
@@ -116,7 +117,7 @@ export default function JugadorDetailPage() {
       }
     } catch (err) {
       console.error('Error uploading photo:', err)
-      alert('Error al subir la foto')
+      toast.error('Error al subir la foto')
     } finally {
       setUploadingPhoto(false)
     }

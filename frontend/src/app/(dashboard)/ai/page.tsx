@@ -14,6 +14,7 @@ import {
   Wrench,
   X,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -168,7 +169,7 @@ export default function AIChatPage() {
     } catch (err: any) {
       // Remove temp message and show error
       setMensajes((prev) => prev.filter((m) => m.id !== tempMsg.id))
-      alert(err.message || 'Error al enviar mensaje')
+      toast.error(err.message || 'Error al enviar mensaje')
     } finally {
       setSending(false)
     }

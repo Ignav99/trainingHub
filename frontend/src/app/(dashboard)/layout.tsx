@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard,
@@ -32,6 +33,8 @@ import { useClubStore } from '@/stores/clubStore'
 import { ClubAvatar, Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { KabineLoader } from '@/components/ui/kabine-loader'
+import { Toaster } from '@/components/ui/toast'
+import { MobileBottomNav } from '@/components/ui/mobile-nav'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -93,16 +96,19 @@ export default function DashboardLayout({
     return null
   }
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     await logout()
     router.push('/login')
-  }
+  }, [logout, router])
+
+  const handleCloseSidebar = useCallback(() => setSidebarOpen(false), [])
+  const handleOpenSidebar = useCallback(() => setSidebarOpen(true), [])
 
   return (
     <div className="min-h-screen bg-muted/30">
       {/* Mobile sidebar overlay */}
       <div className={`fixed inset-0 z-50 lg:hidden ${sidebarOpen ? '' : 'hidden'}`}>
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={handleCloseSidebar} />
         <div className="fixed inset-y-0 left-0 w-72 bg-card shadow-xl">
           <SidebarContent
             pathname={pathname}
@@ -111,7 +117,7 @@ export default function DashboardLayout({
             onSelectEquipo={setEquipoActivo}
             user={user}
             theme={theme}
-            onClose={() => setSidebarOpen(false)}
+            onClose={handleCloseSidebar}
             onLogout={handleLogout}
           />
         </div>
@@ -143,7 +149,7 @@ export default function DashboardLayout({
             type="button"
             className="-m-2.5 p-2.5"
             style={{ color: 'rgba(255,255,255,0.8)' }}
-            onClick={() => setSidebarOpen(true)}
+            onClick={handleOpenSidebar}
           >
             <Menu className="h-6 w-6" />
           </button>
@@ -164,10 +170,12 @@ export default function DashboardLayout({
           </button>
         </div>
 
-        <main className="py-6 px-4 sm:px-6 lg:px-8">
+        <main className="py-6 pb-24 lg:pb-6 px-4 sm:px-6 lg:px-8">
           {children}
         </main>
       </div>
+      <MobileBottomNav />
+      <Toaster />
     </div>
   )
 }
@@ -185,7 +193,7 @@ interface SidebarProps {
   onLogout: () => void
 }
 
-function SidebarContent({
+const SidebarContent = memo(function SidebarContent({
   pathname,
   equipos,
   equipoActivo,
@@ -226,7 +234,7 @@ function SidebarContent({
               {user?.organizacion?.nombre || 'Kabin-e'}
             </p>
             <p className="text-[10px] text-white/60 uppercase tracking-wider flex items-center gap-1">
-              <img src="/logo-icon.png" alt="Kabin-e" className="h-3.5 w-3.5" />
+              <Image src="/logo-icon.png" alt="Kabin-e" width={14} height={14} className="h-3.5 w-3.5" />
               Kabin-e
             </p>
           </div>
@@ -411,4 +419,6 @@ function SidebarContent({
       </nav>
     </div>
   )
-}
+})
+
+SidebarContent.displayName = 'SidebarContent'

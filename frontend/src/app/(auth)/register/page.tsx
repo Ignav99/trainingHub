@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Loader2, Building2 } from 'lucide-react'
@@ -51,7 +52,7 @@ export default function RegisterPage() {
         <div className="w-full max-w-md space-y-8">
           {/* Logo */}
           <div className="text-center">
-            <img src="/logo.png" alt="Kabin-e" className="h-20 mx-auto mb-3" />
+            <Image src="/logo.png" alt="Kabin-e" width={120} height={80} className="mx-auto mb-3" />
             <p className="text-gray-500">Crea tu cuenta</p>
           </div>
 
@@ -247,16 +248,18 @@ export default function RegisterPage() {
 
       {/* Panel derecho - Imagen de estadio */}
       <div className="hidden lg:flex lg:flex-1 relative overflow-hidden">
-        <img
+        <Image
           src={STADIUM_BG}
           alt="Estadio de fútbol"
-          className="absolute inset-0 w-full h-full object-cover"
+          fill
+          className="object-cover"
+          unoptimized
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70" />
         <div className="relative z-10 flex flex-col items-center justify-center p-12 text-white">
           <div className="max-w-md text-center">
             <div className="inline-flex items-center gap-3 mb-6 px-5 py-3 rounded-2xl backdrop-blur-sm bg-white/10">
-              <img src="/logo-icon.png" alt="Kabin-e" className="h-10 w-10 drop-shadow-lg" />
+              <Image src="/logo-icon.png" alt="Kabin-e" width={40} height={40} className="drop-shadow-lg" />
               <span className="text-2xl font-extrabold tracking-tight">Kabin-e</span>
             </div>
             <h2

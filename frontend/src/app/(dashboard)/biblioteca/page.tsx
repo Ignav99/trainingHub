@@ -18,6 +18,7 @@ import {
   Check,
   X
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Tarea, CategoriaTarea } from '@/types'
 import { tareasApi, catalogosApi } from '@/lib/api/tareas'
 import { useEquipoStore } from '@/stores/equipoStore'
@@ -303,12 +304,12 @@ export default function BibliotecaPage() {
 
   const handleCopyTarea = async (tarea: Tarea) => {
     if (!equipoActivo) {
-      alert('Debes seleccionar un equipo primero en la sección de Plantilla')
+      toast.error('Debes seleccionar un equipo primero en la sección de Plantilla')
       return
     }
 
     if (!tarea.categoria?.id) {
-      alert('La tarea no tiene una categoría válida')
+      toast.error('La tarea no tiene una categoría válida')
       return
     }
 
@@ -341,7 +342,7 @@ export default function BibliotecaPage() {
       setPreviewTarea(null)
     } catch (err) {
       console.error('Error copying tarea:', err)
-      alert('Error al copiar la tarea')
+      toast.error('Error al copiar la tarea')
     } finally {
       setCopying(false)
     }

@@ -18,6 +18,7 @@ import {
   X,
   Upload,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -118,7 +119,7 @@ export default function BibliotecaAIPage() {
       setPdfFile(null)
       fetchDocumentos()
     } catch (err: any) {
-      alert(err.message || 'Error al crear documento')
+      toast.error(err.message || 'Error al crear documento')
     } finally {
       setCreating(false)
     }
@@ -143,11 +144,11 @@ export default function BibliotecaAIPage() {
     try {
       const res = await knowledgeBaseApi.reindexAll()
       if (res?.total === 0) {
-        alert('No hay documentos para re-indexar')
+        toast('No hay documentos para re-indexar')
       }
       fetchDocumentos()
     } catch (err: any) {
-      alert(err.message || 'Error al re-indexar')
+      toast.error(err.message || 'Error al re-indexar')
     } finally {
       setReindexingAll(false)
     }

@@ -2,7 +2,9 @@
 
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { Shield, ArrowRight, ArrowLeft, Check, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/authStore'
 import { useClubStore, hexToHsl } from '@/stores/clubStore'
 import { useEquipoStore } from '@/stores/equipoStore'
@@ -177,7 +179,7 @@ export default function OnboardingPage() {
       router.push('/')
     } catch (error) {
       console.error('Onboarding error:', error)
-      alert('Hubo un error al guardar la configuración. Inténtalo de nuevo.')
+      toast.error('Hubo un error al guardar la configuración. Inténtalo de nuevo.')
     } finally {
       setIsSubmitting(false)
     }
@@ -194,7 +196,7 @@ export default function OnboardingPage() {
               style={{ backgroundColor: clubData.colorPrimario }}
             >
               {clubData.logoPreview ? (
-                <img src={clubData.logoPreview} alt="" className="w-8 h-8 object-contain" />
+                <Image src={clubData.logoPreview} alt="Club logo" width={32} height={32} className="object-contain" unoptimized />
               ) : (
                 <Shield className="h-5 w-5" />
               )}
