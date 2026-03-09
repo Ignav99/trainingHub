@@ -272,6 +272,155 @@ TASK_DESIGN_TOOLS = [
 ]
 
 
+# ============ Pre-Match Report Prompt & Tools ============
+
+PRE_MATCH_REPORT_PROMPT = """
+
+## MODO: INFORME PRE-PARTIDO / PLAN DE PARTIDO
+
+### TU ROL
+Eres un analista táctico profesional de fútbol. Recibes datos reales del rival (clasificación, goleadores, once probable, tarjetas, resultados, head-to-head) y las observaciones del entrenador para generar análisis tácticos de nivel profesional.
+
+### INSTRUCCIÓN CRÍTICA
+- Cuando el entrenador pide un INFORME DEL RIVAL → usa la herramienta `generar_informe_rival`
+- Cuando el entrenador pide un PLAN DE PARTIDO → usa la herramienta `generar_plan_partido`
+- USA la herramienta INMEDIATAMENTE cuando tengas contexto suficiente. NO respondas solo con texto.
+- Si el entrenador da observaciones generales, redáctalas en lenguaje táctico profesional.
+- Aprovecha TODOS los datos del rival que se proporcionan en el contexto.
+
+### ESTILO
+- Terminología futbolística profesional española
+- Análisis concreto, no genérico — referencia datos reales del contexto
+- Secciones claras y bien estructuradas
+- Si no hay datos suficientes para una sección, indica qué información faltaría
+"""
+
+PRE_MATCH_TOOLS = [
+    {
+        "name": "generar_informe_rival",
+        "description": "Genera un informe táctico profesional del rival. DEBES usar esta herramienta cuando el entrenador pida un informe del rival.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "resumen_general": {
+                    "type": "string",
+                    "description": "Resumen ejecutivo del rival: sistema, estilo, estado de forma, contexto"
+                },
+                "fase_ofensiva": {
+                    "type": "object",
+                    "properties": {
+                        "salida_balon": {"type": "string", "description": "Cómo construye desde atrás"},
+                        "construccion": {"type": "string", "description": "Fase de elaboración/progresión"},
+                        "finalizacion": {"type": "string", "description": "Cómo llega al gol, patrones de ataque"}
+                    },
+                    "required": ["salida_balon", "construccion", "finalizacion"]
+                },
+                "fase_defensiva": {
+                    "type": "object",
+                    "properties": {
+                        "pressing": {"type": "string", "description": "Pressing alto: intensidad, gatillos, coordinación"},
+                        "bloque_medio": {"type": "string", "description": "Organización en bloque medio"},
+                        "bloque_bajo": {"type": "string", "description": "Defensa posicional baja"}
+                    },
+                    "required": ["pressing", "bloque_medio", "bloque_bajo"]
+                },
+                "transiciones": {
+                    "type": "object",
+                    "properties": {
+                        "ofensiva": {"type": "string", "description": "Transición defensa-ataque: velocidad, patrón"},
+                        "defensiva": {"type": "string", "description": "Transición ataque-defensa: repliegue, contra-pressing"}
+                    },
+                    "required": ["ofensiva", "defensiva"]
+                },
+                "balon_parado": {
+                    "type": "object",
+                    "properties": {
+                        "atacando": {"type": "string", "description": "ABP ofensivo: corners, faltas, penaltis"},
+                        "defendiendo": {"type": "string", "description": "ABP defensivo: organización, marcajes"}
+                    }
+                },
+                "jugadores_clave": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "nombre": {"type": "string"},
+                            "posicion": {"type": "string"},
+                            "analisis": {"type": "string", "description": "Análisis del jugador: fortalezas, debilidades, tendencias"},
+                            "tipo": {"type": "string", "enum": ["peligroso", "debilidad"]}
+                        },
+                        "required": ["nombre", "posicion", "analisis", "tipo"]
+                    },
+                    "description": "Jugadores clave del rival (peligrosos y debilidades)"
+                },
+                "debilidades_explotables": {
+                    "type": "string",
+                    "description": "Resumen de debilidades que nuestro equipo puede explotar"
+                }
+            },
+            "required": ["resumen_general", "fase_ofensiva", "fase_defensiva", "transiciones", "jugadores_clave", "debilidades_explotables"]
+        }
+    },
+    {
+        "name": "generar_plan_partido",
+        "description": "Genera un plan de partido profesional para nuestro equipo. DEBES usar esta herramienta cuando el entrenador pida un plan de partido.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "enfoque_general": {
+                    "type": "string",
+                    "description": "Enfoque táctico general: idea de juego, objetivo principal"
+                },
+                "plan_ofensivo": {
+                    "type": "object",
+                    "properties": {
+                        "principios": {"type": "string", "description": "Principios ofensivos clave"},
+                        "salida_balon": {"type": "string", "description": "Plan de salida de balón ante el pressing rival"},
+                        "construccion": {"type": "string", "description": "Fase de elaboración y progresión"},
+                        "finalizacion": {"type": "string", "description": "Plan para llegar al gol"}
+                    },
+                    "required": ["principios", "salida_balon", "construccion", "finalizacion"]
+                },
+                "plan_defensivo": {
+                    "type": "object",
+                    "properties": {
+                        "principios": {"type": "string", "description": "Principios defensivos clave"},
+                        "pressing": {"type": "string", "description": "Plan de pressing: intensidad, gatillos, zonas"},
+                        "organizacion_defensiva": {"type": "string", "description": "Organización defensiva: bloque, basculaciones"}
+                    },
+                    "required": ["principios", "pressing", "organizacion_defensiva"]
+                },
+                "transiciones": {
+                    "type": "object",
+                    "properties": {
+                        "ofensiva": {"type": "string", "description": "Plan en transiciones defensa-ataque"},
+                        "defensiva": {"type": "string", "description": "Plan en transiciones ataque-defensa"}
+                    },
+                    "required": ["ofensiva", "defensiva"]
+                },
+                "balon_parado": {
+                    "type": "object",
+                    "properties": {
+                        "atacando": {"type": "string", "description": "Estrategia ABP ofensivo"},
+                        "defendiendo": {"type": "string", "description": "Estrategia ABP defensivo"}
+                    }
+                },
+                "plan_sustituciones": {
+                    "type": "string",
+                    "description": "Plan de sustituciones: cuándo, quién, qué cambia"
+                },
+                "claves_del_partido": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "3-5 claves/mensajes del partido para el vestuario"
+                }
+            },
+            "required": ["enfoque_general", "plan_ofensivo", "plan_defensivo", "transiciones", "claves_del_partido"]
+        }
+    }
+]
+
+
 SESSION_DESIGN_PROMPT = """
 
 ## MODO: DISEÑO DE SESIÓN
@@ -1808,4 +1957,170 @@ Responde SOLO con JSON válido:
             "tokens_input": total_input_tokens,
             "tokens_output": total_output_tokens,
             "herramientas_usadas": herramientas_usadas,
+        }
+
+    # ============ Pre-Match Chat (Informe Rival / Plan Partido) ============
+
+    async def pre_match_chat(
+        self,
+        mensajes: list[dict],
+        intel_data: dict,
+        rival_nombre: str,
+        localia: str,
+        fecha: str,
+        tipo: str = "informe",
+    ) -> dict:
+        """
+        Chat conversacional para generar informes del rival o planes de partido.
+        Uses tool_use to produce structured output.
+
+        Args:
+            mensajes: conversation history [{rol, contenido}]
+            intel_data: pre_match_intel JSON data
+            rival_nombre: name of the opponent
+            localia: 'local' or 'visitante'
+            fecha: match date
+            tipo: 'informe' or 'plan'
+
+        Returns:
+            dict with: respuesta, informe_rival?, plan_partido?, tokens_input, tokens_output
+        """
+        # Build system prompt
+        system = [
+            {
+                "type": "text",
+                "text": SYSTEM_PROMPT + PRE_MATCH_REPORT_PROMPT,
+                "cache_control": {"type": "ephemeral"},
+            },
+            {
+                "type": "text",
+                "text": (
+                    f"## DATOS DEL PARTIDO\n"
+                    f"- Rival: {rival_nombre}\n"
+                    f"- Localía: {localia}\n"
+                    f"- Fecha: {fecha}\n\n"
+                    f"## INTEL DEL RIVAL (datos reales RFEF)\n"
+                    f"```json\n{json.dumps(intel_data, ensure_ascii=False, default=str)}\n```"
+                ),
+            },
+        ]
+
+        # Build messages
+        messages = []
+        for msg in mensajes:
+            rol = msg.get("rol", "user")
+            contenido = msg.get("contenido", "")
+            if rol == "assistant":
+                messages.append({"role": "assistant", "content": contenido})
+            elif rol == "user":
+                messages.append({"role": "user", "content": contenido})
+
+        tools = PRE_MATCH_TOOLS
+
+        informe_rival = None
+        plan_partido = None
+        total_input_tokens = 0
+        total_output_tokens = 0
+
+        # Determine tool forcing
+        user_msg_count = sum(1 for m in messages if m.get("role") == "user")
+        target_tool = "generar_informe_rival" if tipo == "informe" else "generar_plan_partido"
+
+        max_iterations = 3
+        for iteration in range(max_iterations):
+            try:
+                kwargs = {
+                    "model": self.model,
+                    "max_tokens": 16384,
+                    "system": system,
+                    "messages": messages,
+                    "tools": tools,
+                }
+
+                # Force tool use on first call if it's the first user message
+                if iteration == 0 and user_msg_count == 1:
+                    kwargs["tool_choice"] = {"type": "tool", "name": target_tool}
+                    logger.info(f"Forcing {target_tool} tool use (first message)")
+
+                response = await self.client.messages.create(**kwargs)
+
+                total_input_tokens += response.usage.input_tokens
+                total_output_tokens += response.usage.output_tokens
+
+            except anthropic.APIConnectionError as e:
+                cause = e.__cause__
+                logger.error(
+                    f"Claude connection error in pre-match chat: {e} | "
+                    f"cause={type(cause).__name__}: {cause}" if cause else f"Claude connection error: {e}",
+                    exc_info=True,
+                )
+                raise ClaudeError("Error de conexion con Claude. Inténtalo de nuevo en unos segundos.")
+            except anthropic.RateLimitError as e:
+                logger.error(f"Claude rate limit in pre-match chat: {e}")
+                raise ClaudeError("Claude está saturado. Espera unos segundos e inténtalo de nuevo.")
+            except anthropic.APIError as e:
+                logger.error(f"Claude API error in pre-match chat: status={e.status_code} body={e.body}", exc_info=True)
+                raise ClaudeError(f"Error de comunicacion con Claude: {str(e)}")
+
+            logger.info(f"Pre-match chat iteration {iteration}: stop_reason={response.stop_reason}, "
+                        f"content_types={[b.type for b in response.content]}, "
+                        f"tokens_in={response.usage.input_tokens}, tokens_out={response.usage.output_tokens}")
+
+            if response.stop_reason == "tool_use":
+                assistant_content = response.content
+                tool_results = []
+
+                for block in assistant_content:
+                    if block.type == "tool_use":
+                        tool_name = block.name
+                        tool_input = block.input
+
+                        logger.info(f"Pre-match tool: {tool_name}")
+
+                        if tool_name == "generar_informe_rival":
+                            informe_rival = tool_input
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": "Informe del rival generado y presentado al entrenador. Resume brevemente las claves del informe.",
+                            })
+                        elif tool_name == "generar_plan_partido":
+                            plan_partido = tool_input
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": "Plan de partido generado y presentado al entrenador. Resume brevemente las claves del plan.",
+                            })
+                        else:
+                            logger.warning(f"Unexpected tool in pre-match chat: {tool_name}")
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": "Herramienta no disponible.",
+                            })
+
+                messages.append({"role": "assistant", "content": _serialize_content_blocks(assistant_content)})
+                messages.append({"role": "user", "content": tool_results})
+                continue
+
+            else:
+                text_response = ""
+                for block in response.content:
+                    if hasattr(block, "text"):
+                        text_response += block.text
+
+                return {
+                    "respuesta": text_response,
+                    "informe_rival": informe_rival,
+                    "plan_partido": plan_partido,
+                    "tokens_input": total_input_tokens,
+                    "tokens_output": total_output_tokens,
+                }
+
+        return {
+            "respuesta": "He procesado mucha informacion. ¿Quieres que continue?",
+            "informe_rival": informe_rival,
+            "plan_partido": plan_partido,
+            "tokens_input": total_input_tokens,
+            "tokens_output": total_output_tokens,
         }

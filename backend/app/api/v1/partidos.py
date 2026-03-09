@@ -24,6 +24,12 @@ from app.services.audit_service import log_create, log_update, log_delete
 from app.services.notification_service import notify_partido_resultado
 from app.services.pdf_service import generate_informe_partido_pdf
 from app.services.pre_match_service import populate_partido_intel
+from app.services.claude_service import ClaudeService, ClaudeError
+
+import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -495,3 +501,92 @@ async def populate_pre_match(
         )
 
     return {"status": "ok", "pre_match_intel": intel}
+
+
+@router.post("/{partido_id}/pre-match-chat")
+async def pre_match_chat(
+    partido_id: UUID,
+    body: dict,
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
+):
+    """
+    AI chat for generating rival report or match plan.
+    Body: { mensajes: [{rol, contenido}], tipo: "informe" | "plan" }
+    """
+    supabase = get_supabase()
+
+    mensajes = body.get("mensajes", [])
+    tipo = body.get("tipo", "informe")
+
+    if tipo not in ("informe", "plan"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="tipo debe ser 'informe' o 'plan'"
+        )
+
+    if not mensajes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Se requiere al menos un mensaje"
+        )
+
+    # Fetch partido with rival
+    partido_res = supabase.table("partidos").select(
+        "*, rivales(nombre)"
+    ).eq("id", str(partido_id)).single().execute()
+
+    if not partido_res.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Partido no encontrado"
+        )
+
+    partido_data = partido_res.data
+    rival_data = partido_data.get("rivales") or {}
+    rival_nombre = rival_data.get("nombre", "Rival desconocido")
+    intel_data = partido_data.get("pre_match_intel") or {}
+
+    try:
+        claude = ClaudeService()
+        result = await claude.pre_match_chat(
+            mensajes=mensajes,
+            intel_data=intel_data,
+            rival_nombre=rival_nombre,
+            localia=partido_data.get("localia", "local"),
+            fecha=partido_data.get("fecha", ""),
+            tipo=tipo,
+        )
+    except ClaudeError as e:
+        error_msg = str(e)
+        if "conexion" in error_msg.lower():
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=error_msg)
+        elif "saturado" in error_msg.lower():
+            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=error_msg)
+        else:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=error_msg)
+
+    # Save AI result to notas_pre JSON
+    ai_data = {}
+    if result.get("informe_rival"):
+        ai_data["ai_informe_rival"] = result["informe_rival"]
+    if result.get("plan_partido"):
+        ai_data["ai_plan_partido"] = result["plan_partido"]
+
+    if ai_data:
+        existing_notas = {}
+        if partido_data.get("notas_pre"):
+            try:
+                existing_notas = json.loads(partido_data["notas_pre"]) if isinstance(partido_data["notas_pre"], str) else partido_data["notas_pre"]
+            except (json.JSONDecodeError, TypeError):
+                existing_notas = {}
+
+        merged = {**existing_notas, **ai_data}
+        supabase.table("partidos").update(
+            {"notas_pre": json.dumps(merged, ensure_ascii=False)}
+        ).eq("id", str(partido_id)).execute()
+
+    return {
+        "respuesta": result.get("respuesta", ""),
+        "informe_rival": result.get("informe_rival"),
+        "plan_partido": result.get("plan_partido"),
+    }

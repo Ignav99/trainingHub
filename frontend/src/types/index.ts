@@ -1254,6 +1254,30 @@ export interface PreMatchIntel {
 }
 
 // ============================================
+// AI PRE-MATCH REPORTS
+// ============================================
+
+export interface AIInformeRival {
+  resumen_general: string
+  fase_ofensiva: { salida_balon: string; construccion: string; finalizacion: string }
+  fase_defensiva: { pressing: string; bloque_medio: string; bloque_bajo: string }
+  transiciones: { ofensiva: string; defensiva: string }
+  balon_parado?: { atacando: string; defendiendo: string }
+  jugadores_clave: { nombre: string; posicion: string; analisis: string; tipo: 'peligroso' | 'debilidad' }[]
+  debilidades_explotables: string
+}
+
+export interface AIPlanPartido {
+  enfoque_general: string
+  plan_ofensivo: { principios: string; salida_balon: string; construccion: string; finalizacion: string }
+  plan_defensivo: { principios: string; pressing: string; organizacion_defensiva: string }
+  transiciones: { ofensiva: string; defensiva: string }
+  balon_parado?: { atacando: string; defendiendo: string }
+  plan_sustituciones?: string
+  claves_del_partido: string[]
+}
+
+// ============================================
 // CARGA ACUMULADA
 // ============================================
 
