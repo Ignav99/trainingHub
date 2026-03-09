@@ -4,7 +4,7 @@ Endpoints para consultar y recalcular carga de entrenamiento.
 """
 
 import logging
-from datetime import date
+from datetime import date, datetime
 
 from fastapi import APIRouter, HTTPException, Depends
 from uuid import UUID
@@ -45,13 +45,37 @@ async def get_carga_equipo(
             "total_jugadores": 0,
         })
 
-    # Get carga rows
+    # Get carga rows — auto-recalculate if stale (not updated today)
     carga_rows = (
         supabase.table("carga_acumulada_jugador")
         .select("*")
         .eq("equipo_id", eid)
         .execute()
     )
+
+    today_str = date.today().isoformat()
+    needs_recalc = True
+    if carga_rows.data:
+        # Check if any row was updated today
+        for r in carga_rows.data:
+            ut = r.get("updated_at") or ""
+            if ut[:10] == today_str:
+                needs_recalc = False
+                break
+
+    if needs_recalc:
+        try:
+            recalculate_team_load(equipo_id)
+            # Re-fetch after recalculation
+            carga_rows = (
+                supabase.table("carga_acumulada_jugador")
+                .select("*")
+                .eq("equipo_id", eid)
+                .execute()
+            )
+        except Exception as e:
+            logger.warning(f"Auto-recalculate failed for team {eid}: {e}")
+
     carga_map = {r["jugador_id"]: r for r in (carga_rows.data or [])}
 
     # Aggregate tarjetas from convocatorias
