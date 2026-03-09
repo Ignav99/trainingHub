@@ -8,12 +8,15 @@ export interface CreateRegistroMedicoData {
   titulo: string
   descripcion?: string
   diagnostico?: string
+  diagnostico_fisioterapeutico?: string
   tratamiento?: string
   medicacion?: string
   fecha_inicio: string
   fecha_fin?: string
+  fecha_alta?: string
   dias_baja_estimados?: number
   documentos_urls?: string[]
+  estado?: string
   solo_medico?: boolean
 }
 

@@ -47,10 +47,7 @@ const TIPO_LABELS: Record<string, string> = {
   lesion: 'Lesión',
   enfermedad: 'Enfermedad',
   molestias: 'Molestias',
-  diagnostico_fisio: 'Diagnóstico fisioterapéutico',
-  prueba_medica: 'Prueba médica aportada',
   rehabilitacion: 'Rehabilitación',
-  alta_medica: 'Alta médica',
   otro: 'Otro',
 }
 
@@ -109,6 +106,7 @@ export default function EnfermeriaDetailPage() {
     setEditForm({
       titulo: registro.titulo,
       descripcion: registro.descripcion,
+      diagnostico_fisioterapeutico: registro.diagnostico_fisioterapeutico,
       diagnostico: registro.diagnostico,
       tratamiento: registro.tratamiento,
       medicacion: registro.medicacion,
@@ -473,56 +471,21 @@ export default function EnfermeriaDetailPage() {
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <Shield className="h-4 w-4" />
-                Detalles clínicos
+                Diagnóstico fisioterapéutico
               </CardTitle>
             </CardHeader>
             <CardContent>
               {isEditing ? (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">
-                      {registro.tipo === 'diagnostico_fisio' ? 'Diagnóstico fisioterapéutico' : 'Diagnóstico'}
-                    </label>
-                    <Textarea
-                      value={editForm.diagnostico || ''}
-                      onChange={(e) => setEditForm({ ...editForm, diagnostico: e.target.value })}
-                      rows={2}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">Tratamiento</label>
-                    <Textarea
-                      value={editForm.tratamiento || ''}
-                      onChange={(e) => setEditForm({ ...editForm, tratamiento: e.target.value })}
-                      rows={2}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">Medicación</label>
-                    <Textarea
-                      value={editForm.medicacion || ''}
-                      onChange={(e) => setEditForm({ ...editForm, medicacion: e.target.value })}
-                      rows={2}
-                    />
-                  </div>
-                </div>
+                <Textarea
+                  value={editForm.diagnostico_fisioterapeutico || ''}
+                  onChange={(e) => setEditForm({ ...editForm, diagnostico_fisioterapeutico: e.target.value })}
+                  placeholder="Valoración y diagnóstico del fisioterapeuta..."
+                  rows={3}
+                />
               ) : (
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">
-                      {registro.tipo === 'diagnostico_fisio' ? 'Diagnóstico fisioterapéutico' : 'Diagnóstico'}
-                    </p>
-                    <p className="text-sm">{registro.diagnostico || 'No especificado'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Tratamiento</p>
-                    <p className="text-sm">{registro.tratamiento || 'No especificado'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Medicación</p>
-                    <p className="text-sm">{registro.medicacion || 'No especificada'}</p>
-                  </div>
-                </div>
+                <p className="text-sm text-gray-600">
+                  {registro.diagnostico_fisioterapeutico || 'No especificado'}
+                </p>
               )}
             </CardContent>
           </Card>

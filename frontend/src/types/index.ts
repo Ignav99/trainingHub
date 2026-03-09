@@ -854,8 +854,7 @@ export interface SolicitudGDPR {
 // ============================================
 
 export type TipoRegistroMedico =
-  | 'lesion' | 'enfermedad' | 'molestias' | 'diagnostico_fisio'
-  | 'prueba_medica' | 'rehabilitacion' | 'alta_medica' | 'otro'
+  | 'lesion' | 'enfermedad' | 'molestias' | 'rehabilitacion' | 'otro'
 
 export type EstadoRegistroMedico = 'activo' | 'en_recuperacion' | 'alta' | 'cronico'
 
@@ -867,6 +866,7 @@ export interface RegistroMedico {
   titulo: string
   descripcion?: string
   diagnostico?: string
+  diagnostico_fisioterapeutico?: string
   tratamiento?: string
   medicacion?: string
   fecha_inicio: string

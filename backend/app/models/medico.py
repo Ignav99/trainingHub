@@ -14,10 +14,7 @@ class TipoRegistroMedico(str, Enum):
     LESION = "lesion"
     ENFERMEDAD = "enfermedad"
     MOLESTIAS = "molestias"
-    DIAGNOSTICO_FISIO = "diagnostico_fisio"
-    PRUEBA_MEDICA = "prueba_medica"
     REHABILITACION = "rehabilitacion"
-    ALTA_MEDICA = "alta_medica"
     OTRO = "otro"
 
 
@@ -46,6 +43,7 @@ class RegistroMedicoCreate(BaseModel):
     titulo: str = Field(..., min_length=1, max_length=255)
     descripcion: Optional[str] = None
     diagnostico: Optional[str] = None      # Will be encrypted
+    diagnostico_fisioterapeutico: Optional[str] = None
     tratamiento: Optional[str] = None      # Will be encrypted
     medicacion: Optional[str] = None       # Will be encrypted
     fecha_inicio: date
@@ -54,6 +52,7 @@ class RegistroMedicoCreate(BaseModel):
     dias_baja_estimados: Optional[int] = None
     protocolo_recuperacion: Optional[dict] = None
     documentos_urls: Optional[list[str]] = None
+    estado: Optional[EstadoRegistroMedico] = None
     solo_medico: bool = True
 
 
@@ -62,6 +61,7 @@ class RegistroMedicoUpdate(BaseModel):
     titulo: Optional[str] = Field(None, max_length=255)
     descripcion: Optional[str] = None
     diagnostico: Optional[str] = None
+    diagnostico_fisioterapeutico: Optional[str] = None
     tratamiento: Optional[str] = None
     medicacion: Optional[str] = None
     fecha_fin: Optional[date] = None
@@ -83,6 +83,7 @@ class RegistroMedicoResponse(BaseModel):
     titulo: str
     descripcion: Optional[str] = None
     diagnostico: Optional[str] = None      # Decrypted for authorized users
+    diagnostico_fisioterapeutico: Optional[str] = None
     tratamiento: Optional[str] = None      # Decrypted for authorized users
     medicacion: Optional[str] = None       # Decrypted for authorized users
     fecha_inicio: date

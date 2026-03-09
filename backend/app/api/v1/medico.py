@@ -85,6 +85,10 @@ async def create_registro_medico(
     record["jugador_id"] = str(record["jugador_id"])
     record["equipo_id"] = str(record["equipo_id"])
 
+    # Handle estado enum serialization
+    if record.get("estado"):
+        record["estado"] = record["estado"].value if hasattr(record["estado"], "value") else record["estado"]
+
     if record.get("fecha_inicio"):
         record["fecha_inicio"] = record["fecha_inicio"].isoformat()
     if record.get("fecha_fin"):
@@ -104,13 +108,14 @@ async def create_registro_medico(
 
     log_create(auth.user_id, "registro_medico", result.data[0]["id"], {"tipo": data.tipo.value})
 
-    # Auto-update player status based on tipo
+    # Auto-update player status based on tipo (skip for historical records)
+    is_historical = data.estado and data.estado.value == "alta"
     estado_map = {
         "lesion": "lesionado",
         "enfermedad": "enfermo",
         "molestias": "lesionado",
     }
-    new_estado = estado_map.get(data.tipo.value)
+    new_estado = estado_map.get(data.tipo.value) if not is_historical else None
     if new_estado:
         update_jugador = {
             "estado": new_estado,

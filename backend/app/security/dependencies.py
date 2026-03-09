@@ -167,9 +167,8 @@ def _check_feature_gate(plan_info: dict, permissions_requested: tuple[Permission
     for perm in permissions_requested:
         perm_prefix = perm.value.split(".")[0]
 
-        # Medical module check
-        if perm_prefix == "medical" and not features.get("medical_enabled", True):
-            return False, "El modulo medico no esta disponible en su plan actual."
+        # Medical module — always enabled for all plans
+        # (feature gate removed: medical is core functionality)
 
         # Video check
         if perm_prefix == "video" and not features.get("video_enabled", False):

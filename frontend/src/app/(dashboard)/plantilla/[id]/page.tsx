@@ -39,10 +39,7 @@ const TIPO_BADGE: Record<string, { label: string; color: string }> = {
   lesion: { label: 'Lesión', color: 'bg-red-100 text-red-800' },
   enfermedad: { label: 'Enfermedad', color: 'bg-orange-100 text-orange-800' },
   molestias: { label: 'Molestias', color: 'bg-yellow-100 text-yellow-800' },
-  diagnostico_fisio: { label: 'Diag. Fisio', color: 'bg-cyan-100 text-cyan-800' },
-  prueba_medica: { label: 'Prueba médica', color: 'bg-violet-100 text-violet-800' },
   rehabilitacion: { label: 'Rehabilitación', color: 'bg-blue-100 text-blue-800' },
-  alta_medica: { label: 'Alta médica', color: 'bg-green-100 text-green-800' },
   otro: { label: 'Otro', color: 'bg-gray-100 text-gray-800' },
 }
 

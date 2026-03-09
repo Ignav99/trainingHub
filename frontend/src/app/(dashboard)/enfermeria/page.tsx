@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import useSWR, { mutate } from 'swr'
@@ -14,6 +14,9 @@ import {
   Activity,
   CheckCircle,
   Clock,
+  Upload,
+  FileText,
+  X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -36,8 +39,6 @@ const TIPOS: { value: TipoRegistroMedico; label: string }[] = [
   { value: 'lesion', label: 'Lesión' },
   { value: 'enfermedad', label: 'Enfermedad' },
   { value: 'molestias', label: 'Molestias' },
-  { value: 'diagnostico_fisio', label: 'Diagnóstico fisioterapéutico' },
-  { value: 'prueba_medica', label: 'Prueba médica aportada' },
   { value: 'rehabilitacion', label: 'Rehabilitación' },
   { value: 'otro', label: 'Otro' },
 ]
@@ -53,10 +54,7 @@ const TIPO_BADGE: Record<string, { label: string; color: string }> = {
   lesion: { label: 'Lesión', color: 'bg-red-100 text-red-800' },
   enfermedad: { label: 'Enfermedad', color: 'bg-orange-100 text-orange-800' },
   molestias: { label: 'Molestias', color: 'bg-yellow-100 text-yellow-800' },
-  diagnostico_fisio: { label: 'Diag. Fisio', color: 'bg-cyan-100 text-cyan-800' },
-  prueba_medica: { label: 'Prueba médica', color: 'bg-violet-100 text-violet-800' },
   rehabilitacion: { label: 'Rehabilitación', color: 'bg-blue-100 text-blue-800' },
-  alta_medica: { label: 'Alta médica', color: 'bg-green-100 text-green-800' },
   otro: { label: 'Otro', color: 'bg-gray-100 text-gray-800' },
 }
 
@@ -70,6 +68,7 @@ export default function EnfermeriaPage() {
   const router = useRouter()
   const { equipoActivo } = useEquipoStore()
   const user = useAuthStore((s) => s.user)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // SWR: medical records
   const { data: registrosRaw, isLoading: loadingRegistros, error: registrosError } = useSWR<RegistroMedico[] | { data: RegistroMedico[] }>(
@@ -101,15 +100,17 @@ export default function EnfermeriaPage() {
   // New record dialog
   const [showNuevo, setShowNuevo] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [esHistorico, setEsHistorico] = useState(false)
   const [nuevoForm, setNuevoForm] = useState<Partial<CreateRegistroMedicoData>>({
     tipo: 'lesion',
     fecha_inicio: new Date().toISOString().slice(0, 10),
   })
+  // Files to upload after creation
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
 
   // Stats
   const activos = registros.filter((r: RegistroMedico) => r.estado === 'activo').length
   const enRecuperacion = registros.filter((r: RegistroMedico) => r.estado === 'en_recuperacion').length
-  const conAlta = registros.filter((r: RegistroMedico) => r.estado === 'alta').length
 
   const jugadoresMap = new Map(jugadores.map((j) => [j.id, j]))
 
@@ -126,30 +127,96 @@ export default function EnfermeriaPage() {
     return true
   })
 
+  const resetForm = () => {
+    setNuevoForm({
+      tipo: 'lesion',
+      fecha_inicio: new Date().toISOString().slice(0, 10),
+    })
+    setEsHistorico(false)
+    setPendingFiles([])
+  }
+
+  const handleAddFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setPendingFiles((prev) => [...prev, file])
+    }
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handleRemovePendingFile = (idx: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== idx))
+  }
+
   const handleCreate = async () => {
     if (!equipoActivo?.id || !nuevoForm.jugador_id || !nuevoForm.titulo) return
 
     setSaving(true)
     try {
-      await medicoApi.create({
+      const createData: CreateRegistroMedicoData = {
         jugador_id: nuevoForm.jugador_id,
         equipo_id: equipoActivo.id,
         tipo: nuevoForm.tipo || 'lesion',
         titulo: nuevoForm.titulo,
-        descripcion: nuevoForm.descripcion,
-        diagnostico: nuevoForm.diagnostico,
-        tratamiento: nuevoForm.tratamiento,
-        medicacion: nuevoForm.medicacion,
+        diagnostico_fisioterapeutico: nuevoForm.diagnostico_fisioterapeutico,
         fecha_inicio: nuevoForm.fecha_inicio || new Date().toISOString().slice(0, 10),
-        dias_baja_estimados: nuevoForm.dias_baja_estimados,
-      })
+        dias_baja_estimados: esHistorico ? undefined : nuevoForm.dias_baja_estimados,
+      }
+
+      // Historical records
+      if (esHistorico) {
+        createData.estado = 'alta'
+        createData.fecha_fin = nuevoForm.fecha_fin
+        createData.fecha_alta = nuevoForm.fecha_fin
+      }
+
+      const result = await medicoApi.create(createData)
+
+      // Upload pending files if any
+      const created = (result as any)?.data || result
+      if (pendingFiles.length > 0 && created?.id) {
+        try {
+          const { createClient } = await import('@supabase/supabase-js')
+          const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+          )
+
+          const uploadedUrls: string[] = []
+          for (const file of pendingFiles) {
+            const timestamp = Date.now()
+            const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+            const path = `medical-documents/${created.id}/${timestamp}_${safeName}`
+
+            const { error: uploadError } = await supabase.storage
+              .from('medical-documents')
+              .upload(path, file, { upsert: false })
+
+            if (!uploadError) {
+              const { data: urlData } = supabase.storage
+                .from('medical-documents')
+                .getPublicUrl(path)
+              if (urlData?.publicUrl) {
+                uploadedUrls.push(urlData.publicUrl)
+              }
+            }
+          }
+
+          if (uploadedUrls.length > 0) {
+            await medicoApi.update(created.id, { documentos_urls: uploadedUrls })
+          }
+        } catch (uploadErr) {
+          console.error('Error uploading files:', uploadErr)
+          toast.error('Registro creado, pero error al subir archivos')
+        }
+      }
+
       setShowNuevo(false)
-      setNuevoForm({
-        tipo: 'lesion',
-        fecha_inicio: new Date().toISOString().slice(0, 10),
-      })
-      // Invalidate medico caches
+      resetForm()
       mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
+      // Also invalidate jugadores cache in case status changed
+      mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'), undefined, { revalidate: true })
+      toast.success(esHistorico ? 'Registro histórico creado' : 'Registro médico creado')
     } catch (err) {
       console.error('Error creating registro:', err)
       toast.error('Error al crear el registro médico')
@@ -296,7 +363,9 @@ export default function EnfermeriaPage() {
                 const jugador = jugadoresMap.get(registro.jugador_id)
                 const estadoConf = ESTADO_CONFIG[registro.estado] || ESTADO_CONFIG.activo
                 const tipoConf = TIPO_BADGE[registro.tipo] || TIPO_BADGE.otro
-                const dias = daysSince(registro.fecha_inicio)
+                const dias = registro.estado === 'alta' && registro.dias_baja_reales
+                  ? registro.dias_baja_reales
+                  : daysSince(registro.fecha_inicio)
 
                 return (
                   <tr
@@ -339,12 +408,39 @@ export default function EnfermeriaPage() {
       )}
 
       {/* New Record Dialog */}
-      <Dialog open={showNuevo} onOpenChange={setShowNuevo}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={showNuevo} onOpenChange={(open) => { setShowNuevo(open); if (!open) resetForm() }}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nuevo Registro Médico</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {/* Historical toggle */}
+            <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
+              <button
+                type="button"
+                onClick={() => setEsHistorico(false)}
+                className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  !esHistorico ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                }`}
+              >
+                Registro actual
+              </button>
+              <button
+                type="button"
+                onClick={() => setEsHistorico(true)}
+                className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  esHistorico ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                }`}
+              >
+                Registro histórico
+              </button>
+            </div>
+            {esHistorico && (
+              <p className="text-xs text-muted-foreground bg-blue-50 border border-blue-100 rounded-lg p-2">
+                Un registro histórico se guarda directamente como <strong>alta</strong> y no cambia el estado actual del jugador. Úsalo para documentar lesiones u operaciones pasadas.
+              </p>
+            )}
+
             <div>
               <label className="text-sm font-medium mb-1 block">Jugador *</label>
               <select
@@ -380,69 +476,101 @@ export default function EnfermeriaPage() {
                 placeholder="Ej: Rotura fibrilar gemelo derecho"
               />
             </div>
+
+            {/* Diagnóstico fisioterapéutico */}
             <div>
-              <label className="text-sm font-medium mb-1 block">Descripción</label>
+              <label className="text-sm font-medium mb-1 block">Diagnóstico fisioterapéutico</label>
               <Textarea
-                value={nuevoForm.descripcion || ''}
-                onChange={(e) => setNuevoForm({ ...nuevoForm, descripcion: e.target.value })}
-                placeholder="Detalles adicionales..."
+                value={nuevoForm.diagnostico_fisioterapeutico || ''}
+                onChange={(e) => setNuevoForm({ ...nuevoForm, diagnostico_fisioterapeutico: e.target.value })}
+                placeholder="Valoración y diagnóstico del fisioterapeuta..."
                 rows={2}
               />
             </div>
-            <div>
-              <label className="text-sm font-medium mb-1 block">
-                {nuevoForm.tipo === 'diagnostico_fisio' ? 'Diagnóstico fisioterapéutico' : 'Diagnóstico'}
-              </label>
-              <Textarea
-                value={nuevoForm.diagnostico || ''}
-                onChange={(e) => setNuevoForm({ ...nuevoForm, diagnostico: e.target.value })}
-                placeholder={nuevoForm.tipo === 'diagnostico_fisio' ? 'Diagnóstico fisioterapéutico...' : 'Diagnóstico clínico...'}
-                rows={2}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1 block">Tratamiento</label>
-              <Textarea
-                value={nuevoForm.tratamiento || ''}
-                onChange={(e) => setNuevoForm({ ...nuevoForm, tratamiento: e.target.value })}
-                placeholder="Tratamiento prescrito..."
-                rows={2}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1 block">Medicación</label>
-              <Textarea
-                value={nuevoForm.medicacion || ''}
-                onChange={(e) => setNuevoForm({ ...nuevoForm, medicacion: e.target.value })}
-                placeholder="Medicación administrada..."
-                rows={2}
-              />
-            </div>
+
+            {/* Dates */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium mb-1 block">Fecha inicio</label>
+                <label className="text-sm font-medium mb-1 block">
+                  {esHistorico ? 'Fecha inicio' : 'Fecha inicio'}
+                </label>
                 <Input
                   type="date"
                   value={nuevoForm.fecha_inicio || ''}
                   onChange={(e) => setNuevoForm({ ...nuevoForm, fecha_inicio: e.target.value })}
                 />
               </div>
-              <div>
-                <label className="text-sm font-medium mb-1 block">Días estimados</label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={nuevoForm.dias_baja_estimados || ''}
-                  onChange={(e) =>
-                    setNuevoForm({ ...nuevoForm, dias_baja_estimados: parseInt(e.target.value) || undefined })
-                  }
-                  placeholder="Ej: 15"
-                />
+              {esHistorico ? (
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Fecha fin / alta</label>
+                  <Input
+                    type="date"
+                    value={nuevoForm.fecha_fin || ''}
+                    onChange={(e) => setNuevoForm({ ...nuevoForm, fecha_fin: e.target.value })}
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Días estimados</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={nuevoForm.dias_baja_estimados || ''}
+                    onChange={(e) =>
+                      setNuevoForm({ ...nuevoForm, dias_baja_estimados: parseInt(e.target.value) || undefined })
+                    }
+                    placeholder="Ej: 15"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Aportación de pruebas médicas (file upload) */}
+            <div>
+              <label className="text-sm font-medium mb-1 block">Aportación de pruebas médicas</label>
+              <div className="space-y-2">
+                {pendingFiles.map((file, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-2 rounded-lg border bg-muted/30">
+                    <div className="flex items-center gap-2 text-sm truncate flex-1 mr-2">
+                      <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                      <span className="truncate">{file.name}</span>
+                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                        ({(file.size / 1024).toFixed(0)} KB)
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePendingFile(idx)}
+                      className="text-gray-400 hover:text-red-500 p-1"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                    className="hidden"
+                    onChange={handleAddFile}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Adjuntar archivo
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-1">PDF, JPG, PNG, DOC, DOCX</p>
+                </div>
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNuevo(false)}>
+            <Button variant="outline" onClick={() => { setShowNuevo(false); resetForm() }}>
               Cancelar
             </Button>
             <Button
@@ -450,7 +578,7 @@ export default function EnfermeriaPage() {
               disabled={saving || !nuevoForm.jugador_id || !nuevoForm.titulo}
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Crear Registro
+              {esHistorico ? 'Guardar Histórico' : 'Crear Registro'}
             </Button>
           </DialogFooter>
         </DialogContent>
