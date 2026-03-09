@@ -1288,6 +1288,22 @@ export interface AIPlanPartido {
 }
 
 // ============================================
+// RIVAL INFORMES (versioned AI reports)
+// ============================================
+
+export interface RivalInforme {
+  id: string
+  rival_id: string
+  partido_id?: string
+  tipo: 'informe' | 'plan'
+  contenido: AIInformeRival | AIPlanPartido
+  intel_snapshot?: PreMatchIntel
+  created_by?: string
+  created_at: string
+  updated_at: string
+}
+
+// ============================================
 // CARGA ACUMULADA
 // ============================================
 

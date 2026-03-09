@@ -8,7 +8,9 @@ import { InlineAIChat } from './InlineAIChat'
 import type { AIInformeRival } from '@/types'
 
 interface InformeRivalSectionProps {
-  partidoId: string
+  onSend: (mensajes: { rol: string; contenido: string }[]) => Promise<{
+    respuesta: string; informe_rival?: any; plan_partido?: any
+  }>
   informe: AIInformeRival | null
   onResult: (informe: AIInformeRival) => void
 }
@@ -20,7 +22,7 @@ const QUICK_CHIPS = [
   { label: 'Jugadores clave', text: 'Analiza los jugadores más peligrosos y los puntos débiles del rival.' },
 ]
 
-export function InformeRivalSection({ partidoId, informe, onResult }: InformeRivalSectionProps) {
+export function InformeRivalSection({ onSend, informe, onResult }: InformeRivalSectionProps) {
   const [expanded, setExpanded] = useState(false)
   const [expandedSubs, setExpandedSubs] = useState<Set<string>>(new Set())
   const isFilled = !!informe
@@ -62,7 +64,7 @@ export function InformeRivalSection({ partidoId, informe, onResult }: InformeRiv
         <div className="px-4 pb-4 space-y-4">
           {/* AI Chat */}
           <InlineAIChat
-            partidoId={partidoId}
+            onSend={onSend}
             tipo="informe"
             onResult={handleResult}
             quickChips={QUICK_CHIPS}

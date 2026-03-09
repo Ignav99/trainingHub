@@ -1,5 +1,5 @@
 import { api } from './client'
-import { Partido, Rival, PaginatedResponse, TipoCompeticion, LocaliaPartido, OnceProbableResponse, TarjetasResumenResponse, PreMatchIntel } from '@/types'
+import { Partido, Rival, PaginatedResponse, TipoCompeticion, LocaliaPartido, OnceProbableResponse, TarjetasResumenResponse, PreMatchIntel, RivalInforme } from '@/types'
 
 // ============ Rivales ============
 
@@ -63,6 +63,35 @@ export const rivalesApi = {
     const params: Record<string, string> = {}
     if (competicionId) params.competicion_id = competicionId
     return api.get<TarjetasResumenResponse>(`/rivales/${rivalId}/tarjetas`, { params })
+  },
+
+  async getIntel(rivalId: string, competicionId: string): Promise<PreMatchIntel> {
+    return api.get<PreMatchIntel>(`/rivales/${rivalId}/intel`, {
+      params: { competicion_id: competicionId },
+    })
+  },
+
+  async populateIntel(rivalId: string, competicionId: string): Promise<PreMatchIntel> {
+    return api.post<PreMatchIntel>(`/rivales/${rivalId}/populate-intel`, null, {
+      params: { competicion_id: competicionId },
+    })
+  },
+
+  async scoutingChat(
+    rivalId: string,
+    mensajes: { rol: string; contenido: string }[],
+    tipo: 'informe' | 'plan',
+    partidoId?: string
+  ): Promise<{ respuesta: string; informe_rival?: any; plan_partido?: any }> {
+    return api.post(`/rivales/${rivalId}/scouting-chat`, {
+      mensajes,
+      tipo,
+      partido_id: partidoId,
+    })
+  },
+
+  async listInformes(rivalId: string): Promise<{ data: RivalInforme[] }> {
+    return api.get<{ data: RivalInforme[] }>(`/rivales/${rivalId}/informes`)
   },
 }
 

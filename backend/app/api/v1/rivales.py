@@ -1,8 +1,9 @@
 """
 TrainingHub Pro - Router de Rivales
-CRUD para equipos rivales + inteligencia (once probable, tarjetas).
+CRUD para equipos rivales + inteligencia (once probable, tarjetas, scouting hub).
 """
 
+import json
 import logging
 from collections import Counter
 
@@ -16,10 +17,13 @@ from app.models import (
     RivalUpdate,
     RivalResponse,
     RivalListResponse,
+    RivalInformeResponse,
 )
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
+from app.services.pre_match_service import populate_rival_intel
+from app.services.claude_service import ClaudeService, ClaudeError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -286,6 +290,176 @@ async def get_tarjetas_resumen(
         "total_actas": len(actas),
         "jugadores": jugadores,
     }
+
+
+@router.get("/{rival_id}/intel")
+async def get_rival_intel(
+    rival_id: UUID,
+    competicion_id: UUID = Query(..., description="RFEF competition ID"),
+    auth: AuthContext = Depends(require_permission(Permission.RIVAL_READ)),
+):
+    """Returns cached rival_intel or generates if null."""
+    supabase = get_supabase()
+
+    rival_res = supabase.table("rivales").select("rival_intel").eq(
+        "id", str(rival_id)
+    ).eq("organizacion_id", auth.organizacion_id).single().execute()
+
+    if not rival_res.data:
+        raise HTTPException(status_code=404, detail="Rival no encontrado")
+
+    intel = rival_res.data.get("rival_intel")
+    if intel:
+        return intel
+
+    # Generate on first request
+    intel = populate_rival_intel(supabase, str(rival_id), str(competicion_id))
+    if not intel:
+        return {}
+    return intel
+
+
+@router.post("/{rival_id}/populate-intel")
+async def populate_intel(
+    rival_id: UUID,
+    competicion_id: UUID = Query(..., description="RFEF competition ID"),
+    auth: AuthContext = Depends(require_permission(Permission.RIVAL_UPDATE)),
+):
+    """Force refresh RFEF data for a rival."""
+    supabase = get_supabase()
+
+    existing = supabase.table("rivales").select("id").eq(
+        "id", str(rival_id)
+    ).eq("organizacion_id", auth.organizacion_id).single().execute()
+
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Rival no encontrado")
+
+    intel = populate_rival_intel(supabase, str(rival_id), str(competicion_id))
+    if not intel:
+        raise HTTPException(status_code=400, detail="No se pudo generar intel (competicion no encontrada)")
+
+    return intel
+
+
+@router.post("/{rival_id}/scouting-chat")
+async def scouting_chat(
+    rival_id: UUID,
+    body: dict,
+    auth: AuthContext = Depends(require_permission(Permission.RIVAL_UPDATE)),
+):
+    """
+    AI chat for generating rival reports or match plans from rival context.
+    Body: { mensajes: [{rol, contenido}], tipo: "informe"|"plan", partido_id?: str }
+    """
+    supabase = get_supabase()
+
+    mensajes = body.get("mensajes", [])
+    tipo = body.get("tipo", "informe")
+    partido_id = body.get("partido_id")
+
+    if tipo not in ("informe", "plan"):
+        raise HTTPException(status_code=400, detail="tipo debe ser 'informe' o 'plan'")
+
+    if not mensajes:
+        raise HTTPException(status_code=400, detail="Se requiere al menos un mensaje")
+
+    # Fetch rival
+    rival_res = supabase.table("rivales").select("*").eq(
+        "id", str(rival_id)
+    ).eq("organizacion_id", auth.organizacion_id).single().execute()
+
+    if not rival_res.data:
+        raise HTTPException(status_code=404, detail="Rival no encontrado")
+
+    rival = rival_res.data
+    rival_nombre = rival.get("nombre", "Rival desconocido")
+    intel_data = rival.get("rival_intel") or {}
+
+    try:
+        claude = ClaudeService()
+        result = await claude.pre_match_chat(
+            mensajes=mensajes,
+            intel_data=intel_data,
+            rival_nombre=rival_nombre,
+            localia="local",
+            fecha="",
+            tipo=tipo,
+        )
+    except ClaudeError as e:
+        error_msg = str(e)
+        if "conexion" in error_msg.lower():
+            raise HTTPException(status_code=503, detail=error_msg)
+        elif "saturado" in error_msg.lower():
+            raise HTTPException(status_code=429, detail=error_msg)
+        else:
+            raise HTTPException(status_code=500, detail=error_msg)
+
+    # Save to rival_informes table
+    ai_data = {}
+    if result.get("informe_rival"):
+        ai_data = result["informe_rival"]
+    elif result.get("plan_partido"):
+        ai_data = result["plan_partido"]
+
+    if ai_data:
+        informe_row = {
+            "rival_id": str(rival_id),
+            "organizacion_id": auth.organizacion_id,
+            "tipo": tipo,
+            "contenido": ai_data,
+            "conversacion": mensajes,
+            "intel_snapshot": intel_data if intel_data else None,
+            "created_by": str(auth.user_id),
+        }
+        if partido_id:
+            informe_row["partido_id"] = partido_id
+
+        supabase.table("rival_informes").insert(informe_row).execute()
+
+        # If linked to a match, copy to partidos.notas_pre
+        if partido_id:
+            partido_res = supabase.table("partidos").select("notas_pre").eq(
+                "id", partido_id
+            ).single().execute()
+
+            if partido_res.data:
+                existing_notas = {}
+                if partido_res.data.get("notas_pre"):
+                    try:
+                        raw = partido_res.data["notas_pre"]
+                        existing_notas = json.loads(raw) if isinstance(raw, str) else raw
+                    except (json.JSONDecodeError, TypeError):
+                        existing_notas = {}
+
+                key = "ai_informe_rival" if tipo == "informe" else "ai_plan_partido"
+                merged = {**existing_notas, key: ai_data}
+                supabase.table("partidos").update(
+                    {"notas_pre": json.dumps(merged, ensure_ascii=False)}
+                ).eq("id", partido_id).execute()
+
+    return {
+        "respuesta": result.get("respuesta", ""),
+        "informe_rival": result.get("informe_rival"),
+        "plan_partido": result.get("plan_partido"),
+    }
+
+
+@router.get("/{rival_id}/informes")
+async def list_rival_informes(
+    rival_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.RIVAL_READ)),
+):
+    """List versioned AI informes for a rival."""
+    supabase = get_supabase()
+
+    res = supabase.table("rival_informes").select("*").eq(
+        "rival_id", str(rival_id)
+    ).eq("organizacion_id", auth.organizacion_id).order(
+        "created_at", desc=True
+    ).limit(50).execute()
+
+    return {"data": res.data or []}
 
 
 @router.get("/{rival_id}/perfil-competicion")

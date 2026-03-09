@@ -7,7 +7,9 @@ import { InlineAIChat } from './InlineAIChat'
 import type { AIPlanPartido } from '@/types'
 
 interface PlanPartidoSectionProps {
-  partidoId: string
+  onSend: (mensajes: { rol: string; contenido: string }[]) => Promise<{
+    respuesta: string; informe_rival?: any; plan_partido?: any
+  }>
   plan: AIPlanPartido | null
   onResult: (plan: AIPlanPartido) => void
 }
@@ -19,7 +21,7 @@ const QUICK_CHIPS = [
   { label: 'Claves del partido', text: 'Dame las claves tácticas del partido y los mensajes para el vestuario.' },
 ]
 
-export function PlanPartidoSection({ partidoId, plan, onResult }: PlanPartidoSectionProps) {
+export function PlanPartidoSection({ onSend, plan, onResult }: PlanPartidoSectionProps) {
   const [expanded, setExpanded] = useState(false)
   const [expandedSubs, setExpandedSubs] = useState<Set<string>>(new Set())
   const isFilled = !!plan
@@ -60,7 +62,7 @@ export function PlanPartidoSection({ partidoId, plan, onResult }: PlanPartidoSec
         <div className="px-4 pb-4 space-y-4">
           {/* AI Chat */}
           <InlineAIChat
-            partidoId={partidoId}
+            onSend={onSend}
             tipo="plan"
             onResult={handleResult}
             quickChips={QUICK_CHIPS}

@@ -246,21 +246,22 @@ def _get_head_to_head(supabase, rival_id: str) -> list[dict]:
     return results
 
 
-def gather_rival_intel(supabase, partido: dict, comp: dict) -> dict:
+def gather_rival_intel_standalone(
+    supabase, rival: dict, comp: dict, rival_id: str = ""
+) -> dict:
     """
-    Aggregate all pre-match intelligence for a rival.
+    Aggregate all pre-match intelligence for a rival, independent of any partido.
 
     Args:
         supabase: Supabase client
-        partido: Partido record (must include rival_id and rivales relation or rival data)
+        rival: Rival record dict (must have nombre/rfef_nombre)
         comp: rfef_competiciones record
+        rival_id: UUID string for head-to-head lookup
 
     Returns:
         dict with all intel sections
     """
-    rival = partido.get("rivales") or {}
     rival_nombre = rival.get("rfef_nombre") or rival.get("nombre", "")
-    rival_id = partido.get("rival_id", "")
     comp_id = comp["id"]
 
     if not rival_nombre:
@@ -312,14 +313,25 @@ def gather_rival_intel(supabase, partido: dict, comp: dict) -> dict:
         logger.debug("Error getting ultimos resultados: %s", e)
 
     # Head to head
-    try:
-        h2h = _get_head_to_head(supabase, str(rival_id))
-        if h2h:
-            intel["head_to_head"] = h2h
-    except Exception as e:
-        logger.debug("Error getting head to head: %s", e)
+    if rival_id:
+        try:
+            h2h = _get_head_to_head(supabase, str(rival_id))
+            if h2h:
+                intel["head_to_head"] = h2h
+        except Exception as e:
+            logger.debug("Error getting head to head: %s", e)
 
     return intel
+
+
+def gather_rival_intel(supabase, partido: dict, comp: dict) -> dict:
+    """
+    Aggregate all pre-match intelligence for a rival (partido-based wrapper).
+    Delegates to gather_rival_intel_standalone.
+    """
+    rival = partido.get("rivales") or {}
+    rival_id = partido.get("rival_id", "")
+    return gather_rival_intel_standalone(supabase, rival, comp, rival_id)
 
 
 def populate_partido_intel(supabase, partido_id: str) -> dict | None:
@@ -402,3 +414,35 @@ def auto_populate_upcoming_matches(supabase) -> dict:
         "populated": populated,
         "errors": errors,
     }
+
+
+def populate_rival_intel(supabase, rival_id: str, competicion_id: str) -> dict | None:
+    """
+    Populate rivales.rival_intel JSONB for a rival.
+    Returns the intel dict or None if not applicable.
+    """
+    rival_res = supabase.table("rivales").select("*").eq(
+        "id", rival_id
+    ).single().execute()
+
+    if not rival_res.data:
+        return None
+
+    rival = rival_res.data
+
+    comp_res = supabase.table("rfef_competiciones").select("*").eq(
+        "id", competicion_id
+    ).single().execute()
+
+    if not comp_res.data:
+        return None
+
+    intel = gather_rival_intel_standalone(supabase, rival, comp_res.data, rival_id)
+
+    # Save to rivales.rival_intel
+    supabase.table("rivales").update({
+        "rival_intel": intel,
+    }).eq("id", rival_id).execute()
+
+    logger.info("Populated rival intel for rival %s", rival_id)
+    return intel

@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from 'react'
 import { Send, Loader2, Bot } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { partidosApi } from '@/lib/api/partidos'
 
 interface ChatMessage {
   rol: 'user' | 'assistant'
@@ -14,14 +13,16 @@ interface ChatMessage {
 }
 
 interface InlineAIChatProps {
-  partidoId: string
+  onSend: (mensajes: { rol: string; contenido: string }[]) => Promise<{
+    respuesta: string; informe_rival?: any; plan_partido?: any
+  }>
   tipo: 'informe' | 'plan'
   onResult: (data: { informe_rival?: any; plan_partido?: any }) => void
   quickChips: { label: string; text: string }[]
   placeholder?: string
 }
 
-export function InlineAIChat({ partidoId, tipo, onResult, quickChips, placeholder }: InlineAIChatProps) {
+export function InlineAIChat({ onSend, tipo, onResult, quickChips, placeholder }: InlineAIChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -45,7 +46,7 @@ export function InlineAIChat({ partidoId, tipo, onResult, quickChips, placeholde
 
     try {
       const conversationHistory = allMessages.map((m) => ({ rol: m.rol, contenido: m.contenido }))
-      const result = await partidosApi.preMatchChat(partidoId, conversationHistory, tipo)
+      const result = await onSend(conversationHistory)
 
       setMessages((prev) => [
         ...prev.filter((m) => !m.isLoading),
