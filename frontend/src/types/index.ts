@@ -1067,6 +1067,9 @@ export interface Partido {
   auto_creado?: boolean
   ubicacion?: string
 
+  // Auto-generated pre-match intelligence
+  pre_match_intel?: PreMatchIntel | null
+
   created_at: string
   updated_at: string
 
@@ -1177,6 +1180,77 @@ export interface TarjetaJugadorResumen {
 export interface TarjetasResumenResponse {
   total_actas: number
   jugadores: TarjetaJugadorResumen[]
+}
+
+// ============================================
+// PRE-MATCH INTELLIGENCE (auto-generated)
+// ============================================
+
+export interface PreMatchClasificacion {
+  posicion?: number
+  puntos?: number
+  pj?: number
+  pg?: number
+  pe?: number
+  pp?: number
+  gf?: number
+  gc?: number
+  ultimos_5?: string[]
+}
+
+export interface PreMatchGoleador {
+  jugador: string
+  goles: number
+  pj?: number
+}
+
+export interface PreMatchOnceProbable {
+  actas_analizadas: number
+  jugadores: OnceProbableJugador[]
+}
+
+export interface PreMatchTarjetas {
+  total_actas: number
+  jugadores: TarjetaJugadorResumen[]
+}
+
+export interface PreMatchSancion {
+  persona_nombre: string
+  categoria: string
+  descripcion: string
+  jornada_numero?: number
+  articulo?: string
+}
+
+export interface PreMatchResultado {
+  jornada: number
+  local: string
+  visitante: string
+  goles_local: number
+  goles_visitante: number
+  fecha?: string
+}
+
+export interface PreMatchH2H {
+  fecha?: string
+  goles_favor?: number
+  goles_contra?: number
+  resultado?: string
+  localia?: string
+  jornada?: number
+}
+
+export interface PreMatchIntel {
+  generated_at: string
+  rival_nombre: string
+  rival_escudo_url?: string
+  clasificacion?: PreMatchClasificacion
+  goleadores_rival?: PreMatchGoleador[]
+  once_probable?: PreMatchOnceProbable
+  tarjetas?: PreMatchTarjetas
+  sanciones_oficiales?: PreMatchSancion[]
+  ultimos_resultados?: PreMatchResultado[]
+  head_to_head?: PreMatchH2H[]
 }
 
 // ============================================

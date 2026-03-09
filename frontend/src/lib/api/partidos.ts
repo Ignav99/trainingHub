@@ -1,5 +1,5 @@
 import { api } from './client'
-import { Partido, Rival, PaginatedResponse, TipoCompeticion, LocaliaPartido, OnceProbableResponse, TarjetasResumenResponse } from '@/types'
+import { Partido, Rival, PaginatedResponse, TipoCompeticion, LocaliaPartido, OnceProbableResponse, TarjetasResumenResponse, PreMatchIntel } from '@/types'
 
 // ============ Rivales ============
 
@@ -141,5 +141,15 @@ export const partidosApi = {
 
   async generarInforme(id: string): Promise<{ informe_url: string }> {
     return api.post<{ informe_url: string }>(`/partidos/${id}/informe`)
+  },
+
+  async getPreMatchIntel(id: string, forceRefresh?: boolean): Promise<PreMatchIntel> {
+    const params: Record<string, string> = {}
+    if (forceRefresh) params.force_refresh = 'true'
+    return api.get<PreMatchIntel>(`/partidos/${id}/pre-match-intel`, { params })
+  },
+
+  async populatePreMatch(id: string): Promise<{ status: string; pre_match_intel: PreMatchIntel }> {
+    return api.post<{ status: string; pre_match_intel: PreMatchIntel }>(`/partidos/${id}/populate-pre-match`)
   },
 }

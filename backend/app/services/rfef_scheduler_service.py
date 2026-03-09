@@ -18,6 +18,7 @@ from apscheduler.triggers.cron import CronTrigger
 from app.database import get_supabase
 from app.services.rfef_scraper_service import RFAFScraper
 from app.services.competition_linker_service import link_competition
+from app.services.pre_match_service import auto_populate_upcoming_matches
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +86,18 @@ async def sync_all_competitions():
                 await _sync_one(supabase, scraper, comp)
         finally:
             await scraper.close()
+
+        # Auto-populate pre-match intel for upcoming matches
+        try:
+            intel_result = auto_populate_upcoming_matches(supabase)
+            if intel_result.get("populated", 0) > 0:
+                logger.info(
+                    "Pre-match intel: %d populated, %d errors",
+                    intel_result["populated"],
+                    intel_result.get("errors", 0),
+                )
+        except Exception as e:
+            logger.warning("Error in auto_populate_upcoming_matches: %s", e)
 
     except Exception as e:
         logger.error("Error in sync_all_competitions: %s", e, exc_info=True)
@@ -353,11 +366,27 @@ def start_scheduler():
         replace_existing=True,
     )
 
+    # Lunes 08:00 — Full sync + pre-match intel
+    scheduler.add_job(
+        sync_all_competitions,
+        CronTrigger(day_of_week="mon", hour=8, minute=0, timezone="Europe/Madrid"),
+        id="rfaf_lunes_08",
+        replace_existing=True,
+    )
+
     # Lunes 10:00 — Post-jornada
     scheduler.add_job(
         sync_all_competitions,
         CronTrigger(day_of_week="mon", hour=10, minute=0, timezone="Europe/Madrid"),
         id="rfaf_lunes",
+        replace_existing=True,
+    )
+
+    # Viernes 08:00 — Refresh sanciones + pre-match intel
+    scheduler.add_job(
+        sync_all_competitions,
+        CronTrigger(day_of_week="fri", hour=8, minute=0, timezone="Europe/Madrid"),
+        id="rfaf_viernes_08",
         replace_existing=True,
     )
 

@@ -9,7 +9,7 @@ When mi_equipo_nombre is set:
 """
 
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -284,6 +284,24 @@ def link_competition(supabase, comp: dict) -> dict:
         "Link competition %s: %d rivales created, %d partidos created, %d updated, %d deleted",
         comp_id, rivales_created, partidos_created, partidos_updated, partidos_deleted,
     )
+
+    # Auto-populate pre-match intel for newly created upcoming matches
+    if partidos_created > 0:
+        try:
+            from app.services.pre_match_service import populate_partido_intel
+            today = date.today()
+            end_date = today + timedelta(days=7)
+            for jnum, p in partido_by_jornada.items():
+                p_fecha = p.get("fecha")
+                if p_fecha and not p.get("pre_match_intel"):
+                    try:
+                        p_date = date.fromisoformat(p_fecha) if isinstance(p_fecha, str) else p_fecha
+                        if today <= p_date <= end_date and p.get("rfef_competicion_id"):
+                            populate_partido_intel(supabase, p["id"])
+                    except (ValueError, TypeError):
+                        pass
+        except Exception as e:
+            logger.debug("Error auto-populating intel post-link: %s", e)
 
     return {
         "rivales_created": rivales_created,

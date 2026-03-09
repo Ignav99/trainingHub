@@ -23,14 +23,7 @@ import {
   Trash2,
   BarChart3,
   MessageSquare,
-  Target,
-  Shield,
-  Flag,
-  ArrowRightLeft,
   Eye,
-  AlertTriangle,
-  Zap,
-  CircleDot,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -57,6 +50,7 @@ import { FORMATIONS, Formation, FormationSlot } from '@/lib/formations'
 import { apiKey } from '@/lib/swr'
 import { formatDate } from '@/lib/utils'
 import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
+import { PreMatchTab } from '@/components/pre-match/PreMatchTab'
 import type { Convocatoria, Partido, PaginatedResponse, EstadisticaPartido } from '@/types'
 
 // ============ Constants ============
@@ -87,38 +81,6 @@ const TEAM_STAT_FIELDS = [
   { key: 'balones_perdidos', label: 'Balones perdidos' },
   { key: 'balones_recuperados', label: 'Balones recuperados' },
 ] as const
-
-// Pre-partido default data
-const DEFAULT_PRE_PARTIDO = {
-  sistema_rival: '',
-  info_rival: { posicion_liga: '', goles_favor: '', goles_contra: '', racha: ['', '', '', '', ''] },
-  fase_ofensiva: {
-    salida: { observaciones: '' },
-    construccion: { observaciones: '' },
-    finalizacion: { observaciones: '' },
-  },
-  fase_defensiva: {
-    pressing: { observaciones: '' },
-    bloque_medio: { observaciones: '' },
-    bloque_bajo: { observaciones: '' },
-  },
-  transiciones: {
-    ellos_recuperan: { observaciones: '' },
-    ellos_pierden: { observaciones: '' },
-  },
-  abp: {
-    atacan_corners: { observaciones: '' },
-    defienden_corners: { observaciones: '' },
-  },
-  jugadores_clave: [] as { dorsal: string; nombre: string; posicion: string; notas: string; tipo: 'peligroso' | 'debilidad' }[],
-  plan_partido: {
-    enfoque_tactico: '',
-    plan_ataque: '',
-    plan_defensa: '',
-    balon_parado: '',
-    plan_sustituciones: '',
-  },
-}
 
 // ============ Helpers ============
 
@@ -271,53 +233,7 @@ export default function PartidosPage() {
   const [savingInforme, setSavingInforme] = useState(false)
   const [informeInitialized, setInformeInitialized] = useState<string | null>(null)
 
-  // ---- Pre-partido state ----
-  const [prePartido, setPrePartido] = useState(structuredClone(DEFAULT_PRE_PARTIDO))
-  const [savingPre, setSavingPre] = useState(false)
-  const [preInitialized, setPreInitialized] = useState<string | null>(null)
-
-  // Initialize pre-partido data from partido.notas_pre
-  useEffect(() => {
-    if (!selectedPartido) return
-    if (preInitialized === selectedPartido.id) return
-
-    if (selectedPartido.notas_pre) {
-      try {
-        const parsed = JSON.parse(selectedPartido.notas_pre)
-        setPrePartido({
-          sistema_rival: parsed.sistema_rival || selectedPartido.rival?.sistema_juego || '',
-          info_rival: {
-            posicion_liga: parsed.info_rival?.posicion_liga || '',
-            goles_favor: parsed.info_rival?.goles_favor || '',
-            goles_contra: parsed.info_rival?.goles_contra || '',
-            racha: parsed.info_rival?.racha || ['', '', '', '', ''],
-          },
-          fase_ofensiva: parsed.fase_ofensiva || DEFAULT_PRE_PARTIDO.fase_ofensiva,
-          fase_defensiva: parsed.fase_defensiva || DEFAULT_PRE_PARTIDO.fase_defensiva,
-          transiciones: parsed.transiciones || DEFAULT_PRE_PARTIDO.transiciones,
-          abp: parsed.abp || DEFAULT_PRE_PARTIDO.abp,
-          jugadores_clave: parsed.jugadores_clave || [],
-          plan_partido: parsed.plan_partido || DEFAULT_PRE_PARTIDO.plan_partido,
-        })
-      } catch {
-        setPrePartido({
-          ...structuredClone(DEFAULT_PRE_PARTIDO),
-          sistema_rival: selectedPartido.rival?.sistema_juego || '',
-        })
-      }
-    } else {
-      setPrePartido({
-        ...structuredClone(DEFAULT_PRE_PARTIDO),
-        sistema_rival: selectedPartido.rival?.sistema_juego || '',
-      })
-    }
-    setPreInitialized(selectedPartido.id)
-  }, [selectedPartido?.id, selectedPartido?.notas_pre]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Reset pre init when match changes
-  useEffect(() => {
-    setPreInitialized(null)
-  }, [selectedId])
+  // Pre-partido state is now managed inside PreMatchTab component
 
   // Initialize informe data from fetched stats + convocados
   useEffect(() => {
@@ -640,36 +556,6 @@ export default function PartidosPage() {
     return (aPos === pickingSlotData.position ? 0 : 1) - (bPos === pickingSlotData.position ? 0 : 1)
   })
 
-  // ============ Handlers: Pre-partido ============
-
-  const handleSavePrePartido = async () => {
-    if (!selectedPartido) return
-    setSavingPre(true)
-    try {
-      let existingData: Record<string, any> = {}
-      if (selectedPartido.notas_pre) {
-        try { existingData = JSON.parse(selectedPartido.notas_pre) } catch { existingData = {} }
-      }
-      const merged = {
-        ...existingData,
-        sistema_rival: prePartido.sistema_rival,
-        info_rival: prePartido.info_rival,
-        fase_ofensiva: prePartido.fase_ofensiva,
-        fase_defensiva: prePartido.fase_defensiva,
-        transiciones: prePartido.transiciones,
-        abp: prePartido.abp,
-        jugadores_clave: prePartido.jugadores_clave,
-        plan_partido: prePartido.plan_partido,
-      }
-      await partidosApi.update(selectedPartido.id, { notas_pre: JSON.stringify(merged) })
-      mutate((key: string) => typeof key === 'string' && key.includes('/partidos'), undefined, { revalidate: true })
-    } catch (err: any) {
-      alert(err.message || 'Error al guardar pre-partido')
-    } finally {
-      setSavingPre(false)
-    }
-  }
-
   // ============ Handlers: Post-partido ============
 
   const handleSaveResult = async () => {
@@ -910,318 +796,11 @@ export default function PartidosPage() {
 
                 {/* ==================== TAB: PRE-PARTIDO ==================== */}
                 <TabsContent value="pre-partido" className="space-y-6">
-                  {/* Header info rival */}
-                  <Card className="bg-slate-900 text-white border-slate-700">
-                    <CardContent className="p-4">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex items-center gap-2">
-                          <Badge className="bg-slate-700 text-white text-sm">{selectedPartido.rival?.nombre || 'Rival'}</Badge>
-                          <Input
-                            value={prePartido.sistema_rival}
-                            onChange={(e) => setPrePartido((p) => ({ ...p, sistema_rival: e.target.value }))}
-                            placeholder="Sistema (ej: 4-2-3-1)"
-                            className="w-36 h-8 text-sm bg-slate-800 border-slate-600 text-white placeholder:text-slate-400"
-                          />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-slate-400">Pos:</span>
-                          <Input
-                            value={prePartido.info_rival.posicion_liga}
-                            onChange={(e) => setPrePartido((p) => ({ ...p, info_rival: { ...p.info_rival, posicion_liga: e.target.value } }))}
-                            placeholder="#"
-                            className="w-14 h-8 text-sm bg-slate-800 border-slate-600 text-white text-center"
-                          />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-slate-400">GF:</span>
-                          <Input
-                            value={prePartido.info_rival.goles_favor}
-                            onChange={(e) => setPrePartido((p) => ({ ...p, info_rival: { ...p.info_rival, goles_favor: e.target.value } }))}
-                            placeholder="0"
-                            className="w-14 h-8 text-sm bg-slate-800 border-slate-600 text-white text-center"
-                          />
-                          <span className="text-xs text-slate-400">GC:</span>
-                          <Input
-                            value={prePartido.info_rival.goles_contra}
-                            onChange={(e) => setPrePartido((p) => ({ ...p, info_rival: { ...p.info_rival, goles_contra: e.target.value } }))}
-                            placeholder="0"
-                            className="w-14 h-8 text-sm bg-slate-800 border-slate-600 text-white text-center"
-                          />
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs text-slate-400 mr-1">Racha:</span>
-                          {prePartido.info_rival.racha.map((r, i) => (
-                            <button
-                              key={i}
-                              onClick={() => {
-                                const next = r === 'V' ? 'E' : r === 'E' ? 'D' : r === 'D' ? '' : 'V'
-                                setPrePartido((p) => {
-                                  const racha = [...p.info_rival.racha]
-                                  racha[i] = next
-                                  return { ...p, info_rival: { ...p.info_rival, racha } }
-                                })
-                              }}
-                              className={`w-7 h-7 rounded text-xs font-bold flex items-center justify-center transition-colors ${
-                                r === 'V' ? 'bg-emerald-600 text-white' :
-                                r === 'E' ? 'bg-amber-500 text-white' :
-                                r === 'D' ? 'bg-red-600 text-white' :
-                                'bg-slate-700 text-slate-400 hover:bg-slate-600'
-                              }`}
-                            >
-                              {r || '-'}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Section 1: Fase Ofensiva */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center">1</span>
-                      <h3 className="font-bold text-sm">Fase Ofensiva</h3>
-                      <Badge className="bg-emerald-100 text-emerald-800 text-[10px]">Ataque</Badge>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <PrePartidoCard
-                        title="VS Bloque Alto — Salida"
-                        value={prePartido.fase_ofensiva.salida.observaciones}
-                        onChange={(v) => setPrePartido((p) => ({ ...p, fase_ofensiva: { ...p.fase_ofensiva, salida: { observaciones: v } } }))}
-                        color="emerald"
-                      />
-                      <PrePartidoCard
-                        title="VS Bloque Medio — Construccion"
-                        value={prePartido.fase_ofensiva.construccion.observaciones}
-                        onChange={(v) => setPrePartido((p) => ({ ...p, fase_ofensiva: { ...p.fase_ofensiva, construccion: { observaciones: v } } }))}
-                        color="emerald"
-                      />
-                      <PrePartidoCard
-                        title="VS Bloque Bajo — Finalizacion"
-                        value={prePartido.fase_ofensiva.finalizacion.observaciones}
-                        onChange={(v) => setPrePartido((p) => ({ ...p, fase_ofensiva: { ...p.fase_ofensiva, finalizacion: { observaciones: v } } }))}
-                        color="emerald"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Section 2: Fase Defensiva */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="w-6 h-6 rounded-full bg-red-600 text-white text-xs font-bold flex items-center justify-center">2</span>
-                      <h3 className="font-bold text-sm">Fase Defensiva</h3>
-                      <Badge className="bg-red-100 text-red-800 text-[10px]">Defensa</Badge>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <PrePartidoCard
-                        title="Pressing Alto"
-                        value={prePartido.fase_defensiva.pressing.observaciones}
-                        onChange={(v) => setPrePartido((p) => ({ ...p, fase_defensiva: { ...p.fase_defensiva, pressing: { observaciones: v } } }))}
-                        color="red"
-                      />
-                      <PrePartidoCard
-                        title="Bloque Medio"
-                        value={prePartido.fase_defensiva.bloque_medio.observaciones}
-                        onChange={(v) => setPrePartido((p) => ({ ...p, fase_defensiva: { ...p.fase_defensiva, bloque_medio: { observaciones: v } } }))}
-                        color="red"
-                      />
-                      <PrePartidoCard
-                        title="Bloque Bajo"
-                        value={prePartido.fase_defensiva.bloque_bajo.observaciones}
-                        onChange={(v) => setPrePartido((p) => ({ ...p, fase_defensiva: { ...p.fase_defensiva, bloque_bajo: { observaciones: v } } }))}
-                        color="red"
-                      />
-                    </div>
-
-                    {/* Transiciones */}
-                    <div className="flex items-center gap-2 mt-4 mb-3">
-                      <Zap className="h-4 w-4 text-amber-500" />
-                      <h4 className="font-semibold text-sm">Transiciones</h4>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <PrePartidoCard
-                        title="Ellos recuperan — DEF→ATQ"
-                        value={prePartido.transiciones.ellos_recuperan.observaciones}
-                        onChange={(v) => setPrePartido((p) => ({ ...p, transiciones: { ...p.transiciones, ellos_recuperan: { observaciones: v } } }))}
-                        color="red"
-                        icon={<AlertTriangle className="h-3.5 w-3.5 text-red-500" />}
-                      />
-                      <PrePartidoCard
-                        title="Ellos pierden — ATQ→DEF"
-                        value={prePartido.transiciones.ellos_pierden.observaciones}
-                        onChange={(v) => setPrePartido((p) => ({ ...p, transiciones: { ...p.transiciones, ellos_pierden: { observaciones: v } } }))}
-                        color="emerald"
-                        icon={<Zap className="h-3.5 w-3.5 text-emerald-500" />}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Section 3: ABP */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="w-6 h-6 rounded-full bg-purple-600 text-white text-xs font-bold flex items-center justify-center">3</span>
-                      <h3 className="font-bold text-sm">Acciones a Balon Parado</h3>
-                      <Badge className="bg-purple-100 text-purple-800 text-[10px]">ABP</Badge>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <PrePartidoCard
-                        title="Como atacan corners"
-                        value={prePartido.abp.atacan_corners.observaciones}
-                        onChange={(v) => setPrePartido((p) => ({ ...p, abp: { ...p.abp, atacan_corners: { observaciones: v } } }))}
-                        color="purple"
-                      />
-                      <PrePartidoCard
-                        title="Como defienden corners"
-                        value={prePartido.abp.defienden_corners.observaciones}
-                        onChange={(v) => setPrePartido((p) => ({ ...p, abp: { ...p.abp, defienden_corners: { observaciones: v } } }))}
-                        color="purple"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Section: Jugadores Clave */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="w-6 h-6 rounded-full bg-amber-500 text-white text-xs font-bold flex items-center justify-center">
-                        <Users className="h-3.5 w-3.5" />
-                      </span>
-                      <h3 className="font-bold text-sm">Jugadores Clave del Rival</h3>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {prePartido.jugadores_clave.map((jc, idx) => (
-                        <Card key={idx} className={`border ${jc.tipo === 'peligroso' ? 'border-amber-400/50 bg-amber-50/50' : 'border-emerald-400/50 bg-emerald-50/50'}`}>
-                          <CardContent className="p-3 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <Input
-                                value={jc.dorsal}
-                                onChange={(e) => {
-                                  const jcs = [...prePartido.jugadores_clave]
-                                  jcs[idx] = { ...jcs[idx], dorsal: e.target.value }
-                                  setPrePartido((p) => ({ ...p, jugadores_clave: jcs }))
-                                }}
-                                placeholder="#"
-                                className="w-12 h-7 text-xs text-center"
-                              />
-                              <Input
-                                value={jc.nombre}
-                                onChange={(e) => {
-                                  const jcs = [...prePartido.jugadores_clave]
-                                  jcs[idx] = { ...jcs[idx], nombre: e.target.value }
-                                  setPrePartido((p) => ({ ...p, jugadores_clave: jcs }))
-                                }}
-                                placeholder="Nombre"
-                                className="flex-1 h-7 text-xs"
-                              />
-                              <Input
-                                value={jc.posicion}
-                                onChange={(e) => {
-                                  const jcs = [...prePartido.jugadores_clave]
-                                  jcs[idx] = { ...jcs[idx], posicion: e.target.value }
-                                  setPrePartido((p) => ({ ...p, jugadores_clave: jcs }))
-                                }}
-                                placeholder="Pos"
-                                className="w-14 h-7 text-xs text-center"
-                              />
-                              <button
-                                onClick={() => {
-                                  const jcs = [...prePartido.jugadores_clave]
-                                  jcs[idx] = { ...jcs[idx], tipo: jcs[idx].tipo === 'peligroso' ? 'debilidad' : 'peligroso' }
-                                  setPrePartido((p) => ({ ...p, jugadores_clave: jcs }))
-                                }}
-                                className={`px-2 py-0.5 rounded text-[10px] font-medium ${jc.tipo === 'peligroso' ? 'bg-amber-200 text-amber-800' : 'bg-emerald-200 text-emerald-800'}`}
-                              >
-                                {jc.tipo === 'peligroso' ? 'Peligro' : 'Debil'}
-                              </button>
-                              <button
-                                onClick={() => {
-                                  const jcs = prePartido.jugadores_clave.filter((_, i) => i !== idx)
-                                  setPrePartido((p) => ({ ...p, jugadores_clave: jcs }))
-                                }}
-                                className="p-1 rounded hover:bg-red-100 text-muted-foreground hover:text-red-500"
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                            <Textarea
-                              value={jc.notas}
-                              onChange={(e) => {
-                                const jcs = [...prePartido.jugadores_clave]
-                                jcs[idx] = { ...jcs[idx], notas: e.target.value }
-                                setPrePartido((p) => ({ ...p, jugadores_clave: jcs }))
-                              }}
-                              placeholder="Caracteristicas, puntos fuertes/debiles..."
-                              rows={2}
-                              className="text-xs resize-none"
-                            />
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                    {prePartido.jugadores_clave.length < 4 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-2"
-                        onClick={() => setPrePartido((p) => ({
-                          ...p,
-                          jugadores_clave: [...p.jugadores_clave, { dorsal: '', nombre: '', posicion: '', notas: '', tipo: 'peligroso' }],
-                        }))}
-                      >
-                        <Plus className="h-3.5 w-3.5 mr-1" />
-                        Jugador clave
-                      </Button>
-                    )}
-                  </div>
-
-                  {/* Section: Nuestro Plan */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
-                        <Target className="h-3.5 w-3.5" />
-                      </span>
-                      <h3 className="font-bold text-sm">Nuestro Plan</h3>
-                      <Badge className="bg-blue-100 text-blue-800 text-[10px]">Plan</Badge>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <PlanField
-                        icon={<Target className="h-4 w-4 text-blue-500" />}
-                        label="Enfoque Tactico"
-                        value={prePartido.plan_partido.enfoque_tactico}
-                        onChange={(v) => setPrePartido((p) => ({ ...p, plan_partido: { ...p.plan_partido, enfoque_tactico: v } }))}
-                      />
-                      <PlanField
-                        icon={<Swords className="h-4 w-4 text-red-500" />}
-                        label="Plan de Ataque"
-                        value={prePartido.plan_partido.plan_ataque}
-                        onChange={(v) => setPrePartido((p) => ({ ...p, plan_partido: { ...p.plan_partido, plan_ataque: v } }))}
-                      />
-                      <PlanField
-                        icon={<Shield className="h-4 w-4 text-blue-500" />}
-                        label="Plan Defensivo"
-                        value={prePartido.plan_partido.plan_defensa}
-                        onChange={(v) => setPrePartido((p) => ({ ...p, plan_partido: { ...p.plan_partido, plan_defensa: v } }))}
-                      />
-                      <PlanField
-                        icon={<Flag className="h-4 w-4 text-purple-500" />}
-                        label="Balon Parado"
-                        value={prePartido.plan_partido.balon_parado}
-                        onChange={(v) => setPrePartido((p) => ({ ...p, plan_partido: { ...p.plan_partido, balon_parado: v } }))}
-                      />
-                      <PlanField
-                        icon={<ArrowRightLeft className="h-4 w-4 text-amber-500" />}
-                        label="Plan de Sustituciones"
-                        value={prePartido.plan_partido.plan_sustituciones}
-                        onChange={(v) => setPrePartido((p) => ({ ...p, plan_partido: { ...p.plan_partido, plan_sustituciones: v } }))}
-                        className="md:col-span-2"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Save button */}
-                  <Button onClick={handleSavePrePartido} disabled={savingPre} className="w-full">
-                    {savingPre ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                    Guardar Pre-partido
-                  </Button>
+                  <PreMatchTab
+                    key={selectedPartido.id}
+                    partido={selectedPartido}
+                    onMutate={() => mutate((key: string) => typeof key === 'string' && key.includes('/partidos'), undefined, { revalidate: true })}
+                  />
                 </TabsContent>
 
                 {/* ==================== TAB: CONVOCATORIA ==================== */}
@@ -1869,82 +1448,6 @@ export default function PartidosPage() {
         </DialogContent>
       </Dialog>
     </div>
-  )
-}
-
-// ============ Pre-partido Card Component ============
-
-function PrePartidoCard({
-  title,
-  value,
-  onChange,
-  color,
-  icon,
-}: {
-  title: string
-  value: string
-  onChange: (v: string) => void
-  color: 'emerald' | 'red' | 'purple'
-  icon?: React.ReactNode
-}) {
-  const bgMap = { emerald: 'bg-emerald-900/30 border-emerald-700/30', red: 'bg-red-900/30 border-red-700/30', purple: 'bg-purple-900/30 border-purple-700/30' }
-  const pitchBg = { emerald: 'bg-emerald-800', red: 'bg-red-900/50', purple: 'bg-purple-900/50' }
-
-  return (
-    <Card className={`border ${bgMap[color]}`}>
-      <CardContent className="p-3 space-y-2">
-        <div className="flex items-center gap-1.5">
-          {icon}
-          <h4 className="text-xs font-semibold">{title}</h4>
-        </div>
-        {/* Mini pitch */}
-        <div className={`${pitchBg[color]} rounded-lg h-20 relative`}>
-          <div className="absolute inset-2 border border-white/20 rounded" />
-          <div className="absolute top-1/2 left-0 right-0 mx-2 border-t border-white/20" />
-        </div>
-        <Textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="Observaciones..."
-          rows={3}
-          className="text-xs resize-none bg-background/50"
-        />
-      </CardContent>
-    </Card>
-  )
-}
-
-// ============ Plan Field Component ============
-
-function PlanField({
-  icon,
-  label,
-  value,
-  onChange,
-  className,
-}: {
-  icon: React.ReactNode
-  label: string
-  value: string
-  onChange: (v: string) => void
-  className?: string
-}) {
-  return (
-    <Card className={className}>
-      <CardContent className="p-3 space-y-2">
-        <div className="flex items-center gap-2">
-          {icon}
-          <h4 className="text-xs font-semibold">{label}</h4>
-        </div>
-        <Textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={`${label}...`}
-          rows={3}
-          className="text-xs resize-none"
-        />
-      </CardContent>
-    </Card>
   )
 }
 

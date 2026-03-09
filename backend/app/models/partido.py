@@ -112,6 +112,9 @@ class PartidoBase(BaseModel):
     auto_creado: Optional[bool] = False
     ubicacion: Optional[str] = None
 
+    # Auto-generated pre-match intelligence
+    pre_match_intel: Optional[dict] = None
+
 
 class PartidoCreate(PartidoBase):
     """Schema para crear partido."""

@@ -23,6 +23,7 @@ from app.security.permissions import Permission
 from app.services.audit_service import log_create, log_update, log_delete
 from app.services.notification_service import notify_partido_resultado
 from app.services.pdf_service import generate_informe_partido_pdf
+from app.services.pre_match_service import populate_partido_intel
 
 router = APIRouter()
 
@@ -416,3 +417,81 @@ async def generar_informe_partido(
     ).eq("id", str(partido_id)).execute()
 
     return {"informe_url": informe_url}
+
+
+@router.get("/{partido_id}/pre-match-intel")
+async def get_pre_match_intel(
+    partido_id: UUID,
+    force_refresh: bool = Query(False),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """
+    Returns cached pre-match intel or generates fresh if force_refresh=true.
+    """
+    supabase = get_supabase()
+
+    partido_res = supabase.table("partidos").select(
+        "id, pre_match_intel, rfef_competicion_id"
+    ).eq("id", str(partido_id)).single().execute()
+
+    if not partido_res.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Partido no encontrado"
+        )
+
+    # Return cached if available and not forcing refresh
+    if not force_refresh and partido_res.data.get("pre_match_intel"):
+        return partido_res.data["pre_match_intel"]
+
+    # Generate fresh intel
+    if not partido_res.data.get("rfef_competicion_id"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Este partido no tiene competicion RFEF vinculada"
+        )
+
+    intel = populate_partido_intel(supabase, str(partido_id))
+    if not intel:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No se pudo generar intel para este partido"
+        )
+
+    return intel
+
+
+@router.post("/{partido_id}/populate-pre-match")
+async def populate_pre_match(
+    partido_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
+):
+    """
+    Manually trigger pre-match intel generation for a partido.
+    """
+    supabase = get_supabase()
+
+    partido_res = supabase.table("partidos").select(
+        "id, rfef_competicion_id"
+    ).eq("id", str(partido_id)).single().execute()
+
+    if not partido_res.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Partido no encontrado"
+        )
+
+    if not partido_res.data.get("rfef_competicion_id"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Este partido no tiene competicion RFEF vinculada"
+        )
+
+    intel = populate_partido_intel(supabase, str(partido_id))
+    if not intel:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al generar intel pre-partido"
+        )
+
+    return {"status": "ok", "pre_match_intel": intel}
