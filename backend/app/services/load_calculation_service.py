@@ -128,12 +128,14 @@ def recalculate_player_load(jugador_id: UUID, equipo_id: UUID) -> dict:
     jid = str(jugador_id)
     eid = str(equipo_id)
 
-    # Fetch player's es_portero flag for match load adjustment
+    # Fetch player's es_portero flag and estado for load adjustment
     es_portero = False
+    jugador_estado = None
     try:
-        jug_resp = supabase.table("jugadores").select("es_portero").eq("id", jid).limit(1).execute()
+        jug_resp = supabase.table("jugadores").select("es_portero, estado").eq("id", jid).limit(1).execute()
         if jug_resp.data:
             es_portero = bool(jug_resp.data[0].get("es_portero"))
+            jugador_estado = jug_resp.data[0].get("estado")
     except Exception:
         pass
 
@@ -275,6 +277,10 @@ def recalculate_player_load(jugador_id: UUID, equipo_id: UUID) -> dict:
     carga_aguda = round(load_7d, 2)
     ratio_acwr = round(carga_aguda / carga_cronica, 3) if carga_cronica > 0 else None
     nivel = _determine_nivel(ratio_acwr)
+
+    # Override nivel_carga for non-active players
+    if jugador_estado in ("lesionado", "enfermo"):
+        nivel = "bajo"  # Injured/sick → forced to bajo (no training)
 
     # Last activity
     ultima_actividad = max((d for d, _ in loads), default=None) if loads else None

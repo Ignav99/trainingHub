@@ -195,6 +195,16 @@ async def create_rpe(
     if data.get("sesion_id"):
         data["sesion_id"] = str(data["sesion_id"])
 
+    # Check player is active before allowing RPE
+    jugador_check = supabase.table("jugadores").select("estado").eq(
+        "id", data["jugador_id"]
+    ).single().execute()
+    if jugador_check.data and jugador_check.data.get("estado") not in ("activo", None):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No se puede registrar RPE: jugador está {jugador_check.data['estado']}"
+        )
+
     # Calcular carga de sesión (RPE * duración)
     if data.get("duracion_percibida"):
         data["carga_sesion"] = round(data["rpe"] * data["duracion_percibida"], 1)
@@ -236,6 +246,22 @@ async def create_rpe_batch(
 ):
     """Crea múltiples registros RPE (ej: post-sesión para todo el equipo)."""
     supabase = get_supabase()
+
+    # Check all players are active before allowing RPE
+    jugador_ids = list({str(r.jugador_id) for r in registros})
+    jugadores_check = supabase.table("jugadores").select("id, estado").in_(
+        "id", jugador_ids
+    ).execute()
+    no_activos = [
+        j for j in (jugadores_check.data or [])
+        if j.get("estado") not in ("activo", None)
+    ]
+    if no_activos:
+        nombres = ", ".join(j["id"] for j in no_activos)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No se puede registrar RPE para jugadores no activos: {nombres}"
+        )
 
     items = []
     for rpe in registros:

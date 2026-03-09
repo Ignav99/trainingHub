@@ -756,6 +756,23 @@ export default function SesionDetailPage() {
           tipo_participacion: a.presente && tp.length === 0 ? ['sesion'] : tp,
         })
       }
+      // Auto-mark non-active players as absent with correct motivo (first time only)
+      if (map.size === 0 && jugadores.length > 0) {
+        const estadoToMotivo: Record<string, MotivoAusencia> = {
+          lesionado: 'lesion',
+          enfermo: 'enfermedad',
+          sancionado: 'sancion',
+          permiso: 'permiso',
+          seleccion: 'seleccion',
+          viaje: 'viaje',
+        }
+        for (const j of jugadores) {
+          const motivo = estadoToMotivo[j.estado as string]
+          if (motivo) {
+            map.set(j.id, { presente: false, motivo, tipo_participacion: [] })
+          }
+        }
+      }
       setAsistencias(map)
       setAsistenciasLoaded(true)
     } catch (err) {
@@ -1027,19 +1044,26 @@ export default function SesionDetailPage() {
   }
 
   const toggleAsistencia = (jugadorId: string) => {
+    const jugador = jugadores.find((j) => j.id === jugadorId)
+    const estadoToMotivo: Record<string, MotivoAusencia> = {
+      lesionado: 'lesion', enfermo: 'enfermedad', sancionado: 'sancion',
+      permiso: 'permiso', seleccion: 'seleccion', viaje: 'viaje',
+    }
     setAsistencias((prev) => {
       const next = new Map(prev)
       const current = next.get(jugadorId)
       if (current) {
         const willBePresent = !current.presente
+        const autoMotivo = !willBePresent && jugador ? estadoToMotivo[jugador.estado as string] : undefined
         next.set(jugadorId, {
           ...current,
           presente: willBePresent,
-          motivo: willBePresent ? undefined : current.motivo,
+          motivo: willBePresent ? undefined : (autoMotivo || current.motivo),
           tipo_participacion: willBePresent ? ['sesion'] : [],
         })
       } else {
-        next.set(jugadorId, { presente: false, tipo_participacion: [] })
+        const autoMotivo = jugador ? estadoToMotivo[jugador.estado as string] : undefined
+        next.set(jugadorId, { presente: false, motivo: autoMotivo, tipo_participacion: [] })
       }
       return next
     })

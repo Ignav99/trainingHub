@@ -280,7 +280,7 @@ export function MatchDetailPanel({
     setSelected({})
     setLoadingJug(true)
     jugadoresApi
-      .list({ equipo_id: equipoActivo.id, estado: 'activo', organizacion_completa: true })
+      .list({ equipo_id: equipoActivo.id, organizacion_completa: true })
       .then((res) => setJugadores(res?.data || []))
       .catch(console.error)
       .finally(() => setLoadingJug(false))
@@ -334,6 +334,8 @@ export function MatchDetailPanel({
   }
 
   const togglePlayer = (jugador: Jugador) => {
+    // Prevent selecting non-active players
+    if (jugador.estado && jugador.estado !== 'activo') return
     setSelected((prev) => {
       const copy = { ...prev }
       if (copy[jugador.id]) delete copy[jugador.id]
@@ -1302,12 +1304,14 @@ function PlayerSelectRow({
   const isSelected = !!selected[jugador.id]
   const info = selected[jugador.id]
   const posColor = getPositionColor(jugador.posicion_principal)
+  const isDisabled = !!jugador.estado && jugador.estado !== 'activo'
 
   return (
-    <div className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${isSelected ? 'bg-primary/5 border border-primary/20' : 'hover:bg-muted/50'}`}>
+    <div className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${isDisabled ? 'opacity-50' : ''} ${isSelected ? 'bg-primary/5 border border-primary/20' : 'hover:bg-muted/50'}`} title={isDisabled ? `No disponible: ${jugador.estado}` : undefined}>
       <button
         onClick={() => onToggle(jugador)}
-        className={`w-6 h-6 rounded border flex items-center justify-center shrink-0 transition-colors ${isSelected ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground/30'}`}
+        disabled={isDisabled}
+        className={`w-6 h-6 rounded border flex items-center justify-center shrink-0 transition-colors ${isDisabled ? 'cursor-not-allowed opacity-50' : ''} ${isSelected ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground/30'}`}
       >
         {isSelected && <Check className="h-3.5 w-3.5" />}
       </button>
