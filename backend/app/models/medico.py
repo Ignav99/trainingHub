@@ -13,11 +13,11 @@ from enum import Enum
 class TipoRegistroMedico(str, Enum):
     LESION = "lesion"
     ENFERMEDAD = "enfermedad"
-    RECONOCIMIENTO_MEDICO = "reconocimiento_medico"
-    PRUEBA_ESFUERZO = "prueba_esfuerzo"
+    MOLESTIAS = "molestias"
+    DIAGNOSTICO_FISIO = "diagnostico_fisio"
+    PRUEBA_MEDICA = "prueba_medica"
     REHABILITACION = "rehabilitacion"
     ALTA_MEDICA = "alta_medica"
-    INFORME_FISIOTERAPIA = "informe_fisioterapia"
     OTRO = "otro"
 
 
@@ -53,6 +53,7 @@ class RegistroMedicoCreate(BaseModel):
     fecha_alta: Optional[date] = None
     dias_baja_estimados: Optional[int] = None
     protocolo_recuperacion: Optional[dict] = None
+    documentos_urls: Optional[list[str]] = None
     solo_medico: bool = True
 
 
@@ -68,6 +69,7 @@ class RegistroMedicoUpdate(BaseModel):
     dias_baja_estimados: Optional[int] = None
     dias_baja_reales: Optional[int] = None
     protocolo_recuperacion: Optional[dict] = None
+    documentos_urls: Optional[list[str]] = None
     estado: Optional[EstadoRegistroMedico] = None
     solo_medico: Optional[bool] = None
 
@@ -89,6 +91,7 @@ class RegistroMedicoResponse(BaseModel):
     dias_baja_estimados: Optional[int] = None
     dias_baja_reales: Optional[int] = None
     protocolo_recuperacion: Optional[dict] = None
+    documentos_urls: Optional[list[str]] = None
     estado: EstadoRegistroMedico = EstadoRegistroMedico.ACTIVO
     documentos: list = []
     creado_por: UUID

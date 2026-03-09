@@ -35,10 +35,10 @@ import type { RegistroMedico, TipoRegistroMedico, EstadoRegistroMedico } from '@
 const TIPOS: { value: TipoRegistroMedico; label: string }[] = [
   { value: 'lesion', label: 'Lesión' },
   { value: 'enfermedad', label: 'Enfermedad' },
+  { value: 'molestias', label: 'Molestias' },
+  { value: 'diagnostico_fisio', label: 'Diagnóstico fisioterapéutico' },
+  { value: 'prueba_medica', label: 'Prueba médica aportada' },
   { value: 'rehabilitacion', label: 'Rehabilitación' },
-  { value: 'reconocimiento_medico', label: 'Reconocimiento' },
-  { value: 'prueba_esfuerzo', label: 'Prueba de esfuerzo' },
-  { value: 'informe_fisioterapia', label: 'Fisioterapia' },
   { value: 'otro', label: 'Otro' },
 ]
 
@@ -52,10 +52,10 @@ const ESTADO_CONFIG: Record<string, { label: string; color: string; bg: string }
 const TIPO_BADGE: Record<string, { label: string; color: string }> = {
   lesion: { label: 'Lesión', color: 'bg-red-100 text-red-800' },
   enfermedad: { label: 'Enfermedad', color: 'bg-orange-100 text-orange-800' },
+  molestias: { label: 'Molestias', color: 'bg-yellow-100 text-yellow-800' },
+  diagnostico_fisio: { label: 'Diag. Fisio', color: 'bg-cyan-100 text-cyan-800' },
+  prueba_medica: { label: 'Prueba médica', color: 'bg-violet-100 text-violet-800' },
   rehabilitacion: { label: 'Rehabilitación', color: 'bg-blue-100 text-blue-800' },
-  reconocimiento_medico: { label: 'Reconocimiento', color: 'bg-teal-100 text-teal-800' },
-  prueba_esfuerzo: { label: 'Prueba esfuerzo', color: 'bg-violet-100 text-violet-800' },
-  informe_fisioterapia: { label: 'Fisioterapia', color: 'bg-cyan-100 text-cyan-800' },
   alta_medica: { label: 'Alta médica', color: 'bg-green-100 text-green-800' },
   otro: { label: 'Otro', color: 'bg-gray-100 text-gray-800' },
 }
@@ -138,6 +138,8 @@ export default function EnfermeriaPage() {
         titulo: nuevoForm.titulo,
         descripcion: nuevoForm.descripcion,
         diagnostico: nuevoForm.diagnostico,
+        tratamiento: nuevoForm.tratamiento,
+        medicacion: nuevoForm.medicacion,
         fecha_inicio: nuevoForm.fecha_inicio || new Date().toISOString().slice(0, 10),
         dias_baja_estimados: nuevoForm.dias_baja_estimados,
       })
@@ -388,11 +390,31 @@ export default function EnfermeriaPage() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium mb-1 block">Diagnóstico (solo médicos)</label>
+              <label className="text-sm font-medium mb-1 block">
+                {nuevoForm.tipo === 'diagnostico_fisio' ? 'Diagnóstico fisioterapéutico' : 'Diagnóstico'}
+              </label>
               <Textarea
                 value={nuevoForm.diagnostico || ''}
                 onChange={(e) => setNuevoForm({ ...nuevoForm, diagnostico: e.target.value })}
-                placeholder="Diagnóstico clínico..."
+                placeholder={nuevoForm.tipo === 'diagnostico_fisio' ? 'Diagnóstico fisioterapéutico...' : 'Diagnóstico clínico...'}
+                rows={2}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Tratamiento</label>
+              <Textarea
+                value={nuevoForm.tratamiento || ''}
+                onChange={(e) => setNuevoForm({ ...nuevoForm, tratamiento: e.target.value })}
+                placeholder="Tratamiento prescrito..."
+                rows={2}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Medicación</label>
+              <Textarea
+                value={nuevoForm.medicacion || ''}
+                onChange={(e) => setNuevoForm({ ...nuevoForm, medicacion: e.target.value })}
+                placeholder="Medicación administrada..."
                 rows={2}
               />
             </div>

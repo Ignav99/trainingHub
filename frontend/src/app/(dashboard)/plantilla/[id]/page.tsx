@@ -18,18 +18,53 @@ import {
   AlertCircle,
   CheckCircle,
   Activity,
-  Camera
+  Camera,
+  HeartPulse,
+  Plus,
+  Clock,
+  ExternalLink,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Jugador, JugadorUpdate, jugadoresApi, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
+import { medicoApi } from '@/lib/api/medico'
+import { apiKey } from '@/lib/swr'
+import type { RegistroMedico } from '@/types'
+
+const TIPO_BADGE: Record<string, { label: string; color: string }> = {
+  lesion: { label: 'Lesión', color: 'bg-red-100 text-red-800' },
+  enfermedad: { label: 'Enfermedad', color: 'bg-orange-100 text-orange-800' },
+  molestias: { label: 'Molestias', color: 'bg-yellow-100 text-yellow-800' },
+  diagnostico_fisio: { label: 'Diag. Fisio', color: 'bg-cyan-100 text-cyan-800' },
+  prueba_medica: { label: 'Prueba médica', color: 'bg-violet-100 text-violet-800' },
+  rehabilitacion: { label: 'Rehabilitación', color: 'bg-blue-100 text-blue-800' },
+  alta_medica: { label: 'Alta médica', color: 'bg-green-100 text-green-800' },
+  otro: { label: 'Otro', color: 'bg-gray-100 text-gray-800' },
+}
+
+const ESTADO_BADGE: Record<string, { label: string; color: string }> = {
+  activo: { label: 'Activo', color: 'bg-red-100 text-red-700' },
+  en_recuperacion: { label: 'En recuperación', color: 'bg-amber-100 text-amber-700' },
+  alta: { label: 'Alta', color: 'bg-green-100 text-green-700' },
+  cronico: { label: 'Crónico', color: 'bg-purple-100 text-purple-700' },
+}
+
+function daysSince(dateStr: string): number {
+  const start = new Date(dateStr)
+  const now = new Date()
+  return Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+}
 
 export default function JugadorDetailPage() {
   const params = useParams()
   const router = useRouter()
   const [saving, setSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const [activeTab, setActiveTab] = useState<'datos' | 'ficha_clinica'>('datos')
 
   // Form state
   const [formData, setFormData] = useState<JugadorUpdate>({})
@@ -38,6 +73,21 @@ export default function JugadorDetailPage() {
   // SWR for jugador detail
   const { data: jugador, isLoading: loading, error: swrError } = useSWR<Jugador>(
     `/jugadores/${params.id}`
+  )
+
+  // SWR for medical records — only when Ficha Clínica tab is active
+  const { data: registrosMedicos } = useSWR<RegistroMedico[] | { data: RegistroMedico[] }>(
+    activeTab === 'ficha_clinica' && jugador?.equipo_id
+      ? apiKey('/medico', { equipo_id: jugador.equipo_id, jugador_id: String(params.id) }, ['equipo_id', 'jugador_id'])
+      : null
+  )
+
+  const medicalRecords: RegistroMedico[] = registrosMedicos
+    ? Array.isArray(registrosMedicos) ? registrosMedicos : (registrosMedicos as any).data || []
+    : []
+
+  const activeIncident = medicalRecords.find(
+    (r) => r.estado === 'activo' || r.estado === 'en_recuperacion'
   )
 
   const error = swrError ? 'Error al cargar el jugador' : null
@@ -204,7 +254,36 @@ export default function JugadorDetailPage() {
         }
       />
 
-      {/* Main content */}
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+        <button
+          onClick={() => setActiveTab('datos')}
+          className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            activeTab === 'datos'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Datos
+        </button>
+        <button
+          onClick={() => setActiveTab('ficha_clinica')}
+          className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+            activeTab === 'ficha_clinica'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <HeartPulse className="h-4 w-4" />
+          Ficha Clínica
+          {activeIncident && (
+            <span className="w-2 h-2 rounded-full bg-red-500" />
+          )}
+        </button>
+      </div>
+
+      {/* Tab: Datos */}
+      {activeTab === 'datos' && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column - Photo and basic info */}
         <div className="space-y-6">
@@ -555,6 +634,171 @@ export default function JugadorDetailPage() {
           ) : null}
         </div>
       </div>
+      )}
+
+      {/* Tab: Ficha Clínica */}
+      {activeTab === 'ficha_clinica' && (
+      <div className="space-y-6">
+        {/* Estado Actual */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Estado Actual</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-3">
+              <div
+                className="p-2 rounded-lg"
+                style={{ backgroundColor: `${estadoConfig?.color}15` }}
+              >
+                {jugador.estado === 'activo' ? (
+                  <CheckCircle className="h-5 w-5" style={{ color: estadoConfig?.color }} />
+                ) : (
+                  <Activity className="h-5 w-5" style={{ color: estadoConfig?.color }} />
+                )}
+              </div>
+              <div>
+                <p className="font-medium" style={{ color: estadoConfig?.color }}>
+                  {estadoConfig?.nombre}
+                </p>
+                {jugador.motivo_baja && (
+                  <p className="text-sm text-muted-foreground">{jugador.motivo_baja}</p>
+                )}
+              </div>
+              {jugador.fecha_vuelta_estimada && jugador.estado !== 'activo' && (
+                <div className="ml-auto text-right">
+                  <p className="text-xs text-muted-foreground">Vuelta estimada</p>
+                  <p className="text-sm font-medium">
+                    {new Date(jugador.fecha_vuelta_estimada).toLocaleDateString('es-ES')}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Recovery progress bar for active incident */}
+            {activeIncident && activeIncident.dias_baja_estimados && (
+              <div className="mt-4">
+                {(() => {
+                  const dias = daysSince(activeIncident.fecha_inicio)
+                  const progress = Math.min(100, (dias / activeIncident.dias_baja_estimados!) * 100)
+                  return (
+                    <>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            progress >= 100 ? 'bg-green-500' : progress >= 75 ? 'bg-amber-500' : 'bg-blue-500'
+                          }`}
+                          style={{ width: `${Math.min(100, progress)}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {dias} / {activeIncident.dias_baja_estimados} días
+                      </p>
+                    </>
+                  )
+                })()}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Incidencia Activa */}
+        {activeIncident && (
+          <Card className="border-l-4 border-l-red-500">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base text-red-700">Incidencia Activa</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-start justify-between">
+                <div>
+                  <h4 className="font-medium">{activeIncident.titulo}</h4>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge className={`${TIPO_BADGE[activeIncident.tipo]?.color || 'bg-gray-100 text-gray-800'} border-0 text-xs`}>
+                      {TIPO_BADGE[activeIncident.tipo]?.label || activeIncident.tipo}
+                    </Badge>
+                    <span className="text-sm text-muted-foreground">
+                      {daysSince(activeIncident.fecha_inicio)} días
+                    </span>
+                  </div>
+                </div>
+                <Link href={`/enfermeria/${activeIncident.id}`}>
+                  <Button variant="outline" size="sm">
+                    <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                    Ver detalle
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Historial Clínico */}
+        <Card>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-base">Historial Clínico</CardTitle>
+            <Link href={`/enfermeria`}>
+              <Button size="sm">
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Nuevo Registro
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {medicalRecords.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                No hay registros médicos para este jugador
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Título</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Días baja</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {medicalRecords.map((r) => {
+                      const tipoBadge = TIPO_BADGE[r.tipo] || TIPO_BADGE.otro
+                      const estadoBadge = ESTADO_BADGE[r.estado] || ESTADO_BADGE.activo
+                      const dias = r.estado === 'alta' && r.dias_baja_reales
+                        ? r.dias_baja_reales
+                        : daysSince(r.fecha_inicio)
+
+                      return (
+                        <tr
+                          key={r.id}
+                          onClick={() => router.push(`/enfermeria/${r.id}`)}
+                          className="hover:bg-gray-50 cursor-pointer transition-colors"
+                        >
+                          <td className="px-4 py-3 text-sm whitespace-nowrap">
+                            {new Date(r.fecha_inicio).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: '2-digit' })}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${tipoBadge.color}`}>
+                              {tipoBadge.label}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm">{r.titulo}</td>
+                          <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{dias} días</td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${estadoBadge.color}`}>
+                              {estadoBadge.label}
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+      )}
     </div>
   )
 }

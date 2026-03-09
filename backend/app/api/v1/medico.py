@@ -9,6 +9,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
+from datetime import timedelta
+
 from app.database import get_supabase
 from app.models import (
     RegistroMedicoCreate,
@@ -101,6 +103,27 @@ async def create_registro_medico(
     _log_medical_access(result.data[0]["id"], auth.user_id, "crear", request)
 
     log_create(auth.user_id, "registro_medico", result.data[0]["id"], {"tipo": data.tipo.value})
+
+    # Auto-update player status based on tipo
+    estado_map = {
+        "lesion": "lesionado",
+        "enfermedad": "enfermo",
+        "molestias": "lesionado",
+    }
+    new_estado = estado_map.get(data.tipo.value)
+    if new_estado:
+        update_jugador = {
+            "estado": new_estado,
+            "motivo_baja": data.titulo,
+            "fecha_lesion": data.fecha_inicio.isoformat(),
+        }
+        if data.dias_baja_estimados:
+            est_return = data.fecha_inicio + timedelta(days=data.dias_baja_estimados)
+            update_jugador["fecha_vuelta_estimada"] = est_return.isoformat()
+        try:
+            supabase.table("jugadores").update(update_jugador).eq("id", str(data.jugador_id)).execute()
+        except Exception:
+            pass
 
     # Decrypt for response
     response_data = _decrypt_medical_fields(result.data[0])

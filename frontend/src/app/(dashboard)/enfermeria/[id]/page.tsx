@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import useSWR, { mutate } from 'swr'
@@ -15,7 +15,11 @@ import {
   User,
   Activity,
   Shield,
-  Lock,
+  FileText,
+  Upload,
+  Trash2,
+  Download,
+  X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -42,10 +46,10 @@ const ESTADO_CONFIG: Record<string, { label: string; color: string; bg: string }
 const TIPO_LABELS: Record<string, string> = {
   lesion: 'Lesión',
   enfermedad: 'Enfermedad',
+  molestias: 'Molestias',
+  diagnostico_fisio: 'Diagnóstico fisioterapéutico',
+  prueba_medica: 'Prueba médica aportada',
   rehabilitacion: 'Rehabilitación',
-  reconocimiento_medico: 'Reconocimiento',
-  prueba_esfuerzo: 'Prueba de esfuerzo',
-  informe_fisioterapia: 'Fisioterapia',
   alta_medica: 'Alta médica',
   otro: 'Otro',
 }
@@ -60,10 +64,19 @@ function daysSince(dateStr: string): number {
   return daysBetween(dateStr, new Date().toISOString())
 }
 
+function getFileName(url: string): string {
+  const parts = url.split('/')
+  const last = parts[parts.length - 1]
+  // Remove timestamp prefix if present (e.g. "1709999999999_report.pdf")
+  const underscoreIdx = last.indexOf('_')
+  return underscoreIdx > 0 && underscoreIdx < 14 ? last.slice(underscoreIdx + 1) : last
+}
+
 export default function EnfermeriaDetailPage() {
   const params = useParams()
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // SWR: registro medico
   const { data: registro, isLoading: loadingRegistro, error: registroError } = useSWR<RegistroMedico>(
@@ -83,12 +96,12 @@ export default function EnfermeriaDetailPage() {
   const [saving, setSaving] = useState(false)
   const [editForm, setEditForm] = useState<Record<string, any>>({})
 
+  // File upload
+  const [uploading, setUploading] = useState(false)
+
   // Dar alta dialog
   const [showAlta, setShowAlta] = useState(false)
   const [givingAlta, setGivingAlta] = useState(false)
-
-  // Check if user has medical role (médico or fisio)
-  const isMedicalStaff = user?.rol === 'admin' || user?.rol === 'tecnico_principal'
 
   // Initialize edit form when registro is loaded
   const startEditing = () => {
@@ -110,7 +123,6 @@ export default function EnfermeriaDetailPage() {
     try {
       await medicoApi.update(registro.id, editForm)
       setIsEditing(false)
-      // Invalidate medico caches
       mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
     } catch (err) {
       console.error('Error saving:', err)
@@ -129,13 +141,68 @@ export default function EnfermeriaDetailPage() {
         dias_baja_reales: daysSince(registro.fecha_inicio),
       })
       setShowAlta(false)
-      // Invalidate medico caches
       mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
     } catch (err) {
       console.error('Error giving alta:', err)
       toast.error('Error al dar de alta')
     } finally {
       setGivingAlta(false)
+    }
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !registro) return
+
+    setUploading(true)
+    try {
+      const { createClient } = await import('@supabase/supabase-js')
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+
+      const timestamp = Date.now()
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const path = `medical-documents/${registro.id}/${timestamp}_${safeName}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('medical-documents')
+        .upload(path, file, { upsert: false })
+
+      if (uploadError) throw uploadError
+
+      const { data: urlData } = supabase.storage
+        .from('medical-documents')
+        .getPublicUrl(path)
+
+      if (urlData?.publicUrl) {
+        const existing = registro.documentos_urls || []
+        await medicoApi.update(registro.id, {
+          documentos_urls: [...existing, urlData.publicUrl],
+        } as any)
+        mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
+        toast.success('Documento subido correctamente')
+      }
+    } catch (err) {
+      console.error('Error uploading document:', err)
+      toast.error('Error al subir el documento')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleDeleteDoc = async (urlToRemove: string) => {
+    if (!registro) return
+    try {
+      const updated = (registro.documentos_urls || []).filter((u) => u !== urlToRemove)
+      await medicoApi.update(registro.id, { documentos_urls: updated } as any)
+      mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
+      toast.success('Documento eliminado')
+    } catch (err) {
+      console.error('Error deleting doc:', err)
+      toast.error('Error al eliminar documento')
     }
   }
 
@@ -401,7 +468,7 @@ export default function EnfermeriaDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Clinical details */}
+          {/* Clinical details — visible for all CT members */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
@@ -410,59 +477,118 @@ export default function EnfermeriaDetailPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {isMedicalStaff ? (
-                isEditing ? (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-sm font-medium mb-1 block">Diagnóstico</label>
-                      <Textarea
-                        value={editForm.diagnostico || ''}
-                        onChange={(e) => setEditForm({ ...editForm, diagnostico: e.target.value })}
-                        rows={2}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium mb-1 block">Tratamiento</label>
-                      <Textarea
-                        value={editForm.tratamiento || ''}
-                        onChange={(e) => setEditForm({ ...editForm, tratamiento: e.target.value })}
-                        rows={2}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium mb-1 block">Medicación</label>
-                      <Textarea
-                        value={editForm.medicacion || ''}
-                        onChange={(e) => setEditForm({ ...editForm, medicacion: e.target.value })}
-                        rows={2}
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1">Diagnóstico</p>
-                      <p className="text-sm">{registro.diagnostico || 'No especificado'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1">Tratamiento</p>
-                      <p className="text-sm">{registro.tratamiento || 'No especificado'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1">Medicación</p>
-                      <p className="text-sm">{registro.medicacion || 'No especificada'}</p>
-                    </div>
-                  </div>
-                )
-              ) : (
-                <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50 text-muted-foreground">
-                  <Lock className="h-5 w-5" />
+              {isEditing ? (
+                <div className="space-y-4">
                   <div>
-                    <p className="font-medium">Acceso restringido</p>
-                    <p className="text-sm">Los detalles clínicos solo son visibles para el personal médico.</p>
+                    <label className="text-sm font-medium mb-1 block">
+                      {registro.tipo === 'diagnostico_fisio' ? 'Diagnóstico fisioterapéutico' : 'Diagnóstico'}
+                    </label>
+                    <Textarea
+                      value={editForm.diagnostico || ''}
+                      onChange={(e) => setEditForm({ ...editForm, diagnostico: e.target.value })}
+                      rows={2}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">Tratamiento</label>
+                    <Textarea
+                      value={editForm.tratamiento || ''}
+                      onChange={(e) => setEditForm({ ...editForm, tratamiento: e.target.value })}
+                      rows={2}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">Medicación</label>
+                    <Textarea
+                      value={editForm.medicacion || ''}
+                      onChange={(e) => setEditForm({ ...editForm, medicacion: e.target.value })}
+                      rows={2}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">
+                      {registro.tipo === 'diagnostico_fisio' ? 'Diagnóstico fisioterapéutico' : 'Diagnóstico'}
+                    </p>
+                    <p className="text-sm">{registro.diagnostico || 'No especificado'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Tratamiento</p>
+                    <p className="text-sm">{registro.tratamiento || 'No especificado'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Medicación</p>
+                    <p className="text-sm">{registro.medicacion || 'No especificada'}</p>
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Documentos adjuntos */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Documentos adjuntos
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {/* File list */}
+              {registro.documentos_urls && registro.documentos_urls.length > 0 ? (
+                <div className="space-y-2 mb-4">
+                  {registro.documentos_urls.map((url, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-2 rounded-lg border bg-muted/30">
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-sm text-primary hover:underline truncate flex-1 mr-2"
+                      >
+                        <Download className="h-4 w-4 flex-shrink-0" />
+                        {getFileName(url)}
+                      </a>
+                      <button
+                        onClick={() => handleDeleteDoc(url)}
+                        className="text-gray-400 hover:text-red-500 p-1"
+                        title="Eliminar documento"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground mb-4">No hay documentos adjuntos</p>
+              )}
+
+              {/* Upload button */}
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                  disabled={uploading}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Upload className="h-4 w-4 mr-2" />
+                  )}
+                  Subir documento
+                </Button>
+                <p className="text-xs text-muted-foreground mt-1">PDF, JPG, PNG, DOC, DOCX</p>
+              </div>
             </CardContent>
           </Card>
 

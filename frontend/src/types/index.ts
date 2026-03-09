@@ -854,8 +854,8 @@ export interface SolicitudGDPR {
 // ============================================
 
 export type TipoRegistroMedico =
-  | 'lesion' | 'enfermedad' | 'reconocimiento_medico' | 'prueba_esfuerzo'
-  | 'rehabilitacion' | 'alta_medica' | 'informe_fisioterapia' | 'otro'
+  | 'lesion' | 'enfermedad' | 'molestias' | 'diagnostico_fisio'
+  | 'prueba_medica' | 'rehabilitacion' | 'alta_medica' | 'otro'
 
 export type EstadoRegistroMedico = 'activo' | 'en_recuperacion' | 'alta' | 'cronico'
 
@@ -875,6 +875,7 @@ export interface RegistroMedico {
   dias_baja_estimados?: number
   dias_baja_reales?: number
   estado: EstadoRegistroMedico
+  documentos_urls?: string[]
   solo_medico: boolean
   created_at: string
   updated_at: string

@@ -13,6 +13,7 @@ export interface CreateRegistroMedicoData {
   fecha_inicio: string
   fecha_fin?: string
   dias_baja_estimados?: number
+  documentos_urls?: string[]
   solo_medico?: boolean
 }
 
