@@ -751,6 +751,7 @@ export default function SesionDetailPage() {
     try {
       const response = await sesionesApi.getAsistencias(sesionId)
       const map = new Map<string, { presente: boolean; motivo?: MotivoAusencia; notas?: string; tipo_participacion: TipoParticipacion[] }>()
+      const missingPlayers: Jugador[] = []
       for (const a of response.data) {
         const tp = (a.tipo_participacion as TipoParticipacion[] | undefined) || []
         map.set(a.jugador_id, {
@@ -758,6 +759,21 @@ export default function SesionDetailPage() {
           motivo: a.motivo_ausencia as MotivoAusencia | undefined,
           notas: a.notas,
           tipo_participacion: a.presente && tp.length === 0 ? ['sesion'] : tp,
+        })
+        // If this player is not in jugadores list (invitado/cross-team), add them
+        if (a.jugador && !jugadores.find((j) => j.id === a.jugador_id)) {
+          missingPlayers.push({
+            ...a.jugador,
+            es_invitado: a.jugador.es_invitado ?? true,
+          } as unknown as Jugador)
+        }
+      }
+      // Merge missing players (invitados/cross-team) into jugadores
+      if (missingPlayers.length > 0) {
+        setJugadores((prev) => {
+          const ids = new Set(prev.map((j) => j.id))
+          const toAdd = missingPlayers.filter((j) => !ids.has(j.id))
+          return toAdd.length > 0 ? [...prev, ...toAdd] : prev
         })
       }
       // Auto-mark non-active players as absent with correct motivo (first time only)
@@ -1147,22 +1163,41 @@ export default function SesionDetailPage() {
   const handleAddCrossTeamPlayer = async (jugadorId: string) => {
     setAddingInvitado(true)
     try {
-      await sesionesApi.addCrossTeamPlayer(sesionId, jugadorId)
-      // Refresh asistencias
-      setAsistenciasLoaded(false)
-      await loadAsistencias()
-      // Add to local jugadores list if not already there
+      // Check if already in local list — just make visible
       const existing = jugadores.find((j) => j.id === jugadorId)
-      if (!existing) {
-        const orgJug = orgJugadores.find((j) => j.id === jugadorId)
-        if (orgJug) {
-          setJugadores((prev) => [...prev, orgJug as unknown as Jugador])
-          setAsistencias((prev) => {
-            const next = new Map(prev)
+      if (existing) {
+        // Already in local state, just ensure asistencia exists
+        setAsistencias((prev) => {
+          const next = new Map(prev)
+          if (!next.has(jugadorId)) {
             next.set(jugadorId, { presente: true, tipo_participacion: ['sesion'] })
-            return next
-          })
+          }
+          return next
+        })
+        setCrossTeamDialogOpen(false)
+        return
+      }
+
+      try {
+        await sesionesApi.addCrossTeamPlayer(sesionId, jugadorId)
+      } catch (err: any) {
+        // If "already in session" error, just add to local state
+        if (err?.message?.includes('ya esta en la sesion')) {
+          // Player has a DB record but wasn't in local state — add them
+        } else {
+          throw err
         }
+      }
+
+      // Add to local jugadores list
+      const orgJug = orgJugadores.find((j) => j.id === jugadorId)
+      if (orgJug) {
+        setJugadores((prev) => [...prev, orgJug as unknown as Jugador])
+        setAsistencias((prev) => {
+          const next = new Map(prev)
+          next.set(jugadorId, { presente: true, tipo_participacion: ['sesion'] })
+          return next
+        })
       }
       setCrossTeamDialogOpen(false)
     } catch (err: any) {
@@ -1197,6 +1232,15 @@ export default function SesionDetailPage() {
     } finally {
       setAddingInvitado(false)
     }
+  }
+
+  const handleRemoveFromSession = (jugadorId: string) => {
+    setJugadores((prev) => prev.filter((j) => j.id !== jugadorId))
+    setAsistencias((prev) => {
+      const next = new Map(prev)
+      next.delete(jugadorId)
+      return next
+    })
   }
 
   const presentesCount = jugadores.filter((j) => {
@@ -1742,6 +1786,15 @@ export default function SesionDetailPage() {
                                   checked={presente}
                                   onCheckedChange={() => toggleAsistencia(jugador.id)}
                                 />
+                                {(jugador.es_invitado || (sesion?.equipo_id && jugador.equipo_id && jugador.equipo_id !== sesion.equipo_id)) && (
+                                  <button
+                                    onClick={() => handleRemoveFromSession(jugador.id)}
+                                    className="p-1 rounded hover:bg-red-100 text-muted-foreground hover:text-red-600 transition-colors"
+                                    title="Quitar de la sesión"
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
                               </div>
                             </div>
                           )

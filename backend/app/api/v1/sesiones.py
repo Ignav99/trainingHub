@@ -546,7 +546,7 @@ async def get_asistencias(
     supabase = get_supabase()
 
     response = supabase.table("asistencias_sesion").select(
-        "*, jugadores(id, nombre, apellidos, dorsal, posicion_principal, foto_url, es_portero)"
+        "*, jugadores(id, nombre, apellidos, dorsal, posicion_principal, foto_url, es_portero, es_invitado, estado, equipo_id)"
     ).eq("sesion_id", str(sesion_id)).order("created_at").execute()
 
     asistencias = []
