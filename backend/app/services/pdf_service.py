@@ -18,6 +18,10 @@ FASE_NOMBRES = {
     "activacion": "Activacion",
     "desarrollo_1": "Desarrollo 1",
     "desarrollo_2": "Desarrollo 2",
+    "desarrollo_3": "Desarrollo 3",
+    "desarrollo_4": "Desarrollo 4",
+    "desarrollo_5": "Desarrollo 5",
+    "desarrollo_6": "Desarrollo 6",
     "vuelta_calma": "Vuelta a calma",
 }
 
@@ -355,13 +359,19 @@ def generate_sesion_pdf_v2(
     color_primario = organizacion.get("color_primario", "#1a365d")
     equipo = sesion_data.get("equipos", {}) or {}
 
-    # Build fases grouped for cover + flat list for detail pages
-    fases = {
-        "activacion": {"nombre": "Activacion", "tareas": []},
-        "desarrollo_1": {"nombre": "Desarrollo 1", "tareas": []},
-        "desarrollo_2": {"nombre": "Desarrollo 2", "tareas": []},
-        "vuelta_calma": {"nombre": "Vuelta a calma", "tareas": []},
-    }
+    # Build fases dynamically from actual tareas_sesion data
+    fases = {}
+    for ts in tareas_sesion:
+        fk = ts.get("fase_sesion", "desarrollo_1")
+        if fk not in fases:
+            fases[fk] = {"nombre": FASE_NOMBRES.get(fk, fk.replace("_", " ").title()), "tareas": []}
+    # Ensure at least the standard phases exist in order
+    for default_fase in ["activacion", "desarrollo_1", "desarrollo_2", "vuelta_calma"]:
+        if default_fase not in fases:
+            fases[default_fase] = {"nombre": FASE_NOMBRES.get(default_fase, default_fase), "tareas": []}
+    # Sort fases in canonical order
+    fase_order = ["activacion", "desarrollo_1", "desarrollo_2", "desarrollo_3", "desarrollo_4", "desarrollo_5", "desarrollo_6", "vuelta_calma"]
+    fases = {k: fases[k] for k in fase_order if k in fases}
 
     all_tareas = []
     duracion_total = 0

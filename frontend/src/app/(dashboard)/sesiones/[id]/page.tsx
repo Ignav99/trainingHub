@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import useSWR, { mutate } from 'swr'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -100,10 +100,16 @@ const FASE_LABELS: Record<string, string> = {
   activacion: 'Activacion',
   desarrollo_1: 'Desarrollo 1',
   desarrollo_2: 'Desarrollo 2',
+  desarrollo_3: 'Desarrollo 3',
+  desarrollo_4: 'Desarrollo 4',
+  desarrollo_5: 'Desarrollo 5',
+  desarrollo_6: 'Desarrollo 6',
   vuelta_calma: 'Vuelta a Calma',
 }
 
-const ALL_FASES: FaseSesion[] = ['activacion', 'desarrollo_1', 'desarrollo_2', 'vuelta_calma']
+const ALL_DESARROLLO_FASES: FaseSesion[] = ['desarrollo_1', 'desarrollo_2', 'desarrollo_3', 'desarrollo_4', 'desarrollo_5', 'desarrollo_6']
+
+const FASE_ORDER: FaseSesion[] = ['activacion', 'desarrollo_1', 'desarrollo_2', 'desarrollo_3', 'desarrollo_4', 'desarrollo_5', 'desarrollo_6', 'vuelta_calma']
 
 const ESTADO_CONFIG: Record<string, { color: string; label: string }> = {
   borrador: { color: 'bg-amber-100 text-amber-700 border-amber-200', label: 'Borrador' },
@@ -222,13 +228,18 @@ function DroppableGroup({
   espacioIdx,
   grupoIdx,
   onRemoveGroup,
+  onRenameGroup,
+  onChangeColor,
 }: {
   grupo: GrupoFormacion
   jugadoresMap: Map<string, Jugador>
   espacioIdx: number
   grupoIdx: number
   onRemoveGroup?: (espacioIdx: number, grupoIdx: number) => void
+  onRenameGroup?: (espacioIdx: number, grupoIdx: number, name: string) => void
+  onChangeColor?: (espacioIdx: number, grupoIdx: number, color: string) => void
 }) {
+  const [showColorPicker, setShowColorPicker] = useState(false)
   const isSinAsignar = grupo.tipo === 'sin_asignar'
   // Use 15% opacity for background color
   const bgStyle = { backgroundColor: isSinAsignar ? '#6B728015' : `${grupo.color}15` }
@@ -251,10 +262,23 @@ function DroppableGroup({
         {isSinAsignar ? (
           <UserPlus className="h-3 w-3 text-muted-foreground shrink-0" />
         ) : (
-          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={dotStyle} />
+          <button
+            className="w-2.5 h-2.5 rounded-full shrink-0 cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-primary/50 transition-all"
+            style={dotStyle}
+            onClick={() => onChangeColor && setShowColorPicker(!showColorPicker)}
+            title="Cambiar color"
+          />
         )}
-        <span className="text-xs font-semibold truncate">{grupo.nombre}</span>
-        <span className="text-[10px] text-muted-foreground ml-auto">{grupo.jugador_ids.length}</span>
+        {grupo.tipo === 'equipo' && onRenameGroup ? (
+          <input
+            className="text-xs font-semibold truncate bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none w-full min-w-0"
+            value={grupo.nombre}
+            onChange={(e) => onRenameGroup(espacioIdx, grupoIdx, e.target.value)}
+          />
+        ) : (
+          <span className="text-xs font-semibold truncate">{grupo.nombre}</span>
+        )}
+        <span className="text-[10px] text-muted-foreground ml-auto shrink-0">{grupo.jugador_ids.length}</span>
         {grupo.tipo === 'equipo' && onRemoveGroup && (
           <button
             onClick={() => onRemoveGroup(espacioIdx, grupoIdx)}
@@ -265,6 +289,19 @@ function DroppableGroup({
           </button>
         )}
       </div>
+      {showColorPicker && onChangeColor && (
+        <div className="flex gap-1 mb-2 px-1 flex-wrap">
+          {COLORES_EQUIPO.map((c) => (
+            <button
+              key={c.color}
+              className={`w-4 h-4 rounded-full border-2 transition-all ${grupo.color === c.color ? 'border-foreground scale-125' : 'border-transparent hover:scale-110'}`}
+              style={{ backgroundColor: c.color }}
+              onClick={() => { onChangeColor(espacioIdx, grupoIdx, c.color); setShowColorPicker(false) }}
+              title={c.nombre}
+            />
+          ))}
+        </div>
+      )}
       <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
         <div className="space-y-1 min-h-[32px]">
           {grupo.jugador_ids.map((jid) => (
@@ -520,6 +557,101 @@ function FormacionPanel({
     debouncedSave(newFormacion)
   }
 
+  const handleRenameGroup = (espacioIdx: number, grupoIdx: number, newName: string) => {
+    if (!formacion) return
+    const newFormacion: FormacionEquipos = {
+      ...formacion,
+      auto_generado: false,
+      espacios: formacion.espacios.map((esp, ei) =>
+        ei === espacioIdx
+          ? { ...esp, grupos: esp.grupos.map((g, gi) => gi === grupoIdx ? { ...g, nombre: newName } : g) }
+          : esp
+      ),
+    }
+    onFormacionChange(sesionTarea.id, newFormacion)
+    debouncedSave(newFormacion)
+  }
+
+  const handleChangeColor = (espacioIdx: number, grupoIdx: number, newColor: string) => {
+    if (!formacion) return
+    const newFormacion: FormacionEquipos = {
+      ...formacion,
+      auto_generado: false,
+      espacios: formacion.espacios.map((esp, ei) =>
+        ei === espacioIdx
+          ? { ...esp, grupos: esp.grupos.map((g, gi) => gi === grupoIdx ? { ...g, color: newColor } : g) }
+          : esp
+      ),
+    }
+    onFormacionChange(sesionTarea.id, newFormacion)
+    debouncedSave(newFormacion)
+  }
+
+  const handleTogglePorteros = () => {
+    if (!formacion) return
+    // Check if porteros group already exists
+    const hasPorteroGroup = formacion.espacios.some(esp => esp.grupos.some(g => g.tipo === 'portero'))
+
+    // Find all es_portero player IDs from jugadoresMap
+    const porteroIds = new Set<string>()
+    jugadoresMap.forEach((j, id) => {
+      if (j.posicion_principal === 'POR') porteroIds.add(id)
+    })
+
+    if (porteroIds.size === 0) return
+
+    let newFormacion: FormacionEquipos
+    if (!hasPorteroGroup) {
+      // ON: extract porteros from their groups into a new "Porteros" group
+      newFormacion = {
+        ...formacion,
+        auto_generado: false,
+        espacios: formacion.espacios.map(esp => {
+          const porterosInEspacio: string[] = []
+          const newGrupos = esp.grupos.map(g => {
+            const extracted = g.jugador_ids.filter(id => porteroIds.has(id))
+            porterosInEspacio.push(...extracted)
+            return { ...g, jugador_ids: g.jugador_ids.filter(id => !porteroIds.has(id)) }
+          })
+          if (porterosInEspacio.length > 0) {
+            newGrupos.push({
+              nombre: 'Porteros',
+              color: '#F59E0B',
+              tipo: 'portero',
+              jugador_ids: porterosInEspacio,
+            })
+          }
+          return { ...esp, grupos: newGrupos }
+        }),
+      }
+    } else {
+      // OFF: dissolve portero groups, move GKs to sin_asignar
+      newFormacion = {
+        ...formacion,
+        auto_generado: false,
+        espacios: formacion.espacios.map(esp => {
+          const porteroGroup = esp.grupos.find(g => g.tipo === 'portero')
+          if (!porteroGroup) return esp
+          const porIds = porteroGroup.jugador_ids
+          let newGrupos = esp.grupos.filter(g => g.tipo !== 'portero')
+          // Add to sin_asignar
+          const saIdx = newGrupos.findIndex(g => g.tipo === 'sin_asignar')
+          if (saIdx >= 0) {
+            newGrupos = newGrupos.map((g, i) => i === saIdx ? { ...g, jugador_ids: [...g.jugador_ids, ...porIds] } : g)
+          } else {
+            newGrupos.push({ nombre: 'Sin asignar', color: '#6B7280', tipo: 'sin_asignar', jugador_ids: porIds })
+          }
+          return { ...esp, grupos: newGrupos }
+        }),
+      }
+    }
+
+    onFormacionChange(sesionTarea.id, newFormacion)
+    debouncedSave(newFormacion)
+  }
+
+  const hasPorteroGroup = formacion?.espacios.some(esp => esp.grupos.some(g => g.tipo === 'portero')) ?? false
+
   // Find the active player for the drag overlay
   const activeJugadorId = activeId?.split('::')[1]
   const activeJugador = activeJugadorId ? jugadoresMap.get(activeJugadorId) : undefined
@@ -587,6 +719,14 @@ function FormacionPanel({
               <Plus className="h-3 w-3 mr-1" /> Equipo
             </Button>
           ) : null}
+          <div className="flex items-center gap-1.5 ml-1 border-l pl-2">
+            <span className="text-[10px] text-muted-foreground">POR aparte</span>
+            <Switch
+              checked={hasPorteroGroup}
+              onCheckedChange={handleTogglePorteros}
+              className="scale-75"
+            />
+          </div>
         </div>
       </div>
 
@@ -625,6 +765,8 @@ function FormacionPanel({
                     espacioIdx={espacioIdx}
                     grupoIdx={realIdx}
                     onRemoveGroup={handleRemoveGroup}
+                    onRenameGroup={handleRenameGroup}
+                    onChangeColor={handleChangeColor}
                   />
                 )
               })}
@@ -724,6 +866,16 @@ export default function SesionDetailPage() {
   const [aiInstruction, setAiInstruction] = useState('')
   const [aiProcessing, setAiProcessing] = useState(false)
   const [aiPreview, setAiPreview] = useState<Record<string, any> | null>(null)
+
+  // Task creation state (in picker)
+  const [pickerTab, setPickerTab] = useState<'biblioteca' | 'crear'>('biblioteca')
+  const [newTaskForm, setNewTaskForm] = useState({ titulo: '', descripcion: '', duracion_total: 10 })
+  const [creatingTask, setCreatingTask] = useState(false)
+  const [aiCreatePrompt, setAiCreatePrompt] = useState('')
+  const [aiCreating, setAiCreating] = useState(false)
+
+  // Phase management — which fases have been manually removed
+  const [removedFases, setRemovedFases] = useState<Set<FaseSesion>>(new Set())
 
   const { save: autoSave, saving: autoSaving } = useAutoSave(sesionId)
 
@@ -865,6 +1017,38 @@ export default function SesionDetailPage() {
 
   const allTareas = sesion?.tareas || []
 
+  // Dynamic phases: always include activacion + desarrollo_1, plus any phase that has tasks,
+  // plus vuelta_calma unless removed. User can add more desarrollo phases.
+  const activeFases = useMemo(() => {
+    const required: FaseSesion[] = ['activacion', 'desarrollo_1']
+    const fasesWithTasks = new Set(Object.keys(tareasByFase))
+    const result: FaseSesion[] = []
+    for (const fase of FASE_ORDER) {
+      const isRequired = required.includes(fase)
+      const hasTasks = fasesWithTasks.has(fase)
+      const isRemoved = removedFases.has(fase)
+      if (isRequired || hasTasks || (!isRemoved && fase === 'vuelta_calma') || (!isRemoved && hasTasks)) {
+        result.push(fase)
+      } else if (!isRequired && !isRemoved && fasesWithTasks.has(fase)) {
+        result.push(fase)
+      }
+    }
+    return result
+  }, [tareasByFase, removedFases])
+
+  const handleAddFase = () => {
+    // Find the next desarrollo phase not already active
+    const nextFase = ALL_DESARROLLO_FASES.find(f => !activeFases.includes(f))
+    if (nextFase) {
+      setRemovedFases(prev => { const next = new Set(prev); next.delete(nextFase); return next })
+    }
+  }
+
+  const handleRemoveFase = (fase: FaseSesion) => {
+    if ((tareasByFase[fase]?.length || 0) > 0) return // Can't remove phase with tasks
+    setRemovedFases(prev => { const next = new Set(prev); next.add(fase); return next })
+  }
+
   const saveTareasBatch = async (newTareas: SesionTarea[]) => {
     setSavingTareas(true)
     try {
@@ -919,7 +1103,7 @@ export default function SesionDetailPage() {
 
     // Rebuild full list maintaining phase order
     const newAll: SesionTarea[] = []
-    for (const f of ALL_FASES) {
+    for (const f of activeFases) {
       if (f === fase) {
         newAll.push(...faseTareas)
       } else {
@@ -988,6 +1172,19 @@ export default function SesionDetailPage() {
       variantes: st.tarea?.variantes || '',
       espacio_largo: st.tarea?.espacio_largo || 0,
       espacio_ancho: st.tarea?.espacio_ancho || 0,
+      // Additional fields
+      errores_comunes: st.tarea?.errores_comunes || '',
+      progresiones: st.tarea?.progresiones || '',
+      estructura_equipos: st.tarea?.estructura_equipos || '',
+      num_jugadores_min: st.tarea?.num_jugadores_min || 0,
+      num_jugadores_max: st.tarea?.num_jugadores_max || 0,
+      material: st.tarea?.material || [],
+      num_series: st.tarea?.num_series || 1,
+      posicion_entrenador: st.tarea?.posicion_entrenador || '',
+      densidad: st.tarea?.densidad || '',
+      nivel_cognitivo: st.tarea?.nivel_cognitivo || 2,
+      fase_juego: st.tarea?.fase_juego || '',
+      principio_tactico: st.tarea?.principio_tactico || '',
     })
     setAiInstruction('')
     setAiPreview(null)
@@ -1064,8 +1261,49 @@ export default function SesionDetailPage() {
   }
 
   useEffect(() => {
-    if (taskPickerOpen) searchTasks()
-  }, [taskPickerOpen, taskSearchQuery, taskSearchCategory])
+    if (taskPickerOpen && pickerTab === 'biblioteca') searchTasks()
+  }, [taskPickerOpen, taskSearchQuery, taskSearchCategory, pickerTab])
+
+  // ============ Task creation from scratch ============
+  const handleCreateTask = async () => {
+    if (!newTaskForm.titulo.trim()) return
+    setCreatingTask(true)
+    try {
+      const updated = await sesionesApi.createTareaInSesion(sesionId, {
+        titulo: newTaskForm.titulo,
+        descripcion: newTaskForm.descripcion || undefined,
+        duracion_total: newTaskForm.duracion_total,
+        fase_sesion: taskPickerFase,
+      })
+      setSesion(updated)
+      setTaskPickerOpen(false)
+      setNewTaskForm({ titulo: '', descripcion: '', duracion_total: 10 })
+    } catch (err: any) {
+      console.error('Error creating task:', err)
+      toast.error(err?.message || 'Error al crear tarea')
+    } finally {
+      setCreatingTask(false)
+    }
+  }
+
+  const handleAiCreateTask = async () => {
+    if (!aiCreatePrompt.trim()) return
+    setAiCreating(true)
+    try {
+      const updated = await sesionesApi.aiCreateTareaInSesion(sesionId, {
+        prompt: aiCreatePrompt,
+        fase_sesion: taskPickerFase,
+      })
+      setSesion(updated)
+      setTaskPickerOpen(false)
+      setAiCreatePrompt('')
+    } catch (err: any) {
+      console.error('Error AI creating task:', err)
+      toast.error(err?.message || 'Error al generar tarea con IA')
+    } finally {
+      setAiCreating(false)
+    }
+  }
 
   // ============ Asistencia ============
   const handleTabChange = (tab: string) => {
@@ -1256,7 +1494,7 @@ export default function SesionDetailPage() {
   }).length
 
   // ============ Derived ============
-  const completedFases = ALL_FASES.filter((f) => tareasByFase[f]?.length > 0)
+  const completedFases = activeFases.filter((f) => tareasByFase[f]?.length > 0)
   const totalDuration = allTareas.reduce((sum, st) => sum + (st.duracion_override || st.tarea?.duracion_total || 0), 0)
 
   // ============ Render ============
@@ -1350,6 +1588,15 @@ export default function SesionDetailPage() {
               </span>
               <span className="flex items-center gap-1">
                 <Clock className="h-4 w-4" />
+                <input
+                  type="time"
+                  className="bg-transparent border-none outline-none cursor-pointer w-[70px]"
+                  value={sesion.hora || ''}
+                  onChange={(e) => updateField('hora', e.target.value || null)}
+                  placeholder="--:--"
+                />
+              </span>
+              <span className="flex items-center gap-1 text-xs">
                 {totalDuration || sesion.duracion_total || 0} min
               </span>
               <span className="flex items-center gap-1">
@@ -1376,7 +1623,7 @@ export default function SesionDetailPage() {
       {/* Completeness bar */}
       <div className="flex items-center gap-3 mb-6">
         <div className="flex-1 flex gap-1">
-          {ALL_FASES.map((fase) => (
+          {activeFases.map((fase) => (
             <div
               key={fase}
               className={`h-2 flex-1 rounded-full transition-colors ${tareasByFase[fase]?.length ? 'bg-primary' : 'bg-muted'}`}
@@ -1385,7 +1632,7 @@ export default function SesionDetailPage() {
           ))}
         </div>
         <span className="text-xs text-muted-foreground shrink-0">
-          {completedFases.length}/{ALL_FASES.length} fases
+          {completedFases.length}/{activeFases.length} fases
         </span>
       </div>
 
@@ -1438,6 +1685,14 @@ export default function SesionDetailPage() {
                     value={sesion.competicion || ''}
                     onChange={(e) => updateField('competicion', e.target.value || null)}
                     placeholder="Liga, Copa..."
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Lugar</label>
+                  <Input
+                    value={sesion.lugar || ''}
+                    onChange={(e) => updateField('lugar', e.target.value || null)}
+                    placeholder="Campo, instalacion..."
                   />
                 </div>
                 <div>
@@ -1495,7 +1750,18 @@ export default function SesionDetailPage() {
           {/* Fases de sesion */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="font-semibold">Tareas de la Sesion</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="font-semibold">Tareas de la Sesion</h2>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={handleAddFase}
+                  disabled={!ALL_DESARROLLO_FASES.some(f => !activeFases.includes(f))}
+                >
+                  <Plus className="h-3 w-3 mr-1" /> Fase
+                </Button>
+              </div>
               {savingTareas && (
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <Loader2 className="h-3 w-3 animate-spin" /> Guardando tareas...
@@ -1503,10 +1769,11 @@ export default function SesionDetailPage() {
               )}
             </div>
 
-            {ALL_FASES.map((fase) => {
+            {activeFases.map((fase) => {
               const tareas = tareasByFase[fase] || []
               const hasTareas = tareas.length > 0
               const faseDuration = tareas.reduce((s, t) => s + (t.duracion_override || t.tarea?.duracion_total || 0), 0)
+              const isRemovable = !hasTareas && fase !== 'activacion' && fase !== 'desarrollo_1'
               const faseNota = sesion.fase_notas?.[fase]
 
               return (
@@ -1519,16 +1786,28 @@ export default function SesionDetailPage() {
                         <span className="text-xs text-muted-foreground">{faseDuration} min</span>
                       )}
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setTaskPickerFase(fase)
-                        setTaskPickerOpen(true)
-                      }}
-                    >
-                      <Plus className="h-4 w-4 mr-1" /> Anadir tarea
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setTaskPickerFase(fase)
+                          setPickerTab('biblioteca')
+                          setTaskPickerOpen(true)
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-1" /> Anadir tarea
+                      </Button>
+                      {isRemovable && (
+                        <button
+                          onClick={() => handleRemoveFase(fase)}
+                          className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                          title="Quitar fase"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {hasTareas ? (
@@ -1853,73 +2132,166 @@ export default function SesionDetailPage() {
         <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Anadir tarea a {FASE_LABELS[taskPickerFase]}</DialogTitle>
-            <DialogDescription>Busca en la biblioteca de tareas y selecciona una para anadir.</DialogDescription>
+            <DialogDescription>Busca en la biblioteca o crea una tarea nueva.</DialogDescription>
           </DialogHeader>
 
-          <div className="flex gap-2 mb-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                className="pl-9"
-                placeholder="Buscar tareas..."
-                value={taskSearchQuery}
-                onChange={(e) => setTaskSearchQuery(e.target.value)}
-              />
-            </div>
-            <select
-              className="rounded-md border bg-background px-3 py-2 text-sm"
-              value={taskSearchCategory}
-              onChange={(e) => setTaskSearchCategory(e.target.value)}
+          {/* Tab switcher */}
+          <div className="flex gap-1 border-b mb-4">
+            <button
+              className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${pickerTab === 'biblioteca' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+              onClick={() => setPickerTab('biblioteca')}
             >
-              <option value="">Todas las categorias</option>
-              <option value="RND">Rondo</option>
-              <option value="JDP">Juego de Posicion</option>
-              <option value="POS">Posesion</option>
-              <option value="EVO">Evoluciones</option>
-              <option value="AVD">Ataque vs Defensa</option>
-              <option value="PCO">Partido Condicionado</option>
-              <option value="ACO">Acc. Combinadas</option>
-              <option value="SSG">Futbol Reducido</option>
-              <option value="ABP">Balon Parado</option>
-            </select>
+              Biblioteca
+            </button>
+            <button
+              className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${pickerTab === 'crear' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+              onClick={() => setPickerTab('crear')}
+            >
+              Crear nueva
+            </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-2 min-h-[200px]">
-            {searchingTasks ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              </div>
-            ) : taskSearchResults.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No se encontraron tareas
-              </div>
-            ) : (
-              taskSearchResults.map((tarea) => (
-                <button
-                  key={tarea.id}
-                  onClick={() => handleAddTarea(tarea, taskPickerFase)}
-                  className="w-full text-left p-3 rounded-lg border hover:bg-muted/50 hover:border-primary/50 transition-colors"
+          {pickerTab === 'biblioteca' ? (
+            <>
+              <div className="flex gap-2 mb-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="pl-9"
+                    placeholder="Buscar tareas..."
+                    value={taskSearchQuery}
+                    onChange={(e) => setTaskSearchQuery(e.target.value)}
+                  />
+                </div>
+                <select
+                  className="rounded-md border bg-background px-3 py-2 text-sm"
+                  value={taskSearchCategory}
+                  onChange={(e) => setTaskSearchCategory(e.target.value)}
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-sm">{tarea.titulo}</p>
-                      <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                        {tarea.categoria && (
-                          <Badge variant="outline" className="text-[10px]">{tarea.categoria.nombre}</Badge>
-                        )}
-                        <span>{tarea.duracion_total} min</span>
-                        <span>{tarea.num_jugadores_min}{tarea.num_jugadores_max ? `-${tarea.num_jugadores_max}` : ''} jug.</span>
-                        {tarea.estructura_equipos && (
-                          <Badge variant="outline" className="text-[10px]">{tarea.estructura_equipos}</Badge>
-                        )}
-                      </div>
-                    </div>
-                    <Plus className="h-5 w-5 text-muted-foreground" />
+                  <option value="">Todas las categorias</option>
+                  <option value="RND">Rondo</option>
+                  <option value="JDP">Juego de Posicion</option>
+                  <option value="POS">Posesion</option>
+                  <option value="EVO">Evoluciones</option>
+                  <option value="AVD">Ataque vs Defensa</option>
+                  <option value="PCO">Partido Condicionado</option>
+                  <option value="ACO">Acc. Combinadas</option>
+                  <option value="SSG">Futbol Reducido</option>
+                  <option value="ABP">Balon Parado</option>
+                </select>
+              </div>
+
+              <div className="flex-1 overflow-y-auto space-y-2 min-h-[200px]">
+                {searchingTasks ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
                   </div>
-                </button>
-              ))
-            )}
-          </div>
+                ) : taskSearchResults.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No se encontraron tareas
+                  </div>
+                ) : (
+                  taskSearchResults.map((tarea) => (
+                    <button
+                      key={tarea.id}
+                      onClick={() => handleAddTarea(tarea, taskPickerFase)}
+                      className="w-full text-left p-3 rounded-lg border hover:bg-muted/50 hover:border-primary/50 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-sm">{tarea.titulo}</p>
+                          <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                            {tarea.categoria && (
+                              <Badge variant="outline" className="text-[10px]">{tarea.categoria.nombre}</Badge>
+                            )}
+                            <span>{tarea.duracion_total} min</span>
+                            <span>{tarea.num_jugadores_min}{tarea.num_jugadores_max ? `-${tarea.num_jugadores_max}` : ''} jug.</span>
+                            {tarea.estructura_equipos && (
+                              <Badge variant="outline" className="text-[10px]">{tarea.estructura_equipos}</Badge>
+                            )}
+                          </div>
+                        </div>
+                        <Plus className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 overflow-y-auto space-y-4">
+              {/* Manual creation form */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold">Crear manualmente</h4>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Titulo *</label>
+                  <Input
+                    value={newTaskForm.titulo}
+                    onChange={(e) => setNewTaskForm(f => ({ ...f, titulo: e.target.value }))}
+                    placeholder="Nombre del ejercicio"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Descripcion</label>
+                  <Textarea
+                    value={newTaskForm.descripcion}
+                    onChange={(e) => setNewTaskForm(f => ({ ...f, descripcion: e.target.value }))}
+                    placeholder="Descripcion del ejercicio..."
+                    rows={2}
+                  />
+                </div>
+                <div className="w-32">
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Duracion (min)</label>
+                  <Input
+                    type="number"
+                    value={newTaskForm.duracion_total}
+                    onChange={(e) => setNewTaskForm(f => ({ ...f, duracion_total: parseInt(e.target.value) || 10 }))}
+                  />
+                </div>
+                <Button
+                  onClick={handleCreateTask}
+                  disabled={creatingTask || !newTaskForm.titulo.trim()}
+                  size="sm"
+                >
+                  {creatingTask ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
+                  Crear tarea
+                </Button>
+              </div>
+
+              {/* AI creation */}
+              <div className="border-t pt-4 space-y-3">
+                <h4 className="text-sm font-semibold flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  Generar con IA
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  Describe el ejercicio que quieres y la IA lo generara completo.
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    value={aiCreatePrompt}
+                    onChange={(e) => setAiCreatePrompt(e.target.value)}
+                    placeholder="Ej: Rondo 4v2 con transiciones, 15 minutos..."
+                    className="flex-1"
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAiCreateTask() } }}
+                  />
+                  <Button
+                    onClick={handleAiCreateTask}
+                    disabled={aiCreating || !aiCreatePrompt.trim()}
+                    size="sm"
+                  >
+                    {aiCreating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
+                    Generar
+                  </Button>
+                </div>
+                {aiCreating && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Sparkles className="h-3 w-3" /> Generando tarea con IA...
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -2107,6 +2479,14 @@ export default function SesionDetailPage() {
                   onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, duracion_total: parseInt(e.target.value) || 0 }))}
                 />
               </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Series</label>
+                <Input
+                  type="number"
+                  value={editForm.num_series || 1}
+                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, num_series: parseInt(e.target.value) || 1 }))}
+                />
+              </div>
               <div className="flex gap-2">
                 <div className="flex-1">
                   <label className="text-xs font-medium text-muted-foreground mb-1 block">Espacio largo (m)</label>
@@ -2125,6 +2505,86 @@ export default function SesionDetailPage() {
                   />
                 </div>
               </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Estructura equipos</label>
+                <Input
+                  value={editForm.estructura_equipos || ''}
+                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, estructura_equipos: e.target.value }))}
+                  placeholder="Ej: 4v4+2"
+                />
+              </div>
+
+              {/* Jugadores */}
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Jug. min</label>
+                  <Input
+                    type="number"
+                    value={editForm.num_jugadores_min || 0}
+                    onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, num_jugadores_min: parseInt(e.target.value) || 0 }))}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Jug. max</label>
+                  <Input
+                    type="number"
+                    value={editForm.num_jugadores_max || 0}
+                    onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, num_jugadores_max: parseInt(e.target.value) || 0 }))}
+                  />
+                </div>
+              </div>
+
+              {/* Tactico */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Fase de juego</label>
+                <select
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  value={editForm.fase_juego || ''}
+                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, fase_juego: e.target.value || null }))}
+                >
+                  <option value="">Sin definir</option>
+                  <option value="ataque_organizado">Ataque organizado</option>
+                  <option value="defensa_organizada">Defensa organizada</option>
+                  <option value="transicion_ataque_defensa">Transicion ataque-defensa</option>
+                  <option value="transicion_defensa_ataque">Transicion defensa-ataque</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Principio tactico</label>
+                <Input
+                  value={editForm.principio_tactico || ''}
+                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, principio_tactico: e.target.value }))}
+                  placeholder="Ej: Salida de balon"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Densidad</label>
+                <select
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  value={editForm.densidad || ''}
+                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, densidad: e.target.value || null }))}
+                >
+                  <option value="">Sin definir</option>
+                  <option value="alta">Alta</option>
+                  <option value="media">Media</option>
+                  <option value="baja">Baja</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Nivel cognitivo</label>
+                <select
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  value={editForm.nivel_cognitivo || ''}
+                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, nivel_cognitivo: parseInt(e.target.value) || null }))}
+                >
+                  <option value="">Sin definir</option>
+                  <option value="1">1 - Bajo</option>
+                  <option value="2">2 - Medio</option>
+                  <option value="3">3 - Alto</option>
+                </select>
+              </div>
+
+              {/* Reglas y consignas */}
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Reglas tecnicas</label>
                 <Textarea
@@ -2157,11 +2617,37 @@ export default function SesionDetailPage() {
                   rows={2}
                 />
               </div>
+
+              {/* Coaching */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Errores comunes</label>
+                <Textarea
+                  value={editForm.errores_comunes || ''}
+                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, errores_comunes: e.target.value }))}
+                  rows={2}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Posicion entrenador</label>
+                <Input
+                  value={editForm.posicion_entrenador || ''}
+                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, posicion_entrenador: e.target.value }))}
+                  placeholder="Ej: Fuera del campo, lateral..."
+                />
+              </div>
               <div className="md:col-span-2">
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Variantes</label>
                 <Textarea
                   value={editForm.variantes || ''}
                   onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, variantes: e.target.value }))}
+                  rows={2}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Progresiones</label>
+                <Textarea
+                  value={editForm.progresiones || ''}
+                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, progresiones: e.target.value }))}
                   rows={2}
                 />
               </div>

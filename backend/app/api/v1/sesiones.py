@@ -786,6 +786,7 @@ async def duplicar_y_editar_tarea(
     if not st_response.data:
         raise HTTPException(status_code=404, detail="Tarea de sesion no encontrada")
 
+    old_tarea_id = st_response.data.get("tarea_id")
     original_tarea = st_response.data.get("tareas", {})
     if not original_tarea:
         raise HTTPException(status_code=404, detail="Tarea original no encontrada")
@@ -807,8 +808,11 @@ async def duplicar_y_editar_tarea(
         if campo in original_tarea and original_tarea[campo] is not None:
             nueva_tarea[campo] = original_tarea[campo]
 
-    # Default title with prefix
-    nueva_tarea["titulo"] = f"(Editada) {original_tarea.get('titulo', 'Sin titulo')}"
+    # Strip accumulated "(Editada) " prefixes from title
+    titulo_base = original_tarea.get("titulo", "Sin titulo")
+    while titulo_base.startswith("(Editada) "):
+        titulo_base = titulo_base[len("(Editada) "):]
+    nueva_tarea["titulo"] = titulo_base
     nueva_tarea["es_plantilla"] = False
     nueva_tarea["creado_por"] = str(auth.user_id)
 
@@ -828,7 +832,18 @@ async def duplicar_y_editar_tarea(
         {"tarea_id": new_tarea_id}
     ).eq("id", str(sesion_tarea_id)).execute()
 
-    # 6. Return the updated sesion_tarea with new tarea data
+    # 6. Delete orphan tarea if it's non-template and unreferenced
+    if old_tarea_id:
+        try:
+            old = supabase.table("tareas").select("es_plantilla").eq("id", old_tarea_id).single().execute()
+            if old.data and not old.data.get("es_plantilla", True):
+                refs = supabase.table("sesion_tareas").select("id").eq("tarea_id", old_tarea_id).execute()
+                if not refs.data:
+                    supabase.table("tareas").delete().eq("id", old_tarea_id).execute()
+        except Exception:
+            pass
+
+    # 7. Return the updated sesion_tarea with new tarea data
     updated = supabase.table("sesion_tareas").select(
         "*, tareas(*)"
     ).eq("id", str(sesion_tarea_id)).single().execute()
@@ -858,6 +873,7 @@ async def ai_edit_tarea(
     if not st_response.data:
         raise HTTPException(status_code=404, detail="Tarea de sesion no encontrada")
 
+    old_tarea_id = st_response.data.get("tarea_id")
     tarea_actual = st_response.data.get("tareas", {})
     if not tarea_actual:
         raise HTTPException(status_code=404, detail="Tarea no encontrada")
@@ -902,7 +918,11 @@ async def ai_edit_tarea(
         if campo in tarea_actual and tarea_actual[campo] is not None:
             nueva_tarea[campo] = tarea_actual[campo]
 
-    nueva_tarea["titulo"] = f"(Editada) {tarea_actual.get('titulo', 'Sin titulo')}"
+    # Strip accumulated "(Editada) " prefixes from title
+    titulo_base = tarea_actual.get("titulo", "Sin titulo")
+    while titulo_base.startswith("(Editada) "):
+        titulo_base = titulo_base[len("(Editada) "):]
+    nueva_tarea["titulo"] = titulo_base
     nueva_tarea["es_plantilla"] = False
     nueva_tarea["creado_por"] = str(auth.user_id)
 
@@ -924,12 +944,173 @@ async def ai_edit_tarea(
         {"tarea_id": new_tarea_id}
     ).eq("id", str(sesion_tarea_id)).execute()
 
-    # 6. Return updated data
+    # 6. Delete orphan tarea if it's non-template and unreferenced
+    if old_tarea_id:
+        try:
+            old = supabase.table("tareas").select("es_plantilla").eq("id", old_tarea_id).single().execute()
+            if old.data and not old.data.get("es_plantilla", True):
+                refs = supabase.table("sesion_tareas").select("id").eq("tarea_id", old_tarea_id).execute()
+                if not refs.data:
+                    supabase.table("tareas").delete().eq("id", old_tarea_id).execute()
+        except Exception:
+            pass
+
+    # 7. Return updated data
     updated = supabase.table("sesion_tareas").select(
         "*, tareas(*)"
     ).eq("id", str(sesion_tarea_id)).single().execute()
 
     return updated.data
+
+
+class CrearTareaEnSesionRequest(BaseModel):
+    titulo: str = Field(..., min_length=3, max_length=255)
+    descripcion: Optional[str] = None
+    duracion_total: int = Field(default=10, ge=1)
+    fase_sesion: str = Field(default="desarrollo_1")
+    num_jugadores_min: Optional[int] = None
+    num_jugadores_max: Optional[int] = None
+    estructura_equipos: Optional[str] = None
+    espacio_largo: Optional[int] = None
+    espacio_ancho: Optional[int] = None
+    fase_juego: Optional[str] = None
+    principio_tactico: Optional[str] = None
+    densidad: Optional[str] = None
+    nivel_cognitivo: Optional[int] = None
+    num_series: Optional[int] = None
+    material: Optional[list] = None
+    errores_comunes: Optional[str] = None
+    progresiones: Optional[str] = None
+    posicion_entrenador: Optional[str] = None
+    reglas_tecnicas: Optional[str] = None
+    reglas_tacticas: Optional[str] = None
+    consignas_ofensivas: Optional[str] = None
+    consignas_defensivas: Optional[str] = None
+    variantes: Optional[str] = None
+
+
+class AICrearTareaRequest(BaseModel):
+    prompt: str = Field(..., min_length=3, max_length=2000)
+    fase_sesion: str = Field(default="desarrollo_1")
+
+
+@router.post("/{sesion_id}/tareas/crear")
+async def crear_tarea_en_sesion(
+    sesion_id: UUID,
+    request: CrearTareaEnSesionRequest,
+    auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
+):
+    """Crea una tarea nueva desde cero y la anade a la sesion."""
+    supabase = get_supabase()
+
+    # Verify sesion exists
+    sesion = supabase.table("sesiones").select("id, equipo_id").eq(
+        "id", str(sesion_id)
+    ).single().execute()
+    if not sesion.data:
+        raise HTTPException(status_code=404, detail="Sesion no encontrada")
+
+    # Build tarea data
+    tarea_data = request.model_dump(exclude_none=True, exclude={"fase_sesion"})
+    tarea_data["es_plantilla"] = False
+    tarea_data["creado_por"] = str(auth.user_id)
+    tarea_data["equipo_id"] = sesion.data.get("equipo_id")
+
+    # Insert tarea
+    insert_resp = supabase.table("tareas").insert(tarea_data).execute()
+    if not insert_resp.data:
+        raise HTTPException(status_code=500, detail="Error al crear tarea")
+
+    new_tarea_id = insert_resp.data[0]["id"]
+
+    # Get current max orden for this fase
+    existing = supabase.table("sesion_tareas").select("orden").eq(
+        "sesion_id", str(sesion_id)
+    ).eq("fase_sesion", request.fase_sesion).execute()
+    max_orden = max((t.get("orden", 0) for t in (existing.data or [])), default=0)
+
+    # Add to sesion_tareas
+    supabase.table("sesion_tareas").insert({
+        "sesion_id": str(sesion_id),
+        "tarea_id": new_tarea_id,
+        "orden": max_orden + 1,
+        "fase_sesion": request.fase_sesion,
+    }).execute()
+
+    # Return full updated session
+    return await get_sesion(sesion_id, auth)
+
+
+@router.post("/{sesion_id}/tareas/ai-crear")
+async def ai_crear_tarea_en_sesion(
+    sesion_id: UUID,
+    request: AICrearTareaRequest,
+    auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
+):
+    """Genera una tarea con IA a partir de un prompt y la anade a la sesion."""
+    supabase = get_supabase()
+
+    # Verify sesion exists and get context
+    sesion = supabase.table("sesiones").select(
+        "id, equipo_id, match_day, objetivo_principal, fase_juego_principal"
+    ).eq("id", str(sesion_id)).single().execute()
+    if not sesion.data:
+        raise HTTPException(status_code=404, detail="Sesion no encontrada")
+
+    # Call Claude to generate the task
+    try:
+        from app.services.claude_service import ClaudeService, ClaudeError
+        claude = ClaudeService()
+        tarea_data = await claude.create_task_from_prompt(
+            prompt=request.prompt,
+            session_context={
+                "match_day": sesion.data.get("match_day"),
+                "objetivo": sesion.data.get("objetivo_principal"),
+                "fase_juego": sesion.data.get("fase_juego_principal"),
+            },
+        )
+    except ClaudeError as e:
+        logger.error(f"AI create task ClaudeError: {e}")
+        error_msg = str(e)
+        if "conexion" in error_msg.lower():
+            raise HTTPException(status_code=503, detail=error_msg)
+        elif "saturado" in error_msg.lower():
+            raise HTTPException(status_code=429, detail=error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
+    except Exception as e:
+        logger.error(f"AI create task unexpected error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error inesperado al generar tarea con IA.")
+
+    if not tarea_data:
+        raise HTTPException(status_code=400, detail="La IA no genero una tarea valida")
+
+    # Insert tarea
+    tarea_data["es_plantilla"] = False
+    tarea_data["creado_por"] = str(auth.user_id)
+    tarea_data["equipo_id"] = sesion.data.get("equipo_id")
+
+    insert_resp = supabase.table("tareas").insert(tarea_data).execute()
+    if not insert_resp.data:
+        raise HTTPException(status_code=500, detail="Error al crear tarea generada por IA")
+
+    new_tarea_id = insert_resp.data[0]["id"]
+
+    # Get current max orden for this fase
+    existing = supabase.table("sesion_tareas").select("orden").eq(
+        "sesion_id", str(sesion_id)
+    ).eq("fase_sesion", request.fase_sesion).execute()
+    max_orden = max((t.get("orden", 0) for t in (existing.data or [])), default=0)
+
+    # Add to sesion_tareas
+    supabase.table("sesion_tareas").insert({
+        "sesion_id": str(sesion_id),
+        "tarea_id": new_tarea_id,
+        "orden": max_orden + 1,
+        "fase_sesion": request.fase_sesion,
+    }).execute()
+
+    # Return full updated session
+    return await get_sesion(sesion_id, auth)
 
 
 class GenerarEquiposTareaRequest(BaseModel):
@@ -1111,6 +1292,8 @@ async def generate_pdf(
         lugar = equipo["config"].get("lugar_entrenamiento")
     if not lugar and organizacion.get("config") and isinstance(organizacion["config"], dict):
         lugar = organizacion["config"].get("lugar_entrenamiento")
+    if not lugar:
+        lugar = sesion.get("lugar")
 
     # Fetch full asistencia roster (present + absent with types)
     asistencia_roster = []

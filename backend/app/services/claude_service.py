@@ -1483,6 +1483,81 @@ class ClaudeService:
             logger.error(f"Claude API error in edit_task_with_ai: {e}")
             raise ClaudeError(f"Error al editar tarea con IA: {str(e)}")
 
+    async def create_task_from_prompt(
+        self,
+        prompt: str,
+        session_context: Optional[dict] = None,
+    ) -> dict:
+        """
+        Genera una tarea de entrenamiento a partir de un prompt del usuario.
+
+        Args:
+            prompt: Descripcion de la tarea deseada
+            session_context: Contexto de la sesion (match_day, objetivo, fase_juego)
+
+        Returns:
+            dict con los campos de la tarea generada
+        """
+        context_str = ""
+        if session_context:
+            parts = []
+            if session_context.get("match_day"):
+                parts.append(f"Match Day: {session_context['match_day']}")
+            if session_context.get("objetivo"):
+                parts.append(f"Objetivo de la sesion: {session_context['objetivo']}")
+            if session_context.get("fase_juego"):
+                parts.append(f"Fase de juego principal: {session_context['fase_juego']}")
+            if parts:
+                context_str = "\n## Contexto de la sesion\n" + "\n".join(parts)
+
+        system_prompt = [
+            {
+                "type": "text",
+                "text": (
+                    "Eres un experto en metodologia de entrenamiento de futbol. "
+                    "Tu tarea es crear un ejercicio de entrenamiento completo a partir de la descripcion del usuario. "
+                    "Responde SOLO con un JSON valido con los siguientes campos: "
+                    "titulo (str, obligatorio), descripcion (str), duracion_total (int minutos), "
+                    "num_jugadores_min (int), num_jugadores_max (int), espacio_largo (int metros), "
+                    "espacio_ancho (int metros), reglas_tecnicas (str), reglas_tacticas (str), "
+                    "consignas_ofensivas (str), consignas_defensivas (str), errores_comunes (str), "
+                    "variantes (str), progresiones (str), estructura_equipos (str como '4v4+2'), "
+                    "material (array str), posicion_entrenador (str), situacion_tactica (str), "
+                    "fase_juego (str), principio_tactico (str), densidad (str: 'alta'/'media'/'baja'), "
+                    "nivel_cognitivo (int 1-3), num_series (int). "
+                    "Incluye todos los campos que sean relevantes. NO incluyas explicaciones fuera del JSON."
+                ),
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
+
+        user_message = f"## Crear tarea\n{prompt}{context_str}"
+
+        try:
+            response = await self.client.messages.create(
+                model=self.model,
+                max_tokens=2048,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_message}],
+            )
+
+            text = ""
+            for block in response.content:
+                if block.type == "text":
+                    text += block.text
+
+            return self._parse_json_response(text)
+
+        except anthropic.APIConnectionError as e:
+            logger.error(f"Claude connection error in create_task_from_prompt: {e}")
+            raise ClaudeError("Error de conexion con Claude. Inténtalo de nuevo en unos segundos.")
+        except anthropic.RateLimitError as e:
+            logger.error(f"Claude rate limit in create_task_from_prompt: {e}")
+            raise ClaudeError("Claude está saturado. Espera unos segundos e inténtalo de nuevo.")
+        except anthropic.APIError as e:
+            logger.error(f"Claude API error in create_task_from_prompt: {e}")
+            raise ClaudeError(f"Error al crear tarea con IA: {str(e)}")
+
     async def generate_session_recommendations(
         self,
         tareas: list[dict],

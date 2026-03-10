@@ -27,6 +27,8 @@ export interface SesionCreateData {
   principio_tactico_principal?: string
   carga_fisica_objetivo?: string
   intensidad_objetivo?: string
+  hora?: string
+  lugar?: string
   notas_pre?: string
   materiales?: string[]
   staff_asistentes?: { nombre: string; rol: string; presente?: boolean }[]
@@ -221,6 +223,38 @@ export const sesionesApi = {
     notas?: string
   }): Promise<{ jugador: Jugador; asistencia: Asistencia }> {
     return api.post<{ jugador: Jugador; asistencia: Asistencia }>(`/sesiones/${sesionId}/invitados/quick-add`, data)
+  },
+
+  // Create task from scratch in session
+  async createTareaInSesion(sesionId: string, data: {
+    titulo: string
+    descripcion?: string
+    duracion_total?: number
+    fase_sesion: string
+    num_jugadores_min?: number
+    num_jugadores_max?: number
+    estructura_equipos?: string
+    espacio_largo?: number
+    espacio_ancho?: number
+    fase_juego?: string
+    principio_tactico?: string
+    densidad?: string
+    nivel_cognitivo?: number
+    num_series?: number
+    material?: string[]
+    errores_comunes?: string
+    progresiones?: string
+    posicion_entrenador?: string
+  }): Promise<Sesion> {
+    return api.post<Sesion>(`/sesiones/${sesionId}/tareas/crear`, data)
+  },
+
+  // AI-generate task from prompt in session
+  async aiCreateTareaInSesion(sesionId: string, data: {
+    prompt: string
+    fase_sesion: string
+  }): Promise<Sesion> {
+    return api.post<Sesion>(`/sesiones/${sesionId}/tareas/ai-crear`, data)
   },
 }
 

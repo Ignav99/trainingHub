@@ -28,6 +28,10 @@ class FaseSesion(str, Enum):
     ACTIVACION = "activacion"
     DESARROLLO_1 = "desarrollo_1"
     DESARROLLO_2 = "desarrollo_2"
+    DESARROLLO_3 = "desarrollo_3"
+    DESARROLLO_4 = "desarrollo_4"
+    DESARROLLO_5 = "desarrollo_5"
+    DESARROLLO_6 = "desarrollo_6"
     VUELTA_CALMA = "vuelta_calma"
 
 
@@ -141,6 +145,10 @@ class SesionBase(BaseModel):
     rival: Optional[str] = Field(None, max_length=255)
     competicion: Optional[str] = Field(None, max_length=255)
 
+    # Hora y lugar
+    hora: Optional[str] = None
+    lugar: Optional[str] = None
+
     # Objetivo
     objetivo_principal: Optional[str] = None
     fase_juego_principal: Optional[str] = None
@@ -173,6 +181,8 @@ class SesionUpdate(BaseModel):
     match_day: Optional[MatchDay] = None
     rival: Optional[str] = None
     competicion: Optional[str] = None
+    hora: Optional[str] = None
+    lugar: Optional[str] = None
     objetivo_principal: Optional[str] = None
     fase_juego_principal: Optional[str] = None
     principio_tactico_principal: Optional[str] = None
