@@ -16,6 +16,18 @@ import io
 
 logger = logging.getLogger(__name__)
 
+# Valid columns in the 'tareas' table — used to filter AI/user input before DB insert
+VALID_TAREA_COLUMNS = {
+    "titulo", "descripcion", "duracion_total", "num_jugadores_min", "num_jugadores_max",
+    "espacio_largo", "espacio_ancho", "reglas_tecnicas", "reglas_tacticas",
+    "consignas_ofensivas", "consignas_defensivas", "errores_comunes",
+    "variantes", "progresiones", "estructura_equipos", "material",
+    "fase_juego", "principio_tactico", "subprincipio_tactico", "densidad",
+    "nivel_cognitivo", "num_series", "num_porteros", "espacio_forma",
+    "tipo_esfuerzo", "ratio_trabajo_descanso", "tags", "grafico_data",
+    "categoria_id", "equipo_id", "organizacion_id",
+}
+
 from app.models import (
     SesionCreate,
     SesionUpdate,
@@ -764,8 +776,6 @@ class DuplicarYEditarTareaRequest(BaseModel):
     progresiones: Optional[str] = None
     estructura_equipos: Optional[str] = None
     material: Optional[list] = None
-    posicion_entrenador: Optional[str] = None
-    situacion_tactica: Optional[str] = None
 
 
 @router.post("/{sesion_id}/tareas/{sesion_tarea_id}/duplicar-y-editar")
@@ -797,8 +807,7 @@ async def duplicar_y_editar_tarea(
         "espacio_largo", "espacio_ancho", "reglas_tecnicas", "reglas_tacticas",
         "consignas_ofensivas", "consignas_defensivas", "errores_comunes",
         "variantes", "progresiones", "estructura_equipos", "material",
-        "posicion_entrenador", "situacion_tactica", "fase_juego",
-        "principio_tactico", "subprincipio_tactico", "densidad",
+        "fase_juego", "principio_tactico", "subprincipio_tactico", "densidad",
         "nivel_cognitivo", "num_series", "grafico_data",
         "categoria_id", "equipo_id", "organizacion_id",
     ]
@@ -816,9 +825,10 @@ async def duplicar_y_editar_tarea(
     nueva_tarea["es_plantilla"] = False
     nueva_tarea["creado_por"] = str(auth.user_id)
 
-    # 3. Apply changes from request
+    # 3. Apply changes from request (filter to valid DB columns only)
     cambios_dict = cambios.model_dump(exclude_none=True)
     nueva_tarea.update(cambios_dict)
+    nueva_tarea = {k: v for k, v in nueva_tarea.items() if k in VALID_TAREA_COLUMNS | {"titulo", "es_plantilla", "creado_por"}}
 
     # 4. Insert the new tarea
     insert_response = supabase.table("tareas").insert(nueva_tarea).execute()
@@ -907,8 +917,7 @@ async def ai_edit_tarea(
         "espacio_largo", "espacio_ancho", "reglas_tecnicas", "reglas_tacticas",
         "consignas_ofensivas", "consignas_defensivas", "errores_comunes",
         "variantes", "progresiones", "estructura_equipos", "material",
-        "posicion_entrenador", "situacion_tactica", "fase_juego",
-        "principio_tactico", "subprincipio_tactico", "densidad",
+        "fase_juego", "principio_tactico", "subprincipio_tactico", "densidad",
         "nivel_cognitivo", "num_series", "grafico_data",
         "categoria_id", "equipo_id", "organizacion_id",
     ]
@@ -926,13 +935,13 @@ async def ai_edit_tarea(
     nueva_tarea["es_plantilla"] = False
     nueva_tarea["creado_por"] = str(auth.user_id)
 
-    # Apply AI changes (only known fields)
-    allowed_fields = set(campos_copiables) | {"titulo"}
+    # Apply AI changes (only valid DB columns)
     for k, v in cambios_ia.items():
-        if k in allowed_fields:
+        if k in VALID_TAREA_COLUMNS | {"titulo"}:
             nueva_tarea[k] = v
 
-    # 4. Insert duplicated tarea
+    # 4. Insert duplicated tarea (ensure only valid columns)
+    nueva_tarea = {k: v for k, v in nueva_tarea.items() if k in VALID_TAREA_COLUMNS | {"titulo", "es_plantilla", "creado_por"}}
     insert_response = supabase.table("tareas").insert(nueva_tarea).execute()
     if not insert_response.data:
         raise HTTPException(status_code=500, detail="Error al crear tarea editada")
@@ -981,7 +990,6 @@ class CrearTareaEnSesionRequest(BaseModel):
     material: Optional[list] = None
     errores_comunes: Optional[str] = None
     progresiones: Optional[str] = None
-    posicion_entrenador: Optional[str] = None
     reglas_tecnicas: Optional[str] = None
     reglas_tacticas: Optional[str] = None
     consignas_ofensivas: Optional[str] = None
@@ -1010,8 +1018,9 @@ async def crear_tarea_en_sesion(
     if not sesion.data:
         raise HTTPException(status_code=404, detail="Sesion no encontrada")
 
-    # Build tarea data
+    # Build tarea data (filter to valid DB columns only)
     tarea_data = request.model_dump(exclude_none=True, exclude={"fase_sesion"})
+    tarea_data = {k: v for k, v in tarea_data.items() if k in VALID_TAREA_COLUMNS}
     tarea_data["es_plantilla"] = False
     tarea_data["creado_por"] = str(auth.user_id)
     tarea_data["equipo_id"] = sesion.data.get("equipo_id")
@@ -1083,6 +1092,9 @@ async def ai_crear_tarea_en_sesion(
 
     if not tarea_data:
         raise HTTPException(status_code=400, detail="La IA no genero una tarea valida")
+
+    # Filter to only valid DB columns (AI may return fields that don't exist in DB)
+    tarea_data = {k: v for k, v in tarea_data.items() if k in VALID_TAREA_COLUMNS}
 
     # Insert tarea
     tarea_data["es_plantilla"] = False
