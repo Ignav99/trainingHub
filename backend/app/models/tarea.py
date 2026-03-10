@@ -229,9 +229,9 @@ class TareaUpdate(BaseModel):
 class TareaResponse(TareaBase):
     """Schema de respuesta de tarea."""
     id: UUID
-    categoria_id: UUID
+    categoria_id: Optional[UUID] = None
     organizacion_id: UUID
-    equipo_id: Optional[UUID]
+    equipo_id: Optional[UUID] = None
     creado_por: Optional[UUID] = None
     
     grafico_url: Optional[str] = None
