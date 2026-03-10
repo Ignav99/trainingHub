@@ -455,6 +455,9 @@ def generate_sesion_pdf_v2(
             fases[fase_key]["tareas"].append(tarea_enriched)
         all_tareas.append(tarea_enriched)
 
+    # Cover page: only desarrollo tasks (exclude activacion + vuelta_calma)
+    cover_tareas = [t for t in all_tareas if not t["is_activacion"] and not t["is_vuelta_calma"]]
+
     # Derive secondary color (slightly lighter/shifted version of primary)
     color_secundario = organizacion.get("color_secundario", color_primario)
 
@@ -472,6 +475,7 @@ def generate_sesion_pdf_v2(
         sesion=sesion_data,
         fases=fases,
         all_tareas=all_tareas,
+        cover_tareas=cover_tareas,
         color_primario=color_primario,
         color_secundario=color_secundario,
         org_nombre=organizacion.get("nombre", "TrainingHub Pro"),

@@ -3,6 +3,7 @@ TrainingHub Pro - Router de Sesiones
 CRUD para sesiones de entrenamiento.
 """
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, HTTPException, Depends, Query, status
@@ -1477,6 +1478,52 @@ async def generate_pdf(
         asistencia_roster.sort(key=lambda x: (x["tipo_key"], x.get("dorsal") or 999))
     except Exception:
         pass  # Non-critical — PDF still generates without roster
+
+    # AI diagram generation for tasks missing grafico_data
+    tasks_needing_diagrams = []
+    for ts in tareas:
+        tarea = ts.get("tareas", {}) or {}
+        if not tarea.get("grafico_data"):
+            tasks_needing_diagrams.append((ts, tarea))
+
+    if tasks_needing_diagrams:
+        from app.services.claude_service import generate_diagram_data
+
+        async def _gen_diagram(ts_pair):
+            ts, tarea = ts_pair
+            categoria = tarea.get("categorias_tarea", {}) or {}
+            return await generate_diagram_data(
+                titulo=tarea.get("titulo", ""),
+                descripcion=tarea.get("descripcion", ""),
+                categoria_codigo=categoria.get("codigo", ""),
+                estructura_equipos=tarea.get("estructura_equipos", ""),
+                espacio_largo=tarea.get("espacio_largo"),
+                espacio_ancho=tarea.get("espacio_ancho"),
+                num_jugadores_min=tarea.get("num_jugadores_min", 0),
+                fase_juego=tarea.get("fase_juego", ""),
+            )
+
+        results = await asyncio.gather(
+            *[_gen_diagram(pair) for pair in tasks_needing_diagrams],
+            return_exceptions=True,
+        )
+
+        for (ts, tarea), result in zip(tasks_needing_diagrams, results):
+            if isinstance(result, Exception) or result is None:
+                if isinstance(result, Exception):
+                    logger.warning("Diagram generation failed for task %s: %s", tarea.get("id"), result)
+                continue
+            # Inject into in-memory task data for PDF
+            tarea["grafico_data"] = result
+            # Cache in DB for future requests
+            tarea_id = tarea.get("id")
+            if tarea_id:
+                try:
+                    supabase.table("tareas").update(
+                        {"grafico_data": result}
+                    ).eq("id", str(tarea_id)).execute()
+                except Exception as db_err:
+                    logger.warning("Failed to cache diagram for task %s: %s", tarea_id, db_err)
 
     # Generar PDF con el servicio v2
     try:

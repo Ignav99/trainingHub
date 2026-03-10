@@ -40,6 +40,130 @@ class ClaudeError(Exception):
     """Error en la comunicacion con Claude API."""
 
 
+# ============ Diagram Generation ============
+
+DIAGRAM_GENERATION_PROMPT = """You are an expert football training diagram generator.
+Given a training exercise description, generate a JSON diagram representing the exercise on a pitch.
+
+## Output format
+Return ONLY valid JSON (no markdown, no explanation), with this structure:
+{
+  "pitchType": "full" | "half" | "quarter" | "green",
+  "elements": [...],
+  "arrows": [...],
+  "zones": [...]
+}
+
+## Pitch types
+- "full": Full pitch (1050x680) — for match simulations, 11v11, large games
+- "half": Half pitch (525x680) — for attacking/defending exercises, finishing drills
+- "quarter": Quarter pitch (525x340) — for small-sided games, rondos, possession
+- "green": Plain grass (1050x680) — for fitness, activation, generic exercises
+
+## Elements (players, cones, balls)
+Each element: {"type": "player"|"opponent"|"player_gk"|"cone"|"ball", "x": number, "y": number, "color": "#hex", "label": "text"}
+- Player colors: "#3B82F6" (team1/black), "#EF4444" (team2/white/opponent), "#F59E0B" (neutral/comodin), "#22C55E" (goalkeeper)
+- Labels: short (1-3 chars) — position abbreviations or numbers
+- Coordinates must be within the pitch viewbox boundaries (with ~25px margin)
+
+## Arrows (movements, passes)
+Each arrow: {"from": {"x": n, "y": n}, "to": {"x": n, "y": n}, "color": "#hex", "type": "movement"|"pass"}
+- "movement" = solid line (player runs), "pass" = dashed line (ball movement)
+- Color: "#FFFFFF" for generic, "#2ecc71" for attacking runs, "#e74c3c" for defensive
+
+## Zones (highlighted areas)
+Each zone: {"x": n, "y": n, "width": n, "height": n, "color": "rgba(r,g,b,0.08)", "label": "text"}
+- Use sparingly — only for key tactical zones
+
+## Rules
+1. Place players in realistic positions for the described exercise
+2. Use 4-8 players minimum to make diagrams meaningful
+3. Include at least 2-3 arrows showing the main movement patterns
+4. Choose pitchType based on exercise category and space requirements
+5. Keep it clean and readable — don't overcrowd"""
+
+
+async def generate_diagram_data(
+    titulo: str,
+    descripcion: str,
+    categoria_codigo: str = "",
+    estructura_equipos: str = "",
+    espacio_largo: float = None,
+    espacio_ancho: float = None,
+    num_jugadores_min: int = 0,
+    fase_juego: str = "",
+) -> Optional[dict]:
+    """Generate a diagram JSON for a training exercise using Claude AI.
+
+    Returns a dict with pitchType/elements/arrows/zones, or None on failure.
+    """
+    try:
+        client = _get_async_client()
+
+        user_prompt = f"""Generate a diagram for this football training exercise:
+
+Title: {titulo}
+Description: {descripcion or 'No description'}
+Category: {categoria_codigo or 'General'}
+Team structure: {estructura_equipos or 'Not specified'}
+Space: {f'{espacio_largo}x{espacio_ancho}m' if espacio_largo and espacio_ancho else 'Not specified'}
+Players: {num_jugadores_min or 'Not specified'}
+Game phase: {fase_juego or 'Not specified'}"""
+
+        response = await client.messages.create(
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=2048,
+            system=DIAGRAM_GENERATION_PROMPT,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
+
+        # Extract text from response
+        text = ""
+        for block in response.content:
+            if block.type == "text":
+                text = block.text
+                break
+
+        if not text:
+            return None
+
+        # Strip markdown code blocks if present
+        text = text.strip()
+        if text.startswith("```"):
+            # Remove ```json or ``` prefix and trailing ```
+            lines = text.split("\n")
+            lines = lines[1:]  # Remove first ``` line
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            text = "\n".join(lines)
+
+        diagram = json.loads(text)
+
+        # Validate basic structure
+        if not isinstance(diagram, dict):
+            return None
+        if "pitchType" not in diagram:
+            diagram["pitchType"] = "full"
+        if "elements" not in diagram:
+            diagram["elements"] = []
+        if "arrows" not in diagram:
+            diagram["arrows"] = []
+        if "zones" not in diagram:
+            diagram["zones"] = []
+
+        return diagram
+
+    except json.JSONDecodeError:
+        logger.warning("Failed to parse diagram JSON from Claude response")
+        return None
+    except anthropic.RateLimitError:
+        logger.warning("Rate limited while generating diagram")
+        return None
+    except Exception as e:
+        logger.warning("Error generating diagram: %s", str(e))
+        return None
+
+
 def _serialize_content_blocks(content) -> list[dict]:
     """Convert Anthropic SDK Pydantic content blocks to plain dicts.
 
