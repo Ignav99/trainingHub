@@ -204,10 +204,19 @@ async def update_jugador(jugador_id: UUID, jugador: JugadorUpdate, auth: AuthCon
 
 @router.delete("/{jugador_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_jugador(jugador_id: UUID, auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_MANAGE))):
-    """Elimina un jugador."""
+    """Elimina un jugador y sus referencias en otras tablas."""
     supabase = get_supabase()
-    supabase.table("jugadores").delete().eq("id", str(jugador_id)).execute()
-    log_delete(auth.user_id, "jugador", str(jugador_id))
+    jid = str(jugador_id)
+
+    # Delete from referencing tables first (cascade)
+    for table in ("convocatorias", "asistencias_sesion", "registros_rpe", "carga_acumulada_jugador"):
+        try:
+            supabase.table(table).delete().eq("jugador_id", jid).execute()
+        except Exception:
+            pass  # Table might not exist or have no rows
+
+    supabase.table("jugadores").delete().eq("id", jid).execute()
+    log_delete(auth.user_id, "jugador", jid)
     return None
 
 
