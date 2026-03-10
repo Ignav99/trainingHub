@@ -736,7 +736,9 @@ export default function SesionDetailPage() {
     if (!sesion?.equipo_id || jugadores.length > 0) return
     try {
       const response = await jugadoresApi.list({ equipo_id: sesion.equipo_id, limit: 100 })
-      setJugadores(response.data as unknown as Jugador[])
+      // Filter out invited players — they should only appear when manually added
+      const teamPlayers = (response.data as unknown as Jugador[]).filter((j) => !j.es_invitado)
+      setJugadores(teamPlayers)
     } catch (err) {
       console.error('Error loading jugadores:', err)
     }
@@ -1118,10 +1120,11 @@ export default function SesionDetailPage() {
     if (orgJugadores.length > 0) return
     setOrgJugadoresLoading(true)
     try {
-      const response = await jugadoresApi.list({ organizacion_completa: true, limit: 200 })
+      const response = await jugadoresApi.list({ organizacion_completa: true })
       setOrgJugadores(response.data as unknown as Jugador[])
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error loading org jugadores:', err)
+      toast.error(err?.message || 'Error al cargar jugadores de la organización')
     } finally {
       setOrgJugadoresLoading(false)
     }

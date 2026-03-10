@@ -108,9 +108,9 @@ export default function EnfermeriaPage() {
   // Files to upload after creation
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
 
-  // Stats
-  const activos = registros.filter((r: RegistroMedico) => r.estado === 'activo').length
-  const enRecuperacion = registros.filter((r: RegistroMedico) => r.estado === 'en_recuperacion').length
+  // Stats — rehabilitacion records count as "en recuperación" even if estado is activo
+  const activos = registros.filter((r: RegistroMedico) => r.estado === 'activo' && r.tipo !== 'rehabilitacion').length
+  const enRecuperacion = registros.filter((r: RegistroMedico) => r.estado === 'en_recuperacion' || (r.estado === 'activo' && r.tipo === 'rehabilitacion')).length
 
   const jugadoresMap = new Map(jugadores.map((j) => [j.id, j]))
 

@@ -54,14 +54,14 @@ def calculate_nivel_global(jugador: dict) -> float:
 # Whitelist: only these fields exist in the Supabase jugadores table.
 # Any field NOT in this set will be silently dropped before insert/update.
 _DB_COLUMNS = {
-    "nombre", "apellidos", "dorsal", "fecha_nacimiento",
-    "posicion_principal",
+    "nombre", "apellidos", "apodo", "dorsal", "fecha_nacimiento",
+    "posicion_principal", "posiciones_secundarias", "pierna_dominante",
     "altura", "peso",
     "nivel_tecnico", "nivel_tactico", "nivel_fisico", "nivel_mental",
     "estado", "fecha_lesion", "fecha_vuelta_estimada", "motivo_baja",
     "es_capitan", "es_convocable", "es_portero", "es_invitado",
     "notas", "foto_url",
-    "equipo_id",
+    "equipo_id", "equipo_origen_id",
 }
 
 

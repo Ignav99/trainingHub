@@ -28,6 +28,7 @@ import {
   UserCog,
   ChevronDown
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Jugador, jugadoresApi, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { apiKey } from '@/lib/swr'
@@ -139,6 +140,8 @@ function JugadorCard({
       className={`relative card-interactive rounded-xl p-4 group ${
         isCrossTeam
           ? 'border-dashed border-gray-400 bg-gray-50/50'
+          : jugador.es_invitado
+          ? 'border-2 border-amber-400 bg-amber-50/30'
           : isNoDisponible ? 'border-gray-300 bg-gray-50' : 'hover:border-primary/30'
       }`}
       onClick={() => router.push(`/plantilla/${jugador.id}`)}
@@ -167,6 +170,11 @@ function JugadorCard({
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             <PosicionBadge posicion={jugador.posicion_principal} />
             {pos && <span className="text-xs text-gray-500">{pos.nombre}</span>}
+            {jugador.es_invitado && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 border border-amber-300">
+                Invitado
+              </span>
+            )}
             <PlayerStatusBadges
               estado={jugador.estado}
               nivelCarga={cargaData?.nivel_carga}
@@ -456,8 +464,10 @@ export default function PlantillaPage() {
     try {
       await jugadoresApi.delete(id)
       invalidateJugadores()
-    } catch (err) {
+      toast.success('Jugador eliminado')
+    } catch (err: any) {
       console.error('Error deleting jugador:', err)
+      toast.error(err?.message || 'Error al eliminar el jugador')
     }
   }
 
@@ -468,8 +478,10 @@ export default function PlantillaPage() {
       await jugadoresApi.updateEstado(estadoModal.id, estado, motivo, fechaVuelta)
       setEstadoModal(null)
       invalidateJugadores()
-    } catch (err) {
+      toast.success('Estado actualizado')
+    } catch (err: any) {
       console.error('Error updating estado:', err)
+      toast.error(err?.message || 'Error al cambiar el estado')
     }
   }
 
@@ -743,7 +755,7 @@ export default function PlantillaPage() {
                     <JugadorCard
                       key={jugador.id}
                       jugador={jugador}
-                      onEdit={() => router.push(`/plantilla/${jugador.id}/editar`)}
+                      onEdit={() => router.push(`/plantilla/${jugador.id}?edit=true`)}
                       onDelete={() => handleDelete(jugador.id)}
                       onChangeEstado={() => setEstadoModal(jugador)}
                       isCrossTeam={showAllTeams && jugador.equipo_id !== equipoActivo?.id}

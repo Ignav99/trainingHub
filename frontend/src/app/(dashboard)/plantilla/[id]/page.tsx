@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import useSWR, { mutate } from 'swr'
 import {
@@ -59,8 +59,9 @@ function daysSince(dateStr: string): number {
 export default function JugadorDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [saving, setSaving] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
+  const [isEditing, setIsEditing] = useState(searchParams.get('edit') === 'true')
   const [activeTab, setActiveTab] = useState<'datos' | 'ficha_clinica'>('datos')
 
   // Form state
@@ -126,6 +127,7 @@ export default function JugadorDetailPage() {
       await jugadoresApi.update(jugador.id, formData)
       invalidateJugadores()
       setIsEditing(false)
+      toast.success('Cambios guardados')
     } catch (err) {
       console.error('Error saving jugador:', err)
       toast.error('Error al guardar los cambios')
@@ -177,9 +179,11 @@ export default function JugadorDetailPage() {
 
     try {
       await jugadoresApi.delete(jugador.id)
+      toast.success('Jugador eliminado')
       router.push('/plantilla')
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error deleting jugador:', err)
+      toast.error(err?.message || 'Error al eliminar el jugador')
     }
   }
 
@@ -565,6 +569,30 @@ export default function JugadorDetailPage() {
                     onChange={(e) => setFormData({ ...formData, fecha_nacimiento: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Posición principal</label>
+                  <select
+                    value={formData.posicion_principal || ''}
+                    onChange={(e) => setFormData({ ...formData, posicion_principal: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+                  >
+                    {Object.entries(POSICIONES).map(([code, p]) => (
+                      <option key={code} value={code}>{code} - {p.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Pierna dominante</label>
+                  <select
+                    value={formData.pierna_dominante || 'derecha'}
+                    onChange={(e) => setFormData({ ...formData, pierna_dominante: e.target.value as any })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+                  >
+                    <option value="derecha">Derecha</option>
+                    <option value="izquierda">Izquierda</option>
+                    <option value="ambas">Ambas</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Altura (m)</label>
