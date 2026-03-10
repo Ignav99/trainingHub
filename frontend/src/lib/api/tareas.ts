@@ -94,7 +94,7 @@ export const tareasApi = {
   },
 
   async createFromAI(tareaNueva: AITareaNueva): Promise<Tarea> {
-    return api.post<Tarea>('/tareas/from-ai', tareaNueva)
+    return api.post<Tarea>('/tareas/from-ai', tareaNueva, { timeout: 60000 })
   },
 
   async designChat(mensajes: { rol: string; contenido: string }[], equipoId?: string): Promise<{
@@ -105,7 +105,7 @@ export const tareasApi = {
     return api.post('/tareas/design-chat', {
       mensajes,
       equipo_id: equipoId,
-    })
+    }, { timeout: 120000 })
   },
 
   async generatePdf(id: string): Promise<Blob> {

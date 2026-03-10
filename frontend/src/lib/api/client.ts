@@ -35,7 +35,7 @@ class ApiClient {
   private baseUrl: string
   private defaultTimeout: number
 
-  constructor(baseUrl: string, defaultTimeout = 10000) {
+  constructor(baseUrl: string, defaultTimeout = 30000) {
     this.baseUrl = baseUrl
     this.defaultTimeout = defaultTimeout
   }

@@ -10,7 +10,7 @@ export interface AIChatMessageData {
 
 export const aiChatApi = {
   chat: (data: AIChatMessageData) =>
-    api.post<AIChatResponse>('/ai/chat', data),
+    api.post<AIChatResponse>('/ai/chat', data, { timeout: 120000 }),
 
   listConversaciones: (params?: { page?: number; limit?: number }) =>
     api.get<PaginatedResponse<AIConversacion>>('/ai/conversaciones', { params }),

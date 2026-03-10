@@ -165,7 +165,7 @@ export const sesionesApi = {
   },
 
   async aiEditTarea(sesionId: string, sesionTareaId: string, instruccion: string): Promise<any> {
-    return api.post(`/sesiones/${sesionId}/tareas/${sesionTareaId}/ai-edit`, { instruccion })
+    return api.post(`/sesiones/${sesionId}/tareas/${sesionTareaId}/ai-edit`, { instruccion }, { timeout: 120000 })
   },
 
   // Per-task formation endpoints
@@ -254,7 +254,7 @@ export const sesionesApi = {
     prompt: string
     fase_sesion: string
   }): Promise<Sesion> {
-    return api.post<Sesion>(`/sesiones/${sesionId}/tareas/ai-crear`, data)
+    return api.post<Sesion>(`/sesiones/${sesionId}/tareas/ai-crear`, data, { timeout: 120000 })
   },
 }
 
@@ -275,7 +275,7 @@ export const sessionDesignApi = {
     return api.post<SessionDesignResponse>('/sesiones/design-chat', {
       mensajes,
       equipo_id,
-    })
+    }, { timeout: 120000 })
   },
 }
 

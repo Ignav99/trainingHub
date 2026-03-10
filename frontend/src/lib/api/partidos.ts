@@ -179,7 +179,7 @@ export const partidosApi = {
   },
 
   async populatePreMatch(id: string): Promise<{ status: string; pre_match_intel: PreMatchIntel }> {
-    return api.post<{ status: string; pre_match_intel: PreMatchIntel }>(`/partidos/${id}/populate-pre-match`)
+    return api.post<{ status: string; pre_match_intel: PreMatchIntel }>(`/partidos/${id}/populate-pre-match`, undefined, { timeout: 120000 })
   },
 
   async preMatchChat(
@@ -187,6 +187,6 @@ export const partidosApi = {
     mensajes: { rol: string; contenido: string }[],
     tipo: 'informe' | 'plan'
   ): Promise<{ respuesta: string; informe_rival?: any; plan_partido?: any }> {
-    return api.post(`/partidos/${id}/pre-match-chat`, { mensajes, tipo })
+    return api.post(`/partidos/${id}/pre-match-chat`, { mensajes, tipo }, { timeout: 120000 })
   },
 }
