@@ -1204,6 +1204,13 @@ export default function SesionDetailPage() {
     return a?.presente ?? true
   }).length
 
+  const enSesionCount = jugadores.filter((j) => {
+    const a = asistencias.get(j.id)
+    if (!(a?.presente ?? true)) return false
+    const tipos = a?.tipo_participacion || ['sesion']
+    return tipos.includes('sesion')
+  }).length
+
   // ============ Derived ============
   const completedFases = ALL_FASES.filter((f) => tareasByFase[f]?.length > 0)
   const totalDuration = allTareas.reduce((sum, st) => sum + (st.duracion_override || st.tarea?.duracion_total || 0), 0)
@@ -1636,12 +1643,19 @@ export default function SesionDetailPage() {
                   Control de Asistencia
                 </CardTitle>
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 text-sm">
-                    <UserCheck className="h-4 w-4 text-green-600" />
-                    <span className="font-medium">{presentesCount}</span>
-                    <span className="text-muted-foreground">/</span>
-                    <span className="font-medium">{jugadores.length}</span>
-                    <span className="text-muted-foreground">presentes</span>
+                  <div className="flex items-center gap-3 text-sm">
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-50 border border-blue-200">
+                      <div className="w-2 h-2 rounded-full bg-blue-500" />
+                      <span className="font-semibold text-blue-700">{enSesionCount}</span>
+                      <span className="text-blue-600 text-xs">en sesión</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <UserCheck className="h-4 w-4 text-green-600" />
+                      <span className="font-medium">{presentesCount}</span>
+                      <span className="text-muted-foreground">/</span>
+                      <span className="font-medium">{jugadores.length}</span>
+                      <span className="text-muted-foreground">presentes</span>
+                    </div>
                   </div>
                   <Button onClick={saveAsistencias} disabled={savingAsistencias} size="sm">
                     {savingAsistencias ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
