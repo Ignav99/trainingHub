@@ -1246,21 +1246,22 @@ export default function SesionDetailPage() {
 
   // ============ Task editing ============
   const openEditTarea = (st: SesionTarea) => {
+    // Helper: convert array fields to newline-separated strings for textarea display
+    const toStr = (val: any) => Array.isArray(val) ? val.join('\n') : (val || '')
     setEditingTarea(st)
     setEditForm({
       titulo: st.tarea?.titulo || '',
       descripcion: st.tarea?.descripcion || '',
       duracion_total: st.tarea?.duracion_total || 0,
-      reglas_tecnicas: st.tarea?.reglas_tecnicas || '',
-      reglas_tacticas: st.tarea?.reglas_tacticas || '',
-      consignas_ofensivas: st.tarea?.consignas_ofensivas || '',
-      consignas_defensivas: st.tarea?.consignas_defensivas || '',
-      variantes: st.tarea?.variantes || '',
+      reglas_tecnicas: toStr(st.tarea?.reglas_tecnicas),
+      reglas_tacticas: toStr(st.tarea?.reglas_tacticas),
+      consignas_ofensivas: toStr(st.tarea?.consignas_ofensivas),
+      consignas_defensivas: toStr(st.tarea?.consignas_defensivas),
+      variantes: toStr(st.tarea?.variantes),
       espacio_largo: st.tarea?.espacio_largo || 0,
       espacio_ancho: st.tarea?.espacio_ancho || 0,
-      // Additional fields
-      errores_comunes: st.tarea?.errores_comunes || '',
-      progresiones: st.tarea?.progresiones || '',
+      errores_comunes: toStr(st.tarea?.errores_comunes),
+      progresiones: toStr(st.tarea?.progresiones),
       estructura_equipos: st.tarea?.estructura_equipos || '',
       num_jugadores_min: st.tarea?.num_jugadores_min || 0,
       num_jugadores_max: st.tarea?.num_jugadores_max || 0,
@@ -2675,6 +2676,8 @@ export default function SesionDetailPage() {
                   <option value="defensa_organizada">Defensa organizada</option>
                   <option value="transicion_ataque_defensa">Transicion ataque-defensa</option>
                   <option value="transicion_defensa_ataque">Transicion defensa-ataque</option>
+                  <option value="balon_parado_ofensivo">Balon parado ofensivo</option>
+                  <option value="balon_parado_defensivo">Balon parado defensivo</option>
                 </select>
               </div>
               <div>

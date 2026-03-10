@@ -1445,7 +1445,10 @@ class ClaudeService:
                     "espacio_ancho (int metros), reglas_tecnicas (str), reglas_tacticas (str), "
                     "consignas_ofensivas (str), consignas_defensivas (str), errores_comunes (str), "
                     "variantes (str), progresiones (str), estructura_equipos (str como '4v4+2'), "
-                    "material (array str). "
+                    "material (array str), "
+                    "fase_juego (str, DEBE ser uno de: 'ataque_organizado', 'defensa_organizada', 'transicion_ataque_defensa', 'transicion_defensa_ataque', 'balon_parado_ofensivo', 'balon_parado_defensivo'), "
+                    "principio_tactico (str), densidad (str: 'alta', 'media' o 'baja'), "
+                    "nivel_cognitivo (int 1-3). "
                     "NO incluyas campos que no cambias. NO incluyas explicaciones fuera del JSON."
                 ),
                 "cache_control": {"type": "ephemeral"},
@@ -1522,7 +1525,9 @@ class ClaudeService:
                     "espacio_ancho (int m), reglas_tecnicas (str), reglas_tacticas (str), "
                     "consignas_ofensivas (str), consignas_defensivas (str), errores_comunes (str), "
                     "variantes (str), progresiones (str), estructura_equipos (str ej '4v4+2'), "
-                    "material (array str), fase_juego (str), principio_tactico (str), densidad ('alta'/'media'/'baja'), "
+                    "material (array str), "
+                    "fase_juego (str, DEBE ser uno de: 'ataque_organizado', 'defensa_organizada', 'transicion_ataque_defensa', 'transicion_defensa_ataque', 'balon_parado_ofensivo', 'balon_parado_defensivo'), "
+                    "principio_tactico (str), densidad (str, DEBE ser: 'alta', 'media' o 'baja'), "
                     "nivel_cognitivo (int 1-3), num_series (int). "
                     "NO incluyas explicaciones fuera del JSON."
                 ),

@@ -8,13 +8,86 @@ import logging
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Any, Optional, List, Union
 from uuid import UUID
 from datetime import date
 from math import ceil
 import io
 
 logger = logging.getLogger(__name__)
+
+# Valid fase_juego values (DB check constraint)
+VALID_FASE_JUEGO = {
+    "ataque_organizado", "defensa_organizada",
+    "transicion_ataque_defensa", "transicion_defensa_ataque",
+    "balon_parado_ofensivo", "balon_parado_defensivo",
+}
+
+# Mapping from AI short/variant codes → valid DB values for fase_juego
+FASE_JUEGO_MAP = {
+    "ATQ": "ataque_organizado",
+    "DEF": "defensa_organizada",
+    "TAD": "transicion_ataque_defensa",
+    "TDA": "transicion_defensa_ataque",
+    "BPO": "balon_parado_ofensivo",
+    "BPD": "balon_parado_defensivo",
+    "ataque_organizado": "ataque_organizado",
+    "defensa_organizada": "defensa_organizada",
+    "transicion_ataque_defensa": "transicion_ataque_defensa",
+    "transicion_defensa_ataque": "transicion_defensa_ataque",
+    "balon_parado_ofensivo": "balon_parado_ofensivo",
+    "balon_parado_defensivo": "balon_parado_defensivo",
+    "ataque organizado": "ataque_organizado",
+    "defensa organizada": "defensa_organizada",
+    "transicion ataque defensa": "transicion_ataque_defensa",
+    "transicion defensa ataque": "transicion_defensa_ataque",
+    "balon parado ofensivo": "balon_parado_ofensivo",
+    "balon parado defensivo": "balon_parado_defensivo",
+}
+
+# Mapping from AI density variants → valid DB values (alta, media, baja)
+DENSIDAD_MAP = {
+    "muy alta": "alta",
+    "alta": "alta",
+    "media": "media",
+    "baja": "baja",
+    "muy baja": "baja",
+}
+
+
+def _sanitize_tarea_constraints(tarea_data: dict) -> dict:
+    """Sanitize constraint-sensitive fields before DB insert.
+    Removes or maps invalid fase_juego, densidad, and nivel_cognitivo values.
+    """
+    # fase_juego
+    if "fase_juego" in tarea_data and tarea_data["fase_juego"] is not None:
+        raw = str(tarea_data["fase_juego"]).strip().lower()
+        mapped = FASE_JUEGO_MAP.get(raw)
+        if mapped:
+            tarea_data["fase_juego"] = mapped
+        else:
+            # Try partial match as last resort
+            del tarea_data["fase_juego"]
+
+    # densidad
+    if "densidad" in tarea_data and tarea_data["densidad"] is not None:
+        raw = str(tarea_data["densidad"]).strip().lower()
+        mapped = DENSIDAD_MAP.get(raw)
+        if mapped:
+            tarea_data["densidad"] = mapped
+        else:
+            del tarea_data["densidad"]
+
+    # nivel_cognitivo: must be 1-3
+    if "nivel_cognitivo" in tarea_data and tarea_data["nivel_cognitivo"] is not None:
+        try:
+            val = int(tarea_data["nivel_cognitivo"])
+            tarea_data["nivel_cognitivo"] = max(1, min(3, val))
+        except (ValueError, TypeError):
+            del tarea_data["nivel_cognitivo"]
+
+    return tarea_data
+
 
 # Valid columns in the 'tareas' table — used to filter AI/user input before DB insert
 VALID_TAREA_COLUMNS = {
@@ -766,15 +839,15 @@ class DuplicarYEditarTareaRequest(BaseModel):
     duracion_total: Optional[int] = None
     num_jugadores_min: Optional[int] = None
     num_jugadores_max: Optional[int] = None
-    espacio_largo: Optional[int] = None
-    espacio_ancho: Optional[int] = None
-    reglas_tecnicas: Optional[str] = None
-    reglas_tacticas: Optional[str] = None
-    consignas_ofensivas: Optional[str] = None
-    consignas_defensivas: Optional[str] = None
-    errores_comunes: Optional[str] = None
-    variantes: Optional[str] = None
-    progresiones: Optional[str] = None
+    espacio_largo: Optional[Union[int, float]] = None
+    espacio_ancho: Optional[Union[int, float]] = None
+    reglas_tecnicas: Optional[Any] = None  # JSONB — accepts str or list
+    reglas_tacticas: Optional[Any] = None
+    consignas_ofensivas: Optional[Any] = None
+    consignas_defensivas: Optional[Any] = None
+    errores_comunes: Optional[Any] = None
+    variantes: Optional[Any] = None
+    progresiones: Optional[Any] = None
     estructura_equipos: Optional[str] = None
     material: Optional[list] = None
     num_series: Optional[int] = None
@@ -782,6 +855,7 @@ class DuplicarYEditarTareaRequest(BaseModel):
     nivel_cognitivo: Optional[int] = None
     fase_juego: Optional[str] = None
     principio_tactico: Optional[str] = None
+    subprincipio_tactico: Optional[str] = None
 
 
 @router.post("/{sesion_id}/tareas/{sesion_tarea_id}/duplicar-y-editar")
@@ -835,6 +909,7 @@ async def duplicar_y_editar_tarea(
     cambios_dict = cambios.model_dump(exclude_none=True)
     nueva_tarea.update(cambios_dict)
     nueva_tarea = {k: v for k, v in nueva_tarea.items() if k in VALID_TAREA_COLUMNS | {"titulo", "es_plantilla", "creado_por"}}
+    _sanitize_tarea_constraints(nueva_tarea)
 
     # 4. Insert the new tarea
     insert_response = supabase.table("tareas").insert(nueva_tarea).execute()
@@ -946,8 +1021,9 @@ async def ai_edit_tarea(
         if k in VALID_TAREA_COLUMNS | {"titulo"}:
             nueva_tarea[k] = v
 
-    # 4. Insert duplicated tarea (ensure only valid columns)
+    # 4. Insert duplicated tarea (ensure only valid columns + sanitize constraints)
     nueva_tarea = {k: v for k, v in nueva_tarea.items() if k in VALID_TAREA_COLUMNS | {"titulo", "es_plantilla", "creado_por"}}
+    _sanitize_tarea_constraints(nueva_tarea)
     insert_response = supabase.table("tareas").insert(nueva_tarea).execute()
     if not insert_response.data:
         raise HTTPException(status_code=500, detail="Error al crear tarea editada")
@@ -986,21 +1062,21 @@ class CrearTareaEnSesionRequest(BaseModel):
     num_jugadores_min: Optional[int] = None
     num_jugadores_max: Optional[int] = None
     estructura_equipos: Optional[str] = None
-    espacio_largo: Optional[int] = None
-    espacio_ancho: Optional[int] = None
+    espacio_largo: Optional[Union[int, float]] = None
+    espacio_ancho: Optional[Union[int, float]] = None
     fase_juego: Optional[str] = None
     principio_tactico: Optional[str] = None
     densidad: Optional[str] = None
     nivel_cognitivo: Optional[int] = None
     num_series: Optional[int] = None
     material: Optional[list] = None
-    errores_comunes: Optional[str] = None
-    progresiones: Optional[str] = None
-    reglas_tecnicas: Optional[str] = None
-    reglas_tacticas: Optional[str] = None
-    consignas_ofensivas: Optional[str] = None
-    consignas_defensivas: Optional[str] = None
-    variantes: Optional[str] = None
+    errores_comunes: Optional[Any] = None
+    progresiones: Optional[Any] = None
+    reglas_tecnicas: Optional[Any] = None
+    reglas_tacticas: Optional[Any] = None
+    consignas_ofensivas: Optional[Any] = None
+    consignas_defensivas: Optional[Any] = None
+    variantes: Optional[Any] = None
 
 
 class AICrearTareaRequest(BaseModel):
@@ -1027,6 +1103,7 @@ async def crear_tarea_en_sesion(
     # Build tarea data (filter to valid DB columns only)
     tarea_data = request.model_dump(exclude_none=True, exclude={"fase_sesion"})
     tarea_data = {k: v for k, v in tarea_data.items() if k in VALID_TAREA_COLUMNS}
+    _sanitize_tarea_constraints(tarea_data)
     tarea_data["es_plantilla"] = False
     tarea_data["creado_por"] = str(auth.user_id)
     tarea_data["equipo_id"] = sesion.data.get("equipo_id")
@@ -1102,6 +1179,7 @@ async def ai_crear_tarea_en_sesion(
 
     # Filter to only valid DB columns (AI may return fields that don't exist in DB)
     tarea_data = {k: v for k, v in tarea_data.items() if k in VALID_TAREA_COLUMNS}
+    _sanitize_tarea_constraints(tarea_data)
 
     # Insert tarea
     tarea_data["es_plantilla"] = False
