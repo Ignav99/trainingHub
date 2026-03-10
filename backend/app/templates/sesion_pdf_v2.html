@@ -124,7 +124,7 @@ body {
     font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
     flex-shrink: 0;
 }
-.badge-sesion { background: #166534; color: #4ade80; }
+.badge-sesion { background: #1e3a5f; color: #60a5fa; }
 .badge-fisio { background: #581c87; color: #c084fc; }
 .badge-margen { background: #78350f; color: #fbbf24; }
 .badge-ausente { background: #7f1d1d; color: #f87171; }
@@ -153,26 +153,37 @@ body {
     color: #333; font-size: 8px;
 }
 
-/* --- Exercise Grid (flexbox for WeasyPrint compat) --- */
-.ex-grid {
+/* --- Exercise Table (HTML table for bulletproof WeasyPrint layout) --- */
+.ex-table-wrap {
     flex: 1;
-    display: flex;
-    flex-wrap: wrap;
-    min-height: 0;
     overflow: hidden;
     background: #f5f5f5;
 }
-
-.ex-card {
-    display: flex;
-    flex-direction: column;
-    border-right: 1px solid #e0e0e0;
-    border-bottom: 1px solid #e0e0e0;
-    overflow: hidden;
-    min-height: 0;
-    background: white;
+.ex-table {
+    width: 100%;
+    height: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    background: #f5f5f5;
 }
-.ex-card:last-child { border-right: none; }
+.ex-table td {
+    border: 1px solid #e0e0e0;
+    vertical-align: top;
+    padding: 0;
+    background: white;
+    overflow: hidden;
+    position: relative;
+}
+.ex-table td.ex-empty {
+    background: #fafafa;
+    vertical-align: middle;
+    text-align: center;
+    color: #ddd;
+    font-size: 10px;
+    font-family: 'Barlow Condensed', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
 
 /* Card header */
 .ex-card-header {
@@ -479,7 +490,7 @@ body {
     background: #1d5c1d;
     border: 2px solid #333;
     overflow: hidden;
-    height: 105mm;
+    height: 70mm;
 }
 .campo-grande-wrap svg { width: 100%; height: 100%; display: block; }
 
@@ -512,7 +523,7 @@ body {
     font-family: 'Barlow Condensed', sans-serif;
 }
 .info-text {
-    font-size: 8.5px; color: #333; line-height: 1.6;
+    font-size: 7.5px; color: #333; line-height: 1.4;
     font-family: 'Barlow', sans-serif;
 }
 
@@ -535,20 +546,20 @@ body {
 }
 
 /* Team blocks */
-.equipo-block { margin-bottom: 5px; }
+.equipo-block { margin-bottom: 3px; }
 .equipo-name {
-    font-size: 9px; text-transform: uppercase;
+    font-size: 8px; text-transform: uppercase;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
     display: flex; align-items: center; gap: 4px;
-    margin-bottom: 2px;
+    margin-bottom: 1px;
 }
 .equipo-dot {
-    width: 8px; height: 8px; border-radius: 50%;
+    width: 7px; height: 7px; border-radius: 50%;
     display: inline-block; flex-shrink: 0;
 }
 .equipo-jugadores {
-    font-size: 7.5px; color: #555; line-height: 1.6;
-    padding-left: 12px;
+    font-size: 6.5px; color: #555; line-height: 1.4;
+    padding-left: 10px;
     font-family: 'Barlow', sans-serif;
 }
 
@@ -566,7 +577,7 @@ body {
     font-family: 'Barlow Condensed', sans-serif;
 }
 .consigna-text {
-    font-size: 8.5px; color: #333; line-height: 1.4;
+    font-size: 7.5px; color: #333; line-height: 1.3;
     font-family: 'Barlow', sans-serif;
 }
 
@@ -583,30 +594,30 @@ body {
 /* Variants box */
 .variante-box {
     background: #f9f9f9; border: 1px solid #e0e0e0;
-    padding: 5px 10px; margin-top: 5px;
+    padding: 4px 8px; margin-top: 4px;
 }
 .variante-title {
-    font-size: 7px; color: #999; text-transform: uppercase;
-    letter-spacing: 1px; margin-bottom: 3px;
+    font-size: 6.5px; color: #999; text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 2px;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 600;
 }
 .variante-text {
-    font-size: 8px; color: #555; line-height: 1.5;
+    font-size: 7px; color: #555; line-height: 1.3;
     font-family: 'Barlow', sans-serif;
 }
 
 /* Errors box */
 .errores-box {
     background: #fff5f5; border: 1px solid #fed7d7;
-    padding: 5px 10px; margin-top: 5px;
+    padding: 4px 8px; margin-top: 4px;
 }
 .errores-title {
-    font-size: 7px; color: #c53030; text-transform: uppercase;
-    letter-spacing: 1px; margin-bottom: 3px;
+    font-size: 6.5px; color: #c53030; text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 2px;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 600;
 }
 .errores-text {
-    font-size: 8px; color: #555; line-height: 1.5;
+    font-size: 7px; color: #555; line-height: 1.3;
     font-family: 'Barlow', sans-serif;
 }
 
@@ -615,8 +626,8 @@ body {
     list-style: none; padding: 0;
 }
 .rules-list li {
-    font-size: 8px; color: #333; padding: 2px 0 2px 10px;
-    position: relative; line-height: 1.5;
+    font-size: 7px; color: #333; padding: 1px 0 1px 10px;
+    position: relative; line-height: 1.3;
     font-family: 'Barlow', sans-serif;
 }
 .rules-list li::before {
@@ -699,7 +710,13 @@ body {
             <div class="asistencia-item">
                 <span class="asistencia-dorsal">{% if p.dorsal %}#{{ p.dorsal }}{% endif %}</span>
                 <span>{{ p.nombre }} {{ p.apellidos[:1] }}.</span>
+                {% if p.tipos %}
+                    {% for tipo in p.tipos %}
+                    <span class="asistencia-badge badge-{{ tipo }}">{{ tipo|upper }}</span>
+                    {% endfor %}
+                {% else %}
                 <span class="asistencia-badge badge-{{ p.sort_key }}">{{ p.tipo_display }}</span>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
@@ -724,64 +741,54 @@ body {
     </div>
     {% endif %}
 
-    <!-- Exercise Grid (ALL exercises, flex-wrap for WeasyPrint compat) -->
+    <!-- Exercise Table (HTML table for bulletproof WeasyPrint layout) -->
     {% set num_tareas = all_tareas|length %}
     {% set grid_cols = 4 if num_tareas > 6 else (3 if num_tareas > 4 else (2 if num_tareas > 1 else 1)) %}
     {% set grid_rows = (num_tareas + grid_cols - 1) // grid_cols %}
-    {% set card_w = (100.0 / grid_cols)|round(2) %}
-    {% set card_h = (100.0 / grid_rows)|round(2) %}
-    <div class="ex-grid">
-        {% for tarea in all_tareas %}
-        <div class="ex-card" style="width:{{ card_w }}%;height:{{ card_h }}%;">
-            <!-- Card Header: number + badge + title + duration -->
-            <div class="ex-card-header">
-                <span class="ex-num">{{ '%02d' % loop.index }}</span>
-                <span class="ex-type-badge badge-{{ tarea.badge_class }}">{{ tarea.categoria_codigo or 'EJ' }}</span>
-                <div class="ex-name">{{ tarea.titulo }}</div>
-                <span class="ex-dur">{{ tarea.duracion }}'</span>
-            </div>
-
-            <!-- Objective line -->
-            {% if tarea.objetivo_tactico %}
-            <div class="ex-objetivo">{{ tarea.objetivo_tactico }}</div>
-            {% endif %}
-
-            <!-- Diagram: always show field (empty pitch if no data) -->
-            {% if tarea.is_activacion or tarea.is_vuelta_calma %}
-            <div class="campo-mini-wrap" style="max-height: 28mm; padding: 2px 4px;">
-                {{ tarea.svg_thumbnail }}
-            </div>
-            {% else %}
-            <div class="campo-mini-wrap">
-                {{ tarea.svg_thumbnail }}
-            </div>
-            {% endif %}
-
-            <!-- Petos (compact) -->
-            {% if tarea.petos_html %}
-            <div class="ex-petos">
-                <div class="ex-petos-grid">
-                    {{ tarea.petos_html }}
+    <div class="ex-table-wrap">
+    <table class="ex-table">
+        {% for row_idx in range(grid_rows) %}
+        <tr>
+            {% for col_idx in range(grid_cols) %}
+            {% set tarea_idx = row_idx * grid_cols + col_idx %}
+            {% if tarea_idx < num_tareas %}
+            {% set tarea = all_tareas[tarea_idx] %}
+            <td>
+                <!-- Card Header -->
+                <div class="ex-card-header">
+                    <span class="ex-num">{{ '%02d' % (tarea_idx + 1) }}</span>
+                    <span class="ex-type-badge badge-{{ tarea.badge_class }}">{{ tarea.categoria_codigo or 'EJ' }}</span>
+                    <div class="ex-name">{{ tarea.titulo }}</div>
+                    <span class="ex-dur">{{ tarea.duracion }}'</span>
                 </div>
-            </div>
+                <!-- Objective -->
+                {% if tarea.objetivo_tactico %}
+                <div class="ex-objetivo">{{ tarea.objetivo_tactico }}</div>
+                {% endif %}
+                <!-- Diagram -->
+                <div class="campo-mini-wrap">
+                    {{ tarea.svg_thumbnail }}
+                </div>
+                <!-- Petos -->
+                {% if tarea.petos_html %}
+                <div class="ex-petos">
+                    <div class="ex-petos-grid">{{ tarea.petos_html }}</div>
+                </div>
+                {% endif %}
+                <!-- Bottom info -->
+                <div class="ex-info">
+                    <span class="ex-tiempo">{% if tarea.num_series %}{{ tarea.num_series }}x{% endif %}{{ tarea.duracion }}'</span>
+                    <span class="ex-espacio">{% if tarea.espacio_largo and tarea.espacio_ancho %}{{ tarea.espacio_largo|int }}x{{ tarea.espacio_ancho|int }}m{% endif %} · {{ tarea.num_jugadores_min }}{% if tarea.num_jugadores_max %}-{{ tarea.num_jugadores_max }}{% endif %}j</span>
+                    <span class="ex-fase">{{ tarea.fase_label }}</span>
+                </div>
+            </td>
+            {% else %}
+            <td class="ex-empty">—</td>
             {% endif %}
-
-            <!-- Bottom info -->
-            <div class="ex-info">
-                <span class="ex-tiempo">{% if tarea.num_series %}{{ tarea.num_series }}x{% endif %}{{ tarea.duracion }}'</span>
-                <span class="ex-espacio">{% if tarea.espacio_largo and tarea.espacio_ancho %}{{ tarea.espacio_largo|int }}x{{ tarea.espacio_ancho|int }}m{% endif %} · {{ tarea.num_jugadores_min }}{% if tarea.num_jugadores_max %}-{{ tarea.num_jugadores_max }}{% endif %}j</span>
-                <span class="ex-fase">{{ tarea.fase_label }}</span>
-            </div>
-        </div>
+            {% endfor %}
+        </tr>
         {% endfor %}
-
-        {# Fill empty flex slots to maintain grid alignment #}
-        {% set total_slots = grid_cols * grid_rows %}
-        {% for i in range(num_tareas, total_slots) %}
-        <div class="ex-card" style="width:{{ card_w }}%;height:{{ card_h }}%;background:#fafafa;display:flex;align-items:center;justify-content:center;">
-            <div style="color:#ddd;font-size:10px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:2px;">—</div>
-        </div>
-        {% endfor %}
+    </table>
     </div>
 
     <!-- Footer -->

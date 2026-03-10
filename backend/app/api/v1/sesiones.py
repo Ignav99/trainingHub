@@ -1138,6 +1138,7 @@ async def generate_pdf(
                     "dorsal": dorsal,
                     "nombre": nombre,
                     "apellidos": apellidos,
+                    "tipos": tipos,  # Individual types for per-word coloring
                     "tipo_display": tipo_display,
                     "tipo_key": tipo_key,
                     "sort_key": "sesion" if tipo_key == 0 else ("fisio" if tipo_key == 1 else "margen"),
@@ -1148,6 +1149,7 @@ async def generate_pdf(
                     "dorsal": dorsal,
                     "nombre": nombre,
                     "apellidos": apellidos,
+                    "tipos": [],  # Absent players have no participation types
                     "tipo_display": f"Ausente — {motivo.replace('_', ' ').title()}",
                     "tipo_key": TIPO_ORDER["ausente"],
                     "sort_key": "ausente",
