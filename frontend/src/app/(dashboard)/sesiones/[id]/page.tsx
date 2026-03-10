@@ -17,6 +17,7 @@ import {
 } from '@dnd-kit/core'
 import {
   SortableContext,
+  arrayMove,
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
@@ -802,6 +803,45 @@ function FormacionPanel({
   )
 }
 
+// ============ Sortable Phase Card Wrapper ============
+function SortablePhaseCard({ fase, isDraggable, children }: {
+  fase: string
+  isDraggable: boolean
+  children: (dragHandle: React.ReactNode | null) => React.ReactNode
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: fase, disabled: !isDraggable })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  const dragHandle = isDraggable ? (
+    <button
+      {...attributes}
+      {...listeners}
+      className="p-1 rounded-md text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing"
+      title="Arrastrar para reordenar fase"
+    >
+      <GripVertical className="h-4 w-4" />
+    </button>
+  ) : null
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children(dragHandle)}
+    </div>
+  )
+}
+
 // ============ Main Component ============
 export default function SesionDetailPage() {
   const params = useParams()
@@ -1034,6 +1074,51 @@ export default function SesionDetailPage() {
     }
     return result
   }, [tareasByFase, addedFases, removedFases])
+
+  // Draggable desarrollo phases for phase reordering
+  const draggableFases = useMemo(
+    () => activeFases.filter(f => f.startsWith('desarrollo_')),
+    [activeFases]
+  )
+
+  const phaseSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor)
+  )
+
+  const handlePhaseReorder = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id || !sesion) return
+
+    const oldIndex = draggableFases.indexOf(active.id as FaseSesion)
+    const newIndex = draggableFases.indexOf(over.id as FaseSesion)
+    if (oldIndex < 0 || newIndex < 0) return
+
+    // The target slot names stay the same (desarrollo_1, desarrollo_2, ...),
+    // we reorder which tasks go into which slot.
+    const reordered = arrayMove(draggableFases, oldIndex, newIndex)
+
+    // Build mapping: reordered[i] had tasks, they move to draggableFases[i] slot
+    const newTareas = allTareas.map(t => {
+      const srcIdx = reordered.indexOf(t.fase_sesion as FaseSesion)
+      if (srcIdx < 0) return t // not a desarrollo task, keep as-is
+      return { ...t, fase_sesion: draggableFases[srcIdx] }
+    })
+
+    // Swap fase_notas to match
+    const oldNotas = { ...(sesion.fase_notas || {}) }
+    const newNotas = { ...oldNotas }
+    for (let i = 0; i < draggableFases.length; i++) {
+      newNotas[draggableFases[i]] = oldNotas[reordered[i]] || ''
+    }
+
+    // Optimistic UI update
+    setSesion(prev => prev ? { ...prev, tareas: newTareas, fase_notas: newNotas } : prev)
+
+    // Persist
+    saveTareasBatch(newTareas)
+    autoSave({ fase_notas: newNotas } as SesionUpdateData)
+  }
 
   const handleAddFase = () => {
     // Find the next desarrollo phase not already active
@@ -1788,190 +1873,214 @@ export default function SesionDetailPage() {
               )}
             </div>
 
-            {activeFases.map((fase) => {
-              const tareas = tareasByFase[fase] || []
-              const hasTareas = tareas.length > 0
-              const faseDuration = tareas.reduce((s, t) => s + (t.duracion_override || t.tarea?.duracion_total || 0), 0)
-              const isRemovable = !hasTareas && fase !== 'activacion' && fase !== 'desarrollo_1'
-              const faseNota = sesion.fase_notas?.[fase]
+            {(() => {
+              const renderPhaseCard = (fase: FaseSesion, dragHandle: React.ReactNode | null) => {
+                const tareas = tareasByFase[fase] || []
+                const hasTareas = tareas.length > 0
+                const faseDuration = tareas.reduce((s, t) => s + (t.duracion_override || t.tarea?.duracion_total || 0), 0)
+                const isRemovable = !hasTareas && fase !== 'activacion' && fase !== 'desarrollo_1'
+                const faseNota = sesion.fase_notas?.[fase]
+
+                return (
+                  <Card key={fase} className={`card-hover ${!hasTareas ? 'border-dashed' : ''}`}>
+                    <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
+                      <div className="flex items-center gap-2">
+                        {dragHandle}
+                        <CircleDot className={`h-4 w-4 ${hasTareas ? 'text-primary' : 'text-muted-foreground'}`} />
+                        <h3 className="font-medium">{FASE_LABELS[fase]}</h3>
+                        {hasTareas && (
+                          <span className="text-xs text-muted-foreground">{faseDuration} min</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setTaskPickerFase(fase)
+                            setPickerTab('biblioteca')
+                            setTaskPickerOpen(true)
+                          }}
+                        >
+                          <Plus className="h-4 w-4 mr-1" /> Anadir tarea
+                        </Button>
+                        {isRemovable && (
+                          <button
+                            onClick={() => handleRemoveFase(fase)}
+                            className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                            title="Quitar fase"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {hasTareas ? (
+                      <div className="divide-y">
+                        {tareas.map((st, idx) => {
+                          const isExpanded = expandedFormaciones.has(st.id)
+                          const hasFormacion = !!st.formacion_equipos
+                          const hasEstructura = !!st.tarea?.estructura_equipos
+
+                          return (
+                            <div key={st.id}>
+                              <div className="p-4 hover:bg-muted/30 transition-colors group">
+                                <div className="flex items-start gap-3">
+                                  <div className="flex flex-col items-center gap-1 pt-1">
+                                    <button
+                                      onClick={() => handleMoveTarea(st, 'up')}
+                                      disabled={idx === 0}
+                                      className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                    >
+                                      <ChevronUp className="h-3 w-3" />
+                                    </button>
+                                    <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-xs">
+                                      {idx + 1}
+                                    </div>
+                                    <button
+                                      onClick={() => handleMoveTarea(st, 'down')}
+                                      disabled={idx === tareas.length - 1}
+                                      className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                    >
+                                      <ChevronDown className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <h4 className="font-medium">{st.tarea?.titulo || 'Tarea sin titulo'}</h4>
+                                      {st.tarea?.categoria && (
+                                        <Badge variant="outline" className="text-[10px]">
+                                          {st.tarea.categoria.nombre}
+                                        </Badge>
+                                      )}
+                                      {hasEstructura && (
+                                        <Badge variant="outline" className="text-[10px]">
+                                          {st.tarea?.estructura_equipos}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-3 mt-1">
+                                      <div className="flex items-center gap-1">
+                                        <Clock className="h-3 w-3 text-muted-foreground" />
+                                        <input
+                                          type="number"
+                                          className="w-12 text-sm bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none text-center"
+                                          value={st.duracion_override || st.tarea?.duracion_total || 0}
+                                          onChange={(e) => handleUpdateTareaDuration(st.id, parseInt(e.target.value) || 0)}
+                                        />
+                                        <span className="text-xs text-muted-foreground">min</span>
+                                      </div>
+                                      {st.tarea?.num_jugadores_min && (
+                                        <span className="text-xs text-muted-foreground">
+                                          {st.tarea.num_jugadores_min}{st.tarea.num_jugadores_max ? `-${st.tarea.num_jugadores_max}` : ''} jug.
+                                        </span>
+                                      )}
+                                    </div>
+                                    <input
+                                      className="mt-1 text-sm text-muted-foreground bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none w-full italic"
+                                      placeholder="Notas de la tarea..."
+                                      value={st.notas || ''}
+                                      onChange={(e) => handleUpdateTareaNotas(st.id, e.target.value)}
+                                      onBlur={() => saveTareasBatch(allTareas)}
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    {/* Edit task button */}
+                                    <button
+                                      onClick={() => openEditTarea(st)}
+                                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                      title="Editar tarea"
+                                    >
+                                      <Pencil className="h-4 w-4" />
+                                    </button>
+                                    {/* Equipos toggle button */}
+                                    <button
+                                      onClick={() => toggleFormacionPanel(st.id)}
+                                      className={`p-1.5 rounded-md transition-colors ${
+                                        isExpanded
+                                          ? 'bg-primary/10 text-primary'
+                                          : hasFormacion
+                                            ? 'text-primary hover:bg-primary/10'
+                                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                                      }`}
+                                      title="Equipos"
+                                    >
+                                      <Users className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleRemoveTarea(st)}
+                                      className="p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                      title="Eliminar tarea"
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Inline Formation Panel */}
+                              {isExpanded && (
+                                <div className="px-4 pb-4 pt-0 ml-10 mr-4">
+                                  <div className="border rounded-lg p-3 bg-muted/20">
+                                    <FormacionPanel
+                                      sesionId={sesionId}
+                                      sesionTarea={st}
+                                      jugadoresMap={jugadoresMap}
+                                      onFormacionChange={handleFormacionChange}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <div className="p-6 text-center">
+                        {faseNota ? (
+                          <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground italic">{faseNota}</p>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">Sin tareas asignadas</p>
+                        )}
+                        <input
+                          className="mt-2 text-sm text-center bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none w-full"
+                          placeholder="Nota para esta fase (ej: Reservado para PF)..."
+                          value={sesion.fase_notas?.[fase] || ''}
+                          onChange={(e) => {
+                            const newNotas = { ...(sesion.fase_notas || {}), [fase]: e.target.value }
+                            updateField('fase_notas', newNotas)
+                          }}
+                        />
+                      </div>
+                    )}
+                  </Card>
+                )
+              }
 
               return (
-                <Card key={fase} className={`card-hover ${!hasTareas ? 'border-dashed' : ''}`}>
-                  <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
-                    <div className="flex items-center gap-2">
-                      <CircleDot className={`h-4 w-4 ${hasTareas ? 'text-primary' : 'text-muted-foreground'}`} />
-                      <h3 className="font-medium">{FASE_LABELS[fase]}</h3>
-                      {hasTareas && (
-                        <span className="text-xs text-muted-foreground">{faseDuration} min</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setTaskPickerFase(fase)
-                          setPickerTab('biblioteca')
-                          setTaskPickerOpen(true)
-                        }}
-                      >
-                        <Plus className="h-4 w-4 mr-1" /> Anadir tarea
-                      </Button>
-                      {isRemovable && (
-                        <button
-                          onClick={() => handleRemoveFase(fase)}
-                          className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                          title="Quitar fase"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                <>
+                  {/* activacion — fixed, not draggable */}
+                  {activeFases.includes('activacion') && renderPhaseCard('activacion', null)}
 
-                  {hasTareas ? (
-                    <div className="divide-y">
-                      {tareas.map((st, idx) => {
-                        const isExpanded = expandedFormaciones.has(st.id)
-                        const hasFormacion = !!st.formacion_equipos
-                        const hasEstructura = !!st.tarea?.estructura_equipos
+                  {/* desarrollo phases — draggable */}
+                  <DndContext sensors={phaseSensors} collisionDetection={closestCenter} onDragEnd={handlePhaseReorder}>
+                    <SortableContext items={draggableFases} strategy={verticalListSortingStrategy}>
+                      {draggableFases.map(fase => (
+                        <SortablePhaseCard key={fase} fase={fase} isDraggable={draggableFases.length > 1}>
+                          {(dragHandle) => renderPhaseCard(fase, dragHandle)}
+                        </SortablePhaseCard>
+                      ))}
+                    </SortableContext>
+                  </DndContext>
 
-                        return (
-                          <div key={st.id}>
-                            <div className="p-4 hover:bg-muted/30 transition-colors group">
-                              <div className="flex items-start gap-3">
-                                <div className="flex flex-col items-center gap-1 pt-1">
-                                  <button
-                                    onClick={() => handleMoveTarea(st, 'up')}
-                                    disabled={idx === 0}
-                                    className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
-                                  >
-                                    <ChevronUp className="h-3 w-3" />
-                                  </button>
-                                  <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-xs">
-                                    {idx + 1}
-                                  </div>
-                                  <button
-                                    onClick={() => handleMoveTarea(st, 'down')}
-                                    disabled={idx === tareas.length - 1}
-                                    className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
-                                  >
-                                    <ChevronDown className="h-3 w-3" />
-                                  </button>
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <h4 className="font-medium">{st.tarea?.titulo || 'Tarea sin titulo'}</h4>
-                                    {st.tarea?.categoria && (
-                                      <Badge variant="outline" className="text-[10px]">
-                                        {st.tarea.categoria.nombre}
-                                      </Badge>
-                                    )}
-                                    {hasEstructura && (
-                                      <Badge variant="outline" className="text-[10px]">
-                                        {st.tarea?.estructura_equipos}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-3 mt-1">
-                                    <div className="flex items-center gap-1">
-                                      <Clock className="h-3 w-3 text-muted-foreground" />
-                                      <input
-                                        type="number"
-                                        className="w-12 text-sm bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none text-center"
-                                        value={st.duracion_override || st.tarea?.duracion_total || 0}
-                                        onChange={(e) => handleUpdateTareaDuration(st.id, parseInt(e.target.value) || 0)}
-                                      />
-                                      <span className="text-xs text-muted-foreground">min</span>
-                                    </div>
-                                    {st.tarea?.num_jugadores_min && (
-                                      <span className="text-xs text-muted-foreground">
-                                        {st.tarea.num_jugadores_min}{st.tarea.num_jugadores_max ? `-${st.tarea.num_jugadores_max}` : ''} jug.
-                                      </span>
-                                    )}
-                                  </div>
-                                  <input
-                                    className="mt-1 text-sm text-muted-foreground bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none w-full italic"
-                                    placeholder="Notas de la tarea..."
-                                    value={st.notas || ''}
-                                    onChange={(e) => handleUpdateTareaNotas(st.id, e.target.value)}
-                                    onBlur={() => saveTareasBatch(allTareas)}
-                                  />
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  {/* Edit task button */}
-                                  <button
-                                    onClick={() => openEditTarea(st)}
-                                    className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                                    title="Editar tarea"
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                  </button>
-                                  {/* Equipos toggle button */}
-                                  <button
-                                    onClick={() => toggleFormacionPanel(st.id)}
-                                    className={`p-1.5 rounded-md transition-colors ${
-                                      isExpanded
-                                        ? 'bg-primary/10 text-primary'
-                                        : hasFormacion
-                                          ? 'text-primary hover:bg-primary/10'
-                                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                                    }`}
-                                    title="Equipos"
-                                  >
-                                    <Users className="h-4 w-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleRemoveTarea(st)}
-                                    className="p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                                    title="Eliminar tarea"
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Inline Formation Panel */}
-                            {isExpanded && (
-                              <div className="px-4 pb-4 pt-0 ml-10 mr-4">
-                                <div className="border rounded-lg p-3 bg-muted/20">
-                                  <FormacionPanel
-                                    sesionId={sesionId}
-                                    sesionTarea={st}
-                                    jugadoresMap={jugadoresMap}
-                                    onFormacionChange={handleFormacionChange}
-                                  />
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <div className="p-6 text-center">
-                      {faseNota ? (
-                        <div className="space-y-2">
-                          <p className="text-sm text-muted-foreground italic">{faseNota}</p>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">Sin tareas asignadas</p>
-                      )}
-                      <input
-                        className="mt-2 text-sm text-center bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none w-full"
-                        placeholder="Nota para esta fase (ej: Reservado para PF)..."
-                        value={sesion.fase_notas?.[fase] || ''}
-                        onChange={(e) => {
-                          const newNotas = { ...(sesion.fase_notas || {}), [fase]: e.target.value }
-                          updateField('fase_notas', newNotas)
-                        }}
-                      />
-                    </div>
-                  )}
-                </Card>
+                  {/* vuelta_calma — fixed, not draggable */}
+                  {activeFases.includes('vuelta_calma') && renderPhaseCard('vuelta_calma', null)}
+                </>
               )
-            })}
+            })()}
           </div>
         </TabsContent>
 
