@@ -108,7 +108,7 @@ export const sesionesApi = {
   },
 
   async generatePdf(id: string): Promise<void> {
-    const blob = await api.getBlob(`/sesiones/${id}/pdf`, { timeout: 60000 })
+    const blob = await api.getBlob(`/sesiones/${id}/pdf`, { timeout: 120000 })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -118,7 +118,7 @@ export const sesionesApi = {
   },
 
   async previewPdf(id: string): Promise<void> {
-    const blob = await api.getBlob(`/sesiones/${id}/pdf?preview=true`, { timeout: 60000 })
+    const blob = await api.getBlob(`/sesiones/${id}/pdf?preview=true`, { timeout: 120000 })
     const url = URL.createObjectURL(blob)
     window.open(url, '_blank')
   },
