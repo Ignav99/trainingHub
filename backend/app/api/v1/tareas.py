@@ -601,6 +601,26 @@ async def create_tarea_from_ai(
         except (ValueError, TypeError):
             tarea_data["nivel_cognitivo"] = 2
 
+    # Ensure JSONB array fields are lists, not strings
+    for field in [
+        "reglas_tecnicas", "reglas_tacticas", "reglas_psicologicas",
+        "consignas_ofensivas", "consignas_defensivas", "errores_comunes",
+        "tags", "variantes", "progresiones", "regresiones", "material",
+    ]:
+        val = tarea_data.get(field)
+        if val is None or isinstance(val, list):
+            continue
+        if isinstance(val, str):
+            stripped = val.strip()
+            if not stripped:
+                tarea_data[field] = []
+            elif "\n" in stripped:
+                tarea_data[field] = [line.strip() for line in stripped.split("\n") if line.strip()]
+            else:
+                tarea_data[field] = [stripped]
+        else:
+            tarea_data[field] = []
+
     # Insertar
     try:
         response = supabase.table("tareas").insert(tarea_data).execute()

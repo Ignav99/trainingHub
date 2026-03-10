@@ -3,8 +3,8 @@ TrainingHub Pro - Modelos de Tarea
 Schemas Pydantic para tareas de entrenamiento.
 """
 
-from pydantic import BaseModel, Field, computed_field
-from typing import Optional, List
+from pydantic import BaseModel, Field, computed_field, model_validator
+from typing import Optional, List, Any
 from datetime import datetime
 from uuid import UUID
 from enum import Enum
@@ -135,6 +135,35 @@ class TareaBase(BaseModel):
     es_plantilla: bool = False
     es_publica: bool = False
     tags: List[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def coerce_list_fields(cls, data: Any) -> Any:
+        """Coerce string values to lists for JSONB array fields.
+        AI-created tasks may store these as strings instead of arrays."""
+        if not isinstance(data, dict):
+            return data
+        list_fields = [
+            "reglas_tecnicas", "reglas_tacticas", "reglas_psicologicas",
+            "consignas_ofensivas", "consignas_defensivas", "errores_comunes",
+            "tags",
+        ]
+        for field in list_fields:
+            val = data.get(field)
+            if val is None or isinstance(val, list):
+                continue
+            if isinstance(val, str):
+                # Split on newlines if multi-line, otherwise single-element list
+                stripped = val.strip()
+                if not stripped:
+                    data[field] = []
+                elif "\n" in stripped:
+                    data[field] = [line.strip() for line in stripped.split("\n") if line.strip()]
+                else:
+                    data[field] = [stripped]
+            else:
+                data[field] = []
+        return data
 
 
 class TareaCreate(TareaBase):
