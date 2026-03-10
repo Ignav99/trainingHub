@@ -226,6 +226,61 @@ async def get_team_wellness_alerts(
     return {"data": alertas, "total_alertas": len(alertas)}
 
 
+@router.put("/{wellness_id}")
+async def update_wellness(
+    wellness_id: UUID,
+    data: WellnessCreate,
+    auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
+):
+    """Update an existing wellness record."""
+    supabase = get_supabase()
+    wid = str(wellness_id)
+
+    # Verify record exists and is a wellness record
+    existing = supabase.table("registros_rpe").select("id, tipo").eq("id", wid).single().execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Registro no encontrado")
+    if existing.data.get("tipo") != "wellness":
+        raise HTTPException(status_code=400, detail="Solo se pueden editar registros de wellness")
+
+    update_data = {
+        "fecha": data.fecha.isoformat(),
+        "sueno": data.sueno,
+        "fatiga": data.fatiga,
+        "dolor": data.dolor,
+        "estres": data.estres,
+        "humor": data.humor,
+    }
+
+    response = supabase.table("registros_rpe").update(update_data).eq("id", wid).execute()
+    if not response.data:
+        raise HTTPException(status_code=400, detail="Error al actualizar registro")
+
+    updated = response.data[0]
+    updated["total"] = _wellness_total(updated)
+    return updated
+
+
+@router.delete("/{wellness_id}", status_code=status.HTTP_200_OK)
+async def delete_wellness(
+    wellness_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
+):
+    """Delete a wellness record."""
+    supabase = get_supabase()
+    wid = str(wellness_id)
+
+    # Verify record exists
+    existing = supabase.table("registros_rpe").select("id, tipo").eq("id", wid).single().execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Registro no encontrado")
+    if existing.data.get("tipo") != "wellness":
+        raise HTTPException(status_code=400, detail="Solo se pueden eliminar registros de wellness")
+
+    supabase.table("registros_rpe").delete().eq("id", wid).execute()
+    return {"message": "Registro eliminado"}
+
+
 @router.post("/import", status_code=status.HTTP_201_CREATED)
 async def bulk_import_wellness(
     items: list[WellnessBulkItem],

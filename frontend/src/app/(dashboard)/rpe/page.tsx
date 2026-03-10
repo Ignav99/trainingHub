@@ -17,9 +17,14 @@ import {
   FileSpreadsheet,
   ChevronDown,
   ChevronUp,
+  Pencil,
+  Trash2,
+  Save,
+  X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -34,7 +39,7 @@ import { cargaApi } from '@/lib/api/carga'
 import { wellnessApi } from '@/lib/api/wellness'
 import { jugadoresApi, Jugador } from '@/lib/api/jugadores'
 import { apiKey } from '@/lib/swr'
-import type { CargaEquipoResponse, CargaJugador, NivelCarga, WellnessAggregates } from '@/types'
+import type { CargaEquipoResponse, CargaJugador, NivelCarga, WellnessAggregates, WellnessEntry } from '@/types'
 import {
   LineChart,
   Line,
@@ -227,7 +232,7 @@ export default function RPEPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Card className={teamWellnessAvg != null ? '' : ''}>
+            <Card>
               <CardContent className="p-4 text-center">
                 <Heart className="h-5 w-5 mx-auto mb-1 text-rose-500" />
                 <p className={`text-2xl font-bold ${getWellnessColor(teamWellnessAvg)}`}>
@@ -408,22 +413,73 @@ export default function RPEPage() {
 
 /** Mini-chart row that loads player wellness history on expand */
 function ExpandedWellnessRow({ jugadorId }: { jugadorId: string }) {
-  const [history, setHistory] = useState<{ fecha: string; total: number; sueno: number; fatiga: number; dolor: number; estres: number; humor: number }[]>([])
+  const [history, setHistory] = useState<WellnessEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editValues, setEditValues] = useState({ sueno: 3, fatiga: 3, dolor: 3, estres: 3, humor: 3 })
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState<string | null>(null)
+
+  const fetchData = async () => {
+    try {
+      const res = await wellnessApi.getPlayerHistory(jugadorId, { limit: 14 })
+      setHistory(res.data.reverse())
+    } catch {
+      setHistory([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await wellnessApi.getPlayerHistory(jugadorId, { limit: 14 })
-        setHistory(res.data.reverse())
-      } catch {
-        setHistory([])
-      } finally {
-        setLoading(false)
-      }
-    }
     fetchData()
   }, [jugadorId])
+
+  const handleStartEdit = (entry: WellnessEntry) => {
+    setEditingId(entry.id)
+    setEditValues({
+      sueno: entry.sueno,
+      fatiga: entry.fatiga,
+      dolor: entry.dolor,
+      estres: entry.estres,
+      humor: entry.humor,
+    })
+  }
+
+  const handleSaveEdit = async (entry: WellnessEntry) => {
+    setSaving(true)
+    try {
+      await wellnessApi.update(entry.id, {
+        jugador_id: entry.jugador_id,
+        fecha: entry.fecha,
+        ...editValues,
+      })
+      toast.success('Registro actualizado')
+      setEditingId(null)
+      setLoading(true)
+      await fetchData()
+      mutate((key: string) => typeof key === 'string' && (key.includes('/wellness') || key.includes('/carga')), undefined, { revalidate: true })
+    } catch (err: any) {
+      toast.error(err?.message || 'Error al actualizar')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('¿Eliminar este registro de wellness?')) return
+    setDeleting(id)
+    try {
+      await wellnessApi.delete(id)
+      toast.success('Registro eliminado')
+      setHistory((prev) => prev.filter((h) => h.id !== id))
+      mutate((key: string) => typeof key === 'string' && (key.includes('/wellness') || key.includes('/carga')), undefined, { revalidate: true })
+    } catch (err: any) {
+      toast.error(err?.message || 'Error al eliminar')
+    } finally {
+      setDeleting(null)
+    }
+  }
 
   if (loading) {
     return (
@@ -441,8 +497,17 @@ function ExpandedWellnessRow({ jugadorId }: { jugadorId: string }) {
     )
   }
 
+  const FIELDS = [
+    { key: 'sueno' as const, icon: Moon, color: 'text-indigo-600', label: 'Sue' },
+    { key: 'fatiga' as const, icon: Zap, color: 'text-amber-600', label: 'Fat' },
+    { key: 'dolor' as const, icon: Heart, color: 'text-red-600', label: 'Dol' },
+    { key: 'estres' as const, icon: Brain, color: 'text-purple-600', label: 'Est' },
+    { key: 'humor' as const, icon: Smile, color: 'text-emerald-600', label: 'Hum' },
+  ]
+
   return (
-    <div className="p-4 bg-muted/30 border-t">
+    <div className="p-4 bg-muted/30 border-t space-y-4">
+      {/* Chart + last entry summary */}
       <div className="flex items-center gap-6">
         <div className="flex-1 h-32">
           <p className="text-xs font-medium text-muted-foreground mb-1">Wellness total (ultimos 14 registros)</p>
@@ -458,13 +523,7 @@ function ExpandedWellnessRow({ jugadorId }: { jugadorId: string }) {
         <div className="w-48 shrink-0">
           <p className="text-xs font-medium text-muted-foreground mb-2">Ultimo registro</p>
           <div className="grid grid-cols-5 gap-1 text-center">
-            {[
-              { key: 'sueno', icon: Moon, color: 'text-indigo-600', label: 'Sue' },
-              { key: 'fatiga', icon: Zap, color: 'text-amber-600', label: 'Fat' },
-              { key: 'dolor', icon: Heart, color: 'text-red-600', label: 'Dol' },
-              { key: 'estres', icon: Brain, color: 'text-purple-600', label: 'Est' },
-              { key: 'humor', icon: Smile, color: 'text-emerald-600', label: 'Hum' },
-            ].map((f) => {
+            {FIELDS.map((f) => {
               const Icon = f.icon
               const val = (history[history.length - 1] as any)[f.key] as number
               return (
@@ -477,6 +536,100 @@ function ExpandedWellnessRow({ jugadorId }: { jugadorId: string }) {
             })}
           </div>
         </div>
+      </div>
+
+      {/* History table with edit/delete */}
+      <div className="overflow-x-auto max-h-48 overflow-y-auto">
+        <table className="w-full text-xs">
+          <thead className="sticky top-0 bg-muted/80">
+            <tr className="border-b">
+              <th className="pb-1 text-left font-medium">Fecha</th>
+              {FIELDS.map((f) => (
+                <th key={f.key} className="pb-1 text-center font-medium">{f.label}</th>
+              ))}
+              <th className="pb-1 text-center font-medium">Total</th>
+              <th className="pb-1 text-center font-medium w-20">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...history].reverse().map((entry, idx) => {
+              const isEditing = editingId === entry.id
+              const total = isEditing
+                ? editValues.sueno + editValues.fatiga + editValues.dolor + editValues.estres + editValues.humor
+                : entry.total
+
+              return (
+                <tr key={entry.id} className={`border-b last:border-0 ${isEditing ? 'bg-blue-50/50' : ''}`}>
+                  <td className="py-1.5">{entry.fecha}</td>
+                  {FIELDS.map((f) => (
+                    <td key={f.key} className="py-1.5 text-center">
+                      {isEditing ? (
+                        <input
+                          type="number"
+                          min={1}
+                          max={5}
+                          value={editValues[f.key]}
+                          onChange={(e) => setEditValues({ ...editValues, [f.key]: Math.min(5, Math.max(1, parseInt(e.target.value) || 1)) })}
+                          className="w-10 text-center border rounded px-1 py-0.5 text-xs"
+                        />
+                      ) : (
+                        <span className={entry[f.key] <= 2 ? 'text-red-600 font-bold' : ''}>
+                          {entry[f.key]}
+                        </span>
+                      )}
+                    </td>
+                  ))}
+                  <td className={`py-1.5 text-center font-bold ${
+                    total >= 20 ? 'text-green-600' : total >= 15 ? 'text-amber-600' : 'text-red-600'
+                  }`}>
+                    {total}
+                  </td>
+                  <td className="py-1.5 text-center">
+                    <div className="flex items-center justify-center gap-1">
+                      {isEditing ? (
+                        <>
+                          <button
+                            onClick={() => handleSaveEdit(entry)}
+                            disabled={saving}
+                            className="p-1 text-green-600 hover:bg-green-50 rounded disabled:opacity-50"
+                            title="Guardar"
+                          >
+                            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                          </button>
+                          <button
+                            onClick={() => setEditingId(null)}
+                            className="p-1 text-gray-500 hover:bg-gray-100 rounded"
+                            title="Cancelar"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleStartEdit(entry)}
+                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                            title="Editar"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(entry.id)}
+                            disabled={deleting === entry.id}
+                            className="p-1 text-red-500 hover:bg-red-50 rounded disabled:opacity-50"
+                            title="Eliminar"
+                          >
+                            {deleting === entry.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   )

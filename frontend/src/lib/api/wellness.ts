@@ -25,6 +25,12 @@ export const wellnessApi = {
   create: (data: CreateWellnessData) =>
     api.post<WellnessEntry>('/wellness', data),
 
+  update: (id: string, data: CreateWellnessData) =>
+    api.put<WellnessEntry>(`/wellness/${id}`, data),
+
+  delete: (id: string) =>
+    api.delete(`/wellness/${id}`),
+
   getTeam: (equipoId: string) =>
     api.get<{ data: WellnessAggregates[] }>(`/wellness/equipo/${equipoId}`),
 
