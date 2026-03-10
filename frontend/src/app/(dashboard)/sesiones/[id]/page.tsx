@@ -35,6 +35,7 @@ import {
   Sparkles,
   Plus,
   Download,
+  Eye,
   CircleDot,
   ChevronUp,
   ChevronDown,
@@ -683,6 +684,7 @@ export default function SesionDetailPage() {
   // Action states
   const [deleting, setDeleting] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
+  const [previewingPdf, setPreviewingPdf] = useState(false)
   const [savingTareas, setSavingTareas] = useState(false)
 
   // Task picker
@@ -814,12 +816,24 @@ export default function SesionDetailPage() {
   }
 
   // ============ PDF ============
+  const handlePreviewPdf = async () => {
+    setPreviewingPdf(true)
+    try {
+      await sesionesApi.previewPdf(sesionId)
+    } catch (err) {
+      toast.error('Error al generar vista previa del PDF')
+    } finally {
+      setPreviewingPdf(false)
+    }
+  }
+
   const handleGeneratePdf = async () => {
     setGeneratingPdf(true)
     try {
       await sesionesApi.generatePdf(sesionId)
+      toast.success('PDF descargado')
     } catch (err) {
-      console.error('Error generating PDF:', err)
+      toast.error('Error al descargar PDF')
     } finally {
       setGeneratingPdf(false)
     }
@@ -1296,7 +1310,10 @@ export default function SesionDetailPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={handleGeneratePdf} disabled={generatingPdf} title="Exportar PDF">
+          <Button variant="outline" size="icon" onClick={handlePreviewPdf} disabled={previewingPdf} title="Vista previa PDF">
+            {previewingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+          </Button>
+          <Button variant="outline" size="icon" onClick={handleGeneratePdf} disabled={generatingPdf} title="Descargar PDF">
             {generatingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           </Button>
           <Button variant="outline" size="icon" onClick={handleDelete} disabled={deleting} className="text-destructive hover:bg-destructive/10" title="Eliminar">

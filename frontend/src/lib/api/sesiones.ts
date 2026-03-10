@@ -115,6 +115,12 @@ export const sesionesApi = {
     URL.revokeObjectURL(url)
   },
 
+  async previewPdf(id: string): Promise<void> {
+    const blob = await api.getBlob(`/sesiones/${id}/pdf?preview=true`)
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank')
+  },
+
   // Asistencia
   async getAsistencias(sesionId: string): Promise<AsistenciaListResponse> {
     return api.get<AsistenciaListResponse>(`/sesiones/${sesionId}/asistencias`)

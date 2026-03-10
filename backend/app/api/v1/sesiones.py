@@ -1047,6 +1047,7 @@ async def delete_formacion_tarea(
 @router.get("/{sesion_id}/pdf")
 async def generate_pdf(
     sesion_id: UUID,
+    preview: bool = Query(False, description="If true, return inline for browser preview"),
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
     """Genera el PDF de la sesión, lo sube a Storage y lo devuelve."""
@@ -1194,12 +1195,11 @@ async def generate_pdf(
         pass
 
     # Devolver PDF como streaming response
+    disposition = "inline" if preview else f'attachment; filename="sesion_{sesion_id}.pdf"'
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'attachment; filename="sesion_{sesion_id}.pdf"'
-        }
+        headers={"Content-Disposition": disposition}
     )
 
 

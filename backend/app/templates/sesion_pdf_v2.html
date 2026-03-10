@@ -153,18 +153,15 @@ body {
     color: #333; font-size: 8px;
 }
 
-/* --- Exercise Grid (dynamic) --- */
+/* --- Exercise Grid (flexbox for WeasyPrint compat) --- */
 .ex-grid {
     flex: 1;
-    display: grid;
+    display: flex;
+    flex-wrap: wrap;
     min-height: 0;
     overflow: hidden;
     background: #f5f5f5;
 }
-/* Dynamic column count based on number of exercises */
-.ex-grid-2 { grid-template-columns: 1fr 1fr; }
-.ex-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
-.ex-grid-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
 
 .ex-card {
     display: flex;
@@ -727,13 +724,15 @@ body {
     </div>
     {% endif %}
 
-    <!-- Exercise Grid (ALL exercises, dynamic columns) -->
+    <!-- Exercise Grid (ALL exercises, flex-wrap for WeasyPrint compat) -->
     {% set num_tareas = all_tareas|length %}
-    {% set grid_cols = 4 if num_tareas > 6 else (3 if num_tareas > 4 else 2) %}
+    {% set grid_cols = 4 if num_tareas > 6 else (3 if num_tareas > 4 else (2 if num_tareas > 1 else 1)) %}
     {% set grid_rows = (num_tareas + grid_cols - 1) // grid_cols %}
-    <div class="ex-grid ex-grid-{{ grid_cols }}" style="grid-template-rows: repeat({{ grid_rows }}, 1fr);">
+    {% set card_w = (100.0 / grid_cols)|round(2) %}
+    {% set card_h = (100.0 / grid_rows)|round(2) %}
+    <div class="ex-grid">
         {% for tarea in all_tareas %}
-        <div class="ex-card">
+        <div class="ex-card" style="width:{{ card_w }}%;height:{{ card_h }}%;">
             <!-- Card Header: number + badge + title + duration -->
             <div class="ex-card-header">
                 <span class="ex-num">{{ '%02d' % loop.index }}</span>
@@ -742,25 +741,19 @@ body {
                 <span class="ex-dur">{{ tarea.duracion }}'</span>
             </div>
 
-            <!-- Objective line (simplified) -->
+            <!-- Objective line -->
             {% if tarea.objetivo_tactico %}
             <div class="ex-objetivo">{{ tarea.objetivo_tactico }}</div>
             {% endif %}
 
-            <!-- Diagram: show for complex exercises, skip for activacion/vuelta_calma without diagram -->
-            {% if tarea.has_diagram and not tarea.is_activacion and not tarea.is_vuelta_calma %}
-            <div class="campo-mini-wrap">
-                {{ tarea.svg_thumbnail }}
-            </div>
-            {% elif tarea.has_diagram and (tarea.is_activacion or tarea.is_vuelta_calma) %}
-            {# Activacion/vuelta calma with diagram: show it but smaller context #}
+            <!-- Diagram: always show field (empty pitch if no data) -->
+            {% if tarea.is_activacion or tarea.is_vuelta_calma %}
             <div class="campo-mini-wrap" style="max-height: 28mm; padding: 2px 4px;">
                 {{ tarea.svg_thumbnail }}
             </div>
             {% else %}
-            <div class="ex-no-diagram">
-                <div class="ex-no-diagram-fase">{{ tarea.fase_label }}</div>
-                <div class="ex-no-diagram-info">{% if tarea.espacio_largo and tarea.espacio_ancho %}{{ tarea.espacio_largo|int }}x{{ tarea.espacio_ancho|int }}m{% endif %}{% if tarea.num_series %} · {{ tarea.num_series }} series{% endif %}</div>
+            <div class="campo-mini-wrap">
+                {{ tarea.svg_thumbnail }}
             </div>
             {% endif %}
 
@@ -782,10 +775,10 @@ body {
         </div>
         {% endfor %}
 
-        {# Fill empty grid slots #}
-        {% set total_slots = (4 if num_tareas > 6 else (3 if num_tareas > 4 else 2)) * ((num_tareas + (4 if num_tareas > 6 else (3 if num_tareas > 4 else 2)) - 1) // (4 if num_tareas > 6 else (3 if num_tareas > 4 else 2))) %}
+        {# Fill empty flex slots to maintain grid alignment #}
+        {% set total_slots = grid_cols * grid_rows %}
         {% for i in range(num_tareas, total_slots) %}
-        <div class="ex-card" style="background:#fafafa;display:flex;align-items:center;justify-content:center;">
+        <div class="ex-card" style="width:{{ card_w }}%;height:{{ card_h }}%;background:#fafafa;display:flex;align-items:center;justify-content:center;">
             <div style="color:#ddd;font-size:10px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:2px;">—</div>
         </div>
         {% endfor %}
@@ -870,15 +863,13 @@ body {
     </div>
     {% endif %}
 
-    <!-- Large Field -->
-    {% if tarea.has_diagram %}
+    <!-- Large Field (always show — empty pitch if no diagram data) -->
     <div class="campo-section">
         <div class="campo-section-title">Descripcion Grafica</div>
         <div class="campo-grande-wrap">
             {{ tarea.svg_large }}
         </div>
     </div>
-    {% endif %}
 
     <!-- Info Section (2 columns) -->
     <div class="info-section">
