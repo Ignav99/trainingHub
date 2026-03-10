@@ -760,6 +760,7 @@ async def sugerir_equipos(
 
 
 class DuplicarYEditarTareaRequest(BaseModel):
+    model_config = {"extra": "ignore"}
     titulo: Optional[str] = None
     descripcion: Optional[str] = None
     duracion_total: Optional[int] = None
@@ -776,6 +777,11 @@ class DuplicarYEditarTareaRequest(BaseModel):
     progresiones: Optional[str] = None
     estructura_equipos: Optional[str] = None
     material: Optional[list] = None
+    num_series: Optional[int] = None
+    densidad: Optional[str] = None
+    nivel_cognitivo: Optional[int] = None
+    fase_juego: Optional[str] = None
+    principio_tactico: Optional[str] = None
 
 
 @router.post("/{sesion_id}/tareas/{sesion_tarea_id}/duplicar-y-editar")

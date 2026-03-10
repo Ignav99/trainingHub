@@ -22,6 +22,15 @@ function getPersistedToken(): string | null {
   return null
 }
 
+function extractErrorMessage(error: any, status: number): string {
+  if (!error?.detail) return `API Error: ${status}`
+  if (typeof error.detail === 'string') return error.detail
+  if (Array.isArray(error.detail)) {
+    return error.detail.map((e: any) => e.msg || JSON.stringify(e)).join('; ')
+  }
+  return String(error.detail)
+}
+
 class ApiClient {
   private baseUrl: string
   private defaultTimeout: number
@@ -77,7 +86,7 @@ class ApiClient {
       if (response.status === 401) {
         throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
       }
-      throw new Error(error.detail || `API Error: ${response.status}`)
+      throw new Error(extractErrorMessage(error, response.status))
     }
 
     return response.json()
@@ -104,7 +113,7 @@ class ApiClient {
       if (response.status === 401) {
         throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
       }
-      throw new Error(error.detail || `API Error: ${response.status}`)
+      throw new Error(extractErrorMessage(error, response.status))
     }
 
     return response.json()
@@ -131,7 +140,7 @@ class ApiClient {
       if (response.status === 401) {
         throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
       }
-      throw new Error(error.detail || `API Error: ${response.status}`)
+      throw new Error(extractErrorMessage(error, response.status))
     }
 
     return response.json()
@@ -158,7 +167,7 @@ class ApiClient {
       if (response.status === 401) {
         throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
       }
-      throw new Error(error.detail || `API Error: ${response.status}`)
+      throw new Error(extractErrorMessage(error, response.status))
     }
 
     return response.json()
@@ -186,7 +195,7 @@ class ApiClient {
       if (response.status === 401) {
         throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
       }
-      throw new Error(error.detail || `API Error: ${response.status}`)
+      throw new Error(extractErrorMessage(error, response.status))
     }
 
     return response.json()
@@ -208,7 +217,7 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
-      throw new Error(error.detail || `API Error: ${response.status}`)
+      throw new Error(extractErrorMessage(error, response.status))
     }
 
     return response.blob()
@@ -234,7 +243,7 @@ class ApiClient {
       if (response.status === 401) {
         throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
       }
-      throw new Error(error.detail || `API Error: ${response.status}`)
+      throw new Error(extractErrorMessage(error, response.status))
     }
   }
 }
