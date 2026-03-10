@@ -1030,6 +1030,7 @@ async def crear_tarea_en_sesion(
     tarea_data["es_plantilla"] = False
     tarea_data["creado_por"] = str(auth.user_id)
     tarea_data["equipo_id"] = sesion.data.get("equipo_id")
+    tarea_data["organizacion_id"] = str(auth.organizacion_id)
 
     # Insert tarea
     insert_resp = supabase.table("tareas").insert(tarea_data).execute()
@@ -1106,6 +1107,7 @@ async def ai_crear_tarea_en_sesion(
     tarea_data["es_plantilla"] = False
     tarea_data["creado_por"] = str(auth.user_id)
     tarea_data["equipo_id"] = sesion.data.get("equipo_id")
+    tarea_data["organizacion_id"] = str(auth.organizacion_id)
 
     insert_resp = supabase.table("tareas").insert(tarea_data).execute()
     if not insert_resp.data:
