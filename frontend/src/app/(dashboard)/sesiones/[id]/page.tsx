@@ -1193,24 +1193,34 @@ export default function SesionDetailPage() {
 
   const handleSaveEdit = async () => {
     if (!editingTarea) return
+    // Resolve real sesion_tarea ID (may have changed from temp- after batch save)
+    const realSt = sesion?.tareas?.find(t =>
+      t.tarea_id === editingTarea.tarea_id && t.fase_sesion === editingTarea.fase_sesion
+    ) || editingTarea
+    if (realSt.id.startsWith('temp-')) {
+      toast.error('La tarea aun se esta guardando, espera un momento')
+      return
+    }
     setSavingEdit(true)
     try {
-      const result = await sesionesApi.duplicarYEditarTarea(sesionId, editingTarea.id, editForm)
+      const result = await sesionesApi.duplicarYEditarTarea(sesionId, realSt.id, editForm)
       // Update the local session state
       setSesion((prev) => {
         if (!prev) return prev
         return {
           ...prev,
           tareas: prev.tareas?.map((t) =>
-            t.id === editingTarea.id
+            t.id === realSt.id
               ? { ...t, tarea_id: result.tarea_id, tarea: result.tareas || result.tarea }
               : t
           ),
         }
       })
       setEditingTarea(null)
-    } catch (err) {
+      toast.success('Tarea editada')
+    } catch (err: any) {
       console.error('Error saving edit:', err)
+      toast.error(err?.message || 'Error al guardar cambios')
     } finally {
       setSavingEdit(false)
     }
@@ -1218,17 +1228,23 @@ export default function SesionDetailPage() {
 
   const handleAiEdit = async () => {
     if (!editingTarea || !aiInstruction.trim()) return
+    const realSt = sesion?.tareas?.find(t =>
+      t.tarea_id === editingTarea.tarea_id && t.fase_sesion === editingTarea.fase_sesion
+    ) || editingTarea
+    if (realSt.id.startsWith('temp-')) {
+      toast.error('La tarea aun se esta guardando, espera un momento')
+      return
+    }
     setAiProcessing(true)
     setAiPreview(null)
     try {
-      const result = await sesionesApi.aiEditTarea(sesionId, editingTarea.id, aiInstruction)
-      // The AI has already duplicated and applied changes — update local state
+      const result = await sesionesApi.aiEditTarea(sesionId, realSt.id, aiInstruction)
       setSesion((prev) => {
         if (!prev) return prev
         return {
           ...prev,
           tareas: prev.tareas?.map((t) =>
-            t.id === editingTarea.id
+            t.id === realSt.id
               ? { ...t, tarea_id: result.tarea_id, tarea: result.tareas || result.tarea }
               : t
           ),
@@ -1236,8 +1252,10 @@ export default function SesionDetailPage() {
       })
       setEditingTarea(null)
       setAiInstruction('')
-    } catch (err) {
+      toast.success('Tarea editada con IA')
+    } catch (err: any) {
       console.error('Error with AI edit:', err)
+      toast.error(err?.message || 'Error al editar con IA')
     } finally {
       setAiProcessing(false)
     }
