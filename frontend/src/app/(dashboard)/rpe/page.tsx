@@ -13,40 +13,37 @@ import {
   Zap,
   Brain,
   Smile,
+  BarChart3,
+  FileSpreadsheet,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog'
-import { ListPageSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
 import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
+import { ManualRPEDialog } from '@/components/rpe/ManualRPEDialog'
+import { WellnessDialog } from '@/components/rpe/WellnessDialog'
+import { WellnessChartDialog } from '@/components/rpe/WellnessChartDialog'
+import { ExcelImportDialog } from '@/components/rpe/ExcelImportDialog'
 import { useEquipoStore } from '@/stores/equipoStore'
-import { rpeApi } from '@/lib/api/rpe'
 import { cargaApi } from '@/lib/api/carga'
+import { wellnessApi } from '@/lib/api/wellness'
 import { jugadoresApi, Jugador } from '@/lib/api/jugadores'
 import { apiKey } from '@/lib/swr'
-import { formatDate } from '@/lib/utils'
-import type { CargaEquipoResponse, CargaJugador, NivelCarga, Sesion, PaginatedResponse } from '@/types'
-
-const WELLNESS_FIELDS = [
-  { key: 'sueno', label: 'Sueno', icon: Moon, color: 'text-indigo-600' },
-  { key: 'fatiga', label: 'Fatiga', icon: Zap, color: 'text-amber-600' },
-  { key: 'dolor', label: 'Dolor', icon: Heart, color: 'text-red-600' },
-  { key: 'estres', label: 'Estres', icon: Brain, color: 'text-purple-600' },
-  { key: 'humor', label: 'Humor', icon: Smile, color: 'text-emerald-600' },
-] as const
+import type { CargaEquipoResponse, CargaJugador, NivelCarga, WellnessAggregates } from '@/types'
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  ResponsiveContainer,
+  Tooltip,
+} from 'recharts'
+import { useEffect } from 'react'
 
 function getNivelColor(nivel: NivelCarga): string {
   switch (nivel) {
@@ -76,6 +73,21 @@ function getRowHighlight(nivel: NivelCarga): string {
   }
 }
 
+function getWellnessColor(value: number | null, max: number = 25): string {
+  if (value === null) return 'text-muted-foreground'
+  const ratio = value / max
+  if (ratio >= 0.8) return 'text-green-600'    // 20-25
+  if (ratio >= 0.6) return 'text-amber-600'    // 15-19
+  return 'text-red-600'                        // <15
+}
+
+function getWellnessBg(value: number | null): string {
+  if (value === null) return ''
+  if (value >= 20) return 'bg-green-50'
+  if (value >= 15) return 'bg-amber-50'
+  return 'bg-red-50'
+}
+
 export default function RPEPage() {
   const { equipoActivo } = useEquipoStore()
 
@@ -84,12 +96,14 @@ export default function RPEPage() {
     equipoActivo?.id ? `/carga/equipo/${equipoActivo.id}` : null
   )
 
-  const { data: sesionesData } = useSWR<PaginatedResponse<Sesion>>(
-    apiKey('/sesiones', {
-      equipo_id: equipoActivo?.id,
-      estado: 'completada',
-      limit: 10,
-    }, ['equipo_id'])
+  const { data: wellnessData, isLoading: loadingWellness } = useSWR(
+    equipoActivo?.id ? `/wellness/equipo/${equipoActivo.id}` : null,
+    () => equipoActivo?.id ? wellnessApi.getTeam(equipoActivo.id) : null
+  )
+
+  const { data: alertsData } = useSWR(
+    equipoActivo?.id ? `/wellness/equipo/${equipoActivo.id}/alertas` : null,
+    () => equipoActivo?.id ? wellnessApi.getAlerts(equipoActivo.id) : null
   )
 
   const { data: jugadoresData } = useSWR<{ data: Jugador[]; total: number }>(
@@ -99,9 +113,16 @@ export default function RPEPage() {
     }, ['equipo_id'])
   )
 
-  const sesiones = sesionesData?.data || []
   const jugadores = jugadoresData?.data || []
+  const wellnessAggregates = wellnessData?.data || []
+  const wellnessMap = new Map(wellnessAggregates.map((w) => [w.jugador_id, w]))
   const loading = loadingCarga
+
+  // Dialogs state
+  const [showManualRPE, setShowManualRPE] = useState(false)
+  const [showWellness, setShowWellness] = useState(false)
+  const [showChart, setShowChart] = useState(false)
+  const [showImport, setShowImport] = useState(false)
 
   // Recalculating
   const [recalculating, setRecalculating] = useState(false)
@@ -111,7 +132,7 @@ export default function RPEPage() {
     setRecalculating(true)
     try {
       await cargaApi.recalcular(equipoActivo.id)
-      mutate((key: string) => typeof key === 'string' && key.includes('/carga'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && (key.includes('/carga') || key.includes('/wellness')), undefined, { revalidate: true })
     } catch (err: any) {
       toast.error(err.message || 'Error al recalcular')
     } finally {
@@ -119,147 +140,129 @@ export default function RPEPage() {
     }
   }
 
-  // Wellness editing
-  const [editingWellness, setEditingWellness] = useState<string | null>(null)
-  const [wellnessInput, setWellnessInput] = useState('')
-  const [savingWellness, setSavingWellness] = useState(false)
-
-  const handleWellnessClick = (jugadorId: string, currentValue: number | null) => {
-    setEditingWellness(jugadorId)
-    setWellnessInput(currentValue?.toString() || '')
-  }
-
-  const handleWellnessSave = async (jugadorId: string) => {
-    const val = parseInt(wellnessInput)
-    if (isNaN(val) || val < 1 || val > 10) {
-      setEditingWellness(null)
-      return
-    }
-    setSavingWellness(true)
-    try {
-      await cargaApi.updateWellness(jugadorId, val)
-      mutate((key: string) => typeof key === 'string' && key.includes('/carga'), undefined, { revalidate: true })
-    } catch (err: any) {
-      console.error('Error saving wellness:', err)
-    } finally {
-      setSavingWellness(false)
-      setEditingWellness(null)
-    }
-  }
-
-  // Register RPE dialog (keep manual RPE)
-  const [showRegister, setShowRegister] = useState(false)
-  const [selectedSesion, setSelectedSesion] = useState('')
-  const [selectedJugador, setSelectedJugador] = useState('')
-  const [rpeForm, setRpeForm] = useState({
-    rpe: 5,
-    duracion_percibida: 0,
-    sueno: 5,
-    fatiga: 5,
-    dolor: 1,
-    estres: 3,
-    humor: 5,
-    notas: '',
-  })
-  const [saving, setSaving] = useState(false)
-
-  const handleSave = async () => {
-    if (!selectedJugador) return
-    setSaving(true)
-    try {
-      await rpeApi.create({
-        jugador_id: selectedJugador,
-        sesion_id: selectedSesion || undefined,
-        fecha: new Date().toISOString().split('T')[0],
-        rpe: rpeForm.rpe,
-        duracion_percibida: rpeForm.duracion_percibida || undefined,
-        sueno: rpeForm.sueno,
-        fatiga: rpeForm.fatiga,
-        dolor: rpeForm.dolor,
-        estres: rpeForm.estres,
-        humor: rpeForm.humor,
-        notas: rpeForm.notas || undefined,
-      })
-      setShowRegister(false)
-      mutate((key: string) => typeof key === 'string' && (key.includes('/rpe') || key.includes('/carga')), undefined, { revalidate: true })
-    } catch (err: any) {
-      toast.error(err.message || 'Error al registrar RPE')
-    } finally {
-      setSaving(false)
-    }
-  }
+  // Expanded rows for mini-charts
+  const [expandedRow, setExpandedRow] = useState<string | null>(null)
 
   const data = cargaData?.data || []
   const resumen = cargaData?.resumen
+  const totalAlertas = alertsData?.total_alertas || 0
+
+  // Compute team wellness average from aggregates
+  const wellnessValues = wellnessAggregates.filter((w) => w.wellness_last != null).map((w) => w.wellness_last!)
+  const teamWellnessAvg = wellnessValues.length > 0
+    ? Math.round((wellnessValues.reduce((a, b) => a + b, 0) / wellnessValues.length) * 10) / 10
+    : null
+
+  // Latest wellness date
+  const latestWellnessDate = wellnessAggregates
+    .map((w) => w.wellness_last_fecha)
+    .filter(Boolean)
+    .sort()
+    .pop() || null
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <PageHeader
         title="RPE / Wellness"
-        description="Control de carga auto-calculada y bienestar de los jugadores"
+        description="Control de carga y bienestar de los jugadores"
         actions={
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={handleRecalculate}
-              disabled={recalculating}
-            >
-              {recalculating ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4 mr-2" />
-              )}
-              Recalcular
-            </Button>
-            <Button onClick={() => setShowRegister(true)}>
-              <Activity className="h-4 w-4 mr-2" />
-              Registrar RPE
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRecalculate}
+            disabled={recalculating}
+          >
+            {recalculating ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            Recalcular
+          </Button>
         }
       />
 
+      {/* 4 Action Buttons */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Button
+          variant="outline"
+          className="h-auto py-3 flex flex-col items-center gap-1.5"
+          onClick={() => setShowManualRPE(true)}
+        >
+          <Activity className="h-5 w-5 text-blue-600" />
+          <span className="text-xs font-medium">Registrar RPE Manual</span>
+        </Button>
+        <Button
+          variant="outline"
+          className="h-auto py-3 flex flex-col items-center gap-1.5"
+          onClick={() => setShowWellness(true)}
+        >
+          <Heart className="h-5 w-5 text-rose-500" />
+          <span className="text-xs font-medium">Registrar Wellness</span>
+        </Button>
+        <Button
+          variant="outline"
+          className="h-auto py-3 flex flex-col items-center gap-1.5"
+          onClick={() => setShowChart(true)}
+        >
+          <BarChart3 className="h-5 w-5 text-violet-600" />
+          <span className="text-xs font-medium">Grafica Extendida</span>
+        </Button>
+        <Button
+          variant="outline"
+          className="h-auto py-3 flex flex-col items-center gap-1.5"
+          onClick={() => setShowImport(true)}
+        >
+          <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
+          <span className="text-xs font-medium">Importar Excel</span>
+        </Button>
+      </div>
+
       {/* Summary cards */}
       <div className="animate-fade-in">
-      {loading ? (
-        <div className="grid grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
-        </div>
-      ) : resumen ? (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card>
-            <CardContent className="p-4 text-center">
-              <TrendingUp className="h-5 w-5 mx-auto mb-1 text-primary" />
-              <p className="text-2xl font-bold">{resumen.carga_media.toFixed(0)}</p>
-              <p className="text-xs text-muted-foreground">Carga media 7d (UA)</p>
-            </CardContent>
-          </Card>
-          <Card className={resumen.jugadores_riesgo > 0 ? 'border-orange-300' : ''}>
-            <CardContent className="p-4 text-center">
-              <AlertTriangle className={`h-5 w-5 mx-auto mb-1 ${resumen.jugadores_riesgo > 0 ? 'text-orange-500' : 'text-muted-foreground'}`} />
-              <p className={`text-2xl font-bold ${resumen.jugadores_riesgo > 0 ? 'text-orange-600' : ''}`}>
-                {resumen.jugadores_riesgo}
-              </p>
-              <p className="text-xs text-muted-foreground">Jugadores en riesgo</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <Heart className="h-5 w-5 mx-auto mb-1 text-rose-500" />
-              <p className="text-2xl font-bold">
-                {resumen.wellness_medio?.toFixed(1) || '-'}
-              </p>
-              <p className="text-xs text-muted-foreground">Wellness medio</p>
-            </CardContent>
-          </Card>
-        </div>
-      ) : null}
+        {loading ? (
+          <div className="grid grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Card className={teamWellnessAvg != null ? '' : ''}>
+              <CardContent className="p-4 text-center">
+                <Heart className="h-5 w-5 mx-auto mb-1 text-rose-500" />
+                <p className={`text-2xl font-bold ${getWellnessColor(teamWellnessAvg)}`}>
+                  {teamWellnessAvg != null ? teamWellnessAvg : '-'}
+                  {teamWellnessAvg != null && <span className="text-sm font-normal text-muted-foreground">/25</span>}
+                </p>
+                <p className="text-xs text-muted-foreground">Wellness Equipo</p>
+              </CardContent>
+            </Card>
+            <Card className={totalAlertas > 0 ? 'border-red-300' : ''}>
+              <CardContent className="p-4 text-center">
+                <AlertTriangle className={`h-5 w-5 mx-auto mb-1 ${totalAlertas > 0 ? 'text-red-500' : 'text-muted-foreground'}`} />
+                <p className={`text-2xl font-bold ${totalAlertas > 0 ? 'text-red-600' : ''}`}>
+                  {totalAlertas}
+                </p>
+                <p className="text-xs text-muted-foreground">Alertas activas</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 text-center">
+                <TrendingUp className="h-5 w-5 mx-auto mb-1 text-primary" />
+                <p className="text-2xl font-bold">
+                  {latestWellnessDate || '-'}
+                </p>
+                <p className="text-xs text-muted-foreground">Ultima actualizacion</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </div>
 
       {/* Player table */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Carga por jugador</CardTitle>
+          <CardTitle className="text-lg">Jugadores</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -280,94 +283,94 @@ export default function RPEPage() {
                   <tr className="border-b text-left">
                     <th className="pb-2 font-medium w-8">#</th>
                     <th className="pb-2 font-medium">Jugador</th>
-                    <th className="pb-2 font-medium">Estado</th>
                     <th className="pb-2 font-medium text-center">Carga 7d</th>
                     <th className="pb-2 font-medium text-center">ACWR</th>
                     <th className="pb-2 font-medium text-center">Nivel</th>
-                    <th className="pb-2 font-medium text-center">Wellness</th>
+                    <th className="pb-2 font-medium text-center">Media Gral</th>
+                    <th className="pb-2 font-medium text-center">Ult. 7d</th>
+                    <th className="pb-2 font-medium text-center">Ultimo</th>
+                    <th className="pb-2 font-medium text-center w-8"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.map((item) => (
-                    <tr
-                      key={item.jugador_id}
-                      className={`border-b last:border-0 row-hover ${getRowHighlight(item.nivel_carga)}`}
-                    >
-                      <td className="py-2.5 text-xs font-bold text-muted-foreground text-center">
-                        {item.dorsal || '-'}
-                      </td>
-                      <td className="py-2.5">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">
-                            {item.nombre} {item.apellidos}
-                          </span>
-                          {item.posicion_principal && (
-                            <Badge variant="outline" className="text-[9px]">
-                              {item.posicion_principal}
-                            </Badge>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-2.5">
-                        <PlayerStatusBadges
-                          estado={item.estado || 'activo'}
-                          nivelCarga={item.nivel_carga}
-                        />
-                      </td>
-                      <td className="py-2.5 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <span className={`inline-block w-2 h-2 rounded-full ${getNivelColor(item.nivel_carga)}`} />
-                          <span className="font-medium">{item.carga_aguda.toFixed(0)}</span>
-                        </div>
-                      </td>
-                      <td className="py-2.5 text-center">
-                        <span className="font-mono text-xs">
-                          {item.ratio_acwr != null ? item.ratio_acwr.toFixed(2) : '-'}
-                        </span>
-                      </td>
-                      <td className="py-2.5 text-center">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${getNivelBadgeClass(item.nivel_carga)}`}>
-                          {item.nivel_carga}
-                        </span>
-                      </td>
-                      <td className="py-2.5 text-center">
-                        {editingWellness === item.jugador_id ? (
-                          <input
-                            type="number"
-                            min={1}
-                            max={10}
-                            value={wellnessInput}
-                            onChange={(e) => setWellnessInput(e.target.value)}
-                            onBlur={() => handleWellnessSave(item.jugador_id)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleWellnessSave(item.jugador_id)
-                              if (e.key === 'Escape') setEditingWellness(null)
-                            }}
-                            autoFocus
-                            className="w-14 text-center border rounded px-1 py-0.5 text-sm"
-                          />
-                        ) : (
-                          <button
-                            onClick={() => handleWellnessClick(item.jugador_id, item.wellness_valor)}
-                            className="inline-flex items-center justify-center min-w-[2.5rem] px-2 py-0.5 rounded hover:bg-muted transition-colors cursor-pointer"
-                            title="Click para editar wellness"
-                          >
-                            {item.wellness_valor != null ? (
-                              <span className={`font-bold ${
-                                item.wellness_valor >= 7 ? 'text-green-600' :
-                                item.wellness_valor >= 4 ? 'text-amber-600' :
-                                'text-red-600'
-                              }`}>
-                                {item.wellness_valor}
+                  {data.map((item) => {
+                    const w = wellnessMap.get(item.jugador_id)
+                    const isExpanded = expandedRow === item.jugador_id
+                    return (
+                      <>
+                        <tr
+                          key={item.jugador_id}
+                          className={`border-b last:border-0 row-hover cursor-pointer ${getRowHighlight(item.nivel_carga)} ${w?.wellness_alerta ? 'bg-red-50/40' : ''}`}
+                          onClick={() => setExpandedRow(isExpanded ? null : item.jugador_id)}
+                        >
+                          <td className="py-2.5 text-xs font-bold text-muted-foreground text-center">
+                            {item.dorsal || '-'}
+                          </td>
+                          <td className="py-2.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">
+                                {item.nombre} {item.apellidos}
                               </span>
+                              {item.posicion_principal && (
+                                <Badge variant="outline" className="text-[9px]">
+                                  {item.posicion_principal}
+                                </Badge>
+                              )}
+                              {w?.wellness_alerta && (
+                                <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-2.5 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <span className={`inline-block w-2 h-2 rounded-full ${getNivelColor(item.nivel_carga)}`} />
+                              <span className="font-medium">{item.carga_aguda.toFixed(0)}</span>
+                            </div>
+                          </td>
+                          <td className="py-2.5 text-center">
+                            <span className="font-mono text-xs">
+                              {item.ratio_acwr != null ? item.ratio_acwr.toFixed(2) : '-'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 text-center">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${getNivelBadgeClass(item.nivel_carga)}`}>
+                              {item.nivel_carga}
+                            </span>
+                          </td>
+                          {/* Wellness columns */}
+                          <td className={`py-2.5 text-center ${getWellnessBg(w?.wellness_general_avg ?? null)}`}>
+                            <span className={`font-bold text-xs ${getWellnessColor(w?.wellness_general_avg ?? null)}`}>
+                              {w?.wellness_general_avg != null ? w.wellness_general_avg.toFixed(1) : '-'}
+                            </span>
+                          </td>
+                          <td className={`py-2.5 text-center ${getWellnessBg(w?.wellness_7d_avg ?? null)}`}>
+                            <span className={`font-bold text-xs ${getWellnessColor(w?.wellness_7d_avg ?? null)}`}>
+                              {w?.wellness_7d_avg != null ? w.wellness_7d_avg.toFixed(1) : '-'}
+                            </span>
+                          </td>
+                          <td className={`py-2.5 text-center ${getWellnessBg(w?.wellness_last ?? null)}`}>
+                            <span className={`font-bold text-xs ${getWellnessColor(w?.wellness_last ?? null)}`}>
+                              {w?.wellness_last != null ? w.wellness_last : '-'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 text-center">
+                            {isExpanded ? (
+                              <ChevronUp className="h-4 w-4 text-muted-foreground" />
                             ) : (
-                              <span className="text-muted-foreground text-xs">-</span>
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
                             )}
-                          </button>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr key={`${item.jugador_id}-expanded`}>
+                            <td colSpan={9} className="p-0">
+                              <ExpandedWellnessRow jugadorId={item.jugador_id} />
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                    </tr>
-                  ))}
+                      </>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -375,112 +378,106 @@ export default function RPEPage() {
         </CardContent>
       </Card>
 
+      {/* Dialogs */}
+      <ManualRPEDialog
+        open={showManualRPE}
+        onOpenChange={setShowManualRPE}
+        jugadores={jugadores}
+      />
+      <WellnessDialog
+        open={showWellness}
+        onOpenChange={setShowWellness}
+        jugadores={jugadores}
+      />
+      {equipoActivo?.id && (
+        <WellnessChartDialog
+          open={showChart}
+          onOpenChange={setShowChart}
+          jugadores={jugadores}
+          equipoId={equipoActivo.id}
+        />
+      )}
+      <ExcelImportDialog
+        open={showImport}
+        onOpenChange={setShowImport}
+        jugadores={jugadores}
+      />
+    </div>
+  )
+}
+
+/** Mini-chart row that loads player wellness history on expand */
+function ExpandedWellnessRow({ jugadorId }: { jugadorId: string }) {
+  const [history, setHistory] = useState<{ fecha: string; total: number; sueno: number; fatiga: number; dolor: number; estres: number; humor: number }[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await wellnessApi.getPlayerHistory(jugadorId, { limit: 14 })
+        setHistory(res.data.reverse())
+      } catch {
+        setHistory([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchData()
+  }, [jugadorId])
+
+  if (loading) {
+    return (
+      <div className="p-4 text-center text-xs text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin mx-auto" />
       </div>
+    )
+  }
 
-      {/* Register RPE dialog */}
-      <Dialog open={showRegister} onOpenChange={setShowRegister}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Registrar RPE</DialogTitle>
-            <DialogDescription>
-              Registro de esfuerzo percibido y bienestar del jugador
-            </DialogDescription>
-          </DialogHeader>
+  if (history.length === 0) {
+    return (
+      <div className="p-4 text-center text-xs text-muted-foreground">
+        Sin registros de wellness
+      </div>
+    )
+  }
 
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Jugador *</Label>
-                <select
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                  value={selectedJugador}
-                  onChange={(e) => setSelectedJugador(e.target.value)}
-                >
-                  <option value="">Seleccionar...</option>
-                  {jugadores.map((j) => (
-                    <option key={j.id} value={j.id}>
-                      {j.dorsal ? `${j.dorsal}. ` : ''}{j.nombre} {j.apellidos}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label>Sesion (opcional)</Label>
-                <select
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                  value={selectedSesion}
-                  onChange={(e) => setSelectedSesion(e.target.value)}
-                >
-                  <option value="">Sin sesion</option>
-                  {sesiones.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {formatDate(s.fecha)} - {s.titulo}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* RPE slider */}
-            <div className="space-y-2">
-              <Label>RPE (1-10): <span className="font-bold">{rpeForm.rpe}</span></Label>
-              <input
-                type="range"
-                min={1}
-                max={10}
-                value={rpeForm.rpe}
-                onChange={(e) => setRpeForm({ ...rpeForm, rpe: parseInt(e.target.value) })}
-                className="w-full accent-primary"
-              />
-              <div className="flex justify-between text-[10px] text-muted-foreground">
-                <span>Muy facil</span>
-                <span>Moderado</span>
-                <span>Maximo</span>
-              </div>
-            </div>
-
-            {/* Wellness fields */}
-            <div className="grid grid-cols-5 gap-2">
-              {WELLNESS_FIELDS.map((field) => {
-                const Icon = field.icon
-                return (
-                  <div key={field.key} className="text-center space-y-1">
-                    <Icon className={`h-4 w-4 mx-auto ${field.color}`} />
-                    <p className="text-[10px] font-medium">{field.label}</p>
-                    <input
-                      type="range"
-                      min={1}
-                      max={10}
-                      value={rpeForm[field.key]}
-                      onChange={(e) => setRpeForm({ ...rpeForm, [field.key]: parseInt(e.target.value) })}
-                      className="w-full accent-primary h-1"
-                    />
-                    <p className="text-xs font-bold">{rpeForm[field.key]}</p>
-                  </div>
-                )
-              })}
-            </div>
-
-            <div className="space-y-2">
-              <Label>Duracion percibida (min)</Label>
-              <Input
-                type="number"
-                min={0}
-                value={rpeForm.duracion_percibida}
-                onChange={(e) => setRpeForm({ ...rpeForm, duracion_percibida: parseInt(e.target.value) || 0 })}
-              />
-            </div>
+  return (
+    <div className="p-4 bg-muted/30 border-t">
+      <div className="flex items-center gap-6">
+        <div className="flex-1 h-32">
+          <p className="text-xs font-medium text-muted-foreground mb-1">Wellness total (ultimos 14 registros)</p>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={history}>
+              <XAxis dataKey="fecha" tick={{ fontSize: 9 }} />
+              <YAxis domain={[0, 25]} tick={{ fontSize: 9 }} width={25} />
+              <Tooltip />
+              <Line type="monotone" dataKey="total" stroke="#3B82F6" strokeWidth={2} dot={{ r: 3 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="w-48 shrink-0">
+          <p className="text-xs font-medium text-muted-foreground mb-2">Ultimo registro</p>
+          <div className="grid grid-cols-5 gap-1 text-center">
+            {[
+              { key: 'sueno', icon: Moon, color: 'text-indigo-600', label: 'Sue' },
+              { key: 'fatiga', icon: Zap, color: 'text-amber-600', label: 'Fat' },
+              { key: 'dolor', icon: Heart, color: 'text-red-600', label: 'Dol' },
+              { key: 'estres', icon: Brain, color: 'text-purple-600', label: 'Est' },
+              { key: 'humor', icon: Smile, color: 'text-emerald-600', label: 'Hum' },
+            ].map((f) => {
+              const Icon = f.icon
+              const val = (history[history.length - 1] as any)[f.key] as number
+              return (
+                <div key={f.key}>
+                  <Icon className={`h-3 w-3 mx-auto ${f.color}`} />
+                  <p className="text-[9px] text-muted-foreground">{f.label}</p>
+                  <p className={`text-sm font-bold ${val <= 2 ? 'text-red-600' : val >= 4 ? 'text-green-600' : ''}`}>{val}</p>
+                </div>
+              )
+            })}
           </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowRegister(false)}>Cancelar</Button>
-            <Button onClick={handleSave} disabled={saving || !selectedJugador}>
-              {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-              Registrar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </div>
     </div>
   )
 }

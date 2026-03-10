@@ -18,6 +18,7 @@ from app.api.v1 import (
     microciclos,
     rpe,
     carga,
+    wellness,
     convocatorias,
     estadisticas_partido,
     notificaciones,
@@ -123,6 +124,12 @@ api_router.include_router(
     carga.router,
     prefix="/carga",
     tags=["Carga"]
+)
+
+api_router.include_router(
+    wellness.router,
+    prefix="/wellness",
+    tags=["Wellness"]
 )
 
 api_router.include_router(

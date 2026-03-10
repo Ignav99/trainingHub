@@ -134,6 +134,9 @@ from app.models.rpe import (
     RPECreate,
     RPEResponse,
     RPEListResponse,
+    WellnessCreate,
+    WellnessResponse,
+    WellnessBulkItem,
 )
 
 from app.models.carga import (
@@ -322,6 +325,7 @@ __all__ = [
     "MicrocicloResponse", "MicrocicloListResponse",
     # RPE
     "RPEBase", "RPECreate", "RPEResponse", "RPEListResponse",
+    "WellnessCreate", "WellnessResponse", "WellnessBulkItem",
     # Carga
     "NivelCarga", "CargaJugadorResponse", "CargaEquipoResponse", "WellnessUpdate",
     # Convocatoria

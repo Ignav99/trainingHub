@@ -566,6 +566,46 @@ export interface RPEResumenEquipo {
 }
 
 // ============================================
+// WELLNESS
+// ============================================
+
+export interface WellnessEntry {
+  id: string
+  jugador_id: string
+  fecha: string
+  sueno: number
+  fatiga: number
+  dolor: number
+  estres: number
+  humor: number
+  total: number
+  created_at: string
+}
+
+export interface WellnessAggregates {
+  jugador_id: string
+  jugador_nombre: string
+  jugador_dorsal: number | null
+  posicion_principal: string | null
+  wellness_general_avg: number | null
+  wellness_7d_avg: number | null
+  wellness_last: number | null
+  wellness_last_fecha: string | null
+  wellness_alerta: boolean
+}
+
+export interface WellnessAlert {
+  jugador_id: string
+  jugador_nombre: string
+  jugador_dorsal: number | null
+  fecha: string
+  total: number
+  sueno: number | null
+  dolor: number | null
+  razones: string[]
+}
+
+// ============================================
 // CONVOCATORIAS
 // ============================================
 

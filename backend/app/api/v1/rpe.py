@@ -132,9 +132,9 @@ async def resumen_rpe(
     for j in jugadores.data:
         regs = por_jugador.get(j["id"], [])
         if regs:
-            rpe_vals = [r["rpe"] for r in regs]
+            rpe_vals = [r["rpe"] for r in regs if r.get("rpe") is not None]
             carga_vals = [r["carga_sesion"] for r in regs if r.get("carga_sesion")]
-            avg_rpe = round(sum(rpe_vals) / len(rpe_vals), 1)
+            avg_rpe = round(sum(rpe_vals) / len(rpe_vals), 1) if rpe_vals else None
             avg_carga = round(sum(float(c) for c in carga_vals) / len(carga_vals), 1) if carga_vals else None
             todos_rpe.extend(rpe_vals)
             if carga_vals:
@@ -195,6 +195,22 @@ async def create_rpe(
     if data.get("sesion_id"):
         data["sesion_id"] = str(data["sesion_id"])
 
+    tipo = data.get("tipo", "sesion")
+
+    # Manual RPE requires titulo
+    if tipo == "manual" and not data.get("titulo"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="RPE manual requiere un título descriptivo"
+        )
+
+    # RPE value required for sesion and manual types
+    if tipo in ("sesion", "manual") and data.get("rpe") is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="RPE es obligatorio para registros de tipo sesión o manual"
+        )
+
     # Check player is active before allowing RPE
     jugador_check = supabase.table("jugadores").select("estado").eq(
         "id", data["jugador_id"]
@@ -206,7 +222,7 @@ async def create_rpe(
         )
 
     # Calcular carga de sesión (RPE * duración)
-    if data.get("duracion_percibida"):
+    if data.get("rpe") and data.get("duracion_percibida"):
         data["carga_sesion"] = round(data["rpe"] * data["duracion_percibida"], 1)
 
     response = supabase.table("registros_rpe").insert(data).execute()
@@ -219,7 +235,7 @@ async def create_rpe(
 
     # Alert staff if RPE is high (>= 8)
     created = response.data[0]
-    if created["rpe"] >= 8:
+    if created.get("rpe") and created["rpe"] >= 8:
         jugador = supabase.table("jugadores").select(
             "nombre, apellidos, equipo_id"
         ).eq("id", data["jugador_id"]).single().execute()
@@ -269,7 +285,7 @@ async def create_rpe_batch(
         data["jugador_id"] = str(data["jugador_id"])
         if data.get("sesion_id"):
             data["sesion_id"] = str(data["sesion_id"])
-        if data.get("duracion_percibida"):
+        if data.get("rpe") and data.get("duracion_percibida"):
             data["carga_sesion"] = round(data["rpe"] * data["duracion_percibida"], 1)
         items.append(data)
 

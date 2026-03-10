@@ -5,8 +5,10 @@ export interface CreateRPEData {
   jugador_id: string
   sesion_id?: string
   fecha: string
-  rpe: number
+  rpe?: number
   duracion_percibida?: number
+  tipo?: 'sesion' | 'manual' | 'wellness'
+  titulo?: string
   sueno?: number
   fatiga?: number
   dolor?: number

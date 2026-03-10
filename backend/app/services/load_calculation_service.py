@@ -306,7 +306,44 @@ def recalculate_player_load(jugador_id: UUID, equipo_id: UUID) -> dict:
         loads.sort(key=lambda x: x[0])
         ultima_carga = loads[-1][1]
 
-    # --- 4. Upsert ---
+    # --- 4. Wellness aggregates ---
+    wellness_total_val = None
+    wellness_general_avg = None
+    wellness_7d_avg = None
+    wellness_last = None
+    wellness_last_fecha = None
+    wellness_alerta = False
+
+    try:
+        w_records = (
+            supabase.table("registros_rpe")
+            .select("fecha, sueno, fatiga, dolor, estres, humor")
+            .eq("jugador_id", jid)
+            .eq("tipo", "wellness")
+            .order("fecha", desc=True)
+            .execute()
+        )
+        w_data = w_records.data or []
+
+        if w_data:
+            def _w_total(r: dict) -> int:
+                return sum(r.get(f, 0) or 0 for f in ("sueno", "fatiga", "dolor", "estres", "humor"))
+
+            all_totals = [_w_total(r) for r in w_data]
+            wellness_general_avg = round(sum(all_totals) / len(all_totals), 2)
+
+            recent_7d = [_w_total(r) for r in w_data if r["fecha"] >= d7_ago.isoformat()]
+            if recent_7d:
+                wellness_7d_avg = round(sum(recent_7d) / len(recent_7d), 2)
+
+            last_w = w_data[0]
+            wellness_last = _w_total(last_w)
+            wellness_last_fecha = last_w["fecha"]
+            wellness_alerta = (last_w.get("sueno") or 5) <= 2 or (last_w.get("dolor") or 5) <= 2
+    except Exception as e:
+        logger.error(f"Error calculating wellness for {jid}: {e}")
+
+    # --- 5. Upsert ---
     row = {
         "jugador_id": jid,
         "equipo_id": eid,
@@ -317,6 +354,12 @@ def recalculate_player_load(jugador_id: UUID, equipo_id: UUID) -> dict:
         "ultima_carga": float(ultima_carga),
         "ultima_actividad_fecha": ultima_actividad.isoformat() if ultima_actividad else None,
         "dias_sin_actividad": dias_sin,
+        "wellness_total": wellness_last,
+        "wellness_general_avg": float(wellness_general_avg) if wellness_general_avg is not None else None,
+        "wellness_7d_avg": float(wellness_7d_avg) if wellness_7d_avg is not None else None,
+        "wellness_last": wellness_last,
+        "wellness_last_fecha": wellness_last_fecha,
+        "wellness_alerta": wellness_alerta,
     }
 
     try:
