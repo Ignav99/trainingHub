@@ -376,6 +376,21 @@ def generate_sesion_pdf_v2(
     all_tareas = []
     duracion_total = 0
 
+    def _ensure_list(val):
+        """Coerce string/None to list for template iteration safety."""
+        if val is None:
+            return []
+        if isinstance(val, list):
+            return val
+        if isinstance(val, str):
+            stripped = val.strip()
+            if not stripped:
+                return []
+            if "\n" in stripped:
+                return [line.strip() for line in stripped.split("\n") if line.strip()]
+            return [stripped]
+        return []
+
     for tarea_sesion in tareas_sesion:
         tarea = tarea_sesion.get("tareas", {}) or {}
         categoria = tarea.get("categorias_tarea", {}) or {}
@@ -414,14 +429,14 @@ def generate_sesion_pdf_v2(
             "fase_juego": tarea.get("fase_juego"),
             "principio_tactico": tarea.get("principio_tactico"),
             "subprincipio_tactico": tarea.get("subprincipio_tactico"),
-            "reglas_tecnicas": tarea.get("reglas_tecnicas", []) or [],
-            "reglas_tacticas": tarea.get("reglas_tacticas", []) or [],
-            "consignas_ofensivas": tarea.get("consignas_ofensivas", []) or [],
-            "consignas_defensivas": tarea.get("consignas_defensivas", []) or [],
-            "errores_comunes": tarea.get("errores_comunes", []) or [],
-            "variantes": tarea.get("variantes", []) or [],
-            "progresiones": tarea.get("progresiones", []) or [],
-            "material": tarea.get("material", []) or [],
+            "reglas_tecnicas": _ensure_list(tarea.get("reglas_tecnicas")),
+            "reglas_tacticas": _ensure_list(tarea.get("reglas_tacticas")),
+            "consignas_ofensivas": _ensure_list(tarea.get("consignas_ofensivas")),
+            "consignas_defensivas": _ensure_list(tarea.get("consignas_defensivas")),
+            "errores_comunes": _ensure_list(tarea.get("errores_comunes")),
+            "variantes": _ensure_list(tarea.get("variantes")),
+            "progresiones": _ensure_list(tarea.get("progresiones")),
+            "material": _ensure_list(tarea.get("material")),
             "posicion_entrenador": tarea.get("posicion_entrenador") or "",
             "notas": tarea_sesion.get("notas", ""),
             "fase_label": FASE_NOMBRES.get(fase_key, ""),
