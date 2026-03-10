@@ -912,7 +912,11 @@ async def duplicar_y_editar_tarea(
     _sanitize_tarea_constraints(nueva_tarea)
 
     # 4. Insert the new tarea
-    insert_response = supabase.table("tareas").insert(nueva_tarea).execute()
+    try:
+        insert_response = supabase.table("tareas").insert(nueva_tarea).execute()
+    except Exception as e:
+        logger.error(f"Error inserting duplicated tarea: {e}")
+        raise HTTPException(status_code=400, detail=f"Error al duplicar tarea: {str(e)}")
     if not insert_response.data:
         raise HTTPException(status_code=500, detail="Error al duplicar tarea")
 
@@ -1024,7 +1028,11 @@ async def ai_edit_tarea(
     # 4. Insert duplicated tarea (ensure only valid columns + sanitize constraints)
     nueva_tarea = {k: v for k, v in nueva_tarea.items() if k in VALID_TAREA_COLUMNS | {"titulo", "es_plantilla", "creado_por"}}
     _sanitize_tarea_constraints(nueva_tarea)
-    insert_response = supabase.table("tareas").insert(nueva_tarea).execute()
+    try:
+        insert_response = supabase.table("tareas").insert(nueva_tarea).execute()
+    except Exception as e:
+        logger.error(f"Error inserting AI-edited tarea: {e}")
+        raise HTTPException(status_code=400, detail=f"Error al crear tarea editada: {str(e)}")
     if not insert_response.data:
         raise HTTPException(status_code=500, detail="Error al crear tarea editada")
 
@@ -1110,7 +1118,11 @@ async def crear_tarea_en_sesion(
     tarea_data["organizacion_id"] = str(auth.organizacion_id)
 
     # Insert tarea
-    insert_resp = supabase.table("tareas").insert(tarea_data).execute()
+    try:
+        insert_resp = supabase.table("tareas").insert(tarea_data).execute()
+    except Exception as e:
+        logger.error(f"Error inserting tarea in session: {e}")
+        raise HTTPException(status_code=400, detail=f"Error al crear tarea: {str(e)}")
     if not insert_resp.data:
         raise HTTPException(status_code=500, detail="Error al crear tarea")
 
@@ -1187,7 +1199,11 @@ async def ai_crear_tarea_en_sesion(
     tarea_data["equipo_id"] = sesion.data.get("equipo_id")
     tarea_data["organizacion_id"] = str(auth.organizacion_id)
 
-    insert_resp = supabase.table("tareas").insert(tarea_data).execute()
+    try:
+        insert_resp = supabase.table("tareas").insert(tarea_data).execute()
+    except Exception as e:
+        logger.error(f"Error inserting AI tarea in session: {e}")
+        raise HTTPException(status_code=400, detail=f"Error al crear tarea: {str(e)}")
     if not insert_resp.data:
         raise HTTPException(status_code=500, detail="Error al crear tarea generada por IA")
 

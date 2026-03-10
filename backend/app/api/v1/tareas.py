@@ -538,13 +538,14 @@ async def create_tarea_from_ai(
     # Mapear fase_juego de código corto a valor de BD
     fase_juego_valor = None
     if tarea_ai.fase_juego:
-        fase_juego_valor = FASE_JUEGO_MAP.get(tarea_ai.fase_juego)
+        raw_fj = tarea_ai.fase_juego.strip().lower()
+        fase_juego_valor = FASE_JUEGO_MAP.get(raw_fj) or FASE_JUEGO_MAP.get(tarea_ai.fase_juego)
         # Si no está en el mapa, dejarlo como None para evitar error de constraint
 
     # Mapear densidad a valores válidos de BD
     densidad_valor = None
     if tarea_ai.densidad:
-        densidad_valor = DENSIDAD_MAP.get(tarea_ai.densidad.lower())
+        densidad_valor = DENSIDAD_MAP.get(tarea_ai.densidad.strip().lower())
 
     # Append posicion_entrenador to description if provided
     descripcion = tarea_ai.descripcion
@@ -593,8 +594,22 @@ async def create_tarea_from_ai(
         area = tarea_data["espacio_largo"] * tarea_data["espacio_ancho"]
         tarea_data["m2_por_jugador"] = round(area / tarea_data["num_jugadores_min"], 1)
 
+    # Clamp nivel_cognitivo to valid range 1-3
+    if tarea_data.get("nivel_cognitivo") is not None:
+        try:
+            tarea_data["nivel_cognitivo"] = max(1, min(3, int(tarea_data["nivel_cognitivo"])))
+        except (ValueError, TypeError):
+            tarea_data["nivel_cognitivo"] = 2
+
     # Insertar
-    response = supabase.table("tareas").insert(tarea_data).execute()
+    try:
+        response = supabase.table("tareas").insert(tarea_data).execute()
+    except Exception as e:
+        logger.error(f"Error inserting AI tarea: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error al crear tarea desde IA: {str(e)}"
+        )
 
     if not response.data:
         raise HTTPException(

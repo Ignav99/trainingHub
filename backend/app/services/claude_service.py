@@ -208,6 +208,7 @@ TASK_DESIGN_TOOLS = [
                 },
                 "fase_juego": {
                     "type": "string",
+                    "enum": ["ataque_organizado", "defensa_organizada", "transicion_ataque_defensa", "transicion_defensa_ataque", "balon_parado_ofensivo", "balon_parado_defensivo"],
                     "description": "Fase de juego principal",
                 },
                 "principio_tactico": {
