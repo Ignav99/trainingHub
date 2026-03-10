@@ -94,33 +94,33 @@ body {
 /* --- Asistencia Roster (full width) --- */
 .asistencia-roster {
     background: #111;
-    padding: 3px 12px 4px;
+    padding: 5px 12px 6px;
     flex-shrink: 0;
     border-bottom: 1px solid #222;
 }
 .asistencia-label {
-    font-size: 6px; color: #555; text-transform: uppercase; letter-spacing: 1.5px;
+    font-size: 7px; color: #666; text-transform: uppercase; letter-spacing: 1.5px;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
-    margin-bottom: 2px;
+    margin-bottom: 3px;
 }
 .asistencia-grid {
     display: flex;
     flex-wrap: wrap;
-    gap: 1px 8px;
+    gap: 3px 12px;
 }
 .asistencia-item {
-    display: inline-flex; align-items: center; gap: 2px;
-    font-size: 6.5px; color: #ccc;
-    font-family: 'Barlow', sans-serif;
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 8.5px; color: #ddd;
+    font-family: 'Barlow', sans-serif; font-weight: 500;
     white-space: nowrap;
 }
 .asistencia-dorsal {
-    font-size: 6.5px; color: #888;
+    font-size: 8.5px; color: #999;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
 }
 .asistencia-badge {
-    padding: 0px 3px; border-radius: 2px;
-    font-size: 5px; text-transform: uppercase; letter-spacing: 0.3px;
+    padding: 1px 4px; border-radius: 2px;
+    font-size: 6px; text-transform: uppercase; letter-spacing: 0.3px;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
     flex-shrink: 0;
 }
@@ -132,7 +132,7 @@ body {
 /* --- Objetivo Bar --- */
 .objetivo-bar {
     background: #0e0e0e;
-    padding: 3px 12px;
+    padding: 4px 12px;
     flex-shrink: 0;
     border-bottom: 1px solid #1a1a1a;
     display: flex;
@@ -140,17 +140,17 @@ body {
     gap: 12px;
 }
 .objetivo-label {
-    font-size: 6px; color: #555; text-transform: uppercase; letter-spacing: 1.5px;
+    font-size: 7px; color: #777; text-transform: uppercase; letter-spacing: 1.5px;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
     flex-shrink: 0;
 }
 .objetivo-text {
-    font-size: 8px; color: {{ color_primario }};
+    font-size: 9px; color: #ccc;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
     text-transform: uppercase;
 }
 .objetivo-sep {
-    color: #333; font-size: 8px;
+    color: #555; font-size: 9px;
 }
 
 /* --- Exercise Table (HTML table for bulletproof WeasyPrint layout) --- */
@@ -743,7 +743,7 @@ body {
 
     <!-- Exercise Table (HTML table for bulletproof WeasyPrint layout) -->
     {% set num_tareas = cover_tareas|length %}
-    {% set grid_cols = 4 if num_tareas > 6 else (3 if num_tareas >= 3 else (2 if num_tareas > 1 else 1)) %}
+    {% set grid_cols = 3 if num_tareas >= 2 else 1 %}
     {% set grid_rows = (num_tareas + grid_cols - 1) // grid_cols %}
     <div class="ex-table-wrap">
     <table class="ex-table">
