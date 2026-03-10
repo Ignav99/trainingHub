@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
+import useSWR, { mutate } from 'swr'
 import {
   ArrowLeft,
   Plus,
@@ -15,77 +16,39 @@ import {
   Users,
   AlertCircle
 } from 'lucide-react'
-import { POSICIONES } from '@/lib/api/jugadores'
+import { toast } from 'sonner'
+import { Jugador, jugadoresApi, POSICIONES } from '@/lib/api/jugadores'
 import { useEquipoStore } from '@/stores/equipoStore'
-
-// Tipo para jugador invitado (simplificado)
-interface JugadorInvitado {
-  id: string
-  nombre: string
-  posicion: string
-  equipo_origen?: string
-  notas?: string
-  created_at: string
-}
-
-// Simulación de API local (localStorage)
-const invitadosStorage = {
-  getAll: (equipoId: string): JugadorInvitado[] => {
-    if (typeof window === 'undefined') return []
-    const data = localStorage.getItem(`invitados_${equipoId}`)
-    return data ? JSON.parse(data) : []
-  },
-  save: (equipoId: string, invitados: JugadorInvitado[]) => {
-    if (typeof window === 'undefined') return
-    localStorage.setItem(`invitados_${equipoId}`, JSON.stringify(invitados))
-  },
-  add: (equipoId: string, invitado: Omit<JugadorInvitado, 'id' | 'created_at'>): JugadorInvitado => {
-    const invitados = invitadosStorage.getAll(equipoId)
-    const newInvitado: JugadorInvitado = {
-      ...invitado,
-      id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
-    }
-    invitados.push(newInvitado)
-    invitadosStorage.save(equipoId, invitados)
-    return newInvitado
-  },
-  update: (equipoId: string, id: string, data: Partial<JugadorInvitado>) => {
-    const invitados = invitadosStorage.getAll(equipoId)
-    const index = invitados.findIndex((i) => i.id === id)
-    if (index !== -1) {
-      invitados[index] = { ...invitados[index], ...data }
-      invitadosStorage.save(equipoId, invitados)
-    }
-  },
-  delete: (equipoId: string, id: string) => {
-    const invitados = invitadosStorage.getAll(equipoId)
-    invitadosStorage.save(equipoId, invitados.filter((i) => i.id !== id))
-  },
-}
+import { apiKey } from '@/lib/swr'
 
 // Modal para añadir/editar invitado
 function InvitadoModal({
   invitado,
+  equipos,
   onClose,
   onSave,
+  saving,
 }: {
-  invitado?: JugadorInvitado
+  invitado?: Jugador
+  equipos: { id: string; nombre: string; categoria?: string }[]
   onClose: () => void
-  onSave: (data: { nombre: string; posicion: string; equipo_origen?: string; notas?: string }) => void
+  onSave: (data: { nombre: string; apellidos: string; posicion_principal: string; equipo_origen_id?: string; notas?: string }) => void
+  saving: boolean
 }) {
   const [nombre, setNombre] = useState(invitado?.nombre || '')
-  const [posicion, setPosicion] = useState(invitado?.posicion || 'MC')
-  const [equipoOrigen, setEquipoOrigen] = useState(invitado?.equipo_origen || '')
+  const [apellidos, setApellidos] = useState(invitado?.apellidos || '')
+  const [posicion, setPosicion] = useState(invitado?.posicion_principal || 'MC')
+  const [equipoOrigenId, setEquipoOrigenId] = useState(invitado?.equipo_origen_id || '')
   const [notas, setNotas] = useState(invitado?.notas || '')
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!nombre.trim()) return
+    if (!nombre.trim() || !apellidos.trim()) return
     onSave({
       nombre: nombre.trim(),
-      posicion,
-      equipo_origen: equipoOrigen.trim() || undefined,
+      apellidos: apellidos.trim(),
+      posicion_principal: posicion,
+      equipo_origen_id: equipoOrigenId || undefined,
       notas: notas.trim() || undefined,
     })
   }
@@ -103,24 +66,39 @@ function InvitadoModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Nombre *
-            </label>
-            <input
-              type="text"
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              placeholder="Ej: Pablo García"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-              autoFocus
-              required
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Nombre *
+              </label>
+              <input
+                type="text"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                placeholder="Pablo"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                autoFocus
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Apellidos *
+              </label>
+              <input
+                type="text"
+                value={apellidos}
+                onChange={(e) => setApellidos(e.target.value)}
+                placeholder="Garcia Lopez"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                required
+              />
+            </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Posición *
+              Posicion *
             </label>
             <select
               value={posicion}
@@ -139,13 +117,18 @@ function InvitadoModal({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Equipo de origen
             </label>
-            <input
-              type="text"
-              value={equipoOrigen}
-              onChange={(e) => setEquipoOrigen(e.target.value)}
-              placeholder="Ej: Juvenil B, Infantil A"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-            />
+            <select
+              value={equipoOrigenId}
+              onChange={(e) => setEquipoOrigenId(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+            >
+              <option value="">-- Sin especificar --</option>
+              {equipos.map((eq) => (
+                <option key={eq.id} value={eq.id}>
+                  {eq.nombre} {eq.categoria ? `(${eq.categoria})` : ''}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -171,9 +154,10 @@ function InvitadoModal({
             </button>
             <button
               type="submit"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+              disabled={saving || !nombre.trim() || !apellidos.trim()}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
             >
-              <Save className="h-4 w-4" />
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {invitado ? 'Guardar' : 'Añadir'}
             </button>
           </div>
@@ -189,36 +173,41 @@ function InvitadoCard({
   onEdit,
   onDelete,
 }: {
-  invitado: JugadorInvitado
+  invitado: Jugador
   onEdit: () => void
   onDelete: () => void
 }) {
-  const pos = POSICIONES[invitado.posicion as keyof typeof POSICIONES]
+  const pos = POSICIONES[invitado.posicion_principal as keyof typeof POSICIONES]
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow">
+    <div className="bg-white rounded-xl border-2 border-amber-400 bg-amber-50/30 p-4 hover:shadow-md transition-shadow">
       <div className="flex items-start gap-3">
         {/* Avatar */}
         <div
           className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0"
           style={{ backgroundColor: pos?.color || '#6B7280' }}
         >
-          {invitado.nombre.charAt(0).toUpperCase()}
+          {invitado.nombre[0]}{invitado.apellidos[0]}
         </div>
 
         {/* Info */}
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-gray-900 truncate">{invitado.nombre}</h3>
-          <div className="flex items-center gap-2 mt-1">
+          <h3 className="font-semibold text-gray-900 truncate">
+            {invitado.nombre} {invitado.apellidos}
+          </h3>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
             <span
               className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white"
               style={{ backgroundColor: pos?.color || '#6B7280' }}
             >
-              {invitado.posicion}
+              {invitado.posicion_principal}
             </span>
-            {invitado.equipo_origen && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 border border-amber-300">
+              Invitado
+            </span>
+            {invitado.equipos && (
               <span className="text-xs text-gray-500">
-                {invitado.equipo_origen}
+                De: {invitado.equipos.nombre}
               </span>
             )}
           </div>
@@ -248,55 +237,97 @@ function InvitadoCard({
 }
 
 export default function InvitadosPage() {
-  const { equipoActivo } = useEquipoStore()
-  const [invitados, setInvitados] = useState<JugadorInvitado[]>([])
-  const [loading, setLoading] = useState(true)
+  const { equipoActivo, equipos } = useEquipoStore()
   const [busqueda, setBusqueda] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
-  const [editingInvitado, setEditingInvitado] = useState<JugadorInvitado | null>(null)
+  const [editingInvitado, setEditingInvitado] = useState<Jugador | null>(null)
+  const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    if (equipoActivo) {
-      setInvitados(invitadosStorage.getAll(equipoActivo.id))
-    }
-    setLoading(false)
-  }, [equipoActivo])
-
-  const handleAdd = (data: { nombre: string; posicion: string; equipo_origen?: string; notas?: string }) => {
-    if (!equipoActivo) return
-    const newInvitado = invitadosStorage.add(equipoActivo.id, data)
-    setInvitados((prev) => [...prev, newInvitado])
-    setModalOpen(false)
-  }
-
-  const handleEdit = (data: { nombre: string; posicion: string; equipo_origen?: string; notas?: string }) => {
-    if (!equipoActivo || !editingInvitado) return
-    invitadosStorage.update(equipoActivo.id, editingInvitado.id, data)
-    setInvitados((prev) =>
-      prev.map((i) => (i.id === editingInvitado.id ? { ...i, ...data } : i))
-    )
-    setEditingInvitado(null)
-  }
-
-  const handleDelete = (id: string) => {
-    if (!equipoActivo) return
-    if (!confirm('¿Eliminar este jugador invitado?')) return
-    invitadosStorage.delete(equipoActivo.id, id)
-    setInvitados((prev) => prev.filter((i) => i.id !== id))
-  }
-
-  // Filtrar por búsqueda
-  const invitadosFiltrados = invitados.filter((i) =>
-    i.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-    i.equipo_origen?.toLowerCase().includes(busqueda.toLowerCase())
+  // Fetch invitados from API (real DB players with es_invitado=true)
+  const { data: jugadoresResponse, isLoading: loading } = useSWR<{ data: Jugador[]; total: number }>(
+    apiKey('/jugadores', {
+      equipo_id: equipoActivo?.id,
+      organizacion_completa: true,
+    }, ['equipo_id'])
   )
 
-  // Agrupar por posición
+  // Filter to only show invitados
+  const allJugadores = jugadoresResponse?.data || []
+  const invitados = allJugadores.filter((j) => j.es_invitado)
+
+  const invalidate = () => {
+    mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'), undefined, { revalidate: true })
+  }
+
+  const handleAdd = async (data: { nombre: string; apellidos: string; posicion_principal: string; equipo_origen_id?: string; notas?: string }) => {
+    if (!equipoActivo) return
+    setSaving(true)
+    try {
+      await jugadoresApi.create({
+        equipo_id: equipoActivo.id,
+        nombre: data.nombre,
+        apellidos: data.apellidos,
+        posicion_principal: data.posicion_principal,
+        equipo_origen_id: data.equipo_origen_id,
+        notas: data.notas,
+        es_invitado: true,
+      })
+      toast.success('Invitado creado')
+      setModalOpen(false)
+      invalidate()
+    } catch (err: any) {
+      toast.error(err?.message || 'Error al crear invitado')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleEdit = async (data: { nombre: string; apellidos: string; posicion_principal: string; equipo_origen_id?: string; notas?: string }) => {
+    if (!editingInvitado) return
+    setSaving(true)
+    try {
+      await jugadoresApi.update(editingInvitado.id, {
+        nombre: data.nombre,
+        apellidos: data.apellidos,
+        posicion_principal: data.posicion_principal,
+        equipo_origen_id: data.equipo_origen_id,
+        notas: data.notas,
+      })
+      toast.success('Invitado actualizado')
+      setEditingInvitado(null)
+      invalidate()
+    } catch (err: any) {
+      toast.error(err?.message || 'Error al actualizar')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('¿Eliminar este jugador invitado?')) return
+    try {
+      await jugadoresApi.delete(id)
+      toast.success('Invitado eliminado')
+      invalidate()
+    } catch (err: any) {
+      toast.error(err?.message || 'Error al eliminar')
+    }
+  }
+
+  // Filtrar por busqueda
+  const invitadosFiltrados = invitados.filter((i) => {
+    if (!busqueda) return true
+    const q = busqueda.toLowerCase()
+    const fullName = `${i.nombre} ${i.apellidos}`.toLowerCase()
+    return fullName.includes(q) || i.notas?.toLowerCase().includes(q)
+  })
+
+  // Agrupar por zona
   const porZona = {
-    porteria: invitadosFiltrados.filter((i) => POSICIONES[i.posicion as keyof typeof POSICIONES]?.zona === 'porteria'),
-    defensa: invitadosFiltrados.filter((i) => POSICIONES[i.posicion as keyof typeof POSICIONES]?.zona === 'defensa'),
-    mediocampo: invitadosFiltrados.filter((i) => POSICIONES[i.posicion as keyof typeof POSICIONES]?.zona === 'mediocampo'),
-    ataque: invitadosFiltrados.filter((i) => POSICIONES[i.posicion as keyof typeof POSICIONES]?.zona === 'ataque'),
+    porteria: invitadosFiltrados.filter((i) => POSICIONES[i.posicion_principal as keyof typeof POSICIONES]?.zona === 'porteria'),
+    defensa: invitadosFiltrados.filter((i) => POSICIONES[i.posicion_principal as keyof typeof POSICIONES]?.zona === 'defensa'),
+    mediocampo: invitadosFiltrados.filter((i) => POSICIONES[i.posicion_principal as keyof typeof POSICIONES]?.zona === 'mediocampo'),
+    ataque: invitadosFiltrados.filter((i) => POSICIONES[i.posicion_principal as keyof typeof POSICIONES]?.zona === 'ataque'),
   }
 
   if (!equipoActivo) {
@@ -323,7 +354,7 @@ export default function InvitadosPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Jugadores Invitados</h1>
             <p className="text-gray-500">
-              Juveniles y jugadores de otras categorías que entrenan con tu equipo
+              {invitados.length} jugador{invitados.length !== 1 ? 'es' : ''} invitado{invitados.length !== 1 ? 's' : ''} — juveniles y otras categorias
             </p>
           </div>
         </div>
@@ -341,17 +372,17 @@ export default function InvitadosPage() {
         <div className="flex gap-3">
           <UserPlus className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
           <div>
-            <h3 className="font-medium text-blue-900">¿Qué son los jugadores invitados?</h3>
+            <h3 className="font-medium text-blue-900">¿Que son los jugadores invitados?</h3>
             <p className="text-sm text-blue-700 mt-1">
-              Son jugadores de categorías inferiores (juveniles, cadetes, infantiles) o de otros equipos
-              que participan en tus entrenamientos. Solo necesitas registrar su nombre y posición
-              para poder incluirlos en las sesiones de entrenamiento.
+              Son jugadores de categorias inferiores (juveniles, cadetes, infantiles) o de otros equipos
+              que participan en tus entrenamientos. Se crean como jugadores reales en tu plantilla con la
+              etiqueta "Invitado" y aparecen disponibles para añadir en las sesiones.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Búsqueda */}
+      {/* Busqueda */}
       {invitados.length > 0 && (
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -359,7 +390,7 @@ export default function InvitadosPage() {
             type="text"
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar por nombre o equipo de origen..."
+            placeholder="Buscar por nombre..."
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
           />
         </div>
@@ -431,11 +462,13 @@ export default function InvitadosPage() {
       {(modalOpen || editingInvitado) && (
         <InvitadoModal
           invitado={editingInvitado || undefined}
+          equipos={equipos.filter((e) => e.id !== equipoActivo?.id)}
           onClose={() => {
             setModalOpen(false)
             setEditingInvitado(null)
           }}
           onSave={editingInvitado ? handleEdit : handleAdd}
+          saving={saving}
         />
       )}
     </div>
