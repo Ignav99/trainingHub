@@ -1515,17 +1515,18 @@ class ClaudeService:
                 "type": "text",
                 "text": (
                     "Eres un experto en metodologia de entrenamiento de futbol. "
-                    "Tu tarea es crear un ejercicio de entrenamiento completo a partir de la descripcion del usuario. "
-                    "Responde SOLO con un JSON valido con los siguientes campos: "
-                    "titulo (str, obligatorio), descripcion (str), duracion_total (int minutos), "
-                    "num_jugadores_min (int), num_jugadores_max (int), espacio_largo (int metros), "
-                    "espacio_ancho (int metros), reglas_tecnicas (str), reglas_tacticas (str), "
+                    "Crea un ejercicio a partir de la descripcion del usuario. "
+                    "Responde SOLO con un JSON valido. Se CONCISO — titulo max 80 chars, descripcion max 300 chars, "
+                    "cada campo de texto max 200 chars. Campos posibles: "
+                    "titulo (str), descripcion (str), duracion_total (int min), "
+                    "num_jugadores_min (int), num_jugadores_max (int), espacio_largo (int m), "
+                    "espacio_ancho (int m), reglas_tecnicas (str), reglas_tacticas (str), "
                     "consignas_ofensivas (str), consignas_defensivas (str), errores_comunes (str), "
-                    "variantes (str), progresiones (str), estructura_equipos (str como '4v4+2'), "
+                    "variantes (str), progresiones (str), estructura_equipos (str ej '4v4+2'), "
                     "material (array str), posicion_entrenador (str), situacion_tactica (str), "
-                    "fase_juego (str), principio_tactico (str), densidad (str: 'alta'/'media'/'baja'), "
+                    "fase_juego (str), principio_tactico (str), densidad ('alta'/'media'/'baja'), "
                     "nivel_cognitivo (int 1-3), num_series (int). "
-                    "Incluye todos los campos que sean relevantes. NO incluyas explicaciones fuera del JSON."
+                    "NO incluyas explicaciones fuera del JSON."
                 ),
                 "cache_control": {"type": "ephemeral"},
             }
@@ -1536,7 +1537,7 @@ class ClaudeService:
         try:
             response = await self.client.messages.create(
                 model=self.model,
-                max_tokens=2048,
+                max_tokens=4096,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_message}],
             )
@@ -1674,11 +1675,29 @@ Responde SOLO con JSON válido:
         elif "```" in text:
             text = text.split("```")[1].split("```")[0]
 
+        text = text.strip()
         try:
-            return json.loads(text.strip())
-        except json.JSONDecodeError as e:
-            logger.error(f"Error parsing Claude JSON response: {text[:500]}")
-            raise ClaudeError(f"Respuesta de IA no válida: {str(e)}")
+            return json.loads(text)
+        except json.JSONDecodeError:
+            # Try to recover truncated JSON by closing open braces/brackets
+            repaired = text
+            # Remove any trailing truncated string (unmatched quote)
+            open_quotes = repaired.count('"') % 2
+            if open_quotes:
+                # Find last quote and truncate the broken value
+                last_quote = repaired.rfind('"')
+                repaired = repaired[:last_quote] + '"'
+            # Remove trailing comma
+            repaired = repaired.rstrip().rstrip(',')
+            # Count open braces/brackets and close them
+            open_braces = repaired.count('{') - repaired.count('}')
+            open_brackets = repaired.count('[') - repaired.count(']')
+            repaired += ']' * max(0, open_brackets) + '}' * max(0, open_braces)
+            try:
+                return json.loads(repaired)
+            except json.JSONDecodeError as e2:
+                logger.error(f"Error parsing Claude JSON response: {text[:500]}")
+                raise ClaudeError(f"Respuesta de IA no válida: {str(e2)}")
 
     def _build_messages(self, historial: list[dict], mensaje_actual: str) -> list[dict]:
         """Construye la lista de mensajes para Claude."""

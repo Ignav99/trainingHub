@@ -874,7 +874,8 @@ export default function SesionDetailPage() {
   const [aiCreatePrompt, setAiCreatePrompt] = useState('')
   const [aiCreating, setAiCreating] = useState(false)
 
-  // Phase management — which fases have been manually removed
+  // Phase management — track explicitly added/removed fases
+  const [addedFases, setAddedFases] = useState<Set<FaseSesion>>(new Set())
   const [removedFases, setRemovedFases] = useState<Set<FaseSesion>>(new Set())
 
   const { save: autoSave, saving: autoSaving } = useAutoSave(sesionId)
@@ -1017,29 +1018,28 @@ export default function SesionDetailPage() {
 
   const allTareas = sesion?.tareas || []
 
-  // Dynamic phases: always include activacion + desarrollo_1, plus any phase that has tasks,
-  // plus vuelta_calma unless removed. User can add more desarrollo phases.
+  // Dynamic phases: always activacion + desarrollo_1 + desarrollo_2 + vuelta_calma by default.
+  // User can add desarrollo_3..6 and remove empty non-required phases.
   const activeFases = useMemo(() => {
-    const required: FaseSesion[] = ['activacion', 'desarrollo_1']
-    const fasesWithTasks = new Set(Object.keys(tareasByFase))
+    const defaultFases: FaseSesion[] = ['activacion', 'desarrollo_1', 'desarrollo_2', 'vuelta_calma']
     const result: FaseSesion[] = []
     for (const fase of FASE_ORDER) {
-      const isRequired = required.includes(fase)
-      const hasTasks = fasesWithTasks.has(fase)
+      const hasTasks = (tareasByFase[fase]?.length || 0) > 0
+      const isDefault = defaultFases.includes(fase)
+      const isAdded = addedFases.has(fase)
       const isRemoved = removedFases.has(fase)
-      if (isRequired || hasTasks || (!isRemoved && fase === 'vuelta_calma') || (!isRemoved && hasTasks)) {
-        result.push(fase)
-      } else if (!isRequired && !isRemoved && fasesWithTasks.has(fase)) {
+      if (hasTasks || ((isDefault || isAdded) && !isRemoved)) {
         result.push(fase)
       }
     }
     return result
-  }, [tareasByFase, removedFases])
+  }, [tareasByFase, addedFases, removedFases])
 
   const handleAddFase = () => {
     // Find the next desarrollo phase not already active
     const nextFase = ALL_DESARROLLO_FASES.find(f => !activeFases.includes(f))
     if (nextFase) {
+      setAddedFases(prev => { const next = new Set(prev); next.add(nextFase); return next })
       setRemovedFases(prev => { const next = new Set(prev); next.delete(nextFase); return next })
     }
   }
@@ -1047,6 +1047,7 @@ export default function SesionDetailPage() {
   const handleRemoveFase = (fase: FaseSesion) => {
     if ((tareasByFase[fase]?.length || 0) > 0) return // Can't remove phase with tasks
     setRemovedFases(prev => { const next = new Set(prev); next.add(fase); return next })
+    setAddedFases(prev => { const next = new Set(prev); next.delete(fase); return next })
   }
 
   const saveTareasBatch = async (newTareas: SesionTarea[]) => {
