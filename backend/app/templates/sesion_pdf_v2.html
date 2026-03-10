@@ -22,7 +22,7 @@ body {
 @page cover { size: A4 landscape; margin: 0; }
 @page detail { size: A4 portrait; margin: 0; }
 
-/* ============ PAGE 1: LANDSCAPE ============ */
+/* ============ PAGE 1: LANDSCAPE RESUMEN ============ */
 .page-landscape {
     page: cover;
     width: 297mm;
@@ -33,14 +33,14 @@ body {
     background: white;
 }
 
-/* --- Landscape Header --- */
+/* --- Header Bar --- */
 .lh {
     background: #0a0a0a;
-    height: 22mm;
+    height: 20mm;
     display: flex;
     align-items: center;
-    padding: 0 14px;
-    gap: 10px;
+    padding: 0 12px;
+    gap: 8px;
     flex-shrink: 0;
     position: relative;
 }
@@ -51,82 +51,76 @@ body {
     height: 3px;
     background: linear-gradient(90deg, {{ color_primario }} 0%, {{ color_secundario }} 100%);
 }
-.lh-logo {
-    width: 36px; height: 36px; flex-shrink: 0;
-}
+.lh-logo { width: 32px; height: 32px; flex-shrink: 0; }
 .lh-logo img { width: 100%; height: 100%; object-fit: contain; border-radius: 4px; }
 .lh-logo svg { width: 100%; height: 100%; }
-.lh-divider {
-    width: 1px; height: 30px; background: rgba(255,255,255,0.15); flex-shrink: 0;
-}
+.lh-divider { width: 1px; height: 28px; background: rgba(255,255,255,0.15); flex-shrink: 0; }
 .lh-title { flex: 1; min-width: 0; }
 .lh-title-club {
-    font-size: 7px; color: #888; text-transform: uppercase; letter-spacing: 3px;
+    font-size: 6px; color: #666; text-transform: uppercase; letter-spacing: 2.5px;
     font-family: 'Barlow', sans-serif; font-weight: 400;
 }
 .lh-title-name {
-    font-size: 20px; color: white; text-transform: uppercase;
+    font-size: 17px; color: white; text-transform: uppercase;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 900;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .lh-title-sub {
-    font-size: 8px; color: #aaa;
+    font-size: 7.5px; color: #aaa;
     font-family: 'Barlow', sans-serif;
 }
-.lh-metrics {
-    display: flex; gap: 16px; flex-shrink: 0;
+.lh-info {
+    display: flex; gap: 12px; flex-shrink: 0; align-items: center;
 }
-.lh-metric { text-align: center; }
-.lh-metric-val {
-    font-size: 16px; color: white;
+.lh-info-item {
+    text-align: center;
+}
+.lh-info-val {
+    font-size: 14px; color: white;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 900;
 }
-.lh-metric-label {
-    font-size: 7px; color: #666; text-transform: uppercase; letter-spacing: 1px;
+.lh-info-label {
+    font-size: 6px; color: #555; text-transform: uppercase; letter-spacing: 0.8px;
 }
-.lh-badges { display: flex; gap: 6px; flex-shrink: 0; }
+.lh-badges { display: flex; gap: 5px; flex-shrink: 0; }
 .lh-badge {
-    padding: 4px 10px; border-radius: 4px;
+    padding: 3px 8px; border-radius: 3px;
     background: #1a1a1a; border: 1px solid #333;
-    font-size: 10px; color: {{ color_primario }};
+    font-size: 9px; color: {{ color_primario }};
     font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
     text-transform: uppercase;
 }
 
-/* --- Asistencia Roster Bar --- */
+/* --- Asistencia Roster (full width) --- */
 .asistencia-roster {
     background: #111;
-    padding: 4px 14px;
+    padding: 3px 12px 4px;
     flex-shrink: 0;
     border-bottom: 1px solid #222;
 }
 .asistencia-label {
-    font-size: 7px; color: #666; text-transform: uppercase; letter-spacing: 1.5px;
+    font-size: 6px; color: #555; text-transform: uppercase; letter-spacing: 1.5px;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
-    margin-bottom: 3px;
+    margin-bottom: 2px;
 }
 .asistencia-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(105px, 1fr));
-    gap: 2px 6px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1px 8px;
 }
 .asistencia-item {
-    display: flex; align-items: center; gap: 3px;
-    font-size: 7px; color: #ccc;
+    display: inline-flex; align-items: center; gap: 2px;
+    font-size: 6.5px; color: #ccc;
     font-family: 'Barlow', sans-serif;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .asistencia-dorsal {
-    font-size: 7px; color: #888;
+    font-size: 6.5px; color: #888;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
-    min-width: 16px;
-}
-.asistencia-nombre {
-    flex: 1; overflow: hidden; text-overflow: ellipsis;
 }
 .asistencia-badge {
-    padding: 0px 4px; border-radius: 2px;
-    font-size: 6px; text-transform: uppercase; letter-spacing: 0.3px;
+    padding: 0px 3px; border-radius: 2px;
+    font-size: 5px; text-transform: uppercase; letter-spacing: 0.3px;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
     flex-shrink: 0;
 }
@@ -135,40 +129,69 @@ body {
 .badge-margen { background: #78350f; color: #fbbf24; }
 .badge-ausente { background: #7f1d1d; color: #f87171; }
 
-/* --- Exercise Grid (2×2) --- */
+/* --- Objetivo Bar --- */
+.objetivo-bar {
+    background: #0e0e0e;
+    padding: 3px 12px;
+    flex-shrink: 0;
+    border-bottom: 1px solid #1a1a1a;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.objetivo-label {
+    font-size: 6px; color: #555; text-transform: uppercase; letter-spacing: 1.5px;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+    flex-shrink: 0;
+}
+.objetivo-text {
+    font-size: 8px; color: {{ color_primario }};
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+    text-transform: uppercase;
+}
+.objetivo-sep {
+    color: #333; font-size: 8px;
+}
+
+/* --- Exercise Grid (dynamic) --- */
 .ex-grid {
     flex: 1;
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr 1fr;
     min-height: 0;
     overflow: hidden;
+    background: #f5f5f5;
 }
+/* Dynamic column count based on number of exercises */
+.ex-grid-2 { grid-template-columns: 1fr 1fr; }
+.ex-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+.ex-grid-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
 .ex-card {
     display: flex;
     flex-direction: column;
-    border-right: 1px solid #2a2a2a;
-    border-bottom: 1px solid #2a2a2a;
+    border-right: 1px solid #e0e0e0;
+    border-bottom: 1px solid #e0e0e0;
     overflow: hidden;
     min-height: 0;
+    background: white;
 }
-.ex-card:nth-child(even) { border-right: none; }
-.ex-card:nth-child(n+3) { border-bottom: none; }
+.ex-card:last-child { border-right: none; }
 
 /* Card header */
 .ex-card-header {
     background: #111;
-    padding: 4px 8px;
-    display: flex; align-items: center; gap: 5px;
+    padding: 3px 6px;
+    display: flex; align-items: center; gap: 4px;
     flex-shrink: 0;
 }
 .ex-num {
-    font-size: 14px; color: rgba(255,255,255,0.15);
+    font-size: 11px; color: rgba(255,255,255,0.2);
     font-family: 'Barlow Condensed', sans-serif; font-weight: 900;
+    min-width: 16px;
 }
 .ex-type-badge {
-    padding: 1px 6px; border-radius: 2px;
-    font-size: 6px; text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 1px 5px; border-radius: 2px;
+    font-size: 5.5px; text-transform: uppercase; letter-spacing: 0.5px;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
 }
 .badge-rnd { background: {{ color_primario }}; color: #000; }
@@ -183,48 +206,81 @@ body {
 .badge-par { background: #222; color: white; }
 .badge-default { background: #444; color: white; }
 .ex-name {
-    font-size: 10px; color: white;
+    font-size: 8px; color: white;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     flex: 1;
+}
+.ex-dur {
+    font-size: 10px; color: {{ color_primario }};
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 900;
+    flex-shrink: 0;
+}
+
+/* Objective line */
+.ex-objetivo {
+    background: #f8f8f8;
+    padding: 2px 6px;
+    font-size: 6.5px; color: #555;
+    font-family: 'Barlow', sans-serif; font-weight: 500;
+    border-bottom: 1px solid #eee;
+    flex-shrink: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 /* Mini field */
 .campo-mini-wrap {
     flex: 1;
     background: #1a1a1a;
-    padding: 4px 10px;
+    padding: 3px 6px;
     min-height: 0;
-    max-height: 42mm;
     overflow: hidden;
     display: flex; align-items: center; justify-content: center;
 }
-.campo-mini-wrap svg { width: 82%; height: auto; max-height: 100%; display: block; }
+.campo-mini-wrap svg { width: 85%; height: auto; max-height: 100%; display: block; }
 
-/* Petos band */
+/* No-diagram placeholder for warmup */
+.ex-no-diagram {
+    flex: 1;
+    background: #f8f8f8;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    overflow: hidden;
+    padding: 4px;
+}
+.ex-no-diagram-fase {
+    font-size: 9px; color: #bbb; text-transform: uppercase;
+    letter-spacing: 2px;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 600;
+}
+.ex-no-diagram-info {
+    font-size: 7px; color: #999;
+    font-family: 'Barlow', sans-serif;
+    text-align: center;
+    margin-top: 2px;
+}
+
+/* Petos band (compact for cover) */
 .ex-petos {
-    background: #0e0e0e;
-    padding: 5px 8px 6px;
-    border-top: 2px solid #111;
-    order: 1;
+    background: #fafafa;
+    padding: 3px 6px;
+    border-top: 1px solid #eee;
     flex-shrink: 0;
 }
-.ex-petos-title {
-    font-size: 6px; color: #444; text-transform: uppercase; letter-spacing: 1.5px;
-    margin-bottom: 3px;
-    font-family: 'Barlow', sans-serif; font-weight: 600;
-}
 .ex-petos-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 3px 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 6px;
 }
 .ex-peto-row {
-    display: flex; align-items: flex-start; gap: 5px;
+    display: inline-flex; align-items: center; gap: 3px;
 }
 .ex-peto-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    flex-shrink: 0; margin-top: 1px;
+    width: 7px; height: 7px; border-radius: 50%;
+    flex-shrink: 0;
 }
 .peto-negro { background: #111; border: 1px solid #555; }
 .peto-blanco { background: #fff; border: 1px solid #888; }
@@ -234,57 +290,66 @@ body {
 .peto-azul { background: #3498db; border: 1px solid #2980b9; }
 .peto-amarillo { background: #f1c40f; border: 1px solid #f39c12; }
 .ex-peto-label {
-    font-size: 8px; color: #ddd; font-weight: 700; text-transform: uppercase;
+    font-size: 6px; color: #666; font-weight: 600;
     font-family: 'Barlow Condensed', sans-serif;
 }
 .ex-peto-players {
-    font-size: 7px; color: #888; line-height: 1.4;
-    white-space: normal; word-break: break-word;
+    font-size: 5.5px; color: #999; line-height: 1.3;
+    font-family: 'Barlow', sans-serif;
 }
 
-/* Info band (white) */
+/* Info band (duration, space, fase) */
 .ex-info {
-    padding: 6px 12px;
+    padding: 3px 6px;
     background: white;
     flex-shrink: 0;
-    order: 2;
-    display: flex; flex-direction: column; justify-content: center;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-top: 1px solid #eee;
 }
 .ex-tiempo {
-    font-size: 28px; color: #111;
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 900;
-    line-height: 1;
-}
-.ex-tiempo span {
-    font-size: 14px; color: #888; font-weight: 400;
+    font-size: 7px; color: #333;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
 }
 .ex-espacio {
-    font-size: 11px; color: #333; font-weight: 700;
+    font-size: 6px; color: #888;
     font-family: 'Barlow', sans-serif;
 }
 .ex-fase {
-    font-size: 8px; color: #bbb; text-transform: uppercase;
-    letter-spacing: 1.5px;
+    font-size: 5.5px; color: #aaa; text-transform: uppercase;
+    letter-spacing: 1px;
     font-family: 'Barlow', sans-serif;
+    margin-left: auto;
 }
 
 /* --- Landscape Footer --- */
 .lf {
-    height: 6mm;
+    height: 5mm;
     background: #f4f4f4;
     border-top: 1px solid #e0e0e0;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 14px;
+    padding: 0 12px;
     flex-shrink: 0;
 }
 .lf-text {
-    font-size: 7px; color: #aaa;
+    font-size: 6px; color: #aaa;
     font-family: 'Barlow', sans-serif;
 }
+.lf-legend {
+    display: flex; gap: 6px; align-items: center;
+    font-size: 6px; color: #aaa;
+}
+.lf-legend-item {
+    display: inline-flex; align-items: center; gap: 2px;
+}
+.lf-legend-dot {
+    width: 5px; height: 5px; border-radius: 50%; display: inline-block;
+}
 
-/* ============ PAGES 2+: PORTRAIT ============ */
+/* ============ PAGES 2+: PORTRAIT DETAIL ============ */
 .page-portrait {
     page: detail;
     width: 210mm;
@@ -299,11 +364,11 @@ body {
 /* --- Portrait Header --- */
 .ph {
     background: #0a0a0a;
-    height: 28mm;
+    height: 24mm;
     display: flex;
     align-items: center;
-    padding: 0 16px;
-    gap: 12px;
+    padding: 0 14px;
+    gap: 10px;
     flex-shrink: 0;
     position: relative;
 }
@@ -314,30 +379,30 @@ body {
     height: 3px;
     background: linear-gradient(90deg, {{ color_primario }} 0%, {{ color_secundario }} 100%);
 }
-.ph-logo { width: 38px; height: 38px; flex-shrink: 0; }
+.ph-logo { width: 34px; height: 34px; flex-shrink: 0; }
 .ph-logo img { width: 100%; height: 100%; object-fit: contain; border-radius: 4px; }
-.ph-divider { width: 1px; height: 34px; background: rgba(255,255,255,0.15); flex-shrink: 0; }
+.ph-divider { width: 1px; height: 30px; background: rgba(255,255,255,0.15); flex-shrink: 0; }
 .ph-left { flex: 1; min-width: 0; }
 .ph-breadcrumb {
-    font-size: 7px; color: #555; text-transform: uppercase; letter-spacing: 1.5px;
+    font-size: 6.5px; color: #555; text-transform: uppercase; letter-spacing: 1.5px;
     font-family: 'Barlow', sans-serif;
 }
 .ph-title {
-    font-size: 22px; color: white; text-transform: uppercase;
+    font-size: 20px; color: white; text-transform: uppercase;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 900;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .ph-subtitle {
-    font-size: 9px; color: #777;
+    font-size: 8px; color: #777;
     font-family: 'Barlow', sans-serif;
 }
 .ph-right { text-align: right; flex-shrink: 0; }
 .ph-num {
-    font-size: 32px; color: rgba(255,255,255,0.08);
+    font-size: 28px; color: rgba(255,255,255,0.08);
     font-family: 'Barlow Condensed', sans-serif; font-weight: 900;
 }
 .ph-type {
-    font-size: 10px; color: {{ color_primario }}; text-transform: uppercase;
+    font-size: 9px; color: {{ color_primario }}; text-transform: uppercase;
     letter-spacing: 2px;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
 }
@@ -346,7 +411,7 @@ body {
 .quick-bar {
     background: #111;
     display: flex;
-    height: 11mm;
+    height: 10mm;
     flex-shrink: 0;
 }
 .qb-cell {
@@ -354,27 +419,27 @@ body {
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     border-right: 1px solid #222;
-    padding: 0 6px;
+    padding: 0 4px;
 }
 .qb-cell:last-child { border-right: none; }
 .qb-val {
-    font-size: 14px; color: white;
+    font-size: 13px; color: white;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
 }
 .qb-label {
-    font-size: 7px; color: #555; text-transform: uppercase; letter-spacing: 1px;
+    font-size: 6.5px; color: #555; text-transform: uppercase; letter-spacing: 1px;
 }
 
 /* --- Material pills bar --- */
 .material-bar {
     background: #111;
-    padding: 4px 14px;
+    padding: 3px 14px;
     display: flex; align-items: center; gap: 5px;
     flex-shrink: 0;
     flex-wrap: wrap;
 }
 .material-label {
-    font-size: 7px; color: #555; text-transform: uppercase; letter-spacing: 1px;
+    font-size: 6.5px; color: #555; text-transform: uppercase; letter-spacing: 1px;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 600;
     margin-right: 4px;
 }
@@ -404,20 +469,20 @@ body {
 
 /* --- Large Field Section --- */
 .campo-section {
-    padding: 10px 14px 6px;
+    padding: 8px 14px 6px;
     background: #0a0a0a;
     flex-shrink: 0;
 }
 .campo-section-title {
     font-size: 7px; color: #444; text-transform: uppercase;
-    letter-spacing: 2px; margin-bottom: 5px;
+    letter-spacing: 2px; margin-bottom: 4px;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 600;
 }
 .campo-grande-wrap {
     background: #1d5c1d;
     border: 2px solid #333;
     overflow: hidden;
-    height: 95mm;
+    height: 105mm;
 }
 .campo-grande-wrap svg { width: 100%; height: 100%; display: block; }
 
@@ -430,7 +495,7 @@ body {
     overflow: hidden;
 }
 .info-col {
-    padding: 10px 14px;
+    padding: 8px 14px;
     overflow: hidden;
 }
 .info-col:first-child {
@@ -439,14 +504,14 @@ body {
 .info-col-title {
     font-size: 9px; font-weight: 700; color: #111;
     text-transform: uppercase; letter-spacing: 2px;
-    padding-bottom: 5px; border-bottom: 1px solid #111;
-    margin-bottom: 8px;
+    padding-bottom: 4px; border-bottom: 1px solid #111;
+    margin-bottom: 6px;
     font-family: 'Barlow Condensed', sans-serif;
 }
 .info-label {
-    font-size: 8px; font-weight: 600; color: #999;
+    font-size: 7.5px; font-weight: 600; color: #999;
     text-transform: uppercase; letter-spacing: 1px;
-    margin-top: 8px; margin-bottom: 3px;
+    margin-top: 6px; margin-bottom: 3px;
     font-family: 'Barlow Condensed', sans-serif;
 }
 .info-text {
@@ -454,10 +519,10 @@ body {
     font-family: 'Barlow', sans-serif;
 }
 
-/* Coach position inline (inside info column) */
+/* Coach position inline */
 .coach-note-inline {
-    margin-top: 8px;
-    margin-left: 20px;
+    margin-top: 6px;
+    margin-left: 12px;
     padding: 4px 8px;
     background: #fef9e7;
     border-left: 3px solid #F59E0B;
@@ -473,9 +538,9 @@ body {
 }
 
 /* Team blocks */
-.equipo-block { margin-bottom: 6px; }
+.equipo-block { margin-bottom: 5px; }
 .equipo-name {
-    font-size: 10px; text-transform: uppercase;
+    font-size: 9px; text-transform: uppercase;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
     display: flex; align-items: center; gap: 4px;
     margin-bottom: 2px;
@@ -492,11 +557,11 @@ body {
 
 /* Consignas */
 .consigna-item {
-    display: flex; gap: 6px; align-items: flex-start;
-    margin-bottom: 4px;
+    display: flex; gap: 5px; align-items: flex-start;
+    margin-bottom: 3px;
 }
 .consigna-bullet {
-    width: 14px; height: 14px;
+    width: 13px; height: 13px;
     background: #111; color: white;
     font-size: 7px; font-weight: 700;
     display: flex; align-items: center; justify-content: center;
@@ -512,16 +577,16 @@ body {
 .nota-tactica {
     background: #111; color: white;
     border-left: 3px solid {{ color_primario }};
-    padding: 6px 10px;
+    padding: 5px 10px;
     font-size: 8px; line-height: 1.5;
-    margin: 6px 0;
+    margin: 5px 0;
     font-family: 'Barlow', sans-serif; font-weight: 500;
 }
 
 /* Variants box */
 .variante-box {
     background: #f9f9f9; border: 1px solid #e0e0e0;
-    padding: 6px 10px; margin-top: 6px;
+    padding: 5px 10px; margin-top: 5px;
 }
 .variante-title {
     font-size: 7px; color: #999; text-transform: uppercase;
@@ -536,7 +601,7 @@ body {
 /* Errors box */
 .errores-box {
     background: #fff5f5; border: 1px solid #fed7d7;
-    padding: 6px 10px; margin-top: 6px;
+    padding: 5px 10px; margin-top: 5px;
 }
 .errores-title {
     font-size: 7px; color: #c53030; text-transform: uppercase;
@@ -566,21 +631,21 @@ body {
 
 /* --- Portrait Footer --- */
 .pf {
-    height: 8mm;
+    height: 7mm;
     background: #f4f4f4;
     border-top: 1px solid #e0e0e0;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 16px;
+    padding: 0 14px;
     flex-shrink: 0;
 }
 .pf-text {
-    font-size: 7px; color: #aaa;
+    font-size: 6.5px; color: #aaa;
     font-family: 'Barlow', sans-serif;
 }
 .pf-center {
-    font-size: 9px; color: #ccc;
+    font-size: 8px; color: #ccc;
     font-family: 'Barlow Condensed', sans-serif;
     text-transform: uppercase; letter-spacing: 2px;
 }
@@ -604,16 +669,16 @@ body {
         <div class="lh-title">
             <div class="lh-title-club">{{ org_nombre }} · {{ equipo_categoria }} · Temporada 2025-26</div>
             <div class="lh-title-name">{{ sesion.get('titulo', 'Sesion de Entrenamiento') }}</div>
-            <div class="lh-title-sub">{{ sesion.get('fecha', '') }}{% if sesion.get('rival') %} · Rival: {{ sesion.get('rival') }}{% endif %}</div>
+            <div class="lh-title-sub">{{ sesion.get('fecha', '') }}{% if sesion.get('hora') %} · {{ sesion.get('hora')[:5] }}h{% endif %}{% if lugar %} · {{ lugar }}{% endif %}{% if sesion.get('rival') %} · Rival: {{ sesion.get('rival') }}{% endif %}</div>
         </div>
-        <div class="lh-metrics">
-            <div class="lh-metric">
-                <div class="lh-metric-val">{{ duracion_total }}</div>
-                <div class="lh-metric-label">Duracion</div>
+        <div class="lh-info">
+            <div class="lh-info-item">
+                <div class="lh-info-val">{{ duracion_total }}'</div>
+                <div class="lh-info-label">Duracion</div>
             </div>
-            <div class="lh-metric">
-                <div class="lh-metric-val">{{ num_ejercicios }}</div>
-                <div class="lh-metric-label">Ejercicios</div>
+            <div class="lh-info-item">
+                <div class="lh-info-val">{{ num_ejercicios }}</div>
+                <div class="lh-info-label">Ejercicios</div>
             </div>
         </div>
         <div class="lh-divider"></div>
@@ -623,15 +688,12 @@ body {
             {% endif %}
             <div class="lh-badge">{{ sesion.get('match_day', '') }}</div>
             {% if microciclo_nombre %}
-            <div class="lh-badge">{{ microciclo_nombre }}</div>
-            {% endif %}
-            {% if lugar %}
-            <div class="lh-badge">{{ lugar }}</div>
+            <div class="lh-badge" style="font-size:7px;">{{ microciclo_nombre[:30] }}</div>
             {% endif %}
         </div>
     </div>
 
-    <!-- Asistencia Roster -->
+    <!-- Asistencia Roster (full width, horizontal flow) -->
     {% if asistencia_roster %}
     <div class="asistencia-roster">
         <div class="asistencia-label">Asistencia ({{ asistencia_roster|length }})</div>
@@ -639,7 +701,7 @@ body {
             {% for p in asistencia_roster %}
             <div class="asistencia-item">
                 <span class="asistencia-dorsal">{% if p.dorsal %}#{{ p.dorsal }}{% endif %}</span>
-                <span class="asistencia-nombre">{{ p.nombre }} {{ p.apellidos[:1] }}.</span>
+                <span>{{ p.nombre }} {{ p.apellidos[:1] }}.</span>
                 <span class="asistencia-badge badge-{{ p.sort_key }}">{{ p.tipo_display }}</span>
             </div>
             {% endfor %}
@@ -647,48 +709,96 @@ body {
     </div>
     {% endif %}
 
-    <!-- Exercise Grid -->
-    <div class="ex-grid">
-        {% for tarea in all_tareas[:4] %}
+    <!-- Objetivo Bar -->
+    {% if objetivo_principal or fase_juego_principal or principio_tactico_principal %}
+    <div class="objetivo-bar">
+        <span class="objetivo-label">Objetivo</span>
+        {% if objetivo_principal %}
+        <span class="objetivo-text">{{ objetivo_principal }}</span>
+        {% endif %}
+        {% if fase_juego_principal %}
+        <span class="objetivo-sep">·</span>
+        <span class="objetivo-text">{{ fase_juego_principal }}</span>
+        {% endif %}
+        {% if principio_tactico_principal %}
+        <span class="objetivo-sep">·</span>
+        <span class="objetivo-text">{{ principio_tactico_principal }}</span>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Exercise Grid (ALL exercises, dynamic columns) -->
+    {% set num_tareas = all_tareas|length %}
+    {% set grid_cols = 4 if num_tareas > 6 else (3 if num_tareas > 4 else 2) %}
+    {% set grid_rows = (num_tareas + grid_cols - 1) // grid_cols %}
+    <div class="ex-grid ex-grid-{{ grid_cols }}" style="grid-template-rows: repeat({{ grid_rows }}, 1fr);">
+        {% for tarea in all_tareas %}
         <div class="ex-card">
+            <!-- Card Header: number + badge + title + duration -->
             <div class="ex-card-header">
                 <span class="ex-num">{{ '%02d' % loop.index }}</span>
                 <span class="ex-type-badge badge-{{ tarea.badge_class }}">{{ tarea.categoria_codigo or 'EJ' }}</span>
                 <div class="ex-name">{{ tarea.titulo }}</div>
+                <span class="ex-dur">{{ tarea.duracion }}'</span>
             </div>
+
+            <!-- Objective line (simplified) -->
+            {% if tarea.objetivo_tactico %}
+            <div class="ex-objetivo">{{ tarea.objetivo_tactico }}</div>
+            {% endif %}
+
+            <!-- Diagram: show for complex exercises, skip for activacion/vuelta_calma without diagram -->
+            {% if tarea.has_diagram and not tarea.is_activacion and not tarea.is_vuelta_calma %}
             <div class="campo-mini-wrap">
                 {{ tarea.svg_thumbnail }}
             </div>
-            <div class="ex-info">
-                <div class="ex-tiempo">{{ tarea.duracion }}' {% if tarea.num_series %}<span>· {{ tarea.num_series }} series</span>{% endif %}</div>
-                <div class="ex-espacio">{% if tarea.espacio_largo and tarea.espacio_ancho %}{{ tarea.espacio_largo|int }}x{{ tarea.espacio_ancho|int }}m · {% endif %}{{ tarea.num_jugadores_min }}{% if tarea.num_jugadores_max %}-{{ tarea.num_jugadores_max }}{% endif %} jug.</div>
-                <div class="ex-fase">{{ tarea.fase_label }}</div>
+            {% elif tarea.has_diagram and (tarea.is_activacion or tarea.is_vuelta_calma) %}
+            {# Activacion/vuelta calma with diagram: show it but smaller context #}
+            <div class="campo-mini-wrap" style="max-height: 28mm; padding: 2px 4px;">
+                {{ tarea.svg_thumbnail }}
             </div>
+            {% else %}
+            <div class="ex-no-diagram">
+                <div class="ex-no-diagram-fase">{{ tarea.fase_label }}</div>
+                <div class="ex-no-diagram-info">{% if tarea.espacio_largo and tarea.espacio_ancho %}{{ tarea.espacio_largo|int }}x{{ tarea.espacio_ancho|int }}m{% endif %}{% if tarea.num_series %} · {{ tarea.num_series }} series{% endif %}</div>
+            </div>
+            {% endif %}
+
+            <!-- Petos (compact) -->
+            {% if tarea.petos_html %}
             <div class="ex-petos">
-                <div class="ex-petos-title">Reparto de Petos</div>
                 <div class="ex-petos-grid">
                     {{ tarea.petos_html }}
                 </div>
             </div>
+            {% endif %}
+
+            <!-- Bottom info -->
+            <div class="ex-info">
+                <span class="ex-tiempo">{% if tarea.num_series %}{{ tarea.num_series }}x{% endif %}{{ tarea.duracion }}'</span>
+                <span class="ex-espacio">{% if tarea.espacio_largo and tarea.espacio_ancho %}{{ tarea.espacio_largo|int }}x{{ tarea.espacio_ancho|int }}m{% endif %} · {{ tarea.num_jugadores_min }}{% if tarea.num_jugadores_max %}-{{ tarea.num_jugadores_max }}{% endif %}j</span>
+                <span class="ex-fase">{{ tarea.fase_label }}</span>
+            </div>
         </div>
         {% endfor %}
 
-        {# Fill empty slots if less than 4 exercises #}
-        {% for i in range(all_tareas[:4]|length, 4) %}
-        <div class="ex-card" style="background:#0a0a0a;display:flex;align-items:center;justify-content:center;">
-            <div style="color:#333;font-size:12px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:3px;">Sin ejercicio</div>
+        {# Fill empty grid slots #}
+        {% set total_slots = (4 if num_tareas > 6 else (3 if num_tareas > 4 else 2)) * ((num_tareas + (4 if num_tareas > 6 else (3 if num_tareas > 4 else 2)) - 1) // (4 if num_tareas > 6 else (3 if num_tareas > 4 else 2))) %}
+        {% for i in range(num_tareas, total_slots) %}
+        <div class="ex-card" style="background:#fafafa;display:flex;align-items:center;justify-content:center;">
+            <div style="color:#ddd;font-size:10px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:2px;">—</div>
         </div>
         {% endfor %}
     </div>
 
     <!-- Footer -->
     <div class="lf">
-        <div class="lf-text">{{ org_nombre }} · {{ equipo_nombre }} · {{ sesion.get('fecha', '') }}</div>
-        <div class="lf-text" style="display:flex;gap:8px;align-items:center;">
-            <span style="display:inline-flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#111;border:1px solid #555;display:inline-block;"></span> Equipo</span>
-            <span style="display:inline-flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#fff;border:1px solid #888;display:inline-block;"></span> Rival</span>
-            <span style="display:inline-flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#2ecc71;border:1px solid #27ae60;display:inline-block;"></span> Portero</span>
-            <span style="display:inline-flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#888;border:1px solid #aaa;display:inline-block;"></span> Comodin</span>
+        <div class="lf-text">{{ org_nombre }} · {{ equipo_nombre }} · {{ sesion.get('fecha', '') }}{% if sesion.get('hora') %} · {{ sesion.get('hora')[:5] }}{% endif %}</div>
+        <div class="lf-legend">
+            <span class="lf-legend-item"><span class="lf-legend-dot" style="background:#111;border:1px solid #555;"></span> Equipo</span>
+            <span class="lf-legend-item"><span class="lf-legend-dot" style="background:#fff;border:1px solid #888;"></span> Rival</span>
+            <span class="lf-legend-item"><span class="lf-legend-dot" style="background:#2ecc71;border:1px solid #27ae60;"></span> Portero</span>
+            <span class="lf-legend-item"><span class="lf-legend-dot" style="background:#888;border:1px solid #aaa;"></span> Comodin</span>
         </div>
         <div class="lf-text">Documento interno · No distribuir</div>
     </div>
@@ -709,9 +819,9 @@ body {
         </div>
         <div class="ph-divider"></div>
         <div class="ph-left">
-            <div class="ph-breadcrumb">{{ org_nombre }} · {{ sesion.get('match_day','') }} · {{ sesion.get('fecha','') }}</div>
+            <div class="ph-breadcrumb">{{ org_nombre }} · {{ sesion.get('match_day','') }} · {{ sesion.get('fecha','') }}{% if sesion.get('hora') %} · {{ sesion.get('hora')[:5] }}{% endif %}</div>
             <div class="ph-title">{{ tarea.titulo }}</div>
-            <div class="ph-subtitle">{{ tarea.fase_label }}{% if tarea.fase_juego %} · {{ tarea.fase_juego.replace('_', ' ').title() }}{% endif %}</div>
+            <div class="ph-subtitle">{{ tarea.fase_label }}{% if tarea.fase_juego %} · {{ tarea.fase_juego.replace('_', ' ').title() }}{% endif %}{% if tarea.principio_tactico %} · {{ tarea.principio_tactico }}{% endif %}</div>
         </div>
         <div class="ph-right">
             <div class="ph-num">{{ '%02d' % loop.index }}</div>
@@ -753,13 +863,22 @@ body {
     </div>
     {% endif %}
 
+    <!-- Coach position note -->
+    {% if tarea.posicion_entrenador %}
+    <div class="coach-note">
+        <strong>Pos. Entrenador:</strong> {{ tarea.posicion_entrenador }}
+    </div>
+    {% endif %}
+
     <!-- Large Field -->
+    {% if tarea.has_diagram %}
     <div class="campo-section">
         <div class="campo-section-title">Descripcion Grafica</div>
         <div class="campo-grande-wrap">
             {{ tarea.svg_large }}
         </div>
     </div>
+    {% endif %}
 
     <!-- Info Section (2 columns) -->
     <div class="info-section">
@@ -768,12 +887,6 @@ body {
             {% if tarea.descripcion %}
             <div class="info-col-title">Descripcion</div>
             <div class="info-text">{{ tarea.descripcion }}</div>
-            {% endif %}
-
-            {% if tarea.posicion_entrenador %}
-            <div class="coach-note-inline">
-                <strong>Pos. Entrenador:</strong> {{ tarea.posicion_entrenador }}
-            </div>
             {% endif %}
 
             {% if tarea.formation_html %}

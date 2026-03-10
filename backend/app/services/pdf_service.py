@@ -420,6 +420,10 @@ def generate_sesion_pdf_v2(
             "formation_html": formation_html,
             "petos_html": petos_html,
             "badge_class": badge_class,
+            "is_activacion": fase_key == "activacion",
+            "is_vuelta_calma": fase_key == "vuelta_calma",
+            "objetivo_tactico": tarea.get("principio_tactico") or tarea.get("fase_juego", "").replace("_", " ").title() if tarea.get("fase_juego") else "",
+            "has_diagram": bool(grafico_data),
         }
 
         if fase_key in fases:
@@ -455,6 +459,9 @@ def generate_sesion_pdf_v2(
         lugar=lugar or "",
         material_sesion=material_sesion,
         asistencia_roster=asistencia_roster or [],
+        objetivo_principal=sesion_data.get("objetivo_principal", ""),
+        fase_juego_principal=sesion_data.get("fase_juego_principal", "").replace("_", " ").title() if sesion_data.get("fase_juego_principal") else "",
+        principio_tactico_principal=sesion_data.get("principio_tactico_principal", ""),
     )
 
     # Generate PDF
