@@ -194,36 +194,22 @@ def _gather_session_loads(
             if not tipos or "sesion" in tipos or "margen" in tipos:
                 needs_auto.add(sid)
 
-        # Batch fetch sesion_tareas
+        # Batch fetch sesion_tareas (duracion_override is on sesion_tareas, base duration on tareas)
         tareas_by_sesion: dict[str, list[dict]] = defaultdict(list)
         if needs_auto:
             st_resp = (
                 supabase.table("sesion_tareas")
-                .select("sesion_id, tarea_id, duracion")
+                .select("sesion_id, tarea_id, duracion_override, tareas(duracion_total, densidad, nivel_cognitivo)")
                 .in_("sesion_id", list(needs_auto))
                 .execute()
             )
-            # Collect unique tarea_ids
-            tarea_ids = list({st["tarea_id"] for st in (st_resp.data or []) if st.get("tarea_id")})
-
-            tarea_info_map: dict[str, dict] = {}
-            if tarea_ids:
-                # Batch fetch tarea details
-                tareas_resp = (
-                    supabase.table("tareas")
-                    .select("id, densidad, nivel_cognitivo")
-                    .in_("id", tarea_ids)
-                    .execute()
-                )
-                for t in (tareas_resp.data or []):
-                    tarea_info_map[t["id"]] = t
 
             for st in (st_resp.data or []):
                 sid = st["sesion_id"]
-                tid = st.get("tarea_id")
-                t_info = tarea_info_map.get(tid, {}) if tid else {}
+                t_info = st.get("tareas") or {}
+                duracion = st.get("duracion_override") or t_info.get("duracion_total", 0)
                 tareas_by_sesion[sid].append({
-                    "duracion": st.get("duracion", 0),
+                    "duracion": duracion,
                     "densidad": t_info.get("densidad"),
                     "nivel_cognitivo": t_info.get("nivel_cognitivo"),
                 })
