@@ -3,7 +3,7 @@ TrainingHub Pro - Router de Convocatorias
 Gestión de convocatorias y estadísticas de partido.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Query, status
 from fastapi.responses import StreamingResponse
 from typing import Optional
 from uuid import UUID
@@ -24,6 +24,19 @@ from app.services.load_calculation_service import recalculate_player_load
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _recalc_jugador(supabase, jugador_id: str):
+    """Background task: recalculate load for a single player."""
+    try:
+        jug = supabase.table("jugadores").select("equipo_id").eq(
+            "id", jugador_id
+        ).single().execute()
+        if jug.data:
+            recalculate_player_load(UUID(jugador_id), UUID(jug.data["equipo_id"]))
+            logger.info("Auto-recalc load for player %s", jugador_id)
+    except Exception as e:
+        logger.error("Error in auto-recalc for %s: %s", jugador_id, e)
 
 
 @router.get("/partido/{partido_id}", response_model=ConvocatoriaListResponse)
@@ -163,6 +176,7 @@ async def create_convocatorias_batch(
 @router.put("/batch-update")
 async def batch_update_convocatorias(
     updates: list[dict],
+    bg: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_UPDATE)),
 ):
     """Actualiza múltiples convocatorias de una vez (stats de jugadores post-partido)."""
@@ -187,15 +201,10 @@ async def batch_update_convocatorias(
         if response.data:
             results.append(response.data[0])
 
-    # Trigger load recalculation for players with updated minutes
-    try:
-        for item in results:
-            if item.get("minutos_jugados") and item.get("jugador_id"):
-                jugador = supabase.table("jugadores").select("equipo_id").eq("id", item["jugador_id"]).single().execute()
-                if jugador.data:
-                    recalculate_player_load(UUID(item["jugador_id"]), UUID(jugador.data["equipo_id"]))
-    except Exception as e:
-        logger.warning(f"Error recalculating load after stats update: {e}")
+    # Trigger load recalculation in background for players with updated minutes
+    for item in results:
+        if item.get("minutos_jugados") and item.get("jugador_id"):
+            bg.add_task(_recalc_jugador, supabase, item["jugador_id"])
 
     return {"updated": len(results), "data": results}
 

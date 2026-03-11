@@ -3,7 +3,8 @@ TrainingHub Pro - Router de RPE
 Registro de carga percibida y wellness de jugadores.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query, status
+import logging
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Query, status
 from typing import Optional
 from uuid import UUID
 from datetime import date
@@ -19,6 +20,23 @@ from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
 from app.services.notification_service import notify_rpe_alerta
+from app.services.load_calculation_service import recalculate_player_load
+
+logger = logging.getLogger(__name__)
+
+
+def _recalc_jugador(jugador_id: str):
+    """Background task: recalculate load for a single player."""
+    try:
+        supabase = get_supabase()
+        jug = supabase.table("jugadores").select("equipo_id").eq(
+            "id", jugador_id
+        ).single().execute()
+        if jug.data:
+            recalculate_player_load(UUID(jugador_id), UUID(jug.data["equipo_id"]))
+            logger.info("Auto-recalc load for player %s", jugador_id)
+    except Exception as e:
+        logger.error("Error in auto-recalc for %s: %s", jugador_id, e)
 
 router = APIRouter()
 
@@ -209,6 +227,7 @@ async def get_rpe(
 @router.post("", response_model=RPEResponse, status_code=status.HTTP_201_CREATED)
 async def create_rpe(
     rpe: RPECreate,
+    bg: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
 ):
     """Crea un nuevo registro RPE."""
@@ -276,12 +295,16 @@ async def create_rpe(
                 jugador_id=data["jugador_id"],
             )
 
+    # Auto-recalculate player load in background
+    bg.add_task(_recalc_jugador, data["jugador_id"])
+
     return RPEResponse(**created)
 
 
 @router.post("/batch", status_code=status.HTTP_201_CREATED)
 async def create_rpe_batch(
     registros: list[RPECreate],
+    bg: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
 ):
     """Crea múltiples registros RPE (ej: post-sesión para todo el equipo)."""
@@ -315,6 +338,10 @@ async def create_rpe_batch(
 
     response = supabase.table("registros_rpe").insert(items).execute()
 
+    # Auto-recalculate load for all affected players in background
+    for jid in jugador_ids:
+        bg.add_task(_recalc_jugador, jid)
+
     return {"created": len(response.data), "data": response.data}
 
 
@@ -322,6 +349,7 @@ async def create_rpe_batch(
 async def update_rpe(
     rpe_id: UUID,
     data: RPEUpdate,
+    bg: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
 ):
     """Actualiza un registro RPE (rpe, duracion, titulo, notas)."""
@@ -360,18 +388,22 @@ async def update_rpe(
             detail="Error al actualizar registro RPE"
         )
 
+    # Auto-recalculate player load in background
+    bg.add_task(_recalc_jugador, existing.data["jugador_id"])
+
     return RPEResponse(**response.data[0])
 
 
 @router.delete("/{rpe_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_rpe(
     rpe_id: UUID,
+    bg: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
 ):
     """Elimina un registro RPE."""
     supabase = get_supabase()
 
-    existing = supabase.table("registros_rpe").select("id").eq(
+    existing = supabase.table("registros_rpe").select("id, jugador_id").eq(
         "id", str(rpe_id)
     ).single().execute()
 
@@ -381,5 +413,11 @@ async def delete_rpe(
             detail="Registro RPE no encontrado"
         )
 
+    jugador_id = existing.data.get("jugador_id")
     supabase.table("registros_rpe").delete().eq("id", str(rpe_id)).execute()
+
+    # Auto-recalculate player load in background
+    if jugador_id:
+        bg.add_task(_recalc_jugador, jugador_id)
+
     return None
