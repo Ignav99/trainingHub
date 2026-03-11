@@ -24,7 +24,7 @@ from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
 from app.services.audit_service import log_create, log_update, log_delete
 from app.services.notification_service import notify_partido_resultado
-from app.services.pdf_service import generate_informe_partido_pdf, generate_informe_rival_pdf, generate_plan_partido_pdf
+from app.services.pdf_service import generate_informe_partido_pdf, generate_informe_rival_pdf, generate_plan_partido_pdf, generate_plan_partido_jugadores_pdf
 from app.services.pre_match_service import populate_partido_intel
 from app.services.claude_service import ClaudeService, ClaudeError
 
@@ -712,6 +712,63 @@ async def download_plan_partido_pdf(
 
     rival_nombre = rival_data.get("nombre", "rival").replace(" ", "_")
     filename = f"plan_partido_vs_{rival_nombre}_{partido_data.get('fecha', '')}.pdf"
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/{partido_id}/plan-partido-jugadores-pdf")
+async def download_plan_partido_jugadores_pdf(
+    partido_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """Download simplified match plan PDF for players."""
+    supabase = get_supabase()
+
+    partido_res = supabase.table("partidos").select(
+        "*, rivales(nombre, escudo_url)"
+    ).eq("id", str(partido_id)).single().execute()
+
+    if not partido_res.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Partido no encontrado")
+
+    partido_data = partido_res.data
+    rival_data = partido_data.pop("rivales", {}) or {}
+
+    plan = None
+    if partido_data.get("notas_pre"):
+        try:
+            notas = json.loads(partido_data["notas_pre"]) if isinstance(partido_data["notas_pre"], str) else partido_data["notas_pre"]
+            plan = notas.get("ai_plan_partido")
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    if not plan:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No hay plan de partido generado")
+
+    org_res = supabase.table("organizaciones").select(
+        "nombre, color_primario, color_secundario, logo_url"
+    ).eq("id", auth.organizacion_id).single().execute()
+    organizacion = org_res.data or {}
+
+    equipo_nombre = ""
+    if partido_data.get("equipo_id"):
+        eq_res = supabase.table("equipos").select("nombre").eq("id", partido_data["equipo_id"]).single().execute()
+        equipo_nombre = eq_res.data.get("nombre", "") if eq_res.data else ""
+
+    pdf_bytes = generate_plan_partido_jugadores_pdf(
+        plan=plan,
+        partido=partido_data,
+        rival=rival_data,
+        organizacion=organizacion,
+        equipo_nombre=equipo_nombre,
+    )
+
+    rival_nombre = rival_data.get("nombre", "rival").replace(" ", "_")
+    filename = f"plan_jugadores_vs_{rival_nombre}_{partido_data.get('fecha', '')}.pdf"
 
     return StreamingResponse(
         io.BytesIO(pdf_bytes),

@@ -4,14 +4,31 @@
 <meta charset="UTF-8">
 <title>Plan de Partido — vs {{ rival.get('nombre', 'Rival') }}</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;900&family=Barlow:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700;900&display=swap');
+
+:root {
+    --primary: #0d1117;
+    --secondary: #161b22;
+    --card-bg: #1a1f26;
+    --accent-blue: #58a6ff;
+    --accent-green: #3fb950;
+    --accent-red: #f85149;
+    --accent-yellow: #d29922;
+    --accent-purple: #a371f7;
+    --accent-amber: #f0883e;
+    --accent-emerald: #10b981;
+    --text: #e6edf3;
+    --text-muted: #7d8590;
+    --border: #30363d;
+}
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
     font-family: 'Barlow', sans-serif;
-    color: #111;
-    font-size: 10px;
+    background: var(--primary);
+    color: var(--text);
+    font-size: 9px;
     line-height: 1.4;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
@@ -22,28 +39,22 @@ body {
 .page {
     width: 210mm;
     min-height: 297mm;
-    padding: 0;
-    background: white;
+    padding: 0 0 35px 0;
+    background: var(--primary);
     position: relative;
+    overflow: hidden;
 }
 
 .page-break { page-break-before: always; }
 
-/* ============ HEADER BAR ============ */
+/* ============ HEADER ============ */
 .header {
-    background: #0a0a0a;
+    background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
     padding: 14px 20px;
     display: flex;
     align-items: center;
     gap: 14px;
-    position: relative;
-}
-.header::after {
-    content: '';
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, {{ color_primario }} 0%, {{ organizacion.get('color_secundario', color_primario) }} 100%);
+    border-bottom: 3px solid var(--accent-emerald);
 }
 .header-logo {
     width: 40px; height: 40px; flex-shrink: 0;
@@ -54,221 +65,233 @@ body {
 .header-divider {
     width: 1px; height: 32px; background: rgba(255,255,255,0.15); flex-shrink: 0;
 }
-.header-title {
-    flex: 1; min-width: 0;
-}
+.header-title { flex: 1; min-width: 0; }
 .header-club {
-    font-size: 8px; color: #666; text-transform: uppercase; letter-spacing: 2px;
-    font-family: 'Barlow', sans-serif; font-weight: 400;
+    font-size: 8px; color: var(--text-muted); text-transform: uppercase;
+    letter-spacing: 2px; font-weight: 400;
 }
 .header-name {
-    font-size: 18px; color: white; text-transform: uppercase;
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 900;
-    line-height: 1.15;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px; color: var(--text); text-transform: uppercase;
+    letter-spacing: 2px; line-height: 1.15;
 }
-.header-rival-info {
-    flex-shrink: 0; text-align: right;
-}
+.header-rival-info { flex-shrink: 0; text-align: right; }
 .header-vs {
-    font-size: 8px; color: #666; text-transform: uppercase; letter-spacing: 1.5px;
+    font-size: 8px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px;
 }
 .header-rival-name {
-    font-size: 16px; color: white;
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px; color: var(--accent-red); letter-spacing: 1px;
 }
 
 /* ============ MATCH INFO STRIP ============ */
 .match-strip {
-    background: #f8f9fa;
+    background: var(--secondary);
     padding: 8px 20px;
-    display: flex;
-    gap: 24px;
-    border-bottom: 1px solid #e5e7eb;
+    display: flex; gap: 24px;
+    border-bottom: 1px solid var(--border);
 }
-.match-strip-item {
-    display: flex; align-items: center; gap: 4px;
-}
+.match-strip-item { display: flex; align-items: center; gap: 4px; }
 .match-strip-label {
-    font-size: 8px; color: #666; text-transform: uppercase; letter-spacing: 0.8px;
-    font-weight: 600;
+    font-size: 8px; color: var(--text-muted); text-transform: uppercase;
+    letter-spacing: 0.8px; font-weight: 600;
 }
-.match-strip-value {
-    font-size: 10px; color: #111; font-weight: 600;
-}
+.match-strip-value { font-size: 10px; color: var(--text); font-weight: 600; }
 
 /* ============ CONTENT ============ */
-.content { padding: 16px 20px; }
+.content { padding: 14px 20px; }
 
 /* ============ ENFOQUE GENERAL ============ */
 .enfoque {
-    background: #0f172a;
-    border-left: 4px solid #10b981;
+    background: var(--card-bg);
+    border-left: 4px solid var(--accent-emerald);
     border-radius: 6px;
-    padding: 14px 16px;
-    margin-bottom: 16px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
 }
 .enfoque-title {
-    font-size: 9px; color: #10b981; text-transform: uppercase;
-    letter-spacing: 2px; font-weight: 700; margin-bottom: 6px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 11px; color: var(--accent-emerald); text-transform: uppercase;
+    letter-spacing: 2px; margin-bottom: 5px;
 }
-.enfoque-text {
-    font-size: 10px; color: #cbd5e1; line-height: 1.6;
-    white-space: pre-wrap;
+.enfoque-list { list-style: none; margin: 0; padding: 0; }
+.enfoque-list li {
+    font-size: 9.5px; color: var(--text); line-height: 1.5;
+    padding-left: 12px; position: relative; margin-bottom: 2px;
+}
+.enfoque-list li::before {
+    content: ''; position: absolute; left: 0; top: 5px;
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--accent-emerald);
 }
 
 /* ============ TWO COLUMN LAYOUT ============ */
-.two-col { overflow: hidden; margin-bottom: 16px; }
+.two-col { overflow: hidden; margin-bottom: 14px; }
 .col-left { float: left; width: 49%; }
 .col-right { float: right; width: 49%; }
 
 /* ============ PHASE CARD ============ */
 .phase-card {
-    border-radius: 6px;
-    overflow: hidden;
-    border: 1px solid #e5e7eb;
-    margin-bottom: 12px;
+    border-radius: 8px; overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    margin-bottom: 10px;
+    page-break-inside: avoid;
 }
 .phase-header {
-    padding: 8px 12px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-.phase-header-icon {
-    width: 16px; height: 16px;
+    padding: 7px 10px;
+    display: flex; align-items: center; gap: 6px;
 }
 .phase-header-title {
-    font-size: 11px; text-transform: uppercase;
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
-    letter-spacing: 1px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px;
 }
-.phase-body {
-    padding: 10px 12px;
-}
-.phase-subsection {
-    margin-bottom: 10px;
-}
+.phase-body { padding: 8px 10px; }
+
+.phase-subsection { margin-bottom: 8px; }
 .phase-subsection:last-child { margin-bottom: 0; }
 .phase-sublabel {
-    font-size: 8px; text-transform: uppercase;
+    font-size: 7.5px; text-transform: uppercase;
     letter-spacing: 1.5px; font-weight: 700;
     margin-bottom: 3px;
 }
-.phase-subtext {
-    font-size: 9.5px; color: #374151; line-height: 1.55;
-    white-space: pre-wrap;
+.obs-list { list-style: none; margin: 0; padding: 0; }
+.obs-bullet {
+    font-size: 8.5px; color: var(--text); line-height: 1.5;
+    padding-left: 10px; position: relative; margin-bottom: 2px;
+    overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; max-width: 100%;
+}
+.obs-bullet::before {
+    content: ''; position: absolute; left: 0; top: 5px;
+    width: 4px; height: 4px; border-radius: 50%;
 }
 
-/* Colors */
-.phase-blue .phase-header { background: #1e3a5f; }
+/* Phase colors — Blue (offensive) */
+.phase-blue .phase-header { background: linear-gradient(135deg, #1e3a5f 0%, #0d1f36 100%); }
 .phase-blue .phase-header-title { color: #93c5fd; }
-.phase-blue .phase-sublabel { color: #3b82f6; }
-.phase-blue { border-left: 4px solid #3b82f6; }
+.phase-blue .phase-sublabel { color: var(--accent-blue); }
+.phase-blue { border-left: 4px solid var(--accent-blue); }
+.phase-blue .obs-bullet::before { background: var(--accent-blue); }
 
-.phase-red .phase-header { background: #5f1e1e; }
+/* Phase colors — Red (defensive) */
+.phase-red .phase-header { background: linear-gradient(135deg, #5f1e1e 0%, #360d0d 100%); }
 .phase-red .phase-header-title { color: #fca5a5; }
-.phase-red .phase-sublabel { color: #ef4444; }
-.phase-red { border-left: 4px solid #ef4444; }
+.phase-red .phase-sublabel { color: var(--accent-red); }
+.phase-red { border-left: 4px solid var(--accent-red); }
+.phase-red .obs-bullet::before { background: var(--accent-red); }
 
-.phase-amber .phase-header { background: #5f4b1e; }
+/* Phase colors — Amber (transitions) */
+.phase-amber .phase-header { background: linear-gradient(135deg, #5f4b1e 0%, #362b0d 100%); }
 .phase-amber .phase-header-title { color: #fcd34d; }
-.phase-amber .phase-sublabel { color: #f59e0b; }
-.phase-amber { border-left: 4px solid #f59e0b; }
+.phase-amber .phase-sublabel { color: var(--accent-amber); }
+.phase-amber { border-left: 4px solid var(--accent-amber); }
+.phase-amber .obs-bullet::before { background: var(--accent-amber); }
 
-.phase-purple .phase-header { background: #3b1e5f; }
+/* Phase colors — Purple (ABP) */
+.phase-purple .phase-header { background: linear-gradient(135deg, #3b1e5f 0%, #1f0d36 100%); }
 .phase-purple .phase-header-title { color: #d8b4fe; }
-.phase-purple .phase-sublabel { color: #a855f7; }
-.phase-purple { border-left: 4px solid #a855f7; }
+.phase-purple .phase-sublabel { color: var(--accent-purple); }
+.phase-purple { border-left: 4px solid var(--accent-purple); }
+.phase-purple .obs-bullet::before { background: var(--accent-purple); }
 
-/* ============ PLAN SUSTITUCIONES ============ */
+/* ============ PITCH SVG ============ */
+.pitch-wrapper { padding: 4px 8px; }
+.pitch {
+    width: 100%; aspect-ratio: 1.5;
+    background: linear-gradient(180deg, #1e5631 0%, #1a472a 50%, #1e5631 100%);
+    border-radius: 5px; position: relative; overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.25);
+}
+.pitch-half {
+    width: 100%; aspect-ratio: 1.6;
+    background: linear-gradient(180deg, #1e5631 0%, #1a472a 100%);
+    border-radius: 5px; position: relative; overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.25);
+}
+.pitch-svg { width: 100%; height: 100%; }
+
+/* ============ SUSTITUCIONES ============ */
 .sustituciones {
-    border-left: 4px solid #64748b;
+    background: var(--card-bg);
+    border-left: 4px solid var(--text-muted);
     border-radius: 6px;
-    padding: 14px 16px;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-left: 4px solid #64748b;
-    margin-bottom: 16px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
 }
 .sustituciones-title {
-    font-size: 11px; color: #334155;
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 1px;
-    margin-bottom: 6px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 11px; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 1.5px;
+    margin-bottom: 5px;
 }
-.sustituciones-text {
-    font-size: 10px; color: #374151; line-height: 1.6;
-    white-space: pre-wrap;
+.sustituciones-list { list-style: none; margin: 0; padding: 0; }
+.sustituciones-list li {
+    font-size: 9px; color: var(--text); line-height: 1.5;
+    padding-left: 12px; position: relative; margin-bottom: 2px;
+}
+.sustituciones-list li::before {
+    content: ''; position: absolute; left: 0; top: 5px;
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--text-muted);
 }
 
 /* ============ CLAVES DEL PARTIDO ============ */
 .claves {
-    border-left: 4px solid #10b981;
+    background: var(--card-bg);
+    border-left: 4px solid var(--accent-emerald);
     border-radius: 6px;
     padding: 14px 16px;
-    background: #ecfdf5;
-    border: 1px solid #a7f3d0;
-    border-left: 4px solid #10b981;
+    border: 1px solid rgba(16,185,129,0.2);
+    border-left: 4px solid var(--accent-emerald);
 }
 .claves-title {
-    font-size: 11px; color: #065f46;
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 1px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 13px; color: var(--accent-emerald);
+    text-transform: uppercase; letter-spacing: 2px;
     margin-bottom: 10px;
 }
 .clave-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    margin-bottom: 8px;
+    display: flex; align-items: flex-start;
+    gap: 8px; margin-bottom: 8px;
 }
 .clave-item:last-child { margin-bottom: 0; }
 .clave-number {
     width: 20px; height: 20px; border-radius: 50%;
-    background: #10b981; color: white;
+    background: var(--accent-emerald); color: #000;
     font-size: 10px; font-weight: 700;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
 }
 .clave-text {
-    font-size: 10px; color: #374151; line-height: 1.5;
+    font-size: 10px; color: var(--text); line-height: 1.5;
     padding-top: 2px;
+    overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; max-width: 90%;
 }
 
-/* ============ COMPACT HEADER (page 2+) ============ */
+/* ============ COMPACT HEADER ============ */
 .header-compact {
-    background: #0a0a0a;
+    background: var(--secondary);
     padding: 8px 20px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    position: relative;
-}
-.header-compact::after {
-    content: '';
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, {{ color_primario }} 0%, {{ organizacion.get('color_secundario', color_primario) }} 100%);
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 2px solid var(--accent-emerald);
 }
 .header-compact-title {
-    font-size: 12px; color: white; text-transform: uppercase;
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 12px; color: var(--text); text-transform: uppercase;
     letter-spacing: 1px;
 }
 .header-compact-sub {
-    font-size: 9px; color: #666; margin-left: auto;
+    font-size: 9px; color: var(--text-muted); margin-left: auto;
 }
 
-/* ============ FOOTER ============ */
+/* ============ FOOTER (static) ============ */
 .footer {
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
     padding: 8px 20px;
-    display: flex;
-    justify-content: space-between;
-    font-size: 8px; color: #999;
-    border-top: 1px solid #f0f0f0;
+    display: flex; justify-content: space-between;
+    font-size: 8px; color: var(--text-muted);
+    border-top: 1px solid var(--border);
 }
 </style>
 </head>
@@ -288,7 +311,7 @@ body {
         </div>
         <div class="header-rival-info">
             <div class="header-vs">vs</div>
-            <div class="header-rival-name">{{ rival.get('nombre', 'Rival') }}</div>
+            <div class="header-rival-name">{{ rival.get('nombre', 'Rival') | upper }}</div>
         </div>
     </div>
 
@@ -337,7 +360,11 @@ body {
         {% if plan.get('enfoque_general') %}
         <div class="enfoque">
             <div class="enfoque-title">Enfoque General</div>
-            <div class="enfoque-text">{{ plan.get('enfoque_general', '') }}</div>
+            <ul class="enfoque-list">
+                {% for b in plan.get('enfoque_general', '')|to_bullets(4) %}
+                <li>{{ b }}</li>
+                {% endfor %}
+            </ul>
         </div>
         {% endif %}
 
@@ -345,35 +372,68 @@ body {
         <div class="two-col">
             <div class="col-left">
                 {% if plan.get('plan_ofensivo') %}
+                {% set po = plan.get('plan_ofensivo', {}) %}
                 <div class="phase-card phase-blue">
                     <div class="phase-header">
-                        <svg class="phase-header-icon" viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/><path d="M14.5 6.5L18 3h3v3l-11.5 11.5"/><path d="M5 14l4 4"/><path d="M7 17l-4 4"/></svg>
                         <span class="phase-header-title">Plan Ofensivo</span>
                     </div>
+                    <!-- Pitch diagram -->
+                    <div class="pitch-wrapper">
+                        <div class="pitch">
+                            <svg class="pitch-svg" viewBox="0 0 100 66">
+                                <line x1="50" y1="0" x2="50" y2="66" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+                                <circle cx="50" cy="33" r="8" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+                                <rect x="0" y="15" width="10" height="36" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+                                <rect x="90" y="15" width="10" height="36" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+                                <rect x="0" y="22" width="4" height="22" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+                                <rect x="96" y="22" width="4" height="22" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+                                <!-- Attack direction arrow -->
+                                <defs><marker id="ao" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="rgba(88,166,255,0.6)"/></marker></defs>
+                                <line x1="25" y1="33" x2="80" y2="33" stroke="rgba(88,166,255,0.4)" stroke-width="2" marker-end="url(#ao)" stroke-dasharray="4 3"/>
+                                <!-- Zone highlight -->
+                                <rect x="60" y="8" width="35" height="50" rx="3" fill="rgba(88,166,255,0.15)" stroke="rgba(88,166,255,0.4)" stroke-width="0.8" stroke-dasharray="3 2"/>
+                            </svg>
+                        </div>
+                    </div>
                     <div class="phase-body">
-                        {% set po = plan.get('plan_ofensivo', {}) %}
                         {% if po.get('principios') %}
                         <div class="phase-subsection">
                             <div class="phase-sublabel">Principios</div>
-                            <div class="phase-subtext">{{ po.get('principios', '') }}</div>
+                            <ul class="obs-list">
+                            {% for b in po.get('principios', '')|to_bullets(3) %}
+                            <li class="obs-bullet">{{ b }}</li>
+                            {% endfor %}
+                            </ul>
                         </div>
                         {% endif %}
                         {% if po.get('salida_balon') %}
                         <div class="phase-subsection">
                             <div class="phase-sublabel">Salida de Balon</div>
-                            <div class="phase-subtext">{{ po.get('salida_balon', '') }}</div>
+                            <ul class="obs-list">
+                            {% for b in po.get('salida_balon', '')|to_bullets(3) %}
+                            <li class="obs-bullet">{{ b }}</li>
+                            {% endfor %}
+                            </ul>
                         </div>
                         {% endif %}
                         {% if po.get('construccion') %}
                         <div class="phase-subsection">
                             <div class="phase-sublabel">Construccion</div>
-                            <div class="phase-subtext">{{ po.get('construccion', '') }}</div>
+                            <ul class="obs-list">
+                            {% for b in po.get('construccion', '')|to_bullets(3) %}
+                            <li class="obs-bullet">{{ b }}</li>
+                            {% endfor %}
+                            </ul>
                         </div>
                         {% endif %}
                         {% if po.get('finalizacion') %}
                         <div class="phase-subsection">
                             <div class="phase-sublabel">Finalizacion</div>
-                            <div class="phase-subtext">{{ po.get('finalizacion', '') }}</div>
+                            <ul class="obs-list">
+                            {% for b in po.get('finalizacion', '')|to_bullets(3) %}
+                            <li class="obs-bullet">{{ b }}</li>
+                            {% endfor %}
+                            </ul>
                         </div>
                         {% endif %}
                     </div>
@@ -382,29 +442,59 @@ body {
             </div>
             <div class="col-right">
                 {% if plan.get('plan_defensivo') %}
+                {% set pd = plan.get('plan_defensivo', {}) %}
                 <div class="phase-card phase-red">
                     <div class="phase-header">
-                        <svg class="phase-header-icon" viewBox="0 0 24 24" fill="none" stroke="#fca5a5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
                         <span class="phase-header-title">Plan Defensivo</span>
                     </div>
+                    <!-- Pitch diagram -->
+                    <div class="pitch-wrapper">
+                        <div class="pitch">
+                            <svg class="pitch-svg" viewBox="0 0 100 66">
+                                <line x1="50" y1="0" x2="50" y2="66" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+                                <circle cx="50" cy="33" r="8" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+                                <rect x="0" y="15" width="10" height="36" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+                                <rect x="90" y="15" width="10" height="36" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+                                <rect x="0" y="22" width="4" height="22" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+                                <rect x="96" y="22" width="4" height="22" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+                                <!-- Defensive block zone -->
+                                <rect x="5" y="10" width="40" height="46" rx="3" fill="rgba(248,81,73,0.15)" stroke="rgba(248,81,73,0.4)" stroke-width="0.8" stroke-dasharray="3 2"/>
+                                <!-- Pressing lines -->
+                                <line x1="35" y1="15" x2="50" y2="15" stroke="rgba(248,81,73,0.5)" stroke-width="1"/>
+                                <line x1="35" y1="33" x2="55" y2="33" stroke="rgba(248,81,73,0.5)" stroke-width="1"/>
+                                <line x1="35" y1="51" x2="50" y2="51" stroke="rgba(248,81,73,0.5)" stroke-width="1"/>
+                            </svg>
+                        </div>
+                    </div>
                     <div class="phase-body">
-                        {% set pd = plan.get('plan_defensivo', {}) %}
                         {% if pd.get('principios') %}
                         <div class="phase-subsection">
                             <div class="phase-sublabel">Principios</div>
-                            <div class="phase-subtext">{{ pd.get('principios', '') }}</div>
+                            <ul class="obs-list">
+                            {% for b in pd.get('principios', '')|to_bullets(3) %}
+                            <li class="obs-bullet">{{ b }}</li>
+                            {% endfor %}
+                            </ul>
                         </div>
                         {% endif %}
                         {% if pd.get('pressing') %}
                         <div class="phase-subsection">
                             <div class="phase-sublabel">Pressing</div>
-                            <div class="phase-subtext">{{ pd.get('pressing', '') }}</div>
+                            <ul class="obs-list">
+                            {% for b in pd.get('pressing', '')|to_bullets(3) %}
+                            <li class="obs-bullet">{{ b }}</li>
+                            {% endfor %}
+                            </ul>
                         </div>
                         {% endif %}
                         {% if pd.get('organizacion_defensiva') %}
                         <div class="phase-subsection">
                             <div class="phase-sublabel">Organizacion Defensiva</div>
-                            <div class="phase-subtext">{{ pd.get('organizacion_defensiva', '') }}</div>
+                            <ul class="obs-list">
+                            {% for b in pd.get('organizacion_defensiva', '')|to_bullets(3) %}
+                            <li class="obs-bullet">{{ b }}</li>
+                            {% endfor %}
+                            </ul>
                         </div>
                         {% endif %}
                     </div>
@@ -417,23 +507,47 @@ body {
         <div class="two-col">
             <div class="col-left">
                 {% if plan.get('transiciones') %}
+                {% set tr = plan.get('transiciones', {}) %}
                 <div class="phase-card phase-amber">
                     <div class="phase-header">
-                        <svg class="phase-header-icon" viewBox="0 0 24 24" fill="none" stroke="#fcd34d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>
                         <span class="phase-header-title">Transiciones</span>
                     </div>
+                    <div class="pitch-wrapper">
+                        <div class="pitch">
+                            <svg class="pitch-svg" viewBox="0 0 100 66">
+                                <line x1="50" y1="0" x2="50" y2="66" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+                                <circle cx="50" cy="33" r="8" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+                                <rect x="0" y="15" width="10" height="36" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+                                <rect x="90" y="15" width="10" height="36" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+                                <!-- Transition arrows -->
+                                <defs><marker id="to" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#3fb950"/></marker></defs>
+                                <defs><marker id="td" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#f85149"/></marker></defs>
+                                <path d="M 25,20 Q 50,15 80,20" fill="none" stroke="#3fb950" stroke-width="1.5" marker-end="url(#to)"/>
+                                <path d="M 80,46 Q 50,51 25,46" fill="none" stroke="#f85149" stroke-width="1.5" marker-end="url(#td)"/>
+                                <text x="55" y="12" fill="#3fb950" font-size="5" font-weight="700">DEF→ATQ</text>
+                                <text x="35" y="59" fill="#f85149" font-size="5" font-weight="700">ATQ→DEF</text>
+                            </svg>
+                        </div>
+                    </div>
                     <div class="phase-body">
-                        {% set tr = plan.get('transiciones', {}) %}
                         {% if tr.get('ofensiva') %}
                         <div class="phase-subsection">
                             <div class="phase-sublabel">Ofensiva (DEF→ATQ)</div>
-                            <div class="phase-subtext">{{ tr.get('ofensiva', '') }}</div>
+                            <ul class="obs-list">
+                            {% for b in tr.get('ofensiva', '')|to_bullets(3) %}
+                            <li class="obs-bullet">{{ b }}</li>
+                            {% endfor %}
+                            </ul>
                         </div>
                         {% endif %}
                         {% if tr.get('defensiva') %}
                         <div class="phase-subsection">
                             <div class="phase-sublabel">Defensiva (ATQ→DEF)</div>
-                            <div class="phase-subtext">{{ tr.get('defensiva', '') }}</div>
+                            <ul class="obs-list">
+                            {% for b in tr.get('defensiva', '')|to_bullets(3) %}
+                            <li class="obs-bullet">{{ b }}</li>
+                            {% endfor %}
+                            </ul>
                         </div>
                         {% endif %}
                     </div>
@@ -442,23 +556,40 @@ body {
             </div>
             <div class="col-right">
                 {% if plan.get('balon_parado') %}
+                {% set bp = plan.get('balon_parado', {}) %}
                 <div class="phase-card phase-purple">
                     <div class="phase-header">
-                        <svg class="phase-header-icon" viewBox="0 0 24 24" fill="none" stroke="#d8b4fe" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>
                         <span class="phase-header-title">Balon Parado</span>
                     </div>
+                    <div class="pitch-wrapper">
+                        <div class="pitch-half">
+                            <svg class="pitch-svg" viewBox="0 0 100 60">
+                                <rect x="5" y="3" width="90" height="54" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.8" rx="2"/>
+                                <rect x="20" y="3" width="60" height="18" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+                                <rect x="35" y="3" width="30" height="7" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+                                <rect x="22" y="10" width="56" height="20" rx="3" fill="rgba(163,113,247,0.2)" stroke="rgba(163,113,247,0.4)" stroke-width="0.8" stroke-dasharray="3 2"/>
+                            </svg>
+                        </div>
+                    </div>
                     <div class="phase-body">
-                        {% set bp = plan.get('balon_parado', {}) %}
                         {% if bp.get('atacando') %}
                         <div class="phase-subsection">
                             <div class="phase-sublabel">Atacando</div>
-                            <div class="phase-subtext">{{ bp.get('atacando', '') }}</div>
+                            <ul class="obs-list">
+                            {% for b in bp.get('atacando', '')|to_bullets(3) %}
+                            <li class="obs-bullet">{{ b }}</li>
+                            {% endfor %}
+                            </ul>
                         </div>
                         {% endif %}
                         {% if bp.get('defendiendo') %}
                         <div class="phase-subsection">
                             <div class="phase-sublabel">Defendiendo</div>
-                            <div class="phase-subtext">{{ bp.get('defendiendo', '') }}</div>
+                            <ul class="obs-list">
+                            {% for b in bp.get('defendiendo', '')|to_bullets(3) %}
+                            <li class="obs-bullet">{{ b }}</li>
+                            {% endfor %}
+                            </ul>
                         </div>
                         {% endif %}
                     </div>
@@ -469,7 +600,7 @@ body {
     </div>
 
     <div class="footer">
-        <span>{{ organizacion.get('nombre', 'TrainingHub Pro') }}</span>
+        <span>{{ organizacion.get('nombre', 'TrainingHub Pro') }} — Cuerpo Tecnico</span>
         <span>{{ partido.get('fecha', '') }}</span>
     </div>
 </div>
@@ -482,7 +613,7 @@ body {
         {% if organizacion.get('logo_url') %}
         <div style="width:24px;height:24px;flex-shrink:0;"><img src="{{ organizacion.get('logo_url') }}" style="width:100%;height:100%;object-fit:contain;border-radius:3px;" alt=""></div>
         {% endif %}
-        <span class="header-compact-title">Plan de Partido — vs {{ rival.get('nombre', 'Rival') }}</span>
+        <span class="header-compact-title">Plan de Partido — vs {{ rival.get('nombre', 'Rival') | upper }}</span>
         <span class="header-compact-sub">{{ partido.get('fecha', '') }}</span>
     </div>
 
@@ -491,7 +622,11 @@ body {
         {% if plan.get('plan_sustituciones') %}
         <div class="sustituciones">
             <div class="sustituciones-title">Plan de Sustituciones</div>
-            <div class="sustituciones-text">{{ plan.get('plan_sustituciones', '') }}</div>
+            <ul class="sustituciones-list">
+                {% for b in plan.get('plan_sustituciones', '')|to_bullets(5) %}
+                <li>{{ b }}</li>
+                {% endfor %}
+            </ul>
         </div>
         {% endif %}
 
@@ -510,7 +645,7 @@ body {
     </div>
 
     <div class="footer">
-        <span>{{ organizacion.get('nombre', 'TrainingHub Pro') }}</span>
+        <span>{{ organizacion.get('nombre', 'TrainingHub Pro') }} — Cuerpo Tecnico</span>
         <span>{{ partido.get('fecha', '') }}</span>
     </div>
 </div>

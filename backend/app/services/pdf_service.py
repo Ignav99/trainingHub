@@ -4,6 +4,7 @@ Generación de PDFs profesionales con WeasyPrint + Jinja2.
 """
 
 import logging
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -37,6 +38,31 @@ PETO_MAP = {
 BADGE_CLASSES = {"rnd", "jdp", "pos", "evo", "avd", "pco", "aco", "ssg", "abp", "par"}
 
 
+def _text_to_bullets(text: str, max_bullets: int = 4) -> list[str]:
+    """Convert paragraph text to list of short bullet strings (max ~80 chars each)."""
+    if not text:
+        return []
+    lines = re.split(r'[\n;]|(?<=\.)\s+', text.strip())
+    bullets = [l.strip().rstrip('.') for l in lines if l.strip() and len(l.strip()) > 5]
+    result = []
+    for b in bullets[:max_bullets]:
+        if len(b) > 85:
+            b = b[:82].rsplit(' ', 1)[0] + '...'
+        result.append(b)
+    return result
+
+
+def _first_sentence(text: str) -> str:
+    """Extract first sentence from text, max 120 chars."""
+    if not text:
+        return ''
+    m = re.match(r'^(.+?[.!?])\s', text)
+    s = m.group(1) if m else text
+    if len(s) > 120:
+        s = s[:117].rsplit(' ', 1)[0] + '...'
+    return s
+
+
 def _get_jinja_env() -> Environment:
     """Obtiene el entorno Jinja2 configurado."""
     return Environment(
@@ -47,10 +73,13 @@ def _get_jinja_env() -> Environment:
 
 def _get_jinja_env_v2() -> Environment:
     """Entorno Jinja2 para v2 templates (autoescape off for inline SVG)."""
-    return Environment(
+    env = Environment(
         loader=FileSystemLoader(str(TEMPLATES_DIR)),
         autoescape=False,
     )
+    env.filters['to_bullets'] = _text_to_bullets
+    env.filters['first_sentence'] = _first_sentence
+    return env
 
 
 def generate_sesion_pdf(
@@ -546,6 +575,36 @@ def generate_plan_partido_pdf(
     """Genera PDF profesional de plan de partido."""
     env = _get_jinja_env_v2()
     template = env.get_template("plan_partido_pdf.html")
+
+    color_primario = organizacion.get("color_primario", "#2563eb")
+
+    html_content = template.render(
+        plan=plan,
+        partido=partido,
+        rival=rival,
+        organizacion=organizacion,
+        equipo_nombre=equipo_nombre,
+        color_primario=color_primario,
+    )
+
+    try:
+        from weasyprint import HTML
+        return HTML(string=html_content).write_pdf()
+    except ImportError:
+        logger.warning("WeasyPrint not available, returning HTML as bytes")
+        return html_content.encode("utf-8")
+
+
+def generate_plan_partido_jugadores_pdf(
+    plan: dict,
+    partido: dict,
+    rival: dict,
+    organizacion: dict,
+    equipo_nombre: str = "",
+) -> bytes:
+    """Genera PDF simplificado de plan de partido para jugadores."""
+    env = _get_jinja_env_v2()
+    template = env.get_template("plan_partido_jugadores_pdf.html")
 
     color_primario = organizacion.get("color_primario", "#2563eb")
 

@@ -209,4 +209,14 @@ export const partidosApi = {
     a.click()
     URL.revokeObjectURL(url)
   },
+
+  async downloadPlanJugadoresPdf(id: string): Promise<void> {
+    const blob = await api.getBlob(`/partidos/${id}/plan-partido-jugadores-pdf`, { timeout: 120000 })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `plan_jugadores_${id}.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+  },
 }

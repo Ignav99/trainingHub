@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Swords, Shield, Zap, Flag, Target, CheckCircle2, FileDown, ArrowRightLeft } from 'lucide-react'
+import { Swords, Shield, Zap, Flag, Target, CheckCircle2, FileDown, ArrowRightLeft, Users } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -27,7 +27,8 @@ const QUICK_CHIPS = [
 ]
 
 export function PlanPartidoSection({ onSend, plan, onResult, partido }: PlanPartidoSectionProps) {
-  const [downloading, setDownloading] = useState(false)
+  const [downloadingCT, setDownloadingCT] = useState(false)
+  const [downloadingJug, setDownloadingJug] = useState(false)
 
   const handleResult = (data: { plan_partido?: any }) => {
     if (data.plan_partido) {
@@ -35,15 +36,27 @@ export function PlanPartidoSection({ onSend, plan, onResult, partido }: PlanPart
     }
   }
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadCT = async () => {
     if (!partido) return
-    setDownloading(true)
+    setDownloadingCT(true)
     try {
       await partidosApi.downloadPlanPdf(partido.id)
     } catch (err: any) {
       toast.error(err.message || 'Error al descargar PDF')
     } finally {
-      setDownloading(false)
+      setDownloadingCT(false)
+    }
+  }
+
+  const handleDownloadJugadores = async () => {
+    if (!partido) return
+    setDownloadingJug(true)
+    try {
+      await partidosApi.downloadPlanJugadoresPdf(partido.id)
+    } catch (err: any) {
+      toast.error(err.message || 'Error al descargar PDF')
+    } finally {
+      setDownloadingJug(false)
     }
   }
 
@@ -94,16 +107,28 @@ export function PlanPartidoSection({ onSend, plan, onResult, partido }: PlanPart
                 </div>
               </div>
               {partido && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDownloadPdf}
-                  disabled={downloading}
-                  className="border-slate-600 text-slate-300 hover:text-white hover:bg-slate-800"
-                >
-                  <FileDown className={`h-4 w-4 mr-1.5 ${downloading ? 'animate-pulse' : ''}`} />
-                  {downloading ? 'Generando...' : 'Exportar PDF'}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDownloadCT}
+                    disabled={downloadingCT}
+                    className="border-blue-700 text-blue-300 hover:text-white hover:bg-blue-900/50"
+                  >
+                    <FileDown className={`h-4 w-4 mr-1.5 ${downloadingCT ? 'animate-pulse' : ''}`} />
+                    {downloadingCT ? 'Generando...' : 'PDF Cuerpo Tecnico'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDownloadJugadores}
+                    disabled={downloadingJug}
+                    className="border-emerald-700 text-emerald-300 hover:text-white hover:bg-emerald-900/50"
+                  >
+                    <Users className={`h-4 w-4 mr-1.5 ${downloadingJug ? 'animate-pulse' : ''}`} />
+                    {downloadingJug ? 'Generando...' : 'PDF Jugadores'}
+                  </Button>
+                </div>
               )}
             </div>
             <div className="h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
