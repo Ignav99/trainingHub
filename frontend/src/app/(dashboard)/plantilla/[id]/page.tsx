@@ -30,10 +30,26 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Jugador, JugadorUpdate, jugadoresApi, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
 import { medicoApi } from '@/lib/api/medico'
+import { cargaApi } from '@/lib/api/carga'
+import { wellnessApi } from '@/lib/api/wellness'
 import { apiKey } from '@/lib/swr'
-import type { RegistroMedico } from '@/types'
+import type { RegistroMedico, CargaDiaria, CargaJugador, WellnessEntry } from '@/types'
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  ReferenceArea,
+} from 'recharts'
 
 const TIPO_BADGE: Record<string, { label: string; color: string }> = {
   lesion: { label: 'Lesión', color: 'bg-red-100 text-red-800' },
@@ -62,7 +78,7 @@ export default function JugadorDetailPage() {
   const searchParams = useSearchParams()
   const [saving, setSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(searchParams.get('edit') === 'true')
-  const [activeTab, setActiveTab] = useState<'datos' | 'ficha_clinica'>('datos')
+  const [activeTab, setActiveTab] = useState<'datos' | 'carga' | 'ficha_clinica'>('datos')
 
   // Form state
   const [formData, setFormData] = useState<JugadorUpdate>({})
@@ -268,6 +284,17 @@ export default function JugadorDetailPage() {
           Datos
         </button>
         <button
+          onClick={() => setActiveTab('carga')}
+          className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+            activeTab === 'carga'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Activity className="h-4 w-4" />
+          Carga / RPE
+        </button>
+        <button
           onClick={() => setActiveTab('ficha_clinica')}
           className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
             activeTab === 'ficha_clinica'
@@ -276,7 +303,7 @@ export default function JugadorDetailPage() {
           }`}
         >
           <HeartPulse className="h-4 w-4" />
-          Ficha Clínica
+          Ficha Clinica
           {activeIncident && (
             <span className="w-2 h-2 rounded-full bg-red-500" />
           )}
@@ -661,6 +688,11 @@ export default function JugadorDetailPage() {
       </div>
       )}
 
+      {/* Tab: Carga / RPE */}
+      {activeTab === 'carga' && jugador && (
+        <PlayerLoadTab jugadorId={jugador.id} equipoId={jugador.equipo_id} />
+      )}
+
       {/* Tab: Ficha Clínica */}
       {activeTab === 'ficha_clinica' && (
       <div className="space-y-6">
@@ -823,6 +855,253 @@ export default function JugadorDetailPage() {
           </CardContent>
         </Card>
       </div>
+      )}
+    </div>
+  )
+}
+
+
+// ============================================
+// Player Load Tab — inline component
+// ============================================
+
+function formatDate(d: string) {
+  const dt = new Date(d + 'T00:00:00')
+  return `${dt.getDate()}/${dt.getMonth() + 1}`
+}
+
+function getNivelColor(acwr: number | null): string {
+  if (acwr == null) return 'text-muted-foreground'
+  if (acwr > 1.5) return 'text-red-600'
+  if (acwr > 1.3) return 'text-orange-600'
+  if (acwr >= 0.8) return 'text-green-600'
+  return 'text-blue-600'
+}
+
+function PlayerLoadTab({ jugadorId, equipoId }: { jugadorId: string; equipoId: string }) {
+  const [loadData, setLoadData] = useState<CargaDiaria[]>([])
+  const [wellnessHistory, setWellnessHistory] = useState<WellnessEntry[]>([])
+  const [cargaSnapshot, setCargaSnapshot] = useState<CargaJugador | null>(null)
+  const [tarjetas, setTarjetas] = useState<{ amarillas: number; rojas: number }>({ amarillas: 0, rojas: 0 })
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchAll = async () => {
+      setLoading(true)
+      try {
+        const [historialRes, wellnessRes, cargaEquipoRes] = await Promise.all([
+          cargaApi.getHistorial(jugadorId, 28),
+          wellnessApi.getPlayerHistory(jugadorId, { limit: 14 }),
+          cargaApi.getEquipo(equipoId),
+        ])
+        setLoadData(historialRes.data)
+        setWellnessHistory(wellnessRes.data.reverse())
+        const playerCarga = cargaEquipoRes.data.find((p) => p.jugador_id === jugadorId) || null
+        setCargaSnapshot(playerCarga)
+        if (playerCarga) {
+          setTarjetas({ amarillas: playerCarga.tarjetas_amarillas, rojas: playerCarga.tarjetas_rojas })
+        }
+      } catch {
+        // silent
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchAll()
+  }, [jugadorId, equipoId])
+
+  const chartData = loadData.map((d) => ({ ...d, label: formatDate(d.fecha) }))
+  const maxAcwr = Math.max(...loadData.filter((d) => d.acwr != null).map((d) => d.acwr!), 2)
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-32 w-full rounded-lg" />
+        <Skeleton className="h-64 w-full rounded-lg" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-xs text-muted-foreground mb-1">Carga Aguda</p>
+            <p className="text-2xl font-bold">{cargaSnapshot?.carga_aguda?.toFixed(0) ?? '-'}</p>
+            <p className="text-[10px] text-muted-foreground">EWMA 7d</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-xs text-muted-foreground mb-1">Carga Cronica</p>
+            <p className="text-2xl font-bold">{cargaSnapshot?.carga_cronica?.toFixed(0) ?? '-'}</p>
+            <p className="text-[10px] text-muted-foreground">EWMA 28d</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-xs text-muted-foreground mb-1">ACWR</p>
+            <p className={`text-2xl font-bold ${getNivelColor(cargaSnapshot?.ratio_acwr ?? null)}`}>
+              {cargaSnapshot?.ratio_acwr != null ? cargaSnapshot.ratio_acwr.toFixed(2) : '-'}
+            </p>
+            <p className="text-[10px] text-muted-foreground">{cargaSnapshot?.nivel_carga ?? '-'}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-xs text-muted-foreground mb-1">Wellness</p>
+            <p className={`text-2xl font-bold ${
+              wellnessHistory.length > 0
+                ? wellnessHistory[wellnessHistory.length - 1].total >= 20 ? 'text-green-600'
+                : wellnessHistory[wellnessHistory.length - 1].total >= 15 ? 'text-amber-600'
+                : 'text-red-600'
+                : ''
+            }`}>
+              {wellnessHistory.length > 0 ? wellnessHistory[wellnessHistory.length - 1].total : '-'}
+              {wellnessHistory.length > 0 && <span className="text-sm font-normal text-muted-foreground">/25</span>}
+            </p>
+            <p className="text-[10px] text-muted-foreground">Ultimo registro</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Extra metrics row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card>
+          <CardContent className="p-3 text-center">
+            <p className="text-xs text-muted-foreground">Monotonia</p>
+            <p className={`text-lg font-bold ${(cargaSnapshot?.monotonia ?? 0) > 2 ? 'text-orange-600' : ''}`}>
+              {cargaSnapshot?.monotonia != null ? cargaSnapshot.monotonia.toFixed(1) : '-'}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3 text-center">
+            <p className="text-xs text-muted-foreground">Strain</p>
+            <p className="text-lg font-bold">{cargaSnapshot?.strain != null ? cargaSnapshot.strain.toFixed(0) : '-'}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3 text-center">
+            <p className="text-xs text-muted-foreground">T. Amarillas</p>
+            <p className={`text-lg font-bold ${tarjetas.amarillas >= 4 ? 'text-orange-600' : tarjetas.amarillas > 0 ? 'text-yellow-600' : ''}`}>
+              {tarjetas.amarillas}
+              {tarjetas.amarillas >= 4 && <AlertCircle className="inline h-4 w-4 ml-1 text-orange-500" />}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3 text-center">
+            <p className="text-xs text-muted-foreground">T. Rojas</p>
+            <p className={`text-lg font-bold ${tarjetas.rojas > 0 ? 'text-red-600' : ''}`}>
+              {tarjetas.rojas}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Load chart — stacked bars */}
+      {loadData.length > 0 && (
+        <>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Carga Diaria (UA) — Ultimos 28 dias</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={chartData} barCategoryGap="15%">
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} width={40} />
+                  <Tooltip formatter={(value: any, name: any) => [Number(value).toFixed(0) + ' UA', name === 'load_sesion' ? 'Sesion' : name === 'load_partido' ? 'Partido' : 'Manual']} />
+                  <Legend formatter={(v) => v === 'load_sesion' ? 'Sesion' : v === 'load_partido' ? 'Partido' : 'Manual'} />
+                  <Bar dataKey="load_sesion" stackId="load" fill="#3B82F6" />
+                  <Bar dataKey="load_partido" stackId="load" fill="#22C55E" />
+                  <Bar dataKey="load_manual" stackId="load" fill="#F97316" radius={[2, 2, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">EWMA Aguda / Cronica</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={180}>
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} width={40} />
+                  <Tooltip formatter={(value: any, name: any) => [Number(value).toFixed(1), name === 'ewma_acute' ? 'Aguda (7d)' : 'Cronica (28d)']} />
+                  <Legend formatter={(v) => v === 'ewma_acute' ? 'Aguda (7d)' : 'Cronica (28d)'} />
+                  <Line type="monotone" dataKey="ewma_acute" stroke="#3B82F6" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="ewma_chronic" stroke="#22C55E" strokeWidth={2} dot={false} strokeDasharray="5 3" />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">ACWR</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={160}>
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                  <YAxis domain={[0, maxAcwr]} tick={{ fontSize: 10 }} width={35} />
+                  <Tooltip formatter={(value: any) => [value != null ? Number(value).toFixed(2) : '-', 'ACWR']} />
+                  <ReferenceArea y1={0} y2={0.8} fill="#3B82F6" fillOpacity={0.08} />
+                  <ReferenceArea y1={0.8} y2={1.3} fill="#22C55E" fillOpacity={0.1} />
+                  <ReferenceArea y1={1.3} y2={1.5} fill="#F97316" fillOpacity={0.1} />
+                  <ReferenceArea y1={1.5} y2={maxAcwr} fill="#EF4444" fillOpacity={0.08} />
+                  <Line type="monotone" dataKey="acwr" stroke="#8B5CF6" strokeWidth={2} dot={false} connectNulls />
+                </LineChart>
+              </ResponsiveContainer>
+              <div className="flex gap-3 justify-center text-[10px] text-muted-foreground mt-1">
+                <span className="flex items-center gap-1"><span className="w-3 h-2 bg-blue-100 rounded" /> {'< 0.8 Bajo'}</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-2 bg-green-100 rounded" /> 0.8-1.3 Optimo</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-2 bg-orange-100 rounded" /> 1.3-1.5 Alto</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-2 bg-red-100 rounded" /> {'> 1.5 Critico'}</span>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {loadData.length === 0 && (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <Activity className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">
+              Sin datos de carga. Pulsa "Recalcular" en la pagina de RPE para generar datos.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Wellness history mini-chart */}
+      {wellnessHistory.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Wellness (ultimos 14 registros)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={140}>
+              <LineChart data={wellnessHistory}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                <XAxis dataKey="fecha" tickFormatter={formatDate} tick={{ fontSize: 10 }} />
+                <YAxis domain={[0, 25]} tick={{ fontSize: 10 }} width={25} />
+                <Tooltip />
+                <Line type="monotone" dataKey="total" stroke="#3B82F6" strokeWidth={2} dot={{ r: 3 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       )}
     </div>
   )

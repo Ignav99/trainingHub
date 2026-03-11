@@ -86,6 +86,8 @@ import {
   EspacioFormacion,
 } from '@/types'
 import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
+import { cargaApi } from '@/lib/api/carga'
+import type { CargaJugador } from '@/types'
 
 const MATCH_DAY_COLORS: Record<string, string> = {
   'MD+1': 'bg-green-100 text-green-800',
@@ -883,6 +885,9 @@ export default function SesionDetailPage() {
   const [asistenciasLoaded, setAsistenciasLoaded] = useState(false)
   const [savingAsistencias, setSavingAsistencias] = useState(false)
 
+  // Carga data for asistencia badges
+  const [cargaMap, setCargaMap] = useState<Map<string, CargaJugador>>(new Map())
+
   // Per-task formation panel state
   const [expandedFormaciones, setExpandedFormaciones] = useState<Set<string>>(new Set())
 
@@ -1411,10 +1416,21 @@ export default function SesionDetailPage() {
   }
 
   // ============ Asistencia ============
+  const loadCargaData = async () => {
+    if (!sesion?.equipo_id || cargaMap.size > 0) return
+    try {
+      const res = await cargaApi.getEquipo(sesion.equipo_id)
+      const map = new Map<string, CargaJugador>()
+      for (const p of res.data) map.set(p.jugador_id, p)
+      setCargaMap(map)
+    } catch {}
+  }
+
   const handleTabChange = (tab: string) => {
     if (tab === 'asistencia') {
       loadJugadores()
       loadAsistencias()
+      loadCargaData()
     }
   }
 
@@ -2154,6 +2170,47 @@ export default function SesionDetailPage() {
                                     )}
                                     <PlayerStatusBadges estado={jugador.estado} />
                                   </p>
+                                  {/* Carga / wellness / tarjetas badges */}
+                                  {(() => {
+                                    const c = cargaMap.get(jugador.id)
+                                    if (!c) return null
+                                    const nivelColors: Record<string, string> = {
+                                      critico: 'bg-red-500', alto: 'bg-orange-500', optimo: 'bg-green-500', bajo: 'bg-blue-400',
+                                    }
+                                    const wellnessColor = (c.wellness_valor ?? 99) >= 20 ? 'text-green-600' : (c.wellness_valor ?? 99) >= 15 ? 'text-amber-600' : 'text-red-600'
+                                    return (
+                                      <div className="flex items-center gap-2 mt-0.5">
+                                        {/* Carga nivel */}
+                                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                          <span className={`w-1.5 h-1.5 rounded-full ${nivelColors[c.nivel_carga] || 'bg-gray-400'}`} />
+                                          {c.carga_aguda.toFixed(0)} UA
+                                        </span>
+                                        {/* Wellness */}
+                                        {c.wellness_valor != null && (
+                                          <span className={`text-[10px] font-medium ${wellnessColor}`}>
+                                            W:{c.wellness_valor}
+                                          </span>
+                                        )}
+                                        {/* Tarjetas */}
+                                        {c.tarjetas_amarillas > 0 && c.tarjetas_amarillas < 4 && (
+                                          <span className="text-[10px] font-medium text-yellow-600">
+                                            {c.tarjetas_amarillas}TA
+                                          </span>
+                                        )}
+                                        {c.tarjetas_amarillas >= 4 && (
+                                          <span className="flex items-center gap-0.5 text-[10px] font-bold text-orange-600 bg-orange-50 px-1 rounded">
+                                            <AlertTriangle className="h-2.5 w-2.5" />
+                                            {c.tarjetas_amarillas}TA
+                                          </span>
+                                        )}
+                                        {c.tarjetas_rojas > 0 && (
+                                          <span className="text-[10px] font-bold text-red-600 bg-red-50 px-1 rounded">
+                                            {c.tarjetas_rojas}TR
+                                          </span>
+                                        )}
+                                      </div>
+                                    )
+                                  })()}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
