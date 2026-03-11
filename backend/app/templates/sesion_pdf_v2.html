@@ -711,7 +711,7 @@ body {
         <div class="lh-title">
             <div class="lh-title-club">{{ org_nombre }} · {{ equipo_categoria }} · Temporada 2025-26</div>
             <div class="lh-title-name">{{ sesion.get('titulo', 'Sesion de Entrenamiento') }}</div>
-            <div class="lh-title-sub">{{ sesion.get('fecha', '') }}{% if sesion.get('hora') %} · {{ sesion.get('hora')[:5] }}h{% endif %}{% if lugar %} · {{ lugar }}{% endif %}{% if sesion.get('rival') %} · Rival: {{ sesion.get('rival') }}{% endif %}</div>
+            <div class="lh-title-sub">{{ sesion.get('fecha', '') }}{% if sesion.get('hora') %} · {{ sesion.get('hora')[:5] }}h{% endif %}{% if lugar %} · {{ lugar }}{% endif %}{% if sesion.get('rival') %} · Rival: {{ sesion.get('rival') }}{% endif %}{% if sesion.get('carga_fisica_objetivo') %} · <span style="color:white;font-weight:600;font-size:12px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;">{{ sesion.get('carga_fisica_objetivo','').replace('_',' ') }}</span>{% endif %}</div>
         </div>
         <div class="lh-info">
             <div class="lh-info-item">
@@ -729,35 +729,27 @@ body {
             <div class="lh-badge">{{ sesion.get('intensidad_objetivo', '').replace('_', ' ').upper() }}</div>
             {% endif %}
             <div class="lh-badge">{{ sesion.get('match_day', '') }}</div>
-            {% if sesion.get('carga_fisica_objetivo') %}
-            <div class="lh-badge">{{ sesion.get('carga_fisica_objetivo', '').replace('_', ' ').upper() }}</div>
-            {% endif %}
             {% if microciclo_nombre %}
             <div class="lh-badge" style="font-size:8px;">{{ microciclo_nombre[:30] }}</div>
             {% endif %}
         </div>
     </div>
 
-    <!-- Asistencia Roster (4 groups: sesion / fisio / margen / ausentes) -->
+    <!-- Asistencia Roster (4 groups by tipo membership) -->
     {% if asistencia_roster %}
-    {# Build groups: sesion players, fisio-only, margen players, ausentes #}
+    {# Build groups by checking tipos list — players can appear in multiple groups #}
     {% set g_sesion = [] %}
     {% set g_fisio = [] %}
     {% set g_margen = [] %}
     {% set g_ausentes = [] %}
     {% for p in asistencia_roster %}
-        {% if p.sort_key == 'sesion' %}
-            {% if g_sesion.append(p) %}{% endif %}
-        {% elif p.sort_key == 'fisio' %}
-            {% if g_fisio.append(p) %}{% endif %}
-        {% elif p.sort_key == 'margen' %}
-            {% if g_margen.append(p) %}{% endif %}
-        {% elif p.sort_key == 'ausente' %}
-            {% if g_ausentes.append(p) %}{% endif %}
-        {% endif %}
+        {% if 'sesion' in p.tipos %}{% if g_sesion.append(p) %}{% endif %}{% endif %}
+        {% if 'fisio' in p.tipos %}{% if g_fisio.append(p) %}{% endif %}{% endif %}
+        {% if 'margen' in p.tipos %}{% if g_margen.append(p) %}{% endif %}{% endif %}
+        {% if p.sort_key == 'ausente' %}{% if g_ausentes.append(p) %}{% endif %}{% endif %}
     {% endfor %}
     <div class="asistencia-roster">
-        <!-- Group 1: Sesion -->
+        <!-- Group 1: Sesion (with badges showing all tipos) -->
         {% if g_sesion %}
         <div class="asistencia-group">
             <div class="asistencia-group-label asistencia-group-label-sesion">Sesion ({{ g_sesion|length }})</div>
@@ -766,13 +758,13 @@ body {
                 <div class="asistencia-item">
                     <span class="asistencia-dorsal">{% if p.dorsal %}#{{ p.dorsal }}{% endif %}</span>
                     <span>{{ p.nombre }} {{ p.apellidos[:1] }}.</span>
-                    {% for tipo in p.tipos %}<span class="asistencia-badge badge-{{ tipo }}">{{ tipo|upper }}</span>{% endfor %}
+                    {% if 'fisio' in p.tipos %}<span class="asistencia-badge badge-fisio">FISIO</span>{% endif %}
                 </div>
                 {% endfor %}
             </div>
         </div>
         {% endif %}
-        <!-- Group 2: Fisio (fisio-only, not in sesion or margen) -->
+        <!-- Group 2: Fisio (plain list, all who have fisio) -->
         {% if g_fisio %}
         <div class="asistencia-group">
             <div class="asistencia-group-label asistencia-group-label-fisio">Fisio ({{ g_fisio|length }})</div>
@@ -781,13 +773,12 @@ body {
                 <div class="asistencia-item">
                     <span class="asistencia-dorsal">{% if p.dorsal %}#{{ p.dorsal }}{% endif %}</span>
                     <span>{{ p.nombre }} {{ p.apellidos[:1] }}.</span>
-                    {% for tipo in p.tipos %}<span class="asistencia-badge badge-{{ tipo }}">{{ tipo|upper }}</span>{% endfor %}
                 </div>
                 {% endfor %}
             </div>
         </div>
         {% endif %}
-        <!-- Group 3: Margen -->
+        <!-- Group 3: Margen (with badges showing all tipos) -->
         {% if g_margen %}
         <div class="asistencia-group">
             <div class="asistencia-group-label asistencia-group-label-margen">Margen ({{ g_margen|length }})</div>
@@ -796,13 +787,13 @@ body {
                 <div class="asistencia-item">
                     <span class="asistencia-dorsal">{% if p.dorsal %}#{{ p.dorsal }}{% endif %}</span>
                     <span>{{ p.nombre }} {{ p.apellidos[:1] }}.</span>
-                    {% for tipo in p.tipos %}<span class="asistencia-badge badge-{{ tipo }}">{{ tipo|upper }}</span>{% endfor %}
+                    {% if 'fisio' in p.tipos %}<span class="asistencia-badge badge-fisio">FISIO</span>{% endif %}
                 </div>
                 {% endfor %}
             </div>
         </div>
         {% endif %}
-        <!-- Group 4: Ausentes -->
+        <!-- Group 4: Ausentes (red with reason) -->
         {% if g_ausentes %}
         <div class="asistencia-group asistencia-group-ausentes">
             <div class="asistencia-group-label asistencia-group-label-ausentes">Ausentes ({{ g_ausentes|length }})</div>
@@ -857,7 +848,7 @@ body {
                     <span class="ex-num">{{ '%02d' % (tarea_idx + 1) }}</span>
                     <span class="ex-type-badge badge-{{ tarea.badge_class }}">{{ tarea.categoria_codigo or 'EJ' }}</span>
                     <div class="ex-name">{{ tarea.titulo }}</div>
-                    <span class="ex-dur">{{ tarea.duracion }}'</span>
+                    <span class="ex-dur">{% if tarea.num_series %}{{ tarea.num_series }}x{% endif %}{{ tarea.duracion }}'</span>
                 </div>
                 <!-- Objective -->
                 {% if tarea.objetivo_tactico %}
