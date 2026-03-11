@@ -131,6 +131,7 @@ async def get_microciclo_completo(
     jugadores = jugadores_resp.data
     total = len(jugadores)
     lesionados = [j for j in jugadores if j.get("estado") == "lesionado"]
+    en_recuperacion = [j for j in jugadores if j.get("estado") == "en_recuperacion"]
     sancionados = [j for j in jugadores if j.get("estado") == "sancionado"]
     disponibles = sum(1 for j in jugadores if j.get("estado") == "activo")
 
@@ -138,8 +139,10 @@ async def get_microciclo_completo(
         "total": total,
         "disponibles": disponibles,
         "lesionados": len(lesionados),
+        "en_recuperacion": len(en_recuperacion),
         "sancionados": len(sancionados),
         "jugadores_lesionados": lesionados,
+        "jugadores_en_recuperacion": en_recuperacion,
         "jugadores_sancionados": sancionados,
     }
 

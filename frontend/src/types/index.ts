@@ -479,7 +479,7 @@ export interface AIRecomendadorOutput {
 // ============================================
 
 export type PiernaDominante = 'derecha' | 'izquierda' | 'ambas'
-export type EstadoJugador = 'activo' | 'lesionado' | 'enfermo' | 'sancionado' | 'viaje' | 'permiso' | 'seleccion' | 'baja'
+export type EstadoJugador = 'activo' | 'lesionado' | 'en_recuperacion' | 'enfermo' | 'sancionado' | 'viaje' | 'permiso' | 'seleccion' | 'baja'
 export type Posicion = 'POR' | 'DFC' | 'LTD' | 'LTI' | 'CAD' | 'CAI' | 'MCD' | 'MC' | 'MCO' | 'MID' | 'MII' | 'EXD' | 'EXI' | 'MP' | 'DC' | 'SD'
 
 export interface Jugador {
@@ -729,8 +729,10 @@ export interface MicrocicloCompleto {
     total: number
     disponibles: number
     lesionados: number
+    en_recuperacion: number
     sancionados: number
     jugadores_lesionados: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado' | 'fecha_lesion' | 'fecha_vuelta_estimada'>[]
+    jugadores_en_recuperacion: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado' | 'fecha_vuelta_estimada'>[]
     jugadores_sancionados: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado'>[]
   }
   rpe: {

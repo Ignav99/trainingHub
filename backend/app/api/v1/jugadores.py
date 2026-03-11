@@ -238,6 +238,10 @@ async def update_estado_jugador(
         data["fecha_vuelta_estimada"] = fecha_vuelta.isoformat() if fecha_vuelta else None
         data["motivo_baja"] = motivo
 
+    elif estado == "en_recuperacion":
+        data["fecha_vuelta_estimada"] = fecha_vuelta.isoformat() if fecha_vuelta else None
+        data["motivo_baja"] = motivo
+
     elif estado == "sancionado":
         data["motivo_baja"] = motivo
         data["fecha_vuelta_estimada"] = fecha_vuelta.isoformat() if fecha_vuelta else None

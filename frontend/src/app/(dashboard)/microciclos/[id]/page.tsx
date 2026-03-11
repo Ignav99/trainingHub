@@ -350,7 +350,7 @@ export default function MicrocicloDetallePage() {
           <Users className="h-5 w-5" />
           Disponibilidad de Plantilla
         </h2>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           <Card className="card-hover border-t-4 border-t-green-500">
             <CardContent className="p-4 text-center">
               <p className="text-3xl font-bold text-green-700">{data.plantilla.disponibles}</p>
@@ -361,6 +361,12 @@ export default function MicrocicloDetallePage() {
             <CardContent className="p-4 text-center">
               <p className="text-3xl font-bold text-red-700">{data.plantilla.lesionados}</p>
               <p className="text-sm text-red-600">Lesionados</p>
+            </CardContent>
+          </Card>
+          <Card className="card-hover border-t-4 border-t-yellow-500">
+            <CardContent className="p-4 text-center">
+              <p className="text-3xl font-bold text-yellow-700">{data.plantilla.en_recuperacion || 0}</p>
+              <p className="text-sm text-yellow-600">Recuperacion</p>
             </CardContent>
           </Card>
           <Card className="card-hover border-t-4 border-t-amber-500">

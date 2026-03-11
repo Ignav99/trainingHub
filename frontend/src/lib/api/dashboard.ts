@@ -49,10 +49,12 @@ export interface DashboardPlantilla {
   total: number
   disponibles: number
   lesionados: number
+  en_recuperacion: number
   sancionados: number
   no_disponibles: number
   por_estado: Record<string, number>
   jugadores_lesionados: any[]
+  jugadores_en_recuperacion: any[]
   jugadores_sancionados: any[]
 }
 

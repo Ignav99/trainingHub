@@ -109,9 +109,10 @@ export default function EnfermeriaPage() {
   // Files to upload after creation
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
 
-  // Stats — rehabilitacion records count as "en recuperación" even if estado is activo
-  const activos = registros.filter((r: RegistroMedico) => r.estado === 'activo' && r.tipo !== 'rehabilitacion').length
-  const enRecuperacion = registros.filter((r: RegistroMedico) => r.estado === 'en_recuperacion' || (r.estado === 'activo' && r.tipo === 'rehabilitacion')).length
+  // Stats based on jugador estado (source of truth)
+  const disponibles = jugadores.filter((j) => j.estado === 'activo').length
+  const enRecuperacion = jugadores.filter((j) => j.estado === 'en_recuperacion').length
+  const lesionados = jugadores.filter((j) => j.estado === 'lesionado').length
 
   const jugadoresMap = new Map(jugadores.map((j) => [j.id, j]))
 
@@ -253,7 +254,7 @@ export default function EnfermeriaPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-green-700">
-                {jugadores.filter((j) => j.estado === 'activo').length}
+                {disponibles}
               </p>
               <p className="text-sm text-muted-foreground">Disponibles</p>
             </div>
@@ -278,7 +279,7 @@ export default function EnfermeriaPage() {
               <Activity className="h-5 w-5 text-red-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-red-700">{activos}</p>
+              <p className="text-2xl font-bold text-red-700">{lesionados}</p>
               <p className="text-sm text-muted-foreground">Lesionados</p>
             </div>
           </CardContent>

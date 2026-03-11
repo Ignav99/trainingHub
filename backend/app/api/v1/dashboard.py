@@ -196,16 +196,19 @@ async def dashboard_plantilla(
 
     disponibles = len(por_estado.get("activo", []))
     lesionados = por_estado.get("lesionado", [])
+    en_recuperacion = por_estado.get("en_recuperacion", [])
     sancionados = por_estado.get("sancionado", [])
 
     return {
         "total": total,
         "disponibles": disponibles,
         "lesionados": len(lesionados),
+        "en_recuperacion": len(en_recuperacion),
         "sancionados": len(sancionados),
         "no_disponibles": total - disponibles,
         "por_estado": {k: len(v) for k, v in por_estado.items()},
         "jugadores_lesionados": lesionados,
+        "jugadores_en_recuperacion": en_recuperacion,
         "jugadores_sancionados": sancionados,
     }
 

@@ -109,11 +109,13 @@ async def create_registro_medico(
     log_create(auth.user_id, "registro_medico", result.data[0]["id"], {"tipo": data.tipo.value})
 
     # Auto-update player status based on tipo (skip for historical records)
+    # molestias: player stays available (activo), no estado change
+    # rehabilitacion: player is in recovery, not available
     is_historical = data.estado and data.estado.value == "alta"
     estado_map = {
         "lesion": "lesionado",
         "enfermedad": "enfermo",
-        "molestias": "lesionado",
+        "rehabilitacion": "en_recuperacion",
     }
     new_estado = estado_map.get(data.tipo.value) if not is_historical else None
     if new_estado:

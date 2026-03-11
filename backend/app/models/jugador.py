@@ -20,6 +20,7 @@ class EstadoJugador(str, Enum):
     """Estado actual del jugador."""
     ACTIVO = "activo"
     LESIONADO = "lesionado"
+    EN_RECUPERACION = "en_recuperacion"
     ENFERMO = "enfermo"
     SANCIONADO = "sancionado"
     VIAJE = "viaje"
