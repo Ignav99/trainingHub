@@ -1535,13 +1535,13 @@ export interface ABPSesionJugada {
 }
 
 // ABP Constants
-export const ABP_TIPOS: { value: TipoABP; label: string; pitchView: 'full' | 'half' | 'quarter' }[] = [
-  { value: 'corner', label: 'Corner', pitchView: 'quarter' },
-  { value: 'semi_corner', label: 'Semi-corner', pitchView: 'quarter' },
+export const ABP_TIPOS: { value: TipoABP; label: string; pitchView: 'full' | 'half' }[] = [
+  { value: 'corner', label: 'Corner', pitchView: 'half' },
+  { value: 'semi_corner', label: 'Semi-corner', pitchView: 'half' },
   { value: 'falta_lateral', label: 'Falta lateral', pitchView: 'half' },
   { value: 'falta_frontal', label: 'Falta frontal', pitchView: 'half' },
   { value: 'falta_lejana', label: 'Falta lejana', pitchView: 'full' },
-  { value: 'penalti', label: 'Penalti', pitchView: 'quarter' },
+  { value: 'penalti', label: 'Penalti', pitchView: 'half' },
   { value: 'saque_banda', label: 'Saque de banda', pitchView: 'half' },
   { value: 'saque_puerta', label: 'Saque de puerta', pitchView: 'half' },
 ]

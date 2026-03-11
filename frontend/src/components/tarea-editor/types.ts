@@ -26,6 +26,7 @@ export interface DiagramArrow {
   to: Position
   curved?: boolean // Flecha curva
   color?: string
+  label?: string // Numero cronologico (ABP)
 }
 
 export interface DiagramZone {

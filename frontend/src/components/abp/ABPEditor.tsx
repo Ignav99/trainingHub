@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useCallback, useEffect } from 'react'
+import React, { useState, useRef, useCallback } from 'react'
 import {
   Circle, Triangle, Target, Trash2, RotateCcw, MousePointer,
   ArrowRight, Minus, Save, X,
@@ -8,13 +8,12 @@ import {
 import FootballPitch from '@/components/tarea-editor/FootballPitch'
 import {
   DiagramData, DiagramElement, DiagramArrow, ElementType, ArrowType,
-  Position, TEAM_COLORS, ELEMENT_SIZES, generateId, emptyDiagramData,
+  Position, TEAM_COLORS, ELEMENT_SIZES, generateId,
 } from '@/components/tarea-editor/types'
-import ABPPhaseTimeline from './ABPPhaseTimeline'
 import ABPPlayerAssigner from './ABPPlayerAssigner'
 import {
   ABPJugada, ABPFase, ABPAsignacion, TipoABP, LadoABP, SubtipoABP,
-  SistemaMarcaje, ABP_TIPOS, ABP_SUBTIPOS, ABP_ROLES,
+  SistemaMarcaje, ABP_TIPOS, ABP_SUBTIPOS,
 } from '@/types'
 import { Jugador } from '@/types'
 
@@ -28,13 +27,9 @@ interface ABPEditorProps {
   saving?: boolean
 }
 
-function createEmptyFase(orden: number): ABPFase {
-  return {
-    id: generateId(),
-    nombre: orden === 0 ? 'Posicion inicial' : `Fase ${orden + 1}`,
-    orden,
-    diagram: { elements: [], arrows: [], zones: [], pitchType: 'half' },
-  }
+// Get pitch view for ABP type — half for most, full only for falta_lejana
+function getPitchView(tipo: TipoABP): 'full' | 'half' {
+  return tipo === 'falta_lejana' ? 'full' : 'half'
 }
 
 export default function ABPEditor({ jugada, jugadores = [], onSave, onCancel, saving }: ABPEditorProps) {
@@ -51,13 +46,10 @@ export default function ABPEditor({ jugada, jugadores = [], onSave, onCancel, sa
   const [tags, setTags] = useState<string[]>(jugada?.tags || [])
   const [tagInput, setTagInput] = useState('')
 
-  // Fases state
-  const [fases, setFases] = useState<ABPFase[]>(
-    jugada?.fases?.length ? jugada.fases : [createEmptyFase(0)]
-  )
-  const [activeFaseId, setActiveFaseId] = useState<string>(
-    jugada?.fases?.[0]?.id || fases[0].id
-  )
+  // Single diagram (no phases — one diagram per jugada)
+  const initialDiagram = jugada?.fases?.[0]?.diagram || { elements: [], arrows: [], zones: [], pitchType: 'half' }
+  const [elements, setElements] = useState<DiagramElement[]>(initialDiagram.elements || [])
+  const [arrows, setArrows] = useState<DiagramArrow[]>(initialDiagram.arrows || [])
 
   // Assignments
   const [asignaciones, setAsignaciones] = useState<ABPAsignacion[]>(jugada?.asignaciones || [])
@@ -68,70 +60,63 @@ export default function ABPEditor({ jugada, jugadores = [], onSave, onCancel, sa
   const [isDragging, setIsDragging] = useState(false)
   const [arrowStart, setArrowStart] = useState<Position | null>(null)
   const [playerCounter, setPlayerCounter] = useState({ team1: 1, team2: 1, gk: 1 })
+  const [arrowCounter, setArrowCounter] = useState(1)
 
-  const svgRef = useRef<SVGSVGElement>(null)
+  // Ref to <g> inside FootballPitch — use ownerSVGElement to get actual <svg>
+  const gRef = useRef<SVGGElement>(null)
 
-  // Derive pitch type from ABP tipo
-  const pitchView = ABP_TIPOS.find(t => t.value === tipo)?.pitchView || 'half'
+  const pitchView = getPitchView(tipo)
 
-  // Current phase diagram
-  const activeFase = fases.find(f => f.id === activeFaseId) || fases[0]
-  const currentDiagram: DiagramData = {
-    elements: activeFase?.diagram?.elements || [],
-    arrows: activeFase?.diagram?.arrows || [],
-    zones: activeFase?.diagram?.zones || [],
-    pitchType: pitchView,
-  }
-
-  // Update diagram for current phase
-  const updateDiagram = useCallback((newDiagram: Partial<DiagramData>) => {
-    setFases(prev => prev.map(f =>
-      f.id === activeFaseId
-        ? { ...f, diagram: { ...f.diagram, ...newDiagram } }
-        : f
-    ))
-  }, [activeFaseId])
-
-  // SVG position helper
-  const getSvgPosition = (e: React.MouseEvent): Position => {
-    if (!svgRef.current) return { x: 0, y: 0 }
-    const rect = svgRef.current.getBoundingClientRect()
-    const viewBox = svgRef.current.viewBox.baseVal
+  // Get SVG coordinates from mouse event
+  const getSvgPosition = useCallback((e: React.MouseEvent): Position => {
+    // Get the actual <svg> element from the <g> ref
+    const svg = gRef.current?.ownerSVGElement
+    if (!svg) return { x: 0, y: 0 }
+    const rect = svg.getBoundingClientRect()
+    const viewBox = svg.viewBox.baseVal
+    if (!viewBox.width || !viewBox.height) return { x: 0, y: 0 }
     const scaleX = viewBox.width / rect.width
     const scaleY = viewBox.height / rect.height
     return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY,
+      x: Math.round((e.clientX - rect.left) * scaleX),
+      y: Math.round((e.clientY - rect.top) * scaleY),
     }
-  }
+  }, [])
 
-  // Click on pitch
-  const handlePitchClick = (e: React.MouseEvent<SVGSVGElement>) => {
+  // Click on pitch — place element or arrow
+  const handlePitchClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     const pos = getSvgPosition(e)
+    if (pos.x === 0 && pos.y === 0) return
 
+    // Arrow tools
     if (selectedTool.startsWith('arrow_')) {
       if (!arrowStart) {
         setArrowStart(pos)
       } else {
         const arrowType: ArrowType = selectedTool === 'arrow_pass' ? 'pass' : 'movement'
+        const num = arrowCounter
+        setArrowCounter(prev => prev + 1)
         const newArrow: DiagramArrow = {
           id: generateId(),
           type: arrowType,
           from: arrowStart,
           to: pos,
           color: arrowType === 'pass' ? '#FFFFFF' : '#FFFF00',
+          label: String(num),
         }
-        updateDiagram({ arrows: [...currentDiagram.arrows, newArrow] })
+        setArrows(prev => [...prev, newArrow])
         setArrowStart(null)
       }
       return
     }
 
+    // Select tool — deselect
     if (selectedTool === 'select') {
       setSelectedElement(null)
       return
     }
 
+    // Place element
     const elementType = selectedTool as ElementType
     let label = ''
     let color = TEAM_COLORS.team1
@@ -160,64 +145,43 @@ export default function ABPEditor({ jugada, jugadores = [], onSave, onCancel, sa
       label,
       color,
     }
-    updateDiagram({ elements: [...currentDiagram.elements, newElement] })
-  }
+    setElements(prev => [...prev, newElement])
+  }, [selectedTool, arrowStart, arrowCounter, playerCounter, getSvgPosition])
 
-  const handleElementMouseDown = (e: React.MouseEvent, elementId: string) => {
+  // Drag handling
+  const handleElementMouseDown = useCallback((e: React.MouseEvent, elementId: string) => {
     e.stopPropagation()
     setSelectedElement(elementId)
     if (selectedTool === 'select') setIsDragging(true)
-  }
+  }, [selectedTool])
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDragging || !selectedElement) return
     const pos = getSvgPosition(e)
-    updateDiagram({
-      elements: currentDiagram.elements.map(el =>
-        el.id === selectedElement ? { ...el, position: pos } : el
-      ),
-    })
-  }
+    if (pos.x === 0 && pos.y === 0) return
+    setElements(prev => prev.map(el =>
+      el.id === selectedElement ? { ...el, position: pos } : el
+    ))
+  }, [isDragging, selectedElement, getSvgPosition])
 
-  const handleMouseUp = () => setIsDragging(false)
+  const handleMouseUp = useCallback(() => setIsDragging(false), [])
 
+  // Delete selected element or arrow
   const deleteSelected = () => {
     if (!selectedElement) return
-    updateDiagram({
-      elements: currentDiagram.elements.filter(el => el.id !== selectedElement),
-      arrows: currentDiagram.arrows.filter(ar => ar.id !== selectedElement),
-    })
+    setElements(prev => prev.filter(el => el.id !== selectedElement))
+    setArrows(prev => prev.filter(ar => ar.id !== selectedElement))
     setSelectedElement(null)
   }
 
+  // Clear all
   const clearDiagram = () => {
-    updateDiagram({ elements: [], arrows: [], zones: [] })
+    setElements([])
+    setArrows([])
     setPlayerCounter({ team1: 1, team2: 1, gk: 1 })
+    setArrowCounter(1)
     setSelectedElement(null)
     setArrowStart(null)
-  }
-
-  // Phase management
-  const addFase = () => {
-    const newFase = createEmptyFase(fases.length)
-    // Copy elements from current phase to new phase
-    const currentElements = activeFase?.diagram?.elements || []
-    if (currentElements.length > 0) {
-      newFase.diagram.elements = JSON.parse(JSON.stringify(currentElements))
-    }
-    setFases([...fases, newFase])
-    setActiveFaseId(newFase.id)
-  }
-
-  const deleteFase = (id: string) => {
-    if (fases.length <= 1) return
-    const newFases = fases.filter(f => f.id !== id)
-    setFases(newFases)
-    if (activeFaseId === id) setActiveFaseId(newFases[0].id)
-  }
-
-  const renameFase = (id: string, nombre: string) => {
-    setFases(prev => prev.map(f => f.id === id ? { ...f, nombre } : f))
   }
 
   // Tags
@@ -228,9 +192,16 @@ export default function ABPEditor({ jugada, jugadores = [], onSave, onCancel, sa
     }
   }
 
-  // Save
+  // Save — pack diagram into a single fase for backend compat
   const handleSave = () => {
     if (!nombre.trim()) return
+    const diagram = { elements, arrows, zones: [], pitchType: pitchView }
+    const fase: ABPFase = {
+      id: jugada?.fases?.[0]?.id || generateId(),
+      nombre: 'Principal',
+      orden: 0,
+      diagram,
+    }
     onSave({
       nombre: nombre.trim(),
       codigo: codigo.trim() || undefined,
@@ -241,13 +212,14 @@ export default function ABPEditor({ jugada, jugadores = [], onSave, onCancel, sa
       senal_codigo: senalCodigo.trim() || undefined,
       sistema_marcaje: sistemaMarcaje || undefined,
       notas_tacticas: notasTacticas.trim() || undefined,
-      fases: fases.map((f, i) => ({ ...f, orden: i })),
+      fases: [fase],
       asignaciones,
       tags,
     })
   }
 
-  // Render element (same as TareaGraphicEditor)
+  // ============ Renderers ============
+
   const renderElement = (element: DiagramElement) => {
     const { id, type, position, label, color } = element
     const isSelected = selectedElement === id
@@ -298,7 +270,7 @@ export default function ABPEditor({ jugada, jugadores = [], onSave, onCancel, sa
     }
   }
 
-  const renderArrow = (arrow: DiagramArrow) => {
+  const renderArrow = (arrow: DiagramArrow, index: number) => {
     const { id, from, to, type, color } = arrow
     const isSelected = selectedElement === id
     const angle = Math.atan2(to.y - from.y, to.x - from.x)
@@ -306,13 +278,26 @@ export default function ABPEditor({ jugada, jugadores = [], onSave, onCancel, sa
     const tipX = to.x - arrowSize * Math.cos(angle)
     const tipY = to.y - arrowSize * Math.sin(angle)
 
+    // Number label at midpoint
+    const midX = (from.x + to.x) / 2
+    const midY = (from.y + to.y) / 2
+    const num = (arrow as any).label || String(index + 1)
+
     return (
       <g key={id} onClick={() => setSelectedElement(id)} style={{ cursor: 'pointer' }}>
-        <line x1={from.x} y1={from.y} x2={tipX} y2={tipY} stroke={color || '#FFFFFF'} strokeWidth={isSelected ? 4 : 2} strokeDasharray={type === 'pass' ? '8,4' : 'none'} />
+        <line x1={from.x} y1={from.y} x2={tipX} y2={tipY}
+          stroke={color || '#FFFFFF'} strokeWidth={isSelected ? 4 : 2.5}
+          strokeDasharray={type === 'pass' ? '8,4' : 'none'}
+        />
         <polygon
           points={`${to.x},${to.y} ${to.x - arrowSize * Math.cos(angle - Math.PI / 6)},${to.y - arrowSize * Math.sin(angle - Math.PI / 6)} ${to.x - arrowSize * Math.cos(angle + Math.PI / 6)},${to.y - arrowSize * Math.sin(angle + Math.PI / 6)}`}
           fill={color || '#FFFFFF'}
         />
+        {/* Chronological number on arrow */}
+        <circle cx={midX} cy={midY} r="10" fill="rgba(0,0,0,0.7)" />
+        <text x={midX} y={midY + 1} textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize="9" fontWeight="bold" fontFamily="Arial">
+          {num}
+        </text>
       </g>
     )
   }
@@ -324,25 +309,31 @@ export default function ABPEditor({ jugada, jugadores = [], onSave, onCancel, sa
     { id: 'player_gk', icon: <Circle className="h-4 w-4" />, label: 'Portero', color: TEAM_COLORS.goalkeeper },
     { id: 'cone', icon: <Triangle className="h-4 w-4" />, label: 'Cono', color: '#FF6B00' },
     { id: 'ball', icon: <Target className="h-4 w-4" />, label: 'Balon' },
+    { id: 'mini_goal', icon: <Minus className="h-4 w-4 rotate-90" />, label: 'Mini porteria' },
     { id: 'arrow_movement', icon: <ArrowRight className="h-4 w-4" />, label: 'Movimiento', color: '#FFFF00' },
     { id: 'arrow_pass', icon: <ArrowRight className="h-4 w-4" />, label: 'Pase', color: '#FFFFFF' },
   ]
 
   return (
     <div className="flex flex-col h-full">
-      {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white">
-        <h2 className="text-lg font-bold text-gray-900">
-          {jugada?.id ? 'Editar jugada' : 'Nueva jugada'}
-        </h2>
-        <div className="flex items-center gap-2">
-          <button onClick={onCancel} className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
-            <X className="h-4 w-4" />
-          </button>
+      {/* Top bar with name */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 bg-white">
+        <button onClick={onCancel} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+          <X className="h-5 w-5" />
+        </button>
+        <input
+          value={nombre}
+          onChange={e => setNombre(e.target.value)}
+          placeholder="Nombre de la jugada..."
+          className="flex-1 text-lg font-bold text-gray-900 bg-transparent border-none outline-none placeholder-gray-300"
+          autoFocus
+        />
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="text-xs text-gray-400">{elements.length} elem, {arrows.length} flechas</span>
           <button
             onClick={handleSave}
             disabled={!nombre.trim() || saving}
-            className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
           >
             <Save className="h-4 w-4" />
             {saving ? 'Guardando...' : 'Guardar'}
@@ -369,72 +360,56 @@ export default function ABPEditor({ jugada, jugadores = [], onSave, onCancel, sa
               </button>
             ))}
             <div className="flex-1" />
-            <button onClick={deleteSelected} disabled={!selectedElement} className="p-1.5 rounded-lg bg-white text-gray-700 hover:bg-red-100 disabled:opacity-50" title="Eliminar">
+            <button onClick={deleteSelected} disabled={!selectedElement} className="p-1.5 rounded-lg bg-white text-gray-700 hover:bg-red-100 disabled:opacity-50" title="Eliminar seleccionado">
               <Trash2 className="h-4 w-4" />
             </button>
-            <button onClick={clearDiagram} className="p-1.5 rounded-lg bg-white text-gray-700 hover:bg-red-100" title="Limpiar">
+            <button onClick={clearDiagram} className="p-1.5 rounded-lg bg-white text-gray-700 hover:bg-red-100" title="Limpiar todo">
               <RotateCcw className="h-4 w-4" />
             </button>
           </div>
 
+          {/* Instructions */}
+          {selectedTool !== 'select' && (
+            <div className="text-xs text-gray-500 px-1">
+              {selectedTool.startsWith('arrow_')
+                ? arrowStart
+                  ? '2. Click en el destino de la flecha'
+                  : '1. Click en el origen de la flecha'
+                : `Click en el campo para colocar: ${tools.find(t => t.id === selectedTool)?.label}`}
+            </div>
+          )}
+
           {/* Pitch */}
           <div
-            className="border border-gray-300 rounded-lg overflow-hidden"
+            className="border border-gray-300 rounded-lg overflow-hidden bg-green-900"
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
           >
             <FootballPitch
               type={pitchView}
-              width={600}
-              height={pitchView === 'quarter' ? 300 : 450}
+              width={700}
+              height={pitchView === 'full' ? 460 : 500}
               onClick={handlePitchClick}
             >
-              <g ref={svgRef as any}>
-                {currentDiagram.zones.map(zone => (
-                  <rect key={zone.id} x={zone.position.x} y={zone.position.y} width={zone.width} height={zone.height} fill={zone.color} opacity={zone.opacity || 0.3} />
-                ))}
-                {currentDiagram.arrows.map(renderArrow)}
-                {arrowStart && <circle cx={arrowStart.x} cy={arrowStart.y} r="5" fill="#FFFF00" />}
-                {currentDiagram.elements.map(renderElement)}
+              <g ref={gRef}>
+                {/* Arrows first (behind elements) */}
+                {arrows.map((arrow, i) => renderArrow(arrow, i))}
+
+                {/* Arrow start indicator */}
+                {arrowStart && (
+                  <circle cx={arrowStart.x} cy={arrowStart.y} r="6" fill="#FFFF00" stroke="#000" strokeWidth="1" opacity="0.8" />
+                )}
+
+                {/* Elements on top */}
+                {elements.map(renderElement)}
               </g>
             </FootballPitch>
           </div>
-
-          {/* Phase timeline */}
-          <ABPPhaseTimeline
-            fases={fases}
-            activeFaseId={activeFaseId}
-            onSelectFase={setActiveFaseId}
-            onAddFase={addFase}
-            onDeleteFase={deleteFase}
-            onRenameFase={renameFase}
-          />
-
-          {/* Phase description */}
-          <input
-            type="text"
-            placeholder="Descripcion de esta fase..."
-            value={activeFase?.descripcion || ''}
-            onChange={(e) => setFases(prev => prev.map(f => f.id === activeFaseId ? { ...f, descripcion: e.target.value } : f))}
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg"
-          />
         </div>
 
         {/* Right: Properties panel */}
         <div className="w-80 border-l border-gray-200 overflow-y-auto bg-gray-50 p-4 space-y-4">
-          {/* Name */}
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
-            <input value={nombre} onChange={e => setNombre(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg" placeholder="Ej: Corner corto izquierdo" />
-          </div>
-
-          {/* Code */}
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Codigo</label>
-            <input value={codigo} onChange={e => setCodigo(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg" placeholder="COR-OF-01" />
-          </div>
-
           {/* Type + Side */}
           <div className="grid grid-cols-2 gap-2">
             <div>
@@ -452,6 +427,12 @@ export default function ABPEditor({ jugada, jugadores = [], onSave, onCancel, sa
             </div>
           </div>
 
+          {/* Code */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Codigo</label>
+            <input value={codigo} onChange={e => setCodigo(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg" placeholder="COR-OF-01" />
+          </div>
+
           {/* Subtype */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Subtipo</label>
@@ -463,7 +444,7 @@ export default function ABPEditor({ jugada, jugadores = [], onSave, onCancel, sa
 
           {/* Signal */}
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Senal / Codigo para jugadores</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Senal / Codigo</label>
             <input value={senalCodigo} onChange={e => setSenalCodigo(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg" placeholder="Ej: Mano arriba" />
           </div>
 
@@ -520,7 +501,7 @@ export default function ABPEditor({ jugada, jugadores = [], onSave, onCancel, sa
           {/* Player assignments */}
           {jugadores.length > 0 && (
             <ABPPlayerAssigner
-              elements={currentDiagram.elements.filter(e => e.type === 'player' || e.type === 'player_gk')}
+              elements={elements.filter(e => e.type === 'player' || e.type === 'player_gk')}
               jugadores={jugadores}
               asignaciones={asignaciones}
               onChange={setAsignaciones}
