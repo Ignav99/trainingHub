@@ -58,9 +58,14 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
     onOpenChange(open)
   }
 
-  // Build lookup maps for exact matching
-  const matchJugador = useCallback((nombre: string): string | null => {
-    const normalizado = nombre.toLowerCase().trim()
+  // Strip leading number prefix ("6. Babacar Ba" → "Babacar Ba", "12.Juan" → "Juan")
+  const stripNumberPrefix = (name: string): string =>
+    name.replace(/^\d+[\.\)\-\s]+\s*/, '').trim()
+
+  // Build lookup maps for matching
+  const matchJugador = useCallback((rawNombre: string): string | null => {
+    const cleaned = stripNumberPrefix(rawNombre)
+    const normalizado = cleaned.toLowerCase().trim()
     if (!normalizado) return null
 
     // Build all possible name forms for each player
@@ -74,13 +79,16 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
         normalizado === fullName ||
         normalizado === nameOnly ||
         (surnameOnly && normalizado === surnameOnly) ||
-        (apodo && normalizado === apodo)
+        (apodo && normalizado === apodo) ||
+        // Partial: Excel has "nombre apellido1" but DB has "nombre apellido1 apellido2"
+        (fullName.startsWith(normalizado) && normalizado.length > 3) ||
+        (normalizado.startsWith(fullName) && fullName.length > 3)
       ) {
         return j.id
       }
     }
 
-    return null // No match — do NOT guess
+    return null
   }, [jugadores])
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -98,28 +106,46 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
         return
       }
 
+      // Build a case-insensitive, accent-insensitive column lookup
+      const colKeys = json.length > 0 ? Object.keys(json[0]) : []
+      const findCol = (...candidates: string[]): string | undefined => {
+        const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim()
+        for (const candidate of candidates) {
+          const nc = normalize(candidate)
+          const found = colKeys.find((k) => normalize(k).includes(nc))
+          if (found) return found
+        }
+        return undefined
+      }
+
+      const colNombre = findCol('nombre del jugador', 'jugador', 'nombre', 'player')
+      const colFatiga = findCol('fatiga', 'fatigue')
+      const colSueno = findCol('sueno', 'sueño', 'sleep')
+      const colDolor = findCol('dolor', 'pain', 'soreness')
+      const colEstres = findCol('estres', 'estrés', 'stress')
+      const colHumor = findCol('humor', 'animo', 'estado de animo', 'mood')
+
       const rows: ParsedRow[] = json.map((row) => {
-        // Flexible column name matching
-        const getName = (r: Record<string, any>) =>
-          r['Jugador'] || r['jugador'] || r['Nombre'] || r['nombre'] || r['Player'] || ''
-        const getNum = (r: Record<string, any>, ...keys: string[]) => {
-          for (const k of keys) {
-            const v = r[k]
-            if (v !== undefined && v !== null && v !== '') return Math.min(5, Math.max(1, Math.round(Number(v))))
-          }
-          return 3
+        const getStr = (col: string | undefined) => col ? String(row[col] ?? '') : ''
+        const getNum = (col: string | undefined) => {
+          if (!col) return 3
+          const v = row[col]
+          if (v === undefined || v === null || v === '') return 3
+          return Math.min(5, Math.max(1, Math.round(Number(v))))
         }
 
-        const nombre = String(getName(row))
-        const sueno = getNum(row, 'Sueno', 'sueno', 'Sueño', 'sueño', 'Sleep')
-        const fatiga = getNum(row, 'Fatiga', 'fatiga', 'Fatigue')
-        const dolor = getNum(row, 'Dolor', 'dolor', 'Pain', 'Soreness')
-        const estres = getNum(row, 'Estres', 'estres', 'Estrés', 'estrés', 'Stress')
-        const humor = getNum(row, 'Humor', 'humor', 'Mood')
+        const nombre = getStr(colNombre)
+        const sueno = getNum(colSueno)
+        const fatiga = getNum(colFatiga)
+        const dolor = getNum(colDolor)
+        const estres = getNum(colEstres)
+        const humor = getNum(colHumor)
+
+        const cleanedNombre = stripNumberPrefix(nombre)
 
         return {
-          jugador_nombre: nombre,
-          fecha: importDate, // Always use the user-selected date
+          jugador_nombre: cleanedNombre || nombre,
+          fecha: importDate,
           sueno,
           fatiga,
           dolor,
@@ -189,8 +215,8 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
         <DialogHeader>
           <DialogTitle>Importar Wellness desde Excel</DialogTitle>
           <DialogDescription>
-            Columnas esperadas: Jugador, Sueno, Fatiga, Dolor, Estres, Humor (valores 1-5).
-            Los nombres deben coincidir exactamente con los de la plantilla.
+            Compatible con Google Forms. Detecta columnas automaticamente (Fatiga, Sueño, Dolor, Estres, Estado de Animo).
+            Los prefijos numericos en nombres (ej: &quot;6. Babacar Ba&quot;) se eliminan automaticamente.
           </DialogDescription>
         </DialogHeader>
 
@@ -254,6 +280,11 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
                   <tr className="border-b text-left">
                     <th className="pb-2 font-medium">Nombre (Excel)</th>
                     <th className="pb-2 font-medium">Jugador asignado</th>
+                    <th className="pb-2 font-medium text-center text-[10px]">Fat</th>
+                    <th className="pb-2 font-medium text-center text-[10px]">Sue</th>
+                    <th className="pb-2 font-medium text-center text-[10px]">Dol</th>
+                    <th className="pb-2 font-medium text-center text-[10px]">Est</th>
+                    <th className="pb-2 font-medium text-center text-[10px]">Hum</th>
                     <th className="pb-2 font-medium text-center">Total</th>
                   </tr>
                 </thead>
@@ -282,6 +313,11 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
                           ))}
                         </select>
                       </td>
+                      <td className="py-1.5 text-center text-xs">{row.fatiga}</td>
+                      <td className="py-1.5 text-center text-xs">{row.sueno}</td>
+                      <td className="py-1.5 text-center text-xs">{row.dolor}</td>
+                      <td className="py-1.5 text-center text-xs">{row.estres}</td>
+                      <td className="py-1.5 text-center text-xs">{row.humor}</td>
                       <td className={`py-1.5 text-center font-bold text-xs ${
                         row.total >= 20 ? 'text-green-600' : row.total >= 15 ? 'text-amber-600' : 'text-red-600'
                       }`}>
