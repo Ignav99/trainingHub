@@ -61,9 +61,11 @@ body {
     font-family: 'Barlow', sans-serif; font-weight: 400;
 }
 .lh-title-name {
-    font-size: 24px; color: white; text-transform: uppercase;
+    font-size: 20px; color: white; text-transform: uppercase;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 900;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    line-height: 1.15;
+    max-height: 2.3em;
+    overflow: hidden;
 }
 .lh-title-sub {
     font-size: 11px; color: #aaa;
@@ -91,43 +93,55 @@ body {
     text-transform: uppercase;
 }
 
-/* --- Asistencia Roster (full width) --- */
+/* --- Asistencia Roster (3-column groups) --- */
 .asistencia-roster {
     background: #111;
-    padding: 8px 16px 9px;
+    padding: 6px 16px 7px;
     flex-shrink: 0;
     border-bottom: 1px solid #222;
+    display: flex;
+    gap: 12px;
 }
-.asistencia-label {
-    font-size: 9px; color: #666; text-transform: uppercase; letter-spacing: 1.5px;
+.asistencia-group {
+    flex: 1;
+    min-width: 0;
+}
+.asistencia-group-ausentes {
+    flex: 0 0 auto;
+}
+.asistencia-group-label {
+    font-size: 8px; text-transform: uppercase; letter-spacing: 1.2px;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
-    margin-bottom: 5px;
+    margin-bottom: 3px;
+    padding-bottom: 2px;
+    border-bottom: 1px solid #222;
 }
-.asistencia-grid {
+.asistencia-group-label-sesion { color: #60a5fa; }
+.asistencia-group-label-otros { color: #fbbf24; }
+.asistencia-group-label-ausentes { color: #f87171; }
+.asistencia-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 5px 16px;
+    gap: 2px 10px;
 }
 .asistencia-item {
-    display: inline-flex; align-items: center; gap: 4px;
-    font-size: 11px; color: #ddd;
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 10px; color: #ddd;
     font-family: 'Barlow', sans-serif; font-weight: 500;
     white-space: nowrap;
 }
+.asistencia-item-ausente {
+    color: #f87171;
+}
 .asistencia-dorsal {
-    font-size: 11px; color: #999;
+    font-size: 10px; color: #888;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
 }
-.asistencia-badge {
-    padding: 2px 6px; border-radius: 2px;
-    font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.3px;
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
-    flex-shrink: 0;
+.asistencia-motivo {
+    font-size: 7px; color: #999;
+    font-family: 'Barlow', sans-serif;
+    font-style: italic;
 }
-.badge-sesion { background: #1e3a5f; color: #60a5fa; }
-.badge-fisio { background: #581c87; color: #c084fc; }
-.badge-margen { background: #78350f; color: #fbbf24; }
-.badge-ausente { background: #7f1d1d; color: #f87171; }
 
 /* --- Objetivo Bar --- */
 .objetivo-bar {
@@ -247,12 +261,12 @@ body {
 .campo-mini-wrap {
     flex: 1;
     background: #1a1a1a;
-    padding: 3px 6px;
+    padding: 2px;
     min-height: 0;
     overflow: hidden;
     display: flex; align-items: center; justify-content: center;
 }
-.campo-mini-wrap svg { width: 85%; height: auto; max-height: 100%; display: block; }
+.campo-mini-wrap svg { width: 100%; height: 100%; display: block; }
 
 /* No-diagram placeholder for warmup */
 .ex-no-diagram {
@@ -705,31 +719,62 @@ body {
             <div class="lh-badge">{{ sesion.get('intensidad_objetivo', '').replace('_', ' ').upper() }}</div>
             {% endif %}
             <div class="lh-badge">{{ sesion.get('match_day', '') }}</div>
+            {% if sesion.get('carga_fisica_objetivo') %}
+            <div class="lh-badge">{{ sesion.get('carga_fisica_objetivo', '').replace('_', ' ').upper() }}</div>
+            {% endif %}
             {% if microciclo_nombre %}
-            <div class="lh-badge" style="font-size:7px;">{{ microciclo_nombre[:30] }}</div>
+            <div class="lh-badge" style="font-size:8px;">{{ microciclo_nombre[:30] }}</div>
             {% endif %}
         </div>
     </div>
 
-    <!-- Asistencia Roster (full width, horizontal flow) -->
+    <!-- Asistencia Roster (3 groups: sesion / otros / ausentes) -->
     {% if asistencia_roster %}
     <div class="asistencia-roster">
-        <div class="asistencia-label">Asistencia ({{ asistencia_roster|length }})</div>
-        <div class="asistencia-grid">
-            {% for p in asistencia_roster %}
-            <div class="asistencia-item">
-                <span class="asistencia-dorsal">{% if p.dorsal %}#{{ p.dorsal }}{% endif %}</span>
-                <span>{{ p.nombre }} {{ p.apellidos[:1] }}.</span>
-                {% if p.tipos %}
-                    {% for tipo in p.tipos %}
-                    <span class="asistencia-badge badge-{{ tipo }}">{{ tipo|upper }}</span>
-                    {% endfor %}
-                {% else %}
-                <span class="asistencia-badge badge-{{ p.sort_key }}">{{ p.tipo_display }}</span>
-                {% endif %}
+        <!-- Group 1: Sesion (anyone with "sesion" in tipos) -->
+        <div class="asistencia-group">
+            <div class="asistencia-group-label asistencia-group-label-sesion">Sesion ({{ asistencia_roster|selectattr('sort_key','equalto','sesion')|list|length }})</div>
+            <div class="asistencia-list">
+                {% for p in asistencia_roster if p.sort_key == 'sesion' %}
+                <div class="asistencia-item">
+                    <span class="asistencia-dorsal">{% if p.dorsal %}#{{ p.dorsal }}{% endif %}</span>
+                    <span>{{ p.nombre }} {{ p.apellidos[:1] }}.</span>
+                </div>
+                {% endfor %}
             </div>
-            {% endfor %}
         </div>
+        <!-- Group 2: Present but not in session (fisio-only, margen-only) -->
+        {% set otros = [] %}
+        {% for p in asistencia_roster if p.sort_key in ['fisio', 'margen'] %}{% if otros.append(p) %}{% endif %}{% endfor %}
+        {% if otros %}
+        <div class="asistencia-group">
+            <div class="asistencia-group-label asistencia-group-label-otros">Fisio / Margen ({{ otros|length }})</div>
+            <div class="asistencia-list">
+                {% for p in otros %}
+                <div class="asistencia-item">
+                    <span class="asistencia-dorsal">{% if p.dorsal %}#{{ p.dorsal }}{% endif %}</span>
+                    <span>{{ p.nombre }} {{ p.apellidos[:1] }}.</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        <!-- Group 3: Ausentes -->
+        {% set ausentes = asistencia_roster|selectattr('sort_key','equalto','ausente')|list %}
+        {% if ausentes %}
+        <div class="asistencia-group asistencia-group-ausentes">
+            <div class="asistencia-group-label asistencia-group-label-ausentes">Ausentes ({{ ausentes|length }})</div>
+            <div class="asistencia-list">
+                {% for p in ausentes %}
+                <div class="asistencia-item asistencia-item-ausente">
+                    <span class="asistencia-dorsal">{% if p.dorsal %}#{{ p.dorsal }}{% endif %}</span>
+                    <span>{{ p.nombre }} {{ p.apellidos[:1] }}.</span>
+                    <span class="asistencia-motivo">{{ p.tipo_display|replace('Ausente — ','') }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
     </div>
     {% endif %}
 
