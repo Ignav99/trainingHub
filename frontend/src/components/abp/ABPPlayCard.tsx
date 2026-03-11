@@ -3,6 +3,8 @@
 import { Copy, Trash2, MoreVertical } from 'lucide-react'
 import { ABPJugada, ABP_TIPOS } from '@/types'
 import { useState } from 'react'
+import { TEAM_COLORS, ELEMENT_SIZES } from '@/components/tarea-editor/types'
+import ABPPitch from './ABPPitch'
 
 interface ABPPlayCardProps {
   jugada: ABPJugada
@@ -15,23 +17,58 @@ export default function ABPPlayCard({ jugada, onClick, onDuplicate, onDelete }: 
   const [showMenu, setShowMenu] = useState(false)
   const tipoInfo = ABP_TIPOS.find(t => t.value === jugada.tipo)
   const firstFase = jugada.fases?.[0]
-  const elementCount = firstFase?.diagram?.elements?.length || 0
+  const elements = firstFase?.diagram?.elements || []
+  const arrows = firstFase?.diagram?.arrows || []
+  const pitchView = jugada.tipo === 'falta_lejana' ? 'full' : 'half'
 
   return (
     <div
       className="group relative border border-gray-200 rounded-xl overflow-hidden hover:shadow-md hover:border-orange-300 transition-all cursor-pointer bg-white"
       onClick={onClick}
     >
-      {/* Thumbnail area */}
-      <div className="relative h-36 bg-gradient-to-br from-green-800 to-green-900 flex items-center justify-center">
-        {elementCount > 0 ? (
-          <div className="text-white/30 text-xs">
-            {elementCount} elementos
-          </div>
-        ) : (
-          <div className="text-white/20 text-xs">Sin diagrama</div>
-        )}
-        {/* Badges */}
+      {/* Thumbnail — real SVG mini diagram */}
+      <div className="relative h-40 overflow-hidden">
+        <ABPPitch type={pitchView as 'full' | 'half'}>
+          {/* Render arrows */}
+          {arrows.map((arrow: any) => {
+            const angle = Math.atan2(arrow.to.y - arrow.from.y, arrow.to.x - arrow.from.x)
+            return (
+              <g key={arrow.id}>
+                <line x1={arrow.from.x} y1={arrow.from.y} x2={arrow.to.x} y2={arrow.to.y}
+                  stroke={arrow.color || '#FFFFFF'} strokeWidth="2"
+                  strokeDasharray={arrow.type === 'pass' ? '8,4' : 'none'}
+                />
+                <polygon
+                  points={`${arrow.to.x},${arrow.to.y} ${arrow.to.x - 8 * Math.cos(angle - Math.PI / 6)},${arrow.to.y - 8 * Math.sin(angle - Math.PI / 6)} ${arrow.to.x - 8 * Math.cos(angle + Math.PI / 6)},${arrow.to.y - 8 * Math.sin(angle + Math.PI / 6)}`}
+                  fill={arrow.color || '#FFFFFF'}
+                />
+              </g>
+            )
+          })}
+          {/* Render elements */}
+          {elements.map((el: any) => {
+            const size = ELEMENT_SIZES[el.type as keyof typeof ELEMENT_SIZES] || 20
+            if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk') {
+              return (
+                <g key={el.id} transform={`translate(${el.position.x}, ${el.position.y})`}>
+                  <circle r={size / 2} fill={el.color || TEAM_COLORS.team1} stroke="#FFFFFF" strokeWidth="1.5" />
+                  <text x="0" y="1" textAnchor="middle" dominantBaseline="middle" fill="#FFF" fontSize="8" fontWeight="bold" fontFamily="Arial">
+                    {el.label}
+                  </text>
+                </g>
+              )
+            }
+            if (el.type === 'cone') {
+              return <polygon key={el.id} points={`${el.position.x},${el.position.y - 8} ${el.position.x + 6},${el.position.y + 6} ${el.position.x - 6},${el.position.y + 6}`} fill="#FF6B00" />
+            }
+            if (el.type === 'ball') {
+              return <circle key={el.id} cx={el.position.x} cy={el.position.y} r="5" fill="#FFFFFF" stroke="#000" strokeWidth="0.5" />
+            }
+            return null
+          })}
+        </ABPPitch>
+
+        {/* Badges overlay */}
         <div className="absolute top-2 left-2 flex gap-1">
           <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
             jugada.lado === 'ofensivo'
@@ -49,12 +86,6 @@ export default function ABPPlayCard({ jugada, onClick, onDuplicate, onDelete }: 
             {jugada.codigo}
           </span>
         )}
-        {/* Phases count */}
-        {jugada.fases?.length > 1 && (
-          <span className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded text-[10px] font-bold bg-white/20 text-white">
-            {jugada.fases.length} fases
-          </span>
-        )}
       </div>
 
       {/* Info */}
@@ -67,14 +98,10 @@ export default function ABPPlayCard({ jugada, onClick, onDuplicate, onDelete }: 
             )}
           </div>
 
-          {/* Menu */}
           {(onDuplicate || onDelete) && (
             <div className="relative">
               <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setShowMenu(!showMenu)
-                }}
+                onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu) }}
                 className="p-1 rounded hover:bg-gray-100 opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <MoreVertical className="h-4 w-4 text-gray-400" />

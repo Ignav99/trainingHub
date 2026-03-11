@@ -23,11 +23,6 @@ export default function ABPPage() {
   const { data, isLoading } = useSWR<{ data: ABPJugada[] }>(swrKey, apiFetcher)
   const jugadas = data?.data || []
 
-  // Fetch jugadores for assignment
-  const jugadoresKey = apiKey('/jugadores', { equipo_id: equipoId }, ['equipo_id'])
-  const { data: jugadoresData } = useSWR(jugadoresKey, apiFetcher)
-  const jugadores = (jugadoresData as any)?.data || []
-
   const refreshList = () => mutate(swrKey)
 
   const handleNew = () => {
@@ -107,7 +102,6 @@ export default function ABPPage() {
       <div className="fixed inset-0 z-50 bg-white flex flex-col">
         <ABPEditor
           jugada={editingJugada || undefined}
-          jugadores={jugadores}
           onSave={handleSave}
           onCancel={() => { setEditorOpen(false); setEditingJugada(null) }}
           saving={saving}
