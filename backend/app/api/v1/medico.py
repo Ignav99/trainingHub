@@ -268,7 +268,38 @@ async def update_registro_medico(
     _log_medical_access(str(registro_id), auth.user_id, "editar", request)
     log_update(auth.user_id, "registro_medico", str(registro_id))
 
-    return RegistroMedicoResponse(**_decrypt_medical_fields(result.data[0]))
+    # Auto-sync player estado when medical record estado changes
+    updated = result.data[0]
+    record_estado = update_data.get("estado") or updated.get("estado")
+    if record_estado == "alta":
+        # Player recovers → activo
+        try:
+            supabase.table("jugadores").update({
+                "estado": "activo",
+                "fecha_lesion": None,
+                "fecha_vuelta_estimada": None,
+                "motivo_baja": None,
+            }).eq("id", updated["jugador_id"]).execute()
+        except Exception:
+            pass
+    else:
+        # Sync based on tipo
+        tipo = updated.get("tipo")
+        estado_map = {
+            "lesion": "lesionado",
+            "enfermedad": "enfermo",
+            "rehabilitacion": "en_recuperacion",
+        }
+        new_estado = estado_map.get(tipo)
+        if new_estado:
+            try:
+                supabase.table("jugadores").update({
+                    "estado": new_estado,
+                }).eq("id", updated["jugador_id"]).execute()
+            except Exception:
+                pass
+
+    return RegistroMedicoResponse(**_decrypt_medical_fields(updated))
 
 
 # Medical records are NEVER deleted per GDPR Art. 9 - only marked as 'alta'
