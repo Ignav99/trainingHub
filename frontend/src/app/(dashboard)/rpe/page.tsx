@@ -33,13 +33,14 @@ import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
 import { ManualRPEDialog } from '@/components/rpe/ManualRPEDialog'
 import { WellnessDialog } from '@/components/rpe/WellnessDialog'
 import { WellnessChartDialog } from '@/components/rpe/WellnessChartDialog'
+import { LoadChartDialog } from '@/components/rpe/LoadChartDialog'
 import { ExcelImportDialog } from '@/components/rpe/ExcelImportDialog'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { cargaApi } from '@/lib/api/carga'
 import { wellnessApi } from '@/lib/api/wellness'
 import { jugadoresApi, Jugador } from '@/lib/api/jugadores'
 import { apiKey } from '@/lib/swr'
-import type { CargaEquipoResponse, CargaJugador, NivelCarga, WellnessAggregates, WellnessEntry } from '@/types'
+import type { CargaEquipoResponse, CargaJugador, NivelCarga, WellnessAggregates, WellnessEntry, CargaDiaria } from '@/types'
 import {
   LineChart,
   Line,
@@ -127,6 +128,8 @@ export default function RPEPage() {
   const [showManualRPE, setShowManualRPE] = useState(false)
   const [showWellness, setShowWellness] = useState(false)
   const [showChart, setShowChart] = useState(false)
+  const [showLoadChart, setShowLoadChart] = useState(false)
+  const [loadChartPlayer, setLoadChartPlayer] = useState<string | undefined>()
   const [showImport, setShowImport] = useState(false)
 
   // Recalculating
@@ -188,8 +191,8 @@ export default function RPEPage() {
         }
       />
 
-      {/* 4 Action Buttons */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* 5 Action Buttons */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <Button
           variant="outline"
           className="h-auto py-3 flex flex-col items-center gap-1.5"
@@ -209,10 +212,18 @@ export default function RPEPage() {
         <Button
           variant="outline"
           className="h-auto py-3 flex flex-col items-center gap-1.5"
+          onClick={() => { setLoadChartPlayer(undefined); setShowLoadChart(true) }}
+        >
+          <TrendingUp className="h-5 w-5 text-blue-500" />
+          <span className="text-xs font-medium">Grafica de Carga</span>
+        </Button>
+        <Button
+          variant="outline"
+          className="h-auto py-3 flex flex-col items-center gap-1.5"
           onClick={() => setShowChart(true)}
         >
           <BarChart3 className="h-5 w-5 text-violet-600" />
-          <span className="text-xs font-medium">Grafica Extendida</span>
+          <span className="text-xs font-medium">Grafica Wellness</span>
         </Button>
         <Button
           variant="outline"
@@ -369,6 +380,38 @@ export default function RPEPage() {
                         {isExpanded && (
                           <tr key={`${item.jugador_id}-expanded`}>
                             <td colSpan={9} className="p-0">
+                              {/* Load metrics bar */}
+                              <div className="px-4 pt-3 pb-1 bg-muted/20 border-t flex flex-wrap items-center gap-4 text-xs">
+                                <div>
+                                  <span className="text-muted-foreground">Aguda (EWMA): </span>
+                                  <span className="font-bold">{item.carga_aguda.toFixed(0)}</span>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground">Cronica (EWMA): </span>
+                                  <span className="font-bold">{item.carga_cronica.toFixed(0)}</span>
+                                </div>
+                                {item.monotonia != null && (
+                                  <div>
+                                    <span className="text-muted-foreground">Monotonia: </span>
+                                    <span className={`font-bold ${item.monotonia > 2 ? 'text-orange-600' : ''}`}>{item.monotonia.toFixed(1)}</span>
+                                  </div>
+                                )}
+                                {item.strain != null && (
+                                  <div>
+                                    <span className="text-muted-foreground">Strain: </span>
+                                    <span className="font-bold">{item.strain.toFixed(0)}</span>
+                                  </div>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-xs text-blue-600 h-6 px-2"
+                                  onClick={(e) => { e.stopPropagation(); setLoadChartPlayer(item.jugador_id); setShowLoadChart(true) }}
+                                >
+                                  <TrendingUp className="h-3 w-3 mr-1" />
+                                  Ver grafica
+                                </Button>
+                              </div>
                               <ExpandedWellnessRow jugadorId={item.jugador_id} />
                             </td>
                           </tr>
@@ -395,12 +438,21 @@ export default function RPEPage() {
         jugadores={jugadores}
       />
       {equipoActivo?.id && (
-        <WellnessChartDialog
-          open={showChart}
-          onOpenChange={setShowChart}
-          jugadores={jugadores}
-          equipoId={equipoActivo.id}
-        />
+        <>
+          <WellnessChartDialog
+            open={showChart}
+            onOpenChange={setShowChart}
+            jugadores={jugadores}
+            equipoId={equipoActivo.id}
+          />
+          <LoadChartDialog
+            open={showLoadChart}
+            onOpenChange={setShowLoadChart}
+            jugadores={jugadores}
+            equipoId={equipoActivo.id}
+            initialJugadorId={loadChartPlayer}
+          />
+        </>
       )}
       <ExcelImportDialog
         open={showImport}

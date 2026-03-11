@@ -19,6 +19,7 @@ from app.database import get_supabase
 from app.services.rfef_scraper_service import RFAFScraper
 from app.services.competition_linker_service import link_competition
 from app.services.pre_match_service import auto_populate_upcoming_matches
+from app.services.load_calculation_service import recalculate_all_teams
 
 logger = logging.getLogger(__name__)
 
@@ -390,8 +391,25 @@ def start_scheduler():
         replace_existing=True,
     )
 
+    # Daily load recalculation at 00:15 CET
+    scheduler.add_job(
+        _daily_load_recalc,
+        CronTrigger(hour=0, minute=15, timezone="Europe/Madrid"),
+        id="daily_load_recalc",
+        replace_existing=True,
+    )
+
     scheduler.start()
     logger.info("RFAF scheduler started with %d jobs", len(scheduler.get_jobs()))
+
+
+async def _daily_load_recalc():
+    """Daily recalculation of training load for all teams."""
+    try:
+        count = recalculate_all_teams()
+        logger.info("Daily load recalc completed: %d teams", count)
+    except Exception as e:
+        logger.error("Error in daily load recalc: %s", e, exc_info=True)
 
 
 def stop_scheduler():

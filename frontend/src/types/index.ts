@@ -1365,6 +1365,8 @@ export interface CargaJugador {
   ultima_carga: number
   ultima_actividad_fecha: string | null
   dias_sin_actividad: number
+  monotonia: number | null
+  strain: number | null
   wellness_valor: number | null
   wellness_fecha: string | null
   updated_at: string | null
@@ -1377,6 +1379,44 @@ export interface CargaJugador {
   // Aggregated from convocatorias
   tarjetas_amarillas: number
   tarjetas_rojas: number
+}
+
+export interface CargaDiaria {
+  fecha: string
+  load_sesion: number
+  load_partido: number
+  load_manual: number
+  load_total: number
+  ewma_acute: number
+  ewma_chronic: number
+  acwr: number | null
+  monotonia: number | null
+  strain: number | null
+}
+
+export interface CargaHistorialResponse {
+  jugador_id: string
+  nombre: string | null
+  apellidos: string | null
+  data: CargaDiaria[]
+}
+
+export interface CargaSemanalJugador {
+  jugador_id: string
+  nombre: string | null
+  apellidos: string | null
+  dorsal: number | null
+  semanas: {
+    semana: string
+    load_sesion: number
+    load_partido: number
+    load_manual: number
+    load_total: number
+  }[]
+}
+
+export interface CargaSemanalEquipoResponse {
+  data: CargaSemanalJugador[]
 }
 
 export interface CargaEquipoResponse {

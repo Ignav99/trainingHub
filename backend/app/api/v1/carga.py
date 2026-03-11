@@ -4,12 +4,21 @@ Endpoints para consultar y recalcular carga de entrenamiento.
 """
 
 import logging
-from datetime import date, datetime
+from collections import defaultdict
+from datetime import date, datetime, timedelta
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from uuid import UUID
 
-from app.models.carga import CargaJugadorResponse, CargaEquipoResponse, WellnessUpdate
+from app.models.carga import (
+    CargaJugadorResponse,
+    CargaEquipoResponse,
+    CargaHistorialResponse,
+    CargaDiariaResponse,
+    CargaSemanalEquipoResponse,
+    CargaSemanalJugador,
+    WellnessUpdate,
+)
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
@@ -122,6 +131,8 @@ async def get_carga_equipo(
             ultima_carga=float(c.get("ultima_carga", 0) or 0),
             ultima_actividad_fecha=c.get("ultima_actividad_fecha"),
             dias_sin_actividad=c.get("dias_sin_actividad", 0),
+            monotonia=float(c["monotonia"]) if c.get("monotonia") is not None else None,
+            strain=float(c["strain"]) if c.get("strain") is not None else None,
             wellness_valor=wellness,
             wellness_fecha=c.get("wellness_fecha"),
             updated_at=c.get("updated_at"),
@@ -155,6 +166,124 @@ async def get_carga_equipo(
     }
 
     return CargaEquipoResponse(data=data, resumen=resumen)
+
+
+@router.get("/jugador/{jugador_id}/historial", response_model=CargaHistorialResponse)
+async def get_historial_jugador(
+    jugador_id: UUID,
+    dias: int = Query(default=28, ge=7, le=56),
+    auth: AuthContext = Depends(require_permission(Permission.RPE_READ)),
+):
+    """Get daily load history for a player."""
+    supabase = get_supabase()
+    jid = str(jugador_id)
+    since = (date.today() - timedelta(days=dias)).isoformat()
+
+    # Fetch player info
+    jug_resp = supabase.table("jugadores").select("nombre, apellidos").eq("id", jid).limit(1).execute()
+    jug = jug_resp.data[0] if jug_resp.data else {}
+
+    # Fetch daily rows
+    rows = (
+        supabase.table("carga_diaria_jugador")
+        .select("fecha, load_sesion, load_partido, load_manual, load_total, ewma_acute, ewma_chronic, acwr, monotonia, strain")
+        .eq("jugador_id", jid)
+        .gte("fecha", since)
+        .order("fecha")
+        .execute()
+    )
+
+    data = []
+    for r in (rows.data or []):
+        data.append(CargaDiariaResponse(
+            fecha=r["fecha"],
+            load_sesion=float(r.get("load_sesion") or 0),
+            load_partido=float(r.get("load_partido") or 0),
+            load_manual=float(r.get("load_manual") or 0),
+            load_total=float(r.get("load_total") or 0),
+            ewma_acute=float(r.get("ewma_acute") or 0),
+            ewma_chronic=float(r.get("ewma_chronic") or 0),
+            acwr=float(r["acwr"]) if r.get("acwr") is not None else None,
+            monotonia=float(r["monotonia"]) if r.get("monotonia") is not None else None,
+            strain=float(r["strain"]) if r.get("strain") is not None else None,
+        ))
+
+    return CargaHistorialResponse(
+        jugador_id=jugador_id,
+        nombre=jug.get("nombre"),
+        apellidos=jug.get("apellidos"),
+        data=data,
+    )
+
+
+@router.get("/equipo/{equipo_id}/semanal", response_model=CargaSemanalEquipoResponse)
+async def get_semanal_equipo(
+    equipo_id: UUID,
+    semanas: int = Query(default=4, ge=1, le=8),
+    auth: AuthContext = Depends(require_permission(Permission.RPE_READ)),
+):
+    """Get weekly load summary for all players in a team."""
+    supabase = get_supabase()
+    eid = str(equipo_id)
+    since = (date.today() - timedelta(weeks=semanas)).isoformat()
+
+    # Fetch players
+    jugadores = (
+        supabase.table("jugadores")
+        .select("id, nombre, apellidos, dorsal")
+        .eq("equipo_id", eid)
+        .execute()
+    )
+    jug_map = {j["id"]: j for j in (jugadores.data or [])}
+
+    # Fetch daily rows for entire team
+    rows = (
+        supabase.table("carga_diaria_jugador")
+        .select("jugador_id, fecha, load_sesion, load_partido, load_manual, load_total")
+        .eq("equipo_id", eid)
+        .gte("fecha", since)
+        .order("fecha")
+        .execute()
+    )
+
+    # Group by player → ISO week
+    player_weeks: dict[str, dict[str, dict]] = defaultdict(lambda: defaultdict(lambda: {
+        "load_sesion": 0.0, "load_partido": 0.0, "load_manual": 0.0, "load_total": 0.0,
+    }))
+
+    for r in (rows.data or []):
+        jid = r["jugador_id"]
+        d = date.fromisoformat(r["fecha"])
+        iso_year, iso_week, _ = d.isocalendar()
+        week_key = f"{iso_year}-W{iso_week:02d}"
+        pw = player_weeks[jid][week_key]
+        pw["load_sesion"] += float(r.get("load_sesion") or 0)
+        pw["load_partido"] += float(r.get("load_partido") or 0)
+        pw["load_manual"] += float(r.get("load_manual") or 0)
+        pw["load_total"] += float(r.get("load_total") or 0)
+
+    data = []
+    for jid, jug in jug_map.items():
+        weeks = player_weeks.get(jid, {})
+        semanas_list = []
+        for wk in sorted(weeks.keys()):
+            w = weeks[wk]
+            semanas_list.append({
+                "semana": wk,
+                "load_sesion": round(w["load_sesion"], 1),
+                "load_partido": round(w["load_partido"], 1),
+                "load_manual": round(w["load_manual"], 1),
+                "load_total": round(w["load_total"], 1),
+            })
+        data.append(CargaSemanalJugador(
+            jugador_id=jid,
+            nombre=jug.get("nombre"),
+            apellidos=jug.get("apellidos"),
+            dorsal=jug.get("dorsal"),
+            semanas=semanas_list,
+        ))
+
+    return CargaSemanalEquipoResponse(data=data)
 
 
 @router.put("/wellness/{jugador_id}")
