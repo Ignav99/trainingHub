@@ -3,7 +3,7 @@ import type { CargaEquipoResponse, CargaHistorialResponse, CargaSemanalEquipoRes
 
 export const cargaApi = {
   getEquipo: (equipoId: string) =>
-    api.get<CargaEquipoResponse>(`/carga/equipo/${equipoId}`),
+    api.get<CargaEquipoResponse>(`/carga/equipo/${equipoId}`, { timeout: 90000 }),
 
   getHistorial: (jugadorId: string, dias: number = 28) =>
     api.get<CargaHistorialResponse>(`/carga/jugador/${jugadorId}/historial?dias=${dias}`),
@@ -15,5 +15,5 @@ export const cargaApi = {
     api.put(`/carga/wellness/${jugadorId}`, { wellness_valor }),
 
   recalcular: (equipoId: string) =>
-    api.post(`/carga/recalcular/${equipoId}`),
+    api.post(`/carga/recalcular/${equipoId}`, undefined, { timeout: 120000 }),
 }
