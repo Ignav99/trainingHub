@@ -88,7 +88,8 @@ export default function EnfermeriaPage() {
     if (!registrosRaw) return []
     return Array.isArray(registrosRaw) ? registrosRaw : (registrosRaw as any).data || []
   }, [registrosRaw])
-  const jugadores = jugadoresData?.data || []
+  const jugadoresAll = jugadoresData?.data || []
+  const jugadores = jugadoresAll.filter((j) => !j.es_invitado)
   const loading = loadingRegistros || loadingJugadores
   const error = registrosError ? 'Error al cargar los datos médicos' : null
 

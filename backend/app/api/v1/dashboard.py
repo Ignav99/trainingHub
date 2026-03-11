@@ -179,7 +179,9 @@ async def dashboard_plantilla(
         "id, nombre, apellidos, dorsal, posicion_principal, estado, "
         "fecha_lesion, fecha_vuelta_estimada, es_convocable, foto_url, "
         "nivel_tecnico, nivel_tactico, nivel_fisico, nivel_mental"
-    ).eq("equipo_id", str(equipo_id)).order("apellidos").execute()
+    ).eq("equipo_id", str(equipo_id)).eq(
+        "es_invitado", False
+    ).order("apellidos").execute()
 
     jugadores = response.data
     total = len(jugadores)
@@ -222,10 +224,10 @@ async def dashboard_carga_semanal(
     hoy = date.today()
     fecha_inicio = hoy - timedelta(weeks=semanas)
 
-    # Obtener jugadores del equipo
+    # Obtener jugadores del equipo (solo plantilla, no invitados)
     jugadores = supabase.table("jugadores").select("id").eq(
         "equipo_id", str(equipo_id)
-    ).execute()
+    ).eq("es_invitado", False).execute()
 
     jugador_ids = [j["id"] for j in jugadores.data]
 

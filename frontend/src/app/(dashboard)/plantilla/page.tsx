@@ -432,9 +432,11 @@ export default function PlantillaPage() {
   const stats = useMemo(() => {
     if (jugadores.length === 0 && !jugadoresResponse) return null
 
-    const disponibles = jugadores.filter((j) => j.estado === 'activo').length
+    // Only count plantilla players (exclude invitados)
+    const plantilla = jugadores.filter((j) => !j.es_invitado)
+    const disponibles = plantilla.filter((j) => j.estado === 'activo').length
     const porZona: Record<string, number> = { porteria: 0, defensa: 0, mediocampo: 0, ataque: 0 }
-    jugadores.forEach((j) => {
+    plantilla.forEach((j) => {
       const pos = POSICIONES[j.posicion_principal as keyof typeof POSICIONES]
       if (pos) {
         porZona[pos.zona] = (porZona[pos.zona] || 0) + 1
@@ -442,9 +444,9 @@ export default function PlantillaPage() {
     })
 
     return {
-      total: jugadores.length,
+      total: plantilla.length,
       disponibles,
-      noDisponibles: jugadores.length - disponibles,
+      noDisponibles: plantilla.length - disponibles,
       porZona,
     }
   }, [jugadores, jugadoresResponse])

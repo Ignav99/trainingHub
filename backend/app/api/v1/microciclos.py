@@ -124,7 +124,9 @@ async def get_microciclo_completo(
     jugadores_resp = supabase.table("jugadores").select(
         "id, nombre, apellidos, dorsal, posicion_principal, estado, "
         "fecha_lesion, fecha_vuelta_estimada, motivo_baja"
-    ).eq("equipo_id", equipo_id).order("apellidos").execute()
+    ).eq("equipo_id", equipo_id).eq(
+        "es_invitado", False
+    ).order("apellidos").execute()
 
     jugadores = jugadores_resp.data
     total = len(jugadores)

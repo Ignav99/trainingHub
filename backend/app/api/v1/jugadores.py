@@ -269,7 +269,7 @@ async def get_estadisticas_equipo(equipo_id: UUID, auth: AuthContext = Depends(r
     """Obtiene estadísticas del equipo."""
     supabase = get_supabase()
 
-    response = supabase.table("jugadores").select("*").eq("equipo_id", str(equipo_id)).execute()
+    response = supabase.table("jugadores").select("*").eq("equipo_id", str(equipo_id)).eq("es_invitado", False).execute()
 
     jugadores = response.data
     total = len(jugadores)

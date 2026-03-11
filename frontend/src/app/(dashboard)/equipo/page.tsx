@@ -126,12 +126,13 @@ export default function EquipoPage() {
     }
   }
 
-  // Estadísticas
+  // Estadísticas (only plantilla players, exclude invitados)
+  const plantillaJugadores = jugadores.filter(j => !j.es_invitado)
   const stats = {
-    total: jugadores.length,
-    activos: jugadores.filter(j => j.estado === 'activo').length,
-    lesionados: jugadores.filter(j => j.estado === 'lesionado').length,
-    porteros: jugadores.filter(j => j.es_portero).length,
+    total: plantillaJugadores.length,
+    activos: plantillaJugadores.filter(j => j.estado === 'activo').length,
+    lesionados: plantillaJugadores.filter(j => j.estado === 'lesionado').length,
+    porteros: plantillaJugadores.filter(j => j.es_portero).length,
   }
 
   // Estado sin equipo
