@@ -2,16 +2,34 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Informe del Rival — {{ rival.get('nombre', 'Rival') }}</title>
+<title>Informe Rival | {{ rival.get('nombre', 'Rival') }}</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;900&family=Barlow:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700;900&display=swap');
+
+:root {
+    --primary: #0d1117;
+    --secondary: #161b22;
+    --card-bg: #1a1f26;
+    --accent-blue: #58a6ff;
+    --accent-green: #3fb950;
+    --accent-red: #f85149;
+    --accent-yellow: #d29922;
+    --accent-purple: #a371f7;
+    --accent-orange: #f0883e;
+    --text: #e6edf3;
+    --text-muted: #7d8590;
+    --border: #30363d;
+    --pitch-green: #1a472a;
+    --pitch-lines: rgba(255,255,255,0.35);
+}
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
     font-family: 'Barlow', sans-serif;
-    color: #111;
-    font-size: 10px;
+    background: var(--primary);
+    color: var(--text);
+    font-size: 9px;
     line-height: 1.4;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
@@ -23,537 +41,846 @@ body {
     width: 210mm;
     min-height: 297mm;
     padding: 0;
-    background: white;
+    background: var(--primary);
     position: relative;
+    overflow: hidden;
 }
 
 .page-break { page-break-before: always; }
 
-/* ============ HEADER BAR ============ */
+/* ============ HEADER ============ */
 .header {
-    background: #0a0a0a;
-    padding: 14px 20px;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    position: relative;
+    background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
+    padding: 14px 18px 12px;
+    border-bottom: 3px solid var(--accent-blue);
+    text-align: center;
 }
-.header::after {
-    content: '';
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, {{ color_primario }} 0%, {{ organizacion.get('color_secundario', color_primario) }} 100%);
-}
-.header-logo {
-    width: 40px; height: 40px; flex-shrink: 0;
-}
-.header-logo img {
-    width: 100%; height: 100%; object-fit: contain; border-radius: 4px;
-}
-.header-divider {
-    width: 1px; height: 32px; background: rgba(255,255,255,0.15); flex-shrink: 0;
-}
-.header-title {
-    flex: 1; min-width: 0;
-}
-.header-club {
-    font-size: 8px; color: #666; text-transform: uppercase; letter-spacing: 2px;
-    font-family: 'Barlow', sans-serif; font-weight: 400;
-}
-.header-name {
-    font-size: 18px; color: white; text-transform: uppercase;
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 900;
-    line-height: 1.15;
-}
-.header-rival {
-    display: flex; align-items: center; gap: 10px; flex-shrink: 0;
-}
-.rival-escudo {
-    width: 44px; height: 44px; border-radius: 6px; overflow: hidden;
-    background: rgba(255,255,255,0.1);
-}
-.rival-escudo img {
-    width: 100%; height: 100%; object-fit: contain; padding: 3px;
-}
-.rival-escudo-fallback {
-    width: 44px; height: 44px; border-radius: 6px;
-    background: #06b6d4;
-    display: flex; align-items: center; justify-content: center;
-    color: white; font-size: 22px; font-weight: 900;
-    font-family: 'Barlow Condensed', sans-serif;
-}
-.rival-info {
-    text-align: right;
-}
-.rival-label {
-    font-size: 8px; color: #666; text-transform: uppercase; letter-spacing: 1.5px;
-}
-.rival-name {
-    font-size: 16px; color: white;
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
-}
-
-/* ============ MATCH INFO STRIP ============ */
-.match-strip {
-    background: #f8f9fa;
-    padding: 8px 20px;
-    display: flex;
-    gap: 24px;
-    border-bottom: 1px solid #e5e7eb;
-}
-.match-strip-item {
-    display: flex; align-items: center; gap: 4px;
-}
-.match-strip-label {
-    font-size: 8px; color: #666; text-transform: uppercase; letter-spacing: 0.8px;
-    font-weight: 600;
-}
-.match-strip-value {
-    font-size: 10px; color: #111; font-weight: 600;
-}
-
-/* ============ CONTENT ============ */
-.content { padding: 16px 20px; }
-
-/* ============ RESUMEN GENERAL ============ */
-.resumen {
-    background: #0f172a;
-    border-left: 4px solid #06b6d4;
-    border-radius: 6px;
-    padding: 14px 16px;
-    margin-bottom: 16px;
-}
-.resumen-title {
-    font-size: 9px; color: #06b6d4; text-transform: uppercase;
-    letter-spacing: 2px; font-weight: 700; margin-bottom: 6px;
-}
-.resumen-text {
-    font-size: 10px; color: #cbd5e1; line-height: 1.6;
-    white-space: pre-wrap;
-}
-
-/* ============ TWO COLUMN LAYOUT ============ */
-.two-col { overflow: hidden; margin-bottom: 16px; }
-.col-left { float: left; width: 49%; }
-.col-right { float: right; width: 49%; }
-
-/* ============ PHASE CARD ============ */
-.phase-card {
-    border-radius: 6px;
-    overflow: hidden;
-    border: 1px solid #e5e7eb;
-    margin-bottom: 12px;
-}
-.phase-header {
-    padding: 8px 12px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-.phase-header-icon {
-    width: 16px; height: 16px;
-}
-.phase-header-title {
-    font-size: 11px; text-transform: uppercase;
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
-    letter-spacing: 1px;
-}
-.phase-body {
-    padding: 10px 12px;
-}
-.phase-subsection {
-    margin-bottom: 10px;
-}
-.phase-subsection:last-child { margin-bottom: 0; }
-.phase-sublabel {
-    font-size: 8px; text-transform: uppercase;
-    letter-spacing: 1.5px; font-weight: 700;
-    margin-bottom: 3px;
-}
-.phase-subtext {
-    font-size: 9.5px; color: #374151; line-height: 1.55;
-    white-space: pre-wrap;
-}
-
-/* Colors */
-.phase-blue .phase-header { background: #1e3a5f; }
-.phase-blue .phase-header-title { color: #93c5fd; }
-.phase-blue .phase-sublabel { color: #3b82f6; }
-.phase-blue { border-left: 4px solid #3b82f6; }
-
-.phase-red .phase-header { background: #5f1e1e; }
-.phase-red .phase-header-title { color: #fca5a5; }
-.phase-red .phase-sublabel { color: #ef4444; }
-.phase-red { border-left: 4px solid #ef4444; }
-
-.phase-amber .phase-header { background: #5f4b1e; }
-.phase-amber .phase-header-title { color: #fcd34d; }
-.phase-amber .phase-sublabel { color: #f59e0b; }
-.phase-amber { border-left: 4px solid #f59e0b; }
-
-.phase-purple .phase-header { background: #3b1e5f; }
-.phase-purple .phase-header-title { color: #d8b4fe; }
-.phase-purple .phase-sublabel { color: #a855f7; }
-.phase-purple { border-left: 4px solid #a855f7; }
-
-/* ============ JUGADORES CLAVE ============ */
-.jugadores-title {
-    font-size: 12px; color: #111;
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 1px;
-    margin-bottom: 10px;
-    padding-bottom: 4px;
-    border-bottom: 2px solid #f59e0b;
-}
-.jugadores-grid { overflow: hidden; margin-bottom: 16px; }
-.jugador-card {
-    float: left;
-    width: 48%;
-    margin-right: 4%;
-    margin-bottom: 10px;
-    border-radius: 6px;
-    padding: 10px 12px;
-    border: 1px solid #e5e7eb;
-}
-.jugador-card:nth-child(2n) { margin-right: 0; }
-.jugador-peligroso {
-    border-left: 4px solid #f59e0b;
-    background: #fffbeb;
-}
-.jugador-debilidad {
-    border-left: 4px solid #10b981;
-    background: #ecfdf5;
-}
-.jugador-header {
-    display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
-}
-.jugador-nombre {
-    font-size: 11px; font-weight: 700;
-}
-.jugador-pos {
-    font-size: 8px; padding: 1px 6px; border-radius: 3px;
-    font-weight: 600; text-transform: uppercase;
-}
-.jugador-pos-peligroso { background: #fde68a; color: #92400e; }
-.jugador-pos-debilidad { background: #a7f3d0; color: #065f46; }
-.jugador-tipo {
-    font-size: 8px; padding: 1px 5px; border-radius: 3px;
-    font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
-}
-.jugador-tipo-peligroso { background: #fef3c7; color: #b45309; border: 1px solid #f59e0b; }
-.jugador-tipo-debilidad { background: #d1fae5; color: #047857; border: 1px solid #10b981; }
-.jugador-analisis {
-    font-size: 9px; color: #4b5563; line-height: 1.5;
-}
-
-/* ============ DEBILIDADES EXPLOTABLES ============ */
-.debilidades {
-    border-left: 4px solid #10b981;
-    border-radius: 6px;
-    padding: 14px 16px;
-    background: #ecfdf5;
-    border: 1px solid #a7f3d0;
-    border-left: 4px solid #10b981;
-}
-.debilidades-title {
-    font-size: 11px; color: #065f46;
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 1px;
+.match-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--text-muted);
     margin-bottom: 6px;
 }
+.teams {
+    margin-bottom: 10px;
+}
+.team-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 2px;
+    line-height: 1.1;
+}
+.team-rival { color: var(--accent-red); }
+.team-home { color: var(--accent-green); }
+.vs-text {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 14px;
+    color: var(--text-muted);
+    margin: 0 10px;
+}
+
+/* Stats row */
+.stats-row {
+    overflow: hidden;
+    text-align: center;
+    margin-top: 8px;
+}
+.stat {
+    display: inline-block;
+    text-align: center;
+    margin: 0 12px;
+}
+.stat-value {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    color: var(--accent-blue);
+}
+.stat-label {
+    font-size: 7px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+}
+.form-badges {
+    display: inline-block;
+    vertical-align: middle;
+}
+.form-badge {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border-radius: 3px;
+    text-align: center;
+    line-height: 18px;
+    font-weight: 700;
+    font-size: 8px;
+    margin: 0 1px;
+}
+.form-badge-V { background: var(--accent-green); color: #000; }
+.form-badge-E { background: var(--accent-yellow); color: #000; }
+.form-badge-D { background: var(--accent-red); color: #fff; }
+
+/* Intel cards */
+.intel-grid {
+    overflow: hidden;
+    margin-top: 8px;
+}
+.intel-card {
+    float: left;
+    width: 32%;
+    margin-right: 2%;
+    background: var(--card-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    padding: 8px 10px;
+}
+.intel-card:last-child { margin-right: 0; }
+.intel-card-title {
+    font-size: 7px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+.intel-card-title.yellow { color: var(--accent-yellow); }
+.intel-card-title.red { color: var(--accent-red); }
+.intel-card-title.blue { color: var(--accent-blue); }
+.intel-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;
+    font-size: 8px;
+}
+.intel-row-name { color: var(--text); }
+.intel-row-value { font-weight: 700; }
+.intel-row-value.yellow { color: var(--accent-yellow); }
+.intel-row-value.red { color: var(--accent-red); }
+.intel-row-value.green { color: var(--accent-green); }
+
+/* ============ MAIN CONTENT ============ */
+.content { padding: 12px 18px; }
+
+/* ============ SECTION HEADERS ============ */
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 5px;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 10px;
+}
+.section-number {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    color: #000;
+}
+.section-number.green { background: var(--accent-green); }
+.section-number.red { background: var(--accent-red); }
+.section-number.purple { background: var(--accent-purple); color: #fff; }
+.section-number.yellow { background: var(--accent-yellow); }
+.section-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 15px;
+    letter-spacing: 2px;
+    color: var(--text);
+}
+
+/* ============ PHASE GRID (3 columns) ============ */
+.phase-grid {
+    overflow: hidden;
+    margin-bottom: 14px;
+}
+.phase-col {
+    float: left;
+    width: 32%;
+    margin-right: 2%;
+}
+.phase-col:last-child { margin-right: 0; }
+.phase-col-half {
+    float: left;
+    width: 49%;
+    margin-right: 2%;
+}
+.phase-col-half:last-child { margin-right: 0; }
+
+.phase-card {
+    background: var(--card-bg);
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+.phase-header {
+    padding: 5px 8px;
+    text-align: center;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 10px;
+    letter-spacing: 1px;
+}
+.phase-header.high { background: var(--accent-red); color: #fff; }
+.phase-header.mid { background: var(--accent-yellow); color: #000; }
+.phase-header.low { background: var(--accent-green); color: #000; }
+.phase-header.trans-danger { background: var(--accent-red); color: #fff; }
+.phase-header.trans-opp { background: var(--accent-green); color: #000; }
+.phase-header.abp { background: var(--accent-purple); color: #fff; }
+
+/* ============ PITCH SVG ============ */
+.pitch-wrapper { padding: 6px; }
+.pitch {
+    width: 100%;
+    aspect-ratio: 1.2;
+    background: linear-gradient(180deg, #1e5631 0%, #1a472a 50%, #1e5631 100%);
+    border-radius: 6px;
+    position: relative;
+    overflow: hidden;
+    border: 1.5px solid var(--pitch-lines);
+}
+.pitch-half {
+    width: 100%;
+    aspect-ratio: 1.4;
+    background: linear-gradient(180deg, #1e5631 0%, #1a472a 100%);
+    border-radius: 6px;
+    position: relative;
+    overflow: hidden;
+    border: 1.5px solid var(--pitch-lines);
+}
+.pitch-svg {
+    width: 100%;
+    height: 100%;
+}
+
+/* Highlight zones */
+.zone {
+    position: absolute;
+    border-radius: 4px;
+}
+.zone-danger {
+    background: rgba(248, 81, 73, 0.25);
+    border: 1.5px dashed var(--accent-red);
+}
+.zone-opportunity {
+    background: rgba(63, 185, 80, 0.25);
+    border: 1.5px dashed var(--accent-green);
+}
+.zone-concentration {
+    background: rgba(210, 153, 34, 0.2);
+    border: 1.5px dashed var(--accent-yellow);
+}
+.zone-purple {
+    background: rgba(163, 113, 247, 0.25);
+    border: 1.5px dashed var(--accent-purple);
+}
+
+/* Pitch label */
+.pitch-label {
+    position: absolute;
+    text-align: center;
+    font-weight: 700;
+    font-size: 6px;
+    padding: 2px 5px;
+    border-radius: 3px;
+    background: rgba(0,0,0,0.7);
+    z-index: 15;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.pitch-label.green { color: var(--accent-green); }
+.pitch-label.red { color: var(--accent-red); }
+.pitch-label.yellow { color: var(--accent-yellow); }
+.pitch-label.purple { color: var(--accent-purple); }
+
+/* ============ OBSERVATIONS ============ */
+.observations {
+    padding: 6px 8px;
+    border-top: 1px solid var(--border);
+}
+.obs-row {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 3px;
+    font-size: 7.5px;
+    align-items: flex-start;
+    line-height: 1.4;
+}
+.obs-row:last-child { margin-bottom: 0; }
+.obs-tag {
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 6px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+.obs-tag.pattern { background: var(--accent-blue); color: #fff; }
+.obs-tag.advantage { background: var(--accent-green); color: #000; }
+.obs-tag.caution { background: var(--accent-red); color: #fff; }
+.obs-tag.attack { background: var(--accent-purple); color: #fff; }
+
+/* ============ JUGADORES CLAVE ============ */
+.players-section {
+    margin-top: 12px;
+}
+.players-grid {
+    overflow: hidden;
+}
+.player-card {
+    float: left;
+    width: 32%;
+    margin-right: 2%;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    background: var(--secondary);
+    padding: 8px;
+    border-radius: 8px;
+    border-left: 3px solid var(--accent-yellow);
+}
+.player-card:nth-child(3n) { margin-right: 0; }
+.player-card.weakness { border-left-color: var(--accent-green); }
+.player-number {
+    width: 28px;
+    height: 28px;
+    background: var(--accent-yellow);
+    color: #000;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 10px;
+    flex-shrink: 0;
+}
+.player-card.weakness .player-number { background: var(--accent-green); }
+.player-info-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    color: var(--text);
+}
+.player-info-pos {
+    font-size: 6.5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.player-info-desc {
+    font-size: 7px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    line-height: 1.4;
+}
+
+/* ============ DEBILIDADES ============ */
+.debilidades-box {
+    background: var(--card-bg);
+    border-left: 4px solid var(--accent-green);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-top: 12px;
+}
+.debilidades-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 12px;
+    letter-spacing: 1.5px;
+    color: var(--accent-green);
+    margin-bottom: 5px;
+}
 .debilidades-text {
-    font-size: 10px; color: #374151; line-height: 1.6;
+    font-size: 8.5px;
+    color: var(--text);
+    line-height: 1.6;
     white-space: pre-wrap;
 }
 
 /* ============ COMPACT HEADER (page 2+) ============ */
 .header-compact {
-    background: #0a0a0a;
-    padding: 8px 20px;
+    background: var(--secondary);
+    padding: 6px 18px;
     display: flex;
     align-items: center;
-    gap: 10px;
-    position: relative;
-}
-.header-compact::after {
-    content: '';
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, {{ color_primario }} 0%, {{ organizacion.get('color_secundario', color_primario) }} 100%);
+    gap: 8px;
+    border-bottom: 2px solid var(--accent-blue);
 }
 .header-compact-title {
-    font-size: 12px; color: white; text-transform: uppercase;
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 11px;
+    color: var(--text);
     letter-spacing: 1px;
 }
 .header-compact-sub {
-    font-size: 9px; color: #666; margin-left: auto;
+    font-size: 8px;
+    color: var(--text-muted);
+    margin-left: auto;
 }
 
 /* ============ FOOTER ============ */
 .footer {
     position: absolute;
     bottom: 0; left: 0; right: 0;
-    padding: 8px 20px;
-    display: flex;
-    justify-content: space-between;
-    font-size: 8px; color: #999;
-    border-top: 1px solid #f0f0f0;
+    text-align: center;
+    padding: 8px 18px;
+    border-top: 1px solid var(--border);
 }
-
-/* SVG icons inline */
-.icon-svg { display: inline-block; vertical-align: middle; }
+.footer-club {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 11px;
+    color: var(--accent-green);
+    letter-spacing: 2px;
+}
+.footer-sub {
+    font-size: 7px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
 </style>
 </head>
 <body>
 
 <!-- ============ PAGE 1 ============ -->
 <div class="page">
-    <!-- Header Bar -->
+
+    <!-- Header -->
     <div class="header">
-        {% if organizacion.get('logo_url') %}
-        <div class="header-logo"><img src="{{ organizacion.get('logo_url') }}" alt=""></div>
-        <div class="header-divider"></div>
-        {% endif %}
-        <div class="header-title">
-            <div class="header-club">{{ organizacion.get('nombre', 'TrainingHub Pro') }}</div>
-            <div class="header-name">Informe del Rival</div>
+        <div class="match-title">INFORME DE RIVAL{% if partido.get('jornada') %} · JORNADA {{ partido.get('jornada') }}{% endif %}</div>
+        <div class="teams">
+            <span class="team-name team-rival">{{ rival.get('nombre', 'RIVAL') | upper }}</span>
+            <span class="vs-text">VS</span>
+            <span class="team-name team-home">{{ equipo_nombre | upper or 'TU EQUIPO' }}</span>
         </div>
-        <div class="header-rival">
-            <div class="rival-info">
-                <div class="rival-label">Rival</div>
-                <div class="rival-name">{{ rival.get('nombre', 'Rival') }}</div>
+
+        <!-- Stats row -->
+        <div class="stats-row">
+            {% if intel and intel.get('clasificacion') %}
+            {% set clas = intel.get('clasificacion', {}) %}
+            {% if clas.get('posicion') %}
+            <div class="stat">
+                <div class="stat-value">{{ clas.get('posicion') }}º</div>
+                <div class="stat-label">Posicion</div>
             </div>
-            {% if rival.get('escudo_url') %}
-            <div class="rival-escudo"><img src="{{ rival.get('escudo_url') }}" alt=""></div>
-            {% else %}
-            <div class="rival-escudo-fallback">{{ rival.get('nombre', 'R')[0] }}</div>
+            {% endif %}
+            {% if clas.get('puntos') is not none %}
+            <div class="stat">
+                <div class="stat-value">{{ clas.get('puntos') }}</div>
+                <div class="stat-label">Puntos</div>
+            </div>
+            {% endif %}
+            {% if clas.get('gf') is not none %}
+            <div class="stat">
+                <div class="stat-value">{{ clas.get('gf') }}</div>
+                <div class="stat-label">GF</div>
+            </div>
+            {% endif %}
+            {% if clas.get('gc') is not none %}
+            <div class="stat">
+                <div class="stat-value">{{ clas.get('gc') }}</div>
+                <div class="stat-label">GC</div>
+            </div>
+            {% endif %}
+            {% if clas.get('ultimos_5') %}
+            <div class="stat">
+                <div class="stat-label" style="margin-bottom:3px;">Racha</div>
+                <div class="form-badges">
+                    {% for r in clas.get('ultimos_5', []) %}
+                    <span class="form-badge form-badge-{{ r }}">{{ r }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
             {% endif %}
         </div>
-    </div>
 
-    <!-- Match Info Strip -->
-    <div class="match-strip">
-        {% if partido.get('fecha') %}
-        <div class="match-strip-item">
-            <span class="match-strip-label">Fecha</span>
-            <span class="match-strip-value">{{ partido.get('fecha', '') }}</span>
-        </div>
-        {% endif %}
-        {% if partido.get('hora') %}
-        <div class="match-strip-item">
-            <span class="match-strip-label">Hora</span>
-            <span class="match-strip-value">{{ partido.get('hora', '') }}</span>
-        </div>
-        {% endif %}
-        {% if partido.get('localia') %}
-        <div class="match-strip-item">
-            <span class="match-strip-label">Localia</span>
-            <span class="match-strip-value" style="text-transform:capitalize">{{ partido.get('localia', '') }}</span>
-        </div>
-        {% endif %}
-        {% if partido.get('competicion') %}
-        <div class="match-strip-item">
-            <span class="match-strip-label">Competicion</span>
-            <span class="match-strip-value" style="text-transform:capitalize">{{ partido.get('competicion', '').replace('_', ' ') }}</span>
-        </div>
-        {% endif %}
-        {% if partido.get('jornada') %}
-        <div class="match-strip-item">
-            <span class="match-strip-label">Jornada</span>
-            <span class="match-strip-value">{{ partido.get('jornada', '') }}</span>
-        </div>
-        {% endif %}
-        {% if equipo_nombre %}
-        <div class="match-strip-item" style="margin-left:auto;">
-            <span class="match-strip-label">Equipo</span>
-            <span class="match-strip-value">{{ equipo_nombre }}</span>
+        <!-- Intel cards -->
+        {% if intel %}
+        <div class="intel-grid">
+            {% if intel.get('goleadores_rival') and intel.get('goleadores_rival')|length > 0 %}
+            <div class="intel-card">
+                <div class="intel-card-title yellow">Goleadores</div>
+                {% for g in intel.get('goleadores_rival', [])[:4] %}
+                <div class="intel-row">
+                    <span class="intel-row-name">{{ g.get('jugador', '') }}</span>
+                    <span class="intel-row-value yellow">{{ g.get('goles', 0) }} gol{{ 'es' if g.get('goles', 0) != 1 else '' }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if intel.get('sanciones_oficiales') and intel.get('sanciones_oficiales')|length > 0 %}
+            <div class="intel-card">
+                <div class="intel-card-title red">Sancionados</div>
+                {% for s in intel.get('sanciones_oficiales', [])[:4] %}
+                <div class="intel-row">
+                    <span class="intel-row-name">{{ s.get('persona_nombre', '') }}</span>
+                    <span class="intel-row-value red" style="font-size:7px;">{{ s.get('descripcion', '')[:28] }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if intel.get('ultimos_resultados') and intel.get('ultimos_resultados')|length > 0 %}
+            <div class="intel-card">
+                <div class="intel-card-title blue">Ultimos Partidos</div>
+                {% for r in intel.get('ultimos_resultados', [])[:4] %}
+                {% set is_local = r.get('local') == intel.get('rival_nombre') %}
+                {% set rg = r.get('goles_local') if is_local else r.get('goles_visitante') %}
+                {% set og = r.get('goles_visitante') if is_local else r.get('goles_local') %}
+                <div class="intel-row">
+                    <span class="intel-row-name">J{{ r.get('jornada','') }} {{ r.get('visitante') if is_local else r.get('local') }}</span>
+                    <span class="intel-row-value {{ 'green' if rg > og else ('yellow' if rg == og else 'red') }}">{{ rg }}-{{ og }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
         </div>
         {% endif %}
     </div>
 
     <div class="content">
-        <!-- Resumen General -->
-        {% if informe.get('resumen_general') %}
-        <div class="resumen">
-            <div class="resumen-title">Resumen General</div>
-            <div class="resumen-text">{{ informe.get('resumen_general', '') }}</div>
-        </div>
-        {% endif %}
 
-        <!-- Fase Ofensiva + Fase Defensiva -->
-        <div class="two-col">
-            <div class="col-left">
-                {% if informe.get('fase_ofensiva') %}
-                <div class="phase-card phase-blue">
-                    <div class="phase-header">
-                        <svg class="phase-header-icon" viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/><path d="M14.5 6.5L18 3h3v3l-11.5 11.5"/><path d="M5 14l4 4"/><path d="M7 17l-4 4"/></svg>
-                        <span class="phase-header-title">Fase Ofensiva</span>
-                    </div>
-                    <div class="phase-body">
-                        {% set fo = informe.get('fase_ofensiva', {}) %}
-                        {% if fo.get('salida_balon') %}
-                        <div class="phase-subsection">
-                            <div class="phase-sublabel">Salida de Balon</div>
-                            <div class="phase-subtext">{{ fo.get('salida_balon', '') }}</div>
-                        </div>
-                        {% endif %}
-                        {% if fo.get('construccion') %}
-                        <div class="phase-subsection">
-                            <div class="phase-sublabel">Construccion</div>
-                            <div class="phase-subtext">{{ fo.get('construccion', '') }}</div>
-                        </div>
-                        {% endif %}
-                        {% if fo.get('finalizacion') %}
-                        <div class="phase-subsection">
-                            <div class="phase-sublabel">Finalizacion</div>
-                            <div class="phase-subtext">{{ fo.get('finalizacion', '') }}</div>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-                {% endif %}
-            </div>
-            <div class="col-right">
-                {% if informe.get('fase_defensiva') %}
-                <div class="phase-card phase-red">
-                    <div class="phase-header">
-                        <svg class="phase-header-icon" viewBox="0 0 24 24" fill="none" stroke="#fca5a5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
-                        <span class="phase-header-title">Fase Defensiva</span>
-                    </div>
-                    <div class="phase-body">
-                        {% set fd = informe.get('fase_defensiva', {}) %}
-                        {% if fd.get('pressing') %}
-                        <div class="phase-subsection">
-                            <div class="phase-sublabel">Pressing</div>
-                            <div class="phase-subtext">{{ fd.get('pressing', '') }}</div>
-                        </div>
-                        {% endif %}
-                        {% if fd.get('bloque_medio') %}
-                        <div class="phase-subsection">
-                            <div class="phase-sublabel">Bloque Medio</div>
-                            <div class="phase-subtext">{{ fd.get('bloque_medio', '') }}</div>
-                        </div>
-                        {% endif %}
-                        {% if fd.get('bloque_bajo') %}
-                        <div class="phase-subsection">
-                            <div class="phase-sublabel">Bloque Bajo</div>
-                            <div class="phase-subtext">{{ fd.get('bloque_bajo', '') }}</div>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-                {% endif %}
-            </div>
+        <!-- SECTION 1: FASE OFENSIVA -->
+        <div class="section-header">
+            <div class="section-number green">1</div>
+            <h2 class="section-title">CON BALON — FASE OFENSIVA</h2>
         </div>
 
-        <!-- Transiciones + Balon Parado -->
-        <div class="two-col">
-            <div class="col-left">
-                {% if informe.get('transiciones') %}
-                <div class="phase-card phase-amber">
-                    <div class="phase-header">
-                        <svg class="phase-header-icon" viewBox="0 0 24 24" fill="none" stroke="#fcd34d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>
-                        <span class="phase-header-title">Transiciones</span>
+        <div class="phase-grid">
+            {% set fo = informe.get('fase_ofensiva', {}) %}
+
+            <!-- VS Bloque Alto — Salida -->
+            <div class="phase-col">
+                <div class="phase-card">
+                    <div class="phase-header high">VS BLOQUE ALTO — SALIDA</div>
+                    <div class="pitch-wrapper">
+                        <div class="pitch">
+                            <svg class="pitch-svg" viewBox="0 0 100 120">
+                                <!-- Pitch lines -->
+                                <line x1="5" y1="60" x2="95" y2="60" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <circle cx="50" cy="60" r="12" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <circle cx="50" cy="60" r="1.5" fill="rgba(255,255,255,0.3)"/>
+                                <rect x="22" y="0" width="56" height="18" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="22" y="102" width="56" height="18" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="37" y="0" width="26" height="7" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="37" y="113" width="26" height="7" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <!-- Zone: opportunity in their half -->
+                                <rect x="15" y="75" width="70" height="35" rx="3" fill="rgba(63,185,80,0.25)" stroke="#3fb950" stroke-width="1" stroke-dasharray="4 2"/>
+                            </svg>
+                        </div>
                     </div>
-                    <div class="phase-body">
+                    <div class="observations">
+                        {% for line in fo.get('salida_balon', '').split('\n') if line.strip() %}
+                        <div class="obs-row">
+                            <span class="obs-tag {{ 'pattern' if loop.index0 % 3 == 0 else ('advantage' if loop.index0 % 3 == 1 else 'caution') }}">{{ 'Patron' if loop.index0 % 3 == 0 else ('Ventaja' if loop.index0 % 3 == 1 else 'Cuidado') }}</span>
+                            <span>{{ line.strip() }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- VS Bloque Medio — Construccion -->
+            <div class="phase-col">
+                <div class="phase-card">
+                    <div class="phase-header mid">VS BLOQUE MEDIO — CONSTRUCCION</div>
+                    <div class="pitch-wrapper">
+                        <div class="pitch">
+                            <svg class="pitch-svg" viewBox="0 0 100 120">
+                                <line x1="5" y1="60" x2="95" y2="60" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <circle cx="50" cy="60" r="12" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <circle cx="50" cy="60" r="1.5" fill="rgba(255,255,255,0.3)"/>
+                                <rect x="22" y="0" width="56" height="18" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="22" y="102" width="56" height="18" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="37" y="0" width="26" height="7" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="37" y="113" width="26" height="7" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <!-- Zone: concentration in middle -->
+                                <rect x="15" y="40" width="70" height="35" rx="3" fill="rgba(210,153,34,0.2)" stroke="#d29922" stroke-width="1" stroke-dasharray="4 2"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="observations">
+                        {% for line in fo.get('construccion', '').split('\n') if line.strip() %}
+                        <div class="obs-row">
+                            <span class="obs-tag {{ 'pattern' if loop.index0 % 3 == 0 else ('advantage' if loop.index0 % 3 == 1 else 'caution') }}">{{ 'Patron' if loop.index0 % 3 == 0 else ('Ventaja' if loop.index0 % 3 == 1 else 'Cuidado') }}</span>
+                            <span>{{ line.strip() }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- VS Bloque Bajo — Finalizacion -->
+            <div class="phase-col">
+                <div class="phase-card">
+                    <div class="phase-header low">VS BLOQUE BAJO — FINALIZACION</div>
+                    <div class="pitch-wrapper">
+                        <div class="pitch">
+                            <svg class="pitch-svg" viewBox="0 0 100 120">
+                                <line x1="5" y1="60" x2="95" y2="60" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <circle cx="50" cy="60" r="12" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <circle cx="50" cy="60" r="1.5" fill="rgba(255,255,255,0.3)"/>
+                                <rect x="22" y="0" width="56" height="18" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="22" y="102" width="56" height="18" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="37" y="0" width="26" height="7" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="37" y="113" width="26" height="7" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <!-- Zone: danger in their box -->
+                                <rect x="18" y="5" width="64" height="22" rx="3" fill="rgba(248,81,73,0.25)" stroke="#f85149" stroke-width="1" stroke-dasharray="4 2"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="observations">
+                        {% for line in fo.get('finalizacion', '').split('\n') if line.strip() %}
+                        <div class="obs-row">
+                            <span class="obs-tag {{ 'pattern' if loop.index0 % 3 == 0 else ('advantage' if loop.index0 % 3 == 1 else 'caution') }}">{{ 'Patron' if loop.index0 % 3 == 0 else ('Ventaja' if loop.index0 % 3 == 1 else 'Cuidado') }}</span>
+                            <span>{{ line.strip() }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 2: FASE DEFENSIVA + TRANSICIONES -->
+        <div class="section-header">
+            <div class="section-number red">2</div>
+            <h2 class="section-title">SIN BALON — FASE DEFENSIVA + TRANSICIONES</h2>
+        </div>
+
+        <div class="phase-grid">
+            {% set fd = informe.get('fase_defensiva', {}) %}
+
+            <!-- Pressing -->
+            <div class="phase-col">
+                <div class="phase-card">
+                    <div class="phase-header high">PRESSING ALTO</div>
+                    <div class="pitch-wrapper">
+                        <div class="pitch">
+                            <svg class="pitch-svg" viewBox="0 0 100 120">
+                                <line x1="5" y1="60" x2="95" y2="60" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <circle cx="50" cy="60" r="12" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <circle cx="50" cy="60" r="1.5" fill="rgba(255,255,255,0.3)"/>
+                                <rect x="22" y="0" width="56" height="18" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="22" y="102" width="56" height="18" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="37" y="0" width="26" height="7" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="37" y="113" width="26" height="7" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="10" y="5" width="80" height="40" rx="3" fill="rgba(63,185,80,0.25)" stroke="#3fb950" stroke-width="1" stroke-dasharray="4 2"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="observations">
+                        {% for line in fd.get('pressing', '').split('\n') if line.strip() %}
+                        <div class="obs-row">
+                            <span class="obs-tag {{ 'advantage' if loop.index0 % 2 == 0 else 'caution' }}">{{ 'Ventaja' if loop.index0 % 2 == 0 else 'Cuidado' }}</span>
+                            <span>{{ line.strip() }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bloque Medio/Bajo -->
+            <div class="phase-col">
+                <div class="phase-card">
+                    <div class="phase-header mid">BLOQUE MEDIO / BAJO</div>
+                    <div class="pitch-wrapper">
+                        <div class="pitch">
+                            <svg class="pitch-svg" viewBox="0 0 100 120">
+                                <line x1="5" y1="60" x2="95" y2="60" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <circle cx="50" cy="60" r="12" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <circle cx="50" cy="60" r="1.5" fill="rgba(255,255,255,0.3)"/>
+                                <rect x="22" y="0" width="56" height="18" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="22" y="102" width="56" height="18" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="37" y="0" width="26" height="7" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="37" y="113" width="26" height="7" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="10" y="45" width="80" height="40" rx="3" fill="rgba(210,153,34,0.2)" stroke="#d29922" stroke-width="1" stroke-dasharray="4 2"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="observations">
+                        {% for line in fd.get('bloque_medio', '').split('\n') if line.strip() %}
+                        <div class="obs-row">
+                            <span class="obs-tag {{ 'pattern' if loop.index0 % 2 == 0 else 'advantage' }}">{{ 'Patron' if loop.index0 % 2 == 0 else 'Ventaja' }}</span>
+                            <span>{{ line.strip() }}</span>
+                        </div>
+                        {% endfor %}
+                        {% for line in fd.get('bloque_bajo', '').split('\n') if line.strip() %}
+                        <div class="obs-row">
+                            <span class="obs-tag advantage">Ventaja</span>
+                            <span>{{ line.strip() }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transiciones -->
+            <div class="phase-col">
+                <div class="phase-card">
+                    <div class="phase-header trans-danger">TRANSICIONES — ¡CLAVE!</div>
+                    <div class="pitch-wrapper">
+                        <div class="pitch">
+                            <svg class="pitch-svg" viewBox="0 0 100 120">
+                                <line x1="5" y1="60" x2="95" y2="60" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <circle cx="50" cy="60" r="12" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <circle cx="50" cy="60" r="1.5" fill="rgba(255,255,255,0.3)"/>
+                                <rect x="22" y="0" width="56" height="18" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="22" y="102" width="56" height="18" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="37" y="0" width="26" height="7" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="37" y="113" width="26" height="7" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <!-- Transition arrows -->
+                                <defs><marker id="ah1" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#f85149"/></marker></defs>
+                                <path d="M 50,85 Q 30,60 50,30" fill="none" stroke="#f85149" stroke-width="2" marker-end="url(#ah1)"/>
+                                <defs><marker id="ah2" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#3fb950"/></marker></defs>
+                                <path d="M 65,30 Q 80,60 65,90" fill="none" stroke="#3fb950" stroke-width="2" marker-end="url(#ah2)"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="observations">
                         {% set tr = informe.get('transiciones', {}) %}
                         {% if tr.get('ofensiva') %}
-                        <div class="phase-subsection">
-                            <div class="phase-sublabel">Ofensiva (DEF→ATQ)</div>
-                            <div class="phase-subtext">{{ tr.get('ofensiva', '') }}</div>
+                        <div class="obs-row">
+                            <span class="obs-tag caution">Cuidado</span>
+                            <span>DEF→ATQ: {{ tr.get('ofensiva', '') }}</span>
                         </div>
                         {% endif %}
                         {% if tr.get('defensiva') %}
-                        <div class="phase-subsection">
-                            <div class="phase-sublabel">Defensiva (ATQ→DEF)</div>
-                            <div class="phase-subtext">{{ tr.get('defensiva', '') }}</div>
+                        <div class="obs-row">
+                            <span class="obs-tag advantage">Ventaja</span>
+                            <span>ATQ→DEF: {{ tr.get('defensiva', '') }}</span>
                         </div>
                         {% endif %}
                     </div>
                 </div>
-                {% endif %}
-            </div>
-            <div class="col-right">
-                {% if informe.get('balon_parado') %}
-                <div class="phase-card phase-purple">
-                    <div class="phase-header">
-                        <svg class="phase-header-icon" viewBox="0 0 24 24" fill="none" stroke="#d8b4fe" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>
-                        <span class="phase-header-title">Balon Parado</span>
-                    </div>
-                    <div class="phase-body">
-                        {% set bp = informe.get('balon_parado', {}) %}
-                        {% if bp.get('atacando') %}
-                        <div class="phase-subsection">
-                            <div class="phase-sublabel">Atacando</div>
-                            <div class="phase-subtext">{{ bp.get('atacando', '') }}</div>
-                        </div>
-                        {% endif %}
-                        {% if bp.get('defendiendo') %}
-                        <div class="phase-subsection">
-                            <div class="phase-sublabel">Defendiendo</div>
-                            <div class="phase-subtext">{{ bp.get('defendiendo', '') }}</div>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-                {% endif %}
             </div>
         </div>
+
     </div>
 
     <div class="footer">
-        <span>{{ organizacion.get('nombre', 'TrainingHub Pro') }}</span>
-        <span>{{ partido.get('fecha', '') }}</span>
+        <div class="footer-club">{{ equipo_nombre | upper or organizacion.get('nombre', 'TRAININGHUB PRO') | upper }}</div>
+        <div class="footer-sub">Informe de Analisis de Rival{% if partido.get('jornada') %} · Jornada {{ partido.get('jornada') }}{% endif %} · {{ partido.get('fecha', '') }}</div>
     </div>
 </div>
 
-<!-- ============ PAGE 2: Jugadores + Debilidades ============ -->
-{% if informe.get('jugadores_clave') or informe.get('debilidades_explotables') %}
+<!-- ============ PAGE 2: ABP + Jugadores + Debilidades ============ -->
+{% if informe.get('balon_parado') or (informe.get('jugadores_clave') and informe.get('jugadores_clave')|length > 0) or informe.get('debilidades_explotables') %}
 <div class="page page-break">
-    <!-- Compact Header -->
+
     <div class="header-compact">
         {% if organizacion.get('logo_url') %}
-        <div style="width:24px;height:24px;flex-shrink:0;"><img src="{{ organizacion.get('logo_url') }}" style="width:100%;height:100%;object-fit:contain;border-radius:3px;" alt=""></div>
+        <div style="width:20px;height:20px;flex-shrink:0;"><img src="{{ organizacion.get('logo_url') }}" style="width:100%;height:100%;object-fit:contain;border-radius:3px;" alt=""></div>
         {% endif %}
-        <span class="header-compact-title">Informe del Rival — {{ rival.get('nombre', 'Rival') }}</span>
+        <span class="header-compact-title">INFORME DEL RIVAL — {{ rival.get('nombre', 'RIVAL') | upper }}</span>
         <span class="header-compact-sub">{{ partido.get('fecha', '') }}</span>
     </div>
 
-    <div class="content" style="padding-top:16px;">
-        <!-- Jugadores Clave -->
-        {% if informe.get('jugadores_clave') and informe.get('jugadores_clave')|length > 0 %}
-        <div class="jugadores-title">
-            Jugadores Clave ({{ informe.get('jugadores_clave')|length }})
+    <div class="content">
+
+        <!-- SECTION 3: ABP -->
+        {% if informe.get('balon_parado') %}
+        <div class="section-header">
+            <div class="section-number purple">3</div>
+            <h2 class="section-title">ACCIONES A BALON PARADO</h2>
         </div>
-        <div class="jugadores-grid">
-            {% for jc in informe.get('jugadores_clave', []) %}
-            <div class="jugador-card {{ 'jugador-peligroso' if jc.get('tipo') == 'peligroso' else 'jugador-debilidad' }}">
-                <div class="jugador-header">
-                    <span class="jugador-nombre">{{ jc.get('nombre', '') }}</span>
-                    <span class="jugador-pos {{ 'jugador-pos-peligroso' if jc.get('tipo') == 'peligroso' else 'jugador-pos-debilidad' }}">{{ jc.get('posicion', '') }}</span>
-                    <span class="jugador-tipo {{ 'jugador-tipo-peligroso' if jc.get('tipo') == 'peligroso' else 'jugador-tipo-debilidad' }}">{{ 'Peligro' if jc.get('tipo') == 'peligroso' else 'Debilidad' }}</span>
+
+        <div class="phase-grid">
+            {% set bp = informe.get('balon_parado', {}) %}
+
+            <div class="phase-col-half">
+                <div class="phase-card">
+                    <div class="phase-header abp">COMO ATACAN CORNERS</div>
+                    <div class="pitch-wrapper">
+                        <div class="pitch-half">
+                            <svg class="pitch-svg" viewBox="0 0 100 70">
+                                <rect x="5" y="3" width="90" height="64" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.8" rx="2"/>
+                                <rect x="20" y="3" width="60" height="20" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="35" y="3" width="30" height="8" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="20" y="10" width="60" height="22" rx="3" fill="rgba(163,113,247,0.25)" stroke="#a371f7" stroke-width="1" stroke-dasharray="4 2"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="observations">
+                        {% for line in bp.get('atacando', '').split('\n') if line.strip() %}
+                        <div class="obs-row">
+                            <span class="obs-tag {{ 'attack' if loop.index0 % 2 == 0 else 'caution' }}">{{ 'Patron' if loop.index0 % 2 == 0 else 'Cuidado' }}</span>
+                            <span>{{ line.strip() }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
                 </div>
-                <div class="jugador-analisis">{{ jc.get('analisis', '') }}</div>
             </div>
-            {% endfor %}
+
+            <div class="phase-col-half">
+                <div class="phase-card">
+                    <div class="phase-header abp">COMO DEFIENDEN CORNERS</div>
+                    <div class="pitch-wrapper">
+                        <div class="pitch-half">
+                            <svg class="pitch-svg" viewBox="0 0 100 70">
+                                <rect x="5" y="3" width="90" height="64" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.8" rx="2"/>
+                                <rect x="20" y="3" width="60" height="20" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="35" y="3" width="30" height="8" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="25" y="15" width="50" height="15" rx="3" fill="rgba(63,185,80,0.25)" stroke="#3fb950" stroke-width="1" stroke-dasharray="4 2"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="observations">
+                        {% for line in bp.get('defendiendo', '').split('\n') if line.strip() %}
+                        <div class="obs-row">
+                            <span class="obs-tag {{ 'advantage' if loop.index0 % 2 == 0 else 'attack' }}">{{ 'Atacar' if loop.index0 % 2 == 0 else 'Patron' }}</span>
+                            <span>{{ line.strip() }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
         </div>
         {% endif %}
 
-        <!-- Debilidades Explotables -->
+        <!-- JUGADORES CLAVE -->
+        {% if informe.get('jugadores_clave') and informe.get('jugadores_clave')|length > 0 %}
+        <div class="players-section">
+            <div class="section-header">
+                <div class="section-number yellow">XI</div>
+                <h2 class="section-title">JUGADORES DESTACADOS</h2>
+            </div>
+
+            <div class="players-grid" style="margin-top:8px;">
+                {% for jc in informe.get('jugadores_clave', []) %}
+                <div class="player-card {{ 'weakness' if jc.get('tipo') != 'peligroso' else '' }}">
+                    <div class="player-number">
+                        {% if jc.get('tipo') == 'peligroso' %}⚠{% else %}✓{% endif %}
+                    </div>
+                    <div>
+                        <div class="player-info-name">{{ jc.get('nombre', '') }}</div>
+                        <div class="player-info-pos">{{ jc.get('posicion', '') }} · {{ 'Peligro' if jc.get('tipo') == 'peligroso' else 'Debilidad' }}</div>
+                        <div class="player-info-desc">{{ jc.get('analisis', '') }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- DEBILIDADES EXPLOTABLES -->
         {% if informe.get('debilidades_explotables') %}
-        <div class="debilidades">
-            <div class="debilidades-title">Debilidades Explotables</div>
+        <div class="debilidades-box">
+            <div class="debilidades-title">✓ DEBILIDADES EXPLOTABLES</div>
             <div class="debilidades-text">{{ informe.get('debilidades_explotables', '') }}</div>
         </div>
         {% endif %}
+
     </div>
 
     <div class="footer">
-        <span>{{ organizacion.get('nombre', 'TrainingHub Pro') }}</span>
-        <span>{{ partido.get('fecha', '') }}</span>
+        <div class="footer-club">{{ equipo_nombre | upper or organizacion.get('nombre', 'TRAININGHUB PRO') | upper }}</div>
+        <div class="footer-sub">Informe de Analisis de Rival{% if partido.get('jornada') %} · Jornada {{ partido.get('jornada') }}{% endif %} · {{ partido.get('fecha', '') }}</div>
     </div>
 </div>
 {% endif %}

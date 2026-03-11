@@ -637,12 +637,16 @@ async def download_informe_rival_pdf(
         eq_res = supabase.table("equipos").select("nombre").eq("id", partido_data["equipo_id"]).single().execute()
         equipo_nombre = eq_res.data.get("nombre", "") if eq_res.data else ""
 
+    # Fetch pre_match_intel for stats
+    intel = partido_data.get("pre_match_intel") or {}
+
     pdf_bytes = generate_informe_rival_pdf(
         informe=informe,
         partido=partido_data,
         rival=rival_data,
         organizacion=organizacion,
         equipo_nombre=equipo_nombre,
+        intel=intel,
     )
 
     rival_nombre = rival_data.get("nombre", "rival").replace(" ", "_")

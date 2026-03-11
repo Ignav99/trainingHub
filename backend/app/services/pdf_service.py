@@ -510,6 +510,7 @@ def generate_informe_rival_pdf(
     rival: dict,
     organizacion: dict,
     equipo_nombre: str = "",
+    intel: Optional[dict] = None,
 ) -> bytes:
     """Genera PDF profesional de informe del rival."""
     env = _get_jinja_env_v2()
@@ -524,6 +525,7 @@ def generate_informe_rival_pdf(
         organizacion=organizacion,
         equipo_nombre=equipo_nombre,
         color_primario=color_primario,
+        intel=intel or {},
     )
 
     try:
