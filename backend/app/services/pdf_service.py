@@ -504,6 +504,66 @@ def generate_sesion_pdf_v2(
         return html_content.encode("utf-8")
 
 
+def generate_informe_rival_pdf(
+    informe: dict,
+    partido: dict,
+    rival: dict,
+    organizacion: dict,
+    equipo_nombre: str = "",
+) -> bytes:
+    """Genera PDF profesional de informe del rival."""
+    env = _get_jinja_env_v2()
+    template = env.get_template("informe_rival_pdf.html")
+
+    color_primario = organizacion.get("color_primario", "#2563eb")
+
+    html_content = template.render(
+        informe=informe,
+        partido=partido,
+        rival=rival,
+        organizacion=organizacion,
+        equipo_nombre=equipo_nombre,
+        color_primario=color_primario,
+    )
+
+    try:
+        from weasyprint import HTML
+        return HTML(string=html_content).write_pdf()
+    except ImportError:
+        logger.warning("WeasyPrint not available, returning HTML as bytes")
+        return html_content.encode("utf-8")
+
+
+def generate_plan_partido_pdf(
+    plan: dict,
+    partido: dict,
+    rival: dict,
+    organizacion: dict,
+    equipo_nombre: str = "",
+) -> bytes:
+    """Genera PDF profesional de plan de partido."""
+    env = _get_jinja_env_v2()
+    template = env.get_template("plan_partido_pdf.html")
+
+    color_primario = organizacion.get("color_primario", "#2563eb")
+
+    html_content = template.render(
+        plan=plan,
+        partido=partido,
+        rival=rival,
+        organizacion=organizacion,
+        equipo_nombre=equipo_nombre,
+        color_primario=color_primario,
+    )
+
+    try:
+        from weasyprint import HTML
+        return HTML(string=html_content).write_pdf()
+    except ImportError:
+        logger.warning("WeasyPrint not available, returning HTML as bytes")
+        return html_content.encode("utf-8")
+
+
 def generate_tarea_pdf(
     tarea: dict,
     organizacion: dict,

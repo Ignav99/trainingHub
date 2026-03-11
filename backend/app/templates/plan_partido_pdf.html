@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Plan de Partido — vs {{ rival.get('nombre', 'Rival') }}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;900&family=Barlow:wght@300;400;500;600&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: 'Barlow', sans-serif;
+    color: #111;
+    font-size: 10px;
+    line-height: 1.4;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+@page { size: A4 portrait; margin: 0; }
+
+.page {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 0;
+    background: white;
+    position: relative;
+}
+
+.page-break { page-break-before: always; }
+
+/* ============ HEADER BAR ============ */
+.header {
+    background: #0a0a0a;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: relative;
+}
+.header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, {{ color_primario }} 0%, {{ organizacion.get('color_secundario', color_primario) }} 100%);
+}
+.header-logo {
+    width: 40px; height: 40px; flex-shrink: 0;
+}
+.header-logo img {
+    width: 100%; height: 100%; object-fit: contain; border-radius: 4px;
+}
+.header-divider {
+    width: 1px; height: 32px; background: rgba(255,255,255,0.15); flex-shrink: 0;
+}
+.header-title {
+    flex: 1; min-width: 0;
+}
+.header-club {
+    font-size: 8px; color: #666; text-transform: uppercase; letter-spacing: 2px;
+    font-family: 'Barlow', sans-serif; font-weight: 400;
+}
+.header-name {
+    font-size: 18px; color: white; text-transform: uppercase;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 900;
+    line-height: 1.15;
+}
+.header-rival-info {
+    flex-shrink: 0; text-align: right;
+}
+.header-vs {
+    font-size: 8px; color: #666; text-transform: uppercase; letter-spacing: 1.5px;
+}
+.header-rival-name {
+    font-size: 16px; color: white;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+}
+
+/* ============ MATCH INFO STRIP ============ */
+.match-strip {
+    background: #f8f9fa;
+    padding: 8px 20px;
+    display: flex;
+    gap: 24px;
+    border-bottom: 1px solid #e5e7eb;
+}
+.match-strip-item {
+    display: flex; align-items: center; gap: 4px;
+}
+.match-strip-label {
+    font-size: 8px; color: #666; text-transform: uppercase; letter-spacing: 0.8px;
+    font-weight: 600;
+}
+.match-strip-value {
+    font-size: 10px; color: #111; font-weight: 600;
+}
+
+/* ============ CONTENT ============ */
+.content { padding: 16px 20px; }
+
+/* ============ ENFOQUE GENERAL ============ */
+.enfoque {
+    background: #0f172a;
+    border-left: 4px solid #10b981;
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+}
+.enfoque-title {
+    font-size: 9px; color: #10b981; text-transform: uppercase;
+    letter-spacing: 2px; font-weight: 700; margin-bottom: 6px;
+}
+.enfoque-text {
+    font-size: 10px; color: #cbd5e1; line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+/* ============ TWO COLUMN LAYOUT ============ */
+.two-col { overflow: hidden; margin-bottom: 16px; }
+.col-left { float: left; width: 49%; }
+.col-right { float: right; width: 49%; }
+
+/* ============ PHASE CARD ============ */
+.phase-card {
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+    margin-bottom: 12px;
+}
+.phase-header {
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.phase-header-icon {
+    width: 16px; height: 16px;
+}
+.phase-header-title {
+    font-size: 11px; text-transform: uppercase;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+    letter-spacing: 1px;
+}
+.phase-body {
+    padding: 10px 12px;
+}
+.phase-subsection {
+    margin-bottom: 10px;
+}
+.phase-subsection:last-child { margin-bottom: 0; }
+.phase-sublabel {
+    font-size: 8px; text-transform: uppercase;
+    letter-spacing: 1.5px; font-weight: 700;
+    margin-bottom: 3px;
+}
+.phase-subtext {
+    font-size: 9.5px; color: #374151; line-height: 1.55;
+    white-space: pre-wrap;
+}
+
+/* Colors */
+.phase-blue .phase-header { background: #1e3a5f; }
+.phase-blue .phase-header-title { color: #93c5fd; }
+.phase-blue .phase-sublabel { color: #3b82f6; }
+.phase-blue { border-left: 4px solid #3b82f6; }
+
+.phase-red .phase-header { background: #5f1e1e; }
+.phase-red .phase-header-title { color: #fca5a5; }
+.phase-red .phase-sublabel { color: #ef4444; }
+.phase-red { border-left: 4px solid #ef4444; }
+
+.phase-amber .phase-header { background: #5f4b1e; }
+.phase-amber .phase-header-title { color: #fcd34d; }
+.phase-amber .phase-sublabel { color: #f59e0b; }
+.phase-amber { border-left: 4px solid #f59e0b; }
+
+.phase-purple .phase-header { background: #3b1e5f; }
+.phase-purple .phase-header-title { color: #d8b4fe; }
+.phase-purple .phase-sublabel { color: #a855f7; }
+.phase-purple { border-left: 4px solid #a855f7; }
+
+/* ============ PLAN SUSTITUCIONES ============ */
+.sustituciones {
+    border-left: 4px solid #64748b;
+    border-radius: 6px;
+    padding: 14px 16px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-left: 4px solid #64748b;
+    margin-bottom: 16px;
+}
+.sustituciones-title {
+    font-size: 11px; color: #334155;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 6px;
+}
+.sustituciones-text {
+    font-size: 10px; color: #374151; line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+/* ============ CLAVES DEL PARTIDO ============ */
+.claves {
+    border-left: 4px solid #10b981;
+    border-radius: 6px;
+    padding: 14px 16px;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    border-left: 4px solid #10b981;
+}
+.claves-title {
+    font-size: 11px; color: #065f46;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 10px;
+}
+.clave-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.clave-item:last-child { margin-bottom: 0; }
+.clave-number {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: #10b981; color: white;
+    font-size: 10px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.clave-text {
+    font-size: 10px; color: #374151; line-height: 1.5;
+    padding-top: 2px;
+}
+
+/* ============ COMPACT HEADER (page 2+) ============ */
+.header-compact {
+    background: #0a0a0a;
+    padding: 8px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: relative;
+}
+.header-compact::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, {{ color_primario }} 0%, {{ organizacion.get('color_secundario', color_primario) }} 100%);
+}
+.header-compact-title {
+    font-size: 12px; color: white; text-transform: uppercase;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+    letter-spacing: 1px;
+}
+.header-compact-sub {
+    font-size: 9px; color: #666; margin-left: auto;
+}
+
+/* ============ FOOTER ============ */
+.footer {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: 8px 20px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 8px; color: #999;
+    border-top: 1px solid #f0f0f0;
+}
+</style>
+</head>
+<body>
+
+<!-- ============ PAGE 1 ============ -->
+<div class="page">
+    <!-- Header Bar -->
+    <div class="header">
+        {% if organizacion.get('logo_url') %}
+        <div class="header-logo"><img src="{{ organizacion.get('logo_url') }}" alt=""></div>
+        <div class="header-divider"></div>
+        {% endif %}
+        <div class="header-title">
+            <div class="header-club">{{ organizacion.get('nombre', 'TrainingHub Pro') }}</div>
+            <div class="header-name">Plan de Partido</div>
+        </div>
+        <div class="header-rival-info">
+            <div class="header-vs">vs</div>
+            <div class="header-rival-name">{{ rival.get('nombre', 'Rival') }}</div>
+        </div>
+    </div>
+
+    <!-- Match Info Strip -->
+    <div class="match-strip">
+        {% if partido.get('fecha') %}
+        <div class="match-strip-item">
+            <span class="match-strip-label">Fecha</span>
+            <span class="match-strip-value">{{ partido.get('fecha', '') }}</span>
+        </div>
+        {% endif %}
+        {% if partido.get('hora') %}
+        <div class="match-strip-item">
+            <span class="match-strip-label">Hora</span>
+            <span class="match-strip-value">{{ partido.get('hora', '') }}</span>
+        </div>
+        {% endif %}
+        {% if partido.get('localia') %}
+        <div class="match-strip-item">
+            <span class="match-strip-label">Localia</span>
+            <span class="match-strip-value" style="text-transform:capitalize">{{ partido.get('localia', '') }}</span>
+        </div>
+        {% endif %}
+        {% if partido.get('competicion') %}
+        <div class="match-strip-item">
+            <span class="match-strip-label">Competicion</span>
+            <span class="match-strip-value" style="text-transform:capitalize">{{ partido.get('competicion', '').replace('_', ' ') }}</span>
+        </div>
+        {% endif %}
+        {% if partido.get('jornada') %}
+        <div class="match-strip-item">
+            <span class="match-strip-label">Jornada</span>
+            <span class="match-strip-value">{{ partido.get('jornada', '') }}</span>
+        </div>
+        {% endif %}
+        {% if equipo_nombre %}
+        <div class="match-strip-item" style="margin-left:auto;">
+            <span class="match-strip-label">Equipo</span>
+            <span class="match-strip-value">{{ equipo_nombre }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="content">
+        <!-- Enfoque General -->
+        {% if plan.get('enfoque_general') %}
+        <div class="enfoque">
+            <div class="enfoque-title">Enfoque General</div>
+            <div class="enfoque-text">{{ plan.get('enfoque_general', '') }}</div>
+        </div>
+        {% endif %}
+
+        <!-- Plan Ofensivo + Plan Defensivo -->
+        <div class="two-col">
+            <div class="col-left">
+                {% if plan.get('plan_ofensivo') %}
+                <div class="phase-card phase-blue">
+                    <div class="phase-header">
+                        <svg class="phase-header-icon" viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/><path d="M14.5 6.5L18 3h3v3l-11.5 11.5"/><path d="M5 14l4 4"/><path d="M7 17l-4 4"/></svg>
+                        <span class="phase-header-title">Plan Ofensivo</span>
+                    </div>
+                    <div class="phase-body">
+                        {% set po = plan.get('plan_ofensivo', {}) %}
+                        {% if po.get('principios') %}
+                        <div class="phase-subsection">
+                            <div class="phase-sublabel">Principios</div>
+                            <div class="phase-subtext">{{ po.get('principios', '') }}</div>
+                        </div>
+                        {% endif %}
+                        {% if po.get('salida_balon') %}
+                        <div class="phase-subsection">
+                            <div class="phase-sublabel">Salida de Balon</div>
+                            <div class="phase-subtext">{{ po.get('salida_balon', '') }}</div>
+                        </div>
+                        {% endif %}
+                        {% if po.get('construccion') %}
+                        <div class="phase-subsection">
+                            <div class="phase-sublabel">Construccion</div>
+                            <div class="phase-subtext">{{ po.get('construccion', '') }}</div>
+                        </div>
+                        {% endif %}
+                        {% if po.get('finalizacion') %}
+                        <div class="phase-subsection">
+                            <div class="phase-sublabel">Finalizacion</div>
+                            <div class="phase-subtext">{{ po.get('finalizacion', '') }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            <div class="col-right">
+                {% if plan.get('plan_defensivo') %}
+                <div class="phase-card phase-red">
+                    <div class="phase-header">
+                        <svg class="phase-header-icon" viewBox="0 0 24 24" fill="none" stroke="#fca5a5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
+                        <span class="phase-header-title">Plan Defensivo</span>
+                    </div>
+                    <div class="phase-body">
+                        {% set pd = plan.get('plan_defensivo', {}) %}
+                        {% if pd.get('principios') %}
+                        <div class="phase-subsection">
+                            <div class="phase-sublabel">Principios</div>
+                            <div class="phase-subtext">{{ pd.get('principios', '') }}</div>
+                        </div>
+                        {% endif %}
+                        {% if pd.get('pressing') %}
+                        <div class="phase-subsection">
+                            <div class="phase-sublabel">Pressing</div>
+                            <div class="phase-subtext">{{ pd.get('pressing', '') }}</div>
+                        </div>
+                        {% endif %}
+                        {% if pd.get('organizacion_defensiva') %}
+                        <div class="phase-subsection">
+                            <div class="phase-sublabel">Organizacion Defensiva</div>
+                            <div class="phase-subtext">{{ pd.get('organizacion_defensiva', '') }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Transiciones + Balon Parado -->
+        <div class="two-col">
+            <div class="col-left">
+                {% if plan.get('transiciones') %}
+                <div class="phase-card phase-amber">
+                    <div class="phase-header">
+                        <svg class="phase-header-icon" viewBox="0 0 24 24" fill="none" stroke="#fcd34d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>
+                        <span class="phase-header-title">Transiciones</span>
+                    </div>
+                    <div class="phase-body">
+                        {% set tr = plan.get('transiciones', {}) %}
+                        {% if tr.get('ofensiva') %}
+                        <div class="phase-subsection">
+                            <div class="phase-sublabel">Ofensiva (DEF→ATQ)</div>
+                            <div class="phase-subtext">{{ tr.get('ofensiva', '') }}</div>
+                        </div>
+                        {% endif %}
+                        {% if tr.get('defensiva') %}
+                        <div class="phase-subsection">
+                            <div class="phase-sublabel">Defensiva (ATQ→DEF)</div>
+                            <div class="phase-subtext">{{ tr.get('defensiva', '') }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            <div class="col-right">
+                {% if plan.get('balon_parado') %}
+                <div class="phase-card phase-purple">
+                    <div class="phase-header">
+                        <svg class="phase-header-icon" viewBox="0 0 24 24" fill="none" stroke="#d8b4fe" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>
+                        <span class="phase-header-title">Balon Parado</span>
+                    </div>
+                    <div class="phase-body">
+                        {% set bp = plan.get('balon_parado', {}) %}
+                        {% if bp.get('atacando') %}
+                        <div class="phase-subsection">
+                            <div class="phase-sublabel">Atacando</div>
+                            <div class="phase-subtext">{{ bp.get('atacando', '') }}</div>
+                        </div>
+                        {% endif %}
+                        {% if bp.get('defendiendo') %}
+                        <div class="phase-subsection">
+                            <div class="phase-sublabel">Defendiendo</div>
+                            <div class="phase-subtext">{{ bp.get('defendiendo', '') }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <span>{{ organizacion.get('nombre', 'TrainingHub Pro') }}</span>
+        <span>{{ partido.get('fecha', '') }}</span>
+    </div>
+</div>
+
+<!-- ============ PAGE 2: Sustituciones + Claves ============ -->
+{% if plan.get('plan_sustituciones') or (plan.get('claves_del_partido') and plan.get('claves_del_partido')|length > 0) %}
+<div class="page page-break">
+    <!-- Compact Header -->
+    <div class="header-compact">
+        {% if organizacion.get('logo_url') %}
+        <div style="width:24px;height:24px;flex-shrink:0;"><img src="{{ organizacion.get('logo_url') }}" style="width:100%;height:100%;object-fit:contain;border-radius:3px;" alt=""></div>
+        {% endif %}
+        <span class="header-compact-title">Plan de Partido — vs {{ rival.get('nombre', 'Rival') }}</span>
+        <span class="header-compact-sub">{{ partido.get('fecha', '') }}</span>
+    </div>
+
+    <div class="content" style="padding-top:16px;">
+        <!-- Plan Sustituciones -->
+        {% if plan.get('plan_sustituciones') %}
+        <div class="sustituciones">
+            <div class="sustituciones-title">Plan de Sustituciones</div>
+            <div class="sustituciones-text">{{ plan.get('plan_sustituciones', '') }}</div>
+        </div>
+        {% endif %}
+
+        <!-- Claves del Partido -->
+        {% if plan.get('claves_del_partido') and plan.get('claves_del_partido')|length > 0 %}
+        <div class="claves">
+            <div class="claves-title">Claves del Partido ({{ plan.get('claves_del_partido')|length }})</div>
+            {% for clave in plan.get('claves_del_partido', []) %}
+            <div class="clave-item">
+                <div class="clave-number">{{ loop.index }}</div>
+                <div class="clave-text">{{ clave }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="footer">
+        <span>{{ organizacion.get('nombre', 'TrainingHub Pro') }}</span>
+        <span>{{ partido.get('fecha', '') }}</span>
+    </div>
+</div>
+{% endif %}
+
+</body>
+</html>

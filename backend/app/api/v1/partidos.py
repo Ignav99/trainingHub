@@ -4,10 +4,12 @@ CRUD para partidos y calendario competitivo.
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Query, status
+from fastapi.responses import StreamingResponse
 from typing import Optional
 from uuid import UUID
 from datetime import date
 from math import ceil
+import io
 
 from app.models import (
     PartidoCreate,
@@ -22,7 +24,7 @@ from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
 from app.services.audit_service import log_create, log_update, log_delete
 from app.services.notification_service import notify_partido_resultado
-from app.services.pdf_service import generate_informe_partido_pdf
+from app.services.pdf_service import generate_informe_partido_pdf, generate_informe_rival_pdf, generate_plan_partido_pdf
 from app.services.pre_match_service import populate_partido_intel
 from app.services.claude_service import ClaudeService, ClaudeError
 
@@ -590,3 +592,125 @@ async def pre_match_chat(
         "informe_rival": result.get("informe_rival"),
         "plan_partido": result.get("plan_partido"),
     }
+
+
+@router.get("/{partido_id}/informe-rival-pdf")
+async def download_informe_rival_pdf(
+    partido_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """Download AI rival report as professional PDF."""
+    supabase = get_supabase()
+
+    # Fetch partido with rival
+    partido_res = supabase.table("partidos").select(
+        "*, rivales(nombre, escudo_url)"
+    ).eq("id", str(partido_id)).single().execute()
+
+    if not partido_res.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Partido no encontrado")
+
+    partido_data = partido_res.data
+    rival_data = partido_data.pop("rivales", {}) or {}
+
+    # Parse AI informe from notas_pre
+    informe = None
+    if partido_data.get("notas_pre"):
+        try:
+            notas = json.loads(partido_data["notas_pre"]) if isinstance(partido_data["notas_pre"], str) else partido_data["notas_pre"]
+            informe = notas.get("ai_informe_rival")
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    if not informe:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No hay informe del rival generado")
+
+    # Fetch org data
+    org_res = supabase.table("organizaciones").select(
+        "nombre, color_primario, color_secundario, logo_url"
+    ).eq("id", auth.organizacion_id).single().execute()
+    organizacion = org_res.data or {}
+
+    # Fetch equipo name
+    equipo_nombre = ""
+    if partido_data.get("equipo_id"):
+        eq_res = supabase.table("equipos").select("nombre").eq("id", partido_data["equipo_id"]).single().execute()
+        equipo_nombre = eq_res.data.get("nombre", "") if eq_res.data else ""
+
+    pdf_bytes = generate_informe_rival_pdf(
+        informe=informe,
+        partido=partido_data,
+        rival=rival_data,
+        organizacion=organizacion,
+        equipo_nombre=equipo_nombre,
+    )
+
+    rival_nombre = rival_data.get("nombre", "rival").replace(" ", "_")
+    filename = f"informe_rival_{rival_nombre}_{partido_data.get('fecha', '')}.pdf"
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/{partido_id}/plan-partido-pdf")
+async def download_plan_partido_pdf(
+    partido_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """Download AI match plan as professional PDF."""
+    supabase = get_supabase()
+
+    # Fetch partido with rival
+    partido_res = supabase.table("partidos").select(
+        "*, rivales(nombre, escudo_url)"
+    ).eq("id", str(partido_id)).single().execute()
+
+    if not partido_res.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Partido no encontrado")
+
+    partido_data = partido_res.data
+    rival_data = partido_data.pop("rivales", {}) or {}
+
+    # Parse AI plan from notas_pre
+    plan = None
+    if partido_data.get("notas_pre"):
+        try:
+            notas = json.loads(partido_data["notas_pre"]) if isinstance(partido_data["notas_pre"], str) else partido_data["notas_pre"]
+            plan = notas.get("ai_plan_partido")
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    if not plan:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No hay plan de partido generado")
+
+    # Fetch org data
+    org_res = supabase.table("organizaciones").select(
+        "nombre, color_primario, color_secundario, logo_url"
+    ).eq("id", auth.organizacion_id).single().execute()
+    organizacion = org_res.data or {}
+
+    # Fetch equipo name
+    equipo_nombre = ""
+    if partido_data.get("equipo_id"):
+        eq_res = supabase.table("equipos").select("nombre").eq("id", partido_data["equipo_id"]).single().execute()
+        equipo_nombre = eq_res.data.get("nombre", "") if eq_res.data else ""
+
+    pdf_bytes = generate_plan_partido_pdf(
+        plan=plan,
+        partido=partido_data,
+        rival=rival_data,
+        organizacion=organizacion,
+        equipo_nombre=equipo_nombre,
+    )
+
+    rival_nombre = rival_data.get("nombre", "rival").replace(" ", "_")
+    filename = f"plan_partido_vs_{rival_nombre}_{partido_data.get('fecha', '')}.pdf"
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

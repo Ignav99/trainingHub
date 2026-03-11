@@ -189,4 +189,24 @@ export const partidosApi = {
   ): Promise<{ respuesta: string; informe_rival?: any; plan_partido?: any }> {
     return api.post(`/partidos/${id}/pre-match-chat`, { mensajes, tipo }, { timeout: 120000 })
   },
+
+  async downloadInformePdf(id: string): Promise<void> {
+    const blob = await api.getBlob(`/partidos/${id}/informe-rival-pdf`, { timeout: 120000 })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `informe_rival_${id}.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+  },
+
+  async downloadPlanPdf(id: string): Promise<void> {
+    const blob = await api.getBlob(`/partidos/${id}/plan-partido-pdf`, { timeout: 120000 })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `plan_partido_${id}.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+  },
 }

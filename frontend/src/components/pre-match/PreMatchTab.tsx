@@ -232,6 +232,7 @@ export function PreMatchTab({ partido, onMutate }: PreMatchTabProps) {
         onSend={(msgs) => partidosApi.preMatchChat(partido.id, msgs, 'informe')}
         informe={aiInforme}
         onResult={handleInformeResult}
+        partido={partido}
       />
 
       {/* ===== SECTION 3: AI PLAN DE PARTIDO ===== */}
@@ -239,6 +240,7 @@ export function PreMatchTab({ partido, onMutate }: PreMatchTabProps) {
         onSend={(msgs) => partidosApi.preMatchChat(partido.id, msgs, 'plan')}
         plan={aiPlan}
         onResult={handlePlanResult}
+        partido={partido}
       />
 
       {/* ===== SECTION 4: MANUAL NOTES (collapsed by default) ===== */}

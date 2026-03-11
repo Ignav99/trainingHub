@@ -1,10 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, Target, CheckCircle2 } from 'lucide-react'
+import { Swords, Shield, Zap, Flag, Target, CheckCircle2, FileDown, ArrowRightLeft } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { InlineAIChat } from './InlineAIChat'
-import type { AIPlanPartido } from '@/types'
+import { partidosApi } from '@/lib/api/partidos'
+import { toast } from 'sonner'
+import type { AIPlanPartido, Partido } from '@/types'
 
 interface PlanPartidoSectionProps {
   onSend: (mensajes: { rol: string; contenido: string }[]) => Promise<{
@@ -12,6 +16,7 @@ interface PlanPartidoSectionProps {
   }>
   plan: AIPlanPartido | null
   onResult: (plan: AIPlanPartido) => void
+  partido?: Partido
 }
 
 const QUICK_CHIPS = [
@@ -21,46 +26,40 @@ const QUICK_CHIPS = [
   { label: 'Claves del partido', text: 'Dame las claves tácticas del partido y los mensajes para el vestuario.' },
 ]
 
-export function PlanPartidoSection({ onSend, plan, onResult }: PlanPartidoSectionProps) {
-  const [expanded, setExpanded] = useState(false)
-  const [expandedSubs, setExpandedSubs] = useState<Set<string>>(new Set())
-  const isFilled = !!plan
-
-  const toggleSub = (key: string) => {
-    setExpandedSubs((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }
+export function PlanPartidoSection({ onSend, plan, onResult, partido }: PlanPartidoSectionProps) {
+  const [downloading, setDownloading] = useState(false)
 
   const handleResult = (data: { plan_partido?: any }) => {
     if (data.plan_partido) {
       onResult(data.plan_partido as AIPlanPartido)
-      setExpandedSubs(new Set(['enfoque', 'ofensivo', 'defensivo', 'transiciones', 'abp', 'sustituciones', 'claves']))
     }
   }
 
-  return (
-    <div className={`rounded-lg border ${isFilled ? 'border-emerald-700 bg-emerald-950/10' : 'border-slate-700 border-dashed bg-slate-900/30'}`}>
-      {/* Header */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between p-4"
-      >
-        <div className="flex items-center gap-2">
-          <Target className="h-4 w-4 text-emerald-400" />
-          <h3 className="font-bold text-sm">Plan de Partido</h3>
-          <Badge className="bg-emerald-100 text-emerald-800 text-[10px]">AI</Badge>
-          <div className={`w-2 h-2 rounded-full ${isFilled ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-        </div>
-        {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-      </button>
+  const handleDownloadPdf = async () => {
+    if (!partido) return
+    setDownloading(true)
+    try {
+      await partidosApi.downloadPlanPdf(partido.id)
+    } catch (err: any) {
+      toast.error(err.message || 'Error al descargar PDF')
+    } finally {
+      setDownloading(false)
+    }
+  }
 
-      {expanded && (
-        <div className="px-4 pb-4 space-y-4">
-          {/* AI Chat */}
+  const rival = partido?.rival
+
+  return (
+    <div className="space-y-4">
+      {/* AI Chat - always visible */}
+      <Card className="border-emerald-800/50 bg-emerald-950/10">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Target className="h-4 w-4 text-emerald-400" />
+            <h3 className="font-bold text-sm">Plan de Partido</h3>
+            <Badge className="bg-emerald-100 text-emerald-800 text-[10px]">AI</Badge>
+            {plan && <div className="w-2 h-2 rounded-full bg-emerald-400" />}
+          </div>
           <InlineAIChat
             onSend={onSend}
             tipo="plan"
@@ -68,174 +67,191 @@ export function PlanPartidoSection({ onSend, plan, onResult }: PlanPartidoSectio
             quickChips={QUICK_CHIPS}
             placeholder="Define tu enfoque tactico..."
           />
+        </CardContent>
+      </Card>
 
-          {/* Rendered plan */}
-          {plan && (
-            <div className="space-y-2">
-              {/* Enfoque General */}
-              <AccordionItem
-                title="Enfoque General"
-                expanded={expandedSubs.has('enfoque')}
-                onToggle={() => toggleSub('enfoque')}
-                filled={!!plan.enfoque_general}
-              >
-                <p className="text-xs text-muted-foreground whitespace-pre-wrap">{plan.enfoque_general}</p>
-              </AccordionItem>
-
-              {/* Plan Ofensivo */}
-              <AccordionItem
-                title="Plan Ofensivo"
-                expanded={expandedSubs.has('ofensivo')}
-                onToggle={() => toggleSub('ofensivo')}
-                filled={!!plan.plan_ofensivo}
-                color="emerald"
-              >
-                <div className="space-y-2">
-                  <SubField label="Principios" value={plan.plan_ofensivo.principios} />
-                  <SubField label="Salida de balon" value={plan.plan_ofensivo.salida_balon} />
-                  <SubField label="Construccion" value={plan.plan_ofensivo.construccion} />
-                  <SubField label="Finalizacion" value={plan.plan_ofensivo.finalizacion} />
+      {/* Rendered plan */}
+      {plan && (
+        <div className="space-y-4">
+          {/* Match Header Bar */}
+          <div className="bg-slate-900 rounded-xl overflow-hidden border border-slate-700">
+            <div className="px-5 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-lg bg-emerald-600 flex items-center justify-center">
+                  <Target className="h-6 w-6 text-white" />
                 </div>
-              </AccordionItem>
-
-              {/* Plan Defensivo */}
-              <AccordionItem
-                title="Plan Defensivo"
-                expanded={expandedSubs.has('defensivo')}
-                onToggle={() => toggleSub('defensivo')}
-                filled={!!plan.plan_defensivo}
-                color="red"
-              >
-                <div className="space-y-2">
-                  <SubField label="Principios" value={plan.plan_defensivo.principios} />
-                  <SubField label="Pressing" value={plan.plan_defensivo.pressing} />
-                  <SubField label="Organizacion Defensiva" value={plan.plan_defensivo.organizacion_defensiva} />
+                <div>
+                  <div className="text-[10px] text-slate-400 uppercase tracking-widest">Plan de Partido</div>
+                  <div className="text-lg font-bold text-white">vs {rival?.nombre || 'Rival'}</div>
+                  {partido && (
+                    <div className="flex items-center gap-3 text-xs text-slate-400 mt-0.5">
+                      {partido.fecha && <span>{new Date(partido.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}</span>}
+                      {partido.localia && <span className="capitalize">{partido.localia}</span>}
+                      {partido.competicion && <span className="capitalize">{partido.competicion.replace(/_/g, ' ')}</span>}
+                      {partido.jornada && <span>J{partido.jornada}</span>}
+                    </div>
+                  )}
                 </div>
-              </AccordionItem>
-
-              {/* Transiciones */}
-              <AccordionItem
-                title="Transiciones"
-                expanded={expandedSubs.has('transiciones')}
-                onToggle={() => toggleSub('transiciones')}
-                filled={!!plan.transiciones}
-                color="amber"
-              >
-                <div className="space-y-2">
-                  <SubField label="Ofensiva (DEF→ATQ)" value={plan.transiciones.ofensiva} />
-                  <SubField label="Defensiva (ATQ→DEF)" value={plan.transiciones.defensiva} />
-                </div>
-              </AccordionItem>
-
-              {/* ABP */}
-              {plan.balon_parado && (
-                <AccordionItem
-                  title="Balon Parado"
-                  expanded={expandedSubs.has('abp')}
-                  onToggle={() => toggleSub('abp')}
-                  filled={!!plan.balon_parado}
-                  color="purple"
+              </div>
+              {partido && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownloadPdf}
+                  disabled={downloading}
+                  className="border-slate-600 text-slate-300 hover:text-white hover:bg-slate-800"
                 >
-                  <div className="space-y-2">
-                    <SubField label="Atacando" value={plan.balon_parado.atacando} />
-                    <SubField label="Defendiendo" value={plan.balon_parado.defendiendo} />
-                  </div>
-                </AccordionItem>
-              )}
-
-              {/* Plan Sustituciones */}
-              {plan.plan_sustituciones && (
-                <AccordionItem
-                  title="Plan de Sustituciones"
-                  expanded={expandedSubs.has('sustituciones')}
-                  onToggle={() => toggleSub('sustituciones')}
-                  filled={!!plan.plan_sustituciones}
-                >
-                  <p className="text-xs text-muted-foreground whitespace-pre-wrap">{plan.plan_sustituciones}</p>
-                </AccordionItem>
-              )}
-
-              {/* Claves del Partido */}
-              {plan.claves_del_partido && plan.claves_del_partido.length > 0 && (
-                <AccordionItem
-                  title={`Claves del Partido (${plan.claves_del_partido.length})`}
-                  expanded={expandedSubs.has('claves')}
-                  onToggle={() => toggleSub('claves')}
-                  filled
-                  color="emerald"
-                >
-                  <ul className="space-y-1.5">
-                    {plan.claves_del_partido.map((clave, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                        <span className="text-xs">{clave}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </AccordionItem>
+                  <FileDown className={`h-4 w-4 mr-1.5 ${downloading ? 'animate-pulse' : ''}`} />
+                  {downloading ? 'Generando...' : 'Exportar PDF'}
+                </Button>
               )}
             </div>
+            <div className="h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
+          </div>
+
+          {/* Enfoque General */}
+          <Card className="bg-slate-900/80 border-l-4 border-l-emerald-500 border-slate-700">
+            <CardContent className="p-4">
+              <div className="text-[10px] text-emerald-400 uppercase tracking-widest font-semibold mb-2">Enfoque General</div>
+              <p className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">{plan.enfoque_general}</p>
+            </CardContent>
+          </Card>
+
+          {/* 2-column: Plan Ofensivo + Plan Defensivo */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <PhaseCard
+              title="Plan Ofensivo"
+              icon={<Swords className="h-4 w-4" />}
+              color="blue"
+              sections={[
+                { label: 'Principios', value: plan.plan_ofensivo.principios },
+                { label: 'Salida de Balon', value: plan.plan_ofensivo.salida_balon },
+                { label: 'Construccion', value: plan.plan_ofensivo.construccion },
+                { label: 'Finalizacion', value: plan.plan_ofensivo.finalizacion },
+              ]}
+            />
+            <PhaseCard
+              title="Plan Defensivo"
+              icon={<Shield className="h-4 w-4" />}
+              color="red"
+              sections={[
+                { label: 'Principios', value: plan.plan_defensivo.principios },
+                { label: 'Pressing', value: plan.plan_defensivo.pressing },
+                { label: 'Organizacion Defensiva', value: plan.plan_defensivo.organizacion_defensiva },
+              ]}
+            />
+          </div>
+
+          {/* 2-column: Transiciones + ABP */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <PhaseCard
+              title="Transiciones"
+              icon={<Zap className="h-4 w-4" />}
+              color="amber"
+              sections={[
+                { label: 'Ofensiva (DEF→ATQ)', value: plan.transiciones.ofensiva },
+                { label: 'Defensiva (ATQ→DEF)', value: plan.transiciones.defensiva },
+              ]}
+            />
+            {plan.balon_parado && (
+              <PhaseCard
+                title="Balon Parado"
+                icon={<Flag className="h-4 w-4" />}
+                color="purple"
+                sections={[
+                  { label: 'Atacando', value: plan.balon_parado.atacando },
+                  { label: 'Defendiendo', value: plan.balon_parado.defendiendo },
+                ]}
+              />
+            )}
+          </div>
+
+          {/* Plan Sustituciones */}
+          {plan.plan_sustituciones && (
+            <Card className="border-l-4 border-l-slate-500 bg-slate-900/50 border-slate-700">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <ArrowRightLeft className="h-4 w-4 text-slate-400" />
+                  <h3 className="font-bold text-sm">Plan de Sustituciones</h3>
+                </div>
+                <p className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">{plan.plan_sustituciones}</p>
+              </CardContent>
+            </Card>
           )}
 
-          {/* Empty state */}
-          {!plan && (
-            <p className="text-xs text-slate-500 text-center py-2">
-              Usa el chat para generar un plan de partido con IA
-            </p>
+          {/* Claves del Partido */}
+          {plan.claves_del_partido && plan.claves_del_partido.length > 0 && (
+            <Card className="border-l-4 border-l-emerald-500 bg-emerald-950/10 border-emerald-800/40">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  <h3 className="font-bold text-sm">Claves del Partido</h3>
+                  <Badge className="bg-emerald-900/50 text-emerald-300 text-[10px]">{plan.claves_del_partido.length}</Badge>
+                </div>
+                <ul className="space-y-2">
+                  {plan.claves_del_partido.map((clave, i) => (
+                    <li key={i} className="flex items-start gap-2.5">
+                      <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                        {i + 1}
+                      </span>
+                      <span className="text-sm text-slate-200">{clave}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
           )}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!plan && (
+        <div className="text-center py-6">
+          <Target className="h-10 w-10 text-slate-600 mx-auto mb-2" />
+          <p className="text-sm text-slate-500">
+            Usa el chat para generar un plan de partido con IA
+          </p>
         </div>
       )}
     </div>
   )
 }
 
-// ============ Internal Components ============
+// ============ Phase Card Component ============
 
-function AccordionItem({
-  title,
-  expanded,
-  onToggle,
-  filled,
-  color,
-  children,
-}: {
-  title: string
-  expanded: boolean
-  onToggle: () => void
-  filled: boolean
-  color?: 'emerald' | 'red' | 'amber' | 'purple'
-  children: React.ReactNode
-}) {
-  const dotColor = filled
-    ? color === 'emerald' ? 'bg-emerald-400'
-      : color === 'red' ? 'bg-red-400'
-      : color === 'amber' ? 'bg-amber-400'
-      : color === 'purple' ? 'bg-purple-400'
-      : 'bg-emerald-400'
-    : 'bg-slate-600'
-
-  return (
-    <div className="bg-slate-800/50 rounded-lg overflow-hidden">
-      <button
-        onClick={onToggle}
-        className="w-full flex items-center justify-between px-3 py-2"
-      >
-        <div className="flex items-center gap-2">
-          <div className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
-          <span className="text-xs font-semibold">{title}</span>
-        </div>
-        {expanded ? <ChevronUp className="h-3 w-3 text-muted-foreground" /> : <ChevronDown className="h-3 w-3 text-muted-foreground" />}
-      </button>
-      {expanded && <div className="px-3 pb-3">{children}</div>}
-    </div>
-  )
+const COLOR_MAP = {
+  blue: { border: 'border-l-blue-500', header: 'bg-blue-950/60 text-blue-300', label: 'text-blue-400', bg: 'border-blue-800/40' },
+  red: { border: 'border-l-red-500', header: 'bg-red-950/60 text-red-300', label: 'text-red-400', bg: 'border-red-800/40' },
+  amber: { border: 'border-l-amber-500', header: 'bg-amber-950/60 text-amber-300', label: 'text-amber-400', bg: 'border-amber-800/40' },
+  purple: { border: 'border-l-purple-500', header: 'bg-purple-950/60 text-purple-300', label: 'text-purple-400', bg: 'border-purple-800/40' },
 }
 
-function SubField({ label, value }: { label: string; value: string }) {
+function PhaseCard({
+  title,
+  icon,
+  color,
+  sections,
+}: {
+  title: string
+  icon: React.ReactNode
+  color: keyof typeof COLOR_MAP
+  sections: { label: string; value: string }[]
+}) {
+  const c = COLOR_MAP[color]
   return (
-    <div>
-      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{label}</span>
-      <p className="text-xs mt-0.5 whitespace-pre-wrap">{value}</p>
-    </div>
+    <Card className={`border-l-4 ${c.border} ${c.bg} overflow-hidden`}>
+      <div className={`px-4 py-2.5 flex items-center gap-2 ${c.header}`}>
+        {icon}
+        <span className="font-bold text-sm uppercase tracking-wide">{title}</span>
+      </div>
+      <CardContent className="p-4 space-y-3">
+        {sections.map((s) => (
+          <div key={s.label}>
+            <div className={`text-[10px] font-semibold uppercase tracking-widest mb-1 ${c.label}`}>{s.label}</div>
+            <p className="text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">{s.value}</p>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   )
 }
