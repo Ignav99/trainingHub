@@ -37,6 +37,7 @@ import { LoadChartDialog } from '@/components/rpe/LoadChartDialog'
 import { ExcelImportDialog } from '@/components/rpe/ExcelImportDialog'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { cargaApi } from '@/lib/api/carga'
+import { rpeApi } from '@/lib/api/rpe'
 import { wellnessApi } from '@/lib/api/wellness'
 import { jugadoresApi, Jugador } from '@/lib/api/jugadores'
 import { apiKey } from '@/lib/swr'
@@ -412,6 +413,7 @@ export default function RPEPage() {
                                   Ver grafica
                                 </Button>
                               </div>
+                              <ExpandedRPERow jugadorId={item.jugador_id} />
                               <ExpandedWellnessRow jugadorId={item.jugador_id} />
                             </td>
                           </tr>
@@ -635,6 +637,208 @@ function ExpandedWellnessRow({ jugadorId }: { jugadorId: string }) {
                     total >= 20 ? 'text-green-600' : total >= 15 ? 'text-amber-600' : 'text-red-600'
                   }`}>
                     {total}
+                  </td>
+                  <td className="py-1.5 text-center">
+                    <div className="flex items-center justify-center gap-1">
+                      {isEditing ? (
+                        <>
+                          <button
+                            onClick={() => handleSaveEdit(entry)}
+                            disabled={saving}
+                            className="p-1 text-green-600 hover:bg-green-50 rounded disabled:opacity-50"
+                            title="Guardar"
+                          >
+                            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                          </button>
+                          <button
+                            onClick={() => setEditingId(null)}
+                            className="p-1 text-gray-500 hover:bg-gray-100 rounded"
+                            title="Cancelar"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleStartEdit(entry)}
+                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                            title="Editar"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(entry.id)}
+                            disabled={deleting === entry.id}
+                            className="p-1 text-red-500 hover:bg-red-50 rounded disabled:opacity-50"
+                            title="Eliminar"
+                          >
+                            {deleting === entry.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+/** Manual RPE records with edit/delete */
+function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
+  const [records, setRecords] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editValues, setEditValues] = useState({ rpe: 5, duracion_percibida: 60, titulo: '' })
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState<string | null>(null)
+
+  const fetchData = async () => {
+    try {
+      const res = await rpeApi.listByJugador(jugadorId, { tipo: 'manual', limit: 20 })
+      setRecords(res.data || [])
+    } catch {
+      setRecords([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData()
+  }, [jugadorId])
+
+  const handleStartEdit = (entry: any) => {
+    setEditingId(entry.id)
+    setEditValues({
+      rpe: entry.rpe || 5,
+      duracion_percibida: entry.duracion_percibida || 60,
+      titulo: entry.titulo || '',
+    })
+  }
+
+  const handleSaveEdit = async (entry: any) => {
+    setSaving(true)
+    try {
+      await rpeApi.update(entry.id, {
+        rpe: editValues.rpe,
+        duracion_percibida: editValues.duracion_percibida,
+        titulo: editValues.titulo,
+      })
+      toast.success('RPE actualizado')
+      setEditingId(null)
+      setLoading(true)
+      await fetchData()
+      mutate((key: string) => typeof key === 'string' && (key.includes('/carga') || key.includes('/rpe')), undefined, { revalidate: true })
+    } catch (err: any) {
+      toast.error(err?.message || 'Error al actualizar')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('¿Eliminar este registro RPE manual?')) return
+    setDeleting(id)
+    try {
+      await rpeApi.delete(id)
+      toast.success('Registro eliminado')
+      setRecords((prev) => prev.filter((r) => r.id !== id))
+      mutate((key: string) => typeof key === 'string' && (key.includes('/carga') || key.includes('/rpe')), undefined, { revalidate: true })
+    } catch (err: any) {
+      toast.error(err?.message || 'Error al eliminar')
+    } finally {
+      setDeleting(null)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="p-3 text-center text-xs text-muted-foreground border-t">
+        <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+      </div>
+    )
+  }
+
+  if (records.length === 0) return null
+
+  return (
+    <div className="p-4 bg-blue-50/30 border-t space-y-2">
+      <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+        <Activity className="h-3.5 w-3.5 text-blue-600" />
+        Registros RPE manuales
+      </p>
+      <div className="overflow-x-auto max-h-40 overflow-y-auto">
+        <table className="w-full text-xs">
+          <thead className="sticky top-0 bg-blue-50/80">
+            <tr className="border-b">
+              <th className="pb-1 text-left font-medium">Fecha</th>
+              <th className="pb-1 text-left font-medium">Titulo</th>
+              <th className="pb-1 text-center font-medium">RPE</th>
+              <th className="pb-1 text-center font-medium">Min</th>
+              <th className="pb-1 text-center font-medium">Carga</th>
+              <th className="pb-1 text-center font-medium w-20">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {records.map((entry) => {
+              const isEditing = editingId === entry.id
+              const carga = isEditing
+                ? (editValues.rpe * editValues.duracion_percibida)
+                : entry.carga_sesion
+
+              return (
+                <tr key={entry.id} className={`border-b last:border-0 ${isEditing ? 'bg-blue-50/50' : ''}`}>
+                  <td className="py-1.5">{entry.fecha}</td>
+                  <td className="py-1.5">
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={editValues.titulo}
+                        onChange={(e) => setEditValues({ ...editValues, titulo: e.target.value })}
+                        className="w-full border rounded px-1.5 py-0.5 text-xs"
+                      />
+                    ) : (
+                      <span className="text-muted-foreground">{entry.titulo || '-'}</span>
+                    )}
+                  </td>
+                  <td className="py-1.5 text-center">
+                    {isEditing ? (
+                      <input
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={editValues.rpe}
+                        onChange={(e) => setEditValues({ ...editValues, rpe: Math.min(10, Math.max(1, parseInt(e.target.value) || 1)) })}
+                        className="w-12 text-center border rounded px-1 py-0.5 text-xs"
+                      />
+                    ) : (
+                      <span className={`font-bold ${entry.rpe >= 8 ? 'text-red-600' : entry.rpe >= 6 ? 'text-amber-600' : 'text-green-600'}`}>
+                        {entry.rpe}
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-1.5 text-center">
+                    {isEditing ? (
+                      <input
+                        type="number"
+                        min={1}
+                        max={300}
+                        value={editValues.duracion_percibida}
+                        onChange={(e) => setEditValues({ ...editValues, duracion_percibida: Math.max(1, parseInt(e.target.value) || 1) })}
+                        className="w-14 text-center border rounded px-1 py-0.5 text-xs"
+                      />
+                    ) : (
+                      <span>{entry.duracion_percibida || '-'}</span>
+                    )}
+                  </td>
+                  <td className="py-1.5 text-center font-bold">
+                    {carga != null ? Math.round(carga) : '-'}
                   </td>
                   <td className="py-1.5 text-center">
                     <div className="flex items-center justify-center gap-1">

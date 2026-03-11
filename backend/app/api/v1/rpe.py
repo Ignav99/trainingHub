@@ -11,6 +11,7 @@ from math import ceil
 
 from app.models import (
     RPECreate,
+    RPEUpdate,
     RPEResponse,
     RPEListResponse,
 )
@@ -161,6 +162,29 @@ async def resumen_rpe(
     return {"data": resumen, "promedios_equipo": promedios_equipo}
 
 
+@router.get("/jugador/{jugador_id}")
+async def list_rpe_by_jugador(
+    jugador_id: UUID,
+    tipo: Optional[str] = Query(None, description="Filtrar por tipo: sesion, manual, wellness"),
+    limit: int = Query(20, ge=1, le=100),
+    auth: AuthContext = Depends(require_permission(Permission.RPE_READ)),
+):
+    """Lista registros RPE de un jugador, opcionalmente filtrados por tipo."""
+    supabase = get_supabase()
+
+    query = supabase.table("registros_rpe").select("*").eq(
+        "jugador_id", str(jugador_id)
+    )
+
+    if tipo:
+        query = query.eq("tipo", tipo)
+
+    query = query.order("fecha", desc=True).order("created_at", desc=True).limit(limit)
+    response = query.execute()
+
+    return {"data": response.data or []}
+
+
 @router.get("/{rpe_id}", response_model=RPEResponse)
 async def get_rpe(
     rpe_id: UUID,
@@ -292,6 +316,51 @@ async def create_rpe_batch(
     response = supabase.table("registros_rpe").insert(items).execute()
 
     return {"created": len(response.data), "data": response.data}
+
+
+@router.put("/{rpe_id}", response_model=RPEResponse)
+async def update_rpe(
+    rpe_id: UUID,
+    data: RPEUpdate,
+    auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
+):
+    """Actualiza un registro RPE (rpe, duracion, titulo, notas)."""
+    supabase = get_supabase()
+
+    existing = supabase.table("registros_rpe").select("*").eq(
+        "id", str(rpe_id)
+    ).single().execute()
+
+    if not existing.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Registro RPE no encontrado"
+        )
+
+    update_data = data.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No hay campos para actualizar"
+        )
+
+    # Recalculate carga_sesion if rpe or duracion changed
+    new_rpe = update_data.get("rpe", existing.data.get("rpe"))
+    new_dur = update_data.get("duracion_percibida", existing.data.get("duracion_percibida"))
+    if new_rpe and new_dur:
+        update_data["carga_sesion"] = round(new_rpe * new_dur, 1)
+
+    response = supabase.table("registros_rpe").update(update_data).eq(
+        "id", str(rpe_id)
+    ).execute()
+
+    if not response.data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Error al actualizar registro RPE"
+        )
+
+    return RPEResponse(**response.data[0])
 
 
 @router.delete("/{rpe_id}", status_code=status.HTTP_204_NO_CONTENT)

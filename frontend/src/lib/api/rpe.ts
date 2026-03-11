@@ -17,6 +17,13 @@ export interface CreateRPEData {
   notas?: string
 }
 
+export interface UpdateRPEData {
+  rpe?: number
+  duracion_percibida?: number
+  titulo?: string
+  notas?: string
+}
+
 export const rpeApi = {
   create: (data: CreateRPEData) =>
     api.post<RPERegistro>('/rpe', data),
@@ -24,11 +31,14 @@ export const rpeApi = {
   listBySesion: (sesionId: string) =>
     api.get<RPERegistro[]>(`/rpe/sesion/${sesionId}`),
 
-  listByJugador: (jugadorId: string, params?: { fecha_desde?: string; fecha_hasta?: string }) =>
-    api.get<RPERegistro[]>(`/rpe/jugador/${jugadorId}`, { params }),
+  listByJugador: (jugadorId: string, params?: { tipo?: string; limit?: number }) =>
+    api.get<{ data: RPERegistro[] }>(`/rpe/jugador/${jugadorId}`, { params }),
 
   getResumen: (equipoId: string, params?: { fecha_desde?: string; fecha_hasta?: string }) =>
     api.get<RPEResumenEquipo>(`/rpe/resumen/${equipoId}`, { params }),
+
+  update: (id: string, data: UpdateRPEData) =>
+    api.put<RPERegistro>(`/rpe/${id}`, data),
 
   delete: (id: string) =>
     api.delete(`/rpe/${id}`),

@@ -33,6 +33,14 @@ class RPECreate(RPEBase):
     tipo: Literal["sesion", "manual", "wellness"] = "sesion"
 
 
+class RPEUpdate(BaseModel):
+    """Schema para actualizar registro RPE."""
+    rpe: Optional[int] = Field(None, ge=1, le=10)
+    duracion_percibida: Optional[int] = Field(None, ge=0)
+    titulo: Optional[str] = None
+    notas: Optional[str] = None
+
+
 class RPEResponse(RPEBase):
     """Schema de respuesta de registro RPE."""
     id: UUID

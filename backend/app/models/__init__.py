@@ -132,6 +132,7 @@ from app.models.microciclo import (
 from app.models.rpe import (
     RPEBase,
     RPECreate,
+    RPEUpdate,
     RPEResponse,
     RPEListResponse,
     WellnessCreate,
@@ -324,7 +325,7 @@ __all__ = [
     "MicrocicloBase", "MicrocicloCreate", "MicrocicloUpdate",
     "MicrocicloResponse", "MicrocicloListResponse",
     # RPE
-    "RPEBase", "RPECreate", "RPEResponse", "RPEListResponse",
+    "RPEBase", "RPECreate", "RPEUpdate", "RPEResponse", "RPEListResponse",
     "WellnessCreate", "WellnessResponse", "WellnessBulkItem",
     # Carga
     "NivelCarga", "CargaJugadorResponse", "CargaEquipoResponse", "WellnessUpdate",
