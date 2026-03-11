@@ -91,6 +91,12 @@ class Permission(str, Enum):
     CLUB_MANAGE_ORG = "club.manage_org"
     CLUB_VIEW_AUDIT = "club.view_audit"
 
+    # ABP (Set Pieces)
+    ABP_CREATE = "abp.create"
+    ABP_READ = "abp.read"
+    ABP_UPDATE = "abp.update"
+    ABP_DELETE = "abp.delete"
+
     # Player/Tutor permissions
     PLAYER_VIEW_SHARED = "player.view_shared"
     PLAYER_SEND_RPE = "player.send_rpe"
@@ -142,6 +148,9 @@ _CT_FULL_PERMISSIONS = {
     Permission.AI_USE,
     Permission.KB_READ, Permission.KB_CREATE,
     Permission.KB_UPDATE, Permission.KB_DELETE,
+    # ABP
+    Permission.ABP_CREATE, Permission.ABP_READ,
+    Permission.ABP_UPDATE, Permission.ABP_DELETE,
     # Team config
     Permission.CONFIG_TEAM,
     Permission.INVITACION_MANAGE,
@@ -162,6 +171,7 @@ _PLAYER_READ_ONLY = {
     Permission.RIVAL_READ,
     Permission.RPE_READ,
     Permission.VIDEO_READ,
+    Permission.ABP_READ,
 }
 
 DEFAULT_PERMISSIONS: dict[str, set[Permission]] = {

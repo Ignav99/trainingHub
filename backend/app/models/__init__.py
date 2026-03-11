@@ -266,6 +266,28 @@ from app.models.descanso import (
     DescansoResponse,
 )
 
+from app.models.abp import (
+    TipoABP,
+    LadoABP,
+    SubtipoABP,
+    SistemaMarcaje,
+    ABPPlayerRol,
+    ABPFase,
+    ABPAsignacion,
+    ABPJugadaBase,
+    ABPJugadaCreate,
+    ABPJugadaUpdate,
+    ABPJugadaResponse,
+    ABPRivalJugadaBase,
+    ABPRivalJugadaCreate,
+    ABPRivalJugadaUpdate,
+    ABPRivalJugadaResponse,
+    ABPPartidoJugadaCreate,
+    ABPPartidoJugadaResponse,
+    ABPSesionJugadaCreate,
+    ABPSesionJugadaResponse,
+)
+
 from app.models.medico import (
     TipoRegistroMedico,
     EstadoRegistroMedico,
@@ -380,4 +402,11 @@ __all__ = [
     "RegistroMedicoSummary", "RegistroMedicoListResponse",
     "AccesoMedicoLogResponse", "AccesoMedicoLogListResponse",
     "PermisosPersonalizadosCreate", "PermisosPersonalizadosResponse",
+    # ABP (Balón Parado)
+    "TipoABP", "LadoABP", "SubtipoABP", "SistemaMarcaje", "ABPPlayerRol",
+    "ABPFase", "ABPAsignacion",
+    "ABPJugadaBase", "ABPJugadaCreate", "ABPJugadaUpdate", "ABPJugadaResponse",
+    "ABPRivalJugadaBase", "ABPRivalJugadaCreate", "ABPRivalJugadaUpdate", "ABPRivalJugadaResponse",
+    "ABPPartidoJugadaCreate", "ABPPartidoJugadaResponse",
+    "ABPSesionJugadaCreate", "ABPSesionJugadaResponse",
 ]

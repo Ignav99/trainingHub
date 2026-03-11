@@ -35,6 +35,7 @@ import { ResultadosWidget } from './ResultadosWidget'
 import { HeadToHeadWidget } from './HeadToHeadWidget'
 import { InformeRivalSection } from './InformeRivalSection'
 import { PlanPartidoSection } from './PlanPartidoSection'
+import ABPMatchPlan from '@/components/abp/ABPMatchPlan'
 import type { Partido, PreMatchIntel, AIInformeRival, AIPlanPartido } from '@/types'
 
 // Pre-partido default data (manual tactical notes)
@@ -412,6 +413,14 @@ export function PreMatchTab({ partido, onMutate }: PreMatchTabProps) {
                 <h3 className="font-bold text-sm">Acciones a Balon Parado</h3>
                 <Badge className="bg-purple-100 text-purple-800 text-[10px]">ABP</Badge>
               </div>
+
+              {/* ABP Match Plan - visual play cards */}
+              {partido.id && partido.equipo_id && (
+                <div className="mb-4 p-3 bg-orange-50/50 border border-orange-100 rounded-xl">
+                  <ABPMatchPlan partidoId={partido.id} equipoId={partido.equipo_id} />
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <TacticCard
                   title="Como atacan corners"

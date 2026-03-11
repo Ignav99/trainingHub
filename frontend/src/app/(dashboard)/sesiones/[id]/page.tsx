@@ -67,6 +67,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
+import ABPSessionLink from '@/components/abp/ABPSessionLink'
 import { sesionesApi, SesionUpdateData } from '@/lib/api/sesiones'
 import { tareasApi } from '@/lib/api/tareas'
 import { jugadoresApi } from '@/lib/api/jugadores'
@@ -2099,6 +2100,13 @@ export default function SesionDetailPage() {
               )
             })()}
           </div>
+
+          {/* ABP Section - Set Pieces linked to this session */}
+          {sesion?.equipo_id && (
+            <div className="mt-6 p-4 bg-orange-50/50 border border-orange-100 rounded-xl">
+              <ABPSessionLink sesionId={sesionId} equipoId={sesion.equipo_id} />
+            </div>
+          )}
         </TabsContent>
 
         {/* ==================== TAB: ASISTENCIA ==================== */}

@@ -1443,3 +1443,130 @@ export interface EventoCalendario {
   match_day?: MatchDay
   notas?: string
 }
+
+// ============================================
+// ABP (ACCIONES A BALÓN PARADO)
+// ============================================
+
+export type TipoABP = 'corner' | 'semi_corner' | 'falta_lateral' | 'falta_frontal' | 'falta_lejana' | 'penalti' | 'saque_banda' | 'saque_puerta'
+export type LadoABP = 'ofensivo' | 'defensivo'
+export type SubtipoABP = 'inswing' | 'outswing' | 'corto' | 'directo' | 'indirecto' | 'largo'
+export type SistemaMarcaje = 'zonal' | 'individual' | 'mixto'
+export type ABPPlayerRol = 'lanzador' | 'bloqueador' | 'palo_corto' | 'palo_largo' | 'borde_area' | 'señuelo' | 'rechace' | 'referencia' | 'barrera' | 'marcaje_zonal' | 'marcaje_individual' | 'portero' | 'otro'
+
+export interface ABPFase {
+  id: string
+  nombre: string
+  orden: number
+  descripcion?: string
+  diagram: {
+    elements: any[]
+    arrows: any[]
+    zones: any[]
+    pitchType: 'full' | 'half' | 'quarter' | 'custom'
+    customDimensions?: { width: number; height: number }
+  }
+}
+
+export interface ABPAsignacion {
+  element_id: string
+  jugador_id?: string
+  rol?: string
+}
+
+export interface ABPJugada {
+  id: string
+  organizacion_id: string
+  equipo_id?: string
+  creado_por?: string
+  nombre: string
+  codigo?: string
+  tipo: TipoABP
+  lado: LadoABP
+  subtipo?: SubtipoABP
+  descripcion?: string
+  senal_codigo?: string
+  sistema_marcaje?: SistemaMarcaje
+  notas_tacticas?: string
+  fases: ABPFase[]
+  asignaciones: ABPAsignacion[]
+  es_plantilla: boolean
+  tags: string[]
+  orden: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ABPRivalJugada {
+  id: string
+  rival_id: string
+  organizacion_id: string
+  nombre: string
+  tipo: TipoABP
+  lado: LadoABP
+  subtipo?: SubtipoABP
+  descripcion?: string
+  fases: ABPFase[]
+  video_url?: string
+  tags: string[]
+  created_at: string
+  updated_at: string
+}
+
+export interface ABPPartidoJugada {
+  id: string
+  partido_id: string
+  jugada_id: string
+  asignaciones_override?: ABPAsignacion[]
+  notas?: string
+  orden: number
+  created_at: string
+  jugada?: ABPJugada
+}
+
+export interface ABPSesionJugada {
+  id: string
+  sesion_id: string
+  jugada_id: string
+  notas?: string
+  orden: number
+  created_at: string
+  jugada?: ABPJugada
+}
+
+// ABP Constants
+export const ABP_TIPOS: { value: TipoABP; label: string; pitchView: 'full' | 'half' | 'quarter' }[] = [
+  { value: 'corner', label: 'Corner', pitchView: 'quarter' },
+  { value: 'semi_corner', label: 'Semi-corner', pitchView: 'quarter' },
+  { value: 'falta_lateral', label: 'Falta lateral', pitchView: 'half' },
+  { value: 'falta_frontal', label: 'Falta frontal', pitchView: 'half' },
+  { value: 'falta_lejana', label: 'Falta lejana', pitchView: 'full' },
+  { value: 'penalti', label: 'Penalti', pitchView: 'quarter' },
+  { value: 'saque_banda', label: 'Saque de banda', pitchView: 'half' },
+  { value: 'saque_puerta', label: 'Saque de puerta', pitchView: 'half' },
+]
+
+export const ABP_SUBTIPOS: { value: SubtipoABP; label: string }[] = [
+  { value: 'inswing', label: 'Inswing' },
+  { value: 'outswing', label: 'Outswing' },
+  { value: 'corto', label: 'Corto' },
+  { value: 'directo', label: 'Directo' },
+  { value: 'indirecto', label: 'Indirecto' },
+  { value: 'largo', label: 'Largo' },
+]
+
+export const ABP_ROLES: { value: ABPPlayerRol; label: string }[] = [
+  { value: 'lanzador', label: 'Lanzador' },
+  { value: 'bloqueador', label: 'Bloqueador' },
+  { value: 'palo_corto', label: 'Palo corto' },
+  { value: 'palo_largo', label: 'Palo largo' },
+  { value: 'borde_area', label: 'Borde del area' },
+  { value: 'señuelo', label: 'Señuelo' },
+  { value: 'rechace', label: 'Rechace' },
+  { value: 'referencia', label: 'Referencia' },
+  { value: 'barrera', label: 'Barrera' },
+  { value: 'marcaje_zonal', label: 'Marcaje zonal' },
+  { value: 'marcaje_individual', label: 'Marcaje individual' },
+  { value: 'portero', label: 'Portero' },
+  { value: 'otro', label: 'Otro' },
+]

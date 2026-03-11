@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            margin: 30px 40px;
+            color: #1a1a2e;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .cover {
+            text-align: center;
+            padding: 80px 0;
+            border-bottom: 4px solid #F97316;
+            margin-bottom: 40px;
+        }
+        .cover h1 {
+            font-size: 36px;
+            font-weight: 800;
+            color: #F97316;
+            margin-bottom: 10px;
+        }
+        .cover .team {
+            font-size: 20px;
+            color: #666;
+        }
+        .section-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #F97316;
+            border-bottom: 2px solid #F97316;
+            padding-bottom: 8px;
+            margin: 30px 0 15px;
+            page-break-after: avoid;
+        }
+        .play-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+            page-break-inside: avoid;
+        }
+        .play-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .play-name {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1a1a2e;
+        }
+        .play-code {
+            font-size: 11px;
+            background: #F97316;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 700;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            margin-right: 4px;
+        }
+        .badge-of { background: #DBEAFE; color: #1E40AF; }
+        .badge-df { background: #FEE2E2; color: #991B1B; }
+        .badge-sub { background: #F3F4F6; color: #374151; }
+        .play-meta {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        .play-desc {
+            font-size: 12px;
+            color: #444;
+            margin-bottom: 10px;
+        }
+        .signal {
+            font-size: 11px;
+            background: #FEF3C7;
+            color: #92400E;
+            padding: 3px 8px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-bottom: 8px;
+        }
+        .phase {
+            margin-top: 10px;
+            padding: 8px;
+            background: #f8fafc;
+            border-radius: 6px;
+        }
+        .phase-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: #F97316;
+            margin-bottom: 4px;
+        }
+        .phase-desc {
+            font-size: 11px;
+            color: #555;
+        }
+        .diagram-container {
+            margin-top: 8px;
+            text-align: center;
+        }
+        .diagram-container svg {
+            max-width: 100%;
+            height: auto;
+        }
+        .notes {
+            font-size: 11px;
+            color: #555;
+            font-style: italic;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+    <div class="cover">
+        <h1>Playbook ABP</h1>
+        <div class="team">{{ equipo_nombre }}</div>
+    </div>
+
+    {% for tipo_code, plays in grouped.items() %}
+    <h2 class="section-title">{{ tipo_labels.get(tipo_code, tipo_code) }}</h2>
+
+    {% for play in plays %}
+    <div class="play-card">
+        <div class="play-header">
+            <span class="play-name">{{ play.nombre }}</span>
+            {% if play.codigo %}
+            <span class="play-code">{{ play.codigo }}</span>
+            {% endif %}
+        </div>
+        <div class="play-meta">
+            <span class="badge {% if play.lado == 'ofensivo' %}badge-of{% else %}badge-df{% endif %}">
+                {{ lado_labels.get(play.lado, play.lado) }}
+            </span>
+            {% if play.subtipo %}
+            <span class="badge badge-sub">{{ play.subtipo }}</span>
+            {% endif %}
+            {% if play.sistema_marcaje %}
+            <span class="badge badge-sub">{{ play.sistema_marcaje }}</span>
+            {% endif %}
+        </div>
+
+        {% if play.senal_codigo %}
+        <div class="signal">Senal: {{ play.senal_codigo }}</div>
+        {% endif %}
+
+        {% if play.descripcion %}
+        <div class="play-desc">{{ play.descripcion }}</div>
+        {% endif %}
+
+        {% for fase in play.rendered_fases %}
+        <div class="phase">
+            <div class="phase-name">{{ fase.nombre }}</div>
+            {% if fase.descripcion %}
+            <div class="phase-desc">{{ fase.descripcion }}</div>
+            {% endif %}
+            {% if fase.svg %}
+            <div class="diagram-container">{{ fase.svg }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        {% if play.notas_tacticas %}
+        <div class="notes">{{ play.notas_tacticas }}</div>
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% endfor %}
+</body>
+</html>

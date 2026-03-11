@@ -650,3 +650,117 @@ def generate_tarea_pdf(
     except ImportError:
         logger.warning("WeasyPrint not available, returning HTML as bytes")
         return html_content.encode("utf-8")
+
+
+# ============ ABP PDF Functions ============
+
+ABP_TIPO_LABELS = {
+    "corner": "Corner",
+    "semi_corner": "Semi-corner",
+    "falta_lateral": "Falta lateral",
+    "falta_frontal": "Falta frontal",
+    "falta_lejana": "Falta lejana",
+    "penalti": "Penalti",
+    "saque_banda": "Saque de banda",
+    "saque_puerta": "Saque de puerta",
+}
+
+ABP_LADO_LABELS = {
+    "ofensivo": "Ofensivo",
+    "defensivo": "Defensivo",
+}
+
+
+def _render_abp_diagram_svg(fase: dict, diagram_id: str = "abp") -> str:
+    """Render a single ABP phase diagram to inline SVG."""
+    try:
+        from app.services.svg_renderer import render_diagram_svg
+        diagram = fase.get("diagram", {})
+        if not diagram or not diagram.get("elements"):
+            return ""
+        return render_diagram_svg(diagram, diagram_id=diagram_id)
+    except Exception as e:
+        logger.warning(f"Error rendering ABP diagram: {e}")
+        return ""
+
+
+def generate_abp_playbook_pdf(
+    jugadas: list[dict],
+    equipo_nombre: str = "",
+) -> bytes:
+    """Genera PDF del playbook ABP completo del equipo."""
+    env = _get_jinja_env_v2()
+    template = env.get_template("abp_playbook_pdf.html")
+
+    grouped: dict[str, list] = {}
+    for j in jugadas:
+        tipo = j.get("tipo", "otro")
+        if tipo not in grouped:
+            grouped[tipo] = []
+        fases = j.get("fases") or []
+        rendered_fases = []
+        for i, fase in enumerate(fases):
+            svg = _render_abp_diagram_svg(fase, diagram_id=f"j{j.get('id','')[:8]}_f{i}")
+            rendered_fases.append({**fase, "svg": svg})
+        j["rendered_fases"] = rendered_fases
+        grouped[tipo].append(j)
+
+    html_content = template.render(
+        grouped=grouped,
+        equipo_nombre=equipo_nombre,
+        tipo_labels=ABP_TIPO_LABELS,
+        lado_labels=ABP_LADO_LABELS,
+    )
+
+    try:
+        from weasyprint import HTML
+        return HTML(string=html_content).write_pdf()
+    except ImportError:
+        logger.warning("WeasyPrint not available, returning HTML as bytes")
+        return html_content.encode("utf-8")
+
+
+def generate_abp_partido_pdf(
+    jugadas_partido: list[dict],
+    rival_jugadas: list[dict],
+    partido: dict,
+) -> bytes:
+    """Genera PDF del plan ABP para un partido específico."""
+    env = _get_jinja_env_v2()
+    template = env.get_template("abp_partido_pdf.html")
+
+    for jp in jugadas_partido:
+        jugada = jp.get("jugada") or {}
+        fases = jugada.get("fases") or []
+        rendered = []
+        for i, fase in enumerate(fases):
+            svg = _render_abp_diagram_svg(fase, diagram_id=f"own_{i}")
+            rendered.append({**fase, "svg": svg})
+        jugada["rendered_fases"] = rendered
+
+    for rj in rival_jugadas:
+        fases = rj.get("fases") or []
+        rendered = []
+        for i, fase in enumerate(fases):
+            svg = _render_abp_diagram_svg(fase, diagram_id=f"rival_{i}")
+            rendered.append({**fase, "svg": svg})
+        rj["rendered_fases"] = rendered
+
+    rival_info = partido.get("rivales") or {}
+    rival_nombre = rival_info.get("nombre", "Rival")
+
+    html_content = template.render(
+        jugadas_partido=jugadas_partido,
+        rival_jugadas=rival_jugadas,
+        partido=partido,
+        rival_nombre=rival_nombre,
+        tipo_labels=ABP_TIPO_LABELS,
+        lado_labels=ABP_LADO_LABELS,
+    )
+
+    try:
+        from weasyprint import HTML
+        return HTML(string=html_content).write_pdf()
+    except ImportError:
+        logger.warning("WeasyPrint not available, returning HTML as bytes")
+        return html_content.encode("utf-8")

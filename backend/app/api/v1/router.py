@@ -40,6 +40,7 @@ from app.api.v1 import (
     stripe_webhook,
     admin,
     descansos,
+    abp,
 )
 
 api_router = APIRouter()
@@ -246,6 +247,12 @@ api_router.include_router(
     descansos.router,
     prefix="/descansos",
     tags=["Descansos"]
+)
+
+api_router.include_router(
+    abp.router,
+    prefix="/abp",
+    tags=["ABP (Balon Parado)"]
 )
 
 

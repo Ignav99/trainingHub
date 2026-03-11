@@ -20,6 +20,7 @@ import {
   Info,
   Clock,
   LinkIcon,
+  Flag,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -46,12 +47,14 @@ const ResultadosWidget = dynamic(() => import('@/components/pre-match/Resultados
 const HeadToHeadWidget = dynamic(() => import('@/components/pre-match/HeadToHeadWidget').then(m => ({ default: m.HeadToHeadWidget })), { loading: () => <WidgetSkeleton /> })
 const InformeRivalSection = dynamic(() => import('@/components/pre-match/InformeRivalSection').then(m => ({ default: m.InformeRivalSection })), { loading: () => <WidgetSkeleton /> })
 const PlanPartidoSection = dynamic(() => import('@/components/pre-match/PlanPartidoSection').then(m => ({ default: m.PlanPartidoSection })), { loading: () => <WidgetSkeleton /> })
+const ABPRivalPlays = dynamic(() => import('@/components/abp/ABPRivalPlays'), { loading: () => <WidgetSkeleton /> })
 
-type TabId = 'scouting' | 'informes' | 'info'
+type TabId = 'scouting' | 'informes' | 'abp' | 'info'
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'scouting', label: 'Scouting', icon: <Database className="h-3.5 w-3.5" /> },
   { id: 'informes', label: 'Informes', icon: <Brain className="h-3.5 w-3.5" /> },
+  { id: 'abp', label: 'ABP', icon: <Flag className="h-3.5 w-3.5" /> },
   { id: 'info', label: 'Info', icon: <Info className="h-3.5 w-3.5" /> },
 ]
 
@@ -298,6 +301,14 @@ export default function RivalDetailPage() {
           onInformeResult={handleInformeResult}
           onPlanResult={handlePlanResult}
         />
+      )}
+
+      {activeTab === 'abp' && (
+        <Card>
+          <CardContent className="p-6">
+            <ABPRivalPlays rivalId={id} />
+          </CardContent>
+        </Card>
       )}
 
       {activeTab === 'info' && (

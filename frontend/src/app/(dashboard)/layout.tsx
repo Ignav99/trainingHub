@@ -25,6 +25,7 @@ import {
   Activity,
   HeartPulse,
   Trophy,
+  Flag,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useEquipoStore } from '@/stores/equipoStore'
@@ -43,6 +44,7 @@ const navigation = [
   { name: 'Plantilla', href: '/plantilla', icon: Users },
   { name: 'Partidos', href: '/partidos', icon: Swords },
   { name: 'Rivales', href: '/rivales', icon: Shield },
+  { name: 'Balón Parado', href: '/abp', icon: Flag },
   { name: 'Enfermería', href: '/enfermeria', icon: HeartPulse },
   { name: 'RPE / Wellness', href: '/rpe', icon: Activity },
   { name: 'Competición', href: '/competicion', icon: Trophy },
