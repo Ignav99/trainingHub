@@ -104,12 +104,22 @@ def calculate_match_load(minutos: int, es_portero: bool = False) -> tuple[float,
 
 
 def _determine_nivel(ratio: Optional[float]) -> str:
-    """Determine load level from ACWR ratio."""
+    """Determine load level from ACWR ratio.
+
+    Ranges calibrated for semi-pro / amateur football:
+      < 0.8  → bajo  (undertraining / detraining risk)
+      0.8–1.5 → optimo (productive training zone)
+      1.5–2.0 → alto  (elevated — monitor closely)
+      > 2.0  → critico (sustained overload — action needed)
+
+    NOTE: 'critico' is further gated in recalculate_player_load()
+    so that it only triggers after 3+ sustained days above 1.5.
+    """
     if ratio is None:
         return "optimo"
-    if ratio > 1.5:
+    if ratio > 2.0:
         return "critico"
-    if ratio > 1.3:
+    if ratio > 1.5:
         return "alto"
     if ratio >= 0.8:
         return "optimo"
@@ -451,6 +461,14 @@ def recalculate_player_load(jugador_id: UUID, equipo_id: UUID) -> dict:
     monotonia = today_entry["monotonia"] if today_entry else None
     strain = today_entry["strain"] if today_entry else None
     nivel = _determine_nivel(acwr)
+
+    # Critico requires SUSTAINED high load: 3+ of last 5 days with ACWR > 1.5
+    # A single-day spike after training is "alto", not "critico"
+    if nivel == "critico" and series:
+        recent_acwrs = [e["acwr"] for e in series[-5:] if e["acwr"] is not None]
+        days_elevated = sum(1 for a in recent_acwrs if a > 1.5)
+        if days_elevated < 3:
+            nivel = "alto"
 
     # When ACWR can't be calculated (low chronic), use acute to determine level
     if acwr is None and ewma_acute < 5:

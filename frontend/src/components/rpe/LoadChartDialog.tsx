@@ -224,17 +224,17 @@ export function LoadChartDialog({
                   />
                   {/* Zone bands */}
                   <ReferenceArea y1={0} y2={0.8} fill="#3B82F6" fillOpacity={0.08} />
-                  <ReferenceArea y1={0.8} y2={1.3} fill="#22C55E" fillOpacity={0.1} />
-                  <ReferenceArea y1={1.3} y2={1.5} fill="#F97316" fillOpacity={0.1} />
-                  <ReferenceArea y1={1.5} y2={maxAcwr} fill="#EF4444" fillOpacity={0.08} />
+                  <ReferenceArea y1={0.8} y2={1.5} fill="#22C55E" fillOpacity={0.1} />
+                  <ReferenceArea y1={1.5} y2={2.0} fill="#F97316" fillOpacity={0.1} />
+                  <ReferenceArea y1={2.0} y2={maxAcwr} fill="#EF4444" fillOpacity={0.08} />
                   <Line type="monotone" dataKey="acwr" stroke="#8B5CF6" strokeWidth={2} dot={false} connectNulls />
                 </LineChart>
               </ResponsiveContainer>
               <div className="flex gap-3 justify-center text-[10px] text-muted-foreground mt-1">
                 <span className="flex items-center gap-1"><span className="w-3 h-2 bg-blue-100 rounded" /> {'< 0.8 Bajo'}</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-2 bg-green-100 rounded" /> 0.8-1.3 Optimo</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-2 bg-orange-100 rounded" /> 1.3-1.5 Alto</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-2 bg-red-100 rounded" /> {'> 1.5 Critico'}</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-2 bg-green-100 rounded" /> 0.8-1.5 Optimo</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-2 bg-orange-100 rounded" /> 1.5-2.0 Alto</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-2 bg-red-100 rounded" /> {'> 2.0 Critico'}</span>
               </div>
             </div>
 
@@ -268,8 +268,8 @@ export function LoadChartDialog({
                         <td className="px-2 py-1 text-right font-mono">
                           {d.acwr != null ? (
                             <span className={
-                              d.acwr > 1.5 ? 'text-red-600 font-bold' :
-                              d.acwr > 1.3 ? 'text-orange-600' :
+                              d.acwr > 2.0 ? 'text-red-600 font-bold' :
+                              d.acwr > 1.5 ? 'text-orange-600' :
                               d.acwr >= 0.8 ? 'text-green-600' :
                               'text-blue-600'
                             }>

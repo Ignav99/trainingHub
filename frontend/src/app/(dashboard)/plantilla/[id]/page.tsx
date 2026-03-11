@@ -872,8 +872,8 @@ function formatDate(d: string) {
 
 function getNivelColor(acwr: number | null): string {
   if (acwr == null) return 'text-muted-foreground'
-  if (acwr > 1.5) return 'text-red-600'
-  if (acwr > 1.3) return 'text-orange-600'
+  if (acwr > 2.0) return 'text-red-600'
+  if (acwr > 1.5) return 'text-orange-600'
   if (acwr >= 0.8) return 'text-green-600'
   return 'text-blue-600'
 }
@@ -1056,17 +1056,17 @@ function PlayerLoadTab({ jugadorId, equipoId }: { jugadorId: string; equipoId: s
                   <YAxis domain={[0, maxAcwr]} tick={{ fontSize: 10 }} width={35} />
                   <Tooltip formatter={(value: any) => [value != null ? Number(value).toFixed(2) : '-', 'ACWR']} />
                   <ReferenceArea y1={0} y2={0.8} fill="#3B82F6" fillOpacity={0.08} />
-                  <ReferenceArea y1={0.8} y2={1.3} fill="#22C55E" fillOpacity={0.1} />
-                  <ReferenceArea y1={1.3} y2={1.5} fill="#F97316" fillOpacity={0.1} />
-                  <ReferenceArea y1={1.5} y2={maxAcwr} fill="#EF4444" fillOpacity={0.08} />
+                  <ReferenceArea y1={0.8} y2={1.5} fill="#22C55E" fillOpacity={0.1} />
+                  <ReferenceArea y1={1.5} y2={2.0} fill="#F97316" fillOpacity={0.1} />
+                  <ReferenceArea y1={2.0} y2={maxAcwr} fill="#EF4444" fillOpacity={0.08} />
                   <Line type="monotone" dataKey="acwr" stroke="#8B5CF6" strokeWidth={2} dot={false} connectNulls />
                 </LineChart>
               </ResponsiveContainer>
               <div className="flex gap-3 justify-center text-[10px] text-muted-foreground mt-1">
                 <span className="flex items-center gap-1"><span className="w-3 h-2 bg-blue-100 rounded" /> {'< 0.8 Bajo'}</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-2 bg-green-100 rounded" /> 0.8-1.3 Optimo</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-2 bg-orange-100 rounded" /> 1.3-1.5 Alto</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-2 bg-red-100 rounded" /> {'> 1.5 Critico'}</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-2 bg-green-100 rounded" /> 0.8-1.5 Optimo</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-2 bg-orange-100 rounded" /> 1.5-2.0 Alto</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-2 bg-red-100 rounded" /> {'> 2.0 Critico'}</span>
               </div>
             </CardContent>
           </Card>
