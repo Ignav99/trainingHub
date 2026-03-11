@@ -362,8 +362,8 @@ def _compute_ewma_series(
         ewma_acute = load_total * EWMA_ACUTE_LAMBDA + ewma_acute * (1 - EWMA_ACUTE_LAMBDA)
         ewma_chronic = load_total * EWMA_CHRONIC_LAMBDA + ewma_chronic * (1 - EWMA_CHRONIC_LAMBDA)
 
-        # ACWR
-        acwr = round(ewma_acute / ewma_chronic, 3) if ewma_chronic > 10 else None
+        # ACWR — only meaningful when chronic has built up enough (≈3+ days training)
+        acwr = round(ewma_acute / ewma_chronic, 3) if ewma_chronic > 50 else None
 
         # Monotonia & strain (rolling 7-day window)
         last_7_totals.append(load_total)
@@ -452,8 +452,12 @@ def recalculate_player_load(jugador_id: UUID, equipo_id: UUID) -> dict:
     strain = today_entry["strain"] if today_entry else None
     nivel = _determine_nivel(acwr)
 
-    # Override for injured/sick players
-    if jugador_estado in ("lesionado", "enfermo"):
+    # When ACWR can't be calculated (low chronic), use acute to determine level
+    if acwr is None and ewma_acute < 5:
+        nivel = "bajo"  # insufficient training stimulus
+
+    # Override for injured/sick/recovering players
+    if jugador_estado in ("lesionado", "enfermo", "en_recuperacion"):
         nivel = "bajo"
 
     # Last activity & inactivity days
