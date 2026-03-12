@@ -141,6 +141,150 @@ def render_pitch_svg(pitch_type: str = "full") -> str:
     return svg
 
 
+# ============ ABP Pitch (goal at bottom — matching ABPPitch.tsx) ============
+
+ABP_PITCH_CONFIGS = {
+    "abp_half": {"viewbox": "0 0 680 525", "width": 680, "height": 525},
+    "abp_full": {"viewbox": "0 0 680 1050", "width": 680, "height": 1050},
+}
+
+
+def render_abp_pitch_svg(pitch_type: str = "abp_half") -> str:
+    """
+    Render ABP football pitch SVG (goal at BOTTOM).
+    Matches ABPPitch.tsx coordinate system exactly.
+    """
+    config = ABP_PITCH_CONFIGS.get(pitch_type, ABP_PITCH_CONFIGS["abp_half"])
+    vbW = config["width"]
+    vbH = config["height"]
+    is_half = pitch_type == "abp_half"
+
+    grassColor = "#2D5016"
+    grassLight = "#3D6B1E"
+    lc = "#FFFFFF"
+    lw = "2"
+    lw_thin = "1.5"
+
+    # Grass stripes (horizontal)
+    svg = f'<defs><pattern id="abpGrass" patternUnits="userSpaceOnUse" width="680" height="60">'
+    svg += f'<rect width="680" height="30" fill="{grassColor}"/>'
+    svg += f'<rect y="30" width="680" height="30" fill="{grassLight}"/>'
+    svg += '</pattern></defs>'
+    svg += f'<rect width="{vbW}" height="{vbH}" fill="url(#abpGrass)"/>'
+
+    # Field boundaries (25-unit padding)
+    L = 25
+    R = vbW - 25   # 655
+    T = 25
+    B = 500 if is_half else 1025  # goal line
+    FW = R - L      # 630
+    CX = vbW / 2    # 340
+
+    # Penalty area: 201.5 each side of center
+    paL = CX - 201.5
+    paR = CX + 201.5
+    paT = B - 165
+
+    # Goal area
+    gaL = CX - 91.5
+    gaR = CX + 91.5
+    gaT = B - 55
+
+    # Penalty spot
+    penY = B - 110
+
+    # Penalty arc
+    arcR = 91.5
+    dY = paT - penY
+    arcHalfX = math.sqrt(arcR * arcR - dY * dY)
+    arcX1 = CX - arcHalfX
+    arcX2 = CX + arcHalfX
+
+    # Goal posts
+    gpL = CX - 36.5
+    gpR = CX + 36.5
+
+    # Field outline
+    svg += f'<rect x="{L}" y="{T}" width="{FW}" height="{B - T}" fill="none" stroke="{lc}" stroke-width="{lw}"/>'
+
+    # Centre line / half-field top line
+    if is_half:
+        svg += f'<line x1="{L}" y1="{T}" x2="{R}" y2="{T}" stroke="{lc}" stroke-width="{lw_thin}" stroke-dasharray="10,5" opacity="0.5"/>'
+        svg += f'<circle cx="{CX}" cy="{T}" r="91.5" fill="none" stroke="{lc}" stroke-width="{lw_thin}" stroke-dasharray="10,5" opacity="0.5"/>'
+    else:
+        mid = vbH / 2
+        svg += f'<line x1="{L}" y1="{mid}" x2="{R}" y2="{mid}" fill="none" stroke="{lc}" stroke-width="{lw_thin}"/>'
+        svg += f'<circle cx="{CX}" cy="{mid}" r="91.5" fill="none" stroke="{lc}" stroke-width="{lw_thin}"/>'
+        svg += f'<circle cx="{CX}" cy="{mid}" r="3" fill="{lc}"/>'
+
+    # Bottom penalty area
+    svg += f'<rect x="{paL}" y="{paT}" width="{paR - paL}" height="{B - paT}" fill="none" stroke="{lc}" stroke-width="{lw_thin}"/>'
+    # Goal area
+    svg += f'<rect x="{gaL}" y="{gaT}" width="{gaR - gaL}" height="{B - gaT}" fill="none" stroke="{lc}" stroke-width="{lw_thin}"/>'
+    # Penalty spot
+    svg += f'<circle cx="{CX}" cy="{penY}" r="3" fill="{lc}"/>'
+    # Penalty arc (outside box)
+    svg += f'<path d="M {arcX1} {paT} A {arcR} {arcR} 0 0 1 {arcX2} {paT}" fill="none" stroke="{lc}" stroke-width="{lw_thin}"/>'
+    # Goal (below goal line)
+    svg += f'<rect x="{gpL}" y="{B}" width="{gpR - gpL}" height="15" fill="none" stroke="{lc}" stroke-width="3"/>'
+    svg += f'<rect x="{gpL + 2}" y="{B}" width="{gpR - gpL - 4}" height="12" fill="{lc}" opacity="0.15"/>'
+
+    # Corner arcs
+    svg += f'<path d="M {L} {B - 10} A 10 10 0 0 0 {L + 10} {B}" fill="none" stroke="{lc}" stroke-width="{lw_thin}"/>'
+    svg += f'<path d="M {R - 10} {B} A 10 10 0 0 0 {R} {B - 10}" fill="none" stroke="{lc}" stroke-width="{lw_thin}"/>'
+    svg += f'<path d="M {L + 10} {T} A 10 10 0 0 0 {L} {T + 10}" fill="none" stroke="{lc}" stroke-width="{lw_thin}"/>'
+    svg += f'<path d="M {R} {T + 10} A 10 10 0 0 0 {R - 10} {T}" fill="none" stroke="{lc}" stroke-width="{lw_thin}"/>'
+
+    # Full-field: top penalty area + goal
+    if not is_half:
+        topPaT = T + 165
+        topPenY = T + 110
+        topDY = topPenY - T  # not needed, we draw arc at topPaT
+        topArcDY = topPaT - topPenY
+        topArcHalfX = math.sqrt(arcR * arcR - topArcDY * topArcDY)
+        svg += f'<rect x="{paL}" y="{T}" width="{paR - paL}" height="165" fill="none" stroke="{lc}" stroke-width="{lw_thin}"/>'
+        svg += f'<rect x="{gaL}" y="{T}" width="{gaR - gaL}" height="55" fill="none" stroke="{lc}" stroke-width="{lw_thin}"/>'
+        svg += f'<circle cx="{CX}" cy="{topPenY}" r="3" fill="{lc}"/>'
+        svg += f'<path d="M {CX - topArcHalfX} {topPaT} A {arcR} {arcR} 0 0 0 {CX + topArcHalfX} {topPaT}" fill="none" stroke="{lc}" stroke-width="{lw_thin}"/>'
+        svg += f'<rect x="{gpL}" y="{T - 15}" width="{gpR - gpL}" height="15" fill="none" stroke="{lc}" stroke-width="3"/>'
+
+    return svg
+
+
+def render_abp_diagram_svg(
+    diagram_data: dict,
+    width: str = "100%",
+    height: str = "100%",
+    diagram_id: str = "",
+) -> str:
+    """Render a complete ABP diagram with ABP pitch (goal at bottom)."""
+    _reset_arrow_counter()
+
+    if not diagram_data:
+        return ""
+
+    pitch_type = diagram_data.get("pitchType", "half")
+    # Map standard pitch types to ABP equivalents
+    if pitch_type == "full":
+        abp_type = "abp_full"
+    else:
+        abp_type = "abp_half"
+
+    config = ABP_PITCH_CONFIGS.get(abp_type, ABP_PITCH_CONFIGS["abp_half"])
+    viewbox = config["viewbox"]
+
+    inner = render_abp_pitch_svg(abp_type)
+
+    for zone in diagram_data.get("zones", []):
+        inner += _render_zone_svg(zone)
+    for arrow in diagram_data.get("arrows", []):
+        inner += render_arrow_svg(arrow)
+    for element in diagram_data.get("elements", []):
+        inner += render_element_svg(element)
+
+    return f'<svg width="{width}" height="{height}" viewBox="{viewbox}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" style="display:block;">{inner}</svg>'
+
+
 # ============ XML helpers ============
 
 def _escape_xml(text: str) -> str:
@@ -183,8 +327,10 @@ def render_element_svg(element: dict) -> str:
     Players use top-down cenital view: body ellipse + head circle.
     """
     el_type = element.get("type", "player")
-    x = element.get("x", 0)
-    y = element.get("y", 0)
+    # Support both flat x/y and nested position:{x,y} formats
+    pos = element.get("position", {})
+    x = pos.get("x", element.get("x", 0))
+    y = pos.get("y", element.get("y", 0))
     color = element.get("color", TEAM_COLORS.get("team1", "#3B82F6"))
     label = element.get("label", "")
 

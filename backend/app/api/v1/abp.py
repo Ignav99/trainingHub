@@ -13,6 +13,7 @@ from app.models.abp import (
     ABPJugadaCreate, ABPJugadaUpdate, ABPJugadaResponse,
     ABPRivalJugadaCreate, ABPRivalJugadaUpdate,
     ABPPartidoJugadaCreate, ABPSesionJugadaCreate,
+    ABPPartidoPlanFullSave,
 )
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
@@ -346,6 +347,98 @@ async def unlink_jugada_from_sesion(
     return None
 
 
+# ============ Partido Plan (Comments + Bulk Jugadas) ============
+
+@router.get("/partido/{partido_id}/plan")
+async def get_partido_plan(
+    partido_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.ABP_READ)),
+):
+    """Get ABP match plan: comments + assigned plays with jugada data."""
+    supabase = get_supabase()
+
+    # Get plan (comments)
+    plan_resp = supabase.table("abp_partido_plan").select("*").eq(
+        "partido_id", str(partido_id)
+    ).execute()
+    plan = plan_resp.data[0] if plan_resp.data else None
+
+    # Get assigned jugadas with full jugada data
+    jugadas_resp = supabase.table("abp_partido_jugadas").select(
+        "*, abp_jugadas(*)"
+    ).eq("partido_id", str(partido_id)).order("orden").execute()
+
+    jugadas = []
+    for row in (jugadas_resp.data or []):
+        jugada = row.pop("abp_jugadas", None)
+        row["jugada"] = jugada
+        jugadas.append(row)
+
+    return {"plan": plan, "jugadas": jugadas}
+
+
+@router.put("/partido/{partido_id}/plan")
+async def save_partido_plan(
+    partido_id: UUID,
+    data: ABPPartidoPlanFullSave,
+    auth: AuthContext = Depends(require_permission(Permission.ABP_CREATE)),
+):
+    """Atomic save: upsert plan comments + replace all jugadas."""
+    supabase = get_supabase()
+    org_id = str(auth.organizacion_id)
+    pid = str(partido_id)
+
+    # 1. Upsert plan (comments)
+    plan_row = {
+        "partido_id": pid,
+        "organizacion_id": org_id,
+        "comentario_ofensivo": data.comentario_ofensivo,
+        "comentario_defensivo": data.comentario_defensivo,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    plan_resp = supabase.table("abp_partido_plan").upsert(
+        plan_row, on_conflict="partido_id"
+    ).execute()
+    plan = plan_resp.data[0] if plan_resp.data else None
+
+    # 2. Delete ALL existing jugadas for this partido
+    supabase.table("abp_partido_jugadas").delete().eq(
+        "partido_id", pid
+    ).execute()
+
+    # 3. Insert new jugadas
+    new_jugadas = []
+    for item in data.jugadas:
+        row = {
+            "partido_id": pid,
+            "jugada_id": item.jugada_id,
+            "notas": item.notas,
+            "orden": item.orden,
+        }
+        if item.asignaciones_override:
+            row["asignaciones_override"] = [
+                a if isinstance(a, dict) else a.model_dump()
+                for a in item.asignaciones_override
+            ]
+        new_jugadas.append(row)
+
+    if new_jugadas:
+        supabase.table("abp_partido_jugadas").insert(new_jugadas).execute()
+
+    # 4. Re-fetch jugadas with full data
+    jugadas_resp = supabase.table("abp_partido_jugadas").select(
+        "*, abp_jugadas(*)"
+    ).eq("partido_id", pid).order("orden").execute()
+
+    jugadas = []
+    for row in (jugadas_resp.data or []):
+        jugada = row.pop("abp_jugadas", None)
+        row["jugada"] = jugada
+        jugadas.append(row)
+
+    return {"plan": plan, "jugadas": jugadas}
+
+
 # ============ PDF Export ============
 
 @router.get("/playbook-pdf")
@@ -395,11 +488,12 @@ async def get_partido_abp_pdf(
     from app.services.pdf_service import generate_abp_partido_pdf
 
     supabase = get_supabase()
+    pid = str(partido_id)
 
     # Get assigned plays with full jugada data
     response = supabase.table("abp_partido_jugadas").select(
         "*, abp_jugadas(*)"
-    ).eq("partido_id", str(partido_id)).order("orden").execute()
+    ).eq("partido_id", pid).order("orden").execute()
 
     jugadas_partido = []
     for row in (response.data or []):
@@ -410,7 +504,7 @@ async def get_partido_abp_pdf(
     # Get match info
     partido_resp = supabase.table("partidos").select(
         "*, rivales(nombre)"
-    ).eq("id", str(partido_id)).execute()
+    ).eq("id", pid).execute()
     partido = partido_resp.data[0] if partido_resp.data else {}
 
     # Get rival plays if rival exists
@@ -422,7 +516,38 @@ async def get_partido_abp_pdf(
         ).order("tipo").execute()
         rival_jugadas = rival_resp.data or []
 
-    pdf_bytes = generate_abp_partido_pdf(jugadas_partido, rival_jugadas, partido)
+    # Get plan (comments)
+    plan_resp = supabase.table("abp_partido_plan").select("*").eq(
+        "partido_id", pid
+    ).execute()
+    plan = plan_resp.data[0] if plan_resp.data else None
+
+    # Get team players for assignment resolution
+    equipo_id = partido.get("equipo_id")
+    jugadores_map = {}
+    equipo_nombre = ""
+    if equipo_id:
+        jugadores_resp = supabase.table("jugadores").select(
+            "id, nombre, apellidos, dorsal"
+        ).eq("equipo_id", str(equipo_id)).eq("activo", True).execute()
+        for j in (jugadores_resp.data or []):
+            jugadores_map[j["id"]] = j
+        equipo_resp = supabase.table("equipos").select("nombre").eq(
+            "id", str(equipo_id)
+        ).execute()
+        equipo_nombre = equipo_resp.data[0]["nombre"] if equipo_resp.data else ""
+
+    # Get organization info
+    org_resp = supabase.table("organizaciones").select(
+        "nombre, logo_url, color_primario"
+    ).eq("id", str(auth.organizacion_id)).execute()
+    organizacion = org_resp.data[0] if org_resp.data else {}
+
+    pdf_bytes = generate_abp_partido_pdf(
+        jugadas_partido, rival_jugadas, partido,
+        plan=plan, jugadores_map=jugadores_map,
+        equipo_nombre=equipo_nombre, organizacion=organizacion,
+    )
     rival_nombre = partido.get("rivales", {}).get("nombre", "rival") if partido.get("rivales") else "rival"
     return Response(
         content=pdf_bytes,

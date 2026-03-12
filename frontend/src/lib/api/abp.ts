@@ -1,5 +1,5 @@
 import { api } from './client'
-import { ABPJugada, ABPRivalJugada, ABPPartidoJugada, ABPSesionJugada } from '@/types'
+import { ABPJugada, ABPRivalJugada, ABPPartidoJugada, ABPSesionJugada, ABPPartidoPlanFull } from '@/types'
 
 export interface ABPJugadaCreateData {
   equipo_id?: string
@@ -73,6 +73,20 @@ export const abpApi = {
 
   async unassignFromPartido(partidoId: string, jugadaId: string): Promise<void> {
     return api.delete(`/abp/partido/${partidoId}/${jugadaId}`)
+  },
+
+  // ============ Partido Plan (workflow) ============
+
+  async getPlan(partidoId: string): Promise<ABPPartidoPlanFull> {
+    return api.get<ABPPartidoPlanFull>(`/abp/partido/${partidoId}/plan`)
+  },
+
+  async savePlan(partidoId: string, data: {
+    comentario_ofensivo?: string
+    comentario_defensivo?: string
+    jugadas: { jugada_id: string; asignaciones_override?: any[]; notas?: string; orden: number }[]
+  }): Promise<ABPPartidoPlanFull> {
+    return api.put<ABPPartidoPlanFull>(`/abp/partido/${partidoId}/plan`, data)
   },
 
   // ============ Rival ============

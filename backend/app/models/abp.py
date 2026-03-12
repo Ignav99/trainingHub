@@ -208,3 +208,32 @@ class ABPSesionJugadaResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ============ Schemas de Partido Plan ============
+
+class ABPPartidoPlanJugadaItem(BaseModel):
+    jugada_id: str
+    asignaciones_override: Optional[List[ABPAsignacion]] = None
+    notas: Optional[str] = None
+    orden: int = 0
+
+
+class ABPPartidoPlanFullSave(BaseModel):
+    comentario_ofensivo: Optional[str] = None
+    comentario_defensivo: Optional[str] = None
+    jugadas: List[ABPPartidoPlanJugadaItem] = Field(default_factory=list)
+
+
+class ABPPartidoPlanResponse(BaseModel):
+    id: Optional[UUID] = None
+    partido_id: UUID
+    comentario_ofensivo: Optional[str] = None
+    comentario_defensivo: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class ABPPartidoPlanFullResponse(BaseModel):
+    plan: Optional[ABPPartidoPlanResponse] = None
+    jugadas: List[ABPPartidoJugadaResponse] = Field(default_factory=list)

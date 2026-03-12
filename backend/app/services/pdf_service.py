@@ -724,38 +724,93 @@ def generate_abp_partido_pdf(
     jugadas_partido: list[dict],
     rival_jugadas: list[dict],
     partido: dict,
+    plan: Optional[dict] = None,
+    jugadores_map: Optional[dict] = None,
+    equipo_nombre: str = "",
+    organizacion: Optional[dict] = None,
 ) -> bytes:
-    """Genera PDF del plan ABP para un partido específico."""
+    """Genera PDF profesional del plan ABP para un partido (vestuario)."""
+    from app.services.svg_renderer import render_abp_diagram_svg
+
     env = _get_jinja_env_v2()
     template = env.get_template("abp_partido_pdf.html")
 
-    for jp in jugadas_partido:
+    # Render diagrams for our plays using ABP pitch (goal at bottom)
+    for idx, jp in enumerate(jugadas_partido):
         jugada = jp.get("jugada") or {}
         fases = jugada.get("fases") or []
-        rendered = []
-        for i, fase in enumerate(fases):
-            svg = _render_abp_diagram_svg(fase, diagram_id=f"own_{i}")
-            rendered.append({**fase, "svg": svg})
-        jugada["rendered_fases"] = rendered
+        # Use first phase diagram as the main diagram
+        if fases:
+            diagram = fases[0].get("diagram", {})
+            jugada["main_svg"] = render_abp_diagram_svg(diagram, diagram_id=f"own_{idx}") if diagram and diagram.get("elements") else ""
+        else:
+            jugada["main_svg"] = ""
 
-    for rj in rival_jugadas:
+        # Resolve player assignments
+        asignaciones = jp.get("asignaciones_override") or jugada.get("asignaciones") or []
+        resolved = []
+        for asig in asignaciones:
+            jid = asig.get("jugador_id")
+            player = jugadores_map.get(jid, {}) if jugadores_map and jid else {}
+            resolved.append({
+                "element_id": asig.get("element_id", ""),
+                "rol": asig.get("rol", ""),
+                "jugador_nombre": f"{player.get('nombre', '')} {player.get('apellidos', '')}".strip() if player else "",
+                "dorsal": player.get("dorsal", "") if player else "",
+            })
+        jp["resolved_asignaciones"] = [r for r in resolved if r["jugador_nombre"]]
+
+    # Render diagrams for rival plays
+    for idx, rj in enumerate(rival_jugadas):
         fases = rj.get("fases") or []
-        rendered = []
-        for i, fase in enumerate(fases):
-            svg = _render_abp_diagram_svg(fase, diagram_id=f"rival_{i}")
-            rendered.append({**fase, "svg": svg})
-        rj["rendered_fases"] = rendered
+        if fases:
+            diagram = fases[0].get("diagram", {})
+            rj["main_svg"] = render_abp_diagram_svg(diagram, diagram_id=f"rival_{idx}") if diagram and diagram.get("elements") else ""
+        else:
+            rj["main_svg"] = ""
 
     rival_info = partido.get("rivales") or {}
     rival_nombre = rival_info.get("nombre", "Rival")
 
+    # Separate by lado
+    ofensivas = [jp for jp in jugadas_partido if (jp.get("jugada") or {}).get("lado") == "ofensivo"]
+    defensivas = [jp for jp in jugadas_partido if (jp.get("jugada") or {}).get("lado") == "defensivo"]
+
+    org = organizacion or {}
+    color_primario = org.get("color_primario", "#1a365d")
+
+    ABP_ROL_LABELS = {
+        "lanzador": "Lanzador",
+        "bloqueador": "Bloqueador",
+        "palo_corto": "Palo corto",
+        "palo_largo": "Palo largo",
+        "borde_area": "Borde área",
+        "señuelo": "Señuelo",
+        "rechace": "Rechace",
+        "referencia": "Referencia",
+        "barrera": "Barrera",
+        "marcaje_zonal": "Marcaje zonal",
+        "marcaje_individual": "Marcaje individual",
+        "portero": "Portero",
+        "otro": "Otro",
+    }
+
     html_content = template.render(
         jugadas_partido=jugadas_partido,
+        ofensivas=ofensivas,
+        defensivas=defensivas,
         rival_jugadas=rival_jugadas,
         partido=partido,
         rival_nombre=rival_nombre,
+        plan=plan or {},
+        equipo_nombre=equipo_nombre,
+        org_nombre=org.get("nombre", ""),
+        color_primario=color_primario,
         tipo_labels=ABP_TIPO_LABELS,
         lado_labels=ABP_LADO_LABELS,
+        rol_labels=ABP_ROL_LABELS,
+        total_ofensivas=len(ofensivas),
+        total_defensivas=len(defensivas),
     )
 
     try:

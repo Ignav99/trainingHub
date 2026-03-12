@@ -286,6 +286,10 @@ from app.models.abp import (
     ABPPartidoJugadaResponse,
     ABPSesionJugadaCreate,
     ABPSesionJugadaResponse,
+    ABPPartidoPlanJugadaItem,
+    ABPPartidoPlanFullSave,
+    ABPPartidoPlanResponse,
+    ABPPartidoPlanFullResponse,
 )
 
 from app.models.medico import (
@@ -409,4 +413,6 @@ __all__ = [
     "ABPRivalJugadaBase", "ABPRivalJugadaCreate", "ABPRivalJugadaUpdate", "ABPRivalJugadaResponse",
     "ABPPartidoJugadaCreate", "ABPPartidoJugadaResponse",
     "ABPSesionJugadaCreate", "ABPSesionJugadaResponse",
+    "ABPPartidoPlanJugadaItem", "ABPPartidoPlanFullSave",
+    "ABPPartidoPlanResponse", "ABPPartidoPlanFullResponse",
 ]

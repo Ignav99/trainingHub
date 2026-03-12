@@ -3,101 +3,256 @@
 <head>
     <meta charset="UTF-8">
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&display=swap');
+
+        @page {
+            size: A4;
+            margin: 15mm;
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            margin: 30px 40px;
+            font-family: 'Barlow Condensed', 'Helvetica Neue', Arial, sans-serif;
             color: #1a1a2e;
             font-size: 13px;
-            line-height: 1.5;
+            line-height: 1.4;
         }
-        .header {
-            text-align: center;
-            padding-bottom: 20px;
-            border-bottom: 3px solid #F97316;
-            margin-bottom: 30px;
+
+        /* ===== COVER PAGE ===== */
+        .cover {
+            page-break-after: always;
+            min-height: 100%;
         }
-        .header h1 {
-            font-size: 24px;
+
+        .cover-header {
+            background: {{ color_primario or '#1a365d' }};
+            color: white;
+            padding: 24px 28px;
+            border-radius: 10px;
+            margin-bottom: 24px;
+        }
+        .cover-header h1 {
+            font-size: 28px;
             font-weight: 800;
-            color: #F97316;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
         }
-        .header .match-info {
-            font-size: 14px;
-            color: #666;
-            margin-top: 5px;
+        .cover-header .subtitle {
+            font-size: 16px;
+            font-weight: 500;
+            opacity: 0.85;
         }
-        .section-title {
-            font-size: 18px;
+        .cover-header .match-meta {
+            font-size: 12px;
+            opacity: 0.65;
+            margin-top: 6px;
+        }
+
+        /* Comments boxes */
+        .comments-row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .comment-box {
+            flex: 1;
+            border-radius: 10px;
+            padding: 16px 18px;
+            min-height: 80px;
+        }
+        .comment-box.ataque {
+            background: #EFF6FF;
+            border: 2px solid #3B82F6;
+        }
+        .comment-box.defensa {
+            background: #FEF2F2;
+            border: 2px solid #EF4444;
+        }
+        .comment-box h3 {
+            font-size: 13px;
             font-weight: 700;
-            color: #1E40AF;
-            border-bottom: 2px solid #1E40AF;
-            padding-bottom: 6px;
-            margin: 25px 0 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        .comment-box.ataque h3 { color: #1E40AF; }
+        .comment-box.defensa h3 { color: #991B1B; }
+        .comment-box p {
+            font-size: 12px;
+            line-height: 1.5;
+            color: #333;
+            white-space: pre-line;
+        }
+
+        /* Summary */
+        .summary {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 16px 18px;
+        }
+        .summary h3 {
+            font-size: 14px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .summary-stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 12px;
+        }
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .stat-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        .stat-dot.of { background: #3B82F6; }
+        .stat-dot.df { background: #EF4444; }
+        .stat-label { font-size: 12px; color: #666; }
+        .stat-num { font-size: 14px; font-weight: 700; color: #333; }
+
+        .play-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .play-chip {
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        .play-chip.of { background: #DBEAFE; color: #1E40AF; }
+        .play-chip.df { background: #FEE2E2; color: #991B1B; }
+
+        /* ===== PLAY PAGES ===== */
+        .section-header {
+            font-size: 18px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 8px 14px;
+            border-radius: 6px;
+            margin-bottom: 16px;
             page-break-after: avoid;
         }
-        .section-title.rival {
-            color: #991B1B;
-            border-bottom-color: #991B1B;
+        .section-header.of {
+            background: #1E40AF;
+            color: white;
         }
+        .section-header.df {
+            background: #991B1B;
+            color: white;
+        }
+
         .play-card {
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 14px;
-            margin-bottom: 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 20px;
             page-break-inside: avoid;
         }
+
+        .play-title-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
         .play-name {
-            font-size: 15px;
+            font-size: 16px;
             font-weight: 700;
             color: #1a1a2e;
         }
+        .play-code {
+            font-size: 11px;
+            font-family: monospace;
+            padding: 2px 6px;
+            background: #f1f5f9;
+            border-radius: 3px;
+            color: #475569;
+        }
+
         .play-meta {
             font-size: 11px;
             color: #666;
-            margin: 4px 0 8px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
         .badge {
             display: inline-block;
             padding: 2px 8px;
             border-radius: 4px;
             font-size: 10px;
-            font-weight: 600;
-            margin-right: 4px;
+            font-weight: 700;
         }
         .badge-tipo { background: #F3F4F6; color: #374151; }
-        .badge-of { background: #DBEAFE; color: #1E40AF; }
-        .badge-df { background: #FEE2E2; color: #991B1B; }
-        .play-desc {
-            font-size: 12px;
-            color: #444;
-            margin-bottom: 8px;
-        }
-        .phase {
-            margin-top: 8px;
-            padding: 8px;
-            background: #f8fafc;
-            border-radius: 6px;
-        }
-        .phase-name {
-            font-size: 12px;
-            font-weight: 600;
-            color: #F97316;
-            margin-bottom: 4px;
-        }
-        .phase-desc {
-            font-size: 11px;
-            color: #555;
-        }
+        .badge-senal { background: #FEF3C7; color: #92400E; }
+
         .diagram-container {
-            margin-top: 8px;
             text-align: center;
+            margin: 10px 0;
         }
         .diagram-container svg {
             max-width: 100%;
-            height: auto;
+            max-height: 340px;
         }
-        .notes {
+
+        .asignaciones {
+            margin-top: 10px;
+            padding: 10px 12px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        .asignaciones h4 {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #666;
+            margin-bottom: 6px;
+        }
+        .asig-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 3px 0;
+            font-size: 12px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .asig-row:last-child { border-bottom: none; }
+        .asig-dorsal {
+            font-weight: 700;
+            color: {{ color_primario or '#1a365d' }};
+            min-width: 24px;
+        }
+        .asig-name { font-weight: 600; color: #333; }
+        .asig-arrow { color: #94a3b8; }
+        .asig-rol {
+            font-size: 11px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .play-desc {
+            font-size: 12px;
+            color: #444;
+            margin-top: 8px;
+            line-height: 1.5;
+            white-space: pre-line;
+        }
+
+        .play-notes {
             font-size: 11px;
             color: #555;
             font-style: italic;
@@ -105,6 +260,15 @@
             padding-top: 6px;
             border-top: 1px solid #eee;
         }
+
+        /* Footer */
+        .footer {
+            font-size: 9px;
+            color: #aaa;
+            text-align: center;
+            margin-top: 16px;
+        }
+
         .empty {
             color: #aaa;
             font-style: italic;
@@ -114,82 +278,163 @@
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>Plan ABP - Partido</h1>
-        <div class="match-info">vs {{ rival_nombre }}</div>
+    <!-- ===== PAGE 1: COVER ===== -->
+    <div class="cover">
+        <div class="cover-header">
+            <h1>ABP Plan de Partido</h1>
+            <div class="subtitle">{% if equipo_nombre %}{{ equipo_nombre }} vs {% endif %}{{ rival_nombre }}</div>
+            <div class="match-meta">
+                {% if partido.fecha %}{{ partido.fecha }}{% endif %}
+                {% if partido.hora %} · {{ partido.hora }}{% endif %}
+                {% if partido.competicion %} · {{ partido.competicion }}{% endif %}
+                {% if partido.jornada %} · J{{ partido.jornada }}{% endif %}
+                {% if partido.localia %} · {{ partido.localia | upper }}{% endif %}
+            </div>
+        </div>
+
+        <!-- Comments -->
+        {% if plan.comentario_ofensivo or plan.comentario_defensivo %}
+        <div class="comments-row">
+            <div class="comment-box ataque">
+                <h3>Ataque</h3>
+                <p>{{ plan.comentario_ofensivo or 'Sin comentarios' }}</p>
+            </div>
+            <div class="comment-box defensa">
+                <h3>Defensa</h3>
+                <p>{{ plan.comentario_defensivo or 'Sin comentarios' }}</p>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Summary -->
+        <div class="summary">
+            <h3>Resumen</h3>
+            <div class="summary-stats">
+                <div class="stat">
+                    <div class="stat-dot of"></div>
+                    <span class="stat-num">{{ total_ofensivas }}</span>
+                    <span class="stat-label">ofensiva{{ 's' if total_ofensivas != 1 }}</span>
+                </div>
+                <div class="stat">
+                    <div class="stat-dot df"></div>
+                    <span class="stat-num">{{ total_defensivas }}</span>
+                    <span class="stat-label">defensiva{{ 's' if total_defensivas != 1 }}</span>
+                </div>
+            </div>
+
+            {% if jugadas_partido %}
+            <div class="play-list">
+                {% for jp in jugadas_partido %}
+                {% set play = jp.jugada %}
+                {% if play %}
+                <span class="play-chip {% if play.lado == 'ofensivo' %}of{% else %}df{% endif %}">
+                    {% if play.codigo %}{{ play.codigo }} — {% endif %}{{ play.nombre }}
+                </span>
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
     </div>
 
-    <!-- Our plays -->
-    <h2 class="section-title">Nuestras jugadas</h2>
-    {% if jugadas_partido %}
-    {% for jp in jugadas_partido %}
+    <!-- ===== OFFENSIVE PLAYS ===== -->
+    {% if ofensivas %}
+    <div class="section-header of">Ofensivas ({{ ofensivas | length }})</div>
+    {% for jp in ofensivas %}
     {% set play = jp.jugada %}
     {% if play %}
     <div class="play-card">
-        <div class="play-name">{{ play.nombre }}</div>
+        <div class="play-title-row">
+            <span class="play-name">{{ play.nombre }}</span>
+            {% if play.codigo %}<span class="play-code">{{ play.codigo }}</span>{% endif %}
+        </div>
         <div class="play-meta">
             <span class="badge badge-tipo">{{ tipo_labels.get(play.tipo, play.tipo) }}</span>
-            <span class="badge {% if play.lado == 'ofensivo' %}badge-of{% else %}badge-df{% endif %}">
-                {{ lado_labels.get(play.lado, play.lado) }}
-            </span>
+            {% if play.senal_codigo %}<span class="badge badge-senal">Senal: {{ play.senal_codigo }}</span>{% endif %}
+            {% if play.subtipo %}<span>{{ play.subtipo }}</span>{% endif %}
         </div>
+
+        {% if play.main_svg %}
+        <div class="diagram-container">{{ play.main_svg }}</div>
+        {% endif %}
+
+        {% if jp.resolved_asignaciones %}
+        <div class="asignaciones">
+            <h4>Asignaciones</h4>
+            {% for asig in jp.resolved_asignaciones %}
+            <div class="asig-row">
+                {% if asig.dorsal %}<span class="asig-dorsal">#{{ asig.dorsal }}</span>{% endif %}
+                <span class="asig-name">{{ asig.jugador_nombre }}</span>
+                {% if asig.rol %}<span class="asig-arrow">→</span> <span class="asig-rol">{{ rol_labels.get(asig.rol, asig.rol) }}</span>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
 
         {% if play.descripcion %}
         <div class="play-desc">{{ play.descripcion }}</div>
         {% endif %}
 
-        {% for fase in play.rendered_fases %}
-        <div class="phase">
-            <div class="phase-name">{{ fase.nombre }}</div>
-            {% if fase.descripcion %}
-            <div class="phase-desc">{{ fase.descripcion }}</div>
-            {% endif %}
-            {% if fase.svg %}
-            <div class="diagram-container">{{ fase.svg }}</div>
-            {% endif %}
+        {% if jp.notas %}
+        <div class="play-notes">{{ jp.notas }}</div>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% endfor %}
+    {% endif %}
+
+    <!-- ===== DEFENSIVE PLAYS ===== -->
+    {% if defensivas %}
+    <div class="section-header df">Defensivas ({{ defensivas | length }})</div>
+    {% for jp in defensivas %}
+    {% set play = jp.jugada %}
+    {% if play %}
+    <div class="play-card">
+        <div class="play-title-row">
+            <span class="play-name">{{ play.nombre }}</span>
+            {% if play.codigo %}<span class="play-code">{{ play.codigo }}</span>{% endif %}
         </div>
-        {% endfor %}
+        <div class="play-meta">
+            <span class="badge badge-tipo">{{ tipo_labels.get(play.tipo, play.tipo) }}</span>
+            {% if play.senal_codigo %}<span class="badge badge-senal">Senal: {{ play.senal_codigo }}</span>{% endif %}
+            {% if play.subtipo %}<span>{{ play.subtipo }}</span>{% endif %}
+        </div>
+
+        {% if play.main_svg %}
+        <div class="diagram-container">{{ play.main_svg }}</div>
+        {% endif %}
+
+        {% if jp.resolved_asignaciones %}
+        <div class="asignaciones">
+            <h4>Asignaciones</h4>
+            {% for asig in jp.resolved_asignaciones %}
+            <div class="asig-row">
+                {% if asig.dorsal %}<span class="asig-dorsal">#{{ asig.dorsal }}</span>{% endif %}
+                <span class="asig-name">{{ asig.jugador_nombre }}</span>
+                {% if asig.rol %}<span class="asig-arrow">→</span> <span class="asig-rol">{{ rol_labels.get(asig.rol, asig.rol) }}</span>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if play.descripcion %}
+        <div class="play-desc">{{ play.descripcion }}</div>
+        {% endif %}
 
         {% if jp.notas %}
-        <div class="notes">Notas partido: {{ jp.notas }}</div>
+        <div class="play-notes">{{ jp.notas }}</div>
         {% endif %}
     </div>
     {% endif %}
     {% endfor %}
-    {% else %}
-    <div class="empty">No hay jugadas asignadas a este partido</div>
     {% endif %}
 
-    <!-- Rival plays -->
-    {% if rival_jugadas %}
-    <h2 class="section-title rival">Jugadas del rival ({{ rival_nombre }})</h2>
-    {% for rj in rival_jugadas %}
-    <div class="play-card">
-        <div class="play-name">{{ rj.nombre }}</div>
-        <div class="play-meta">
-            <span class="badge badge-tipo">{{ tipo_labels.get(rj.tipo, rj.tipo) }}</span>
-            <span class="badge {% if rj.lado == 'ofensivo' %}badge-of{% else %}badge-df{% endif %}">
-                {{ lado_labels.get(rj.lado, rj.lado) }}
-            </span>
-        </div>
+    {% if not jugadas_partido %}
+    <div class="empty">No hay jugadas ABP asignadas a este partido</div>
+    {% endif %}
 
-        {% if rj.descripcion %}
-        <div class="play-desc">{{ rj.descripcion }}</div>
-        {% endif %}
-
-        {% for fase in rj.rendered_fases %}
-        <div class="phase">
-            <div class="phase-name">{{ fase.nombre }}</div>
-            {% if fase.descripcion %}
-            <div class="phase-desc">{{ fase.descripcion }}</div>
-            {% endif %}
-            {% if fase.svg %}
-            <div class="diagram-container">{{ fase.svg }}</div>
-            {% endif %}
-        </div>
-        {% endfor %}
+    <div class="footer">
+        {% if org_nombre %}{{ org_nombre }} · {% endif %}Generado con TrainingHub Pro
     </div>
-    {% endfor %}
-    {% endif %}
 </body>
 </html>

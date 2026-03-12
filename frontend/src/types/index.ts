@@ -1534,6 +1534,21 @@ export interface ABPSesionJugada {
   jugada?: ABPJugada
 }
 
+// ABP Partido Plan
+export interface ABPPartidoPlan {
+  id: string
+  partido_id: string
+  comentario_ofensivo?: string
+  comentario_defensivo?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface ABPPartidoPlanFull {
+  plan: ABPPartidoPlan | null
+  jugadas: ABPPartidoJugada[]
+}
+
 // ABP Constants
 export const ABP_TIPOS: { value: TipoABP; label: string; pitchView: 'full' | 'half' }[] = [
   { value: 'corner', label: 'Corner', pitchView: 'half' },

@@ -2,13 +2,14 @@
 
 import { useState, useCallback } from 'react'
 import useSWR, { mutate } from 'swr'
-import { Flag, Plus, Download } from 'lucide-react'
+import { Flag, Plus, Download, FileText } from 'lucide-react'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { apiKey, apiFetcher } from '@/lib/swr'
 import { abpApi } from '@/lib/api/abp'
 import { ABPJugada } from '@/types'
 import ABPLibrary from '@/components/abp/ABPLibrary'
 import ABPEditor from '@/components/abp/ABPEditor'
+import ABPPreparePlan from '@/components/abp/ABPPreparePlan'
 
 export default function ABPPage() {
   const { equipoActivo } = useEquipoStore()
@@ -17,6 +18,7 @@ export default function ABPPage() {
   const [editorOpen, setEditorOpen] = useState(false)
   const [editingJugada, setEditingJugada] = useState<ABPJugada | null>(null)
   const [saving, setSaving] = useState(false)
+  const [prepareOpen, setPrepareOpen] = useState(false)
 
   // Fetch jugadas
   const swrKey = apiKey('/abp', { equipo_id: equipoId }, ['equipo_id'])
@@ -96,6 +98,11 @@ export default function ABPPage() {
     )
   }
 
+  // Full-screen prepare plan overlay
+  if (prepareOpen) {
+    return <ABPPreparePlan onClose={() => setPrepareOpen(false)} />
+  }
+
   // Full-screen editor overlay
   if (editorOpen) {
     return (
@@ -126,6 +133,13 @@ export default function ABPPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setPrepareOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            <FileText className="h-4 w-4" />
+            Preparar ABP Partido
+          </button>
           {jugadas.length > 0 && (
             <button
               onClick={handleDownloadPlaybook}
