@@ -22,7 +22,7 @@ from app.models import (
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
-from app.services.pre_match_service import populate_rival_intel
+from app.services.pre_match_service import populate_rival_intel, _match_rival_name
 from app.services.claude_service import ClaudeService, ClaudeError
 
 logger = logging.getLogger(__name__)
@@ -181,15 +181,50 @@ async def get_once_probable(
                 if nombre not in player_dorsals:
                     player_dorsals[nombre] = jugador.get("dorsal")
 
-    # Top 11 by frequency
-    top_11 = player_counts.most_common(11)
+    # Fetch tarjetas to cross-reference sanctions
+    tarjetas_query = supabase.table("rfef_actas").select(
+        "local_nombre, visitante_nombre, tarjetas_local, tarjetas_visitante, jornada_numero"
+    )
+    if competicion_id:
+        tarjetas_query = tarjetas_query.eq("competicion_id", str(competicion_id))
+    tarjetas_query = tarjetas_query.or_(
+        f"local_nombre.ilike.%{rival_nombre}%,visitante_nombre.ilike.%{rival_nombre}%"
+    ).order("jornada_numero")
+    tarjetas_res = tarjetas_query.execute()
+
+    sancionados = set()
+    tarjeta_cards: dict[str, dict] = {}
+    for acta in tarjetas_res.data or []:
+        local_lower_t = (acta.get("local_nombre") or "").lower()
+        if _match_rival_name(rival_lower, local_lower_t):
+            tarjetas = acta.get("tarjetas_local", [])
+        else:
+            tarjetas = acta.get("tarjetas_visitante", [])
+        for tarjeta in tarjetas:
+            nombre_t = tarjeta.get("jugador", "").strip()
+            tipo = tarjeta.get("tipo", "")
+            if not nombre_t:
+                continue
+            if nombre_t not in tarjeta_cards:
+                tarjeta_cards[nombre_t] = {"amarillas": 0}
+            if tipo == "amarilla":
+                tarjeta_cards[nombre_t]["amarillas"] += 1
+
+    for nombre_t, cards in tarjeta_cards.items():
+        amarillas = cards["amarillas"]
+        if amarillas > 0 and amarillas % 5 == 0:
+            sancionados.add(nombre_t)
+
+    # All players by frequency (not just top 11)
+    all_players = player_counts.most_common()
     once_probable = [
         {
             "nombre": nombre,
             "dorsal": player_dorsals.get(nombre),
             "apariciones": count,
+            "sancionado": nombre in sancionados,
         }
-        for nombre, count in top_11
+        for nombre, count in all_players
     ]
 
     return {

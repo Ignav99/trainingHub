@@ -66,8 +66,8 @@ def _get_goleadores_rival(comp: dict, rival_nombre: str) -> list[dict]:
     return result[:10]
 
 
-def _get_once_probable(supabase, comp_id: str, rival_nombre: str) -> dict:
-    """Calculate probable starting XI from last 5 actas."""
+def _get_once_probable(supabase, comp_id: str, rival_nombre: str, tarjetas_data: dict | None = None) -> dict:
+    """Calculate probable starting XI from last 5 actas, with sanction flags."""
     rival_lower = rival_nombre.lower()
 
     actas_res = supabase.table("rfef_actas").select(
@@ -94,12 +94,24 @@ def _get_once_probable(supabase, comp_id: str, rival_nombre: str) -> dict:
                 if nombre not in player_dorsals:
                     player_dorsals[nombre] = jugador.get("dorsal")
 
-    top_11 = player_counts.most_common(11)
+    # Build set of sanctioned player names from tarjetas data
+    sancionados = set()
+    if tarjetas_data:
+        for j in tarjetas_data.get("jugadores", []):
+            if j.get("estado") == "Sancionado":
+                sancionados.add(j["nombre"])
+
+    all_players = player_counts.most_common()
     return {
         "actas_analizadas": len(actas),
         "jugadores": [
-            {"nombre": nombre, "dorsal": player_dorsals.get(nombre), "apariciones": count}
-            for nombre, count in top_11
+            {
+                "nombre": nombre,
+                "dorsal": player_dorsals.get(nombre),
+                "apariciones": count,
+                "sancionado": nombre in sancionados,
+            }
+            for nombre, count in all_players
         ],
     }
 
@@ -283,21 +295,22 @@ def gather_rival_intel_standalone(
     if goleadores:
         intel["goleadores_rival"] = goleadores
 
-    # Once probable
-    try:
-        once = _get_once_probable(supabase, comp_id, rival_nombre)
-        if once.get("jugadores"):
-            intel["once_probable"] = once
-    except Exception as e:
-        logger.debug("Error getting once probable: %s", e)
-
-    # Tarjetas
+    # Tarjetas (fetch first so we can pass to once probable)
+    tarjetas = None
     try:
         tarjetas = _get_tarjetas(supabase, comp_id, rival_nombre)
         if tarjetas.get("jugadores"):
             intel["tarjetas"] = tarjetas
     except Exception as e:
         logger.debug("Error getting tarjetas: %s", e)
+
+    # Once probable (with sanction cross-reference)
+    try:
+        once = _get_once_probable(supabase, comp_id, rival_nombre, tarjetas_data=tarjetas)
+        if once.get("jugadores"):
+            intel["once_probable"] = once
+    except Exception as e:
+        logger.debug("Error getting once probable: %s", e)
 
     # Sanciones oficiales
     sanciones = _get_sanciones_oficiales(supabase, comp_id, rival_nombre)

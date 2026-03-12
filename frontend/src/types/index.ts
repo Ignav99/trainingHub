@@ -1220,6 +1220,7 @@ export interface OnceProbableJugador {
   nombre: string
   dorsal: number | null
   apariciones: number
+  sancionado?: boolean
 }
 
 export interface OnceProbableResponse {
