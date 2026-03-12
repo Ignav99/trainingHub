@@ -479,9 +479,13 @@ function PlanJugadaCard({ planJugada, jugadores, onRemove, onUpdateAsignacion, c
 
   // Get player/gk elements from first phase diagram
   const fase = jugada.fases?.[0]
-  const elements = (fase?.diagram?.elements || []).filter(
+  const allElements = fase?.diagram?.elements || []
+  const allArrows = fase?.diagram?.arrows || []
+  const elements = allElements.filter(
     (el: any) => el.type === 'player' || el.type === 'player_gk'
   )
+  const pitchView = jugada.tipo === 'falta_lejana' ? 'full' : 'half'
+  const hasDiagram = allElements.length > 0
 
   const borderColor = color === 'blue' ? 'border-blue-100' : 'border-red-100'
 
@@ -506,51 +510,95 @@ function PlanJugadaCard({ planJugada, jugadores, onRemove, onUpdateAsignacion, c
         </button>
       </div>
 
-      {/* Expanded: Assignments */}
-      {expanded && elements.length > 0 && (
+      {/* Expanded: Diagram + Assignments side by side */}
+      {expanded && (
         <div className="px-3 pb-3 border-t border-gray-100">
-          <div className="mt-2.5">
-            <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Asignaciones</label>
-            <div className="space-y-1.5">
-              {elements.map((el: any) => {
-                const asig: ABPAsignacion = asignaciones_override.find(a => a.element_id === el.id) || { element_id: el.id }
-                return (
-                  <div key={el.id} className="flex items-center gap-1.5">
-                    {/* Element badge */}
-                    <div
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-                      style={{ backgroundColor: el.color || TEAM_COLORS.team1 }}
-                    >
-                      {el.label}
-                    </div>
-                    {/* Player select */}
-                    <select
-                      value={asig.jugador_id || ''}
-                      onChange={e => onUpdateAsignacion(el.id, 'jugador_id', e.target.value)}
-                      className="flex-1 px-1.5 py-1 text-[11px] border border-gray-200 rounded bg-white min-w-0"
-                    >
-                      <option value="">Sin asignar</option>
-                      {jugadores.map(j => (
-                        <option key={j.id} value={j.id}>
-                          {j.dorsal ? `${j.dorsal}. ` : ''}{j.nombre} {j.apellidos || ''}
-                        </option>
-                      ))}
-                    </select>
-                    {/* Role select */}
-                    <select
-                      value={asig.rol || ''}
-                      onChange={e => onUpdateAsignacion(el.id, 'rol', e.target.value)}
-                      className="w-28 px-1.5 py-1 text-[11px] border border-gray-200 rounded bg-white flex-shrink-0"
-                    >
-                      <option value="">Rol</option>
-                      {ABP_ROLES.map(r => (
-                        <option key={r.value} value={r.value}>{r.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                )
-              })}
-            </div>
+          <div className={`mt-2.5 ${hasDiagram && elements.length > 0 ? 'flex gap-4' : ''}`}>
+            {/* Diagram preview */}
+            {hasDiagram && (
+              <div className={`${elements.length > 0 ? 'w-56 flex-shrink-0' : 'w-full max-w-xs'} rounded-lg overflow-hidden border border-gray-200`}>
+                <ABPPitch type={pitchView as 'full' | 'half'}>
+                  {allArrows.map((arrow: any) => {
+                    const angle = Math.atan2(arrow.to.y - arrow.from.y, arrow.to.x - arrow.from.x)
+                    return (
+                      <g key={arrow.id}>
+                        <line x1={arrow.from.x} y1={arrow.from.y} x2={arrow.to.x} y2={arrow.to.y}
+                          stroke={arrow.color || '#FFF'} strokeWidth="2.5" strokeDasharray={arrow.type === 'pass' ? '8,4' : 'none'} />
+                        <polygon
+                          points={`${arrow.to.x},${arrow.to.y} ${arrow.to.x - 10 * Math.cos(angle - Math.PI / 6)},${arrow.to.y - 10 * Math.sin(angle - Math.PI / 6)} ${arrow.to.x - 10 * Math.cos(angle + Math.PI / 6)},${arrow.to.y - 10 * Math.sin(angle + Math.PI / 6)}`}
+                          fill={arrow.color || '#FFF'} />
+                        {arrow.label && (
+                          <>
+                            <circle cx={(arrow.from.x + arrow.to.x) / 2} cy={(arrow.from.y + arrow.to.y) / 2} r="10" fill="rgba(0,0,0,0.7)" />
+                            <text x={(arrow.from.x + arrow.to.x) / 2} y={(arrow.from.y + arrow.to.y) / 2 + 1} textAnchor="middle" dominantBaseline="middle" fill="#FFF" fontSize="9" fontWeight="bold">{arrow.label}</text>
+                          </>
+                        )}
+                      </g>
+                    )
+                  })}
+                  {allElements.map((el: any) => {
+                    if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk') {
+                      return (
+                        <g key={el.id} transform={`translate(${el.position.x}, ${el.position.y})`}>
+                          <circle r={12} fill={el.color || TEAM_COLORS.team1} stroke="#FFF" strokeWidth="2" />
+                          <text x="0" y="1" textAnchor="middle" dominantBaseline="middle" fill="#FFF" fontSize="10" fontWeight="bold" fontFamily="Arial">{el.label}</text>
+                        </g>
+                      )
+                    }
+                    if (el.type === 'ball') return <circle key={el.id} cx={el.position.x} cy={el.position.y} r="6" fill="#FFF" stroke="#000" strokeWidth="1" />
+                    if (el.type === 'cone') return <polygon key={el.id} points={`${el.position.x},${el.position.y - 8} ${el.position.x + 6},${el.position.y + 6} ${el.position.x - 6},${el.position.y + 6}`} fill="#FF6B00" />
+                    return null
+                  })}
+                </ABPPitch>
+              </div>
+            )}
+
+            {/* Assignments */}
+            {elements.length > 0 && (
+              <div className="flex-1 min-w-0">
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Asignaciones</label>
+                <div className="space-y-1.5">
+                  {elements.map((el: any) => {
+                    const asig: ABPAsignacion = asignaciones_override.find(a => a.element_id === el.id) || { element_id: el.id }
+                    return (
+                      <div key={el.id} className="flex items-center gap-1.5">
+                        {/* Element badge */}
+                        <div
+                          className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
+                          style={{ backgroundColor: el.color || TEAM_COLORS.team1 }}
+                        >
+                          {el.label}
+                        </div>
+                        {/* Player select */}
+                        <select
+                          value={asig.jugador_id || ''}
+                          onChange={e => onUpdateAsignacion(el.id, 'jugador_id', e.target.value)}
+                          className="flex-1 px-1.5 py-1 text-[11px] border border-gray-200 rounded bg-white min-w-0"
+                        >
+                          <option value="">Sin asignar</option>
+                          {jugadores.map(j => (
+                            <option key={j.id} value={j.id}>
+                              {j.dorsal ? `${j.dorsal}. ` : ''}{j.nombre} {j.apellidos || ''}
+                            </option>
+                          ))}
+                        </select>
+                        {/* Role select */}
+                        <select
+                          value={asig.rol || ''}
+                          onChange={e => onUpdateAsignacion(el.id, 'rol', e.target.value)}
+                          className="w-28 px-1.5 py-1 text-[11px] border border-gray-200 rounded bg-white flex-shrink-0"
+                        >
+                          <option value="">Rol</option>
+                          {ABP_ROLES.map(r => (
+                            <option key={r.value} value={r.value}>{r.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
