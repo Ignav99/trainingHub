@@ -148,6 +148,8 @@ const COLORES_EQUIPO = [
   { color: '#F97316', nombre: 'Equipo Naranja' },
   { color: '#8B5CF6', nombre: 'Equipo Morado' },
   { color: '#EC4899', nombre: 'Equipo Rosa' },
+  { color: '#FACC15', nombre: 'Equipo Amarillo' },
+  { color: '#1F2937', nombre: 'Equipo Negro' },
 ]
 const COLOR_SIN_ASIGNAR = { color: '#6B7280', nombre: 'Sin asignar' }
 
@@ -168,9 +170,11 @@ function cleanEmptyTeams(formacion: FormacionEquipos): FormacionEquipos {
 function useAutoSave(sesionId: string, delay = 800) {
   const timerRef = useRef<NodeJS.Timeout>()
   const [saving, setSaving] = useState(false)
+  const dirtyRef = useRef(false)
 
   const save = useCallback(
     (data: SesionUpdateData) => {
+      dirtyRef.current = true
       if (timerRef.current) clearTimeout(timerRef.current)
       timerRef.current = setTimeout(async () => {
         setSaving(true)
@@ -179,6 +183,7 @@ function useAutoSave(sesionId: string, delay = 800) {
         } catch (err) {
           console.error('Auto-save failed:', err)
         } finally {
+          dirtyRef.current = false
           setSaving(false)
         }
       }, delay)
@@ -186,7 +191,7 @@ function useAutoSave(sesionId: string, delay = 800) {
     [sesionId, delay]
   )
 
-  return { save, saving }
+  return { save, saving, dirtyRef }
 }
 
 // ============ DnD: Sortable Player Item ============
@@ -864,12 +869,12 @@ export default function SesionDetailPage() {
   const loading = isLoading && !sesion
   const error = swrError ? (swrError.message || 'Error al cargar la sesion') : null
 
-  // Sync SWR data to local state (local state is needed for optimistic mutations)
+  // Sync SWR data to local state (skip if autosave is pending to prevent overwriting edits)
   useEffect(() => {
-    if (sesionData) {
+    if (sesionData && !dirtyRef.current) {
       setSesion(sesionData)
     }
-  }, [sesionData])
+  }, [sesionData, dirtyRef])
 
   // Action states
   const [deleting, setDeleting] = useState(false)
@@ -929,7 +934,7 @@ export default function SesionDetailPage() {
   const [addedFases, setAddedFases] = useState<Set<FaseSesion>>(new Set())
   const [removedFases, setRemovedFases] = useState<Set<FaseSesion>>(new Set())
 
-  const { save: autoSave, saving: autoSaving } = useAutoSave(sesionId)
+  const { save: autoSave, saving: autoSaving, dirtyRef } = useAutoSave(sesionId)
 
   // Build jugadores lookup map
   const jugadoresMap = new Map<string, Jugador>()
@@ -1727,7 +1732,7 @@ export default function SesionDetailPage() {
                 <Clock className="h-4 w-4" />
                 <input
                   type="time"
-                  className="bg-transparent border-none outline-none cursor-pointer w-[70px]"
+                  className="bg-transparent border-none outline-none cursor-pointer w-24"
                   value={sesion.hora || ''}
                   onChange={(e) => updateField('hora', e.target.value || null)}
                   placeholder="--:--"

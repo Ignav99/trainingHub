@@ -263,6 +263,8 @@ COLORES_EQUIPO = [
     ("#F97316", "Equipo Naranja"),
     ("#8B5CF6", "Equipo Morado"),
     ("#EC4899", "Equipo Rosa"),
+    ("#FACC15", "Equipo Amarillo"),
+    ("#1F2937", "Equipo Negro"),
 ]
 COLOR_COMODIN = ("#EAB308", "Comodines")
 COLOR_PORTERO = ("#6B7280", "Porteros")
