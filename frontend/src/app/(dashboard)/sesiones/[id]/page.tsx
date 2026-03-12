@@ -895,6 +895,8 @@ export default function SesionDetailPage() {
 
   // Asistencia state
   const [jugadores, setJugadores] = useState<Jugador[]>([])
+  const jugadoresRef = useRef<Jugador[]>([])
+  useEffect(() => { jugadoresRef.current = jugadores }, [jugadores])
   const [asistencias, setAsistencias] = useState<Map<string, { presente: boolean; motivo?: MotivoAusencia; notas?: string; tipo_participacion: TipoParticipacion[] }>>(new Map())
   const [asistenciasLoaded, setAsistenciasLoaded] = useState(false)
   const [savingAsistencias, setSavingAsistencias] = useState(false)
@@ -944,13 +946,20 @@ export default function SesionDetailPage() {
   }
 
   // ============ Load data ============
+  const jugadoresLoadedRef = useRef(false)
+
   const loadJugadores = async () => {
-    if (!sesion?.equipo_id || jugadores.length > 0) return
+    if (!sesion?.equipo_id || jugadoresLoadedRef.current) return
     try {
       const response = await jugadoresApi.list({ equipo_id: sesion.equipo_id, limit: 100 })
-      // Filter out invited players — they should only appear when manually added
       const teamPlayers = (response.data as unknown as Jugador[]).filter((j) => !j.es_invitado)
-      setJugadores(teamPlayers)
+      const teamIds = new Set(teamPlayers.map((j) => j.id))
+      // Preserve invitados/cross-team players already in state (from loadAsistencias)
+      setJugadores((prev) => {
+        const extras = prev.filter((j) => !teamIds.has(j.id))
+        return [...teamPlayers, ...extras]
+      })
+      jugadoresLoadedRef.current = true
     } catch (err) {
       console.error('Error loading jugadores:', err)
     }
@@ -961,7 +970,7 @@ export default function SesionDetailPage() {
     try {
       const response = await sesionesApi.getAsistencias(sesionId)
       const map = new Map<string, { presente: boolean; motivo?: MotivoAusencia; notas?: string; tipo_participacion: TipoParticipacion[] }>()
-      const missingPlayers: Jugador[] = []
+      const extraPlayers: Jugador[] = []
       for (const a of response.data) {
         const tp = (a.tipo_participacion as TipoParticipacion[] | undefined) || []
         map.set(a.jugador_id, {
@@ -970,24 +979,25 @@ export default function SesionDetailPage() {
           notas: a.notas,
           tipo_participacion: a.presente && tp.length === 0 ? ['sesion'] : tp,
         })
-        // If this player is not in jugadores list (invitado/cross-team), add them
-        if (a.jugador && !jugadores.find((j) => j.id === a.jugador_id)) {
-          missingPlayers.push({
+        // Collect invitados/cross-team players from DB join data (not relying on jugadores closure)
+        if (a.jugador && (a.jugador.es_invitado || (sesion?.equipo_id && a.jugador.equipo_id !== sesion.equipo_id))) {
+          extraPlayers.push({
             ...a.jugador,
             es_invitado: a.jugador.es_invitado ?? true,
           } as unknown as Jugador)
         }
       }
-      // Merge missing players (invitados/cross-team) into jugadores
-      if (missingPlayers.length > 0) {
+      // Merge invitados/cross-team players into jugadores (dedup with functional update)
+      if (extraPlayers.length > 0) {
         setJugadores((prev) => {
           const ids = new Set(prev.map((j) => j.id))
-          const toAdd = missingPlayers.filter((j) => !ids.has(j.id))
+          const toAdd = extraPlayers.filter((j) => !ids.has(j.id))
           return toAdd.length > 0 ? [...prev, ...toAdd] : prev
         })
       }
       // Auto-mark non-active players as absent with correct motivo (first time only)
-      if (map.size === 0 && jugadores.length > 0) {
+      // Uses jugadoresRef to read current jugadores without closure staleness
+      if (map.size === 0 && jugadoresRef.current.length > 0) {
         const estadoToMotivo: Record<string, MotivoAusencia> = {
           lesionado: 'lesion',
           enfermo: 'enfermedad',
@@ -996,7 +1006,7 @@ export default function SesionDetailPage() {
           seleccion: 'seleccion',
           viaje: 'viaje',
         }
-        for (const j of jugadores) {
+        for (const j of jugadoresRef.current) {
           const motivo = estadoToMotivo[j.estado as string]
           if (motivo) {
             map.set(j.id, { presente: false, motivo, tipo_participacion: [] })
