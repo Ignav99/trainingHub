@@ -226,7 +226,7 @@ function SortablePlayer({ id, jugador, color }: { id: string; jugador: Jugador |
         {jugador?.dorsal || '?'}
       </span>
       <span className="truncate flex-1">
-        {jugador ? `${jugador.nombre} ${jugador.apellidos?.charAt(0) || ''}.` : 'Jugador...'}
+        {jugador ? (jugador.apodo || `${jugador.nombre} ${jugador.apellidos?.charAt(0) || ''}.`) : 'Jugador...'}
       </span>
       {jugador?.posicion_principal && (
         <span className="text-[9px] font-semibold text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded shrink-0">
@@ -832,7 +832,7 @@ function FormacionPanel({
             <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-background border-2 border-primary shadow-lg text-xs">
               <GripVertical className="h-3 w-3 text-primary shrink-0" />
               <span className="font-bold w-5 text-center">{activeJugador.dorsal || '?'}</span>
-              <span>{activeJugador.nombre} {activeJugador.apellidos?.charAt(0) || ''}.</span>
+              <span>{activeJugador.apodo || `${activeJugador.nombre} ${activeJugador.apellidos?.charAt(0) || ''}.`}</span>
             </div>
           ) : null}
         </DragOverlay>
