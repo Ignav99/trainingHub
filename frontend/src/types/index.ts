@@ -279,7 +279,7 @@ export interface Asistencia {
   tipo_participacion?: TipoParticipacion[]
   created_at: string
   updated_at: string
-  jugador?: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'foto_url' | 'es_portero' | 'es_invitado' | 'estado' | 'equipo_id'>
+  jugador?: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'apodo' | 'dorsal' | 'posicion_principal' | 'foto_url' | 'es_portero' | 'es_invitado' | 'estado' | 'equipo_id'>
 }
 
 export interface AsistenciaListResponse {
