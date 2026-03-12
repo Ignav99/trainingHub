@@ -266,7 +266,7 @@ export interface StaffAsistente {
 // ============================================
 
 export type MotivoAusencia = 'lesion' | 'enfermedad' | 'sancion' | 'permiso' | 'seleccion' | 'viaje' | 'otro'
-export type TipoParticipacion = 'sesion' | 'fisio' | 'margen'
+export type TipoParticipacion = 'sesion' | 'fisio' | 'margen' | 'presente'
 
 export interface Asistencia {
   id: string

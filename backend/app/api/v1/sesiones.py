@@ -1433,8 +1433,8 @@ async def generate_pdf(
 
     # Fetch full asistencia roster (present + absent with types)
     asistencia_roster = []
-    TIPO_ORDER = {"sesion": 0, "fisio": 1, "margen": 2, "ausente": 3}
-    TIPO_DISPLAY = {"sesion": "Sesion", "fisio": "Fisio", "margen": "Margen"}
+    TIPO_ORDER = {"sesion": 0, "fisio": 1, "margen": 2, "presente": 3, "ausente": 4}
+    TIPO_DISPLAY = {"sesion": "Sesion", "fisio": "Fisio", "margen": "Margen", "presente": "Presente"}
     try:
         roster_response = supabase.table("asistencias_sesion").select(
             "presente, tipo_participacion, motivo_ausencia, jugadores(nombre, apellidos, dorsal)"

@@ -26,6 +26,7 @@ class TipoParticipacion(str, Enum):
     SESION = "sesion"
     FISIO = "fisio"
     MARGEN = "margen"
+    PRESENTE = "presente"  # Attends but doesn't participate physically (no load)
 
 
 # ============ Schemas de Asistencia ============

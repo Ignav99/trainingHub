@@ -219,7 +219,7 @@ function SortablePlayer({ id, jugador, color }: { id: string; jugador: Jugador |
         {jugador?.dorsal || '?'}
       </span>
       <span className="truncate">
-        {jugador ? `${jugador.nombre} ${jugador.apellidos?.charAt(0) || ''}.` : id.slice(0, 8)}
+        {jugador ? `${jugador.nombre} ${jugador.apellidos?.charAt(0) || ''}.` : 'Jugador...'}
       </span>
     </div>
   )
@@ -1231,8 +1231,9 @@ export default function SesionDetailPage() {
         next.delete(stId)
       } else {
         next.add(stId)
-        // Ensure jugadores are loaded for the formation panel
+        // Ensure jugadores + invitados are loaded for the formation panel
         loadJugadores()
+        loadAsistencias()
       }
       return next
     })
@@ -1468,7 +1469,16 @@ export default function SesionDetailPage() {
       if (!current) return next
       const tipos = current.tipo_participacion || []
       const has = tipos.includes(tipo)
-      const updated = has ? tipos.filter((t) => t !== tipo) : [...tipos, tipo]
+      let updated: TipoParticipacion[]
+      if (has) {
+        updated = tipos.filter((t) => t !== tipo)
+      } else if (tipo === 'presente') {
+        // "Presente" is exclusive — remove sesion/fisio/margen
+        updated = ['presente']
+      } else {
+        // Selecting sesion/fisio/margen removes "presente"
+        updated = [...tipos.filter((t) => t !== 'presente'), tipo]
+      }
       next.set(jugadorId, { ...current, tipo_participacion: updated })
       return next
     })
@@ -2228,6 +2238,7 @@ export default function SesionDetailPage() {
                                       { key: 'sesion' as TipoParticipacion, label: 'Sesion', activeClass: 'bg-blue-100 text-blue-700 border-blue-300' },
                                       { key: 'fisio' as TipoParticipacion, label: 'Fisio', activeClass: 'bg-purple-100 text-purple-700 border-purple-300' },
                                       { key: 'margen' as TipoParticipacion, label: 'Margen', activeClass: 'bg-amber-100 text-amber-700 border-amber-300' },
+                                      { key: 'presente' as TipoParticipacion, label: 'Presente', activeClass: 'bg-gray-200 text-gray-700 border-gray-400' },
                                     ] as const).map((chip) => (
                                       <button
                                         key={chip.key}

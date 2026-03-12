@@ -69,10 +69,21 @@ export default function ABPPreparePlan({ onClose }: ABPPreparePlanProps) {
   const [pickerFilter, setPickerFilter] = useState<LadoABP | 'todo'>('todo')
   const [loadingPlan, setLoadingPlan] = useState(false)
 
-  // Fetch upcoming partidos
+  // Fetch partidos — sorted by jornada (desc), unplayed first
   const partidosKey = apiKey('/partidos', { equipo_id: equipoId, limit: '50' }, ['equipo_id'])
   const { data: partidosData } = useSWR<{ data: Partido[] }>(partidosKey, apiFetcher)
-  const partidos = (partidosData?.data || []).sort((a, b) => a.fecha.localeCompare(b.fecha))
+  const partidos = (partidosData?.data || []).sort((a, b) => {
+    // Unplayed (no result) first
+    const aPlayed = a.resultado ? 1 : 0
+    const bPlayed = b.resultado ? 1 : 0
+    if (aPlayed !== bPlayed) return aPlayed - bPlayed
+    // Then by jornada (ascending), nulls last
+    const aJ = a.jornada ?? 999
+    const bJ = b.jornada ?? 999
+    if (aJ !== bJ) return aJ - bJ
+    // Then by date
+    return a.fecha.localeCompare(b.fecha)
+  })
 
   // Fetch jugadores
   const jugadoresKey = apiKey('/jugadores', { equipo_id: equipoId, limit: '100', activo: 'true' }, ['equipo_id'])
@@ -254,13 +265,16 @@ export default function ABPPreparePlan({ onClose }: ABPPreparePlanProps) {
               className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Seleccionar partido...</option>
-              {partidos.map(p => (
-                <option key={p.id} value={p.id}>
-                  {p.fecha} — vs {p.rival?.nombre || 'Rival'} ({p.localia === 'local' ? 'Casa' : p.localia === 'visitante' ? 'Fuera' : p.localia})
-                  {p.competicion ? ` · ${p.competicion}` : ''}
-                  {p.jornada ? ` · J${p.jornada}` : ''}
-                </option>
-              ))}
+              {partidos.map(p => {
+                const played = !!p.resultado
+                const score = played ? `(${p.goles_favor}-${p.goles_contra})` : ''
+                return (
+                  <option key={p.id} value={p.id}>
+                    {played ? '✓ ' : '▸ '}{p.jornada ? `J${p.jornada} · ` : ''}{p.fecha} — vs {p.rival?.nombre || 'Rival'} {score} ({p.localia === 'local' ? 'Casa' : p.localia === 'visitante' ? 'Fuera' : p.localia})
+                    {p.competicion ? ` · ${p.competicion}` : ''}
+                  </option>
+                )
+              })}
             </select>
             {selectedPartido && (
               <p className="mt-1.5 text-xs text-gray-500">
@@ -516,7 +530,7 @@ function PlanJugadaCard({ planJugada, jugadores, onRemove, onUpdateAsignacion, c
           <div className={`mt-2.5 ${hasDiagram && elements.length > 0 ? 'flex gap-4' : ''}`}>
             {/* Diagram preview */}
             {hasDiagram && (
-              <div className={`${elements.length > 0 ? 'w-56 flex-shrink-0' : 'w-full max-w-xs'} rounded-lg overflow-hidden border border-gray-200`}>
+              <div className={`${elements.length > 0 ? 'w-72 flex-shrink-0' : 'w-full max-w-sm'} rounded-lg overflow-hidden border border-gray-200`}>
                 <ABPPitch type={pitchView as 'full' | 'half'}>
                   {allArrows.map((arrow: any) => {
                     const angle = Math.atan2(arrow.to.y - arrow.from.y, arrow.to.x - arrow.from.x)
