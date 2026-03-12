@@ -218,9 +218,14 @@ function SortablePlayer({ id, jugador, color }: { id: string; jugador: Jugador |
       <span className="font-bold text-muted-foreground w-5 text-center">
         {jugador?.dorsal || '?'}
       </span>
-      <span className="truncate">
+      <span className="truncate flex-1">
         {jugador ? `${jugador.nombre} ${jugador.apellidos?.charAt(0) || ''}.` : 'Jugador...'}
       </span>
+      {jugador?.posicion_principal && (
+        <span className="text-[9px] font-semibold text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded shrink-0">
+          {jugador.posicion_principal}
+        </span>
+      )}
     </div>
   )
 }
