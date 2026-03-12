@@ -513,7 +513,7 @@ function PlanJugadaCard({ planJugada, jugadores, onRemove, onUpdateAsignacion, c
             <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Asignaciones</label>
             <div className="space-y-1.5">
               {elements.map((el: any) => {
-                const asig = asignaciones_override.find(a => a.element_id === el.id) || { element_id: el.id }
+                const asig: ABPAsignacion = asignaciones_override.find(a => a.element_id === el.id) || { element_id: el.id }
                 return (
                   <div key={el.id} className="flex items-center gap-1.5">
                     {/* Element badge */}
