@@ -61,9 +61,17 @@ export default function ABPPitch({
   const gaR = CX + 91.5
   const gaT = B - 55
 
-  // Penalty spot
+  // Penalty spot: 11 m from goal = 110 units
   const penX = CX
   const penY = B - 110
+
+  // Penalty arc: radius 9.15m = 91.5 units from penalty spot,
+  // only the portion outside the penalty area (above paT line)
+  const arcR = 91.5
+  const dY = paT - penY // vertical distance from pen spot to top of PA
+  const arcHalfX = Math.sqrt(arcR * arcR - dY * dY) // horizontal offset at intersection
+  const arcX1 = penX - arcHalfX
+  const arcX2 = penX + arcHalfX
 
   // Goal posts: 7.32 m = ~73 units, centered
   const gpL = CX - 36.5
@@ -113,8 +121,8 @@ export default function ABPPitch({
         {/* Penalty spot */}
         <circle cx={penX} cy={penY} r="3" fill={lineColor} />
 
-        {/* Penalty arc (outside box) */}
-        <path d={`M ${paL} ${paT} A 91.5 91.5 0 0 1 ${paR} ${paT}`} />
+        {/* Penalty arc (outside box — correct radius from penalty spot) */}
+        <path d={`M ${arcX1} ${paT} A ${arcR} ${arcR} 0 0 1 ${arcX2} ${paT}`} />
 
         {/* Goal (net drawn below goal line) */}
         <rect x={gpL} y={B} width={gpR - gpL} height="15" strokeWidth="3" />
@@ -133,7 +141,7 @@ export default function ABPPitch({
             <rect x={paL} y={T} width={paR - paL} height={165} />
             <rect x={gaL} y={T} width={gaR - gaL} height={55} />
             <circle cx={penX} cy={T + 110} r="3" fill={lineColor} />
-            <path d={`M ${paL} ${T + 165} A 91.5 91.5 0 0 0 ${paR} ${T + 165}`} />
+            <path d={`M ${penX - arcHalfX} ${T + 165} A ${arcR} ${arcR} 0 0 0 ${penX + arcHalfX} ${T + 165}`} />
             <rect x={gpL} y={T - 15} width={gpR - gpL} height="15" strokeWidth="3" />
           </>
         )}

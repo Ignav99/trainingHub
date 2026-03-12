@@ -83,18 +83,20 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEdito
   const gRef = useRef<SVGGElement>(null)
   const pitchView = getPitchView(tipo)
 
-  // Get SVG coordinates from mouse event
+  // Get SVG coordinates from mouse event — uses getScreenCTM for accurate
+  // coordinate mapping that handles preserveAspectRatio padding correctly
   const getSvgPosition = useCallback((e: React.MouseEvent): Position => {
     const svg = gRef.current?.ownerSVGElement
     if (!svg) return { x: 0, y: 0 }
-    const rect = svg.getBoundingClientRect()
-    const viewBox = svg.viewBox.baseVal
-    if (!viewBox.width || !viewBox.height) return { x: 0, y: 0 }
-    const scaleX = viewBox.width / rect.width
-    const scaleY = viewBox.height / rect.height
+    const ctm = svg.getScreenCTM()
+    if (!ctm) return { x: 0, y: 0 }
+    const pt = svg.createSVGPoint()
+    pt.x = e.clientX
+    pt.y = e.clientY
+    const svgPt = pt.matrixTransform(ctm.inverse())
     return {
-      x: Math.round((e.clientX - rect.left) * scaleX),
-      y: Math.round((e.clientY - rect.top) * scaleY),
+      x: Math.round(svgPt.x),
+      y: Math.round(svgPt.y),
     }
   }, [])
 
