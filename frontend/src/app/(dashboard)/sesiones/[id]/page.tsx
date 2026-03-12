@@ -55,6 +55,8 @@ import {
   Pencil,
   Wand2,
   Send,
+  Copy,
+  ClipboardPaste,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -343,11 +345,19 @@ function FormacionPanel({
   sesionTarea,
   jugadoresMap,
   onFormacionChange,
+  onCopy,
+  onPaste,
+  hasCopied,
+  copiedFrom,
 }: {
   sesionId: string
   sesionTarea: SesionTarea
   jugadoresMap: Map<string, Jugador>
   onFormacionChange: (stId: string, formacion: FormacionEquipos | null) => void
+  onCopy?: () => void
+  onPaste?: () => void
+  hasCopied?: boolean
+  copiedFrom?: string
 }) {
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -677,6 +687,11 @@ function FormacionPanel({
           {generating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
           Auto-generar equipos
         </Button>
+        {hasCopied && onPaste && (
+          <Button size="sm" variant="outline" onClick={onPaste}>
+            <ClipboardPaste className="h-4 w-4 mr-1" /> Pegar de &quot;{copiedFrom}&quot;
+          </Button>
+        )}
       </div>
     )
   }
@@ -722,6 +737,16 @@ function FormacionPanel({
           <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={handleLimpiar}>
             <Trash2 className="h-3 w-3 mr-1" /> Limpiar
           </Button>
+          {onCopy && (
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onCopy}>
+              <Copy className="h-3 w-3 mr-1" /> Copiar
+            </Button>
+          )}
+          {hasCopied && onPaste && (
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-primary" onClick={onPaste}>
+              <ClipboardPaste className="h-3 w-3 mr-1" /> Pegar de &quot;{copiedFrom}&quot;
+            </Button>
+          )}
           {formacion.espacios.length === 1 ? (
             <Button
               variant="ghost"
@@ -906,6 +931,12 @@ export default function SesionDetailPage() {
 
   // Per-task formation panel state
   const [expandedFormaciones, setExpandedFormaciones] = useState<Set<string>>(new Set())
+
+  // Clipboard for copy/paste formations between tasks
+  const [copiedFormacion, setCopiedFormacion] = useState<{
+    formacion: FormacionEquipos
+    taskName: string
+  } | null>(null)
 
   // Invitados state
   const [crossTeamDialogOpen, setCrossTeamDialogOpen] = useState(false)
@@ -1270,6 +1301,27 @@ export default function SesionDetailPage() {
         ),
       }
     })
+  }
+
+  const handleCopyFormacion = (st: SesionTarea) => {
+    if (!st.formacion_equipos) return
+    setCopiedFormacion({
+      formacion: structuredClone(st.formacion_equipos),
+      taskName: st.tarea?.titulo || 'tarea',
+    })
+    toast.success('Equipos copiados')
+  }
+
+  const handlePasteFormacion = async (stId: string) => {
+    if (!copiedFormacion) return
+    try {
+      const pasted = { ...copiedFormacion.formacion, auto_generado: false }
+      await sesionesApi.guardarFormacion(sesionId, stId, pasted)
+      handleFormacionChange(stId, pasted)
+      toast.success('Equipos pegados')
+    } catch (err) {
+      toast.error('Error al pegar equipos')
+    }
   }
 
   // ============ Task editing ============
@@ -2077,6 +2129,10 @@ export default function SesionDetailPage() {
                                       sesionTarea={st}
                                       jugadoresMap={jugadoresMap}
                                       onFormacionChange={handleFormacionChange}
+                                      onCopy={() => handleCopyFormacion(st)}
+                                      onPaste={() => handlePasteFormacion(st.id)}
+                                      hasCopied={!!copiedFormacion}
+                                      copiedFrom={copiedFormacion?.taskName}
                                     />
                                   </div>
                                 </div>
