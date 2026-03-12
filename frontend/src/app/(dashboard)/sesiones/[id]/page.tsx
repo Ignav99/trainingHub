@@ -869,12 +869,15 @@ export default function SesionDetailPage() {
   const loading = isLoading && !sesion
   const error = swrError ? (swrError.message || 'Error al cargar la sesion') : null
 
+  const { save: autoSave, saving: autoSaving, dirtyRef } = useAutoSave(sesionId)
+
   // Sync SWR data to local state (skip if autosave is pending to prevent overwriting edits)
   useEffect(() => {
     if (sesionData && !dirtyRef.current) {
       setSesion(sesionData)
     }
-  }, [sesionData, dirtyRef])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sesionData])
 
   // Action states
   const [deleting, setDeleting] = useState(false)
@@ -933,8 +936,6 @@ export default function SesionDetailPage() {
   // Phase management — track explicitly added/removed fases
   const [addedFases, setAddedFases] = useState<Set<FaseSesion>>(new Set())
   const [removedFases, setRemovedFases] = useState<Set<FaseSesion>>(new Set())
-
-  const { save: autoSave, saving: autoSaving, dirtyRef } = useAutoSave(sesionId)
 
   // Build jugadores lookup map
   const jugadoresMap = new Map<string, Jugador>()
