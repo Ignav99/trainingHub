@@ -77,15 +77,34 @@ def _get_once_probable(supabase, comp_id: str, rival_nombre: str, tarjetas_data:
     ).order("jornada_numero", desc=True).limit(5).execute()
 
     actas = actas_res.data or []
+    logger.info(
+        "Once probable query for '%s' (comp=%s): %d actas returned",
+        rival_nombre, comp_id, len(actas),
+    )
+
     player_counts: Counter = Counter()
     player_dorsals: dict[str, int | None] = {}
 
     for acta in actas:
-        local_lower = (acta.get("local_nombre") or "").lower()
-        if _match_rival_name(rival_lower, local_lower):
+        local_name = acta.get("local_nombre") or ""
+        visitante_name = acta.get("visitante_nombre") or ""
+        local_lower = local_name.lower()
+        is_local = _match_rival_name(rival_lower, local_lower)
+
+        if is_local:
             titulares = acta.get("titulares_local") or []
         else:
             titulares = acta.get("titulares_visitante") or []
+
+        logger.info(
+            "  Acta J%s: %s vs %s | rival_is_local=%s | titulares=%s (type=%s)",
+            acta.get("jornada_numero"),
+            local_name,
+            visitante_name,
+            is_local,
+            len(titulares) if isinstance(titulares, list) else titulares,
+            type(titulares).__name__,
+        )
 
         for jugador in titulares:
             nombre = jugador.get("nombre", "").strip()
@@ -94,11 +113,10 @@ def _get_once_probable(supabase, comp_id: str, rival_nombre: str, tarjetas_data:
                 if nombre not in player_dorsals:
                     player_dorsals[nombre] = jugador.get("dorsal")
 
-    if actas and not player_counts:
-        logger.warning(
-            "Once probable: %d actas found for '%s' but 0 players extracted (titulares may be null)",
-            len(actas), rival_nombre,
-        )
+    logger.info(
+        "Once probable result for '%s': %d actas, %d unique players",
+        rival_nombre, len(actas), len(player_counts),
+    )
 
     # Build set of sanctioned player names from tarjetas data
     sancionados = set()
@@ -313,10 +331,14 @@ def gather_rival_intel_standalone(
     # Once probable (with sanction cross-reference)
     try:
         once = _get_once_probable(supabase, comp_id, rival_nombre, tarjetas_data=tarjetas)
+        logger.info(
+            "Once probable for '%s': actas=%d, jugadores=%d",
+            rival_nombre, once.get("actas_analizadas", 0), len(once.get("jugadores", [])),
+        )
         if once.get("actas_analizadas", 0) > 0:
             intel["once_probable"] = once
     except Exception as e:
-        logger.warning("Error getting once probable for '%s': %s", rival_nombre, e)
+        logger.warning("Error getting once probable for '%s': %s", rival_nombre, e, exc_info=True)
 
     # Sanciones oficiales
     sanciones = _get_sanciones_oficiales(supabase, comp_id, rival_nombre)
@@ -340,6 +362,7 @@ def gather_rival_intel_standalone(
         except Exception as e:
             logger.debug("Error getting head to head: %s", e)
 
+    logger.info("Final intel sections for '%s': %s", rival_nombre, list(intel.keys()))
     return intel
 
 
