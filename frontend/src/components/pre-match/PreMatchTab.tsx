@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import useSWR from 'swr'
 import {
   Save,
   Loader2,
@@ -27,6 +28,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { partidosApi, rivalesApi } from '@/lib/api/partidos'
+import { apiKey } from '@/lib/swr'
 import { ClasificacionWidget } from './ClasificacionWidget'
 import { GoleadoresWidget } from './GoleadoresWidget'
 import { OnceProbableWidget } from './OnceProbableWidget'
@@ -37,7 +39,7 @@ import { InformeRivalSection } from './InformeRivalSection'
 import { PlanPartidoSection } from './PlanPartidoSection'
 import ABPMatchPlan from '@/components/abp/ABPMatchPlan'
 import ABPPlanSummary from '@/components/abp/ABPPlanSummary'
-import type { Partido, PreMatchIntel, PreMatchTarjetas, PreMatchSancion, AIInformeRival, AIPlanPartido } from '@/types'
+import type { Partido, PreMatchIntel, AIInformeRival, AIPlanPartido } from '@/types'
 
 // Pre-partido default data (manual tactical notes)
 const DEFAULT_PRE_PARTIDO = {
@@ -109,19 +111,12 @@ export function PreMatchTab({ partido, onMutate }: PreMatchTabProps) {
   const [savingPre, setSavingPre] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
-  // Live tarjetas: fetch fresh from rival intel instead of using cached pre_match_intel
-  const [liveTarjetas, setLiveTarjetas] = useState<PreMatchTarjetas | null>(null)
-  const [liveSanciones, setLiveSanciones] = useState<PreMatchSancion[] | null>(null)
-
-  useEffect(() => {
-    if (!partido.rival_id || !partido.rfef_competicion_id) return
-    rivalesApi.getIntel(partido.rival_id, partido.rfef_competicion_id)
-      .then((freshIntel: PreMatchIntel) => {
-        if (freshIntel?.tarjetas) setLiveTarjetas(freshIntel.tarjetas)
-        if (freshIntel?.sanciones_oficiales) setLiveSanciones(freshIntel.sanciones_oficiales)
-      })
-      .catch(() => {})
-  }, [partido.rival_id, partido.rfef_competicion_id])
+  // Fetch rival intel LIVE (same as rivales page) — source of truth for tarjetas/once probable
+  const { data: rivalIntel, mutate: mutateRivalIntel } = useSWR<PreMatchIntel>(
+    partido.rival_id && partido.rfef_competicion_id
+      ? apiKey(`/rivales/${partido.rival_id}/intel`, { competicion_id: partido.rfef_competicion_id })
+      : null
+  )
 
   const handleSavePrePartido = async () => {
     setSavingPre(true)
@@ -155,14 +150,10 @@ export function PreMatchTab({ partido, onMutate }: PreMatchTabProps) {
     try {
       await partidosApi.populatePreMatch(partido.id)
       onMutate()
-      // Also refresh live tarjetas
+      // Regenerate live rival intel (same as rivales page)
       if (partido.rival_id && partido.rfef_competicion_id) {
-        rivalesApi.getIntel(partido.rival_id, partido.rfef_competicion_id)
-          .then((freshIntel: PreMatchIntel) => {
-            if (freshIntel?.tarjetas) setLiveTarjetas(freshIntel.tarjetas)
-            if (freshIntel?.sanciones_oficiales) setLiveSanciones(freshIntel.sanciones_oficiales)
-          })
-          .catch(() => {})
+        await rivalesApi.populateIntel(partido.rival_id, partido.rfef_competicion_id)
+        mutateRivalIntel()
       }
     } catch (err: any) {
       toast.error(err.message || 'Error al actualizar intel')
@@ -229,11 +220,11 @@ export function PreMatchTab({ partido, onMutate }: PreMatchTabProps) {
               {intel.goleadores_rival && intel.goleadores_rival.length > 0 && (
                 <GoleadoresWidget data={intel.goleadores_rival} />
               )}
-              {intel.once_probable && (
-                <OnceProbableWidget data={intel.once_probable} sanciones={liveSanciones ?? intel.sanciones_oficiales} tarjetas={liveTarjetas ?? intel.tarjetas} />
+              {(rivalIntel?.once_probable ?? intel.once_probable) && (
+                <OnceProbableWidget data={(rivalIntel?.once_probable ?? intel.once_probable)!} sanciones={rivalIntel?.sanciones_oficiales ?? intel.sanciones_oficiales} tarjetas={rivalIntel?.tarjetas ?? intel.tarjetas} />
               )}
-              {((liveTarjetas ?? intel.tarjetas) || ((liveSanciones ?? intel.sanciones_oficiales) && (liveSanciones ?? intel.sanciones_oficiales)!.length > 0)) && (
-                <TarjetasWidget tarjetas={liveTarjetas ?? intel.tarjetas} sanciones={liveSanciones ?? intel.sanciones_oficiales} />
+              {((rivalIntel?.tarjetas ?? intel.tarjetas) || ((rivalIntel?.sanciones_oficiales ?? intel.sanciones_oficiales) && (rivalIntel?.sanciones_oficiales ?? intel.sanciones_oficiales)!.length > 0)) && (
+                <TarjetasWidget tarjetas={rivalIntel?.tarjetas ?? intel.tarjetas} sanciones={rivalIntel?.sanciones_oficiales ?? intel.sanciones_oficiales} />
               )}
               {intel.head_to_head && intel.head_to_head.length > 0 && (
                 <HeadToHeadWidget data={intel.head_to_head} />
