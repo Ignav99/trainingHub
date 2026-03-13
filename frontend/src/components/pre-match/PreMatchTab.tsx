@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Save,
   Loader2,
@@ -26,7 +26,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { partidosApi } from '@/lib/api/partidos'
+import { partidosApi, rivalesApi } from '@/lib/api/partidos'
 import { ClasificacionWidget } from './ClasificacionWidget'
 import { GoleadoresWidget } from './GoleadoresWidget'
 import { OnceProbableWidget } from './OnceProbableWidget'
@@ -37,7 +37,7 @@ import { InformeRivalSection } from './InformeRivalSection'
 import { PlanPartidoSection } from './PlanPartidoSection'
 import ABPMatchPlan from '@/components/abp/ABPMatchPlan'
 import ABPPlanSummary from '@/components/abp/ABPPlanSummary'
-import type { Partido, PreMatchIntel, AIInformeRival, AIPlanPartido } from '@/types'
+import type { Partido, PreMatchIntel, PreMatchTarjetas, PreMatchSancion, AIInformeRival, AIPlanPartido } from '@/types'
 
 // Pre-partido default data (manual tactical notes)
 const DEFAULT_PRE_PARTIDO = {
@@ -109,6 +109,20 @@ export function PreMatchTab({ partido, onMutate }: PreMatchTabProps) {
   const [savingPre, setSavingPre] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
+  // Live tarjetas: fetch fresh from rival intel instead of using cached pre_match_intel
+  const [liveTarjetas, setLiveTarjetas] = useState<PreMatchTarjetas | null>(null)
+  const [liveSanciones, setLiveSanciones] = useState<PreMatchSancion[] | null>(null)
+
+  useEffect(() => {
+    if (!partido.rival_id || !partido.rfef_competicion_id) return
+    rivalesApi.getIntel(partido.rival_id, partido.rfef_competicion_id)
+      .then((freshIntel: PreMatchIntel) => {
+        if (freshIntel?.tarjetas) setLiveTarjetas(freshIntel.tarjetas)
+        if (freshIntel?.sanciones_oficiales) setLiveSanciones(freshIntel.sanciones_oficiales)
+      })
+      .catch(() => {})
+  }, [partido.rival_id, partido.rfef_competicion_id])
+
   const handleSavePrePartido = async () => {
     setSavingPre(true)
     try {
@@ -141,6 +155,15 @@ export function PreMatchTab({ partido, onMutate }: PreMatchTabProps) {
     try {
       await partidosApi.populatePreMatch(partido.id)
       onMutate()
+      // Also refresh live tarjetas
+      if (partido.rival_id && partido.rfef_competicion_id) {
+        rivalesApi.getIntel(partido.rival_id, partido.rfef_competicion_id)
+          .then((freshIntel: PreMatchIntel) => {
+            if (freshIntel?.tarjetas) setLiveTarjetas(freshIntel.tarjetas)
+            if (freshIntel?.sanciones_oficiales) setLiveSanciones(freshIntel.sanciones_oficiales)
+          })
+          .catch(() => {})
+      }
     } catch (err: any) {
       toast.error(err.message || 'Error al actualizar intel')
     } finally {
@@ -207,10 +230,10 @@ export function PreMatchTab({ partido, onMutate }: PreMatchTabProps) {
                 <GoleadoresWidget data={intel.goleadores_rival} />
               )}
               {intel.once_probable && (
-                <OnceProbableWidget data={intel.once_probable} sanciones={intel.sanciones_oficiales} tarjetas={intel.tarjetas} />
+                <OnceProbableWidget data={intel.once_probable} sanciones={liveSanciones ?? intel.sanciones_oficiales} tarjetas={liveTarjetas ?? intel.tarjetas} />
               )}
-              {(intel.tarjetas || (intel.sanciones_oficiales && intel.sanciones_oficiales.length > 0)) && (
-                <TarjetasWidget tarjetas={intel.tarjetas} sanciones={intel.sanciones_oficiales} />
+              {((liveTarjetas ?? intel.tarjetas) || ((liveSanciones ?? intel.sanciones_oficiales) && (liveSanciones ?? intel.sanciones_oficiales)!.length > 0)) && (
+                <TarjetasWidget tarjetas={liveTarjetas ?? intel.tarjetas} sanciones={liveSanciones ?? intel.sanciones_oficiales} />
               )}
               {intel.head_to_head && intel.head_to_head.length > 0 && (
                 <HeadToHeadWidget data={intel.head_to_head} />
