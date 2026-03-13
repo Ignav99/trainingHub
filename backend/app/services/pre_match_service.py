@@ -512,7 +512,8 @@ def _compute_card_states(
                     p["suspension_remaining"] = remaining
                     p["motivo"] = "ciclo_amarillas"
             elif is_doble:
-                p["total_amarillas"] += 2
+                # Double yellow = red card, does NOT count towards yellow accumulation
+                p["rojas"] += 1
                 if remaining > 0:
                     p["suspension_remaining"] = remaining
                     p["motivo"] = "doble_amarilla"
