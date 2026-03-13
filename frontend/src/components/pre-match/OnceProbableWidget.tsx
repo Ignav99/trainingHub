@@ -2,15 +2,16 @@
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Users, ShieldAlert, ArrowRight } from 'lucide-react'
-import type { PreMatchOnceProbable, PreMatchSancion } from '@/types'
+import { Users, ShieldAlert, AlertTriangle, ArrowRight } from 'lucide-react'
+import type { PreMatchOnceProbable, PreMatchSancion, PreMatchTarjetas } from '@/types'
 
 interface OnceProbableWidgetProps {
   data: PreMatchOnceProbable
   sanciones?: PreMatchSancion[]
+  tarjetas?: PreMatchTarjetas
 }
 
-export function OnceProbableWidget({ data, sanciones }: OnceProbableWidgetProps) {
+export function OnceProbableWidget({ data, sanciones, tarjetas }: OnceProbableWidgetProps) {
   const totalActas = data.actas_analizadas
 
   // Build set of officially sanctioned names (from rfef_sanciones)
@@ -20,10 +21,18 @@ export function OnceProbableWidget({ data, sanciones }: OnceProbableWidgetProps)
       .map((s) => s.persona_nombre)
   )
 
+  // Build set of apercibido names from tarjetas data
+  const apercibidos = new Set(
+    (tarjetas?.jugadores || [])
+      .filter((t) => t.estado === 'Apercibido')
+      .map((t) => t.nombre)
+  )
+
   // Enrich players with combined sanction status
   const jugadores = data.jugadores.map((j) => ({
     ...j,
     sancionado: j.sancionado || sancionadosOficiales.has(j.nombre),
+    apercibido: apercibidos.has(j.nombre),
   }))
 
   // Split into titulares (top 11) and suplentes (rest)
@@ -51,7 +60,8 @@ export function OnceProbableWidget({ data, sanciones }: OnceProbableWidgetProps)
 
   const renderPlayerRow = (j: typeof jugadores[0], index: number, globalIndex: number) => {
     const isSancionado = j.sancionado
-    const isDisputed = !isSancionado && j.apariciones <= disputedThreshold && totalActas > 1
+    const isApercibido = !isSancionado && j.apercibido
+    const isDisputed = !isSancionado && !isApercibido && j.apariciones <= disputedThreshold && totalActas > 1
     const isFixed = j.apariciones >= totalActas * 0.8
 
     // Find alternative for sanctioned or disputed players
@@ -96,6 +106,14 @@ export function OnceProbableWidget({ data, sanciones }: OnceProbableWidgetProps)
           <Badge className="bg-red-600 text-white text-[8px] px-1.5 py-0 h-4 shrink-0">
             <ShieldAlert className="h-2.5 w-2.5 mr-0.5" />
             Sancionado
+          </Badge>
+        )}
+
+        {/* Apercibido badge */}
+        {isApercibido && (
+          <Badge className="bg-amber-600 text-white text-[8px] px-1.5 py-0 h-4 shrink-0">
+            <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
+            Apercibido
           </Badge>
         )}
 

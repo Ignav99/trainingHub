@@ -398,7 +398,7 @@ function ScoutingTab({
             <GoleadoresWidget data={intel.goleadores_rival} />
           )}
           {intel.once_probable && (
-            <OnceProbableWidget data={intel.once_probable} />
+            <OnceProbableWidget data={intel.once_probable} tarjetas={intel.tarjetas} />
           )}
           {(intel.tarjetas || (intel.sanciones_oficiales && intel.sanciones_oficiales.length > 0)) && (
             <TarjetasWidget tarjetas={intel.tarjetas} sanciones={intel.sanciones_oficiales} />

@@ -267,56 +267,298 @@ def _get_once_probable(supabase, comp_id: str, rival_nombre: str, tarjetas_data:
     }
 
 
-def _get_tarjetas(supabase, comp_id: str, rival_nombre: str) -> dict:
-    """Aggregate card statistics for the rival across all actas."""
+def _get_expected_jornadas(supabase, comp_id: str, team_nombre: str) -> set[int]:
+    """Get jornada numbers where the team was expected to play (from rfef_jornadas)."""
+    jornadas_res = supabase.table("rfef_jornadas").select(
+        "numero, partidos"
+    ).eq("competicion_id", comp_id).order("numero").execute()
+
+    expected = set()
+    team_lower = team_nombre.lower()
+    core_lower = _extract_core_name(team_nombre).lower()
+
+    for jornada in jornadas_res.data or []:
+        for partido in jornada.get("partidos", []):
+            local = (partido.get("local") or "").lower()
+            visitante = (partido.get("visitante") or "").lower()
+            if (
+                _match_rival_name(team_lower, local) or
+                _match_rival_name(team_lower, visitante) or
+                _match_rival_name(core_lower, local) or
+                _match_rival_name(core_lower, visitante)
+            ):
+                expected.add(jornada["numero"])
+                break
+
+    return expected
+
+
+def _acta_has_lineup_data(acta: dict, team_nombre: str) -> bool:
+    """Check if the acta has lineup data (titulares) for the given team."""
+    titulares = _get_rival_data(acta, team_nombre, "titulares_local", "titulares_visitante")
+    return bool(titulares)
+
+
+def _group_cards_by_player(tarjetas: list[dict]) -> dict[str, list[str]]:
+    """Group card types by player name. Returns {name: [tipo, tipo, ...]}."""
+    grouped: dict[str, list[str]] = {}
+    for t in tarjetas:
+        nombre = t.get("jugador", "").strip()
+        tipo = t.get("tipo", "")
+        if not nombre or not tipo:
+            continue
+        grouped.setdefault(nombre, []).append(tipo)
+    return grouped
+
+
+def _parse_sancion_match_count(descripcion: str) -> int | None:
+    """Extract number of match suspension from official sanction description.
+
+    Examples:
+        "SUSPENSION POR UN PARTIDO" → 1
+        "SUSPENSION POR DOS PARTIDOS" → 2
+        "SUSPENSION POR TRES PARTIDOS" → 3
+        "1 PARTIDO DE SUSPENSIÓN" → 1
+    """
+    if not descripcion:
+        return None
+
+    desc = descripcion.upper()
+
+    # Try numeric: "2 PARTIDOS", "1 PARTIDO"
+    m = re.search(r"(\d+)\s*PARTIDO", desc)
+    if m:
+        return int(m.group(1))
+
+    # Try word-based
+    word_map = {
+        "UN PARTIDO": 1, "UN (1) PARTIDO": 1,
+        "DOS PARTIDO": 2, "DOS (2) PARTIDO": 2,
+        "TRES PARTIDO": 3, "TRES (3) PARTIDO": 3,
+        "CUATRO PARTIDO": 4,
+        "CINCO PARTIDO": 5,
+    }
+    for pattern, count in word_map.items():
+        if pattern in desc:
+            return count
+
+    return None
+
+
+def _compute_card_states(
+    supabase,
+    comp_id: str,
+    team_nombre: str,
+    target_jornada: int | None = None,
+    sanciones_oficiales: list[dict] | None = None,
+) -> dict:
+    """Chronological state machine that processes actas jornada by jornada.
+
+    Correctly tracks yellow card cycles (5 yellows = 1 match ban, then reset),
+    red cards, double yellows, and official sanctions.
+
+    Returns dict with metadata + jugadores list with accurate current state.
+    """
+    # 1. Fetch ALL actas chronologically
     actas = _query_actas(
-        supabase, comp_id, rival_nombre,
-        "local_nombre, visitante_nombre, tarjetas_local, tarjetas_visitante, jornada_numero",
+        supabase, comp_id, team_nombre,
+        "local_nombre, visitante_nombre, tarjetas_local, tarjetas_visitante, "
+        "titulares_local, titulares_visitante, jornada_numero",
     )
-    player_cards: dict[str, dict] = {}
 
+    # Index actas by jornada
+    actas_by_jornada: dict[int, dict] = {}
     for acta in actas:
-        tarjetas = _get_rival_data(acta, rival_nombre, "tarjetas_local", "tarjetas_visitante")
+        j_num = acta.get("jornada_numero")
+        if j_num is not None:
+            actas_by_jornada[j_num] = acta
 
-        for tarjeta in tarjetas:
-            nombre = tarjeta.get("jugador", "").strip()
-            tipo = tarjeta.get("tipo", "")
-            if not nombre:
+    # 2. Get expected jornadas (where the team should have played)
+    expected = _get_expected_jornadas(supabase, comp_id, team_nombre)
+
+    # Determine target jornada (next match = max expected + 1, or provided)
+    max_jornada = max(expected) if expected else (max(actas_by_jornada.keys()) if actas_by_jornada else 0)
+    if target_jornada is None:
+        target_jornada = max_jornada + 1
+
+    # 3. Player state tracking
+    # state per player: {ciclo, total_amarillas, rojas, suspension_remaining, motivo, last_card_jornada}
+    players: dict[str, dict] = {}
+    jornadas_sin_datos: list[int] = []
+    actas_with_cards = 0
+
+    def ensure_player(name: str):
+        if name not in players:
+            players[name] = {
+                "ciclo": 0,
+                "total_amarillas": 0,
+                "rojas": 0,
+                "suspension_remaining": 0,
+                "motivo": None,
+                "last_card_jornada": None,
+                "ciclos_cumplidos": 0,
+            }
+
+    # 4. Process jornadas chronologically
+    for jornada_num in sorted(expected):
+        if jornada_num > target_jornada:
+            break
+
+        acta = actas_by_jornada.get(jornada_num)
+        team_played = True
+
+        if acta:
+            # Check if acta actually has lineup data for this team
+            if not _acta_has_lineup_data(acta, team_nombre):
+                team_played = False
+        else:
+            # No acta but team was expected to play
+            jornadas_sin_datos.append(jornada_num)
+
+        # Step A: Decrement suspensions (team played this jornada)
+        if team_played:
+            for p_state in players.values():
+                if p_state["suspension_remaining"] > 0:
+                    p_state["suspension_remaining"] -= 1
+                    if p_state["suspension_remaining"] == 0:
+                        # Reset cycle if suspension was from yellow cycle
+                        if p_state["motivo"] == "ciclo_amarillas":
+                            p_state["ciclo"] = 0
+                        p_state["motivo"] = None
+
+        # Step B: Process cards from acta (if data exists)
+        if acta:
+            tarjetas = _get_rival_data(acta, team_nombre, "tarjetas_local", "tarjetas_visitante")
+            if tarjetas:
+                actas_with_cards += 1
+
+            grouped = _group_cards_by_player(tarjetas)
+
+            for nombre, tipos in grouped.items():
+                ensure_player(nombre)
+                p = players[nombre]
+
+                has_amarilla = "amarilla" in tipos
+                has_doble = "doble_amarilla" in tipos
+                has_roja = "roja" in tipos
+
+                # Process amarilla
+                if has_amarilla:
+                    p["ciclo"] += 1
+                    p["total_amarillas"] += 1
+                    p["last_card_jornada"] = jornada_num
+
+                # Process doble_amarilla (2nd yellow = expulsion)
+                if has_doble:
+                    if has_amarilla:
+                        # 1st yellow already counted above, doble adds the 2nd
+                        p["ciclo"] += 1
+                        p["total_amarillas"] += 1
+                    else:
+                        # No explicit 1st yellow — doble implies 2 yellows
+                        p["ciclo"] += 2
+                        p["total_amarillas"] += 2
+                    p["last_card_jornada"] = jornada_num
+
+                    # Check if cycle completed by these yellows BEFORE applying doble suspension
+                    if p["ciclo"] >= 5:
+                        p["ciclos_cumplidos"] += 1
+                        # Suspension = 1 match for cycle (doble suspension merges)
+                        p["suspension_remaining"] = max(p["suspension_remaining"], 1)
+                        p["motivo"] = "ciclo_amarillas"
+                        p["ciclo"] = p["ciclo"] - 5  # carry remainder
+                    else:
+                        # Doble amarilla expulsion = 1 match suspension
+                        p["suspension_remaining"] = max(p["suspension_remaining"], 1)
+                        p["motivo"] = "doble_amarilla"
+
+                # Check yellow cycle threshold (5 yellows = 1 match ban)
+                elif has_amarilla and p["ciclo"] >= 5:
+                    p["ciclos_cumplidos"] += 1
+                    p["suspension_remaining"] = max(p["suspension_remaining"], 1)
+                    p["motivo"] = "ciclo_amarillas"
+                    p["ciclo"] = p["ciclo"] - 5
+
+                # Process roja (does NOT affect yellow cycle)
+                if has_roja:
+                    p["rojas"] += 1
+                    p["last_card_jornada"] = jornada_num
+                    # Red card = minimum 1 match suspension
+                    if not has_doble:  # don't double-suspend for doble+roja edge case
+                        p["suspension_remaining"] = max(p["suspension_remaining"], 1)
+                        p["motivo"] = "roja"
+
+    # 5. Apply official sanctions (override/extend suspensions)
+    if sanciones_oficiales:
+        for sancion in sanciones_oficiales:
+            persona = sancion.get("persona_nombre", "").strip()
+            if not persona:
                 continue
-            if nombre not in player_cards:
-                player_cards[nombre] = {"amarillas": 0, "rojas": 0}
-            if tipo == "amarilla":
-                player_cards[nombre]["amarillas"] += 1
-            elif tipo == "roja":
-                player_cards[nombre]["rojas"] += 1
+            desc = sancion.get("descripcion", "")
+            match_count = _parse_sancion_match_count(desc)
+            if match_count and match_count > 0:
+                ensure_player(persona)
+                p = players[persona]
+                sancion_jornada = sancion.get("jornada_numero") or 0
+                # Calculate remaining matches from sancion jornada
+                jornadas_after = sum(
+                    1 for j in sorted(expected)
+                    if j > sancion_jornada and j <= max_jornada
+                )
+                remaining = max(0, match_count - jornadas_after)
+                if remaining > p["suspension_remaining"]:
+                    p["suspension_remaining"] = remaining
+                    p["motivo"] = "sancion_oficial"
 
+    # 6. Build output
     jugadores = []
-    for nombre, cards in player_cards.items():
-        amarillas = cards["amarillas"]
-        rojas = cards["rojas"]
-        ciclos_cumplidos = amarillas // 5
-
-        if amarillas > 0 and amarillas % 5 == 0:
+    for nombre, state in players.items():
+        if state["suspension_remaining"] > 0:
             estado = "Sancionado"
-        elif amarillas % 5 == 4:
-            estado = "Ciclo"
+        elif state["ciclo"] == 4:
+            estado = "Apercibido"
         else:
             estado = "OK"
 
         jugadores.append({
             "nombre": nombre,
-            "amarillas": amarillas,
-            "rojas": rojas,
-            "ciclos_cumplidos": ciclos_cumplidos,
+            "amarillas": state["total_amarillas"],
+            "rojas": state["rojas"],
+            "ciclos_cumplidos": state["ciclos_cumplidos"],
             "estado": estado,
+            "amarillas_ciclo": state["ciclo"],
+            "sancionado_restantes": state["suspension_remaining"],
+            "sancionado_motivo": state["motivo"],
+            "ultima_tarjeta_jornada": state["last_card_jornada"],
         })
 
-    jugadores.sort(key=lambda j: (-j["amarillas"], -j["rojas"]))
+    # Sort: sancionados first, then apercibidos, then by amarillas desc
+    estado_order = {"Sancionado": 0, "Apercibido": 1, "OK": 2}
+    jugadores.sort(key=lambda j: (estado_order.get(j["estado"], 9), -j["amarillas"], -j["rojas"]))
 
     return {
         "total_actas": len(actas),
+        "actas_con_tarjetas": actas_with_cards,
+        "jornadas_sin_datos": jornadas_sin_datos,
+        "jornada_objetivo": target_jornada,
         "jugadores": jugadores,
     }
+
+
+def _get_tarjetas(
+    supabase,
+    comp_id: str,
+    rival_nombre: str,
+    sanciones_oficiales: list[dict] | None = None,
+) -> dict:
+    """Aggregate card statistics using chronological state machine.
+
+    Backwards-compatible wrapper around _compute_card_states().
+    """
+    return _compute_card_states(
+        supabase, comp_id, rival_nombre,
+        sanciones_oficiales=sanciones_oficiales,
+    )
 
 
 def _get_sanciones_oficiales(supabase, comp_id: str, rival_nombre: str) -> list[dict]:
@@ -437,10 +679,15 @@ def gather_rival_intel_standalone(
     if goleadores:
         intel["goleadores_rival"] = goleadores
 
-    # Tarjetas (fetch first so we can pass to once probable)
+    # Sanciones oficiales (fetch first, needed by tarjetas engine)
+    sanciones = _get_sanciones_oficiales(supabase, comp_id, rival_nombre)
+    if sanciones:
+        intel["sanciones_oficiales"] = sanciones
+
+    # Tarjetas (fetch before once probable for sanction cross-reference)
     tarjetas = None
     try:
-        tarjetas = _get_tarjetas(supabase, comp_id, rival_nombre)
+        tarjetas = _get_tarjetas(supabase, comp_id, rival_nombre, sanciones_oficiales=sanciones or None)
         if tarjetas.get("jugadores"):
             intel["tarjetas"] = tarjetas
     except Exception as e:
@@ -453,11 +700,6 @@ def gather_rival_intel_standalone(
             intel["once_probable"] = once
     except Exception as e:
         logger.warning("Error getting once probable for '%s': %s", rival_nombre, e, exc_info=True)
-
-    # Sanciones oficiales
-    sanciones = _get_sanciones_oficiales(supabase, comp_id, rival_nombre)
-    if sanciones:
-        intel["sanciones_oficiales"] = sanciones
 
     # Ultimos resultados
     try:

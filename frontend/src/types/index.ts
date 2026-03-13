@@ -1233,7 +1233,16 @@ export interface TarjetaJugadorResumen {
   amarillas: number
   rojas: number
   ciclos_cumplidos: number
-  estado: 'OK' | 'Ciclo' | 'Sancionado'
+  estado: 'OK' | 'Apercibido' | 'Sancionado'
+  amarillas_ciclo?: number
+  sancionado_restantes?: number
+  sancionado_motivo?: string | null
+  ultima_tarjeta_jornada?: number | null
+  // Only for mi equipo:
+  jugador_id?: string
+  apodo?: string
+  dorsal?: number | null
+  posicion_principal?: string
 }
 
 export interface TarjetasResumenResponse {
@@ -1270,6 +1279,9 @@ export interface PreMatchOnceProbable {
 
 export interface PreMatchTarjetas {
   total_actas: number
+  actas_con_tarjetas?: number
+  jornadas_sin_datos?: number[]
+  jornada_objetivo?: number
   jugadores: TarjetaJugadorResumen[]
 }
 

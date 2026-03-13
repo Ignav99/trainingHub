@@ -42,6 +42,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import type { RFEFActa } from '@/types'
+import { MiEquipoTarjetasWidget } from '@/components/pre-match/MiEquipoTarjetasWidget'
 
 export default function CompeticionPage() {
   const { equipoActivo } = useEquipoStore()
@@ -661,6 +662,11 @@ export default function CompeticionPage() {
               Sanciones
             </TabsTrigger>
           )}
+          {miEquipo && (
+            <TabsTrigger value="mi-equipo-tarjetas">
+              Tarjetas Equipo
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* Clasificacion tab */}
@@ -876,6 +882,12 @@ export default function CompeticionPage() {
                 <SancionesTable sanciones={sanciones} miEquipo={miEquipo} />
               )}
             </div>
+          </TabsContent>
+        )}
+        {/* Mi Equipo Tarjetas tab */}
+        {miEquipo && (
+          <TabsContent value="mi-equipo-tarjetas">
+            <MiEquipoTarjetasWidget competicionId={competicion.id} />
           </TabsContent>
         )}
       </Tabs>

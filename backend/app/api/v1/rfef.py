@@ -658,6 +658,104 @@ async def link_competicion(
     return result
 
 
+# ============ Mi Equipo Tarjetas ============
+
+@router.get("/competiciones/{competicion_id}/mi-equipo/tarjetas")
+async def mi_equipo_tarjetas(
+    competicion_id: UUID,
+    jornada_objetivo: Optional[int] = Query(None, description="Target jornada for state calculation"),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """Card states for our own team using the chronological state machine.
+
+    Enriches results with jugadores table data (apodo, dorsal, posicion).
+    """
+    from app.services.pre_match_service import (
+        _compute_card_states,
+        _get_sanciones_oficiales,
+        _match_rival_name,
+    )
+
+    supabase = get_supabase()
+
+    comp = supabase.table("rfef_competiciones").select("*").eq(
+        "id", str(competicion_id)
+    ).single().execute()
+
+    if not comp.data:
+        raise HTTPException(status_code=404, detail="Competición no encontrada")
+
+    mi_equipo = comp.data.get("mi_equipo_nombre")
+    if not mi_equipo:
+        raise HTTPException(
+            status_code=400,
+            detail="Primero debes seleccionar tu equipo (mi_equipo_nombre)",
+        )
+
+    # Get official sanctions for our team
+    sanciones = _get_sanciones_oficiales(supabase, str(competicion_id), mi_equipo)
+
+    # Compute card states
+    result = _compute_card_states(
+        supabase,
+        str(competicion_id),
+        mi_equipo,
+        target_jornada=jornada_objetivo,
+        sanciones_oficiales=sanciones or None,
+    )
+
+    # Enrich with jugadores table
+    equipo_id = comp.data.get("equipo_id")
+    if equipo_id:
+        try:
+            jugadores_res = supabase.table("jugadores").select(
+                "id, nombre, apellidos, apodo, dorsal, posicion_principal"
+            ).eq("equipo_id", equipo_id).execute()
+
+            plantilla = jugadores_res.data or []
+
+            # Build lookup: "APELLIDOS, NOMBRE" -> jugador record
+            # RFEF format is typically "APELLIDOS, NOMBRE" all caps
+            plantilla_lookup: dict[str, dict] = {}
+            for j in plantilla:
+                nombre = (j.get("nombre") or "").strip()
+                apellidos = (j.get("apellidos") or "").strip()
+                # Try "APELLIDOS, NOMBRE" format (RFEF style)
+                rfef_key = f"{apellidos}, {nombre}".upper()
+                plantilla_lookup[rfef_key] = j
+                # Also try lowercase variations
+                plantilla_lookup[f"{apellidos}, {nombre}".lower()] = j
+                # Try just apellidos for partial matching
+                if apellidos:
+                    plantilla_lookup[apellidos.upper()] = j
+
+            for jugador in result.get("jugadores", []):
+                rfef_nombre = jugador["nombre"]
+                # Exact match
+                matched = plantilla_lookup.get(rfef_nombre.upper())
+                if not matched:
+                    matched = plantilla_lookup.get(rfef_nombre.lower())
+                if not matched:
+                    # Fuzzy: check if RFEF name starts with any apellidos
+                    rfef_upper = rfef_nombre.upper()
+                    for j in plantilla:
+                        apellidos = (j.get("apellidos") or "").strip().upper()
+                        if apellidos and rfef_upper.startswith(apellidos):
+                            matched = j
+                            break
+
+                if matched:
+                    jugador["jugador_id"] = matched["id"]
+                    jugador["apodo"] = matched.get("apodo")
+                    jugador["dorsal"] = matched.get("dorsal")
+                    jugador["posicion_principal"] = matched.get("posicion_principal")
+
+        except Exception as e:
+            logger.warning("Error enriching mi-equipo tarjetas: %s", e)
+
+    return result
+
+
 # ============ Actas ============
 
 class SyncActasRequest(BaseModel):

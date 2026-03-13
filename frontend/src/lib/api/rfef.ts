@@ -295,4 +295,13 @@ export const rfefApi = {
   ): Promise<{ data: RFEFSancion[]; total: number }> {
     return api.get(`/rfef/competiciones/${compId}/sanciones`, { params })
   },
+
+  async getMiEquipoTarjetas(
+    compId: string,
+    jornadaObjetivo?: number,
+  ): Promise<import('@/types').PreMatchTarjetas> {
+    const params: Record<string, any> = {}
+    if (jornadaObjetivo !== undefined) params.jornada_objetivo = jornadaObjetivo
+    return api.get(`/rfef/competiciones/${compId}/mi-equipo/tarjetas`, { params })
+  },
 }
