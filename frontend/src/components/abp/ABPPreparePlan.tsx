@@ -151,18 +151,23 @@ export default function ABPPreparePlan({ onClose }: ABPPreparePlanProps) {
     setPlanJugadas(prev => prev.filter(pj => pj.jugada_id !== jugadaId).map((pj, i) => ({ ...pj, orden: i })))
   }
 
-  // Update asignacion
-  const updateAsignacion = (jugadaId: string, elementId: string, field: 'jugador_id' | 'rol', value: string) => {
+  // Update asignacion — supports jugador_ids (multi-player) and rol
+  const updateAsignacion = (jugadaId: string, elementId: string, field: 'jugador_ids' | 'rol', value: string[] | string) => {
     setPlanJugadas(prev => prev.map(pj => {
       if (pj.jugada_id !== jugadaId) return pj
       const existing = pj.asignaciones_override.find(a => a.element_id === elementId)
       let newAsigs: ABPAsignacion[]
       if (existing) {
-        newAsigs = pj.asignaciones_override.map(a =>
-          a.element_id === elementId ? { ...a, [field]: value || undefined } : a
-        )
+        newAsigs = pj.asignaciones_override.map(a => {
+          if (a.element_id !== elementId) return a
+          if (field === 'jugador_ids') return { ...a, jugador_ids: value as string[], jugador_id: undefined }
+          return { ...a, rol: (value as string) || undefined }
+        })
       } else {
-        newAsigs = [...pj.asignaciones_override, { element_id: elementId, [field]: value || undefined }]
+        const newAsig: ABPAsignacion = { element_id: elementId }
+        if (field === 'jugador_ids') newAsig.jugador_ids = value as string[]
+        else newAsig.rol = (value as string) || undefined
+        newAsigs = [...pj.asignaciones_override, newAsig]
       }
       return { ...pj, asignaciones_override: newAsigs }
     }))
@@ -178,7 +183,9 @@ export default function ABPPreparePlan({ onClose }: ABPPreparePlanProps) {
         comentario_defensivo: comentarioDefensivo || undefined,
         jugadas: planJugadas.map((pj, i) => ({
           jugada_id: pj.jugada_id,
-          asignaciones_override: pj.asignaciones_override.filter(a => a.jugador_id || a.rol),
+          asignaciones_override: pj.asignaciones_override
+            .map(a => ({ ...a, jugador_ids: a.jugador_ids || (a.jugador_id ? [a.jugador_id] : undefined), jugador_id: undefined }))
+            .filter(a => (a.jugador_ids && a.jugador_ids.length > 0) || a.rol),
           notas: pj.notas || undefined,
           orden: i,
         })),
@@ -431,7 +438,7 @@ interface JugadaSectionProps {
   jugadas: PlanJugada[]
   allJugadores: Jugador[]
   onRemove: (jugadaId: string) => void
-  onUpdateAsignacion: (jugadaId: string, elementId: string, field: 'jugador_id' | 'rol', value: string) => void
+  onUpdateAsignacion: (jugadaId: string, elementId: string, field: 'jugador_ids' | 'rol', value: string[] | string) => void
   onAddClick: () => void
   color: 'blue' | 'red'
 }
@@ -482,7 +489,7 @@ interface PlanJugadaCardProps {
   planJugada: PlanJugada
   jugadores: Jugador[]
   onRemove: () => void
-  onUpdateAsignacion: (elementId: string, field: 'jugador_id' | 'rol', value: string) => void
+  onUpdateAsignacion: (elementId: string, field: 'jugador_ids' | 'rol', value: string[] | string) => void
   color: 'blue' | 'red'
 }
 
@@ -574,33 +581,61 @@ function PlanJugadaCard({ planJugada, jugadores, onRemove, onUpdateAsignacion, c
                 <div className="space-y-1.5">
                   {elements.map((el: any) => {
                     const asig: ABPAsignacion = asignaciones_override.find(a => a.element_id === el.id) || { element_id: el.id }
+                    // Support both jugador_ids (new) and jugador_id (legacy)
+                    const selectedIds = asig.jugador_ids || (asig.jugador_id ? [asig.jugador_id] : [])
                     return (
-                      <div key={el.id} className="flex items-center gap-1.5">
+                      <div key={el.id} className="flex items-start gap-1.5">
                         {/* Element badge */}
                         <div
-                          className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
+                          className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 mt-0.5"
                           style={{ backgroundColor: el.color || TEAM_COLORS.team1 }}
                         >
                           {el.label}
                         </div>
-                        {/* Player select */}
-                        <select
-                          value={asig.jugador_id || ''}
-                          onChange={e => onUpdateAsignacion(el.id, 'jugador_id', e.target.value)}
-                          className="flex-1 px-1.5 py-1 text-[11px] border border-gray-200 rounded bg-white min-w-0"
-                        >
-                          <option value="">Sin asignar</option>
-                          {jugadores.map(j => (
-                            <option key={j.id} value={j.id}>
-                              {j.dorsal ? `${j.dorsal}. ` : ''}{j.nombre} {j.apellidos || ''}
-                            </option>
-                          ))}
-                        </select>
+                        {/* Players multi-select */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap gap-0.5 mb-0.5">
+                            {selectedIds.map(jid => {
+                              const j = jugadores.find(jg => jg.id === jid)
+                              if (!j) return null
+                              return (
+                                <span key={jid} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-blue-50 border border-blue-200 rounded text-[10px] text-blue-800">
+                                  {j.dorsal ? `${j.dorsal}.` : ''} {j.nombre}
+                                  <button
+                                    onClick={() => onUpdateAsignacion(el.id, 'jugador_ids', selectedIds.filter(id => id !== jid))}
+                                    className="text-blue-400 hover:text-red-500 ml-0.5"
+                                  >
+                                    <X className="h-2.5 w-2.5" />
+                                  </button>
+                                </span>
+                              )
+                            })}
+                          </div>
+                          <select
+                            value=""
+                            onChange={e => {
+                              if (e.target.value && !selectedIds.includes(e.target.value)) {
+                                onUpdateAsignacion(el.id, 'jugador_ids', [...selectedIds, e.target.value])
+                              }
+                              e.target.value = ''
+                            }}
+                            className="w-full px-1.5 py-1 text-[11px] border border-gray-200 rounded bg-white"
+                          >
+                            <option value="">{selectedIds.length ? '+ Añadir jugador' : 'Seleccionar jugador'}</option>
+                            {jugadores
+                              .filter(j => !selectedIds.includes(j.id))
+                              .map(j => (
+                                <option key={j.id} value={j.id}>
+                                  {j.dorsal ? `${j.dorsal}. ` : ''}{j.nombre} {j.apellidos || ''}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
                         {/* Role select */}
                         <select
                           value={asig.rol || ''}
                           onChange={e => onUpdateAsignacion(el.id, 'rol', e.target.value)}
-                          className="w-28 px-1.5 py-1 text-[11px] border border-gray-200 rounded bg-white flex-shrink-0"
+                          className="w-28 px-1.5 py-1 text-[11px] border border-gray-200 rounded bg-white flex-shrink-0 mt-0.5"
                         >
                           <option value="">Rol</option>
                           {ABP_ROLES.map(r => (

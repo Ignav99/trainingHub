@@ -529,7 +529,7 @@ async def get_partido_abp_pdf(
     if equipo_id:
         jugadores_resp = supabase.table("jugadores").select(
             "id, nombre, apellidos, dorsal"
-        ).eq("equipo_id", str(equipo_id)).eq("activo", True).execute()
+        ).eq("equipo_id", str(equipo_id)).eq("estado", "activo").execute()
         for j in (jugadores_resp.data or []):
             jugadores_map[j["id"]] = j
         equipo_resp = supabase.table("equipos").select("nombre").eq(

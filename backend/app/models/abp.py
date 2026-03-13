@@ -71,7 +71,8 @@ class ABPFase(BaseModel):
 
 class ABPAsignacion(BaseModel):
     element_id: str
-    jugador_id: Optional[str] = None
+    jugador_id: Optional[str] = None  # legacy single player
+    jugador_ids: Optional[List[str]] = None  # multiple players per role
     rol: Optional[str] = None
 
 

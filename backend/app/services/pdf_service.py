@@ -750,13 +750,22 @@ def generate_abp_partido_pdf(
         asignaciones = jp.get("asignaciones_override") or jugada.get("asignaciones") or []
         resolved = []
         for asig in asignaciones:
-            jid = asig.get("jugador_id")
-            player = jugadores_map.get(jid, {}) if jugadores_map and jid else {}
+            # Support jugador_ids (array) with fallback to legacy jugador_id (single)
+            jids = asig.get("jugador_ids") or ([asig["jugador_id"]] if asig.get("jugador_id") else [])
+            names = []
+            dorsales = []
+            for jid in jids:
+                player = jugadores_map.get(jid, {}) if jugadores_map and jid else {}
+                if player:
+                    name = f"{player.get('nombre', '')} {player.get('apellidos', '')}".strip()
+                    if name:
+                        names.append(name)
+                        dorsales.append(str(player.get("dorsal", "")))
             resolved.append({
                 "element_id": asig.get("element_id", ""),
                 "rol": asig.get("rol", ""),
-                "jugador_nombre": f"{player.get('nombre', '')} {player.get('apellidos', '')}".strip() if player else "",
-                "dorsal": player.get("dorsal", "") if player else "",
+                "jugador_nombre": " / ".join(names),
+                "dorsal": " / ".join(d for d in dorsales if d),
             })
         jp["resolved_asignaciones"] = [r for r in resolved if r["jugador_nombre"]]
 

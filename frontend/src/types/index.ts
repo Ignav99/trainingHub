@@ -1483,7 +1483,8 @@ export interface ABPFase {
 
 export interface ABPAsignacion {
   element_id: string
-  jugador_id?: string
+  jugador_id?: string       // legacy single player
+  jugador_ids?: string[]    // multiple players per role
   rol?: string
 }
 
