@@ -89,12 +89,17 @@ def _get_goleadores_rival(comp: dict, rival_nombre: str) -> list[dict]:
 
 
 def _query_actas(supabase, comp_id: str, rival_nombre: str, columns: str, desc: bool = False, limit: int | None = None) -> list[dict]:
-    """Query rfef_actas with fallback to core name if full name returns 0 results."""
+    """Query rfef_actas with multiple fallbacks:
+    1. ilike on local_nombre/visitante_nombre with full rfef_nombre
+    2. ilike with core name (stripped prefixes)
+    3. Lookup cod_actas from rfef_jornadas (works even if acta names are empty)
+    """
     search_names = [rival_nombre]
     core = _extract_core_name(rival_nombre)
     if core.lower() != rival_nombre.lower().strip():
         search_names.append(core)
 
+    # Strategy 1 & 2: direct name search on actas
     for name in search_names:
         query = supabase.table("rfef_actas").select(columns).eq(
             "competicion_id", comp_id
@@ -106,32 +111,99 @@ def _query_actas(supabase, comp_id: str, rival_nombre: str, columns: str, desc: 
         res = query.execute()
         actas = res.data or []
         if actas:
-            logger.info("Actas query for '%s' matched %d rows (search='%s')", rival_nombre, len(actas), name)
+            logger.info("Actas for '%s': %d rows (name search='%s')", rival_nombre, len(actas), name)
             return actas
 
-    # Diagnostic: log what team names actually exist in actas for this competition
+    # Strategy 3: find cod_actas via jornadas (jornadas always have correct team names)
     try:
-        sample = supabase.table("rfef_actas").select(
-            "local_nombre, visitante_nombre"
-        ).eq("competicion_id", comp_id).limit(3).execute()
-        sample_names = set()
-        for row in sample.data or []:
-            sample_names.add(row.get("local_nombre", ""))
-            sample_names.add(row.get("visitante_nombre", ""))
-        logger.warning(
-            "Actas query for '%s' returned 0 rows (tried: %s). "
-            "Sample team names in comp %s: %s",
-            rival_nombre, search_names, comp_id, sorted(sample_names)[:10],
-        )
-    except Exception:
-        logger.warning("Actas query for '%s' returned 0 rows (tried: %s)", rival_nombre, search_names)
+        jornadas_res = supabase.table("rfef_jornadas").select(
+            "numero, partidos"
+        ).eq("competicion_id", comp_id).order("numero", desc=desc).execute()
+
+        cod_actas = []
+        for jornada in jornadas_res.data or []:
+            for partido in jornada.get("partidos", []):
+                local = (partido.get("local") or "").lower()
+                visitante = (partido.get("visitante") or "").lower()
+                rival_lower = rival_nombre.lower()
+                core_lower = core.lower()
+
+                is_match = (
+                    _match_rival_name(rival_lower, local) or
+                    _match_rival_name(rival_lower, visitante) or
+                    _match_rival_name(core_lower, local) or
+                    _match_rival_name(core_lower, visitante)
+                )
+                if is_match and partido.get("cod_acta"):
+                    cod_actas.append(partido["cod_acta"])
+
+        if cod_actas:
+            if limit:
+                cod_actas = cod_actas[:limit]
+            actas_query = supabase.table("rfef_actas").select(columns).in_(
+                "cod_acta", cod_actas
+            ).order("jornada_numero", desc=desc)
+            res = actas_query.execute()
+            actas = res.data or []
+            if actas:
+                logger.info(
+                    "Actas for '%s': %d rows (jornadas fallback, %d cod_actas matched)",
+                    rival_nombre, len(actas), len(cod_actas),
+                )
+                return actas
+
+        logger.warning("No actas found for '%s' (tried names + jornadas fallback)", rival_nombre)
+    except Exception as e:
+        logger.warning("Jornadas fallback failed for '%s': %s", rival_nombre, e)
+
     return []
+
+
+def _is_rival_local(acta: dict, rival_nombre: str) -> bool | None:
+    """Determine if the rival is the local team in an acta.
+
+    Tries full name and core name matching against both local_nombre
+    and visitante_nombre. Returns None if names are empty/unknown
+    (caller should try both sides).
+    """
+    local = (acta.get("local_nombre") or "").lower()
+    visitante = (acta.get("visitante_nombre") or "").lower()
+    rival_lower = rival_nombre.lower()
+    core_lower = _extract_core_name(rival_nombre).lower()
+
+    # Check if rival is local
+    if local and (_match_rival_name(rival_lower, local) or _match_rival_name(core_lower, local)):
+        return True
+    # Check if rival is visitante
+    if visitante and (_match_rival_name(rival_lower, visitante) or _match_rival_name(core_lower, visitante)):
+        return False
+    # Names are empty — unknown
+    return None
+
+
+def _get_rival_data(acta: dict, rival_nombre: str, local_key: str, visitante_key: str) -> list:
+    """Get the rival's data from acta, handling empty names gracefully.
+
+    When names are empty (can't determine side), takes the side with MORE data
+    as a heuristic (the rival team is more likely to be fully populated).
+    """
+    side = _is_rival_local(acta, rival_nombre)
+    if side is True:
+        return acta.get(local_key) or []
+    elif side is False:
+        return acta.get(visitante_key) or []
+    else:
+        # Unknown side — pick the one with more data
+        local_data = acta.get(local_key) or []
+        visitante_data = acta.get(visitante_key) or []
+        # Heuristic: we can't tell, so we try both sides — but for most use cases
+        # (once probable, tarjetas), we need to pick one. Use visitante as default
+        # since most queries are for away opponents.
+        return visitante_data if visitante_data else local_data
 
 
 def _get_once_probable(supabase, comp_id: str, rival_nombre: str, tarjetas_data: dict | None = None) -> dict:
     """Calculate probable starting XI from last 5 actas, with sanction flags."""
-    rival_lower = rival_nombre.lower()
-
     actas = _query_actas(
         supabase, comp_id, rival_nombre,
         "local_nombre, visitante_nombre, titulares_local, titulares_visitante, jornada_numero",
@@ -142,13 +214,7 @@ def _get_once_probable(supabase, comp_id: str, rival_nombre: str, tarjetas_data:
     player_dorsals: dict[str, int | None] = {}
 
     for acta in actas:
-        local_lower = (acta.get("local_nombre") or "").lower()
-        is_local = _match_rival_name(rival_lower, local_lower)
-
-        if is_local:
-            titulares = acta.get("titulares_local") or []
-        else:
-            titulares = acta.get("titulares_visitante") or []
+        titulares = _get_rival_data(acta, rival_nombre, "titulares_local", "titulares_visitante")
 
         for jugador in titulares:
             nombre = jugador.get("nombre", "").strip()
@@ -183,8 +249,6 @@ def _get_once_probable(supabase, comp_id: str, rival_nombre: str, tarjetas_data:
 
 def _get_tarjetas(supabase, comp_id: str, rival_nombre: str) -> dict:
     """Aggregate card statistics for the rival across all actas."""
-    rival_lower = rival_nombre.lower()
-
     actas = _query_actas(
         supabase, comp_id, rival_nombre,
         "local_nombre, visitante_nombre, tarjetas_local, tarjetas_visitante, jornada_numero",
@@ -192,11 +256,7 @@ def _get_tarjetas(supabase, comp_id: str, rival_nombre: str) -> dict:
     player_cards: dict[str, dict] = {}
 
     for acta in actas:
-        local_lower = (acta.get("local_nombre") or "").lower()
-        if _match_rival_name(rival_lower, local_lower):
-            tarjetas = acta.get("tarjetas_local") or []
-        else:
-            tarjetas = acta.get("tarjetas_visitante") or []
+        tarjetas = _get_rival_data(acta, rival_nombre, "tarjetas_local", "tarjetas_visitante")
 
         for tarjeta in tarjetas:
             nombre = tarjeta.get("jugador", "").strip()

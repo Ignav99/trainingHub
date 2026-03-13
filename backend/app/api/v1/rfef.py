@@ -527,9 +527,11 @@ async def sync_competicion_full(
                     try:
                         acta_data = await scraper.scrape_acta(acta_info["cod_acta"])
 
-                        # Get fecha/hora from jornada
+                        # Get fecha/hora + fallback names from jornada
                         fecha = None
                         hora = None
+                        jornada_local = ""
+                        jornada_visitante = ""
                         for jornada in all_jornadas_res.data or []:
                             if jornada["numero"] == acta_info["jornada_numero"]:
                                 for p in jornada.get("partidos", []):
@@ -542,14 +544,16 @@ async def sync_competicion_full(
                                             except ValueError:
                                                 pass
                                         hora = p.get("hora") or None
+                                        jornada_local = p.get("local", "")
+                                        jornada_visitante = p.get("visitante", "")
                                         break
 
                         acta_record = {
                             "competicion_id": comp_id,
                             "jornada_numero": acta_info["jornada_numero"],
                             "cod_acta": acta_info["cod_acta"],
-                            "local_nombre": acta_data["local"]["nombre"],
-                            "visitante_nombre": acta_data["visitante"]["nombre"],
+                            "local_nombre": acta_data["local"]["nombre"] or jornada_local,
+                            "visitante_nombre": acta_data["visitante"]["nombre"] or jornada_visitante,
                             "local_escudo_url": acta_data["local"].get("escudo_url"),
                             "visitante_escudo_url": acta_data["visitante"].get("escudo_url"),
                             "goles_local": acta_data.get("goles_local"),
@@ -717,9 +721,11 @@ async def sync_actas(
             try:
                 acta_data = await scraper.scrape_acta(acta_info["cod_acta"])
 
-                # Parse fecha/hora from jornada data
+                # Parse fecha/hora + fallback names from jornada data
                 fecha = None
                 hora = None
+                jornada_local = ""
+                jornada_visitante = ""
                 for jornada in jornadas:
                     if jornada["numero"] == acta_info["jornada_numero"]:
                         for p in jornada.get("partidos", []):
@@ -731,6 +737,8 @@ async def sync_actas(
                                     except ValueError:
                                         pass
                                 hora = p.get("hora") or None
+                                jornada_local = p.get("local", "")
+                                jornada_visitante = p.get("visitante", "")
                                 break
 
                 # Upsert acta
@@ -738,8 +746,8 @@ async def sync_actas(
                     "competicion_id": str(competicion_id),
                     "jornada_numero": acta_info["jornada_numero"],
                     "cod_acta": acta_info["cod_acta"],
-                    "local_nombre": acta_data["local"]["nombre"],
-                    "visitante_nombre": acta_data["visitante"]["nombre"],
+                    "local_nombre": acta_data["local"]["nombre"] or jornada_local,
+                    "visitante_nombre": acta_data["visitante"]["nombre"] or jornada_visitante,
                     "local_escudo_url": acta_data["local"].get("escudo_url"),
                     "visitante_escudo_url": acta_data["visitante"].get("escudo_url"),
                     "goles_local": acta_data.get("goles_local"),
