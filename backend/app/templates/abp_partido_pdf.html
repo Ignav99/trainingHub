@@ -226,15 +226,23 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            padding: 3px 0;
+            padding: 4px 0;
             font-size: 12px;
             border-bottom: 1px solid #f1f5f9;
         }
         .asig-row:last-child { border-bottom: none; }
-        .asig-dorsal {
-            font-weight: 700;
-            color: {{ color_primario or '#1a365d' }};
-            min-width: 24px;
+        .asig-num {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: {{ color_primario or '#1a365d' }};
+            color: white;
+            font-weight: 800;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
         }
         .asig-name { font-weight: 600; color: #333; }
         .asig-arrow { color: #94a3b8; }
@@ -363,7 +371,7 @@
             <h4>Asignaciones</h4>
             {% for asig in jp.resolved_asignaciones %}
             <div class="asig-row">
-                {% if asig.dorsal %}<span class="asig-dorsal">#{{ asig.dorsal }}</span>{% endif %}
+                {% if asig.element_label %}<span class="asig-num">{{ asig.element_label }}</span>{% endif %}
                 <span class="asig-name">{{ asig.jugador_nombre }}</span>
                 {% if asig.rol %}<span class="asig-arrow">→</span> <span class="asig-rol">{{ rol_labels.get(asig.rol, asig.rol) }}</span>{% endif %}
             </div>
@@ -409,7 +417,7 @@
             <h4>Asignaciones</h4>
             {% for asig in jp.resolved_asignaciones %}
             <div class="asig-row">
-                {% if asig.dorsal %}<span class="asig-dorsal">#{{ asig.dorsal }}</span>{% endif %}
+                {% if asig.element_label %}<span class="asig-num">{{ asig.element_label }}</span>{% endif %}
                 <span class="asig-name">{{ asig.jugador_nombre }}</span>
                 {% if asig.rol %}<span class="asig-arrow">→</span> <span class="asig-rol">{{ rol_labels.get(asig.rol, asig.rol) }}</span>{% endif %}
             </div>

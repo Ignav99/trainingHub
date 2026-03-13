@@ -746,26 +746,28 @@ def generate_abp_partido_pdf(
         else:
             jugada["main_svg"] = ""
 
-        # Resolve player assignments
+        # Resolve player assignments — use diagram element label (not dorsal)
         asignaciones = jp.get("asignaciones_override") or jugada.get("asignaciones") or []
+        fases = jugada.get("fases") or []
+        diagram_elements = fases[0].get("diagram", {}).get("elements", []) if fases else []
+        element_labels = {str(el.get("id", "")): str(el.get("label", "")) for el in diagram_elements}
         resolved = []
         for asig in asignaciones:
             # Support jugador_ids (array) with fallback to legacy jugador_id (single)
             jids = asig.get("jugador_ids") or ([asig["jugador_id"]] if asig.get("jugador_id") else [])
             names = []
-            dorsales = []
             for jid in jids:
                 player = jugadores_map.get(jid, {}) if jugadores_map and jid else {}
                 if player:
                     name = f"{player.get('nombre', '')} {player.get('apellidos', '')}".strip()
                     if name:
                         names.append(name)
-                        dorsales.append(str(player.get("dorsal", "")))
+            element_label = element_labels.get(str(asig.get("element_id", "")), "")
             resolved.append({
                 "element_id": asig.get("element_id", ""),
+                "element_label": element_label,
                 "rol": asig.get("rol", ""),
                 "jugador_nombre": " / ".join(names),
-                "dorsal": " / ".join(d for d in dorsales if d),
             })
         jp["resolved_asignaciones"] = [r for r in resolved if r["jugador_nombre"]]
 

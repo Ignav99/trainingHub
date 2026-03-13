@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import useSWR from 'swr'
-import { Plus, Trash2, Flag, Download, GripVertical, X, Eye } from 'lucide-react'
+import { Plus, Trash2, Flag, Download, GripVertical, X, Eye, Loader2 } from 'lucide-react'
 import { apiKey, apiFetcher } from '@/lib/swr'
 import { abpApi } from '@/lib/api/abp'
 import { ABPJugada, ABPPartidoJugada, ABP_TIPOS, LadoABP } from '@/types'
@@ -157,7 +157,9 @@ export default function ABPMatchPlan({ partidoId, equipoId }: ABPMatchPlanProps)
     }
   }
 
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
   const handleDownloadPdf = async () => {
+    setDownloadingPdf(true)
     try {
       const blob = await abpApi.downloadPartidoPdf(partidoId)
       const url = URL.createObjectURL(blob)
@@ -168,6 +170,8 @@ export default function ABPMatchPlan({ partidoId, equipoId }: ABPMatchPlanProps)
       URL.revokeObjectURL(url)
     } catch (e) {
       console.error('Error downloading PDF:', e)
+    } finally {
+      setDownloadingPdf(false)
     }
   }
 
@@ -185,8 +189,8 @@ export default function ABPMatchPlan({ partidoId, equipoId }: ABPMatchPlanProps)
         </div>
         <div className="flex items-center gap-1.5">
           {assigned.length > 0 && (
-            <button onClick={handleDownloadPdf} className="p-1.5 text-gray-400 hover:text-gray-600 rounded" title="Descargar PDF ABP">
-              <Download className="h-4 w-4" />
+            <button onClick={handleDownloadPdf} disabled={downloadingPdf} className="p-1.5 text-gray-400 hover:text-gray-600 rounded disabled:opacity-50" title="Descargar PDF ABP">
+              {downloadingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             </button>
           )}
           <button

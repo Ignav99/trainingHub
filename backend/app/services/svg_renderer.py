@@ -337,13 +337,10 @@ def render_element_svg(element: dict) -> str:
     if el_type in ("player", "opponent", "player_gk"):
         peto = _get_peto_style(color)
         svg = f'<g transform="translate({x},{y})">'
-        # Body (ellipse, slightly below center)
-        svg += f'<ellipse cx="0" cy="5" rx="11" ry="8" fill="{peto["body"]}" stroke="{peto["stroke"]}" stroke-width="1.5"/>'
-        # Head (circle, above body)
-        svg += f'<circle cx="0" cy="-4" r="7" fill="{peto["head"]}" stroke="{peto["stroke"]}" stroke-width="1.5"/>'
-        # Label inside body area
+        # Clear circle with visible number
+        svg += f'<circle cx="0" cy="0" r="16" fill="{peto["body"]}" stroke="{peto["stroke"]}" stroke-width="2.5"/>'
         if label:
-            svg += f'<text x="0" y="-1" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-size="7" fill="{peto["label"]}" font-weight="700">{_escape_xml(str(label))}</text>'
+            svg += f'<text x="0" y="1" text-anchor="middle" dominant-baseline="middle" font-family="Barlow Condensed,Arial,sans-serif" font-size="16" fill="{peto["label"]}" font-weight="800">{_escape_xml(str(label))}</text>'
         svg += "</g>"
         return svg
 

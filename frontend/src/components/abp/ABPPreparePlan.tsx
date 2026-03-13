@@ -200,8 +200,10 @@ export default function ABPPreparePlan({ onClose }: ABPPreparePlanProps) {
   }
 
   // Download PDF
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
   const handleDownloadPdf = async () => {
     if (!selectedPartidoId) return
+    setDownloadingPdf(true)
     try {
       const blob = await abpApi.downloadPartidoPdf(selectedPartidoId)
       const url = URL.createObjectURL(blob)
@@ -213,6 +215,8 @@ export default function ABPPreparePlan({ onClose }: ABPPreparePlanProps) {
     } catch (e) {
       console.error('Error downloading PDF:', e)
       toast.error('Error al descargar PDF')
+    } finally {
+      setDownloadingPdf(false)
     }
   }
 
@@ -240,10 +244,11 @@ export default function ABPPreparePlan({ onClose }: ABPPreparePlanProps) {
           {selectedPartidoId && planJugadas.length > 0 && (
             <button
               onClick={handleDownloadPdf}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+              disabled={downloadingPdf}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
             >
-              <Download className="h-4 w-4" />
-              PDF
+              {downloadingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {downloadingPdf ? 'Generando...' : 'PDF'}
             </button>
           )}
           <button
