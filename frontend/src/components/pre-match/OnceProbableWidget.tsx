@@ -182,7 +182,11 @@ export function OnceProbableWidget({ data, sanciones }: OnceProbableWidgetProps)
         )}
 
         {jugadores.length === 0 && (
-          <p className="text-xs text-slate-500 text-center py-2">Sin actas disponibles</p>
+          <p className="text-xs text-slate-500 text-center py-2">
+            {totalActas > 0
+              ? `${totalActas} actas encontradas pero sin datos de alineaciones`
+              : 'Sin actas disponibles'}
+          </p>
         )}
       </CardContent>
     </Card>

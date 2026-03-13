@@ -170,9 +170,9 @@ async def get_once_probable(
     for acta in actas:
         local_lower = (acta.get("local_nombre") or "").lower()
         if rival_lower in local_lower or local_lower in rival_lower:
-            titulares = acta.get("titulares_local", [])
+            titulares = acta.get("titulares_local") or []
         else:
-            titulares = acta.get("titulares_visitante", [])
+            titulares = acta.get("titulares_visitante") or []
 
         for jugador in titulares:
             nombre = jugador.get("nombre", "").strip()
