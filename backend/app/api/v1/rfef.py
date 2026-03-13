@@ -513,15 +513,18 @@ async def sync_competicion_full(
                         })
 
             if all_actas:
-                # Check which already exist
-                existing_actas_res = supabase.table("rfef_actas").select("cod_acta").eq(
-                    "competicion_id", comp_id
-                ).execute()
-                existing_codes = {a["cod_acta"] for a in (existing_actas_res.data or [])}
+                # Check which already exist — also re-scrape empty ones (no titulares)
+                existing_actas_res = supabase.table("rfef_actas").select(
+                    "cod_acta, titulares_local"
+                ).eq("competicion_id", comp_id).execute()
+                complete_codes = set()
+                for a in existing_actas_res.data or []:
+                    if a.get("titulares_local") and len(a["titulares_local"]) > 0:
+                        complete_codes.add(a["cod_acta"])
 
-                new_actas = [a for a in all_actas if a["cod_acta"] not in existing_codes]
-                logger.info("Sync-full: %d actas to scrape (%d already exist)",
-                            len(new_actas), len(existing_codes))
+                new_actas = [a for a in all_actas if a["cod_acta"] not in complete_codes]
+                logger.info("Sync-full: %d actas to scrape (%d already complete)",
+                            len(new_actas), len(complete_codes))
 
                 for acta_info in new_actas:
                     try:
