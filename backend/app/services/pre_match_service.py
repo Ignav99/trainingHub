@@ -121,6 +121,7 @@ def _query_actas(supabase, comp_id: str, rival_nombre: str, columns: str, desc: 
         ).eq("competicion_id", comp_id).order("numero", desc=desc).execute()
 
         cod_actas = []
+        cod_acta_names: dict[str, dict[str, str]] = {}  # cod_acta -> {local, visitante}
         for jornada in jornadas_res.data or []:
             for partido in jornada.get("partidos", []):
                 local = (partido.get("local") or "").lower()
@@ -135,17 +136,33 @@ def _query_actas(supabase, comp_id: str, rival_nombre: str, columns: str, desc: 
                     _match_rival_name(core_lower, visitante)
                 )
                 if is_match and partido.get("cod_acta"):
-                    cod_actas.append(partido["cod_acta"])
+                    cod_acta = partido["cod_acta"]
+                    cod_actas.append(cod_acta)
+                    cod_acta_names[str(cod_acta)] = {
+                        "local": partido.get("local", ""),
+                        "visitante": partido.get("visitante", ""),
+                    }
 
         if cod_actas:
             if limit:
                 cod_actas = cod_actas[:limit]
-            actas_query = supabase.table("rfef_actas").select(columns).in_(
+            # Ensure cod_acta is in the select so we can match back
+            query_cols = columns
+            if "cod_acta" not in columns:
+                query_cols = f"cod_acta, {columns}"
+            actas_query = supabase.table("rfef_actas").select(query_cols).in_(
                 "cod_acta", cod_actas
             ).order("jornada_numero", desc=desc)
             res = actas_query.execute()
             actas = res.data or []
             if actas:
+                # Enrich actas with team names from jornadas when acta names are empty
+                for acta in actas:
+                    if not acta.get("local_nombre") and not acta.get("visitante_nombre"):
+                        names = cod_acta_names.get(str(acta.get("cod_acta", "")), {})
+                        if names:
+                            acta["local_nombre"] = names.get("local", "")
+                            acta["visitante_nombre"] = names.get("visitante", "")
                 logger.info(
                     "Actas for '%s': %d rows (jornadas fallback, %d cod_actas matched)",
                     rival_nombre, len(actas), len(cod_actas),
@@ -212,10 +229,13 @@ def _get_once_probable(supabase, comp_id: str, rival_nombre: str, tarjetas_data:
 
     player_counts: Counter = Counter()
     player_dorsals: dict[str, int | None] = {}
+    actas_with_data = 0
 
     for acta in actas:
         titulares = _get_rival_data(acta, rival_nombre, "titulares_local", "titulares_visitante")
 
+        if titulares:
+            actas_with_data += 1
         for jugador in titulares:
             nombre = jugador.get("nombre", "").strip()
             if nombre:
@@ -223,7 +243,7 @@ def _get_once_probable(supabase, comp_id: str, rival_nombre: str, tarjetas_data:
                 if nombre not in player_dorsals:
                     player_dorsals[nombre] = jugador.get("dorsal")
 
-    logger.info("Once probable for '%s': %d actas, %d players", rival_nombre, len(actas), len(player_counts))
+    logger.info("Once probable for '%s': %d actas fetched, %d with data, %d players", rival_nombre, len(actas), actas_with_data, len(player_counts))
 
     # Build set of sanctioned player names from tarjetas data
     sancionados = set()
@@ -234,7 +254,7 @@ def _get_once_probable(supabase, comp_id: str, rival_nombre: str, tarjetas_data:
 
     all_players = player_counts.most_common()
     return {
-        "actas_analizadas": len(actas),
+        "actas_analizadas": actas_with_data,
         "jugadores": [
             {
                 "nombre": nombre,

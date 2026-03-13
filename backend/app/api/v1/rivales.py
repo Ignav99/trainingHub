@@ -22,7 +22,7 @@ from app.models import (
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
-from app.services.pre_match_service import populate_rival_intel, _match_rival_name
+from app.services.pre_match_service import populate_rival_intel, _match_rival_name, _query_actas, _get_rival_data
 from app.services.claude_service import ClaudeService, ClaudeError
 
 logger = logging.getLogger(__name__)
@@ -145,35 +145,27 @@ async def get_once_probable(
         raise HTTPException(status_code=404, detail="Rival no encontrado")
 
     rival_nombre = rival_res.data.get("rfef_nombre") or rival_res.data.get("nombre", "")
-    rival_lower = rival_nombre.lower()
 
-    # Build query for actas
-    query = supabase.table("rfef_actas").select(
-        "local_nombre, visitante_nombre, titulares_local, titulares_visitante, jornada_numero"
+    # Use shared _query_actas (handles empty acta names via jornadas fallback)
+    comp_filter = str(competicion_id) if competicion_id else None
+    if not comp_filter:
+        raise HTTPException(status_code=400, detail="competicion_id is required")
+
+    actas = _query_actas(
+        supabase, comp_filter, rival_nombre,
+        "local_nombre, visitante_nombre, titulares_local, titulares_visitante, jornada_numero",
+        desc=True, limit=5,
     )
-
-    if competicion_id:
-        query = query.eq("competicion_id", str(competicion_id))
-
-    # Get actas where rival plays (either side)
-    query = query.or_(
-        f"local_nombre.ilike.%{rival_nombre}%,visitante_nombre.ilike.%{rival_nombre}%"
-    ).order("jornada_numero", desc=True).limit(5)
-
-    actas_res = query.execute()
-    actas = actas_res.data or []
 
     # Count appearances of each starter for the rival's side
     player_counts: Counter = Counter()
     player_dorsals: dict[str, int | None] = {}
+    actas_with_data = 0
 
     for acta in actas:
-        local_lower = (acta.get("local_nombre") or "").lower()
-        if rival_lower in local_lower or local_lower in rival_lower:
-            titulares = acta.get("titulares_local") or []
-        else:
-            titulares = acta.get("titulares_visitante") or []
-
+        titulares = _get_rival_data(acta, rival_nombre, "titulares_local", "titulares_visitante")
+        if titulares:
+            actas_with_data += 1
         for jugador in titulares:
             nombre = jugador.get("nombre", "").strip()
             if nombre:
@@ -182,24 +174,15 @@ async def get_once_probable(
                     player_dorsals[nombre] = jugador.get("dorsal")
 
     # Fetch tarjetas to cross-reference sanctions
-    tarjetas_query = supabase.table("rfef_actas").select(
-        "local_nombre, visitante_nombre, tarjetas_local, tarjetas_visitante, jornada_numero"
+    tarjetas_actas = _query_actas(
+        supabase, comp_filter, rival_nombre,
+        "local_nombre, visitante_nombre, tarjetas_local, tarjetas_visitante, jornada_numero",
     )
-    if competicion_id:
-        tarjetas_query = tarjetas_query.eq("competicion_id", str(competicion_id))
-    tarjetas_query = tarjetas_query.or_(
-        f"local_nombre.ilike.%{rival_nombre}%,visitante_nombre.ilike.%{rival_nombre}%"
-    ).order("jornada_numero")
-    tarjetas_res = tarjetas_query.execute()
 
     sancionados = set()
     tarjeta_cards: dict[str, dict] = {}
-    for acta in tarjetas_res.data or []:
-        local_lower_t = (acta.get("local_nombre") or "").lower()
-        if _match_rival_name(rival_lower, local_lower_t):
-            tarjetas = acta.get("tarjetas_local", [])
-        else:
-            tarjetas = acta.get("tarjetas_visitante", [])
+    for acta in tarjetas_actas:
+        tarjetas = _get_rival_data(acta, rival_nombre, "tarjetas_local", "tarjetas_visitante")
         for tarjeta in tarjetas:
             nombre_t = tarjeta.get("jugador", "").strip()
             tipo = tarjeta.get("tipo", "")
@@ -228,7 +211,7 @@ async def get_once_probable(
     ]
 
     return {
-        "actas_analizadas": len(actas),
+        "actas_analizadas": actas_with_data,
         "once_probable": once_probable,
     }
 
