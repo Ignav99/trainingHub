@@ -5,10 +5,32 @@ once probable, tarjetas, sanciones, resultados, head-to-head).
 """
 
 import logging
+import re
 from collections import Counter
 from datetime import datetime, date, timedelta
 
 logger = logging.getLogger(__name__)
+
+# Common Spanish club prefixes to strip for fuzzy acta matching
+_CLUB_PREFIXES = re.compile(
+    r"^(AA\.?\s*AA\.?|A\.?A\.?|C\.?D\.?|C\.?F\.?|U\.?D\.?|S\.?D\.?|R\.?C\.?D\.?|"
+    r"A\.?D\.?|E\.?F\.?|C\.?P\.?|F\.?C\.?|R\.?C\.?|Atco\.?|Atletico|Club|Agrupacion)\s+",
+    re.IGNORECASE,
+)
+
+
+def _extract_core_name(name: str) -> str:
+    """Extract the distinctive 'core' of a team name by stripping common prefixes.
+
+    'AA.AA. COLSPE' -> 'COLSPE'
+    'C.D. Mirandés' -> 'Mirandés'
+    'U.D. Almería'  -> 'Almería'
+    """
+    core = _CLUB_PREFIXES.sub("", name.strip())
+    # If stripping removed everything or left < 3 chars, use original
+    if len(core) < 3:
+        return name.strip()
+    return core.strip()
 
 
 def _match_rival_name(rival_nombre: str, team_name: str) -> bool:
@@ -66,45 +88,52 @@ def _get_goleadores_rival(comp: dict, rival_nombre: str) -> list[dict]:
     return result[:10]
 
 
+def _query_actas(supabase, comp_id: str, rival_nombre: str, columns: str, desc: bool = False, limit: int | None = None) -> list[dict]:
+    """Query rfef_actas with fallback to core name if full name returns 0 results."""
+    search_names = [rival_nombre]
+    core = _extract_core_name(rival_nombre)
+    if core.lower() != rival_nombre.lower().strip():
+        search_names.append(core)
+
+    for name in search_names:
+        query = supabase.table("rfef_actas").select(columns).eq(
+            "competicion_id", comp_id
+        ).or_(
+            f"local_nombre.ilike.%{name}%,visitante_nombre.ilike.%{name}%"
+        ).order("jornada_numero", desc=desc)
+        if limit:
+            query = query.limit(limit)
+        res = query.execute()
+        actas = res.data or []
+        if actas:
+            logger.info("Actas query for '%s' matched %d rows (search='%s')", rival_nombre, len(actas), name)
+            return actas
+
+    logger.warning("Actas query for '%s' returned 0 rows (tried: %s)", rival_nombre, search_names)
+    return []
+
+
 def _get_once_probable(supabase, comp_id: str, rival_nombre: str, tarjetas_data: dict | None = None) -> dict:
     """Calculate probable starting XI from last 5 actas, with sanction flags."""
     rival_lower = rival_nombre.lower()
 
-    actas_res = supabase.table("rfef_actas").select(
-        "local_nombre, visitante_nombre, titulares_local, titulares_visitante, jornada_numero"
-    ).eq("competicion_id", comp_id).or_(
-        f"local_nombre.ilike.%{rival_nombre}%,visitante_nombre.ilike.%{rival_nombre}%"
-    ).order("jornada_numero", desc=True).limit(5).execute()
-
-    actas = actas_res.data or []
-    logger.info(
-        "Once probable query for '%s' (comp=%s): %d actas returned",
-        rival_nombre, comp_id, len(actas),
+    actas = _query_actas(
+        supabase, comp_id, rival_nombre,
+        "local_nombre, visitante_nombre, titulares_local, titulares_visitante, jornada_numero",
+        desc=True, limit=5,
     )
 
     player_counts: Counter = Counter()
     player_dorsals: dict[str, int | None] = {}
 
     for acta in actas:
-        local_name = acta.get("local_nombre") or ""
-        visitante_name = acta.get("visitante_nombre") or ""
-        local_lower = local_name.lower()
+        local_lower = (acta.get("local_nombre") or "").lower()
         is_local = _match_rival_name(rival_lower, local_lower)
 
         if is_local:
             titulares = acta.get("titulares_local") or []
         else:
             titulares = acta.get("titulares_visitante") or []
-
-        logger.info(
-            "  Acta J%s: %s vs %s | rival_is_local=%s | titulares=%s (type=%s)",
-            acta.get("jornada_numero"),
-            local_name,
-            visitante_name,
-            is_local,
-            len(titulares) if isinstance(titulares, list) else titulares,
-            type(titulares).__name__,
-        )
 
         for jugador in titulares:
             nombre = jugador.get("nombre", "").strip()
@@ -113,10 +142,7 @@ def _get_once_probable(supabase, comp_id: str, rival_nombre: str, tarjetas_data:
                 if nombre not in player_dorsals:
                     player_dorsals[nombre] = jugador.get("dorsal")
 
-    logger.info(
-        "Once probable result for '%s': %d actas, %d unique players",
-        rival_nombre, len(actas), len(player_counts),
-    )
+    logger.info("Once probable for '%s': %d actas, %d players", rival_nombre, len(actas), len(player_counts))
 
     # Build set of sanctioned player names from tarjetas data
     sancionados = set()
@@ -144,13 +170,10 @@ def _get_tarjetas(supabase, comp_id: str, rival_nombre: str) -> dict:
     """Aggregate card statistics for the rival across all actas."""
     rival_lower = rival_nombre.lower()
 
-    actas_res = supabase.table("rfef_actas").select(
-        "local_nombre, visitante_nombre, tarjetas_local, tarjetas_visitante, jornada_numero"
-    ).eq("competicion_id", comp_id).or_(
-        f"local_nombre.ilike.%{rival_nombre}%,visitante_nombre.ilike.%{rival_nombre}%"
-    ).order("jornada_numero").execute()
-
-    actas = actas_res.data or []
+    actas = _query_actas(
+        supabase, comp_id, rival_nombre,
+        "local_nombre, visitante_nombre, tarjetas_local, tarjetas_visitante, jornada_numero",
+    )
     player_cards: dict[str, dict] = {}
 
     for acta in actas:
@@ -331,10 +354,6 @@ def gather_rival_intel_standalone(
     # Once probable (with sanction cross-reference)
     try:
         once = _get_once_probable(supabase, comp_id, rival_nombre, tarjetas_data=tarjetas)
-        logger.info(
-            "Once probable for '%s': actas=%d, jugadores=%d",
-            rival_nombre, once.get("actas_analizadas", 0), len(once.get("jugadores", [])),
-        )
         if once.get("actas_analizadas", 0) > 0:
             intel["once_probable"] = once
     except Exception as e:
