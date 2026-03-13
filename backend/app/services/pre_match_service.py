@@ -109,7 +109,22 @@ def _query_actas(supabase, comp_id: str, rival_nombre: str, columns: str, desc: 
             logger.info("Actas query for '%s' matched %d rows (search='%s')", rival_nombre, len(actas), name)
             return actas
 
-    logger.warning("Actas query for '%s' returned 0 rows (tried: %s)", rival_nombre, search_names)
+    # Diagnostic: log what team names actually exist in actas for this competition
+    try:
+        sample = supabase.table("rfef_actas").select(
+            "local_nombre, visitante_nombre"
+        ).eq("competicion_id", comp_id).limit(3).execute()
+        sample_names = set()
+        for row in sample.data or []:
+            sample_names.add(row.get("local_nombre", ""))
+            sample_names.add(row.get("visitante_nombre", ""))
+        logger.warning(
+            "Actas query for '%s' returned 0 rows (tried: %s). "
+            "Sample team names in comp %s: %s",
+            rival_nombre, search_names, comp_id, sorted(sample_names)[:10],
+        )
+    except Exception:
+        logger.warning("Actas query for '%s' returned 0 rows (tried: %s)", rival_nombre, search_names)
     return []
 
 
