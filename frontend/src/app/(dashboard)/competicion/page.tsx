@@ -11,6 +11,7 @@ import {
   RFEFJornada,
   RFEFPartidoJornada,
   RFEFSancion,
+  SyncStatusResponse,
 } from '@/lib/api/rfef'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Spinner } from '@/components/ui/spinner'
@@ -86,6 +87,10 @@ export default function CompeticionPage() {
   const [syncingSanciones, setSyncingSanciones] = useState(false)
   const [syncingActas, setSyncingActas] = useState(false)
 
+  // Sync status
+  const [dataSyncStatus, setDataSyncStatus] = useState<SyncStatusResponse | null>(null)
+  const [retryingActas, setRetryingActas] = useState(false)
+
   // SWR: Load competiciones
   const { data: competicionesRes, isLoading: loading } = useSWR<{ data: RFEFCompeticion[]; total: number }>(
     apiKey('/rfef/competiciones', {
@@ -121,6 +126,12 @@ export default function CompeticionPage() {
       setSelectingEquipo(true)
     }
   }, [competicion, selectingEquipo])
+
+  // Fetch sync status when competition is loaded
+  useEffect(() => {
+    if (!competicion?.id) return
+    rfefApi.getSyncStatus(competicion.id).then(setDataSyncStatus).catch(() => {})
+  }, [competicion?.id])
 
   const reloadCompeticion = async () => {
     if (!equipoActivo?.id) return
@@ -221,6 +232,8 @@ export default function CompeticionPage() {
       }
       mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, { revalidate: true })
       await reloadCompeticion()
+      // Refresh sync status
+      rfefApi.getSyncStatus(competicion.id).then(setDataSyncStatus).catch(() => {})
     } catch (err: any) {
       const msg = err.message || 'Error al sincronizar'
       if (msg.includes('502') || msg.includes('RFAF')) {
@@ -570,6 +583,53 @@ export default function CompeticionPage() {
         <div className="flex items-center gap-2 text-sm bg-muted/50 p-3 rounded-lg text-muted-foreground">
           <Check className="h-4 w-4 shrink-0 text-green-500" />
           <span>{syncStatus}</span>
+        </div>
+      )}
+
+      {/* Sync status banner */}
+      {dataSyncStatus && dataSyncStatus.status !== 'no_data' && (
+        <div className={`flex items-center justify-between gap-3 p-3 rounded-lg text-sm ${
+          dataSyncStatus.status === 'complete'
+            ? 'bg-green-500/10 text-green-700 dark:text-green-400'
+            : 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+        }`}>
+          <div className="flex items-center gap-2">
+            {dataSyncStatus.status === 'complete' ? (
+              <Check className="h-4 w-4 shrink-0" />
+            ) : (
+              <AlertCircle className="h-4 w-4 shrink-0" />
+            )}
+            <span>
+              {dataSyncStatus.status === 'complete'
+                ? `Datos completos: ${dataSyncStatus.actas_completas}/${dataSyncStatus.total_actas} actas`
+                : `${dataSyncStatus.actas_completas}/${dataSyncStatus.total_actas} actas completas (${dataSyncStatus.porcentaje_completo}%)`
+              }
+              {dataSyncStatus.ultima_sync_actas && (
+                <span className="text-muted-foreground ml-2">
+                  — Última sync: {new Date(dataSyncStatus.ultima_sync_actas).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
+            </span>
+          </div>
+          {dataSyncStatus.status === 'incomplete' && (dataSyncStatus.actas_fallidas?.length ?? 0) > 0 && (
+            <button
+              onClick={async () => {
+                if (!competicion) return
+                setRetryingActas(true)
+                try {
+                  await rfefApi.syncActas(competicion.id)
+                  const updated = await rfefApi.getSyncStatus(competicion.id)
+                  setDataSyncStatus(updated)
+                } catch { /* ok */ }
+                setRetryingActas(false)
+              }}
+              disabled={retryingActas}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md border text-xs font-medium hover:bg-muted disabled:opacity-50 shrink-0"
+            >
+              <RefreshCw className={`h-3 w-3 ${retryingActas ? 'animate-spin' : ''}`} />
+              {retryingActas ? 'Reintentando...' : 'Reintentar'}
+            </button>
+          )}
         </div>
       )}
 

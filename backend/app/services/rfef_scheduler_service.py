@@ -249,15 +249,20 @@ async def _sync_recent_actas(supabase, scraper: RFAFScraper, comp_id: str, curre
         if not actas_to_scrape:
             return
 
-        # Check which actas already exist
-        existing_actas_res = supabase.table("rfef_actas").select("cod_acta").eq(
+        # Check which actas already exist AND are complete (have titulares)
+        existing_actas_res = supabase.table("rfef_actas").select(
+            "cod_acta, titulares_local"
+        ).eq(
             "competicion_id", comp_id
         ).in_("cod_acta", [a["cod_acta"] for a in actas_to_scrape]).execute()
-        existing_codes = {a["cod_acta"] for a in (existing_actas_res.data or [])}
+        complete_codes = set()
+        for a in existing_actas_res.data or []:
+            if a.get("titulares_local") and len(a["titulares_local"]) > 0:
+                complete_codes.add(a["cod_acta"])
 
-        new_actas = [a for a in actas_to_scrape if a["cod_acta"] not in existing_codes]
-        logger.info("Scheduler: %d new actas to scrape (%d already exist)",
-                    len(new_actas), len(existing_codes))
+        new_actas = [a for a in actas_to_scrape if a["cod_acta"] not in complete_codes]
+        logger.info("Scheduler: %d actas to scrape (%d already complete)",
+                    len(new_actas), len(complete_codes))
         if not new_actas:
             return
 
@@ -329,6 +334,259 @@ async def _sync_recent_actas(supabase, scraper: RFAFScraper, comp_id: str, curre
         logger.warning("Scheduler: error syncing recent actas for %s: %s", comp_id, e)
 
 
+async def _sync_all_actas(supabase, scraper: RFAFScraper, comp_id: str, comp_name: str):
+    """Sync actas for ALL jornadas — only scrape new or incomplete (no titulares).
+    Returns sync_status dict.
+    """
+    try:
+        all_jornadas_res = supabase.table("rfef_jornadas").select(
+            "numero, partidos"
+        ).eq("competicion_id", comp_id).order("numero").execute()
+
+        all_actas = []
+        for jornada in all_jornadas_res.data or []:
+            for partido in jornada.get("partidos", []):
+                cod_acta = partido.get("cod_acta")
+                if cod_acta:
+                    all_actas.append({
+                        "cod_acta": cod_acta,
+                        "jornada_numero": jornada["numero"],
+                    })
+
+        if not all_actas:
+            logger.info("Daily actas sync: no actas found for %s", comp_name)
+            return None
+
+        # Check which are already complete
+        existing_res = supabase.table("rfef_actas").select(
+            "cod_acta, titulares_local"
+        ).eq("competicion_id", comp_id).execute()
+        complete_codes = set()
+        for a in existing_res.data or []:
+            if a.get("titulares_local") and len(a["titulares_local"]) > 0:
+                complete_codes.add(a["cod_acta"])
+
+        pending_actas = [a for a in all_actas if a["cod_acta"] not in complete_codes]
+        logger.info("Daily actas sync %s: %d pending, %d complete, %d total",
+                    comp_name, len(pending_actas), len(complete_codes), len(all_actas))
+
+        if not pending_actas:
+            # All complete — save status
+            sync_status = {
+                "total_actas": len(all_actas),
+                "actas_completas": len(complete_codes),
+                "actas_incompletas": [],
+                "actas_fallidas": [],
+                "ultima_sync_actas": datetime.utcnow().isoformat(),
+            }
+            supabase.table("rfef_competiciones").update({
+                "sync_status": sync_status,
+            }).eq("id", comp_id).execute()
+            return sync_status
+
+        actas_saved = 0
+        actas_fallidas = []
+        for acta_info in pending_actas:
+            try:
+                acta_data = await scraper.scrape_acta(acta_info["cod_acta"])
+
+                # Get fecha/hora from jornada data
+                fecha = None
+                hora = None
+                jornada_local = ""
+                jornada_visitante = ""
+                for jornada in all_jornadas_res.data or []:
+                    if jornada["numero"] == acta_info["jornada_numero"]:
+                        for p in jornada.get("partidos", []):
+                            if p.get("cod_acta") == acta_info["cod_acta"]:
+                                if p.get("fecha"):
+                                    try:
+                                        fecha = datetime.strptime(
+                                            p["fecha"], "%d-%m-%Y"
+                                        ).date().isoformat()
+                                    except ValueError:
+                                        pass
+                                hora = p.get("hora") or None
+                                jornada_local = p.get("local", "")
+                                jornada_visitante = p.get("visitante", "")
+                                break
+
+                acta_record = {
+                    "competicion_id": comp_id,
+                    "jornada_numero": acta_info["jornada_numero"],
+                    "cod_acta": acta_info["cod_acta"],
+                    "local_nombre": acta_data["local"]["nombre"] or jornada_local,
+                    "visitante_nombre": acta_data["visitante"]["nombre"] or jornada_visitante,
+                    "local_escudo_url": acta_data["local"].get("escudo_url"),
+                    "visitante_escudo_url": acta_data["visitante"].get("escudo_url"),
+                    "goles_local": acta_data.get("goles_local"),
+                    "goles_visitante": acta_data.get("goles_visitante"),
+                    "estadio": acta_data.get("estadio", ""),
+                    "ciudad": acta_data.get("ciudad", ""),
+                    "fecha": fecha,
+                    "hora": hora,
+                    "titulares_local": acta_data.get("titulares_local", []),
+                    "suplentes_local": acta_data.get("suplentes_local", []),
+                    "titulares_visitante": acta_data.get("titulares_visitante", []),
+                    "suplentes_visitante": acta_data.get("suplentes_visitante", []),
+                    "goles": acta_data.get("goles", []),
+                    "tarjetas_local": acta_data.get("tarjetas_local", []),
+                    "tarjetas_visitante": acta_data.get("tarjetas_visitante", []),
+                    "sustituciones_local": acta_data.get("sustituciones_local", []),
+                    "sustituciones_visitante": acta_data.get("sustituciones_visitante", []),
+                    "cuerpo_tecnico_local": acta_data.get("cuerpo_tecnico_local", {}),
+                    "cuerpo_tecnico_visitante": acta_data.get("cuerpo_tecnico_visitante", {}),
+                    "arbitros": acta_data.get("arbitros", []),
+                }
+
+                supabase.table("rfef_actas").upsert(
+                    acta_record, on_conflict="cod_acta"
+                ).execute()
+                actas_saved += 1
+                await asyncio.sleep(0.5)
+
+            except Exception as e:
+                logger.warning("Daily actas sync: error acta %s: %s", acta_info["cod_acta"], e)
+                actas_fallidas.append(acta_info["cod_acta"])
+                continue
+
+        # Re-check incomplete after this run
+        incomplete_codes = [
+            a["cod_acta"] for a in pending_actas
+            if a["cod_acta"] not in actas_fallidas
+        ]
+        # Remove newly saved from incomplete (they're now complete)
+        # The truly incomplete are: fallidas + those that were pending but saved with empty titulares
+        sync_status = {
+            "total_actas": len(all_actas),
+            "actas_completas": len(complete_codes) + actas_saved,
+            "actas_incompletas": [c for c in incomplete_codes if c not in complete_codes][:50],
+            "actas_fallidas": actas_fallidas[:50],
+            "ultima_sync_actas": datetime.utcnow().isoformat(),
+        }
+        supabase.table("rfef_competiciones").update({
+            "sync_status": sync_status,
+        }).eq("id", comp_id).execute()
+
+        logger.info("Daily actas sync %s: saved %d, failed %d",
+                    comp_name, actas_saved, len(actas_fallidas))
+        return sync_status
+
+    except Exception as e:
+        logger.error("Daily actas sync error for %s: %s", comp_name, e, exc_info=True)
+        return None
+
+
+async def daily_sync_data():
+    """Daily 03:00 CET — lightweight sync: clasificación + goleadores + all jornadas for all comps."""
+    supabase = get_supabase()
+    try:
+        response = supabase.table("rfef_competiciones").select("*").eq(
+            "sync_habilitado", True
+        ).not_.is_("rfef_codcompeticion", "null").not_.is_("rfef_codgrupo", "null").execute()
+
+        competiciones = response.data or []
+        if not competiciones:
+            return
+
+        logger.info("Daily data sync starting for %d competitions", len(competiciones))
+        scraper = RFAFScraper()
+        try:
+            for comp in competiciones:
+                comp_id = comp["id"]
+                comp_name = comp.get("nombre", comp_id)
+                codcompeticion = comp.get("rfef_codcompeticion")
+                codgrupo = comp.get("rfef_codgrupo")
+                codtemporada = comp.get("rfef_codtemporada", "21")
+
+                if not codcompeticion or not codgrupo:
+                    continue
+
+                try:
+                    # Sync clasificación + goleadores
+                    data = await scraper.sync_competicion(codcompeticion, codgrupo, codtemporada)
+                    update = {"ultima_sincronizacion": datetime.utcnow().isoformat()}
+                    if data.get("clasificacion"):
+                        update["clasificacion"] = data["clasificacion"]
+                    if data.get("goleadores") is not None:
+                        update["goleadores"] = data["goleadores"]
+                    if data.get("calendario"):
+                        update["calendario"] = data["calendario"]
+                    supabase.table("rfef_competiciones").update(update).eq("id", comp_id).execute()
+
+                    # Refresh ALL jornadas from calendario
+                    calendario = comp.get("calendario") or []
+                    if not calendario:
+                        try:
+                            calendario = await scraper.scrape_calendario(
+                                codcompeticion, codgrupo, codtemporada
+                            )
+                        except Exception:
+                            calendario = [{"numero": n} for n in range(1, 31)]
+
+                    for j_info in calendario:
+                        num = j_info["numero"]
+                        try:
+                            jornada = await scraper.scrape_jornada_combined(
+                                codcompeticion, codgrupo, str(num), codtemporada
+                            )
+                            if jornada.get("partidos"):
+                                _upsert_jornada(supabase, comp_id, jornada)
+                            await asyncio.sleep(0.3)
+                        except Exception as e:
+                            logger.debug("Daily sync: error jornada %d for %s: %s", num, comp_name, e)
+                            continue
+
+                    # Auto-link if mi_equipo_nombre is set
+                    if comp.get("mi_equipo_nombre"):
+                        try:
+                            fresh_comp = supabase.table("rfef_competiciones").select("*").eq(
+                                "id", comp_id
+                            ).single().execute()
+                            if fresh_comp.data:
+                                link_competition(supabase, fresh_comp.data)
+                        except Exception as e:
+                            logger.debug("Daily sync: auto-link error for %s: %s", comp_name, e)
+
+                    logger.info("Daily data sync completed for %s", comp_name)
+
+                except Exception as e:
+                    logger.error("Daily data sync error for %s: %s", comp_name, e)
+                    continue
+
+        finally:
+            await scraper.close()
+
+    except Exception as e:
+        logger.error("Error in daily_sync_data: %s", e, exc_info=True)
+
+
+async def daily_sync_actas():
+    """Daily 06:00 CET — full acta sync: scrape all missing/incomplete actas for all comps."""
+    supabase = get_supabase()
+    try:
+        response = supabase.table("rfef_competiciones").select("*").eq(
+            "sync_habilitado", True
+        ).not_.is_("rfef_codcompeticion", "null").not_.is_("rfef_codgrupo", "null").execute()
+
+        competiciones = response.data or []
+        if not competiciones:
+            return
+
+        logger.info("Daily actas sync starting for %d competitions", len(competiciones))
+        scraper = RFAFScraper()
+        try:
+            for comp in competiciones:
+                await _sync_all_actas(
+                    supabase, scraper, comp["id"], comp.get("nombre", comp["id"])
+                )
+        finally:
+            await scraper.close()
+
+    except Exception as e:
+        logger.error("Error in daily_sync_actas: %s", e, exc_info=True)
+
+
 def start_scheduler():
     """Configura y arranca el scheduler de scraping RFAF."""
     # Viernes 20:00 — Pre-jornada
@@ -388,6 +646,22 @@ def start_scheduler():
         sync_all_competitions,
         CronTrigger(day_of_week="fri", hour=8, minute=0, timezone="Europe/Madrid"),
         id="rfaf_viernes_08",
+        replace_existing=True,
+    )
+
+    # Daily 03:00 CET — lightweight sync: clasificación + goleadores + all jornadas
+    scheduler.add_job(
+        daily_sync_data,
+        CronTrigger(hour=3, minute=0, timezone="Europe/Madrid"),
+        id="daily_sync_data",
+        replace_existing=True,
+    )
+
+    # Daily 06:00 CET — full acta sync: scrape all missing/incomplete actas
+    scheduler.add_job(
+        daily_sync_actas,
+        CronTrigger(hour=6, minute=0, timezone="Europe/Madrid"),
+        id="daily_sync_actas",
         replace_existing=True,
     )
 

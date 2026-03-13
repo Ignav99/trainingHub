@@ -253,8 +253,13 @@ class RFAFScraper:
         )
 
     async def scrape_acta(self, cod_acta: str) -> dict:
-        """Parse a complete match report (acta)."""
-        return await asyncio.to_thread(self._scrape_acta, cod_acta)
+        """Parse a complete match report (acta) with retry."""
+        try:
+            return await asyncio.to_thread(self._scrape_acta, cod_acta)
+        except Exception as e:
+            logger.warning("scrape_acta %s failed, retrying in 5s: %s", cod_acta, e)
+            await asyncio.sleep(5)
+            return await asyncio.to_thread(self._scrape_acta, cod_acta)
 
     async def scrape_sanciones_competiciones(
         self, codtemporada: str = "21",

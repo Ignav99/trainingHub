@@ -594,6 +594,34 @@ async def sync_competicion_full(
                         continue
 
                 logger.info("Sync-full: saved %d actas", actas_saved)
+
+                # Save sync_status
+                try:
+                    # Re-check completeness after scraping
+                    post_existing = supabase.table("rfef_actas").select(
+                        "cod_acta, titulares_local"
+                    ).eq("competicion_id", comp_id).execute()
+                    post_complete = set()
+                    post_incomplete = []
+                    for a in post_existing.data or []:
+                        if a.get("titulares_local") and len(a["titulares_local"]) > 0:
+                            post_complete.add(a["cod_acta"])
+                        else:
+                            post_incomplete.append(a["cod_acta"])
+
+                    sync_status_data = {
+                        "total_actas": len(all_actas),
+                        "actas_completas": len(post_complete),
+                        "actas_incompletas": post_incomplete[:50],
+                        "actas_fallidas": [],
+                        "ultima_sync_actas": datetime.utcnow().isoformat(),
+                    }
+                    supabase.table("rfef_competiciones").update({
+                        "sync_status": sync_status_data,
+                    }).eq("id", comp_id).execute()
+                except Exception as e:
+                    logger.warning("Sync-full: error saving sync_status: %s", e)
+
         except Exception as e:
             logger.warning("Sync-full: error in actas phase: %s", e)
             errors.append(f"actas: {e}")
@@ -627,6 +655,42 @@ async def sync_competicion_full(
         "link_result": link_result,
         "errors": errors[:5] if errors else None,
         "sincronizado_en": sync_time,
+    }
+
+
+@router.get("/competiciones/{competicion_id}/sync-status")
+async def get_sync_status(
+    competicion_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """Returns sync completeness status for a competition."""
+    supabase = get_supabase()
+    comp_id = str(competicion_id)
+
+    comp = supabase.table("rfef_competiciones").select(
+        "id, nombre, sync_status, ultima_sincronizacion"
+    ).eq("id", comp_id).single().execute()
+
+    if not comp.data:
+        raise HTTPException(status_code=404, detail="Competición no encontrada")
+
+    sync_status = comp.data.get("sync_status")
+    if not sync_status:
+        return {"status": "no_data", "message": "No sync status available yet"}
+
+    total = sync_status.get("total_actas", 0)
+    completas = sync_status.get("actas_completas", 0)
+    pct = round((completas / total * 100) if total > 0 else 0, 1)
+
+    return {
+        "status": "complete" if pct == 100 else "incomplete",
+        "total_actas": total,
+        "actas_completas": completas,
+        "porcentaje_completo": pct,
+        "actas_incompletas": sync_status.get("actas_incompletas", []),
+        "actas_fallidas": sync_status.get("actas_fallidas", []),
+        "ultima_sync_actas": sync_status.get("ultima_sync_actas"),
+        "ultima_sincronizacion": comp.data.get("ultima_sincronizacion"),
     }
 
 

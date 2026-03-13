@@ -47,6 +47,26 @@ export interface RFEFJornada {
   fecha?: string
 }
 
+export interface SyncStatus {
+  total_actas: number
+  actas_completas: number
+  actas_incompletas: string[]
+  actas_fallidas: string[]
+  ultima_sync_actas: string
+}
+
+export interface SyncStatusResponse {
+  status: 'complete' | 'incomplete' | 'no_data'
+  total_actas?: number
+  actas_completas?: number
+  porcentaje_completo?: number
+  actas_incompletas?: string[]
+  actas_fallidas?: string[]
+  ultima_sync_actas?: string
+  ultima_sincronizacion?: string
+  message?: string
+}
+
 export interface RFEFCompeticion {
   id: string
   equipo_id: string
@@ -66,6 +86,7 @@ export interface RFEFCompeticion {
   mi_equipo_nombre?: string
   sancion_competicion_id?: string
   sancion_grupo_id?: string
+  sync_status?: SyncStatus
   created_at?: string
 }
 
@@ -228,6 +249,10 @@ export const rfefApi = {
   ): Promise<RivalPerfilCompeticion> {
     const params = competicionId ? { competicion_id: competicionId } : {}
     return api.get(`/rivales/${rivalId}/perfil-competicion`, { params })
+  },
+
+  async getSyncStatus(competicionId: string): Promise<SyncStatusResponse> {
+    return api.get(`/rfef/competiciones/${competicionId}/sync-status`)
   },
 
   // Actas
