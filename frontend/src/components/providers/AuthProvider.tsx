@@ -9,6 +9,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isReady, setIsReady] = useState(false)
   const initializeAuth = useAuthStore((s) => s.initializeAuth)
   const user = useAuthStore((s) => s.user)
+  const accessToken = useAuthStore((s) => s.accessToken)
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const setOrganizacion = useClubStore((s) => s.setOrganizacion)
 
@@ -26,6 +27,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setOrganizacion(user.organizacion as any)
     }
   }, [isAuthenticated, user?.organizacion, setOrganizacion])
+
+  // If Zustand hydrated cached auth, render children immediately
+  // while initializeAuth() validates the session in background
+  if (!isReady && isAuthenticated && accessToken) {
+    return <>{children}</>
+  }
 
   if (!isReady) {
     return <KabineLoader fullScreen size="lg" text="Cargando Kabin-e..." />

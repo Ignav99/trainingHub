@@ -88,12 +88,12 @@ export default function DashboardLayout({
     }
   }, [isAuthenticated, isOnboardingComplete, pathname, router])
 
-  if (isLoading) {
-    return <KabineLoader fullScreen size="lg" />
-  }
-
+  // AuthProvider already handles the auth gate for cached users.
+  // Pre-hydration: isAuthenticated=false → show loader (brief, <50ms).
+  // Post-hydration: isAuthenticated=true → render dashboard immediately.
+  // If token expired: initializeAuth sets isAuthenticated=false → redirects to login.
   if (!isAuthenticated) {
-    return null
+    return <KabineLoader fullScreen size="lg" />
   }
 
   const handleLogout = useCallback(async () => {

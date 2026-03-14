@@ -180,18 +180,16 @@ async def list_sesiones(
         count="exact"
     )
 
-    # Filtrar por equipos de la organización del usuario
-    equipos = supabase.table("equipos").select("id").eq(
-        "organizacion_id", auth.organizacion_id
-    ).execute()
-
-    equipo_ids = [e["id"] for e in equipos.data]
-    if equipo_ids:
-        query = query.in_("equipo_id", equipo_ids)
-
-    # Aplicar filtros
+    # Filter by team: skip org-wide equipos query when equipo_id is provided
     if equipo_id:
         query = query.eq("equipo_id", str(equipo_id))
+    else:
+        equipos = supabase.table("equipos").select("id").eq(
+            "organizacion_id", auth.organizacion_id
+        ).execute()
+        equipo_ids = [e["id"] for e in equipos.data]
+        if equipo_ids:
+            query = query.in_("equipo_id", equipo_ids)
 
     if match_day:
         query = query.eq("match_day", match_day.value)

@@ -3,6 +3,7 @@ TrainingHub Pro - Router de Dashboard
 Endpoints de datos agregados para el panel principal.
 """
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, Query
@@ -54,45 +55,51 @@ async def dashboard_resumen(
             "ultima_sesion": None,
         }
 
-    # Contadores en paralelo conceptual (secuencial por API sync)
-    jugadores = supabase.table("jugadores").select(
-        "id", count="exact"
-    ).in_("equipo_id", equipo_ids).limit(0).execute()
-
     hoy = date.today()
     inicio_mes = hoy.replace(day=1)
 
-    sesiones_mes = supabase.table("sesiones").select(
-        "id", count="exact"
-    ).in_("equipo_id", equipo_ids).gte(
-        "fecha", inicio_mes.isoformat()
-    ).limit(0).execute()
-
-    partidos_pendientes = supabase.table("partidos").select(
-        "id", count="exact"
-    ).in_("equipo_id", equipo_ids).gte(
-        "fecha", hoy.isoformat()
-    ).is_("goles_favor", "null").limit(0).execute()
-
-    # Próximo partido
-    proximo = supabase.table("partidos").select(
-        "*, rivales(nombre, nombre_corto, escudo_url)"
-    ).in_("equipo_id", equipo_ids).gte(
-        "fecha", hoy.isoformat()
-    ).is_("goles_favor", "null").order("fecha").limit(1).execute()
+    # Run 5 independent queries in parallel using threads (supabase client is sync)
+    jugadores, sesiones_mes, partidos_pendientes, proximo, ultima = await asyncio.gather(
+        asyncio.to_thread(
+            lambda: supabase.table("jugadores").select(
+                "id", count="exact"
+            ).in_("equipo_id", equipo_ids).limit(0).execute()
+        ),
+        asyncio.to_thread(
+            lambda: supabase.table("sesiones").select(
+                "id", count="exact"
+            ).in_("equipo_id", equipo_ids).gte(
+                "fecha", inicio_mes.isoformat()
+            ).limit(0).execute()
+        ),
+        asyncio.to_thread(
+            lambda: supabase.table("partidos").select(
+                "id", count="exact"
+            ).in_("equipo_id", equipo_ids).gte(
+                "fecha", hoy.isoformat()
+            ).is_("goles_favor", "null").limit(0).execute()
+        ),
+        asyncio.to_thread(
+            lambda: supabase.table("partidos").select(
+                "*, rivales(nombre, nombre_corto, escudo_url)"
+            ).in_("equipo_id", equipo_ids).gte(
+                "fecha", hoy.isoformat()
+            ).is_("goles_favor", "null").order("fecha").limit(1).execute()
+        ),
+        asyncio.to_thread(
+            lambda: supabase.table("sesiones").select(
+                "id, titulo, fecha, match_day, estado"
+            ).in_("equipo_id", equipo_ids).order(
+                "fecha", desc=True
+            ).limit(1).execute()
+        ),
+    )
 
     proximo_partido = None
     if proximo.data:
         p = proximo.data[0]
         p["rival"] = p.pop("rivales", None)
         proximo_partido = p
-
-    # Última sesión
-    ultima = supabase.table("sesiones").select(
-        "id, titulo, fecha, match_day, estado"
-    ).in_("equipo_id", equipo_ids).order(
-        "fecha", desc=True
-    ).limit(1).execute()
 
     ultima_sesion = ultima.data[0] if ultima.data else None
 
