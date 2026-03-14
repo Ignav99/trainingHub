@@ -20,3 +20,8 @@ CREATE INDEX idx_portero_tareas_equipo ON portero_tareas(equipo_id);
 
 ALTER TABLE portero_tareas ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "portero_tareas_all" ON portero_tareas FOR ALL USING (true) WITH CHECK (true);
+
+-- Add POR (Portero/GK) category to the tareas catalog
+INSERT INTO categorias_tarea (codigo, nombre, nombre_corto, color, orden, activo)
+VALUES ('POR', 'Portero (GK)', 'POR', '#22C55E', 10, true)
+ON CONFLICT (codigo) DO NOTHING;

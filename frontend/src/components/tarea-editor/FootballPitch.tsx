@@ -1,11 +1,11 @@
 'use client'
 
-import React from 'react'
+import React, { forwardRef } from 'react'
 
 interface FootballPitchProps {
   type: 'full' | 'half' | 'quarter' | 'custom'
-  width?: number
-  height?: number
+  width?: number | string
+  height?: number | string
   className?: string
   children?: React.ReactNode
   onClick?: (e: React.MouseEvent<SVGSVGElement>) => void
@@ -13,16 +13,16 @@ interface FootballPitchProps {
 
 // Dimensiones del campo en metros (proporcionales)
 // Campo completo: 105m x 68m
-// Usamos escala 1m = 4px para un campo de 420x272
+// Usamos escala 1m = 10px para viewBox
 
-export default function FootballPitch({
+const FootballPitch = forwardRef<SVGSVGElement, FootballPitchProps>(function FootballPitch({
   type = 'half',
-  width = 600,
-  height = 400,
+  width,
+  height,
   className = '',
   children,
   onClick,
-}: FootballPitchProps) {
+}, ref) {
   // Dimensiones del viewBox segun tipo
   const getViewBox = () => {
     switch (type) {
@@ -44,24 +44,29 @@ export default function FootballPitch({
   const lineColor = '#FFFFFF'
   const lineWidth = 2
 
+  // Unique pattern ID to avoid conflicts with multiple pitch instances
+  const patternId = `grassStripes_${type}`
+
   return (
     <svg
-      width={width}
+      ref={ref}
+      width={width ?? '100%'}
       height={height}
       viewBox={getViewBox()}
+      preserveAspectRatio="xMidYMid meet"
       className={`rounded-lg ${className}`}
       onClick={onClick}
-      style={{ cursor: 'crosshair' }}
+      style={{ cursor: 'crosshair', display: 'block' }}
     >
       {/* Fondo de cesped con franjas */}
       <defs>
-        <pattern id="grassStripes" patternUnits="userSpaceOnUse" width="60" height="680">
+        <pattern id={patternId} patternUnits="userSpaceOnUse" width="60" height="680">
           <rect width="30" height="680" fill={grassColor} />
           <rect x="30" width="30" height="680" fill={grassLight} />
         </pattern>
       </defs>
 
-      <rect width="100%" height="100%" fill="url(#grassStripes)" />
+      <rect width="100%" height="100%" fill={`url(#${patternId})`} />
 
       {/* Lineas del campo */}
       <g stroke={lineColor} strokeWidth={lineWidth} fill="none">
@@ -92,7 +97,7 @@ export default function FootballPitch({
         {/* Porteria */}
         <rect x="10" y="305" width="15" height="70" strokeWidth="3" />
 
-        {/* Area de meta (goal area) pequeño cuadrado */}
+        {/* Area de meta (goal area) pequeno cuadrado */}
         <rect x="25" y="292" width="8" height="96" fill={lineColor} opacity="0.3" />
 
         {/* Esquineros */}
@@ -136,4 +141,6 @@ export default function FootballPitch({
       {children}
     </svg>
   )
-}
+})
+
+export default FootballPitch

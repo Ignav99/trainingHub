@@ -1,17 +1,17 @@
 'use client'
 
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 import {
   Circle,
   Triangle,
   Target,
-  Move,
   Trash2,
   RotateCcw,
-  Download,
   MousePointer,
   ArrowRight,
   Minus,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react'
 import FootballPitch from './FootballPitch'
 import {
@@ -46,8 +46,24 @@ export default function TareaGraphicEditor({
   const [isDragging, setIsDragging] = useState(false)
   const [arrowStart, setArrowStart] = useState<Position | null>(null)
   const [playerCounter, setPlayerCounter] = useState({ team1: 1, team2: 1, gk: 1 })
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   const svgRef = useRef<SVGSVGElement>(null)
+
+  // Sync external value changes
+  useEffect(() => {
+    setData(value)
+  }, [value])
+
+  // Escape key exits fullscreen
+  useEffect(() => {
+    if (!isFullscreen) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsFullscreen(false)
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [isFullscreen])
 
   // Actualizar datos y notificar al padre
   const updateData = useCallback((newData: DiagramData) => {
@@ -55,11 +71,12 @@ export default function TareaGraphicEditor({
     onChange?.(newData)
   }, [onChange])
 
-  // Obtener posicion relativa al SVG
+  // Obtener posicion relativa al SVG — uses the actual <svg> ref
   const getSvgPosition = (e: React.MouseEvent): Position => {
-    if (!svgRef.current) return { x: 0, y: 0 }
-    const rect = svgRef.current.getBoundingClientRect()
-    const viewBox = svgRef.current.viewBox.baseVal
+    const svg = svgRef.current
+    if (!svg) return { x: 0, y: 0 }
+    const rect = svg.getBoundingClientRect()
+    const viewBox = svg.viewBox.baseVal
     const scaleX = viewBox.width / rect.width
     const scaleY = viewBox.height / rect.height
     return {
@@ -175,7 +192,7 @@ export default function TareaGraphicEditor({
 
   // Limpiar todo
   const clearAll = () => {
-    updateData(emptyDiagramData)
+    updateData({ ...emptyDiagramData, pitchType: data.pitchType })
     setPlayerCounter({ team1: 1, team2: 1, gk: 1 })
     setSelectedElement(null)
     setArrowStart(null)
@@ -320,116 +337,182 @@ export default function TareaGraphicEditor({
     { id: 'arrow_pass', icon: <ArrowRight className="h-4 w-4" />, label: 'Pase', color: '#FFFFFF' },
   ]
 
-  return (
-    <div className="space-y-4">
-      {/* Toolbar */}
-      {!readOnly && (
-        <div className="flex flex-wrap items-center gap-2 p-3 bg-gray-100 rounded-lg">
-          {tools.map(tool => (
-            <button
-              key={tool.id}
-              onClick={() => {
-                setSelectedTool(tool.id)
-                setArrowStart(null)
-              }}
-              className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                selectedTool === tool.id
-                  ? 'bg-primary text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-200'
-              }`}
-              title={tool.label}
-            >
-              <span style={{ color: selectedTool === tool.id ? 'white' : tool.color }}>
-                {tool.icon}
-              </span>
-              <span className="hidden sm:inline">{tool.label}</span>
-            </button>
-          ))}
+  const toolbar = (
+    <div className="flex flex-wrap items-center gap-1.5 p-2 bg-gray-900 rounded-lg">
+      {tools.map(tool => (
+        <button
+          key={tool.id}
+          onClick={() => {
+            setSelectedTool(tool.id)
+            setArrowStart(null)
+          }}
+          className={`flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${
+            selectedTool === tool.id
+              ? 'bg-white text-gray-900'
+              : 'text-gray-300 hover:bg-gray-700'
+          }`}
+          title={tool.label}
+        >
+          <span style={{ color: selectedTool === tool.id ? (tool.color || '#111') : tool.color }}>
+            {tool.icon}
+          </span>
+          <span className={isFullscreen ? '' : 'hidden sm:inline'}>{tool.label}</span>
+        </button>
+      ))}
 
-          <div className="flex-1" />
+      <div className="flex-1" />
 
-          {/* Acciones */}
+      {/* Acciones */}
+      <button
+        onClick={deleteSelected}
+        disabled={!selectedElement}
+        className="p-1.5 rounded-md text-gray-400 hover:bg-red-900/50 hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed"
+        title="Eliminar seleccionado"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+      <button
+        onClick={clearAll}
+        className="p-1.5 rounded-md text-gray-400 hover:bg-red-900/50 hover:text-red-400"
+        title="Limpiar todo"
+      >
+        <RotateCcw className="h-4 w-4" />
+      </button>
+      <button
+        onClick={() => setIsFullscreen(!isFullscreen)}
+        className="p-1.5 rounded-md text-gray-400 hover:bg-gray-700 hover:text-white"
+        title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa (Modo Pro)'}
+      >
+        {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+      </button>
+    </div>
+  )
+
+  const pitchContent = (
+    <g>
+      {/* Zonas primero (fondo) */}
+      {data.zones.map(zone => (
+        <rect
+          key={zone.id}
+          x={zone.position.x}
+          y={zone.position.y}
+          width={zone.width}
+          height={zone.height}
+          fill={zone.color}
+          opacity={zone.opacity || 0.3}
+        />
+      ))}
+
+      {/* Flechas */}
+      {data.arrows.map(renderArrow)}
+
+      {/* Flecha temporal mientras se dibuja */}
+      {arrowStart && (
+        <circle cx={arrowStart.x} cy={arrowStart.y} r="5" fill="#FFFF00" />
+      )}
+
+      {/* Elementos */}
+      {data.elements.map(renderElement)}
+    </g>
+  )
+
+  const instructions = !readOnly && selectedTool !== 'select' && (
+    <div className={`text-sm px-2 py-1 ${isFullscreen ? 'text-gray-300' : 'text-gray-500'}`}>
+      {selectedTool.startsWith('arrow_')
+        ? arrowStart
+          ? 'Haz click en el destino de la flecha'
+          : 'Haz click en el origen de la flecha'
+        : `Haz click en el campo para colocar: ${tools.find(t => t.id === selectedTool)?.label}`}
+    </div>
+  )
+
+  const info = (
+    <div className={`flex items-center justify-between text-xs ${isFullscreen ? 'text-gray-400' : 'text-gray-400'}`}>
+      <span>
+        {data.elements.length} elementos, {data.arrows.length} flechas
+      </span>
+      {!readOnly && selectedElement && (
+        <span>Elemento seleccionado - Click en Eliminar o selecciona otro</span>
+      )}
+    </div>
+  )
+
+  // Fullscreen Pro Mode
+  if (isFullscreen) {
+    return (
+      <div className="fixed inset-0 z-[70] bg-gray-950 flex flex-col">
+        {/* Fullscreen header */}
+        <div className="px-4 py-2 border-b border-gray-800 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold text-white">Pizarra Tactica — Modo Pro</span>
+            {instructions}
+          </div>
           <button
-            onClick={deleteSelected}
-            disabled={!selectedElement}
-            className="p-2 rounded-lg bg-white text-gray-700 hover:bg-red-100 hover:text-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Eliminar seleccionado"
+            onClick={() => setIsFullscreen(false)}
+            className="px-3 py-1.5 text-xs font-medium text-gray-300 bg-gray-800 hover:bg-gray-700 rounded-lg"
           >
-            <Trash2 className="h-4 w-4" />
-          </button>
-          <button
-            onClick={clearAll}
-            className="p-2 rounded-lg bg-white text-gray-700 hover:bg-red-100 hover:text-red-600"
-            title="Limpiar todo"
-          >
-            <RotateCcw className="h-4 w-4" />
+            Cerrar (Esc)
           </button>
         </div>
-      )}
+
+        {/* Toolbar */}
+        <div className="px-4 py-2">
+          {toolbar}
+        </div>
+
+        {/* Pitch — fills remaining space */}
+        <div
+          className="flex-1 flex items-center justify-center p-4 overflow-hidden"
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+        >
+          <FootballPitch
+            ref={svgRef}
+            type={data.pitchType}
+            height="100%"
+            className="max-w-full max-h-full"
+            onClick={handlePitchClick}
+          >
+            {pitchContent}
+          </FootballPitch>
+        </div>
+
+        {/* Info */}
+        <div className="px-4 py-2 border-t border-gray-800">
+          {info}
+        </div>
+      </div>
+    )
+  }
+
+  // Normal mode — responsive
+  return (
+    <div className="space-y-2">
+      {/* Toolbar */}
+      {!readOnly && toolbar}
 
       {/* Instrucciones */}
-      {!readOnly && selectedTool !== 'select' && (
-        <div className="text-sm text-gray-500 px-2">
-          {selectedTool.startsWith('arrow_')
-            ? arrowStart
-              ? 'Haz click en el destino de la flecha'
-              : 'Haz click en el origen de la flecha'
-            : `Haz click en el campo para colocar: ${tools.find(t => t.id === selectedTool)?.label}`}
-        </div>
-      )}
+      {instructions}
 
-      {/* Campo de futbol */}
+      {/* Campo de futbol — responsive, fills container width */}
       <div
-        className="border border-gray-300 rounded-lg overflow-hidden"
+        className="border border-gray-300 rounded-lg overflow-hidden bg-gray-900"
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
         <FootballPitch
+          ref={svgRef}
           type={data.pitchType}
-          width={600}
-          height={450}
           onClick={handlePitchClick}
         >
-          <g ref={svgRef as any}>
-            {/* Zonas primero (fondo) */}
-            {data.zones.map(zone => (
-              <rect
-                key={zone.id}
-                x={zone.position.x}
-                y={zone.position.y}
-                width={zone.width}
-                height={zone.height}
-                fill={zone.color}
-                opacity={zone.opacity || 0.3}
-              />
-            ))}
-
-            {/* Flechas */}
-            {data.arrows.map(renderArrow)}
-
-            {/* Flecha temporal mientras se dibuja */}
-            {arrowStart && (
-              <circle cx={arrowStart.x} cy={arrowStart.y} r="5" fill="#FFFF00" />
-            )}
-
-            {/* Elementos */}
-            {data.elements.map(renderElement)}
-          </g>
+          {pitchContent}
         </FootballPitch>
       </div>
 
       {/* Info */}
-      <div className="flex items-center justify-between text-xs text-gray-400">
-        <span>
-          {data.elements.length} elementos, {data.arrows.length} flechas
-        </span>
-        {!readOnly && selectedElement && (
-          <span>
-            Elemento seleccionado - Presiona Supr o usa el boton para eliminar
-          </span>
-        )}
-      </div>
+      {info}
     </div>
   )
 }

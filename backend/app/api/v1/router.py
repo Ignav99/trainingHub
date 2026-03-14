@@ -279,6 +279,7 @@ async def get_categorias_tarea():
             {"codigo": "ACO", "nombre": "Acciones Combinadas", "color": "#6B7280"},
             {"codigo": "SSG", "nombre": "Futbol Reducido (SSG)", "color": "#14B8A6"},
             {"codigo": "ABP", "nombre": "Balon Parado (ABP)", "color": "#F97316"},
+            {"codigo": "POR", "nombre": "Portero (GK)", "color": "#22C55E"},
         ]
     }
 

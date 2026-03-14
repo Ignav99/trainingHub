@@ -48,6 +48,7 @@ function CategoryBadge({ codigo, nombre, color }: { codigo: string; nombre: stri
     ACO: 'bg-gray-100 text-gray-800',
     SSG: 'bg-teal-100 text-teal-800',
     ABP: 'bg-orange-100 text-orange-800',
+    POR: 'bg-green-100 text-green-800',
   }
 
   return (

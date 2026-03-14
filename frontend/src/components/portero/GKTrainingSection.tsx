@@ -171,6 +171,16 @@ export default function GKTrainingSection({
     mutate()
   }, [tareas, sesionId, mutate])
 
+  const handleSaveToLibrary = useCallback(async (data: {
+    nombre: string
+    descripcion?: string
+    duracion: number
+    grafico_data?: any
+  }) => {
+    await porteroTareasApi.saveToLibrary(sesionId, data)
+    alert('Ejercicio guardado en la biblioteca de tareas')
+  }, [sesionId])
+
   const handleAIApply = useCallback((aiData: {
     nombre: string
     descripcion: string
@@ -291,6 +301,7 @@ export default function GKTrainingSection({
           equipoId={equipoId}
           initialData={aiInitialData}
           onSave={editingTarea ? handleUpdate : handleCreate}
+          onSaveToLibrary={handleSaveToLibrary}
           onClose={() => { setShowEditor(false); setEditingTarea(null); setAiInitialData(null) }}
         />
       )}

@@ -283,6 +283,15 @@ export const porteroTareasApi = {
     return api.put(`/sesiones/${sesionId}/portero-tareas/reorder`, items)
   },
 
+  async saveToLibrary(sesionId: string, data: {
+    nombre: string
+    descripcion?: string
+    duracion?: number
+    grafico_data?: any
+  }): Promise<any> {
+    return api.post(`/sesiones/${sesionId}/portero-tareas/save-to-library`, data)
+  },
+
   async aiDesign(sesionId: string, prompt: string, context: Record<string, any>): Promise<{
     respuesta: string
     tarea_propuesta?: {

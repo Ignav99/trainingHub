@@ -164,6 +164,49 @@ async def reorder_portero_tareas(
     return {"ok": True}
 
 
+# ============ Save to Library ============
+
+
+class SaveToLibraryRequest(BaseModel):
+    nombre: str
+    descripcion: Optional[str] = None
+    duracion: Optional[int] = 10
+    grafico_data: Optional[dict] = None
+
+
+@router.post("/{sesion_id}/portero-tareas/save-to-library")
+async def save_portero_tarea_to_library(
+    sesion_id: UUID,
+    data: SaveToLibraryRequest,
+    auth: AuthContext = Depends(require_permission(Permission.TASK_CREATE)),
+):
+    """Saves a GK exercise to the main tarea library with POR category."""
+    supabase = get_supabase()
+
+    # Find POR category ID
+    cat = supabase.table("categorias_tarea").select("id").eq("codigo", "POR").single().execute()
+    if not cat.data:
+        raise HTTPException(status_code=400, detail="Categoria POR no encontrada. Ejecuta el SQL de insercion.")
+
+    tarea_data = {
+        "titulo": data.nombre,
+        "descripcion": data.descripcion,
+        "categoria_id": cat.data["id"],
+        "duracion_total": data.duracion,
+        "organizacion_id": str(auth.user.organizacion_id),
+        "creado_por": str(auth.user.id),
+        "es_publica": True,
+        "es_plantilla": False,
+        "grafico_data": data.grafico_data,
+    }
+
+    response = supabase.table("tareas").insert(tarea_data).execute()
+    if not response.data:
+        raise HTTPException(status_code=400, detail="Error al guardar en biblioteca")
+
+    return response.data[0]
+
+
 # ============ AI Design ============
 
 
