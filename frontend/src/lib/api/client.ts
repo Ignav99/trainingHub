@@ -56,12 +56,21 @@ class ApiClient {
       return { Authorization: `Bearer ${this.cachedToken}` }
     }
 
+    // Try persisted token first (synchronous, no network round-trip)
+    const persisted = getPersistedToken()
+    if (persisted) {
+      this.cachedToken = persisted
+      this.tokenExpiry = now + 30_000
+      return { Authorization: `Bearer ${persisted}` }
+    }
+
+    // Fallback: ask Supabase for session (may require network for token refresh)
     const { data: { session } } = await supabase.auth.getSession()
-    const token = session?.access_token || getPersistedToken()
+    const token = session?.access_token || null
 
     if (token) {
       this.cachedToken = token
-      this.tokenExpiry = now + 30_000 // 30s cache
+      this.tokenExpiry = now + 30_000
     }
 
     return token ? { Authorization: `Bearer ${token}` } : {}

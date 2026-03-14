@@ -50,22 +50,16 @@ export const useAuthStore = create<AuthState>()(
           const { data: { session } } = await supabase.auth.getSession()
 
           if (session?.user) {
+            // Single query with JOIN — replaces 2 sequential queries
             const { data: userData } = await supabase
               .from('usuarios')
-              .select('*')
+              .select('*, organizaciones(*)')
               .eq('id', session.user.id)
               .single()
 
             if (userData) {
-              let organizacion = null
-              if (userData.organizacion_id) {
-                const { data: orgData } = await supabase
-                  .from('organizaciones')
-                  .select('*')
-                  .eq('id', userData.organizacion_id)
-                  .single()
-                organizacion = orgData
-              }
+              const organizacion = userData.organizaciones || null
+              delete userData.organizaciones
 
               set({
                 user: { ...userData, organizacion },
@@ -103,9 +97,10 @@ export const useAuthStore = create<AuthState>()(
             return { success: false, error: 'Error al iniciar sesión' }
           }
 
+          // Single query with JOIN — replaces 2 sequential queries
           const { data: userData, error: userError } = await supabase
             .from('usuarios')
-            .select('*')
+            .select('*, organizaciones(*)')
             .eq('id', data.user.id)
             .single()
 
@@ -115,15 +110,8 @@ export const useAuthStore = create<AuthState>()(
             return { success: false, error: 'Usuario no encontrado en el sistema' }
           }
 
-          let organizacion = null
-          if (userData.organizacion_id) {
-            const { data: orgData } = await supabase
-              .from('organizaciones')
-              .select('*')
-              .eq('id', userData.organizacion_id)
-              .single()
-            organizacion = orgData
-          }
+          const organizacion = userData.organizaciones || null
+          delete userData.organizaciones
 
           const user: Usuario = {
             ...userData,

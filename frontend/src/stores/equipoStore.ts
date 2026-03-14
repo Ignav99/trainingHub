@@ -68,7 +68,8 @@ export const useEquipoStore = create<EquipoState>()(
     {
       name: 'equipo-storage',
       partialize: (state) => ({
-        equipoActivo: state.equipoActivo
+        equipos: state.equipos,
+        equipoActivo: state.equipoActivo,
       }),
     }
   )
