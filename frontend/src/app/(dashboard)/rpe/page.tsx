@@ -32,9 +32,11 @@ import { PageHeader } from '@/components/ui/page-header'
 import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
 import { ManualRPEDialog } from '@/components/rpe/ManualRPEDialog'
 import { WellnessDialog } from '@/components/rpe/WellnessDialog'
-import { WellnessChartDialog } from '@/components/rpe/WellnessChartDialog'
-import { LoadChartDialog } from '@/components/rpe/LoadChartDialog'
-import { ExcelImportDialog } from '@/components/rpe/ExcelImportDialog'
+import dynamic from 'next/dynamic'
+
+const WellnessChartDialog = dynamic(() => import('@/components/rpe/WellnessChartDialog').then(m => ({ default: m.WellnessChartDialog })), { ssr: false })
+const LoadChartDialog = dynamic(() => import('@/components/rpe/LoadChartDialog').then(m => ({ default: m.LoadChartDialog })), { ssr: false })
+const ExcelImportDialog = dynamic(() => import('@/components/rpe/ExcelImportDialog').then(m => ({ default: m.ExcelImportDialog })), { ssr: false })
 import { useEquipoStore } from '@/stores/equipoStore'
 import { cargaApi } from '@/lib/api/carga'
 import { rpeApi } from '@/lib/api/rpe'

@@ -16,7 +16,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import * as XLSX from 'xlsx'
+// xlsx is imported dynamically in handleFileUpload to reduce bundle size
 import { wellnessApi, type WellnessBulkItem } from '@/lib/api/wellness'
 import type { Jugador } from '@/lib/api/jugadores'
 
@@ -96,6 +96,7 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
     if (!file) return
 
     try {
+      const XLSX = await import('xlsx')
       const data = await file.arrayBuffer()
       const wb = XLSX.read(data, { type: 'array' })
       const sheet = wb.Sheets[wb.SheetNames[0]]

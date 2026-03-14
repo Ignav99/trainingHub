@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from uuid import UUID
 from math import ceil
+import asyncio
 import io
 import logging
 
@@ -666,7 +667,8 @@ async def generate_tarea_pdf_endpoint(
         "id", tarea_resp.data["organizacion_id"]
     ).single().execute()
 
-    pdf_bytes = gen_pdf(
+    pdf_bytes = await asyncio.to_thread(
+        gen_pdf,
         tarea=tarea_resp.data,
         organizacion=org_resp.data or {},
     )

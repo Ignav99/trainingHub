@@ -34,16 +34,35 @@ function extractErrorMessage(error: any, status: number): string {
 class ApiClient {
   private baseUrl: string
   private defaultTimeout: number
+  private cachedToken: string | null = null
+  private tokenExpiry = 0
 
   constructor(baseUrl: string, defaultTimeout = 30000) {
     this.baseUrl = baseUrl
     this.defaultTimeout = defaultTimeout
+
+    // Invalidate cache on auth state changes
+    if (typeof window !== 'undefined') {
+      supabase.auth.onAuthStateChange(() => {
+        this.cachedToken = null
+        this.tokenExpiry = 0
+      })
+    }
   }
 
   private async getAuthHeaders(): Promise<HeadersInit> {
-    // Always get fresh token from Supabase (handles refresh automatically)
+    const now = Date.now()
+    if (this.cachedToken && now < this.tokenExpiry) {
+      return { Authorization: `Bearer ${this.cachedToken}` }
+    }
+
     const { data: { session } } = await supabase.auth.getSession()
     const token = session?.access_token || getPersistedToken()
+
+    if (token) {
+      this.cachedToken = token
+      this.tokenExpiry = now + 30_000 // 30s cache
+    }
 
     return token ? { Authorization: `Bearer ${token}` } : {}
   }

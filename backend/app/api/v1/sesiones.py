@@ -1369,11 +1369,26 @@ async def generate_pdf(
 ):
     """Genera el PDF de la sesión, lo sube a Storage y lo devuelve."""
     supabase = get_supabase()
+    sid = str(sesion_id)
 
-    # Obtener sesión completa
-    sesion_response = supabase.table("sesiones").select(
-        "*, equipos(*, organizaciones(*))"
-    ).eq("id", str(sesion_id)).single().execute()
+    # Parallel fetch: sesion + tareas + asistencia (all only need sesion_id)
+    sesion_response, tareas_response, roster_response = await asyncio.gather(
+        asyncio.to_thread(
+            lambda: supabase.table("sesiones").select(
+                "*, equipos(*, organizaciones(*))"
+            ).eq("id", sid).single().execute()
+        ),
+        asyncio.to_thread(
+            lambda: supabase.table("sesion_tareas").select(
+                "*, tareas(*, categorias_tarea(*))"
+            ).eq("sesion_id", sid).order("orden").execute()
+        ),
+        asyncio.to_thread(
+            lambda: supabase.table("asistencias_sesion").select(
+                "presente, tipo_participacion, motivo_ausencia, jugadores(nombre, apellidos, dorsal)"
+            ).eq("sesion_id", sid).execute()
+        ),
+    )
 
     if not sesion_response.data:
         raise HTTPException(
@@ -1384,11 +1399,6 @@ async def generate_pdf(
     sesion = sesion_response.data
     equipo = sesion.get("equipos", {})
     organizacion = equipo.get("organizaciones", {})
-
-    # Obtener tareas
-    tareas_response = supabase.table("sesion_tareas").select(
-        "*, tareas(*, categorias_tarea(*))"
-    ).eq("sesion_id", str(sesion_id)).order("orden").execute()
 
     tareas = tareas_response.data
 
@@ -1431,15 +1441,11 @@ async def generate_pdf(
     if not lugar:
         lugar = sesion.get("lugar")
 
-    # Fetch full asistencia roster (present + absent with types)
+    # Build asistencia roster from pre-fetched roster_response
     asistencia_roster = []
     TIPO_ORDER = {"sesion": 0, "fisio": 1, "margen": 2, "presente": 3, "ausente": 4}
     TIPO_DISPLAY = {"sesion": "Sesion", "fisio": "Fisio", "margen": "Margen", "presente": "Presente"}
     try:
-        roster_response = supabase.table("asistencias_sesion").select(
-            "presente, tipo_participacion, motivo_ausencia, jugadores(nombre, apellidos, dorsal)"
-        ).eq("sesion_id", str(sesion_id)).execute()
-
         for a in roster_response.data or []:
             jugador = a.get("jugadores", {}) or {}
             dorsal = jugador.get("dorsal")
@@ -1527,7 +1533,8 @@ async def generate_pdf(
 
     # Generar PDF con el servicio v2
     try:
-        pdf_bytes = generate_sesion_pdf_v2(
+        pdf_bytes = await asyncio.to_thread(
+            generate_sesion_pdf_v2,
             sesion, tareas, organizacion, jugadores_map,
             microciclo_nombre=microciclo_nombre,
             lugar=lugar,

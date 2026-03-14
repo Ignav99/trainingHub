@@ -17,7 +17,6 @@ from app.middleware import (
     SecurityHeadersMiddleware,
     RequestLoggingMiddleware,
     RateLimitMiddleware,
-    LicenseEnforcementMiddleware,
 )
 
 # Configure logging
@@ -99,11 +98,9 @@ app = FastAPI(
 app.add_middleware(RequestLoggingMiddleware)
 # 2. Security headers
 app.add_middleware(SecurityHeadersMiddleware)
-# 3. License enforcement
-app.add_middleware(LicenseEnforcementMiddleware)
-# 4. Rate limiting
+# 3. Rate limiting
 app.add_middleware(RateLimitMiddleware, max_requests=100, window_seconds=60)
-# 5. CORS (outermost - MUST wrap everything so error responses get CORS headers)
+# 4. CORS (outermost - MUST wrap everything so error responses get CORS headers)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,

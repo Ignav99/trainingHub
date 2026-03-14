@@ -2,8 +2,10 @@
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
-  // Optimizaciones para reducir uso de memoria en build
   swcMinify: true,
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'recharts', '@dnd-kit/core', '@dnd-kit/sortable', 'framer-motion'],
+  },
 
   images: {
     remotePatterns: [
@@ -16,13 +18,6 @@ const nextConfig = {
         hostname: '*.supabase.in',
       },
     ],
-  },
-
-  // Reducir uso de memoria en webpack
-  webpack: (config, { isServer }) => {
-    // Limitar paralelismo para reducir memoria
-    config.parallelism = 1;
-    return config;
   },
 
   async rewrites() {
