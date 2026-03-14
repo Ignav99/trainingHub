@@ -292,6 +292,14 @@ from app.models.abp import (
     ABPPartidoPlanFullResponse,
 )
 
+from app.models.portero_tarea import (
+    TipoPorteroTarea,
+    PorteroTareaBase,
+    PorteroTareaCreate,
+    PorteroTareaUpdate,
+    PorteroTareaResponse,
+)
+
 from app.models.medico import (
     TipoRegistroMedico,
     EstadoRegistroMedico,
@@ -406,6 +414,9 @@ __all__ = [
     "RegistroMedicoSummary", "RegistroMedicoListResponse",
     "AccesoMedicoLogResponse", "AccesoMedicoLogListResponse",
     "PermisosPersonalizadosCreate", "PermisosPersonalizadosResponse",
+    # Portero Tareas
+    "TipoPorteroTarea",
+    "PorteroTareaBase", "PorteroTareaCreate", "PorteroTareaUpdate", "PorteroTareaResponse",
     # ABP (Balón Parado)
     "TipoABP", "LadoABP", "SubtipoABP", "SistemaMarcaje", "ABPPlayerRol",
     "ABPFase", "ABPAsignacion",

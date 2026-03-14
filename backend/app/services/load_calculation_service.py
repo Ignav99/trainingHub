@@ -44,6 +44,7 @@ COGNITIVE_MODIFIER = {
 }
 
 GK_MATCH_RPE_MAX = 6.0
+GK_SESSION_LOAD_FACTOR = 0.625  # GK RPE max ~6.25 vs 10.0 for outfield
 
 
 def estimate_session_load(
@@ -90,6 +91,44 @@ def estimate_session_load(
     session_load = round(session_rpe * total_duration, 2)
 
     return (session_rpe, total_duration, session_load)
+
+
+def estimate_gk_session_load(
+    intensidad_objetivo: Optional[str],
+    portero_tareas: list[dict],
+) -> tuple[float, float, float]:
+    """
+    Estimate GK session RPE from portero_tareas.
+    Returns (gk_rpe, total_duration_min, gk_load).
+    Uses reduced load factor since GK training is less physically demanding.
+    """
+    if not portero_tareas:
+        return (0.0, 0.0, 0.0)
+
+    total_duration = 0.0
+    weighted_rpe_sum = 0.0
+
+    for t in portero_tareas:
+        duration = t.get("duracion", 0) or 0
+        if duration <= 0:
+            continue
+
+        base = INTENSITY_BASE_RPE.get(intensidad_objetivo or "media", 5.5)
+
+        intensidad_tarea = t.get("intensidad", "media") or "media"
+        intensity_mod = {"alta": 1.2, "media": 1.0, "baja": 0.75}.get(intensidad_tarea, 1.0)
+
+        task_rpe = min(base * intensity_mod * GK_SESSION_LOAD_FACTOR, GK_MATCH_RPE_MAX)
+        weighted_rpe_sum += task_rpe * duration
+        total_duration += duration
+
+    if total_duration == 0:
+        return (0.0, 0.0, 0.0)
+
+    gk_rpe = round(weighted_rpe_sum / total_duration, 2)
+    gk_load = round(gk_rpe * total_duration, 2)
+
+    return (gk_rpe, total_duration, gk_load)
 
 
 def calculate_match_load(minutos: int, es_portero: bool = False) -> tuple[float, float]:
@@ -340,6 +379,86 @@ def _gather_manual_loads(
     return loads
 
 
+def _gather_gk_training_loads(
+    supabase, jid: str, eid: str, since: date
+) -> dict[date, float]:
+    """Gather GK-specific training loads from portero_tareas for sessions the GK attended."""
+    loads: dict[date, float] = defaultdict(float)
+
+    try:
+        # Get all portero_tareas for this team
+        gk_tareas = (
+            supabase.table("portero_tareas")
+            .select("sesion_id, duracion, intensidad")
+            .eq("equipo_id", eid)
+            .execute()
+        )
+
+        if not gk_tareas.data:
+            return loads
+
+        # Group by session
+        sesion_tareas: dict[str, list[dict]] = defaultdict(list)
+        for t in gk_tareas.data:
+            sesion_tareas[t["sesion_id"]].append(t)
+
+        sesion_ids = list(sesion_tareas.keys())
+        if not sesion_ids:
+            return loads
+
+        # Get session dates and check GK attendance
+        for sid in sesion_ids:
+            try:
+                sesion_resp = (
+                    supabase.table("sesiones")
+                    .select("fecha, intensidad_objetivo")
+                    .eq("id", sid)
+                    .limit(1)
+                    .execute()
+                )
+                if not sesion_resp.data:
+                    continue
+
+                sesion = sesion_resp.data[0]
+                fecha_str = sesion.get("fecha")
+                if not fecha_str:
+                    continue
+
+                fecha = date.fromisoformat(fecha_str[:10])
+                if fecha < since:
+                    continue
+
+                # Check if GK attended this session
+                asist = (
+                    supabase.table("asistencias_sesion")
+                    .select("id")
+                    .eq("jugador_id", jid)
+                    .eq("sesion_id", sid)
+                    .eq("presente", True)
+                    .limit(1)
+                    .execute()
+                )
+                if not asist.data:
+                    continue
+
+                # Calculate GK load for this session's portero_tareas
+                _, _, gk_load = estimate_gk_session_load(
+                    sesion.get("intensidad_objetivo"),
+                    sesion_tareas[sid],
+                )
+                if gk_load > 0:
+                    loads[fecha] += gk_load
+
+            except Exception as e:
+                logger.warning(f"Error processing GK tarea for session {sid}: {e}")
+                continue
+
+    except Exception as e:
+        logger.error(f"Error gathering GK training loads for {jid}: {e}")
+
+    return loads
+
+
 # ---------------------------------------------------------------------------
 #  EWMA day-by-day walk + monotonia/strain
 # ---------------------------------------------------------------------------
@@ -440,12 +559,21 @@ def recalculate_player_load(jugador_id: UUID, equipo_id: UUID) -> dict:
     match_loads = _gather_match_loads(supabase, jid, es_portero, since)
     manual_loads = _gather_manual_loads(supabase, jid, since)
 
+    # For goalkeepers, gather GK-specific training loads
+    gk_loads: dict[date, float] = defaultdict(float)
+    if es_portero:
+        gk_loads = _gather_gk_training_loads(supabase, jid, eid, since)
+
     # Merge into daily dict
-    all_dates = set(session_loads.keys()) | set(match_loads.keys()) | set(manual_loads.keys())
+    all_dates = set(session_loads.keys()) | set(match_loads.keys()) | set(manual_loads.keys()) | set(gk_loads.keys())
     daily_loads: dict[date, dict] = {}
     for d in all_dates:
+        sesion_load = session_loads.get(d, 0.0)
+        gk_load = gk_loads.get(d, 0.0)
+        # For GK: use max of session load (with GK factor from _gather) or dedicated GK training
+        total_session = sesion_load + gk_load if es_portero else sesion_load
         daily_loads[d] = {
-            "sesion": session_loads.get(d, 0.0),
+            "sesion": total_session,
             "partido": match_loads.get(d, 0.0),
             "manual": manual_loads.get(d, 0.0),
         }

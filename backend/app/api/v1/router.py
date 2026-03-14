@@ -41,6 +41,7 @@ from app.api.v1 import (
     admin,
     descansos,
     abp,
+    portero_tareas,
 )
 
 api_router = APIRouter()
@@ -253,6 +254,12 @@ api_router.include_router(
     abp.router,
     prefix="/abp",
     tags=["ABP (Balon Parado)"]
+)
+
+api_router.include_router(
+    portero_tareas.router,
+    prefix="/sesiones",
+    tags=["Portero Tareas"]
 )
 
 

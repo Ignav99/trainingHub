@@ -13,6 +13,8 @@ import {
   SugerirEquiposResponse,
   FormacionEquipos,
   Jugador,
+  PorteroTarea,
+  PorteroTareaCreate,
 } from '@/types'
 
 export interface SesionCreateData {
@@ -255,6 +257,46 @@ export const sesionesApi = {
     fase_sesion: string
   }): Promise<Sesion> {
     return api.post<Sesion>(`/sesiones/${sesionId}/tareas/ai-crear`, data, { timeout: 120000 })
+  },
+}
+
+// ============ Portero Tareas API ============
+
+export const porteroTareasApi = {
+  async list(sesionId: string): Promise<{ data: PorteroTarea[] }> {
+    return api.get<{ data: PorteroTarea[] }>(`/sesiones/${sesionId}/portero-tareas`)
+  },
+
+  async create(sesionId: string, data: PorteroTareaCreate): Promise<PorteroTarea> {
+    return api.post<PorteroTarea>(`/sesiones/${sesionId}/portero-tareas`, data)
+  },
+
+  async update(sesionId: string, id: string, data: Partial<PorteroTarea>): Promise<PorteroTarea> {
+    return api.put<PorteroTarea>(`/sesiones/${sesionId}/portero-tareas/${id}`, data)
+  },
+
+  async delete(sesionId: string, id: string): Promise<void> {
+    return api.delete(`/sesiones/${sesionId}/portero-tareas/${id}`)
+  },
+
+  async reorder(sesionId: string, items: { id: string; orden: number }[]): Promise<void> {
+    return api.put(`/sesiones/${sesionId}/portero-tareas/reorder`, items)
+  },
+
+  async aiDesign(sesionId: string, prompt: string, context: Record<string, any>): Promise<{
+    respuesta: string
+    tarea_propuesta?: {
+      nombre: string
+      descripcion: string
+      duracion: number
+      intensidad: string
+      tipo: string
+      coaching_points?: string[]
+      material_necesario?: string[]
+      variantes?: string[]
+    }
+  }> {
+    return api.post(`/sesiones/${sesionId}/portero-tareas/ai-design`, { prompt, context }, { timeout: 120000 })
   },
 }
 

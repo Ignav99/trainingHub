@@ -1599,3 +1599,50 @@ export const ABP_ROLES: { value: ABPPlayerRol; label: string }[] = [
   { value: 'portero', label: 'Portero' },
   { value: 'otro', label: 'Otro' },
 ]
+
+// ============ PORTERO TAREAS ============
+
+export type TipoPorteroTarea = 'calentamiento' | 'tecnica' | 'tactica' | 'juego' | 'recuperacion'
+
+export interface PorteroTarea {
+  id: string
+  sesion_id: string
+  equipo_id: string
+  orden: number
+  nombre: string
+  descripcion?: string
+  duracion: number
+  intensidad: string
+  tipo?: TipoPorteroTarea
+  diagram?: {
+    elements: any[]
+    arrows: any[]
+    zones: any[]
+    pitchType: 'full' | 'half' | 'quarter' | 'custom'
+    customDimensions?: { width: number; height: number }
+  }
+  notas?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface PorteroTareaCreate {
+  sesion_id: string
+  equipo_id: string
+  nombre: string
+  descripcion?: string
+  duracion?: number
+  intensidad?: string
+  tipo?: TipoPorteroTarea
+  diagram?: any
+  notas?: string
+  orden?: number
+}
+
+export const PORTERO_TAREA_TIPOS: { value: TipoPorteroTarea; label: string; color: string }[] = [
+  { value: 'calentamiento', label: 'Calentamiento', color: '#22C55E' },
+  { value: 'tecnica',       label: 'Técnica',       color: '#3B82F6' },
+  { value: 'tactica',       label: 'Táctica',       color: '#F59E0B' },
+  { value: 'juego',         label: 'Juego',         color: '#EF4444' },
+  { value: 'recuperacion',  label: 'Recuperación',  color: '#8B5CF6' },
+]

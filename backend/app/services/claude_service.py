@@ -397,6 +397,86 @@ TASK_DESIGN_TOOLS = [
 ]
 
 
+# ============ GK Training Design Prompt & Tools ============
+
+GK_DESIGN_PROMPT = """
+## MODO: DISEÑO DE EJERCICIO DE PORTERO
+
+Eres un experto entrenador de porteros de fútbol. Diseñas ejercicios específicos
+para porteros adaptados al contexto de la sesión. Considera:
+- El día de la semana respecto al partido (matchday)
+- La intensidad objetivo de la sesión
+- El número de porteros disponibles
+- Progresión lógica de los ejercicios (calentamiento → técnica → táctica → juego)
+
+### INSTRUCCIÓN CRÍTICA
+Cuando el entrenador describe un ejercicio con suficiente detalle, DEBES llamar a la herramienta `proponer_tarea_portero` INMEDIATAMENTE.
+
+### TIPOS DE EJERCICIO
+- calentamiento: Movilidad, activación, coordinación
+- tecnica: Blocaje, despeje, pase, 1v1, salidas
+- tactica: Posicionamiento, comunicación, juego de pies, salidas
+- juego: Situaciones reales, partidos reducidos con énfasis GK
+- recuperacion: Ejercicios de baja intensidad, flexibilidad
+
+### REGLAS
+- Diseña UN solo ejercicio, no una sesión completa
+- Propón ejercicios concretos con organización, variantes y puntos clave
+- Si falta el número de porteros: asume 2
+- Incluye siempre coaching points específicos para porteros
+"""
+
+GK_DESIGN_TOOLS = [
+    {
+        "name": "proponer_tarea_portero",
+        "description": "Propone un ejercicio de entrenamiento para porteros. DEBES usar esta herramienta siempre que tengas suficiente contexto.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nombre": {
+                    "type": "string",
+                    "description": "Nombre descriptivo del ejercicio",
+                },
+                "descripcion": {
+                    "type": "string",
+                    "description": "Descripción detallada: organización, dinámica, desarrollo del ejercicio, variantes",
+                },
+                "duracion": {
+                    "type": "integer",
+                    "description": "Duración en minutos",
+                },
+                "intensidad": {
+                    "type": "string",
+                    "enum": ["alta", "media", "baja"],
+                    "description": "Intensidad del ejercicio",
+                },
+                "tipo": {
+                    "type": "string",
+                    "enum": ["calentamiento", "tecnica", "tactica", "juego", "recuperacion"],
+                    "description": "Tipo de ejercicio",
+                },
+                "coaching_points": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Puntos clave para el entrenador de porteros (3-5)",
+                },
+                "material_necesario": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Material necesario",
+                },
+                "variantes": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "1-3 variantes o progresiones",
+                },
+            },
+            "required": ["nombre", "descripcion", "duracion", "intensidad", "tipo"],
+        },
+    },
+]
+
+
 # ============ Pre-Match Report Prompt & Tools ============
 
 PRE_MATCH_REPORT_PROMPT = """
@@ -2179,6 +2259,122 @@ Responde SOLO con JSON válido:
             "tokens_input": total_input_tokens,
             "tokens_output": total_output_tokens,
             "herramientas_usadas": herramientas_usadas,
+        }
+
+    # ============ GK Training Design ============
+
+    async def design_portero_tarea(
+        self,
+        prompt: str,
+        context: dict,
+    ) -> dict:
+        """
+        Design a goalkeeper training exercise using AI.
+
+        Args:
+            prompt: User's description of what they want
+            context: Optional context (duracion_disponible, num_porteros, nivel, match_day, intensidad_objetivo)
+
+        Returns:
+            dict with: respuesta, tarea_propuesta, tokens_input, tokens_output
+        """
+        context_parts = []
+        if context.get("match_day"):
+            context_parts.append(f"- Match Day: {context['match_day']}")
+        if context.get("intensidad_objetivo"):
+            context_parts.append(f"- Intensidad objetivo de la sesión: {context['intensidad_objetivo']}")
+        if context.get("duracion_disponible"):
+            context_parts.append(f"- Duración disponible: {context['duracion_disponible']} min")
+        if context.get("num_porteros"):
+            context_parts.append(f"- Número de porteros: {context['num_porteros']}")
+        if context.get("nivel"):
+            context_parts.append(f"- Nivel del equipo: {context['nivel']}")
+
+        context_text = "\n".join(context_parts) if context_parts else "Sin contexto adicional"
+
+        system = [
+            {
+                "type": "text",
+                "text": SYSTEM_PROMPT + GK_DESIGN_PROMPT,
+                "cache_control": {"type": "ephemeral"},
+            },
+            {
+                "type": "text",
+                "text": f"## CONTEXTO DE LA SESIÓN\n{context_text}",
+            },
+        ]
+
+        messages = [{"role": "user", "content": prompt}]
+
+        tarea_propuesta = None
+        total_input_tokens = 0
+        total_output_tokens = 0
+
+        max_iterations = 3
+        for iteration in range(max_iterations):
+            try:
+                kwargs = {
+                    "model": self.model,
+                    "max_tokens": 4096,
+                    "system": system,
+                    "messages": messages,
+                    "tools": GK_DESIGN_TOOLS,
+                }
+
+                # Force tool use on first call
+                if iteration == 0:
+                    kwargs["tool_choice"] = {"type": "tool", "name": "proponer_tarea_portero"}
+
+                response = await self.client.messages.create(**kwargs)
+
+                total_input_tokens += response.usage.input_tokens
+                total_output_tokens += response.usage.output_tokens
+
+            except anthropic.APIConnectionError as e:
+                logger.error(f"Claude connection error in GK design: {e}")
+                raise ClaudeError("Error de conexion con Claude. Inténtalo de nuevo en unos segundos.")
+            except anthropic.RateLimitError as e:
+                logger.error(f"Claude rate limit in GK design: {e}")
+                raise ClaudeError("Claude está saturado. Espera unos segundos e inténtalo de nuevo.")
+            except anthropic.APIError as e:
+                logger.error(f"Claude API error in GK design: {e}")
+                raise ClaudeError(f"Error de comunicacion con Claude: {str(e)}")
+
+            if response.stop_reason == "tool_use":
+                assistant_content = response.content
+                tool_results = []
+
+                for block in assistant_content:
+                    if block.type == "tool_use" and block.name == "proponer_tarea_portero":
+                        tarea_propuesta = block.input
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": "Ejercicio propuesto presentado al entrenador. Resume brevemente lo que has propuesto.",
+                        })
+
+                messages.append({"role": "assistant", "content": _serialize_content_blocks(assistant_content)})
+                messages.append({"role": "user", "content": tool_results})
+                continue
+
+            else:
+                text_response = ""
+                for block in response.content:
+                    if hasattr(block, "text"):
+                        text_response += block.text
+
+                return {
+                    "respuesta": text_response,
+                    "tarea_propuesta": tarea_propuesta,
+                    "tokens_input": total_input_tokens,
+                    "tokens_output": total_output_tokens,
+                }
+
+        return {
+            "respuesta": "He diseñado el ejercicio para porteros.",
+            "tarea_propuesta": tarea_propuesta,
+            "tokens_input": total_input_tokens,
+            "tokens_output": total_output_tokens,
         }
 
     # ============ Pre-Match Chat (Informe Rival / Plan Partido) ============

@@ -70,6 +70,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
 import ABPSessionLink from '@/components/abp/ABPSessionLink'
+import GKTrainingSection from '@/components/portero/GKTrainingSection'
 import { sesionesApi, SesionUpdateData } from '@/lib/api/sesiones'
 import { tareasApi } from '@/lib/api/tareas'
 import { jugadoresApi } from '@/lib/api/jugadores'
@@ -2192,6 +2193,19 @@ export default function SesionDetailPage() {
           {sesion?.equipo_id && (
             <div className="mt-6 p-4 bg-orange-50/50 border border-orange-100 rounded-xl">
               <ABPSessionLink sesionId={sesionId} equipoId={sesion.equipo_id} />
+            </div>
+          )}
+
+          {/* GK Training Section */}
+          {sesion?.equipo_id && (
+            <div className="mt-6 p-4 bg-green-50/50 border border-green-100 rounded-xl">
+              <GKTrainingSection
+                sesionId={sesionId}
+                equipoId={sesion.equipo_id}
+                matchDay={sesion.match_day}
+                intensidadObjetivo={sesion.intensidad_objetivo}
+                isEditable={true}
+              />
             </div>
           )}
         </TabsContent>
