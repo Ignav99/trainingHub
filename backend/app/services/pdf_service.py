@@ -728,6 +728,8 @@ def generate_abp_partido_pdf(
     jugadores_map: Optional[dict] = None,
     equipo_nombre: str = "",
     organizacion: Optional[dict] = None,
+    equipo_temporada: str = "",
+    equipo_categoria: str = "",
 ) -> bytes:
     """Genera PDF profesional del plan ABP para un partido (vestuario)."""
     from app.services.svg_renderer import render_abp_diagram_svg
@@ -815,7 +817,10 @@ def generate_abp_partido_pdf(
         rival_nombre=rival_nombre,
         plan=plan or {},
         equipo_nombre=equipo_nombre,
+        equipo_temporada=equipo_temporada,
+        equipo_categoria=equipo_categoria,
         org_nombre=org.get("nombre", ""),
+        logo_url=org.get("logo_url", ""),
         color_primario=color_primario,
         tipo_labels=ABP_TIPO_LABELS,
         lado_labels=ABP_LADO_LABELS,

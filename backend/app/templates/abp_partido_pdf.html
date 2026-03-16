@@ -7,7 +7,17 @@
 
         @page {
             size: A4;
-            margin: 15mm;
+            margin: 20mm 15mm 18mm 15mm;
+            @top-center {
+                content: element(page-header);
+            }
+            @bottom-center {
+                content: element(page-footer);
+            }
+        }
+        @page :first {
+            margin-top: 15mm;
+            @top-center { content: none; }
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -16,6 +26,69 @@
             color: #1a1a2e;
             font-size: 13px;
             line-height: 1.4;
+        }
+
+        /* ===== RUNNING HEADER/FOOTER (all pages except first) ===== */
+        .running-header {
+            position: running(page-header);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid {{ color_primario or '#1a365d' }};
+            font-size: 10px;
+            color: #555;
+            width: 100%;
+        }
+        .running-header img {
+            width: 20px;
+            height: 20px;
+            object-fit: contain;
+        }
+        .running-header .hdr-club {
+            font-weight: 700;
+            color: {{ color_primario or '#1a365d' }};
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .running-header .hdr-sep {
+            color: #ccc;
+            margin: 0 2px;
+        }
+        .running-header .hdr-team {
+            font-weight: 600;
+            color: #333;
+        }
+        .running-header .hdr-season {
+            color: #888;
+        }
+        .running-header .hdr-right {
+            margin-left: auto;
+            color: #aaa;
+            font-size: 9px;
+        }
+
+        .running-footer {
+            position: running(page-footer);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-top: 6px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 9px;
+            color: #aaa;
+            width: 100%;
+        }
+        .running-footer .ft-left {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .running-footer img {
+            width: 14px;
+            height: 14px;
+            object-fit: contain;
+            opacity: 0.5;
         }
 
         /* ===== COVER PAGE ===== */
@@ -30,7 +103,17 @@
             padding: 24px 28px;
             border-radius: 10px;
             margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
         }
+        .cover-header .cover-logo {
+            width: 64px;
+            height: 64px;
+            object-fit: contain;
+            flex-shrink: 0;
+        }
+        .cover-header .cover-info { flex: 1; }
         .cover-header h1 {
             font-size: 28px;
             font-weight: 800;
@@ -47,6 +130,11 @@
             font-size: 12px;
             opacity: 0.65;
             margin-top: 6px;
+        }
+        .cover-header .team-meta {
+            font-size: 11px;
+            opacity: 0.55;
+            margin-top: 2px;
         }
 
         /* Comments boxes */
@@ -85,52 +173,94 @@
             white-space: pre-line;
         }
 
-        /* Summary */
+        /* ===== RESUMEN (two-column layout) ===== */
         .summary {
             background: #f8fafc;
             border: 1px solid #e2e8f0;
             border-radius: 10px;
-            padding: 16px 18px;
+            padding: 18px 20px;
         }
         .summary h3 {
-            font-size: 14px;
+            font-size: 15px;
             font-weight: 700;
             color: #333;
-            margin-bottom: 10px;
+            margin-bottom: 14px;
         }
-        .summary-stats {
+        .summary-columns {
             display: flex;
             gap: 20px;
-            margin-bottom: 12px;
         }
-        .stat {
+        .summary-col {
+            flex: 1;
+        }
+        .summary-col-header {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
+            margin-bottom: 10px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid;
         }
-        .stat-dot {
+        .summary-col-header.of { border-color: #3B82F6; }
+        .summary-col-header.df { border-color: #EF4444; }
+        .summary-col-header .col-dot {
             width: 10px;
             height: 10px;
             border-radius: 50%;
         }
-        .stat-dot.of { background: #3B82F6; }
-        .stat-dot.df { background: #EF4444; }
-        .stat-label { font-size: 12px; color: #666; }
-        .stat-num { font-size: 14px; font-weight: 700; color: #333; }
-
-        .play-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
+        .col-dot.of { background: #3B82F6; }
+        .col-dot.df { background: #EF4444; }
+        .summary-col-header .col-title {
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
-        .play-chip {
-            font-size: 11px;
-            padding: 3px 8px;
-            border-radius: 4px;
+        .col-title.of { color: #1E40AF; }
+        .col-title.df { color: #991B1B; }
+        .summary-col-header .col-count {
+            font-size: 12px;
             font-weight: 600;
+            color: #666;
+            margin-left: auto;
         }
-        .play-chip.of { background: #DBEAFE; color: #1E40AF; }
-        .play-chip.df { background: #FEE2E2; color: #991B1B; }
+
+        .summary-play {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            padding: 5px 0;
+            border-bottom: 1px solid #eef2f6;
+            font-size: 12px;
+        }
+        .summary-play:last-child { border-bottom: none; }
+        .summary-play .sp-num {
+            font-size: 11px;
+            font-weight: 700;
+            color: #94a3b8;
+            min-width: 14px;
+        }
+        .summary-play .sp-code {
+            font-family: monospace;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 1px 5px;
+            border-radius: 3px;
+            white-space: nowrap;
+        }
+        .sp-code.of { background: #DBEAFE; color: #1E40AF; }
+        .sp-code.df { background: #FEE2E2; color: #991B1B; }
+        .summary-play .sp-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .summary-empty {
+            color: #aaa;
+            font-style: italic;
+            font-size: 12px;
+            padding: 8px 0;
+        }
 
         /* ===== PLAY PAGES ===== */
         .section-header {
@@ -269,14 +399,6 @@
             border-top: 1px solid #eee;
         }
 
-        /* Footer */
-        .footer {
-            font-size: 9px;
-            color: #aaa;
-            text-align: center;
-            margin-top: 16px;
-        }
-
         .empty {
             color: #aaa;
             font-style: italic;
@@ -286,17 +408,45 @@
     </style>
 </head>
 <body>
+    <!-- Running header (appears on all pages except first) -->
+    <div class="running-header">
+        {% if logo_url %}<img src="{{ logo_url }}" alt="">{% endif %}
+        {% if org_nombre %}<span class="hdr-club">{{ org_nombre }}</span><span class="hdr-sep">|</span>{% endif %}
+        <span class="hdr-team">{{ equipo_nombre }}</span>
+        {% if equipo_temporada %}<span class="hdr-sep">|</span><span class="hdr-season">{{ equipo_temporada }}</span>{% endif %}
+        <span class="hdr-right">ABP Plan de Partido</span>
+    </div>
+
+    <!-- Running footer (appears on all pages) -->
+    <div class="running-footer">
+        <div class="ft-left">
+            {% if logo_url %}<img src="{{ logo_url }}" alt="">{% endif %}
+            <span>{% if org_nombre %}{{ org_nombre }} · {% endif %}Generado con TrainingHub Pro</span>
+        </div>
+        <span>{{ equipo_nombre }}{% if equipo_temporada %} · {{ equipo_temporada }}{% endif %}</span>
+    </div>
+
     <!-- ===== PAGE 1: COVER ===== -->
     <div class="cover">
         <div class="cover-header">
-            <h1>ABP Plan de Partido</h1>
-            <div class="subtitle">{% if equipo_nombre %}{{ equipo_nombre }} vs {% endif %}{{ rival_nombre }}</div>
-            <div class="match-meta">
-                {% if partido.fecha %}{{ partido.fecha }}{% endif %}
-                {% if partido.hora %} · {{ partido.hora }}{% endif %}
-                {% if partido.competicion %} · {{ partido.competicion }}{% endif %}
-                {% if partido.jornada %} · J{{ partido.jornada }}{% endif %}
-                {% if partido.localia %} · {{ partido.localia | upper }}{% endif %}
+            {% if logo_url %}<img class="cover-logo" src="{{ logo_url }}" alt="">{% endif %}
+            <div class="cover-info">
+                <h1>ABP Plan de Partido</h1>
+                <div class="subtitle">{% if equipo_nombre %}{{ equipo_nombre }} vs {% endif %}{{ rival_nombre }}</div>
+                <div class="match-meta">
+                    {% if partido.fecha %}{{ partido.fecha }}{% endif %}
+                    {% if partido.hora %} · {{ partido.hora }}{% endif %}
+                    {% if partido.competicion %} · {{ partido.competicion }}{% endif %}
+                    {% if partido.jornada %} · J{{ partido.jornada }}{% endif %}
+                    {% if partido.localia %} · {{ partido.localia | upper }}{% endif %}
+                </div>
+                {% if equipo_temporada or equipo_categoria %}
+                <div class="team-meta">
+                    {% if equipo_categoria %}{{ equipo_categoria }}{% endif %}
+                    {% if equipo_categoria and equipo_temporada %} · {% endif %}
+                    {% if equipo_temporada %}Temporada {{ equipo_temporada }}{% endif %}
+                </div>
+                {% endif %}
             </div>
         </div>
 
@@ -314,34 +464,56 @@
         </div>
         {% endif %}
 
-        <!-- Summary -->
+        <!-- Resumen: two-column layout -->
         <div class="summary">
-            <h3>Resumen</h3>
-            <div class="summary-stats">
-                <div class="stat">
-                    <div class="stat-dot of"></div>
-                    <span class="stat-num">{{ total_ofensivas }}</span>
-                    <span class="stat-label">ofensiva{{ 's' if total_ofensivas != 1 }}</span>
+            <h3>Resumen de Jugadas</h3>
+            <div class="summary-columns">
+                <!-- Ofensivas column -->
+                <div class="summary-col">
+                    <div class="summary-col-header of">
+                        <div class="col-dot of"></div>
+                        <span class="col-title of">Ofensivas</span>
+                        <span class="col-count">{{ total_ofensivas }}</span>
+                    </div>
+                    {% if ofensivas %}
+                        {% for jp in ofensivas %}
+                        {% set play = jp.jugada %}
+                        {% if play %}
+                        <div class="summary-play">
+                            <span class="sp-num">{{ loop.index }}.</span>
+                            {% if play.codigo %}<span class="sp-code of">{{ play.codigo }}</span>{% endif %}
+                            <span class="sp-name">{{ play.nombre }}</span>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        <div class="summary-empty">Sin jugadas ofensivas</div>
+                    {% endif %}
                 </div>
-                <div class="stat">
-                    <div class="stat-dot df"></div>
-                    <span class="stat-num">{{ total_defensivas }}</span>
-                    <span class="stat-label">defensiva{{ 's' if total_defensivas != 1 }}</span>
-                </div>
-            </div>
 
-            {% if jugadas_partido %}
-            <div class="play-list">
-                {% for jp in jugadas_partido %}
-                {% set play = jp.jugada %}
-                {% if play %}
-                <span class="play-chip {% if play.lado == 'ofensivo' %}of{% else %}df{% endif %}">
-                    {% if play.codigo %}{{ play.codigo }} — {% endif %}{{ play.nombre }}
-                </span>
-                {% endif %}
-                {% endfor %}
+                <!-- Defensivas column -->
+                <div class="summary-col">
+                    <div class="summary-col-header df">
+                        <div class="col-dot df"></div>
+                        <span class="col-title df">Defensivas</span>
+                        <span class="col-count">{{ total_defensivas }}</span>
+                    </div>
+                    {% if defensivas %}
+                        {% for jp in defensivas %}
+                        {% set play = jp.jugada %}
+                        {% if play %}
+                        <div class="summary-play">
+                            <span class="sp-num">{{ loop.index }}.</span>
+                            {% if play.codigo %}<span class="sp-code df">{{ play.codigo }}</span>{% endif %}
+                            <span class="sp-name">{{ play.nombre }}</span>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        <div class="summary-empty">Sin jugadas defensivas</div>
+                    {% endif %}
+                </div>
             </div>
-            {% endif %}
         </div>
     </div>
 
@@ -440,9 +612,5 @@
     {% if not jugadas_partido %}
     <div class="empty">No hay jugadas ABP asignadas a este partido</div>
     {% endif %}
-
-    <div class="footer">
-        {% if org_nombre %}{{ org_nombre }} · {% endif %}Generado con TrainingHub Pro
-    </div>
 </body>
 </html>

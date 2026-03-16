@@ -534,10 +534,13 @@ async def get_partido_abp_pdf(
         ).eq("equipo_id", str(equipo_id)).eq("estado", "activo").execute()
         for j in (jugadores_resp.data or []):
             jugadores_map[j["id"]] = j
-        equipo_resp = supabase.table("equipos").select("nombre").eq(
+        equipo_resp = supabase.table("equipos").select("nombre, temporada, categoria").eq(
             "id", str(equipo_id)
         ).execute()
-        equipo_nombre = equipo_resp.data[0]["nombre"] if equipo_resp.data else ""
+        equipo_data = equipo_resp.data[0] if equipo_resp.data else {}
+        equipo_nombre = equipo_data.get("nombre", "")
+        equipo_temporada = equipo_data.get("temporada", "")
+        equipo_categoria = equipo_data.get("categoria", "")
 
     # Get organization info
     org_resp = supabase.table("organizaciones").select(
@@ -550,6 +553,7 @@ async def get_partido_abp_pdf(
         jugadas_partido, rival_jugadas, partido,
         plan=plan, jugadores_map=jugadores_map,
         equipo_nombre=equipo_nombre, organizacion=organizacion,
+        equipo_temporada=equipo_temporada, equipo_categoria=equipo_categoria,
     )
     rival_nombre = partido.get("rivales", {}).get("nombre", "rival") if partido.get("rivales") else "rival"
     return Response(
