@@ -202,6 +202,9 @@ class GeminiService:
             "temperature": temperature if temperature is not None else self.temperature,
         }
 
+        # Disable AFC (Automatic Function Calling) — we handle tool execution manually
+        config_kwargs["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(disable=True)
+
         if tools:
             config_kwargs["tools"] = [types.Tool(function_declarations=tools)]
             if force_tool:
