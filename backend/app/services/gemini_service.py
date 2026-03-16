@@ -48,11 +48,18 @@ def _get_gemini_client() -> genai.Client:
     return _gemini_client
 
 
+def _safe_parts(candidate) -> list:
+    """Safely get parts from a candidate (content or content.parts may be None)."""
+    if candidate is None or candidate.content is None or candidate.content.parts is None:
+        return []
+    return candidate.content.parts
+
+
 def _extract_text(response) -> str:
     """Extract text from a Gemini response."""
     parts = []
-    for candidate in response.candidates:
-        for part in candidate.content.parts:
+    for candidate in (response.candidates or []):
+        for part in _safe_parts(candidate):
             if part.text:
                 parts.append(part.text)
     return "".join(parts)
@@ -323,16 +330,17 @@ class GeminiService:
             total_output += out
 
             candidate = response.candidates[0]
+            parts = _safe_parts(candidate)
             has_function_call = any(
                 part.function_call and part.function_call.name
-                for part in candidate.content.parts
+                for part in parts
             )
 
             if has_function_call:
                 contents.append(candidate.content)
 
                 function_response_parts = []
-                for part in candidate.content.parts:
+                for part in parts:
                     if part.function_call and part.function_call.name:
                         tool_name = part.function_call.name
                         tool_input = dict(part.function_call.args) if part.function_call.args else {}
@@ -441,16 +449,17 @@ class GeminiService:
             total_output += out
 
             candidate = response.candidates[0]
+            parts = _safe_parts(candidate)
             has_function_call = any(
                 part.function_call and part.function_call.name
-                for part in candidate.content.parts
+                for part in parts
             )
 
             if has_function_call:
                 contents.append(candidate.content)
 
                 function_response_parts = []
-                for part in candidate.content.parts:
+                for part in parts:
                     if part.function_call and part.function_call.name:
                         tool_name = part.function_call.name
                         tool_input = dict(part.function_call.args) if part.function_call.args else {}
@@ -551,16 +560,17 @@ class GeminiService:
             total_output += out
 
             candidate = response.candidates[0]
+            parts = _safe_parts(candidate)
             has_function_call = any(
                 part.function_call and part.function_call.name
-                for part in candidate.content.parts
+                for part in parts
             )
 
             if has_function_call:
                 contents.append(candidate.content)
 
                 function_response_parts = []
-                for part in candidate.content.parts:
+                for part in parts:
                     if part.function_call and part.function_call.name:
                         tool_name = part.function_call.name
                         tool_input = dict(part.function_call.args) if part.function_call.args else {}
@@ -653,16 +663,17 @@ class GeminiService:
             total_output += out
 
             candidate = response.candidates[0]
+            parts = _safe_parts(candidate)
             has_function_call = any(
                 part.function_call and part.function_call.name
-                for part in candidate.content.parts
+                for part in parts
             )
 
             if has_function_call:
                 contents.append(candidate.content)
 
                 function_response_parts = []
-                for part in candidate.content.parts:
+                for part in parts:
                     if part.function_call and part.function_call.name and part.function_call.name == "proponer_tarea_portero":
                         tarea_propuesta = dict(part.function_call.args) if part.function_call.args else {}
                         function_response_parts.append(
@@ -750,16 +761,17 @@ class GeminiService:
             total_output += out
 
             candidate = response.candidates[0]
+            parts = _safe_parts(candidate)
             has_function_call = any(
                 part.function_call and part.function_call.name
-                for part in candidate.content.parts
+                for part in parts
             )
 
             if has_function_call:
                 contents.append(candidate.content)
 
                 function_response_parts = []
-                for part in candidate.content.parts:
+                for part in parts:
                     if part.function_call and part.function_call.name:
                         tool_name = part.function_call.name
                         tool_input = dict(part.function_call.args) if part.function_call.args else {}
