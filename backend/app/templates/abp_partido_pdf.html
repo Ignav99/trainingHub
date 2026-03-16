@@ -29,65 +29,86 @@
         }
 
         /* ===== RUNNING HEADER/FOOTER (all pages except first) ===== */
+        /* Using table layout — WeasyPrint doesn't support flex in running elements */
         .running-header {
             position: running(page-header);
-            display: flex;
-            align-items: center;
-            gap: 8px;
+            display: table;
+            width: 100%;
             padding-bottom: 6px;
             border-bottom: 2px solid {{ color_primario or '#1a365d' }};
             font-size: 10px;
             color: #555;
-            width: 100%;
+        }
+        .running-header .hdr-left,
+        .running-header .hdr-right {
+            display: table-cell;
+            vertical-align: middle;
+        }
+        .running-header .hdr-left {
+            text-align: left;
+            white-space: nowrap;
+        }
+        .running-header .hdr-right {
+            text-align: right;
+            color: #aaa;
+            font-size: 9px;
         }
         .running-header img {
-            width: 20px;
-            height: 20px;
+            width: 18px;
+            height: 18px;
             object-fit: contain;
+            vertical-align: middle;
+            margin-right: 8px;
         }
         .running-header .hdr-club {
             font-weight: 700;
             color: {{ color_primario or '#1a365d' }};
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            vertical-align: middle;
         }
         .running-header .hdr-sep {
             color: #ccc;
-            margin: 0 2px;
+            margin: 0 6px;
+            vertical-align: middle;
         }
         .running-header .hdr-team {
             font-weight: 600;
             color: #333;
+            vertical-align: middle;
         }
         .running-header .hdr-season {
             color: #888;
-        }
-        .running-header .hdr-right {
-            margin-left: auto;
-            color: #aaa;
-            font-size: 9px;
+            vertical-align: middle;
         }
 
         .running-footer {
             position: running(page-footer);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+            display: table;
+            width: 100%;
             padding-top: 6px;
             border-top: 1px solid #e2e8f0;
             font-size: 9px;
             color: #aaa;
-            width: 100%;
+        }
+        .running-footer .ft-left,
+        .running-footer .ft-right {
+            display: table-cell;
+            vertical-align: middle;
         }
         .running-footer .ft-left {
-            display: flex;
-            align-items: center;
-            gap: 6px;
+            text-align: left;
+            white-space: nowrap;
+        }
+        .running-footer .ft-right {
+            text-align: right;
         }
         .running-footer img {
-            width: 14px;
-            height: 14px;
+            width: 12px;
+            height: 12px;
             object-fit: contain;
+            vertical-align: middle;
+            margin-right: 6px;
             opacity: 0.5;
         }
 
@@ -410,11 +431,13 @@
 <body>
     <!-- Running header (appears on all pages except first) -->
     <div class="running-header">
-        {% if logo_url %}<img src="{{ logo_url }}" alt="">{% endif %}
-        {% if org_nombre %}<span class="hdr-club">{{ org_nombre }}</span><span class="hdr-sep">|</span>{% endif %}
-        <span class="hdr-team">{{ equipo_nombre }}</span>
-        {% if equipo_temporada %}<span class="hdr-sep">|</span><span class="hdr-season">{{ equipo_temporada }}</span>{% endif %}
-        <span class="hdr-right">ABP Plan de Partido</span>
+        <div class="hdr-left">
+            {% if logo_url %}<img src="{{ logo_url }}" alt="">{% endif %}
+            {% if org_nombre %}<span class="hdr-club">{{ org_nombre }}</span><span class="hdr-sep">|</span>{% endif %}
+            <span class="hdr-team">{{ equipo_nombre }}</span>
+            {% if equipo_temporada %}<span class="hdr-sep">|</span><span class="hdr-season">{{ equipo_temporada }}</span>{% endif %}
+        </div>
+        <div class="hdr-right">ABP Plan de Partido</div>
     </div>
 
     <!-- Running footer (appears on all pages) -->
@@ -423,7 +446,7 @@
             {% if logo_url %}<img src="{{ logo_url }}" alt="">{% endif %}
             <span>{% if org_nombre %}{{ org_nombre }} · {% endif %}Generado con TrainingHub Pro</span>
         </div>
-        <span>{{ equipo_nombre }}{% if equipo_temporada %} · {{ equipo_temporada }}{% endif %}</span>
+        <div class="ft-right">{{ equipo_nombre }}{% if equipo_temporada %} · {{ equipo_temporada }}{% endif %}</div>
     </div>
 
     <!-- ===== PAGE 1: COVER ===== -->
