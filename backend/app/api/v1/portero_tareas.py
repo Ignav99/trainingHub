@@ -222,16 +222,17 @@ async def ai_design_portero_tarea(
     auth: AuthContext = Depends(require_permission(Permission.SESSION_CREATE)),
 ):
     """Diseña una tarea de portero con IA."""
-    from app.services.claude_service import ClaudeService, ClaudeError
+    from app.services.ai_factory import get_ai_service
+    from app.services.ai_errors import AIError
 
     try:
-        service = ClaudeService()
+        service = get_ai_service()
         result = await service.design_portero_tarea(
             prompt=data.prompt,
             context=data.context or {},
         )
         return result
-    except ClaudeError as e:
+    except AIError as e:
         error_msg = str(e)
         if "conexion" in error_msg.lower():
             raise HTTPException(status_code=503, detail=error_msg)

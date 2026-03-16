@@ -107,12 +107,6 @@ async def chat_with_ai(
     if not allowed:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg)
 
-    if not settings.ANTHROPIC_API_KEY:
-        raise HTTPException(
-            status_code=503,
-            detail="Servicio de IA no disponible. Configure ANTHROPIC_API_KEY."
-        )
-
     # Create or reuse conversation
     conversacion_id = request.conversacion_id
 
@@ -166,12 +160,12 @@ async def chat_with_ai(
         except Exception:
             pass
 
-    # Call Claude
+    # Call AI
     try:
-        from app.services.claude_service import ClaudeService
+        from app.services.ai_factory import get_ai_service
 
-        claude = ClaudeService()
-        result = await claude.chat(
+        service = get_ai_service()
+        result = await service.chat(
             mensaje=request.mensaje,
             historial=historial_previo,
             equipo_id=equipo_id,
@@ -188,7 +182,7 @@ async def chat_with_ai(
         modelo = result.get("modelo")
 
     except Exception as e:
-        logger.error(f"Error in Claude AI chat: {e}", exc_info=True)
+        logger.error(f"Error in AI chat: {e}", exc_info=True)
         ai_response = (
             "Lo siento, hubo un error procesando tu consulta. "
             "Por favor, intenta de nuevo."

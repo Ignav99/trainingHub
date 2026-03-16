@@ -995,14 +995,15 @@ async def ai_edit_tarea(
 
     # 2. Call Claude to get modifications
     try:
-        from app.services.claude_service import ClaudeService, ClaudeError
-        claude = ClaudeService()
-        cambios_ia = await claude.edit_task_with_ai(
+        from app.services.ai_factory import get_ai_service
+        from app.services.ai_errors import AIError
+        service = get_ai_service()
+        cambios_ia = await service.edit_task_with_ai(
             tarea=tarea_actual,
             instruccion=request.instruccion,
         )
-    except ClaudeError as e:
-        logger.error(f"AI edit ClaudeError: {e}")
+    except AIError as e:
+        logger.error(f"AI edit AIError: {e}")
         error_msg = str(e)
         if "conexion" in error_msg.lower():
             raise HTTPException(status_code=503, detail=error_msg)
@@ -1184,9 +1185,10 @@ async def ai_crear_tarea_en_sesion(
 
     # Call Claude to generate the task
     try:
-        from app.services.claude_service import ClaudeService, ClaudeError
-        claude = ClaudeService()
-        tarea_data = await claude.create_task_from_prompt(
+        from app.services.ai_factory import get_ai_service
+        from app.services.ai_errors import AIError
+        service = get_ai_service()
+        tarea_data = await service.create_task_from_prompt(
             prompt=request.prompt,
             session_context={
                 "match_day": sesion.data.get("match_day"),
@@ -1194,8 +1196,8 @@ async def ai_crear_tarea_en_sesion(
                 "fase_juego": sesion.data.get("fase_juego_principal"),
             },
         )
-    except ClaudeError as e:
-        logger.error(f"AI create task ClaudeError: {e}")
+    except AIError as e:
+        logger.error(f"AI create task AIError: {e}")
         error_msg = str(e)
         if "conexion" in error_msg.lower():
             raise HTTPException(status_code=503, detail=error_msg)
@@ -1491,12 +1493,12 @@ async def generate_pdf(
             tasks_needing_diagrams.append((ts, tarea))
 
     if tasks_needing_diagrams:
-        from app.services.claude_service import generate_diagram_data
+        from app.services.ai_factory import generate_diagram
 
         async def _gen_diagram(ts_pair):
             ts, tarea = ts_pair
             categoria = tarea.get("categorias_tarea", {}) or {}
-            return await generate_diagram_data(
+            return await generate_diagram(
                 titulo=tarea.get("titulo", ""),
                 descripcion=tarea.get("descripcion", ""),
                 categoria_codigo=categoria.get("codigo", ""),
@@ -1754,24 +1756,17 @@ async def design_session_chat(
     Chat conversacional con IA para diseñar sesiones paso a paso.
     Envía mensajes y recibe respuesta del asistente + propuesta de sesión cuando esté lista.
     """
-    settings = get_settings()
-
-    if not settings.ANTHROPIC_API_KEY:
-        raise HTTPException(
-            status_code=503,
-            detail="Servicio de IA no disponible. Configure ANTHROPIC_API_KEY."
-        )
-
     # Resolve equipo_id
     equipo_id = str(request.equipo_id) if request.equipo_id else auth.equipo_id
     if not equipo_id:
         raise HTTPException(status_code=400, detail="Se requiere equipo_id")
 
     try:
-        from app.services.claude_service import ClaudeService, ClaudeError
+        from app.services.ai_factory import get_ai_service
+        from app.services.ai_errors import AIError
 
-        claude = ClaudeService()
-        result = await claude.session_design_chat(
+        service = get_ai_service()
+        result = await service.session_design_chat(
             mensajes=[{"rol": m.rol, "contenido": m.contenido} for m in request.mensajes],
             equipo_id=equipo_id,
             organizacion_id=auth.organizacion_id,
@@ -1783,8 +1778,8 @@ async def design_session_chat(
             herramientas_usadas=result.get("herramientas_usadas", []),
         )
 
-    except ClaudeError as e:
-        logger.error(f"ClaudeError in session design chat: {e}")
+    except AIError as e:
+        logger.error(f"AIError in session design chat: {e}")
         error_msg = str(e)
         if "conexion" in error_msg.lower():
             raise HTTPException(status_code=503, detail=error_msg)

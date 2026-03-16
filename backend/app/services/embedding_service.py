@@ -7,7 +7,7 @@ Usa Google Gemini embedding model (dimension 768 -> padded to 1536 for pgvector)
 import logging
 import time
 
-import google.generativeai as genai
+from google import genai
 
 from app.config import get_settings
 
@@ -21,7 +21,10 @@ _BASE_DELAY = 2.0  # seconds
 # Our pgvector column is 1536-dim, so we truncate to fit
 GEMINI_EMBEDDING_DIM = 3072
 TARGET_DIM = 1536
-EMBEDDING_MODEL = "models/gemini-embedding-001"
+EMBEDDING_MODEL = "gemini-embedding-001"
+
+# Singleton client
+_client: genai.Client | None = None
 
 
 class EmbeddingError(Exception):
@@ -29,12 +32,15 @@ class EmbeddingError(Exception):
     pass
 
 
-def _get_client():
+def _get_client() -> genai.Client:
     """Initialize and return Gemini client."""
-    settings = get_settings()
-    if not settings.GEMINI_API_KEY:
-        raise EmbeddingError("GEMINI_API_KEY no configurada")
-    genai.configure(api_key=settings.GEMINI_API_KEY)
+    global _client
+    if _client is None:
+        settings = get_settings()
+        if not settings.GEMINI_API_KEY:
+            raise EmbeddingError("GEMINI_API_KEY no configurada")
+        _client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    return _client
 
 
 def _pad_embedding(embedding: list[float], target_dim: int = TARGET_DIM) -> list[float]:
@@ -54,16 +60,16 @@ def generate_embedding(text: str) -> list[float]:
     Returns:
         List of floats (1536 dimensions)
     """
-    _get_client()
+    client = _get_client()
 
     try:
-        result = genai.embed_content(
+        result = client.models.embed_content(
             model=EMBEDDING_MODEL,
-            content=text,
-            task_type="RETRIEVAL_DOCUMENT",
+            contents=text,
+            config={"task_type": "RETRIEVAL_DOCUMENT"},
         )
-        embedding = result["embedding"]
-        return _pad_embedding(embedding)
+        embedding = result.embeddings[0].values
+        return _pad_embedding(list(embedding))
     except Exception as e:
         logger.error(f"Error generating embedding: {e}")
         raise EmbeddingError(f"Error generando embedding: {str(e)}")
@@ -80,7 +86,7 @@ def generate_query_embedding(query: str) -> list[float]:
     Returns:
         List of floats (1536 dimensions)
     """
-    _get_client()
+    client = _get_client()
 
     try:
         results = _embed_with_retry([query], task_type="RETRIEVAL_QUERY")
@@ -92,17 +98,16 @@ def generate_query_embedding(query: str) -> list[float]:
 
 def _embed_with_retry(texts: list[str], task_type: str = "RETRIEVAL_DOCUMENT") -> list[list[float]]:
     """Call Gemini embed_content with retry on rate limit (429)."""
+    client = _get_client()
+
     for attempt in range(_MAX_RETRIES):
         try:
-            result = genai.embed_content(
+            result = client.models.embed_content(
                 model=EMBEDDING_MODEL,
-                content=texts,
-                task_type=task_type,
+                contents=texts,
+                config={"task_type": task_type},
             )
-            embeddings = result["embedding"]
-            # Single text returns flat list, not list of lists
-            if texts and isinstance(embeddings[0], float):
-                embeddings = [embeddings]
+            embeddings = [list(e.values) for e in result.embeddings]
             return [_pad_embedding(e) for e in embeddings]
         except Exception as e:
             error_str = str(e)
@@ -126,8 +131,6 @@ def generate_embeddings_batch(texts: list[str], batch_size: int = 10) -> list[li
     Returns:
         List of embedding vectors (each 1536 dimensions)
     """
-    _get_client()
-
     if not texts:
         return []
 

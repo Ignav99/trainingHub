@@ -256,15 +256,6 @@ async def recomendar_sesion_ai(
     - notas_ultimo_partido: Feedback del partido anterior
     - notas_plantilla: Estado de la plantilla (lesiones, etc.)
     """
-    settings = get_settings()
-
-    # Verificar que Claude está configurado
-    if not settings.ANTHROPIC_API_KEY:
-        raise HTTPException(
-            status_code=503,
-            detail="Servicio de IA no disponible. Configure ANTHROPIC_API_KEY."
-        )
-
     supabase = get_supabase()
 
     # Obtener tareas disponibles de la organización del usuario
@@ -311,13 +302,12 @@ async def recomendar_sesion_ai(
     notas_str = "\n".join(notas_adicionales) if notas_adicionales else None
 
     try:
-        # Importar servicio de Claude
-        from app.services.claude_service import ClaudeService, ClaudeError
+        from app.services.ai_factory import get_ai_service
 
-        claude = ClaudeService()
+        service = get_ai_service()
 
         # Generar recomendaciones
-        ai_response = await claude.generate_session_recommendations(
+        ai_response = await service.generate_session_recommendations(
             tareas=tareas_para_ia,
             match_day=params.match_day.value,
             num_jugadores=params.num_jugadores,
@@ -392,7 +382,7 @@ async def recomendar_sesion_ai(
                 duracion_total=carga.get("duracion_total", params.duracion_total),
             ),
             match_day=params.match_day.value,
-            generado_por="claude",
+            generado_por=get_settings().AI_PROVIDER,
         )
 
     except Exception as e:

@@ -23,7 +23,8 @@ from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
 from app.services.pre_match_service import populate_rival_intel, _match_rival_name, _query_actas, _get_rival_data
-from app.services.claude_service import ClaudeService, ClaudeError
+from app.services.ai_factory import get_ai_service
+from app.services.ai_errors import AIError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -395,8 +396,8 @@ async def scouting_chat(
     intel_data = rival.get("rival_intel") or {}
 
     try:
-        claude = ClaudeService()
-        result = await claude.pre_match_chat(
+        service = get_ai_service()
+        result = await service.pre_match_chat(
             mensajes=mensajes,
             intel_data=intel_data,
             rival_nombre=rival_nombre,
@@ -404,7 +405,7 @@ async def scouting_chat(
             fecha="",
             tipo=tipo,
         )
-    except ClaudeError as e:
+    except AIError as e:
         error_msg = str(e)
         if "conexion" in error_msg.lower():
             raise HTTPException(status_code=503, detail=error_msg)

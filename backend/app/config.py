@@ -55,9 +55,12 @@ class Settings(BaseSettings):
     # Optional: Claude API
     ANTHROPIC_API_KEY: str | None = None
 
+    # AI Provider: "gemini" (default, cheaper) or "claude" (backup)
+    AI_PROVIDER: str = "gemini"
+
     # Google Gemini API for AI recommendations
     GEMINI_API_KEY: str | None = None
-    GEMINI_MODEL: str = "gemini-3-flash-preview"
+    GEMINI_MODEL: str = "gemini-2.5-flash"
     GEMINI_TEMPERATURE: float = 1.0
 
     # Medical data encryption (AES-256-GCM, base64-encoded 32-byte key)

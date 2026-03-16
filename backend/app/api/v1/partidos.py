@@ -27,7 +27,8 @@ from app.services.audit_service import log_create, log_update, log_delete
 from app.services.notification_service import notify_partido_resultado
 from app.services.pdf_service import generate_informe_partido_pdf, generate_informe_rival_pdf, generate_plan_partido_pdf, generate_plan_partido_jugadores_pdf
 from app.services.pre_match_service import populate_partido_intel
-from app.services.claude_service import ClaudeService, ClaudeError
+from app.services.ai_factory import get_ai_service
+from app.services.ai_errors import AIError
 
 import json
 import logging
@@ -550,8 +551,8 @@ async def pre_match_chat(
     intel_data = partido_data.get("pre_match_intel") or {}
 
     try:
-        claude = ClaudeService()
-        result = await claude.pre_match_chat(
+        service = get_ai_service()
+        result = await service.pre_match_chat(
             mensajes=mensajes,
             intel_data=intel_data,
             rival_nombre=rival_nombre,
@@ -559,7 +560,7 @@ async def pre_match_chat(
             fecha=partido_data.get("fecha", ""),
             tipo=tipo,
         )
-    except ClaudeError as e:
+    except AIError as e:
         error_msg = str(e)
         if "conexion" in error_msg.lower():
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=error_msg)

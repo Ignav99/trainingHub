@@ -36,8 +36,14 @@ def _get_async_client() -> anthropic.AsyncAnthropic:
     return _async_client
 
 
-class ClaudeError(Exception):
+from app.services.ai_errors import AIError
+
+
+class ClaudeError(AIError):
     """Error en la comunicacion con Claude API."""
+
+    def __init__(self, message: str):
+        super().__init__(message, provider="claude")
 
 
 # ============ Diagram Generation ============

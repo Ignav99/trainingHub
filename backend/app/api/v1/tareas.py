@@ -465,25 +465,16 @@ async def task_design_chat(
     Chat conversacional con IA para diseñar una tarea individual paso a paso.
     Envía mensajes y recibe respuesta del asistente + propuesta de tarea cuando esté lista.
     """
-    from app.config import get_settings
-
-    settings = get_settings()
-
-    if not settings.ANTHROPIC_API_KEY:
-        raise HTTPException(
-            status_code=503,
-            detail="Servicio de IA no disponible. Configure ANTHROPIC_API_KEY."
-        )
-
     equipo_id = str(request.equipo_id) if request.equipo_id else auth.equipo_id
     if not equipo_id:
         raise HTTPException(status_code=400, detail="Se requiere equipo_id")
 
     try:
-        from app.services.claude_service import ClaudeService, ClaudeError
+        from app.services.ai_factory import get_ai_service
+        from app.services.ai_errors import AIError
 
-        claude = ClaudeService()
-        result = await claude.task_design_chat(
+        service = get_ai_service()
+        result = await service.task_design_chat(
             mensajes=[{"rol": m.rol, "contenido": m.contenido} for m in request.mensajes],
             equipo_id=equipo_id,
             organizacion_id=auth.organizacion_id,
@@ -495,8 +486,8 @@ async def task_design_chat(
             herramientas_usadas=result.get("herramientas_usadas", []),
         )
 
-    except ClaudeError as e:
-        logger.error(f"ClaudeError in task design chat: {e}")
+    except AIError as e:
+        logger.error(f"AIError in task design chat: {e}")
         error_msg = str(e)
         if "conexion" in error_msg.lower():
             raise HTTPException(status_code=503, detail=error_msg)
