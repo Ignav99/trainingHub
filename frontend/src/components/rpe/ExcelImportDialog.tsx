@@ -91,6 +91,35 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
     return null
   }, [jugadores])
 
+  // Parse a date value from Excel row into "YYYY-MM-DD" string
+  const parseExcelDate = (v: any): string | null => {
+    if (!v) return null
+    // JS Date object (xlsx cellDates: true)
+    if (v instanceof Date && !isNaN(v.getTime())) {
+      const y = v.getFullYear()
+      const m = String(v.getMonth() + 1).padStart(2, '0')
+      const d = String(v.getDate()).padStart(2, '0')
+      return `${y}-${m}-${d}`
+    }
+    const str = String(v).trim()
+    // M/D/YYYY or M/D/YYYY H:MM:SS (Google Sheets US format)
+    const usMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+    if (usMatch) {
+      const [, month, day, year] = usMatch
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+    }
+    // D/M/YYYY (European)
+    const euMatch = str.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/)
+    if (euMatch) {
+      const [, day, month, year] = euMatch
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+    }
+    // YYYY-MM-DD (ISO)
+    const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (isoMatch) return isoMatch[0]
+    return null
+  }
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -98,7 +127,7 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
     try {
       const XLSX = await import('xlsx')
       const data = await file.arrayBuffer()
-      const wb = XLSX.read(data, { type: 'array' })
+      const wb = XLSX.read(data, { type: 'array', cellDates: true })
       const sheet = wb.Sheets[wb.SheetNames[0]]
       const json = XLSX.utils.sheet_to_json<Record<string, any>>(sheet)
 
@@ -125,8 +154,24 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
       const colDolor = findCol('dolor', 'pain', 'soreness')
       const colEstres = findCol('estres', 'estrés', 'stress')
       const colHumor = findCol('humor', 'animo', 'estado de animo', 'mood')
+      const colFecha = findCol('marca temporal', 'timestamp', 'fecha', 'date')
 
-      const rows: ParsedRow[] = json.map((row) => {
+      // Filter rows by selected date if a date/timestamp column exists
+      let filteredJson = json
+      if (colFecha) {
+        filteredJson = json.filter((row) => parseExcelDate(row[colFecha]) === importDate)
+        const totalRows = json.length
+        const filteredCount = filteredJson.length
+        if (filteredCount === 0) {
+          toast.error(`No hay registros para la fecha ${importDate} (${totalRows} filas en el Excel con otras fechas)`)
+          return
+        }
+        if (filteredCount < totalRows) {
+          toast.info(`Filtrado: ${filteredCount} de ${totalRows} filas corresponden al ${importDate}`)
+        }
+      }
+
+      const rows: ParsedRow[] = filteredJson.map((row) => {
         const getStr = (col: string | undefined) => col ? String(row[col] ?? '') : ''
         const getNum = (col: string | undefined) => {
           if (!col) return 3
@@ -157,7 +202,6 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
         }
       })
 
-      const matched = rows.filter((r) => r.matched_jugador_id).length
       const unmatched = rows.filter((r) => !r.matched_jugador_id).length
 
       if (unmatched > 0) {
@@ -231,7 +275,7 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
                 onChange={(e) => setImportDate(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Todos los registros importados se guardan con esta fecha
+                Solo se importan las filas del Excel que coincidan con esta fecha
               </p>
             </div>
 
