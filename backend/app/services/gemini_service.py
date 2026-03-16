@@ -135,6 +135,10 @@ Game phase: {fase_juego or 'Not specified'}"""
                 system_instruction=DIAGRAM_GENERATION_PROMPT,
                 max_output_tokens=2048,
                 temperature=0.7,
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                    disable=True, maximum_remote_calls=0,
+                ),
+                http_options=types.HttpOptions(api_version="v1beta", timeout=120_000),
             ),
         )
 
@@ -200,10 +204,13 @@ class GeminiService:
             "system_instruction": system,
             "max_output_tokens": max_output_tokens,
             "temperature": temperature if temperature is not None else self.temperature,
+            # Disable AFC — we handle tool execution manually in our own loop
+            "automatic_function_calling": types.AutomaticFunctionCallingConfig(
+                disable=True, maximum_remote_calls=0,
+            ),
+            # Timeout: 120s
+            "http_options": types.HttpOptions(api_version="v1beta", timeout=120_000),
         }
-
-        # Disable AFC (Automatic Function Calling) — we handle tool execution manually
-        config_kwargs["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(disable=True)
 
         if tools:
             config_kwargs["tools"] = [types.Tool(function_declarations=tools)]
@@ -216,14 +223,27 @@ class GeminiService:
                 )
 
         try:
+            logger.info(f"Gemini API call: model={self.model}, tools={len(tools) if tools else 0}, force={force_tool}, tokens={max_output_tokens}")
             response = await self.client.aio.models.generate_content(
                 model=self.model,
                 contents=contents,
                 config=types.GenerateContentConfig(**config_kwargs),
             )
+            # Validate response
+            if not response.candidates:
+                logger.warning("Gemini returned empty candidates (possibly blocked by safety filters)")
+                raise AIError(
+                    "La respuesta fue bloqueada por filtros de seguridad. Reformula tu mensaje.",
+                    status_code=400,
+                    provider="gemini",
+                )
+            logger.info(f"Gemini response OK: candidates={len(response.candidates)}")
             return response
+        except AIError:
+            raise
         except Exception as e:
             error_str = str(e)
+            logger.error(f"Gemini API exception: {type(e).__name__}: {error_str[:300]}")
             if "429" in error_str or "quota" in error_str.lower() or "rate" in error_str.lower():
                 raise AIError(
                     "Gemini está saturado. Espera unos segundos e inténtalo de nuevo.",
@@ -237,7 +257,6 @@ class GeminiService:
                     provider="gemini",
                 )
             else:
-                logger.error(f"Gemini API error: {e}", exc_info=True)
                 raise AIError(
                     f"Error de comunicacion con Gemini: {error_str}",
                     status_code=500,
