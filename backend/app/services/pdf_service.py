@@ -529,7 +529,7 @@ def generate_sesion_pdf_v2(
             "svg_large": svg_large,
             "has_diagram": bool(diagram_data and diagram_data.get("elements")),
         })
-    duracion_total += portero_duracion
+    # NOTE: portero_duracion NOT added to duracion_total — GK trains in parallel
 
     # Build ABP jugadas enriched data
     abp_enriched = []
