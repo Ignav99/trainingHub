@@ -403,14 +403,58 @@ def require_any_permission(
             except Exception:
                 pass
 
+        # Fallback: if no equipo_id in request, find user's team role
+        if not rol_en_equipo and not equipo_id:
+            try:
+                ue_result = (
+                    supabase.table("usuarios_equipos")
+                    .select("rol_en_equipo, equipo_id")
+                    .eq("usuario_id", user_id)
+                    .limit(1)
+                    .execute()
+                )
+                if ue_result.data:
+                    rol_en_equipo = ue_result.data[0]["rol_en_equipo"]
+                    equipo_id = ue_result.data[0]["equipo_id"]
+            except Exception:
+                pass
+
         effective = set()
         if rol_en_equipo and rol_en_equipo in DEFAULT_PERMISSIONS:
             effective = DEFAULT_PERMISSIONS[rol_en_equipo].copy()
 
-        if current_user.rol == "tecnico_principal" and not rol_en_equipo:
+        # Legacy role mapping
+        if current_user.rol == "admin":
+            effective = set(Permission)
+        elif current_user.rol == "tecnico_principal" and not rol_en_equipo:
             effective = DEFAULT_PERMISSIONS.get("entrenador_principal", set()).copy()
         elif current_user.rol == "tecnico_asistente" and not rol_en_equipo:
             effective = DEFAULT_PERMISSIONS.get("segundo_entrenador", set()).copy()
+
+        # Apply custom permission overrides
+        if equipo_id:
+            try:
+                user_custom = (
+                    supabase.table("permisos_personalizados")
+                    .select("*")
+                    .eq("equipo_id", equipo_id)
+                    .eq("usuario_id", user_id)
+                    .execute()
+                )
+                if user_custom.data:
+                    _apply_custom_permissions(effective, user_custom.data[0])
+                elif rol_en_equipo:
+                    role_custom = (
+                        supabase.table("permisos_personalizados")
+                        .select("*")
+                        .eq("equipo_id", equipo_id)
+                        .eq("rol_en_equipo", rol_en_equipo)
+                        .execute()
+                    )
+                    if role_custom.data:
+                        _apply_custom_permissions(effective, role_custom.data[0])
+            except Exception:
+                pass
 
         if not effective.intersection(permissions):
             raise HTTPException(
