@@ -399,7 +399,7 @@ async def upload_document(
     # Verify registro exists
     existing = (
         supabase.table("registros_medicos")
-        .select("id, documentos_urls")
+        .select("*")
         .eq("id", str(registro_id))
         .single()
         .execute()
@@ -452,7 +452,7 @@ async def delete_document(
 
     existing = (
         supabase.table("registros_medicos")
-        .select("id, documentos_urls")
+        .select("*")
         .eq("id", str(registro_id))
         .single()
         .execute()
