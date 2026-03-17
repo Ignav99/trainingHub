@@ -87,6 +87,7 @@ class SesionTareaBase(BaseModel):
     fase_sesion: FaseSesion
     duracion_override: Optional[int] = None  # Si se modifica la duración
     notas: Optional[str] = None
+    responsable: Optional[str] = None
 
 
 class SesionTareaCreate(SesionTareaBase):
@@ -128,6 +129,7 @@ class SesionTareaUpdate(BaseModel):
     fase_sesion: Optional[FaseSesion] = None
     duracion_override: Optional[int] = None
     notas: Optional[str] = None
+    responsable: Optional[str] = None
 
 
 class SesionTareasBatchUpdate(BaseModel):

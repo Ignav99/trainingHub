@@ -203,6 +203,7 @@ export interface SesionTarea {
   fase_sesion: FaseSesion
   duracion_override?: number
   notas?: string
+  responsable?: string
   created_at: string
   // Relación
   tarea?: Tarea

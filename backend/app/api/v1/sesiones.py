@@ -526,6 +526,7 @@ async def add_tarea_to_sesion(
         "fase_sesion": tarea_data.fase_sesion.value,
         "duracion_override": tarea_data.duracion_override,
         "notas": tarea_data.notas,
+        "responsable": tarea_data.responsable,
     }
 
     supabase.table("sesion_tareas").insert(data).execute()
@@ -617,6 +618,7 @@ async def batch_update_tareas(
             "fase_sesion": tarea.fase_sesion.value,
             "duracion_override": tarea.duracion_override,
             "notas": tarea.notas,
+            "responsable": tarea.responsable,
         }
         supabase.table("sesion_tareas").insert(data).execute()
 

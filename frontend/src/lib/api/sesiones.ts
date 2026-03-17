@@ -82,6 +82,7 @@ export const sesionesApi = {
     fase_sesion: string
     duracion_override?: number
     notas?: string
+    responsable?: string
   }): Promise<void> {
     return api.post(`/sesiones/${sesionId}/tareas`, data)
   },
@@ -95,6 +96,7 @@ export const sesionesApi = {
     fase_sesion?: string
     duracion_override?: number
     notas?: string
+    responsable?: string
   }): Promise<Sesion> {
     return api.put<Sesion>(`/sesiones/${sesionId}/tareas/${sesionTareaId}`, data)
   },
@@ -105,6 +107,7 @@ export const sesionesApi = {
     fase_sesion: string
     duracion_override?: number
     notas?: string
+    responsable?: string
   }[]): Promise<Sesion> {
     return api.put<Sesion>(`/sesiones/${sesionId}/tareas-batch`, { tareas })
   },

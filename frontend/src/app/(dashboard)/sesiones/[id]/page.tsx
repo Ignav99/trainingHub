@@ -57,6 +57,7 @@ import {
   Send,
   Copy,
   ClipboardPaste,
+  UserCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -1203,6 +1204,7 @@ export default function SesionDetailPage() {
         fase_sesion: t.fase_sesion,
         duracion_override: t.duracion_override,
         notas: t.notas,
+        responsable: t.responsable,
       }))
       const updated = await sesionesApi.batchUpdateTareas(sesionId, batch)
       setSesion(updated)
@@ -1275,6 +1277,20 @@ export default function SesionDetailPage() {
     )
     setSesion((prev) => prev ? { ...prev, tareas: newAll } : prev)
   }
+
+  const handleUpdateTareaResponsable = (tareaId: string, responsable: string) => {
+    const newAll = allTareas.map((t) =>
+      t.id === tareaId ? { ...t, responsable } : t
+    )
+    setSesion((prev) => prev ? { ...prev, tareas: newAll } : prev)
+  }
+
+  const staffOptions = useMemo(() => {
+    const names = new Set<string>()
+    sesion?.staff_asistentes?.forEach(s => s.nombre && names.add(s.nombre))
+    allTareas.forEach(t => t.responsable && names.add(t.responsable))
+    return Array.from(names).sort()
+  }, [sesion?.staff_asistentes, allTareas])
 
   // ============ Per-task formation ============
   const toggleFormacionPanel = (stId: string) => {
@@ -2078,6 +2094,20 @@ export default function SesionDetailPage() {
                                           {st.tarea.num_jugadores_min}{st.tarea.num_jugadores_max ? `-${st.tarea.num_jugadores_max}` : ''} jug.
                                         </span>
                                       )}
+                                      <div className="flex items-center gap-1">
+                                        <UserCircle className="h-3 w-3 text-muted-foreground" />
+                                        <input
+                                          list={`staff-${st.id}`}
+                                          className="w-24 text-xs bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none"
+                                          placeholder="CT..."
+                                          value={st.responsable || ''}
+                                          onChange={(e) => handleUpdateTareaResponsable(st.id, e.target.value)}
+                                          onBlur={() => saveTareasBatch(allTareas)}
+                                        />
+                                        <datalist id={`staff-${st.id}`}>
+                                          {staffOptions.map(name => <option key={name} value={name} />)}
+                                        </datalist>
+                                      </div>
                                     </div>
                                     <input
                                       className="mt-1 text-sm text-muted-foreground bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none w-full italic"
