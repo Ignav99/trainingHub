@@ -8,12 +8,15 @@ import {
   DndContext,
   DragOverlay,
   closestCenter,
+  pointerWithin,
+  useDroppable,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
   type DragStartEvent,
   type DragEndEvent,
+  type CollisionDetection,
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -157,6 +160,20 @@ const COLORES_EQUIPO = [
 ]
 const COLOR_SIN_ASIGNAR = { color: '#6B7280', nombre: 'Sin asignar' }
 
+function getPositionColorClasses(posicion: string): string {
+  if (posicion === 'POR') return 'bg-amber-200/80 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200'
+  if (['DFC', 'LTD', 'LTI', 'CAD', 'CAI'].includes(posicion)) return 'bg-blue-200/80 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200'
+  if (['MCD', 'MC', 'MCO', 'MID', 'MII'].includes(posicion)) return 'bg-green-200/80 text-green-800 dark:bg-green-900/60 dark:text-green-200'
+  if (['EXD', 'EXI', 'MP', 'DC', 'SD'].includes(posicion)) return 'bg-red-200/80 text-red-800 dark:bg-red-900/60 dark:text-red-200'
+  return 'bg-muted/60 text-muted-foreground'
+}
+
+const formacionCollisionDetection: CollisionDetection = (args) => {
+  const pointer = pointerWithin(args)
+  if (pointer.length > 0) return pointer
+  return closestCenter(args)
+}
+
 function cleanEmptyTeams(formacion: FormacionEquipos): FormacionEquipos {
   return {
     ...formacion,
@@ -221,7 +238,7 @@ function SortablePlayer({ id, jugador, color }: { id: string; jugador: Jugador |
       style={style}
       {...attributes}
       {...listeners}
-      className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-background border border-border/50 cursor-grab active:cursor-grabbing hover:border-border transition-colors text-xs"
+      className={`flex items-center gap-2 px-2 py-1.5 rounded-md bg-background cursor-grab active:cursor-grabbing hover:border-border transition-colors text-xs ${jugador?.es_invitado ? 'border-2 border-yellow-400' : 'border border-border/50'}`}
     >
       <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
       <span className="font-bold text-muted-foreground w-5 text-center">
@@ -231,7 +248,7 @@ function SortablePlayer({ id, jugador, color }: { id: string; jugador: Jugador |
         {jugador ? (jugador.apodo || `${jugador.nombre} ${jugador.apellidos?.charAt(0) || ''}.`) : 'Jugador...'}
       </span>
       {jugador?.posicion_principal && (
-        <span className="text-[9px] font-semibold text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded shrink-0">
+        <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${getPositionColorClasses(jugador.posicion_principal)}`}>
           {jugador.posicion_principal}
         </span>
       )}
@@ -271,8 +288,12 @@ function DroppableGroup({
   // Create sortable IDs that encode the group they belong to
   const itemIds = grupo.jugador_ids.map((jid) => `${droppableId}::${jid}`)
 
+  // Make the group itself a drop target so players can be dropped on the container
+  const { setNodeRef: setDroppableRef } = useDroppable({ id: droppableId })
+
   return (
     <div
+      ref={setDroppableRef}
       className={`rounded-lg border p-2 min-w-[140px] flex-1 ${isSinAsignar ? 'bg-muted/30' : ''}`}
       style={{ ...bgStyle, ...borderStyle }}
     >
@@ -455,8 +476,8 @@ function FormacionPanel({
       // Dropped on another player - use that player's group
       ;[targetEspIdx, targetGrpIdx] = overGroup.split('-').map(Number)
     } else {
-      // Dropped on a group container directly (shouldn't happen with sortable, but handle)
-      return
+      // Dropped on a group container directly
+      ;[targetEspIdx, targetGrpIdx] = overGroup.split('-').map(Number)
     }
 
     // Build updated formation
@@ -773,7 +794,7 @@ function FormacionPanel({
 
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={formacionCollisionDetection}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
@@ -831,10 +852,15 @@ function FormacionPanel({
 
         <DragOverlay>
           {activeId && activeJugador ? (
-            <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-background border-2 border-primary shadow-lg text-xs">
+            <div className={`flex items-center gap-2 px-2 py-1.5 rounded-md bg-background border-2 shadow-lg text-xs ${activeJugador.es_invitado ? 'border-yellow-400' : 'border-primary'}`}>
               <GripVertical className="h-3 w-3 text-primary shrink-0" />
               <span className="font-bold w-5 text-center">{activeJugador.dorsal || '?'}</span>
               <span>{activeJugador.apodo || `${activeJugador.nombre} ${activeJugador.apellidos?.charAt(0) || ''}.`}</span>
+              {activeJugador.posicion_principal && (
+                <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${getPositionColorClasses(activeJugador.posicion_principal)}`}>
+                  {activeJugador.posicion_principal}
+                </span>
+              )}
             </div>
           ) : null}
         </DragOverlay>
