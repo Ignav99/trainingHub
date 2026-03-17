@@ -887,6 +887,7 @@ class GeminiService:
             "Eres un asistente experto en metodologia de entrenamiento de futbol. "
             "Tu tarea es modificar un ejercicio de entrenamiento segun la instruccion del usuario. "
             "Responde SOLO con un JSON valido que contenga UNICAMENTE los campos que modificas. "
+            "IMPORTANTE: el titulo debe tener MAXIMO 80 caracteres. Se conciso. "
             "Los campos posibles son: titulo, descripcion, duracion_total (int minutos), "
             "num_jugadores_min (int), num_jugadores_max (int), espacio_largo (int metros), "
             "espacio_ancho (int metros), reglas_tecnicas (str), reglas_tacticas (str), "

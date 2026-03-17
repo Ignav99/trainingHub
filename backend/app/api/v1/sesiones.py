@@ -59,7 +59,20 @@ DENSIDAD_MAP = {
 def _sanitize_tarea_constraints(tarea_data: dict) -> dict:
     """Sanitize constraint-sensitive fields before DB insert.
     Removes or maps invalid fase_juego, densidad, and nivel_cognitivo values.
+    Truncates varchar fields to avoid DB constraint violations.
     """
+    # Truncate varchar fields to their DB limits
+    VARCHAR_LIMITS = {
+        "titulo": 100,
+        "estructura_equipos": 100,
+        "posicion_entrenador": 255,
+        "principio_tactico": 255,
+        "subprincipio_tactico": 255,
+    }
+    for field, limit in VARCHAR_LIMITS.items():
+        if field in tarea_data and isinstance(tarea_data[field], str) and len(tarea_data[field]) > limit:
+            tarea_data[field] = tarea_data[field][:limit]
+
     # fase_juego
     if "fase_juego" in tarea_data and tarea_data["fase_juego"] is not None:
         raw = str(tarea_data["fase_juego"]).strip().lower()
