@@ -85,20 +85,41 @@ def _parse_json_response(text: str) -> dict:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
+        # Strategy 1: Try to find the last complete key-value pair
         repaired = text
+
+        # If truncated mid-string, close the open quote
         open_quotes = repaired.count('"') % 2
         if open_quotes:
-            last_quote = repaired.rfind('"')
-            repaired = repaired[:last_quote] + '"'
+            repaired += '"'
+
+        # Remove trailing incomplete values (trailing comma, partial values)
         repaired = repaired.rstrip().rstrip(',')
+
+        # Close any open brackets/braces
         open_braces = repaired.count('{') - repaired.count('}')
         open_brackets = repaired.count('[') - repaired.count(']')
         repaired += ']' * max(0, open_brackets) + '}' * max(0, open_braces)
+
         try:
             return json.loads(repaired)
-        except json.JSONDecodeError as e2:
-            logger.error(f"Error parsing Gemini JSON response: {text[:500]}")
-            raise AIError(f"Respuesta de IA no válida: {str(e2)}", provider="gemini")
+        except json.JSONDecodeError:
+            pass
+
+        # Strategy 2: Truncate to last complete key-value line and close
+        lines = text.rstrip().split('\n')
+        for i in range(len(lines) - 1, 0, -1):
+            candidate = '\n'.join(lines[:i]).rstrip().rstrip(',')
+            open_b = candidate.count('{') - candidate.count('}')
+            open_k = candidate.count('[') - candidate.count(']')
+            candidate += ']' * max(0, open_k) + '}' * max(0, open_b)
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+
+        logger.error(f"Error parsing Gemini JSON response: {text[:500]}")
+        raise AIError(f"Respuesta de IA no válida: JSON truncado por limite de tokens", provider="gemini")
 
 
 # ============ Diagram Generation ============
@@ -886,7 +907,7 @@ class GeminiService:
         response = await self._call_gemini(
             system=system_prompt,
             contents=[types.Content(role="user", parts=[types.Part.from_text(text=user_message)])],
-            max_output_tokens=2048,
+            max_output_tokens=8192,
         )
 
         text = _extract_text(response)
