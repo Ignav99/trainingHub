@@ -486,7 +486,13 @@ def generate_sesion_pdf_v2(
 
         if fase_key in fases:
             fases[fase_key]["tareas"].append(tarea_enriched)
-        all_tareas.append(tarea_enriched)
+
+    # Build all_tareas in canonical phase order:
+    # activacion → desarrollo_1 → desarrollo_2 → ... → vuelta_calma
+    all_tareas = []
+    for fase_key in fase_order:
+        if fase_key in fases:
+            all_tareas.extend(fases[fase_key]["tareas"])
 
     # Cover page: only desarrollo tasks (exclude activacion + vuelta_calma)
     cover_tareas = [t for t in all_tareas if not t["is_activacion"] and not t["is_vuelta_calma"]]
