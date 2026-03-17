@@ -1164,10 +1164,10 @@ async def crear_tarea_en_sesion(
 
     new_tarea_id = insert_resp.data[0]["id"]
 
-    # Get current max orden for this fase
+    # Get current max orden across entire session (unique constraint is session-wide)
     existing = supabase.table("sesion_tareas").select("orden").eq(
         "sesion_id", str(sesion_id)
-    ).eq("fase_sesion", request.fase_sesion).execute()
+    ).execute()
     max_orden = max((t.get("orden", 0) for t in (existing.data or [])), default=0)
 
     # Add to sesion_tareas
@@ -1246,10 +1246,10 @@ async def ai_crear_tarea_en_sesion(
 
     new_tarea_id = insert_resp.data[0]["id"]
 
-    # Get current max orden for this fase
+    # Get current max orden across entire session (unique constraint is session-wide)
     existing = supabase.table("sesion_tareas").select("orden").eq(
         "sesion_id", str(sesion_id)
-    ).eq("fase_sesion", request.fase_sesion).execute()
+    ).execute()
     max_orden = max((t.get("orden", 0) for t in (existing.data or [])), default=0)
 
     # Add to sesion_tareas
