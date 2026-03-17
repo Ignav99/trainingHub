@@ -1452,35 +1452,32 @@ async def generate_pdf(
         ).in_("id", list(jugador_ids)).execute()
         jugadores_map = {str(j["id"]): j for j in jug_response.data}
 
-    # Fetch microciclo name + partido_id if linked
+    # Fetch microciclo name if linked
     microciclo_nombre = None
-    partido_id = None
     if sesion.get("microciclo_id"):
         try:
             mc_resp = supabase.table("microciclos").select(
-                "objetivo_principal, fecha_inicio, fecha_fin, partido_id"
+                "objetivo_principal, fecha_inicio, fecha_fin"
             ).eq("id", sesion["microciclo_id"]).single().execute()
             if mc_resp.data:
                 mc = mc_resp.data
                 microciclo_nombre = mc.get("objetivo_principal") or f"Microciclo {mc.get('fecha_inicio', '')}"
-                partido_id = mc.get("partido_id")
         except Exception:
             pass
 
-    # Fetch ABP jugadas if session is linked to a partido
+    # Fetch ABP jugadas linked directly to this session (abp_sesion_jugadas)
     abp_jugadas = []
-    if partido_id:
-        try:
-            abp_resp = supabase.table("abp_partido_jugadas").select(
-                "*, abp_jugadas(*)"
-            ).eq("partido_id", str(partido_id)).order("orden").execute()
-            for row in (abp_resp.data or []):
-                jugada = row.pop("abp_jugadas", None)
-                if jugada:
-                    row["jugada"] = jugada
-                    abp_jugadas.append(row)
-        except Exception:
-            pass  # Non-critical
+    try:
+        abp_resp = supabase.table("abp_sesion_jugadas").select(
+            "*, abp_jugadas(*)"
+        ).eq("sesion_id", sid).order("orden").execute()
+        for row in (abp_resp.data or []):
+            jugada = row.pop("abp_jugadas", None)
+            if jugada:
+                row["jugada"] = jugada
+                abp_jugadas.append(row)
+    except Exception:
+        pass  # Non-critical
 
     # Extract lugar from equipo config or organizacion
     lugar = None
