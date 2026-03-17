@@ -380,7 +380,7 @@ async def update_rpe(
 
     response = supabase.table("registros_rpe").update(update_data).eq(
         "id", str(rpe_id)
-    ).execute()
+    ).select("*").execute()
 
     if not response.data:
         raise HTTPException(

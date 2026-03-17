@@ -192,7 +192,7 @@ async def update_jugador(jugador_id: UUID, jugador: JugadorUpdate, auth: AuthCon
     if not data:
         raise HTTPException(status_code=400, detail="No hay campos válidos para actualizar")
 
-    response = supabase.table("jugadores").update(data).eq("id", str(jugador_id)).execute()
+    response = supabase.table("jugadores").update(data).eq("id", str(jugador_id)).select("*").execute()
 
     if not response.data:
         raise HTTPException(status_code=404, detail="Jugador no encontrado")
@@ -251,7 +251,7 @@ async def update_estado_jugador(
         data["fecha_vuelta_estimada"] = None
         data["motivo_baja"] = None
 
-    response = supabase.table("jugadores").update(data).eq("id", str(jugador_id)).execute()
+    response = supabase.table("jugadores").update(data).eq("id", str(jugador_id)).select("*").execute()
 
     if not response.data:
         raise HTTPException(status_code=404, detail="Jugador no encontrado")

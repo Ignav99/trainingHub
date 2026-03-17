@@ -66,7 +66,7 @@ async def update_equipo(equipo_id: UUID, equipo: EquipoUpdate, auth: AuthContext
     supabase = get_supabase()
     data = equipo.model_dump(exclude_unset=True)
 
-    response = supabase.table("equipos").update(data).eq("id", str(equipo_id)).execute()
+    response = supabase.table("equipos").update(data).eq("id", str(equipo_id)).select("*").execute()
     return EquipoResponse(**response.data[0])
 
 
