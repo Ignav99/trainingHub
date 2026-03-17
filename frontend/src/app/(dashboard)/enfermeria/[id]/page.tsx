@@ -104,6 +104,11 @@ export default function EnfermeriaDetailPage() {
   const [showDelete, setShowDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
+  // Rehabilitación dialog
+  const [showRehab, setShowRehab] = useState(false)
+  const [movingToRehab, setMovingToRehab] = useState(false)
+  const [diasRecuperacion, setDiasRecuperacion] = useState<number | undefined>(undefined)
+
   // Initialize edit form when registro is loaded
   const startEditing = () => {
     if (!registro) return
@@ -152,6 +157,25 @@ export default function EnfermeriaDetailPage() {
       toast.error('Error al dar de alta')
     } finally {
       setGivingAlta(false)
+    }
+  }
+
+  const handleMoveToRehab = async () => {
+    if (!registro) return
+    setMovingToRehab(true)
+    try {
+      await medicoApi.moveToRehab(registro.id, {
+        dias_recuperacion_estimados: diasRecuperacion,
+      })
+      setShowRehab(false)
+      setDiasRecuperacion(undefined)
+      mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
+      toast.success('Jugador pasado a rehabilitación')
+    } catch (err) {
+      console.error('Error moving to rehab:', err)
+      toast.error('Error al pasar a rehabilitación')
+    } finally {
+      setMovingToRehab(false)
     }
   }
 
@@ -257,6 +281,12 @@ export default function EnfermeriaDetailPage() {
             <Trash2 className="h-4 w-4 mr-2" />
             Eliminar
           </Button>
+          {registro.estado === 'activo' && (
+            <Button variant="outline" onClick={() => setShowRehab(true)} className="text-blue-700 border-blue-300 hover:bg-blue-50">
+              <Activity className="h-4 w-4 mr-2" />
+              Pasar a Rehabilitación
+            </Button>
+          )}
           {registro.estado !== 'alta' && (
             <Button variant="outline" onClick={() => setShowAlta(true)} className="text-green-700 border-green-300 hover:bg-green-50">
               <CheckCircle className="h-4 w-4 mr-2" />
@@ -669,6 +699,43 @@ export default function EnfermeriaDetailPage() {
             <Button onClick={handleDelete} disabled={deleting} variant="destructive">
               {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
               Eliminar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rehabilitación Dialog */}
+      <Dialog open={showRehab} onOpenChange={setShowRehab}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Pasar a Rehabilitación</DialogTitle>
+            <DialogDescription>
+              El jugador pasará a estado &quot;en recuperación&quot; y el registro cambiará a tipo rehabilitación.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <p className="text-sm">
+              <strong>{jugador?.apodo || (jugador ? `${jugador.nombre} ${jugador.apellidos}` : 'Jugador')}</strong> lleva{' '}
+              <strong>{dias} días</strong> de baja.
+            </p>
+            <div>
+              <label className="text-sm font-medium block mb-1">Días estimados de recuperación</label>
+              <Input
+                type="number"
+                placeholder="Ej: 15"
+                value={diasRecuperacion || ''}
+                onChange={(e) => setDiasRecuperacion(parseInt(e.target.value) || undefined)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Opcional — días estimados desde hoy hasta el alta</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRehab(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleMoveToRehab} disabled={movingToRehab} className="bg-blue-600 hover:bg-blue-700">
+              {movingToRehab ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Activity className="h-4 w-4 mr-2" />}
+              Confirmar
             </Button>
           </DialogFooter>
         </DialogContent>

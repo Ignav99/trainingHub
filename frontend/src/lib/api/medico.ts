@@ -36,6 +36,9 @@ export const medicoApi = {
   darAlta: (id: string, data: { fecha_alta: string; dias_baja_reales?: number }) =>
     api.post<RegistroMedico>(`/medico/${id}/mark-fit`, data),
 
+  moveToRehab: (id: string, data: { dias_recuperacion_estimados?: number }) =>
+    api.post(`/medico/${id}/move-to-rehab`, data),
+
   delete: (id: string) =>
     api.delete(`/medico/${id}`),
 

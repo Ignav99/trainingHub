@@ -6,6 +6,7 @@ CRUD para registros medicos con cifrado y auditoria (RGPD Art. 9).
 from math import ceil
 from typing import Optional
 from uuid import UUID
+from pydantic import BaseModel
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, status
@@ -550,3 +551,55 @@ async def mark_player_fit(
     _log_medical_access(str(registro_id), auth.user_id, "editar", request)
 
     return {"message": "Jugador marcado como apto."}
+
+
+class MoveToRehabRequest(BaseModel):
+    dias_recuperacion_estimados: Optional[int] = None
+
+
+@router.post("/{registro_id}/move-to-rehab")
+async def move_to_rehab(
+    registro_id: UUID,
+    body: MoveToRehabRequest = MoveToRehabRequest(),
+    request: Request = None,
+    auth: AuthContext = Depends(require_permission(Permission.MEDICAL_UPDATE)),
+):
+    """Cambia un registro de lesion/activo a rehabilitacion (en_recuperacion)."""
+    supabase = get_supabase()
+
+    registro = (
+        supabase.table("registros_medicos")
+        .select("jugador_id, titulo, fecha_inicio")
+        .eq("id", str(registro_id))
+        .single()
+        .execute()
+    )
+    if not registro.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Registro no encontrado.")
+
+    # Update medical record
+    update_data: dict = {
+        "estado": "en_recuperacion",
+        "tipo": "rehabilitacion",
+    }
+    if body.dias_recuperacion_estimados:
+        update_data["dias_baja_estimados"] = body.dias_recuperacion_estimados
+
+    supabase.table("registros_medicos").update(update_data).eq("id", str(registro_id)).execute()
+
+    # Update player status to en_recuperacion
+    jugador_update: dict = {
+        "estado": "en_recuperacion",
+        "motivo_baja": f"Rehabilitación: {registro.data['titulo']}",
+    }
+    if body.dias_recuperacion_estimados:
+        from datetime import date, timedelta
+        est_return = date.today() + timedelta(days=body.dias_recuperacion_estimados)
+        jugador_update["fecha_vuelta_estimada"] = est_return.isoformat()
+
+    supabase.table("jugadores").update(jugador_update).eq("id", registro.data["jugador_id"]).execute()
+
+    if request:
+        _log_medical_access(str(registro_id), auth.user_id, "editar", request)
+
+    return {"message": "Jugador pasado a rehabilitación."}
