@@ -38,4 +38,13 @@ export const medicoApi = {
 
   delete: (id: string) =>
     api.delete(`/medico/${id}`),
+
+  uploadDocument: async (registroId: string, file: File): Promise<{ url: string; documentos_urls: string[] }> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.upload<{ url: string; documentos_urls: string[] }>(`/medico/${registroId}/upload-document`, formData)
+  },
+
+  deleteDocument: (registroId: string, url: string) =>
+    api.delete(`/medico/${registroId}/document`, { params: { url } }),
 }

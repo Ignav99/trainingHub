@@ -7,7 +7,8 @@ from math import ceil
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+import logging
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, status
 
 from datetime import timedelta
 
@@ -26,6 +27,8 @@ from app.security.dependencies import require_permission, require_any_permission
 from app.security.permissions import Permission
 from app.security.encryption import encrypt_field, decrypt_field
 from app.services.audit_service import log_action, log_create, log_update
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -323,6 +326,9 @@ async def delete_registro_medico(
 
     jugador_id = existing.data["jugador_id"]
 
+    # Delete access logs first (FK constraint)
+    supabase.table("accesos_medicos_log").delete().eq("registro_medico_id", str(registro_id)).execute()
+
     # Delete the record
     supabase.table("registros_medicos").delete().eq("id", str(registro_id)).execute()
 
@@ -352,6 +358,128 @@ async def delete_registro_medico(
                 pass
 
     return None
+
+
+# ============ Document Upload ============
+
+MEDICAL_BUCKET = "medical-documents"
+
+
+def _ensure_medical_bucket(supabase) -> None:
+    """Create the medical-documents bucket if it doesn't exist."""
+    try:
+        supabase.storage.get_bucket(MEDICAL_BUCKET)
+    except Exception:
+        try:
+            supabase.storage.create_bucket(MEDICAL_BUCKET, options={"public": True})
+        except Exception:
+            pass  # May already exist from concurrent request
+
+
+@router.post("/{registro_id}/upload-document")
+async def upload_document(
+    registro_id: UUID,
+    request: Request,
+    file: UploadFile = File(...),
+    auth: AuthContext = Depends(require_permission(Permission.MEDICAL_UPDATE)),
+):
+    """Sube un documento/foto a un registro medico."""
+    supabase = get_supabase()
+
+    # Validate file type and size
+    allowed_types = ("image/", "application/pdf", "application/msword",
+                     "application/vnd.openxmlformats-officedocument")
+    if not file.content_type or not any(file.content_type.startswith(t) for t in allowed_types):
+        raise HTTPException(status_code=400, detail="Tipo de archivo no permitido. Use imágenes, PDF o documentos Word.")
+
+    content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="El archivo no puede superar 10MB.")
+
+    # Verify registro exists
+    existing = (
+        supabase.table("registros_medicos")
+        .select("id, documentos_urls")
+        .eq("id", str(registro_id))
+        .single()
+        .execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Registro medico no encontrado.")
+
+    # Ensure bucket exists
+    _ensure_medical_bucket(supabase)
+
+    # Upload file
+    from datetime import datetime, timezone
+    timestamp = int(datetime.now(timezone.utc).timestamp() * 1000)
+    safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in (file.filename or "file"))
+    storage_path = f"{registro_id}/{timestamp}_{safe_name}"
+
+    try:
+        supabase.storage.from_(MEDICAL_BUCKET).upload(
+            storage_path,
+            content,
+            file_options={"content-type": file.content_type, "upsert": "true"},
+        )
+        public_url = supabase.storage.from_(MEDICAL_BUCKET).get_public_url(storage_path)
+    except Exception as e:
+        logger.error(f"Error uploading medical document: {e}")
+        raise HTTPException(status_code=500, detail="Error al subir el archivo.")
+
+    # Append URL to registro
+    current_urls = existing.data.get("documentos_urls") or []
+    current_urls.append(public_url)
+
+    supabase.table("registros_medicos").update({
+        "documentos_urls": current_urls,
+    }).eq("id", str(registro_id)).execute()
+
+    _log_medical_access(str(registro_id), auth.user_id, "editar", request)
+
+    return {"url": public_url, "documentos_urls": current_urls}
+
+
+@router.delete("/{registro_id}/document")
+async def delete_document(
+    registro_id: UUID,
+    url: str = Query(...),
+    request: Request = None,
+    auth: AuthContext = Depends(require_permission(Permission.MEDICAL_UPDATE)),
+):
+    """Elimina un documento de un registro medico."""
+    supabase = get_supabase()
+
+    existing = (
+        supabase.table("registros_medicos")
+        .select("id, documentos_urls")
+        .eq("id", str(registro_id))
+        .single()
+        .execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Registro medico no encontrado.")
+
+    current_urls = existing.data.get("documentos_urls") or []
+    updated_urls = [u for u in current_urls if u != url]
+
+    # Try to remove from storage
+    try:
+        # Extract storage path from URL
+        if MEDICAL_BUCKET in url:
+            path = url.split(f"{MEDICAL_BUCKET}/")[1].split("?")[0]
+            supabase.storage.from_(MEDICAL_BUCKET).remove([path])
+    except Exception:
+        pass  # File may not exist in storage
+
+    supabase.table("registros_medicos").update({
+        "documentos_urls": updated_urls,
+    }).eq("id", str(registro_id)).execute()
+
+    if request:
+        _log_medical_access(str(registro_id), auth.user_id, "editar", request)
+
+    return {"documentos_urls": updated_urls}
 
 
 # ============ Access Log ============

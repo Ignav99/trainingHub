@@ -176,34 +176,9 @@ export default function EnfermeriaDetailPage() {
 
     setUploading(true)
     try {
-      const { createClient } = await import('@supabase/supabase-js')
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      )
-
-      const timestamp = Date.now()
-      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-      const path = `medical-documents/${registro.id}/${timestamp}_${safeName}`
-
-      const { error: uploadError } = await supabase.storage
-        .from('medical-documents')
-        .upload(path, file, { upsert: false })
-
-      if (uploadError) throw uploadError
-
-      const { data: urlData } = supabase.storage
-        .from('medical-documents')
-        .getPublicUrl(path)
-
-      if (urlData?.publicUrl) {
-        const existing = registro.documentos_urls || []
-        await medicoApi.update(registro.id, {
-          documentos_urls: [...existing, urlData.publicUrl],
-        } as any)
-        mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
-        toast.success('Documento subido correctamente')
-      }
+      await medicoApi.uploadDocument(registro.id, file)
+      mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
+      toast.success('Documento subido correctamente')
     } catch (err) {
       console.error('Error uploading document:', err)
       toast.error('Error al subir el documento')
@@ -216,8 +191,7 @@ export default function EnfermeriaDetailPage() {
   const handleDeleteDoc = async (urlToRemove: string) => {
     if (!registro) return
     try {
-      const updated = (registro.documentos_urls || []).filter((u) => u !== urlToRemove)
-      await medicoApi.update(registro.id, { documentos_urls: updated } as any)
+      await medicoApi.deleteDocument(registro.id, urlToRemove)
       mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
       toast.success('Documento eliminado')
     } catch (err) {
