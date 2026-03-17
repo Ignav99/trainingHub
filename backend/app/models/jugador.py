@@ -54,7 +54,7 @@ class Posicion(str, Enum):
 class JugadorBase(BaseModel):
     """Schema base de jugador."""
     nombre: str = Field(..., min_length=1, max_length=100)
-    apellidos: str = Field(..., min_length=1, max_length=150)
+    apellidos: str = Field(default="", max_length=150)
     apodo: Optional[str] = Field(None, max_length=50)
     fecha_nacimiento: Optional[date] = None
     dorsal: Optional[int] = Field(None, ge=1, le=99)
