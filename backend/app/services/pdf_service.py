@@ -365,6 +365,8 @@ def generate_sesion_pdf_v2(
     microciclo_nombre: Optional[str] = None,
     lugar: Optional[str] = None,
     asistencia_roster: Optional[list] = None,
+    portero_tareas: Optional[list] = None,
+    abp_jugadas: Optional[list] = None,
 ) -> bytes:
     """
     Genera un PDF profesional v2 de una sesion de entrenamiento.
@@ -376,11 +378,13 @@ def generate_sesion_pdf_v2(
         organizacion: Datos de la organizacion
         jugadores_map: {jugador_id: {nombre, apellidos, dorsal, posicion_principal}}
         asistencia_roster: Lista de asistencia [{dorsal, nombre, apellidos, tipo_display, sort_key}]
+        portero_tareas: Lista de tareas de portero de la sesion
+        abp_jugadas: Lista de jugadas ABP vinculadas al partido de la sesion
 
     Returns:
         PDF como bytes
     """
-    from app.services.svg_renderer import render_diagram_svg, render_diagram_thumbnail
+    from app.services.svg_renderer import render_diagram_svg, render_diagram_thumbnail, render_abp_diagram_svg
 
     env = _get_jinja_env_v2()
     template = env.get_template("sesion_pdf_v2.html")
@@ -499,6 +503,49 @@ def generate_sesion_pdf_v2(
                 material_sesion.append(m)
                 seen_materials.add(m)
 
+    # Build portero tareas enriched data
+    portero_enriched = []
+    portero_duracion = 0
+    for pt in (portero_tareas or []):
+        diagram_data = pt.get("diagram")
+        dur = pt.get("duracion", 10)
+        portero_duracion += dur
+        svg_thumb = render_diagram_thumbnail(diagram_data, diagram_id=f"pt{len(portero_enriched)}")
+        svg_large = render_diagram_svg(diagram_data, diagram_id=f"pd{len(portero_enriched)}")
+        portero_enriched.append({
+            "nombre": pt.get("nombre", ""),
+            "descripcion": pt.get("descripcion", ""),
+            "duracion": dur,
+            "intensidad": pt.get("intensidad", "media"),
+            "tipo": pt.get("tipo", ""),
+            "notas": pt.get("notas", ""),
+            "svg_thumbnail": svg_thumb,
+            "svg_large": svg_large,
+            "has_diagram": bool(diagram_data and diagram_data.get("elements")),
+        })
+    duracion_total += portero_duracion
+
+    # Build ABP jugadas enriched data
+    abp_enriched = []
+    for idx, jp in enumerate(abp_jugadas or []):
+        jugada = jp.get("jugada") or {}
+        fases_abp = jugada.get("fases") or []
+        main_svg = ""
+        if fases_abp:
+            diagram = fases_abp[0].get("diagram", {})
+            if diagram and diagram.get("elements"):
+                main_svg = render_abp_diagram_svg(diagram, diagram_id=f"abp_{idx}")
+        abp_enriched.append({
+            "nombre": jugada.get("nombre", ""),
+            "codigo": jugada.get("codigo", ""),
+            "tipo": ABP_TIPO_LABELS.get(jugada.get("tipo", ""), jugada.get("tipo", "")),
+            "lado": jugada.get("lado", ""),
+            "lado_label": "Ofensivo" if jugada.get("lado") == "ofensivo" else "Defensivo",
+            "descripcion": jugada.get("descripcion", ""),
+            "main_svg": main_svg,
+            "notas": jp.get("notas", ""),
+        })
+
     # Render HTML
     html_content = template.render(
         sesion=sesion_data,
@@ -520,6 +567,9 @@ def generate_sesion_pdf_v2(
         objetivo_principal=sesion_data.get("objetivo_principal", ""),
         fase_juego_principal=sesion_data.get("fase_juego_principal", "").replace("_", " ").title() if sesion_data.get("fase_juego_principal") else "",
         principio_tactico_principal=sesion_data.get("principio_tactico_principal", ""),
+        portero_tareas=portero_enriched,
+        portero_duracion=portero_duracion,
+        abp_jugadas=abp_enriched,
     )
 
     # Generate PDF

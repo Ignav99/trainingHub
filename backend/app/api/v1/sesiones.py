@@ -1386,8 +1386,8 @@ async def generate_pdf(
     supabase = get_supabase()
     sid = str(sesion_id)
 
-    # Parallel fetch: sesion + tareas + asistencia (all only need sesion_id)
-    sesion_response, tareas_response, roster_response = await asyncio.gather(
+    # Parallel fetch: sesion + tareas + asistencia + portero_tareas
+    sesion_response, tareas_response, roster_response, portero_response = await asyncio.gather(
         asyncio.to_thread(
             lambda: supabase.table("sesiones").select(
                 "*, equipos(*, organizaciones(*))"
@@ -1402,6 +1402,11 @@ async def generate_pdf(
             lambda: supabase.table("asistencias_sesion").select(
                 "presente, tipo_participacion, motivo_ausencia, jugadores(nombre, apellidos, dorsal)"
             ).eq("sesion_id", sid).execute()
+        ),
+        asyncio.to_thread(
+            lambda: supabase.table("portero_tareas").select("*").eq(
+                "sesion_id", sid
+            ).order("orden").execute()
         ),
     )
 
@@ -1434,18 +1439,35 @@ async def generate_pdf(
         ).in_("id", list(jugador_ids)).execute()
         jugadores_map = {str(j["id"]): j for j in jug_response.data}
 
-    # Fetch microciclo name if linked
+    # Fetch microciclo name + partido_id if linked
     microciclo_nombre = None
+    partido_id = None
     if sesion.get("microciclo_id"):
         try:
             mc_resp = supabase.table("microciclos").select(
-                "objetivo_principal, fecha_inicio, fecha_fin"
+                "objetivo_principal, fecha_inicio, fecha_fin, partido_id"
             ).eq("id", sesion["microciclo_id"]).single().execute()
             if mc_resp.data:
                 mc = mc_resp.data
                 microciclo_nombre = mc.get("objetivo_principal") or f"Microciclo {mc.get('fecha_inicio', '')}"
+                partido_id = mc.get("partido_id")
         except Exception:
             pass
+
+    # Fetch ABP jugadas if session is linked to a partido
+    abp_jugadas = []
+    if partido_id:
+        try:
+            abp_resp = supabase.table("abp_partido_jugadas").select(
+                "*, abp_jugadas(*)"
+            ).eq("partido_id", str(partido_id)).order("orden").execute()
+            for row in (abp_resp.data or []):
+                jugada = row.pop("abp_jugadas", None)
+                if jugada:
+                    row["jugada"] = jugada
+                    abp_jugadas.append(row)
+        except Exception:
+            pass  # Non-critical
 
     # Extract lugar from equipo config or organizacion
     lugar = None
@@ -1546,6 +1568,40 @@ async def generate_pdf(
                 except Exception as db_err:
                     logger.warning("Failed to cache diagram for task %s: %s", tarea_id, db_err)
 
+    # AI diagram generation for portero tasks missing diagrams
+    portero_tareas_data = portero_response.data or []
+    portero_needing_diagrams = [
+        pt for pt in portero_tareas_data
+        if not pt.get("diagram") or not (pt["diagram"] or {}).get("elements")
+    ]
+    if portero_needing_diagrams:
+        from app.services.ai_factory import generate_diagram as gen_diag
+
+        async def _gen_portero_diagram(pt):
+            return await gen_diag(
+                titulo=pt.get("nombre", ""),
+                descripcion=pt.get("descripcion", ""),
+                categoria_codigo="POR",
+                num_jugadores_min=2,
+            )
+
+        pt_results = await asyncio.gather(
+            *[_gen_portero_diagram(pt) for pt in portero_needing_diagrams],
+            return_exceptions=True,
+        )
+        for pt, result in zip(portero_needing_diagrams, pt_results):
+            if isinstance(result, Exception) or result is None:
+                continue
+            pt["diagram"] = result
+            pt_id = pt.get("id")
+            if pt_id:
+                try:
+                    supabase.table("portero_tareas").update(
+                        {"diagram": result}
+                    ).eq("id", str(pt_id)).execute()
+                except Exception:
+                    pass
+
     # Generar PDF con el servicio v2
     try:
         pdf_bytes = await asyncio.to_thread(
@@ -1554,6 +1610,8 @@ async def generate_pdf(
             microciclo_nombre=microciclo_nombre,
             lugar=lugar,
             asistencia_roster=asistencia_roster,
+            portero_tareas=portero_tareas_data,
+            abp_jugadas=abp_jugadas,
         )
     except Exception as e:
         import logging
