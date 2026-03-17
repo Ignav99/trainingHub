@@ -64,6 +64,7 @@ class RegistroMedicoUpdate(BaseModel):
     diagnostico_fisioterapeutico: Optional[str] = None
     tratamiento: Optional[str] = None
     medicacion: Optional[str] = None
+    fecha_inicio: Optional[date] = None
     fecha_fin: Optional[date] = None
     fecha_alta: Optional[date] = None
     dias_baja_estimados: Optional[int] = None

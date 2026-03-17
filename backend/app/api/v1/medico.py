@@ -249,7 +249,7 @@ async def update_registro_medico(
 
     update_data = data.model_dump(exclude_unset=True)
 
-    for date_field in ("fecha_fin", "fecha_alta"):
+    for date_field in ("fecha_inicio", "fecha_fin", "fecha_alta"):
         if date_field in update_data and update_data[date_field] is not None:
             update_data[date_field] = update_data[date_field].isoformat()
 
@@ -302,7 +302,56 @@ async def update_registro_medico(
     return RegistroMedicoResponse(**_decrypt_medical_fields(updated))
 
 
-# Medical records are NEVER deleted per GDPR Art. 9 - only marked as 'alta'
+@router.delete("/{registro_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_registro_medico(
+    registro_id: UUID,
+    request: Request,
+    auth: AuthContext = Depends(require_permission(Permission.MEDICAL_UPDATE)),
+):
+    """Elimina un registro medico y restaura estado del jugador si procede."""
+    supabase = get_supabase()
+
+    existing = (
+        supabase.table("registros_medicos")
+        .select("id, jugador_id, estado")
+        .eq("id", str(registro_id))
+        .single()
+        .execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Registro medico no encontrado.")
+
+    jugador_id = existing.data["jugador_id"]
+
+    # Delete the record
+    supabase.table("registros_medicos").delete().eq("id", str(registro_id)).execute()
+
+    _log_medical_access(str(registro_id), auth.user_id, "eliminar", request)
+
+    # If the deleted record was active (not alta), check if player should be restored
+    if existing.data["estado"] != "alta":
+        # Check if player has other active medical records
+        other_records = (
+            supabase.table("registros_medicos")
+            .select("id")
+            .eq("jugador_id", jugador_id)
+            .neq("estado", "alta")
+            .limit(1)
+            .execute()
+        )
+        if not other_records.data:
+            # No other active records — restore player to activo
+            try:
+                supabase.table("jugadores").update({
+                    "estado": "activo",
+                    "fecha_lesion": None,
+                    "fecha_vuelta_estimada": None,
+                    "motivo_baja": None,
+                }).eq("id", jugador_id).execute()
+            except Exception:
+                pass
+
+    return None
 
 
 # ============ Access Log ============

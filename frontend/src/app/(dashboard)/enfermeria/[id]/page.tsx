@@ -100,6 +100,10 @@ export default function EnfermeriaDetailPage() {
   const [showAlta, setShowAlta] = useState(false)
   const [givingAlta, setGivingAlta] = useState(false)
 
+  // Delete dialog
+  const [showDelete, setShowDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
   // Initialize edit form when registro is loaded
   const startEditing = () => {
     if (!registro) return
@@ -111,6 +115,9 @@ export default function EnfermeriaDetailPage() {
       tratamiento: registro.tratamiento,
       medicacion: registro.medicacion,
       dias_baja_estimados: registro.dias_baja_estimados,
+      fecha_inicio: registro.fecha_inicio,
+      fecha_fin: registro.fecha_fin || '',
+      fecha_alta: registro.fecha_alta || '',
     })
     setIsEditing(true)
   }
@@ -145,6 +152,21 @@ export default function EnfermeriaDetailPage() {
       toast.error('Error al dar de alta')
     } finally {
       setGivingAlta(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!registro) return
+    setDeleting(true)
+    try {
+      await medicoApi.delete(registro.id)
+      toast.success('Registro eliminado')
+      router.push('/enfermeria')
+    } catch (err) {
+      console.error('Error deleting:', err)
+      toast.error('Error al eliminar el registro')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -257,6 +279,10 @@ export default function EnfermeriaDetailPage() {
       />
 
       <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setShowDelete(true)} className="text-red-600 border-red-200 hover:bg-red-50">
+            <Trash2 className="h-4 w-4 mr-2" />
+            Eliminar
+          </Button>
           {registro.estado !== 'alta' && (
             <Button variant="outline" onClick={() => setShowAlta(true)} className="text-green-700 border-green-300 hover:bg-green-50">
               <CheckCircle className="h-4 w-4 mr-2" />
@@ -354,38 +380,89 @@ export default function EnfermeriaDetailPage() {
             <CardContent className="p-4 space-y-3">
               <div className="flex items-center gap-3">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                <div>
+                <div className="flex-1">
                   <p className="text-xs text-muted-foreground">Fecha inicio</p>
-                  <p className="text-sm font-medium">
-                    {new Date(registro.fecha_inicio).toLocaleDateString('es-ES', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                    })}
-                  </p>
-                </div>
-              </div>
-              {registro.fecha_alta && (
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="h-4 w-4 text-green-500" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Fecha alta</p>
+                  {isEditing ? (
+                    <Input
+                      type="date"
+                      className="h-7 text-sm"
+                      value={editForm.fecha_inicio || ''}
+                      onChange={(e) => setEditForm({ ...editForm, fecha_inicio: e.target.value })}
+                    />
+                  ) : (
                     <p className="text-sm font-medium">
-                      {new Date(registro.fecha_alta).toLocaleDateString('es-ES', {
+                      {new Date(registro.fecha_inicio).toLocaleDateString('es-ES', {
                         day: 'numeric',
                         month: 'long',
                         year: 'numeric',
                       })}
                     </p>
+                  )}
+                </div>
+              </div>
+              {(registro.fecha_alta || isEditing) && (
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <div className="flex-1">
+                    <p className="text-xs text-muted-foreground">Fecha alta</p>
+                    {isEditing ? (
+                      <Input
+                        type="date"
+                        className="h-7 text-sm"
+                        value={editForm.fecha_alta || ''}
+                        onChange={(e) => setEditForm({ ...editForm, fecha_alta: e.target.value })}
+                      />
+                    ) : (
+                      <p className="text-sm font-medium">
+                        {new Date(registro.fecha_alta!).toLocaleDateString('es-ES', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                        })}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
-              {registro.dias_baja_estimados && (
+              {(registro.fecha_fin || isEditing) && (
+                <div className="flex items-center gap-3">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex-1">
+                    <p className="text-xs text-muted-foreground">Fecha fin estimada</p>
+                    {isEditing ? (
+                      <Input
+                        type="date"
+                        className="h-7 text-sm"
+                        value={editForm.fecha_fin || ''}
+                        onChange={(e) => setEditForm({ ...editForm, fecha_fin: e.target.value })}
+                      />
+                    ) : (
+                      <p className="text-sm font-medium">
+                        {new Date(registro.fecha_fin!).toLocaleDateString('es-ES', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                        })}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+              {(registro.dias_baja_estimados || isEditing) && (
                 <div className="flex items-center gap-3">
                   <Clock className="h-4 w-4 text-muted-foreground" />
-                  <div>
+                  <div className="flex-1">
                     <p className="text-xs text-muted-foreground">Días estimados</p>
-                    <p className="text-sm font-medium">{registro.dias_baja_estimados} días</p>
+                    {isEditing ? (
+                      <Input
+                        type="number"
+                        className="h-7 text-sm w-24"
+                        value={editForm.dias_baja_estimados || ''}
+                        onChange={(e) => setEditForm({ ...editForm, dias_baja_estimados: parseInt(e.target.value) || undefined })}
+                      />
+                    ) : (
+                      <p className="text-sm font-medium">{registro.dias_baja_estimados} días</p>
+                    )}
                   </div>
                 </div>
               )}
@@ -592,6 +669,32 @@ export default function EnfermeriaDetailPage() {
             <Button onClick={handleDarAlta} disabled={givingAlta} className="bg-green-600 hover:bg-green-700">
               {givingAlta ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
               Confirmar Alta
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Dialog */}
+      <Dialog open={showDelete} onOpenChange={setShowDelete}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Eliminar registro</DialogTitle>
+            <DialogDescription>
+              Esta acción no se puede deshacer. Se eliminará permanentemente este registro médico.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm">
+              ¿Estás seguro de que quieres eliminar <strong>{registro.titulo}</strong>?
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDelete(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleDelete} disabled={deleting} variant="destructive">
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Eliminar
             </Button>
           </DialogFooter>
         </DialogContent>
