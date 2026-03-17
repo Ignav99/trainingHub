@@ -609,7 +609,7 @@ async def batch_update_tareas(
     batch: SesionTareasBatchUpdate,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
 ):
-    """Reemplaza todas las tareas de una sesion (delete all + re-insert). Recalcula duracion_total."""
+    """Reemplaza todas las tareas de una sesion (preserving formations). Recalcula duracion_total."""
     supabase = get_supabase()
 
     # Verificar sesion
@@ -619,10 +619,19 @@ async def batch_update_tareas(
     if not existing.data:
         raise HTTPException(status_code=404, detail="Sesion no encontrada")
 
+    # Save existing formations before delete (keyed by tarea_id)
+    old_tareas = supabase.table("sesion_tareas").select(
+        "tarea_id, formacion_equipos"
+    ).eq("sesion_id", str(sesion_id)).execute()
+    formaciones_map = {}
+    for ot in (old_tareas.data or []):
+        if ot.get("formacion_equipos"):
+            formaciones_map[ot["tarea_id"]] = ot["formacion_equipos"]
+
     # Delete all existing tareas
     supabase.table("sesion_tareas").delete().eq("sesion_id", str(sesion_id)).execute()
 
-    # Insert new tareas
+    # Insert new tareas (restoring saved formations)
     for tarea in batch.tareas:
         data = {
             "sesion_id": str(sesion_id),
@@ -633,6 +642,10 @@ async def batch_update_tareas(
             "notas": tarea.notas,
             "responsable": tarea.responsable,
         }
+        # Restore formation if it existed for this tarea
+        saved_formacion = formaciones_map.get(str(tarea.tarea_id))
+        if saved_formacion:
+            data["formacion_equipos"] = saved_formacion
         supabase.table("sesion_tareas").insert(data).execute()
 
     # Recalculate duration
