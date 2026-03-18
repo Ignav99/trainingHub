@@ -20,15 +20,6 @@ router = APIRouter()
 
 VIDEO_BUCKET = "partido-videos"
 MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
-ALLOWED_VIDEO_TYPES = (
-    "video/mp4",
-    "video/quicktime",
-    "video/webm",
-    "video/x-msvideo",
-    "video/x-matroska",
-    "video/mpeg",
-    "video/3gpp",
-)
 VALID_TIPOS = ("veo", "enlace_externo", "upload")
 VALID_CONTEXTOS = ("pre_partido", "post_partido")
 
@@ -42,6 +33,19 @@ def _ensure_video_bucket(supabase) -> None:
             supabase.storage.create_bucket(VIDEO_BUCKET, options={"public": True})
         except Exception:
             pass  # May already exist from concurrent request
+
+
+def _verify_partido(supabase, partido_id: str, equipo_id: str):
+    """Verify partido exists and belongs to team. Returns True/False."""
+    result = (
+        supabase.table("partidos")
+        .select("id")
+        .eq("id", partido_id)
+        .eq("equipo_id", equipo_id)
+        .limit(1)
+        .execute()
+    )
+    return bool(result.data)
 
 
 # ============ LIST ============
@@ -91,16 +95,7 @@ async def add_video_link(
 
     supabase = get_supabase()
 
-    # Verify partido exists and belongs to team
-    partido = (
-        supabase.table("partidos")
-        .select("id")
-        .eq("id", str(data.partido_id))
-        .eq("equipo_id", str(auth.equipo_id))
-        .maybe_single()
-        .execute()
-    )
-    if not partido.data:
+    if not _verify_partido(supabase, str(data.partido_id), str(auth.equipo_id)):
         raise HTTPException(status_code=404, detail="Partido no encontrado.")
 
     row = {
@@ -133,33 +128,20 @@ async def upload_video_clip(
     if contexto not in VALID_CONTEXTOS:
         raise HTTPException(status_code=400, detail=f"Contexto inválido. Use: {VALID_CONTEXTOS}")
 
-    # Validate MIME type
     if not file.content_type or not file.content_type.startswith("video/"):
         raise HTTPException(status_code=400, detail="Solo se permiten archivos de video.")
 
-    # Read and validate size
     content = await file.read()
     if len(content) > MAX_UPLOAD_SIZE:
         raise HTTPException(status_code=400, detail="El archivo no puede superar 50MB.")
 
     supabase = get_supabase()
 
-    # Verify partido exists and belongs to team
-    partido = (
-        supabase.table("partidos")
-        .select("id")
-        .eq("id", partido_id)
-        .eq("equipo_id", str(auth.equipo_id))
-        .maybe_single()
-        .execute()
-    )
-    if not partido.data:
+    if not _verify_partido(supabase, partido_id, str(auth.equipo_id)):
         raise HTTPException(status_code=404, detail="Partido no encontrado.")
 
-    # Ensure bucket
     _ensure_video_bucket(supabase)
 
-    # Upload to storage
     timestamp = int(datetime.now(timezone.utc).timestamp() * 1000)
     safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in (file.filename or "video"))
     storage_path = f"{partido_id}/{timestamp}_{safe_name}"
@@ -175,7 +157,6 @@ async def upload_video_clip(
         logger.error(f"Error uploading video clip: {e}")
         raise HTTPException(status_code=500, detail="Error al subir el video.")
 
-    # Insert record
     row = {
         "partido_id": partido_id,
         "equipo_id": str(auth.equipo_id),
@@ -204,13 +185,12 @@ async def update_video(
     """Actualiza título/descripción de un video."""
     supabase = get_supabase()
 
-    # Verify exists and belongs to team
     existing = (
         supabase.table("videos_partido")
         .select("id, equipo_id")
         .eq("id", str(video_id))
         .eq("equipo_id", str(auth.equipo_id))
-        .maybe_single()
+        .limit(1)
         .execute()
     )
     if not existing.data:
@@ -241,22 +221,22 @@ async def delete_video(
     """Elimina un video. Si es upload, también elimina del storage."""
     supabase = get_supabase()
 
-    # Verify exists and belongs to team
     existing = (
         supabase.table("videos_partido")
         .select("id, tipo, storage_path, equipo_id")
         .eq("id", str(video_id))
         .eq("equipo_id", str(auth.equipo_id))
-        .maybe_single()
+        .limit(1)
         .execute()
     )
     if not existing.data:
         raise HTTPException(status_code=404, detail="Video no encontrado.")
 
-    # Clean up storage for uploads
-    if existing.data.get("tipo") == "upload" and existing.data.get("storage_path"):
+    video = existing.data[0]
+
+    if video.get("tipo") == "upload" and video.get("storage_path"):
         try:
-            supabase.storage.from_(VIDEO_BUCKET).remove([existing.data["storage_path"]])
+            supabase.storage.from_(VIDEO_BUCKET).remove([video["storage_path"]])
         except Exception as e:
             logger.warning(f"Could not delete video from storage: {e}")
 
