@@ -45,13 +45,12 @@ export function VideoAnalyzer({
   const svgRef = useRef<SVGSVGElement>(null)
 
   // Store
-  const store = useVideoAnalyzerStore()
   const {
     tool, color, strokeWidth, selectedId, isPlaying, currentTime, duration,
     showSaveDialog, exportingClipId, sidebarTab,
     setTool, setColor, setStrokeWidth, setSelectedId, setIsPlaying, setCurrentTime,
-    setDuration, setShowSaveDialog, setSidebarTab, updateSelectedElementProps,
-  } = store
+    setDuration, setShowSaveDialog, setSidebarTab,
+  } = useVideoAnalyzerStore()
 
   // Create object URL for local file
   const src = useMemo(() => {
@@ -69,11 +68,6 @@ export function VideoAnalyzer({
 
   // Drawing undo/redo
   const { elements, setElements, undo, redo, reset, canUndo, canRedo } = useUndoRedo()
-
-  // Sync elements to store for toolbar
-  useEffect(() => {
-    store.setElements(elements)
-  }, [elements, store])
 
   // Drawing engine
   const {
