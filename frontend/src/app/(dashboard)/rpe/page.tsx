@@ -122,7 +122,8 @@ export default function RPEPage() {
     }, ['equipo_id'])
   )
 
-  const jugadores = jugadoresData?.data || []
+  // Exclude invitados from RPE/wellness — they are not part of the squad
+  const jugadores = (jugadoresData?.data || []).filter(j => !j.es_invitado)
   const wellnessAggregates = wellnessData?.data || []
   const wellnessMap = new Map(wellnessAggregates.map((w) => [w.jugador_id, w]))
   const loading = loadingCarga
@@ -491,8 +492,11 @@ function ExpandedWellnessRow({ jugadorId }: { jugadorId: string }) {
     fetchData()
   }, [jugadorId])
 
+  const [editFecha, setEditFecha] = useState('')
+
   const handleStartEdit = (entry: WellnessEntry) => {
     setEditingId(entry.id)
+    setEditFecha(entry.fecha)
     setEditValues({
       sueno: entry.sueno,
       fatiga: entry.fatiga,
@@ -507,7 +511,7 @@ function ExpandedWellnessRow({ jugadorId }: { jugadorId: string }) {
     try {
       await wellnessApi.update(entry.id, {
         jugador_id: entry.jugador_id,
-        fecha: entry.fecha,
+        fecha: editFecha,
         ...editValues,
       })
       toast.success('Registro actualizado')
@@ -616,7 +620,18 @@ function ExpandedWellnessRow({ jugadorId }: { jugadorId: string }) {
 
               return (
                 <tr key={entry.id} className={`border-b last:border-0 ${isEditing ? 'bg-blue-50/50' : ''}`}>
-                  <td className="py-1.5">{entry.fecha}</td>
+                  <td className="py-1.5">
+                    {isEditing ? (
+                      <input
+                        type="date"
+                        value={editFecha}
+                        onChange={(e) => setEditFecha(e.target.value)}
+                        className="border rounded px-1.5 py-0.5 text-xs w-28"
+                      />
+                    ) : (
+                      entry.fecha
+                    )}
+                  </td>
                   {FIELDS.map((f) => (
                     <td key={f.key} className="py-1.5 text-center">
                       {isEditing ? (
@@ -697,6 +712,7 @@ function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValues, setEditValues] = useState({ rpe: 5, duracion_percibida: 60, titulo: '' })
+  const [editFechaRpe, setEditFechaRpe] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
 
@@ -717,6 +733,7 @@ function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
 
   const handleStartEdit = (entry: any) => {
     setEditingId(entry.id)
+    setEditFechaRpe(entry.fecha || '')
     setEditValues({
       rpe: entry.rpe || 5,
       duracion_percibida: entry.duracion_percibida || 60,
@@ -731,6 +748,7 @@ function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
         rpe: editValues.rpe,
         duracion_percibida: editValues.duracion_percibida,
         titulo: editValues.titulo,
+        fecha: editFechaRpe,
       })
       toast.success('RPE actualizado')
       setEditingId(null)
@@ -796,7 +814,18 @@ function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
 
               return (
                 <tr key={entry.id} className={`border-b last:border-0 ${isEditing ? 'bg-blue-50/50' : ''}`}>
-                  <td className="py-1.5">{entry.fecha}</td>
+                  <td className="py-1.5">
+                    {isEditing ? (
+                      <input
+                        type="date"
+                        value={editFechaRpe}
+                        onChange={(e) => setEditFechaRpe(e.target.value)}
+                        className="border rounded px-1.5 py-0.5 text-xs w-28"
+                      />
+                    ) : (
+                      entry.fecha
+                    )}
+                  </td>
                   <td className="py-1.5">
                     {isEditing ? (
                       <input

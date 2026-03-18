@@ -66,12 +66,14 @@ export function LoadChartDialog({
   const [loading, setLoading] = useState(false)
   const [playerName, setPlayerName] = useState('')
 
-  // Set initial player
+  // Set initial player — always sync when dialog opens or initialJugadorId changes
   useEffect(() => {
-    if (open && !selectedPlayer && jugadores.length > 0) {
-      setSelectedPlayer(initialJugadorId || jugadores[0].id)
+    if (open && initialJugadorId) {
+      setSelectedPlayer(initialJugadorId)
+    } else if (open && !selectedPlayer && jugadores.length > 0) {
+      setSelectedPlayer(jugadores[0].id)
     }
-  }, [open, jugadores, initialJugadorId])
+  }, [open, initialJugadorId])
 
   // Fetch data when player or range changes
   useEffect(() => {

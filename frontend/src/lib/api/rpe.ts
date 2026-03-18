@@ -22,6 +22,7 @@ export interface UpdateRPEData {
   duracion_percibida?: number
   titulo?: string
   notas?: string
+  fecha?: string
 }
 
 export const rpeApi = {

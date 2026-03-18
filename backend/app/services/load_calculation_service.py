@@ -732,6 +732,7 @@ def recalculate_team_load(equipo_id: UUID) -> list[dict]:
         supabase.table("jugadores")
         .select("id")
         .eq("equipo_id", eid)
+        .neq("es_invitado", True)
         .execute()
     )
 

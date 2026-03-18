@@ -38,11 +38,12 @@ async def get_carga_equipo(
     supabase = get_supabase()
     eid = str(equipo_id)
 
-    # Get all players with their carga data
+    # Get all players with their carga data (exclude invitados)
     jugadores = (
         supabase.table("jugadores")
         .select("id, nombre, apellidos, dorsal, posicion_principal, estado")
         .eq("equipo_id", eid)
+        .neq("es_invitado", True)
         .execute()
     )
 

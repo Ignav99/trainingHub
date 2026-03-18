@@ -39,6 +39,7 @@ class RPEUpdate(BaseModel):
     duracion_percibida: Optional[int] = Field(None, ge=0)
     titulo: Optional[str] = None
     notas: Optional[str] = None
+    fecha: Optional[date] = None
 
 
 class RPEResponse(RPEBase):
