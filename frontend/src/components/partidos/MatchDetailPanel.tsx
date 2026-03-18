@@ -55,6 +55,10 @@ const PreMatchTab = dynamic(() => import('@/components/pre-match/PreMatchTab').t
   loading: () => <div className="animate-pulse space-y-4 p-4"><div className="h-8 bg-muted rounded w-1/3" /><div className="h-32 bg-muted rounded" /><div className="h-32 bg-muted rounded" /></div>
 })
 
+const VideoSection = dynamic(() => import('./VideoSection').then(m => ({ default: m.VideoSection })), {
+  loading: () => <div className="animate-pulse h-24 bg-muted rounded" />
+})
+
 // ============ Constants ============
 
 const RESULTADO_LABELS: Record<string, { label: string; color: string }> = {
@@ -631,6 +635,9 @@ export function MatchDetailPanel({
             partido={selectedPartido}
             onMutate={() => mutate((key: string) => typeof key === 'string' && key.includes('/partidos'), undefined, { revalidate: true })}
           />
+          {equipoActivo?.id && (
+            <VideoSection partidoId={selectedPartido.id} equipoId={equipoActivo.id} contexto="pre_partido" />
+          )}
         </TabsContent>
 
         {/* ==================== TAB: CONVOCATORIA ==================== */}
@@ -1063,7 +1070,7 @@ export function MatchDetailPanel({
             </Button>
           </div>
 
-          {/* Links */}
+          {/* Legacy Links */}
           {(selectedPartido.video_url || selectedPartido.informe_url) && (
             <div className="flex gap-2 flex-wrap">
               {selectedPartido.video_url && (
@@ -1081,6 +1088,11 @@ export function MatchDetailPanel({
                 </Button>
               )}
             </div>
+          )}
+
+          {/* Video Section */}
+          {equipoActivo?.id && (
+            <VideoSection partidoId={selectedPartido.id} equipoId={equipoActivo.id} contexto="post_partido" />
           )}
         </TabsContent>
       </Tabs>

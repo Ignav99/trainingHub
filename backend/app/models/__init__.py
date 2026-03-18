@@ -300,6 +300,12 @@ from app.models.portero_tarea import (
     PorteroTareaResponse,
 )
 
+from app.models.video import (
+    VideoPartidoCreate,
+    VideoPartidoUpdate,
+    VideoPartidoResponse,
+)
+
 from app.models.medico import (
     TipoRegistroMedico,
     EstadoRegistroMedico,
@@ -414,6 +420,8 @@ __all__ = [
     "RegistroMedicoSummary", "RegistroMedicoListResponse",
     "AccesoMedicoLogResponse", "AccesoMedicoLogListResponse",
     "PermisosPersonalizadosCreate", "PermisosPersonalizadosResponse",
+    # Videos Partido
+    "VideoPartidoCreate", "VideoPartidoUpdate", "VideoPartidoResponse",
     # Portero Tareas
     "TipoPorteroTarea",
     "PorteroTareaBase", "PorteroTareaCreate", "PorteroTareaUpdate", "PorteroTareaResponse",

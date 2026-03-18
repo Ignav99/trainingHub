@@ -42,6 +42,7 @@ from app.api.v1 import (
     descansos,
     abp,
     portero_tareas,
+    videos,
 )
 
 api_router = APIRouter()
@@ -260,6 +261,12 @@ api_router.include_router(
     portero_tareas.router,
     prefix="/sesiones",
     tags=["Portero Tareas"]
+)
+
+api_router.include_router(
+    videos.router,
+    prefix="/videos",
+    tags=["Videos Partido"]
 )
 
 

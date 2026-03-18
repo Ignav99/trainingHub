@@ -1647,3 +1647,27 @@ export const PORTERO_TAREA_TIPOS: { value: TipoPorteroTarea; label: string; colo
   { value: 'juego',         label: 'Juego',         color: '#EF4444' },
   { value: 'recuperacion',  label: 'Recuperación',  color: '#8B5CF6' },
 ]
+
+// ============================================
+// VIDEOS PARTIDO
+// ============================================
+
+export type TipoVideo = 'veo' | 'enlace_externo' | 'upload'
+export type ContextoVideo = 'pre_partido' | 'post_partido'
+
+export interface VideoPartido {
+  id: string
+  partido_id: string
+  equipo_id: string
+  tipo: TipoVideo
+  contexto: ContextoVideo
+  titulo: string
+  descripcion?: string
+  url: string
+  storage_path?: string
+  mime_type?: string
+  size_bytes?: number
+  thumbnail_url?: string
+  created_at: string
+  updated_at: string
+}
