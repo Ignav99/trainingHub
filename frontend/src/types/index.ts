@@ -1671,3 +1671,31 @@ export interface VideoPartido {
   created_at: string
   updated_at: string
 }
+
+// ============ VIDEO ANOTACIONES ============
+
+export interface DrawingElement {
+  id: string
+  type: 'arrow' | 'line' | 'circle' | 'rect' | 'freehand' | 'text'
+  color: string
+  strokeWidth: number
+  from?: { x: number; y: number }
+  to?: { x: number; y: number }
+  points?: { x: number; y: number }[]
+  text?: string
+  fontSize?: number
+}
+
+export interface VideoAnotacion {
+  id: string
+  video_id: string
+  equipo_id: string
+  timestamp_seconds: number
+  titulo: string
+  descripcion?: string
+  drawing_data: DrawingElement[]
+  thumbnail_data?: string
+  orden: number
+  created_at: string
+  updated_at: string
+}

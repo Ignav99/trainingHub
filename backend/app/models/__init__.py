@@ -306,6 +306,12 @@ from app.models.video import (
     VideoPartidoResponse,
 )
 
+from app.models.video_anotacion import (
+    VideoAnotacionCreate,
+    VideoAnotacionUpdate,
+    VideoAnotacionResponse,
+)
+
 from app.models.medico import (
     TipoRegistroMedico,
     EstadoRegistroMedico,
@@ -422,6 +428,8 @@ __all__ = [
     "PermisosPersonalizadosCreate", "PermisosPersonalizadosResponse",
     # Videos Partido
     "VideoPartidoCreate", "VideoPartidoUpdate", "VideoPartidoResponse",
+    # Video Anotaciones
+    "VideoAnotacionCreate", "VideoAnotacionUpdate", "VideoAnotacionResponse",
     # Portero Tareas
     "TipoPorteroTarea",
     "PorteroTareaBase", "PorteroTareaCreate", "PorteroTareaUpdate", "PorteroTareaResponse",

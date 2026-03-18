@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, lazy, Suspense } from 'react'
 import useSWR from 'swr'
 import { videosApi, VideoLinkData, VideoUpdateData } from '@/lib/api/videos'
 import type { VideoPartido, ContextoVideo } from '@/types'
@@ -22,7 +22,12 @@ import {
   Trash2,
   Plus,
   X,
+  ScanSearch,
 } from 'lucide-react'
+
+const VideoAnalyzer = lazy(() =>
+  import('@/components/video-analyzer/VideoAnalyzer').then((m) => ({ default: m.VideoAnalyzer }))
+)
 
 // ============ Helpers ============
 
@@ -58,6 +63,7 @@ export function VideoSection({ partidoId, equipoId, contexto }: VideoSectionProp
   const [modalType, setModalType] = useState<'veo' | 'enlace_externo' | 'upload' | null>(null)
   const [editVideo, setEditVideo] = useState<VideoPartido | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [analyzeVideo, setAnalyzeVideo] = useState<VideoPartido | null>(null)
 
   const videos = data?.data || []
 
@@ -142,6 +148,7 @@ export function VideoSection({ partidoId, equipoId, contexto }: VideoSectionProp
               video={video}
               onEdit={() => setEditVideo(video)}
               onDelete={() => handleDelete(video)}
+              onAnalyze={video.tipo === 'upload' ? () => setAnalyzeVideo(video) : undefined}
               deleting={deleting === video.id}
             />
           ))}
@@ -186,6 +193,15 @@ export function VideoSection({ partidoId, equipoId, contexto }: VideoSectionProp
           onSuccess={() => { setEditVideo(null); mutate() }}
         />
       )}
+      {analyzeVideo && (
+        <Suspense fallback={null}>
+          <VideoAnalyzer
+            video={analyzeVideo}
+            equipoId={equipoId}
+            onClose={() => setAnalyzeVideo(null)}
+          />
+        </Suspense>
+      )}
     </div>
   )
 }
@@ -196,11 +212,13 @@ function VideoCard({
   video,
   onEdit,
   onDelete,
+  onAnalyze,
   deleting,
 }: {
   video: VideoPartido
   onEdit: () => void
   onDelete: () => void
+  onAnalyze?: () => void
   deleting: boolean
 }) {
   const platform = detectPlatform(video.url)
@@ -243,6 +261,11 @@ function VideoCard({
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
+          {onAnalyze && (
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" onClick={onAnalyze} title="Analizar video">
+              <ScanSearch className="h-3.5 w-3.5" />
+            </Button>
+          )}
           {video.tipo !== 'upload' && (
             <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
               <a href={video.url} target="_blank" rel="noopener noreferrer" title="Abrir enlace">
