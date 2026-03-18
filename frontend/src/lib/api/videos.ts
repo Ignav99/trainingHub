@@ -18,8 +18,8 @@ export interface VideoUpdateData {
 }
 
 export const videosApi = {
-  async list(partidoId: string, contexto?: ContextoVideo): Promise<{ data: VideoPartido[] }> {
-    const params: Record<string, string> = {}
+  async list(partidoId: string, equipoId: string, contexto?: ContextoVideo): Promise<{ data: VideoPartido[] }> {
+    const params: Record<string, string> = { equipo_id: equipoId }
     if (contexto) params.contexto = contexto
     return api.get<{ data: VideoPartido[] }>(`/videos/partido/${partidoId}`, { params })
   },
@@ -32,11 +32,11 @@ export const videosApi = {
     return api.upload<VideoPartido>('/videos/upload', formData)
   },
 
-  async update(id: string, data: VideoUpdateData): Promise<VideoPartido> {
-    return api.put<VideoPartido>(`/videos/${id}`, data)
+  async update(id: string, equipoId: string, data: VideoUpdateData): Promise<VideoPartido> {
+    return api.put<VideoPartido>(`/videos/${id}`, data, { params: { equipo_id: equipoId } })
   },
 
-  async delete(id: string): Promise<void> {
-    return api.delete(`/videos/${id}`)
+  async delete(id: string, equipoId: string): Promise<void> {
+    return api.delete(`/videos/${id}`, { params: { equipo_id: equipoId } })
   },
 }

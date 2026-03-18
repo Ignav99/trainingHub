@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 
 from app.database import get_supabase
 from app.models.video import VideoPartidoCreate, VideoPartidoResponse, VideoPartidoUpdate
@@ -20,7 +20,6 @@ router = APIRouter()
 
 VIDEO_BUCKET = "partido-videos"
 MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
-VALID_TIPOS = ("veo", "enlace_externo", "upload")
 VALID_CONTEXTOS = ("pre_partido", "post_partido")
 
 
@@ -36,7 +35,7 @@ def _ensure_video_bucket(supabase) -> None:
 
 
 def _verify_partido(supabase, partido_id: str, equipo_id: str):
-    """Verify partido exists and belongs to team. Returns True/False."""
+    """Verify partido exists and belongs to team."""
     result = (
         supabase.table("partidos")
         .select("id")
@@ -53,6 +52,7 @@ def _verify_partido(supabase, partido_id: str, equipo_id: str):
 @router.get("/partido/{partido_id}")
 async def list_videos(
     partido_id: UUID,
+    equipo_id: UUID = Query(...),
     contexto: str | None = None,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
@@ -63,7 +63,7 @@ async def list_videos(
         supabase.table("videos_partido")
         .select("*")
         .eq("partido_id", str(partido_id))
-        .eq("equipo_id", str(auth.equipo_id))
+        .eq("equipo_id", str(equipo_id))
         .order("created_at", desc=False)
     )
 
@@ -93,14 +93,15 @@ async def add_video_link(
     if not data.url:
         raise HTTPException(status_code=400, detail="URL es requerida para enlaces.")
 
+    equipo_id = str(data.equipo_id)
     supabase = get_supabase()
 
-    if not _verify_partido(supabase, str(data.partido_id), str(auth.equipo_id)):
+    if not _verify_partido(supabase, str(data.partido_id), equipo_id):
         raise HTTPException(status_code=404, detail="Partido no encontrado.")
 
     row = {
         "partido_id": str(data.partido_id),
-        "equipo_id": str(auth.equipo_id),
+        "equipo_id": equipo_id,
         "tipo": data.tipo,
         "contexto": data.contexto,
         "titulo": data.titulo,
@@ -137,7 +138,7 @@ async def upload_video_clip(
 
     supabase = get_supabase()
 
-    if not _verify_partido(supabase, partido_id, str(auth.equipo_id)):
+    if not _verify_partido(supabase, partido_id, equipo_id):
         raise HTTPException(status_code=404, detail="Partido no encontrado.")
 
     _ensure_video_bucket(supabase)
@@ -159,7 +160,7 @@ async def upload_video_clip(
 
     row = {
         "partido_id": partido_id,
-        "equipo_id": str(auth.equipo_id),
+        "equipo_id": equipo_id,
         "tipo": "upload",
         "contexto": contexto,
         "titulo": titulo,
@@ -180,6 +181,7 @@ async def upload_video_clip(
 async def update_video(
     video_id: UUID,
     data: VideoPartidoUpdate,
+    equipo_id: UUID = Query(...),
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
 ):
     """Actualiza título/descripción de un video."""
@@ -189,7 +191,7 @@ async def update_video(
         supabase.table("videos_partido")
         .select("id, equipo_id")
         .eq("id", str(video_id))
-        .eq("equipo_id", str(auth.equipo_id))
+        .eq("equipo_id", str(equipo_id))
         .limit(1)
         .execute()
     )
@@ -216,6 +218,7 @@ async def update_video(
 @router.delete("/{video_id}")
 async def delete_video(
     video_id: UUID,
+    equipo_id: UUID = Query(...),
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
 ):
     """Elimina un video. Si es upload, también elimina del storage."""
@@ -225,7 +228,7 @@ async def delete_video(
         supabase.table("videos_partido")
         .select("id, tipo, storage_path, equipo_id")
         .eq("id", str(video_id))
-        .eq("equipo_id", str(auth.equipo_id))
+        .eq("equipo_id", str(equipo_id))
         .limit(1)
         .execute()
     )

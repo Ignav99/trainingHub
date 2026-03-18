@@ -51,7 +51,7 @@ interface VideoSectionProps {
 export function VideoSection({ partidoId, equipoId, contexto }: VideoSectionProps) {
   const { data, mutate } = useSWR(
     partidoId ? `/videos/partido/${partidoId}?contexto=${contexto}` : null,
-    () => videosApi.list(partidoId, contexto)
+    () => videosApi.list(partidoId, equipoId, contexto)
   )
 
   const [showAddMenu, setShowAddMenu] = useState(false)
@@ -70,7 +70,7 @@ export function VideoSection({ partidoId, equipoId, contexto }: VideoSectionProp
     if (!confirm('¿Eliminar este video?')) return
     setDeleting(video.id)
     try {
-      await videosApi.delete(video.id)
+      await videosApi.delete(video.id, equipoId)
       mutate()
       toast.success('Video eliminado')
     } catch {
@@ -181,6 +181,7 @@ export function VideoSection({ partidoId, equipoId, contexto }: VideoSectionProp
       {editVideo && (
         <EditVideoModal
           video={editVideo}
+          equipoId={equipoId}
           onClose={() => setEditVideo(null)}
           onSuccess={() => { setEditVideo(null); mutate() }}
         />
@@ -500,10 +501,12 @@ function UploadClipModal({
 
 function EditVideoModal({
   video,
+  equipoId,
   onClose,
   onSuccess,
 }: {
   video: VideoPartido
+  equipoId: string
   onClose: () => void
   onSuccess: () => void
 }) {
@@ -524,7 +527,7 @@ function EditVideoModal({
         return
       }
 
-      await videosApi.update(video.id, updates)
+      await videosApi.update(video.id, equipoId, updates)
       toast.success('Video actualizado')
       onSuccess()
     } catch {
