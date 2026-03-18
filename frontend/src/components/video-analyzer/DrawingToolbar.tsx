@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   MousePointer2,
@@ -14,10 +15,12 @@ import {
   Trash2,
   Eraser,
 } from 'lucide-react'
-import type { DrawingTool } from './useDrawingEngine'
+import type { DrawingTool } from './types'
+import type { DrawingElement } from '@/types'
+import { DRAWING_COLORS, STROKE_WIDTHS } from './types'
 
 const TOOLS: { tool: DrawingTool; icon: React.ElementType; label: string }[] = [
-  { tool: 'select', icon: MousePointer2, label: 'Seleccionar' },
+  { tool: 'select', icon: MousePointer2, label: 'Seleccionar (V)' },
   { tool: 'arrow', icon: MoveUpRight, label: 'Flecha' },
   { tool: 'line', icon: Minus, label: 'Línea' },
   { tool: 'circle', icon: Circle, label: 'Círculo' },
@@ -26,16 +29,14 @@ const TOOLS: { tool: DrawingTool; icon: React.ElementType; label: string }[] = [
   { tool: 'text', icon: Type, label: 'Texto' },
 ]
 
-const COLORS = [
-  '#ef4444', // red
-  '#f59e0b', // amber
-  '#22c55e', // green
-  '#3b82f6', // blue
-  '#ffffff', // white
-  '#000000', // black
-]
-
-const STROKE_WIDTHS = [2, 4, 6]
+const TOOL_LABELS: Record<string, string> = {
+  arrow: 'Flecha',
+  line: 'Línea',
+  circle: 'Círculo',
+  rect: 'Rectángulo',
+  freehand: 'Trazo',
+  text: 'Texto',
+}
 
 interface DrawingToolbarProps {
   activeTool: DrawingTool
@@ -50,7 +51,9 @@ interface DrawingToolbarProps {
   onRedo: () => void
   onDeleteSelected: () => void
   onClearAll: () => void
-  hasSelection: boolean
+  selectedId: string | null
+  elements: DrawingElement[]
+  onUpdateSelectedProps: (patch: Partial<Pick<DrawingElement, 'color' | 'strokeWidth'>>) => void
 }
 
 export function DrawingToolbar({
@@ -66,8 +69,34 @@ export function DrawingToolbar({
   onRedo,
   onDeleteSelected,
   onClearAll,
-  hasSelection,
+  selectedId,
+  elements,
+  onUpdateSelectedProps,
 }: DrawingToolbarProps) {
+  const selectedElement = useMemo(
+    () => (selectedId ? elements.find((el) => el.id === selectedId) : null),
+    [selectedId, elements]
+  )
+
+  const activeColor = selectedElement ? selectedElement.color : color
+  const activeStrokeWidth = selectedElement ? selectedElement.strokeWidth : strokeWidth
+
+  const handleColorClick = (c: string) => {
+    if (selectedElement) {
+      onUpdateSelectedProps({ color: c })
+    } else {
+      onColorChange(c)
+    }
+  }
+
+  const handleStrokeClick = (w: number) => {
+    if (selectedElement) {
+      onUpdateSelectedProps({ strokeWidth: w })
+    } else {
+      onStrokeWidthChange(w)
+    }
+  }
+
   return (
     <div className="flex items-center gap-2 px-2 py-1.5 bg-black/80 text-white text-xs flex-wrap">
       {/* Tools */}
@@ -94,14 +123,14 @@ export function DrawingToolbar({
 
       {/* Colors */}
       <div className="flex items-center gap-1">
-        {COLORS.map((c) => (
+        {DRAWING_COLORS.map((c) => (
           <button
             key={c}
-            className={`w-5 h-5 rounded-full border-2 ${
-              color === c ? 'border-white scale-110' : 'border-white/30'
+            className={`w-5 h-5 rounded-full border-2 transition-transform ${
+              activeColor === c ? 'border-white scale-110' : 'border-white/30'
             }`}
             style={{ backgroundColor: c }}
-            onClick={() => onColorChange(c)}
+            onClick={() => handleColorClick(c)}
           />
         ))}
       </div>
@@ -114,9 +143,9 @@ export function DrawingToolbar({
           <button
             key={w}
             className={`flex items-center justify-center w-6 h-6 rounded ${
-              strokeWidth === w ? 'bg-white/30' : 'hover:bg-white/20'
+              activeStrokeWidth === w ? 'bg-white/30' : 'hover:bg-white/20'
             }`}
-            onClick={() => onStrokeWidthChange(w)}
+            onClick={() => handleStrokeClick(w)}
             title={`Grosor ${w}`}
           >
             <div
@@ -156,7 +185,7 @@ export function DrawingToolbar({
           size="icon"
           className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20"
           onClick={onDeleteSelected}
-          disabled={!hasSelection}
+          disabled={!selectedId}
           title="Eliminar selección (Delete)"
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -171,6 +200,16 @@ export function DrawingToolbar({
           <Eraser className="h-3.5 w-3.5" />
         </Button>
       </div>
+
+      {/* Selection info */}
+      {selectedElement && (
+        <>
+          <div className="w-px h-5 bg-white/20" />
+          <span className="text-[10px] text-blue-300">
+            Editando: {TOOL_LABELS[selectedElement.type] || selectedElement.type}
+          </span>
+        </>
+      )}
     </div>
   )
 }

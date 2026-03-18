@@ -2,7 +2,16 @@
 
 import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react'
 import { Button } from '@/components/ui/button'
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react'
+import {
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  ChevronLeft,
+  ChevronRight,
+  Volume2,
+  VolumeX,
+} from 'lucide-react'
 import { formatTime } from './utils'
 
 export interface VideoPlayerHandle {
@@ -52,6 +61,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       v.currentTime = Math.max(0, Math.min(v.duration, v.currentTime + delta))
     }, [])
 
+    const frameStep = useCallback((direction: 1 | -1) => {
+      const v = videoRef.current
+      if (!v || !v.paused) return
+      v.currentTime = Math.max(0, Math.min(v.duration, v.currentTime + direction / 30))
+    }, [])
+
     const cycleSpeed = useCallback(() => {
       const speeds = [0.25, 0.5, 1, 1.5, 2]
       const idx = speeds.indexOf(speed)
@@ -94,17 +109,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       }
     }, [onTimeUpdate, onPlayStateChange, onDurationChange])
 
-    const handleSeekBar = (e: React.MouseEvent<HTMLDivElement>) => {
-      const v = videoRef.current
-      if (!v || !duration) return
-      const rect = e.currentTarget.getBoundingClientRect()
-      const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
-      v.currentTime = pct * duration
-    }
-
     return (
       <div className="flex flex-col">
-        {/* Video element — invisible controls, we manage them */}
         <video
           ref={videoRef}
           src={src}
@@ -114,8 +120,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           onClick={togglePlay}
         />
 
-        {/* Controls bar */}
-        <div className="flex items-center gap-1.5 px-2 py-1.5 bg-black/80 text-white text-xs">
+        {/* Compact controls: [Play] [-5] [<f] [f>] [+5] | time | [mute] [speed] */}
+        <div className="flex items-center gap-1 px-2 py-1 bg-black/80 text-white text-xs">
           <Button
             variant="ghost"
             size="icon"
@@ -128,8 +134,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-white hover:text-white hover:bg-white/20"
+            className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20"
             onClick={() => seek(-5)}
+            title="-5s"
           >
             <SkipBack className="h-3.5 w-3.5" />
           </Button>
@@ -137,42 +144,52 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-white hover:text-white hover:bg-white/20"
-            onClick={() => seek(5)}
+            className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20"
+            onClick={() => frameStep(-1)}
+            title="Frame anterior"
           >
-            <SkipForward className="h-3.5 w-3.5" />
+            <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
-
-          <span className="tabular-nums min-w-[70px]">
-            {formatTime(currentTime)}
-          </span>
-
-          {/* Seek bar */}
-          <div
-            className="flex-1 h-2 bg-white/20 rounded-full cursor-pointer relative group"
-            onClick={handleSeekBar}
-          >
-            <div
-              className="h-full bg-white rounded-full transition-all"
-              style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }}
-            />
-          </div>
-
-          <span className="tabular-nums min-w-[70px] text-right">
-            {formatTime(duration)}
-          </span>
 
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-white hover:text-white hover:bg-white/20"
+            className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20"
+            onClick={() => frameStep(1)}
+            title="Frame siguiente"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20"
+            onClick={() => seek(5)}
+            title="+5s"
+          >
+            <SkipForward className="h-3.5 w-3.5" />
+          </Button>
+
+          <div className="w-px h-4 bg-white/20 mx-0.5" />
+
+          <span className="tabular-nums text-white/80">
+            {formatTime(currentTime)} / {formatTime(duration)}
+          </span>
+
+          <div className="flex-1" />
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20"
             onClick={() => setMuted(!muted)}
           >
             {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
           </Button>
 
           <button
-            className="px-1.5 py-0.5 rounded text-[10px] font-mono hover:bg-white/20 min-w-[32px]"
+            className="px-1.5 py-0.5 rounded text-[10px] font-mono hover:bg-white/20 min-w-[32px] text-white/70"
             onClick={cycleSpeed}
           >
             {speed}x

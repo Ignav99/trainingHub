@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef } from 'react'
+import { forwardRef, useMemo } from 'react'
 import type { DrawingElement } from '@/types'
 
 interface DrawingOverlayProps {
@@ -8,6 +8,7 @@ interface DrawingOverlayProps {
   preview: DrawingElement | null
   selectedId: string | null
   interactive: boolean
+  tool: string
   onMouseDown: (e: React.MouseEvent<SVGSVGElement>) => void
   onMouseMove: (e: React.MouseEvent<SVGSVGElement>) => void
   onMouseUp: (e: React.MouseEvent<SVGSVGElement>) => void
@@ -15,10 +16,22 @@ interface DrawingOverlayProps {
 
 export const DrawingOverlay = forwardRef<SVGSVGElement, DrawingOverlayProps>(
   function DrawingOverlay(
-    { elements, preview, selectedId, interactive, onMouseDown, onMouseMove, onMouseUp },
+    { elements, preview, selectedId, interactive, tool, onMouseDown, onMouseMove, onMouseUp },
     ref
   ) {
     const allElements = preview ? [...elements, preview] : elements
+
+    // Collect unique colors for arrow markers
+    const arrowColors = useMemo(() => {
+      const colors = new Set<string>()
+      allElements.forEach((el) => {
+        if (el.type === 'arrow') colors.add(el.color)
+      })
+      return Array.from(colors)
+    }, [allElements])
+
+    // Allow pointer events for select tool (to click/drag elements) OR drawing tools
+    const enablePointer = interactive || tool === 'select'
 
     return (
       <svg
@@ -26,40 +39,79 @@ export const DrawingOverlay = forwardRef<SVGSVGElement, DrawingOverlayProps>(
         viewBox="0 0 1920 1080"
         preserveAspectRatio="xMidYMid meet"
         className="absolute inset-0 w-full h-full"
-        style={{ pointerEvents: interactive ? 'all' : 'none' }}
+        style={{ pointerEvents: enablePointer ? 'all' : 'none' }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
       >
         <defs>
-          <marker
-            id="arrowhead"
-            markerWidth="10"
-            markerHeight="7"
-            refX="10"
-            refY="3.5"
-            orient="auto"
-          >
-            <polygon points="0 0, 10 3.5, 0 7" fill="currentColor" />
-          </marker>
+          {arrowColors.map((c) => (
+            <marker
+              key={c}
+              id={`arrowhead-${c.replace('#', '')}`}
+              markerWidth="10"
+              markerHeight="7"
+              refX="10"
+              refY="3.5"
+              orient="auto"
+            >
+              <polygon points="0 0, 10 3.5, 0 7" fill={c} />
+            </marker>
+          ))}
         </defs>
 
         {allElements.map((el) => (
           <g
             key={el.id}
             data-element-id={el.id}
-            style={{ cursor: interactive ? 'pointer' : 'default' }}
+            style={{
+              cursor: tool === 'select' ? 'pointer' : 'crosshair',
+            }}
           >
+            {/* Hit area: wide invisible stroke for thin elements */}
+            {tool === 'select' && el.id !== 'preview' && (
+              <HitArea element={el} />
+            )}
+            <RenderElement element={el} />
             {el.id === selectedId && el.id !== 'preview' && (
               <SelectionHighlight element={el} />
             )}
-            <RenderElement element={el} />
           </g>
         ))}
       </svg>
     )
   }
 )
+
+function HitArea({ element: el }: { element: DrawingElement }) {
+  const hitWidth = 16
+
+  if ((el.type === 'arrow' || el.type === 'line') && el.from && el.to) {
+    return (
+      <line
+        x1={el.from.x}
+        y1={el.from.y}
+        x2={el.to.x}
+        y2={el.to.y}
+        stroke="transparent"
+        strokeWidth={hitWidth}
+        fill="none"
+      />
+    )
+  }
+
+  if (el.type === 'freehand' && el.points && el.points.length >= 2) {
+    const d = el.points.reduce(
+      (acc, p, i) => acc + (i === 0 ? `M ${p.x} ${p.y}` : ` L ${p.x} ${p.y}`),
+      ''
+    )
+    return (
+      <path d={d} stroke="transparent" strokeWidth={hitWidth} fill="none" />
+    )
+  }
+
+  return null
+}
 
 function RenderElement({ element: el }: { element: DrawingElement }) {
   switch (el.type) {
@@ -72,8 +124,7 @@ function RenderElement({ element: el }: { element: DrawingElement }) {
           y2={el.to.y}
           stroke={el.color}
           strokeWidth={el.strokeWidth}
-          markerEnd="url(#arrowhead)"
-          style={{ color: el.color }}
+          markerEnd={`url(#arrowhead-${el.color.replace('#', '')})`}
         />
       ) : null
 
@@ -91,16 +142,12 @@ function RenderElement({ element: el }: { element: DrawingElement }) {
 
     case 'circle':
       if (!el.from || !el.to) return null
-      const cx = (el.from.x + el.to.x) / 2
-      const cy = (el.from.y + el.to.y) / 2
-      const rx = Math.abs(el.to.x - el.from.x) / 2
-      const ry = Math.abs(el.to.y - el.from.y) / 2
       return (
         <ellipse
-          cx={cx}
-          cy={cy}
-          rx={rx}
-          ry={ry}
+          cx={(el.from.x + el.to.x) / 2}
+          cy={(el.from.y + el.to.y) / 2}
+          rx={Math.abs(el.to.x - el.from.x) / 2}
+          ry={Math.abs(el.to.y - el.from.y) / 2}
           stroke={el.color}
           strokeWidth={el.strokeWidth}
           fill="none"
@@ -109,16 +156,12 @@ function RenderElement({ element: el }: { element: DrawingElement }) {
 
     case 'rect':
       if (!el.from || !el.to) return null
-      const x = Math.min(el.from.x, el.to.x)
-      const y = Math.min(el.from.y, el.to.y)
-      const w = Math.abs(el.to.x - el.from.x)
-      const h = Math.abs(el.to.y - el.from.y)
       return (
         <rect
-          x={x}
-          y={y}
-          width={w}
-          height={h}
+          x={Math.min(el.from.x, el.to.x)}
+          y={Math.min(el.from.y, el.to.y)}
+          width={Math.abs(el.to.x - el.from.x)}
+          height={Math.abs(el.to.y - el.from.y)}
           stroke={el.color}
           strokeWidth={el.strokeWidth}
           fill="none"
@@ -127,13 +170,12 @@ function RenderElement({ element: el }: { element: DrawingElement }) {
 
     case 'freehand':
       if (!el.points || el.points.length < 2) return null
-      const d = el.points.reduce(
-        (acc, p, i) => acc + (i === 0 ? `M ${p.x} ${p.y}` : ` L ${p.x} ${p.y}`),
-        ''
-      )
       return (
         <path
-          d={d}
+          d={el.points.reduce(
+            (acc, p, i) => acc + (i === 0 ? `M ${p.x} ${p.y}` : ` L ${p.x} ${p.y}`),
+            ''
+          )}
           stroke={el.color}
           strokeWidth={el.strokeWidth}
           fill="none"
@@ -177,6 +219,7 @@ function SelectionHighlight({ element: el }: { element: DrawingElement }) {
         stroke="#3b82f6"
         strokeWidth={2}
         strokeDasharray="6 3"
+        pointerEvents="none"
       />
     )
   }
@@ -192,25 +235,23 @@ function SelectionHighlight({ element: el }: { element: DrawingElement }) {
         stroke="#3b82f6"
         strokeWidth={2}
         strokeDasharray="6 3"
+        pointerEvents="none"
       />
     )
   }
 
   if (el.from && el.to) {
-    const x = Math.min(el.from.x, el.to.x) - pad
-    const y = Math.min(el.from.y, el.to.y) - pad
-    const w = Math.abs(el.to.x - el.from.x) + pad * 2
-    const h = Math.abs(el.to.y - el.from.y) + pad * 2
     return (
       <rect
-        x={x}
-        y={y}
-        width={w}
-        height={h}
+        x={Math.min(el.from.x, el.to.x) - pad}
+        y={Math.min(el.from.y, el.to.y) - pad}
+        width={Math.abs(el.to.x - el.from.x) + pad * 2}
+        height={Math.abs(el.to.y - el.from.y) + pad * 2}
         fill="none"
         stroke="#3b82f6"
         strokeWidth={2}
         strokeDasharray="6 3"
+        pointerEvents="none"
       />
     )
   }
