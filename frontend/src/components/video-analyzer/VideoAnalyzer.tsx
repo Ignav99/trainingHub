@@ -6,7 +6,7 @@ import type { VideoAnotacion } from '@/types'
 import { videoAnotacionesApi } from '@/lib/api/videoAnotaciones'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { X, Camera, Bookmark } from 'lucide-react'
+import { X, Camera, Bookmark, Scissors } from 'lucide-react'
 
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 import { DrawingOverlay } from './DrawingOverlay'
@@ -19,7 +19,7 @@ import { useDrawingEngine } from './useDrawingEngine'
 import { useUndoRedo } from './useUndoRedo'
 import { useClips } from './useClips'
 import { useVideoAnalyzerStore } from './useVideoAnalyzerStore'
-import { exportFramePNG, downloadDataUrl, generateThumbnail, formatTime } from './utils'
+import { exportFramePNG, downloadDataUrl, generateThumbnail } from './utils'
 import type { DrawingTool } from './types'
 
 interface VideoAnalyzerProps {
@@ -43,14 +43,26 @@ export function VideoAnalyzer({
 }: VideoAnalyzerProps) {
   const playerRef = useRef<VideoPlayerHandle>(null)
   const svgRef = useRef<SVGSVGElement>(null)
+  const currentTimeRef = useRef(0)
 
-  // Store
-  const {
-    tool, color, strokeWidth, selectedId, isPlaying, currentTime, duration,
-    showSaveDialog, exportingClipId, sidebarTab,
-    setTool, setColor, setStrokeWidth, setSelectedId, setIsPlaying, setCurrentTime,
-    setDuration, setShowSaveDialog, setSidebarTab,
-  } = useVideoAnalyzerStore()
+  // Store — individual selectors to avoid re-render cascade
+  const tool = useVideoAnalyzerStore((s) => s.tool)
+  const color = useVideoAnalyzerStore((s) => s.color)
+  const strokeWidth = useVideoAnalyzerStore((s) => s.strokeWidth)
+  const selectedId = useVideoAnalyzerStore((s) => s.selectedId)
+  const isPlaying = useVideoAnalyzerStore((s) => s.isPlaying)
+  const duration = useVideoAnalyzerStore((s) => s.duration)
+  const showSaveDialog = useVideoAnalyzerStore((s) => s.showSaveDialog)
+  const exportingClipId = useVideoAnalyzerStore((s) => s.exportingClipId)
+  const sidebarTab = useVideoAnalyzerStore((s) => s.sidebarTab)
+  const setTool = useVideoAnalyzerStore((s) => s.setTool)
+  const setColor = useVideoAnalyzerStore((s) => s.setColor)
+  const setStrokeWidth = useVideoAnalyzerStore((s) => s.setStrokeWidth)
+  const setSelectedId = useVideoAnalyzerStore((s) => s.setSelectedId)
+  const setIsPlaying = useVideoAnalyzerStore((s) => s.setIsPlaying)
+  const setDuration = useVideoAnalyzerStore((s) => s.setDuration)
+  const setShowSaveDialog = useVideoAnalyzerStore((s) => s.setShowSaveDialog)
+  const setSidebarTab = useVideoAnalyzerStore((s) => s.setSidebarTab)
 
   // Create object URL for local file
   const src = useMemo(() => {
@@ -82,11 +94,12 @@ export function VideoAnalyzer({
   // Clips
   const {
     clips, activeClipId, setActiveClipId,
-    createClipFromRange, updateClip, deleteClip, exportClip,
+    createClipAtTime, createClipFromRange, updateClip, deleteClip, exportClip,
   } = useClips()
 
   // Annotation state
   const [saving, setSaving] = useState(false)
+  const [saveTimestamp, setSaveTimestamp] = useState(0)
   const [activeAnotacionId, setActiveAnotacionId] = useState<string | null>(null)
   const [deletingAnotacionId, setDeletingAnotacionId] = useState<string | null>(null)
 
@@ -96,6 +109,16 @@ export function VideoAnalyzer({
     () => videoAnotacionesApi.list(partidoId, equipoId)
   )
   const anotaciones = anotacionesData?.data || []
+
+  // Time update — just store in ref, no state update
+  const handleTimeUpdate = useCallback((time: number) => {
+    currentTimeRef.current = time
+  }, [])
+
+  // Get video element for Timeline
+  const getVideoElement = useCallback(() => {
+    return playerRef.current?.getVideoElement() || null
+  }, [])
 
   // Tool change auto-pauses
   const handleToolChange = useCallback((t: DrawingTool) => {
@@ -137,7 +160,7 @@ export function VideoAnalyzer({
         partido_id: partidoId,
         equipo_id: equipoId,
         video_id: videoId,
-        timestamp_seconds: currentTime,
+        timestamp_seconds: currentTimeRef.current,
         titulo,
         descripcion: descripcion || undefined,
         drawing_data: elements,
@@ -153,7 +176,7 @@ export function VideoAnalyzer({
     } finally {
       setSaving(false)
     }
-  }, [partidoId, equipoId, videoId, currentTime, elements, anotaciones.length, mutate, setShowSaveDialog])
+  }, [partidoId, equipoId, videoId, elements, anotaciones.length, mutate, setShowSaveDialog])
 
   // Delete annotation
   const handleDeleteAnotacion = useCallback(async (id: string) => {
@@ -181,12 +204,12 @@ export function VideoAnalyzer({
     try {
       playerRef.current?.pause()
       const dataUrl = await exportFramePNG(videoEl, svgEl)
-      downloadDataUrl(dataUrl, `analisis_${Math.floor(currentTime)}s.png`)
+      downloadDataUrl(dataUrl, `analisis_${Math.floor(currentTimeRef.current)}s.png`)
       toast.success('PNG exportado')
     } catch {
       toast.error('Error al exportar PNG')
     }
-  }, [currentTime])
+  }, [])
 
   // Export clip
   const handleExportClip = useCallback(async (clipId: string) => {
@@ -195,6 +218,11 @@ export function VideoAnalyzer({
     playerRef.current?.pause()
     await exportClip(clipId, videoEl)
   }, [exportClip])
+
+  // Create clip at current time (scissors button)
+  const handleCreateClipHere = useCallback(() => {
+    createClipAtTime(currentTimeRef.current)
+  }, [createClipAtTime])
 
   // Select clip from sidebar
   const handleSelectClipFromSidebar = useCallback((clipId: string) => {
@@ -210,16 +238,15 @@ export function VideoAnalyzer({
     playerRef.current?.seekTo(time)
   }, [])
 
-  // Update selected element props via store (forwards to undo stack)
+  // Update selected element props
   const handleUpdateSelectedProps = useCallback((patch: Partial<Pick<import('@/types').DrawingElement, 'color' | 'strokeWidth'>>) => {
     if (!selectedId) return
-    const updated = elements.map((el) =>
+    setElements(elements.map((el) =>
       el.id === selectedId ? { ...el, ...patch } : el
-    )
-    setElements(updated)
+    ))
   }, [selectedId, elements, setElements])
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts — all read from refs, no state dependency on currentTime
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return
@@ -257,11 +284,11 @@ export function VideoAnalyzer({
           break
         case 'ArrowLeft':
           e.preventDefault()
-          playerRef.current?.seekTo(Math.max(0, currentTime - 5))
+          playerRef.current?.seekTo(Math.max(0, currentTimeRef.current - 5))
           break
         case 'ArrowRight':
           e.preventDefault()
-          playerRef.current?.seekTo(Math.min(duration, currentTime + 5))
+          playerRef.current?.seekTo(Math.min(duration, currentTimeRef.current + 5))
           break
         case 'v':
         case 'V':
@@ -270,12 +297,7 @@ export function VideoAnalyzer({
         case 'c':
         case 'C':
           if (!e.ctrlKey && !e.metaKey) {
-            const clipDur = Math.min(10, duration - currentTime)
-            if (clipDur >= 0.5) {
-              const { addClip } = useVideoAnalyzerStore.getState()
-              addClip(currentTime, currentTime + clipDur)
-              toast.success('Clip creado')
-            }
+            createClipAtTime(currentTimeRef.current)
           }
           break
       }
@@ -283,7 +305,7 @@ export function VideoAnalyzer({
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [isPlaying, tool, selectedId, currentTime, duration, onClose, deleteSelected, undo, redo, setTool, setSelectedId])
+  }, [isPlaying, tool, selectedId, duration, onClose, deleteSelected, undo, redo, setTool, setSelectedId, createClipAtTime])
 
   const interactive = !isPlaying && tool !== 'select'
 
@@ -307,6 +329,20 @@ export function VideoAnalyzer({
         <h2 className="text-sm font-medium text-white truncate max-w-[30%]">{title}</h2>
 
         <div className="flex items-center gap-1">
+          {/* Scissors — create clip at current time */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-white hover:text-white hover:bg-white/20"
+            onClick={handleCreateClipHere}
+            title="Crear clip en posición actual (C)"
+          >
+            <Scissors className="h-4 w-4 mr-1" />
+            Clip
+          </Button>
+
+          <div className="w-px h-5 bg-white/20" />
+
           <Button
             variant="ghost"
             size="sm"
@@ -323,6 +359,7 @@ export function VideoAnalyzer({
             className="text-white hover:text-white hover:bg-white/20"
             onClick={() => {
               playerRef.current?.pause()
+              setSaveTimestamp(currentTimeRef.current)
               setShowSaveDialog(true)
             }}
             title="Guardar momento"
@@ -344,7 +381,7 @@ export function VideoAnalyzer({
                 <VideoPlayer
                   ref={playerRef}
                   src={src}
-                  onTimeUpdate={setCurrentTime}
+                  onTimeUpdate={handleTimeUpdate}
                   onPlayStateChange={handlePlayStateChange}
                   onDurationChange={setDuration}
                 />
@@ -386,8 +423,7 @@ export function VideoAnalyzer({
           <Timeline
             videoSrc={src}
             duration={duration}
-            currentTime={currentTime}
-            isPlaying={isPlaying}
+            getVideoElement={getVideoElement}
             clips={clips}
             activeClipId={activeClipId}
             anotaciones={anotaciones}
@@ -423,7 +459,7 @@ export function VideoAnalyzer({
       {/* Save dialog */}
       <AnnotationSaveDialog
         open={showSaveDialog}
-        timestamp={currentTime}
+        timestamp={saveTimestamp}
         onSave={handleSave}
         onClose={() => setShowSaveDialog(false)}
         saving={saving}

@@ -10,7 +10,6 @@ interface VideoAnalyzerState {
   // Video
   src: string
   duration: number
-  currentTime: number
   isPlaying: boolean
 
   // Drawing
@@ -32,7 +31,6 @@ interface VideoAnalyzerState {
   // Video actions
   setSrc: (src: string) => void
   setDuration: (d: number) => void
-  setCurrentTime: (t: number) => void
   setIsPlaying: (p: boolean) => void
 
   // Drawing actions
@@ -59,7 +57,6 @@ export const useVideoAnalyzerStore = create<VideoAnalyzerState>((set, get) => ({
   // Video
   src: '',
   duration: 0,
-  currentTime: 0,
   isPlaying: false,
 
   // Drawing
@@ -81,7 +78,6 @@ export const useVideoAnalyzerStore = create<VideoAnalyzerState>((set, get) => ({
   // Video actions
   setSrc: (src) => set({ src }),
   setDuration: (duration) => set({ duration }),
-  setCurrentTime: (currentTime) => set({ currentTime }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),
 
   // Drawing actions

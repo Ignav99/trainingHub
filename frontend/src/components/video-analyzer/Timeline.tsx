@@ -9,8 +9,7 @@ import { ClipBar } from './ClipBar'
 interface TimelineProps {
   videoSrc: string
   duration: number
-  currentTime: number
-  isPlaying: boolean
+  getVideoElement: () => HTMLVideoElement | null
   clips: Clip[]
   activeClipId: string | null
   anotaciones: VideoAnotacion[]
@@ -25,8 +24,7 @@ interface TimelineProps {
 export function Timeline({
   videoSrc,
   duration,
-  currentTime,
-  isPlaying,
+  getVideoElement,
   clips,
   activeClipId,
   anotaciones,
@@ -89,23 +87,23 @@ export function Timeline({
     })
   }, [thumbnails, thumbCount, containerWidth, duration])
 
-  // Playhead animation
+  // Playhead animation — reads directly from video element via rAF
   useEffect(() => {
-    const playhead = playheadRef.current
-    const container = containerRef.current
-    if (!playhead || !container || !duration) return
+    if (!duration) return
 
-    const updatePlayhead = () => {
-      const pct = (currentTime / duration) * 100
-      playhead.style.left = `${pct}%`
-      if (isPlaying) {
-        rafRef.current = requestAnimationFrame(updatePlayhead)
+    const tick = () => {
+      const video = getVideoElement()
+      const playhead = playheadRef.current
+      if (video && playhead) {
+        const pct = (video.currentTime / duration) * 100
+        playhead.style.left = `${pct}%`
       }
+      rafRef.current = requestAnimationFrame(tick)
     }
 
-    updatePlayhead()
+    rafRef.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(rafRef.current)
-  }, [currentTime, duration, isPlaying])
+  }, [duration, getVideoElement])
 
   const timeToPercent = useCallback(
     (t: number) => (duration > 0 ? (t / duration) * 100 : 0),
@@ -138,7 +136,6 @@ export function Timeline({
   // Drag in clips zone to create clip
   const handleClipZonePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      // Only on empty area (not on a clip bar)
       if ((e.target as HTMLElement).closest('[data-clip-bar]')) return
       ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
       const time = xToTime(e.clientX)
@@ -201,14 +198,21 @@ export function Timeline({
         onClick={handleFilmstripClick}
       />
 
-      {/* Clips row — 30px */}
+      {/* Clips row — 36px, slightly taller for easier drag */}
       <div
         className="relative w-full bg-white/5 border-t border-white/10"
-        style={{ height: 30 }}
+        style={{ height: 36 }}
         onPointerDown={handleClipZonePointerDown}
         onPointerMove={handleClipZonePointerMove}
         onPointerUp={handleClipZonePointerUp}
       >
+        {/* Empty state hint */}
+        {clips.length === 0 && !dragPreview && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <span className="text-[10px] text-white/20">Arrastra aqui para crear clips</span>
+          </div>
+        )}
+
         {clips.map((clip) => (
           <div key={clip.id} data-clip-bar>
             <ClipBar
@@ -264,9 +268,7 @@ export function Timeline({
       <div
         ref={playheadRef}
         className="absolute top-0 bottom-0 w-px bg-white pointer-events-none z-20"
-        style={{ left: `${timeToPercent(currentTime)}%` }}
       >
-        {/* Playhead top triangle */}
         <div className="absolute -top-0.5 -translate-x-1/2 w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[5px] border-t-white" />
       </div>
     </div>

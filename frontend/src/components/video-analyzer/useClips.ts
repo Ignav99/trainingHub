@@ -6,16 +6,14 @@ import { useVideoAnalyzerStore } from './useVideoAnalyzerStore'
 import { formatTime } from './utils'
 
 export function useClips() {
-  const {
-    clips,
-    activeClipId,
-    addClip,
-    updateClip,
-    removeClip,
-    setActiveClipId,
-    setExportingClipId,
-    duration,
-  } = useVideoAnalyzerStore()
+  const clips = useVideoAnalyzerStore((s) => s.clips)
+  const activeClipId = useVideoAnalyzerStore((s) => s.activeClipId)
+  const addClip = useVideoAnalyzerStore((s) => s.addClip)
+  const updateClip = useVideoAnalyzerStore((s) => s.updateClip)
+  const removeClip = useVideoAnalyzerStore((s) => s.removeClip)
+  const setActiveClipId = useVideoAnalyzerStore((s) => s.setActiveClipId)
+  const setExportingClipId = useVideoAnalyzerStore((s) => s.setExportingClipId)
+  const duration = useVideoAnalyzerStore((s) => s.duration)
 
   const createClipAtTime = useCallback(
     (time: number) => {
