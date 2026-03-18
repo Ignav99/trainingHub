@@ -18,8 +18,8 @@ import {
   Check,
   Swords,
   Bell,
-  MessageSquare,
   Bot,
+  ScanSearch,
   Shield,
   BarChart3,
   Activity,
@@ -53,7 +53,7 @@ const navigation = [
 const secondaryNavigation = [
   { name: 'AI Asistente', href: '/ai', icon: Bot },
   { name: 'Biblioteca AI', href: '/biblioteca-ai', icon: Library },
-  { name: 'Notificaciones', href: '/notificaciones', icon: Bell },
+  { name: 'Video Análisis', href: '/video-analisis', icon: ScanSearch },
   { name: 'Configuracion', href: '/configuracion', icon: Settings },
 ]
 
