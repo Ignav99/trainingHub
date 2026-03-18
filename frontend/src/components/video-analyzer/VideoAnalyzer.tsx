@@ -1,12 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useSWR from 'swr'
-import type { VideoPartido, VideoAnotacion, DrawingElement } from '@/types'
+import type { VideoAnotacion, DrawingElement } from '@/types'
 import { videoAnotacionesApi } from '@/lib/api/videoAnotaciones'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { X, Camera, Save, Bookmark } from 'lucide-react'
+import { X, Camera, Bookmark, Scissors } from 'lucide-react'
 
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 import { DrawingOverlay } from './DrawingOverlay'
@@ -19,14 +19,43 @@ import { useUndoRedo } from './useUndoRedo'
 import { exportFramePNG, downloadDataUrl, generateThumbnail } from './utils'
 
 interface VideoAnalyzerProps {
-  video: VideoPartido
+  /** Local file loaded from disk */
+  localFile?: File
+  /** Remote video URL (for uploaded videos) */
+  videoUrl?: string
+  videoTitle?: string
+  partidoId: string
   equipoId: string
+  videoId?: string
   onClose: () => void
 }
 
-export function VideoAnalyzer({ video, equipoId, onClose }: VideoAnalyzerProps) {
+export function VideoAnalyzer({
+  localFile,
+  videoUrl,
+  videoTitle,
+  partidoId,
+  equipoId,
+  videoId,
+  onClose,
+}: VideoAnalyzerProps) {
   const playerRef = useRef<VideoPlayerHandle>(null)
   const svgRef = useRef<SVGSVGElement>(null)
+
+  // Create object URL for local file
+  const src = useMemo(() => {
+    if (localFile) return URL.createObjectURL(localFile)
+    return videoUrl || ''
+  }, [localFile, videoUrl])
+
+  // Cleanup object URL
+  useEffect(() => {
+    return () => {
+      if (localFile && src) URL.revokeObjectURL(src)
+    }
+  }, [localFile, src])
+
+  const title = videoTitle || localFile?.name || 'Video'
 
   // Drawing state
   const [tool, setTool] = useState<DrawingTool>('select')
@@ -41,6 +70,11 @@ export function VideoAnalyzer({ video, equipoId, onClose }: VideoAnalyzerProps) 
   const [saving, setSaving] = useState(false)
   const [activeAnotacionId, setActiveAnotacionId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  // Clip cutting state
+  const [clipStart, setClipStart] = useState<number | null>(null)
+  const [clipEnd, setClipEnd] = useState<number | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   // Drawing undo/redo
   const { elements, setElements, undo, redo, reset, canUndo, canRedo } = useUndoRedo()
@@ -57,10 +91,10 @@ export function VideoAnalyzer({ video, equipoId, onClose }: VideoAnalyzerProps) 
     clearAll,
   } = useDrawingEngine({ elements, setElements, color, strokeWidth, tool })
 
-  // Fetch anotaciones
+  // Fetch anotaciones by partido
   const { data: anotacionesData, mutate } = useSWR(
-    `/video-anotaciones/video/${video.id}`,
-    () => videoAnotacionesApi.list(video.id, equipoId)
+    `/video-anotaciones/partido/${partidoId}`,
+    () => videoAnotacionesApi.list(partidoId, equipoId)
   )
   const anotaciones = anotacionesData?.data || []
 
@@ -100,13 +134,14 @@ export function VideoAnalyzer({ video, equipoId, onClose }: VideoAnalyzerProps) 
         try {
           thumbnailData = await generateThumbnail(videoEl, svgEl)
         } catch {
-          // Thumbnail generation may fail cross-origin, continue without it
+          // Thumbnail generation may fail, continue without it
         }
       }
 
       await videoAnotacionesApi.create({
-        video_id: video.id,
+        partido_id: partidoId,
         equipo_id: equipoId,
+        video_id: videoId,
         timestamp_seconds: currentTime,
         titulo,
         descripcion: descripcion || undefined,
@@ -123,7 +158,7 @@ export function VideoAnalyzer({ video, equipoId, onClose }: VideoAnalyzerProps) 
     } finally {
       setSaving(false)
     }
-  }, [video.id, equipoId, currentTime, elements, anotaciones.length, mutate])
+  }, [partidoId, equipoId, videoId, currentTime, elements, anotaciones.length, mutate])
 
   // Delete annotation
   const handleDeleteAnotacion = useCallback(async (id: string) => {
@@ -159,10 +194,120 @@ export function VideoAnalyzer({ video, equipoId, onClose }: VideoAnalyzerProps) 
     }
   }, [currentTime])
 
+  // Clip cutting — mark in/out and export
+  const handleMarkClip = useCallback(() => {
+    if (clipStart === null) {
+      setClipStart(currentTime)
+      toast.success(`Inicio del clip: ${formatSec(currentTime)}`)
+    } else if (clipEnd === null) {
+      if (currentTime <= clipStart) {
+        toast.error('El final debe ser posterior al inicio')
+        return
+      }
+      setClipEnd(currentTime)
+      toast.success(`Clip marcado: ${formatSec(clipStart)} → ${formatSec(currentTime)}`)
+    } else {
+      // Reset
+      setClipStart(currentTime)
+      setClipEnd(null)
+      toast.success(`Nuevo inicio: ${formatSec(currentTime)}`)
+    }
+  }, [clipStart, clipEnd, currentTime])
+
+  const handleExportClip = useCallback(async () => {
+    if (clipStart === null || clipEnd === null) return
+    const videoEl = playerRef.current?.getVideoElement()
+    if (!videoEl) return
+
+    setExporting(true)
+    try {
+      const clipDuration = clipEnd - clipStart
+      if (clipDuration > 120) {
+        toast.error('El clip no puede superar 2 minutos')
+        setExporting(false)
+        return
+      }
+
+      // Use canvas + captureStream + MediaRecorder
+      const canvas = document.createElement('canvas')
+      canvas.width = videoEl.videoWidth || 1280
+      canvas.height = videoEl.videoHeight || 720
+      const ctx = canvas.getContext('2d')!
+      const stream = canvas.captureStream(30)
+      // Add audio track if available
+      const videoStream = (videoEl as any).captureStream?.()
+      if (videoStream) {
+        const audioTracks = videoStream.getAudioTracks()
+        audioTracks.forEach((t: MediaStreamTrack) => stream.addTrack(t))
+      }
+
+      const recorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+          ? 'video/webm;codecs=vp9'
+          : 'video/webm',
+      })
+      const chunks: Blob[] = []
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+
+      const exportDone = new Promise<Blob>((resolve) => {
+        recorder.onstop = () => resolve(new Blob(chunks, { type: 'video/webm' }))
+      })
+
+      // Seek to start, play and record
+      videoEl.currentTime = clipStart
+      await new Promise<void>((r) => { videoEl.onseeked = () => r() })
+      videoEl.muted = true
+      recorder.start()
+      videoEl.play()
+
+      // Render frames to canvas
+      const drawFrame = () => {
+        if (videoEl.currentTime >= clipEnd || videoEl.paused) {
+          recorder.stop()
+          videoEl.pause()
+          return
+        }
+        ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height)
+        requestAnimationFrame(drawFrame)
+      }
+      drawFrame()
+
+      // Failsafe: stop after max time
+      const timeout = setTimeout(() => {
+        if (recorder.state === 'recording') {
+          recorder.stop()
+          videoEl.pause()
+        }
+      }, (clipDuration + 2) * 1000)
+
+      const blob = await exportDone
+      clearTimeout(timeout)
+      videoEl.muted = false
+
+      // Download
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `clip_${formatSec(clipStart)}-${formatSec(clipEnd)}.webm`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      toast.success('Clip exportado')
+      setClipStart(null)
+      setClipEnd(null)
+    } catch (err) {
+      console.error('Clip export error:', err)
+      toast.error('Error al exportar clip')
+    } finally {
+      setExporting(false)
+    }
+  }, [clipStart, clipEnd])
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Don't capture if typing in an input/textarea
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return
 
       switch (e.key) {
@@ -211,6 +356,12 @@ export function VideoAnalyzer({ video, equipoId, onClose }: VideoAnalyzerProps) 
 
   const interactive = !isPlaying && tool !== 'select'
 
+  const clipLabel = clipStart !== null && clipEnd !== null
+    ? `${formatSec(clipStart)} → ${formatSec(clipEnd)}`
+    : clipStart !== null
+    ? `Inicio: ${formatSec(clipStart)} (marca el final)`
+    : 'Marcar inicio'
+
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
       {/* Header */}
@@ -225,11 +376,38 @@ export function VideoAnalyzer({ video, equipoId, onClose }: VideoAnalyzerProps) 
           Cerrar
         </Button>
 
-        <h2 className="text-sm font-medium text-white truncate max-w-[40%]">
-          {video.titulo}
+        <h2 className="text-sm font-medium text-white truncate max-w-[30%]">
+          {title}
         </h2>
 
         <div className="flex items-center gap-1">
+          {/* Clip cutting */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`text-white hover:text-white hover:bg-white/20 ${
+              clipStart !== null ? 'bg-amber-600/30' : ''
+            }`}
+            onClick={handleMarkClip}
+            title={clipLabel}
+          >
+            <Scissors className="h-4 w-4 mr-1" />
+            {clipStart !== null && clipEnd === null ? 'Marcar fin' : 'Cortar'}
+          </Button>
+          {clipStart !== null && clipEnd !== null && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-amber-300 hover:text-amber-200 hover:bg-amber-600/20"
+              onClick={handleExportClip}
+              disabled={exporting}
+            >
+              {exporting ? 'Exportando...' : `Guardar clip (${formatSec(clipEnd - clipStart)})`}
+            </Button>
+          )}
+
+          <div className="w-px h-5 bg-white/20 mx-1" />
+
           <Button
             variant="ghost"
             size="sm"
@@ -266,7 +444,7 @@ export function VideoAnalyzer({ video, equipoId, onClose }: VideoAnalyzerProps) 
               <div className="relative w-full" style={{ maxHeight: '100%', aspectRatio: '16/9' }}>
                 <VideoPlayer
                   ref={playerRef}
-                  src={video.url}
+                  src={src}
                   onTimeUpdate={setCurrentTime}
                   onPlayStateChange={handlePlayStateChange}
                   onDurationChange={setDuration}
@@ -341,4 +519,10 @@ export function VideoAnalyzer({ video, equipoId, onClose }: VideoAnalyzerProps) 
       />
     </div>
   )
+}
+
+function formatSec(s: number): string {
+  const m = Math.floor(s / 60)
+  const sec = Math.floor(s % 60)
+  return `${m}:${sec.toString().padStart(2, '0')}`
 }

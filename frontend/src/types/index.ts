@@ -1688,8 +1688,9 @@ export interface DrawingElement {
 
 export interface VideoAnotacion {
   id: string
-  video_id: string
+  partido_id: string
   equipo_id: string
+  video_id?: string
   timestamp_seconds: number
   titulo: string
   descripcion?: string

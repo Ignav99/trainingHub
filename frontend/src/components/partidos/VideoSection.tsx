@@ -63,9 +63,14 @@ export function VideoSection({ partidoId, equipoId, contexto }: VideoSectionProp
   const [modalType, setModalType] = useState<'veo' | 'enlace_externo' | 'upload' | null>(null)
   const [editVideo, setEditVideo] = useState<VideoPartido | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
-  const [analyzeVideo, setAnalyzeVideo] = useState<VideoPartido | null>(null)
+
+  // Analyzer state: local file OR uploaded video
+  const [analyzerFile, setAnalyzerFile] = useState<File | null>(null)
+  const [analyzerVideo, setAnalyzerVideo] = useState<VideoPartido | null>(null)
+  const analyzerFileRef = useRef<HTMLInputElement>(null)
 
   const videos = data?.data || []
+  const showAnalyzer = analyzerFile !== null || analyzerVideo !== null
 
   const openModal = (type: 'veo' | 'enlace_externo' | 'upload') => {
     setModalType(type)
@@ -86,51 +91,91 @@ export function VideoSection({ partidoId, equipoId, contexto }: VideoSectionProp
     }
   }
 
+  const handleAnalyzeLocal = () => {
+    analyzerFileRef.current?.click()
+  }
+
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    if (!f.type.startsWith('video/')) {
+      toast.error('Solo se permiten archivos de video')
+      return
+    }
+    setAnalyzerFile(f)
+    // Reset input so re-selecting same file works
+    if (analyzerFileRef.current) analyzerFileRef.current.value = ''
+  }
+
+  const closeAnalyzer = () => {
+    setAnalyzerFile(null)
+    setAnalyzerVideo(null)
+  }
+
   return (
     <div className="space-y-3">
+      {/* Hidden file input for local video analysis */}
+      <input
+        ref={analyzerFileRef}
+        type="file"
+        accept="video/*"
+        className="hidden"
+        onChange={handleFileSelected}
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-semibold flex items-center gap-1.5">
           <Video className="h-4 w-4" />
           Videos
         </h4>
-        <div className="relative">
+        <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setShowAddMenu(!showAddMenu)}
+            onClick={handleAnalyzeLocal}
           >
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            Añadir video
+            <ScanSearch className="h-3.5 w-3.5 mr-1" />
+            Analizar video
           </Button>
-          {showAddMenu && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowAddMenu(false)} />
-              <div className="absolute right-0 top-full mt-1 z-50 bg-popover border rounded-md shadow-md py-1 w-48">
-                <button
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2"
-                  onClick={() => openModal('veo')}
-                >
-                  <Play className="h-4 w-4 text-emerald-600" />
-                  Enlace Veo
-                </button>
-                <button
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2"
-                  onClick={() => openModal('enlace_externo')}
-                >
-                  <Link2 className="h-4 w-4 text-blue-600" />
-                  Enlace externo
-                </button>
-                <button
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2"
-                  onClick={() => openModal('upload')}
-                >
-                  <Upload className="h-4 w-4 text-purple-600" />
-                  Subir clip
-                </button>
-              </div>
-            </>
-          )}
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAddMenu(!showAddMenu)}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Añadir video
+            </Button>
+            {showAddMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowAddMenu(false)} />
+                <div className="absolute right-0 top-full mt-1 z-50 bg-popover border rounded-md shadow-md py-1 w-48">
+                  <button
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                    onClick={() => openModal('veo')}
+                  >
+                    <Play className="h-4 w-4 text-emerald-600" />
+                    Enlace Veo
+                  </button>
+                  <button
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                    onClick={() => openModal('enlace_externo')}
+                  >
+                    <Link2 className="h-4 w-4 text-blue-600" />
+                    Enlace externo
+                  </button>
+                  <button
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                    onClick={() => openModal('upload')}
+                  >
+                    <Upload className="h-4 w-4 text-purple-600" />
+                    Subir clip
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -148,7 +193,7 @@ export function VideoSection({ partidoId, equipoId, contexto }: VideoSectionProp
               video={video}
               onEdit={() => setEditVideo(video)}
               onDelete={() => handleDelete(video)}
-              onAnalyze={video.tipo === 'upload' ? () => setAnalyzeVideo(video) : undefined}
+              onAnalyze={video.tipo === 'upload' ? () => setAnalyzerVideo(video) : undefined}
               deleting={deleting === video.id}
             />
           ))}
@@ -193,12 +238,16 @@ export function VideoSection({ partidoId, equipoId, contexto }: VideoSectionProp
           onSuccess={() => { setEditVideo(null); mutate() }}
         />
       )}
-      {analyzeVideo && (
+      {showAnalyzer && (
         <Suspense fallback={null}>
           <VideoAnalyzer
-            video={analyzeVideo}
+            localFile={analyzerFile || undefined}
+            videoUrl={analyzerVideo?.url}
+            videoTitle={analyzerVideo?.titulo}
+            videoId={analyzerVideo?.id}
+            partidoId={partidoId}
             equipoId={equipoId}
-            onClose={() => setAnalyzeVideo(null)}
+            onClose={closeAnalyzer}
           />
         </Suspense>
       )}

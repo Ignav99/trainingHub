@@ -11,8 +11,9 @@ from pydantic import BaseModel
 
 
 class VideoAnotacionCreate(BaseModel):
-    video_id: UUID
+    partido_id: UUID
     equipo_id: UUID
+    video_id: Optional[UUID] = None
     timestamp_seconds: float = 0
     titulo: str
     descripcion: Optional[str] = None
@@ -32,8 +33,9 @@ class VideoAnotacionUpdate(BaseModel):
 
 class VideoAnotacionResponse(BaseModel):
     id: UUID
-    video_id: UUID
+    partido_id: UUID
     equipo_id: UUID
+    video_id: Optional[UUID] = None
     timestamp_seconds: float
     titulo: str
     descripcion: Optional[str] = None

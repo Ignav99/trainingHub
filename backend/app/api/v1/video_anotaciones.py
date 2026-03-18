@@ -23,21 +23,21 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-# ============ LIST by video ============
+# ============ LIST by partido ============
 
-@router.get("/video/{video_id}")
+@router.get("/partido/{partido_id}")
 async def list_anotaciones(
-    video_id: UUID,
+    partido_id: UUID,
     equipo_id: UUID = Query(...),
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
-    """Lista anotaciones de un video, ordenadas por timestamp."""
+    """Lista anotaciones de un partido, ordenadas por timestamp."""
     supabase = get_supabase()
 
     result = (
         supabase.table("video_anotaciones")
         .select("*")
-        .eq("video_id", str(video_id))
+        .eq("partido_id", str(partido_id))
         .eq("equipo_id", str(equipo_id))
         .order("timestamp_seconds", desc=False)
         .execute()
@@ -55,20 +55,20 @@ async def create_anotacion(
     """Crea una nueva anotación sobre un video."""
     supabase = get_supabase()
 
-    # Verify video exists and belongs to team
+    # Verify partido exists and belongs to team
     existing = (
-        supabase.table("videos_partido")
+        supabase.table("partidos")
         .select("id")
-        .eq("id", str(data.video_id))
+        .eq("id", str(data.partido_id))
         .eq("equipo_id", str(data.equipo_id))
         .limit(1)
         .execute()
     )
     if not existing.data:
-        raise HTTPException(status_code=404, detail="Video no encontrado.")
+        raise HTTPException(status_code=404, detail="Partido no encontrado.")
 
     row = {
-        "video_id": str(data.video_id),
+        "partido_id": str(data.partido_id),
         "equipo_id": str(data.equipo_id),
         "timestamp_seconds": data.timestamp_seconds,
         "titulo": data.titulo,
@@ -77,6 +77,8 @@ async def create_anotacion(
         "thumbnail_data": data.thumbnail_data,
         "orden": data.orden,
     }
+    if data.video_id:
+        row["video_id"] = str(data.video_id)
 
     result = supabase.table("video_anotaciones").insert(row).execute()
     return result.data[0]

@@ -2,8 +2,9 @@ import { api } from './client'
 import type { VideoAnotacion } from '@/types'
 
 export interface VideoAnotacionCreateData {
-  video_id: string
+  partido_id: string
   equipo_id: string
+  video_id?: string
   timestamp_seconds: number
   titulo: string
   descripcion?: string
@@ -22,8 +23,8 @@ export interface VideoAnotacionUpdateData {
 }
 
 export const videoAnotacionesApi = {
-  async list(videoId: string, equipoId: string): Promise<{ data: VideoAnotacion[] }> {
-    return api.get<{ data: VideoAnotacion[] }>(`/video-anotaciones/video/${videoId}`, {
+  async list(partidoId: string, equipoId: string): Promise<{ data: VideoAnotacion[] }> {
+    return api.get<{ data: VideoAnotacion[] }>(`/video-anotaciones/partido/${partidoId}`, {
       params: { equipo_id: equipoId },
     })
   },
