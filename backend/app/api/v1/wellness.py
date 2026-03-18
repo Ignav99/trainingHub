@@ -252,11 +252,12 @@ async def update_wellness(
         "humor": data.humor,
     }
 
-    response = supabase.table("registros_rpe").update(update_data).eq("id", wid).select("*").execute()
+    supabase.table("registros_rpe").update(update_data).eq("id", wid).execute()
+    response = supabase.table("registros_rpe").select("*").eq("id", wid).single().execute()
     if not response.data:
         raise HTTPException(status_code=400, detail="Error al actualizar registro")
 
-    updated = response.data[0]
+    updated = response.data
     updated["total"] = _wellness_total(updated)
     return updated
 

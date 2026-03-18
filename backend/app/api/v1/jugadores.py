@@ -192,14 +192,15 @@ async def update_jugador(jugador_id: UUID, jugador: JugadorUpdate, auth: AuthCon
     if not data:
         raise HTTPException(status_code=400, detail="No hay campos válidos para actualizar")
 
-    response = supabase.table("jugadores").update(data).eq("id", str(jugador_id)).select("*").execute()
+    supabase.table("jugadores").update(data).eq("id", str(jugador_id)).execute()
+    response = supabase.table("jugadores").select("*").eq("id", str(jugador_id)).single().execute()
 
     if not response.data:
         raise HTTPException(status_code=404, detail="Jugador no encontrado")
 
     log_update(auth.user_id, "jugador", str(jugador_id), datos_nuevos=data)
 
-    return JugadorResponse(**enrich_jugador(response.data[0]))
+    return JugadorResponse(**enrich_jugador(response.data))
 
 
 @router.delete("/{jugador_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -251,21 +252,22 @@ async def update_estado_jugador(
         data["fecha_vuelta_estimada"] = None
         data["motivo_baja"] = None
 
-    response = supabase.table("jugadores").update(data).eq("id", str(jugador_id)).select("*").execute()
+    supabase.table("jugadores").update(data).eq("id", str(jugador_id)).execute()
+    response = supabase.table("jugadores").select("*").eq("id", str(jugador_id)).single().execute()
 
     if not response.data:
         raise HTTPException(status_code=404, detail="Jugador no encontrado")
 
     # Notify staff if player was marked as injured
     if estado == "lesionado":
-        jugador_data = response.data[0]
+        jugador_data = response.data
         notify_jugador_lesion(
             jugador_nombre=f"{jugador_data.get('nombre', '')} {jugador_data.get('apellidos', '')}".strip(),
             equipo_id=jugador_data["equipo_id"],
             jugador_id=str(jugador_id),
         )
 
-    return {"message": "Estado actualizado", "jugador": enrich_jugador(response.data[0])}
+    return {"message": "Estado actualizado", "jugador": enrich_jugador(response.data)}
 
 
 @router.get("/equipo/{equipo_id}/estadisticas")

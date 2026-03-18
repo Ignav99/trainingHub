@@ -378,9 +378,18 @@ async def update_rpe(
     if new_rpe and new_dur:
         update_data["carga_sesion"] = round(new_rpe * new_dur, 1)
 
-    response = supabase.table("registros_rpe").update(update_data).eq(
+    # Serialize date to string for Supabase
+    if "fecha" in update_data and hasattr(update_data["fecha"], "isoformat"):
+        update_data["fecha"] = update_data["fecha"].isoformat()
+
+    supabase.table("registros_rpe").update(update_data).eq(
         "id", str(rpe_id)
-    ).select("*").execute()
+    ).execute()
+
+    # Re-fetch updated row
+    response = supabase.table("registros_rpe").select("*").eq(
+        "id", str(rpe_id)
+    ).single().execute()
 
     if not response.data:
         raise HTTPException(
@@ -391,7 +400,7 @@ async def update_rpe(
     # Auto-recalculate player load in background
     bg.add_task(_recalc_jugador, existing.data["jugador_id"])
 
-    return RPEResponse(**response.data[0])
+    return RPEResponse(**response.data)
 
 
 @router.delete("/{rpe_id}", status_code=status.HTTP_204_NO_CONTENT)
