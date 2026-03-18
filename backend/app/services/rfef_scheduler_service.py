@@ -677,8 +677,54 @@ def start_scheduler():
     logger.info("RFAF scheduler started with %d jobs", len(scheduler.get_jobs()))
 
 
+def _auto_complete_sessions():
+    """Auto-complete 'planificada' sessions whose date has passed (run before load recalc).
+
+    A session is auto-completed if:
+    - estado = 'planificada'
+    - fecha < today (the training day is over)
+    """
+    from datetime import date as date_type
+
+    supabase = get_supabase()
+    today = date_type.today().isoformat()
+
+    try:
+        # Fetch all planificada sessions with fecha before today
+        resp = supabase.table("sesiones").select("id, fecha, hora").eq(
+            "estado", "planificada"
+        ).lt("fecha", today).execute()
+
+        if not resp.data:
+            return 0
+
+        count = 0
+        for ses in resp.data:
+            try:
+                supabase.table("sesiones").update(
+                    {"estado": "completada"}
+                ).eq("id", ses["id"]).execute()
+                count += 1
+            except Exception as e:
+                logger.warning("Failed to auto-complete session %s: %s", ses["id"], e)
+
+        if count:
+            logger.info("Auto-completed %d sessions (planificada → completada)", count)
+        return count
+    except Exception as e:
+        logger.error("Error in auto-complete sessions: %s", e, exc_info=True)
+        return 0
+
+
 async def _daily_load_recalc():
-    """Daily recalculation of training load for all teams."""
+    """Auto-complete past sessions, then recalculate training load for all teams."""
+    # Step 1: auto-complete planificada sessions from yesterday or earlier
+    try:
+        _auto_complete_sessions()
+    except Exception as e:
+        logger.error("Error auto-completing sessions: %s", e, exc_info=True)
+
+    # Step 2: recalculate loads (only uses completada sessions)
     try:
         count = recalculate_all_teams()
         logger.info("Daily load recalc completed: %d teams", count)
