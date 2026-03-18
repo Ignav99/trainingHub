@@ -50,7 +50,7 @@ def _ensure_video_bucket(supabase) -> None:
 async def list_videos(
     partido_id: UUID,
     contexto: str | None = None,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_READ)),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
     """Lista videos de un partido, opcionalmente filtrado por contexto."""
     supabase = get_supabase()
@@ -77,7 +77,7 @@ async def list_videos(
 @router.post("/link", status_code=201)
 async def add_video_link(
     data: VideoPartidoCreate,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
 ):
     """Añade un enlace de video (Veo o externo) a un partido."""
     if data.tipo not in ("veo", "enlace_externo"):
@@ -127,7 +127,7 @@ async def upload_video_clip(
     titulo: str = Form(...),
     descripcion: str = Form(None),
     file: UploadFile = File(...),
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
 ):
     """Sube un clip de video corto (máx 50MB) a Supabase Storage."""
     if contexto not in VALID_CONTEXTOS:
@@ -199,7 +199,7 @@ async def upload_video_clip(
 async def update_video(
     video_id: UUID,
     data: VideoPartidoUpdate,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
 ):
     """Actualiza título/descripción de un video."""
     supabase = get_supabase()
@@ -236,7 +236,7 @@ async def update_video(
 @router.delete("/{video_id}")
 async def delete_video(
     video_id: UUID,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
 ):
     """Elimina un video. Si es upload, también elimina del storage."""
     supabase = get_supabase()
