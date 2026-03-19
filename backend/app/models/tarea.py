@@ -167,8 +167,11 @@ class TareaBase(BaseModel):
 
 
 class TareaCreate(TareaBase):
-    """Schema para crear tarea."""
-    categoria_id: UUID
+    """Schema para crear tarea.
+    categoria_id accepts either a UUID or a category codigo (e.g. 'JDP').
+    The endpoint resolves codigos to UUIDs before inserting.
+    """
+    categoria_id: str  # UUID or codigo — resolved in endpoint
     equipo_id: Optional[UUID] = None  # None = disponible para toda la org
 
 

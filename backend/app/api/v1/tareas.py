@@ -270,8 +270,24 @@ async def create_tarea(
     if "es_publica" not in tarea_data:
         tarea_data["es_publica"] = True
 
-    # Convertir UUIDs a strings
-    tarea_data["categoria_id"] = str(tarea_data["categoria_id"])
+    # Resolve categoria_id: accept UUID or codigo string
+    cat_id_raw = tarea_data["categoria_id"]
+    try:
+        from uuid import UUID as _UUID
+        _UUID(cat_id_raw)
+        # Already a valid UUID
+        tarea_data["categoria_id"] = cat_id_raw
+    except (ValueError, AttributeError):
+        # It's a codigo — look up the real UUID
+        cat_response = supabase.table("categorias_tarea").select("id").eq(
+            "codigo", cat_id_raw
+        ).maybe_single().execute()
+        if not cat_response.data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Categoría '{cat_id_raw}' no encontrada"
+            )
+        tarea_data["categoria_id"] = cat_response.data["id"]
     if tarea_data.get("equipo_id"):
         tarea_data["equipo_id"] = str(tarea_data["equipo_id"])
     
