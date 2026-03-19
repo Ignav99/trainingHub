@@ -1221,6 +1221,8 @@ export default function SesionDetailPage() {
     setAddedFases(prev => { const next = new Set(prev); next.delete(fase); return next })
   }
 
+  const saveBatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const saveTareasBatch = async (newTareas: SesionTarea[]) => {
     setSavingTareas(true)
     try {
@@ -1240,6 +1242,11 @@ export default function SesionDetailPage() {
       setSavingTareas(false)
     }
   }
+
+  const debouncedSaveTareasBatch = useCallback((tareas: SesionTarea[]) => {
+    if (saveBatchTimerRef.current) clearTimeout(saveBatchTimerRef.current)
+    saveBatchTimerRef.current = setTimeout(() => saveTareasBatch(tareas), 600)
+  }, [sesionId])
 
   const handleAddTarea = async (tarea: Tarea, fase: FaseSesion) => {
     const existingInFase = tareasByFase[fase] || []
@@ -2128,7 +2135,7 @@ export default function SesionDetailPage() {
                                           placeholder="CT..."
                                           value={st.responsable || ''}
                                           onChange={(e) => handleUpdateTareaResponsable(st.id, e.target.value)}
-                                          onBlur={() => saveTareasBatch(allTareas)}
+                                          onBlur={() => debouncedSaveTareasBatch(allTareas)}
                                         />
                                         <datalist id={`staff-${st.id}`}>
                                           {staffOptions.map(name => <option key={name} value={name} />)}
@@ -2140,7 +2147,7 @@ export default function SesionDetailPage() {
                                       placeholder="Notas de la tarea..."
                                       value={st.notas || ''}
                                       onChange={(e) => handleUpdateTareaNotas(st.id, e.target.value)}
-                                      onBlur={() => saveTareasBatch(allTareas)}
+                                      onBlur={() => debouncedSaveTareasBatch(allTareas)}
                                     />
                                   </div>
                                   <div className="flex items-center gap-1">
