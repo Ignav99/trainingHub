@@ -124,7 +124,7 @@ async def list_tareas(
     # Aplicar filtros
     if categoria:
         # Obtener ID de categoría
-        cat = supabase.table("categorias_tarea").select("id").eq("codigo", categoria).single().execute()
+        cat = supabase.table("categorias_tarea").select("id").eq("codigo", categoria).maybe_single().execute()
         if cat.data:
             query = query.eq("categoria_id", cat.data["id"])
     
@@ -221,7 +221,7 @@ async def get_tarea(
 
     response = supabase.table("tareas").select(
         "*, categorias_tarea(*)"
-    ).eq("id", str(tarea_id)).single().execute()
+    ).eq("id", str(tarea_id)).maybe_single().execute()
 
     if not response.data:
         raise HTTPException(
@@ -308,7 +308,7 @@ async def create_tarea(
     # Obtener con relaciones
     tarea_completa = supabase.table("tareas").select(
         "*, categorias_tarea(*)"
-    ).eq("id", response.data[0]["id"]).single().execute()
+    ).eq("id", response.data[0]["id"]).maybe_single().execute()
     
     return TareaResponse(**tarea_completa.data)
 
@@ -327,7 +327,7 @@ async def update_tarea(
     supabase = get_supabase()
     
     # Verificar que existe y pertenece al usuario
-    existing = supabase.table("tareas").select("*").eq("id", str(tarea_id)).single().execute()
+    existing = supabase.table("tareas").select("*").eq("id", str(tarea_id)).maybe_single().execute()
     
     if not existing.data:
         raise HTTPException(
@@ -362,7 +362,7 @@ async def update_tarea(
     # Obtener con relaciones
     tarea_completa = supabase.table("tareas").select(
         "*, categorias_tarea(*)"
-    ).eq("id", str(tarea_id)).single().execute()
+    ).eq("id", str(tarea_id)).maybe_single().execute()
     
     return TareaResponse(**tarea_completa.data)
 
@@ -381,7 +381,7 @@ async def delete_tarea(
     supabase = get_supabase()
     
     # Verificar que existe
-    existing = supabase.table("tareas").select("*").eq("id", str(tarea_id)).single().execute()
+    existing = supabase.table("tareas").select("*").eq("id", str(tarea_id)).maybe_single().execute()
     
     if not existing.data:
         raise HTTPException(
@@ -418,7 +418,7 @@ async def duplicar_tarea(
     supabase = get_supabase()
 
     # Obtener tarea original
-    original = supabase.table("tareas").select("*").eq("id", str(tarea_id)).single().execute()
+    original = supabase.table("tareas").select("*").eq("id", str(tarea_id)).maybe_single().execute()
 
     if not original.data:
         raise HTTPException(
@@ -449,7 +449,7 @@ async def duplicar_tarea(
     # Obtener con relaciones
     tarea_completa = supabase.table("tareas").select(
         "*, categorias_tarea(*)"
-    ).eq("id", response.data[0]["id"]).single().execute()
+    ).eq("id", response.data[0]["id"]).maybe_single().execute()
 
     return TareaResponse(**tarea_completa.data)
 
@@ -533,7 +533,7 @@ async def create_tarea_from_ai(
     # Buscar el ID de la categoría por código
     cat_response = supabase.table("categorias_tarea").select("id").eq(
         "codigo", tarea_ai.categoria_codigo
-    ).single().execute()
+    ).maybe_single().execute()
 
     if not cat_response.data:
         raise HTTPException(
@@ -648,7 +648,7 @@ async def create_tarea_from_ai(
     # Obtener con relaciones
     tarea_completa = supabase.table("tareas").select(
         "*, categorias_tarea(*)"
-    ).eq("id", response.data[0]["id"]).single().execute()
+    ).eq("id", response.data[0]["id"]).maybe_single().execute()
 
     return TareaResponse(**tarea_completa.data)
 
@@ -665,14 +665,14 @@ async def generate_tarea_pdf_endpoint(
 
     tarea_resp = supabase.table("tareas").select(
         "*, categorias_tarea(*)"
-    ).eq("id", str(tarea_id)).single().execute()
+    ).eq("id", str(tarea_id)).maybe_single().execute()
 
     if not tarea_resp.data:
         raise HTTPException(status_code=404, detail="Tarea no encontrada")
 
     org_resp = supabase.table("organizaciones").select("*").eq(
         "id", tarea_resp.data["organizacion_id"]
-    ).single().execute()
+    ).maybe_single().execute()
 
     pdf_bytes = await asyncio.to_thread(
         gen_pdf,
