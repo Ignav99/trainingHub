@@ -1294,7 +1294,7 @@ async def generar_equipos_tarea(
     # Get sesion_tarea with its linked tarea
     st_response = supabase.table("sesion_tareas").select(
         "*, tareas(estructura_equipos)"
-    ).eq("id", str(sesion_tarea_id)).eq("sesion_id", str(sesion_id)).single().execute()
+    ).eq("id", str(sesion_tarea_id)).eq("sesion_id", str(sesion_id)).maybe_single().execute()
 
     if not st_response.data:
         raise HTTPException(status_code=404, detail="Tarea de sesion no encontrada")
@@ -1358,7 +1358,7 @@ async def update_formacion_tarea(
     # Verify sesion_tarea exists
     st_response = supabase.table("sesion_tareas").select("id").eq(
         "id", str(sesion_tarea_id)
-    ).eq("sesion_id", str(sesion_id)).single().execute()
+    ).eq("sesion_id", str(sesion_id)).maybe_single().execute()
 
     if not st_response.data:
         raise HTTPException(status_code=404, detail="Tarea de sesion no encontrada")
