@@ -7,8 +7,7 @@ interface ClipBarProps {
   clip: Clip
   isActive: boolean
   timeToPercent: (t: number) => number
-  percentToTime: (pct: number) => number
-  containerWidth: number
+  xToTime: (clientX: number) => number
   duration: number
   onUpdate: (id: string, patch: Partial<Omit<Clip, 'id'>>) => void
   onSelect: (id: string) => void
@@ -21,8 +20,7 @@ export function ClipBar({
   clip,
   isActive,
   timeToPercent,
-  percentToTime,
-  containerWidth,
+  xToTime,
   duration,
   onUpdate,
   onSelect,
@@ -32,7 +30,7 @@ export function ClipBar({
   const [editTitle, setEditTitle] = useState(clip.title)
   const dragRef = useRef<{
     edge: ClipDragEdge
-    startX: number
+    grabTime: number
     startStart: number
     startEnd: number
   } | null>(null)
@@ -48,7 +46,7 @@ export function ClipBar({
 
       dragRef.current = {
         edge,
-        startX: e.clientX,
+        grabTime: xToTime(e.clientX),
         startStart: clip.startTime,
         startEnd: clip.endTime,
       }
@@ -56,9 +54,10 @@ export function ClipBar({
 
       const handleMove = (ev: PointerEvent) => {
         if (!dragRef.current) return
-        const { edge: dragEdge, startX, startStart, startEnd } = dragRef.current
-        const dx = ev.clientX - startX
-        const dt = (dx / containerWidth) * duration
+        const { edge: dragEdge, grabTime, startStart, startEnd } = dragRef.current
+        // Position-based: convert pointer position to time directly
+        const currentTime = xToTime(ev.clientX)
+        const dt = currentTime - grabTime
 
         if (dragEdge === 'start') {
           const newStart = Math.max(0, Math.min(startEnd - MIN_CLIP_DURATION, startStart + dt))
@@ -84,7 +83,7 @@ export function ClipBar({
       document.addEventListener('pointermove', handleMove)
       document.addEventListener('pointerup', handleUp)
     },
-    [clip.id, clip.startTime, clip.endTime, containerWidth, duration, onUpdate, onSelect]
+    [clip.id, clip.startTime, clip.endTime, xToTime, duration, onUpdate, onSelect]
   )
 
   // Cleanup on unmount (safety)
@@ -157,13 +156,15 @@ export function ClipBar({
 
       {/* Left handle */}
       <div
-        className="absolute left-0 top-0 w-[6px] h-full cursor-ew-resize z-10 hover:bg-white/30"
+        className="absolute left-0 top-0 w-[8px] h-full cursor-ew-resize z-10 hover:bg-white/30"
+        style={{ touchAction: 'none' }}
         onPointerDown={(e) => handlePointerDown(e, 'start')}
       />
 
       {/* Right handle */}
       <div
-        className="absolute right-0 top-0 w-[6px] h-full cursor-ew-resize z-10 hover:bg-white/30"
+        className="absolute right-0 top-0 w-[8px] h-full cursor-ew-resize z-10 hover:bg-white/30"
+        style={{ touchAction: 'none' }}
         onPointerDown={(e) => handlePointerDown(e, 'end')}
       />
     </div>

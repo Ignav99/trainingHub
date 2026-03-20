@@ -273,8 +273,7 @@ export function Timeline({
                   clip={clip}
                   isActive={activeClipId === clip.id}
                   timeToPercent={timeToPercent}
-                  percentToTime={percentToTime}
-                  containerWidth={containerWidth}
+                  xToTime={xToTime}
                   duration={duration}
                   onUpdate={onClipUpdate}
                   onSelect={onClipSelect}
