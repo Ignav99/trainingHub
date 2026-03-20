@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 import type { DrawingElement } from '@/types'
-import type { Clip, DrawingTool } from './types'
+import type { Clip, DrawingTool, FreezeFrame, ViewMode } from './types'
 import { CLIP_COLORS } from './types'
 import { generateId } from './utils'
 
@@ -23,10 +23,12 @@ interface VideoAnalyzerState {
   clips: Clip[]
   activeClipId: string | null
 
+  // View mode
+  viewMode: ViewMode
+  editingClipId: string | null
+
   // UI
-  showSaveDialog: boolean
   exportingClipId: string | null
-  sidebarTab: 'moments' | 'clips'
 
   // Video actions
   setSrc: (src: string) => void
@@ -46,11 +48,20 @@ interface VideoAnalyzerState {
   updateClip: (id: string, patch: Partial<Omit<Clip, 'id'>>) => void
   removeClip: (id: string) => void
   setActiveClipId: (id: string | null) => void
+  mergeClips: (ids: string[]) => void
+
+  // View mode actions
+  setViewMode: (mode: ViewMode) => void
+  enterClipEditor: (clipId: string) => void
+  exitClipEditor: () => void
+
+  // Freeze frame actions
+  addFreezeFrame: (clipId: string, frame: FreezeFrame) => void
+  updateFreezeFrame: (clipId: string, frameId: string, patch: Partial<Omit<FreezeFrame, 'id'>>) => void
+  removeFreezeFrame: (clipId: string, frameId: string) => void
 
   // UI actions
-  setShowSaveDialog: (v: boolean) => void
   setExportingClipId: (id: string | null) => void
-  setSidebarTab: (tab: 'moments' | 'clips') => void
 }
 
 export const useVideoAnalyzerStore = create<VideoAnalyzerState>((set, get) => ({
@@ -70,10 +81,12 @@ export const useVideoAnalyzerStore = create<VideoAnalyzerState>((set, get) => ({
   clips: [],
   activeClipId: null,
 
+  // View mode
+  viewMode: 'general',
+  editingClipId: null,
+
   // UI
-  showSaveDialog: false,
   exportingClipId: null,
-  sidebarTab: 'moments',
 
   // Video actions
   setSrc: (src) => set({ src }),
@@ -106,8 +119,9 @@ export const useVideoAnalyzerStore = create<VideoAnalyzerState>((set, get) => ({
       startTime,
       endTime,
       color: CLIP_COLORS[colorIdx],
+      freezeFrames: [],
     }
-    set({ clips: [...clips, clip], activeClipId: clip.id, sidebarTab: 'clips' })
+    set({ clips: [...clips, clip], activeClipId: clip.id })
     return clip
   },
   updateClip: (id, patch) => {
@@ -116,16 +130,77 @@ export const useVideoAnalyzerStore = create<VideoAnalyzerState>((set, get) => ({
     })
   },
   removeClip: (id) => {
-    const { clips, activeClipId } = get()
-    set({
+    const { clips, activeClipId, editingClipId } = get()
+    const updates: Partial<VideoAnalyzerState> = {
       clips: clips.filter((c) => c.id !== id),
       activeClipId: activeClipId === id ? null : activeClipId,
-    })
+    }
+    // If we're editing this clip, exit clip editor
+    if (editingClipId === id) {
+      updates.viewMode = 'general'
+      updates.editingClipId = null
+    }
+    set(updates)
   },
   setActiveClipId: (activeClipId) => set({ activeClipId }),
 
+  mergeClips: (ids) => {
+    const { clips } = get()
+    const toMerge = clips.filter((c) => ids.includes(c.id)).sort((a, b) => a.startTime - b.startTime)
+    if (toMerge.length < 2) return
+
+    const merged: Clip = {
+      id: generateId(),
+      title: toMerge.map((c) => c.title).join(' + '),
+      startTime: toMerge[0].startTime,
+      endTime: toMerge[toMerge.length - 1].endTime,
+      color: toMerge[0].color,
+      freezeFrames: toMerge.flatMap((c) => c.freezeFrames),
+    }
+
+    const remaining = clips.filter((c) => !ids.includes(c.id))
+    set({ clips: [...remaining, merged], activeClipId: merged.id })
+  },
+
+  // View mode actions
+  setViewMode: (viewMode) => set({ viewMode }),
+  enterClipEditor: (clipId) => set({ viewMode: 'clip-editor', editingClipId: clipId, activeClipId: clipId }),
+  exitClipEditor: () => set({ viewMode: 'general', editingClipId: null }),
+
+  // Freeze frame actions
+  addFreezeFrame: (clipId, frame) => {
+    set({
+      clips: get().clips.map((c) =>
+        c.id === clipId
+          ? { ...c, freezeFrames: [...c.freezeFrames, frame] }
+          : c
+      ),
+    })
+  },
+  updateFreezeFrame: (clipId, frameId, patch) => {
+    set({
+      clips: get().clips.map((c) =>
+        c.id === clipId
+          ? {
+              ...c,
+              freezeFrames: c.freezeFrames.map((f) =>
+                f.id === frameId ? { ...f, ...patch } : f
+              ),
+            }
+          : c
+      ),
+    })
+  },
+  removeFreezeFrame: (clipId, frameId) => {
+    set({
+      clips: get().clips.map((c) =>
+        c.id === clipId
+          ? { ...c, freezeFrames: c.freezeFrames.filter((f) => f.id !== frameId) }
+          : c
+      ),
+    })
+  },
+
   // UI actions
-  setShowSaveDialog: (showSaveDialog) => set({ showSaveDialog }),
   setExportingClipId: (exportingClipId) => set({ exportingClipId }),
-  setSidebarTab: (sidebarTab) => set({ sidebarTab }),
 }))

@@ -1,4 +1,16 @@
+import type { DrawingElement } from '@/types'
+
 export type DrawingTool = 'select' | 'arrow' | 'line' | 'circle' | 'rect' | 'freehand' | 'text'
+
+export type ViewMode = 'general' | 'clip-editor'
+
+export interface FreezeFrame {
+  id: string
+  timestamp: number       // second within the clip where the freeze is inserted
+  duration: number        // how long the freeze lasts in seconds (default 3)
+  imageData: string       // data URL of the captured frame
+  drawings: DrawingElement[]  // drawings on top of the frame
+}
 
 export interface Clip {
   id: string
@@ -6,6 +18,7 @@ export interface Clip {
   startTime: number
   endTime: number
   color: string
+  freezeFrames: FreezeFrame[]
 }
 
 export type ClipDragEdge = 'start' | 'end' | 'body'

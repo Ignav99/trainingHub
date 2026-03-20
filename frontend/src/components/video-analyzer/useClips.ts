@@ -3,7 +3,8 @@
 import { useCallback } from 'react'
 import { toast } from 'sonner'
 import { useVideoAnalyzerStore } from './useVideoAnalyzerStore'
-import { formatTime } from './utils'
+import { formatTime, generateId } from './utils'
+import type { FreezeFrame } from './types'
 
 export function useClips() {
   const clips = useVideoAnalyzerStore((s) => s.clips)
@@ -14,6 +15,10 @@ export function useClips() {
   const setActiveClipId = useVideoAnalyzerStore((s) => s.setActiveClipId)
   const setExportingClipId = useVideoAnalyzerStore((s) => s.setExportingClipId)
   const duration = useVideoAnalyzerStore((s) => s.duration)
+  const mergeClipsAction = useVideoAnalyzerStore((s) => s.mergeClips)
+  const addFreezeFrame = useVideoAnalyzerStore((s) => s.addFreezeFrame)
+  const updateFreezeFrame = useVideoAnalyzerStore((s) => s.updateFreezeFrame)
+  const removeFreezeFrame = useVideoAnalyzerStore((s) => s.removeFreezeFrame)
 
   const createClipAtTime = useCallback(
     (time: number) => {
@@ -49,6 +54,43 @@ export function useClips() {
       toast.success('Clip eliminado')
     },
     [removeClip]
+  )
+
+  const mergeClips = useCallback(
+    (ids: string[]) => {
+      if (ids.length < 2) {
+        toast.error('Selecciona al menos 2 clips para unir')
+        return
+      }
+      mergeClipsAction(ids)
+      toast.success('Clips unidos')
+    },
+    [mergeClipsAction]
+  )
+
+  const captureFreezeFrame = useCallback(
+    (clipId: string, timestamp: number, videoElement: HTMLVideoElement) => {
+      const canvas = document.createElement('canvas')
+      canvas.width = videoElement.videoWidth || 1280
+      canvas.height = videoElement.videoHeight || 720
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+
+      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height)
+      const imageData = canvas.toDataURL('image/jpeg', 0.8)
+
+      const frame: FreezeFrame = {
+        id: generateId(),
+        timestamp,
+        duration: 3,
+        imageData,
+        drawings: [],
+      }
+
+      addFreezeFrame(clipId, frame)
+      toast.success('Freeze frame capturado')
+    },
+    [addFreezeFrame]
   )
 
   const exportClip = useCallback(
@@ -96,6 +138,9 @@ export function useClips() {
           recorder.onstop = () => resolve(new Blob(chunks, { type: 'video/webm' }))
         })
 
+        // Sort freeze frames by timestamp
+        const sortedFreezes = [...clip.freezeFrames].sort((a, b) => a.timestamp - b.timestamp)
+
         // Seek to start
         videoElement.currentTime = clip.startTime
         await new Promise<void>((r) => {
@@ -107,12 +152,61 @@ export function useClips() {
         recorder.start()
         videoElement.play()
 
+        // Calculate total duration including freeze frames for safety timeout
+        const totalFreezeTime = sortedFreezes.reduce((sum, ff) => sum + ff.duration, 0)
+        let currentFreezeIdx = 0
+        let isFreezing = false
+
         const drawFrame = () => {
+          if (recorder.state !== 'recording') return
+
+          // Check if we've hit a freeze frame timestamp
+          if (!isFreezing && currentFreezeIdx < sortedFreezes.length) {
+            const nextFreeze = sortedFreezes[currentFreezeIdx]
+            if (videoElement.currentTime >= nextFreeze.timestamp) {
+              // Start freeze: pause video, draw freeze frame image
+              isFreezing = true
+              videoElement.pause()
+
+              const freezeImg = new Image()
+              freezeImg.onload = () => {
+                const freezeDurationMs = nextFreeze.duration * 1000
+                const freezeStart = performance.now()
+
+                const drawFreezeFrame = () => {
+                  if (recorder.state !== 'recording') return
+                  ctx.drawImage(freezeImg, 0, 0, canvas.width, canvas.height)
+
+                  // Draw overlay drawings if any
+                  if (nextFreeze.drawings.length > 0) {
+                    // Drawings are baked into imageData during capture, skip for now
+                  }
+
+                  if (performance.now() - freezeStart < freezeDurationMs) {
+                    requestAnimationFrame(drawFreezeFrame)
+                  } else {
+                    // Freeze done, resume video
+                    isFreezing = false
+                    currentFreezeIdx++
+                    videoElement.play()
+                    requestAnimationFrame(drawFrame)
+                  }
+                }
+                requestAnimationFrame(drawFreezeFrame)
+              }
+              freezeImg.src = nextFreeze.imageData
+              return
+            }
+          }
+
           if (videoElement.currentTime >= clip.endTime || videoElement.paused) {
-            recorder.stop()
-            videoElement.pause()
+            if (!isFreezing) {
+              recorder.stop()
+              videoElement.pause()
+            }
             return
           }
+
           ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height)
           requestAnimationFrame(drawFrame)
         }
@@ -123,7 +217,7 @@ export function useClips() {
             recorder.stop()
             videoElement.pause()
           }
-        }, (clipDuration + 2) * 1000)
+        }, (clipDuration + totalFreezeTime + 2) * 1000)
 
         const blob = await exportDone
         clearTimeout(timeout)
@@ -159,5 +253,9 @@ export function useClips() {
     updateClip,
     deleteClip,
     exportClip,
+    mergeClips,
+    captureFreezeFrame,
+    updateFreezeFrame,
+    removeFreezeFrame,
   }
 }

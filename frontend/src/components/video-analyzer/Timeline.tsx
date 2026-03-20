@@ -1,8 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { VideoAnotacion } from '@/types'
-import type { Clip } from './types'
+import type { Clip, FreezeFrame } from './types'
 import { useFilmstrip } from './useFilmstrip'
 import { ClipBar } from './ClipBar'
 
@@ -12,13 +11,14 @@ interface TimelineProps {
   getVideoElement: () => HTMLVideoElement | null
   clips: Clip[]
   activeClipId: string | null
-  anotaciones: VideoAnotacion[]
-  activeAnotacionId: string | null
   onSeek: (time: number) => void
   onClipUpdate: (id: string, patch: Partial<Omit<Clip, 'id'>>) => void
   onClipSelect: (id: string) => void
   onClipCreate: (start: number, end: number) => void
-  onAnotacionSelect: (a: VideoAnotacion) => void
+  onClipDoubleClick?: (id: string) => void
+  // Clip editor mode
+  viewMode: 'general' | 'clip-editor'
+  editingClip?: Clip | null
 }
 
 export function Timeline({
@@ -27,13 +27,13 @@ export function Timeline({
   getVideoElement,
   clips,
   activeClipId,
-  anotaciones,
-  activeAnotacionId,
   onSeek,
   onClipUpdate,
   onClipSelect,
   onClipCreate,
-  onAnotacionSelect,
+  onClipDoubleClick,
+  viewMode,
+  editingClip,
 }: TimelineProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const filmstripCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -42,6 +42,11 @@ export function Timeline({
   const rafRef = useRef<number>(0)
   const dragCreateRef = useRef<{ startX: number; startTime: number } | null>(null)
   const [dragPreview, setDragPreview] = useState<{ left: number; width: number } | null>(null)
+
+  const isClipMode = viewMode === 'clip-editor' && editingClip
+  const rangeStart = isClipMode ? editingClip.startTime : 0
+  const rangeEnd = isClipMode ? editingClip.endTime : duration
+  const rangeDuration = rangeEnd - rangeStart
 
   // Measure container
   useEffect(() => {
@@ -77,52 +82,71 @@ export function Timeline({
     const thumbW = containerWidth / thumbCount
     const entries = Array.from(thumbnails.entries()).sort((a, b) => a[0] - b[0])
 
-    entries.forEach((entry, i) => {
-      const img = new Image()
-      img.onload = () => {
-        const x = i * thumbW
-        ctx.drawImage(img, x, 0, thumbW, 60)
-      }
-      img.src = entry[1]
-    })
-  }, [thumbnails, thumbCount, containerWidth, duration])
+    if (isClipMode) {
+      // In clip mode, only show the clip range portion of the filmstrip
+      const totalDuration = duration
+      entries.forEach((entry, i) => {
+        const thumbTime = entry[0]
+        // Only draw thumbs within the clip range
+        if (thumbTime >= rangeStart - totalDuration / thumbCount && thumbTime <= rangeEnd + totalDuration / thumbCount) {
+          const img = new Image()
+          img.onload = () => {
+            // Map thumb position relative to clip range
+            const relPct = (thumbTime - rangeStart) / rangeDuration
+            const x = relPct * containerWidth
+            ctx.drawImage(img, x - thumbW / 2, 0, thumbW, 60)
+          }
+          img.src = entry[1]
+        }
+      })
+    } else {
+      entries.forEach((entry, i) => {
+        const img = new Image()
+        img.onload = () => {
+          const x = i * thumbW
+          ctx.drawImage(img, x, 0, thumbW, 60)
+        }
+        img.src = entry[1]
+      })
+    }
+  }, [thumbnails, thumbCount, containerWidth, duration, isClipMode, rangeStart, rangeEnd, rangeDuration])
 
-  // Playhead animation — reads directly from video element via rAF
+  // Playhead animation
   useEffect(() => {
-    if (!duration) return
+    if (!rangeDuration) return
 
     const tick = () => {
       const video = getVideoElement()
       const playhead = playheadRef.current
       if (video && playhead) {
-        const pct = (video.currentTime / duration) * 100
-        playhead.style.left = `${pct}%`
+        const pct = ((video.currentTime - rangeStart) / rangeDuration) * 100
+        playhead.style.left = `${Math.max(0, Math.min(100, pct))}%`
       }
       rafRef.current = requestAnimationFrame(tick)
     }
 
     rafRef.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(rafRef.current)
-  }, [duration, getVideoElement])
+  }, [rangeDuration, rangeStart, getVideoElement])
 
   const timeToPercent = useCallback(
-    (t: number) => (duration > 0 ? (t / duration) * 100 : 0),
-    [duration]
+    (t: number) => (rangeDuration > 0 ? ((t - rangeStart) / rangeDuration) * 100 : 0),
+    [rangeDuration, rangeStart]
   )
 
   const percentToTime = useCallback(
-    (pct: number) => (pct / 100) * duration,
-    [duration]
+    (pct: number) => (pct / 100) * rangeDuration + rangeStart,
+    [rangeDuration, rangeStart]
   )
 
   const xToTime = useCallback(
     (clientX: number) => {
       const rect = containerRef.current?.getBoundingClientRect()
-      if (!rect || !duration) return 0
+      if (!rect || !rangeDuration) return rangeStart
       const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
-      return pct * duration
+      return pct * rangeDuration + rangeStart
     },
-    [duration]
+    [rangeDuration, rangeStart]
   )
 
   // Click filmstrip to seek
@@ -133,15 +157,16 @@ export function Timeline({
     [xToTime, onSeek]
   )
 
-  // Drag in clips zone to create clip
+  // Drag in clips zone to create clip (only in general mode)
   const handleClipZonePointerDown = useCallback(
     (e: React.PointerEvent) => {
+      if (isClipMode) return
       if ((e.target as HTMLElement).closest('[data-clip-bar]')) return
       ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
       const time = xToTime(e.clientX)
       dragCreateRef.current = { startX: e.clientX, startTime: time }
     },
-    [xToTime]
+    [xToTime, isClipMode]
   )
 
   const handleClipZonePointerMove = useCallback(
@@ -188,6 +213,9 @@ export function Timeline({
 
   if (!duration) return null
 
+  // In clip mode, show freeze frame markers instead of clips
+  const freezeFrames: FreezeFrame[] = isClipMode ? editingClip.freezeFrames : []
+
   return (
     <div ref={containerRef} className="relative w-full select-none bg-[#111]">
       {/* Filmstrip row — 60px */}
@@ -198,7 +226,7 @@ export function Timeline({
         onClick={handleFilmstripClick}
       />
 
-      {/* Clips row — 36px, slightly taller for easier drag */}
+      {/* Clips row — 36px (general) or freeze frame markers (clip-editor) */}
       <div
         className="relative w-full bg-white/5 border-t border-white/10"
         style={{ height: 36 }}
@@ -206,62 +234,67 @@ export function Timeline({
         onPointerMove={handleClipZonePointerMove}
         onPointerUp={handleClipZonePointerUp}
       >
-        {/* Empty state hint */}
-        {clips.length === 0 && !dragPreview && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <span className="text-[10px] text-white/20">Arrastra aqui para crear clips</span>
-          </div>
+        {isClipMode ? (
+          <>
+            {/* Freeze frame markers */}
+            {freezeFrames.length === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <span className="text-[10px] text-white/20">Freeze frames del clip</span>
+              </div>
+            )}
+            {freezeFrames.map((ff) => {
+              const pct = timeToPercent(ff.timestamp)
+              return (
+                <div
+                  key={ff.id}
+                  className="absolute top-1 bottom-1 w-1 bg-cyan-400/70 rounded-full hover:bg-cyan-400 cursor-pointer z-10"
+                  style={{ left: `${Math.max(0.5, Math.min(99.5, pct))}%`, transform: 'translateX(-50%)' }}
+                  title={`Freeze @ ${Math.floor(ff.timestamp - rangeStart)}s (${ff.duration}s)`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onSeek(ff.timestamp)
+                  }}
+                />
+              )
+            })}
+          </>
+        ) : (
+          <>
+            {/* Empty state hint */}
+            {clips.length === 0 && !dragPreview && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <span className="text-[10px] text-white/20">Arrastra aqui para crear clips</span>
+              </div>
+            )}
+
+            {clips.map((clip) => (
+              <div key={clip.id} data-clip-bar>
+                <ClipBar
+                  clip={clip}
+                  isActive={activeClipId === clip.id}
+                  timeToPercent={timeToPercent}
+                  percentToTime={percentToTime}
+                  containerWidth={containerWidth}
+                  duration={duration}
+                  onUpdate={onClipUpdate}
+                  onSelect={onClipSelect}
+                  onDoubleClick={onClipDoubleClick}
+                />
+              </div>
+            ))}
+
+            {/* Drag create preview */}
+            {dragPreview && (
+              <div
+                className="absolute top-0 h-full bg-white/15 border border-white/30 rounded-sm pointer-events-none"
+                style={{
+                  left: dragPreview.left,
+                  width: dragPreview.width,
+                }}
+              />
+            )}
+          </>
         )}
-
-        {clips.map((clip) => (
-          <div key={clip.id} data-clip-bar>
-            <ClipBar
-              clip={clip}
-              isActive={activeClipId === clip.id}
-              timeToPercent={timeToPercent}
-              percentToTime={percentToTime}
-              containerWidth={containerWidth}
-              duration={duration}
-              onUpdate={onClipUpdate}
-              onSelect={onClipSelect}
-            />
-          </div>
-        ))}
-
-        {/* Drag create preview */}
-        {dragPreview && (
-          <div
-            className="absolute top-0 h-full bg-white/15 border border-white/30 rounded-sm pointer-events-none"
-            style={{
-              left: dragPreview.left,
-              width: dragPreview.width,
-            }}
-          />
-        )}
-      </div>
-
-      {/* Markers row — 12px */}
-      <div
-        className="relative w-full bg-white/5 border-t border-white/10"
-        style={{ height: 12 }}
-      >
-        {anotaciones.map((a) => {
-          const pct = timeToPercent(a.timestamp_seconds)
-          const isActive = activeAnotacionId === a.id
-          return (
-            <button
-              key={a.id}
-              className={`absolute top-1 -translate-x-1/2 w-2 h-2 rounded-full transition-transform hover:scale-150 ${
-                isActive
-                  ? 'bg-blue-400 scale-125'
-                  : 'bg-amber-400'
-              }`}
-              style={{ left: `${Math.max(0.5, Math.min(99.5, pct))}%` }}
-              onClick={() => onAnotacionSelect(a)}
-              title={a.titulo}
-            />
-          )
-        })}
       </div>
 
       {/* Playhead — spans all rows */}

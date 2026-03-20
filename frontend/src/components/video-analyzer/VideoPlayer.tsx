@@ -24,13 +24,14 @@ export interface VideoPlayerHandle {
 
 interface VideoPlayerProps {
   src: string
+  clipRange?: { start: number; end: number }
   onTimeUpdate?: (time: number) => void
   onPlayStateChange?: (playing: boolean) => void
   onDurationChange?: (duration: number) => void
 }
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
-  function VideoPlayer({ src, onTimeUpdate, onPlayStateChange, onDurationChange }, ref) {
+  function VideoPlayer({ src, clipRange, onTimeUpdate, onPlayStateChange, onDurationChange }, ref) {
     const videoRef = useRef<HTMLVideoElement>(null)
     const [playing, setPlaying] = useState(false)
     const [currentTime, setCurrentTime] = useState(0)
@@ -42,7 +43,13 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       getVideoElement: () => videoRef.current,
       getCurrentTime: () => videoRef.current?.currentTime || 0,
       seekTo: (time: number) => {
-        if (videoRef.current) videoRef.current.currentTime = time
+        if (videoRef.current) {
+          // Clamp to clip range if active
+          if (clipRange) {
+            time = Math.max(clipRange.start, Math.min(clipRange.end, time))
+          }
+          videoRef.current.currentTime = time
+        }
       },
       pause: () => videoRef.current?.pause(),
       play: () => videoRef.current?.play(),
@@ -51,21 +58,32 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const togglePlay = useCallback(() => {
       const v = videoRef.current
       if (!v) return
-      if (v.paused) v.play()
-      else v.pause()
-    }, [])
+      if (v.paused) {
+        // If at clip end, loop back to start
+        if (clipRange && v.currentTime >= clipRange.end - 0.05) {
+          v.currentTime = clipRange.start
+        }
+        v.play()
+      } else {
+        v.pause()
+      }
+    }, [clipRange])
 
     const seek = useCallback((delta: number) => {
       const v = videoRef.current
       if (!v) return
-      v.currentTime = Math.max(0, Math.min(v.duration, v.currentTime + delta))
-    }, [])
+      const min = clipRange?.start ?? 0
+      const max = clipRange?.end ?? v.duration
+      v.currentTime = Math.max(min, Math.min(max, v.currentTime + delta))
+    }, [clipRange])
 
     const frameStep = useCallback((direction: 1 | -1) => {
       const v = videoRef.current
       if (!v || !v.paused) return
-      v.currentTime = Math.max(0, Math.min(v.duration, v.currentTime + direction / 30))
-    }, [])
+      const min = clipRange?.start ?? 0
+      const max = clipRange?.end ?? v.duration
+      v.currentTime = Math.max(min, Math.min(max, v.currentTime + direction / 30))
+    }, [clipRange])
 
     const cycleSpeed = useCallback(() => {
       const speeds = [0.25, 0.5, 1, 1.5, 2]
@@ -80,6 +98,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       if (!v) return
 
       const handleTime = () => {
+        // Auto-pause at clip end
+        if (clipRange && v.currentTime >= clipRange.end) {
+          v.currentTime = clipRange.end
+          v.pause()
+        }
         setCurrentTime(v.currentTime)
         onTimeUpdate?.(v.currentTime)
       }
@@ -107,7 +130,18 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         v.removeEventListener('pause', handlePause)
         v.removeEventListener('loadedmetadata', handleDuration)
       }
-    }, [onTimeUpdate, onPlayStateChange, onDurationChange])
+    }, [clipRange, onTimeUpdate, onPlayStateChange, onDurationChange])
+
+    // When clipRange changes, seek to clip start
+    useEffect(() => {
+      if (clipRange && videoRef.current) {
+        videoRef.current.currentTime = clipRange.start
+      }
+    }, [clipRange?.start, clipRange?.end])
+
+    // Time display: show relative time in clip mode
+    const displayTime = clipRange ? currentTime - clipRange.start : currentTime
+    const displayDuration = clipRange ? clipRange.end - clipRange.start : duration
 
     return (
       <div className="flex flex-col">
@@ -174,7 +208,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           <div className="w-px h-4 bg-white/20 mx-0.5" />
 
           <span className="tabular-nums text-white/80">
-            {formatTime(currentTime)} / {formatTime(duration)}
+            {formatTime(Math.max(0, displayTime))} / {formatTime(displayDuration)}
           </span>
 
           <div className="flex-1" />

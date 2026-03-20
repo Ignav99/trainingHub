@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Clip, ClipDragEdge } from './types'
 
 interface ClipBarProps {
@@ -12,6 +12,7 @@ interface ClipBarProps {
   duration: number
   onUpdate: (id: string, patch: Partial<Omit<Clip, 'id'>>) => void
   onSelect: (id: string) => void
+  onDoubleClick?: (id: string) => void
 }
 
 const MIN_CLIP_DURATION = 0.5
@@ -25,6 +26,7 @@ export function ClipBar({
   duration,
   onUpdate,
   onSelect,
+  onDoubleClick,
 }: ClipBarProps) {
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState(clip.title)
@@ -38,11 +40,11 @@ export function ClipBar({
   const leftPct = timeToPercent(clip.startTime)
   const widthPct = timeToPercent(clip.endTime) - leftPct
 
+  // Use document-level listeners so React re-renders don't break the drag
   const handlePointerDown = useCallback(
     (e: React.PointerEvent, edge: ClipDragEdge) => {
       e.stopPropagation()
       e.preventDefault()
-      ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
 
       dragRef.current = {
         edge,
@@ -51,44 +53,54 @@ export function ClipBar({
         startEnd: clip.endTime,
       }
       onSelect(clip.id)
-    },
-    [clip, onSelect]
-  )
 
-  const handlePointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      if (!dragRef.current) return
-      const { edge, startX, startStart, startEnd } = dragRef.current
-      const dx = e.clientX - startX
-      const dt = (dx / containerWidth) * duration
+      const handleMove = (ev: PointerEvent) => {
+        if (!dragRef.current) return
+        const { edge: dragEdge, startX, startStart, startEnd } = dragRef.current
+        const dx = ev.clientX - startX
+        const dt = (dx / containerWidth) * duration
 
-      if (edge === 'start') {
-        const newStart = Math.max(0, Math.min(startEnd - MIN_CLIP_DURATION, startStart + dt))
-        onUpdate(clip.id, { startTime: newStart })
-      } else if (edge === 'end') {
-        const newEnd = Math.min(duration, Math.max(startStart + MIN_CLIP_DURATION, startEnd + dt))
-        onUpdate(clip.id, { endTime: newEnd })
-      } else {
-        // body drag
-        const clipDur = startEnd - startStart
-        let newStart = startStart + dt
-        newStart = Math.max(0, Math.min(duration - clipDur, newStart))
-        onUpdate(clip.id, { startTime: newStart, endTime: newStart + clipDur })
+        if (dragEdge === 'start') {
+          const newStart = Math.max(0, Math.min(startEnd - MIN_CLIP_DURATION, startStart + dt))
+          onUpdate(clip.id, { startTime: newStart })
+        } else if (dragEdge === 'end') {
+          const newEnd = Math.min(duration, Math.max(startStart + MIN_CLIP_DURATION, startEnd + dt))
+          onUpdate(clip.id, { endTime: newEnd })
+        } else {
+          // body drag
+          const clipDur = startEnd - startStart
+          let newStart = startStart + dt
+          newStart = Math.max(0, Math.min(duration - clipDur, newStart))
+          onUpdate(clip.id, { startTime: newStart, endTime: newStart + clipDur })
+        }
       }
+
+      const handleUp = () => {
+        document.removeEventListener('pointermove', handleMove)
+        document.removeEventListener('pointerup', handleUp)
+        dragRef.current = null
+      }
+
+      document.addEventListener('pointermove', handleMove)
+      document.addEventListener('pointerup', handleUp)
     },
-    [clip.id, containerWidth, duration, onUpdate]
+    [clip.id, clip.startTime, clip.endTime, containerWidth, duration, onUpdate, onSelect]
   )
 
-  const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
-    dragRef.current = null
+  // Cleanup on unmount (safety)
+  useEffect(() => {
+    return () => { dragRef.current = null }
   }, [])
 
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    setEditTitle(clip.title)
-    setEditing(true)
-  }, [clip.title])
+    if (onDoubleClick) {
+      onDoubleClick(clip.id)
+    } else {
+      setEditTitle(clip.title)
+      setEditing(true)
+    }
+  }, [clip.id, clip.title, onDoubleClick])
 
   const commitTitle = useCallback(() => {
     setEditing(false)
@@ -117,8 +129,6 @@ export function ClipBar({
           borderRight: `2px solid ${clip.color}`,
         }}
         onPointerDown={(e) => handlePointerDown(e, 'body')}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
         onDoubleClick={handleDoubleClick}
         onClick={(e) => {
           e.stopPropagation()
@@ -149,16 +159,12 @@ export function ClipBar({
       <div
         className="absolute left-0 top-0 w-[6px] h-full cursor-ew-resize z-10 hover:bg-white/30"
         onPointerDown={(e) => handlePointerDown(e, 'start')}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
       />
 
       {/* Right handle */}
       <div
         className="absolute right-0 top-0 w-[6px] h-full cursor-ew-resize z-10 hover:bg-white/30"
         onPointerDown={(e) => handlePointerDown(e, 'end')}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
       />
     </div>
   )
