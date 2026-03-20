@@ -625,15 +625,16 @@ export function VideoAnalyzer({
                   onDurationChange={setDuration}
                 />
 
-                {/* Freeze frame overlay */}
+                {/* Freeze frame overlay — pointer-events-none so SVG receives all events */}
                 {freezeOverlayUrl && (
                   <img
                     src={freezeOverlayUrl}
                     alt="Freeze frame"
-                    className="absolute inset-0 w-full h-full object-contain z-[5]"
+                    className="absolute inset-0 w-full h-full object-contain pointer-events-none"
                   />
                 )}
 
+                {/* Drawing overlay — must be last child (highest in DOM stacking) */}
                 <DrawingOverlay
                   ref={svgRef}
                   elements={currentDrawElements}
