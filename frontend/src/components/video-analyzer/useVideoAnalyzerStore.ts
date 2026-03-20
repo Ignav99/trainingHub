@@ -26,6 +26,7 @@ interface VideoAnalyzerState {
   // View mode
   viewMode: ViewMode
   editingClipId: string | null
+  activeFreezeFrameId: string | null
 
   // UI
   exportingClipId: string | null
@@ -54,6 +55,7 @@ interface VideoAnalyzerState {
   setViewMode: (mode: ViewMode) => void
   enterClipEditor: (clipId: string) => void
   exitClipEditor: () => void
+  setActiveFreezeFrameId: (id: string | null) => void
 
   // Freeze frame actions
   addFreezeFrame: (clipId: string, frame: FreezeFrame) => void
@@ -84,6 +86,7 @@ export const useVideoAnalyzerStore = create<VideoAnalyzerState>((set, get) => ({
   // View mode
   viewMode: 'general',
   editingClipId: null,
+  activeFreezeFrameId: null,
 
   // UI
   exportingClipId: null,
@@ -164,8 +167,9 @@ export const useVideoAnalyzerStore = create<VideoAnalyzerState>((set, get) => ({
 
   // View mode actions
   setViewMode: (viewMode) => set({ viewMode }),
-  enterClipEditor: (clipId) => set({ viewMode: 'clip-editor', editingClipId: clipId, activeClipId: clipId }),
-  exitClipEditor: () => set({ viewMode: 'general', editingClipId: null }),
+  enterClipEditor: (clipId) => set({ viewMode: 'clip-editor', editingClipId: clipId, activeClipId: clipId, activeFreezeFrameId: null }),
+  exitClipEditor: () => set({ viewMode: 'general', editingClipId: null, activeFreezeFrameId: null }),
+  setActiveFreezeFrameId: (activeFreezeFrameId) => set({ activeFreezeFrameId }),
 
   // Freeze frame actions
   addFreezeFrame: (clipId, frame) => {

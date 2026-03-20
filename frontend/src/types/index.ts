@@ -1684,6 +1684,8 @@ export interface DrawingElement {
   points?: { x: number; y: number }[]
   text?: string
   fontSize?: number
+  startTime?: number
+  endTime?: number
 }
 
 export interface VideoAnotacion {

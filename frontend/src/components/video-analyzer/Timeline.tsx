@@ -2,8 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Clip, FreezeFrame } from './types'
+import type { DrawingElement } from '@/types'
 import { useFilmstrip } from './useFilmstrip'
 import { ClipBar } from './ClipBar'
+import { DrawingBar } from './DrawingBar'
+import { useVirtualTimeline, virtualToReal, realToVirtual } from './useVirtualTimeline'
+import type { TimeSegment } from './useVirtualTimeline'
 
 interface TimelineProps {
   videoSrc: string
@@ -19,6 +23,14 @@ interface TimelineProps {
   // Clip editor mode
   viewMode: 'general' | 'clip-editor'
   editingClip?: Clip | null
+  // Virtual time for playhead in clip mode
+  getVirtualTime?: () => number
+  // Freeze frame interaction
+  onFreezeFrameClick?: (frame: FreezeFrame) => void
+  activeFreezeFrameId?: string | null
+  // Drawing temporal bars
+  drawingElements?: DrawingElement[]
+  onDrawingTimeUpdate?: (id: string, startTime: number, endTime: number) => void
 }
 
 export function Timeline({
@@ -34,6 +46,11 @@ export function Timeline({
   onClipDoubleClick,
   viewMode,
   editingClip,
+  getVirtualTime,
+  onFreezeFrameClick,
+  activeFreezeFrameId,
+  drawingElements,
+  onDrawingTimeUpdate,
 }: TimelineProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const filmstripCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -44,8 +61,15 @@ export function Timeline({
   const [dragPreview, setDragPreview] = useState<{ left: number; width: number } | null>(null)
 
   const isClipMode = viewMode === 'clip-editor' && editingClip
-  const rangeStart = isClipMode ? editingClip.startTime : 0
-  const rangeEnd = isClipMode ? editingClip.endTime : duration
+
+  // Virtual timeline for clip editor mode
+  const { segments, totalDuration: virtualDuration } = useVirtualTimeline(
+    isClipMode ? editingClip : null
+  )
+
+  // Range: in clip mode use virtual timeline, in general mode use full duration
+  const rangeStart = 0
+  const rangeEnd = isClipMode ? virtualDuration : duration
   const rangeDuration = rangeEnd - rangeStart
 
   // Measure container
@@ -69,65 +93,110 @@ export function Timeline({
   // Draw filmstrip on canvas
   useEffect(() => {
     const canvas = filmstripCanvasRef.current
-    if (!canvas || !containerWidth || !duration || thumbCount === 0) return
+    if (!canvas || !containerWidth || !rangeDuration || thumbCount === 0) return
 
     canvas.width = containerWidth
-    canvas.height = 60
+    canvas.height = 48
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
     ctx.fillStyle = '#1a1a1a'
-    ctx.fillRect(0, 0, containerWidth, 60)
+    ctx.fillRect(0, 0, containerWidth, 48)
 
-    const thumbW = containerWidth / thumbCount
     const entries = Array.from(thumbnails.entries()).sort((a, b) => a[0] - b[0])
 
-    if (isClipMode) {
-      // In clip mode, only show the clip range portion of the filmstrip
-      const totalDuration = duration
-      entries.forEach((entry, i) => {
-        const thumbTime = entry[0]
-        // Only draw thumbs within the clip range
-        if (thumbTime >= rangeStart - totalDuration / thumbCount && thumbTime <= rangeEnd + totalDuration / thumbCount) {
-          const img = new Image()
-          img.onload = () => {
-            // Map thumb position relative to clip range
-            const relPct = (thumbTime - rangeStart) / rangeDuration
-            const x = relPct * containerWidth
-            ctx.drawImage(img, x - thumbW / 2, 0, thumbW, 60)
+    if (isClipMode && segments.length > 0) {
+      // Virtual timeline filmstrip: draw video segments and freeze bars
+      for (const seg of segments) {
+        const startX = (seg.virtualStart / rangeDuration) * containerWidth
+        const segWidth = ((seg.virtualEnd - seg.virtualStart) / rangeDuration) * containerWidth
+
+        if (seg.type === 'freeze') {
+          // Cyan tinted freeze bar
+          ctx.fillStyle = '#0e7490'
+          ctx.fillRect(startX, 0, segWidth, 48)
+
+          // Draw freeze image if available
+          if (seg.freezeFrame?.imageData) {
+            const img = new Image()
+            img.onload = () => {
+              ctx.globalAlpha = 0.4
+              ctx.drawImage(img, startX, 0, segWidth, 48)
+              ctx.globalAlpha = 1
+              // Tint overlay
+              ctx.fillStyle = '#0e749060'
+              ctx.fillRect(startX, 0, segWidth, 48)
+              // Snowflake icon
+              ctx.fillStyle = '#22d3ee'
+              ctx.font = 'bold 14px sans-serif'
+              ctx.textAlign = 'center'
+              ctx.textBaseline = 'middle'
+              if (segWidth > 20) {
+                ctx.fillText('❄', startX + segWidth / 2, 24)
+              }
+            }
+            img.src = seg.freezeFrame.imageData
           }
-          img.src = entry[1]
+        } else {
+          // Video segment: draw relevant thumbnails
+          const realStart = seg.realStart!
+          const realEnd = seg.realEnd!
+          const thumbW = containerWidth / thumbCount
+          for (const [thumbTime, thumbUrl] of entries) {
+            if (thumbTime >= realStart - duration / thumbCount && thumbTime <= realEnd + duration / thumbCount) {
+              const relPct = (thumbTime - realStart) / (realEnd - realStart)
+              const x = startX + relPct * segWidth
+              const img = new Image()
+              img.onload = () => {
+                ctx.drawImage(img, x, 0, Math.max(thumbW, segWidth / 8), 48)
+              }
+              img.src = thumbUrl
+            }
+          }
         }
-      })
+      }
     } else {
+      // General mode filmstrip
+      const thumbW = containerWidth / thumbCount
       entries.forEach((entry, i) => {
         const img = new Image()
         img.onload = () => {
           const x = i * thumbW
-          ctx.drawImage(img, x, 0, thumbW, 60)
+          ctx.drawImage(img, x, 0, thumbW, 48)
         }
         img.src = entry[1]
       })
     }
-  }, [thumbnails, thumbCount, containerWidth, duration, isClipMode, rangeStart, rangeEnd, rangeDuration])
+  }, [thumbnails, thumbCount, containerWidth, duration, rangeDuration, isClipMode, segments])
 
   // Playhead animation
   useEffect(() => {
     if (!rangeDuration) return
 
     const tick = () => {
-      const video = getVideoElement()
       const playhead = playheadRef.current
-      if (video && playhead) {
-        const pct = ((video.currentTime - rangeStart) / rangeDuration) * 100
-        playhead.style.left = `${Math.max(0, Math.min(100, pct))}%`
+      if (!playhead) {
+        rafRef.current = requestAnimationFrame(tick)
+        return
       }
+
+      let pct = 0
+      if (isClipMode && getVirtualTime) {
+        pct = (getVirtualTime() / rangeDuration) * 100
+      } else {
+        const video = getVideoElement()
+        if (video) {
+          pct = ((video.currentTime - rangeStart) / rangeDuration) * 100
+        }
+      }
+
+      playhead.style.left = `${Math.max(0, Math.min(100, pct))}%`
       rafRef.current = requestAnimationFrame(tick)
     }
 
     rafRef.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(rafRef.current)
-  }, [rangeDuration, rangeStart, getVideoElement])
+  }, [rangeDuration, rangeStart, getVideoElement, isClipMode, getVirtualTime])
 
   const timeToPercent = useCallback(
     (t: number) => (rangeDuration > 0 ? ((t - rangeStart) / rangeDuration) * 100 : 0),
@@ -152,7 +221,8 @@ export function Timeline({
   // Click filmstrip to seek
   const handleFilmstripClick = useCallback(
     (e: React.MouseEvent) => {
-      onSeek(xToTime(e.clientX))
+      const t = xToTime(e.clientX)
+      onSeek(t)
     },
     [xToTime, onSeek]
   )
@@ -216,47 +286,90 @@ export function Timeline({
   // In clip mode, show freeze frame markers instead of clips
   const freezeFrames: FreezeFrame[] = isClipMode ? editingClip.freezeFrames : []
 
+  // Drawing elements with temporal info
+  const temporalDrawings = (drawingElements || []).filter(
+    (el) => el.startTime !== undefined && el.endTime !== undefined
+  )
+  const showDrawingBars = isClipMode && temporalDrawings.length > 0
+
   return (
     <div ref={containerRef} className="relative w-full select-none bg-[#111]">
-      {/* Filmstrip row — 60px */}
+      {/* Filmstrip row — 48px */}
       <canvas
         ref={filmstripCanvasRef}
         className="w-full cursor-pointer"
-        style={{ height: 60 }}
+        style={{ height: 48 }}
         onClick={handleFilmstripClick}
       />
 
-      {/* Clips row — 36px (general) or freeze frame markers (clip-editor) */}
+      {/* Clips / Segments row — 32px */}
       <div
         className="relative w-full bg-white/5 border-t border-white/10"
-        style={{ height: 36 }}
+        style={{ height: 32 }}
         onPointerDown={handleClipZonePointerDown}
         onPointerMove={handleClipZonePointerMove}
         onPointerUp={handleClipZonePointerUp}
       >
         {isClipMode ? (
           <>
-            {/* Freeze frame markers */}
-            {freezeFrames.length === 0 && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <span className="text-[10px] text-white/20">Freeze frames del clip</span>
-              </div>
-            )}
-            {freezeFrames.map((ff) => {
-              const pct = timeToPercent(ff.timestamp)
+            {/* Virtual timeline segments */}
+            {segments.map((seg, i) => {
+              const leftPct = (seg.virtualStart / rangeDuration) * 100
+              const widthPct = ((seg.virtualEnd - seg.virtualStart) / rangeDuration) * 100
+
+              if (seg.type === 'freeze') {
+                const isActive = activeFreezeFrameId === seg.freezeFrame?.id
+                return (
+                  <div
+                    key={`seg-${i}`}
+                    className={`absolute top-0 h-full cursor-pointer transition-all ${
+                      isActive ? 'ring-1 ring-cyan-400 z-10' : 'hover:brightness-125'
+                    }`}
+                    style={{
+                      left: `${leftPct}%`,
+                      width: `${Math.max(widthPct, 0.5)}%`,
+                      backgroundColor: isActive ? '#0e7490' : '#0891b260',
+                      borderLeft: '1px solid #22d3ee',
+                      borderRight: '1px solid #22d3ee',
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (seg.freezeFrame) onFreezeFrameClick?.(seg.freezeFrame)
+                    }}
+                  >
+                    <span className="text-[8px] text-cyan-300 truncate px-0.5 pointer-events-none flex items-center gap-0.5 h-full select-none">
+                      ❄ {seg.freezeFrame!.duration}s
+                    </span>
+                  </div>
+                )
+              }
+
               return (
                 <div
-                  key={ff.id}
-                  className="absolute top-1 bottom-1 w-1 bg-cyan-400/70 rounded-full hover:bg-cyan-400 cursor-pointer z-10"
-                  style={{ left: `${Math.max(0.5, Math.min(99.5, pct))}%`, transform: 'translateX(-50%)' }}
-                  title={`Freeze @ ${Math.floor(ff.timestamp - rangeStart)}s (${ff.duration}s)`}
+                  key={`seg-${i}`}
+                  className="absolute top-0 h-full"
+                  style={{
+                    left: `${leftPct}%`,
+                    width: `${widthPct}%`,
+                    backgroundColor: 'rgba(255,255,255,0.03)',
+                  }}
                   onClick={(e) => {
                     e.stopPropagation()
-                    onSeek(ff.timestamp)
+                    // Click on video segment — deselect freeze frame
+                    onFreezeFrameClick?.(null as any)
                   }}
                 />
               )
             })}
+
+            {/* Empty state hint */}
+            {freezeFrames.length === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <span className="text-[10px] text-white/20">
+                  Pulsa Captura para añadir freeze frames
+                </span>
+              </div>
+            )}
           </>
         ) : (
           <>
@@ -295,6 +408,25 @@ export function Timeline({
           </>
         )}
       </div>
+
+      {/* Drawing temporal bars row (clip-editor only) */}
+      {showDrawingBars && (
+        <div
+          className="relative w-full bg-white/3 border-t border-white/5"
+          style={{ height: 18 }}
+        >
+          {temporalDrawings.map((el) => (
+            <DrawingBar
+              key={el.id}
+              element={el}
+              timeToPercent={timeToPercent}
+              xToTime={xToTime}
+              totalDuration={rangeDuration}
+              onUpdate={(id, st, et) => onDrawingTimeUpdate?.(id, st, et)}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Playhead — spans all rows */}
       <div

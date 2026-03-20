@@ -210,6 +210,15 @@ export function DrawingToolbar({
           </span>
         </>
       )}
+
+      {/* Spacer + Kabine logo */}
+      <div className="flex-1" />
+      <img
+        src="/logo-icon.png"
+        alt="Kabin-e"
+        className="h-4 w-4 opacity-30 select-none"
+        draggable={false}
+      />
     </div>
   )
 }
