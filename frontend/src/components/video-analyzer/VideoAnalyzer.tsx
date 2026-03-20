@@ -121,6 +121,14 @@ export function VideoAnalyzer({
     segmentsRef.current = segments
   }, [segments])
 
+  // Hide video element when freeze overlay is shown (prevents visual duplication)
+  useEffect(() => {
+    const video = playerRef.current?.getVideoElement()
+    if (video) {
+      video.style.opacity = freezeOverlayUrl ? '0' : '1'
+    }
+  }, [freezeOverlayUrl])
+
   // Freeze playback RAF loop (clip-editor mode only)
   useEffect(() => {
     if (!isClipEditor || segments.length === 0) return
@@ -188,47 +196,58 @@ export function VideoAnalyzer({
   // Get virtual time (for Timeline playhead)
   const getVirtualTime = useCallback(() => virtualTimeRef.current, [])
 
-  // =============== Drawing context switching ===============
+  // =============== Drawing (single global array) ===============
 
-  // Global drawings (video-level) with undo/redo
+  // All drawings live here — freeze frame drawings are tagged with freezeFrameId
   const { elements, setElements, undo, redo, reset, canUndo, canRedo } = useUndoRedo()
 
-  // Determine current drawing elements based on context
-  const currentDrawElements = activeFreezeFrame ? activeFreezeFrame.drawings : elements
-  const currentSetDrawElements = useCallback(
+  // Display time for temporal filtering (updated ~4fps via timeupdate)
+  const [displayTime, setDisplayTime] = useState(0)
+
+  // Wrap setElements to auto-tag new elements
+  const wrappedSetElements = useCallback(
     (next: DrawingElement[]) => {
-      if (activeFreezeFrame && editingClipId && activeFreezeFrameId) {
-        updateFreezeFrameStore(editingClipId, activeFreezeFrameId, { drawings: next })
-      } else if (isClipEditor) {
-        // Add temporal info to new elements in clip-editor mode
-        const prevIds = new Set(elements.map((el) => el.id))
-        const enhanced = next.map((el) => {
-          if (el.startTime !== undefined || prevIds.has(el.id)) return el
-          return {
-            ...el,
-            startTime: virtualTimeRef.current,
-            endTime: Math.min(virtualTimeRef.current + 3, virtualDuration || duration),
+      const prevIds = new Set(elements.map((el) => el.id))
+
+      if (activeFreezeFrameId) {
+        // Tag new elements with the active freeze frame ID
+        const tagged = next.map((el) => {
+          if (!prevIds.has(el.id) && !el.freezeFrameId) {
+            return { ...el, freezeFrameId: activeFreezeFrameId }
           }
+          return el
+        })
+        setElements(tagged)
+      } else if (isClipEditor) {
+        // Tag new elements with temporal info
+        const enhanced = next.map((el) => {
+          if (!prevIds.has(el.id) && el.startTime === undefined) {
+            return {
+              ...el,
+              startTime: virtualTimeRef.current,
+              endTime: Math.min(virtualTimeRef.current + 3, virtualDuration || duration),
+            }
+          }
+          return el
         })
         setElements(enhanced)
       } else {
         setElements(next)
       }
     },
-    [activeFreezeFrame, editingClipId, activeFreezeFrameId, isClipEditor, elements, setElements, updateFreezeFrameStore, virtualDuration, duration]
+    [activeFreezeFrameId, isClipEditor, elements, setElements, virtualDuration, duration]
   )
 
-  // Drawing engine
+  // Drawing engine — uses full elements array; wrapper tags new elements
   const {
     preview,
     handleMouseDown,
     handleMouseMove,
     handleMouseUp,
-    deleteSelected,
-    clearAll,
+    deleteSelected: engineDeleteSelected,
   } = useDrawingEngine({
-    elements: currentDrawElements,
-    setElements: currentSetDrawElements,
+    elements,
+    setElements: wrappedSetElements,
     color,
     strokeWidth,
     tool,
@@ -236,13 +255,45 @@ export function VideoAnalyzer({
     setSelectedId,
   })
 
+  // Visible elements: filtered by context (freeze, temporal, general)
+  const visibleElements = useMemo(() => {
+    if (activeFreezeFrameId) {
+      return elements.filter((el) => el.freezeFrameId === activeFreezeFrameId)
+    }
+    if (isClipEditor) {
+      return elements.filter((el) => {
+        if (el.freezeFrameId) return false
+        if (el.startTime !== undefined && el.endTime !== undefined) {
+          return displayTime >= el.startTime && displayTime <= el.endTime
+        }
+        return true
+      })
+    }
+    return elements.filter((el) => !el.freezeFrameId)
+  }, [elements, activeFreezeFrameId, isClipEditor, displayTime])
+
+  // Context-aware clear: only removes visible elements
+  const clearAll = useCallback(() => {
+    const visibleIds = new Set(visibleElements.map((el) => el.id))
+    setElements(elements.filter((el) => !visibleIds.has(el.id)))
+    setSelectedId(null)
+  }, [visibleElements, elements, setElements, setSelectedId])
+
+  // Clear selection when switching drawing context
+  useEffect(() => {
+    setSelectedId(null)
+  }, [activeFreezeFrameId, setSelectedId])
+
   // =============== Handlers ===============
 
-  // Time update
+  // Time update — also feeds displayTime for temporal visibility
   const handleTimeUpdate = useCallback((time: number) => {
     currentTimeRef.current = time
-    if (!isClipEditor) {
+    if (isClipEditor) {
+      setDisplayTime(virtualTimeRef.current)
+    } else {
       virtualTimeRef.current = time
+      setDisplayTime(time)
     }
   }, [isClipEditor])
 
@@ -349,6 +400,7 @@ export function VideoAnalyzer({
     if (isClipEditor && segmentsRef.current.length > 0) {
       const result = virtualToReal(segmentsRef.current, time)
       virtualTimeRef.current = time
+      setDisplayTime(time)
       if (result.type === 'video') {
         playerRef.current?.seekTo(result.time)
       } else {
@@ -366,6 +418,7 @@ export function VideoAnalyzer({
       }
     } else {
       playerRef.current?.seekTo(time)
+      setDisplayTime(time)
     }
   }, [isClipEditor, setActiveFreezeFrameId])
 
@@ -411,10 +464,10 @@ export function VideoAnalyzer({
   // Update selected element props
   const handleUpdateSelectedProps = useCallback((patch: Partial<Pick<DrawingElement, 'color' | 'strokeWidth'>>) => {
     if (!selectedId) return
-    currentSetDrawElements(currentDrawElements.map((el) =>
+    wrappedSetElements(elements.map((el) =>
       el.id === selectedId ? { ...el, ...patch } : el
     ))
-  }, [selectedId, currentDrawElements, currentSetDrawElements])
+  }, [selectedId, elements, wrappedSetElements])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -445,7 +498,7 @@ export function VideoAnalyzer({
         case 'Backspace':
           if (selectedId) {
             e.preventDefault()
-            deleteSelected()
+            engineDeleteSelected()
           }
           break
         case 'z':
@@ -488,7 +541,7 @@ export function VideoAnalyzer({
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [isPlaying, tool, selectedId, duration, viewMode, clipRange, activeFreezeFrameId, onClose, deleteSelected, undo, redo, setTool, setSelectedId, setActiveFreezeFrameId, createClipAtTime, handleExitClipEditor, handleCaptureFreezeFrame])
+  }, [isPlaying, tool, selectedId, duration, viewMode, clipRange, activeFreezeFrameId, onClose, engineDeleteSelected, undo, redo, setTool, setSelectedId, setActiveFreezeFrameId, createClipAtTime, handleExitClipEditor, handleCaptureFreezeFrame])
 
   const interactive = !isPlaying && tool !== 'select'
 
@@ -625,19 +678,20 @@ export function VideoAnalyzer({
                   onDurationChange={setDuration}
                 />
 
-                {/* Freeze frame overlay — pointer-events-none so SVG receives all events */}
+                {/* Freeze frame overlay — covers video, pointer-events-none */}
                 {freezeOverlayUrl && (
                   <img
                     src={freezeOverlayUrl}
                     alt="Freeze frame"
                     className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                    style={{ zIndex: 2 }}
                   />
                 )}
 
-                {/* Drawing overlay — must be last child (highest in DOM stacking) */}
+                {/* Drawing overlay — always on top */}
                 <DrawingOverlay
                   ref={svgRef}
-                  elements={currentDrawElements}
+                  elements={visibleElements}
                   preview={preview}
                   selectedId={selectedId}
                   interactive={interactive}
@@ -662,10 +716,10 @@ export function VideoAnalyzer({
             canRedo={canRedo}
             onUndo={undo}
             onRedo={redo}
-            onDeleteSelected={deleteSelected}
+            onDeleteSelected={engineDeleteSelected}
             onClearAll={clearAll}
             selectedId={selectedId}
-            elements={currentDrawElements}
+            elements={visibleElements}
             onUpdateSelectedProps={handleUpdateSelectedProps}
           />
 

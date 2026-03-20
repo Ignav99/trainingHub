@@ -1686,6 +1686,7 @@ export interface DrawingElement {
   fontSize?: number
   startTime?: number
   endTime?: number
+  freezeFrameId?: string
 }
 
 export interface VideoAnotacion {
