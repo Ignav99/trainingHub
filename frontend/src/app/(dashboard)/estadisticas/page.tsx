@@ -1,174 +1,137 @@
 'use client'
 
-import { useState, useMemo } from 'react'
 import useSWR from 'swr'
-import { BarChart3 } from 'lucide-react'
+import {
+  BarChart3, LayoutDashboard, Users, Crosshair, AlertTriangle,
+  ClipboardCheck, HeartPulse, Dumbbell,
+} from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { ListPageSkeleton } from '@/components/ui/page-skeletons'
 import { useEquipoStore } from '@/stores/equipoStore'
-import { sesionesApi } from '@/lib/api/sesiones'
 import { apiKey } from '@/lib/swr'
-import { TeamOverview } from '@/components/estadisticas/TeamOverview'
-import { ChartSection } from '@/components/estadisticas/ChartSection'
-import { PlayerStatsTable } from '@/components/estadisticas/PlayerStatsTable'
-import { StatFilters } from '@/components/estadisticas/StatFilters'
-import type { Partido, PaginatedResponse } from '@/types'
+import { TabSkeleton } from '@/components/estadisticas/TabSkeleton'
+import { ResumenTab } from '@/components/estadisticas/tabs/ResumenTab'
+import { PartidoStatsTab } from '@/components/estadisticas/tabs/PartidoStatsTab'
+import { JugadoresTab } from '@/components/estadisticas/tabs/JugadoresTab'
+import { GolesTab } from '@/components/estadisticas/tabs/GolesTab'
+import { DisciplinaTab } from '@/components/estadisticas/tabs/DisciplinaTab'
+import { AsistenciaTab } from '@/components/estadisticas/tabs/AsistenciaTab'
+import { EnfermeriaTab } from '@/components/estadisticas/tabs/EnfermeriaTab'
+import { SesionesTab } from '@/components/estadisticas/tabs/SesionesTab'
+import type { EstadisticasDashboardResponse } from '@/lib/api/estadisticasDashboard'
 import type { CargaSemanalData } from '@/lib/api/dashboard'
-
-interface AsistenciaHistorico {
-  jugador_id: string
-  nombre: string
-  apellidos: string
-  dorsal: number | null
-  posicion_principal: string
-  total_sesiones: number
-  presencias: number
-  ausencias: number
-  porcentaje: number
-  motivos: Record<string, number>
-  ultima_ausencia: string | null
-}
 
 export default function EstadisticasPage() {
   const { equipoActivo } = useEquipoStore()
 
-  // SWR: partidos jugados
-  const { data: partidosRes, isLoading: loadingPartidos } = useSWR<PaginatedResponse<Partido>>(
-    apiKey('/partidos', {
+  // Main dashboard data
+  const { data: dashboard, isLoading } = useSWR<EstadisticasDashboardResponse>(
+    apiKey('/estadisticas/dashboard', {
       equipo_id: equipoActivo?.id,
-      solo_jugados: true,
-      limit: 50,
-      direccion: 'desc',
     }, ['equipo_id'])
   )
 
-  // SWR: carga semanal
-  const { data: cargaSemanal, isLoading: loadingCarga } = useSWR<CargaSemanalData>(
+  // Carga semanal (for RPE charts in Resumen + Sesiones)
+  const { data: cargaSemanal } = useSWR<CargaSemanalData>(
     apiKey('/dashboard/carga-semanal', {
       equipo_id: equipoActivo?.id,
-      semanas: 8,
+      semanas: 12,
     }, ['equipo_id'])
   )
-
-  const loading = loadingPartidos || loadingCarga
-
-  const partidos = partidosRes?.data || []
-
-  const resumen = useMemo(() => {
-    const victorias = partidos.filter((p) => p.resultado === 'victoria').length
-    const empates = partidos.filter((p) => p.resultado === 'empate').length
-    const derrotas = partidos.filter((p) => p.resultado === 'derrota').length
-    const golesFavor = partidos.reduce((s, p) => s + (p.goles_favor || 0), 0)
-    const golesContra = partidos.reduce((s, p) => s + (p.goles_contra || 0), 0)
-    return { jugados: partidos.length, victorias, empates, derrotas, golesFavor, golesContra }
-  }, [partidos])
-
-  // Asistencia historico state (loaded on-demand when tab is clicked)
-  const [asistenciaData, setAsistenciaData] = useState<AsistenciaHistorico[]>([])
-  const [asistenciaMedia, setAsistenciaMedia] = useState(0)
-  const [asistenciaLoading, setAsistenciaLoading] = useState(false)
-  const [asistenciaLoaded, setAsistenciaLoaded] = useState(false)
-  const [fechaDesde, setFechaDesde] = useState('')
-  const [fechaHasta, setFechaHasta] = useState('')
-
-  const loadAsistenciaHistorico = async () => {
-    if (!equipoActivo?.id) return
-    setAsistenciaLoading(true)
-    try {
-      const res = await sesionesApi.getAsistenciaHistorico(
-        equipoActivo.id,
-        fechaDesde || undefined,
-        fechaHasta || undefined,
-      )
-      setAsistenciaData(res.data)
-      setAsistenciaMedia(res.media_equipo)
-      setAsistenciaLoaded(true)
-    } catch (err) {
-      console.error('Error loading asistencia historico:', err)
-    } finally {
-      setAsistenciaLoading(false)
-    }
-  }
-
-  const handleTabChange = (tab: string) => {
-    if (tab === 'asistencia' && !asistenciaLoaded) {
-      loadAsistenciaHistorico()
-    }
-  }
 
   if (!equipoActivo) {
     return (
       <div className="text-center py-12">
         <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-        <p className="text-muted-foreground">Selecciona un equipo para ver estadísticas</p>
+        <p className="text-muted-foreground">Selecciona un equipo para ver estadisticas</p>
       </div>
     )
   }
 
-  if (loading) {
-    return <ListPageSkeleton />
-  }
-
-  const maxRPE = cargaSemanal && cargaSemanal.semanas.length > 0
-    ? Math.max(...cargaSemanal.semanas.map((s) => s.rpe_promedio), 10)
-    : 10
-
-  // Last 10 partidos for the bar chart (reversed to show oldest first)
-  const ultimosPartidos = partidos.slice(0, 10).reverse()
-
-  const winRate = resumen.jugados > 0
-    ? Math.round((resumen.victorias / resumen.jugados) * 100)
-    : 0
-
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2"><BarChart3 className="h-6 w-6 text-primary" />Estadísticas</h1>
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <BarChart3 className="h-6 w-6 text-primary" />
+          Estadisticas
+        </h1>
         <p className="text-muted-foreground text-sm">{equipoActivo.nombre}</p>
       </div>
 
-      <TeamOverview
-        resumen={resumen}
-        winRate={winRate}
-        cargaSemanal={cargaSemanal}
-      />
-
-      {/* Tabs: Rendimiento / Asistencia */}
-      <Tabs defaultValue="rendimiento" onValueChange={handleTabChange}>
-        <TabsList>
-          <TabsTrigger value="rendimiento">Rendimiento</TabsTrigger>
-          <TabsTrigger value="asistencia">Asistencia</TabsTrigger>
+      <Tabs defaultValue="resumen">
+        <TabsList className="flex-wrap h-auto gap-1">
+          <TabsTrigger value="resumen" className="gap-1.5">
+            <LayoutDashboard className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Resumen</span>
+          </TabsTrigger>
+          <TabsTrigger value="partidos" className="gap-1.5">
+            <BarChart3 className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Partidos</span>
+          </TabsTrigger>
+          <TabsTrigger value="jugadores" className="gap-1.5">
+            <Users className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Jugadores</span>
+          </TabsTrigger>
+          <TabsTrigger value="goles" className="gap-1.5">
+            <Crosshair className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Goles</span>
+          </TabsTrigger>
+          <TabsTrigger value="disciplina" className="gap-1.5">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Disciplina</span>
+          </TabsTrigger>
+          <TabsTrigger value="asistencia" className="gap-1.5">
+            <ClipboardCheck className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Asistencia</span>
+          </TabsTrigger>
+          <TabsTrigger value="enfermeria" className="gap-1.5">
+            <HeartPulse className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Enfermeria</span>
+          </TabsTrigger>
+          <TabsTrigger value="sesiones" className="gap-1.5">
+            <Dumbbell className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Sesiones</span>
+          </TabsTrigger>
         </TabsList>
 
-        {/* ===== TAB: RENDIMIENTO ===== */}
-        <TabsContent value="rendimiento">
-          <ChartSection
-            ultimosPartidos={ultimosPartidos}
-            partidos={partidos}
-            cargaSemanal={cargaSemanal}
-            maxRPE={maxRPE}
-            jugados={resumen.jugados}
-          />
-        </TabsContent>
+        {isLoading || !dashboard ? (
+          <div className="mt-6">
+            <TabSkeleton />
+          </div>
+        ) : (
+          <>
+            <TabsContent value="resumen">
+              <ResumenTab data={dashboard} cargaSemanal={cargaSemanal} />
+            </TabsContent>
 
-        {/* ===== TAB: ASISTENCIA ===== */}
-        <TabsContent value="asistencia" className="space-y-6">
-          <StatFilters
-            fechaDesde={fechaDesde}
-            fechaHasta={fechaHasta}
-            onFechaDesdeChange={setFechaDesde}
-            onFechaHastaChange={setFechaHasta}
-            onFilter={loadAsistenciaHistorico}
-            loading={asistenciaLoading}
-          />
+            <TabsContent value="partidos">
+              <PartidoStatsTab data={dashboard} />
+            </TabsContent>
 
-          <PlayerStatsTable
-            asistenciaData={asistenciaData}
-            asistenciaMedia={asistenciaMedia}
-            asistenciaLoading={asistenciaLoading}
-            asistenciaLoaded={asistenciaLoaded}
-          />
-        </TabsContent>
+            <TabsContent value="jugadores">
+              <JugadoresTab jugadores={dashboard.jugadores} />
+            </TabsContent>
+
+            <TabsContent value="goles">
+              <GolesTab data={dashboard} />
+            </TabsContent>
+
+            <TabsContent value="disciplina">
+              <DisciplinaTab data={dashboard} />
+            </TabsContent>
+
+            <TabsContent value="asistencia">
+              <AsistenciaTab data={dashboard} equipoId={equipoActivo.id} />
+            </TabsContent>
+
+            <TabsContent value="enfermeria">
+              <EnfermeriaTab medico={dashboard.medico} totalJugadores={dashboard.jugadores.length} />
+            </TabsContent>
+
+            <TabsContent value="sesiones">
+              <SesionesTab sesiones={dashboard.sesiones} cargaSemanal={cargaSemanal} />
+            </TabsContent>
+          </>
+        )}
       </Tabs>
     </div>
   )

@@ -21,6 +21,7 @@ from app.api.v1 import (
     wellness,
     convocatorias,
     estadisticas_partido,
+    estadisticas_dashboard,
     notificaciones,
     comunicacion,
     ai_chat,
@@ -146,6 +147,12 @@ api_router.include_router(
     estadisticas_partido.router,
     prefix="/estadisticas-partido",
     tags=["Estadisticas Partido"]
+)
+
+api_router.include_router(
+    estadisticas_dashboard.router,
+    prefix="/estadisticas",
+    tags=["Estadisticas Dashboard"]
 )
 
 api_router.include_router(
