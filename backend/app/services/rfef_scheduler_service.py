@@ -719,14 +719,17 @@ def _auto_complete_sessions():
 async def _daily_load_recalc():
     """Auto-complete past sessions, then recalculate training load for all teams."""
     # Step 1: auto-complete planificada sessions from yesterday or earlier
+    # Run in thread to avoid blocking the async event loop
     try:
-        _auto_complete_sessions()
+        count = await asyncio.to_thread(_auto_complete_sessions)
+        logger.info("Auto-complete step done: %d sessions", count or 0)
     except Exception as e:
         logger.error("Error auto-completing sessions: %s", e, exc_info=True)
 
     # Step 2: recalculate loads (only uses completada sessions)
+    # Run in thread to avoid blocking the async event loop
     try:
-        count = recalculate_all_teams()
+        count = await asyncio.to_thread(recalculate_all_teams)
         logger.info("Daily load recalc completed: %d teams", count)
     except Exception as e:
         logger.error("Error in daily load recalc: %s", e, exc_info=True)

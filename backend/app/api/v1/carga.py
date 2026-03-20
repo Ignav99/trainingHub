@@ -22,7 +22,7 @@ from app.models.carga import (
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
-from app.services.load_calculation_service import recalculate_team_load, recalculate_player_load
+from app.services.load_calculation_service import recalculate_team_load, recalculate_player_load, recalculate_all_teams
 
 logger = logging.getLogger(__name__)
 
@@ -307,3 +307,28 @@ async def recalcular_carga(
     """Force recalculation of load for all players in a team."""
     results = recalculate_team_load(equipo_id)
     return {"ok": True, "recalculated": len(results)}
+
+
+@router.post("/daily-job")
+async def trigger_daily_job(
+    auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
+):
+    """Manually trigger the daily auto-complete + load recalculation.
+
+    Same logic as the 00:15 CET scheduler job:
+    1. Auto-complete planificada sessions whose date has passed
+    2. Recalculate training loads for all teams
+    """
+    from app.services.rfef_scheduler_service import _auto_complete_sessions
+
+    # Step 1: auto-complete
+    completed = _auto_complete_sessions()
+
+    # Step 2: recalculate all teams
+    teams = recalculate_all_teams()
+
+    return {
+        "ok": True,
+        "sessions_completed": completed,
+        "teams_recalculated": teams,
+    }
