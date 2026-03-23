@@ -532,28 +532,34 @@ export default function JugadorDetailPage() {
             )}
           </div>
 
-          {/* Posiciones */}
+          {/* Posiciones — Campograma */}
           <div className="bg-white rounded-xl border border-gray-200 p-6 card-hover">
             <h3 className="font-semibold text-gray-900 mb-4">Posiciones</h3>
-            <div className="flex flex-wrap gap-2">
-              <span
-                className="px-3 py-1.5 rounded-lg text-white font-medium"
-                style={{ backgroundColor: pos?.color }}
-              >
-                {jugador.posicion_principal} - Principal
-              </span>
-              {jugador.posiciones_secundarias?.map((p) => {
-                const secPos = POSICIONES[p as keyof typeof POSICIONES]
-                return (
-                  <span
-                    key={p}
-                    className="px-3 py-1.5 rounded-lg text-sm font-medium border"
-                    style={{ borderColor: secPos?.color, color: secPos?.color }}
-                  >
-                    {p}
-                  </span>
-                )
-              })}
+            <div className="flex flex-col sm:flex-row gap-4 items-start">
+              <PositionPitchMap
+                principal={jugador.posicion_principal}
+                secundarias={jugador.posiciones_secundarias || []}
+              />
+              <div className="flex flex-wrap gap-2 sm:pt-2">
+                <span
+                  className="px-3 py-1.5 rounded-lg text-white font-medium text-sm"
+                  style={{ backgroundColor: pos?.color }}
+                >
+                  {jugador.posicion_principal} - Principal
+                </span>
+                {jugador.posiciones_secundarias?.map((p) => {
+                  const secPos = POSICIONES[p as keyof typeof POSICIONES]
+                  return (
+                    <span
+                      key={p}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium border"
+                      style={{ borderColor: secPos?.color, color: secPos?.color }}
+                    >
+                      {p}
+                    </span>
+                  )
+                })}
+              </div>
             </div>
           </div>
 
@@ -875,6 +881,102 @@ export default function JugadorDetailPage() {
         </Card>
       </div>
       )}
+    </div>
+  )
+}
+
+
+// ============================================
+// Position Pitch Map — campograma
+// ============================================
+
+const POSITION_COORDS: Record<string, { x: number; y: number }> = {
+  // viewBox 100 x 140 — vertical half-pitch, goal at bottom
+  POR: { x: 50, y: 128 },
+  DFC: { x: 50, y: 108 },
+  LTD: { x: 82, y: 100 },
+  LTI: { x: 18, y: 100 },
+  CAD: { x: 85, y: 82 },
+  CAI: { x: 15, y: 82 },
+  MCD: { x: 50, y: 85 },
+  MC:  { x: 50, y: 68 },
+  MCO: { x: 50, y: 52 },
+  MID: { x: 75, y: 65 },
+  MII: { x: 25, y: 65 },
+  EXD: { x: 85, y: 40 },
+  EXI: { x: 15, y: 40 },
+  MP:  { x: 50, y: 38 },
+  DC:  { x: 50, y: 22 },
+  SD:  { x: 50, y: 32 },
+}
+
+function PositionPitchMap({ principal, secundarias }: { principal: string; secundarias: string[] }) {
+  const allPositions = [
+    { code: principal, isPrimary: true },
+    ...secundarias.map((s) => ({ code: s, isPrimary: false })),
+  ]
+
+  return (
+    <div className="rounded-xl overflow-hidden border border-border flex-shrink-0" style={{ width: 180 }}>
+      <svg viewBox="0 0 100 140" className="w-full">
+        {/* Pitch background */}
+        <rect x="0" y="0" width="100" height="140" fill="#2D5016" />
+        {/* Grass stripes */}
+        {[0, 20, 40, 60, 80, 100, 120].map((y) => (
+          <rect key={y} x="0" y={y} width="100" height="10" fill="#3D6B1E" opacity={0.3} />
+        ))}
+        {/* Field outline */}
+        <rect x="5" y="5" width="90" height="130" fill="none" stroke="white" strokeWidth="0.5" opacity={0.35} />
+        {/* Halfway line */}
+        <line x1="5" y1="5" x2="95" y2="5" stroke="white" strokeWidth="0.5" opacity={0.35} />
+        {/* Center circle (half) */}
+        <path d="M 40 5 A 10 10 0 0 1 60 5" fill="none" stroke="white" strokeWidth="0.4" opacity={0.3} />
+        {/* Penalty area */}
+        <rect x="20" y="117" width="60" height="18" fill="none" stroke="white" strokeWidth="0.4" opacity={0.3} />
+        {/* Goal area */}
+        <rect x="32" y="127" width="36" height="8" fill="none" stroke="white" strokeWidth="0.3" opacity={0.25} />
+        {/* Goal */}
+        <rect x="38" y="135" width="24" height="3" fill="white" opacity={0.1} />
+        {/* Penalty spot */}
+        <circle cx="50" cy="123" r="0.6" fill="white" opacity={0.3} />
+        {/* Penalty arc */}
+        <path d="M 34 117 A 12 12 0 0 0 66 117" fill="none" stroke="white" strokeWidth="0.3" opacity={0.25} />
+        {/* Corner arcs */}
+        <path d="M 5 8 A 3 3 0 0 1 8 5" fill="none" stroke="white" strokeWidth="0.3" opacity={0.2} />
+        <path d="M 92 5 A 3 3 0 0 1 95 8" fill="none" stroke="white" strokeWidth="0.3" opacity={0.2} />
+        <path d="M 8 135 A 3 3 0 0 1 5 132" fill="none" stroke="white" strokeWidth="0.3" opacity={0.2} />
+        <path d="M 95 132 A 3 3 0 0 1 92 135" fill="none" stroke="white" strokeWidth="0.3" opacity={0.2} />
+
+        {/* Position markers */}
+        {allPositions.map(({ code, isPrimary }) => {
+          const coord = POSITION_COORDS[code]
+          if (!coord) return null
+          const posInfo = POSICIONES[code as keyof typeof POSICIONES]
+          const color = posInfo?.color || '#94A3B8'
+          const r = isPrimary ? 7 : 5
+
+          return (
+            <g key={code}>
+              {/* Glow */}
+              <circle cx={coord.x} cy={coord.y} r={r + 3} fill={color} opacity={isPrimary ? 0.15 : 0.1} />
+              {/* Circle */}
+              <circle cx={coord.x} cy={coord.y} r={r} fill={color} opacity={isPrimary ? 0.9 : 0.55} stroke="white" strokeWidth={isPrimary ? 0.8 : 0.5} />
+              {/* Label */}
+              <text
+                x={coord.x}
+                y={coord.y + (isPrimary ? 1.2 : 1)}
+                textAnchor="middle"
+                fill="white"
+                fontSize={isPrimary ? 4.5 : 3.8}
+                fontWeight="bold"
+                className="pointer-events-none select-none"
+              >
+                {code}
+              </text>
+            </g>
+          )
+        })}
+      </svg>
     </div>
   )
 }
