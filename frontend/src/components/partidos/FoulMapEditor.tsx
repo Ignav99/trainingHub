@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import type { FaltaPosicion } from '@/types'
 
 interface FoulMapEditorProps {
@@ -20,13 +20,14 @@ export function FoulMapEditor({ cometidas, recibidas, onCometidasChange, onRecib
   const otherDots = mode === 'cometidas' ? recibidas : cometidas
   const otherColor = mode === 'cometidas' ? '#3B82F6' : '#EF4444'
 
-  const handleClick = (e: React.MouseEvent<SVGSVGElement>) => {
+  const handleClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     const svg = e.currentTarget
-    const rect = svg.getBoundingClientRect()
-    const x = ((e.clientX - rect.left) / rect.width) * 100
-    const y = ((e.clientY - rect.top) / rect.height) * 100
-    setDots([...dots, { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 }])
-  }
+    const pt = svg.createSVGPoint()
+    pt.x = e.clientX
+    pt.y = e.clientY
+    const svgPt = pt.matrixTransform(svg.getScreenCTM()!.inverse())
+    setDots([...dots, { x: Math.round(svgPt.x * 10) / 10, y: Math.round(svgPt.y * 10) / 10 }])
+  }, [dots, setDots])
 
   const handleDotClick = (index: number, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -61,31 +62,44 @@ export function FoulMapEditor({ cometidas, recibidas, onCometidasChange, onRecib
       </p>
       <div className="relative rounded-xl overflow-hidden border border-border">
         <svg
-          viewBox="0 0 100 150"
+          viewBox="0 0 150 100"
           className="w-full cursor-crosshair"
-          style={{ maxHeight: 360 }}
           onClick={handleClick}
         >
           {/* Pitch background */}
-          <rect x="0" y="0" width="100" height="150" fill="#2D5016" />
+          <rect x="0" y="0" width="150" height="100" fill="#2D5016" />
           {/* Grass stripes */}
-          {[0, 20, 40, 60, 80, 100, 120, 140].map((y) => (
-            <rect key={y} x="0" y={y} width="100" height="10" fill="#3D6B1E" opacity={0.3} />
+          {[0, 20, 40, 60, 80, 100, 120, 140].map((x) => (
+            <rect key={x} x={x} y="0" width="10" height="100" fill="#3D6B1E" opacity={0.3} />
           ))}
           {/* Field outline */}
-          <rect x="5" y="5" width="90" height="140" fill="none" stroke="white" strokeWidth="0.5" opacity={0.4} />
+          <rect x="5" y="5" width="140" height="90" fill="none" stroke="white" strokeWidth="0.5" opacity={0.4} />
           {/* Center line */}
-          <line x1="5" y1="75" x2="95" y2="75" stroke="white" strokeWidth="0.4" opacity={0.3} />
+          <line x1="75" y1="5" x2="75" y2="95" stroke="white" strokeWidth="0.4" opacity={0.3} />
           {/* Center circle */}
-          <circle cx="50" cy="75" r="10" fill="none" stroke="white" strokeWidth="0.4" opacity={0.3} />
-          {/* Top penalty area */}
-          <rect x="20" y="5" width="60" height="18" fill="none" stroke="white" strokeWidth="0.4" opacity={0.3} />
-          {/* Bottom penalty area */}
-          <rect x="20" y="127" width="60" height="18" fill="none" stroke="white" strokeWidth="0.4" opacity={0.3} />
-          {/* Top goal */}
-          <rect x="38" y="2" width="24" height="3" fill="white" opacity={0.1} />
-          {/* Bottom goal */}
-          <rect x="38" y="145" width="24" height="3" fill="white" opacity={0.1} />
+          <circle cx="75" cy="50" r="10" fill="none" stroke="white" strokeWidth="0.4" opacity={0.3} />
+          {/* Left penalty area */}
+          <rect x="5" y="20" width="18" height="60" fill="none" stroke="white" strokeWidth="0.4" opacity={0.3} />
+          {/* Right penalty area */}
+          <rect x="127" y="20" width="18" height="60" fill="none" stroke="white" strokeWidth="0.4" opacity={0.3} />
+          {/* Left goal area */}
+          <rect x="5" y="32" width="8" height="36" fill="none" stroke="white" strokeWidth="0.3" opacity={0.25} />
+          {/* Right goal area */}
+          <rect x="137" y="32" width="8" height="36" fill="none" stroke="white" strokeWidth="0.3" opacity={0.25} />
+          {/* Left goal */}
+          <rect x="2" y="38" width="3" height="24" fill="white" opacity={0.1} />
+          {/* Right goal */}
+          <rect x="145" y="38" width="3" height="24" fill="white" opacity={0.1} />
+          {/* Penalty spots */}
+          <circle cx="17" cy="50" r="0.6" fill="white" opacity={0.3} />
+          <circle cx="133" cy="50" r="0.6" fill="white" opacity={0.3} />
+          {/* Center spot */}
+          <circle cx="75" cy="50" r="0.6" fill="white" opacity={0.3} />
+          {/* Corner arcs */}
+          <path d="M 5 8 A 3 3 0 0 1 8 5" fill="none" stroke="white" strokeWidth="0.3" opacity={0.25} />
+          <path d="M 142 5 A 3 3 0 0 1 145 8" fill="none" stroke="white" strokeWidth="0.3" opacity={0.25} />
+          <path d="M 8 95 A 3 3 0 0 1 5 92" fill="none" stroke="white" strokeWidth="0.3" opacity={0.25} />
+          <path d="M 145 92 A 3 3 0 0 1 142 95" fill="none" stroke="white" strokeWidth="0.3" opacity={0.25} />
 
           {/* Other mode dots (dimmed) */}
           {otherDots.map((dot, i) => (
