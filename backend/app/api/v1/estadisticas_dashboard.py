@@ -190,11 +190,37 @@ async def estadisticas_dashboard(
         for k, v in tgc.items():
             tipos_contra[k] += int(v) if isinstance(v, (int, float)) else 0
 
+    # Aggregate goal zones + foul map from detailed data
+    zonas_favor = defaultdict(int)
+    zonas_contra = defaultdict(int)
+    faltas_mapa_all_cometidas = []
+    faltas_mapa_all_recibidas = []
+
+    for s in stats_all:
+        for g in (s.get("goles_detalle_favor") or []):
+            zona = g.get("zona", "central")
+            zonas_favor[zona] += 1
+        for g in (s.get("goles_detalle_contra") or []):
+            zona = g.get("zona", "central")
+            zonas_contra[zona] += 1
+        for f in (s.get("faltas_mapa_cometidas") or []):
+            if isinstance(f, dict) and "x" in f and "y" in f:
+                faltas_mapa_all_cometidas.append({"x": f["x"], "y": f["y"]})
+        for f in (s.get("faltas_mapa_recibidas") or []):
+            if isinstance(f, dict) and "x" in f and "y" in f:
+                faltas_mapa_all_recibidas.append({"x": f["x"], "y": f["y"]})
+
     goles_data = {
         "por_periodo_favor": dict(goles_periodo_favor),
         "por_periodo_contra": dict(goles_periodo_contra),
         "tipos_favor": dict(tipos_favor),
         "tipos_contra": dict(tipos_contra),
+        "zonas_favor": dict(zonas_favor),
+        "zonas_contra": dict(zonas_contra),
+        "faltas_mapa": {
+            "cometidas": faltas_mapa_all_cometidas,
+            "recibidas": faltas_mapa_all_recibidas,
+        },
     }
 
     # ── 4. EVOLUCIÓN POR PARTIDO ──────────────────────────────

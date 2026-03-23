@@ -1,5 +1,5 @@
 import { api } from './client'
-import { EstadisticaPartido } from '@/types'
+import { EstadisticaPartido, GolDetalle, FaltaPosicion } from '@/types'
 
 export interface EstadisticaPartidoUpdateData {
   tiros_a_puerta?: number
@@ -27,6 +27,11 @@ export interface EstadisticaPartidoUpdateData {
   goles_por_periodo?: Record<string, number>
   tipos_gol_favor?: Record<string, number>
   tipos_gol_contra?: Record<string, number>
+
+  goles_detalle_favor?: GolDetalle[]
+  goles_detalle_contra?: GolDetalle[]
+  faltas_mapa_cometidas?: FaltaPosicion[]
+  faltas_mapa_recibidas?: FaltaPosicion[]
 
   comentario_tactico?: string
 }

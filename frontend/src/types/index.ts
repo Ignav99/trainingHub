@@ -649,6 +649,19 @@ export interface ConvocatoriasJugadorStats {
 // ESTADISTICAS PARTIDO
 // ============================================
 
+export interface GolDetalle {
+  minuto: number
+  es_abp: boolean
+  tipo_abp?: string
+  tipo_gol?: string
+  zona?: string
+}
+
+export interface FaltaPosicion {
+  x: number
+  y: number
+}
+
 export interface EstadisticaPartido {
   id: string
   partido_id: string
@@ -681,6 +694,12 @@ export interface EstadisticaPartido {
   goles_por_periodo: Record<string, number>
   tipos_gol_favor: Record<string, number>
   tipos_gol_contra: Record<string, number>
+
+  // Detailed goal & foul data
+  goles_detalle_favor: GolDetalle[]
+  goles_detalle_contra: GolDetalle[]
+  faltas_mapa_cometidas: FaltaPosicion[]
+  faltas_mapa_recibidas: FaltaPosicion[]
 
   // Tactical
   comentario_tactico: string

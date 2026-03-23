@@ -143,6 +143,40 @@ export function GolesTab({ data }: Props) {
         </ChartCard>
       </div>
 
+      {/* Zone distribution */}
+      {(() => {
+        const zf = goles.zonas_favor || {}
+        const zc = goles.zonas_contra || {}
+        const allZones = new Set([...Object.keys(zf), ...Object.keys(zc)])
+        const ZONE_LABELS: Record<string, string> = {
+          izquierda: 'Izquierda',
+          central: 'Central',
+          derecha: 'Derecha',
+          central_lejana: 'Lejana',
+        }
+        const zoneData = ['izquierda', 'central', 'derecha', 'central_lejana']
+          .filter((z) => allZones.has(z) || zf[z] || zc[z])
+          .map((z) => ({
+            name: ZONE_LABELS[z] || z,
+            favor: zf[z] || 0,
+            contra: zc[z] || 0,
+          }))
+        return (
+          <ChartCard title="Goles por zona de ataque" isEmpty={zoneData.length === 0}>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={zoneData}>
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="favor" fill="#10B981" name="A favor" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="contra" fill="#EF4444" name="En contra" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+        )
+      })()}
+
       {/* Cumulative line */}
       <ChartCard title="GF y GC acumulados" isEmpty={acumData.length === 0}>
         <ResponsiveContainer width="100%" height={280}>

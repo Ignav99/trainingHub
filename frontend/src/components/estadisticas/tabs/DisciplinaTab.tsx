@@ -112,6 +112,53 @@ export function DisciplinaTab({ data }: Props) {
         </ChartCard>
       </div>
 
+      {/* Foul heat map */}
+      {(() => {
+        const faltasMapa = data.goles?.faltas_mapa
+        const cometidas = faltasMapa?.cometidas || []
+        const recibidas = faltasMapa?.recibidas || []
+        if (cometidas.length === 0 && recibidas.length === 0) return null
+
+        const PitchMap = ({ dots, color, title }: { dots: { x: number; y: number }[]; color: string; title: string }) => (
+          <div>
+            <h4 className="text-xs font-medium text-center mb-2 text-muted-foreground">{title} ({dots.length})</h4>
+            <div className="rounded-xl overflow-hidden border border-border">
+              <svg viewBox="0 0 100 150" className="w-full" style={{ maxHeight: 280 }}>
+                <rect x="0" y="0" width="100" height="150" fill="#2D5016" />
+                {[0, 20, 40, 60, 80, 100, 120, 140].map((y) => (
+                  <rect key={y} x="0" y={y} width="100" height="10" fill="#3D6B1E" opacity={0.3} />
+                ))}
+                <rect x="5" y="5" width="90" height="140" fill="none" stroke="white" strokeWidth="0.5" opacity={0.4} />
+                <line x1="5" y1="75" x2="95" y2="75" stroke="white" strokeWidth="0.4" opacity={0.3} />
+                <circle cx="50" cy="75" r="10" fill="none" stroke="white" strokeWidth="0.4" opacity={0.3} />
+                <rect x="20" y="5" width="60" height="18" fill="none" stroke="white" strokeWidth="0.4" opacity={0.3} />
+                <rect x="20" y="127" width="60" height="18" fill="none" stroke="white" strokeWidth="0.4" opacity={0.3} />
+                {dots.map((dot, i) => (
+                  <g key={i}>
+                    <circle cx={dot.x} cy={dot.y} r="3" fill={color} opacity={0.15} />
+                    <circle cx={dot.x} cy={dot.y} r="1.5" fill={color} opacity={0.7} />
+                  </g>
+                ))}
+              </svg>
+            </div>
+          </div>
+        )
+
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Mapa de faltas (temporada)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4">
+                <PitchMap dots={cometidas} color="#EF4444" title="Cometidas" />
+                <PitchMap dots={recibidas} color="#3B82F6" title="Recibidas" />
+              </div>
+            </CardContent>
+          </Card>
+        )
+      })()}
+
       {/* Apercibidos */}
       {apercibidos.length > 0 && (
         <Card className="border-l-4 border-l-amber-500">

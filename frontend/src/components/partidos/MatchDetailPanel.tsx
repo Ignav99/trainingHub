@@ -49,7 +49,9 @@ import { formatDate } from '@/lib/utils'
 import { mutate } from 'swr'
 import dynamic from 'next/dynamic'
 import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
-import type { Convocatoria, Partido, EstadisticaPartido } from '@/types'
+import type { Convocatoria, Partido, EstadisticaPartido, GolDetalle, FaltaPosicion } from '@/types'
+import { GoalDetailEditor } from './GoalDetailEditor'
+import { FoulMapEditor } from './FoulMapEditor'
 
 const PreMatchTab = dynamic(() => import('@/components/pre-match/PreMatchTab').then(m => ({ default: m.PreMatchTab })), {
   loading: () => <div className="animate-pulse space-y-4 p-4"><div className="h-8 bg-muted rounded w-1/3" /><div className="h-32 bg-muted rounded" /><div className="h-32 bg-muted rounded" /></div>
@@ -174,6 +176,13 @@ export function MatchDetailPanel({
   const [savingInforme, setSavingInforme] = useState(false)
   const [informeInitialized, setInformeInitialized] = useState<string | null>(null)
 
+  // Goal detail + foul map state
+  const [golesDetalleFavor, setGolesDetalleFavor] = useState<GolDetalle[]>([])
+  const [golesDetalleContra, setGolesDetalleContra] = useState<GolDetalle[]>([])
+  const [faltasMapaCometidas, setFaltasMapaCometidas] = useState<FaltaPosicion[]>([])
+  const [faltasMapaRecibidas, setFaltasMapaRecibidas] = useState<FaltaPosicion[]>([])
+
+
   const selectedId = selectedPartido?.id || null
 
   // Initialize informe data from fetched stats + convocados
@@ -190,9 +199,17 @@ export function MatchDetailPanel({
       }
       setTeamStats(stats)
       setComentarioTactico(estadisticasData.comentario_tactico || '')
+      setGolesDetalleFavor(estadisticasData.goles_detalle_favor || [])
+      setGolesDetalleContra(estadisticasData.goles_detalle_contra || [])
+      setFaltasMapaCometidas(estadisticasData.faltas_mapa_cometidas || [])
+      setFaltasMapaRecibidas(estadisticasData.faltas_mapa_recibidas || [])
     } else {
       setTeamStats({})
       setComentarioTactico('')
+      setGolesDetalleFavor([])
+      setGolesDetalleContra([])
+      setFaltasMapaCometidas([])
+      setFaltasMapaRecibidas([])
     }
 
     // Player stats from convocados
@@ -550,9 +567,13 @@ export function MatchDetailPanel({
     if (!selectedId) return
     setSavingInforme(true)
     try {
-      // 1. Save team stats
+      // 1. Save team stats + goal details + foul maps
       const statsPayload: EstadisticaPartidoUpdateData = {
         comentario_tactico: comentarioTactico,
+        goles_detalle_favor: golesDetalleFavor,
+        goles_detalle_contra: golesDetalleContra,
+        faltas_mapa_cometidas: faltasMapaCometidas,
+        faltas_mapa_recibidas: faltasMapaRecibidas,
       }
       for (const field of TEAM_STAT_FIELDS) {
         (statsPayload as any)[field.key] = teamStats[field.key] || 0;
@@ -569,8 +590,10 @@ export function MatchDetailPanel({
         await convocatoriasApi.batchUpdateStats(updates)
       }
 
-      // Revalidate
+      // Revalidate + allow re-init from fresh SWR data
       mutate((key: string) => typeof key === 'string' && (key.includes('/estadisticas-partido') || key.includes('/convocatorias')), undefined, { revalidate: true })
+      setInformeInitialized(null)
+      toast.success('Informe guardado')
     } catch (err: any) {
       toast.error(err.message || 'Error al guardar informe')
     } finally {
@@ -1029,6 +1052,53 @@ export function MatchDetailPanel({
               </CardContent>
             </Card>
           )}
+
+          {/* Goal detail editors */}
+          {selectedPartido.resultado && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Goal className="h-4 w-4 text-primary" />
+                  Detalle de goles
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <GoalDetailEditor
+                  label="Goles a favor"
+                  goals={golesDetalleFavor}
+                  onChange={setGolesDetalleFavor}
+                  expectedCount={selectedPartido.goles_favor || 0}
+                  color="emerald"
+                />
+                <div className="border-t" />
+                <GoalDetailEditor
+                  label="Goles en contra"
+                  goals={golesDetalleContra}
+                  onChange={setGolesDetalleContra}
+                  expectedCount={selectedPartido.goles_contra || 0}
+                  color="red"
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Foul map */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-primary" />
+                Mapa de faltas
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <FoulMapEditor
+                cometidas={faltasMapaCometidas}
+                recibidas={faltasMapaRecibidas}
+                onCometidasChange={setFaltasMapaCometidas}
+                onRecibidasChange={setFaltasMapaRecibidas}
+              />
+            </CardContent>
+          </Card>
 
           {/* Comentario tactico */}
           <Card>

@@ -4,7 +4,7 @@ Estadísticas de equipo y análisis táctico por partido.
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, List, Any
 from datetime import datetime
 from uuid import UUID
 
@@ -39,6 +39,12 @@ class EstadisticaPartidoBase(BaseModel):
     goles_por_periodo: Optional[Dict[str, Any]] = Field(default_factory=dict)
     tipos_gol_favor: Optional[Dict[str, Any]] = Field(default_factory=dict)
     tipos_gol_contra: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+    # Detailed goal & foul data
+    goles_detalle_favor: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+    goles_detalle_contra: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+    faltas_mapa_cometidas: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+    faltas_mapa_recibidas: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
 
     # Tactical notes
     comentario_tactico: str = Field(default="", max_length=5000)
@@ -76,6 +82,11 @@ class EstadisticaPartidoUpdate(BaseModel):
     goles_por_periodo: Optional[Dict[str, Any]] = None
     tipos_gol_favor: Optional[Dict[str, Any]] = None
     tipos_gol_contra: Optional[Dict[str, Any]] = None
+
+    goles_detalle_favor: Optional[List[Dict[str, Any]]] = None
+    goles_detalle_contra: Optional[List[Dict[str, Any]]] = None
+    faltas_mapa_cometidas: Optional[List[Dict[str, Any]]] = None
+    faltas_mapa_recibidas: Optional[List[Dict[str, Any]]] = None
 
     comentario_tactico: Optional[str] = Field(None, max_length=5000)
 

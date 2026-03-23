@@ -52,6 +52,12 @@ export interface GolesData {
   por_periodo_contra: Record<string, number>
   tipos_favor: Record<string, number>
   tipos_contra: Record<string, number>
+  zonas_favor?: Record<string, number>
+  zonas_contra?: Record<string, number>
+  faltas_mapa?: {
+    cometidas: { x: number; y: number }[]
+    recibidas: { x: number; y: number }[]
+  }
 }
 
 export interface EvolucionPartido {
