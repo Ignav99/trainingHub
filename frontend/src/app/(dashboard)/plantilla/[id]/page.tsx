@@ -23,6 +23,7 @@ import {
   Plus,
   Clock,
   ExternalLink,
+  BarChart3,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
@@ -35,8 +36,9 @@ import { Jugador, JugadorUpdate, jugadoresApi, POSICIONES, ESTADOS_JUGADOR } fro
 import { medicoApi } from '@/lib/api/medico'
 import { cargaApi } from '@/lib/api/carga'
 import { wellnessApi } from '@/lib/api/wellness'
+import { convocatoriasApi } from '@/lib/api/convocatorias'
 import { apiKey } from '@/lib/swr'
-import type { RegistroMedico, CargaDiaria, CargaJugador, WellnessEntry } from '@/types'
+import type { RegistroMedico, CargaDiaria, CargaJugador, WellnessEntry, Convocatoria, ConvocatoriasJugadorStats } from '@/types'
 import {
   BarChart,
   Bar,
@@ -49,6 +51,7 @@ import {
   Legend,
   ResponsiveContainer,
   ReferenceArea,
+  Cell,
 } from 'recharts'
 
 const TIPO_BADGE: Record<string, { label: string; color: string }> = {
@@ -78,7 +81,7 @@ export default function JugadorDetailPage() {
   const searchParams = useSearchParams()
   const [saving, setSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(searchParams.get('edit') === 'true')
-  const [activeTab, setActiveTab] = useState<'datos' | 'carga' | 'ficha_clinica'>('datos')
+  const [activeTab, setActiveTab] = useState<'datos' | 'estadisticas' | 'carga' | 'ficha_clinica'>('datos')
 
   // Form state
   const [formData, setFormData] = useState<JugadorUpdate>({})
@@ -282,6 +285,17 @@ export default function JugadorDetailPage() {
           }`}
         >
           Datos
+        </button>
+        <button
+          onClick={() => setActiveTab('estadisticas')}
+          className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+            activeTab === 'estadisticas'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <BarChart3 className="h-4 w-4" />
+          Estadisticas
         </button>
         <button
           onClick={() => setActiveTab('carga')}
@@ -686,6 +700,11 @@ export default function JugadorDetailPage() {
           ) : null}
         </div>
       </div>
+      )}
+
+      {/* Tab: Estadisticas */}
+      {activeTab === 'estadisticas' && jugador && (
+        <PlayerStatsTab jugadorId={jugador.id} />
       )}
 
       {/* Tab: Carga / RPE */}
@@ -1103,6 +1122,268 @@ function PlayerLoadTab({ jugadorId, equipoId }: { jugadorId: string; equipoId: s
           </CardContent>
         </Card>
       )}
+    </div>
+  )
+}
+
+
+// ============================================
+// Player Stats Tab — inline component
+// ============================================
+
+interface ConvocatoriaWithJoins extends Convocatoria {
+  partidos?: {
+    fecha: string
+    localia: string
+    competicion: string
+    goles_favor?: number
+    goles_contra?: number
+    resultado?: string
+    rivales?: {
+      nombre: string
+      nombre_corto?: string
+    }
+  }
+}
+
+const RESULTADO_BADGE: Record<string, { label: string; bg: string; text: string; fill: string }> = {
+  victoria: { label: 'V', bg: 'bg-green-100', text: 'text-green-700', fill: '#22C55E' },
+  empate: { label: 'E', bg: 'bg-amber-100', text: 'text-amber-700', fill: '#F59E0B' },
+  derrota: { label: 'D', bg: 'bg-red-100', text: 'text-red-700', fill: '#EF4444' },
+}
+
+function PlayerStatsTab({ jugadorId }: { jugadorId: string }) {
+  const [convocatorias, setConvocatorias] = useState<ConvocatoriaWithJoins[]>([])
+  const [stats, setStats] = useState<ConvocatoriasJugadorStats | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true)
+      try {
+        const res = await convocatoriasApi.listByJugador(jugadorId, { limit: 100 })
+        setConvocatorias(res.data)
+        setStats(res.estadisticas)
+      } catch {
+        // silent
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchData()
+  }, [jugadorId])
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-32 w-full rounded-lg" />
+        <Skeleton className="h-64 w-full rounded-lg" />
+      </div>
+    )
+  }
+
+  if (!stats || convocatorias.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <BarChart3 className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">
+            Sin datos de convocatorias. Las estadísticas aparecerán cuando el jugador sea convocado a partidos.
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const minPerGoal = stats.goles > 0 ? Math.round(stats.minutos_totales / stats.goles) : null
+  const titularPct = stats.total_convocatorias > 0
+    ? Math.round((stats.titularidades / stats.total_convocatorias) * 100)
+    : 0
+
+  // Chart data — reversed so oldest first (left to right)
+  const chartData = [...convocatorias].reverse().map((c) => {
+    const rival = c.partidos?.rivales?.nombre_corto || c.partidos?.rivales?.nombre || '?'
+    const resultado = c.partidos?.resultado || null
+    return {
+      rival: rival.length > 8 ? rival.slice(0, 7) + '…' : rival,
+      minutos: c.minutos_jugados,
+      fill: resultado ? RESULTADO_BADGE[resultado]?.fill || '#94A3B8' : '#94A3B8',
+    }
+  })
+
+  return (
+    <div className="space-y-6">
+      {/* KPI Row 1 */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-xs text-muted-foreground mb-1">Convocatorias</p>
+            <p className="text-2xl font-bold">{stats.total_convocatorias}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-xs text-muted-foreground mb-1">Titularidades</p>
+            <p className="text-2xl font-bold">{stats.titularidades}</p>
+            <p className="text-[10px] text-muted-foreground">{titularPct}%</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-xs text-muted-foreground mb-1">Minutos totales</p>
+            <p className="text-2xl font-bold">{stats.minutos_totales.toLocaleString()}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-xs text-muted-foreground mb-1">Goles</p>
+            <p className="text-2xl font-bold">{stats.goles}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* KPI Row 2 */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card>
+          <CardContent className="p-3 text-center">
+            <p className="text-xs text-muted-foreground">Asistencias</p>
+            <p className="text-lg font-bold">{stats.asistencias}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3 text-center">
+            <p className="text-xs text-muted-foreground">T. Amarillas</p>
+            <p className={`text-lg font-bold ${stats.amarillas >= 4 ? 'text-orange-600' : stats.amarillas > 0 ? 'text-yellow-600' : ''}`}>
+              {stats.amarillas}
+              {stats.amarillas >= 4 && <AlertCircle className="inline h-4 w-4 ml-1 text-orange-500" />}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3 text-center">
+            <p className="text-xs text-muted-foreground">T. Rojas</p>
+            <p className={`text-lg font-bold ${stats.rojas > 0 ? 'text-red-600' : ''}`}>
+              {stats.rojas}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3 text-center">
+            <p className="text-xs text-muted-foreground">Min/Gol</p>
+            <p className="text-lg font-bold">{minPerGoal ?? '-'}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Minutes Per Match Chart */}
+      {chartData.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Minutos por partido</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={chartData} barCategoryGap="15%">
+                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                <XAxis dataKey="rival" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} width={35} domain={[0, 'auto']} />
+                <Tooltip formatter={(value: any) => [`${value} min`, 'Minutos']} />
+                <Bar dataKey="minutos">
+                  {chartData.map((entry, i) => (
+                    <Cell key={i} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="flex gap-3 justify-center text-[10px] text-muted-foreground mt-1">
+              <span className="flex items-center gap-1"><span className="w-3 h-2 bg-green-500 rounded" /> Victoria</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-2 bg-amber-500 rounded" /> Empate</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-2 bg-red-500 rounded" /> Derrota</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Match History Table */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Historial de partidos</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Rival</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Res</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Min</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Goles</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Asist</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">TA</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">TR</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Titular</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {convocatorias.map((c) => {
+                  const p = c.partidos
+                  const resultado = p?.resultado ? RESULTADO_BADGE[p.resultado] : null
+                  const score = p?.goles_favor != null && p?.goles_contra != null
+                    ? `${p.goles_favor}-${p.goles_contra}`
+                    : '-'
+
+                  return (
+                    <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-3 py-2.5 text-sm whitespace-nowrap">
+                        {p?.fecha
+                          ? new Date(p.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+                          : '-'}
+                      </td>
+                      <td className="px-3 py-2.5 text-sm">
+                        {p?.rivales?.nombre_corto || p?.rivales?.nombre || '-'}
+                      </td>
+                      <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                        {resultado ? (
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${resultado.bg} ${resultado.text}`}>
+                            {resultado.label} {score}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">{score}</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-sm text-center">{c.minutos_jugados}</td>
+                      <td className="px-3 py-2.5 text-sm text-center font-medium">
+                        {c.goles > 0 ? c.goles : '-'}
+                      </td>
+                      <td className="px-3 py-2.5 text-sm text-center">
+                        {c.asistencias > 0 ? c.asistencias : '-'}
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        {c.tarjeta_amarilla && (
+                          <span className="inline-block w-3 h-4 bg-yellow-400 rounded-sm" />
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        {c.tarjeta_roja && (
+                          <span className="inline-block w-3 h-4 bg-red-500 rounded-sm" />
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        {c.titular ? (
+                          <CheckCircle className="h-4 w-4 text-green-500 mx-auto" />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Sup</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
