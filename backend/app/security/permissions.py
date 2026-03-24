@@ -97,6 +97,11 @@ class Permission(str, Enum):
     ABP_UPDATE = "abp.update"
     ABP_DELETE = "abp.delete"
 
+    # Nutrition
+    NUTRITION_CREATE = "nutrition.create"
+    NUTRITION_READ = "nutrition.read"
+    NUTRITION_UPDATE = "nutrition.update"
+
     # Player/Tutor permissions
     PLAYER_VIEW_SHARED = "player.view_shared"
     PLAYER_SEND_RPE = "player.send_rpe"
@@ -151,6 +156,9 @@ _CT_FULL_PERMISSIONS = {
     # ABP
     Permission.ABP_CREATE, Permission.ABP_READ,
     Permission.ABP_UPDATE, Permission.ABP_DELETE,
+    # Nutrition
+    Permission.NUTRITION_CREATE, Permission.NUTRITION_READ,
+    Permission.NUTRITION_UPDATE,
     # Team config
     Permission.CONFIG_TEAM,
     Permission.INVITACION_MANAGE,
@@ -184,8 +192,8 @@ DEFAULT_PERMISSIONS: dict[str, set[Permission]] = {
     "fisio":                set(_CT_FULL_PERMISSIONS),
     "delegado":             set(_CT_FULL_PERMISSIONS),
 
-    # Players: read-only
-    "jugador": set(_PLAYER_READ_ONLY),
+    # Players: read-only (+ nutrition read)
+    "jugador": set(_PLAYER_READ_ONLY) | {Permission.NUTRITION_READ},
 
     # Tutors: same as player + revoke access
     "tutor": set(_PLAYER_READ_ONLY) | {Permission.TUTOR_REVOKE_ACCESS},

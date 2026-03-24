@@ -45,6 +45,7 @@ from app.api.v1 import (
     portero_tareas,
     videos,
     video_anotaciones,
+    nutricion,
 )
 
 api_router = APIRouter()
@@ -281,6 +282,12 @@ api_router.include_router(
     video_anotaciones.router,
     prefix="/video-anotaciones",
     tags=["Video Anotaciones"]
+)
+
+api_router.include_router(
+    nutricion.router,
+    prefix="/nutricion",
+    tags=["Nutricion"]
 )
 
 

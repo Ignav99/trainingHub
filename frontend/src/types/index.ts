@@ -1723,3 +1723,126 @@ export interface VideoAnotacion {
   created_at: string
   updated_at: string
 }
+
+// ============================================
+// NUTRICION
+// ============================================
+
+export type ObjetivoNutricional = 'mantenimiento' | 'ganancia_muscular' | 'perdida_grasa' | 'rendimiento' | 'recuperacion'
+export type TipoComida = 'desayuno' | 'almuerzo' | 'comida' | 'merienda' | 'cena' | 'snack_pre' | 'snack_post'
+export type ContextoNutricional = 'dia_normal' | 'pre_partido' | 'post_partido' | 'dia_descanso' | 'viaje' | 'cualquiera'
+
+export interface AlimentoItem {
+  nombre: string
+  cantidad_g?: number
+  calorias?: number
+  proteinas_g?: number
+  carbohidratos_g?: number
+  grasas_g?: number
+}
+
+export interface PerfilNutricional {
+  id: string
+  jugador_id: string
+  equipo_id: string
+  peso_kg?: number
+  altura_cm?: number
+  porcentaje_grasa?: number
+  masa_muscular_kg?: number
+  metabolismo_basal_kcal?: number
+  objetivo?: ObjetivoNutricional
+  alergias?: string[]
+  intolerancias?: string[]
+  preferencias_dieta?: string
+  notas?: string
+  updated_at?: string
+  created_at?: string
+}
+
+export interface PlantillaNutricional {
+  id: string
+  equipo_id: string
+  nombre: string
+  tipo_comida: TipoComida
+  contexto?: ContextoNutricional
+  descripcion?: string
+  alimentos: AlimentoItem[]
+  calorias_total?: number
+  proteinas_total_g?: number
+  carbohidratos_total_g?: number
+  grasas_total_g?: number
+  notas?: string
+  created_at?: string
+}
+
+export interface ComidaPlan {
+  tipo_comida: string
+  plantilla_id?: string
+  nombre: string
+  alimentos: AlimentoItem[]
+  calorias?: number
+  proteinas_g?: number
+  carbos_g?: number
+  grasas_g?: number
+  hora_sugerida?: string
+}
+
+export interface PlanNutricionalDia {
+  id: string
+  equipo_id: string
+  jugador_id?: string
+  fecha: string
+  contexto?: ContextoNutricional
+  comidas: ComidaPlan[]
+  calorias_objetivo?: number
+  proteinas_objetivo_g?: number
+  carbohidratos_objetivo_g?: number
+  grasas_objetivo_g?: number
+  hidratacion_litros?: number
+  notas?: string
+  created_by?: string
+  created_at?: string
+}
+
+export interface SuplementacionJugador {
+  id: string
+  jugador_id: string
+  equipo_id: string
+  nombre: string
+  dosis?: string
+  frecuencia?: string
+  fecha_inicio: string
+  fecha_fin?: string
+  activo: boolean
+  notas?: string
+  created_at?: string
+}
+
+export interface ComposicionCorporal {
+  id: string
+  jugador_id: string
+  equipo_id: string
+  fecha: string
+  peso_kg: number
+  porcentaje_grasa?: number
+  masa_muscular_kg?: number
+  imc?: number
+  agua_corporal_pct?: number
+  notas?: string
+  created_at?: string
+}
+
+export interface NutricionOverview {
+  perfil?: PerfilNutricional
+  plan_hoy?: PlanNutricionalDia
+  suplementos_activos: SuplementacionJugador[]
+  ultima_composicion?: ComposicionCorporal
+  peso_trend: { fecha: string; peso_kg: number }[]
+  recomendaciones: { tipo: string; mensaje: string; prioridad: string }[]
+}
+
+export interface DiaPartidoContext {
+  contexto_sugerido: ContextoNutricional
+  partido: any | null
+  label: string
+}

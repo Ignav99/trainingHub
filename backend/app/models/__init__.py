@@ -312,6 +312,29 @@ from app.models.video_anotacion import (
     VideoAnotacionResponse,
 )
 
+from app.models.nutricion import (
+    ObjetivoNutricional,
+    TipoComida,
+    ContextoNutricional,
+    AlimentoItem,
+    ComidaPlan,
+    PerfilNutricionalCreate,
+    PerfilNutricionalUpdate,
+    PerfilNutricionalResponse,
+    PlantillaNutricionalCreate,
+    PlantillaNutricionalUpdate,
+    PlantillaNutricionalResponse,
+    PlanNutricionalDiaCreate,
+    PlanNutricionalDiaUpdate,
+    PlanNutricionalDiaResponse,
+    SuplementacionCreate,
+    SuplementacionUpdate,
+    SuplementacionResponse,
+    ComposicionCorporalCreate,
+    ComposicionCorporalResponse,
+    NutricionOverviewResponse,
+)
+
 from app.models.medico import (
     TipoRegistroMedico,
     EstadoRegistroMedico,
@@ -420,6 +443,15 @@ __all__ = [
     "RivalInformeResponse",
     # Descansos
     "DescansoCreate", "DescansoResponse",
+    # Nutricion
+    "ObjetivoNutricional", "TipoComida", "ContextoNutricional",
+    "AlimentoItem", "ComidaPlan",
+    "PerfilNutricionalCreate", "PerfilNutricionalUpdate", "PerfilNutricionalResponse",
+    "PlantillaNutricionalCreate", "PlantillaNutricionalUpdate", "PlantillaNutricionalResponse",
+    "PlanNutricionalDiaCreate", "PlanNutricionalDiaUpdate", "PlanNutricionalDiaResponse",
+    "SuplementacionCreate", "SuplementacionUpdate", "SuplementacionResponse",
+    "ComposicionCorporalCreate", "ComposicionCorporalResponse",
+    "NutricionOverviewResponse",
     # Medico
     "TipoRegistroMedico", "EstadoRegistroMedico", "AccionMedica",
     "RegistroMedicoCreate", "RegistroMedicoUpdate", "RegistroMedicoResponse",

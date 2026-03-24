@@ -27,6 +27,11 @@ import {
   Upload,
   FileText,
   X,
+  UtensilsCrossed,
+  Droplets,
+  Flame,
+  TrendingUp,
+  TrendingDown,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
@@ -43,8 +48,9 @@ import { medicoApi, CreateRegistroMedicoData } from '@/lib/api/medico'
 import { cargaApi } from '@/lib/api/carga'
 import { wellnessApi } from '@/lib/api/wellness'
 import { convocatoriasApi } from '@/lib/api/convocatorias'
-import { apiKey } from '@/lib/swr'
-import type { RegistroMedico, CargaDiaria, CargaJugador, WellnessEntry, Convocatoria, ConvocatoriasJugadorStats, TipoRegistroMedico } from '@/types'
+import { nutricionApi } from '@/lib/api/nutricion'
+import { apiKey, apiFetcher } from '@/lib/swr'
+import type { RegistroMedico, CargaDiaria, CargaJugador, WellnessEntry, Convocatoria, ConvocatoriasJugadorStats, TipoRegistroMedico, NutricionOverview, SuplementacionJugador, ComposicionCorporal, AlimentoItem } from '@/types'
 import {
   BarChart,
   Bar,
@@ -95,7 +101,7 @@ export default function JugadorDetailPage() {
   const searchParams = useSearchParams()
   const [saving, setSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(searchParams.get('edit') === 'true')
-  const [activeTab, setActiveTab] = useState<'datos' | 'estadisticas' | 'carga' | 'ficha_clinica'>('datos')
+  const [activeTab, setActiveTab] = useState<'datos' | 'estadisticas' | 'carga' | 'ficha_clinica' | 'nutricion'>('datos')
 
   // Form state
   const [formData, setFormData] = useState<JugadorUpdate>({})
@@ -433,6 +439,17 @@ export default function JugadorDetailPage() {
           {activeIncident && (
             <span className="w-2 h-2 rounded-full bg-red-500" />
           )}
+        </button>
+        <button
+          onClick={() => setActiveTab('nutricion')}
+          className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+            activeTab === 'nutricion'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <UtensilsCrossed className="h-4 w-4" />
+          Nutrición
         </button>
       </div>
 
@@ -1147,7 +1164,524 @@ export default function JugadorDetailPage() {
         </Dialog>
       </div>
       )}
+
+      {/* Tab: Nutrición */}
+      {activeTab === 'nutricion' && jugador && (
+        <PlayerNutritionTab jugadorId={jugador.id} equipoId={jugador.equipo_id} />
+      )}
     </div>
+  )
+}
+
+
+// ============================================
+// Player Nutrition Tab — inline component
+// ============================================
+
+const OBJETIVO_LABELS: Record<string, string> = {
+  mantenimiento: 'Mantenimiento',
+  ganancia_muscular: 'Ganancia muscular',
+  perdida_grasa: 'Pérdida de grasa',
+  rendimiento: 'Rendimiento',
+  recuperacion: 'Recuperación',
+}
+
+const DIETA_LABELS: Record<string, string> = {
+  omnivora: 'Omnívora',
+  vegetariana: 'Vegetariana',
+  vegana: 'Vegana',
+  sin_gluten: 'Sin gluten',
+}
+
+const TIPO_COMIDA_LABELS: Record<string, { label: string; emoji: string }> = {
+  desayuno: { label: 'Desayuno', emoji: '🌅' },
+  almuerzo: { label: 'Almuerzo', emoji: '🥪' },
+  comida: { label: 'Comida', emoji: '🍽️' },
+  merienda: { label: 'Merienda', emoji: '🍎' },
+  cena: { label: 'Cena', emoji: '🌙' },
+  snack_pre: { label: 'Snack Pre', emoji: '⚡' },
+  snack_post: { label: 'Snack Post', emoji: '💪' },
+}
+
+function PlayerNutritionTab({ jugadorId, equipoId }: { jugadorId: string; equipoId: string }) {
+  const [showPerfilDialog, setShowPerfilDialog] = useState(false)
+  const [showComposicionDialog, setShowComposicionDialog] = useState(false)
+  const [showSupDialog, setShowSupDialog] = useState(false)
+
+  const { data: overview, isLoading, mutate: mutateOverview } = useSWR<NutricionOverview>(
+    apiKey(`/nutricion/overview/${jugadorId}`, { equipo_id: equipoId }, ['equipo_id']),
+    apiFetcher
+  )
+
+  const { data: composiciones } = useSWR<ComposicionCorporal[]>(
+    apiKey('/nutricion/composicion', { equipo_id: equipoId, jugador_id: jugadorId }, ['equipo_id']),
+    apiFetcher
+  )
+
+  const { data: planes14d } = useSWR(
+    apiKey('/nutricion/planes', { equipo_id: equipoId, jugador_id: jugadorId }, ['equipo_id']),
+    apiFetcher
+  )
+
+  if (isLoading) {
+    return <div className="space-y-4"><Skeleton className="h-32" /><Skeleton className="h-48" /><Skeleton className="h-32" /></div>
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* 1. Perfil Nutricional */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Perfil Nutricional</CardTitle>
+            <Button size="sm" variant="outline" onClick={() => setShowPerfilDialog(true)}>
+              <Edit className="h-3.5 w-3.5 mr-1" /> Editar
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {overview?.perfil ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {overview.perfil.peso_kg && (
+                <div><span className="text-xs text-gray-500">Peso</span><p className="font-semibold">{overview.perfil.peso_kg} kg</p></div>
+              )}
+              {overview.perfil.altura_cm && (
+                <div><span className="text-xs text-gray-500">Altura</span><p className="font-semibold">{overview.perfil.altura_cm} cm</p></div>
+              )}
+              {overview.perfil.porcentaje_grasa != null && (
+                <div><span className="text-xs text-gray-500">% Grasa</span><p className="font-semibold">{overview.perfil.porcentaje_grasa}%</p></div>
+              )}
+              {overview.perfil.masa_muscular_kg && (
+                <div><span className="text-xs text-gray-500">Masa muscular</span><p className="font-semibold">{overview.perfil.masa_muscular_kg} kg</p></div>
+              )}
+              {overview.perfil.metabolismo_basal_kcal && (
+                <div><span className="text-xs text-gray-500">TMB</span><p className="font-semibold">{overview.perfil.metabolismo_basal_kcal} kcal</p></div>
+              )}
+              {overview.perfil.objetivo && (
+                <div><span className="text-xs text-gray-500">Objetivo</span><p className="font-semibold">{OBJETIVO_LABELS[overview.perfil.objetivo] || overview.perfil.objetivo}</p></div>
+              )}
+              {overview.perfil.preferencias_dieta && (
+                <div><span className="text-xs text-gray-500">Dieta</span><p className="font-semibold">{DIETA_LABELS[overview.perfil.preferencias_dieta] || overview.perfil.preferencias_dieta}</p></div>
+              )}
+              {overview.perfil.alergias?.length ? (
+                <div><span className="text-xs text-gray-500">Alergias</span><p className="font-semibold text-red-600">{overview.perfil.alergias.join(', ')}</p></div>
+              ) : null}
+              {overview.perfil.intolerancias?.length ? (
+                <div><span className="text-xs text-gray-500">Intolerancias</span><p className="font-semibold text-amber-600">{overview.perfil.intolerancias.join(', ')}</p></div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="text-center py-4 text-gray-500 text-sm">
+              <p>Sin perfil nutricional</p>
+              <Button size="sm" className="mt-2" onClick={() => setShowPerfilDialog(true)}>
+                <Plus className="h-3.5 w-3.5 mr-1" /> Crear perfil
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 2. Plan de Hoy */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Plan de Hoy</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {overview?.plan_hoy ? (
+            <div className="space-y-3">
+              <div className="flex gap-3 text-xs flex-wrap">
+                {overview.plan_hoy.calorias_objetivo && (
+                  <span className="px-2 py-1 rounded bg-gray-100">
+                    <Flame className="h-3 w-3 inline mr-1" />{overview.plan_hoy.calorias_objetivo} kcal
+                  </span>
+                )}
+                {overview.plan_hoy.hidratacion_litros && (
+                  <span className="px-2 py-1 rounded bg-cyan-50 text-cyan-600">
+                    <Droplets className="h-3 w-3 inline mr-1" />{overview.plan_hoy.hidratacion_litros}L
+                  </span>
+                )}
+              </div>
+              {overview.plan_hoy.comidas.map((comida, idx) => {
+                const tc = TIPO_COMIDA_LABELS[comida.tipo_comida]
+                return (
+                  <div key={idx} className="flex items-start gap-2 py-1.5 border-b last:border-0">
+                    <span className="text-sm w-24 text-gray-500 shrink-0">{tc?.emoji} {tc?.label || comida.tipo_comida}</span>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium">{comida.nombre}</span>
+                      {comida.hora_sugerida && <span className="text-xs text-gray-400 ml-2">{comida.hora_sugerida}</span>}
+                      {comida.alimentos?.length > 0 && (
+                        <p className="text-xs text-gray-500 mt-0.5">{comida.alimentos.map((a) => a.nombre).join(', ')}</p>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-400 text-right shrink-0">
+                      {comida.calorias && <div>{comida.calorias} kcal</div>}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 text-center py-4">Sin plan asignado para hoy</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 3. Evolución Corporal */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Evolución Corporal</CardTitle>
+            <Button size="sm" variant="outline" onClick={() => setShowComposicionDialog(true)}>
+              <Plus className="h-3.5 w-3.5 mr-1" /> Medición
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {overview?.peso_trend && overview.peso_trend.length > 1 ? (
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={overview.peso_trend}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="fecha" tick={{ fontSize: 10 }} tickFormatter={(v) => { const d = new Date(v + 'T00:00:00'); return `${d.getDate()}/${d.getMonth() + 1}` }} />
+                <YAxis tick={{ fontSize: 10 }} domain={['dataMin - 1', 'dataMax + 1']} />
+                <Tooltip />
+                <Line type="monotone" dataKey="peso_kg" stroke="#3B82F6" strokeWidth={2} dot={{ r: 3 }} name="Peso (kg)" />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-sm text-gray-500 text-center py-4">Sin datos suficientes para gráfico</p>
+          )}
+
+          {/* Latest measurements table */}
+          {composiciones && composiciones.length > 0 && (
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead><tr className="border-b text-gray-500"><th className="pb-1 text-left">Fecha</th><th className="pb-1">Peso</th><th className="pb-1">% Grasa</th><th className="pb-1">Músculo</th><th className="pb-1">IMC</th></tr></thead>
+                <tbody>
+                  {composiciones.slice(0, 8).map((c) => (
+                    <tr key={c.id} className="border-b last:border-0">
+                      <td className="py-1">{new Date(c.fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</td>
+                      <td className="py-1 text-center">{c.peso_kg} kg</td>
+                      <td className="py-1 text-center">{c.porcentaje_grasa != null ? `${c.porcentaje_grasa}%` : '-'}</td>
+                      <td className="py-1 text-center">{c.masa_muscular_kg ? `${c.masa_muscular_kg} kg` : '-'}</td>
+                      <td className="py-1 text-center">{c.imc || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 4. Suplementación Activa */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Suplementación Activa</CardTitle>
+            <Button size="sm" variant="outline" onClick={() => setShowSupDialog(true)}>
+              <Plus className="h-3.5 w-3.5 mr-1" /> Agregar
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {overview?.suplementos_activos?.length ? (
+            <div className="space-y-2">
+              {overview.suplementos_activos.map((s) => (
+                <div key={s.id} className="flex items-center justify-between py-1.5 border-b last:border-0">
+                  <div>
+                    <span className="text-sm font-medium">{s.nombre}</span>
+                    {s.dosis && <span className="text-xs text-gray-500 ml-2">{s.dosis}</span>}
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    {s.frecuencia || 'Diaria'}
+                    <span className="ml-2">desde {new Date(s.fecha_inicio + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 text-center py-4">Sin suplementos activos</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 5. Historial de Planes */}
+      {Array.isArray(planes14d) && (planes14d as any[]).length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Historial de Planes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead><tr className="border-b text-gray-500"><th className="pb-1 text-left">Fecha</th><th className="pb-1">Contexto</th><th className="pb-1">Kcal</th><th className="pb-1">Prot</th><th className="pb-1">Carbs</th><th className="pb-1">Grasas</th></tr></thead>
+                <tbody>
+                  {(planes14d as any[]).slice(0, 14).map((p: any) => (
+                    <tr key={p.id} className="border-b last:border-0">
+                      <td className="py-1">{new Date(p.fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short', weekday: 'short' })}</td>
+                      <td className="py-1 text-center">{p.contexto || '-'}</td>
+                      <td className="py-1 text-center">{p.calorias_objetivo || '-'}</td>
+                      <td className="py-1 text-center text-blue-600">{p.proteinas_objetivo_g || '-'}</td>
+                      <td className="py-1 text-center text-amber-600">{p.carbohidratos_objetivo_g || '-'}</td>
+                      <td className="py-1 text-center text-red-500">{p.grasas_objetivo_g || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 6. Recomendaciones Contextuales */}
+      {overview?.recomendaciones?.length ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Recomendaciones</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {overview.recomendaciones.map((r, idx) => (
+                <div
+                  key={idx}
+                  className={`flex items-start gap-2 p-3 rounded-lg text-sm ${
+                    r.prioridad === 'alta' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'
+                  }`}
+                >
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>{r.mensaje}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* Dialogs */}
+      {showPerfilDialog && (
+        <PerfilNutricionDialog
+          jugadorId={jugadorId}
+          equipoId={equipoId}
+          existing={overview?.perfil || null}
+          onClose={() => { setShowPerfilDialog(false); mutateOverview() }}
+        />
+      )}
+      {showComposicionDialog && (
+        <ComposicionDialog
+          jugadorId={jugadorId}
+          equipoId={equipoId}
+          onClose={() => { setShowComposicionDialog(false); mutateOverview() }}
+        />
+      )}
+      {showSupDialog && (
+        <SuplementoDialog
+          jugadorId={jugadorId}
+          equipoId={equipoId}
+          onClose={() => { setShowSupDialog(false); mutateOverview() }}
+        />
+      )}
+    </div>
+  )
+}
+
+function PerfilNutricionDialog({ jugadorId, equipoId, existing, onClose }: {
+  jugadorId: string; equipoId: string; existing: any; onClose: () => void
+}) {
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({
+    peso_kg: existing?.peso_kg?.toString() || '',
+    altura_cm: existing?.altura_cm?.toString() || '',
+    porcentaje_grasa: existing?.porcentaje_grasa?.toString() || '',
+    masa_muscular_kg: existing?.masa_muscular_kg?.toString() || '',
+    metabolismo_basal_kcal: existing?.metabolismo_basal_kcal?.toString() || '',
+    objetivo: existing?.objetivo || '',
+    alergias: existing?.alergias?.join(', ') || '',
+    intolerancias: existing?.intolerancias?.join(', ') || '',
+    preferencias_dieta: existing?.preferencias_dieta || '',
+    notas: existing?.notas || '',
+  })
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await nutricionApi.upsertPerfil({
+        jugador_id: jugadorId,
+        equipo_id: equipoId,
+        peso_kg: form.peso_kg ? parseFloat(form.peso_kg) : undefined,
+        altura_cm: form.altura_cm ? parseFloat(form.altura_cm) : undefined,
+        porcentaje_grasa: form.porcentaje_grasa ? parseFloat(form.porcentaje_grasa) : undefined,
+        masa_muscular_kg: form.masa_muscular_kg ? parseFloat(form.masa_muscular_kg) : undefined,
+        metabolismo_basal_kcal: form.metabolismo_basal_kcal ? parseInt(form.metabolismo_basal_kcal) : undefined,
+        objetivo: form.objetivo || undefined,
+        alergias: form.alergias ? form.alergias.split(',').map((s: string) => s.trim()).filter(Boolean) : undefined,
+        intolerancias: form.intolerancias ? form.intolerancias.split(',').map((s: string) => s.trim()).filter(Boolean) : undefined,
+        preferencias_dieta: form.preferencias_dieta || undefined,
+        notas: form.notas || undefined,
+      })
+      toast.success('Perfil guardado')
+      mutate((key: string) => typeof key === 'string' && key.includes('/nutricion/'))
+      onClose()
+    } catch { toast.error('Error al guardar perfil') }
+    setSaving(false)
+  }
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Perfil Nutricional</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="text-xs text-gray-500">Peso (kg)</label><Input type="number" value={form.peso_kg} onChange={(e) => setForm({ ...form, peso_kg: e.target.value })} /></div>
+            <div><label className="text-xs text-gray-500">Altura (cm)</label><Input type="number" value={form.altura_cm} onChange={(e) => setForm({ ...form, altura_cm: e.target.value })} /></div>
+            <div><label className="text-xs text-gray-500">% Grasa</label><Input type="number" value={form.porcentaje_grasa} onChange={(e) => setForm({ ...form, porcentaje_grasa: e.target.value })} /></div>
+            <div><label className="text-xs text-gray-500">Masa muscular (kg)</label><Input type="number" value={form.masa_muscular_kg} onChange={(e) => setForm({ ...form, masa_muscular_kg: e.target.value })} /></div>
+            <div><label className="text-xs text-gray-500">TMB (kcal)</label><Input type="number" value={form.metabolismo_basal_kcal} onChange={(e) => setForm({ ...form, metabolismo_basal_kcal: e.target.value })} /></div>
+            <div>
+              <label className="text-xs text-gray-500">Objetivo</label>
+              <select value={form.objetivo} onChange={(e) => setForm({ ...form, objetivo: e.target.value })} className="w-full border rounded-md px-3 py-2 text-sm">
+                <option value="">Sin objetivo</option>
+                <option value="mantenimiento">Mantenimiento</option>
+                <option value="ganancia_muscular">Ganancia muscular</option>
+                <option value="perdida_grasa">Pérdida de grasa</option>
+                <option value="rendimiento">Rendimiento</option>
+                <option value="recuperacion">Recuperación</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500">Dieta</label>
+            <select value={form.preferencias_dieta} onChange={(e) => setForm({ ...form, preferencias_dieta: e.target.value })} className="w-full border rounded-md px-3 py-2 text-sm">
+              <option value="">Sin preferencia</option>
+              <option value="omnivora">Omnívora</option>
+              <option value="vegetariana">Vegetariana</option>
+              <option value="vegana">Vegana</option>
+              <option value="sin_gluten">Sin gluten</option>
+            </select>
+          </div>
+          <div><label className="text-xs text-gray-500">Alergias (separar con coma)</label><Input value={form.alergias} onChange={(e) => setForm({ ...form, alergias: e.target.value })} /></div>
+          <div><label className="text-xs text-gray-500">Intolerancias (separar con coma)</label><Input value={form.intolerancias} onChange={(e) => setForm({ ...form, intolerancias: e.target.value })} /></div>
+          <div><label className="text-xs text-gray-500">Notas</label><Textarea value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} rows={2} /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSave} disabled={saving}>{saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Guardar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ComposicionDialog({ jugadorId, equipoId, onClose }: {
+  jugadorId: string; equipoId: string; onClose: () => void
+}) {
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({
+    fecha: new Date().toISOString().split('T')[0],
+    peso_kg: '', porcentaje_grasa: '', masa_muscular_kg: '', imc: '', agua_corporal_pct: '', notas: '',
+  })
+
+  const handleSave = async () => {
+    if (!form.peso_kg) { toast.error('El peso es requerido'); return }
+    setSaving(true)
+    try {
+      await nutricionApi.createComposicion({
+        jugador_id: jugadorId,
+        equipo_id: equipoId,
+        fecha: form.fecha,
+        peso_kg: parseFloat(form.peso_kg),
+        porcentaje_grasa: form.porcentaje_grasa ? parseFloat(form.porcentaje_grasa) : undefined,
+        masa_muscular_kg: form.masa_muscular_kg ? parseFloat(form.masa_muscular_kg) : undefined,
+        imc: form.imc ? parseFloat(form.imc) : undefined,
+        agua_corporal_pct: form.agua_corporal_pct ? parseFloat(form.agua_corporal_pct) : undefined,
+        notas: form.notas || undefined,
+      })
+      toast.success('Medición registrada')
+      mutate((key: string) => typeof key === 'string' && key.includes('/nutricion/'))
+      onClose()
+    } catch { toast.error('Error al registrar medición') }
+    setSaving(false)
+  }
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Nueva Medición Corporal</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div><label className="text-xs text-gray-500">Fecha</label><Input type="date" value={form.fecha} onChange={(e) => setForm({ ...form, fecha: e.target.value })} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="text-xs text-gray-500">Peso (kg) *</label><Input type="number" step="0.1" value={form.peso_kg} onChange={(e) => setForm({ ...form, peso_kg: e.target.value })} /></div>
+            <div><label className="text-xs text-gray-500">% Grasa</label><Input type="number" step="0.1" value={form.porcentaje_grasa} onChange={(e) => setForm({ ...form, porcentaje_grasa: e.target.value })} /></div>
+            <div><label className="text-xs text-gray-500">Masa muscular (kg)</label><Input type="number" step="0.1" value={form.masa_muscular_kg} onChange={(e) => setForm({ ...form, masa_muscular_kg: e.target.value })} /></div>
+            <div><label className="text-xs text-gray-500">IMC</label><Input type="number" step="0.1" value={form.imc} onChange={(e) => setForm({ ...form, imc: e.target.value })} /></div>
+          </div>
+          <div><label className="text-xs text-gray-500">% Agua corporal</label><Input type="number" step="0.1" value={form.agua_corporal_pct} onChange={(e) => setForm({ ...form, agua_corporal_pct: e.target.value })} /></div>
+          <div><label className="text-xs text-gray-500">Notas</label><Input value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSave} disabled={saving}>{saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Guardar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function SuplementoDialog({ jugadorId, equipoId, onClose }: {
+  jugadorId: string; equipoId: string; onClose: () => void
+}) {
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({
+    nombre: '', dosis: '', frecuencia: 'diaria',
+    fecha_inicio: new Date().toISOString().split('T')[0], notas: '',
+  })
+
+  const handleSave = async () => {
+    if (!form.nombre.trim()) { toast.error('El nombre es requerido'); return }
+    setSaving(true)
+    try {
+      await nutricionApi.createSuplemento({
+        jugador_id: jugadorId,
+        equipo_id: equipoId,
+        nombre: form.nombre,
+        dosis: form.dosis || undefined,
+        frecuencia: form.frecuencia || undefined,
+        fecha_inicio: form.fecha_inicio,
+        notas: form.notas || undefined,
+      })
+      toast.success('Suplemento agregado')
+      mutate((key: string) => typeof key === 'string' && key.includes('/nutricion/'))
+      onClose()
+    } catch { toast.error('Error al agregar suplemento') }
+    setSaving(false)
+  }
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Nuevo Suplemento</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div><label className="text-xs text-gray-500">Nombre *</label><Input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Ej: Creatina, Vitamina D..." /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="text-xs text-gray-500">Dosis</label><Input value={form.dosis} onChange={(e) => setForm({ ...form, dosis: e.target.value })} placeholder="5g/día" /></div>
+            <div>
+              <label className="text-xs text-gray-500">Frecuencia</label>
+              <select value={form.frecuencia} onChange={(e) => setForm({ ...form, frecuencia: e.target.value })} className="w-full border rounded-md px-3 py-2 text-sm">
+                <option value="diaria">Diaria</option>
+                <option value="post_entreno">Post-entreno</option>
+                <option value="pre_partido">Pre-partido</option>
+                <option value="semanal">Semanal</option>
+              </select>
+            </div>
+          </div>
+          <div><label className="text-xs text-gray-500">Fecha inicio</label><Input type="date" value={form.fecha_inicio} onChange={(e) => setForm({ ...form, fecha_inicio: e.target.value })} /></div>
+          <div><label className="text-xs text-gray-500">Notas</label><Input value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSave} disabled={saving}>{saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Guardar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
