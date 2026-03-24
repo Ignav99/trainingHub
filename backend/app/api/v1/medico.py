@@ -88,6 +88,8 @@ async def create_registro_medico(
     record["creado_por"] = auth.user_id
     record["jugador_id"] = str(record["jugador_id"])
     record["equipo_id"] = str(record["equipo_id"])
+    if record.get("registro_padre_id"):
+        record["registro_padre_id"] = str(record["registro_padre_id"])
 
     # Handle estado enum serialization
     if record.get("estado"):
@@ -256,6 +258,10 @@ async def update_registro_medico(
     for date_field in ("fecha_inicio", "fecha_fin", "fecha_alta"):
         if date_field in update_data and update_data[date_field] is not None:
             update_data[date_field] = update_data[date_field].isoformat()
+
+    if "registro_padre_id" in update_data:
+        if update_data["registro_padre_id"] is not None:
+            update_data["registro_padre_id"] = str(update_data["registro_padre_id"])
 
     if update_data.get("estado"):
         update_data["estado"] = update_data["estado"].value if hasattr(update_data["estado"], "value") else update_data["estado"]

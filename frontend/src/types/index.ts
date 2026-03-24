@@ -944,6 +944,7 @@ export interface RegistroMedico {
   estado: EstadoRegistroMedico
   documentos_urls?: string[]
   solo_medico: boolean
+  registro_padre_id?: string
   created_at: string
   updated_at: string
 }

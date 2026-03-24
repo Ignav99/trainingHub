@@ -54,6 +54,7 @@ class RegistroMedicoCreate(BaseModel):
     documentos_urls: Optional[list[str]] = None
     estado: Optional[EstadoRegistroMedico] = None
     solo_medico: bool = True
+    registro_padre_id: Optional[UUID] = None
 
 
 class RegistroMedicoUpdate(BaseModel):
@@ -73,6 +74,7 @@ class RegistroMedicoUpdate(BaseModel):
     documentos_urls: Optional[list[str]] = None
     estado: Optional[EstadoRegistroMedico] = None
     solo_medico: Optional[bool] = None
+    registro_padre_id: Optional[UUID] = None
 
 
 class RegistroMedicoResponse(BaseModel):
@@ -98,6 +100,7 @@ class RegistroMedicoResponse(BaseModel):
     documentos: list = []
     creado_por: UUID
     solo_medico: bool = True
+    registro_padre_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
 

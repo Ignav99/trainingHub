@@ -163,6 +163,7 @@ export default function EnfermeriaPage() {
         diagnostico_fisioterapeutico: nuevoForm.diagnostico_fisioterapeutico,
         fecha_inicio: nuevoForm.fecha_inicio || new Date().toISOString().slice(0, 10),
         dias_baja_estimados: esHistorico ? undefined : nuevoForm.dias_baja_estimados,
+        registro_padre_id: nuevoForm.registro_padre_id,
       }
 
       // Historical records
@@ -458,6 +459,29 @@ export default function EnfermeriaPage() {
                 ))}
               </select>
             </div>
+            {/* Link to previous injury — only when a jugador is selected */}
+            {nuevoForm.jugador_id && (() => {
+              const playerRecords = registros.filter((r: RegistroMedico) => r.jugador_id === nuevoForm.jugador_id)
+              return playerRecords.length > 0 ? (
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Asociar a lesión anterior</label>
+                  <select
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    value={nuevoForm.registro_padre_id || ''}
+                    onChange={(e) => setNuevoForm({ ...nuevoForm, registro_padre_id: e.target.value || undefined })}
+                  >
+                    <option value="">Sin asociar (nueva incidencia)</option>
+                    {playerRecords.map((r: RegistroMedico) => (
+                      <option key={r.id} value={r.id}>
+                        {r.titulo} — {new Date(r.fecha_inicio).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: '2-digit' })}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">Selecciona si es una recaída de una lesión previa</p>
+                </div>
+              ) : null
+            })()}
+
             <div>
               <label className="text-sm font-medium mb-1 block">Tipo *</label>
               <select

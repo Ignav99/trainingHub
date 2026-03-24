@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import useSWR, { mutate } from 'swr'
@@ -24,6 +24,9 @@ import {
   Clock,
   ExternalLink,
   BarChart3,
+  Upload,
+  FileText,
+  X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
@@ -32,13 +35,16 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Jugador, JugadorUpdate, jugadoresApi, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
-import { medicoApi } from '@/lib/api/medico'
+import { medicoApi, CreateRegistroMedicoData } from '@/lib/api/medico'
 import { cargaApi } from '@/lib/api/carga'
 import { wellnessApi } from '@/lib/api/wellness'
 import { convocatoriasApi } from '@/lib/api/convocatorias'
 import { apiKey } from '@/lib/swr'
-import type { RegistroMedico, CargaDiaria, CargaJugador, WellnessEntry, Convocatoria, ConvocatoriasJugadorStats } from '@/types'
+import type { RegistroMedico, CargaDiaria, CargaJugador, WellnessEntry, Convocatoria, ConvocatoriasJugadorStats, TipoRegistroMedico } from '@/types'
 import {
   BarChart,
   Bar,
@@ -69,6 +75,14 @@ const ESTADO_BADGE: Record<string, { label: string; color: string }> = {
   cronico: { label: 'Crónico', color: 'bg-purple-100 text-purple-700' },
 }
 
+const TIPOS_MEDICO: { value: TipoRegistroMedico; label: string }[] = [
+  { value: 'lesion', label: 'Lesión' },
+  { value: 'enfermedad', label: 'Enfermedad' },
+  { value: 'molestias', label: 'Molestias' },
+  { value: 'rehabilitacion', label: 'Rehabilitación' },
+  { value: 'otro', label: 'Otro' },
+]
+
 function daysSince(dateStr: string): number {
   const start = new Date(dateStr)
   const now = new Date()
@@ -86,6 +100,17 @@ export default function JugadorDetailPage() {
   // Form state
   const [formData, setFormData] = useState<JugadorUpdate>({})
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+
+  // New medical record dialog state
+  const [showNuevoRegistro, setShowNuevoRegistro] = useState(false)
+  const [savingRegistro, setSavingRegistro] = useState(false)
+  const [esHistorico, setEsHistorico] = useState(false)
+  const [nuevoForm, setNuevoForm] = useState<Partial<CreateRegistroMedicoData>>({
+    tipo: 'lesion',
+    fecha_inicio: new Date().toISOString().slice(0, 10),
+  })
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // SWR for jugador detail
   const { data: jugador, isLoading: loading, error: swrError } = useSWR<Jugador>(
@@ -203,6 +228,93 @@ export default function JugadorDetailPage() {
     } catch (err: any) {
       console.error('Error deleting jugador:', err)
       toast.error(err?.message || 'Error al eliminar el jugador')
+    }
+  }
+
+  const resetRegistroForm = () => {
+    setNuevoForm({
+      tipo: 'lesion',
+      fecha_inicio: new Date().toISOString().slice(0, 10),
+    })
+    setEsHistorico(false)
+    setPendingFiles([])
+  }
+
+  const handleAddFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) setPendingFiles((prev) => [...prev, file])
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handleRemovePendingFile = (idx: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== idx))
+  }
+
+  const handleCreateRegistro = async () => {
+    if (!jugador || !nuevoForm.titulo) return
+
+    setSavingRegistro(true)
+    try {
+      const createData: CreateRegistroMedicoData = {
+        jugador_id: String(params.id),
+        equipo_id: jugador.equipo_id,
+        tipo: nuevoForm.tipo || 'lesion',
+        titulo: nuevoForm.titulo,
+        diagnostico_fisioterapeutico: nuevoForm.diagnostico_fisioterapeutico,
+        fecha_inicio: nuevoForm.fecha_inicio || new Date().toISOString().slice(0, 10),
+        dias_baja_estimados: esHistorico ? undefined : nuevoForm.dias_baja_estimados,
+        registro_padre_id: nuevoForm.registro_padre_id,
+      }
+
+      if (esHistorico) {
+        createData.estado = 'alta'
+        createData.fecha_fin = nuevoForm.fecha_fin
+        createData.fecha_alta = nuevoForm.fecha_fin
+      }
+
+      const result = await medicoApi.create(createData)
+
+      // Upload pending files
+      const created = (result as any)?.data || result
+      if (pendingFiles.length > 0 && created?.id) {
+        try {
+          const { createClient } = await import('@supabase/supabase-js')
+          const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+          )
+          const uploadedUrls: string[] = []
+          for (const file of pendingFiles) {
+            const timestamp = Date.now()
+            const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+            const path = `medical-documents/${created.id}/${timestamp}_${safeName}`
+            const { error: uploadError } = await supabase.storage
+              .from('medical-documents')
+              .upload(path, file, { upsert: false })
+            if (!uploadError) {
+              const { data: urlData } = supabase.storage.from('medical-documents').getPublicUrl(path)
+              if (urlData?.publicUrl) uploadedUrls.push(urlData.publicUrl)
+            }
+          }
+          if (uploadedUrls.length > 0) {
+            await medicoApi.update(created.id, { documentos_urls: uploadedUrls })
+          }
+        } catch (uploadErr) {
+          console.error('Error uploading files:', uploadErr)
+          toast.error('Registro creado, pero error al subir archivos')
+        }
+      }
+
+      setShowNuevoRegistro(false)
+      resetRegistroForm()
+      mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'), undefined, { revalidate: true })
+      toast.success(esHistorico ? 'Registro histórico creado' : 'Registro médico creado')
+    } catch (err) {
+      console.error('Error creating registro:', err)
+      toast.error('Error al crear el registro médico')
+    } finally {
+      setSavingRegistro(false)
     }
   }
 
@@ -817,12 +929,10 @@ export default function JugadorDetailPage() {
         <Card>
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-base">Historial Clínico</CardTitle>
-            <Link href={`/enfermeria`}>
-              <Button size="sm">
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                Nuevo Registro
-              </Button>
-            </Link>
+            <Button size="sm" onClick={() => setShowNuevoRegistro(true)}>
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Nuevo Registro
+            </Button>
           </CardHeader>
           <CardContent>
             {medicalRecords.length === 0 ? (
@@ -879,6 +989,162 @@ export default function JugadorDetailPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* New Record Dialog */}
+        <Dialog open={showNuevoRegistro} onOpenChange={(open) => { setShowNuevoRegistro(open); if (!open) resetRegistroForm() }}>
+          <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Nuevo Registro Médico</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              {/* Link to previous injury */}
+              {medicalRecords.length > 0 && (
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Asociar a lesión anterior</label>
+                  <select
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    value={nuevoForm.registro_padre_id || ''}
+                    onChange={(e) => setNuevoForm({ ...nuevoForm, registro_padre_id: e.target.value || undefined })}
+                  >
+                    <option value="">Sin asociar (nueva incidencia)</option>
+                    {medicalRecords.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.titulo} — {new Date(r.fecha_inicio).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: '2-digit' })}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">Selecciona si es una recaída de una lesión previa</p>
+                </div>
+              )}
+
+              {/* Historical toggle */}
+              <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setEsHistorico(false)}
+                  className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    !esHistorico ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                  }`}
+                >
+                  Registro actual
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEsHistorico(true)}
+                  className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    esHistorico ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                  }`}
+                >
+                  Registro histórico
+                </button>
+              </div>
+              {esHistorico && (
+                <p className="text-xs text-muted-foreground bg-blue-50 border border-blue-100 rounded-lg p-2">
+                  Un registro histórico se guarda directamente como <strong>alta</strong> y no cambia el estado actual del jugador.
+                </p>
+              )}
+
+              <div>
+                <label className="text-sm font-medium mb-1 block">Tipo *</label>
+                <select
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  value={nuevoForm.tipo || 'lesion'}
+                  onChange={(e) => setNuevoForm({ ...nuevoForm, tipo: e.target.value })}
+                >
+                  {TIPOS_MEDICO.map((t) => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Título *</label>
+                <Input
+                  value={nuevoForm.titulo || ''}
+                  onChange={(e) => setNuevoForm({ ...nuevoForm, titulo: e.target.value })}
+                  placeholder="Ej: Rotura fibrilar gemelo derecho"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Diagnóstico fisioterapéutico</label>
+                <Textarea
+                  value={nuevoForm.diagnostico_fisioterapeutico || ''}
+                  onChange={(e) => setNuevoForm({ ...nuevoForm, diagnostico_fisioterapeutico: e.target.value })}
+                  placeholder="Valoración y diagnóstico del fisioterapeuta..."
+                  rows={2}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Fecha inicio</label>
+                  <Input
+                    type="date"
+                    value={nuevoForm.fecha_inicio || ''}
+                    onChange={(e) => setNuevoForm({ ...nuevoForm, fecha_inicio: e.target.value })}
+                  />
+                </div>
+                {esHistorico ? (
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">Fecha fin / alta</label>
+                    <Input
+                      type="date"
+                      value={nuevoForm.fecha_fin || ''}
+                      onChange={(e) => setNuevoForm({ ...nuevoForm, fecha_fin: e.target.value })}
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">Días estimados</label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={nuevoForm.dias_baja_estimados || ''}
+                      onChange={(e) => setNuevoForm({ ...nuevoForm, dias_baja_estimados: parseInt(e.target.value) || undefined })}
+                      placeholder="Ej: 15"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* File upload */}
+              <div>
+                <label className="text-sm font-medium mb-1 block">Aportación de pruebas médicas</label>
+                <div className="space-y-2">
+                  {pendingFiles.map((file, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-2 rounded-lg border bg-muted/30">
+                      <div className="flex items-center gap-2 text-sm truncate flex-1 mr-2">
+                        <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                        <span className="truncate">{file.name}</span>
+                        <span className="text-xs text-muted-foreground flex-shrink-0">
+                          ({(file.size / 1024).toFixed(0)} KB)
+                        </span>
+                      </div>
+                      <button type="button" onClick={() => handleRemovePendingFile(idx)} className="text-gray-400 hover:text-red-500 p-1">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                  <div>
+                    <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" className="hidden" onChange={handleAddFile} />
+                    <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Adjuntar archivo
+                    </Button>
+                    <p className="text-xs text-muted-foreground mt-1">PDF, JPG, PNG, DOC, DOCX</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setShowNuevoRegistro(false); resetRegistroForm() }}>
+                Cancelar
+              </Button>
+              <Button onClick={handleCreateRegistro} disabled={savingRegistro || !nuevoForm.titulo}>
+                {savingRegistro && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                {esHistorico ? 'Guardar Histórico' : 'Crear Registro'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
       )}
     </div>

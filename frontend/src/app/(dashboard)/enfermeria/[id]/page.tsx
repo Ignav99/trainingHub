@@ -85,6 +85,11 @@ export default function EnfermeriaDetailPage() {
     registro?.jugador_id ? apiKey(`/jugadores/${registro.jugador_id}`) : null
   )
 
+  // SWR: parent record (if registro_padre_id exists)
+  const { data: registroPadre } = useSWR<RegistroMedico>(
+    registro?.registro_padre_id ? apiKey(`/medico/${registro.registro_padre_id}`) : null
+  )
+
   const loading = loadingRegistro
   const error = registroError ? 'Error al cargar el registro médico' : null
 
@@ -275,6 +280,20 @@ export default function EnfermeriaDetailPage() {
           </div>
         }
       />
+
+      {/* Parent record link */}
+      {registroPadre && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200">
+          <Activity className="h-4 w-4 text-amber-600" />
+          <span className="text-sm text-amber-800">
+            Recaída de:{' '}
+            <Link href={`/enfermeria/${registroPadre.id}`} className="font-medium underline hover:text-amber-900">
+              {registroPadre.titulo}
+            </Link>
+            {' '}({new Date(registroPadre.fecha_inicio).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: '2-digit' })})
+          </span>
+        </div>
+      )}
 
       <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={() => setShowDelete(true)} className="text-red-600 border-red-200 hover:bg-red-50">

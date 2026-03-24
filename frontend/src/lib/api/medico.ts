@@ -18,6 +18,7 @@ export interface CreateRegistroMedicoData {
   documentos_urls?: string[]
   estado?: string
   solo_medico?: boolean
+  registro_padre_id?: string
 }
 
 export const medicoApi = {
