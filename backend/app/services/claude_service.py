@@ -637,12 +637,23 @@ SESSION_DESIGN_PROMPT = """
 ## MODO: DISEÑO DE SESIÓN
 
 ### INSTRUCCIÓN CRÍTICA
-Cuando el entrenador da contexto (jugadores, objetivos, rival, ejercicios), DEBES llamar a la herramienta `proponer_sesion` INMEDIATAMENTE. NO respondas con texto. USA LA HERRAMIENTA.
+SIEMPRE que el entrenador pida una sesión, describa cambios, o quiera modificar algo, DEBES llamar a la herramienta `proponer_sesion` con la sesión COMPLETA actualizada. NO respondas solo con texto. USA LA HERRAMIENTA SIEMPRE.
+
+Esto incluye:
+- Primera petición → llama a `proponer_sesion`
+- "Cambia el ejercicio de desarrollo_1" → llama a `proponer_sesion` con TODA la sesión, modificando solo lo pedido
+- "Hazla más intensa" → llama a `proponer_sesion` con la sesión ajustada
+- "Regenera" → llama a `proponer_sesion` con una sesión nueva
+- Cualquier modificación → llama a `proponer_sesion` con la versión actualizada completa
+
+La ÚNICA vez que NO debes llamar a la herramienta es cuando el entrenador hace una pregunta informativa sin pedir cambios.
 
 ### FLUJO
 1. El entrenador describe lo que necesita → TÚ llamas a `proponer_sesion` de inmediato.
-2. Si falta el número de jugadores: asume 18 (16 + 2 GK). Si falta match_day: asume MD-3.
-3. Genera SIEMPRE tareas NUEVAS. NUNCA busques existentes.
+2. El entrenador pide cambios → TÚ llamas a `proponer_sesion` con la sesión completa actualizada (mantén lo que no cambia, modifica solo lo pedido).
+3. Si falta el número de jugadores: asume 18 (16 + 2 GK). Si falta match_day: asume MD-3.
+4. Genera SIEMPRE tareas NUEVAS. NUNCA busques existentes.
+5. No hay límite de iteraciones. El entrenador puede pedir cambios INFINITAS veces hasta estar satisfecho.
 
 ### REGLAS DEL DISEÑO
 - 4 fases obligatorias: activacion (10-15min), desarrollo_1 (15-25min), desarrollo_2 (20-30min), vuelta_calma (5-10min)
@@ -2032,7 +2043,7 @@ Responde SOLO con JSON válido:
         first_user_msg = messages[-1].get("content", "") if messages else ""
         first_msg_is_substantial = isinstance(first_user_msg, str) and len(first_user_msg) > 80
 
-        max_iterations = 3
+        max_iterations = 10
         for iteration in range(max_iterations):
             try:
                 kwargs = {
@@ -2177,7 +2188,7 @@ Responde SOLO con JSON válido:
         first_user_msg = messages[-1].get("content", "") if messages else ""
         first_msg_is_substantial = isinstance(first_user_msg, str) and len(first_user_msg) > 80
 
-        max_iterations = 3
+        max_iterations = 10
         for iteration in range(max_iterations):
             try:
                 kwargs = {
@@ -2316,7 +2327,7 @@ Responde SOLO con JSON válido:
         total_input_tokens = 0
         total_output_tokens = 0
 
-        max_iterations = 3
+        max_iterations = 10
         for iteration in range(max_iterations):
             try:
                 kwargs = {
@@ -2450,7 +2461,7 @@ Responde SOLO con JSON válido:
         user_msg_count = sum(1 for m in messages if m.get("role") == "user")
         target_tool = "generar_informe_rival" if tipo == "informe" else "generar_plan_partido"
 
-        max_iterations = 3
+        max_iterations = 10
         for iteration in range(max_iterations):
             try:
                 kwargs = {

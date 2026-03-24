@@ -157,7 +157,7 @@ Game phase: {fase_juego or 'Not specified'}"""
                 max_output_tokens=2048,
                 temperature=0.7,
                 automatic_function_calling=types.AutomaticFunctionCallingConfig(
-                    disable=True, maximum_remote_calls=0,
+                    disable=True,
                 ),
                 http_options=types.HttpOptions(api_version="v1beta", timeout=120_000),
             ),
@@ -227,7 +227,7 @@ class GeminiService:
             "temperature": temperature if temperature is not None else self.temperature,
             # Disable AFC — we handle tool execution manually in our own loop
             "automatic_function_calling": types.AutomaticFunctionCallingConfig(
-                disable=True, maximum_remote_calls=0,
+                disable=True,
             ),
             # Timeout: 120s
             "http_options": types.HttpOptions(api_version="v1beta", timeout=120_000),
@@ -472,7 +472,7 @@ class GeminiService:
         first_user_msg = mensajes[-1].get("contenido", "") if mensajes else ""
         first_msg_is_substantial = isinstance(first_user_msg, str) and len(first_user_msg) > 80
 
-        max_iterations = 3
+        max_iterations = 10
         for iteration in range(max_iterations):
             force_tool = None
             if iteration == 0 and user_msg_count == 1 and first_msg_is_substantial:
@@ -583,7 +583,7 @@ class GeminiService:
         first_user_msg = mensajes[-1].get("contenido", "") if mensajes else ""
         first_msg_is_substantial = isinstance(first_user_msg, str) and len(first_user_msg) > 80
 
-        max_iterations = 3
+        max_iterations = 10
         for iteration in range(max_iterations):
             force_tool = None
             if iteration == 0 and user_msg_count == 1 and first_msg_is_substantial:
@@ -689,7 +689,7 @@ class GeminiService:
         total_input = 0
         total_output = 0
 
-        max_iterations = 3
+        max_iterations = 10
         for iteration in range(max_iterations):
             force_tool = "proponer_tarea_portero" if iteration == 0 else None
 
@@ -785,7 +785,7 @@ class GeminiService:
         user_msg_count = sum(1 for m in mensajes if m.get("rol") == "user")
         target_tool = "generar_informe_rival" if tipo == "informe" else "generar_plan_partido"
 
-        max_iterations = 3
+        max_iterations = 10
         for iteration in range(max_iterations):
             force_tool = target_tool if iteration == 0 and user_msg_count == 1 else None
             if force_tool:
