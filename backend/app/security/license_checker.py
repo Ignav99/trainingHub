@@ -115,13 +115,29 @@ class LicenseChecker:
 
     @staticmethod
     def check_ai_calls_limit(organizacion_id: str) -> tuple[bool, str]:
-        """Check if organization has AI calls remaining."""
+        """Check if organization has AI calls remaining.
+
+        Gemini provider is essentially free, so skip limit check when using it.
+        Also treats max_ai_calls_month <= 0 as unlimited.
+        """
+        from app.config import get_settings
+        settings = get_settings()
+
+        # Gemini is ~97% cheaper — don't enforce limits
+        if getattr(settings, 'AI_PROVIDER', 'gemini').lower() == 'gemini':
+            return True, ""
+
         sub = LicenseChecker.get_subscription(organizacion_id)
         if not sub:
             return True, ""
 
         plan = sub.get("planes", {})
         max_calls = plan.get("max_ai_calls_month", 50)
+
+        # -1 or 0 means unlimited
+        if max_calls <= 0:
+            return True, ""
+
         current_calls = sub.get("uso_ai_calls_month", 0)
 
         # Check if we need to reset the counter
