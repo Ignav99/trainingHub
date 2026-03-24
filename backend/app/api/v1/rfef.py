@@ -722,6 +722,16 @@ async def link_competicion(
     return result
 
 
+@router.post("/trigger-daily-sync")
+async def trigger_daily_sync(
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
+):
+    """Manually trigger the daily sync (all jornadas + auto-link) for all competitions."""
+    from app.services.rfef_scheduler_service import daily_sync_data
+    await daily_sync_data()
+    return {"status": "ok", "message": "Daily sync completed"}
+
+
 # ============ Mi Equipo Tarjetas ============
 
 @router.get("/competiciones/{competicion_id}/mi-equipo/tarjetas")
