@@ -158,9 +158,9 @@ async def _sync_one(supabase, scraper: RFAFScraper, comp: dict):
             jornada_num = jornada["numero"]
             _upsert_jornada(supabase, comp_id, jornada)
 
-        # --- Refresh adjacent jornadas (N-1 and N+1) ---
+        # --- Refresh adjacent jornadas (N-2..N-1, N+1..N+3) for pre/post match dates ---
         if jornada_num:
-            for adj_num in [jornada_num - 1, jornada_num + 1]:
+            for adj_num in [jornada_num - 2, jornada_num - 1, jornada_num + 1, jornada_num + 2, jornada_num + 3]:
                 if adj_num < 1:
                     continue
                 try:

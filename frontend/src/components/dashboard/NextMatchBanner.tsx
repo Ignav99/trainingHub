@@ -82,6 +82,9 @@ export function NextMatchBanner({
                   {proximoPartido.hora && (
                     <span className="text-white/60">{proximoPartido.hora}</span>
                   )}
+                  {proximoPartido.jornada && (
+                    <span className="text-white/50 text-xs">J{proximoPartido.jornada}</span>
+                  )}
                 </>
               ) : (
                 !ligaPosition && <span className="text-white/60">Sin partidos programados</span>

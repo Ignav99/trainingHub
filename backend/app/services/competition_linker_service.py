@@ -239,11 +239,13 @@ def link_competition(supabase, comp: dict) -> dict:
             # Update rival if it changed
             if existing.get("rival_id") != rival_record["id"]:
                 update_data["rival_id"] = rival_record["id"]
-            if campo and not existing.get("ubicacion"):
+            # Always update fecha/hora/ubicacion from RFEF when available
+            # (RFEF may publish or correct dates after initial partido creation)
+            if campo and existing.get("ubicacion") != campo:
                 update_data["ubicacion"] = campo
-            if hora and not existing.get("hora"):
+            if hora and existing.get("hora") != hora:
                 update_data["hora"] = hora
-            if fecha and not existing.get("fecha"):
+            if fecha and existing.get("fecha") != fecha.isoformat():
                 update_data["fecha"] = fecha.isoformat()
 
             if update_data:

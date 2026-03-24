@@ -461,8 +461,8 @@ export function CalendarSection({
                             {p.localia === 'local' ? 'vs' : '@'}{' '}
                             {p.rival?.nombre_corto || p.rival?.nombre || 'Rival'}
                           </span>
-                          {p.auto_creado && (
-                            <span className="text-[8px] font-medium bg-blue-100 text-blue-700 px-1 rounded">RFAF</span>
+                          {p.jornada && (
+                            <span className="text-[8px] font-medium bg-amber-100 text-amber-700 px-1 rounded">J{p.jornada}</span>
                           )}
                         </div>
                         {p.hora && (

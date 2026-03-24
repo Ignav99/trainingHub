@@ -154,7 +154,7 @@ async def dashboard_semana(
 
     # Partidos de la semana
     partidos = supabase.table("partidos").select(
-        "id, fecha, hora, localia, competicion, goles_favor, goles_contra, resultado, rivales(nombre, nombre_corto)"
+        "id, fecha, hora, localia, competicion, jornada, goles_favor, goles_contra, resultado, rivales(nombre, nombre_corto, escudo_url)"
     ).in_("equipo_id", equipo_ids).gte(
         "fecha", lunes.isoformat()
     ).lte("fecha", domingo.isoformat()).order("fecha").execute()

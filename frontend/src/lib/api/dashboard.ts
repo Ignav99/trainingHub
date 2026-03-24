@@ -11,6 +11,7 @@ export interface DashboardResumen {
     hora?: string
     localia: string
     competicion: string
+    jornada?: number
     rival?: { nombre: string; nombre_corto?: string; escudo_url?: string }
   } | null
   ultima_sesion: {
