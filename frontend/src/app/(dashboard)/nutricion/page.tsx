@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import useSWR, { mutate } from 'swr'
 import {
   UtensilsCrossed, Calendar, BookOpen, Users,
   Plus, Search, Trash2, Copy, Edit, Loader2,
   Droplets, Flame, X, ChevronLeft, ChevronRight,
   TrendingUp, TrendingDown, Minus, AlertCircle,
-  Filter,
+  Filter, Check, UserCheck, UsersRound,
 } from 'lucide-react'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -134,6 +134,28 @@ function TabHoy({ equipoId }: { equipoId: string }) {
     apiFetcher
   )
 
+  // Fetch players (exclude invitados)
+  const { data: jugadoresRaw } = useSWR(
+    apiKey('/jugadores', { equipo_id: equipoId }, ['equipo_id']),
+    apiFetcher
+  )
+  const jugadores = useMemo(() => {
+    const list = (jugadoresRaw as any)?.data || jugadoresRaw
+    if (!Array.isArray(list)) return []
+    return list
+      .filter((j: any) => !j.es_invitado)
+      .sort((a: any, b: any) => (a.dorsal || 99) - (b.dorsal || 99))
+  }, [jugadoresRaw])
+
+  // Map jugadorId → display label
+  const jugadorMap = useMemo(() => {
+    const m: Record<string, string> = {}
+    for (const j of jugadores) {
+      m[j.id] = `${j.dorsal || '-'}. ${j.nombre} ${j.apellidos || ''}`.trim()
+    }
+    return m
+  }, [jugadores])
+
   const teamPlan = planes?.find((p) => !p.jugador_id)
   const playerPlans = planes?.filter((p) => p.jugador_id) || []
 
@@ -201,14 +223,14 @@ function TabHoy({ equipoId }: { equipoId: string }) {
         <div className="space-y-4">
           {/* Team plan */}
           {teamPlan && (
-            <PlanCard plan={teamPlan} label="Plan de equipo" equipoId={equipoId} fecha={selectedDate} />
+            <PlanCard plan={teamPlan} label="Plan de equipo" equipoId={equipoId} fecha={selectedDate} jugadorMap={jugadorMap} />
           )}
 
           {/* Player-specific plans */}
           {playerPlans.length > 0 && (
             <div className="grid gap-4 md:grid-cols-2">
               {playerPlans.map((plan) => (
-                <PlanCard key={plan.id} plan={plan} equipoId={equipoId} fecha={selectedDate} />
+                <PlanCard key={plan.id} plan={plan} equipoId={equipoId} fecha={selectedDate} jugadorMap={jugadorMap} />
               ))}
             </div>
           )}
@@ -220,6 +242,7 @@ function TabHoy({ equipoId }: { equipoId: string }) {
           equipoId={equipoId}
           fecha={selectedDate}
           contextoSugerido={contexto?.contexto_sugerido}
+          jugadores={jugadores}
           onClose={() => setShowCreateDialog(false)}
         />
       )}
@@ -227,7 +250,7 @@ function TabHoy({ equipoId }: { equipoId: string }) {
   )
 }
 
-function PlanCard({ plan, label, equipoId, fecha }: { plan: PlanNutricionalDia; label?: string; equipoId: string; fecha: string }) {
+function PlanCard({ plan, label, equipoId, fecha, jugadorMap }: { plan: PlanNutricionalDia; label?: string; equipoId: string; fecha: string; jugadorMap?: Record<string, string> }) {
   const [deleting, setDeleting] = useState(false)
 
   const totalCals = plan.comidas.reduce((sum, c) => sum + (c.calorias || 0), 0)
@@ -252,7 +275,11 @@ function PlanCard({ plan, label, equipoId, fecha }: { plan: PlanNutricionalDia; 
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CardTitle className="text-base">{label || (plan.jugador_id ? 'Plan individual' : 'Plan')}</CardTitle>
+            <CardTitle className="text-base">
+              {label || (plan.jugador_id
+                ? (jugadorMap?.[plan.jugador_id] || 'Plan individual')
+                : 'Plan')}
+            </CardTitle>
             {ctx && <span className={`text-xs px-2 py-0.5 rounded-full ${ctx.color}`}>{ctx.label}</span>}
           </div>
           <button onClick={handleDelete} disabled={deleting} className="text-gray-400 hover:text-red-500">
@@ -314,12 +341,15 @@ function PlanCard({ plan, label, equipoId, fecha }: { plan: PlanNutricionalDia; 
 // ============ Create Plan Dialog ============
 
 function CreatePlanDialog({
-  equipoId, fecha, contextoSugerido, onClose,
+  equipoId, fecha, contextoSugerido, jugadores, onClose,
 }: {
-  equipoId: string; fecha: string; contextoSugerido?: string; onClose: () => void
+  equipoId: string; fecha: string; contextoSugerido?: string; jugadores: any[]; onClose: () => void
 }) {
   const [saving, setSaving] = useState(false)
   const [contexto, setContexto] = useState(contextoSugerido || 'dia_normal')
+  const [assignMode, setAssignMode] = useState<'equipo' | 'individual' | 'multiple'>('equipo')
+  const [selectedJugadorId, setSelectedJugadorId] = useState('')
+  const [selectedJugadorIds, setSelectedJugadorIds] = useState<string[]>([])
   const [comidas, setComidas] = useState<Array<{
     tipo_comida: string; nombre: string; alimentos: AlimentoItem[];
     calorias: number; proteinas_g: number; carbos_g: number; grasas_g: number; hora_sugerida: string
@@ -361,19 +391,48 @@ function CreatePlanDialog({
     setComidas(updated)
   }
 
+  const toggleJugador = useCallback((id: string) => {
+    setSelectedJugadorIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
+  }, [])
+
   const handleSave = async () => {
     if (!comidas.length) { toast.error('Agrega al menos una comida'); return }
+    if (assignMode === 'individual' && !selectedJugadorId) { toast.error('Selecciona un jugador'); return }
+    if (assignMode === 'multiple' && !selectedJugadorIds.length) { toast.error('Selecciona al menos un jugador'); return }
+
     setSaving(true)
+    const basePlan = {
+      equipo_id: equipoId,
+      fecha,
+      contexto,
+      comidas,
+      hidratacion_litros: hidratacion ? parseFloat(hidratacion) : undefined,
+      notas: notas || undefined,
+    }
+
     try {
-      await nutricionApi.createPlan({
-        equipo_id: equipoId,
-        fecha,
-        contexto,
-        comidas,
-        hidratacion_litros: hidratacion ? parseFloat(hidratacion) : undefined,
-        notas: notas || undefined,
-      })
-      toast.success('Plan creado')
+      if (assignMode === 'equipo') {
+        await nutricionApi.createPlan(basePlan)
+        toast.success('Plan de equipo creado')
+      } else if (assignMode === 'individual') {
+        await nutricionApi.createPlan({ ...basePlan, jugador_id: selectedJugadorId })
+        toast.success('Plan individual creado')
+      } else {
+        const results = await Promise.allSettled(
+          selectedJugadorIds.map((jId) =>
+            nutricionApi.createPlan({ ...basePlan, jugador_id: jId })
+          )
+        )
+        const ok = results.filter((r) => r.status === 'fulfilled').length
+        const fail = results.filter((r) => r.status === 'rejected').length
+        if (fail === 0) {
+          toast.success(`${ok} planes creados`)
+        } else {
+          toast.warning(`${ok} creados, ${fail} fallaron`)
+        }
+      }
       mutate((key: string) => typeof key === 'string' && key.includes('/nutricion/planes'))
       onClose()
     } catch { toast.error('Error al crear plan') }
@@ -407,6 +466,82 @@ function CreatePlanDialog({
               ))}
             </div>
           </div>
+
+          {/* Assign mode selector */}
+          <div>
+            <label className="text-sm font-medium text-gray-700">Asignar a</label>
+            <div className="flex gap-1 mt-1 bg-gray-100 rounded-lg p-1">
+              {([
+                { key: 'equipo' as const, label: 'Equipo', icon: UsersRound },
+                { key: 'individual' as const, label: 'Individual', icon: UserCheck },
+                { key: 'multiple' as const, label: 'Varios', icon: Users },
+              ]).map((mode) => (
+                <button
+                  key={mode.key}
+                  onClick={() => setAssignMode(mode.key)}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium transition-all ${
+                    assignMode === mode.key
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <mode.icon className="h-3.5 w-3.5" />
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Individual: player dropdown */}
+          {assignMode === 'individual' && (
+            <div>
+              <select
+                value={selectedJugadorId}
+                onChange={(e) => setSelectedJugadorId(e.target.value)}
+                className="w-full border rounded-md px-3 py-2 text-sm"
+              >
+                <option value="">Selecciona un jugador...</option>
+                {jugadores.map((j: any) => (
+                  <option key={j.id} value={j.id}>
+                    {j.dorsal || '-'}. {j.nombre} {j.apellidos || ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Multiple: checkbox list */}
+          {assignMode === 'multiple' && (
+            <div className="border rounded-lg max-h-48 overflow-y-auto">
+              {jugadores.map((j: any) => (
+                <label
+                  key={j.id}
+                  className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 border-b last:border-0 text-sm ${
+                    selectedJugadorIds.includes(j.id) ? 'bg-blue-50' : ''
+                  }`}
+                >
+                  <div
+                    className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${
+                      selectedJugadorIds.includes(j.id)
+                        ? 'bg-blue-600 border-blue-600'
+                        : 'border-gray-300'
+                    }`}
+                    onClick={() => toggleJugador(j.id)}
+                  >
+                    {selectedJugadorIds.includes(j.id) && <Check className="h-3 w-3 text-white" />}
+                  </div>
+                  <span onClick={() => toggleJugador(j.id)} className="flex-1">
+                    {j.dorsal || '-'}. {j.nombre} {j.apellidos || ''}
+                  </span>
+                </label>
+              ))}
+              {selectedJugadorIds.length > 0 && (
+                <div className="px-3 py-1.5 bg-gray-50 text-xs text-gray-500 sticky bottom-0 border-t">
+                  {selectedJugadorIds.length} jugador{selectedJugadorIds.length > 1 ? 'es' : ''} seleccionado{selectedJugadorIds.length > 1 ? 's' : ''}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Quick-add from templates */}
           {plantillas && plantillas.length > 0 && (
@@ -502,7 +637,10 @@ function CreatePlanDialog({
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Guardar plan
+            {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+            {assignMode === 'multiple' && selectedJugadorIds.length > 1
+              ? `Crear ${selectedJugadorIds.length} planes`
+              : 'Guardar plan'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -841,10 +979,10 @@ function PlantillaDialog({
 // ============================================================
 
 function TabResumen({ equipoId }: { equipoId: string }) {
-  const [filterHasPlan, setFilterHasPlan] = useState<'all' | 'with' | 'without'>('all')
+  const [filterHasPlan, setFilterHasPlan] = useState<'all' | 'individual' | 'equipo' | 'without'>('all')
   const hoy = formatDate(new Date())
 
-  const { data: jugadores, isLoading: loadingJugadores } = useSWR(
+  const { data: jugadoresRaw, isLoading: loadingJugadores } = useSWR(
     apiKey('/jugadores', { equipo_id: equipoId }, ['equipo_id']),
     apiFetcher
   )
@@ -864,49 +1002,59 @@ function TabResumen({ equipoId }: { equipoId: string }) {
     apiFetcher
   )
 
+  const hasTeamPlan = useMemo(() => planes?.some((p) => !p.jugador_id) || false, [planes])
+
   const playerRows = useMemo(() => {
-    if (!jugadores) return []
-    const jugadoresList = (jugadores as any)?.data || jugadores
+    if (!jugadoresRaw) return []
+    const jugadoresList = (jugadoresRaw as any)?.data || jugadoresRaw
     if (!Array.isArray(jugadoresList)) return []
 
-    return jugadoresList.map((j: any) => {
-      const hasPlan = planes?.some((p) => p.jugador_id === j.id || !p.jugador_id) || false
-      const playerComps = (composiciones || []).filter((c) => c.jugador_id === j.id)
-      const latestComp = playerComps[0]
-      const prevComp = playerComps[1]
-      const weightTrend = latestComp && prevComp
-        ? latestComp.peso_kg > prevComp.peso_kg ? 'up' : latestComp.peso_kg < prevComp.peso_kg ? 'down' : 'stable'
-        : null
-      const supCount = Array.isArray(suplementos)
-        ? (suplementos as any[]).filter((s) => s.jugador_id === j.id).length
-        : 0
+    return jugadoresList
+      .filter((j: any) => !j.es_invitado)
+      .sort((a: any, b: any) => (a.dorsal || 99) - (b.dorsal || 99))
+      .map((j: any) => {
+        const hasIndividualPlan = planes?.some((p) => p.jugador_id === j.id) || false
+        const planType: 'individual' | 'equipo' | 'none' = hasIndividualPlan
+          ? 'individual'
+          : hasTeamPlan ? 'equipo' : 'none'
+        const playerComps = (composiciones || []).filter((c) => c.jugador_id === j.id)
+        const latestComp = playerComps[0]
+        const prevComp = playerComps[1]
+        const weightTrend = latestComp && prevComp
+          ? latestComp.peso_kg > prevComp.peso_kg ? 'up' : latestComp.peso_kg < prevComp.peso_kg ? 'down' : 'stable'
+          : null
+        const supCount = Array.isArray(suplementos)
+          ? (suplementos as any[]).filter((s) => s.jugador_id === j.id).length
+          : 0
 
-      return {
-        id: j.id,
-        nombre: j.nombre,
-        apellidos: j.apellidos,
-        dorsal: j.dorsal,
-        posicion_principal: j.posicion_principal,
-        peso: latestComp?.peso_kg,
-        grasa: latestComp?.porcentaje_grasa,
-        hasPlan,
-        weightTrend,
-        supCount,
-      }
-    })
-  }, [jugadores, planes, composiciones, suplementos])
+        return {
+          id: j.id,
+          nombre: j.nombre,
+          apellidos: j.apellidos,
+          dorsal: j.dorsal,
+          posicion_principal: j.posicion_principal,
+          peso: latestComp?.peso_kg,
+          grasa: latestComp?.porcentaje_grasa,
+          planType,
+          weightTrend,
+          supCount,
+        }
+      })
+  }, [jugadoresRaw, planes, composiciones, suplementos, hasTeamPlan])
 
   const filteredRows = useMemo(() => {
-    if (filterHasPlan === 'with') return playerRows.filter((r) => r.hasPlan)
-    if (filterHasPlan === 'without') return playerRows.filter((r) => !r.hasPlan)
+    if (filterHasPlan === 'individual') return playerRows.filter((r) => r.planType === 'individual')
+    if (filterHasPlan === 'equipo') return playerRows.filter((r) => r.planType === 'equipo')
+    if (filterHasPlan === 'without') return playerRows.filter((r) => r.planType === 'none')
     return playerRows
   }, [playerRows, filterHasPlan])
 
-  const stats = useMemo(() => ({
-    withPlan: playerRows.filter((r) => r.hasPlan).length,
-    total: playerRows.length,
-    pct: playerRows.length ? Math.round((playerRows.filter((r) => r.hasPlan).length / playerRows.length) * 100) : 0,
-  }), [playerRows])
+  const stats = useMemo(() => {
+    const individual = playerRows.filter((r) => r.planType === 'individual').length
+    const equipo = playerRows.filter((r) => r.planType === 'equipo').length
+    const sinPlan = playerRows.filter((r) => r.planType === 'none').length
+    return { individual, equipo, sinPlan, total: playerRows.length }
+  }, [playerRows])
 
   if (loadingJugadores) {
     return <div className="grid gap-4 md:grid-cols-3"><Skeleton className="h-24" /><Skeleton className="h-24" /><Skeleton className="h-24" /></div>
@@ -915,45 +1063,52 @@ function TabResumen({ equipoId }: { equipoId: string }) {
   return (
     <div className="space-y-4">
       {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-gray-500 mb-1">Planes asignados hoy</p>
-            <p className="text-2xl font-bold">{stats.withPlan} / {stats.total}</p>
+            <p className="text-xs text-gray-500 mb-1">Plan individual</p>
+            <p className="text-2xl font-bold text-green-600">{stats.individual}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs text-gray-500 mb-1">Plan equipo</p>
+            <p className="text-2xl font-bold text-blue-600">{stats.equipo}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs text-gray-500 mb-1">Sin plan</p>
+            <p className="text-2xl font-bold text-gray-400">{stats.sinPlan}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs text-gray-500 mb-1">Plantilla</p>
+            <p className="text-2xl font-bold">{stats.total}</p>
             <div className="w-full bg-gray-100 rounded-full h-1.5 mt-2">
-              <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${stats.pct}%` }} />
+              <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${stats.total ? Math.round(((stats.individual + stats.equipo) / stats.total) * 100) : 0}%` }} />
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-gray-500 mb-1">Jugadores con datos corporales</p>
-            <p className="text-2xl font-bold">
-              {playerRows.filter((r) => r.peso).length}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-gray-500 mb-1">Suplementos activos</p>
-            <p className="text-2xl font-bold">
-              {playerRows.reduce((sum, r) => sum + r.supCount, 0)}
-            </p>
           </CardContent>
         </Card>
       </div>
 
       {/* Filter */}
       <div className="flex gap-2">
-        {(['all', 'with', 'without'] as const).map((f) => (
+        {([
+          { key: 'all' as const, label: 'Todos' },
+          { key: 'individual' as const, label: 'Individual' },
+          { key: 'equipo' as const, label: 'Equipo' },
+          { key: 'without' as const, label: 'Sin plan' },
+        ]).map((f) => (
           <button
-            key={f}
-            onClick={() => setFilterHasPlan(f)}
+            key={f.key}
+            onClick={() => setFilterHasPlan(f.key)}
             className={`text-xs px-3 py-1.5 rounded-full border transition ${
-              filterHasPlan === f ? 'bg-blue-50 border-blue-300 text-blue-700' : 'border-gray-200 text-gray-500'
+              filterHasPlan === f.key ? 'bg-blue-50 border-blue-300 text-blue-700' : 'border-gray-200 text-gray-500'
             }`}
           >
-            {f === 'all' ? 'Todos' : f === 'with' ? 'Con plan' : 'Sin plan'}
+            {f.label}
           </button>
         ))}
       </div>
@@ -991,9 +1146,13 @@ function TabResumen({ equipoId }: { equipoId: string }) {
                 <td className="py-2">{r.grasa != null ? `${r.grasa}%` : <span className="text-gray-300">-</span>}</td>
                 <td className="py-2">{r.supCount > 0 ? <Badge variant="outline" className="text-xs">{r.supCount}</Badge> : <span className="text-gray-300">0</span>}</td>
                 <td className="py-2">
-                  {r.hasPlan ? (
+                  {r.planType === 'individual' ? (
                     <span className="inline-flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
-                      Asignado
+                      Plan individual
+                    </span>
+                  ) : r.planType === 'equipo' ? (
+                    <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                      Plan equipo
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import useSWR, { mutate } from 'swr'
@@ -50,7 +50,7 @@ import { wellnessApi } from '@/lib/api/wellness'
 import { convocatoriasApi } from '@/lib/api/convocatorias'
 import { nutricionApi } from '@/lib/api/nutricion'
 import { apiKey, apiFetcher } from '@/lib/swr'
-import type { RegistroMedico, CargaDiaria, CargaJugador, WellnessEntry, Convocatoria, ConvocatoriasJugadorStats, TipoRegistroMedico, NutricionOverview, SuplementacionJugador, ComposicionCorporal, AlimentoItem } from '@/types'
+import type { RegistroMedico, CargaDiaria, CargaJugador, WellnessEntry, Convocatoria, ConvocatoriasJugadorStats, TipoRegistroMedico, NutricionOverview, SuplementacionJugador, ComposicionCorporal, AlimentoItem, PlantillaNutricional, PlanNutricionalDia, ContextoNutricional } from '@/types'
 import {
   BarChart,
   Bar,
@@ -1207,6 +1207,7 @@ function PlayerNutritionTab({ jugadorId, equipoId }: { jugadorId: string; equipo
   const [showPerfilDialog, setShowPerfilDialog] = useState(false)
   const [showComposicionDialog, setShowComposicionDialog] = useState(false)
   const [showSupDialog, setShowSupDialog] = useState(false)
+  const [showPlanDialog, setShowPlanDialog] = useState(false)
 
   const { data: overview, isLoading, mutate: mutateOverview } = useSWR<NutricionOverview>(
     apiKey(`/nutricion/overview/${jugadorId}`, { equipo_id: equipoId }, ['equipo_id']),
@@ -1284,7 +1285,16 @@ function PlayerNutritionTab({ jugadorId, equipoId }: { jugadorId: string; equipo
       {/* 2. Plan de Hoy */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Plan de Hoy</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Plan de Hoy</CardTitle>
+            <Button size="sm" variant="outline" onClick={() => setShowPlanDialog(true)}>
+              {overview?.plan_hoy ? (
+                <><Edit className="h-3.5 w-3.5 mr-1" /> Editar plan</>
+              ) : (
+                <><Plus className="h-3.5 w-3.5 mr-1" /> Crear plan</>
+              )}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {overview?.plan_hoy ? (
@@ -1478,6 +1488,14 @@ function PlayerNutritionTab({ jugadorId, equipoId }: { jugadorId: string; equipo
           jugadorId={jugadorId}
           equipoId={equipoId}
           onClose={() => { setShowSupDialog(false); mutateOverview() }}
+        />
+      )}
+      {showPlanDialog && (
+        <CreatePlayerPlanDialog
+          jugadorId={jugadorId}
+          equipoId={equipoId}
+          existingPlan={overview?.plan_hoy || null}
+          onClose={() => { setShowPlanDialog(false); mutateOverview() }}
         />
       )}
     </div>
@@ -1679,6 +1697,245 @@ function SuplementoDialog({ jugadorId, equipoId, onClose }: {
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
           <Button onClick={handleSave} disabled={saving}>{saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Guardar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+
+// ============ Constants for plan dialog ============
+
+const PLAN_TIPOS_COMIDA: { value: string; label: string; emoji: string }[] = [
+  { value: 'desayuno', label: 'Desayuno', emoji: '🌅' },
+  { value: 'almuerzo', label: 'Almuerzo', emoji: '🥪' },
+  { value: 'comida', label: 'Comida', emoji: '🍽️' },
+  { value: 'merienda', label: 'Merienda', emoji: '🍎' },
+  { value: 'cena', label: 'Cena', emoji: '🌙' },
+  { value: 'snack_pre', label: 'Snack Pre', emoji: '⚡' },
+  { value: 'snack_post', label: 'Snack Post', emoji: '💪' },
+]
+
+const PLAN_CONTEXTOS: { value: string; label: string }[] = [
+  { value: 'dia_normal', label: 'Día normal' },
+  { value: 'pre_partido', label: 'Pre-partido' },
+  { value: 'post_partido', label: 'Post-partido' },
+  { value: 'dia_descanso', label: 'Descanso' },
+  { value: 'viaje', label: 'Viaje' },
+]
+
+function CreatePlayerPlanDialog({
+  jugadorId, equipoId, existingPlan, onClose,
+}: {
+  jugadorId: string; equipoId: string; existingPlan: PlanNutricionalDia | null; onClose: () => void
+}) {
+  const isEditing = !!existingPlan
+  const hoy = new Date().toISOString().split('T')[0]
+
+  const [saving, setSaving] = useState(false)
+  const [contexto, setContexto] = useState(existingPlan?.contexto || 'dia_normal')
+  const [comidas, setComidas] = useState<Array<{
+    tipo_comida: string; nombre: string; alimentos: AlimentoItem[];
+    calorias: number; proteinas_g: number; carbos_g: number; grasas_g: number; hora_sugerida: string
+  }>>(
+    existingPlan?.comidas?.map((c) => ({
+      tipo_comida: c.tipo_comida,
+      nombre: c.nombre,
+      alimentos: c.alimentos || [],
+      calorias: c.calorias || 0,
+      proteinas_g: c.proteinas_g || 0,
+      carbos_g: c.carbos_g || 0,
+      grasas_g: c.grasas_g || 0,
+      hora_sugerida: c.hora_sugerida || '',
+    })) || []
+  )
+  const [hidratacion, setHidratacion] = useState(existingPlan?.hidratacion_litros?.toString() || '')
+  const [notas, setNotas] = useState(existingPlan?.notas || '')
+
+  const { data: plantillas } = useSWR<PlantillaNutricional[]>(
+    apiKey('/nutricion/plantillas', { equipo_id: equipoId }, ['equipo_id']),
+    apiFetcher
+  )
+
+  const addComidaFromPlantilla = (p: PlantillaNutricional) => {
+    setComidas([...comidas, {
+      tipo_comida: p.tipo_comida,
+      nombre: p.nombre,
+      alimentos: p.alimentos,
+      calorias: p.calorias_total || 0,
+      proteinas_g: p.proteinas_total_g || 0,
+      carbos_g: p.carbohidratos_total_g || 0,
+      grasas_g: p.grasas_total_g || 0,
+      hora_sugerida: '',
+    }])
+  }
+
+  const addEmptyComida = () => {
+    setComidas([...comidas, {
+      tipo_comida: 'comida', nombre: '', alimentos: [],
+      calorias: 0, proteinas_g: 0, carbos_g: 0, grasas_g: 0, hora_sugerida: '',
+    }])
+  }
+
+  const removeComida = (idx: number) => setComidas(comidas.filter((_, i) => i !== idx))
+  const updateComida = (idx: number, field: string, value: any) => {
+    const updated = [...comidas]
+    ;(updated[idx] as any)[field] = value
+    setComidas(updated)
+  }
+
+  const handleSave = async () => {
+    if (!comidas.length) { toast.error('Agrega al menos una comida'); return }
+    setSaving(true)
+    const payload = {
+      equipo_id: equipoId,
+      jugador_id: jugadorId,
+      fecha: existingPlan?.fecha || hoy,
+      contexto,
+      comidas,
+      hidratacion_litros: hidratacion ? parseFloat(hidratacion) : undefined,
+      notas: notas || undefined,
+    }
+    try {
+      if (isEditing && existingPlan) {
+        const { equipo_id, jugador_id, fecha, ...updateData } = payload
+        await nutricionApi.updatePlan(existingPlan.id, updateData)
+        toast.success('Plan actualizado')
+      } else {
+        await nutricionApi.createPlan(payload)
+        toast.success('Plan creado')
+      }
+      mutate((key: string) => typeof key === 'string' && key.includes('/nutricion/'))
+      onClose()
+    } catch { toast.error('Error al guardar plan') }
+    setSaving(false)
+  }
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{isEditing ? 'Editar' : 'Nuevo'} plan nutricional</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Context */}
+          <div>
+            <label className="text-sm font-medium text-gray-700">Contexto</label>
+            <div className="flex flex-wrap gap-2 mt-1">
+              {PLAN_CONTEXTOS.map((c) => (
+                <button
+                  key={c.value}
+                  onClick={() => setContexto(c.value as ContextoNutricional)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                    contexto === c.value
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                  }`}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Quick-add from templates */}
+          {plantillas && plantillas.length > 0 && (
+            <div>
+              <label className="text-sm font-medium text-gray-700">Agregar desde plantilla</label>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {plantillas.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => addComidaFromPlantilla(p)}
+                    className="text-xs px-2.5 py-1.5 bg-gray-50 border rounded-md hover:bg-gray-100 transition"
+                  >
+                    {PLAN_TIPOS_COMIDA.find((t) => t.value === p.tipo_comida)?.emoji} {p.nombre}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Meals */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-gray-700">Comidas</label>
+              <Button size="sm" variant="outline" onClick={addEmptyComida}>
+                <Plus className="h-3 w-3 mr-1" /> Agregar
+              </Button>
+            </div>
+            <div className="space-y-3">
+              {comidas.map((comida, idx) => (
+                <div key={idx} className="border rounded-lg p-3 space-y-2 bg-gray-50">
+                  <div className="flex gap-2 items-center">
+                    <select
+                      value={comida.tipo_comida}
+                      onChange={(e) => updateComida(idx, 'tipo_comida', e.target.value)}
+                      className="text-sm border rounded px-2 py-1.5"
+                    >
+                      {PLAN_TIPOS_COMIDA.map((t) => (
+                        <option key={t.value} value={t.value}>{t.emoji} {t.label}</option>
+                      ))}
+                    </select>
+                    <Input
+                      placeholder="Nombre de la comida"
+                      value={comida.nombre}
+                      onChange={(e) => updateComida(idx, 'nombre', e.target.value)}
+                      className="flex-1 h-8 text-sm"
+                    />
+                    <Input
+                      type="time"
+                      value={comida.hora_sugerida}
+                      onChange={(e) => updateComida(idx, 'hora_sugerida', e.target.value)}
+                      className="w-28 h-8 text-sm"
+                    />
+                    <button onClick={() => removeComida(idx)} className="text-gray-400 hover:text-red-500">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    <div>
+                      <label className="text-xs text-gray-500">Calorías</label>
+                      <Input type="number" value={comida.calorias || ''} onChange={(e) => updateComida(idx, 'calorias', +e.target.value)} className="h-7 text-xs" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-blue-500">Proteínas (g)</label>
+                      <Input type="number" value={comida.proteinas_g || ''} onChange={(e) => updateComida(idx, 'proteinas_g', +e.target.value)} className="h-7 text-xs" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-amber-500">Carbos (g)</label>
+                      <Input type="number" value={comida.carbos_g || ''} onChange={(e) => updateComida(idx, 'carbos_g', +e.target.value)} className="h-7 text-xs" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-red-500">Grasas (g)</label>
+                      <Input type="number" value={comida.grasas_g || ''} onChange={(e) => updateComida(idx, 'grasas_g', +e.target.value)} className="h-7 text-xs" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Hydration + notes */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700">Hidratación (litros)</label>
+              <Input type="number" step="0.5" min="0" value={hidratacion} onChange={(e) => setHidratacion(e.target.value)} placeholder="3.0" className="mt-1" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">Notas</label>
+              <Input value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Observaciones..." className="mt-1" />
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+            {isEditing ? 'Guardar cambios' : 'Crear plan'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
