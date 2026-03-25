@@ -130,7 +130,16 @@ class TareaBase(BaseModel):
     # Gráfico
     grafico_svg: Optional[str] = None
     grafico_data: Optional[dict] = None
-    
+
+    # Extended fields
+    objetivo_fisico: Optional[str] = None
+    objetivo_psicologico: Optional[str] = None
+    variantes: List[str] = Field(default_factory=list)
+    progresiones: List[str] = Field(default_factory=list)
+    regresiones: List[str] = Field(default_factory=list)
+    material: List[str] = Field(default_factory=list)
+    video_url: Optional[str] = None
+
     # Metadata
     es_plantilla: bool = False
     es_publica: bool = False
@@ -146,7 +155,7 @@ class TareaBase(BaseModel):
         list_fields = [
             "reglas_tecnicas", "reglas_tacticas", "reglas_psicologicas",
             "consignas_ofensivas", "consignas_defensivas", "errores_comunes",
-            "tags",
+            "tags", "variantes", "progresiones", "regresiones", "material",
         ]
         for field in list_fields:
             val = data.get(field)
@@ -178,55 +187,64 @@ class TareaCreate(TareaBase):
 class TareaUpdate(BaseModel):
     """Schema para actualizar tarea - todos los campos opcionales."""
     titulo: Optional[str] = Field(None, min_length=5, max_length=255)
-    categoria_id: Optional[UUID] = None
-    
+    categoria_id: Optional[str] = None  # UUID or codigo — resolved in endpoint
+
     duracion_total: Optional[int] = Field(None, gt=0)
     num_series: Optional[int] = Field(None, ge=1)
     duracion_serie: Optional[int] = None
     tiempo_descanso: Optional[int] = None
-    
+
     espacio_largo: Optional[float] = None
     espacio_ancho: Optional[float] = None
     espacio_forma: Optional[str] = None
-    
+
     num_jugadores_min: Optional[int] = Field(None, ge=1)
     num_jugadores_max: Optional[int] = None
     num_porteros: Optional[int] = None
     estructura_equipos: Optional[str] = None
-    
+
     descripcion: Optional[str] = None
     como_inicia: Optional[str] = None
     como_finaliza: Optional[str] = None
-    
+
     reglas_tecnicas: Optional[List[str]] = None
     reglas_tacticas: Optional[List[str]] = None
     reglas_psicologicas: Optional[List[str]] = None
     forma_puntuar: Optional[str] = None
-    
+
     fase_juego: Optional[FaseJuego] = None
     principio_tactico: Optional[str] = None
     subprincipio_tactico: Optional[str] = None
     accion_tecnica: Optional[str] = None
     intencion_tactica: Optional[str] = None
-    
+
     tipo_esfuerzo: Optional[str] = None
     ratio_trabajo_descanso: Optional[str] = None
     densidad: Optional[Densidad] = None
     fc_esperada_min: Optional[int] = None
     fc_esperada_max: Optional[int] = None
-    
+
     nivel_cognitivo: Optional[NivelCognitivo] = None
-    
+
     consignas_ofensivas: Optional[List[str]] = None
     consignas_defensivas: Optional[List[str]] = None
     errores_comunes: Optional[List[str]] = None
-    
+
     grafico_svg: Optional[str] = None
     grafico_data: Optional[dict] = None
-    
+
     es_plantilla: Optional[bool] = None
     es_publica: Optional[bool] = None
     tags: Optional[List[str]] = None
+
+    # Extended fields
+    objetivo_fisico: Optional[str] = None
+    objetivo_psicologico: Optional[str] = None
+    variantes: Optional[List[str]] = None
+    progresiones: Optional[List[str]] = None
+    regresiones: Optional[List[str]] = None
+    material: Optional[List[str]] = None
+    video_url: Optional[str] = None
 
 
 class TareaResponse(TareaBase):

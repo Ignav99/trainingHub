@@ -344,9 +344,23 @@ async def update_tarea(
             detail="No hay datos para actualizar"
         )
     
-    # Convertir UUIDs
+    # Resolve categoria_id: accept UUID or codigo string
     if update_data.get("categoria_id"):
-        update_data["categoria_id"] = str(update_data["categoria_id"])
+        cat_id_raw = str(update_data["categoria_id"])
+        try:
+            from uuid import UUID as _UUID
+            _UUID(cat_id_raw)
+            update_data["categoria_id"] = cat_id_raw
+        except (ValueError, AttributeError):
+            cat_response = supabase.table("categorias_tarea").select("id").eq(
+                "codigo", cat_id_raw
+            ).maybe_single().execute()
+            if not cat_response.data:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Categoría '{cat_id_raw}' no encontrada"
+                )
+            update_data["categoria_id"] = cat_response.data["id"]
     
     # Recalcular m² si cambian las dimensiones
     espacio_largo = update_data.get("espacio_largo", existing.data.get("espacio_largo"))
