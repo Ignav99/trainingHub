@@ -231,7 +231,7 @@ Tienes acceso a herramientas para consultar datos reales del equipo del usuario.
 7. Cuando hables de periodizacion tactica, referencia los Match Days correctos (MD-4 fuerza, MD-3 resistencia, MD-2 velocidad, MD-1 activacion, MD+1 recuperacion)
 
 ## METODOLOGÍA: TAXONOMÍA DE TAREAS
-9 categorias de tareas con su naturaleza y espacio recomendado (m²/jugador):
+9 categorias de tareas de futbol con su naturaleza y espacio recomendado (m²/jugador):
 - RND (Rondo): conservacion, espacio reducido (~9 m²/jug)
 - JDP (Juego de Posición): posesion posicional, espacio medio (~25 m²/jug)
 - POS (Posesión): conservacion con objetivo, espacio medio-grande (~30 m²/jug)
@@ -242,13 +242,24 @@ Tienes acceso a herramientas para consultar datos reales del equipo del usuario.
 - SSG (Fútbol Reducido / Small-Sided Games): juego real reducido, espacio reducido (~15 m²/jug)
 - ABP (Balón Parado): estrategia a balon parado, espacio especifico
 
+## METODOLOGÍA: CATEGORÍAS COMPLEMENTARIAS (PREPARACIÓN FÍSICA)
+También eres experto en preparación física y ciencias del deporte aplicadas al fútbol.
+4 categorías complementarias para el preparador físico:
+- GYM (Fuerza / Gimnasio): sentadillas, peso muerto, press, hip thrust, sentadilla búlgara. Trabajo de fuerza máxima, hipertrofia y potencia.
+- PRV (Prevención de Lesiones): nórdicos, Copenhagen, FIFA 11+, propiocepción en bosu. Basado en evidencia científica.
+- MOV (Movilidad / Flexibilidad): cadera 90/90, foam roller torácico, estiramientos dinámicos, yoga para futbolistas, liberación miofascial.
+- RCF (Recuperación Física): circuito recuperación activa post-partido, baños de contraste, pool recovery.
+
+Campos específicos de gym: grupo_muscular[] (ej: cuádriceps, isquiotibiales, glúteos, core), equipamiento[] (ej: barra olímpica, mancuernas, foam roller), tipo_contraccion (concentrica/excentrica/isometrica/pliometrica), zona_cuerpo (tren_superior/tren_inferior/core/full_body), objetivo_gym (fuerza_maxima/hipertrofia/potencia/resistencia_muscular/movilidad/activacion/recuperacion), series_repeticiones {series, repeticiones, descanso_seg, porcentaje_rm}.
+
 ## METODOLOGÍA: MATCH DAY Y CARGA
 Relacion entre Match Day, tipo de carga y categorias recomendadas:
-- MD+1 Recuperación: carga muy baja, espacios amplios sin oposicion. RND✓✓, ABP✓
-- MD-4 Fuerza/Tensión: espacios reducidos, alta intensidad, cambios direccion. SSG✓✓, AVD✓✓, JDP✓✓
-- MD-3 Resistencia: espacios grandes, duraciones largas, esfuerzos continuos. POS✓✓, PCO✓✓, AVD✓✓
-- MD-2 Velocidad: tiempos cortos, alta velocidad, poca densidad. EVO✓✓
-- MD-1 Activación: carga baja, repaso tactico, automatismos. RND✓✓, ABP✓✓
+- MD+1 Recuperación: carga muy baja, espacios amplios sin oposicion. RND✓✓, ABP✓. Gym: RCF✓✓ (prioritario), MOV✓ (opcional). NO GYM.
+- MD-4 Fuerza/Tensión: espacios reducidos, alta intensidad, cambios direccion. SSG✓✓, AVD✓✓, JDP✓✓. Gym: GYM✓✓ (fuerza máxima/potencia), PRV✓ (nórdicos).
+- MD-3 Resistencia: espacios grandes, duraciones largas, esfuerzos continuos. POS✓✓, PCO✓✓, AVD✓✓. Gym: GYM✓ (carga moderada), PRV✓ (Copenhagen).
+- MD-2 Velocidad: tiempos cortos, alta velocidad, poca densidad. EVO✓✓. Gym: MOV✓✓ + PRV✓ (activación). No GYM pesado.
+- MD-1 Activación: carga baja, repaso tactico, automatismos. RND✓✓, ABP✓✓. Gym: MOV✓ (activación ligera). NO GYM.
+- MD Partido: No gym, no prevención. Solo competición.
 
 ## METODOLOGÍA: 5 FASES DE JUEGO
 1. Ataque Organizado:
@@ -313,8 +324,8 @@ TASK_DESIGN_TOOLS = [
                 },
                 "categoria_codigo": {
                     "type": "string",
-                    "enum": ["RND", "JDP", "POS", "EVO", "AVD", "PCO", "ACO", "SSG", "ABP"],
-                    "description": "Categoría de la tarea",
+                    "enum": ["RND", "JDP", "POS", "EVO", "AVD", "PCO", "ACO", "SSG", "ABP", "GYM", "PRV", "MOV", "RCF"],
+                    "description": "Categoría de la tarea (incluye categorías complementarias de gym/preparación física)",
                 },
                 "duracion_total": {
                     "type": "integer",
@@ -326,11 +337,11 @@ TASK_DESIGN_TOOLS = [
                 },
                 "espacio": {
                     "type": "string",
-                    "description": "Dimensiones del espacio. Ej: '30x20m', '40x30m'",
+                    "description": "Dimensiones del espacio. Ej: '30x20m', '40x30m'. Para gym, puede ser 'gimnasio' o 'sala fitness'.",
                 },
                 "num_jugadores": {
                     "type": "string",
-                    "description": "Ej: '16', '16+2GK', '10-14'",
+                    "description": "Ej: '16', '16+2GK', '10-14'. Para gym individual: '1-4'.",
                 },
                 "estructura_equipos": {
                     "type": "string",
@@ -392,6 +403,46 @@ TASK_DESIGN_TOOLS = [
                 "razon": {
                     "type": "string",
                     "description": "Razón pedagógica y metodológica de esta tarea",
+                },
+                # Campos específicos de preparación física (solo para GYM/PRV/MOV/RCF)
+                "grupo_muscular": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Grupos musculares trabajados. Ej: ['cuádriceps','glúteos','isquiotibiales']. Solo para categorías GYM/PRV/MOV/RCF.",
+                },
+                "equipamiento": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Equipamiento necesario. Ej: ['barra olímpica','mancuernas','foam roller']. Solo para GYM/PRV/MOV/RCF.",
+                },
+                "tipo_contraccion": {
+                    "type": "string",
+                    "enum": ["concentrica", "excentrica", "isometrica", "pliometrica"],
+                    "description": "Tipo de contracción muscular principal. Solo para GYM/PRV/MOV/RCF.",
+                },
+                "zona_cuerpo": {
+                    "type": "string",
+                    "enum": ["tren_superior", "tren_inferior", "core", "full_body"],
+                    "description": "Zona corporal principal. Solo para GYM/PRV/MOV/RCF.",
+                },
+                "objetivo_gym": {
+                    "type": "string",
+                    "enum": ["fuerza_maxima", "hipertrofia", "potencia", "resistencia_muscular", "movilidad", "activacion", "recuperacion"],
+                    "description": "Objetivo del ejercicio de preparación física. Solo para GYM/PRV/MOV/RCF.",
+                },
+                "series_repeticiones": {
+                    "type": "object",
+                    "properties": {
+                        "series": {"type": "integer"},
+                        "repeticiones": {"type": "string"},
+                        "descanso_seg": {"type": "integer"},
+                        "porcentaje_rm": {"type": "integer"},
+                    },
+                    "description": "Estructura de series y repeticiones. Solo para GYM/PRV/MOV/RCF.",
+                },
+                "protocolo_progresion": {
+                    "type": "string",
+                    "description": "Notas sobre progresión del ejercicio a lo largo de semanas. Solo para GYM/PRV/MOV/RCF.",
                 },
             },
             "required": [
@@ -726,8 +777,8 @@ SESSION_DESIGN_TOOLS = [
                             },
                             "categoria": {
                                 "type": "string",
-                                "enum": ["RND", "JDP", "POS", "EVO", "AVD", "PCO", "ACO", "SSG", "ABP"],
-                                "description": "Categoría de la tarea"
+                                "enum": ["RND", "JDP", "POS", "EVO", "AVD", "PCO", "ACO", "SSG", "ABP", "GYM", "PRV", "MOV", "RCF"],
+                                "description": "Categoría de la tarea (incluye gym/preparación física)"
                             },
                             "num_jugadores": {
                                 "type": "string",
@@ -1049,8 +1100,8 @@ TOOLS = [
                 },
                 "categoria": {
                     "type": "string",
-                    "enum": ["RND", "JDP", "POS", "EVO", "AVD", "PCO", "ACO", "SSG", "ABP"],
-                    "description": "Codigo de categoria de tarea"
+                    "enum": ["RND", "JDP", "POS", "EVO", "AVD", "PCO", "ACO", "SSG", "ABP", "GYM", "PRV", "MOV", "RCF"],
+                    "description": "Codigo de categoria de tarea (incluye gym/preparación física)"
                 },
                 "fase_juego": {
                     "type": "string",
@@ -1080,8 +1131,8 @@ TOOLS = [
                 },
                 "categoria": {
                     "type": "string",
-                    "enum": ["RND", "JDP", "POS", "EVO", "AVD", "PCO", "ACO", "SSG", "ABP"],
-                    "description": "Filtrar por categoria de tarea"
+                    "enum": ["RND", "JDP", "POS", "EVO", "AVD", "PCO", "ACO", "SSG", "ABP", "GYM", "PRV", "MOV", "RCF"],
+                    "description": "Filtrar por categoria de tarea (incluye gym/preparación física)"
                 },
                 "tipo": {
                     "type": "string",
@@ -1349,7 +1400,9 @@ def _tool_buscar_tareas(supabase, params: dict) -> str:
         "id, titulo, descripcion, duracion_total, num_jugadores_min, num_jugadores_max, "
         "num_porteros, fase_juego, principio_tactico, nivel_cognitivo, densidad, "
         "num_series, espacio_largo, espacio_ancho, estructura_equipos, "
-        "reglas_tecnicas, reglas_tacticas, consignas_ofensivas, consignas_defensivas, categorias_tarea(codigo, nombre)"
+        "reglas_tecnicas, reglas_tacticas, consignas_ofensivas, consignas_defensivas, "
+        "es_complementaria, grupo_muscular, equipamiento, tipo_contraccion, zona_cuerpo, "
+        "objetivo_gym, series_repeticiones, categorias_tarea(codigo, nombre)"
     )
 
     # Query by organizacion_id (broad: all org tasks) or equipo_id (narrow)

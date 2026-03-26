@@ -357,6 +357,15 @@ class AITareaNueva(BaseModel):
     errores_comunes: List[str] = Field(default_factory=list)
     consignas_defensivas: List[str] = Field(default_factory=list)
 
+    # Campos de preparación física / gimnasio (opcionales, para GYM/PRV/MOV/RCF)
+    grupo_muscular: Optional[List[str]] = None
+    equipamiento: Optional[List[str]] = None
+    tipo_contraccion: Optional[str] = None
+    zona_cuerpo: Optional[str] = None
+    objetivo_gym: Optional[str] = None
+    series_repeticiones: Optional[dict] = None
+    protocolo_progresion: Optional[str] = None
+
 
 class AIRecomendadorInput(BaseModel):
     """Input para el recomendador con IA (Claude)."""

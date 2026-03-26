@@ -23,6 +23,8 @@ from app.models import (
     TareaFiltros,
     FaseJuego,
     NivelCognitivo,
+    ZonaCuerpo,
+    ObjetivoGym,
     AITareaNueva,
     UsuarioResponse,
 )
@@ -79,6 +81,10 @@ async def list_tareas(
     solo_plantillas: bool = False,
     equipo_id: Optional[UUID] = None,
     busqueda: Optional[str] = None,
+    # Filtros de preparación física
+    es_complementaria: Optional[bool] = None,
+    zona_cuerpo: Optional[ZonaCuerpo] = None,
+    objetivo_gym: Optional[ObjetivoGym] = None,
     # Modo biblioteca: muestra TODAS las tareas públicas de TODOS los usuarios
     biblioteca: bool = False,
     # Ordenación
@@ -158,6 +164,15 @@ async def list_tareas(
 
     if tipo_esfuerzo:
         query = query.ilike("tipo_esfuerzo", f"%{tipo_esfuerzo}%")
+
+    if es_complementaria is not None:
+        query = query.eq("es_complementaria", es_complementaria)
+
+    if zona_cuerpo:
+        query = query.eq("zona_cuerpo", zona_cuerpo.value)
+
+    if objetivo_gym:
+        query = query.eq("objetivo_gym", objetivo_gym.value)
 
     if solo_plantillas:
         query = query.eq("es_plantilla", True)
@@ -574,6 +589,10 @@ async def create_tarea_from_ai(
     if tarea_ai.posicion_entrenador:
         descripcion += f"\n\nPOSICIÓN ENTRENADOR: {tarea_ai.posicion_entrenador}"
 
+    # Detectar si es categoría complementaria (gym)
+    GYM_CATEGORIES = {"GYM", "PRV", "MOV", "RCF"}
+    is_gym = tarea_ai.categoria_codigo in GYM_CATEGORIES
+
     # Preparar datos de la tarea (mapear campos de IA a campos de BD)
     tarea_data = {
         "titulo": tarea_ai.titulo,
@@ -609,7 +628,18 @@ async def create_tarea_from_ai(
         "creado_por": str(auth.user.id),
         "es_publica": True,
         "es_plantilla": True,
+        # Auto-set complementaria flag for gym categories
+        "es_complementaria": is_gym,
     }
+
+    # Mapear campos de gym si la IA los proporcionó
+    if is_gym:
+        for gym_field in ["grupo_muscular", "equipamiento", "tipo_contraccion",
+                          "zona_cuerpo", "objetivo_gym", "series_repeticiones",
+                          "protocolo_progresion"]:
+            val = getattr(tarea_ai, gym_field, None)
+            if val is not None:
+                tarea_data[gym_field] = val
 
     # Calcular m² por jugador si hay dimensiones
     if tarea_data.get("espacio_largo") and tarea_data.get("espacio_ancho"):

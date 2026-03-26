@@ -7,6 +7,9 @@ from app.models.tarea import (
     FaseJuego,
     Densidad,
     NivelCognitivo,
+    TipoContraccion,
+    ZonaCuerpo,
+    ObjetivoGym,
     CategoriaTareaBase,
     CategoriaTareaResponse,
     TareaBase,
@@ -353,6 +356,7 @@ from app.models.medico import (
 __all__ = [
     # Tarea
     "FaseJuego", "Densidad", "NivelCognitivo",
+    "TipoContraccion", "ZonaCuerpo", "ObjetivoGym",
     "CategoriaTareaBase", "CategoriaTareaResponse",
     "TareaBase", "TareaCreate", "TareaUpdate", "TareaResponse",
     "TareaListResponse", "TareaFiltros",

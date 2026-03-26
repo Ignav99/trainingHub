@@ -1,5 +1,5 @@
 import { api } from './client'
-import { Tarea, TareaFiltros, PaginatedResponse, AITareaNueva } from '@/types'
+import { Tarea, TareaFiltros, PaginatedResponse, AITareaNueva, TipoContraccion, ZonaCuerpo, ObjetivoGym, SeriesRepeticiones } from '@/types'
 
 export interface TareaCreateData {
   titulo: string
@@ -41,6 +41,15 @@ export interface TareaCreateData {
   video_url?: string
   // Grafico
   grafico_data?: Record<string, any>
+  // Preparación física / Gimnasio
+  es_complementaria?: boolean
+  grupo_muscular?: string[]
+  equipamiento?: string[]
+  tipo_contraccion?: TipoContraccion
+  zona_cuerpo?: ZonaCuerpo
+  objetivo_gym?: ObjetivoGym
+  series_repeticiones?: SeriesRepeticiones
+  protocolo_progresion?: string
 }
 
 export interface TareaUpdateData extends Partial<TareaCreateData> {}
@@ -63,6 +72,10 @@ interface ListTareasParams {
   busqueda?: string
   biblioteca?: boolean  // Modo biblioteca del club: muestra TODAS las tareas de la org
   densidad?: string
+  // Filtros de preparación física
+  es_complementaria?: boolean
+  zona_cuerpo?: string
+  objetivo_gym?: string
   [key: string]: string | number | boolean | undefined
 }
 

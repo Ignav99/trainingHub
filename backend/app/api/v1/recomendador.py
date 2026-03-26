@@ -32,21 +32,21 @@ router = APIRouter()
 # Configuración de Match Days para el recomendador
 MATCH_DAY_CONFIG = {
     "MD+1": {
-        "categorias_preferidas": ["RND", "ACO"],
-        "categorias_evitar": ["SSG", "AVD", "PCO"],
+        "categorias_preferidas": ["RND", "ACO", "RCF", "MOV"],
+        "categorias_evitar": ["SSG", "AVD", "PCO", "GYM"],
         "nivel_cognitivo_max": 1,
         "m2_min": 150,
         "intensidad": "muy_baja",
     },
     "MD-4": {
-        "categorias_preferidas": ["SSG", "JDP", "AVD"],
+        "categorias_preferidas": ["SSG", "JDP", "AVD", "GYM"],
         "categorias_evitar": ["ACO"],
         "nivel_cognitivo_max": 3,
         "m2_max": 100,
         "intensidad": "alta",
     },
     "MD-3": {
-        "categorias_preferidas": ["JDP", "POS", "PCO", "AVD"],
+        "categorias_preferidas": ["JDP", "POS", "PCO", "AVD", "GYM"],
         "categorias_evitar": ["SSG"],
         "nivel_cognitivo_max": 3,
         "m2_min": 100,
@@ -54,7 +54,7 @@ MATCH_DAY_CONFIG = {
         "intensidad": "alta",
     },
     "MD-2": {
-        "categorias_preferidas": ["EVO", "JDP"],
+        "categorias_preferidas": ["EVO", "JDP", "MOV", "PRV"],
         "categorias_evitar": ["SSG", "PCO"],
         "nivel_cognitivo_max": 2,
         "m2_min": 150,
@@ -62,13 +62,13 @@ MATCH_DAY_CONFIG = {
     },
     "MD-1": {
         "categorias_preferidas": ["RND", "ABP", "ACO"],
-        "categorias_evitar": ["SSG", "AVD", "PCO"],
+        "categorias_evitar": ["SSG", "AVD", "PCO", "GYM"],
         "nivel_cognitivo_max": 2,
         "intensidad": "baja",
     },
     "MD": {
         "categorias_preferidas": [],
-        "categorias_evitar": [],
+        "categorias_evitar": ["GYM", "PRV"],
         "nivel_cognitivo_max": 3,
         "intensidad": "competicion",
     },
@@ -76,10 +76,10 @@ MATCH_DAY_CONFIG = {
 
 # Categorías recomendadas por fase de sesión
 FASE_CATEGORIAS = {
-    "activacion": ["RND", "ACO"],
-    "desarrollo_1": ["JDP", "AVD", "POS"],
+    "activacion": ["RND", "ACO", "MOV", "PRV"],
+    "desarrollo_1": ["JDP", "AVD", "POS", "GYM"],
     "desarrollo_2": ["PCO", "AVD", "EVO"],
-    "vuelta_calma": ["ACO", "RND"],
+    "vuelta_calma": ["ACO", "RND", "RCF", "MOV"],
 }
 
 

@@ -34,6 +34,33 @@ class NivelCognitivo(int, Enum):
     ALTO = 3
 
 
+class TipoContraccion(str, Enum):
+    """Tipos de contracción muscular."""
+    CONCENTRICA = "concentrica"
+    EXCENTRICA = "excentrica"
+    ISOMETRICA = "isometrica"
+    PLIOMETRICA = "pliometrica"
+
+
+class ZonaCuerpo(str, Enum):
+    """Zona corporal del ejercicio."""
+    TREN_SUPERIOR = "tren_superior"
+    TREN_INFERIOR = "tren_inferior"
+    CORE = "core"
+    FULL_BODY = "full_body"
+
+
+class ObjetivoGym(str, Enum):
+    """Objetivo del ejercicio de gimnasio."""
+    FUERZA_MAXIMA = "fuerza_maxima"
+    HIPERTROFIA = "hipertrofia"
+    POTENCIA = "potencia"
+    RESISTENCIA_MUSCULAR = "resistencia_muscular"
+    MOVILIDAD = "movilidad"
+    ACTIVACION = "activacion"
+    RECUPERACION = "recuperacion"
+
+
 # ============ Schemas de Categoría ============
 
 class CategoriaTareaBase(BaseModel):
@@ -145,6 +172,16 @@ class TareaBase(BaseModel):
     es_publica: bool = False
     tags: List[str] = Field(default_factory=list)
 
+    # Campos de preparación física / gimnasio
+    es_complementaria: Optional[bool] = False
+    grupo_muscular: Optional[List[str]] = None
+    equipamiento: Optional[List[str]] = None
+    tipo_contraccion: Optional[TipoContraccion] = None
+    zona_cuerpo: Optional[ZonaCuerpo] = None
+    objetivo_gym: Optional[ObjetivoGym] = None
+    series_repeticiones: Optional[dict] = None  # {"series":4,"repeticiones":"8-10","descanso_seg":90,"porcentaje_rm":75}
+    protocolo_progresion: Optional[str] = None
+
     @model_validator(mode="before")
     @classmethod
     def coerce_list_fields(cls, data: Any) -> Any:
@@ -156,6 +193,7 @@ class TareaBase(BaseModel):
             "reglas_tecnicas", "reglas_tacticas", "reglas_psicologicas",
             "consignas_ofensivas", "consignas_defensivas", "errores_comunes",
             "tags", "variantes", "progresiones", "regresiones", "material",
+            "grupo_muscular", "equipamiento",
         ]
         for field in list_fields:
             val = data.get(field)
@@ -246,6 +284,16 @@ class TareaUpdate(BaseModel):
     material: Optional[List[str]] = None
     video_url: Optional[str] = None
 
+    # Campos de preparación física / gimnasio
+    es_complementaria: Optional[bool] = None
+    grupo_muscular: Optional[List[str]] = None
+    equipamiento: Optional[List[str]] = None
+    tipo_contraccion: Optional[TipoContraccion] = None
+    zona_cuerpo: Optional[ZonaCuerpo] = None
+    objetivo_gym: Optional[ObjetivoGym] = None
+    series_repeticiones: Optional[dict] = None
+    protocolo_progresion: Optional[str] = None
+
 
 class TareaResponse(TareaBase):
     """Schema de respuesta de tarea."""
@@ -310,3 +358,7 @@ class TareaFiltros(BaseModel):
     solo_publicas: bool = False
     equipo_id: Optional[UUID] = None
     busqueda: Optional[str] = None  # búsqueda en título/descripción
+    # Filtros de preparación física
+    es_complementaria: Optional[bool] = None
+    zona_cuerpo: Optional[ZonaCuerpo] = None
+    objetivo_gym: Optional[ObjetivoGym] = None

@@ -308,6 +308,11 @@ async def get_categorias_tarea():
             {"codigo": "SSG", "nombre": "Futbol Reducido (SSG)", "color": "#14B8A6"},
             {"codigo": "ABP", "nombre": "Balon Parado (ABP)", "color": "#F97316"},
             {"codigo": "POR", "nombre": "Portero (GK)", "color": "#22C55E"},
+            # Categorías complementarias (preparación física)
+            {"codigo": "GYM", "nombre": "Fuerza / Gimnasio", "color": "#8B5CF6", "naturaleza": "complementario"},
+            {"codigo": "PRV", "nombre": "Prevención de Lesiones", "color": "#F43F5E", "naturaleza": "complementario"},
+            {"codigo": "MOV", "nombre": "Movilidad / Flexibilidad", "color": "#06B6D4", "naturaleza": "complementario"},
+            {"codigo": "RCF", "nombre": "Recuperación Física", "color": "#22C55E", "naturaleza": "complementario"},
         ]
     }
 
@@ -352,7 +357,7 @@ async def get_match_days():
                 "dias_desde_partido": 1,
                 "carga_fisica": "Recuperacion activa",
                 "nivel_cognitivo_max": 1,
-                "categorias_preferidas": ["RND", "ACO"],
+                "categorias_preferidas": ["RND", "ACO", "RCF", "MOV"],
                 "categorias_evitar": ["SSG", "AVD", "PCO"],
                 "color": "#22C55E"
             },
@@ -362,7 +367,7 @@ async def get_match_days():
                 "dias_desde_partido": -4,
                 "carga_fisica": "Fuerza explosiva",
                 "nivel_cognitivo_max": 3,
-                "categorias_preferidas": ["SSG", "JDP", "AVD"],
+                "categorias_preferidas": ["SSG", "JDP", "AVD", "GYM"],
                 "categorias_evitar": ["ACO"],
                 "color": "#EF4444"
             },
@@ -372,7 +377,7 @@ async def get_match_days():
                 "dias_desde_partido": -3,
                 "carga_fisica": "Resistencia a la potencia",
                 "nivel_cognitivo_max": 3,
-                "categorias_preferidas": ["JDP", "POS", "PCO", "AVD"],
+                "categorias_preferidas": ["JDP", "POS", "PCO", "AVD", "GYM"],
                 "categorias_evitar": ["SSG"],
                 "color": "#F59E0B"
             },
@@ -382,7 +387,7 @@ async def get_match_days():
                 "dias_desde_partido": -2,
                 "carga_fisica": "Velocidad maxima",
                 "nivel_cognitivo_max": 2,
-                "categorias_preferidas": ["EVO", "JDP"],
+                "categorias_preferidas": ["EVO", "JDP", "MOV", "PRV"],
                 "categorias_evitar": ["SSG", "PCO"],
                 "color": "#3B82F6"
             },
@@ -393,7 +398,7 @@ async def get_match_days():
                 "carga_fisica": "Activacion/Reaccion",
                 "nivel_cognitivo_max": 2,
                 "categorias_preferidas": ["RND", "ABP", "ACO"],
-                "categorias_evitar": ["SSG", "AVD", "PCO"],
+                "categorias_evitar": ["SSG", "AVD", "PCO", "GYM"],
                 "color": "#8B5CF6"
             },
         ]

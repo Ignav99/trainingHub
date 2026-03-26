@@ -12,6 +12,18 @@ export type Densidad = 'alta' | 'media' | 'baja'
 export type Intensidad = 'alta' | 'media' | 'baja' | 'muy_baja'
 export type NivelCognitivo = 1 | 2 | 3
 
+// Enums de preparación física / gimnasio
+export type TipoContraccion = 'concentrica' | 'excentrica' | 'isometrica' | 'pliometrica'
+export type ZonaCuerpo = 'tren_superior' | 'tren_inferior' | 'core' | 'full_body'
+export type ObjetivoGym = 'fuerza_maxima' | 'hipertrofia' | 'potencia' | 'resistencia_muscular' | 'movilidad' | 'activacion' | 'recuperacion'
+
+export interface SeriesRepeticiones {
+  series: number
+  repeticiones: string
+  descanso_seg: number
+  porcentaje_rm?: number
+}
+
 // Categoría de Tarea
 export interface CategoriaTarea {
   id: string
@@ -153,13 +165,23 @@ export interface Tarea {
   grafico_svg?: string
   grafico_data?: Record<string, any>
 
+  // Preparación física / Gimnasio
+  es_complementaria?: boolean
+  grupo_muscular?: string[]
+  equipamiento?: string[]
+  tipo_contraccion?: TipoContraccion
+  zona_cuerpo?: ZonaCuerpo
+  objetivo_gym?: ObjetivoGym
+  series_repeticiones?: SeriesRepeticiones
+  protocolo_progresion?: string
+
   // Metadatos
   es_plantilla: boolean
   es_publica: boolean
   tags: string[]
   valoracion_media?: number
   num_usos: number
-  
+
   created_at: string
   updated_at: string
 
@@ -441,6 +463,14 @@ export interface AITareaNueva {
   posicion_entrenador?: string
   errores_comunes?: string[]
   consignas_defensivas?: string[]
+  // Campos de preparacion fisica (para GYM/PRV/MOV/RCF)
+  grupo_muscular?: string[]
+  equipamiento?: string[]
+  tipo_contraccion?: TipoContraccion
+  zona_cuerpo?: ZonaCuerpo
+  objetivo_gym?: ObjetivoGym
+  series_repeticiones?: SeriesRepeticiones
+  protocolo_progresion?: string
 }
 
 export interface AIFaseRecomendacion {
