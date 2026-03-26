@@ -1080,24 +1080,9 @@ export default function SesionDetailPage() {
           return toAdd.length > 0 ? [...prev, ...toAdd] : prev
         })
       }
-      // Auto-mark non-active players as absent with correct motivo (first time only)
-      // Uses jugadoresRef to read current jugadores without closure staleness
-      if (map.size === 0 && jugadoresRef.current.length > 0) {
-        const estadoToMotivo: Record<string, MotivoAusencia> = {
-          lesionado: 'lesion',
-          enfermo: 'enfermedad',
-          sancionado: 'sancion',
-          permiso: 'permiso',
-          seleccion: 'seleccion',
-          viaje: 'viaje',
-        }
-        for (const j of jugadoresRef.current) {
-          const motivo = estadoToMotivo[j.estado as string]
-          if (motivo) {
-            map.set(j.id, { presente: false, motivo, tipo_participacion: [] })
-          }
-        }
-      }
+      // NOTE: No auto-marking injured/sick players as absent — the coach decides.
+      // PlayerStatusBadges already shows lesionado/enfermo/sancionado badges.
+      // When the coach manually toggles absent, the motivo auto-fills via toggleAsistencia.
       setAsistencias(map)
       setAsistenciasLoaded(true)
     } catch (err) {
@@ -1230,8 +1215,8 @@ export default function SesionDetailPage() {
       tareas: [...prev.tareas, {
         orden: prev.tareas.length + 1,
         titulo_custom: '',
-        duracion: 10,
-        series: 1,
+        duracion: undefined,
+        series: undefined,
         tipo_ejercicio: undefined,
       }],
     }))
@@ -2794,7 +2779,16 @@ export default function SesionDetailPage() {
                                         </button>
                                       </div>
                                       {margenForm.tareas.length === 0 && (
-                                        <p className="text-[10px] text-amber-500 italic">Sin ejercicios. Pulsa "Anadir" para agregar.</p>
+                                        <p className="text-[10px] text-amber-500 italic">Sin ejercicios. Pulsa "Añadir" para agregar.</p>
+                                      )}
+                                      {margenForm.tareas.length > 0 && (
+                                        <div className="grid grid-cols-6 gap-1 mb-1">
+                                          <span className="col-span-2 text-[9px] font-semibold text-amber-600 uppercase">Ejercicio</span>
+                                          <span className="text-[9px] font-semibold text-amber-600 uppercase">Tipo</span>
+                                          <span className="text-[9px] font-semibold text-amber-600 uppercase">Min</span>
+                                          <span className="text-[9px] font-semibold text-amber-600 uppercase">Series</span>
+                                          <span className="text-[9px] font-semibold text-amber-600 uppercase">Reps</span>
+                                        </div>
                                       )}
                                       <div className="space-y-2">
                                         {margenForm.tareas.map((t, idx) => (
@@ -2812,7 +2806,7 @@ export default function SesionDetailPage() {
                                                   value={t.titulo_custom || ''}
                                                   onChange={e => updateMargenTarea(idx, 'titulo_custom', e.target.value)}
                                                   className="w-full text-[10px] border border-gray-200 rounded px-1.5 py-0.5"
-                                                  placeholder="Titulo"
+                                                  placeholder="Nombre del ejercicio"
                                                 />
                                               </div>
                                               <div>
@@ -2830,7 +2824,7 @@ export default function SesionDetailPage() {
                                               <div>
                                                 <input
                                                   type="number"
-                                                  value={t.duracion || ''}
+                                                  value={t.duracion ?? ''}
                                                   onChange={e => updateMargenTarea(idx, 'duracion', e.target.value ? parseInt(e.target.value) : undefined)}
                                                   className="w-full text-[10px] border border-gray-200 rounded px-1.5 py-0.5"
                                                   placeholder="Min"
@@ -2840,8 +2834,8 @@ export default function SesionDetailPage() {
                                               <div>
                                                 <input
                                                   type="number"
-                                                  value={t.series || ''}
-                                                  onChange={e => updateMargenTarea(idx, 'series', e.target.value ? parseInt(e.target.value) : 1)}
+                                                  value={t.series ?? ''}
+                                                  onChange={e => updateMargenTarea(idx, 'series', e.target.value ? parseInt(e.target.value) : undefined)}
                                                   className="w-full text-[10px] border border-gray-200 rounded px-1.5 py-0.5"
                                                   placeholder="Series"
                                                   min={1}
@@ -2863,14 +2857,14 @@ export default function SesionDetailPage() {
                                                 value={t.descanso || ''}
                                                 onChange={e => updateMargenTarea(idx, 'descanso', e.target.value)}
                                                 className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5"
-                                                placeholder="Descanso"
+                                                placeholder="Descanso (ej: 30s, 1min)"
                                               />
                                               <input
                                                 type="text"
                                                 value={t.carga || ''}
                                                 onChange={e => updateMargenTarea(idx, 'carga', e.target.value)}
                                                 className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5"
-                                                placeholder="Carga"
+                                                placeholder="Carga (ej: 10kg)"
                                               />
                                               <input
                                                 type="text"
