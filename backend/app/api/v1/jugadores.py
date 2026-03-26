@@ -320,3 +320,44 @@ async def get_estadisticas_equipo(equipo_id: UUID, auth: AuthContext = Depends(r
         "niveles_promedio": {k: round(v, 1) for k, v in niveles.items()},
         "edad_promedio": round(edad_promedio, 1) if edad_promedio else None,
     }
+
+
+# ─── PLAYER MARGIN WORKOUT HISTORY ─────────────────────────
+
+@router.get("/{jugador_id}/entrenamientos-margen")
+async def get_entrenamientos_margen_jugador(
+    jugador_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_READ)),
+):
+    """Historial de entrenamientos al margen de un jugador."""
+    supabase = get_supabase()
+
+    response = supabase.table("entrenamientos_margen").select(
+        "*, sesiones(id, titulo, fecha, match_day)"
+    ).eq("jugador_id", str(jugador_id)).order("created_at", desc=True).execute()
+
+    results = []
+    for ent in (response.data or []):
+        sesion = ent.pop("sesiones", None)
+        if sesion:
+            ent["sesion"] = sesion
+
+        # Fetch tareas count
+        tareas_res = supabase.table("entrenamientos_margen_tareas").select(
+            "id", count="exact"
+        ).eq("entrenamiento_margen_id", ent["id"]).execute()
+        ent["num_tareas"] = tareas_res.count if tareas_res.count is not None else len(tareas_res.data or [])
+
+        # Fetch registro_medico title if linked
+        if ent.get("registro_medico_id"):
+            try:
+                rm_res = supabase.table("registros_medicos").select(
+                    "id, titulo, tipo"
+                ).eq("id", ent["registro_medico_id"]).single().execute()
+                ent["registro_medico"] = rm_res.data
+            except Exception:
+                ent["registro_medico"] = None
+
+        results.append(ent)
+
+    return {"data": results, "total": len(results)}

@@ -684,10 +684,10 @@ def _auto_complete_sessions():
     - estado = 'planificada'
     - fecha < today (the training day is over)
     """
-    from datetime import date as date_type
+    from zoneinfo import ZoneInfo
 
     supabase = get_supabase()
-    today = date_type.today().isoformat()
+    today = datetime.now(ZoneInfo("Europe/Madrid")).date().isoformat()
 
     try:
         # Fetch all planificada sessions with fecha before today

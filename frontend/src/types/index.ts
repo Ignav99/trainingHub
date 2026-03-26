@@ -1876,3 +1876,141 @@ export interface DiaPartidoContext {
   partido: any | null
   label: string
 }
+
+// ============================================
+// ENTRENAMIENTOS AL MARGEN
+// ============================================
+
+export type EstadoEntrenamientoMargen = 'planificado' | 'en_curso' | 'completado' | 'cancelado'
+
+export type FaseRecuperacion =
+  | 'fase_1_control_dolor' | 'fase_2_movilidad' | 'fase_3_fuerza_base'
+  | 'fase_4_fuerza_funcional' | 'fase_5_carrera_lineal' | 'fase_6_cambios_direccion'
+  | 'fase_7_entrenamiento_equipo' | 'fase_8_competicion'
+
+export type TipoEjercicioMargen =
+  | 'movilidad' | 'activacion' | 'fuerza' | 'propioceptivo'
+  | 'cardio' | 'campo' | 'pliometria' | 'flexibilidad' | 'otro'
+
+export interface EntrenamientoMargenTarea {
+  id: string
+  entrenamiento_margen_id: string
+  tarea_id?: string
+  orden: number
+  titulo_custom?: string
+  descripcion_custom?: string
+  duracion?: number
+  series: number
+  repeticiones?: string
+  descanso?: string
+  carga?: string
+  tipo_ejercicio?: TipoEjercicioMargen
+  notas?: string
+  created_at: string
+  tarea?: { id: string; titulo: string; codigo?: string; duracion_total?: number }
+}
+
+export interface EntrenamientoMargenTareaCreate {
+  tarea_id?: string
+  orden?: number
+  titulo_custom?: string
+  descripcion_custom?: string
+  duracion?: number
+  series?: number
+  repeticiones?: string
+  descanso?: string
+  carga?: string
+  tipo_ejercicio?: TipoEjercicioMargen
+  notas?: string
+}
+
+export interface EntrenamientoMargen {
+  id: string
+  sesion_id: string
+  jugador_id: string
+  registro_medico_id?: string
+  objetivo?: string
+  notas?: string
+  responsable?: string
+  estado: EstadoEntrenamientoMargen
+  fase_recuperacion?: FaseRecuperacion
+  duracion_estimada?: number
+  rpe_post?: number
+  created_at: string
+  updated_at: string
+  tareas: EntrenamientoMargenTarea[]
+  jugador?: {
+    id: string
+    nombre: string
+    apellidos: string
+    dorsal?: number
+    posicion_principal?: string
+    foto_url?: string
+  }
+  registro_medico?: { id: string; titulo: string; tipo?: string; estado?: string }
+}
+
+export interface EntrenamientoMargenCreate {
+  sesion_id: string
+  jugador_id: string
+  registro_medico_id?: string
+  objetivo?: string
+  notas?: string
+  responsable?: string
+  fase_recuperacion?: FaseRecuperacion
+  duracion_estimada?: number
+  tareas?: EntrenamientoMargenTareaCreate[]
+}
+
+export interface EntrenamientoMargenUpdate {
+  registro_medico_id?: string
+  objetivo?: string
+  notas?: string
+  responsable?: string
+  estado?: EstadoEntrenamientoMargen
+  fase_recuperacion?: FaseRecuperacion
+  duracion_estimada?: number
+  rpe_post?: number
+}
+
+export interface EntrenamientoMargenHistory {
+  id: string
+  sesion_id: string
+  jugador_id: string
+  registro_medico_id?: string
+  objetivo?: string
+  notas?: string
+  responsable?: string
+  estado: EstadoEntrenamientoMargen
+  fase_recuperacion?: FaseRecuperacion
+  duracion_estimada?: number
+  rpe_post?: number
+  num_tareas: number
+  created_at: string
+  updated_at: string
+  sesion?: { id: string; titulo: string; fecha: string; match_day: string }
+  registro_medico?: { id: string; titulo: string; tipo?: string }
+}
+
+export const FASES_RECUPERACION: { value: FaseRecuperacion; label: string; orden: number }[] = [
+  { value: 'fase_1_control_dolor', label: 'F1 — Control dolor', orden: 1 },
+  { value: 'fase_2_movilidad', label: 'F2 — Movilidad', orden: 2 },
+  { value: 'fase_3_fuerza_base', label: 'F3 — Fuerza base', orden: 3 },
+  { value: 'fase_4_fuerza_funcional', label: 'F4 — Fuerza funcional', orden: 4 },
+  { value: 'fase_5_carrera_lineal', label: 'F5 — Carrera lineal', orden: 5 },
+  { value: 'fase_6_cambios_direccion', label: 'F6 — Cambios direccion', orden: 6 },
+  { value: 'fase_7_entrenamiento_equipo', label: 'F7 — Entrenamiento equipo', orden: 7 },
+  { value: 'fase_8_competicion', label: 'F8 — Competicion', orden: 8 },
+]
+
+export const TIPOS_EJERCICIO_MARGEN: { value: TipoEjercicioMargen; label: string; color: string }[] = [
+  { value: 'movilidad', label: 'Movilidad', color: '#06B6D4' },
+  { value: 'activacion', label: 'Activacion', color: '#22C55E' },
+  { value: 'fuerza', label: 'Fuerza', color: '#EF4444' },
+  { value: 'propioceptivo', label: 'Propioceptivo', color: '#8B5CF6' },
+  { value: 'cardio', label: 'Cardio', color: '#F59E0B' },
+  { value: 'campo', label: 'Campo', color: '#3B82F6' },
+  { value: 'pliometria', label: 'Pliometria', color: '#EC4899' },
+  { value: 'flexibilidad', label: 'Flexibilidad', color: '#14B8A6' },
+  { value: 'otro', label: 'Otro', color: '#6B7280' },
+]

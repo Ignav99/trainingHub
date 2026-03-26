@@ -92,10 +92,19 @@ import {
   FormacionEquipos,
   GrupoFormacion,
   EspacioFormacion,
+  EntrenamientoMargen,
+  EntrenamientoMargenCreate,
+  EntrenamientoMargenTareaCreate,
+  FaseRecuperacion,
+  TipoEjercicioMargen,
+  FASES_RECUPERACION,
+  TIPOS_EJERCICIO_MARGEN,
 } from '@/types'
 import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
 import { cargaApi } from '@/lib/api/carga'
-import type { CargaJugador } from '@/types'
+import { entrenamientosMargenApi } from '@/lib/api/entrenamientosMargen'
+import { medicoApi } from '@/lib/api/medico'
+import type { CargaJugador, RegistroMedico } from '@/types'
 
 const MATCH_DAY_COLORS: Record<string, string> = {
   'MD+1': 'bg-green-100 text-green-800',
@@ -957,6 +966,23 @@ export default function SesionDetailPage() {
   // Carga data for asistencia badges
   const [cargaMap, setCargaMap] = useState<Map<string, CargaJugador>>(new Map())
 
+  // Entrenamientos al margen
+  const [margenMap, setMargenMap] = useState<Map<string, EntrenamientoMargen>>(new Map())
+  const [margenLoaded, setMargenLoaded] = useState(false)
+  const [margenExpanded, setMargenExpanded] = useState<Set<string>>(new Set())
+  const [margenEditing, setMargenEditing] = useState<string | null>(null) // jugador_id being edited
+  const [margenSaving, setMargenSaving] = useState(false)
+  const [margenForm, setMargenForm] = useState<{
+    registro_medico_id?: string
+    objetivo?: string
+    notas?: string
+    responsable?: string
+    fase_recuperacion?: FaseRecuperacion
+    duracion_estimada?: number
+    tareas: EntrenamientoMargenTareaCreate[]
+  }>({ tareas: [] })
+  const [jugadorRegistros, setJugadorRegistros] = useState<RegistroMedico[]>([])
+
   // Per-task formation panel state
   const [expandedFormaciones, setExpandedFormaciones] = useState<Set<string>>(new Set())
 
@@ -1077,6 +1103,152 @@ export default function SesionDetailPage() {
     } catch (err) {
       console.error('Error loading asistencias:', err)
     }
+  }
+
+  // ============ Entrenamientos al Margen ============
+  const loadMargen = async () => {
+    if (margenLoaded) return
+    try {
+      const data = await entrenamientosMargenApi.listBySesion(sesionId)
+      const map = new Map<string, EntrenamientoMargen>()
+      for (const ent of data) {
+        map.set(ent.jugador_id, ent)
+      }
+      setMargenMap(map)
+      setMargenLoaded(true)
+    } catch (err) {
+      console.error('Error loading margen:', err)
+    }
+  }
+
+  const startMargenEdit = async (jugadorId: string) => {
+    const existing = margenMap.get(jugadorId)
+    if (existing) {
+      setMargenForm({
+        registro_medico_id: existing.registro_medico_id,
+        objetivo: existing.objetivo || '',
+        notas: existing.notas || '',
+        responsable: existing.responsable || '',
+        fase_recuperacion: existing.fase_recuperacion as FaseRecuperacion | undefined,
+        duracion_estimada: existing.duracion_estimada,
+        tareas: existing.tareas.map(t => ({
+          tarea_id: t.tarea_id,
+          orden: t.orden,
+          titulo_custom: t.titulo_custom,
+          descripcion_custom: t.descripcion_custom,
+          duracion: t.duracion,
+          series: t.series,
+          repeticiones: t.repeticiones,
+          descanso: t.descanso,
+          carga: t.carga,
+          tipo_ejercicio: t.tipo_ejercicio as TipoEjercicioMargen | undefined,
+          notas: t.notas,
+        })),
+      })
+    } else {
+      setMargenForm({ tareas: [] })
+    }
+    // Load medical records for this player
+    if (sesion?.equipo_id) {
+      try {
+        const registros = await medicoApi.list(sesion.equipo_id, {
+          jugador_id: jugadorId,
+          estado: 'activo',
+        })
+        // Also fetch en_recuperacion
+        const registros2 = await medicoApi.list(sesion.equipo_id, {
+          jugador_id: jugadorId,
+          estado: 'en_recuperacion',
+        })
+        setJugadorRegistros([...registros, ...registros2])
+      } catch {
+        setJugadorRegistros([])
+      }
+    }
+    setMargenEditing(jugadorId)
+  }
+
+  const saveMargen = async (jugadorId: string) => {
+    if (!sesion) return
+    setMargenSaving(true)
+    try {
+      const existing = margenMap.get(jugadorId)
+      if (existing) {
+        // Update existing
+        await entrenamientosMargenApi.update(existing.id, {
+          registro_medico_id: margenForm.registro_medico_id,
+          objetivo: margenForm.objetivo,
+          notas: margenForm.notas,
+          responsable: margenForm.responsable,
+          fase_recuperacion: margenForm.fase_recuperacion,
+          duracion_estimada: margenForm.duracion_estimada,
+        })
+        // Replace tareas
+        await entrenamientosMargenApi.updateTareas(existing.id, margenForm.tareas)
+      } else {
+        // Create new
+        await entrenamientosMargenApi.create({
+          sesion_id: sesionId,
+          jugador_id: jugadorId,
+          registro_medico_id: margenForm.registro_medico_id,
+          objetivo: margenForm.objetivo,
+          notas: margenForm.notas,
+          responsable: margenForm.responsable,
+          fase_recuperacion: margenForm.fase_recuperacion,
+          duracion_estimada: margenForm.duracion_estimada,
+          tareas: margenForm.tareas,
+        })
+      }
+      // Reload
+      setMargenLoaded(false)
+      await loadMargen()
+      setMargenEditing(null)
+      toast.success('Trabajo al margen guardado')
+    } catch (err: any) {
+      toast.error(err.message || 'Error guardando trabajo al margen')
+    } finally {
+      setMargenSaving(false)
+    }
+  }
+
+  const deleteMargen = async (jugadorId: string) => {
+    const existing = margenMap.get(jugadorId)
+    if (!existing) return
+    try {
+      await entrenamientosMargenApi.delete(existing.id)
+      setMargenLoaded(false)
+      await loadMargen()
+      toast.success('Trabajo al margen eliminado')
+    } catch (err: any) {
+      toast.error(err.message || 'Error eliminando')
+    }
+  }
+
+  const addMargenTarea = () => {
+    setMargenForm(prev => ({
+      ...prev,
+      tareas: [...prev.tareas, {
+        orden: prev.tareas.length + 1,
+        titulo_custom: '',
+        duracion: 10,
+        series: 1,
+        tipo_ejercicio: undefined,
+      }],
+    }))
+  }
+
+  const removeMargenTarea = (idx: number) => {
+    setMargenForm(prev => ({
+      ...prev,
+      tareas: prev.tareas.filter((_, i) => i !== idx).map((t, i) => ({ ...t, orden: i + 1 })),
+    }))
+  }
+
+  const updateMargenTarea = (idx: number, field: string, value: any) => {
+    setMargenForm(prev => ({
+      ...prev,
+      tareas: prev.tareas.map((t, i) => i === idx ? { ...t, [field]: value } : t),
+    }))
   }
 
   // ============ Field update with autosave ============
@@ -1556,6 +1728,7 @@ export default function SesionDetailPage() {
       loadJugadores()
       loadAsistencias()
       loadCargaData()
+      loadMargen()
     }
   }
 
@@ -2321,9 +2494,15 @@ export default function SesionDetailPage() {
                           const presente = asistencia?.presente ?? true
                           const tipos = asistencia?.tipo_participacion || (presente ? ['sesion'] : [])
 
+                          const isMargen = presente && (tipos.includes('margen') || tipos.includes('fisio'))
+                          const hasMargenWorkout = margenMap.has(jugador.id)
+                          const margenWorkout = margenMap.get(jugador.id)
+                          const isMargenExpanded = margenExpanded.has(jugador.id)
+                          const isEditingMargen = margenEditing === jugador.id
+
                           return (
+                            <div key={jugador.id}>
                             <div
-                              key={jugador.id}
                               className={`flex items-center justify-between py-2 px-3 rounded-lg transition-colors ${
                                 presente ? 'bg-green-50/50' : 'bg-red-50/50'
                               }`}
@@ -2434,6 +2613,292 @@ export default function SesionDetailPage() {
                                   </button>
                                 )}
                               </div>
+                            </div>
+
+                            {/* ── Margen section ── */}
+                            {isMargen && (
+                              <div className="ml-3 mr-3 mb-1">
+                                {!isEditingMargen && !hasMargenWorkout && (
+                                  <button
+                                    onClick={() => startMargenEdit(jugador.id)}
+                                    className="w-full py-1.5 px-3 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-md hover:bg-amber-100 transition-colors flex items-center justify-center gap-1"
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                    Asignar trabajo al margen
+                                  </button>
+                                )}
+                                {!isEditingMargen && hasMargenWorkout && margenWorkout && (
+                                  <div
+                                    className="py-1.5 px-3 bg-amber-50 border border-amber-200 rounded-md cursor-pointer hover:bg-amber-100 transition-colors"
+                                    onClick={() => setMargenExpanded(prev => {
+                                      const next = new Set(prev)
+                                      next.has(jugador.id) ? next.delete(jugador.id) : next.add(jugador.id)
+                                      return next
+                                    })}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2 text-xs text-amber-800">
+                                        <span className="font-semibold">{margenWorkout.objetivo || 'Trabajo al margen'}</span>
+                                        {margenWorkout.fase_recuperacion && (
+                                          <span className="px-1.5 py-0.5 rounded-full bg-amber-200/50 text-[9px] font-medium">
+                                            {FASES_RECUPERACION.find(f => f.value === margenWorkout.fase_recuperacion)?.label || margenWorkout.fase_recuperacion}
+                                          </span>
+                                        )}
+                                        <span className="text-amber-600">{margenWorkout.tareas.length} ejercicios</span>
+                                        {margenWorkout.responsable && <span className="text-amber-600">· {margenWorkout.responsable}</span>}
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); startMargenEdit(jugador.id) }}
+                                          className="p-1 rounded hover:bg-amber-200 text-amber-600"
+                                        >
+                                          <Pencil className="h-3 w-3" />
+                                        </button>
+                                        {isMargenExpanded ? <ChevronUp className="h-3 w-3 text-amber-500" /> : <ChevronDown className="h-3 w-3 text-amber-500" />}
+                                      </div>
+                                    </div>
+                                    {isMargenExpanded && (
+                                      <div className="mt-2 pt-2 border-t border-amber-200">
+                                        <table className="w-full text-[10px]">
+                                          <thead>
+                                            <tr className="text-amber-700">
+                                              <th className="text-left font-medium pb-1">#</th>
+                                              <th className="text-left font-medium pb-1">Ejercicio</th>
+                                              <th className="text-left font-medium pb-1">Tipo</th>
+                                              <th className="text-left font-medium pb-1">Dur.</th>
+                                              <th className="text-left font-medium pb-1">Series</th>
+                                              <th className="text-left font-medium pb-1">Reps</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {margenWorkout.tareas.map((t, idx) => (
+                                              <tr key={t.id} className="border-t border-amber-100">
+                                                <td className="py-0.5">{idx + 1}</td>
+                                                <td className="py-0.5 font-medium">{t.titulo_custom || t.tarea?.titulo || ''}</td>
+                                                <td className="py-0.5">
+                                                  {t.tipo_ejercicio && (
+                                                    <span className="px-1 py-0.5 rounded text-white text-[8px]" style={{ background: TIPOS_EJERCICIO_MARGEN.find(te => te.value === t.tipo_ejercicio)?.color || '#6B7280' }}>
+                                                      {t.tipo_ejercicio}
+                                                    </span>
+                                                  )}
+                                                </td>
+                                                <td className="py-0.5">{t.duracion ? `${t.duracion}'` : ''}</td>
+                                                <td className="py-0.5">{t.series || ''}</td>
+                                                <td className="py-0.5">{t.repeticiones || ''}</td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                {isEditingMargen && (
+                                  <div className="py-3 px-3 bg-amber-50 border border-amber-300 rounded-lg space-y-3">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs font-semibold text-amber-800">Trabajo al Margen</span>
+                                      <div className="flex items-center gap-1">
+                                        {hasMargenWorkout && (
+                                          <button
+                                            onClick={() => { if (confirm('Eliminar trabajo al margen?')) deleteMargen(jugador.id) }}
+                                            className="text-xs text-red-500 hover:text-red-700 px-2 py-0.5"
+                                          >
+                                            Eliminar
+                                          </button>
+                                        )}
+                                        <button
+                                          onClick={() => setMargenEditing(null)}
+                                          className="text-xs text-gray-500 hover:text-gray-700 px-2 py-0.5"
+                                        >
+                                          Cancelar
+                                        </button>
+                                        <button
+                                          onClick={() => saveMargen(jugador.id)}
+                                          disabled={margenSaving}
+                                          className="text-xs font-medium text-white bg-amber-600 hover:bg-amber-700 px-3 py-1 rounded disabled:opacity-50"
+                                        >
+                                          {margenSaving ? 'Guardando...' : 'Guardar'}
+                                        </button>
+                                      </div>
+                                    </div>
+                                    {/* Form fields */}
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <label className="text-[10px] font-medium text-amber-700 block mb-0.5">Objetivo</label>
+                                        <input
+                                          type="text"
+                                          value={margenForm.objetivo || ''}
+                                          onChange={e => setMargenForm(p => ({ ...p, objetivo: e.target.value }))}
+                                          className="w-full text-xs border border-amber-200 rounded px-2 py-1 bg-white"
+                                          placeholder="Ej: Recuperacion isquiotibial"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="text-[10px] font-medium text-amber-700 block mb-0.5">Responsable</label>
+                                        <input
+                                          type="text"
+                                          value={margenForm.responsable || ''}
+                                          onChange={e => setMargenForm(p => ({ ...p, responsable: e.target.value }))}
+                                          className="w-full text-xs border border-amber-200 rounded px-2 py-1 bg-white"
+                                          placeholder="Ej: Preparador fisico"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="text-[10px] font-medium text-amber-700 block mb-0.5">Fase recuperacion</label>
+                                        <select
+                                          value={margenForm.fase_recuperacion || ''}
+                                          onChange={e => setMargenForm(p => ({ ...p, fase_recuperacion: (e.target.value || undefined) as FaseRecuperacion | undefined }))}
+                                          className="w-full text-xs border border-amber-200 rounded px-2 py-1 bg-white"
+                                        >
+                                          <option value="">Sin fase</option>
+                                          {FASES_RECUPERACION.map(f => (
+                                            <option key={f.value} value={f.value}>{f.label}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label className="text-[10px] font-medium text-amber-700 block mb-0.5">Duracion estimada (min)</label>
+                                        <input
+                                          type="number"
+                                          value={margenForm.duracion_estimada || ''}
+                                          onChange={e => setMargenForm(p => ({ ...p, duracion_estimada: e.target.value ? parseInt(e.target.value) : undefined }))}
+                                          className="w-full text-xs border border-amber-200 rounded px-2 py-1 bg-white"
+                                          min={1}
+                                        />
+                                      </div>
+                                    </div>
+                                    {jugadorRegistros.length > 0 && (
+                                      <div>
+                                        <label className="text-[10px] font-medium text-amber-700 block mb-0.5">Vinculado a lesion</label>
+                                        <select
+                                          value={margenForm.registro_medico_id || ''}
+                                          onChange={e => setMargenForm(p => ({ ...p, registro_medico_id: e.target.value || undefined }))}
+                                          className="w-full text-xs border border-amber-200 rounded px-2 py-1 bg-white"
+                                        >
+                                          <option value="">Sin vincular</option>
+                                          {jugadorRegistros.map(r => (
+                                            <option key={r.id} value={r.id}>{r.titulo} ({r.tipo})</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    )}
+                                    {/* Exercise list */}
+                                    <div>
+                                      <div className="flex items-center justify-between mb-1">
+                                        <label className="text-[10px] font-medium text-amber-700">Ejercicios</label>
+                                        <button
+                                          onClick={addMargenTarea}
+                                          className="text-[10px] text-amber-600 hover:text-amber-800 font-medium flex items-center gap-0.5"
+                                        >
+                                          <Plus className="h-3 w-3" /> Anadir
+                                        </button>
+                                      </div>
+                                      {margenForm.tareas.length === 0 && (
+                                        <p className="text-[10px] text-amber-500 italic">Sin ejercicios. Pulsa "Anadir" para agregar.</p>
+                                      )}
+                                      <div className="space-y-2">
+                                        {margenForm.tareas.map((t, idx) => (
+                                          <div key={idx} className="bg-white border border-amber-200 rounded p-2">
+                                            <div className="flex items-center justify-between mb-1">
+                                              <span className="text-[10px] font-medium text-amber-700">#{idx + 1}</span>
+                                              <button onClick={() => removeMargenTarea(idx)} className="text-red-400 hover:text-red-600">
+                                                <X className="h-3 w-3" />
+                                              </button>
+                                            </div>
+                                            <div className="grid grid-cols-6 gap-1">
+                                              <div className="col-span-2">
+                                                <input
+                                                  type="text"
+                                                  value={t.titulo_custom || ''}
+                                                  onChange={e => updateMargenTarea(idx, 'titulo_custom', e.target.value)}
+                                                  className="w-full text-[10px] border border-gray-200 rounded px-1.5 py-0.5"
+                                                  placeholder="Titulo"
+                                                />
+                                              </div>
+                                              <div>
+                                                <select
+                                                  value={t.tipo_ejercicio || ''}
+                                                  onChange={e => updateMargenTarea(idx, 'tipo_ejercicio', e.target.value || undefined)}
+                                                  className="w-full text-[10px] border border-gray-200 rounded px-1 py-0.5"
+                                                >
+                                                  <option value="">Tipo</option>
+                                                  {TIPOS_EJERCICIO_MARGEN.map(te => (
+                                                    <option key={te.value} value={te.value}>{te.label}</option>
+                                                  ))}
+                                                </select>
+                                              </div>
+                                              <div>
+                                                <input
+                                                  type="number"
+                                                  value={t.duracion || ''}
+                                                  onChange={e => updateMargenTarea(idx, 'duracion', e.target.value ? parseInt(e.target.value) : undefined)}
+                                                  className="w-full text-[10px] border border-gray-200 rounded px-1.5 py-0.5"
+                                                  placeholder="Min"
+                                                  min={1}
+                                                />
+                                              </div>
+                                              <div>
+                                                <input
+                                                  type="number"
+                                                  value={t.series || ''}
+                                                  onChange={e => updateMargenTarea(idx, 'series', e.target.value ? parseInt(e.target.value) : 1)}
+                                                  className="w-full text-[10px] border border-gray-200 rounded px-1.5 py-0.5"
+                                                  placeholder="Series"
+                                                  min={1}
+                                                />
+                                              </div>
+                                              <div>
+                                                <input
+                                                  type="text"
+                                                  value={t.repeticiones || ''}
+                                                  onChange={e => updateMargenTarea(idx, 'repeticiones', e.target.value)}
+                                                  className="w-full text-[10px] border border-gray-200 rounded px-1.5 py-0.5"
+                                                  placeholder="Reps"
+                                                />
+                                              </div>
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-1 mt-1">
+                                              <input
+                                                type="text"
+                                                value={t.descanso || ''}
+                                                onChange={e => updateMargenTarea(idx, 'descanso', e.target.value)}
+                                                className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5"
+                                                placeholder="Descanso"
+                                              />
+                                              <input
+                                                type="text"
+                                                value={t.carga || ''}
+                                                onChange={e => updateMargenTarea(idx, 'carga', e.target.value)}
+                                                className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5"
+                                                placeholder="Carga"
+                                              />
+                                              <input
+                                                type="text"
+                                                value={t.notas || ''}
+                                                onChange={e => updateMargenTarea(idx, 'notas', e.target.value)}
+                                                className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5"
+                                                placeholder="Notas"
+                                              />
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                    {/* Notes */}
+                                    <div>
+                                      <label className="text-[10px] font-medium text-amber-700 block mb-0.5">Notas generales</label>
+                                      <textarea
+                                        value={margenForm.notas || ''}
+                                        onChange={e => setMargenForm(p => ({ ...p, notas: e.target.value }))}
+                                        className="w-full text-xs border border-amber-200 rounded px-2 py-1 bg-white resize-none"
+                                        rows={2}
+                                        placeholder="Observaciones..."
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                             </div>
                           )
                         })}

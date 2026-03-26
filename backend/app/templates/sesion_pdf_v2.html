@@ -1351,5 +1351,208 @@ body {
 </div>
 {% endif %}
 
+<!-- ==================== MARGEN — TRABAJO AL MARGEN ==================== -->
+{% if margen_entrenamientos %}
+<div class="page-portrait">
+    <style>
+        .margen-header-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+            color: #fff;
+            padding: 14px 20px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+        }
+        .margen-header-bar .section-icon { font-size: 22px; }
+        .margen-header-bar .section-title { font-size: 16px; font-weight: 700; letter-spacing: 0.5px; }
+        .margen-header-bar .section-subtitle { font-size: 10px; opacity: 0.85; margin-top: 1px; }
+        .margen-header-bar .section-stats { margin-left: auto; display: flex; gap: 18px; text-align: center; }
+        .margen-header-bar .section-stat-val { font-size: 20px; font-weight: 800; }
+        .margen-header-bar .section-stat-label { font-size: 8px; text-transform: uppercase; opacity: 0.8; }
+        .margen-card {
+            border: 1px solid #FCD34D;
+            border-left: 4px solid #F59E0B;
+            border-radius: 8px;
+            padding: 12px 14px;
+            margin-bottom: 12px;
+            background: #FFFBEB;
+            page-break-inside: avoid;
+        }
+        .margen-card-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #FDE68A;
+        }
+        .margen-player-name {
+            font-size: 13px;
+            font-weight: 700;
+            color: #92400E;
+        }
+        .margen-player-dorsal {
+            display: inline-block;
+            width: 22px;
+            height: 22px;
+            line-height: 22px;
+            text-align: center;
+            background: #F59E0B;
+            color: #fff;
+            border-radius: 50%;
+            font-size: 10px;
+            font-weight: 700;
+        }
+        .fase-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 8px;
+            font-weight: 600;
+            text-transform: uppercase;
+            background: #FEF3C7;
+            color: #92400E;
+            border: 1px solid #FCD34D;
+        }
+        .margen-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 9px;
+            color: #78716C;
+            margin-bottom: 6px;
+        }
+        .margen-meta strong { color: #44403C; }
+        .margen-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 9px;
+        }
+        .margen-table th {
+            background: #FEF3C7;
+            color: #92400E;
+            padding: 4px 6px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 1px solid #FCD34D;
+            font-size: 8px;
+            text-transform: uppercase;
+        }
+        .margen-table td {
+            padding: 4px 6px;
+            border-bottom: 1px solid #FDE68A;
+            vertical-align: top;
+        }
+        .margen-table tr:last-child td { border-bottom: none; }
+        .tipo-pill {
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 8px;
+            font-size: 7px;
+            font-weight: 600;
+            color: #fff;
+        }
+        .margen-objetivo {
+            font-size: 10px;
+            color: #44403C;
+            margin-bottom: 4px;
+        }
+        .margen-notas {
+            font-size: 8px;
+            color: #78716C;
+            font-style: italic;
+            margin-top: 4px;
+        }
+    </style>
+
+    <!-- Section Header -->
+    <div class="margen-header-bar">
+        <span class="section-icon">🏋️</span>
+        <div>
+            <div class="section-title">Trabajo al Margen</div>
+            <div class="section-subtitle">{{ org_nombre }} · {{ sesion.get('match_day','') }} · {{ margen_entrenamientos|length }} jugador{{ 'es' if margen_entrenamientos|length > 1 else '' }}</div>
+        </div>
+        <div class="section-stats">
+            <div>
+                <div class="section-stat-val">{{ margen_entrenamientos|length }}</div>
+                <div class="section-stat-label">Jugadores</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Per-player cards -->
+    {% for ent in margen_entrenamientos %}
+    <div class="margen-card">
+        <div class="margen-card-header">
+            {% if ent.dorsal %}<span class="margen-player-dorsal">{{ ent.dorsal }}</span>{% endif %}
+            <span class="margen-player-name">{{ ent.nombre }} {{ ent.apellidos }}</span>
+            {% if ent.fase_recuperacion %}
+            <span class="fase-badge">{{ ent.fase_recuperacion | replace('_', ' ') | replace('fase ', 'F') }}</span>
+            {% endif %}
+            {% if ent.estado and ent.estado != 'planificado' %}
+            <span class="fase-badge" style="background:#DBEAFE;color:#1E40AF;border-color:#93C5FD;">{{ ent.estado }}</span>
+            {% endif %}
+        </div>
+
+        {% if ent.objetivo %}
+        <div class="margen-objetivo"><strong>Objetivo:</strong> {{ ent.objetivo }}</div>
+        {% endif %}
+
+        <div class="margen-meta">
+            {% if ent.responsable %}<span><strong>Responsable:</strong> {{ ent.responsable }}</span>{% endif %}
+            {% if ent.duracion_estimada %}<span><strong>Duracion:</strong> {{ ent.duracion_estimada }}min</span>{% endif %}
+            {% if ent.rpe_post %}<span><strong>RPE:</strong> {{ ent.rpe_post }}/10</span>{% endif %}
+            {% if ent.registro_medico_titulo %}<span><strong>Lesion:</strong> {{ ent.registro_medico_titulo }}</span>{% endif %}
+        </div>
+
+        {% if ent.tareas %}
+        <table class="margen-table">
+            <thead>
+                <tr>
+                    <th style="width:5%;">#</th>
+                    <th style="width:25%;">Ejercicio</th>
+                    <th style="width:12%;">Tipo</th>
+                    <th style="width:8%;">Dur.</th>
+                    <th style="width:10%;">Series</th>
+                    <th style="width:10%;">Reps</th>
+                    <th style="width:10%;">Desc.</th>
+                    <th style="width:10%;">Carga</th>
+                    <th style="width:10%;">Notas</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in ent.tareas %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td><strong>{{ t.titulo or '' }}</strong>{% if t.descripcion %}<br>{{ t.descripcion[:80] }}{% if t.descripcion|length > 80 %}...{% endif %}{% endif %}</td>
+                    <td>{% if t.tipo_ejercicio %}<span class="tipo-pill" style="background:{{ t.tipo_color or '#6B7280' }}">{{ t.tipo_ejercicio }}</span>{% endif %}</td>
+                    <td>{% if t.duracion %}{{ t.duracion }}'{% endif %}</td>
+                    <td>{{ t.series or '' }}</td>
+                    <td>{{ t.repeticiones or '' }}</td>
+                    <td>{{ t.descanso or '' }}</td>
+                    <td>{{ t.carga or '' }}</td>
+                    <td style="font-size:7px;">{{ (t.notas or '')[:60] }}{% if t.notas and t.notas|length > 60 %}...{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        {% if ent.notas %}
+        <div class="margen-notas">{{ ent.notas }}</div>
+        {% endif %}
+    </div>
+    {% endfor %}
+
+    <!-- Footer -->
+    <div class="pf">
+        <div class="pf-text">{{ org_nombre }} · {{ sesion.get('match_day','') }} · MARGEN · {{ sesion.get('fecha','') }}</div>
+        <div class="pf-center">{{ org_nombre }}</div>
+        <div class="pf-text">Trabajo al Margen</div>
+    </div>
+</div>
+{% endif %}
+
 </body>
 </html>

@@ -353,6 +353,19 @@ from app.models.medico import (
     PermisosPersonalizadosResponse,
 )
 
+from app.models.entrenamiento_margen import (
+    EstadoEntrenamientoMargen,
+    FaseRecuperacion,
+    TipoEjercicioMargen,
+    EntrenamientoMargenTareaCreate,
+    EntrenamientoMargenTareaResponse,
+    EntrenamientoMargenCreate,
+    EntrenamientoMargenUpdate,
+    EntrenamientoMargenResponse,
+    FASES_RECUPERACION_INFO,
+    TIPOS_EJERCICIO_MARGEN_INFO,
+)
+
 __all__ = [
     # Tarea
     "FaseJuego", "Densidad", "NivelCognitivo",
@@ -469,6 +482,11 @@ __all__ = [
     # Portero Tareas
     "TipoPorteroTarea",
     "PorteroTareaBase", "PorteroTareaCreate", "PorteroTareaUpdate", "PorteroTareaResponse",
+    # Entrenamientos al Margen
+    "EstadoEntrenamientoMargen", "FaseRecuperacion", "TipoEjercicioMargen",
+    "EntrenamientoMargenTareaCreate", "EntrenamientoMargenTareaResponse",
+    "EntrenamientoMargenCreate", "EntrenamientoMargenUpdate", "EntrenamientoMargenResponse",
+    "FASES_RECUPERACION_INFO", "TIPOS_EJERCICIO_MARGEN_INFO",
     # ABP (Balón Parado)
     "TipoABP", "LadoABP", "SubtipoABP", "SistemaMarcaje", "ABPPlayerRol",
     "ABPFase", "ABPAsignacion",

@@ -1612,6 +1612,71 @@ async def generate_pdf(
                 except Exception:
                     pass
 
+    # Fetch entrenamientos al margen for this session
+    margen_enriched = []
+    try:
+        margen_res = supabase.table("entrenamientos_margen").select(
+            "*, jugadores(nombre, apellidos, dorsal, posicion_principal)"
+        ).eq("sesion_id", str(sesion_id)).execute()
+
+        tipo_colors = {
+            "movilidad": "#06B6D4", "activacion": "#22C55E", "fuerza": "#EF4444",
+            "propioceptivo": "#8B5CF6", "cardio": "#F59E0B", "campo": "#3B82F6",
+            "pliometria": "#EC4899", "flexibilidad": "#14B8A6", "otro": "#6B7280",
+        }
+
+        for ent in (margen_res.data or []):
+            jugador = ent.pop("jugadores", {}) or {}
+            # Fetch tareas
+            t_res = supabase.table("entrenamientos_margen_tareas").select(
+                "*, tareas(titulo)"
+            ).eq("entrenamiento_margen_id", ent["id"]).order("orden").execute()
+
+            tareas_list = []
+            for t in (t_res.data or []):
+                tarea_lib = t.pop("tareas", None)
+                titulo = t.get("titulo_custom") or (tarea_lib or {}).get("titulo", "")
+                tareas_list.append({
+                    "titulo": titulo,
+                    "descripcion": t.get("descripcion_custom", ""),
+                    "tipo_ejercicio": t.get("tipo_ejercicio", ""),
+                    "tipo_color": tipo_colors.get(t.get("tipo_ejercicio", ""), "#6B7280"),
+                    "duracion": t.get("duracion"),
+                    "series": t.get("series"),
+                    "repeticiones": t.get("repeticiones"),
+                    "descanso": t.get("descanso"),
+                    "carga": t.get("carga"),
+                    "notas": t.get("notas"),
+                })
+
+            # Fetch linked registro_medico title
+            rm_titulo = ""
+            if ent.get("registro_medico_id"):
+                try:
+                    rm_r = supabase.table("registros_medicos").select("titulo").eq(
+                        "id", ent["registro_medico_id"]
+                    ).single().execute()
+                    rm_titulo = (rm_r.data or {}).get("titulo", "")
+                except Exception:
+                    pass
+
+            margen_enriched.append({
+                "nombre": jugador.get("nombre", ""),
+                "apellidos": jugador.get("apellidos", ""),
+                "dorsal": jugador.get("dorsal"),
+                "objetivo": ent.get("objetivo", ""),
+                "notas": ent.get("notas", ""),
+                "responsable": ent.get("responsable", ""),
+                "estado": ent.get("estado", "planificado"),
+                "fase_recuperacion": ent.get("fase_recuperacion", ""),
+                "duracion_estimada": ent.get("duracion_estimada"),
+                "rpe_post": ent.get("rpe_post"),
+                "registro_medico_titulo": rm_titulo,
+                "tareas": tareas_list,
+            })
+    except Exception:
+        pass  # Non-critical: PDF generates without margen section
+
     # Generar PDF con el servicio v2
     try:
         pdf_bytes = await asyncio.to_thread(
@@ -1622,6 +1687,7 @@ async def generate_pdf(
             asistencia_roster=asistencia_roster,
             portero_tareas=portero_tareas_data,
             abp_jugadas=abp_jugadas,
+            margen_entrenamientos=margen_enriched,
         )
     except Exception as e:
         import logging

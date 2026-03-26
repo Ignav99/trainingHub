@@ -46,6 +46,7 @@ from app.api.v1 import (
     videos,
     video_anotaciones,
     nutricion,
+    entrenamientos_margen,
 )
 
 api_router = APIRouter()
@@ -290,6 +291,12 @@ api_router.include_router(
     tags=["Nutricion"]
 )
 
+api_router.include_router(
+    entrenamientos_margen.router,
+    prefix="/entrenamientos-margen",
+    tags=["Entrenamientos al Margen"]
+)
+
 
 # ============ Catalogos ============
 
@@ -448,6 +455,20 @@ async def get_principios_por_fase(fase: str):
 
 
 # ============ Roles catalog ============
+
+@api_router.get("/catalogos/fases-recuperacion", tags=["Catalogos"])
+async def get_fases_recuperacion():
+    """Obtiene las 8 fases del Return-to-Play."""
+    from app.models.entrenamiento_margen import FASES_RECUPERACION_INFO
+    return {"data": FASES_RECUPERACION_INFO}
+
+
+@api_router.get("/catalogos/tipos-ejercicio-margen", tags=["Catalogos"])
+async def get_tipos_ejercicio_margen():
+    """Obtiene los tipos de ejercicio para trabajo al margen."""
+    from app.models.entrenamiento_margen import TIPOS_EJERCICIO_MARGEN_INFO
+    return {"data": TIPOS_EJERCICIO_MARGEN_INFO}
+
 
 @api_router.get("/catalogos/roles-equipo", tags=["Catalogos"])
 async def get_roles_equipo():

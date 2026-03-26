@@ -367,6 +367,7 @@ def generate_sesion_pdf_v2(
     asistencia_roster: Optional[list] = None,
     portero_tareas: Optional[list] = None,
     abp_jugadas: Optional[list] = None,
+    margen_entrenamientos: Optional[list] = None,
 ) -> bytes:
     """
     Genera un PDF profesional v2 de una sesion de entrenamiento.
@@ -576,6 +577,7 @@ def generate_sesion_pdf_v2(
         portero_tareas=portero_enriched,
         portero_duracion=portero_duracion,
         abp_jugadas=abp_enriched,
+        margen_entrenamientos=margen_entrenamientos or [],
     )
 
     # Generate PDF

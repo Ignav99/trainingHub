@@ -49,8 +49,10 @@ import { cargaApi } from '@/lib/api/carga'
 import { wellnessApi } from '@/lib/api/wellness'
 import { convocatoriasApi } from '@/lib/api/convocatorias'
 import { nutricionApi } from '@/lib/api/nutricion'
+import { entrenamientosMargenApi } from '@/lib/api/entrenamientosMargen'
 import { apiKey, apiFetcher } from '@/lib/swr'
-import type { RegistroMedico, CargaDiaria, CargaJugador, WellnessEntry, Convocatoria, ConvocatoriasJugadorStats, TipoRegistroMedico, NutricionOverview, SuplementacionJugador, ComposicionCorporal, AlimentoItem, PlantillaNutricional, PlanNutricionalDia, ContextoNutricional } from '@/types'
+import type { RegistroMedico, CargaDiaria, CargaJugador, WellnessEntry, Convocatoria, ConvocatoriasJugadorStats, TipoRegistroMedico, NutricionOverview, SuplementacionJugador, ComposicionCorporal, AlimentoItem, PlantillaNutricional, PlanNutricionalDia, ContextoNutricional, EntrenamientoMargenHistory } from '@/types'
+import { FASES_RECUPERACION } from '@/types'
 import {
   BarChart,
   Bar,
@@ -101,7 +103,10 @@ export default function JugadorDetailPage() {
   const searchParams = useSearchParams()
   const [saving, setSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(searchParams.get('edit') === 'true')
-  const [activeTab, setActiveTab] = useState<'datos' | 'estadisticas' | 'carga' | 'ficha_clinica' | 'nutricion'>('datos')
+  const [activeTab, setActiveTab] = useState<'datos' | 'estadisticas' | 'carga' | 'ficha_clinica' | 'margen' | 'nutricion'>('datos')
+  const [margenHistory, setMargenHistory] = useState<EntrenamientoMargenHistory[]>([])
+  const [margenLoading, setMargenLoading] = useState(false)
+  const [margenExpandedIds, setMargenExpandedIds] = useState<Set<string>>(new Set())
 
   // Form state
   const [formData, setFormData] = useState<JugadorUpdate>({})
@@ -439,6 +444,26 @@ export default function JugadorDetailPage() {
           {activeIncident && (
             <span className="w-2 h-2 rounded-full bg-red-500" />
           )}
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('margen')
+            if (jugador && margenHistory.length === 0 && !margenLoading) {
+              setMargenLoading(true)
+              entrenamientosMargenApi.listByJugador(jugador.id)
+                .then(res => setMargenHistory(res.data))
+                .catch(() => {})
+                .finally(() => setMargenLoading(false))
+            }
+          }}
+          className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+            activeTab === 'margen'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Activity className="h-4 w-4" />
+          Margen
         </button>
         <button
           onClick={() => setActiveTab('nutricion')}
@@ -1163,6 +1188,129 @@ export default function JugadorDetailPage() {
           </DialogContent>
         </Dialog>
       </div>
+      )}
+
+      {/* Tab: Margen */}
+      {activeTab === 'margen' && jugador && (
+        <div className="space-y-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Activity className="h-5 w-5 text-amber-600" />
+                Historial de Trabajo al Margen
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {margenLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : margenHistory.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Activity className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">Sin entrenamientos al margen registrados</p>
+                </div>
+              ) : (
+                <>
+                  {/* Phase progression */}
+                  <div className="flex items-center gap-1 mb-4 px-2">
+                    {FASES_RECUPERACION.map((fase, idx) => {
+                      const reached = margenHistory.some(h => h.fase_recuperacion === fase.value)
+                      return (
+                        <div key={fase.value} className="flex items-center">
+                          <div
+                            className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold ${
+                              reached ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-400'
+                            }`}
+                            title={fase.label}
+                          >
+                            {idx + 1}
+                          </div>
+                          {idx < FASES_RECUPERACION.length - 1 && (
+                            <div className={`w-4 h-0.5 ${reached ? 'bg-amber-400' : 'bg-gray-200'}`} />
+                          )}
+                        </div>
+                      )
+                    })}
+                    <span className="text-[9px] text-muted-foreground ml-2">Progresion Return-to-Play</span>
+                  </div>
+
+                  {/* Timeline */}
+                  <div className="space-y-2">
+                    {margenHistory.map((ent) => {
+                      const isExpanded = margenExpandedIds.has(ent.id)
+                      return (
+                        <div
+                          key={ent.id}
+                          className="border border-amber-200 rounded-lg overflow-hidden"
+                        >
+                          <div
+                            className="flex items-center justify-between px-3 py-2 bg-amber-50 cursor-pointer hover:bg-amber-100 transition-colors"
+                            onClick={() => setMargenExpandedIds(prev => {
+                              const next = new Set(prev)
+                              next.has(ent.id) ? next.delete(ent.id) : next.add(ent.id)
+                              return next
+                            })}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-medium text-gray-700">
+                                {ent.sesion?.fecha || ''}
+                              </span>
+                              {ent.sesion?.match_day && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-gray-200 text-gray-700">
+                                  {ent.sesion.match_day}
+                                </span>
+                              )}
+                              <span className="text-xs text-gray-600 truncate max-w-[200px]">
+                                {ent.sesion?.titulo || ''}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {ent.fase_recuperacion && (
+                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-amber-200 text-amber-800">
+                                  {FASES_RECUPERACION.find(f => f.value === ent.fase_recuperacion)?.label || ent.fase_recuperacion}
+                                </span>
+                              )}
+                              <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-medium ${
+                                ent.estado === 'completado' ? 'bg-green-100 text-green-700' :
+                                ent.estado === 'en_curso' ? 'bg-blue-100 text-blue-700' :
+                                ent.estado === 'cancelado' ? 'bg-red-100 text-red-700' :
+                                'bg-gray-100 text-gray-600'
+                              }`}>
+                                {ent.estado}
+                              </span>
+                              <span className="text-[10px] text-gray-500">{ent.num_tareas} ej.</span>
+                              {ent.responsable && <span className="text-[10px] text-gray-400">{ent.responsable}</span>}
+                            </div>
+                          </div>
+                          {isExpanded && (
+                            <div className="px-3 py-2 border-t border-amber-200 bg-white text-xs space-y-1">
+                              {ent.objetivo && <p><strong className="text-amber-700">Objetivo:</strong> {ent.objetivo}</p>}
+                              {ent.registro_medico && (
+                                <p><strong className="text-amber-700">Lesion:</strong> {ent.registro_medico.titulo} ({ent.registro_medico.tipo})</p>
+                              )}
+                              {ent.duracion_estimada && <p><strong className="text-amber-700">Duracion:</strong> {ent.duracion_estimada} min</p>}
+                              {ent.rpe_post && <p><strong className="text-amber-700">RPE post:</strong> {ent.rpe_post}/10</p>}
+                              {ent.notas && <p className="text-gray-500 italic">{ent.notas}</p>}
+                              {ent.sesion && (
+                                <Link
+                                  href={`/sesiones/${ent.sesion.id}`}
+                                  className="text-blue-600 hover:underline text-[10px] flex items-center gap-1"
+                                >
+                                  <ExternalLink className="h-3 w-3" /> Ver sesion
+                                </Link>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Tab: Nutrición */}
