@@ -120,6 +120,49 @@ def _embed_with_retry(texts: list[str], task_type: str = "RETRIEVAL_DOCUMENT") -
     raise EmbeddingError("Gemini rate limit: max retries exceeded")
 
 
+FASE_JUEGO_LABELS = {
+    "ataque_organizado": "Ataque organizado",
+    "defensa_organizada": "Defensa organizada",
+    "transicion_ataque_defensa": "Transición ataque-defensa",
+    "transicion_defensa_ataque": "Transición defensa-ataque",
+    "balon_parado_ofensivo": "Balón parado ofensivo",
+    "balon_parado_defensivo": "Balón parado defensivo",
+}
+
+
+def build_tarea_embedding_text(tarea: dict) -> str:
+    """
+    Build a single text string from a tarea dict for embedding generation.
+    Concatenates key fields to capture the semantic meaning of the task.
+    """
+    parts = []
+
+    if tarea.get("titulo"):
+        parts.append(tarea["titulo"])
+
+    if tarea.get("descripcion"):
+        parts.append(tarea["descripcion"])
+
+    fase = tarea.get("fase_juego")
+    if fase:
+        parts.append(FASE_JUEGO_LABELS.get(fase, fase.replace("_", " ")))
+
+    for field in ["principio_tactico", "subprincipio_tactico"]:
+        val = tarea.get(field)
+        if val:
+            parts.append(val)
+
+    for field in [
+        "reglas_tecnicas", "reglas_tacticas",
+        "consignas_ofensivas", "consignas_defensivas", "variantes",
+    ]:
+        val = tarea.get(field)
+        if val and isinstance(val, list):
+            parts.append(". ".join(str(v) for v in val if v))
+
+    return " | ".join(parts)
+
+
 def generate_embeddings_batch(texts: list[str], batch_size: int = 10) -> list[list[float]]:
     """
     Generate embeddings for multiple texts in small batches with rate limit handling.

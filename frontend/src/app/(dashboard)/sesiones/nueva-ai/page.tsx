@@ -25,6 +25,7 @@ import {
   ChevronDown,
   ChevronUp,
   Pencil,
+  Library,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -689,6 +690,12 @@ export default function NuevaSesionAIPage() {
                             <Badge variant="outline" className="text-[10px] h-5">
                               {fase.categoria}
                             </Badge>
+                          )}
+                          {fase.tarea_id && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-700">
+                              <Library className="h-3 w-3" />
+                              Biblioteca
+                            </span>
                           )}
                           {fase.densidad && (
                             <span className={`text-[10px] px-1.5 py-0.5 rounded ${DENSIDAD_STYLES[fase.densidad] || 'bg-gray-100 text-gray-600'}`}>

@@ -61,6 +61,176 @@ DENSIDAD_MAP = {
 router = APIRouter()
 
 
+def _generate_tarea_embedding(tarea_data: dict, tarea_id: str):
+    """Generate and store embedding for a tarea. Non-fatal on failure."""
+    try:
+        from app.services.embedding_service import build_tarea_embedding_text, generate_embedding
+        text = build_tarea_embedding_text(tarea_data)
+        if text.strip():
+            emb = generate_embedding(text)
+            supabase = get_supabase()
+            supabase.table("tareas").update({"embedding": emb}).eq("id", tarea_id).execute()
+    except Exception as e:
+        logger.warning(f"Failed to generate tarea embedding: {e}")
+
+
+# ============ Semantic Search (registered BEFORE /{tarea_id}) ============
+
+class SemanticSearchRequest(BaseModel):
+    query: str
+    limite: int = 15
+    categoria: Optional[str] = None
+    fase_juego: Optional[str] = None
+
+
+class SemanticSearchResult(BaseModel):
+    id: str
+    titulo: str
+    descripcion: Optional[str] = None
+    categoria_codigo: Optional[str] = None
+    categoria_nombre: Optional[str] = None
+    duracion_total: Optional[int] = None
+    num_jugadores_min: Optional[int] = None
+    num_jugadores_max: Optional[int] = None
+    num_porteros: Optional[int] = None
+    densidad: Optional[str] = None
+    nivel_cognitivo: Optional[int] = None
+    fase_juego: Optional[str] = None
+    principio_tactico: Optional[str] = None
+    estructura_equipos: Optional[str] = None
+    num_usos: Optional[int] = None
+    relevance_pct: int = 0
+
+
+class SemanticSearchResponse(BaseModel):
+    data: List[SemanticSearchResult]
+    total: int
+    metodo: str
+
+
+@router.post("/semantic-search", response_model=SemanticSearchResponse)
+async def semantic_search_tareas(
+    request: SemanticSearchRequest,
+    auth: AuthContext = Depends(require_permission(Permission.TASK_READ)),
+):
+    """
+    Semantic search over tarea library using embeddings + trigram hybrid search.
+    Falls back to ILIKE keyword search if embedding generation fails.
+    """
+    if len(request.query.strip()) < 3:
+        raise HTTPException(status_code=400, detail="La consulta debe tener al menos 3 caracteres")
+
+    supabase = get_supabase()
+
+    # Try hybrid search with embeddings
+    try:
+        from app.services.embedding_service import generate_query_embedding
+        query_embedding = generate_query_embedding(request.query)
+
+        rpc_params = {
+            "p_query_text": request.query,
+            "p_query_embedding": query_embedding,
+            "p_organizacion_id": auth.organizacion_id,
+            "p_match_count": min(request.limite, 50),
+        }
+        if request.categoria:
+            rpc_params["p_categoria_codigo"] = request.categoria
+        if request.fase_juego:
+            rpc_params["p_fase_juego"] = request.fase_juego
+
+        result = supabase.rpc("hybrid_search_tareas", rpc_params).execute()
+
+        if result.data:
+            return SemanticSearchResponse(
+                data=[SemanticSearchResult(**r) for r in result.data],
+                total=len(result.data),
+                metodo="hybrid",
+            )
+    except Exception as e:
+        logger.warning(f"Hybrid search failed, falling back to ILIKE: {e}")
+
+    # Fallback: keyword ILIKE search
+    query = supabase.table("tareas").select(
+        "id, titulo, descripcion, duracion_total, num_jugadores_min, num_jugadores_max, "
+        "num_porteros, densidad, nivel_cognitivo, fase_juego, principio_tactico, "
+        "estructura_equipos, num_usos, categorias_tarea(codigo, nombre)"
+    ).eq("organizacion_id", auth.organizacion_id)
+
+    if request.categoria:
+        query = query.eq("categorias_tarea.codigo", request.categoria)
+    if request.fase_juego:
+        query = query.eq("fase_juego", request.fase_juego)
+
+    query = query.or_(
+        f"titulo.ilike.%{request.query}%,descripcion.ilike.%{request.query}%"
+    ).order("num_usos", desc=True).limit(request.limite)
+
+    response = query.execute()
+    results = []
+    for t in response.data:
+        cat = t.pop("categorias_tarea", None)
+        results.append(SemanticSearchResult(
+            **t,
+            categoria_codigo=cat.get("codigo") if cat else None,
+            categoria_nombre=cat.get("nombre") if cat else None,
+            relevance_pct=50,  # Fixed score for keyword fallback
+        ))
+
+    return SemanticSearchResponse(
+        data=results,
+        total=len(results),
+        metodo="keyword",
+    )
+
+
+@router.post("/backfill-embeddings")
+async def backfill_tarea_embeddings(
+    auth: AuthContext = Depends(require_permission(Permission.TASK_CREATE)),
+):
+    """
+    Generate embeddings for all tareas that don't have one yet.
+    Processes in batches of 10 to avoid rate limits.
+    """
+    supabase = get_supabase()
+
+    # Get tareas without embeddings for this org
+    response = supabase.table("tareas").select(
+        "id, titulo, descripcion, fase_juego, principio_tactico, subprincipio_tactico, "
+        "reglas_tecnicas, reglas_tacticas, consignas_ofensivas, consignas_defensivas, variantes"
+    ).eq("organizacion_id", auth.organizacion_id).is_("embedding", "null").execute()
+
+    if not response.data:
+        return {"message": "No hay tareas sin embedding", "processed": 0}
+
+    from app.services.embedding_service import build_tarea_embedding_text, generate_embeddings_batch
+
+    texts = []
+    ids = []
+    for tarea in response.data:
+        text = build_tarea_embedding_text(tarea)
+        if text.strip():
+            texts.append(text)
+            ids.append(tarea["id"])
+
+    if not texts:
+        return {"message": "No hay tareas con contenido para generar embeddings", "processed": 0}
+
+    try:
+        embeddings = generate_embeddings_batch(texts, batch_size=10)
+        updated = 0
+        for tarea_id, emb in zip(ids, embeddings):
+            try:
+                supabase.table("tareas").update({"embedding": emb}).eq("id", tarea_id).execute()
+                updated += 1
+            except Exception as e:
+                logger.warning(f"Failed to store embedding for tarea {tarea_id}: {e}")
+
+        return {"message": f"Embeddings generados para {updated}/{len(ids)} tareas", "processed": updated, "total": len(ids)}
+    except Exception as e:
+        logger.error(f"Backfill embeddings failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Error generando embeddings: {str(e)}")
+
+
 @router.get("", response_model=TareaListResponse)
 async def list_tareas(
     # Paginación
@@ -324,7 +494,10 @@ async def create_tarea(
     tarea_completa = supabase.table("tareas").select(
         "*, categorias_tarea(*)"
     ).eq("id", response.data[0]["id"]).maybe_single().execute()
-    
+
+    # Generate embedding asynchronously (non-fatal)
+    _generate_tarea_embedding(tarea_data, response.data[0]["id"])
+
     return TareaResponse(**tarea_completa.data)
 
 
@@ -387,12 +560,15 @@ async def update_tarea(
     
     # Actualizar
     response = supabase.table("tareas").update(update_data).eq("id", str(tarea_id)).execute()
-    
+
     # Obtener con relaciones
     tarea_completa = supabase.table("tareas").select(
         "*, categorias_tarea(*)"
     ).eq("id", str(tarea_id)).maybe_single().execute()
-    
+
+    # Re-generate embedding with updated data
+    _generate_tarea_embedding(tarea_completa.data, str(tarea_id))
+
     return TareaResponse(**tarea_completa.data)
 
 
@@ -693,6 +869,9 @@ async def create_tarea_from_ai(
     tarea_completa = supabase.table("tareas").select(
         "*, categorias_tarea(*)"
     ).eq("id", response.data[0]["id"]).maybe_single().execute()
+
+    # Generate embedding asynchronously (non-fatal)
+    _generate_tarea_embedding(tarea_data, response.data[0]["id"])
 
     return TareaResponse(**tarea_completa.data)
 

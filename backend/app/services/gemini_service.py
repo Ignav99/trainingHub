@@ -16,6 +16,7 @@ from app.services.ai_errors import AIError
 from app.services.ai_tools import claude_tools_to_gemini
 
 # Import shared prompts, tools, and execution logic from claude_service (no duplication)
+from app.database import get_supabase
 from app.services.claude_service import (
     SYSTEM_PROMPT,
     SESSION_DESIGN_PROMPT,
@@ -29,6 +30,7 @@ from app.services.claude_service import (
     GK_DESIGN_TOOLS,
     PRE_MATCH_TOOLS,
     _execute_tool,
+    _tool_buscar_tareas,
 )
 
 logger = logging.getLogger(__name__)
@@ -474,17 +476,12 @@ class GeminiService:
 
         max_iterations = 10
         for iteration in range(max_iterations):
-            force_tool = None
-            if iteration == 0 and user_msg_count == 1 and first_msg_is_substantial:
-                force_tool = "proponer_sesion"
-                logger.info("Forcing proponer_sesion tool use (Gemini, substantial first message)")
-
+            # Let AI search library first, then propose — no forced tool on first msg
             response = await self._call_gemini(
                 system=system,
                 contents=contents,
                 tools=gemini_tools,
                 max_output_tokens=16384,
-                force_tool=force_tool,
             )
 
             inp, out = _get_usage(response)
@@ -518,13 +515,30 @@ class GeminiService:
                                     response={"result": "Sesion propuesta presentada al entrenador. Ahora resume brevemente lo que has propuesto y pregunta si quiere modificar algo."},
                                 )
                             )
+                        elif tool_name == "buscar_tareas_biblioteca":
+                            import json as _json
+                            search_params = {
+                                "organizacion_id": organizacion_id,
+                                "query": tool_input.get("query", ""),
+                                "categoria": tool_input.get("categoria"),
+                                "fase_juego": tool_input.get("fase_juego"),
+                                "limite": tool_input.get("limite", 5),
+                            }
+                            result_str = _tool_buscar_tareas(get_supabase(), search_params)
+                            herramientas_usadas.append({"nombre": tool_name})
+                            function_response_parts.append(
+                                types.Part.from_function_response(
+                                    name=tool_name,
+                                    response=_json.loads(result_str) if isinstance(result_str, str) else result_str,
+                                )
+                            )
                         else:
                             logger.warning(f"Unexpected tool in session design: {tool_name}")
                             herramientas_usadas.append({"nombre": tool_name})
                             function_response_parts.append(
                                 types.Part.from_function_response(
                                     name=tool_name,
-                                    response={"result": "Herramienta no disponible. Usa proponer_sesion para generar la sesión directamente."},
+                                    response={"result": "Herramienta no disponible."},
                                 )
                             )
 

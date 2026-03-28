@@ -700,10 +700,13 @@ Esto incluye:
 La ÚNICA vez que NO debes llamar a la herramienta es cuando el entrenador hace una pregunta informativa sin pedir cambios.
 
 ### FLUJO
-1. El entrenador describe lo que necesita → TÚ llamas a `proponer_sesion` de inmediato.
+1. El entrenador describe lo que necesita → PRIMERO busca en la biblioteca con `buscar_tareas_biblioteca` para cada fase, LUEGO llama a `proponer_sesion`.
 2. El entrenador pide cambios → TÚ llamas a `proponer_sesion` con la sesión completa actualizada (mantén lo que no cambia, modifica solo lo pedido).
 3. Si falta el número de jugadores: asume 18 (16 + 2 GK). Si falta match_day: asume MD-3.
-4. Genera SIEMPRE tareas NUEVAS. NUNCA busques existentes.
+4. Para CADA fase, busca primero en la biblioteca con `buscar_tareas_biblioteca`.
+   - Relevancia >= 70% → proponla como tarea existente (incluye tarea_id en la fase).
+   - Relevancia 50-69% → proponla adaptada (incluye tarea_id + describe adaptaciones en la descripción).
+   - Relevancia < 50% → crea tarea nueva (sin tarea_id).
 5. No hay límite de iteraciones. El entrenador puede pedir cambios INFINITAS veces hasta estar satisfecho.
 
 ### REGLAS DEL DISEÑO
@@ -734,6 +737,33 @@ Si incluyes grafico_data, usa este formato:
 
 SESSION_DESIGN_TOOLS = [
     {
+        "name": "buscar_tareas_biblioteca",
+        "description": "Busca tareas existentes en la biblioteca del club antes de proponer una sesion. Usa esto para reutilizar ejercicios que ya existen.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Busqueda semantica en lenguaje natural. Ej: 'rondo de conservacion con superioridad', 'juego de posicion 4v4+3'"
+                },
+                "categoria": {
+                    "type": "string",
+                    "enum": ["RND", "JDP", "POS", "EVO", "AVD", "PCO", "ACO", "SSG", "ABP", "GYM", "PRV", "MOV", "RCF"],
+                    "description": "Filtrar por categoria de tarea"
+                },
+                "fase_juego": {
+                    "type": "string",
+                    "description": "Filtrar por fase de juego"
+                },
+                "limite": {
+                    "type": "integer",
+                    "description": "Numero maximo de resultados (default 5)"
+                },
+            },
+            "required": ["query"],
+        },
+    },
+    {
         "name": "proponer_sesion",
         "description": "Genera una sesión de entrenamiento completa con 4 fases. DEBES usar esta herramienta siempre que el entrenador pida una sesión.",
         "input_schema": {
@@ -758,6 +788,10 @@ SESSION_DESIGN_TOOLS = [
                     "items": {
                         "type": "object",
                         "properties": {
+                            "tarea_id": {
+                                "type": "string",
+                                "description": "UUID de tarea existente de la biblioteca para reutilizar. Vacío o ausente = crear nueva tarea."
+                            },
                             "fase": {
                                 "type": "string",
                                 "enum": ["activacion", "desarrollo_1", "desarrollo_2", "vuelta_calma"],
@@ -1090,13 +1124,17 @@ TOOLS = [
     },
     {
         "name": "buscar_tareas",
-        "description": "Busca ejercicios en la biblioteca de la organizacion por categoria, fase de juego o texto.",
+        "description": "Busca ejercicios en la biblioteca de la organizacion. Soporta busqueda semantica con 'query' (lenguaje natural) o filtros por categoria/fase_juego/busqueda.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "organizacion_id": {
                     "type": "string",
                     "description": "ID de la organizacion"
+                },
+                "query": {
+                    "type": "string",
+                    "description": "Busqueda semantica en lenguaje natural. Ej: 'rondos de conservacion con superioridad numerica'"
                 },
                 "categoria": {
                     "type": "string",
@@ -1109,7 +1147,7 @@ TOOLS = [
                 },
                 "busqueda": {
                     "type": "string",
-                    "description": "Texto libre para buscar en titulos de tareas"
+                    "description": "Texto libre para buscar en titulos de tareas (keyword search)"
                 },
                 "limite": {
                     "type": "integer",
@@ -1395,7 +1433,37 @@ def _tool_convocatorias(supabase, params: dict) -> str:
 
 
 def _tool_buscar_tareas(supabase, params: dict) -> str:
-    """Busca tareas en la biblioteca de la organización."""
+    """Busca tareas en la biblioteca de la organización. Soporta búsqueda semántica."""
+    limite = params.get("limite", 10)
+    org_id = params.get("organizacion_id")
+    semantic_query = params.get("query")
+
+    # Try semantic search if query is provided
+    if semantic_query and org_id:
+        try:
+            from app.services.embedding_service import generate_query_embedding
+            query_embedding = generate_query_embedding(semantic_query)
+
+            rpc_params = {
+                "p_query_text": semantic_query,
+                "p_query_embedding": query_embedding,
+                "p_organizacion_id": org_id,
+                "p_match_count": limite,
+            }
+            if params.get("categoria"):
+                rpc_params["p_categoria_codigo"] = params["categoria"]
+            if params.get("fase_juego"):
+                rpc_params["p_fase_juego"] = params["fase_juego"]
+
+            result = supabase.rpc("hybrid_search_tareas", rpc_params).execute()
+            if result.data:
+                for t in result.data:
+                    t["relevancia"] = f"{t.get('relevance_pct', 0)}%"
+                return json.dumps(result.data, ensure_ascii=False, default=str)
+        except Exception as e:
+            logger.warning(f"Semantic search failed in buscar_tareas tool, falling back to keyword: {e}")
+
+    # Fallback: keyword search (original behavior)
     query = supabase.table("tareas").select(
         "id, titulo, descripcion, duracion_total, num_jugadores_min, num_jugadores_max, "
         "num_porteros, fase_juego, principio_tactico, nivel_cognitivo, densidad, "
@@ -1405,14 +1473,12 @@ def _tool_buscar_tareas(supabase, params: dict) -> str:
         "objetivo_gym, series_repeticiones, categorias_tarea(codigo, nombre)"
     )
 
-    # Query by organizacion_id (broad: all org tasks) or equipo_id (narrow)
-    if params.get("organizacion_id"):
-        query = query.eq("organizacion_id", params["organizacion_id"])
+    if org_id:
+        query = query.eq("organizacion_id", org_id)
     elif params.get("equipo_id"):
         query = query.eq("equipo_id", params["equipo_id"])
 
     if params.get("categoria"):
-        # Join filter on categorias_tarea
         query = query.eq("categorias_tarea.codigo", params["categoria"])
 
     if params.get("fase_juego"):
@@ -1421,10 +1487,8 @@ def _tool_buscar_tareas(supabase, params: dict) -> str:
     if params.get("busqueda"):
         query = query.ilike("titulo", f"%{params['busqueda']}%")
 
-    limite = params.get("limite", 10)
     response = query.order("created_at", desc=True).limit(limite).execute()
 
-    # Flatten categoria
     for t in response.data:
         cat = t.pop("categorias_tarea", None)
         t["categoria"] = cat
@@ -2107,11 +2171,7 @@ Responde SOLO con JSON válido:
                     "tools": tools,
                 }
 
-                # Force tool use on the first API call if user gave enough context
-                if iteration == 0 and user_msg_count == 1 and first_msg_is_substantial:
-                    kwargs["tool_choice"] = {"type": "tool", "name": "proponer_sesion"}
-                    logger.info("Forcing proponer_sesion tool use (substantial first message)")
-
+                # Let AI search library first, then propose — no forced tool on first msg
                 response = await self.client.messages.create(**kwargs)
 
                 total_input_tokens += response.usage.input_tokens
@@ -2158,12 +2218,30 @@ Responde SOLO con JSON válido:
                             herramientas_usadas.append({"nombre": tool_name})
                             continue
 
+                        # Handle buscar_tareas_biblioteca
+                        if tool_name == "buscar_tareas_biblioteca":
+                            search_params = {
+                                "organizacion_id": organizacion_id,
+                                "query": tool_input.get("query", ""),
+                                "categoria": tool_input.get("categoria"),
+                                "fase_juego": tool_input.get("fase_juego"),
+                                "limite": tool_input.get("limite", 5),
+                            }
+                            result = _tool_buscar_tareas(get_supabase(), search_params)
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": result,
+                            })
+                            herramientas_usadas.append({"nombre": tool_name})
+                            continue
+
                         # Unknown tool in session design — skip
                         logger.warning(f"Unexpected tool in session design: {tool_name}")
                         tool_results.append({
                             "type": "tool_result",
                             "tool_use_id": block.id,
-                            "content": "Herramienta no disponible. Usa proponer_sesion para generar la sesión directamente.",
+                            "content": "Herramienta no disponible.",
                         })
                         herramientas_usadas.append({"nombre": tool_name})
 

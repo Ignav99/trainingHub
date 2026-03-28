@@ -1,6 +1,31 @@
 import { api } from './client'
 import { Tarea, TareaFiltros, PaginatedResponse, AITareaNueva, TipoContraccion, ZonaCuerpo, ObjetivoGym, SeriesRepeticiones } from '@/types'
 
+export interface SemanticSearchResult {
+  id: string
+  titulo: string
+  descripcion?: string
+  categoria_codigo?: string
+  categoria_nombre?: string
+  duracion_total?: number
+  num_jugadores_min?: number
+  num_jugadores_max?: number
+  num_porteros?: number
+  densidad?: string
+  nivel_cognitivo?: number
+  fase_juego?: string
+  principio_tactico?: string
+  estructura_equipos?: string
+  num_usos?: number
+  relevance_pct: number
+}
+
+export interface SemanticSearchResponse {
+  data: SemanticSearchResult[]
+  total: number
+  metodo: string
+}
+
 export interface TareaCreateData {
   titulo: string
   categoria_id: string
@@ -119,6 +144,19 @@ export const tareasApi = {
       mensajes,
       equipo_id: equipoId,
     }, { timeout: 120000 })
+  },
+
+  async semanticSearch(query: string, options?: {
+    limite?: number
+    categoria?: string
+    fase_juego?: string
+  }): Promise<SemanticSearchResponse> {
+    return api.post<SemanticSearchResponse>('/tareas/semantic-search', {
+      query,
+      limite: options?.limite || 15,
+      categoria: options?.categoria,
+      fase_juego: options?.fase_juego,
+    }, { timeout: 30000 })
   },
 
   async generatePdf(id: string): Promise<Blob> {
