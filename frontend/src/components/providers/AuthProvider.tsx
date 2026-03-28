@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 import { useClubStore } from '@/stores/clubStore'
-import { KabineLoader } from '@/components/ui/kabine-loader'
+import { SplashScreen } from '@/components/ui/splash-screen'
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isReady, setIsReady] = useState(false)
@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   if (!isReady) {
-    return <KabineLoader fullScreen size="lg" text="Cargando Kabin-e..." />
+    return <SplashScreen />
   }
 
   return <>{children}</>

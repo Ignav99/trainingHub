@@ -36,7 +36,7 @@ import { useEquipoStore } from '@/stores/equipoStore'
 import { useClubStore } from '@/stores/clubStore'
 import { ClubAvatar, Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { KabineLoader } from '@/components/ui/kabine-loader'
+import { SplashScreen } from '@/components/ui/splash-screen'
 import { Toaster } from '@/components/ui/toast'
 import { MobileBottomNav } from '@/components/ui/mobile-nav'
 
@@ -117,7 +117,7 @@ export default function DashboardLayout({
   // Post-hydration: isAuthenticated=true → render dashboard immediately.
   // If token expired: initializeAuth sets isAuthenticated=false → redirects to login.
   if (!isAuthenticated) {
-    return <KabineLoader fullScreen size="lg" />
+    return <SplashScreen />
   }
 
   const handleLogout = useCallback(async () => {
