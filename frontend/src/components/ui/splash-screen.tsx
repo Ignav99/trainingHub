@@ -3,24 +3,24 @@
 import { useState, useEffect } from 'react'
 
 const FOOTBALL_FACTS = [
-  { text: 'El FC Barcelona posee el récord de más pases completados en un partido de Champions: 953 contra el Celtic en 2012.', emoji: '⚽' },
-  { text: 'Pelé marcó 1.283 goles en su carrera, un récord que duró décadas como el más alto de la historia.', emoji: '🏆' },
-  { text: 'El estadio Rungrado May Day en Corea del Norte tiene capacidad para 114.000 espectadores, el más grande del mundo.', emoji: '🏟️' },
-  { text: 'El gol más rápido de la historia del fútbol fue marcado a los 2 segundos del pitido inicial.', emoji: '⚡' },
-  { text: 'España ganó 35 partidos consecutivos entre 2007 y 2009, récord mundial de selecciones.', emoji: '🇪🇸' },
-  { text: 'La primera tarjeta roja en un Mundial se mostró en 1930, en el partido Chile vs Argentina.', emoji: '🟥' },
-  { text: 'El arquero Rogério Ceni marcó 131 goles en su carrera, más que muchos delanteros profesionales.', emoji: '🧤' },
-  { text: 'La Bundesliga fue la primera liga europea en implementar la tecnología del VAR en 2017.', emoji: '📺' },
-  { text: 'Xavi Hernández completó más de 90% de pases en 6 temporadas consecutivas con el Barça.', emoji: '🎯' },
-  { text: 'El fútbol femenino tuvo su primer Mundial oficial en 1991 en China.', emoji: '🌍' },
-  { text: 'Maldini jugó 25 temporadas en el AC Milan sin pedir nunca un traspaso.', emoji: '❤️' },
-  { text: 'En 2002, Corea del Sur se convirtió en el primer país asiático en llegar a semifinales de un Mundial.', emoji: '🇰🇷' },
-  { text: 'El césped de Wembley se corta a exactamente 25mm antes de cada partido.', emoji: '🌱' },
-  { text: 'Un jugador profesional recorre entre 10 y 13 km de media por partido.', emoji: '🏃' },
-  { text: 'La carga de entrenamiento óptima sigue la regla del 10%: no aumentar más del 10% semanal.', emoji: '📊' },
-  { text: 'Los equipos con mejor ratio de pases en el último tercio tienen un 23% más de probabilidad de victoria.', emoji: '📈' },
-  { text: 'El pressing alto recupera el balón en menos de 5 segundos el 34% de las veces.', emoji: '🔄' },
-  { text: 'Los jugadores sub-23 que descansan 48h entre sesiones intensas rinden un 18% más.', emoji: '💤' },
+  'El FC Barcelona posee el récord de más pases completados en un partido de Champions: 953 contra el Celtic en 2012.',
+  'Pelé marcó 1.283 goles en su carrera, un récord que duró décadas como el más alto de la historia.',
+  'El estadio Rungrado May Day en Corea del Norte tiene capacidad para 114.000 espectadores, el más grande del mundo.',
+  'El gol más rápido de la historia del fútbol fue marcado a los 2 segundos del pitido inicial.',
+  'España ganó 35 partidos consecutivos entre 2007 y 2009, récord mundial de selecciones.',
+  'La primera tarjeta roja en un Mundial se mostró en 1930, en el partido Chile vs Argentina.',
+  'El arquero Rogério Ceni marcó 131 goles en su carrera, más que muchos delanteros profesionales.',
+  'La Bundesliga fue la primera liga europea en implementar la tecnología del VAR en 2017.',
+  'Xavi Hernández completó más de 90% de pases en 6 temporadas consecutivas con el Barça.',
+  'El fútbol femenino tuvo su primer Mundial oficial en 1991 en China.',
+  'Maldini jugó 25 temporadas en el AC Milan sin pedir nunca un traspaso.',
+  'En 2002, Corea del Sur se convirtió en el primer país asiático en llegar a semifinales de un Mundial.',
+  'El césped de Wembley se corta a exactamente 25mm antes de cada partido.',
+  'Un jugador profesional recorre entre 10 y 13 km de media por partido.',
+  'La carga de entrenamiento óptima sigue la regla del 10%: no aumentar más del 10% semanal.',
+  'Los equipos con mejor ratio de pases en el último tercio tienen un 23% más de probabilidad de victoria.',
+  'El pressing alto recupera el balón en menos de 5 segundos el 34% de las veces.',
+  'Los jugadores sub-23 que descansan 48h entre sesiones intensas rinden un 18% más.',
 ]
 
 const LOADING_STEPS = [
@@ -32,13 +32,21 @@ const LOADING_STEPS = [
 ]
 
 export function SplashScreen() {
-  const [factIndex, setFactIndex] = useState(() => Math.floor(Math.random() * FOOTBALL_FACTS.length))
+  // Use deterministic initial values to avoid SSR hydration mismatch
+  const [factIndex, setFactIndex] = useState(0)
   const [fadeIn, setFadeIn] = useState(true)
   const [stepIndex, setStepIndex] = useState(0)
-  const [progress, setProgress] = useState(0)
+  const [mounted, setMounted] = useState(false)
+
+  // Set random fact after mount (client-only)
+  useEffect(() => {
+    setFactIndex(Math.floor(Math.random() * FOOTBALL_FACTS.length))
+    setMounted(true)
+  }, [])
 
   // Rotate facts every 4 seconds with fade transition
   useEffect(() => {
+    if (!mounted) return
     const interval = setInterval(() => {
       setFadeIn(false)
       setTimeout(() => {
@@ -47,30 +55,22 @@ export function SplashScreen() {
       }, 400)
     }, 4000)
     return () => clearInterval(interval)
-  }, [])
+  }, [mounted])
 
-  // Animate progress and steps
+  // Cycle loading steps
   useEffect(() => {
-    const interval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 90) return 90 // Cap at 90% until actually loaded
-        return prev + Math.random() * 8 + 2
-      })
-    }, 600)
-    return () => clearInterval(interval)
-  }, [])
-
-  useEffect(() => {
+    if (!mounted) return
     const interval = setInterval(() => {
       setStepIndex(prev => Math.min(prev + 1, LOADING_STEPS.length - 1))
-    }, 2000)
+    }, 2500)
     return () => clearInterval(interval)
-  }, [])
+  }, [mounted])
 
   const fact = FOOTBALL_FACTS[factIndex]
 
   return (
-    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden"
+    <div
+      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden"
       style={{
         background: 'linear-gradient(135deg, #0f0a1e 0%, #1a1040 30%, #251560 60%, #1a1040 100%)',
       }}
@@ -101,7 +101,6 @@ export function SplashScreen() {
 
         {/* Logo with glow */}
         <div className="relative mb-8">
-          {/* Glow behind logo */}
           <div
             className="absolute inset-0 blur-2xl opacity-60 animate-pulse"
             style={{
@@ -109,9 +108,7 @@ export function SplashScreen() {
               transform: 'scale(2.5)',
             }}
           />
-          {/* Outer ring */}
           <div className="absolute -inset-4 rounded-full border border-purple-500/20 animate-kabine-ping" />
-          {/* Logo */}
           <img
             src="/logo-icon.png"
             alt="Kabin-e"
@@ -135,18 +132,10 @@ export function SplashScreen() {
           Gestión deportiva profesional
         </p>
 
-        {/* Progress bar */}
+        {/* Progress bar — pure CSS animation, no JS dependency */}
         <div className="w-full max-w-xs mb-4">
           <div className="h-1 bg-white/5 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-700 ease-out"
-              style={{
-                width: `${Math.min(progress, 100)}%`,
-                background: 'linear-gradient(90deg, #7c3aed, #a78bfa, #7c3aed)',
-                backgroundSize: '200% 100%',
-                animation: 'shimmer 2s linear infinite',
-              }}
-            />
+            <div className="splash-progress-bar h-full rounded-full" />
           </div>
         </div>
 
@@ -157,21 +146,22 @@ export function SplashScreen() {
 
         {/* Football fact card */}
         <div
-          className="w-full rounded-xl border border-purple-500/10 backdrop-blur-sm px-5 py-4 transition-all duration-400"
+          className="w-full rounded-xl border border-purple-500/10 backdrop-blur-sm px-5 py-4"
           style={{
             background: 'linear-gradient(135deg, rgba(124,58,237,0.08) 0%, rgba(30,20,60,0.5) 100%)',
             opacity: fadeIn ? 1 : 0,
             transform: fadeIn ? 'translateY(0)' : 'translateY(8px)',
+            transition: 'opacity 0.4s ease, transform 0.4s ease',
           }}
         >
           <div className="flex items-start gap-3">
-            <span className="text-xl mt-0.5 shrink-0">{fact.emoji}</span>
+            <span className="text-xl mt-0.5 shrink-0">⚽</span>
             <div>
               <p className="text-[10px] font-semibold text-purple-400/70 uppercase tracking-wider mb-1">
                 ¿Sabías que...?
               </p>
               <p className="text-purple-100/80 text-sm leading-relaxed">
-                {fact.text}
+                {fact}
               </p>
             </div>
           </div>
@@ -185,9 +175,22 @@ export function SplashScreen() {
         </p>
       </div>
 
-      {/* Shimmer animation for progress bar */}
+      {/* CSS-only animations — independent of React state/effects */}
       <style>{`
-        @keyframes shimmer {
+        .splash-progress-bar {
+          background: linear-gradient(90deg, #7c3aed, #a78bfa, #7c3aed);
+          background-size: 200% 100%;
+          animation: splash-progress-fill 12s ease-out forwards, splash-shimmer 2s linear infinite;
+        }
+        @keyframes splash-progress-fill {
+          0% { width: 5%; }
+          15% { width: 20%; }
+          35% { width: 40%; }
+          55% { width: 60%; }
+          75% { width: 75%; }
+          100% { width: 92%; }
+        }
+        @keyframes splash-shimmer {
           0% { background-position: 200% 0; }
           100% { background-position: -200% 0; }
         }
