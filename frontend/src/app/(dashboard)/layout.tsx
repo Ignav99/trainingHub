@@ -131,11 +131,7 @@ export default function DashboardLayout({
     return () => clearTimeout(timeout)
   }, [isAuthenticated, equipoActivo?.id])
 
-  // Show SplashScreen until auth + equipos + critical data are ready
-  if (!isAuthenticated || !equipoActivo || !dataReady) {
-    return <SplashScreen />
-  }
-
+  // Hooks must be called unconditionally (before any early return)
   const handleLogout = useCallback(async () => {
     await logout()
     router.push('/login')
@@ -143,6 +139,11 @@ export default function DashboardLayout({
 
   const handleCloseSidebar = useCallback(() => setSidebarOpen(false), [])
   const handleOpenSidebar = useCallback(() => setSidebarOpen(true), [])
+
+  // Show SplashScreen until auth + equipos + critical data are ready
+  if (!isAuthenticated || !equipoActivo || !dataReady) {
+    return <SplashScreen />
+  }
 
   return (
     <div className="min-h-screen bg-muted/30">
