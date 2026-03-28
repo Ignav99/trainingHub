@@ -73,6 +73,7 @@ export default function DashboardLayout({
   const { equipos, equipoActivo, loadEquipos, setEquipoActivo } = useEquipoStore()
   const { theme, isOnboardingComplete } = useClubStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [dataReady, setDataReady] = useState(false)
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -93,30 +94,45 @@ export default function DashboardLayout({
     }
   }, [isAuthenticated, isOnboardingComplete, pathname, router])
 
-  // Preload key data endpoints so tab navigation is near-instant
+  // Preload critical data and wait before showing the dashboard.
+  // The SplashScreen stays visible until these resolve, so the user
+  // sees the app fully populated instead of grey skeletons.
   useEffect(() => {
     if (!isAuthenticated || !equipoActivo?.id) return
     const eid = equipoActivo.id
-    const keys = [
+
+    // Critical endpoints — wait for these before showing the app
+    const critical = [
       apiKey('/dashboard/resumen', { equipo_id: eid }),
       apiKey('/dashboard/plantilla', { equipo_id: eid }),
       apiKey('/jugadores', { equipo_id: eid, estado: 'activo' }),
+      apiKey('/catalogos/categorias-tarea'),
+    ].filter(Boolean) as string[]
+
+    // Secondary endpoints — fire-and-forget for other tabs
+    const secondary = [
       apiKey('/sesiones', { page: 1, limit: 10, equipo_id: eid }),
       apiKey('/tareas', { page: 1, limit: 12, equipo_id: eid }),
       apiKey('/partidos', { solo_pendientes: true, orden: 'fecha', limit: 20, equipo_id: eid }),
-      apiKey('/catalogos/categorias-tarea'),
       apiKey('/microciclos', { estado: 'en_curso', limit: 1, equipo_id: eid }),
       apiKey('/carga/equipo/' + eid),
       apiKey('/rfef/competiciones', { equipo_id: eid }),
-    ]
-    keys.forEach(key => { if (key) preload(key, apiFetcher) })
+    ].filter(Boolean) as string[]
+
+    // Fire secondary preloads (don't wait)
+    secondary.forEach(key => preload(key, apiFetcher))
+
+    // Wait for critical preloads, then show the app
+    Promise.allSettled(critical.map(key => preload(key, apiFetcher)))
+      .then(() => setDataReady(true))
+
+    // Safety timeout: show app after 8s max even if API is slow
+    const timeout = setTimeout(() => setDataReady(true), 8000)
+    return () => clearTimeout(timeout)
   }, [isAuthenticated, equipoActivo?.id])
 
-  // AuthProvider already handles the auth gate for cached users.
-  // Pre-hydration: isAuthenticated=false → show loader (brief, <50ms).
-  // Post-hydration: isAuthenticated=true → render dashboard immediately.
-  // If token expired: initializeAuth sets isAuthenticated=false → redirects to login.
-  if (!isAuthenticated) {
+  // Show SplashScreen until auth + equipos + critical data are ready
+  if (!isAuthenticated || !equipoActivo || !dataReady) {
     return <SplashScreen />
   }
 
