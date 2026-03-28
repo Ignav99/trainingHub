@@ -94,40 +94,52 @@ export default function DashboardLayout({
     }
   }, [isAuthenticated, isOnboardingComplete, pathname, router])
 
-  // Preload critical data and wait before showing the dashboard.
-  // The SplashScreen stays visible until these resolve, so the user
-  // sees the app fully populated instead of grey skeletons.
+  // Preload ALL dashboard data and wait before showing the app.
+  // The SplashScreen stays visible until everything resolves, so the
+  // user enters a fully populated dashboard with zero skeletons.
   useEffect(() => {
     if (!isAuthenticated || !equipoActivo?.id) return
     const eid = equipoActivo.id
 
-    // Critical endpoints — wait for these before showing the app
-    const critical = [
+    // Current month range for calendar queries
+    const now = new Date()
+    const y = now.getFullYear()
+    const m = now.getMonth()
+    const fechaDesde = `${y}-${String(m + 1).padStart(2, '0')}-01`
+    const lastDay = new Date(y, m + 1, 0).getDate()
+    const fechaHasta = `${y}-${String(m + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+
+    // ALL endpoints the dashboard needs — wait for every one
+    const allEndpoints = [
+      // Dashboard main
       apiKey('/dashboard/resumen', { equipo_id: eid }),
       apiKey('/dashboard/plantilla', { equipo_id: eid }),
+      // Sidebar data
       apiKey('/jugadores', { equipo_id: eid, estado: 'activo' }),
       apiKey('/catalogos/categorias-tarea'),
-    ].filter(Boolean) as string[]
-
-    // Secondary endpoints — fire-and-forget for other tabs
-    const secondary = [
+      // Dashboard cards
+      apiKey('/microciclos', { equipo_id: eid, estado: 'en_curso', limit: 1 }),
+      apiKey('/sesiones', { equipo_id: eid, estado: 'borrador', limit: 1 }),
+      apiKey('/partidos', { equipo_id: eid, solo_jugados: true, limit: 1, orden: 'fecha', direccion: 'desc' }),
+      apiKey('/rfef/competiciones', { equipo_id: eid }),
+      // Calendar
+      apiKey('/sesiones', { equipo_id: eid, fecha_desde: fechaDesde, fecha_hasta: fechaHasta, limit: 50 }),
+      apiKey('/partidos', { equipo_id: eid, fecha_desde: fechaDesde, fecha_hasta: fechaHasta, limit: 20 }),
+      apiKey('/microciclos', { equipo_id: eid, fecha_desde: fechaDesde, fecha_hasta: fechaHasta }),
+      apiKey('/descansos', { equipo_id: eid, fecha_desde: fechaDesde, fecha_hasta: fechaHasta }),
+      apiKey('/partidos', { equipo_id: eid, solo_pendientes: true, orden: 'fecha', direccion: 'asc', limit: 20 }),
+      // Other tabs (preload for instant navigation)
       apiKey('/sesiones', { page: 1, limit: 10, equipo_id: eid }),
       apiKey('/tareas', { page: 1, limit: 12, equipo_id: eid }),
-      apiKey('/partidos', { solo_pendientes: true, orden: 'fecha', limit: 20, equipo_id: eid }),
-      apiKey('/microciclos', { estado: 'en_curso', limit: 1, equipo_id: eid }),
       apiKey('/carga/equipo/' + eid),
-      apiKey('/rfef/competiciones', { equipo_id: eid }),
     ].filter(Boolean) as string[]
 
-    // Fire secondary preloads (don't wait)
-    secondary.forEach(key => preload(key, apiFetcher))
-
-    // Wait for critical preloads, then show the app
-    Promise.allSettled(critical.map(key => preload(key, apiFetcher)))
+    // Wait for ALL to resolve, then show the app
+    Promise.allSettled(allEndpoints.map(key => preload(key, apiFetcher)))
       .then(() => setDataReady(true))
 
-    // Safety timeout: show app after 8s max even if API is slow
-    const timeout = setTimeout(() => setDataReady(true), 8000)
+    // Safety timeout: show app after 15s max even if some endpoints are slow
+    const timeout = setTimeout(() => setDataReady(true), 15000)
     return () => clearTimeout(timeout)
   }, [isAuthenticated, equipoActivo?.id])
 

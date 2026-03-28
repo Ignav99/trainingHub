@@ -26,8 +26,10 @@ const FOOTBALL_FACTS = [
 const LOADING_STEPS = [
   'Conectando con el servidor...',
   'Verificando credenciales...',
-  'Cargando tu espacio de trabajo...',
-  'Preparando datos del equipo...',
+  'Cargando datos del equipo...',
+  'Preparando sesiones y partidos...',
+  'Sincronizando calendario...',
+  'Cargando estadísticas...',
   'Casi listo...',
 ]
 
@@ -62,7 +64,7 @@ export function SplashScreen() {
     if (!mounted) return
     const interval = setInterval(() => {
       setStepIndex(prev => Math.min(prev + 1, LOADING_STEPS.length - 1))
-    }, 2500)
+    }, 2000)
     return () => clearInterval(interval)
   }, [mounted])
 
@@ -180,7 +182,7 @@ export function SplashScreen() {
         .splash-progress-bar {
           background: linear-gradient(90deg, #7c3aed, #a78bfa, #7c3aed);
           background-size: 200% 100%;
-          animation: splash-progress-fill 12s ease-out forwards, splash-shimmer 2s linear infinite;
+          animation: splash-progress-fill 14s ease-out forwards, splash-shimmer 2s linear infinite;
         }
         @keyframes splash-progress-fill {
           0% { width: 5%; }
