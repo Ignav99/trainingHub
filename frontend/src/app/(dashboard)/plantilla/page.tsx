@@ -496,12 +496,14 @@ export default function PlantillaPage() {
 
   const hasActiveFilters = posicionFilter || estadoFilter
 
-  // Agrupar jugadores por zona
+  // Agrupar jugadores por zona (exclude invitados — they have their own section)
+  const plantillaJugadores = jugadores.filter((j) => !j.es_invitado)
+  const invitadosCount = jugadores.filter((j) => j.es_invitado).length
   const jugadoresPorZona = {
-    porteria: jugadores.filter((j) => POSICIONES[j.posicion_principal as keyof typeof POSICIONES]?.zona === 'porteria'),
-    defensa: jugadores.filter((j) => POSICIONES[j.posicion_principal as keyof typeof POSICIONES]?.zona === 'defensa'),
-    mediocampo: jugadores.filter((j) => POSICIONES[j.posicion_principal as keyof typeof POSICIONES]?.zona === 'mediocampo'),
-    ataque: jugadores.filter((j) => POSICIONES[j.posicion_principal as keyof typeof POSICIONES]?.zona === 'ataque'),
+    porteria: plantillaJugadores.filter((j) => POSICIONES[j.posicion_principal as keyof typeof POSICIONES]?.zona === 'porteria'),
+    defensa: plantillaJugadores.filter((j) => POSICIONES[j.posicion_principal as keyof typeof POSICIONES]?.zona === 'defensa'),
+    mediocampo: plantillaJugadores.filter((j) => POSICIONES[j.posicion_principal as keyof typeof POSICIONES]?.zona === 'mediocampo'),
+    ataque: plantillaJugadores.filter((j) => POSICIONES[j.posicion_principal as keyof typeof POSICIONES]?.zona === 'ataque'),
   }
 
   const zonaLabels = {
@@ -586,10 +588,15 @@ export default function PlantillaPage() {
             <>
               <Link
                 href="/plantilla/invitados"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm font-medium text-amber-700 hover:bg-amber-100 transition-colors"
               >
                 <UserPlus className="h-4 w-4" />
                 Invitados
+                {invitadosCount > 0 && (
+                  <span className="bg-amber-200 text-amber-800 text-xs font-bold px-1.5 py-0.5 rounded-full">
+                    {invitadosCount}
+                  </span>
+                )}
               </Link>
               <Link
                 href="/plantilla/nuevo"

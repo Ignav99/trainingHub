@@ -167,75 +167,6 @@ function InvitadoModal({
   )
 }
 
-// Tarjeta de invitado
-function InvitadoCard({
-  invitado,
-  onEdit,
-  onDelete,
-}: {
-  invitado: Jugador
-  onEdit: () => void
-  onDelete: () => void
-}) {
-  const pos = POSICIONES[invitado.posicion_principal as keyof typeof POSICIONES]
-
-  return (
-    <div className="bg-white rounded-xl border-2 border-amber-400 bg-amber-50/30 p-4 hover:shadow-md transition-shadow">
-      <div className="flex items-start gap-3">
-        {/* Avatar */}
-        <div
-          className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0"
-          style={{ backgroundColor: pos?.color || '#6B7280' }}
-        >
-          {invitado.nombre[0]}{invitado.apellidos[0]}
-        </div>
-
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-gray-900 truncate">
-            {invitado.nombre} {invitado.apellidos}
-          </h3>
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <span
-              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white"
-              style={{ backgroundColor: pos?.color || '#6B7280' }}
-            >
-              {invitado.posicion_principal}
-            </span>
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 border border-amber-300">
-              Invitado
-            </span>
-            {invitado.equipos && (
-              <span className="text-xs text-gray-500">
-                De: {invitado.equipos.nombre}
-              </span>
-            )}
-          </div>
-          {invitado.notas && (
-            <p className="text-xs text-gray-500 mt-2 line-clamp-2">{invitado.notas}</p>
-          )}
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-1">
-          <button
-            onClick={onEdit}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
-          >
-            <Edit className="h-4 w-4" />
-          </button>
-          <button
-            onClick={onDelete}
-            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export default function InvitadosPage() {
   const { equipoActivo, equipos } = useEquipoStore()
   const [busqueda, setBusqueda] = useState('')
@@ -322,14 +253,6 @@ export default function InvitadosPage() {
     return fullName.includes(q) || i.notas?.toLowerCase().includes(q)
   })
 
-  // Agrupar por zona
-  const porZona = {
-    porteria: invitadosFiltrados.filter((i) => POSICIONES[i.posicion_principal as keyof typeof POSICIONES]?.zona === 'porteria'),
-    defensa: invitadosFiltrados.filter((i) => POSICIONES[i.posicion_principal as keyof typeof POSICIONES]?.zona === 'defensa'),
-    mediocampo: invitadosFiltrados.filter((i) => POSICIONES[i.posicion_principal as keyof typeof POSICIONES]?.zona === 'mediocampo'),
-    ataque: invitadosFiltrados.filter((i) => POSICIONES[i.posicion_principal as keyof typeof POSICIONES]?.zona === 'ataque'),
-  }
-
   if (!equipoActivo) {
     return (
       <div className="text-center py-12">
@@ -368,15 +291,15 @@ export default function InvitadosPage() {
       </div>
 
       {/* Info card */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
         <div className="flex gap-3">
-          <UserPlus className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+          <UserPlus className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
           <div>
-            <h3 className="font-medium text-blue-900">¿Que son los jugadores invitados?</h3>
-            <p className="text-sm text-blue-700 mt-1">
+            <h3 className="font-medium text-amber-900">¿Que son los jugadores invitados?</h3>
+            <p className="text-sm text-amber-700 mt-1">
               Son jugadores de categorias inferiores (juveniles, cadetes, infantiles) o de otros equipos
-              que participan en tus entrenamientos. Se crean como jugadores reales en tu plantilla con la
-              etiqueta "Invitado" y aparecen disponibles para añadir en las sesiones.
+              que participan en tus entrenamientos. No forman parte de la plantilla oficial pero estan
+              disponibles para añadir en las sesiones.
             </p>
           </div>
         </div>
@@ -396,7 +319,7 @@ export default function InvitadosPage() {
         </div>
       )}
 
-      {/* Lista */}
+      {/* Lista compacta */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -418,43 +341,82 @@ export default function InvitadosPage() {
         </div>
       ) : invitadosFiltrados.length === 0 ? (
         <div className="text-center py-8 bg-white rounded-xl border border-gray-200">
-          <p className="text-gray-500">No se encontraron jugadores con "{busqueda}"</p>
+          <p className="text-gray-500">No se encontraron jugadores con &quot;{busqueda}&quot;</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {Object.entries(porZona).map(([zona, jugadores]) => {
-            if (jugadores.length === 0) return null
-            const zonaLabels: Record<string, string> = {
-              porteria: 'Porteros',
-              defensa: 'Defensas',
-              mediocampo: 'Mediocampistas',
-              ataque: 'Delanteros',
-            }
-            const zonaColors: Record<string, string> = {
-              porteria: 'border-amber-500',
-              defensa: 'border-blue-500',
-              mediocampo: 'border-green-500',
-              ataque: 'border-red-500',
-            }
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          {/* Table header */}
+          <div className="hidden sm:grid sm:grid-cols-[1fr_100px_1fr_120px_auto] gap-4 px-4 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <span>Jugador</span>
+            <span>Posición</span>
+            <span>Notas</span>
+            <span>Equipo origen</span>
+            <span className="w-20" />
+          </div>
 
-            return (
-              <div key={zona}>
-                <h2 className={`text-lg font-semibold text-gray-900 mb-3 pb-2 border-b-2 ${zonaColors[zona]}`}>
-                  {zonaLabels[zona]} ({jugadores.length})
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {jugadores.map((invitado) => (
-                    <InvitadoCard
-                      key={invitado.id}
-                      invitado={invitado}
-                      onEdit={() => setEditingInvitado(invitado)}
-                      onDelete={() => handleDelete(invitado.id)}
-                    />
-                  ))}
+          {/* Rows */}
+          <div className="divide-y divide-gray-100">
+            {invitadosFiltrados.map((inv) => {
+              const pos = POSICIONES[inv.posicion_principal as keyof typeof POSICIONES]
+              return (
+                <div
+                  key={inv.id}
+                  className="grid grid-cols-1 sm:grid-cols-[1fr_100px_1fr_120px_auto] gap-2 sm:gap-4 items-center px-4 py-3 hover:bg-gray-50 transition-colors"
+                >
+                  {/* Name + avatar */}
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0"
+                      style={{ backgroundColor: pos?.color || '#6B7280' }}
+                    >
+                      {inv.nombre[0]}{inv.apellidos[0]}
+                    </div>
+                    <span className="font-medium text-gray-900 truncate">
+                      {inv.nombre} {inv.apellidos}
+                    </span>
+                  </div>
+
+                  {/* Position */}
+                  <div>
+                    <span
+                      className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white"
+                      style={{ backgroundColor: pos?.color || '#6B7280' }}
+                    >
+                      {inv.posicion_principal}
+                    </span>
+                  </div>
+
+                  {/* Notes */}
+                  <p className="text-sm text-gray-500 truncate">
+                    {inv.notas || '—'}
+                  </p>
+
+                  {/* Origin team */}
+                  <span className="text-sm text-gray-500 truncate">
+                    {inv.equipos?.nombre || '—'}
+                  </span>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-1 justify-end sm:w-20">
+                    <button
+                      onClick={() => setEditingInvitado(inv)}
+                      className="p-1.5 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                      title="Editar"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(inv.id)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Eliminar"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
       )}
 
