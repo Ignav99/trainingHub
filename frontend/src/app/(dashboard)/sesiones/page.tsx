@@ -19,7 +19,8 @@ import {
   Sparkles,
   Filter,
   ListChecks,
-  Eye
+  Eye,
+  Library
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ListPageSkeleton } from '@/components/ui/page-skeletons'
@@ -188,6 +189,13 @@ export default function SesionesPage() {
         description={`${total} sesiones en total`}
         actions={
           <>
+            <Link
+              href="/tareas"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Library className="h-4 w-4" />
+              Biblioteca de Tareas
+            </Link>
             <Link
               href="/sesiones/calendario"
               className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"

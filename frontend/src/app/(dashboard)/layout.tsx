@@ -6,7 +6,6 @@ import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard,
-  ClipboardList,
   Calendar,
   Library,
   Settings,
@@ -43,7 +42,6 @@ import { MobileBottomNav } from '@/components/ui/mobile-nav'
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Sesiones', href: '/sesiones', icon: Calendar },
-  { name: 'Tareas', href: '/tareas', icon: ClipboardList },
   { name: 'Plantilla', href: '/plantilla', icon: Users },
   { name: 'Partidos', href: '/partidos', icon: Swords },
   { name: 'Rivales', href: '/rivales', icon: Shield },
@@ -130,13 +128,38 @@ export default function DashboardLayout({
       apiKey('/partidos', { equipo_id: eid, solo_pendientes: true, orden: 'fecha', direccion: 'asc', limit: 20 }),
       // Other tabs (preload for instant navigation)
       apiKey('/sesiones', { page: 1, limit: 10, equipo_id: eid }),
-      apiKey('/tareas', { page: 1, limit: 12, equipo_id: eid }),
+      apiKey('/tareas', { page: 1, limit: 20, equipo_id: eid }),
+      apiKey('/partidos', { equipo_id: eid, orden: 'fecha', direccion: 'desc', limit: 50 }),
       apiKey('/carga/equipo/' + eid),
     ].filter(Boolean) as string[]
 
     // Wait for ALL to resolve, then show the app
     Promise.allSettled(allEndpoints.map(key => preload(key, apiFetcher)))
-      .then(() => setDataReady(true))
+      .then(() => {
+        setDataReady(true)
+
+        // Phase 2: background preload for secondary pages (non-blocking)
+        const hoy = `${y}-${String(m + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+        const bgEndpoints = [
+          // Enfermería
+          apiKey('/medico', { equipo_id: eid }),
+          // Nutrición
+          apiKey('/nutricion/planes', { equipo_id: eid, fecha: hoy }),
+          apiKey('/nutricion/composicion', { equipo_id: eid }),
+          apiKey('/nutricion/suplementos', { equipo_id: eid, activo: true }),
+          // Estadísticas
+          apiKey('/estadisticas/dashboard', { equipo_id: eid }),
+          apiKey('/dashboard/carga-semanal', { equipo_id: eid, semanas: 12 }),
+          // ABP
+          apiKey('/abp', { equipo_id: eid }),
+          // Rivales
+          apiKey('/rivales', { orden: 'nombre', direccion: 'asc' }),
+          // RPE / Wellness
+          apiKey('/wellness/equipo/' + eid),
+          apiKey('/wellness/equipo/' + eid + '/alertas'),
+        ].filter(Boolean) as string[]
+        bgEndpoints.forEach(key => preload(key, apiFetcher))
+      })
 
     // Safety timeout: show app after 15s max even if some endpoints are slow
     const timeout = setTimeout(() => setDataReady(true), 15000)
