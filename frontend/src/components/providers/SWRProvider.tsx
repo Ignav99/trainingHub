@@ -18,7 +18,7 @@ export function SWRProvider({ children }: { children: React.ReactNode }) {
       value={{
         fetcher: apiFetcher,
         revalidateOnFocus: false,
-        dedupingInterval: 10000,
+        dedupingInterval: 30000,
         focusThrottleInterval: 30000,
         errorRetryCount: 2,
         errorRetryInterval: 3000,

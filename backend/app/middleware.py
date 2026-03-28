@@ -84,6 +84,101 @@ class RequestLoggingMiddleware:
 
 # ============ Rate Limiting Middleware ============
 
+class CacheControlMiddleware:
+    """Sets Cache-Control headers on GET responses based on endpoint type (pure ASGI).
+
+    Tiers:
+      - Catalogs (rarely change): 5 min + 10 min stale
+      - Data lists (jugadores, equipos, rivales): 60s + 5 min stale
+      - Session-volatile (sesiones, tareas, partidos, dashboard): 30s + 2 min stale
+      - No-cache: auth, AI, exports, POST/PUT/PATCH/DELETE
+    """
+
+    LONG_CACHE_PREFIXES = (
+        "/v1/catalogos/",
+    )
+    MEDIUM_CACHE_PREFIXES = (
+        "/v1/jugadores",
+        "/v1/equipos",
+        "/v1/rivales",
+        "/v1/nutricion",
+        "/v1/rfef/competiciones",
+    )
+    SHORT_CACHE_PREFIXES = (
+        "/v1/sesiones",
+        "/v1/tareas",
+        "/v1/partidos",
+        "/v1/dashboard",
+        "/v1/microciclos",
+        "/v1/carga",
+        "/v1/wellness",
+        "/v1/convocatorias",
+        "/v1/descansos",
+        "/v1/rpe",
+        "/v1/estadisticas",
+    )
+    NO_CACHE_PREFIXES = (
+        "/v1/auth",
+        "/v1/ai",
+        "/v1/exports",
+        "/v1/stripe",
+        "/v1/onboarding",
+    )
+
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    def _get_cache_header(self, method: str, path: str) -> bytes | None:
+        if method != "GET":
+            return b"no-store"
+
+        for prefix in self.NO_CACHE_PREFIXES:
+            if path.startswith(prefix):
+                return b"no-store"
+
+        for prefix in self.LONG_CACHE_PREFIXES:
+            if path.startswith(prefix):
+                return b"private, max-age=300, stale-while-revalidate=600"
+
+        for prefix in self.MEDIUM_CACHE_PREFIXES:
+            if path.startswith(prefix):
+                return b"private, max-age=60, stale-while-revalidate=300"
+
+        for prefix in self.SHORT_CACHE_PREFIXES:
+            if path.startswith(prefix):
+                return b"private, max-age=30, stale-while-revalidate=120"
+
+        # Default for other GET endpoints
+        return b"private, max-age=30, stale-while-revalidate=60"
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        method = scope.get("method", "GET")
+        path = scope.get("path", "/")
+        cache_value = self._get_cache_header(method, path)
+
+        if not cache_value:
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_cache(message):
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                # Don't override if endpoint already set Cache-Control
+                header_names = {h[0] for h in headers}
+                if b"cache-control" not in header_names:
+                    headers.append((b"cache-control", cache_value))
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, send_with_cache)
+
+
+# ============ Rate Limiting Middleware ============
+
 class RateLimitMiddleware:
     """Simple in-memory rate limiter per IP (pure ASGI)."""
 

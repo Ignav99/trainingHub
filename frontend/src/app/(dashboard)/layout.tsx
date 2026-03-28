@@ -28,6 +28,9 @@ import {
   Flag,
   UtensilsCrossed,
 } from 'lucide-react'
+import { preload } from 'swr'
+import { apiFetcher } from '@/lib/swr'
+import { apiKey } from '@/lib/swr'
 import { useAuthStore } from '@/stores/authStore'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { useClubStore } from '@/stores/clubStore'
@@ -89,6 +92,25 @@ export default function DashboardLayout({
       router.push('/onboarding')
     }
   }, [isAuthenticated, isOnboardingComplete, pathname, router])
+
+  // Preload key data endpoints so tab navigation is near-instant
+  useEffect(() => {
+    if (!isAuthenticated || !equipoActivo?.id) return
+    const eid = equipoActivo.id
+    const keys = [
+      apiKey('/dashboard/resumen', { equipo_id: eid }),
+      apiKey('/dashboard/plantilla', { equipo_id: eid }),
+      apiKey('/jugadores', { equipo_id: eid, estado: 'activo' }),
+      apiKey('/sesiones', { page: 1, limit: 10, equipo_id: eid }),
+      apiKey('/tareas', { page: 1, limit: 12, equipo_id: eid }),
+      apiKey('/partidos', { solo_pendientes: true, orden: 'fecha', limit: 20, equipo_id: eid }),
+      apiKey('/catalogos/categorias-tarea'),
+      apiKey('/microciclos', { estado: 'en_curso', limit: 1, equipo_id: eid }),
+      apiKey('/carga/equipo/' + eid),
+      apiKey('/rfef/competiciones', { equipo_id: eid }),
+    ]
+    keys.forEach(key => { if (key) preload(key, apiFetcher) })
+  }, [isAuthenticated, equipoActivo?.id])
 
   // AuthProvider already handles the auth gate for cached users.
   // Pre-hydration: isAuthenticated=false → show loader (brief, <50ms).
