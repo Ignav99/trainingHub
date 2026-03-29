@@ -279,6 +279,13 @@ export function CalendarSection({
               const showAddMenu = addMenuDay === date
               const mondayMicro = mondayMicrociclos[date]
 
+              // Determine if this day is in the last 2 rows → open menu upward
+              const cellIndex = calendarCells.firstDow + day - 1
+              const totalCells = calendarCells.firstDow + calendarCells.daysInMonth
+              const totalRows = Math.ceil(totalCells / 7)
+              const rowIndex = Math.floor(cellIndex / 7)
+              const menuOpensUp = rowIndex >= totalRows - 2
+
               // Determine dominant Match Day for cell coloring
               const hasMatch = dayPartidos.length > 0
               const dominantMD = hasMatch ? 'MD' : (daySesiones[0]?.match_day || null)
@@ -359,7 +366,11 @@ export function CalendarSection({
                   {/* Action menu dropdown */}
                   {showAddMenu && (
                     <div
-                      className="absolute top-8 right-1 z-50 bg-popover border rounded-lg shadow-lg py-1 min-w-[160px] animate-in fade-in slide-in-from-top-1 duration-150"
+                      className={`absolute right-1 z-50 bg-popover border rounded-lg shadow-lg py-1 min-w-[160px] animate-in fade-in duration-150 ${
+                        menuOpensUp
+                          ? 'bottom-8 slide-in-from-bottom-1'
+                          : 'top-8 slide-in-from-top-1'
+                      }`}
                       onClick={(e) => e.stopPropagation()}
                     >
                       <button
