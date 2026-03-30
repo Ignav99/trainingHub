@@ -6,10 +6,10 @@
 -- Returns the organization IDs the current user belongs to
 CREATE OR REPLACE FUNCTION public.user_org_ids()
 RETURNS SETOF uuid AS $$
-  SELECT DISTINCT o.id
-  FROM usuarios u
-  JOIN organizaciones o ON u.organizacion_id = o.id
-  WHERE u.id = auth.uid()
+  SELECT DISTINCT organizacion_id
+  FROM usuarios
+  WHERE id = auth.uid()
+  AND organizacion_id IS NOT NULL
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
 -- Returns the team IDs the current user belongs to
@@ -99,7 +99,7 @@ CREATE POLICY "users_own_org" ON suscripciones FOR ALL USING (
 ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "users_own_org" ON audit_log FOR ALL USING (
   organizacion_id IN (SELECT public.user_org_ids())
-  OR usuario_id = auth.uid()::text
+  OR usuario_id = auth.uid()
 );
 
 -- ============ documentos_kb ============
