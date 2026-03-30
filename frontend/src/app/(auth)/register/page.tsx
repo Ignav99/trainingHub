@@ -15,6 +15,7 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [step, setStep] = useState(1) // 1: datos personales, 2: organización
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -216,6 +217,27 @@ export default function RegisterPage() {
                   </div>
                 )}
 
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={acceptedTerms}
+                      onChange={(e) => setAcceptedTerms(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                    />
+                    <span className="text-xs text-gray-600">
+                      He leido y acepto la{' '}
+                      <Link href="/legal/privacidad" target="_blank" className="text-primary hover:underline">
+                        Politica de Privacidad
+                      </Link>{' '}
+                      y los{' '}
+                      <Link href="/legal/terminos" target="_blank" className="text-primary hover:underline">
+                        Terminos y Condiciones
+                      </Link>.
+                    </span>
+                  </label>
+                </div>
+
                 <div className="flex gap-3">
                   <button
                     type="button"
@@ -226,7 +248,7 @@ export default function RegisterPage() {
                   </button>
                   <button
                     type="submit"
-                    disabled={loading || (formData.crear_organizacion && !formData.organizacion_nombre)}
+                    disabled={loading || !acceptedTerms || (formData.crear_organizacion && !formData.organizacion_nombre)}
                     className="flex-1 py-3 px-4 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 focus:ring-4 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
                   >
                     {loading && <Loader2 className="h-5 w-5 animate-spin" />}

@@ -6,6 +6,7 @@ Fixtures and shared configuration for pytest.
 import os
 import pytest
 from datetime import date, datetime
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 # Set required env vars before any app imports
@@ -13,6 +14,7 @@ os.environ.setdefault("SUPABASE_URL", "http://localhost:54321")
 os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon-key")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only-32chars!")
+os.environ.setdefault("DEBUG", "true")
 
 
 # ============ Fixtures: IDs ============
@@ -145,3 +147,69 @@ def sample_rpe_registros():
             "carga_sesion": (5 + i) * 90,
         })
     return records
+
+
+# ============ Integration Test Fixtures ============
+
+@pytest.fixture
+def mock_supabase():
+    """Mock Supabase client for integration tests."""
+    mock = MagicMock()
+
+    # Chain-able query builder
+    def make_chainable():
+        chain = MagicMock()
+        chain.select.return_value = chain
+        chain.insert.return_value = chain
+        chain.update.return_value = chain
+        chain.delete.return_value = chain
+        chain.eq.return_value = chain
+        chain.neq.return_value = chain
+        chain.in_.return_value = chain
+        chain.order.return_value = chain
+        chain.limit.return_value = chain
+        chain.single.return_value = chain
+        chain.maybe_single.return_value = chain
+        chain.execute.return_value = MagicMock(data=[], count=0)
+        return chain
+
+    mock.table.return_value = make_chainable()
+    return mock
+
+
+@pytest.fixture
+def test_client(mock_supabase):
+    """FastAPI TestClient with mocked Supabase."""
+    from fastapi.testclient import TestClient
+
+    with patch("app.database.get_supabase", return_value=mock_supabase):
+        with patch("app.database.init_supabase"):
+            from app.main import app
+            client = TestClient(app, raise_server_exceptions=False)
+            yield client
+
+
+@pytest.fixture
+def auth_headers():
+    """Fake auth headers for testing."""
+    return {"Authorization": "Bearer test-token-123"}
+
+
+@pytest.fixture
+def mock_auth_context():
+    """Create a mock AuthContext for dependency override."""
+    from app.security.dependencies import AuthContext
+    from app.security.permissions import Permission, _CT_FULL_PERMISSIONS
+
+    return AuthContext(
+        user=MagicMock(),
+        user_id=str(uuid4()),
+        organizacion_id=str(uuid4()),
+        equipo_id=str(uuid4()),
+        rol_en_equipo="entrenador_principal",
+        permissions=set(_CT_FULL_PERMISSIONS) | {
+            Permission.CLUB_MANAGE_BILLING,
+            Permission.CLUB_MANAGE_ORG,
+        },
+        subscription_status="active",
+    )

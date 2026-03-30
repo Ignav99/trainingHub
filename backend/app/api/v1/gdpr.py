@@ -215,9 +215,27 @@ async def list_solicitudes_admin(
     estado: str = None,
     auth: AuthContext = Depends(require_permission(Permission.CLUB_MANAGE_ORG, allow_club_roles=True)),
 ):
-    """Lista todas las solicitudes GDPR (admin)."""
+    """Lista solicitudes GDPR de la organizacion del admin."""
     supabase = get_supabase()
-    query = supabase.table("solicitudes_gdpr").select("*", count="exact").order("created_at", desc=True)
+
+    # Get user IDs belonging to this organization
+    org_users = (
+        supabase.table("usuarios")
+        .select("id")
+        .eq("organizacion_id", auth.organizacion_id)
+        .execute()
+    )
+    org_user_ids = [u["id"] for u in (org_users.data or [])]
+
+    if not org_user_ids:
+        return SolicitudGDPRListResponse(data=[], total=0)
+
+    query = (
+        supabase.table("solicitudes_gdpr")
+        .select("*", count="exact")
+        .in_("usuario_id", org_user_ids)
+        .order("created_at", desc=True)
+    )
     if estado:
         query = query.eq("estado", estado)
     result = query.execute()
@@ -233,8 +251,23 @@ async def update_solicitud(
     data: SolicitudGDPRUpdateAdmin,
     auth: AuthContext = Depends(require_permission(Permission.CLUB_MANAGE_ORG, allow_club_roles=True)),
 ):
-    """Procesar solicitud GDPR (admin)."""
+    """Procesar solicitud GDPR (admin) — scoped to own organization."""
     supabase = get_supabase()
+
+    # Verify the solicitud belongs to a user in the admin's organization
+    solicitud = (
+        supabase.table("solicitudes_gdpr")
+        .select("*, usuarios!inner(organizacion_id)")
+        .eq("id", str(solicitud_id))
+        .maybe_single()
+        .execute()
+    )
+    if not solicitud.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Solicitud no encontrada.")
+
+    user_org_id = solicitud.data.get("usuarios", {}).get("organizacion_id")
+    if user_org_id != auth.organizacion_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes acceso a esta solicitud.")
 
     update_data = {
         "estado": data.estado.value,

@@ -24,12 +24,17 @@ def _get_key() -> bytes:
         if key_b64:
             _ENCRYPTION_KEY = base64.b64decode(key_b64)
         else:
+            from app.config import get_settings
+            settings = get_settings()
+            if not settings.DEBUG:
+                raise RuntimeError(
+                    "MEDICAL_ENCRYPTION_KEY must be set in production. "
+                    "Generate one with: python -c 'from app.security.encryption import generate_encryption_key; print(generate_encryption_key())'"
+                )
             logger.warning(
                 "MEDICAL_ENCRYPTION_KEY not set. Using derived key from SECRET_KEY. "
                 "Set MEDICAL_ENCRYPTION_KEY for production."
             )
-            from app.config import get_settings
-            settings = get_settings()
             # Derive a 32-byte key from SECRET_KEY using SHA-256
             import hashlib
             _ENCRYPTION_KEY = hashlib.sha256(settings.SECRET_KEY.encode()).digest()

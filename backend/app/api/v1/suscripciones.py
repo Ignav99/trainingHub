@@ -15,12 +15,15 @@ from app.models import (
     PlanListResponse,
     SuscripcionResponse,
     SuscripcionUpgrade,
+    CheckoutSessionRequest,
+    CheckoutSessionResponse,
     HistorialSuscripcionResponse,
     HistorialListResponse,
     UsageResponse,
 )
 from app.security.permissions import Permission
 from app.security.license_checker import LicenseChecker
+from app.config import get_settings
 
 router = APIRouter()
 
@@ -116,6 +119,128 @@ async def get_usage(
         max_staff_per_team=plan.get("max_usuarios_por_equipo", 5),
         max_players_per_team=plan.get("max_jugadores_por_equipo", 25),
     )
+
+
+# ============ Stripe Checkout & Portal ============
+
+@router.post("/checkout", response_model=CheckoutSessionResponse)
+async def create_checkout_session(
+    data: CheckoutSessionRequest,
+    auth: AuthContext = Depends(require_permission(Permission.CLUB_MANAGE_BILLING)),
+):
+    """Create a Stripe Checkout session for plan purchase."""
+    settings = get_settings()
+    if not settings.STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Stripe no configurado.")
+
+    import stripe
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+
+    supabase = get_supabase()
+
+    # Get the plan
+    plan = (
+        supabase.table("planes")
+        .select("*")
+        .eq("codigo", data.plan_codigo)
+        .eq("activo", True)
+        .maybe_single()
+        .execute()
+    )
+    if not plan.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan no encontrado.")
+
+    # Determine price: use stripe_price_id if available, else create from price_cents
+    price_field = f"stripe_price_id_{data.ciclo.value}"
+    stripe_price_id = plan.data.get(price_field)
+
+    if not stripe_price_id:
+        # Fallback: create ad-hoc price
+        price_cents = (
+            plan.data["precio_anual_cents"] if data.ciclo == "anual"
+            else plan.data["precio_mensual_cents"]
+        )
+        if not price_cents or price_cents <= 0:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Plan sin precio configurado.")
+
+    # Get or create Stripe customer for the org
+    current_sub = (
+        supabase.table("suscripciones")
+        .select("stripe_customer_id")
+        .eq("organizacion_id", auth.organizacion_id)
+        .maybe_single()
+        .execute()
+    )
+    customer_id = current_sub.data.get("stripe_customer_id") if current_sub.data else None
+
+    checkout_params = {
+        "mode": "subscription",
+        "success_url": data.success_url,
+        "cancel_url": data.cancel_url,
+        "metadata": {
+            "organizacion_id": auth.organizacion_id,
+            "plan_codigo": data.plan_codigo,
+            "ciclo": data.ciclo.value,
+        },
+    }
+
+    if customer_id:
+        checkout_params["customer"] = customer_id
+    else:
+        # Get org owner email
+        user = supabase.table("usuarios").select("email").eq("id", auth.user_id).maybe_single().execute()
+        if user.data:
+            checkout_params["customer_email"] = user.data["email"]
+
+    if stripe_price_id:
+        checkout_params["line_items"] = [{"price": stripe_price_id, "quantity": 1}]
+    else:
+        checkout_params["line_items"] = [{
+            "price_data": {
+                "currency": "eur",
+                "product_data": {"name": plan.data["nombre"]},
+                "unit_amount": price_cents,
+                "recurring": {"interval": "year" if data.ciclo.value == "anual" else "month"},
+            },
+            "quantity": 1,
+        }]
+
+    session = stripe.checkout.Session.create(**checkout_params)
+    return CheckoutSessionResponse(checkout_url=session.url, session_id=session.id)
+
+
+@router.post("/portal")
+async def create_portal_session(
+    auth: AuthContext = Depends(require_permission(Permission.CLUB_MANAGE_BILLING)),
+):
+    """Create a Stripe Customer Portal session for managing billing."""
+    settings = get_settings()
+    if not settings.STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Stripe no configurado.")
+
+    import stripe
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+
+    supabase = get_supabase()
+    sub = (
+        supabase.table("suscripciones")
+        .select("stripe_customer_id")
+        .eq("organizacion_id", auth.organizacion_id)
+        .maybe_single()
+        .execute()
+    )
+
+    if not sub.data or not sub.data.get("stripe_customer_id"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No hay cliente de Stripe asociado. Realiza primero una suscripcion.",
+        )
+
+    session = stripe.billing_portal.Session.create(
+        customer=sub.data["stripe_customer_id"],
+        return_url=f"{settings.FRONTEND_URL}/configuracion",
+    )
+    return {"portal_url": session.url}
 
 
 # ============ Upgrade/Downgrade ============

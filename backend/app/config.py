@@ -77,6 +77,12 @@ class Settings(BaseSettings):
     STRIPE_SECRET_KEY: str | None = None
     STRIPE_WEBHOOK_SECRET: str | None = None
 
+    # Error Monitoring
+    SENTRY_DSN: str | None = None
+
+    # Redis (rate limiting, optional)
+    REDIS_URL: str | None = None
+
     class Config:
         env_file = ".env"
         case_sensitive = True

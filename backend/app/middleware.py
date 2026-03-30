@@ -27,6 +27,7 @@ class SecurityHeadersMiddleware:
         (b"x-xss-protection", b"1; mode=block"),
         (b"referrer-policy", b"strict-origin-when-cross-origin"),
         (b"permissions-policy", b"camera=(), microphone=(), geolocation=()"),
+        (b"strict-transport-security", b"max-age=31536000; includeSubDomains"),
     ]
 
     def __init__(self, app: ASGIApp):
@@ -180,13 +181,36 @@ class CacheControlMiddleware:
 # ============ Rate Limiting Middleware ============
 
 class RateLimitMiddleware:
-    """Simple in-memory rate limiter per IP (pure ASGI)."""
+    """Per-IP rate limiter with optional Redis backend (pure ASGI).
+
+    If REDIS_URL is configured, uses Redis INCR+EXPIRE for persistence across restarts.
+    Otherwise falls back to in-memory (same behavior as before).
+    """
 
     def __init__(self, app: ASGIApp, max_requests: int = 100, window_seconds: int = 60):
         self.app = app
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self.requests: dict[str, list[float]] = defaultdict(list)
+        self._redis = None
+        self._redis_init_attempted = False
+
+    def _get_redis(self):
+        if self._redis_init_attempted:
+            return self._redis
+        self._redis_init_attempted = True
+        try:
+            from app.config import get_settings
+            settings = get_settings()
+            if settings.REDIS_URL:
+                import redis
+                self._redis = redis.from_url(settings.REDIS_URL, decode_responses=True)
+                self._redis.ping()
+                logger.info("RateLimitMiddleware: using Redis backend")
+        except Exception as e:
+            logger.warning(f"RateLimitMiddleware: Redis unavailable, using in-memory: {e}")
+            self._redis = None
+        return self._redis
 
     def _get_client_ip(self, scope: Scope) -> str:
         headers = dict(scope.get("headers", []))
@@ -196,9 +220,29 @@ class RateLimitMiddleware:
         client = scope.get("client")
         return client[0] if client else "unknown"
 
-    def _clean_old_requests(self, ip: str, now: float):
+    def _check_rate_limit_redis(self, ip: str) -> tuple[bool, int]:
+        """Returns (allowed, remaining)."""
+        r = self._redis
+        key = f"ratelimit:{ip}"
+        try:
+            current = r.incr(key)
+            if current == 1:
+                r.expire(key, self.window_seconds)
+            remaining = max(0, self.max_requests - current)
+            return current <= self.max_requests, remaining
+        except Exception:
+            return True, self.max_requests  # Fail open
+
+    def _check_rate_limit_memory(self, ip: str) -> tuple[bool, int]:
+        """Returns (allowed, remaining)."""
+        now = time.time()
         cutoff = now - self.window_seconds
         self.requests[ip] = [t for t in self.requests[ip] if t > cutoff]
+        if len(self.requests[ip]) >= self.max_requests:
+            return False, 0
+        self.requests[ip].append(now)
+        remaining = self.max_requests - len(self.requests[ip])
+        return True, remaining
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
         if scope["type"] != "http" or scope["path"] in ("/", "/health"):
@@ -206,10 +250,14 @@ class RateLimitMiddleware:
             return
 
         ip = self._get_client_ip(scope)
-        now = time.time()
-        self._clean_old_requests(ip, now)
+        r = self._get_redis()
 
-        if len(self.requests[ip]) >= self.max_requests:
+        if r:
+            allowed, remaining = self._check_rate_limit_redis(ip)
+        else:
+            allowed, remaining = self._check_rate_limit_memory(ip)
+
+        if not allowed:
             response = JSONResponse(
                 status_code=429,
                 content={
@@ -220,9 +268,6 @@ class RateLimitMiddleware:
             )
             await response(scope, receive, send)
             return
-
-        self.requests[ip].append(now)
-        remaining = self.max_requests - len(self.requests[ip])
 
         async def send_with_rate_headers(message):
             if message["type"] == "http.response.start":

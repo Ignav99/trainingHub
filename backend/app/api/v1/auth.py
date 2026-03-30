@@ -61,6 +61,12 @@ async def login(credentials: LoginRequest, request: Request):
             user=UsuarioResponse(**ud),
         )
     except Exception as e:
+        log_login(
+            usuario_id=credentials.email,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            success=False,
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales invalidas",

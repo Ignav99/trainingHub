@@ -11,14 +11,6 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 
 from app.config import get_settings
-from app.api.v1.router import api_router
-from app.database import init_supabase, get_supabase
-from app.middleware import (
-    SecurityHeadersMiddleware,
-    RequestLoggingMiddleware,
-    RateLimitMiddleware,
-    CacheControlMiddleware,
-)
 
 # Configure logging
 logging.basicConfig(
@@ -29,6 +21,26 @@ logging.basicConfig(
 
 
 settings = get_settings()
+
+# ============ Sentry Initialization ============
+if settings.SENTRY_DSN:
+    import sentry_sdk
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        traces_sample_rate=0.1,
+        profiles_sample_rate=0.1,
+        environment="production" if not settings.DEBUG else "development",
+        release=f"traininghub-backend@{settings.APP_VERSION}",
+    )
+
+from app.api.v1.router import api_router
+from app.database import init_supabase, get_supabase
+from app.middleware import (
+    SecurityHeadersMiddleware,
+    RequestLoggingMiddleware,
+    RateLimitMiddleware,
+    CacheControlMiddleware,
+)
 
 
 @asynccontextmanager
@@ -120,6 +132,9 @@ app.add_middleware(
 async def global_exception_handler(request: Request, exc: Exception):
     logger = logging.getLogger("traininghub.errors")
     logger.error(f"Unhandled error on {request.method} {request.url.path}: {exc}", exc_info=True)
+    if settings.SENTRY_DSN:
+        import sentry_sdk
+        sentry_sdk.capture_exception(exc)
     return JSONResponse(
         status_code=500,
         content={"detail": "Error interno del servidor. Revisa los logs."},
@@ -146,28 +161,49 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check detallado con verificacion real de BD."""
+    """Health check detallado con verificacion de BD, Redis y Stripe."""
     from fastapi.responses import JSONResponse
     from app.database import get_supabase
 
+    checks = {}
+    healthy = True
+
+    # Database check
     try:
         supabase = get_supabase()
-        result = supabase.table("organizaciones").select("id", count="exact").limit(0).execute()
-        return {
-            "status": "healthy",
-            "database": "connected",
-            "version": settings.APP_VERSION,
-        }
+        supabase.table("organizaciones").select("id", count="exact").limit(0).execute()
+        checks["database"] = "connected"
     except Exception as e:
-        return JSONResponse(
-            status_code=503,
-            content={
-                "status": "unhealthy",
-                "database": "disconnected",
-                "detail": str(e),
-                "version": settings.APP_VERSION,
-            }
-        )
+        checks["database"] = f"disconnected: {e}"
+        healthy = False
+
+    # Redis check (optional)
+    if settings.REDIS_URL:
+        try:
+            import redis
+            r = redis.from_url(settings.REDIS_URL, socket_connect_timeout=2)
+            r.ping()
+            checks["redis"] = "connected"
+        except Exception as e:
+            checks["redis"] = f"disconnected: {e}"
+    else:
+        checks["redis"] = "not_configured"
+
+    # Stripe check (config only)
+    checks["stripe"] = "configured" if settings.STRIPE_SECRET_KEY else "not_configured"
+
+    # Sentry check (config only)
+    checks["sentry"] = "configured" if settings.SENTRY_DSN else "not_configured"
+
+    result = {
+        "status": "healthy" if healthy else "unhealthy",
+        "checks": checks,
+        "version": settings.APP_VERSION,
+    }
+
+    if not healthy:
+        return JSONResponse(status_code=503, content=result)
+    return result
 
 
 if __name__ == "__main__":
