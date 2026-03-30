@@ -122,10 +122,11 @@
    ============================================ */
 
 @layer components {
-  .text-page-title { @apply text-2xl font-bold tracking-tight; }
-  .text-section-title { @apply text-lg font-semibold; }
+  .text-page-title { @apply text-xl sm:text-2xl font-bold tracking-tight; }
+  .text-section-title { @apply text-base sm:text-lg font-semibold; }
   .text-card-title { @apply text-sm font-medium; }
   .text-body { @apply text-sm text-muted-foreground; }
+  .touch-target { @apply min-h-[44px] min-w-[44px]; }
 }
 
 /* ============================================
@@ -202,4 +203,8 @@
   .safe-top {
     padding-top: env(safe-area-inset-top);
   }
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
 }

@@ -29,6 +29,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 import type { Sesion, Microciclo, Partido } from '@/types'
 
 // ============ Match Day color palette ============
@@ -146,8 +147,17 @@ export function CalendarSection({
   onDeleteDescanso,
   onNavigate,
 }: CalendarSectionProps) {
+  const isMobile = useIsMobile()
   const now = new Date()
   const [selectedMicro, setSelectedMicro] = useState<Microciclo | null>(null)
+  const [mobileWeekOffset, setMobileWeekOffset] = useState(0)
+  const [expandedMobileDay, setExpandedMobileDay] = useState<string | null>(null)
+
+  // Reset week offset when month changes
+  useEffect(() => {
+    setMobileWeekOffset(0)
+    setExpandedMobileDay(null)
+  }, [calYear, calMonth])
 
   // Close add menu on outside click
   useEffect(() => {
@@ -209,17 +219,45 @@ export function CalendarSection({
     return { label: 'Microciclo de triple competicion', key: 'triple' }
   }
 
+  // Mobile: compute week slices
+  const mobileWeeks = useMemo(() => {
+    if (!isMobile) return []
+    const { cells, firstDow } = calendarCells
+    // Build full weeks (pad start with nulls)
+    const padded: (typeof cells[0] | null)[] = Array.from({ length: firstDow }, () => null)
+    padded.push(...cells)
+    // Pad end to fill last week
+    while (padded.length % 7 !== 0) padded.push(null)
+    const weeks: (typeof cells[0] | null)[][] = []
+    for (let i = 0; i < padded.length; i += 7) {
+      weeks.push(padded.slice(i, i + 7))
+    }
+    return weeks
+  }, [isMobile, calendarCells])
+
+  // Auto-navigate to current week on mobile
+  useEffect(() => {
+    if (!isMobile || mobileWeeks.length === 0) return
+    const todayStr = dateToStr(now.getFullYear(), now.getMonth(), now.getDate())
+    const idx = mobileWeeks.findIndex((w) => w.some((c) => c?.date === todayStr))
+    if (idx >= 0 && mobileWeekOffset === 0 && calMonth === now.getMonth() && calYear === now.getFullYear()) {
+      setMobileWeekOffset(idx)
+    }
+  }, [isMobile, mobileWeeks.length, calMonth, calYear])
+
+  const currentMobileWeek = mobileWeeks[mobileWeekOffset] || mobileWeeks[0] || []
+
   return (
     <>
       <Card className="overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between pb-3 border-b">
-          <div className="flex items-center gap-3">
-            <CardTitle className="text-lg flex items-center gap-2">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <CardTitle className="text-base sm:text-lg flex items-center gap-2">
               <Calendar className="h-5 w-5" />
-              Calendario
+              <span className="hidden sm:inline">Calendario</span>
             </CardTitle>
             {microcicloActivo && (
-              <Badge variant="outline" className="text-[10px] border-blue-200 text-blue-700 bg-blue-50">
+              <Badge variant="outline" className="text-[10px] border-blue-200 text-blue-700 bg-blue-50 hidden sm:inline-flex">
                 Microciclo activo
               </Badge>
             )}
@@ -228,20 +266,36 @@ export function CalendarSection({
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 text-xs"
+              className="h-8 sm:h-8 text-xs"
               onClick={onGoToToday}
             >
               Hoy
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onPrevMonth}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-sm font-semibold min-w-[140px] text-center">
-              {MONTH_NAMES[calMonth]} {calYear}
-            </span>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onNextMonth}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+            {isMobile ? (
+              <>
+                <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => setMobileWeekOffset(Math.max(0, mobileWeekOffset - 1))}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-xs font-semibold min-w-[100px] text-center">
+                  {MONTH_NAMES[calMonth].slice(0, 3)} {calYear}
+                </span>
+                <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => setMobileWeekOffset(Math.min(mobileWeeks.length - 1, mobileWeekOffset + 1))}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onPrevMonth}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm font-semibold min-w-[140px] text-center">
+                  {MONTH_NAMES[calMonth]} {calYear}
+                </span>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onNextMonth}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </>
+            )}
           </div>
         </CardHeader>
         <CardContent className="p-0 animate-fade-in">
@@ -254,339 +308,536 @@ export function CalendarSection({
                   i >= 5 ? 'text-muted-foreground/60' : 'text-muted-foreground'
                 }`}
               >
-                {d}
+                {isMobile ? d.charAt(0) : d}
               </div>
             ))}
           </div>
 
-          {/* Day cells -- big interactive grid */}
-          <div className="grid grid-cols-7">
-            {/* Empty cells for offset */}
-            {Array.from({ length: calendarCells.firstDow }).map((_, i) => (
-              <div key={`empty-${i}`} className="min-h-[100px] border-b border-r last:border-r-0 bg-muted/10" />
-            ))}
+          {/* ===== MOBILE: Weekly strip view ===== */}
+          {isMobile ? (
+            <div>
+              <div className="grid grid-cols-7">
+                {currentMobileWeek.map((cell, i) => {
+                  if (!cell) return <div key={`empty-m-${i}`} className="min-h-[60px] border-b border-r last:border-r-0 bg-muted/10" />
+                  const { day, date, isToday } = cell
+                  const daySesiones = sesionesMes.filter((s) => isSameDay(s.fecha, date))
+                  const dayPartidos = partidosMes.filter((p) => isSameDay(p.fecha, date))
+                  const isDescanso = descansos.has(date)
+                  const hasContent = daySesiones.length > 0 || dayPartidos.length > 0 || isDescanso
+                  const isPast = date < dateToStr(now.getFullYear(), now.getMonth(), now.getDate())
+                  const isExpanded = expandedMobileDay === date
 
-            {calendarCells.cells.map(({ day, date, isToday }) => {
-              const daySesiones = sesionesMes.filter((s) => isSameDay(s.fecha, date))
-              const dayPartidos = partidosMes.filter((p) => isSameDay(p.fecha, date))
-              const inMicrociclo = microciclosMes.some(
-                (m) => date >= m.fecha_inicio.slice(0, 10) && date <= m.fecha_fin.slice(0, 10)
-              )
-              const isDescanso = descansos.has(date)
-              const hasContent = daySesiones.length > 0 || dayPartidos.length > 0 || isDescanso
-              const isEmpty = !hasContent
-              const isPast = date < dateToStr(now.getFullYear(), now.getMonth(), now.getDate())
-              const showAddMenu = addMenuDay === date
-              const mondayMicro = mondayMicrociclos[date]
+                  // Color dots
+                  const dots: string[] = []
+                  if (dayPartidos.length > 0) dots.push('bg-amber-500')
+                  daySesiones.forEach((s) => {
+                    if (s.estado === 'completada') dots.push('bg-green-500')
+                    else if (s.estado === 'planificada') dots.push('bg-blue-500')
+                    else dots.push('bg-gray-400')
+                  })
+                  if (isDescanso) dots.push('bg-slate-400')
 
-              // Determine if this day is in the last 2 rows → open menu upward
-              const cellIndex = calendarCells.firstDow + day - 1
-              const totalCells = calendarCells.firstDow + calendarCells.daysInMonth
-              const totalRows = Math.ceil(totalCells / 7)
-              const rowIndex = Math.floor(cellIndex / 7)
-              const menuOpensUp = rowIndex >= totalRows - 2
+                  const dominantMD = dayPartidos.length > 0 ? 'MD' : (daySesiones[0]?.match_day || null)
+                  const mdColors = dominantMD ? MATCH_DAY_COLORS[dominantMD] : null
 
-              // Determine dominant Match Day for cell coloring
-              const hasMatch = dayPartidos.length > 0
-              const dominantMD = hasMatch ? 'MD' : (daySesiones[0]?.match_day || null)
-              const mdColors = dominantMD ? MATCH_DAY_COLORS[dominantMD] : null
-
-              return (
-                <div
-                  key={day}
-                  onClick={() => {
-                    if (hasContent) {
-                      onSelectDay(date)
-                      setAddMenuDay(null)
-                    }
-                  }}
-                  className={`min-h-[100px] border-b border-r last:border-r-0 p-1.5 transition-colors relative group ${
-                    mdColors ? `border-t-4 ${mdColors.border}` : ''
-                  } ${
-                    isToday
-                      ? 'bg-primary/5 ring-2 ring-inset ring-primary/20'
-                      : isDescanso
-                        ? 'bg-slate-50'
-                        : mdColors
-                          ? mdColors.bg + '/40'
-                          : inMicrociclo
-                            ? 'bg-blue-50/40'
-                            : ''
-                  } ${hasContent && !isDescanso ? 'cursor-pointer hover:bg-muted/40' : ''}`}
-                >
-                  {/* Day number header */}
-                  <div className="flex items-center justify-between mb-1">
-                    <span
-                      className={`text-xs font-medium leading-none ${
-                        isToday
-                          ? 'bg-primary text-white w-6 h-6 rounded-full flex items-center justify-center'
-                          : isPast
-                            ? 'text-muted-foreground/50'
-                            : 'text-foreground'
-                      }`}
-                    >
-                      {day}
-                    </span>
-
-                    {/* "+" button on any editable day -- opens action menu */}
-                    {!isPast && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setAddMenuDay(showAddMenu ? null : date)
-                        }}
-                        className={`p-0.5 rounded transition-all ${
-                          showAddMenu
-                            ? 'opacity-100 bg-muted'
-                            : 'opacity-0 group-hover:opacity-100 hover:bg-muted'
-                        }`}
-                        title="Anadir al dia"
-                      >
-                        <Plus className="h-3.5 w-3.5 text-muted-foreground" />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Monday microciclo indicator */}
-                  {mondayMicro && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setSelectedMicro(mondayMicro.microciclo)
-                      }}
-                      className={`absolute left-0 top-7 z-10 px-1.5 py-0.5 rounded-r-md text-[9px] font-bold text-white cursor-pointer hover:opacity-90 transition-opacity ${
-                        MICRO_ESTADO_COLORS[mondayMicro.microciclo.estado]?.tab || 'bg-gray-500'
-                      }`}
-                      title="Ver microciclo"
-                    >
-                      MC {mondayMicro.index}
-                    </button>
-                  )}
-
-                  {/* Action menu dropdown */}
-                  {showAddMenu && (
+                  return (
                     <div
-                      className={`absolute right-1 z-50 bg-popover border rounded-lg shadow-lg py-1 min-w-[160px] animate-in fade-in duration-150 ${
-                        menuOpensUp
-                          ? 'bottom-8 slide-in-from-bottom-1'
-                          : 'top-8 slide-in-from-top-1'
-                      }`}
-                      onClick={(e) => e.stopPropagation()}
+                      key={day}
+                      onClick={() => {
+                        if (hasContent) {
+                          setExpandedMobileDay(isExpanded ? null : date)
+                        } else if (!isPast) {
+                          setAddMenuDay(addMenuDay === date ? null : date)
+                        }
+                      }}
+                      className={`min-h-[60px] border-b border-r last:border-r-0 p-1.5 transition-colors relative flex flex-col items-center ${
+                        mdColors ? `border-t-[3px] ${mdColors.border}` : ''
+                      } ${
+                        isToday
+                          ? 'bg-primary/5 ring-2 ring-inset ring-primary/20'
+                          : isDescanso
+                            ? 'bg-slate-50'
+                            : mdColors
+                              ? mdColors.bg + '/40'
+                              : ''
+                      } ${isExpanded ? 'bg-muted/40' : ''} ${hasContent ? 'cursor-pointer' : ''}`}
                     >
-                      <button
-                        className="flex items-center gap-2 w-full px-3 py-2 text-xs row-hover text-left"
-                        onClick={() => {
-                          setAddMenuDay(null)
-                          onNavigate('/sesiones/nueva')
-                        }}
+                      <span
+                        className={`text-sm font-semibold leading-none mb-1 ${
+                          isToday
+                            ? 'bg-primary text-white w-7 h-7 rounded-full flex items-center justify-center'
+                            : isPast
+                              ? 'text-muted-foreground/50'
+                              : 'text-foreground'
+                        }`}
                       >
-                        <ClipboardList className="h-3.5 w-3.5 text-blue-600" />
-                        <span>Entreno (manual)</span>
-                      </button>
-                      <button
-                        className="flex items-center gap-2 w-full px-3 py-2 text-xs row-hover text-left"
-                        onClick={() => {
-                          setAddMenuDay(null)
-                          onNavigate('/sesiones/nueva-ai')
-                        }}
-                      >
-                        <Bot className="h-3.5 w-3.5 text-purple-600" />
-                        <span>Entreno con IA</span>
-                      </button>
-                      <div className="border-t my-1" />
-                      <button
-                        className="flex items-center gap-2 w-full px-3 py-2 text-xs row-hover text-left"
-                        onClick={() => {
-                          setAddMenuDay(null)
-                          onNavigate('/partidos/nuevo')
-                        }}
-                      >
-                        <Swords className="h-3.5 w-3.5 text-amber-600" />
-                        <span>Partido</span>
-                      </button>
-                      <div className="border-t my-1" />
-                      <button
-                        className="flex items-center gap-2 w-full px-3 py-2 text-xs row-hover text-left"
-                        onClick={() => {
-                          setAddMenuDay(null)
-                          if (equipoId) {
-                            onToggleDescanso(date)
-                          }
-                        }}
-                      >
-                        <Moon className="h-3.5 w-3.5 text-slate-500" />
-                        <span>{isDescanso ? 'Quitar descanso' : 'Descanso'}</span>
-                      </button>
-                      <button
-                        className="flex items-center gap-2 w-full px-3 py-2 text-xs row-hover text-left"
-                        onClick={() => {
-                          setAddMenuDay(null)
-                        }}
-                      >
-                        <MoreHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span>Otro</span>
+                        {day}
+                      </span>
+                      {/* Color dots */}
+                      <div className="flex gap-0.5 mt-auto">
+                        {dots.slice(0, 3).map((color, di) => (
+                          <span key={di} className={`w-2 h-2 rounded-full ${color}`} />
+                        ))}
+                      </div>
+                      {/* Add button */}
+                      {!isPast && !hasContent && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setAddMenuDay(addMenuDay === date ? null : date)
+                          }}
+                          className="p-1.5 rounded transition-all opacity-40 hover:opacity-100 mt-0.5"
+                        >
+                          <Plus className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                      )}
+                      {/* Add menu on mobile */}
+                      {addMenuDay === date && (
+                        <div
+                          className="absolute top-full left-0 right-0 z-50 bg-popover border rounded-lg shadow-lg py-1 min-w-[160px] animate-in fade-in duration-150"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button className="flex items-center gap-2 w-full px-3 py-2.5 text-xs row-hover text-left" onClick={() => { setAddMenuDay(null); onNavigate('/sesiones/nueva') }}>
+                            <ClipboardList className="h-4 w-4 text-blue-600" />
+                            <span>Entreno (manual)</span>
+                          </button>
+                          <button className="flex items-center gap-2 w-full px-3 py-2.5 text-xs row-hover text-left" onClick={() => { setAddMenuDay(null); onNavigate('/sesiones/nueva-ai') }}>
+                            <Bot className="h-4 w-4 text-purple-600" />
+                            <span>Entreno con IA</span>
+                          </button>
+                          <div className="border-t my-1" />
+                          <button className="flex items-center gap-2 w-full px-3 py-2.5 text-xs row-hover text-left" onClick={() => { setAddMenuDay(null); onNavigate('/partidos/nuevo') }}>
+                            <Swords className="h-4 w-4 text-amber-600" />
+                            <span>Partido</span>
+                          </button>
+                          <div className="border-t my-1" />
+                          <button className="flex items-center gap-2 w-full px-3 py-2.5 text-xs row-hover text-left" onClick={() => { setAddMenuDay(null); if (equipoId) onToggleDescanso(date) }}>
+                            <Moon className="h-4 w-4 text-slate-500" />
+                            <span>{isDescanso ? 'Quitar descanso' : 'Descanso'}</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Expanded day detail below strip */}
+              {expandedMobileDay && (() => {
+                const daySesiones = sesionesMes.filter((s) => isSameDay(s.fecha, expandedMobileDay))
+                const dayPartidos = partidosMes.filter((p) => isSameDay(p.fecha, expandedMobileDay))
+                const isDescanso = descansos.has(expandedMobileDay)
+                const dayNum = parseInt(expandedMobileDay.split('-')[2], 10)
+                const dayOfWeek = DAY_NAMES[new Date(expandedMobileDay + 'T12:00:00').getDay() === 0 ? 6 : new Date(expandedMobileDay + 'T12:00:00').getDay() - 1]
+
+                return (
+                  <div className="border-t p-3 bg-muted/20 space-y-2 animate-fade-in">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold">{dayOfWeek} {dayNum}</span>
+                      <button onClick={() => setExpandedMobileDay(null)} className="p-1 rounded hover:bg-muted">
+                        <X className="h-4 w-4 text-muted-foreground" />
                       </button>
                     </div>
-                  )}
-
-                  {/* Day content */}
-                  <div className="space-y-1">
-                    {/* Descanso marker -- coach-set */}
                     {isDescanso && (
-                      <div className="flex items-center gap-1.5 px-1.5 py-1.5 rounded-md bg-slate-100 border border-slate-200">
-                        <Moon className="h-3 w-3 text-slate-500" />
-                        <span className="text-[10px] font-medium text-slate-600">Descanso</span>
-                        {!isPast && (
-                          <button
-                            className="ml-auto p-0.5 rounded hover:bg-slate-200 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              const did = descansoIdByDate[date]
-                              if (did) {
-                                onDeleteDescanso(did)
-                              }
-                            }}
-                            title="Quitar descanso"
-                          >
-                            <X className="h-2.5 w-2.5 text-slate-400" />
-                          </button>
-                        )}
+                      <div className="flex items-center gap-2 p-2 rounded-md bg-slate-100 border border-slate-200">
+                        <Moon className="h-4 w-4 text-slate-500" />
+                        <span className="text-sm text-slate-600">Descanso</span>
                       </div>
                     )}
-
-                    {/* Match cards -- prominent */}
                     {dayPartidos.map((p) => (
                       <Link
                         key={p.id}
                         href={`/partidos?match=${p.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="block rounded-md px-1.5 py-1 bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors cursor-pointer"
+                        className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200"
                       >
-                        <div className="flex items-center gap-1">
-                          {p.rival?.escudo_url ? (
-                            <Image src={p.rival.escudo_url} alt="" width={14} height={14} className="object-contain shrink-0" unoptimized />
-                          ) : (
-                            <Swords className="h-3 w-3 text-amber-600 shrink-0" />
-                          )}
-                          <span className="text-[10px] font-bold text-amber-800 truncate">
-                            {p.localia === 'local' ? 'vs' : '@'}{' '}
-                            {p.rival?.nombre_corto || p.rival?.nombre || 'Rival'}
-                          </span>
-                          {p.jornada && (
-                            <span className="text-[8px] font-medium bg-amber-100 text-amber-700 px-1 rounded">J{p.jornada}</span>
-                          )}
-                        </div>
-                        {p.hora && (
-                          <span className="text-[9px] text-amber-600 ml-4">{p.hora}</span>
+                        {p.rival?.escudo_url ? (
+                          <Image src={p.rival.escudo_url} alt="" width={20} height={20} className="object-contain shrink-0" unoptimized />
+                        ) : (
+                          <Swords className="h-4 w-4 text-amber-600 shrink-0" />
                         )}
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-bold text-amber-800 truncate block">
+                            {p.localia === 'local' ? 'vs' : '@'} {p.rival?.nombre_corto || p.rival?.nombre || 'Rival'}
+                          </span>
+                          {p.hora && <span className="text-xs text-amber-600">{p.hora}</span>}
+                        </div>
                         {p.goles_favor !== undefined && p.goles_favor !== null && (
-                          <div className="ml-4 flex items-center gap-1">
-                            <span className={`text-[10px] font-bold ${
-                              p.goles_favor > (p.goles_contra || 0)
-                                ? 'text-green-700'
-                                : p.goles_favor < (p.goles_contra || 0)
-                                  ? 'text-red-700'
-                                  : 'text-muted-foreground'
-                            }`}>
-                              {p.goles_favor}-{p.goles_contra}
-                            </span>
-                            {p.informe_url && (
-                              <FileText className="h-2.5 w-2.5 text-blue-500" />
-                            )}
-                          </div>
+                          <span className="text-sm font-bold">{p.goles_favor}-{p.goles_contra}</span>
                         )}
                       </Link>
                     ))}
-
-                    {/* Session cards -- with MD tag */}
                     {daySesiones.map((s) => {
-                      const estadoColors: Record<string, string> = {
-                        completada: 'bg-green-50 border-green-200 hover:bg-green-100',
-                        planificada: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
-                        borrador: 'bg-gray-50 border-gray-200 hover:bg-gray-100',
-                        en_curso: 'bg-purple-50 border-purple-200 hover:bg-purple-100',
-                      }
-                      const dotColors: Record<string, string> = {
-                        completada: 'bg-green-500',
-                        planificada: 'bg-blue-500',
-                        borrador: 'bg-gray-400',
-                        en_curso: 'bg-purple-500',
-                      }
+                      const dotColors: Record<string, string> = { completada: 'bg-green-500', planificada: 'bg-blue-500', borrador: 'bg-gray-400', en_curso: 'bg-purple-500' }
                       return (
                         <Link
                           key={s.id}
                           href={`/sesiones/${s.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className={`block rounded-md px-1.5 py-1 border transition-colors cursor-pointer ${
-                            estadoColors[s.estado] || 'bg-muted border-border'
-                          }`}
+                          className="flex items-center gap-2 p-2.5 rounded-lg bg-card border"
                         >
-                          <div className="flex items-center gap-1">
-                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColors[s.estado] || 'bg-gray-400'}`} />
-                            {s.match_day && (
-                              <span className="text-[9px] font-bold text-muted-foreground bg-muted/80 px-1 rounded">
-                                {s.match_day}
-                              </span>
-                            )}
-                            <span className="text-[10px] font-medium truncate">
-                              {s.titulo}
-                            </span>
-                          </div>
-                          {s.duracion_total && (
-                            <div className="flex items-center gap-1 ml-3 mt-0.5">
-                              <Clock className="h-2.5 w-2.5 text-muted-foreground" />
-                              <span className="text-[9px] text-muted-foreground">{s.duracion_total}min</span>
+                          <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${dotColors[s.estado] || 'bg-gray-400'}`} />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-medium truncate block">{s.titulo}</span>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              {s.match_day && <span className="font-bold">{s.match_day}</span>}
+                              {s.duracion_total && <span>{s.duracion_total}min</span>}
                             </div>
-                          )}
+                          </div>
+                          <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
                         </Link>
                       )
                     })}
-
-                    {/* Empty day (no content, not past) -- subtle placeholder */}
-                    {isEmpty && !isPast && (
-                      <div className="flex items-center justify-center py-3 opacity-0 group-hover:opacity-40 transition-opacity">
-                        <span className="text-[9px] text-muted-foreground">Pulsa + para anadir</span>
-                      </div>
-                    )}
-
-                    {/* Past empty day */}
-                    {isEmpty && isPast && (
-                      <div className="flex items-center justify-center py-3 opacity-20">
-                        <span className="text-[9px]">—</span>
-                      </div>
+                    {!isDescanso && dayPartidos.length === 0 && daySesiones.length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-2">Sin actividades</p>
                     )}
                   </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })()}
 
-          {/* Legend bar */}
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-4 py-2.5 border-t bg-muted/20 text-[11px] text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-green-500" /> Completada
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-blue-500" /> Planificada
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-gray-400" /> Borrador
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Swords className="h-3 w-3 text-amber-600" /> Partido
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Moon className="h-3 w-3 text-slate-400" /> Descanso
-            </span>
-            <span className="text-muted-foreground/30">|</span>
-            {Object.entries(MATCH_DAY_COLORS).slice(0, 4).map(([md, colors]) => (
-              <span key={md} className="flex items-center gap-1">
-                <span className={`w-2.5 h-1.5 rounded-sm ${colors.bg} border ${colors.border}`} />
-                <span>{md}</span>
-              </span>
-            ))}
-            <span className="text-muted-foreground/30">...</span>
-          </div>
+              {/* Week dots indicator */}
+              {mobileWeeks.length > 1 && (
+                <div className="flex justify-center gap-1.5 py-2 border-t">
+                  {mobileWeeks.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setMobileWeekOffset(i)}
+                      className={`w-2 h-2 rounded-full transition-colors ${i === mobileWeekOffset ? 'bg-primary' : 'bg-muted-foreground/20'}`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* ===== DESKTOP/TABLET: Full month grid ===== */
+            <>
+              <div className="grid grid-cols-7">
+                {/* Empty cells for offset */}
+                {Array.from({ length: calendarCells.firstDow }).map((_, i) => (
+                  <div key={`empty-${i}`} className="min-h-[70px] md:min-h-[100px] border-b border-r last:border-r-0 bg-muted/10" />
+                ))}
+
+                {calendarCells.cells.map(({ day, date, isToday }) => {
+                  const daySesiones = sesionesMes.filter((s) => isSameDay(s.fecha, date))
+                  const dayPartidos = partidosMes.filter((p) => isSameDay(p.fecha, date))
+                  const inMicrociclo = microciclosMes.some(
+                    (m) => date >= m.fecha_inicio.slice(0, 10) && date <= m.fecha_fin.slice(0, 10)
+                  )
+                  const isDescanso = descansos.has(date)
+                  const hasContent = daySesiones.length > 0 || dayPartidos.length > 0 || isDescanso
+                  const isEmpty = !hasContent
+                  const isPast = date < dateToStr(now.getFullYear(), now.getMonth(), now.getDate())
+                  const showAddMenu = addMenuDay === date
+                  const mondayMicro = mondayMicrociclos[date]
+
+                  // Determine if this day is in the last 2 rows → open menu upward
+                  const cellIndex = calendarCells.firstDow + day - 1
+                  const totalCells = calendarCells.firstDow + calendarCells.daysInMonth
+                  const totalRows = Math.ceil(totalCells / 7)
+                  const rowIndex = Math.floor(cellIndex / 7)
+                  const menuOpensUp = rowIndex >= totalRows - 2
+
+                  // Determine dominant Match Day for cell coloring
+                  const hasMatch = dayPartidos.length > 0
+                  const dominantMD = hasMatch ? 'MD' : (daySesiones[0]?.match_day || null)
+                  const mdColors = dominantMD ? MATCH_DAY_COLORS[dominantMD] : null
+
+                  return (
+                    <div
+                      key={day}
+                      onClick={() => {
+                        if (hasContent) {
+                          onSelectDay(date)
+                          setAddMenuDay(null)
+                        }
+                      }}
+                      className={`min-h-[70px] md:min-h-[100px] border-b border-r last:border-r-0 p-1.5 transition-colors relative group ${
+                        mdColors ? `border-t-4 ${mdColors.border}` : ''
+                      } ${
+                        isToday
+                          ? 'bg-primary/5 ring-2 ring-inset ring-primary/20'
+                          : isDescanso
+                            ? 'bg-slate-50'
+                            : mdColors
+                              ? mdColors.bg + '/40'
+                              : inMicrociclo
+                                ? 'bg-blue-50/40'
+                                : ''
+                      } ${hasContent && !isDescanso ? 'cursor-pointer hover:bg-muted/40' : ''}`}
+                    >
+                      {/* Day number header */}
+                      <div className="flex items-center justify-between mb-1">
+                        <span
+                          className={`text-xs font-medium leading-none ${
+                            isToday
+                              ? 'bg-primary text-white w-6 h-6 rounded-full flex items-center justify-center'
+                              : isPast
+                                ? 'text-muted-foreground/50'
+                                : 'text-foreground'
+                          }`}
+                        >
+                          {day}
+                        </span>
+
+                        {/* "+" button on any editable day -- opens action menu */}
+                        {!isPast && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setAddMenuDay(showAddMenu ? null : date)
+                            }}
+                            className={`p-1 md:p-0.5 rounded transition-all ${
+                              showAddMenu
+                                ? 'opacity-100 bg-muted'
+                                : 'opacity-0 group-hover:opacity-100 hover:bg-muted'
+                            }`}
+                            title="Anadir al dia"
+                          >
+                            <Plus className="h-3.5 w-3.5 text-muted-foreground" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Monday microciclo indicator */}
+                      {mondayMicro && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedMicro(mondayMicro.microciclo)
+                          }}
+                          className={`absolute left-0 top-7 z-10 px-1.5 py-0.5 rounded-r-md text-[9px] font-bold text-white cursor-pointer hover:opacity-90 transition-opacity ${
+                            MICRO_ESTADO_COLORS[mondayMicro.microciclo.estado]?.tab || 'bg-gray-500'
+                          }`}
+                          title="Ver microciclo"
+                        >
+                          MC {mondayMicro.index}
+                        </button>
+                      )}
+
+                      {/* Action menu dropdown */}
+                      {showAddMenu && (
+                        <div
+                          className={`absolute right-1 z-50 bg-popover border rounded-lg shadow-lg py-1 min-w-[160px] animate-in fade-in duration-150 ${
+                            menuOpensUp
+                              ? 'bottom-8 slide-in-from-bottom-1'
+                              : 'top-8 slide-in-from-top-1'
+                          }`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            className="flex items-center gap-2 w-full px-3 py-2 text-xs row-hover text-left"
+                            onClick={() => {
+                              setAddMenuDay(null)
+                              onNavigate('/sesiones/nueva')
+                            }}
+                          >
+                            <ClipboardList className="h-3.5 w-3.5 text-blue-600" />
+                            <span>Entreno (manual)</span>
+                          </button>
+                          <button
+                            className="flex items-center gap-2 w-full px-3 py-2 text-xs row-hover text-left"
+                            onClick={() => {
+                              setAddMenuDay(null)
+                              onNavigate('/sesiones/nueva-ai')
+                            }}
+                          >
+                            <Bot className="h-3.5 w-3.5 text-purple-600" />
+                            <span>Entreno con IA</span>
+                          </button>
+                          <div className="border-t my-1" />
+                          <button
+                            className="flex items-center gap-2 w-full px-3 py-2 text-xs row-hover text-left"
+                            onClick={() => {
+                              setAddMenuDay(null)
+                              onNavigate('/partidos/nuevo')
+                            }}
+                          >
+                            <Swords className="h-3.5 w-3.5 text-amber-600" />
+                            <span>Partido</span>
+                          </button>
+                          <div className="border-t my-1" />
+                          <button
+                            className="flex items-center gap-2 w-full px-3 py-2 text-xs row-hover text-left"
+                            onClick={() => {
+                              setAddMenuDay(null)
+                              if (equipoId) {
+                                onToggleDescanso(date)
+                              }
+                            }}
+                          >
+                            <Moon className="h-3.5 w-3.5 text-slate-500" />
+                            <span>{isDescanso ? 'Quitar descanso' : 'Descanso'}</span>
+                          </button>
+                          <button
+                            className="flex items-center gap-2 w-full px-3 py-2 text-xs row-hover text-left"
+                            onClick={() => {
+                              setAddMenuDay(null)
+                            }}
+                          >
+                            <MoreHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span>Otro</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Day content */}
+                      <div className="space-y-1">
+                        {/* Descanso marker -- coach-set */}
+                        {isDescanso && (
+                          <div className="flex items-center gap-1.5 px-1.5 py-1.5 rounded-md bg-slate-100 border border-slate-200">
+                            <Moon className="h-3 w-3 text-slate-500" />
+                            <span className="text-[10px] font-medium text-slate-600">Descanso</span>
+                            {!isPast && (
+                              <button
+                                className="ml-auto p-0.5 rounded hover:bg-slate-200 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  const did = descansoIdByDate[date]
+                                  if (did) {
+                                    onDeleteDescanso(did)
+                                  }
+                                }}
+                                title="Quitar descanso"
+                              >
+                                <X className="h-2.5 w-2.5 text-slate-400" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Match cards -- prominent */}
+                        {dayPartidos.map((p) => (
+                          <Link
+                            key={p.id}
+                            href={`/partidos?match=${p.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="block rounded-md px-1.5 py-1 bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center gap-1">
+                              {p.rival?.escudo_url ? (
+                                <Image src={p.rival.escudo_url} alt="" width={14} height={14} className="object-contain shrink-0" unoptimized />
+                              ) : (
+                                <Swords className="h-3 w-3 text-amber-600 shrink-0" />
+                              )}
+                              <span className="text-[10px] font-bold text-amber-800 truncate">
+                                {p.localia === 'local' ? 'vs' : '@'}{' '}
+                                {p.rival?.nombre_corto || p.rival?.nombre || 'Rival'}
+                              </span>
+                              {p.jornada && (
+                                <span className="text-[8px] font-medium bg-amber-100 text-amber-700 px-1 rounded">J{p.jornada}</span>
+                              )}
+                            </div>
+                            {p.hora && (
+                              <span className="text-[9px] text-amber-600 ml-4">{p.hora}</span>
+                            )}
+                            {p.goles_favor !== undefined && p.goles_favor !== null && (
+                              <div className="ml-4 flex items-center gap-1">
+                                <span className={`text-[10px] font-bold ${
+                                  p.goles_favor > (p.goles_contra || 0)
+                                    ? 'text-green-700'
+                                    : p.goles_favor < (p.goles_contra || 0)
+                                      ? 'text-red-700'
+                                      : 'text-muted-foreground'
+                                }`}>
+                                  {p.goles_favor}-{p.goles_contra}
+                                </span>
+                                {p.informe_url && (
+                                  <FileText className="h-2.5 w-2.5 text-blue-500" />
+                                )}
+                              </div>
+                            )}
+                          </Link>
+                        ))}
+
+                        {/* Session cards -- with MD tag */}
+                        {daySesiones.map((s) => {
+                          const estadoColors: Record<string, string> = {
+                            completada: 'bg-green-50 border-green-200 hover:bg-green-100',
+                            planificada: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+                            borrador: 'bg-gray-50 border-gray-200 hover:bg-gray-100',
+                            en_curso: 'bg-purple-50 border-purple-200 hover:bg-purple-100',
+                          }
+                          const dotColors: Record<string, string> = {
+                            completada: 'bg-green-500',
+                            planificada: 'bg-blue-500',
+                            borrador: 'bg-gray-400',
+                            en_curso: 'bg-purple-500',
+                          }
+                          return (
+                            <Link
+                              key={s.id}
+                              href={`/sesiones/${s.id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className={`block rounded-md px-1.5 py-1 border transition-colors cursor-pointer ${
+                                estadoColors[s.estado] || 'bg-muted border-border'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1">
+                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColors[s.estado] || 'bg-gray-400'}`} />
+                                {s.match_day && (
+                                  <span className="text-[9px] font-bold text-muted-foreground bg-muted/80 px-1 rounded">
+                                    {s.match_day}
+                                  </span>
+                                )}
+                                <span className="text-[10px] font-medium truncate">
+                                  {s.titulo}
+                                </span>
+                              </div>
+                              {s.duracion_total && (
+                                <div className="flex items-center gap-1 ml-3 mt-0.5">
+                                  <Clock className="h-2.5 w-2.5 text-muted-foreground" />
+                                  <span className="text-[9px] text-muted-foreground">{s.duracion_total}min</span>
+                                </div>
+                              )}
+                            </Link>
+                          )
+                        })}
+
+                        {/* Empty day (no content, not past) -- subtle placeholder */}
+                        {isEmpty && !isPast && (
+                          <div className="flex items-center justify-center py-3 opacity-0 group-hover:opacity-40 transition-opacity">
+                            <span className="text-[9px] text-muted-foreground">Pulsa + para anadir</span>
+                          </div>
+                        )}
+
+                        {/* Past empty day */}
+                        {isEmpty && isPast && (
+                          <div className="flex items-center justify-center py-3 opacity-20">
+                            <span className="text-[9px]">—</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Legend bar — hidden on mobile */}
+              <div className="hidden md:flex flex-wrap items-center gap-x-5 gap-y-1 px-4 py-2.5 border-t bg-muted/20 text-[11px] text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-green-500" /> Completada
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-blue-500" /> Planificada
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-gray-400" /> Borrador
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Swords className="h-3 w-3 text-amber-600" /> Partido
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Moon className="h-3 w-3 text-slate-400" /> Descanso
+                </span>
+                <span className="text-muted-foreground/30">|</span>
+                {Object.entries(MATCH_DAY_COLORS).slice(0, 4).map(([md, colors]) => (
+                  <span key={md} className="flex items-center gap-1">
+                    <span className={`w-2.5 h-1.5 rounded-sm ${colors.bg} border ${colors.border}`} />
+                    <span>{md}</span>
+                  </span>
+                ))}
+                <span className="text-muted-foreground/30">...</span>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 

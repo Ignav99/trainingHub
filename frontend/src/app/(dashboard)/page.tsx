@@ -430,7 +430,7 @@ export default function DashboardPage() {
           {plantilla && (
             <div className="space-y-4">
               {/* Summary cards */}
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="text-center p-3 rounded-lg bg-green-50 border border-green-200">
                   <p className="text-2xl font-bold text-green-700">{plantilla.disponibles}</p>
                   <p className="text-xs text-green-600">Disponibles</p>

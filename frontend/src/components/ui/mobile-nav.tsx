@@ -54,19 +54,19 @@ export function MobileBottomNav() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="grid grid-cols-3 gap-1 p-3">
+            <div className="grid grid-cols-3 gap-2 p-3">
               {moreTabs.map((tab) => (
                 <Link
                   key={tab.href}
                   href={tab.href}
                   onClick={() => setMoreOpen(false)}
-                  className={`flex flex-col items-center gap-1 p-3 rounded-xl text-xs transition-colors ${
+                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl text-xs min-h-[64px] justify-center transition-colors ${
                     isActive(tab.href)
                       ? 'bg-primary/10 text-primary font-medium'
                       : 'text-muted-foreground hover:bg-muted'
                   }`}
                 >
-                  <tab.icon className="h-5 w-5" />
+                  <tab.icon className="h-6 w-6" />
                   {tab.name}
                 </Link>
               ))}
@@ -77,29 +77,29 @@ export function MobileBottomNav() {
 
       {/* Bottom nav bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-30 lg:hidden bg-card border-t safe-bottom">
-        <div className="flex items-center justify-around h-16">
+        <div className="flex items-center justify-around min-h-[52px]">
           {mainTabs.map((tab) => (
             <Link
               key={tab.href}
               href={tab.href}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 min-w-[64px] transition-colors ${
+              className={`flex flex-col items-center justify-center gap-0.5 px-3 py-2 min-w-[64px] min-h-[48px] transition-colors ${
                 isActive(tab.href)
                   ? 'text-primary'
                   : 'text-muted-foreground'
               }`}
             >
               <tab.icon className={`h-5 w-5 ${isActive(tab.href) ? 'stroke-[2.5]' : ''}`} />
-              <span className="text-[10px] font-medium">{tab.name}</span>
+              <span className="text-[11px] font-medium">{tab.name}</span>
             </Link>
           ))}
           <button
             onClick={() => setMoreOpen(!moreOpen)}
-            className={`flex flex-col items-center gap-0.5 px-3 py-1.5 min-w-[64px] transition-colors ${
+            className={`flex flex-col items-center justify-center gap-0.5 px-3 py-2 min-w-[64px] min-h-[48px] transition-colors ${
               moreOpen ? 'text-primary' : 'text-muted-foreground'
             }`}
           >
             <MoreHorizontal className="h-5 w-5" />
-            <span className="text-[10px] font-medium">Más</span>
+            <span className="text-[11px] font-medium">Más</span>
           </button>
         </div>
       </nav>

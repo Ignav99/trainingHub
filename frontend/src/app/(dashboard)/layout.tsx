@@ -38,6 +38,8 @@ import { Badge } from '@/components/ui/badge'
 import { SplashScreen } from '@/components/ui/splash-screen'
 import { Toaster } from '@/components/ui/toast'
 import { MobileBottomNav } from '@/components/ui/mobile-nav'
+import { InstallPrompt } from '@/components/ui/install-prompt'
+import { registerServiceWorker } from '@/lib/register-sw'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -167,6 +169,11 @@ export default function DashboardLayout({
   }, [isAuthenticated, equipoActivo?.id])
 
   // Hooks must be called unconditionally (before any early return)
+  // Register service worker once
+  useEffect(() => {
+    registerServiceWorker()
+  }, [])
+
   const handleLogout = useCallback(async () => {
     await logout()
     router.push('/login')
@@ -251,6 +258,7 @@ export default function DashboardLayout({
         </main>
       </div>
       <MobileBottomNav />
+      <InstallPrompt />
       <Toaster />
     </div>
   )
