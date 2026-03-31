@@ -18,6 +18,7 @@ from app.database import get_supabase
 from app.config import get_settings
 from app.dependencies import get_current_user
 from app.models import UsuarioResponse
+from app.services.audit_service import log_action
 
 router = APIRouter()
 
@@ -211,10 +212,55 @@ async def admin_create_organizacion(
 
     sub_result = supabase.table("suscripciones").insert(sub_data).execute()
 
+    log_action(
+        usuario_id=str(admin.id),
+        accion="crear",
+        entidad_tipo="organizacion",
+        entidad_id=org["id"],
+        datos_nuevos={"nombre": data.nombre, "plan": data.plan_codigo, "dias_trial": data.dias_trial},
+        severidad="warning",
+    )
+
     return {
         "organizacion": org,
         "suscripcion": sub_result.data[0] if sub_result.data else None,
     }
+
+
+@router.patch("/organizaciones/{org_id}")
+async def admin_update_organizacion(
+    org_id: str,
+    data: dict,
+    admin: UsuarioResponse = Depends(require_superadmin),
+):
+    """Actualiza datos de una organizacion (nombre, etc.)."""
+    supabase = get_supabase()
+
+    org = supabase.table("organizaciones").select("*").eq("id", org_id).maybe_single().execute()
+    if not org.data:
+        raise HTTPException(status_code=404, detail="Organizacion no encontrada")
+
+    update_fields = {}
+    if "nombre" in data and data["nombre"]:
+        update_fields["nombre"] = data["nombre"].strip()
+
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="No hay cambios para aplicar")
+
+    update_fields["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = supabase.table("organizaciones").update(update_fields).eq("id", org_id).execute()
+
+    log_action(
+        usuario_id=str(admin.id),
+        accion="actualizar",
+        entidad_tipo="organizacion",
+        entidad_id=org_id,
+        datos_anteriores={"nombre": org.data.get("nombre")},
+        datos_nuevos=update_fields,
+        severidad="warning",
+    )
+
+    return result.data[0] if result.data else {"ok": True}
 
 
 @router.post("/organizaciones/{org_id}/equipos")
@@ -275,6 +321,16 @@ async def admin_create_equipo(
     result = supabase.table("equipos").insert(team_data).execute()
     if not result.data:
         raise HTTPException(status_code=500, detail="Error al crear equipo")
+
+    log_action(
+        usuario_id=str(admin.id),
+        accion="crear",
+        entidad_tipo="equipo",
+        entidad_id=result.data[0]["id"],
+        datos_nuevos=team_data,
+        organizacion_id=org_id,
+        severidad="info",
+    )
 
     return result.data[0]
 
@@ -426,6 +482,17 @@ async def admin_update_suscripcion(
         .execute()
     )
 
+    log_action(
+        usuario_id=str(admin.id),
+        accion="actualizar",
+        entidad_tipo="suscripcion",
+        entidad_id=sub.data.get("id", org_id),
+        datos_anteriores={"plan_id": sub.data.get("plan_id"), "estado": sub.data.get("estado"), "trial_fin": sub.data.get("trial_fin")},
+        datos_nuevos=update_data,
+        organizacion_id=org_id,
+        severidad="warning",
+    )
+
     return result.data[0] if result.data else {"ok": True}
 
 
@@ -442,11 +509,36 @@ async def admin_create_invite(
         supabase.table("organizaciones")
         .select("id")
         .eq("id", data.organizacion_id)
-        .single()
+        .maybe_single()
         .execute()
     )
     if not org.data:
         raise HTTPException(status_code=404, detail="Organizacion no encontrada")
+
+    # Check for duplicate pending invitation
+    existing = (
+        supabase.table("invitaciones")
+        .select("id")
+        .eq("email", data.email)
+        .eq("organizacion_id", data.organizacion_id)
+        .eq("estado", "pendiente")
+        .maybe_single()
+        .execute()
+    )
+    if existing.data:
+        raise HTTPException(status_code=409, detail=f"Ya existe una invitacion pendiente para {data.email} en esta organizacion")
+
+    # Check if user is already a member
+    existing_user = (
+        supabase.table("usuarios")
+        .select("id")
+        .eq("email", data.email)
+        .eq("organizacion_id", data.organizacion_id)
+        .maybe_single()
+        .execute()
+    )
+    if existing_user.data:
+        raise HTTPException(status_code=409, detail=f"{data.email} ya es miembro de esta organizacion")
 
     # If no equipo_id, get the first active team
     equipo_id = data.equipo_id
@@ -481,6 +573,16 @@ async def admin_create_invite(
         invite_data["rol_organizacion"] = data.rol_organizacion
 
     result = supabase.table("invitaciones").insert(invite_data).execute()
+
+    log_action(
+        usuario_id=str(admin.id),
+        accion="invitar",
+        entidad_tipo="invitacion",
+        entidad_id=result.data[0]["id"] if result.data else None,
+        datos_nuevos={"email": data.email, "rol": data.rol_en_equipo, "organizacion_id": data.organizacion_id},
+        organizacion_id=data.organizacion_id,
+        severidad="info",
+    )
 
     return {
         "invitacion": result.data[0] if result.data else None,
@@ -527,15 +629,129 @@ async def admin_delete_user(
     supabase = get_supabase()
 
     # Don't allow deleting yourself
-    if user_id == admin.id:
+    if user_id == str(admin.id):
         raise HTTPException(status_code=400, detail="No puedes eliminar tu propia cuenta")
+
+    # Get user info before deactivating
+    user = supabase.table("usuarios").select("email, nombre, rol, organizacion_id").eq("id", user_id).maybe_single().execute()
 
     supabase.table("usuarios").update({
         "activo": False,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }).eq("id", user_id).execute()
 
+    log_action(
+        usuario_id=str(admin.id),
+        accion="eliminar",
+        entidad_tipo="usuario",
+        entidad_id=user_id,
+        datos_anteriores=user.data if user.data else {"id": user_id},
+        severidad="critical",
+    )
+
     return {"ok": True}
+
+
+@router.patch("/usuarios/{user_id}/rol")
+async def admin_change_user_role(
+    user_id: str,
+    data: dict,
+    admin: UsuarioResponse = Depends(require_superadmin),
+):
+    """Cambia el rol de un usuario."""
+    supabase = get_supabase()
+
+    new_rol = data.get("rol")
+    if not new_rol:
+        raise HTTPException(status_code=400, detail="Se requiere el campo 'rol'")
+
+    valid_roles = {
+        "admin", "tecnico_principal", "segundo_entrenador",
+        "preparador_fisico", "fisioterapeuta", "delegado",
+        "analista", "entrenador_porteros", "nutricionista",
+        "psicologo", "ojeador", "coordinador",
+    }
+    if new_rol not in valid_roles:
+        raise HTTPException(status_code=400, detail=f"Rol no valido. Opciones: {', '.join(sorted(valid_roles))}")
+
+    user = supabase.table("usuarios").select("rol, email").eq("id", user_id).maybe_single().execute()
+    if not user.data:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    old_rol = user.data.get("rol")
+
+    supabase.table("usuarios").update({
+        "rol": new_rol,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", user_id).execute()
+
+    log_action(
+        usuario_id=str(admin.id),
+        accion="cambiar_rol",
+        entidad_tipo="usuario",
+        entidad_id=user_id,
+        datos_anteriores={"rol": old_rol},
+        datos_nuevos={"rol": new_rol},
+        severidad="warning",
+    )
+
+    return {"ok": True, "old_rol": old_rol, "new_rol": new_rol}
+
+
+@router.delete("/invitaciones/{invite_id}")
+async def admin_revoke_invite(
+    invite_id: str,
+    admin: UsuarioResponse = Depends(require_superadmin),
+):
+    """Revoca una invitacion pendiente."""
+    supabase = get_supabase()
+
+    invite = supabase.table("invitaciones").select("email, organizacion_id, estado").eq("id", invite_id).maybe_single().execute()
+    if not invite.data:
+        raise HTTPException(status_code=404, detail="Invitacion no encontrada")
+
+    if invite.data["estado"] != "pendiente":
+        raise HTTPException(status_code=400, detail="Solo se pueden revocar invitaciones pendientes")
+
+    supabase.table("invitaciones").update({
+        "estado": "revocada",
+    }).eq("id", invite_id).execute()
+
+    log_action(
+        usuario_id=str(admin.id),
+        accion="revocar_acceso",
+        entidad_tipo="invitacion",
+        entidad_id=invite_id,
+        datos_anteriores={"email": invite.data["email"], "estado": "pendiente"},
+        datos_nuevos={"estado": "revocada"},
+        organizacion_id=invite.data.get("organizacion_id"),
+        severidad="info",
+    )
+
+    return {"ok": True}
+
+
+@router.post("/invitaciones/{invite_id}/resend")
+async def admin_resend_invite(
+    invite_id: str,
+    admin: UsuarioResponse = Depends(require_superadmin),
+):
+    """Renueva la expiracion de una invitacion pendiente (reenvio)."""
+    supabase = get_supabase()
+
+    invite = supabase.table("invitaciones").select("*").eq("id", invite_id).maybe_single().execute()
+    if not invite.data:
+        raise HTTPException(status_code=404, detail="Invitacion no encontrada")
+
+    if invite.data["estado"] != "pendiente":
+        raise HTTPException(status_code=400, detail="Solo se pueden reenviar invitaciones pendientes")
+
+    new_expiry = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+    supabase.table("invitaciones").update({
+        "expira_en": new_expiry,
+    }).eq("id", invite_id).execute()
+
+    return {"ok": True, "new_expiry": new_expiry, "token": invite.data.get("token")}
 
 
 @router.get("/planes")

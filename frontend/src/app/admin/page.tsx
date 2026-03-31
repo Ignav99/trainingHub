@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import {
@@ -20,6 +20,11 @@ import {
   Search,
   X,
   BarChart3,
+  Pencil,
+  Trash2,
+  RotateCcw,
+  AlertTriangle,
+  UserCog,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/authStore'
@@ -124,9 +129,7 @@ const ROLE_GROUPS = [
   },
   {
     label: 'Jugadores',
-    roles: [
-      { value: 'jugador', label: 'Jugador' },
-    ],
+    roles: [{ value: 'jugador', label: 'Jugador' }],
   },
   {
     label: 'Directiva',
@@ -138,7 +141,100 @@ const ROLE_GROUPS = [
   },
 ]
 
+const ALL_ROLES = ROLE_GROUPS.flatMap(g => g.roles)
+
 const DIRECTIVA_ROLES = ['presidente', 'director_deportivo', 'secretario']
+
+// ============ Confirmation Dialog ============
+
+function ConfirmDialog({
+  open,
+  title,
+  message,
+  confirmLabel = 'Confirmar',
+  confirmColor = 'bg-red-600 hover:bg-red-700',
+  loading = false,
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean
+  title: string
+  message: string
+  confirmLabel?: string
+  confirmColor?: string
+  loading?: boolean
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-xl shadow-xl max-w-sm w-full mx-4 p-5 space-y-4">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold text-gray-900">{title}</p>
+            <p className="text-sm text-gray-500 mt-1">{message}</p>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onCancel}
+            disabled={loading}
+            className="px-4 py-2 text-sm bg-white border text-gray-600 rounded-lg hover:bg-gray-50"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className={`px-4 py-2 text-sm text-white rounded-lg disabled:opacity-50 ${confirmColor}`}
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============ Usage Bar ============
+
+function UsageBar({ used, max, label }: { used: number; max: number; label: string }) {
+  const pct = max > 0 ? Math.min((used / max) * 100, 100) : 0
+  const color = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-500' : 'bg-emerald-500'
+  return (
+    <div>
+      <div className="flex justify-between text-xs mb-1">
+        <span className="text-gray-600">{label}</span>
+        <span className="font-medium text-gray-900">{used} / {max}</span>
+      </div>
+      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  )
+}
+
+// ============ Helpers ============
+
+const formatDate = (d: string) =>
+  new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
+
+const formatRole = (r: string) =>
+  r.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+
+const estadoBadge = (estado: string) => {
+  const colors: Record<string, string> = {
+    active: 'bg-emerald-100 text-emerald-800',
+    trial: 'bg-blue-100 text-blue-800',
+    suspended: 'bg-red-100 text-red-800',
+    cancelled: 'bg-gray-100 text-gray-600',
+    past_due: 'bg-amber-100 text-amber-800',
+    grace_period: 'bg-orange-100 text-orange-800',
+  }
+  return colors[estado] || 'bg-gray-100 text-gray-600'
+}
 
 // ============ Component ============
 
@@ -155,11 +251,19 @@ export default function AdminPage() {
   const [orgDetail, setOrgDetail] = useState<OrgDetail | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
 
+  // Org search
+  const [orgSearch, setOrgSearch] = useState('')
+
   // Create org
   const [showCreateOrg, setShowCreateOrg] = useState(false)
   const [newOrgName, setNewOrgName] = useState('')
   const [newOrgPlan, setNewOrgPlan] = useState('free_trial')
   const [creatingOrg, setCreatingOrg] = useState(false)
+
+  // Edit org name
+  const [editingOrgId, setEditingOrgId] = useState<string | null>(null)
+  const [editOrgName, setEditOrgName] = useState('')
+  const [savingOrgName, setSavingOrgName] = useState(false)
 
   // Create team
   const [showCreateTeam, setShowCreateTeam] = useState<string | null>(null)
@@ -189,6 +293,21 @@ export default function AdminPage() {
   const [users, setUsers] = useState<any[]>([])
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [userSearch, setUserSearch] = useState('')
+
+  // Confirmation dialog
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean
+    title: string
+    message: string
+    confirmLabel?: string
+    confirmColor?: string
+    action: () => Promise<void>
+  }>({ open: false, title: '', message: '', action: async () => {} })
+  const [confirmLoading, setConfirmLoading] = useState(false)
+
+  // Change user role
+  const [changingRoleUserId, setChangingRoleUserId] = useState<string | null>(null)
+  const [newRole, setNewRole] = useState('')
 
   useEffect(() => {
     if (authLoading) return
@@ -229,7 +348,19 @@ export default function AdminPage() {
       const detail = await api.get<OrgDetail>(`/admin/organizaciones/${orgId}/detalle`)
       setOrgDetail(detail)
     } catch (err: any) {
-      console.error(err)
+      toast.error('Error al cargar detalle')
+    } finally {
+      setLoadingDetail(false)
+    }
+  }
+
+  const reloadOrgDetail = async (orgId: string) => {
+    setLoadingDetail(true)
+    try {
+      const detail = await api.get<OrgDetail>(`/admin/organizaciones/${orgId}/detalle`)
+      setOrgDetail(detail)
+    } catch {
+      // silent
     } finally {
       setLoadingDetail(false)
     }
@@ -246,8 +377,8 @@ export default function AdminPage() {
       setShowCreateOrg(false)
       setNewOrgName('')
       setNewOrgPlan('free_trial')
+      toast.success('Organizacion creada')
       await loadData()
-      // Auto-expand the new org
       if (result.organizacion?.id) {
         loadOrgDetail(result.organizacion.id)
       }
@@ -255,6 +386,22 @@ export default function AdminPage() {
       toast.error(err.message || 'Error al crear organizacion')
     } finally {
       setCreatingOrg(false)
+    }
+  }
+
+  const handleEditOrgName = async (orgId: string) => {
+    if (!editOrgName.trim()) return
+    setSavingOrgName(true)
+    try {
+      await api.patch(`/admin/organizaciones/${orgId}`, { nombre: editOrgName.trim() })
+      setEditingOrgId(null)
+      toast.success('Nombre actualizado')
+      await loadData()
+      if (expandedOrg === orgId) reloadOrgDetail(orgId)
+    } catch (err: any) {
+      toast.error(err.message || 'Error al actualizar nombre')
+    } finally {
+      setSavingOrgName(false)
     }
   }
 
@@ -271,9 +418,8 @@ export default function AdminPage() {
       setNewTeamName('')
       setNewTeamCategoria('')
       setNewTeamTemporada('')
-      // Reload detail
-      setExpandedOrg(null)
-      setTimeout(() => loadOrgDetail(orgId), 100)
+      toast.success('Equipo creado')
+      reloadOrgDetail(orgId)
       loadData()
     } catch (err: any) {
       toast.error(err.message || 'Error al crear equipo')
@@ -296,6 +442,7 @@ export default function AdminPage() {
         rol_organizacion: isDirectiva ? inviteRol : inviteRolOrg || undefined,
       })
       setGeneratedLink(`${window.location.origin}/join?token=${result.token}`)
+      toast.success('Invitacion creada')
     } catch (err: any) {
       toast.error(err.message || 'Error al crear invitacion')
     } finally {
@@ -306,24 +453,98 @@ export default function AdminPage() {
   const handleCopy = async (text: string) => {
     await navigator.clipboard.writeText(text)
     setCopied(true)
+    toast.success('Enlace copiado')
     setTimeout(() => setCopied(false), 2000)
   }
 
   const handleChangePlan = async (orgId: string) => {
     if (!selectedPlan) return
-    setSavingPlan(true)
+    const planName = planes.find(p => p.codigo === selectedPlan)?.nombre || selectedPlan
+    setConfirmDialog({
+      open: true,
+      title: 'Cambiar plan',
+      message: `Vas a cambiar el plan de esta organizacion a "${planName}". Esta accion se registrara en el audit log.`,
+      confirmLabel: 'Cambiar plan',
+      confirmColor: 'bg-blue-600 hover:bg-blue-700',
+      action: async () => {
+        await api.patch(`/admin/organizaciones/${orgId}/suscripcion`, {
+          plan_codigo: selectedPlan,
+          estado: 'active',
+        })
+        setChangingPlanOrg(null)
+        setSelectedPlan('')
+        toast.success('Plan actualizado')
+        loadData()
+        if (expandedOrg === orgId) reloadOrgDetail(orgId)
+      },
+    })
+  }
+
+  const handleDeleteUser = (userId: string, userName: string) => {
+    setConfirmDialog({
+      open: true,
+      title: 'Desactivar usuario',
+      message: `Vas a desactivar a "${userName}". El usuario no podra acceder a la plataforma. Esta accion se registra en el audit log.`,
+      confirmLabel: 'Desactivar',
+      action: async () => {
+        await api.delete(`/admin/usuarios/${userId}`)
+        toast.success('Usuario desactivado')
+        loadUsers()
+      },
+    })
+  }
+
+  const handleChangeRole = async (userId: string) => {
+    if (!newRole) return
+    setConfirmDialog({
+      open: true,
+      title: 'Cambiar rol',
+      message: `Vas a cambiar el rol del usuario a "${formatRole(newRole)}". Esta accion se registra en el audit log.`,
+      confirmLabel: 'Cambiar rol',
+      confirmColor: 'bg-blue-600 hover:bg-blue-700',
+      action: async () => {
+        await api.patch(`/admin/usuarios/${userId}/rol`, { rol: newRole })
+        setChangingRoleUserId(null)
+        setNewRole('')
+        toast.success('Rol actualizado')
+        loadUsers()
+      },
+    })
+  }
+
+  const handleRevokeInvite = (inviteId: string, email: string, orgId: string) => {
+    setConfirmDialog({
+      open: true,
+      title: 'Revocar invitacion',
+      message: `Vas a revocar la invitacion de "${email}". El enlace dejara de funcionar.`,
+      confirmLabel: 'Revocar',
+      action: async () => {
+        await api.delete(`/admin/invitaciones/${inviteId}`)
+        toast.success('Invitacion revocada')
+        reloadOrgDetail(orgId)
+      },
+    })
+  }
+
+  const handleResendInvite = async (inviteId: string) => {
     try {
-      await api.patch(`/admin/organizaciones/${orgId}/suscripcion`, {
-        plan_codigo: selectedPlan,
-        estado: 'active',
-      })
-      setChangingPlanOrg(null)
-      setSelectedPlan('')
-      loadData()
+      const result = await api.post<{ token: string; new_expiry: string }>(`/admin/invitaciones/${inviteId}/resend`, {})
+      toast.success('Invitacion renovada (+30 dias)')
+      if (expandedOrg) reloadOrgDetail(expandedOrg)
     } catch (err: any) {
-      toast.error(err.message || 'Error al cambiar plan')
+      toast.error(err.message || 'Error al reenviar invitacion')
+    }
+  }
+
+  const executeConfirm = async () => {
+    setConfirmLoading(true)
+    try {
+      await confirmDialog.action()
+    } catch (err: any) {
+      toast.error(err.message || 'Error al ejecutar accion')
     } finally {
-      setSavingPlan(false)
+      setConfirmLoading(false)
+      setConfirmDialog(prev => ({ ...prev, open: false }))
     }
   }
 
@@ -336,7 +557,7 @@ export default function AdminPage() {
       })
       setUsers(result.data)
     } catch (err: any) {
-      console.error(err)
+      toast.error('Error al cargar usuarios')
     } finally {
       setLoadingUsers(false)
     }
@@ -347,39 +568,10 @@ export default function AdminPage() {
     router.push('/login')
   }
 
-  const formatDate = (d: string) =>
-    new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
-
-  const formatRole = (r: string) =>
-    r.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-
-  const estadoBadge = (estado: string) => {
-    const colors: Record<string, string> = {
-      active: 'bg-emerald-100 text-emerald-800',
-      trial: 'bg-blue-100 text-blue-800',
-      suspended: 'bg-red-100 text-red-800',
-      cancelled: 'bg-gray-100 text-gray-600',
-      past_due: 'bg-amber-100 text-amber-800',
-      grace_period: 'bg-orange-100 text-orange-800',
-    }
-    return colors[estado] || 'bg-gray-100 text-gray-600'
-  }
-
-  const UsageBar = ({ used, max, label }: { used: number; max: number; label: string }) => {
-    const pct = max > 0 ? Math.min((used / max) * 100, 100) : 0
-    const color = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-500' : 'bg-emerald-500'
-    return (
-      <div>
-        <div className="flex justify-between text-xs mb-1">
-          <span className="text-gray-600">{label}</span>
-          <span className="font-medium text-gray-900">{used} / {max}</span>
-        </div>
-        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-          <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${pct}%` }} />
-        </div>
-      </div>
-    )
-  }
+  // Filter orgs by search
+  const filteredOrgs = orgSearch
+    ? orgs.filter(o => o.nombre.toLowerCase().includes(orgSearch.toLowerCase()))
+    : orgs
 
   if (authLoading || loading) {
     return (
@@ -412,6 +604,18 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Confirmation Dialog */}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmLabel={confirmDialog.confirmLabel}
+        confirmColor={confirmDialog.confirmColor}
+        loading={confirmLoading}
+        onConfirm={executeConfirm}
+        onCancel={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
+      />
+
       {/* Header */}
       <header className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -463,8 +667,8 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Navigation + New Club button */}
-        <div className="flex items-center justify-between">
+        {/* Navigation + Search + New Club button */}
+        <div className="flex items-center justify-between gap-3">
           <div className="flex gap-2">
             <button
               onClick={() => setShowUsers(false)}
@@ -485,14 +689,27 @@ export default function AdminPage() {
               Usuarios
             </button>
           </div>
+
           {!showUsers && (
-            <button
-              onClick={() => setShowCreateOrg(true)}
-              className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-1.5"
-            >
-              <Plus className="h-4 w-4" />
-              Nuevo Club
-            </button>
+            <div className="flex items-center gap-2 flex-1 max-w-md ml-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar organizacion..."
+                  value={orgSearch}
+                  onChange={(e) => setOrgSearch(e.target.value)}
+                  className="w-full text-sm pl-9 pr-3 py-2 border rounded-lg"
+                />
+              </div>
+              <button
+                onClick={() => setShowCreateOrg(true)}
+                className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-1.5 shrink-0"
+              >
+                <Plus className="h-4 w-4" />
+                Nuevo Club
+              </button>
+            </div>
           )}
         </div>
 
@@ -552,22 +769,66 @@ export default function AdminPage() {
         {/* Organizations list */}
         {!showUsers && (
           <div className="space-y-3">
-            {orgs.map((org) => (
+            {filteredOrgs.map((org) => (
               <div key={org.id} className="bg-white rounded-xl border overflow-hidden">
                 {/* Org row */}
                 <div
                   className="flex items-center gap-4 p-4 cursor-pointer hover:bg-gray-50 transition-colors"
                   onClick={() => loadOrgDetail(org.id)}
                 >
-                  <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-700 font-bold">
+                  <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-700 font-bold shrink-0">
                     {org.nombre?.charAt(0) || '?'}
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-900 truncate">{org.nombre}</p>
-                    <p className="text-xs text-gray-500">
-                      {org.num_miembros} miembros · {org.num_equipos} equipos · Creado {formatDate(org.created_at)}
-                    </p>
+                    {editingOrgId === org.id ? (
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="text"
+                          value={editOrgName}
+                          onChange={(e) => setEditOrgName(e.target.value)}
+                          className="text-sm px-2 py-1 border rounded font-semibold text-gray-900"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleEditOrgName(org.id)
+                            if (e.key === 'Escape') setEditingOrgId(null)
+                          }}
+                        />
+                        <button
+                          onClick={() => handleEditOrgName(org.id)}
+                          disabled={savingOrgName}
+                          className="text-xs px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50"
+                        >
+                          {savingOrgName ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Guardar'}
+                        </button>
+                        <button
+                          onClick={() => setEditingOrgId(null)}
+                          className="text-xs px-2 py-1 text-gray-500 hover:text-gray-700"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-semibold text-gray-900 truncate">{org.nombre}</p>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setEditingOrgId(org.id)
+                              setEditOrgName(org.nombre)
+                            }}
+                            className="p-0.5 text-gray-300 hover:text-gray-500 rounded"
+                            title="Editar nombre"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          {org.num_miembros} miembros · {org.num_equipos} equipos · Creado {formatDate(org.created_at)}
+                        </p>
+                      </>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -626,21 +887,9 @@ export default function AdminPage() {
                               </div>
                               {orgDetail.limites && (
                                 <div className="space-y-2">
-                                  <UsageBar
-                                    used={orgDetail.limites.equipos_usados}
-                                    max={orgDetail.limites.max_equipos}
-                                    label="Equipos"
-                                  />
-                                  <UsageBar
-                                    used={orgDetail.limites.uso_storage_mb}
-                                    max={orgDetail.limites.max_storage_mb}
-                                    label="Storage (MB)"
-                                  />
-                                  <UsageBar
-                                    used={orgDetail.limites.uso_ai_calls_month}
-                                    max={orgDetail.limites.max_ai_calls_month}
-                                    label="AI calls / mes"
-                                  />
+                                  <UsageBar used={orgDetail.limites.equipos_usados} max={orgDetail.limites.max_equipos} label="Equipos" />
+                                  <UsageBar used={orgDetail.limites.uso_storage_mb} max={orgDetail.limites.max_storage_mb} label="Storage (MB)" />
+                                  <UsageBar used={orgDetail.limites.uso_ai_calls_month} max={orgDetail.limites.max_ai_calls_month} label="AI calls / mes" />
                                 </div>
                               )}
                             </div>
@@ -672,6 +921,18 @@ export default function AdminPage() {
                             className="text-xs px-3 py-1.5 bg-white border text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-1"
                           >
                             <CreditCard className="h-3 w-3" /> Cambiar plan
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setShowCreateTeam(showCreateTeam === org.id ? null : org.id)
+                              setNewTeamName('')
+                              setNewTeamCategoria('')
+                              setNewTeamTemporada('')
+                            }}
+                            className="text-xs px-3 py-1.5 bg-white border text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-1"
+                          >
+                            <Trophy className="h-3 w-3" /> Crear equipo
                           </button>
                         </div>
 
@@ -751,7 +1012,7 @@ export default function AdminPage() {
                                   className="w-full text-sm px-3 py-1.5 border rounded-lg bg-white"
                                 >
                                   <option value="">Auto (primer equipo)</option>
-                                  {orgDetail.equipos.map((eq) => (
+                                  {orgDetail?.equipos.map((eq) => (
                                     <option key={eq.id} value={eq.id}>
                                       {eq.nombre} {eq.categoria ? `(${eq.categoria})` : ''}
                                     </option>
@@ -759,7 +1020,7 @@ export default function AdminPage() {
                                 </select>
                               </div>
                             </div>
-                            {orgDetail.limites && (
+                            {orgDetail?.limites && (
                               <p className="text-xs text-gray-400">
                                 Limite: {orgDetail.limites.max_usuarios_por_equipo} usuarios/equipo · {orgDetail.limites.max_jugadores_por_equipo} jugadores/equipo
                               </p>
@@ -808,75 +1069,62 @@ export default function AdminPage() {
                           </div>
                         )}
 
+                        {/* Create team form */}
+                        {showCreateTeam === org.id && (
+                          <div className="bg-white p-3 rounded-lg border space-y-2">
+                            <p className="text-xs font-medium text-gray-700">Crear equipo:</p>
+                            <div className="grid grid-cols-3 gap-2">
+                              <input
+                                type="text"
+                                placeholder="Nombre del equipo"
+                                value={newTeamName}
+                                onChange={(e) => setNewTeamName(e.target.value)}
+                                className="text-sm px-3 py-1.5 border rounded-lg"
+                                autoFocus
+                              />
+                              <input
+                                type="text"
+                                placeholder="Categoria (opcional)"
+                                value={newTeamCategoria}
+                                onChange={(e) => setNewTeamCategoria(e.target.value)}
+                                className="text-sm px-3 py-1.5 border rounded-lg"
+                              />
+                              <input
+                                type="text"
+                                placeholder="Temporada (opcional)"
+                                value={newTeamTemporada}
+                                onChange={(e) => setNewTeamTemporada(e.target.value)}
+                                className="text-sm px-3 py-1.5 border rounded-lg"
+                              />
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleCreateTeam(org.id)}
+                                disabled={creatingTeam || !newTeamName.trim()}
+                                className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+                              >
+                                {creatingTeam ? 'Creando...' : 'Crear'}
+                              </button>
+                              <button
+                                onClick={() => setShowCreateTeam(null)}
+                                className="text-xs px-3 py-1.5 bg-white border text-gray-600 rounded-lg hover:bg-gray-50"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Teams */}
                         <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                              Equipos ({orgDetail.equipos.length})
-                              {orgDetail.limites && (
-                                <span className="normal-case font-normal ml-1">
-                                  — {orgDetail.limites.equipos_usados} de {orgDetail.limites.max_equipos}
-                                </span>
-                              )}
-                            </p>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setShowCreateTeam(showCreateTeam === org.id ? null : org.id)
-                                setNewTeamName('')
-                                setNewTeamCategoria('')
-                                setNewTeamTemporada('')
-                              }}
-                              className="text-xs px-2 py-1 text-blue-600 hover:bg-blue-50 rounded flex items-center gap-1"
-                            >
-                              <Plus className="h-3 w-3" /> Crear equipo
-                            </button>
-                          </div>
-
-                          {/* Create team form */}
-                          {showCreateTeam === org.id && (
-                            <div className="bg-white p-3 rounded-lg border space-y-2 mb-2">
-                              <div className="grid grid-cols-3 gap-2">
-                                <input
-                                  type="text"
-                                  placeholder="Nombre del equipo"
-                                  value={newTeamName}
-                                  onChange={(e) => setNewTeamName(e.target.value)}
-                                  className="text-sm px-3 py-1.5 border rounded-lg"
-                                  autoFocus
-                                />
-                                <input
-                                  type="text"
-                                  placeholder="Categoria (opcional)"
-                                  value={newTeamCategoria}
-                                  onChange={(e) => setNewTeamCategoria(e.target.value)}
-                                  className="text-sm px-3 py-1.5 border rounded-lg"
-                                />
-                                <input
-                                  type="text"
-                                  placeholder="Temporada (opcional)"
-                                  value={newTeamTemporada}
-                                  onChange={(e) => setNewTeamTemporada(e.target.value)}
-                                  className="text-sm px-3 py-1.5 border rounded-lg"
-                                />
-                              </div>
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => handleCreateTeam(org.id)}
-                                  disabled={creatingTeam || !newTeamName.trim()}
-                                  className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
-                                >
-                                  {creatingTeam ? 'Creando...' : 'Crear'}
-                                </button>
-                                <button
-                                  onClick={() => setShowCreateTeam(null)}
-                                  className="text-xs px-3 py-1.5 bg-white border text-gray-600 rounded-lg hover:bg-gray-50"
-                                >
-                                  Cancelar
-                                </button>
-                              </div>
-                            </div>
-                          )}
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                            Equipos ({orgDetail.equipos.length})
+                            {orgDetail.limites && (
+                              <span className="normal-case font-normal ml-1">
+                                — {orgDetail.limites.equipos_usados} de {orgDetail.limites.max_equipos}
+                              </span>
+                            )}
+                          </p>
 
                           {orgDetail.equipos.length === 0 ? (
                             <p className="text-xs text-gray-400">Sin equipos</p>
@@ -904,7 +1152,7 @@ export default function AdminPage() {
                                   <span className="font-medium text-gray-900">{m.nombre} {m.apellidos || ''}</span>
                                   <span className="text-gray-400 ml-2">{m.email}</span>
                                 </div>
-                                <div className="flex gap-1 ml-2">
+                                <div className="flex gap-1 ml-2 items-center">
                                   <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{formatRole(m.rol)}</span>
                                   {m.usuarios_equipos?.map((ue) => (
                                     <span key={ue.equipo_id} className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
@@ -933,7 +1181,7 @@ export default function AdminPage() {
                                       <span className="text-purple-500 ml-1 text-xs">({formatRole(inv.rol_organizacion)})</span>
                                     )}
                                   </div>
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-1.5">
                                     <span className="text-xs text-gray-400">Exp: {formatDate(inv.expira_en)}</span>
                                     {inv.token && (
                                       <button
@@ -947,6 +1195,26 @@ export default function AdminPage() {
                                         <Copy className="h-3.5 w-3.5 text-gray-500" />
                                       </button>
                                     )}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleResendInvite(inv.id)
+                                      }}
+                                      className="p-1 hover:bg-blue-50 rounded"
+                                      title="Renovar (+30 dias)"
+                                    >
+                                      <RotateCcw className="h-3.5 w-3.5 text-blue-500" />
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleRevokeInvite(inv.id, inv.email, org.id)
+                                      }}
+                                      className="p-1 hover:bg-red-50 rounded"
+                                      title="Revocar invitacion"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                                    </button>
                                   </div>
                                 </div>
                               ))}
@@ -959,6 +1227,13 @@ export default function AdminPage() {
                 )}
               </div>
             ))}
+
+            {filteredOrgs.length === 0 && orgs.length > 0 && (
+              <div className="bg-white rounded-xl border p-8 text-center">
+                <Search className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                <p className="text-gray-500">No se encontraron organizaciones para &quot;{orgSearch}&quot;</p>
+              </div>
+            )}
 
             {orgs.length === 0 && (
               <div className="bg-white rounded-xl border p-8 text-center">
@@ -1000,7 +1275,12 @@ export default function AdminPage() {
                 {users.map((u) => (
                   <div key={u.id} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50">
                     <div className="min-w-0">
-                      <p className="font-medium text-sm text-gray-900">{u.nombre} {u.apellidos || ''}</p>
+                      <p className="font-medium text-sm text-gray-900">
+                        {u.nombre} {u.apellidos || ''}
+                        {u.activo === false && (
+                          <span className="ml-1.5 text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">Inactivo</span>
+                        )}
+                      </p>
                       <p className="text-xs text-gray-500">{u.email}</p>
                     </div>
                     <div className="flex items-center gap-2 ml-3">
@@ -1009,6 +1289,52 @@ export default function AdminPage() {
                         <span className="text-xs text-gray-400">{u.organizaciones.nombre}</span>
                       )}
                       <span className="text-xs text-gray-300">{formatDate(u.created_at)}</span>
+
+                      {/* Change role button */}
+                      {changingRoleUserId === u.id ? (
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <select
+                            value={newRole}
+                            onChange={(e) => setNewRole(e.target.value)}
+                            className="text-xs px-2 py-1 border rounded bg-white"
+                          >
+                            <option value="">Seleccionar...</option>
+                            {ALL_ROLES.map(r => (
+                              <option key={r.value} value={r.value}>{r.label}</option>
+                            ))}
+                          </select>
+                          {newRole && (
+                            <button
+                              onClick={() => handleChangeRole(u.id)}
+                              className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                            >
+                              OK
+                            </button>
+                          )}
+                          <button onClick={() => setChangingRoleUserId(null)} className="p-0.5">
+                            <X className="h-3.5 w-3.5 text-gray-400" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => { setChangingRoleUserId(u.id); setNewRole('') }}
+                          className="p-1 hover:bg-gray-100 rounded"
+                          title="Cambiar rol"
+                        >
+                          <UserCog className="h-3.5 w-3.5 text-gray-400" />
+                        </button>
+                      )}
+
+                      {/* Delete user button */}
+                      {u.activo !== false && (
+                        <button
+                          onClick={() => handleDeleteUser(u.id, `${u.nombre} ${u.apellidos || ''}`)}
+                          className="p-1 hover:bg-red-50 rounded"
+                          title="Desactivar usuario"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
