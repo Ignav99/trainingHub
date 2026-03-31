@@ -210,7 +210,6 @@ async def club_list_equipos(user: UsuarioResponse = Depends(require_club_admin))
             supabase.table("jugadores")
             .select("id", count="exact")
             .eq("equipo_id", tid)
-            .eq("activo", True)
             .execute()
         )
 
