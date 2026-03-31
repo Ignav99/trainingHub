@@ -35,7 +35,7 @@ export interface ClubMiembro {
   rol: string
   activo: boolean
   created_at: string
-  last_login?: string
+  ultimo_acceso?: string
   usuarios_equipos?: Array<{
     equipo_id: string
     rol_en_equipo: string
@@ -45,20 +45,19 @@ export interface ClubMiembro {
 
 export interface ClubTarea {
   id: string
-  nombre: string
-  categoria: string
-  objetivo?: string
+  titulo: string
+  fase_juego?: string
   created_at: string
   equipo_id: string
+  categorias_tarea?: { codigo: string; nombre: string }
 }
 
 export interface ClubSesion {
   id: string
   titulo: string
   fecha: string
-  fase?: string
-  duracion_minutos?: number
   match_day?: string
+  duracion_total?: number
   equipo_id: string
 }
 

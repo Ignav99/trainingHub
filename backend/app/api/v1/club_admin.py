@@ -376,7 +376,7 @@ async def club_list_miembros(user: UsuarioResponse = Depends(require_club_admin)
 
     members = (
         supabase.table("usuarios")
-        .select("id, email, nombre, apellidos, rol, activo, created_at, last_login, usuarios_equipos(equipo_id, rol_en_equipo, equipos(id, nombre))")
+        .select("id, email, nombre, apellidos, rol, activo, created_at, ultimo_acceso, usuarios_equipos(equipo_id, rol_en_equipo, equipos(id, nombre))")
         .eq("organizacion_id", org_id)
         .order("created_at", desc=True)
         .execute()
@@ -718,7 +718,7 @@ async def club_list_tareas(
     for tid in team_ids:
         query = (
             supabase.table("tareas")
-            .select("id, nombre, categoria, objetivo, created_at, equipo_id", count="exact")
+            .select("id, titulo, fase_juego, created_at, equipo_id, categorias_tarea(codigo, nombre)", count="exact")
             .eq("equipo_id", tid)
             .order("created_at", desc=True)
         )
@@ -767,7 +767,7 @@ async def club_list_sesiones(
     for tid in team_ids:
         result = (
             supabase.table("sesiones")
-            .select("id, titulo, fecha, fase, duracion_minutos, match_day, equipo_id", count="exact")
+            .select("id, titulo, fecha, match_day, duracion_total, equipo_id", count="exact")
             .eq("equipo_id", tid)
             .order("fecha", desc=True)
             .execute()
@@ -810,7 +810,7 @@ async def club_analytics(
 
         sesiones = (
             supabase.table("sesiones")
-            .select("id, fecha, created_by", count="exact")
+            .select("id, fecha, creado_por", count="exact")
             .eq("equipo_id", tid)
             .gte("fecha", start_date)
             .execute()
@@ -834,7 +834,7 @@ async def club_analytics(
     # Per-coach activity
     staff = (
         supabase.table("usuarios")
-        .select("id, nombre, apellidos, rol, last_login")
+        .select("id, nombre, apellidos, rol, ultimo_acceso")
         .eq("organizacion_id", org_id)
         .neq("rol", "jugador")
         .execute()
@@ -849,7 +849,7 @@ async def club_analytics(
                 supabase.table("sesiones")
                 .select("id", count="exact")
                 .eq("equipo_id", team["id"])
-                .eq("created_by", s["id"])
+                .eq("creado_por", s["id"])
                 .gte("fecha", start_date)
                 .execute()
             )
@@ -860,7 +860,7 @@ async def club_analytics(
             "nombre": f"{s.get('nombre', '')} {s.get('apellidos', '')}".strip(),
             "rol": s["rol"],
             "sesiones_creadas": ses_count,
-            "last_login": s.get("last_login"),
+            "last_login": s.get("ultimo_acceso"),
         })
 
     return {

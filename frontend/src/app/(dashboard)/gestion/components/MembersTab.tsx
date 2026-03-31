@@ -137,7 +137,7 @@ export default function MembersTab() {
                     {m.usuarios_equipos?.map(ue => ue.equipos?.nombre).filter(Boolean).join(', ') || '-'}
                   </td>
                   <td className="px-4 py-3 text-gray-500 tabular-nums text-xs">
-                    {m.last_login ? new Date(m.last_login).toLocaleDateString('es-ES') : 'Nunca'}
+                    {m.ultimo_acceso ? new Date(m.ultimo_acceso).toLocaleDateString('es-ES') : 'Nunca'}
                   </td>
                   <td className="px-4 py-3">
                     {m.activo && (

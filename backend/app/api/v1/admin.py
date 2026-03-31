@@ -870,7 +870,7 @@ async def admin_platform_analytics(
     active_users = (
         supabase.table("usuarios")
         .select("id", count="exact")
-        .gte("last_login", thirty_days_ago)
+        .gte("ultimo_acceso", thirty_days_ago)
         .execute()
     )
 

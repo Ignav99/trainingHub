@@ -72,7 +72,7 @@ export default function SessionsTab() {
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Equipo</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Fecha</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Match Day</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Duracion</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500">Duracion (min)</th>
                 </tr>
               </thead>
               <tbody>
@@ -89,7 +89,7 @@ export default function SessionsTab() {
                       ) : '-'}
                     </td>
                     <td className="px-4 py-3 text-gray-600 tabular-nums">
-                      {s.duracion_minutos ? `${s.duracion_minutos} min` : '-'}
+                      {s.duracion_total ? `${s.duracion_total} min` : '-'}
                     </td>
                   </tr>
                 ))}

@@ -68,24 +68,24 @@ export default function TasksTab() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Nombre</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500">Titulo</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Equipo</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Categoria</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Objetivo</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500">Fase</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Fecha</th>
                 </tr>
               </thead>
               <tbody>
                 {tareas.map(t => (
                   <tr key={t.id} className="border-b last:border-0 hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">{t.nombre}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900">{t.titulo}</td>
                     <td className="px-4 py-3 text-gray-600">{teamName(t.equipo_id)}</td>
                     <td className="px-4 py-3">
                       <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
-                        {t.categoria}
+                        {t.categorias_tarea?.nombre || '-'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-600 max-w-[200px] truncate">{t.objetivo || '-'}</td>
+                    <td className="px-4 py-3 text-gray-600 max-w-[200px] truncate capitalize">{t.fase_juego?.replace(/_/g, ' ') || '-'}</td>
                     <td className="px-4 py-3 text-gray-500 tabular-nums">{formatDate(t.created_at)}</td>
                   </tr>
                 ))}
