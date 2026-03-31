@@ -40,6 +40,7 @@ from app.api.v1 import (
     medico,
     stripe_webhook,
     admin,
+    club_admin,
     descansos,
     abp,
     portero_tareas,
@@ -253,6 +254,12 @@ api_router.include_router(
     admin.router,
     prefix="/admin",
     tags=["Admin Panel"]
+)
+
+api_router.include_router(
+    club_admin.router,
+    prefix="/club",
+    tags=["Club Admin"]
 )
 
 api_router.include_router(

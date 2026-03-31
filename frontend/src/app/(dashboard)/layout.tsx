@@ -26,6 +26,7 @@ import {
   Trophy,
   Flag,
   UtensilsCrossed,
+  Crown,
 } from 'lucide-react'
 import { preload } from 'swr'
 import { apiFetcher } from '@/lib/swr'
@@ -352,6 +353,26 @@ const SidebarContent = memo(function SidebarContent({
           >
             <Bell className="h-4 w-4" />
           </button>
+        </div>
+      )}
+
+      {/* Club Admin link — only for directiva */}
+      {user && ['presidente', 'director_deportivo', 'secretario', 'admin'].includes(user.rol) && (
+        <div className="px-5 mb-2 mt-1">
+          <Link
+            href="/gestion"
+            onClick={onClose}
+            className={`
+              flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all
+              ${pathname.startsWith('/gestion')
+                ? 'bg-amber-100 border border-amber-300 text-amber-900'
+                : 'bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 text-amber-900 hover:from-amber-100 hover:to-orange-100'
+              }
+            `}
+          >
+            <Crown className="h-4 w-4" />
+            Gestion del Club
+          </Link>
         </div>
       )}
 

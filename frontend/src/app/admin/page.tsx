@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Search,
   X,
+  BarChart3,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/authStore'
@@ -23,6 +24,7 @@ import OverviewCards from './components/OverviewCards'
 import OrgCard from './components/OrgCard'
 import UsersList from './components/UsersList'
 import ConfirmDialog from './components/ConfirmDialog'
+import PlatformAnalyticsTab from './components/PlatformAnalyticsTab'
 
 export default function AdminPage() {
   const router = useRouter()
@@ -41,7 +43,7 @@ export default function AdminPage() {
   const [loadingDetail, setLoadingDetail] = useState(false)
 
   // View toggle
-  const [activeTab, setActiveTab] = useState<'orgs' | 'users'>('orgs')
+  const [activeTab, setActiveTab] = useState<'orgs' | 'users' | 'analytics'>('orgs')
   const [orgSearch, setOrgSearch] = useState('')
 
   // Create org
@@ -242,6 +244,15 @@ export default function AdminPage() {
               <Users className="h-4 w-4 inline mr-1.5 -mt-0.5" />
               Usuarios
             </button>
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                activeTab === 'analytics' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <BarChart3 className="h-4 w-4 inline mr-1.5 -mt-0.5" />
+              Analiticas
+            </button>
           </div>
 
           {activeTab === 'orgs' && (
@@ -357,6 +368,11 @@ export default function AdminPage() {
         {/* ── Users tab ── */}
         {activeTab === 'users' && (
           <UsersList onConfirm={requestConfirm} />
+        )}
+
+        {/* ── Analytics tab ── */}
+        {activeTab === 'analytics' && (
+          <PlatformAnalyticsTab />
         )}
       </main>
     </div>

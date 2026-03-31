@@ -760,3 +760,207 @@ async def admin_list_planes(admin: UsuarioResponse = Depends(require_superadmin)
     supabase = get_supabase()
     result = supabase.table("planes").select("*").eq("activo", True).order("precio_mensual_cents").execute()
     return result.data or []
+
+
+# ============ Platform Analytics ============
+
+@router.get("/organizaciones/{org_id}/stats")
+async def admin_org_stats(
+    org_id: str,
+    admin: UsuarioResponse = Depends(require_superadmin),
+):
+    """Deep per-org stats: sessions, tasks, players, matches, AI, storage, logins."""
+    supabase = get_supabase()
+
+    org = supabase.table("organizaciones").select("id, nombre").eq("id", org_id).maybe_single().execute()
+    if not org.data:
+        raise HTTPException(status_code=404, detail="Organizacion no encontrada")
+
+    teams = (
+        supabase.table("equipos")
+        .select("id, nombre, categoria")
+        .eq("organizacion_id", org_id)
+        .eq("activo", True)
+        .execute()
+    )
+
+    # Subscription info
+    sub = (
+        supabase.table("suscripciones")
+        .select("*, planes(*)")
+        .eq("organizacion_id", org_id)
+        .maybe_single()
+        .execute()
+    )
+
+    # 30-day login count
+    thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    logins = (
+        supabase.table("audit_log")
+        .select("id", count="exact")
+        .eq("organizacion_id", org_id)
+        .eq("accion", "login")
+        .gte("created_at", thirty_days_ago)
+        .execute()
+    )
+
+    # Per-team breakdown
+    per_team = []
+    totals = {"sesiones": 0, "tareas": 0, "jugadores": 0, "partidos": 0}
+
+    for team in (teams.data or []):
+        tid = team["id"]
+        ses = supabase.table("sesiones").select("id", count="exact").eq("equipo_id", tid).execute()
+        tar = supabase.table("tareas").select("id", count="exact").eq("equipo_id", tid).execute()
+        jug = supabase.table("jugadores").select("id", count="exact").eq("equipo_id", tid).eq("activo", True).execute()
+        par = supabase.table("partidos").select("id", count="exact").eq("equipo_id", tid).execute()
+
+        s, t, j, p = ses.count or 0, tar.count or 0, jug.count or 0, par.count or 0
+        totals["sesiones"] += s
+        totals["tareas"] += t
+        totals["jugadores"] += j
+        totals["partidos"] += p
+
+        per_team.append({
+            "equipo_id": tid,
+            "nombre": team["nombre"],
+            "categoria": team.get("categoria"),
+            "sesiones": s,
+            "tareas": t,
+            "jugadores": j,
+            "partidos": p,
+        })
+
+    ai_calls = sub.data.get("uso_ai_calls_month", 0) if sub.data else 0
+    storage_mb = sub.data.get("uso_storage_mb", 0) if sub.data else 0
+
+    return {
+        "organizacion": org.data,
+        "totals": totals,
+        "ai_calls": ai_calls,
+        "storage_mb": storage_mb,
+        "logins_30d": logins.count or 0,
+        "per_team": per_team,
+        "suscripcion": sub.data if sub.data else None,
+    }
+
+
+@router.get("/platform-analytics")
+async def admin_platform_analytics(
+    admin: UsuarioResponse = Depends(require_superadmin),
+):
+    """Global platform analytics: growth, active users, MRR, AI costs."""
+    supabase = get_supabase()
+
+    now = datetime.now(timezone.utc)
+    thirty_days_ago = (now - timedelta(days=30)).isoformat()
+
+    # Total orgs
+    total_orgs = supabase.table("organizaciones").select("id", count="exact").execute()
+    # New orgs last 30 days
+    new_orgs = (
+        supabase.table("organizaciones")
+        .select("id", count="exact")
+        .gte("created_at", thirty_days_ago)
+        .execute()
+    )
+    # Total users
+    total_users = supabase.table("usuarios").select("id", count="exact").execute()
+    # Active users (logged in last 30 days)
+    active_users = (
+        supabase.table("usuarios")
+        .select("id", count="exact")
+        .gte("last_login", thirty_days_ago)
+        .execute()
+    )
+
+    # MRR estimate from active subscriptions
+    active_subs = (
+        supabase.table("suscripciones")
+        .select("plan_id, planes(precio_mensual_cents)")
+        .eq("estado", "active")
+        .execute()
+    )
+    mrr_cents = 0
+    for s in (active_subs.data or []):
+        plan = s.get("planes")
+        if plan:
+            mrr_cents += plan.get("precio_mensual_cents", 0)
+
+    # Subscription distribution
+    all_subs = (
+        supabase.table("suscripciones")
+        .select("estado, planes(codigo, nombre)")
+        .execute()
+    )
+    plan_dist = {}
+    status_dist = {}
+    for s in (all_subs.data or []):
+        estado = s.get("estado", "unknown")
+        status_dist[estado] = status_dist.get(estado, 0) + 1
+        plan = s.get("planes")
+        if plan:
+            code = plan.get("codigo", "unknown")
+            plan_dist[code] = plan_dist.get(code, 0) + 1
+
+    return {
+        "total_orgs": total_orgs.count or 0,
+        "new_orgs_30d": new_orgs.count or 0,
+        "total_users": total_users.count or 0,
+        "active_users_30d": active_users.count or 0,
+        "mrr_cents": mrr_cents,
+        "mrr_eur": round(mrr_cents / 100, 2),
+        "plan_distribution": plan_dist,
+        "status_distribution": status_dist,
+    }
+
+
+@router.get("/comparisons")
+async def admin_org_comparisons(
+    admin: UsuarioResponse = Depends(require_superadmin),
+):
+    """Top 10 orgs by AI calls, sessions, active users, storage."""
+    supabase = get_supabase()
+
+    orgs = (
+        supabase.table("organizaciones")
+        .select("id, nombre")
+        .execute()
+    )
+
+    org_stats = []
+    for org in (orgs.data or []):
+        oid = org["id"]
+
+        # Count users
+        users = supabase.table("usuarios").select("id", count="exact").eq("organizacion_id", oid).execute()
+        # Count sessions across all teams
+        teams = supabase.table("equipos").select("id").eq("organizacion_id", oid).eq("activo", True).execute()
+        total_sesiones = 0
+        for t in (teams.data or []):
+            ses = supabase.table("sesiones").select("id", count="exact").eq("equipo_id", t["id"]).execute()
+            total_sesiones += ses.count or 0
+
+        sub = (
+            supabase.table("suscripciones")
+            .select("uso_ai_calls_month, uso_storage_mb")
+            .eq("organizacion_id", oid)
+            .maybe_single()
+            .execute()
+        )
+
+        org_stats.append({
+            "org_id": oid,
+            "nombre": org["nombre"],
+            "users": users.count or 0,
+            "sesiones": total_sesiones,
+            "ai_calls": sub.data.get("uso_ai_calls_month", 0) if sub.data else 0,
+            "storage_mb": sub.data.get("uso_storage_mb", 0) if sub.data else 0,
+        })
+
+    return {
+        "by_ai_calls": sorted(org_stats, key=lambda x: x["ai_calls"], reverse=True)[:10],
+        "by_sessions": sorted(org_stats, key=lambda x: x["sesiones"], reverse=True)[:10],
+        "by_users": sorted(org_stats, key=lambda x: x["users"], reverse=True)[:10],
+        "by_storage": sorted(org_stats, key=lambda x: x["storage_mb"], reverse=True)[:10],
+    }
