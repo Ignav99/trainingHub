@@ -91,85 +91,75 @@ async def club_dashboard(user: UsuarioResponse = Depends(require_club_admin)):
     )
     team_ids = [t["id"] for t in (teams.data or [])]
 
-    # Total jugadores across all teams (jugadores uses "estado" column, not "activo")
+    # Total jugadores (excluding guest/invited players)
     total_jugadores = 0
     if team_ids:
-        for tid in team_ids:
-            jug = (
-                supabase.table("jugadores")
-                .select("id", count="exact")
-                .eq("equipo_id", tid)
-                .execute()
-            )
-            total_jugadores += jug.count or 0
+        jug = (
+            supabase.table("jugadores")
+            .select("id", count="exact")
+            .in_("equipo_id", team_ids)
+            .eq("es_invitado", False)
+            .execute()
+        )
+        total_jugadores = jug.count or 0
 
-    # Total staff
+    # Total staff (excluding jugador and tutor roles — those aren't staff)
     staff = (
         supabase.table("usuarios")
         .select("id", count="exact")
         .eq("organizacion_id", org_id)
+        .neq("rol", "jugador")
+        .neq("rol", "tutor")
         .execute()
     )
 
-    # Sessions this month
-    month_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
-    sesiones_mes = 0
-    tareas_mes = 0
-    if team_ids:
-        for tid in team_ids:
-            ses = (
-                supabase.table("sesiones")
-                .select("id", count="exact")
-                .eq("equipo_id", tid)
-                .gte("fecha", month_start)
-                .execute()
-            )
-            sesiones_mes += ses.count or 0
+    # Sessions & tareas last 30 days (use date string for DATE column comparison)
+    thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
 
-            tar = (
-                supabase.table("tareas")
-                .select("id", count="exact")
-                .eq("equipo_id", tid)
-                .gte("created_at", month_start)
-                .execute()
-            )
-            tareas_mes += tar.count or 0
+    sesiones_mes = 0
+    if team_ids:
+        ses = (
+            supabase.table("sesiones")
+            .select("id", count="exact")
+            .in_("equipo_id", team_ids)
+            .gte("fecha", thirty_days_ago)
+            .execute()
+        )
+        sesiones_mes = ses.count or 0
+
+    # Tareas last 30 days (query by org directly — more efficient)
+    tar = (
+        supabase.table("tareas")
+        .select("id", count="exact")
+        .eq("organizacion_id", org_id)
+        .gte("created_at", thirty_days_ago)
+        .execute()
+    )
+    tareas_mes = tar.count or 0
 
     # Matches this season
     partidos_temporada = 0
     if team_ids:
-        for tid in team_ids:
-            par = (
-                supabase.table("partidos")
-                .select("id", count="exact")
-                .eq("equipo_id", tid)
-                .execute()
-            )
-            partidos_temporada += par.count or 0
+        par = (
+            supabase.table("partidos")
+            .select("id", count="exact")
+            .in_("equipo_id", team_ids)
+            .execute()
+        )
+        partidos_temporada = par.count or 0
 
-    # Active injuries
+    # Active injuries only (tipo=lesion, estado activo or en_recuperacion)
     lesiones_activas = 0
     if team_ids:
-        for tid in team_ids:
-            les = (
-                supabase.table("registros_medicos")
-                .select("id", count="exact")
-                .eq("equipo_id", tid)
-                .eq("estado", "activo")
-                .execute()
-            )
-            lesiones_activas += les.count or 0
-
-    # AI calls this month (from suscripciones)
-    sub = (
-        supabase.table("suscripciones")
-        .select("uso_ai_calls_month, uso_storage_mb")
-        .eq("organizacion_id", org_id)
-        .maybe_single()
-        .execute()
-    )
-    ai_calls_mes = sub.data.get("uso_ai_calls_month", 0) if sub.data else 0
-    storage_mb = sub.data.get("uso_storage_mb", 0) if sub.data else 0
+        les = (
+            supabase.table("registros_medicos")
+            .select("id", count="exact")
+            .in_("equipo_id", team_ids)
+            .eq("tipo", "lesion")
+            .in_("estado", ["activo", "en_recuperacion"])
+            .execute()
+        )
+        lesiones_activas = les.count or 0
 
     return {
         "total_jugadores": total_jugadores,
@@ -178,8 +168,6 @@ async def club_dashboard(user: UsuarioResponse = Depends(require_club_admin)):
         "tareas_mes": tareas_mes,
         "partidos_temporada": partidos_temporada,
         "lesiones_activas": lesiones_activas,
-        "ai_calls_mes": ai_calls_mes,
-        "storage_mb": storage_mb,
     }
 
 
@@ -208,6 +196,7 @@ async def club_list_equipos(user: UsuarioResponse = Depends(require_club_admin))
             supabase.table("jugadores")
             .select("id", count="exact")
             .eq("equipo_id", tid)
+            .eq("es_invitado", False)
             .execute()
         )
 
@@ -215,6 +204,7 @@ async def club_list_equipos(user: UsuarioResponse = Depends(require_club_admin))
             supabase.table("usuarios_equipos")
             .select("id", count="exact")
             .eq("equipo_id", tid)
+            .neq("rol_en_equipo", "jugador")
             .execute()
         )
 

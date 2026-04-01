@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Users, UserCheck, Calendar, ClipboardList, Swords, HeartPulse, Bot, HardDrive, Loader2 } from 'lucide-react'
+import { Users, UserCheck, Calendar, ClipboardList, Swords, HeartPulse, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { clubAdminApi } from '@/lib/api/clubAdmin'
 import type { ClubDashboard, ClubEquipo, TeamAnalytics, CoachActivity } from './types'
@@ -54,8 +54,8 @@ export default function ClubDashboardTab() {
   const kpiCards = [
     { label: 'Jugadores', value: dashboard.total_jugadores, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
     { label: 'Staff', value: dashboard.total_staff, icon: UserCheck, color: 'text-purple-600', bg: 'bg-purple-50' },
-    { label: 'Sesiones (mes)', value: dashboard.sesiones_mes, icon: Calendar, color: 'text-green-600', bg: 'bg-green-50' },
-    { label: 'Tareas (mes)', value: dashboard.tareas_mes, icon: ClipboardList, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { label: 'Sesiones (30d)', value: dashboard.sesiones_mes, icon: Calendar, color: 'text-green-600', bg: 'bg-green-50' },
+    { label: 'Tareas (30d)', value: dashboard.tareas_mes, icon: ClipboardList, color: 'text-amber-600', bg: 'bg-amber-50' },
     { label: 'Partidos', value: dashboard.partidos_temporada, icon: Swords, color: 'text-red-600', bg: 'bg-red-50' },
     { label: 'Lesiones activas', value: dashboard.lesiones_activas, icon: HeartPulse, color: 'text-rose-600', bg: 'bg-rose-50' },
   ]
@@ -111,28 +111,6 @@ export default function ClubDashboardTab() {
             <p className="text-xs text-gray-500 mt-0.5">{card.label}</p>
           </div>
         ))}
-      </div>
-
-      {/* Extra KPIs */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl border p-4 flex items-center gap-4">
-          <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-indigo-50">
-            <Bot className="h-4.5 w-4.5 text-indigo-600" />
-          </div>
-          <div>
-            <p className="text-lg font-bold text-gray-900 tabular-nums">{dashboard.ai_calls_mes}</p>
-            <p className="text-xs text-gray-500">Llamadas AI (mes)</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl border p-4 flex items-center gap-4">
-          <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-cyan-50">
-            <HardDrive className="h-4.5 w-4.5 text-cyan-600" />
-          </div>
-          <div>
-            <p className="text-lg font-bold text-gray-900 tabular-nums">{dashboard.storage_mb} MB</p>
-            <p className="text-xs text-gray-500">Almacenamiento</p>
-          </div>
-        </div>
       </div>
 
       {/* Charts */}
@@ -196,7 +174,7 @@ export default function ClubDashboardTab() {
           )}
         </div>
 
-        {/* Team stats table + coach activity */}
+        {/* Team stats table */}
         <div className="bg-white rounded-xl border p-5">
           <h3 className="text-sm font-semibold text-gray-900 mb-4">Resumen por equipo</h3>
           <div className="overflow-x-auto">

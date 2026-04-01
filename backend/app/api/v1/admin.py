@@ -812,7 +812,7 @@ async def admin_org_stats(
         tid = team["id"]
         ses = supabase.table("sesiones").select("id", count="exact").eq("equipo_id", tid).execute()
         tar = supabase.table("tareas").select("id", count="exact").eq("equipo_id", tid).execute()
-        jug = supabase.table("jugadores").select("id", count="exact").eq("equipo_id", tid).execute()
+        jug = supabase.table("jugadores").select("id", count="exact").eq("equipo_id", tid).eq("es_invitado", False).execute()
         par = supabase.table("partidos").select("id", count="exact").eq("equipo_id", tid).execute()
 
         s, t, j, p = ses.count or 0, tar.count or 0, jug.count or 0, par.count or 0

@@ -9,8 +9,6 @@ export interface ClubDashboard {
   tareas_mes: number
   partidos_temporada: number
   lesiones_activas: number
-  ai_calls_mes: number
-  storage_mb: number
 }
 
 export interface ClubEquipo {
