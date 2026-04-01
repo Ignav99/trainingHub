@@ -18,8 +18,8 @@ export interface ClubEquipo {
   created_at: string
   num_jugadores: number
   num_staff: number
-  sesiones_mes: number
-  tareas_mes: number
+  total_sesiones: number
+  total_tareas: number
   num_partidos: number
 }
 
@@ -42,10 +42,20 @@ export interface ClubMiembro {
 export interface ClubTarea {
   id: string
   titulo: string
+  descripcion?: string
   fase_juego?: string
+  principio_tactico?: string
+  duracion_total?: number
+  num_jugadores_min?: number
+  num_jugadores_max?: number
+  objetivo_fisico?: string
+  nivel_cognitivo?: number
+  match_days_recomendados?: string[]
   created_at: string
   equipo_id: string
-  categorias_tarea?: { codigo: string; nombre: string }
+  creado_por?: string
+  grafico_url?: string
+  categorias_tarea?: { codigo: string; nombre: string; color?: string }
 }
 
 export interface ClubSesion {
@@ -55,6 +65,23 @@ export interface ClubSesion {
   match_day?: string
   duracion_total?: number
   equipo_id: string
+  creado_por?: string
+  estado?: string
+  objetivo_principal?: string
+  fase_juego_principal?: string
+  principio_tactico_principal?: string
+  rival?: string
+  competicion?: string
+}
+
+export interface CategoriaTarea {
+  id: string
+  codigo: string
+  nombre: string
+  nombre_corto?: string
+  color?: string
+  naturaleza?: string
+  orden: number
 }
 
 export interface CoachActivity {
@@ -100,8 +127,35 @@ export const CLUB_ROLES = [
   { value: 'coordinador', label: 'Coordinador' },
 ]
 
+export const FASES_JUEGO = [
+  'ataque_organizado',
+  'defensa_organizada',
+  'transicion_ofensiva',
+  'transicion_defensiva',
+  'balon_parado_ofensivo',
+  'balon_parado_defensivo',
+]
+
+export const MATCH_DAYS = ['MD-4', 'MD-3', 'MD-2', 'MD-1', 'MD', 'MD+1', 'MD+2']
+
+export const MATCH_DAY_COLORS: Record<string, { bg: string; text: string }> = {
+  'MD-4': { bg: 'bg-sky-50', text: 'text-sky-700' },
+  'MD-3': { bg: 'bg-blue-50', text: 'text-blue-700' },
+  'MD-2': { bg: 'bg-indigo-50', text: 'text-indigo-700' },
+  'MD-1': { bg: 'bg-violet-50', text: 'text-violet-700' },
+  'MD': { bg: 'bg-red-50', text: 'text-red-700' },
+  'MD+1': { bg: 'bg-amber-50', text: 'text-amber-700' },
+  'MD+2': { bg: 'bg-green-50', text: 'text-green-700' },
+}
+
+export const ESTADOS_SESION = ['borrador', 'planificada', 'completada', 'cancelada']
+
 export function formatRole(rol: string): string {
   return CLUB_ROLES.find(r => r.value === rol)?.label || rol.replace(/_/g, ' ')
+}
+
+export function formatFase(fase: string): string {
+  return fase.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
 }
 
 export function formatDate(dateStr: string): string {

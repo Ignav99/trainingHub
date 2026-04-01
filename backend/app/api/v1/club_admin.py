@@ -91,7 +91,7 @@ async def club_dashboard(user: UsuarioResponse = Depends(require_club_admin)):
     )
     team_ids = [t["id"] for t in (teams.data or [])]
 
-    # Total jugadores across all teams
+    # Total jugadores across all teams (jugadores uses "estado" column, not "activo")
     total_jugadores = 0
     if team_ids:
         for tid in team_ids:
@@ -99,7 +99,6 @@ async def club_dashboard(user: UsuarioResponse = Depends(require_club_admin)):
                 supabase.table("jugadores")
                 .select("id", count="exact")
                 .eq("equipo_id", tid)
-                .eq("activo", True)
                 .execute()
             )
             total_jugadores += jug.count or 0
@@ -201,7 +200,6 @@ async def club_list_equipos(user: UsuarioResponse = Depends(require_club_admin))
         .execute()
     )
 
-    month_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
     result = []
     for team in (teams.data or []):
         tid = team["id"]
@@ -224,7 +222,6 @@ async def club_list_equipos(user: UsuarioResponse = Depends(require_club_admin))
             supabase.table("sesiones")
             .select("id", count="exact")
             .eq("equipo_id", tid)
-            .gte("fecha", month_start)
             .execute()
         )
 
@@ -232,7 +229,6 @@ async def club_list_equipos(user: UsuarioResponse = Depends(require_club_admin))
             supabase.table("tareas")
             .select("id", count="exact")
             .eq("equipo_id", tid)
-            .gte("created_at", month_start)
             .execute()
         )
 
@@ -247,8 +243,8 @@ async def club_list_equipos(user: UsuarioResponse = Depends(require_club_admin))
             **team,
             "num_jugadores": jugadores.count or 0,
             "num_staff": staff.count or 0,
-            "sesiones_mes": sesiones.count or 0,
-            "tareas_mes": tareas.count or 0,
+            "total_sesiones": sesiones.count or 0,
+            "total_tareas": tareas.count or 0,
             "num_partidos": partidos.count or 0,
         })
 
@@ -686,62 +682,78 @@ async def club_revoke_invite(
 @router.get("/tareas")
 async def club_list_tareas(
     equipo_id: Optional[str] = None,
+    categoria: Optional[str] = None,
+    fase_juego: Optional[str] = None,
+    creado_por: Optional[str] = None,
+    search: Optional[str] = None,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
     user: UsuarioResponse = Depends(require_club_admin),
 ):
-    """Tareas de todos los equipos (filtrable por equipo)."""
+    """Biblioteca completa de tareas del club con filtros."""
     supabase = get_supabase()
     org_id = str(user.organizacion_id)
 
-    # Get team IDs for this org
-    teams = (
-        supabase.table("equipos")
-        .select("id")
+    query = (
+        supabase.table("tareas")
+        .select(
+            "id, titulo, descripcion, fase_juego, principio_tactico, "
+            "duracion_total, num_jugadores_min, num_jugadores_max, "
+            "objetivo_fisico, nivel_cognitivo, match_days_recomendados, "
+            "created_at, equipo_id, creado_por, grafico_url, "
+            "categorias_tarea(codigo, nombre, color)",
+            count="exact",
+        )
         .eq("organizacion_id", org_id)
-        .eq("activo", True)
-        .execute()
+        .order("created_at", desc=True)
     )
-    team_ids = [t["id"] for t in (teams.data or [])]
-
-    if not team_ids:
-        return {"data": [], "total": 0}
 
     if equipo_id:
-        if equipo_id not in team_ids:
-            raise HTTPException(status_code=403, detail="Equipo no pertenece a tu organizacion")
-        team_ids = [equipo_id]
+        query = query.eq("equipo_id", equipo_id)
+    if categoria:
+        cat = supabase.table("categorias_tarea").select("id").eq("codigo", categoria).maybe_single().execute()
+        if cat.data:
+            query = query.eq("categoria_id", cat.data["id"])
+    if fase_juego:
+        query = query.eq("fase_juego", fase_juego)
+    if creado_por:
+        query = query.eq("creado_por", creado_por)
+    if search:
+        query = query.ilike("titulo", f"%{search}%")
 
-    # Query tasks across all org teams
-    all_tasks = []
-    total = 0
-    for tid in team_ids:
-        query = (
-            supabase.table("tareas")
-            .select("id, titulo, fase_juego, created_at, equipo_id, categorias_tarea(codigo, nombre)", count="exact")
-            .eq("equipo_id", tid)
-            .order("created_at", desc=True)
-        )
-        result = query.execute()
-        total += result.count or 0
-        all_tasks.extend(result.data or [])
-
-    # Sort by created_at desc and paginate
-    all_tasks.sort(key=lambda x: x.get("created_at", ""), reverse=True)
     offset = (page - 1) * limit
-    paginated = all_tasks[offset:offset + limit]
+    query = query.range(offset, offset + limit - 1)
+    result = query.execute()
 
-    return {"data": paginated, "total": total}
+    return {"data": result.data or [], "total": result.count or 0}
+
+
+@router.get("/categorias")
+async def club_list_categorias(user: UsuarioResponse = Depends(require_club_admin)):
+    """Lista todas las categorias de tarea disponibles."""
+    supabase = get_supabase()
+    result = (
+        supabase.table("categorias_tarea")
+        .select("id, codigo, nombre, nombre_corto, color, naturaleza, orden")
+        .eq("activo", True)
+        .order("orden")
+        .execute()
+    )
+    return result.data or []
 
 
 @router.get("/sesiones")
 async def club_list_sesiones(
     equipo_id: Optional[str] = None,
+    match_day: Optional[str] = None,
+    estado: Optional[str] = None,
+    fase_juego: Optional[str] = None,
+    search: Optional[str] = None,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
     user: UsuarioResponse = Depends(require_club_admin),
 ):
-    """Sesiones de todos los equipos (filtrable por equipo)."""
+    """Todas las sesiones del club con filtros completos."""
     supabase = get_supabase()
     org_id = str(user.organizacion_id)
 
@@ -757,29 +769,36 @@ async def club_list_sesiones(
     if not team_ids:
         return {"data": [], "total": 0}
 
+    query = (
+        supabase.table("sesiones")
+        .select(
+            "id, titulo, fecha, match_day, duracion_total, equipo_id, "
+            "creado_por, estado, objetivo_principal, fase_juego_principal, "
+            "principio_tactico_principal, rival, competicion",
+            count="exact",
+        )
+        .in_("equipo_id", team_ids)
+        .order("fecha", desc=True)
+    )
+
     if equipo_id:
         if equipo_id not in team_ids:
             raise HTTPException(status_code=403, detail="Equipo no pertenece a tu organizacion")
-        team_ids = [equipo_id]
+        query = query.eq("equipo_id", equipo_id)
+    if match_day:
+        query = query.eq("match_day", match_day)
+    if estado:
+        query = query.eq("estado", estado)
+    if fase_juego:
+        query = query.eq("fase_juego_principal", fase_juego)
+    if search:
+        query = query.ilike("titulo", f"%{search}%")
 
-    all_sessions = []
-    total = 0
-    for tid in team_ids:
-        result = (
-            supabase.table("sesiones")
-            .select("id, titulo, fecha, match_day, duracion_total, equipo_id", count="exact")
-            .eq("equipo_id", tid)
-            .order("fecha", desc=True)
-            .execute()
-        )
-        total += result.count or 0
-        all_sessions.extend(result.data or [])
-
-    all_sessions.sort(key=lambda x: x.get("fecha", ""), reverse=True)
     offset = (page - 1) * limit
-    paginated = all_sessions[offset:offset + limit]
+    query = query.range(offset, offset + limit - 1)
+    result = query.execute()
 
-    return {"data": paginated, "total": total}
+    return {"data": result.data or [], "total": result.count or 0}
 
 
 # ============ Analytics ============

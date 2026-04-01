@@ -9,7 +9,6 @@ import {
   Users,
   ClipboardList,
   Calendar,
-  BarChart3,
   FileText,
   Loader2,
 } from 'lucide-react'
@@ -19,7 +18,6 @@ import TeamsTab from './components/TeamsTab'
 import StaffTab from './components/StaffTab'
 import TasksTab from './components/TasksTab'
 import SessionsTab from './components/SessionsTab'
-import AnalyticsTab from './components/AnalyticsTab'
 import MembersTab from './components/MembersTab'
 import AuditTab from './components/AuditTab'
 
@@ -31,7 +29,6 @@ const TABS = [
   { id: 'personal', label: 'Personal', icon: Users },
   { id: 'tareas', label: 'Tareas', icon: ClipboardList },
   { id: 'sesiones', label: 'Sesiones', icon: Calendar },
-  { id: 'analiticas', label: 'Analiticas', icon: BarChart3 },
   { id: 'miembros', label: 'Miembros', icon: Users },
   { id: 'auditoria', label: 'Auditoria', icon: FileText },
 ] as const
@@ -116,7 +113,6 @@ export default function GestionPage() {
         {activeTab === 'personal' && <StaffTab />}
         {activeTab === 'tareas' && <TasksTab />}
         {activeTab === 'sesiones' && <SessionsTab />}
-        {activeTab === 'analiticas' && <AnalyticsTab />}
         {activeTab === 'miembros' && <MembersTab />}
         {activeTab === 'auditoria' && <AuditTab />}
       </div>

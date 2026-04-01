@@ -210,7 +210,7 @@ export default function TeamsTab() {
                     <p className="text-[10px] text-gray-500">Staff</p>
                   </div>
                   <div className="bg-gray-50 rounded-lg p-2">
-                    <p className="text-lg font-bold text-gray-900 tabular-nums">{eq.sesiones_mes}</p>
+                    <p className="text-lg font-bold text-gray-900 tabular-nums">{eq.total_sesiones}</p>
                     <p className="text-[10px] text-gray-500">Sesiones</p>
                   </div>
                 </div>

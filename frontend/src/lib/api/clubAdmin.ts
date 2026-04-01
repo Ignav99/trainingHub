@@ -22,8 +22,8 @@ export interface ClubEquipo {
   created_at: string
   num_jugadores: number
   num_staff: number
-  sesiones_mes: number
-  tareas_mes: number
+  total_sesiones: number
+  total_tareas: number
   num_partidos: number
 }
 
@@ -46,10 +46,20 @@ export interface ClubMiembro {
 export interface ClubTarea {
   id: string
   titulo: string
+  descripcion?: string
   fase_juego?: string
+  principio_tactico?: string
+  duracion_total?: number
+  num_jugadores_min?: number
+  num_jugadores_max?: number
+  objetivo_fisico?: string
+  nivel_cognitivo?: number
+  match_days_recomendados?: string[]
   created_at: string
   equipo_id: string
-  categorias_tarea?: { codigo: string; nombre: string }
+  creado_por?: string
+  grafico_url?: string
+  categorias_tarea?: { codigo: string; nombre: string; color?: string }
 }
 
 export interface ClubSesion {
@@ -59,6 +69,23 @@ export interface ClubSesion {
   match_day?: string
   duracion_total?: number
   equipo_id: string
+  creado_por?: string
+  estado?: string
+  objetivo_principal?: string
+  fase_juego_principal?: string
+  principio_tactico_principal?: string
+  rival?: string
+  competicion?: string
+}
+
+export interface CategoriaTarea {
+  id: string
+  codigo: string
+  nombre: string
+  nombre_corto?: string
+  color?: string
+  naturaleza?: string
+  orden: number
 }
 
 export interface ClubAnalytics {
@@ -137,11 +164,21 @@ export const clubAdminApi = {
   revokeInvite: (id: string) =>
     api.delete(`/club/invitaciones/${id}`),
 
-  // Cross-team views
-  getTareas: (params?: { equipo_id?: string; page?: number; limit?: number }) =>
+  // Biblioteca de tareas (full org library)
+  getTareas: (params?: {
+    equipo_id?: string; categoria?: string; fase_juego?: string;
+    creado_por?: string; search?: string; page?: number; limit?: number
+  }) =>
     api.get<{ data: ClubTarea[]; total: number }>('/club/tareas', { params }),
 
-  getSesiones: (params?: { equipo_id?: string; page?: number; limit?: number }) =>
+  getCategorias: () =>
+    api.get<CategoriaTarea[]>('/club/categorias'),
+
+  // Sesiones (full org library)
+  getSesiones: (params?: {
+    equipo_id?: string; match_day?: string; estado?: string;
+    fase_juego?: string; search?: string; page?: number; limit?: number
+  }) =>
     api.get<{ data: ClubSesion[]; total: number }>('/club/sesiones', { params }),
 
   // Analytics
