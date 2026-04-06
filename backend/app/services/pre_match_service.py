@@ -80,105 +80,72 @@ def _get_clasificacion(comp: dict, rival_nombre: str) -> dict | None:
 
 
 def _get_goleadores_rival(comp: dict, rival_nombre: str) -> list[dict]:
-    """Extract rival's top scorers from competition goleadores page data."""
-    goleadores = comp.get("goleadores") or []
-    rival_lower = rival_nombre.lower()
-    result = []
+    """Extract rival's top scorers from competition goleadores table.
 
+    Uses multiple strategies to match the rival's team name in the
+    goleadores list, including bridging through the clasificacion names.
+    """
+    goleadores = comp.get("goleadores") or []
     if not goleadores:
-        logger.info("No goleadores page data in competition %s", comp.get("id", "?"))
+        logger.info("No goleadores data in competition %s", comp.get("id", "?"))
         return []
 
+    # Collect ALL unique team names in the goleadores table
+    gol_team_names = list({(g.get("equipo") or "") for g in goleadores if g.get("equipo")})
+
+    # Strategy 1: direct match against rival_nombre
+    rival_lower = rival_nombre.lower()
+    matched_team = None
+    for team in gol_team_names:
+        if _match_rival_name(rival_lower, team.lower()):
+            matched_team = team
+            break
+
+    # Strategy 2: bridge through clasificacion — find the rival's name there,
+    # then match that clasificacion name against goleadores team names
+    if not matched_team:
+        clasificacion = comp.get("clasificacion") or []
+        clasif_name = None
+        for eq in clasificacion:
+            eq_name = (eq.get("equipo") or "")
+            if _match_rival_name(rival_lower, eq_name.lower()):
+                clasif_name = eq_name
+                break
+
+        if clasif_name:
+            clasif_lower = clasif_name.lower()
+            core_clasif = _extract_core_name(clasif_lower).lower()
+            for team in gol_team_names:
+                team_lower = team.lower()
+                core_team = _extract_core_name(team_lower).lower()
+                # Try exact, substring, and core-name matching
+                if (clasif_lower == team_lower
+                        or _match_rival_name(clasif_lower, team_lower)
+                        or (core_clasif and core_team and len(core_clasif) >= 3
+                            and (core_clasif in core_team or core_team in core_clasif))):
+                    matched_team = team
+                    break
+
+    if not matched_team:
+        logger.warning(
+            "Goleadores: no team matched for '%s'. Teams in table: %s",
+            rival_nombre, gol_team_names[:8],
+        )
+        return []
+
+    logger.info("Goleadores: matched '%s' → '%s'", rival_nombre, matched_team)
+
+    # Filter goleadores for the matched team (exact string match now)
+    result = []
     for g in goleadores:
-        equipo = (g.get("equipo") or "").lower()
-        if _match_rival_name(rival_lower, equipo):
+        if g.get("equipo") == matched_team:
             result.append({
                 "jugador": g.get("jugador", ""),
                 "goles": g.get("goles", 0),
                 "pj": g.get("pj"),
             })
 
-    if not result:
-        logger.info(
-            "No goleadores matched for '%s' in page data (%d entries). "
-            "Sample: %s", rival_nombre, len(goleadores), goleadores[:2],
-        )
-
     result.sort(key=lambda x: -(x.get("goles") or 0))
-    return result[:10]
-
-
-def _get_goleadores_from_actas(supabase, comp_id: str, rival_nombre: str) -> list[dict]:
-    """Extract rival's top scorers from match actas (reliable fallback).
-
-    Uses the running score (parcial_local, parcial_visitante) to attribute
-    each goal to the correct team. Only counts goals scored by the rival.
-    """
-    actas = _query_actas(
-        supabase, comp_id, rival_nombre,
-        "local_nombre, visitante_nombre, goles, goles_local, goles_visitante",
-    )
-
-    if not actas:
-        logger.info("No actas found for goleadores extraction: '%s'", rival_nombre)
-        return []
-
-    from collections import Counter
-    goal_counts: Counter = Counter()
-    actas_with_goals = 0
-
-    for acta in actas:
-        goles_list = acta.get("goles") or []
-        if not goles_list:
-            continue
-
-        actas_with_goals += 1
-        rival_is_local = _is_rival_local(acta, rival_nombre)
-
-        # Track running score to attribute each goal to correct team
-        prev_local = 0
-        prev_visit = 0
-
-        for gol in goles_list:
-            jugador = (gol.get("jugador") or "").strip()
-            if not jugador:
-                continue
-
-            cur_local = gol.get("parcial_local")
-            cur_visit = gol.get("parcial_visitante")
-
-            # Determine which team scored by checking which partial increased
-            scored_by_local = None
-            if cur_local is not None and cur_visit is not None:
-                if cur_local > prev_local:
-                    scored_by_local = True
-                elif cur_visit > prev_visit:
-                    scored_by_local = False
-                prev_local = cur_local
-                prev_visit = cur_visit
-
-            # Count only if scored by the rival
-            if rival_is_local is True and scored_by_local is True:
-                goal_counts[jugador] += 1
-            elif rival_is_local is False and scored_by_local is False:
-                goal_counts[jugador] += 1
-            elif rival_is_local is None and scored_by_local is not None:
-                # Unknown side — skip to avoid counting opponent goals
-                pass
-
-    if not goal_counts:
-        logger.info("No rival goals found in %d actas for '%s'", len(actas), rival_nombre)
-        return []
-
-    result = [
-        {"jugador": j, "goles": g}
-        for j, g in goal_counts.most_common()
-    ]
-
-    logger.info(
-        "Goleadores from actas for '%s': %d scorers from %d actas (%d with goals)",
-        rival_nombre, len(result), len(actas), actas_with_goals,
-    )
     return result[:10]
 
 
@@ -791,10 +758,8 @@ def gather_rival_intel_standalone(
     if clasificacion:
         intel["clasificacion"] = clasificacion
 
-    # Goleadores (try competition page data first, fallback to actas)
+    # Goleadores from competition table
     goleadores = _get_goleadores_rival(comp, rival_nombre)
-    if not goleadores:
-        goleadores = _get_goleadores_from_actas(supabase, comp_id, rival_nombre)
     if goleadores:
         intel["goleadores_rival"] = goleadores
 
