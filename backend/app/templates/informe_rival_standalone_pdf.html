@@ -9,12 +9,8 @@
 @page {
     size: A4 portrait;
     margin: 20mm 15mm 18mm 15mm;
-    @top-center {
-        content: element(page-header);
-    }
-    @bottom-center {
-        content: element(page-footer);
-    }
+    @top-center { content: element(page-header); }
+    @bottom-center { content: element(page-footer); }
 }
 @page :first {
     margin-top: 15mm;
@@ -33,7 +29,7 @@ body {
 }
 
 /* ===== RUNNING HEADER (pages 2+) ===== */
-.running-header {
+.rh {
     position: running(page-header);
     display: table;
     width: 100%;
@@ -42,47 +38,19 @@ body {
     font-size: 10px;
     color: #555;
 }
-.running-header .hdr-left,
-.running-header .hdr-right {
+.rh .rh-l, .rh .rh-r {
     display: table-cell;
     vertical-align: middle;
 }
-.running-header .hdr-left {
-    text-align: left;
-    white-space: nowrap;
-}
-.running-header .hdr-right {
-    text-align: right;
-    color: #aaa;
-    font-size: 9px;
-}
-.running-header img {
-    width: 18px;
-    height: 18px;
-    object-fit: contain;
-    vertical-align: middle;
-    margin-right: 8px;
-}
-.running-header .hdr-club {
-    font-weight: 700;
-    color: {{ color_primario }};
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    vertical-align: middle;
-}
-.running-header .hdr-sep {
-    color: #ccc;
-    margin: 0 6px;
-    vertical-align: middle;
-}
-.running-header .hdr-rival {
-    font-weight: 600;
-    color: #333;
-    vertical-align: middle;
-}
+.rh .rh-l { text-align: left; white-space: nowrap; }
+.rh .rh-r { text-align: right; color: #aaa; font-size: 9px; }
+.rh img { width: 18px; height: 18px; object-fit: contain; vertical-align: middle; margin-right: 8px; }
+.rh .rh-club { font-weight: 700; color: {{ color_primario }}; text-transform: uppercase; letter-spacing: 0.5px; }
+.rh .rh-sep { color: #ccc; margin: 0 6px; }
+.rh .rh-name { font-weight: 600; color: #333; }
 
 /* ===== RUNNING FOOTER ===== */
-.running-footer {
+.rf {
     position: running(page-footer);
     display: table;
     width: 100%;
@@ -91,25 +59,28 @@ body {
     font-size: 9px;
     color: #aaa;
 }
-.running-footer .ft-left,
-.running-footer .ft-right {
+.rf .rf-l, .rf .rf-r {
     display: table-cell;
     vertical-align: middle;
 }
-.running-footer .ft-left { text-align: left; }
-.running-footer .ft-right { text-align: right; }
-.running-footer img {
-    width: 12px;
-    height: 12px;
-    object-fit: contain;
-    vertical-align: middle;
-    margin-right: 6px;
-    opacity: 0.5;
-}
+.rf .rf-l { text-align: left; width: 50%; }
+.rf .rf-r { text-align: right; width: 50%; }
+.rf img { width: 12px; height: 12px; object-fit: contain; vertical-align: middle; margin-right: 6px; opacity: 0.5; }
 
-/* ===== COVER PAGE ===== */
+/* ===== TABLE LAYOUTS (replaces all floats) ===== */
+.tbl { display: table; width: 100%; table-layout: fixed; }
+.tbl > .cl { display: table-cell; vertical-align: top; }
+.tbl > .cl:first-child { padding-right: 8px; }
+.tbl > .cl + .cl { padding-left: 8px; }
+/* Reset double padding on 2-cell rows */
+.tbl > .cl:first-child:last-child { padding-right: 0; }
+
+/* ===== PAGE BREAK CONTROL ===== */
 .cover { page-break-after: always; }
+.sh { break-after: avoid; }
+.avoid-break { break-inside: avoid; }
 
+/* ===== COVER BAND ===== */
 .cover-band {
     background: {{ color_primario }};
     color: white;
@@ -117,114 +88,60 @@ body {
     border-radius: 10px;
     margin-bottom: 20px;
 }
-.cover-band-inner {
-    display: table;
-    width: 100%;
-}
-.cover-band .cb-logo-cell {
-    display: table-cell;
-    vertical-align: middle;
-    width: 52px;
-}
-.cover-band .cb-logo-cell img {
-    width: 48px;
-    height: 48px;
-    object-fit: contain;
-}
-.cover-band .cb-text-cell {
-    display: table-cell;
-    vertical-align: middle;
-    padding-left: 16px;
-}
+.cover-band-inner { display: table; width: 100%; }
+.cover-band .cb-logo { display: table-cell; vertical-align: middle; width: 56px; }
+.cover-band .cb-logo img { width: 48px; height: 48px; object-fit: contain; }
+.cover-band .cb-text { display: table-cell; vertical-align: middle; padding-left: 16px; }
 .cover-band h1 {
     font-family: 'Bebas Neue', sans-serif;
     font-size: 22px;
     letter-spacing: 3px;
-    margin-bottom: 2px;
 }
-.cover-band .cb-subtitle {
-    font-size: 13px;
-    font-weight: 500;
-    opacity: 0.85;
-}
+.cover-band .cb-sub { font-size: 13px; font-weight: 500; opacity: 0.85; }
 
-/* Matchup row */
+/* Matchup */
 .matchup {
     text-align: center;
-    padding: 16px 0 14px;
-    margin-bottom: 16px;
+    padding: 16px 0 12px;
+    margin-bottom: 14px;
     border-bottom: 2px solid #e2e8f0;
 }
 .matchup-teams {
     font-family: 'Bebas Neue', sans-serif;
-    font-size: 32px;
+    font-size: 30px;
     letter-spacing: 2px;
     color: #1a1a2e;
 }
-.matchup-vs {
-    color: #aaa;
-    font-size: 22px;
-    margin: 0 10px;
-}
-.matchup-escudo {
-    width: 36px;
-    height: 36px;
-    object-fit: contain;
-    vertical-align: middle;
-    margin: 0 6px;
-}
-.matchup-date {
-    font-size: 11px;
-    color: #888;
-    margin-top: 4px;
-}
+.matchup-vs { color: #aaa; font-size: 20px; margin: 0 8px; }
+.matchup-escudo { width: 32px; height: 32px; object-fit: contain; vertical-align: middle; margin: 0 6px; }
+.matchup-date { font-size: 11px; color: #888; margin-top: 4px; }
 
 /* Stats dashboard */
 .stats-dash {
     background: #f8fafc;
     border: 1px solid #e2e8f0;
     border-radius: 8px;
-    padding: 12px 16px;
-    margin-bottom: 14px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
     text-align: center;
+    break-inside: avoid;
 }
-.stats-row {
-    display: table;
-    width: 100%;
-    margin-bottom: 8px;
-}
-.stat-cell {
-    display: table-cell;
-    text-align: center;
-    vertical-align: middle;
-    padding: 0 4px;
-}
+.stats-tbl { display: table; width: 100%; }
+.stats-tbl > div { display: table-cell; text-align: center; vertical-align: middle; }
 .stat-big {
     font-family: 'Bebas Neue', sans-serif;
-    font-size: 28px;
+    font-size: 26px;
     color: {{ color_primario }};
     line-height: 1.1;
 }
-.stat-label {
-    font-size: 9px;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-.stat-medium {
-    font-size: 16px;
-    font-weight: 700;
-    color: #333;
-}
+.stat-lbl { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-med { font-size: 15px; font-weight: 700; color: #333; }
 
-/* Form badges (V/E/D) */
-.form-badges {
-    margin-top: 6px;
-}
-.form-badge {
+/* Form badges */
+.form-badges { margin-top: 6px; }
+.fb {
     display: inline-block;
-    width: 22px;
-    height: 22px;
+    width: 22px; height: 22px;
     border-radius: 4px;
     color: white;
     font-weight: 700;
@@ -233,105 +150,52 @@ body {
     line-height: 22px;
     margin: 0 2px;
 }
-.form-badge.v { background: #16A34A; }
-.form-badge.e { background: #F59E0B; }
-.form-badge.d { background: #DC2626; }
+.fb-v { background: #16A34A; }
+.fb-e { background: #F59E0B; }
+.fb-d { background: #DC2626; }
 
-/* Two-column float layout */
-.col-row { overflow: hidden; margin-bottom: 14px; }
-.col-half-left { float: left; width: 48%; }
-.col-half-right { float: right; width: 48%; }
-
-/* Goleadores */
-.goleador-row {
-    display: table;
-    width: 100%;
-    margin-bottom: 4px;
-    font-size: 11px;
-}
-.goleador-name {
-    display: table-cell;
-    width: 45%;
-    vertical-align: middle;
-    font-weight: 600;
-    color: #333;
-    padding-right: 6px;
-}
-.goleador-bar-cell {
-    display: table-cell;
-    width: 40%;
-    vertical-align: middle;
-}
-.goleador-bar {
-    height: 10px;
-    background: {{ color_primario }};
-    border-radius: 3px;
-    opacity: 0.75;
-}
-.goleador-goals {
-    display: table-cell;
-    width: 15%;
-    vertical-align: middle;
-    text-align: right;
-    font-weight: 700;
-    color: {{ color_primario }};
-    font-size: 12px;
-}
-
-/* Results list */
-.result-row {
-    display: table;
-    width: 100%;
-    margin-bottom: 3px;
-    font-size: 10px;
-}
-.result-jornada {
-    display: table-cell;
-    width: 22%;
-    vertical-align: middle;
-    color: #888;
-    font-weight: 600;
-}
-.result-teams {
-    display: table-cell;
-    width: 52%;
-    vertical-align: middle;
-    font-weight: 500;
-}
-.result-score {
-    display: table-cell;
-    width: 26%;
-    vertical-align: middle;
-    text-align: right;
-    font-weight: 700;
-}
-.result-win { color: #16A34A; }
-.result-draw { color: #F59E0B; }
-.result-loss { color: #DC2626; }
-
-/* H2H bar */
-.h2h-bar {
-    background: #f1f5f9;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    padding: 10px 16px;
-    margin-bottom: 14px;
-    text-align: center;
-}
-.h2h-title {
+/* Mini label */
+.mini-lbl {
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1px;
-    color: #555;
-    margin-bottom: 6px;
+    color: #666;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #e8e8e8;
 }
-.h2h-counts {
-    font-size: 13px;
-    font-weight: 700;
+
+/* Goleador rows */
+.gol-row { display: table; width: 100%; margin-bottom: 4px; }
+.gol-name { display: table-cell; width: 50%; vertical-align: middle; font-weight: 600; color: #333; font-size: 11px; }
+.gol-bar-c { display: table-cell; width: 34%; vertical-align: middle; }
+.gol-bar { height: 10px; background: {{ color_primario }}; border-radius: 3px; opacity: 0.75; }
+.gol-num { display: table-cell; width: 16%; vertical-align: middle; text-align: right; font-weight: 700; color: {{ color_primario }}; font-size: 12px; }
+
+/* Result rows */
+.res-row { display: table; width: 100%; margin-bottom: 3px; font-size: 10px; }
+.res-j { display: table-cell; width: 18%; vertical-align: middle; color: #888; font-weight: 600; }
+.res-t { display: table-cell; width: 56%; vertical-align: middle; font-weight: 500; }
+.res-s { display: table-cell; width: 26%; vertical-align: middle; text-align: right; font-weight: 700; }
+.c-win { color: #16A34A; }
+.c-draw { color: #F59E0B; }
+.c-loss { color: #DC2626; }
+
+/* H2H bar */
+.h2h {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 8px 16px;
+    margin-bottom: 12px;
+    text-align: center;
+    break-inside: avoid;
 }
-.h2h-w { color: #16A34A; margin-right: 12px; }
-.h2h-d { color: #F59E0B; margin-right: 12px; }
+.h2h-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #555; margin-bottom: 4px; }
+.h2h-counts { font-size: 13px; font-weight: 700; }
+.h2h-w { color: #16A34A; margin-right: 14px; }
+.h2h-d { color: #F59E0B; margin-right: 14px; }
 .h2h-l { color: #DC2626; }
 
 /* Summary box */
@@ -340,143 +204,117 @@ body {
     background: #f8fafc;
     padding: 12px 16px;
     border-radius: 0 8px 8px 0;
-    margin-bottom: 14px;
+    break-inside: avoid;
 }
-.summary-box h3 {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: {{ color_primario }};
-    margin-bottom: 6px;
-}
-.summary-box p {
-    font-size: 11px;
-    line-height: 1.5;
-    color: #333;
-    white-space: pre-line;
-}
+.summary-box h3 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: {{ color_primario }}; margin-bottom: 6px; }
+.summary-box p { font-size: 11px; line-height: 1.55; color: #333; white-space: pre-line; }
 
 /* ===== SECTION HEADERS ===== */
-.section-header {
+.sh {
     padding: 8px 14px;
     border-radius: 6px;
-    margin-bottom: 12px;
-    margin-top: 6px;
+    margin: 18px 0 10px 0;
 }
-.section-header h2 {
+.sh h2 {
     font-size: 14px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1px;
 }
-.section-header .section-num {
+.sh .sn {
     font-family: 'Bebas Neue', sans-serif;
     font-size: 18px;
     margin-right: 6px;
-    vertical-align: middle;
 }
 
-/* Phase-specific header colors */
-.sh-offense { background: #EFF6FF; border-left: 4px solid #3B82F6; }
-.sh-offense h2 { color: #1E40AF; }
-.sh-defense { background: #FEF2F2; border-left: 4px solid #EF4444; }
-.sh-defense h2 { color: #991B1B; }
-.sh-transition { background: #FFFBEB; border-left: 4px solid #F59E0B; }
-.sh-transition h2 { color: #92400E; }
-.sh-setpiece { background: #F5F3FF; border-left: 4px solid #8B5CF6; }
-.sh-setpiece h2 { color: #5B21B6; }
-.sh-formation { background: {{ color_primario }}12; border-left: 4px solid {{ color_primario }}; }
-.sh-formation h2 { color: {{ color_primario }}; }
-.sh-players { background: #F0FDFA; border-left: 4px solid #14B8A6; }
-.sh-players h2 { color: #0F766E; }
+.sh-off { background: #EFF6FF; border-left: 4px solid #3B82F6; }
+.sh-off h2 { color: #1E40AF; }
+.sh-def { background: #FEF2F2; border-left: 4px solid #EF4444; }
+.sh-def h2 { color: #991B1B; }
+.sh-tra { background: #FFFBEB; border-left: 4px solid #F59E0B; }
+.sh-tra h2 { color: #92400E; }
+.sh-abp { background: #F5F3FF; border-left: 4px solid #8B5CF6; }
+.sh-abp h2 { color: #5B21B6; }
+.sh-for { background: #f0f9ff; border-left: 4px solid {{ color_primario }}; }
+.sh-for h2 { color: {{ color_primario }}; }
+.sh-pla { background: #F0FDFA; border-left: 4px solid #14B8A6; }
+.sh-pla h2 { color: #0F766E; }
 
-/* ===== TACTIC CARDS ===== */
-.cards-row { overflow: hidden; margin-bottom: 14px; }
-.card-third { float: left; width: 31.5%; margin-right: 2.75%; }
-.card-third:last-child { margin-right: 0; }
-.card-half { float: left; width: 48%; margin-right: 4%; }
-.card-half:last-child { margin-right: 0; }
-
-.tactic-card {
+/* ===== PHASE BOXES (contain sub-phases) ===== */
+.phase-box {
     border-radius: 8px;
-    padding: 10px 12px;
-    min-height: 80px;
-    margin-bottom: 10px;
+    padding: 12px 16px;
+    margin-bottom: 14px;
 }
-/* Offense cards */
-.tc-offense {
-    background: #F8FBFF;
-    border: 1.5px solid #BFDBFE;
-}
-.tc-offense h4 { color: #1E40AF; }
-/* Defense cards */
-.tc-defense {
-    background: #FFFAFA;
-    border: 1.5px solid #FECACA;
-}
-.tc-defense h4 { color: #991B1B; }
-/* Transition cards */
-.tc-transition {
-    background: #FFFDF5;
-    border: 1.5px solid #FDE68A;
-}
-.tc-transition h4 { color: #92400E; }
-/* Set piece cards */
-.tc-setpiece {
-    background: #FDFAFF;
-    border: 1.5px solid #DDD6FE;
-}
-.tc-setpiece h4 { color: #5B21B6; }
+.pb-off { background: #FAFCFF; border: 1.5px solid #DBEAFE; }
+.pb-def { background: #FFFBFB; border: 1.5px solid #FECACA; }
+.pb-tra { background: #FFFEF8; border: 1.5px solid #FDE68A; }
+.pb-abp { background: #FDFAFF; border: 1.5px solid #DDD6FE; }
 
-.tactic-card h4 {
-    font-size: 10px;
+.sub-phase {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f0f0f0;
+}
+.sub-phase:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+
+.sub-phase h4 {
+    font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.8px;
-    margin-bottom: 6px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid #e8e8e8;
+    margin-bottom: 5px;
 }
-.tactic-card ul {
-    list-style: none;
-    padding: 0;
-}
-.tactic-card li {
-    font-size: 10px;
-    line-height: 1.5;
+.sp-off h4 { color: #1E40AF; }
+.sp-def h4 { color: #991B1B; }
+.sp-tra h4 { color: #92400E; }
+.sp-abp h4 { color: #5B21B6; }
+
+.sub-phase p {
+    font-size: 11px;
+    line-height: 1.55;
     color: #333;
-    padding-left: 10px;
-    position: relative;
-    margin-bottom: 2px;
-}
-.tactic-card li::before {
-    content: "\2022";
-    position: absolute;
-    left: 0;
-    color: #999;
-    font-size: 8px;
+    white-space: pre-line;
 }
 
-/* ===== FORMATION SECTION ===== */
-.formation-container {
-    text-align: center;
-    margin: 10px 0;
-}
-
-/* ===== PLAYER CARDS ===== */
-.player-cards { overflow: hidden; margin-bottom: 14px; }
-.player-card {
-    float: left;
-    width: 48%;
-    margin-right: 4%;
-    margin-bottom: 10px;
+/* Phase cards (for 2-column layouts: transitions, ABP) */
+.phase-card {
     border-radius: 8px;
     padding: 10px 12px;
     min-height: 60px;
 }
-.player-card:nth-child(2n) { margin-right: 0; }
+.pc-tra { background: #FFFEF8; border: 1.5px solid #FDE68A; }
+.pc-abp { background: #FDFAFF; border: 1.5px solid #DDD6FE; }
 
+.phase-card h4 {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 5px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #eee;
+}
+.phase-card p {
+    font-size: 11px;
+    line-height: 1.55;
+    color: #333;
+    white-space: pre-line;
+}
+
+/* ===== FORMATION ===== */
+.formation-wrap {
+    text-align: center;
+    margin: 8px 0 14px;
+    break-inside: avoid;
+}
+
+/* ===== PLAYER CARDS ===== */
+.player-card {
+    border-radius: 8px;
+    padding: 10px 12px;
+    min-height: 50px;
+}
 .player-card.peligroso {
     background: #FEF2F2;
     border: 1.5px solid #FECACA;
@@ -487,7 +325,7 @@ body {
     border: 1.5px solid #BBF7D0;
     border-left: 4px solid #16A34A;
 }
-.player-badge {
+.pbadge {
     display: inline-block;
     font-size: 8px;
     font-weight: 700;
@@ -495,101 +333,39 @@ body {
     letter-spacing: 0.5px;
     padding: 2px 6px;
     border-radius: 3px;
-    margin-bottom: 4px;
-}
-.badge-danger {
-    background: #DC2626;
     color: white;
+    margin-bottom: 3px;
 }
-.badge-weakness {
-    background: #16A34A;
-    color: white;
-}
-.player-card h4 {
-    font-size: 12px;
-    font-weight: 700;
-    color: #1a1a2e;
-    margin-bottom: 2px;
-}
-.player-card .player-pos {
-    font-size: 9px;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 4px;
-}
-.player-card p {
-    font-size: 10px;
-    line-height: 1.45;
-    color: #444;
-}
+.pbadge-d { background: #DC2626; }
+.pbadge-w { background: #16A34A; }
 
-/* Weaknesses box */
-.weaknesses-box {
+.player-card h4 { font-size: 12px; font-weight: 700; color: #1a1a2e; margin-bottom: 1px; }
+.player-card .ppos { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.player-card p { font-size: 10px; line-height: 1.5; color: #444; }
+
+/* ===== WEAKNESSES BOX ===== */
+.weak-box {
     background: #F0FDF4;
     border: 1.5px solid #BBF7D0;
     border-left: 4px solid #16A34A;
     border-radius: 0 8px 8px 0;
     padding: 12px 16px;
-    margin-top: 10px;
+    margin-top: 14px;
+    break-inside: avoid;
 }
-.weaknesses-box h3 {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: #16A34A;
-    margin-bottom: 6px;
+.weak-box h3 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #16A34A; margin-bottom: 6px; }
+.weak-box ul { list-style: none; padding: 0; }
+.weak-box li {
+    font-size: 10px; line-height: 1.55; color: #333;
+    padding-left: 16px; position: relative; margin-bottom: 3px;
 }
-.weaknesses-box ul {
-    list-style: none;
-    padding: 0;
-}
-.weaknesses-box li {
-    font-size: 10px;
-    line-height: 1.5;
-    color: #333;
-    padding-left: 14px;
-    position: relative;
-    margin-bottom: 2px;
-}
-.weaknesses-box li::before {
-    content: "\2714";
-    position: absolute;
-    left: 0;
-    color: #16A34A;
-    font-size: 9px;
-}
-
-/* ===== MINI SECTION LABEL ===== */
-.mini-label {
-    font-size: 9px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: #888;
-    margin-bottom: 8px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid #e8e8e8;
-}
-
-/* ===== PAGE BREAK ===== */
-.page-break { page-break-before: always; }
-
-/* ===== UTILITIES ===== */
-.text-center { text-align: center; }
-.text-muted { color: #888; }
-.mt-4 { margin-top: 4px; }
-.mt-8 { margin-top: 8px; }
-.mb-8 { margin-bottom: 8px; }
-.mb-12 { margin-bottom: 12px; }
-.mb-16 { margin-bottom: 16px; }
+.weak-box li::before { content: "\2714"; position: absolute; left: 0; color: #16A34A; font-size: 10px; }
 
 /* ===== EMPTY STATE ===== */
-.empty-state {
+.empty {
     text-align: center;
-    padding: 20px;
-    color: #aaa;
+    padding: 16px;
+    color: #bbb;
     font-style: italic;
     font-size: 11px;
 }
@@ -597,28 +373,24 @@ body {
 </head>
 <body>
 
-<!-- ===== RUNNING HEADER (appears on pages 2+) ===== -->
-<div class="running-header">
-    <div class="hdr-left">
-        {% if organizacion.get('logo_url') %}
-        <img src="{{ organizacion.get('logo_url') }}" alt="">
-        {% endif %}
-        <span class="hdr-club">{{ organizacion.get('nombre', '') }}</span>
-        <span class="hdr-sep">|</span>
-        <span class="hdr-rival">Informe: {{ rival.get('nombre', 'Rival') }}</span>
+<!-- ===== RUNNING HEADER (pages 2+) ===== -->
+<div class="rh">
+    <div class="rh-l">
+        {% if organizacion.get('logo_url') %}<img src="{{ organizacion.get('logo_url') }}" alt="">{% endif %}
+        <span class="rh-club">{{ organizacion.get('nombre', '') }}</span>
+        <span class="rh-sep">|</span>
+        <span class="rh-name">Informe: {{ rival.get('nombre', 'Rival') }}</span>
     </div>
-    <div class="hdr-right">{{ created_at }}</div>
+    <div class="rh-r">{{ created_at }}</div>
 </div>
 
 <!-- ===== RUNNING FOOTER ===== -->
-<div class="running-footer">
-    <div class="ft-left">
-        {% if organizacion.get('logo_url') %}
-        <img src="{{ organizacion.get('logo_url') }}" alt="">
-        {% endif %}
+<div class="rf">
+    <div class="rf-l">
+        {% if organizacion.get('logo_url') %}<img src="{{ organizacion.get('logo_url') }}" alt="">{% endif %}
         TrainingHub Pro
     </div>
-    <div class="ft-right">Informe de Análisis de Rival</div>
+    <div class="rf-r">Informe de Análisis de Rival</div>
 </div>
 
 
@@ -631,13 +403,11 @@ body {
     <div class="cover-band">
         <div class="cover-band-inner">
             {% if organizacion.get('logo_url') %}
-            <div class="cb-logo-cell">
-                <img src="{{ organizacion.get('logo_url') }}" alt="">
-            </div>
+            <div class="cb-logo"><img src="{{ organizacion.get('logo_url') }}" alt=""></div>
             {% endif %}
-            <div class="cb-text-cell">
+            <div class="cb-text">
                 <h1>INFORME DE ANÁLISIS DE RIVAL</h1>
-                <div class="cb-subtitle">{{ organizacion.get('nombre', 'Club') }}</div>
+                <div class="cb-sub">{{ organizacion.get('nombre', 'Club') }}</div>
             </div>
         </div>
     </div>
@@ -645,15 +415,11 @@ body {
     <!-- Matchup -->
     <div class="matchup">
         <div class="matchup-teams">
-            {% if rival.get('escudo_url') %}
-            <img src="{{ rival.get('escudo_url') }}" alt="" class="matchup-escudo">
-            {% endif %}
+            {% if rival.get('escudo_url') %}<img src="{{ rival.get('escudo_url') }}" alt="" class="matchup-escudo">{% endif %}
             {{ rival.get('nombre', 'RIVAL') }}
             <span class="matchup-vs">vs</span>
             {{ equipo_nombre or organizacion.get('nombre', 'EQUIPO') }}
-            {% if equipo_escudo_url %}
-            <img src="{{ equipo_escudo_url }}" alt="" class="matchup-escudo">
-            {% endif %}
+            {% if equipo_escudo_url %}<img src="{{ equipo_escudo_url }}" alt="" class="matchup-escudo">{% endif %}
         </div>
         <div class="matchup-date">{{ created_at }}</div>
     </div>
@@ -662,107 +428,72 @@ body {
     {% set clas = intel.get('clasificacion') or {} %}
     {% if clas %}
     <div class="stats-dash">
-        <div class="stats-row">
-            <div class="stat-cell">
-                <div class="stat-big">{{ clas.get('posicion', '-') }}º</div>
-                <div class="stat-label">Posición</div>
-            </div>
-            <div class="stat-cell">
-                <div class="stat-big">{{ clas.get('puntos', '-') }}</div>
-                <div class="stat-label">Puntos</div>
-            </div>
-            <div class="stat-cell">
-                <div class="stat-medium">{{ clas.get('pj', '-') }}</div>
-                <div class="stat-label">PJ</div>
-            </div>
-            <div class="stat-cell">
-                <div class="stat-medium">{{ clas.get('pg', '-') }}</div>
-                <div class="stat-label">PG</div>
-            </div>
-            <div class="stat-cell">
-                <div class="stat-medium">{{ clas.get('pe', '-') }}</div>
-                <div class="stat-label">PE</div>
-            </div>
-            <div class="stat-cell">
-                <div class="stat-medium">{{ clas.get('pp', '-') }}</div>
-                <div class="stat-label">PP</div>
-            </div>
-            <div class="stat-cell">
-                <div class="stat-medium">{{ clas.get('gf', '-') }}</div>
-                <div class="stat-label">GF</div>
-            </div>
-            <div class="stat-cell">
-                <div class="stat-medium">{{ clas.get('gc', '-') }}</div>
-                <div class="stat-label">GC</div>
-            </div>
+        <div class="stats-tbl">
+            <div><div class="stat-big">{{ clas.get('posicion', '-') }}º</div><div class="stat-lbl">Posición</div></div>
+            <div><div class="stat-big">{{ clas.get('puntos', '-') }}</div><div class="stat-lbl">Puntos</div></div>
+            <div><div class="stat-med">{{ clas.get('pj', '-') }}</div><div class="stat-lbl">PJ</div></div>
+            <div><div class="stat-med">{{ clas.get('pg', '-') }}</div><div class="stat-lbl">PG</div></div>
+            <div><div class="stat-med">{{ clas.get('pe', '-') }}</div><div class="stat-lbl">PE</div></div>
+            <div><div class="stat-med">{{ clas.get('pp', '-') }}</div><div class="stat-lbl">PP</div></div>
+            <div><div class="stat-med">{{ clas.get('gf', '-') }}</div><div class="stat-lbl">GF</div></div>
+            <div><div class="stat-med">{{ clas.get('gc', '-') }}</div><div class="stat-lbl">GC</div></div>
         </div>
         {% set form = clas.get('ultimos_5') or [] %}
         {% if form %}
         <div class="form-badges">
-            <span class="stat-label" style="margin-right:8px;">Racha:</span>
+            <span class="stat-lbl" style="margin-right:8px;">Racha:</span>
             {% for r in form %}
-            <span class="form-badge {{ r|lower }}">{{ r }}</span>
+            <span class="fb fb-{{ r|lower }}">{{ r }}</span>
             {% endfor %}
         </div>
         {% endif %}
     </div>
     {% endif %}
 
-    <!-- Goleadores + Últimos Resultados (2 columns) -->
-    <div class="col-row">
-        <!-- Goleadores -->
-        <div class="col-half-left">
-            <div class="mini-label">Goleadores</div>
+    <!-- Goleadores + Últimos Resultados — TABLE layout (no floats!) -->
+    <div class="tbl" style="margin-bottom:12px;">
+        <div class="cl">
+            <div class="mini-lbl">Goleadores</div>
             {% set goleadores = intel.get('goleadores_rival') or [] %}
             {% if goleadores %}
                 {% set max_goles = goleadores[0].get('goles', 1) if goleadores else 1 %}
                 {% for g in goleadores[:6] %}
-                <div class="goleador-row">
-                    <div class="goleador-name">{{ g.get('jugador', '') }}</div>
-                    <div class="goleador-bar-cell">
-                        <div class="goleador-bar" style="width: {{ (g.get('goles', 0) / max_goles * 100)|int }}%;"></div>
-                    </div>
-                    <div class="goleador-goals">{{ g.get('goles', 0) }}</div>
+                <div class="gol-row">
+                    <div class="gol-name">{{ g.get('jugador', '') }}</div>
+                    <div class="gol-bar-c"><div class="gol-bar" style="width:{{ (g.get('goles', 0) / max_goles * 100)|int }}%;"></div></div>
+                    <div class="gol-num">{{ g.get('goles', 0) }}</div>
                 </div>
                 {% endfor %}
             {% else %}
-                <div class="empty-state">Sin datos de goleadores</div>
+                <div class="empty">Sin datos de goleadores</div>
             {% endif %}
         </div>
-
-        <!-- Últimos Resultados -->
-        <div class="col-half-right">
-            <div class="mini-label">Últimos Resultados</div>
+        <div class="cl">
+            <div class="mini-lbl">Últimos Resultados</div>
             {% set resultados = intel.get('ultimos_resultados') or [] %}
             {% if resultados %}
                 {% set rival_lower = (rival.get('nombre', '')|lower) %}
                 {% for r in resultados[:6] %}
                     {% set local_lower = (r.get('local', '')|lower) %}
                     {% set is_local = rival_lower in local_lower or local_lower in rival_lower %}
-                    {% set rival_goles = r.get('goles_local', 0) if is_local else r.get('goles_visitante', 0) %}
-                    {% set otro_goles = r.get('goles_visitante', 0) if is_local else r.get('goles_local', 0) %}
-                    {% if rival_goles > otro_goles %}
-                        {% set res_class = 'result-win' %}
-                    {% elif rival_goles == otro_goles %}
-                        {% set res_class = 'result-draw' %}
-                    {% else %}
-                        {% set res_class = 'result-loss' %}
-                    {% endif %}
-                <div class="result-row">
-                    <div class="result-jornada">J{{ r.get('jornada', '') }}</div>
-                    <div class="result-teams">{{ r.get('local', '') }} - {{ r.get('visitante', '') }}</div>
-                    <div class="result-score {{ res_class }}">{{ r.get('goles_local', 0) }}-{{ r.get('goles_visitante', 0) }}</div>
+                    {% set rg = r.get('goles_local', 0) if is_local else r.get('goles_visitante', 0) %}
+                    {% set og = r.get('goles_visitante', 0) if is_local else r.get('goles_local', 0) %}
+                    {% if rg > og %}{% set rc = 'c-win' %}{% elif rg == og %}{% set rc = 'c-draw' %}{% else %}{% set rc = 'c-loss' %}{% endif %}
+                <div class="res-row">
+                    <div class="res-j">J{{ r.get('jornada', '') }}</div>
+                    <div class="res-t">{{ r.get('local', '') }} - {{ r.get('visitante', '') }}</div>
+                    <div class="res-s {{ rc }}">{{ r.get('goles_local', 0) }}-{{ r.get('goles_visitante', 0) }}</div>
                 </div>
                 {% endfor %}
             {% else %}
-                <div class="empty-state">Sin resultados recientes</div>
+                <div class="empty">Sin resultados recientes</div>
             {% endif %}
         </div>
     </div>
 
     <!-- H2H Bar -->
     {% if h2h_stats %}
-    <div class="h2h-bar">
+    <div class="h2h">
         <div class="h2h-title">Historial Directo</div>
         <div class="h2h-counts">
             <span class="h2h-w">V: {{ h2h_stats.wins }}</span>
@@ -780,228 +511,195 @@ body {
     </div>
     {% endif %}
 
-</div>
+</div><!-- /cover -->
 
 
 <!-- =========================================================
-     PAGE 2: TACTICAL ANALYSIS
+     PAGES 2+: TACTICAL ANALYSIS (natural flow, no forced breaks)
      ========================================================= -->
-<div class="page-break"></div>
 
-<!-- SECTION 1: Fase Ofensiva -->
+<!-- ▌1 — FASE OFENSIVA -->
 {% set fase_o = informe.get('fase_ofensiva') or {} %}
-<div class="section-header sh-offense">
-    <h2><span class="section-num">1</span> Fase Ofensiva (Con Balón)</h2>
-</div>
+<div class="sh sh-off"><h2><span class="sn">1</span> Fase Ofensiva (Con Balón)</h2></div>
 {% if fase_o %}
-<div class="cards-row">
-    <div class="card-third">
-        <div class="tactic-card tc-offense">
-            <h4>Salida de Balón</h4>
-            <ul>
-            {% for b in fase_o.get('salida_balon', '')|to_bullets %}
-                <li>{{ b }}</li>
-            {% endfor %}
-            </ul>
-        </div>
+<div class="phase-box pb-off">
+    {% if fase_o.get('salida_balon') %}
+    <div class="sub-phase sp-off">
+        <h4>Salida de Balón</h4>
+        <p>{{ fase_o.get('salida_balon', '') }}</p>
     </div>
-    <div class="card-third">
-        <div class="tactic-card tc-offense">
-            <h4>Construcción</h4>
-            <ul>
-            {% for b in fase_o.get('construccion', '')|to_bullets %}
-                <li>{{ b }}</li>
-            {% endfor %}
-            </ul>
-        </div>
+    {% endif %}
+    {% if fase_o.get('construccion') %}
+    <div class="sub-phase sp-off">
+        <h4>Construcción</h4>
+        <p>{{ fase_o.get('construccion', '') }}</p>
     </div>
-    <div class="card-third">
-        <div class="tactic-card tc-offense">
-            <h4>Finalización</h4>
-            <ul>
-            {% for b in fase_o.get('finalizacion', '')|to_bullets %}
-                <li>{{ b }}</li>
-            {% endfor %}
-            </ul>
-        </div>
+    {% endif %}
+    {% if fase_o.get('finalizacion') %}
+    <div class="sub-phase sp-off">
+        <h4>Finalización</h4>
+        <p>{{ fase_o.get('finalizacion', '') }}</p>
     </div>
+    {% endif %}
 </div>
 {% else %}
-<div class="empty-state mb-12">Sin análisis ofensivo disponible</div>
+<div class="empty">Sin análisis ofensivo disponible</div>
 {% endif %}
 
-<!-- SECTION 2: Fase Defensiva -->
+<!-- ▌2 — FASE DEFENSIVA -->
 {% set fase_d = informe.get('fase_defensiva') or {} %}
-<div class="section-header sh-defense">
-    <h2><span class="section-num">2</span> Fase Defensiva (Sin Balón)</h2>
-</div>
+<div class="sh sh-def"><h2><span class="sn">2</span> Fase Defensiva (Sin Balón)</h2></div>
 {% if fase_d %}
-<div class="cards-row">
-    <div class="card-third">
-        <div class="tactic-card tc-defense">
-            <h4>Pressing</h4>
-            <ul>
-            {% for b in fase_d.get('pressing', '')|to_bullets %}
-                <li>{{ b }}</li>
-            {% endfor %}
-            </ul>
-        </div>
+<div class="phase-box pb-def">
+    {% if fase_d.get('pressing') %}
+    <div class="sub-phase sp-def">
+        <h4>Pressing</h4>
+        <p>{{ fase_d.get('pressing', '') }}</p>
     </div>
-    <div class="card-third">
-        <div class="tactic-card tc-defense">
-            <h4>Bloque Medio</h4>
-            <ul>
-            {% for b in fase_d.get('bloque_medio', '')|to_bullets %}
-                <li>{{ b }}</li>
-            {% endfor %}
-            </ul>
-        </div>
+    {% endif %}
+    {% if fase_d.get('bloque_medio') %}
+    <div class="sub-phase sp-def">
+        <h4>Bloque Medio</h4>
+        <p>{{ fase_d.get('bloque_medio', '') }}</p>
     </div>
-    <div class="card-third">
-        <div class="tactic-card tc-defense">
-            <h4>Bloque Bajo</h4>
-            <ul>
-            {% for b in fase_d.get('bloque_bajo', '')|to_bullets %}
-                <li>{{ b }}</li>
-            {% endfor %}
-            </ul>
-        </div>
+    {% endif %}
+    {% if fase_d.get('bloque_bajo') %}
+    <div class="sub-phase sp-def">
+        <h4>Bloque Bajo</h4>
+        <p>{{ fase_d.get('bloque_bajo', '') }}</p>
     </div>
+    {% endif %}
 </div>
 {% else %}
-<div class="empty-state mb-12">Sin análisis defensivo disponible</div>
+<div class="empty">Sin análisis defensivo disponible</div>
 {% endif %}
 
-<!-- SECTION 3: Transiciones -->
+<!-- ▌3 — TRANSICIONES (2 columns via table) -->
 {% set trans = informe.get('transiciones') or {} %}
-<div class="section-header sh-transition">
-    <h2><span class="section-num">3</span> Transiciones</h2>
-</div>
+<div class="sh sh-tra"><h2><span class="sn">3</span> Transiciones</h2></div>
 {% if trans %}
-<div class="cards-row">
-    <div class="card-half">
-        <div class="tactic-card tc-transition">
-            <h4>Transición Ofensiva</h4>
-            <ul>
-            {% for b in trans.get('ofensiva', '')|to_bullets %}
-                <li>{{ b }}</li>
-            {% endfor %}
-            </ul>
+<div class="tbl avoid-break" style="margin-bottom:14px;">
+    <div class="cl">
+        <div class="phase-card pc-tra">
+            <h4 style="color:#92400E;">Transición Ofensiva</h4>
+            <p>{{ trans.get('ofensiva', '') }}</p>
         </div>
     </div>
-    <div class="card-half">
-        <div class="tactic-card tc-transition">
-            <h4>Transición Defensiva</h4>
-            <ul>
-            {% for b in trans.get('defensiva', '')|to_bullets %}
-                <li>{{ b }}</li>
-            {% endfor %}
-            </ul>
+    <div class="cl">
+        <div class="phase-card pc-tra">
+            <h4 style="color:#92400E;">Transición Defensiva</h4>
+            <p>{{ trans.get('defensiva', '') }}</p>
         </div>
     </div>
 </div>
 {% else %}
-<div class="empty-state mb-12">Sin análisis de transiciones disponible</div>
+<div class="empty">Sin análisis de transiciones disponible</div>
 {% endif %}
 
 
-<!-- =========================================================
-     PAGE 3: SET PIECES + FORMATION + KEY PLAYERS
-     ========================================================= -->
-<div class="page-break"></div>
-
-<!-- SECTION 4: Balón Parado -->
+<!-- ▌4 — BALÓN PARADO (2 columns via table) -->
 {% set abp = informe.get('balon_parado') or {} %}
-<div class="section-header sh-setpiece">
-    <h2><span class="section-num">4</span> Balón Parado</h2>
-</div>
+<div class="sh sh-abp"><h2><span class="sn">4</span> Balón Parado</h2></div>
 {% if abp %}
-<div class="cards-row">
-    <div class="card-half">
-        <div class="tactic-card tc-setpiece">
-            <h4>Cómo Atacan</h4>
-            <ul>
-            {% for b in abp.get('atacando', '')|to_bullets %}
-                <li>{{ b }}</li>
-            {% endfor %}
-            </ul>
+<div class="tbl avoid-break" style="margin-bottom:14px;">
+    <div class="cl">
+        <div class="phase-card pc-abp">
+            <h4 style="color:#5B21B6;">Cómo Atacan</h4>
+            <p>{{ abp.get('atacando', '') }}</p>
         </div>
     </div>
-    <div class="card-half">
-        <div class="tactic-card tc-setpiece">
-            <h4>Cómo Defienden</h4>
-            <ul>
-            {% for b in abp.get('defendiendo', '')|to_bullets %}
-                <li>{{ b }}</li>
-            {% endfor %}
-            </ul>
+    <div class="cl">
+        <div class="phase-card pc-abp">
+            <h4 style="color:#5B21B6;">Cómo Defienden</h4>
+            <p>{{ abp.get('defendiendo', '') }}</p>
         </div>
     </div>
 </div>
 {% else %}
-<div class="empty-state mb-12">Sin análisis de balón parado disponible</div>
+<div class="empty">Sin análisis de balón parado disponible</div>
 {% endif %}
 
-<!-- SECTION 5: Once Probable -->
+
+<!-- ▌5 — ONCE PROBABLE -->
 {% set once_data = intel.get('once_probable') or {} %}
-{% set once_jugadores = once_data.get('jugadores', []) if once_data is mapping else [] %}
+{% if once_data is mapping %}
+    {% set once_jugadores = once_data.get('jugadores', []) %}
+{% elif once_data is iterable and once_data is not string %}
+    {% set once_jugadores = once_data %}
+{% else %}
+    {% set once_jugadores = [] %}
+{% endif %}
 {% if not once_jugadores and informe.get('once_probable') %}
     {% set once_jugadores = informe.get('once_probable', []) %}
 {% endif %}
 
-<div class="section-header sh-formation">
-    <h2><span class="section-num">5</span> Once Probable{% if sistema_juego %} ({{ sistema_juego }}){% endif %}</h2>
-</div>
+<div class="sh sh-for"><h2><span class="sn">5</span> Once Probable{% if sistema_juego %} ({{ sistema_juego }}){% endif %}</h2></div>
 
 {% if formation_svg %}
-<div class="formation-container">
+<div class="formation-wrap">
     {{ formation_svg }}
 </div>
 {% elif once_jugadores %}
-<div style="overflow:hidden;margin-bottom:12px;">
-    {% for j in once_jugadores[:11] %}
-    <div style="float:left;width:31%;margin-right:2.3%;margin-bottom:4px;font-size:10px;">
-        <span style="font-weight:700;color:{{ color_primario }};">{{ j.get('dorsal', '') or '' }}</span>
-        <span style="font-weight:600;">{{ j.get('nombre', '') }}</span>
-        {% if j.get('sancionado') %}
-        <span style="color:#DC2626;font-weight:700;font-size:8px;"> SANC.</span>
-        {% endif %}
+<div style="margin-bottom:14px;break-inside:avoid;">
+    <div class="tbl">
+        <div class="cl" style="padding:0;">
+            <table style="width:100%;border-collapse:collapse;font-size:11px;">
+            {% for j in once_jugadores[:11] %}
+                <tr style="border-bottom:1px solid #f0f0f0;">
+                    <td style="padding:3px 8px;font-weight:700;color:{{ color_primario }};width:40px;text-align:center;">{{ j.get('dorsal', '') or '' }}</td>
+                    <td style="padding:3px 8px;font-weight:600;">{{ j.get('nombre', '') }}</td>
+                    <td style="padding:3px 8px;text-align:right;color:#888;font-size:10px;">{{ j.get('apariciones', '') }} ap.</td>
+                    {% if j.get('sancionado') %}
+                    <td style="padding:3px 8px;text-align:right;color:#DC2626;font-weight:700;font-size:9px;">SANC.</td>
+                    {% else %}
+                    <td style="padding:3px 8px;width:50px;"></td>
+                    {% endif %}
+                </tr>
+            {% endfor %}
+            </table>
+        </div>
     </div>
-    {% endfor %}
 </div>
 {% else %}
-<div class="empty-state mb-12">Sin once probable disponible</div>
+<div class="empty">Sin datos de alineación disponibles</div>
 {% endif %}
 
-<!-- SECTION 6: Jugadores Destacados -->
+
+<!-- ▌6 — JUGADORES DESTACADOS -->
 {% set jugadores_clave = informe.get('jugadores_clave') or [] %}
 {% if jugadores_clave %}
-<div class="section-header sh-players">
-    <h2><span class="section-num">6</span> Jugadores Destacados</h2>
-</div>
-<div class="player-cards">
-    {% for j in jugadores_clave %}
-    {% set tipo = j.get('tipo', 'peligroso') %}
-    <div class="player-card {{ tipo }}">
-        {% if tipo == 'peligroso' %}
-        <span class="player-badge badge-danger">PELIGRO</span>
-        {% else %}
-        <span class="player-badge badge-weakness">DEBILIDAD</span>
-        {% endif %}
-        <h4>{{ j.get('nombre', '') }}</h4>
-        <div class="player-pos">{{ j.get('posicion', '') }}</div>
-        <p>{{ j.get('analisis', '')|first_sentence }}</p>
+<div class="sh sh-pla"><h2><span class="sn">6</span> Jugadores Destacados</h2></div>
+
+{% for pair in jugadores_clave|batch(2) %}
+<div class="tbl avoid-break" style="margin-bottom:8px;">
+    {% for j in pair %}
+    <div class="cl">
+        <div class="player-card {{ j.get('tipo', 'peligroso') }}">
+            {% if j.get('tipo') == 'debilidad' %}
+            <span class="pbadge pbadge-w">DEBILIDAD</span>
+            {% else %}
+            <span class="pbadge pbadge-d">PELIGRO</span>
+            {% endif %}
+            <h4>{{ j.get('nombre', '') }}</h4>
+            <div class="ppos">{{ j.get('posicion', '') }}</div>
+            <p>{{ j.get('analisis', '') }}</p>
+        </div>
     </div>
     {% endfor %}
+    {% if pair|length == 1 %}
+    <div class="cl"></div>
+    {% endif %}
 </div>
+{% endfor %}
 {% endif %}
 
-<!-- Debilidades Explotables -->
+
+<!-- DEBILIDADES EXPLOTABLES -->
 {% if informe.get('debilidades_explotables') %}
-<div class="weaknesses-box">
+<div class="weak-box">
     <h3>Debilidades Explotables</h3>
     <ul>
-    {% for b in informe.get('debilidades_explotables', '')|to_bullets(6) %}
+    {% for b in informe.get('debilidades_explotables', '')|to_bullets(8, 300) %}
         <li>{{ b }}</li>
     {% endfor %}
     </ul>

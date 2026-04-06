@@ -38,16 +38,16 @@ PETO_MAP = {
 BADGE_CLASSES = {"rnd", "jdp", "pos", "evo", "avd", "pco", "aco", "ssg", "abp", "par"}
 
 
-def _text_to_bullets(text: str, max_bullets: int = 4) -> list[str]:
-    """Convert paragraph text to list of short bullet strings (max ~80 chars each)."""
+def _text_to_bullets(text: str, max_bullets: int = 4, max_chars: int = 85) -> list[str]:
+    """Convert paragraph text to list of short bullet strings."""
     if not text:
         return []
     lines = re.split(r'[\n;]|(?<=\.)\s+', text.strip())
     bullets = [l.strip().rstrip('.') for l in lines if l.strip() and len(l.strip()) > 5]
     result = []
     for b in bullets[:max_bullets]:
-        if len(b) > 85:
-            b = b[:82].rsplit(' ', 1)[0] + '...'
+        if len(b) > max_chars:
+            b = b[:max_chars - 3].rsplit(' ', 1)[0] + '...'
         result.append(b)
     return result
 
