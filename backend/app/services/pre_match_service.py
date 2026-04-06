@@ -149,6 +149,49 @@ def _get_goleadores_rival(comp: dict, rival_nombre: str) -> list[dict]:
     return result[:10]
 
 
+def _get_goleadores_from_actas(supabase, comp_id: str, rival_nombre: str) -> list[dict]:
+    """Fallback: extract rival scorers from actas using lineup roster to filter."""
+    actas = _query_actas(
+        supabase, comp_id, rival_nombre,
+        "local_nombre, visitante_nombre, goles, "
+        "titulares_local, titulares_visitante, suplentes_local, suplentes_visitante",
+    )
+    if not actas:
+        return []
+
+    from collections import Counter
+    goal_counts: Counter = Counter()
+
+    for acta in actas:
+        goles_list = acta.get("goles") or []
+        if not goles_list:
+            continue
+
+        # Build set of rival player names from this acta's lineups
+        titulares = _get_rival_data(acta, rival_nombre, "titulares_local", "titulares_visitante")
+        suplentes = _get_rival_data(acta, rival_nombre, "suplentes_local", "suplentes_visitante")
+        rival_players = set()
+        for j in titulares + suplentes:
+            name = (j.get("nombre") or "").strip().lower()
+            if name:
+                rival_players.add(name)
+
+        if not rival_players:
+            continue
+
+        for gol in goles_list:
+            jugador = (gol.get("jugador") or "").strip()
+            if jugador and jugador.lower() in rival_players:
+                goal_counts[jugador] += 1
+
+    if not goal_counts:
+        return []
+
+    result = [{"jugador": j, "goles": g} for j, g in goal_counts.most_common()]
+    logger.info("Goleadores from actas for '%s': %d scorers", rival_nombre, len(result))
+    return result[:10]
+
+
 def _query_actas(supabase, comp_id: str, rival_nombre: str, columns: str, desc: bool = False, limit: int | None = None) -> list[dict]:
     """Query rfef_actas with multiple fallbacks:
     1. ilike on local_nombre/visitante_nombre with full rfef_nombre
@@ -758,8 +801,10 @@ def gather_rival_intel_standalone(
     if clasificacion:
         intel["clasificacion"] = clasificacion
 
-    # Goleadores from competition table
+    # Goleadores: competition table first, actas fallback
     goleadores = _get_goleadores_rival(comp, rival_nombre)
+    if not goleadores:
+        goleadores = _get_goleadores_from_actas(supabase, comp_id, rival_nombre)
     if goleadores:
         intel["goleadores_rival"] = goleadores
 
