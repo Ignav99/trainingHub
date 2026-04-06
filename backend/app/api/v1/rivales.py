@@ -512,7 +512,7 @@ async def download_rival_informe_pdf(
 
     # Fetch rival
     rival_res = supabase.table("rivales").select(
-        "nombre, escudo_url"
+        "nombre, escudo_url, sistema_juego"
     ).eq("id", str(rival_id)).single().execute()
     rival_data = rival_res.data or {}
 

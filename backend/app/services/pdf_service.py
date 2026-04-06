@@ -63,6 +63,187 @@ def _first_sentence(text: str) -> str:
     return s
 
 
+# ============ Formation SVG for rival informe ============
+
+# Positions as (x%, y%) on a 100x160 pitch (0,0 = top-left, goal at bottom)
+# GK at bottom, attackers at top
+FORMATION_POSITIONS: dict[str, list[tuple[int, int]]] = {
+    "4-3-3": [
+        (50, 145),  # GK
+        (15, 118), (38, 122), (62, 122), (85, 118),  # DEF
+        (30, 88), (50, 95), (70, 88),  # MID
+        (20, 52), (50, 45), (80, 52),  # FWD
+    ],
+    "4-4-2": [
+        (50, 145),
+        (15, 118), (38, 122), (62, 122), (85, 118),
+        (15, 85), (38, 90), (62, 90), (85, 85),
+        (35, 48), (65, 48),
+    ],
+    "4-2-3-1": [
+        (50, 145),
+        (15, 118), (38, 122), (62, 122), (85, 118),
+        (38, 95), (62, 95),
+        (20, 68), (50, 65), (80, 68),
+        (50, 42),
+    ],
+    "3-5-2": [
+        (50, 145),
+        (25, 120), (50, 124), (75, 120),
+        (10, 85), (35, 90), (50, 95), (65, 90), (90, 85),
+        (35, 48), (65, 48),
+    ],
+    "3-4-3": [
+        (50, 145),
+        (25, 120), (50, 124), (75, 120),
+        (15, 88), (38, 92), (62, 92), (85, 88),
+        (20, 52), (50, 45), (80, 52),
+    ],
+    "5-3-2": [
+        (50, 145),
+        (10, 115), (30, 120), (50, 124), (70, 120), (90, 115),
+        (30, 88), (50, 95), (70, 88),
+        (35, 48), (65, 48),
+    ],
+    "4-1-4-1": [
+        (50, 145),
+        (15, 118), (38, 122), (62, 122), (85, 118),
+        (50, 100),
+        (15, 75), (38, 78), (62, 78), (85, 75),
+        (50, 42),
+    ],
+    "5-4-1": [
+        (50, 145),
+        (10, 115), (30, 120), (50, 124), (70, 120), (90, 115),
+        (15, 85), (38, 90), (62, 90), (85, 85),
+        (50, 42),
+    ],
+    "4-4-1-1": [
+        (50, 145),
+        (15, 118), (38, 122), (62, 122), (85, 118),
+        (15, 88), (38, 92), (62, 92), (85, 88),
+        (50, 62),
+        (50, 42),
+    ],
+    "4-3-1-2": [
+        (50, 145),
+        (15, 118), (38, 122), (62, 122), (85, 118),
+        (30, 92), (50, 98), (70, 92),
+        (50, 68),
+        (35, 45), (65, 45),
+    ],
+}
+
+
+def _parse_formation(sistema_juego: str) -> str:
+    """Parse '1-4-3-3' or '4-3-3' to normalized key like '4-3-3'."""
+    if not sistema_juego:
+        return "4-4-2"
+    cleaned = sistema_juego.strip()
+    # Remove leading '1-' (goalkeeper) if present
+    if cleaned.startswith("1-"):
+        cleaned = cleaned[2:]
+    return cleaned if cleaned in FORMATION_POSITIONS else "4-4-2"
+
+
+def _generate_formation_svg(sistema_juego: str, jugadores: list) -> str:
+    """
+    Generate inline SVG of formation with player dots on a pitch.
+    jugadores: list of {nombre, dorsal, sancionado} — top 11 used.
+    Returns SVG string or empty string.
+    """
+    formation_key = _parse_formation(sistema_juego)
+    positions = FORMATION_POSITIONS.get(formation_key, FORMATION_POSITIONS["4-4-2"])
+    once = jugadores[:11] if jugadores else []
+
+    # SVG viewBox: 0 0 200 320 (scaled from 100x160 by 2x)
+    svg_parts = [
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 320" '
+        'width="100%" style="max-width:340px;display:block;margin:0 auto;">',
+        # Pitch background
+        '<rect x="0" y="0" width="200" height="320" rx="8" fill="#1b7a3d"/>',
+        # Pitch outline
+        '<rect x="8" y="8" width="184" height="304" rx="4" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.2"/>',
+        # Center line
+        '<line x1="8" y1="160" x2="192" y2="160" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>',
+        # Center circle
+        '<circle cx="100" cy="160" r="28" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>',
+        '<circle cx="100" cy="160" r="2" fill="rgba(255,255,255,0.35)"/>',
+        # Penalty area bottom (our goal)
+        '<rect x="40" y="262" width="120" height="50" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>',
+        '<rect x="65" y="290" width="70" height="22" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>',
+        # Penalty area top (opponent goal)
+        '<rect x="40" y="8" width="120" height="50" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>',
+        '<rect x="65" y="8" width="70" height="22" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>',
+    ]
+
+    for i, (px, py) in enumerate(positions):
+        # Scale to SVG coords (100→200, 160→320)
+        cx = px * 2
+        cy = py * 2
+
+        if i < len(once):
+            player = once[i]
+            nombre = player.get("nombre", "")
+            dorsal = player.get("dorsal", "")
+            sancionado = player.get("sancionado", False)
+
+            # Short name: first initial + last name
+            parts = nombre.split()
+            if len(parts) > 1:
+                short_name = f"{parts[0][0]}. {parts[-1]}"
+            else:
+                short_name = nombre
+            if len(short_name) > 12:
+                short_name = short_name[:11] + "."
+
+            # Circle color
+            circle_fill = "white"
+            circle_stroke = "#dc2626" if sancionado else "rgba(0,0,0,0.3)"
+            stroke_width = "2" if sancionado else "1"
+
+            svg_parts.append(
+                f'<circle cx="{cx}" cy="{cy}" r="12" fill="{circle_fill}" '
+                f'stroke="{circle_stroke}" stroke-width="{stroke_width}"/>'
+            )
+            # Dorsal number
+            if dorsal:
+                svg_parts.append(
+                    f'<text x="{cx}" y="{cy + 4}" text-anchor="middle" '
+                    f'font-family="Barlow Condensed,Arial" font-size="11" font-weight="700" '
+                    f'fill="#1a1a2e">{dorsal}</text>'
+                )
+            # Player name below
+            svg_parts.append(
+                f'<text x="{cx}" y="{cy + 22}" text-anchor="middle" '
+                f'font-family="Barlow Condensed,Arial" font-size="8" font-weight="600" '
+                f'fill="white">{short_name}</text>'
+            )
+            # Sancionado indicator
+            if sancionado:
+                svg_parts.append(
+                    f'<circle cx="{cx + 10}" cy="{cy - 10}" r="5" fill="#dc2626"/>'
+                    f'<text x="{cx + 10}" y="{cy - 7}" text-anchor="middle" '
+                    f'font-size="7" font-weight="700" fill="white">!</text>'
+                )
+        else:
+            # Empty position dot
+            svg_parts.append(
+                f'<circle cx="{cx}" cy="{cy}" r="8" fill="rgba(255,255,255,0.2)" '
+                f'stroke="rgba(255,255,255,0.4)" stroke-width="1"/>'
+            )
+
+    # Formation label
+    svg_parts.append(
+        f'<text x="100" y="18" text-anchor="middle" '
+        f'font-family="Barlow Condensed,Arial" font-size="12" font-weight="700" '
+        f'fill="rgba(255,255,255,0.6)">{formation_key}</text>'
+    )
+
+    svg_parts.append('</svg>')
+    return '\n'.join(svg_parts)
+
+
 def _get_jinja_env() -> Environment:
     """Obtiene el entorno Jinja2 configurado."""
     return Environment(
@@ -653,6 +834,29 @@ def generate_informe_rival_standalone_pdf(
         if wins or draws or losses:
             h2h_stats = {"wins": wins, "draws": draws, "losses": losses}
 
+    # Generate formation SVG
+    sistema_juego = rival.get("sistema_juego", "") or ""
+    once_probable = []
+    if intel and intel.get("once_probable"):
+        once_data = intel["once_probable"]
+        # intel.once_probable is {actas_analizadas, jugadores: [...]}
+        if isinstance(once_data, dict):
+            once_probable = once_data.get("jugadores", [])
+        elif isinstance(once_data, list):
+            once_probable = once_data
+    if not once_probable and informe and informe.get("once_probable"):
+        once_probable = informe["once_probable"]
+
+    formation_svg = ""
+    if once_probable:
+        formation_svg = _generate_formation_svg(sistema_juego, once_probable)
+
+    # Extract top scorers from intel
+    goleadores = []
+    if intel and intel.get("competition_stats"):
+        # Top scorers aren't in competition_stats directly — extract from once_probable goles if available
+        pass
+
     html_content = template.render(
         informe=informe,
         rival=rival,
@@ -663,6 +867,8 @@ def generate_informe_rival_standalone_pdf(
         intel=intel or {},
         h2h_stats=h2h_stats,
         created_at=created_at,
+        formation_svg=formation_svg,
+        sistema_juego=_parse_formation(sistema_juego),
     )
 
     try:
