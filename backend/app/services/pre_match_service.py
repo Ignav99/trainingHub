@@ -80,65 +80,39 @@ def _get_clasificacion(comp: dict, rival_nombre: str) -> dict | None:
 
 
 def _get_goleadores_rival(comp: dict, rival_nombre: str) -> list[dict]:
-    """Extract rival's top scorers from competition goleadores table.
-
-    Uses multiple strategies to match the rival's team name in the
-    goleadores list, including bridging through the clasificacion names.
-    """
+    """Top 5 goleadores del rival filtrando la tabla de goleadores de la competición."""
     goleadores = comp.get("goleadores") or []
     if not goleadores:
-        logger.info("No goleadores data in competition %s", comp.get("id", "?"))
+        logger.warning("comp.goleadores is EMPTY for comp %s", comp.get("id", "?"))
         return []
 
-    # Collect ALL unique team names in the goleadores table
-    gol_team_names = list({(g.get("equipo") or "") for g in goleadores if g.get("equipo")})
+    # Build every possible search token from rival name
+    raw = rival_nombre.lower().strip()
+    core = _extract_core_name(raw).lower().strip()
+    # All words >= 4 chars as individual search tokens
+    tokens = {w for w in re.split(r"[\s.\-,]+", raw) if len(w) >= 4}
+    tokens |= {w for w in re.split(r"[\s.\-,]+", core) if len(w) >= 4}
+    tokens.add(raw)
+    tokens.add(core)
 
-    # Strategy 1: direct match against rival_nombre
-    rival_lower = rival_nombre.lower()
-    matched_team = None
-    for team in gol_team_names:
-        if _match_rival_name(rival_lower, team.lower()):
-            matched_team = team
+    # Also add clasificacion name if found (it's proven to match)
+    for eq in (comp.get("clasificacion") or []):
+        eq_name = (eq.get("equipo") or "").lower()
+        if _match_rival_name(raw, eq_name):
+            tokens.add(eq_name)
+            tokens.add(_extract_core_name(eq_name).lower())
+            tokens |= {w for w in re.split(r"[\s.\-,]+", eq_name) if len(w) >= 4}
             break
 
-    # Strategy 2: bridge through clasificacion — find the rival's name there,
-    # then match that clasificacion name against goleadores team names
-    if not matched_team:
-        clasificacion = comp.get("clasificacion") or []
-        clasif_name = None
-        for eq in clasificacion:
-            eq_name = (eq.get("equipo") or "")
-            if _match_rival_name(rival_lower, eq_name.lower()):
-                clasif_name = eq_name
-                break
-
-        if clasif_name:
-            clasif_lower = clasif_name.lower()
-            core_clasif = _extract_core_name(clasif_lower).lower()
-            for team in gol_team_names:
-                team_lower = team.lower()
-                core_team = _extract_core_name(team_lower).lower()
-                # Try exact, substring, and core-name matching
-                if (clasif_lower == team_lower
-                        or _match_rival_name(clasif_lower, team_lower)
-                        or (core_clasif and core_team and len(core_clasif) >= 3
-                            and (core_clasif in core_team or core_team in core_clasif))):
-                    matched_team = team
-                    break
-
-    if not matched_team:
-        logger.warning(
-            "Goleadores: no team matched for '%s'. Teams in table: %s",
-            rival_nombre, gol_team_names[:8],
-        )
-        return []
-
-    logger.info("Goleadores: matched '%s' → '%s'", rival_nombre, matched_team)
-
-    # Filter goleadores for the matched team (exact string match now)
+    # Filter: a goleador's equipo matches if ANY token is found in it (or vice versa)
     result = []
     for g in goleadores:
-        if g.get("equipo") == matched_team:
+        equipo = (g.get("equipo") or "").lower()
+        if not equipo:
+            continue
+        equipo_core = _extract_core_name(equipo).lower()
+        if any(t in equipo or t in equipo_core or equipo_core in t
+               for t in tokens if len(t) >= 3):
             result.append({
                 "jugador": g.get("jugador", ""),
                 "goles": g.get("goles", 0),
@@ -146,7 +120,8 @@ def _get_goleadores_rival(comp: dict, rival_nombre: str) -> list[dict]:
             })
 
     result.sort(key=lambda x: -(x.get("goles") or 0))
-    return result[:10]
+    logger.info("Goleadores for '%s': found %d (from %d total)", rival_nombre, len(result), len(goleadores))
+    return result[:5]
 
 
 def _get_goleadores_from_actas(supabase, comp_id: str, rival_nombre: str) -> list[dict]:
