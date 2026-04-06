@@ -252,6 +252,133 @@ def _get_jinja_env() -> Environment:
     )
 
 
+def _highlight_tactical(text: str) -> str:
+    """Highlight tactical keywords in text with <strong> tags."""
+    if not text:
+        return ''
+    t = text
+    # Formations: 4-3-3, 5-3-2, 1-4-3-3
+    t = re.sub(r'(\d+-\d+-\d+(?:-\d+)?)', r'<strong>\1</strong>', t)
+    # Player refs: #22, #18
+    t = re.sub(r'(#\d+)', r'<strong>\1</strong>', t)
+    # P+N patterns
+    t = re.sub(r'(P\+\d)', r'<strong>\1</strong>', t)
+    return t
+
+
+def _generate_phase_svgs() -> dict[str, str]:
+    """Generate schematic mini-pitch SVGs for each tactical phase."""
+    P = (
+        '<rect x="0" y="0" width="120" height="160" rx="6" fill="#1b7a3d"/>'
+        '<rect x="6" y="6" width="108" height="148" rx="3" fill="none" '
+        'stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>'
+        '<line x1="6" y1="80" x2="114" y2="80" stroke="rgba(255,255,255,0.3)" stroke-width="0.6"/>'
+        '<circle cx="60" cy="80" r="16" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.6"/>'
+        '<rect x="30" y="6" width="60" height="28" fill="none" '
+        'stroke="rgba(255,255,255,0.3)" stroke-width="0.6"/>'
+        '<rect x="30" y="126" width="60" height="28" fill="none" '
+        'stroke="rgba(255,255,255,0.3)" stroke-width="0.6"/>'
+    )
+
+    def w(c):
+        return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 160" '
+                f'width="90" style="display:block;">{P}{c}</svg>')
+
+    def d(x, y, r=4):
+        return f'<circle cx="{x}" cy="{y}" r="{r}" fill="white" opacity="0.85"/>'
+
+    def au(x, y1, y2):
+        return (f'<line x1="{x}" y1="{y1}" x2="{x}" y2="{y2+6}" '
+                f'stroke="white" stroke-width="1.5" opacity="0.5"/>'
+                f'<polygon points="{x-3},{y2+7} {x},{y2} {x+3},{y2+7}" '
+                f'fill="white" opacity="0.5"/>')
+
+    def ad(x, y1, y2):
+        return (f'<line x1="{x}" y1="{y1}" x2="{x}" y2="{y2-6}" '
+                f'stroke="white" stroke-width="1.5" opacity="0.5"/>'
+                f'<polygon points="{x-3},{y2-7} {x},{y2} {x+3},{y2-7}" '
+                f'fill="white" opacity="0.5"/>')
+
+    def z(x, y, ww, h, c="rgba(255,255,255,0.08)"):
+        return f'<rect x="{x}" y="{y}" width="{ww}" height="{h}" rx="3" fill="{c}"/>'
+
+    def dl(x1, y1, x2, y2, op="0.35"):
+        return (f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" '
+                f'stroke="white" stroke-width="1" opacity="{op}" stroke-dasharray="3,2"/>')
+
+    def hl(x1, y, x2, c="rgba(239,68,68,0.35)"):
+        return (f'<line x1="{x1}" y1="{y}" x2="{x2}" y2="{y}" '
+                f'stroke="{c}" stroke-width="1" stroke-dasharray="4,3"/>')
+
+    return {
+        # Salida de balón: GK + defenders, arrows forward
+        'salida_balon': w(
+            z(10, 100, 100, 54, "rgba(59,130,246,0.12)")
+            + d(60, 148, 5) + d(25, 130) + d(45, 132) + d(75, 132) + d(95, 130)
+            + d(40, 105) + d(80, 105)
+            + au(60, 143, 115) + au(40, 127, 108) + au(80, 127, 108)
+            + dl(25, 130, 40, 105) + dl(95, 130, 80, 105)
+        ),
+        # Construcción: midfield progression
+        'construccion': w(
+            z(10, 55, 100, 50, "rgba(59,130,246,0.12)")
+            + d(35, 95) + d(65, 95) + d(60, 80)
+            + d(20, 70) + d(100, 70) + d(45, 60) + d(75, 60)
+            + au(35, 90, 72) + au(65, 90, 72)
+            + dl(35, 95, 65, 95) + dl(20, 70, 45, 60) + dl(100, 70, 75, 60)
+        ),
+        # Finalización: converge on goal
+        'finalizacion': w(
+            z(25, 6, 70, 48, "rgba(59,130,246,0.15)")
+            + d(30, 40) + d(60, 32) + d(90, 40)
+            + d(40, 62) + d(80, 62)
+            + au(30, 58, 42) + au(60, 55, 35) + au(90, 58, 42)
+            + dl(40, 62, 55, 35) + dl(80, 62, 65, 35)
+        ),
+        # Pressing: high press arrows
+        'pressing': w(
+            z(10, 6, 100, 55, "rgba(239,68,68,0.12)")
+            + d(40, 42) + d(60, 38) + d(80, 42)
+            + d(30, 65) + d(50, 68) + d(70, 68) + d(90, 65)
+            + au(40, 48, 25) + au(60, 44, 20) + au(80, 48, 25)
+            + dl(30, 60, 40, 48) + dl(90, 60, 80, 48)
+        ),
+        # Bloque medio: two compact defensive lines
+        'bloque_medio': w(
+            z(10, 62, 100, 42, "rgba(239,68,68,0.1)")
+            + d(20, 100) + d(40, 102) + d(60, 104) + d(80, 102) + d(100, 100)
+            + d(30, 78) + d(50, 80) + d(70, 80) + d(90, 78)
+            + hl(20, 100, 100) + hl(30, 78, 90)
+        ),
+        # Bloque bajo: compact near own goal
+        'bloque_bajo': w(
+            z(10, 105, 100, 49, "rgba(239,68,68,0.12)")
+            + d(60, 148, 5)
+            + d(18, 125) + d(38, 127) + d(60, 128) + d(82, 127) + d(102, 125)
+            + d(30, 112) + d(50, 114) + d(70, 114) + d(90, 112)
+            + hl(18, 125, 102) + hl(30, 112, 90)
+        ),
+        # Transición ofensiva: fast arrows up
+        'trans_ofensiva': w(
+            '<line x1="60" y1="88" x2="60" y2="38" stroke="rgba(245,158,11,0.4)" '
+            'stroke-width="3" stroke-dasharray="6,3"/>'
+            '<polygon points="55,44 60,30 65,44" fill="rgba(245,158,11,0.45)"/>'
+            + d(60, 120) + d(35, 115) + d(85, 115)
+            + au(60, 115, 85) + au(35, 110, 78) + au(85, 110, 78)
+            + d(40, 55) + d(60, 45) + d(80, 55)
+        ),
+        # Transición defensiva: retreat arrows
+        'trans_defensiva': w(
+            '<line x1="60" y1="42" x2="60" y2="92" stroke="rgba(245,158,11,0.4)" '
+            'stroke-width="3" stroke-dasharray="6,3"/>'
+            '<polygon points="55,86 60,98 65,86" fill="rgba(245,158,11,0.45)"/>'
+            + d(30, 45) + d(60, 40) + d(90, 45)
+            + ad(30, 50, 80) + ad(60, 48, 80) + ad(90, 50, 80)
+            + d(25, 110) + d(50, 115) + d(70, 115) + d(95, 110)
+        ),
+    }
+
+
 def _get_jinja_env_v2() -> Environment:
     """Entorno Jinja2 para v2 templates (autoescape off for inline SVG)."""
     env = Environment(
@@ -260,6 +387,7 @@ def _get_jinja_env_v2() -> Environment:
     )
     env.filters['to_bullets'] = _text_to_bullets
     env.filters['first_sentence'] = _first_sentence
+    env.filters['highlight_tactical'] = _highlight_tactical
     return env
 
 
@@ -851,11 +979,8 @@ def generate_informe_rival_standalone_pdf(
     if once_probable:
         formation_svg = _generate_formation_svg(sistema_juego, once_probable)
 
-    # Extract top scorers from intel
-    goleadores = []
-    if intel and intel.get("competition_stats"):
-        # Top scorers aren't in competition_stats directly — extract from once_probable goles if available
-        pass
+    # Generate phase diagrams
+    phase_svgs = _generate_phase_svgs()
 
     html_content = template.render(
         informe=informe,
@@ -869,6 +994,7 @@ def generate_informe_rival_standalone_pdf(
         created_at=created_at,
         formation_svg=formation_svg,
         sistema_juego=_parse_formation(sistema_juego),
+        phase_svgs=phase_svgs,
     )
 
     try:

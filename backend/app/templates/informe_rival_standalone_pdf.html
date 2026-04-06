@@ -526,19 +526,28 @@ body {
     {% if fase_o.get('salida_balon') %}
     <div class="sub-phase sp-off">
         <h4>Salida de Balón</h4>
-        <p>{{ fase_o.get('salida_balon', '') }}</p>
+        <div class="tbl">
+            <div class="cl" style="width:100px;padding-right:10px;">{{ phase_svgs.salida_balon }}</div>
+            <div class="cl"><p>{{ fase_o.get('salida_balon', '')|highlight_tactical }}</p></div>
+        </div>
     </div>
     {% endif %}
     {% if fase_o.get('construccion') %}
     <div class="sub-phase sp-off">
         <h4>Construcción</h4>
-        <p>{{ fase_o.get('construccion', '') }}</p>
+        <div class="tbl">
+            <div class="cl" style="width:100px;padding-right:10px;">{{ phase_svgs.construccion }}</div>
+            <div class="cl"><p>{{ fase_o.get('construccion', '')|highlight_tactical }}</p></div>
+        </div>
     </div>
     {% endif %}
     {% if fase_o.get('finalizacion') %}
     <div class="sub-phase sp-off">
         <h4>Finalización</h4>
-        <p>{{ fase_o.get('finalizacion', '') }}</p>
+        <div class="tbl">
+            <div class="cl" style="width:100px;padding-right:10px;">{{ phase_svgs.finalizacion }}</div>
+            <div class="cl"><p>{{ fase_o.get('finalizacion', '')|highlight_tactical }}</p></div>
+        </div>
     </div>
     {% endif %}
 </div>
@@ -554,19 +563,28 @@ body {
     {% if fase_d.get('pressing') %}
     <div class="sub-phase sp-def">
         <h4>Pressing</h4>
-        <p>{{ fase_d.get('pressing', '') }}</p>
+        <div class="tbl">
+            <div class="cl" style="width:100px;padding-right:10px;">{{ phase_svgs.pressing }}</div>
+            <div class="cl"><p>{{ fase_d.get('pressing', '')|highlight_tactical }}</p></div>
+        </div>
     </div>
     {% endif %}
     {% if fase_d.get('bloque_medio') %}
     <div class="sub-phase sp-def">
         <h4>Bloque Medio</h4>
-        <p>{{ fase_d.get('bloque_medio', '') }}</p>
+        <div class="tbl">
+            <div class="cl" style="width:100px;padding-right:10px;">{{ phase_svgs.bloque_medio }}</div>
+            <div class="cl"><p>{{ fase_d.get('bloque_medio', '')|highlight_tactical }}</p></div>
+        </div>
     </div>
     {% endif %}
     {% if fase_d.get('bloque_bajo') %}
     <div class="sub-phase sp-def">
         <h4>Bloque Bajo</h4>
-        <p>{{ fase_d.get('bloque_bajo', '') }}</p>
+        <div class="tbl">
+            <div class="cl" style="width:100px;padding-right:10px;">{{ phase_svgs.bloque_bajo }}</div>
+            <div class="cl"><p>{{ fase_d.get('bloque_bajo', '')|highlight_tactical }}</p></div>
+        </div>
     </div>
     {% endif %}
 </div>
@@ -582,13 +600,15 @@ body {
     <div class="cl">
         <div class="phase-card pc-tra">
             <h4 style="color:#92400E;">Transición Ofensiva</h4>
-            <p>{{ trans.get('ofensiva', '') }}</p>
+            <div style="text-align:center;margin-bottom:6px;">{{ phase_svgs.trans_ofensiva }}</div>
+            <p>{{ trans.get('ofensiva', '')|highlight_tactical }}</p>
         </div>
     </div>
     <div class="cl">
         <div class="phase-card pc-tra">
             <h4 style="color:#92400E;">Transición Defensiva</h4>
-            <p>{{ trans.get('defensiva', '') }}</p>
+            <div style="text-align:center;margin-bottom:6px;">{{ phase_svgs.trans_defensiva }}</div>
+            <p>{{ trans.get('defensiva', '')|highlight_tactical }}</p>
         </div>
     </div>
 </div>
@@ -605,13 +625,13 @@ body {
     <div class="cl">
         <div class="phase-card pc-abp">
             <h4 style="color:#5B21B6;">Cómo Atacan</h4>
-            <p>{{ abp.get('atacando', '') }}</p>
+            <p>{{ abp.get('atacando', '')|highlight_tactical }}</p>
         </div>
     </div>
     <div class="cl">
         <div class="phase-card pc-abp">
             <h4 style="color:#5B21B6;">Cómo Defienden</h4>
-            <p>{{ abp.get('defendiendo', '') }}</p>
+            <p>{{ abp.get('defendiendo', '')|highlight_tactical }}</p>
         </div>
     </div>
 </div>
