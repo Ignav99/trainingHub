@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Brain,
   FileText,
+  FileDown,
   Info,
   Clock,
   LinkIcon,
@@ -31,6 +32,7 @@ import { apiKey } from '@/lib/swr'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
 import { RFEFCompeticion } from '@/lib/api/rfef'
+import { toast } from 'sonner'
 import { rivalesApi } from '@/lib/api/partidos'
 import { useEquipoStore } from '@/stores/equipoStore'
 import type { Rival, PreMatchIntel, RivalInforme, AIInformeRival, AIPlanPartido } from '@/types'
@@ -421,6 +423,28 @@ function ScoutingTab({
   )
 }
 
+// ==================== Informe Download Button ====================
+
+function InformeDownloadButton({ rivalId, informeId }: { rivalId: string; informeId: string }) {
+  const [downloading, setDownloading] = useState(false)
+  const handleDownload = async () => {
+    setDownloading(true)
+    try {
+      await rivalesApi.downloadInformePdf(rivalId, informeId)
+    } catch (err: any) {
+      toast.error(err.message || 'Error al descargar PDF')
+    } finally {
+      setDownloading(false)
+    }
+  }
+  return (
+    <Button variant="ghost" size="sm" onClick={handleDownload} disabled={downloading} className="h-7 text-[10px]">
+      {downloading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileDown className="h-3 w-3" />}
+      PDF
+    </Button>
+  )
+}
+
 // ==================== Informes Tab ====================
 
 function InformesTab({
@@ -493,6 +517,9 @@ function InformesTab({
                     <LinkIcon className="h-3 w-3" />
                     Partido
                   </Link>
+                )}
+                {informe.tipo === 'informe' && (
+                  <InformeDownloadButton rivalId={rivalId} informeId={informe.id} />
                 )}
               </div>
             ))}

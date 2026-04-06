@@ -3,11 +3,14 @@ TrainingHub Pro - Router de Rivales
 CRUD para equipos rivales + inteligencia (once probable, tarjetas, scouting hub).
 """
 
+import asyncio
+import io
 import json
 import logging
 from collections import Counter
 
 from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File, status
+from fastapi.responses import StreamingResponse
 from typing import Optional
 from uuid import UUID
 from math import ceil
@@ -479,6 +482,82 @@ async def list_rival_informes(
     ).limit(50).execute()
 
     return {"data": res.data or []}
+
+
+@router.get("/{rival_id}/informes/{informe_id}/pdf")
+async def download_rival_informe_pdf(
+    rival_id: UUID,
+    informe_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.RIVAL_READ)),
+):
+    """Download a standalone AI rival report as professional PDF."""
+    from app.services.pdf_service import generate_informe_rival_standalone_pdf
+
+    supabase = get_supabase()
+
+    # Fetch informe
+    informe_res = supabase.table("rival_informes").select("*").eq(
+        "id", str(informe_id)
+    ).eq("rival_id", str(rival_id)).eq(
+        "organizacion_id", auth.organizacion_id
+    ).single().execute()
+
+    if not informe_res.data:
+        raise HTTPException(status_code=404, detail="Informe no encontrado")
+
+    informe_data = informe_res.data
+    contenido = informe_data.get("contenido")
+    if not contenido:
+        raise HTTPException(status_code=404, detail="El informe no tiene contenido")
+
+    # Fetch rival
+    rival_res = supabase.table("rivales").select(
+        "nombre, escudo_url"
+    ).eq("id", str(rival_id)).single().execute()
+    rival_data = rival_res.data or {}
+
+    # Fetch org
+    org_res = supabase.table("organizaciones").select(
+        "nombre, color_primario, color_secundario, logo_url"
+    ).eq("id", auth.organizacion_id).single().execute()
+    organizacion = org_res.data or {}
+
+    # Fetch equipo (first team of the org)
+    equipo_nombre = ""
+    equipo_escudo_url = ""
+    eq_res = supabase.table("equipos").select(
+        "nombre, escudo_url"
+    ).eq("organizacion_id", auth.organizacion_id).limit(1).execute()
+    if eq_res.data:
+        equipo_nombre = eq_res.data[0].get("nombre", "")
+        equipo_escudo_url = eq_res.data[0].get("escudo_url", "") or ""
+
+    # Intel snapshot from the informe
+    intel = informe_data.get("intel_snapshot") or {}
+
+    # Format created_at
+    created_at_raw = informe_data.get("created_at", "")
+    created_at = created_at_raw[:10] if created_at_raw else ""
+
+    pdf_bytes = await asyncio.to_thread(
+        generate_informe_rival_standalone_pdf,
+        informe=contenido,
+        rival=rival_data,
+        organizacion=organizacion,
+        equipo_nombre=equipo_nombre,
+        equipo_escudo_url=equipo_escudo_url,
+        intel=intel,
+        created_at=created_at,
+    )
+
+    rival_nombre = rival_data.get("nombre", "rival").replace(" ", "_")
+    filename = f"informe_rival_{rival_nombre}_{created_at}.pdf"
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/{rival_id}/perfil-competicion")

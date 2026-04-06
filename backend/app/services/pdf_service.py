@@ -623,6 +623,56 @@ def generate_informe_rival_pdf(
         return html_content.encode("utf-8")
 
 
+def generate_informe_rival_standalone_pdf(
+    informe: dict,
+    rival: dict,
+    organizacion: dict,
+    equipo_nombre: str = "",
+    equipo_escudo_url: str = "",
+    intel: Optional[dict] = None,
+    created_at: str = "",
+) -> bytes:
+    """Genera PDF profesional de informe del rival (standalone, sin partido)."""
+    env = _get_jinja_env_v2()
+    template = env.get_template("informe_rival_standalone_pdf.html")
+
+    color_primario = organizacion.get("color_primario", "#2563eb")
+
+    # Calculate H2H stats from intel
+    h2h_stats = None
+    if intel and intel.get("head_to_head"):
+        wins = draws = losses = 0
+        for match in intel["head_to_head"]:
+            resultado = match.get("resultado", "")
+            if resultado == "victoria":
+                wins += 1
+            elif resultado == "empate":
+                draws += 1
+            elif resultado == "derrota":
+                losses += 1
+        if wins or draws or losses:
+            h2h_stats = {"wins": wins, "draws": draws, "losses": losses}
+
+    html_content = template.render(
+        informe=informe,
+        rival=rival,
+        organizacion=organizacion,
+        equipo_nombre=equipo_nombre,
+        equipo_escudo_url=equipo_escudo_url,
+        color_primario=color_primario,
+        intel=intel or {},
+        h2h_stats=h2h_stats,
+        created_at=created_at,
+    )
+
+    try:
+        from weasyprint import HTML
+        return HTML(string=html_content).write_pdf()
+    except ImportError:
+        logger.warning("WeasyPrint not available, returning HTML as bytes")
+        return html_content.encode("utf-8")
+
+
 def generate_plan_partido_pdf(
     plan: dict,
     partido: dict,

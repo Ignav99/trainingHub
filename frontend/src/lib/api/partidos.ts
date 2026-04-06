@@ -93,6 +93,16 @@ export const rivalesApi = {
   async listInformes(rivalId: string): Promise<{ data: RivalInforme[] }> {
     return api.get<{ data: RivalInforme[] }>(`/rivales/${rivalId}/informes`)
   },
+
+  async downloadInformePdf(rivalId: string, informeId: string): Promise<void> {
+    const blob = await api.getBlob(`/rivales/${rivalId}/informes/${informeId}/pdf`, { timeout: 120000 })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `informe_rival.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+  },
 }
 
 // ============ Partidos ============
