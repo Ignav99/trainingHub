@@ -25,7 +25,7 @@ from app.models import (
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
-from app.services.pre_match_service import populate_rival_intel, _match_rival_name, _query_actas, _get_rival_data
+from app.services.pre_match_service import populate_rival_intel, gather_rival_intel_standalone, _match_rival_name, _query_actas, _get_rival_data
 from app.services.ai_factory import get_ai_service, call_ai_with_fallback
 from app.services.ai_errors import AIError
 
@@ -510,11 +510,16 @@ async def download_rival_informe_pdf(
     if not contenido:
         raise HTTPException(status_code=404, detail="El informe no tiene contenido")
 
-    # Fetch rival
-    rival_res = supabase.table("rivales").select(
-        "nombre, escudo_url, sistema_juego"
-    ).eq("id", str(rival_id)).single().execute()
-    rival_data = rival_res.data or {}
+    # Fetch rival (full record for intel generation)
+    rival_res = supabase.table("rivales").select("*").eq(
+        "id", str(rival_id)
+    ).single().execute()
+    rival_full = rival_res.data or {}
+    rival_data = {
+        "nombre": rival_full.get("nombre", ""),
+        "escudo_url": rival_full.get("escudo_url"),
+        "sistema_juego": rival_full.get("sistema_juego"),
+    }
 
     # Fetch org
     org_res = supabase.table("organizaciones").select(
@@ -526,7 +531,7 @@ async def download_rival_informe_pdf(
     equipo_nombre = ""
     equipo_escudo_url = ""
     eq_res = supabase.table("equipos").select(
-        "nombre"
+        "id, nombre"
     ).eq("organizacion_id", auth.organizacion_id).limit(1).execute()
     if eq_res.data:
         equipo_nombre = eq_res.data[0].get("nombre", "")
@@ -534,8 +539,32 @@ async def download_rival_informe_pdf(
     # Try to get org logo as team badge fallback
     equipo_escudo_url = organizacion.get("logo_url", "") or ""
 
-    # Intel snapshot from the informe
-    intel = informe_data.get("intel_snapshot") or {}
+    # --- LIVE intel: fetch fresh scouting data instead of stale snapshot ---
+    intel = None
+    try:
+        # Find the org's active rfef_competicion via its equipos
+        equipo_ids = [e["id"] for e in eq_res.data] if eq_res.data else []
+        if equipo_ids:
+            comp_res = supabase.table("rfef_competiciones").select("*").in_(
+                "equipo_id", equipo_ids
+            ).order("created_at", desc=True).limit(1).execute()
+
+            if comp_res.data:
+                comp = comp_res.data[0]
+                intel = gather_rival_intel_standalone(
+                    supabase, rival_full, comp, str(rival_id)
+                )
+                logger.info("PDF: fetched live intel for rival %s", rival_id)
+    except Exception as e:
+        logger.warning("PDF: failed to fetch live intel, falling back: %s", e)
+
+    # Fallback 1: cached rival_intel on the rival record
+    if not intel:
+        intel = rival_full.get("rival_intel") or {}
+
+    # Fallback 2: stale intel_snapshot from the informe
+    if not intel:
+        intel = informe_data.get("intel_snapshot") or {}
 
     # Format created_at
     created_at_raw = informe_data.get("created_at", "")

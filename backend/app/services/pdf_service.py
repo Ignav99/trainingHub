@@ -975,9 +975,8 @@ def generate_informe_rival_standalone_pdf(
     if not once_probable and informe and informe.get("once_probable"):
         once_probable = informe["once_probable"]
 
+    # No formation SVG — user wants a simple player list like the scouting tab
     formation_svg = ""
-    if once_probable:
-        formation_svg = _generate_formation_svg(sistema_juego, once_probable)
 
     # Generate phase diagrams
     phase_svgs = _generate_phase_svgs()

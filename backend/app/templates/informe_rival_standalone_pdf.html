@@ -655,30 +655,41 @@ body {
 
 <div class="sh sh-for"><h2><span class="sn">5</span> Once Probable{% if sistema_juego %} ({{ sistema_juego }}){% endif %}</h2></div>
 
-{% if formation_svg %}
-<div class="formation-wrap">
-    {{ formation_svg }}
-</div>
-{% elif once_jugadores %}
+{% if once_jugadores %}
+{% set actas_n = once_data.get('actas_analizadas', 0) if once_data is mapping else 0 %}
+{% if actas_n %}
+<p style="font-size:9px;color:#888;margin:0 0 6px 0;">Basado en {{ actas_n }} acta{{ 's' if actas_n != 1 else '' }} analizada{{ 's' if actas_n != 1 else '' }}</p>
+{% endif %}
 <div style="margin-bottom:14px;break-inside:avoid;">
-    <div class="tbl">
-        <div class="cl" style="padding:0;">
-            <table style="width:100%;border-collapse:collapse;font-size:11px;">
-            {% for j in once_jugadores[:11] %}
-                <tr style="border-bottom:1px solid #f0f0f0;">
-                    <td style="padding:3px 8px;font-weight:700;color:{{ color_primario }};width:40px;text-align:center;">{{ j.get('dorsal', '') or '' }}</td>
-                    <td style="padding:3px 8px;font-weight:600;">{{ j.get('nombre', '') }}</td>
-                    <td style="padding:3px 8px;text-align:right;color:#888;font-size:10px;">{{ j.get('apariciones', '') }} ap.</td>
-                    {% if j.get('sancionado') %}
-                    <td style="padding:3px 8px;text-align:right;color:#DC2626;font-weight:700;font-size:9px;">SANC.</td>
-                    {% else %}
-                    <td style="padding:3px 8px;width:50px;"></td>
-                    {% endif %}
-                </tr>
-            {% endfor %}
-            </table>
-        </div>
-    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:11px;">
+        <thead>
+            <tr style="border-bottom:2px solid {{ color_primario }};font-size:9px;color:#666;text-transform:uppercase;">
+                <th style="padding:4px 8px;text-align:center;width:40px;">#</th>
+                <th style="padding:4px 8px;text-align:left;">Jugador</th>
+                <th style="padding:4px 8px;text-align:center;width:50px;">Titularidades</th>
+                <th style="padding:4px 8px;text-align:center;width:50px;">Estado</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for j in once_jugadores[:11] %}
+            <tr style="border-bottom:1px solid #f0f0f0;{% if loop.index <= 11 and j.get('apariciones', 0) >= 3 %}background:#f9fafb;{% endif %}">
+                <td style="padding:4px 8px;font-weight:700;color:{{ color_primario }};text-align:center;">{{ j.get('dorsal', '') or '-' }}</td>
+                <td style="padding:4px 8px;font-weight:600;">{{ j.get('nombre', '') }}</td>
+                <td style="padding:4px 8px;text-align:center;color:#555;">{{ j.get('apariciones', '') }}/{{ actas_n or '?' }}</td>
+                {% if j.get('sancionado') %}
+                <td style="padding:4px 8px;text-align:center;"><span style="background:#FEE2E2;color:#DC2626;font-weight:700;font-size:8px;padding:2px 6px;border-radius:3px;">SANC.</span></td>
+                {% elif j.get('amarillas_ciclo', 0) >= 4 %}
+                <td style="padding:4px 8px;text-align:center;"><span style="background:#FEF3C7;color:#92400E;font-weight:700;font-size:8px;padding:2px 6px;border-radius:3px;">APERC.</span></td>
+                {% else %}
+                <td style="padding:4px 8px;text-align:center;font-size:9px;color:#aaa;">OK</td>
+                {% endif %}
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% if once_jugadores|length > 11 %}
+    <p style="font-size:9px;color:#888;margin:4px 0 0 8px;">+ {{ once_jugadores|length - 11 }} jugadores más registrados</p>
+    {% endif %}
 </div>
 {% else %}
 <div class="empty">Sin datos de alineación disponibles</div>
