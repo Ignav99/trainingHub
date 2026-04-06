@@ -160,12 +160,12 @@ async def chat_with_ai(
         except Exception:
             pass
 
-    # Call AI
+    # Call AI (with automatic fallback on 429/503)
     try:
-        from app.services.ai_factory import get_ai_service
+        from app.services.ai_factory import call_ai_with_fallback
 
-        service = get_ai_service()
-        result = await service.chat(
+        result = await call_ai_with_fallback(
+            "chat",
             mensaje=request.mensaje,
             historial=historial_previo,
             equipo_id=equipo_id,

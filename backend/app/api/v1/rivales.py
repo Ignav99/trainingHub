@@ -26,7 +26,7 @@ from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
 from app.services.pre_match_service import populate_rival_intel, _match_rival_name, _query_actas, _get_rival_data
-from app.services.ai_factory import get_ai_service
+from app.services.ai_factory import get_ai_service, call_ai_with_fallback
 from app.services.ai_errors import AIError
 
 logger = logging.getLogger(__name__)
@@ -399,8 +399,8 @@ async def scouting_chat(
     intel_data = rival.get("rival_intel") or {}
 
     try:
-        service = get_ai_service()
-        result = await service.pre_match_chat(
+        result = await call_ai_with_fallback(
+            "pre_match_chat",
             mensajes=mensajes,
             intel_data=intel_data,
             rival_nombre=rival_nombre,
@@ -410,9 +410,9 @@ async def scouting_chat(
         )
     except AIError as e:
         error_msg = str(e)
-        if "conexion" in error_msg.lower():
+        if e.status_code == 503:
             raise HTTPException(status_code=503, detail=error_msg)
-        elif "saturado" in error_msg.lower():
+        elif e.status_code == 429:
             raise HTTPException(status_code=429, detail=error_msg)
         else:
             raise HTTPException(status_code=500, detail=error_msg)
