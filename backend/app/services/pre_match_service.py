@@ -80,21 +80,14 @@ def _get_clasificacion(comp: dict, rival_nombre: str) -> dict | None:
 
 
 def _get_goleadores_rival(comp: dict, rival_nombre: str) -> list[dict]:
-    """Extract rival's top scorers from competition goleadores."""
+    """Extract rival's top scorers from competition goleadores page data."""
     goleadores = comp.get("goleadores") or []
     rival_lower = rival_nombre.lower()
     result = []
 
     if not goleadores:
-        logger.warning("No goleadores data in competition %s", comp.get("id", "?"))
+        logger.info("No goleadores page data in competition %s", comp.get("id", "?"))
         return []
-
-    # Log sample of team names in goleadores for debugging
-    equipos_sample = list({(g.get("equipo") or "")[:30] for g in goleadores[:20]})
-    logger.info(
-        "Searching goleadores for '%s' among %d entries (teams: %s)",
-        rival_nombre, len(goleadores), equipos_sample[:5],
-    )
 
     for g in goleadores:
         equipo = (g.get("equipo") or "").lower()
@@ -106,12 +99,107 @@ def _get_goleadores_rival(comp: dict, rival_nombre: str) -> list[dict]:
             })
 
     if not result:
-        logger.warning(
-            "No goleadores matched for '%s'. Sample entries: %s",
-            rival_nombre, goleadores[:3],
+        logger.info(
+            "No goleadores matched for '%s' in page data (%d entries). "
+            "Sample: %s", rival_nombre, len(goleadores), goleadores[:2],
         )
 
     result.sort(key=lambda x: -(x.get("goles") or 0))
+    return result[:10]
+
+
+def _get_goleadores_from_actas(supabase, comp_id: str, rival_nombre: str) -> list[dict]:
+    """Extract rival's top scorers from match actas (reliable fallback).
+
+    Queries all actas for the rival and aggregates goals per player
+    from the 'goles' field (list of {minuto, jugador, parcial_local, parcial_visitante}).
+    """
+    actas = _query_actas(
+        supabase, comp_id, rival_nombre,
+        "local_nombre, visitante_nombre, goles, goles_local, goles_visitante",
+    )
+
+    if not actas:
+        logger.info("No actas found for goleadores extraction: '%s'", rival_nombre)
+        return []
+
+    from collections import Counter
+    goal_counts: Counter = Counter()
+    actas_with_goals = 0
+
+    for acta in actas:
+        goles_list = acta.get("goles") or []
+        if not goles_list:
+            continue
+
+        actas_with_goals += 1
+        side = _is_rival_local(acta, rival_nombre)
+
+        for gol in goles_list:
+            jugador = (gol.get("jugador") or "").strip()
+            if not jugador:
+                continue
+
+            # Determine if this goal belongs to the rival
+            parcial_l = gol.get("parcial_local")
+            parcial_v = gol.get("parcial_visitante")
+            prev_l = gol.get("_prev_local")  # Not always available
+
+            if side is True:
+                # Rival is local — goal is rival's if parcial_local incremented
+                # Heuristic: if parcial_local > parcial_visitante evolution
+                # Simplification: assign to rival if parcial_local exists
+                # Actually, we can just track by side — goals in acta are
+                # typically listed in chronological order with running score.
+                # A goal belongs to local if parcial_local increased.
+                goal_counts[jugador] += 1
+            elif side is False:
+                # Rival is visitante — count all goals (we'll filter below)
+                goal_counts[jugador] += 1
+            else:
+                # Unknown side — count anyway, better than nothing
+                goal_counts[jugador] += 1
+
+    if not goal_counts:
+        logger.info("No goals found in %d actas for '%s'", len(actas), rival_nombre)
+        return []
+
+    # The goles list in actas includes ALL goals (both teams).
+    # To filter only rival goals, we use the titulares/suplentes data.
+    # But that requires another query. Simpler: re-query actas with lineup data
+    # to build a set of rival player names, then filter.
+    rival_players = set()
+    lineup_actas = _query_actas(
+        supabase, comp_id, rival_nombre,
+        "local_nombre, visitante_nombre, titulares_local, titulares_visitante, "
+        "suplentes_local, suplentes_visitante",
+    )
+    for acta in lineup_actas:
+        titulares = _get_rival_data(acta, rival_nombre, "titulares_local", "titulares_visitante")
+        suplentes = _get_rival_data(acta, rival_nombre, "suplentes_local", "suplentes_visitante")
+        for j in titulares + suplentes:
+            name = (j.get("nombre") or "").strip()
+            if name:
+                rival_players.add(name.lower())
+
+    # Filter goals to only rival players
+    result = []
+    for jugador, goles in goal_counts.most_common():
+        if rival_players and jugador.lower() not in rival_players:
+            continue  # Not a rival player
+        result.append({
+            "jugador": jugador,
+            "goles": goles,
+        })
+
+    # If we couldn't build a player set (no lineup data), return all
+    if not rival_players and goal_counts:
+        result = [{"jugador": j, "goles": g} for j, g in goal_counts.most_common()]
+
+    logger.info(
+        "Goleadores from actas for '%s': %d scorers from %d actas (%d with goals)",
+        rival_nombre, len(result), len(actas), actas_with_goals,
+    )
     return result[:10]
 
 
@@ -724,8 +812,10 @@ def gather_rival_intel_standalone(
     if clasificacion:
         intel["clasificacion"] = clasificacion
 
-    # Goleadores
+    # Goleadores (try competition page data first, fallback to actas)
     goleadores = _get_goleadores_rival(comp, rival_nombre)
+    if not goleadores:
+        goleadores = _get_goleadores_from_actas(supabase, comp_id, rival_nombre)
     if goleadores:
         intel["goleadores_rival"] = goleadores
 
