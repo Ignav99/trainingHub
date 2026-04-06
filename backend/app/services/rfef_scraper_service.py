@@ -420,6 +420,7 @@ class RFAFScraper:
         soup = self._fetch_page("NFG_CMP_Goleadores", {
             "codcompeticion": codcompeticion,
             "codgrupo": codgrupo,
+            "codtemporada": codtemporada,
         })
 
         goleadores = []
@@ -427,16 +428,42 @@ class RFAFScraper:
             rows = table.find_all("tr")
             for row in rows:
                 cells = row.find_all("td")
-                if len(cells) < 5:
+                if len(cells) < 4:
                     continue
                 texts = [c.get_text(strip=True) for c in cells]
-                jugador = texts[0]
-                equipo = texts[1] if len(texts) > 1 else ""
-                goles_text = texts[4] if len(texts) > 4 else ""
-                goles_match = re.match(r"(\d+)", goles_text)
-                goles = int(goles_match.group(1)) if goles_match else 0
-                pj = _safe_int(texts[3]) if len(texts) > 3 else 0
-                if jugador and goles > 0:
+
+                # RFAF tables often have an icon/badge in column 0.
+                # Detect: if texts[0] is a pure number or empty, skip it.
+                offset = 0
+                if len(texts) >= 5 and (not texts[0] or texts[0].isdigit()):
+                    offset = 1
+
+                jugador = texts[offset] if len(texts) > offset else ""
+                equipo = texts[offset + 1] if len(texts) > offset + 1 else ""
+
+                # Find goles: last numeric column, or known position
+                goles = 0
+                pj = 0
+                if offset == 1 and len(texts) >= 5:
+                    # Layout: [rank, jugador, equipo, pj, goles]
+                    pj = _safe_int(texts[offset + 2])
+                    goles_text = texts[offset + 3] if len(texts) > offset + 3 else ""
+                    goles_match = re.match(r"(\d+)", goles_text)
+                    goles = int(goles_match.group(1)) if goles_match else 0
+                elif len(texts) >= 5:
+                    # Layout: [jugador, equipo, ??, pj, goles]
+                    pj = _safe_int(texts[3])
+                    goles_text = texts[4] if len(texts) > 4 else ""
+                    goles_match = re.match(r"(\d+)", goles_text)
+                    goles = int(goles_match.group(1)) if goles_match else 0
+                else:
+                    # Minimal layout: [jugador, equipo, pj, goles]
+                    pj = _safe_int(texts[2]) if len(texts) > 2 else 0
+                    goles_text = texts[3] if len(texts) > 3 else ""
+                    goles_match = re.match(r"(\d+)", goles_text)
+                    goles = int(goles_match.group(1)) if goles_match else 0
+
+                if jugador and not jugador.isdigit() and goles > 0:
                     goleadores.append({
                         "jugador": jugador,
                         "equipo": equipo,
@@ -446,6 +473,8 @@ class RFAFScraper:
 
         goleadores.sort(key=lambda g: g["goles"], reverse=True)
         logger.info("Scraped goleadores: %d jugadores", len(goleadores))
+        if goleadores:
+            logger.info("Sample: %s", goleadores[:2])
         return goleadores
 
     def _scrape_acta(self, cod_acta: str) -> dict:

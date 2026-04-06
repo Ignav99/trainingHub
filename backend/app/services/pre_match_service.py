@@ -34,16 +34,26 @@ def _extract_core_name(name: str) -> str:
 
 
 def _match_rival_name(rival_nombre: str, team_name: str) -> bool:
-    """Case-insensitive substring match for rival names."""
+    """Case-insensitive match for rival names, with core-name fallback."""
     a = rival_nombre.lower().strip()
     b = team_name.lower().strip()
     if not a or not b:
         return False
     if a == b:
         return True
+    # Substring match (both >= 6 chars)
     if len(a) >= 6 and len(b) >= 6:
         if a in b or b in a:
             return True
+    # Core-name match (strip C.D., U.D., A.D. etc.)
+    core_a = _extract_core_name(a).lower()
+    core_b = _extract_core_name(b).lower()
+    if core_a and core_b and len(core_a) >= 3 and len(core_b) >= 3:
+        if core_a == core_b:
+            return True
+        if len(core_a) >= 5 and len(core_b) >= 5:
+            if core_a in core_b or core_b in core_a:
+                return True
     return False
 
 
@@ -75,6 +85,17 @@ def _get_goleadores_rival(comp: dict, rival_nombre: str) -> list[dict]:
     rival_lower = rival_nombre.lower()
     result = []
 
+    if not goleadores:
+        logger.warning("No goleadores data in competition %s", comp.get("id", "?"))
+        return []
+
+    # Log sample of team names in goleadores for debugging
+    equipos_sample = list({(g.get("equipo") or "")[:30] for g in goleadores[:20]})
+    logger.info(
+        "Searching goleadores for '%s' among %d entries (teams: %s)",
+        rival_nombre, len(goleadores), equipos_sample[:5],
+    )
+
     for g in goleadores:
         equipo = (g.get("equipo") or "").lower()
         if _match_rival_name(rival_lower, equipo):
@@ -83,6 +104,12 @@ def _get_goleadores_rival(comp: dict, rival_nombre: str) -> list[dict]:
                 "goles": g.get("goles", 0),
                 "pj": g.get("pj"),
             })
+
+    if not result:
+        logger.warning(
+            "No goleadores matched for '%s'. Sample entries: %s",
+            rival_nombre, goleadores[:3],
+        )
 
     result.sort(key=lambda x: -(x.get("goles") or 0))
     return result[:10]
