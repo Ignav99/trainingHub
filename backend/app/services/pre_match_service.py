@@ -111,8 +111,8 @@ def _get_goleadores_rival(comp: dict, rival_nombre: str) -> list[dict]:
 def _get_goleadores_from_actas(supabase, comp_id: str, rival_nombre: str) -> list[dict]:
     """Extract rival's top scorers from match actas (reliable fallback).
 
-    Queries all actas for the rival and aggregates goals per player
-    from the 'goles' field (list of {minuto, jugador, parcial_local, parcial_visitante}).
+    Uses the running score (parcial_local, parcial_visitante) to attribute
+    each goal to the correct team. Only counts goals scored by the rival.
     """
     actas = _query_actas(
         supabase, comp_id, rival_nombre,
@@ -133,68 +133,47 @@ def _get_goleadores_from_actas(supabase, comp_id: str, rival_nombre: str) -> lis
             continue
 
         actas_with_goals += 1
-        side = _is_rival_local(acta, rival_nombre)
+        rival_is_local = _is_rival_local(acta, rival_nombre)
+
+        # Track running score to attribute each goal to correct team
+        prev_local = 0
+        prev_visit = 0
 
         for gol in goles_list:
             jugador = (gol.get("jugador") or "").strip()
             if not jugador:
                 continue
 
-            # Determine if this goal belongs to the rival
-            parcial_l = gol.get("parcial_local")
-            parcial_v = gol.get("parcial_visitante")
-            prev_l = gol.get("_prev_local")  # Not always available
+            cur_local = gol.get("parcial_local")
+            cur_visit = gol.get("parcial_visitante")
 
-            if side is True:
-                # Rival is local — goal is rival's if parcial_local incremented
-                # Heuristic: if parcial_local > parcial_visitante evolution
-                # Simplification: assign to rival if parcial_local exists
-                # Actually, we can just track by side — goals in acta are
-                # typically listed in chronological order with running score.
-                # A goal belongs to local if parcial_local increased.
+            # Determine which team scored by checking which partial increased
+            scored_by_local = None
+            if cur_local is not None and cur_visit is not None:
+                if cur_local > prev_local:
+                    scored_by_local = True
+                elif cur_visit > prev_visit:
+                    scored_by_local = False
+                prev_local = cur_local
+                prev_visit = cur_visit
+
+            # Count only if scored by the rival
+            if rival_is_local is True and scored_by_local is True:
                 goal_counts[jugador] += 1
-            elif side is False:
-                # Rival is visitante — count all goals (we'll filter below)
+            elif rival_is_local is False and scored_by_local is False:
                 goal_counts[jugador] += 1
-            else:
-                # Unknown side — count anyway, better than nothing
-                goal_counts[jugador] += 1
+            elif rival_is_local is None and scored_by_local is not None:
+                # Unknown side — skip to avoid counting opponent goals
+                pass
 
     if not goal_counts:
-        logger.info("No goals found in %d actas for '%s'", len(actas), rival_nombre)
+        logger.info("No rival goals found in %d actas for '%s'", len(actas), rival_nombre)
         return []
 
-    # The goles list in actas includes ALL goals (both teams).
-    # To filter only rival goals, we use the titulares/suplentes data.
-    # But that requires another query. Simpler: re-query actas with lineup data
-    # to build a set of rival player names, then filter.
-    rival_players = set()
-    lineup_actas = _query_actas(
-        supabase, comp_id, rival_nombre,
-        "local_nombre, visitante_nombre, titulares_local, titulares_visitante, "
-        "suplentes_local, suplentes_visitante",
-    )
-    for acta in lineup_actas:
-        titulares = _get_rival_data(acta, rival_nombre, "titulares_local", "titulares_visitante")
-        suplentes = _get_rival_data(acta, rival_nombre, "suplentes_local", "suplentes_visitante")
-        for j in titulares + suplentes:
-            name = (j.get("nombre") or "").strip()
-            if name:
-                rival_players.add(name.lower())
-
-    # Filter goals to only rival players
-    result = []
-    for jugador, goles in goal_counts.most_common():
-        if rival_players and jugador.lower() not in rival_players:
-            continue  # Not a rival player
-        result.append({
-            "jugador": jugador,
-            "goles": goles,
-        })
-
-    # If we couldn't build a player set (no lineup data), return all
-    if not rival_players and goal_counts:
-        result = [{"jugador": j, "goles": g} for j, g in goal_counts.most_common()]
+    result = [
+        {"jugador": j, "goles": g}
+        for j, g in goal_counts.most_common()
+    ]
 
     logger.info(
         "Goleadores from actas for '%s': %d scorers from %d actas (%d with goals)",
