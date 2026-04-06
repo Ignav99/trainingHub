@@ -526,11 +526,13 @@ async def download_rival_informe_pdf(
     equipo_nombre = ""
     equipo_escudo_url = ""
     eq_res = supabase.table("equipos").select(
-        "nombre, escudo_url"
+        "nombre"
     ).eq("organizacion_id", auth.organizacion_id).limit(1).execute()
     if eq_res.data:
         equipo_nombre = eq_res.data[0].get("nombre", "")
-        equipo_escudo_url = eq_res.data[0].get("escudo_url", "") or ""
+
+    # Try to get org logo as team badge fallback
+    equipo_escudo_url = organizacion.get("logo_url", "") or ""
 
     # Intel snapshot from the informe
     intel = informe_data.get("intel_snapshot") or {}
