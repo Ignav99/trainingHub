@@ -526,10 +526,13 @@ class GeminiService:
                             }
                             result_str = _tool_buscar_tareas(get_supabase(), search_params)
                             herramientas_usadas.append({"nombre": tool_name})
+                            parsed = _json.loads(result_str) if isinstance(result_str, str) else result_str
+                            if not isinstance(parsed, dict):
+                                parsed = {"result": parsed}
                             function_response_parts.append(
                                 types.Part.from_function_response(
                                     name=tool_name,
-                                    response=_json.loads(result_str) if isinstance(result_str, str) else result_str,
+                                    response=parsed,
                                 )
                             )
                         else:
