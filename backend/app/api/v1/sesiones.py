@@ -360,7 +360,7 @@ async def get_sesion(
         "*, equipos(nombre, categoria)"
     ).eq("id", str(sesion_id)).maybe_single().execute()
 
-    if not response.data:
+    if not response or not response.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Sesión no encontrada"
@@ -421,7 +421,7 @@ async def create_sesion(
     # Insertar
     response = supabase.table("sesiones").insert(sesion_data).execute()
 
-    if not response.data:
+    if not response or not response.data:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Error al crear sesión"
@@ -455,7 +455,7 @@ async def update_sesion(
         "id", str(sesion_id)
     ).maybe_single().execute()
 
-    if not existing.data:
+    if not existing or not existing.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Sesión no encontrada"
@@ -497,7 +497,7 @@ async def delete_sesion(
         "id", str(sesion_id)
     ).maybe_single().execute()
 
-    if not existing.data:
+    if not existing or not existing.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Sesión no encontrada"
@@ -525,7 +525,7 @@ async def add_tarea_to_sesion(
         "id", str(sesion_id)
     ).maybe_single().execute()
 
-    if not sesion.data:
+    if not sesion or not sesion.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Sesión no encontrada"
@@ -616,7 +616,7 @@ async def batch_update_tareas(
     existing = supabase.table("sesiones").select("id").eq(
         "id", str(sesion_id)
     ).maybe_single().execute()
-    if not existing.data:
+    if not existing or not existing.data:
         raise HTTPException(status_code=404, detail="Sesion no encontrada")
 
     # Save existing formations before delete (keyed by tarea_id)
@@ -715,7 +715,7 @@ async def batch_save_asistencias(
     existing = supabase.table("sesiones").select("id").eq(
         "id", str(sesion_id)
     ).maybe_single().execute()
-    if not existing.data:
+    if not existing or not existing.data:
         raise HTTPException(status_code=404, detail="Sesion no encontrada")
 
     # Delete existing
@@ -739,7 +739,7 @@ async def batch_save_asistencias(
     # Trigger load recalculation for present players if session is completed
     try:
         sesion_data = supabase.table("sesiones").select("estado, equipo_id").eq("id", str(sesion_id)).maybe_single().execute()
-        if sesion_data.data and sesion_data.data.get("estado") == "completada":
+        if sesion_data and sesion_data.data and sesion_data.data.get("estado") == "completada":
             equipo_id = sesion_data.data["equipo_id"]
             for a in batch.asistencias:
                 if a.presente:
@@ -777,7 +777,7 @@ async def update_asistencia(
         "id", str(asistencia_id)
     ).eq("sesion_id", str(sesion_id)).execute()
 
-    if not response.data:
+    if not response or not response.data:
         raise HTTPException(status_code=404, detail="Asistencia no encontrada")
 
     return AsistenciaResponse(**response.data[0])
@@ -921,7 +921,7 @@ async def duplicar_y_editar_tarea(
         "*, tareas(*)"
     ).eq("id", str(sesion_tarea_id)).eq("sesion_id", str(sesion_id)).maybe_single().execute()
 
-    if not st_response.data:
+    if not st_response or not st_response.data:
         raise HTTPException(status_code=404, detail="Tarea de sesion no encontrada")
 
     old_tarea_id = st_response.data.get("tarea_id")
@@ -991,6 +991,9 @@ async def duplicar_y_editar_tarea(
         "*, tareas(*)"
     ).eq("id", str(sesion_tarea_id)).maybe_single().execute()
 
+    if not updated or not updated.data:
+        raise HTTPException(status_code=500, detail="Error al obtener tarea actualizada")
+
     return updated.data
 
 
@@ -1013,7 +1016,7 @@ async def ai_edit_tarea(
         "*, tareas(*)"
     ).eq("id", str(sesion_tarea_id)).eq("sesion_id", str(sesion_id)).maybe_single().execute()
 
-    if not st_response.data:
+    if not st_response or not st_response.data:
         raise HTTPException(status_code=404, detail="Tarea de sesion no encontrada")
 
     old_tarea_id = st_response.data.get("tarea_id")
@@ -1109,6 +1112,9 @@ async def ai_edit_tarea(
         "*, tareas(*)"
     ).eq("id", str(sesion_tarea_id)).maybe_single().execute()
 
+    if not updated or not updated.data:
+        raise HTTPException(status_code=500, detail="Error al obtener tarea actualizada")
+
     return updated.data
 
 
@@ -1155,7 +1161,7 @@ async def crear_tarea_en_sesion(
     sesion = supabase.table("sesiones").select("id, equipo_id").eq(
         "id", str(sesion_id)
     ).maybe_single().execute()
-    if not sesion.data:
+    if not sesion or not sesion.data:
         raise HTTPException(status_code=404, detail="Sesion no encontrada")
 
     # Build tarea data (filter to valid DB columns only)
@@ -1209,7 +1215,7 @@ async def ai_crear_tarea_en_sesion(
     sesion = supabase.table("sesiones").select(
         "id, equipo_id, match_day, objetivo_principal, fase_juego_principal"
     ).eq("id", str(sesion_id)).maybe_single().execute()
-    if not sesion.data:
+    if not sesion or not sesion.data:
         raise HTTPException(status_code=404, detail="Sesion no encontrada")
 
     # Call Claude to generate the task
@@ -1298,7 +1304,7 @@ async def generar_equipos_tarea(
         "*, tareas(estructura_equipos)"
     ).eq("id", str(sesion_tarea_id)).eq("sesion_id", str(sesion_id)).maybe_single().execute()
 
-    if not st_response.data:
+    if not st_response or not st_response.data:
         raise HTTPException(status_code=404, detail="Tarea de sesion no encontrada")
 
     tarea_data = st_response.data.get("tareas", {}) or {}
@@ -1362,7 +1368,7 @@ async def update_formacion_tarea(
         "id", str(sesion_tarea_id)
     ).eq("sesion_id", str(sesion_id)).maybe_single().execute()
 
-    if not st_response.data:
+    if not st_response or not st_response.data:
         raise HTTPException(status_code=404, detail="Tarea de sesion no encontrada")
 
     formacion_dict = formacion.model_dump()
@@ -1425,7 +1431,7 @@ async def generate_pdf(
         ),
     )
 
-    if not sesion_response.data:
+    if not sesion_response or not sesion_response.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Sesión no encontrada"
@@ -1749,7 +1755,7 @@ async def add_invitado_from_org(
         "id", str(sesion_id)
     ).maybe_single().execute()
 
-    if not sesion.data:
+    if not sesion or not sesion.data:
         raise HTTPException(status_code=404, detail="Sesion no encontrada")
 
     # Verify jugador belongs to same organization
@@ -1757,7 +1763,7 @@ async def add_invitado_from_org(
         "id, nombre, apellidos, dorsal, posicion_principal, equipos(organizacion_id)"
     ).eq("id", str(request.jugador_id)).maybe_single().execute()
 
-    if not jugador.data:
+    if not jugador or not jugador.data:
         raise HTTPException(status_code=404, detail="Jugador no encontrado")
 
     jugador_org_id = jugador.data.get("equipos", {}).get("organizacion_id") if jugador.data.get("equipos") else None
@@ -1782,7 +1788,7 @@ async def add_invitado_from_org(
     }
     response = supabase.table("asistencias_sesion").insert(data).execute()
 
-    if not response.data:
+    if not response or not response.data:
         raise HTTPException(status_code=400, detail="Error al anadir jugador")
 
     result = response.data[0]
@@ -1817,7 +1823,7 @@ async def quick_add_invitado(
         "id", str(sesion_id)
     ).maybe_single().execute()
 
-    if not sesion.data:
+    if not sesion or not sesion.data:
         raise HTTPException(status_code=404, detail="Sesion no encontrada")
 
     equipo_id = sesion.data["equipo_id"]
