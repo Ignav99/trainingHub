@@ -26,7 +26,7 @@ from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
 from app.services.pre_match_service import populate_rival_intel, gather_rival_intel_standalone, _match_rival_name, _query_actas, _get_rival_data
-from app.services.ai_factory import get_ai_service, call_ai_with_fallback
+from app.services.ai_factory import call_ai_with_fallback
 from app.services.ai_errors import AIError
 
 logger = logging.getLogger(__name__)

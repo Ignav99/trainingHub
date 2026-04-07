@@ -1588,9 +1588,13 @@ def _tool_mejores_practicas(params: dict) -> str:
 class ClaudeService:
     """Servicio para interactuar con Claude API con tool use (async)."""
 
-    def __init__(self):
+    def __init__(self, model: str | None = None):
         self.client = _get_async_client()
-        self.model = "claude-sonnet-4-5-20250929"
+        if model:
+            self.model = model
+        else:
+            from app.config import get_settings
+            self.model = get_settings().CLAUDE_MODEL
 
     async def chat(
         self,

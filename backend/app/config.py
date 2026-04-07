@@ -52,13 +52,13 @@ class Settings(BaseSettings):
     STORAGE_BUCKET_GRAFICOS: str = "graficos"
     STORAGE_BUCKET_PDFS: str = "pdfs"
 
-    # Optional: Claude API
+    # Claude API (primary AI provider)
     ANTHROPIC_API_KEY: str | None = None
+    AI_PROVIDER: str = "claude"
+    CLAUDE_MODEL: str = "claude-sonnet-4-5-20250929"
+    CLAUDE_MODEL_FAST: str = "claude-haiku-4-5-20251001"
 
-    # AI Provider: "gemini" (default, cheaper) or "claude" (backup)
-    AI_PROVIDER: str = "gemini"
-
-    # Google Gemini API for AI recommendations
+    # Google Gemini API (deprecated, kept for backward compat)
     GEMINI_API_KEY: str | None = None
     GEMINI_MODEL: str = "gemini-2.5-flash"
     GEMINI_TEMPERATURE: float = 1.0
