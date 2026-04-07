@@ -301,7 +301,7 @@ async def list_tareas(
     if categoria:
         # Obtener ID de categoría
         cat = supabase.table("categorias_tarea").select("id").eq("codigo", categoria).maybe_single().execute()
-        if cat.data:
+        if cat and cat.data:
             query = query.eq("categoria_id", cat.data["id"])
     
     if fase_juego:
@@ -408,7 +408,7 @@ async def get_tarea(
         "*, categorias_tarea(*)"
     ).eq("id", str(tarea_id)).maybe_single().execute()
 
-    if not response.data:
+    if not response or not response.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Tarea no encontrada"
@@ -467,7 +467,7 @@ async def create_tarea(
         cat_response = supabase.table("categorias_tarea").select("id").eq(
             "codigo", cat_id_raw
         ).maybe_single().execute()
-        if not cat_response.data:
+        if not cat_response or not cat_response.data:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Categoría '{cat_id_raw}' no encontrada"
@@ -495,6 +495,12 @@ async def create_tarea(
         "*, categorias_tarea(*)"
     ).eq("id", response.data[0]["id"]).maybe_single().execute()
 
+    if not tarea_completa or not tarea_completa.data:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Tarea creada pero no se pudo recuperar"
+        )
+
     # Generate embedding asynchronously (non-fatal)
     _generate_tarea_embedding(tarea_data, response.data[0]["id"])
 
@@ -516,8 +522,8 @@ async def update_tarea(
     
     # Verificar que existe y pertenece al usuario
     existing = supabase.table("tareas").select("*").eq("id", str(tarea_id)).maybe_single().execute()
-    
-    if not existing.data:
+
+    if not existing or not existing.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Tarea no encontrada"
@@ -543,7 +549,7 @@ async def update_tarea(
             cat_response = supabase.table("categorias_tarea").select("id").eq(
                 "codigo", cat_id_raw
             ).maybe_single().execute()
-            if not cat_response.data:
+            if not cat_response or not cat_response.data:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Categoría '{cat_id_raw}' no encontrada"
@@ -566,6 +572,12 @@ async def update_tarea(
         "*, categorias_tarea(*)"
     ).eq("id", str(tarea_id)).maybe_single().execute()
 
+    if not tarea_completa or not tarea_completa.data:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Tarea actualizada pero no se pudo recuperar"
+        )
+
     # Re-generate embedding with updated data
     _generate_tarea_embedding(tarea_completa.data, str(tarea_id))
 
@@ -587,8 +599,8 @@ async def delete_tarea(
     
     # Verificar que existe
     existing = supabase.table("tareas").select("*").eq("id", str(tarea_id)).maybe_single().execute()
-    
-    if not existing.data:
+
+    if not existing or not existing.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Tarea no encontrada"
@@ -625,7 +637,7 @@ async def duplicar_tarea(
     # Obtener tarea original
     original = supabase.table("tareas").select("*").eq("id", str(tarea_id)).maybe_single().execute()
 
-    if not original.data:
+    if not original or not original.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Tarea no encontrada"
@@ -655,6 +667,12 @@ async def duplicar_tarea(
     tarea_completa = supabase.table("tareas").select(
         "*, categorias_tarea(*)"
     ).eq("id", response.data[0]["id"]).maybe_single().execute()
+
+    if not tarea_completa or not tarea_completa.data:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Tarea duplicada pero no se pudo recuperar"
+        )
 
     return TareaResponse(**tarea_completa.data)
 
@@ -741,7 +759,7 @@ async def create_tarea_from_ai(
         "codigo", tarea_ai.categoria_codigo
     ).maybe_single().execute()
 
-    if not cat_response.data:
+    if not cat_response or not cat_response.data:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Categoría '{tarea_ai.categoria_codigo}' no encontrada"
@@ -871,6 +889,12 @@ async def create_tarea_from_ai(
         "*, categorias_tarea(*)"
     ).eq("id", response.data[0]["id"]).maybe_single().execute()
 
+    if not tarea_completa or not tarea_completa.data:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Tarea creada desde IA pero no se pudo recuperar"
+        )
+
     # Generate embedding asynchronously (non-fatal)
     _generate_tarea_embedding(tarea_data, response.data[0]["id"])
 
@@ -891,7 +915,7 @@ async def generate_tarea_pdf_endpoint(
         "*, categorias_tarea(*)"
     ).eq("id", str(tarea_id)).maybe_single().execute()
 
-    if not tarea_resp.data:
+    if not tarea_resp or not tarea_resp.data:
         raise HTTPException(status_code=404, detail="Tarea no encontrada")
 
     org_resp = supabase.table("organizaciones").select("*").eq(
@@ -901,7 +925,7 @@ async def generate_tarea_pdf_endpoint(
     pdf_bytes = await asyncio.to_thread(
         gen_pdf,
         tarea=tarea_resp.data,
-        organizacion=org_resp.data or {},
+        organizacion=(org_resp.data if org_resp else None) or {},
     )
 
     return StreamingResponse(

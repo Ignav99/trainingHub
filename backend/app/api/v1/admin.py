@@ -237,7 +237,7 @@ async def admin_update_organizacion(
     supabase = get_supabase()
 
     org = supabase.table("organizaciones").select("*").eq("id", org_id).maybe_single().execute()
-    if not org.data:
+    if not org or not org.data:
         raise HTTPException(status_code=404, detail="Organizacion no encontrada")
 
     update_fields = {}
@@ -512,7 +512,7 @@ async def admin_create_invite(
         .maybe_single()
         .execute()
     )
-    if not org.data:
+    if not org or not org.data:
         raise HTTPException(status_code=404, detail="Organizacion no encontrada")
 
     # Check for duplicate pending invitation
@@ -525,7 +525,7 @@ async def admin_create_invite(
         .maybe_single()
         .execute()
     )
-    if existing.data:
+    if existing and existing.data:
         raise HTTPException(status_code=409, detail=f"Ya existe una invitacion pendiente para {data.email} en esta organizacion")
 
     # Check if user is already a member
@@ -537,7 +537,7 @@ async def admin_create_invite(
         .maybe_single()
         .execute()
     )
-    if existing_user.data:
+    if existing_user and existing_user.data:
         raise HTTPException(status_code=409, detail=f"{data.email} ya es miembro de esta organizacion")
 
     # If no equipo_id, get the first active team
@@ -645,7 +645,7 @@ async def admin_delete_user(
         accion="eliminar",
         entidad_tipo="usuario",
         entidad_id=user_id,
-        datos_anteriores=user.data if user.data else {"id": user_id},
+        datos_anteriores=(user.data if (user and user.data) else {"id": user_id}),
         severidad="critical",
     )
 
@@ -675,7 +675,7 @@ async def admin_change_user_role(
         raise HTTPException(status_code=400, detail=f"Rol no valido. Opciones: {', '.join(sorted(valid_roles))}")
 
     user = supabase.table("usuarios").select("rol, email").eq("id", user_id).maybe_single().execute()
-    if not user.data:
+    if not user or not user.data:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
     old_rol = user.data.get("rol")
@@ -707,7 +707,7 @@ async def admin_revoke_invite(
     supabase = get_supabase()
 
     invite = supabase.table("invitaciones").select("email, organizacion_id, estado").eq("id", invite_id).maybe_single().execute()
-    if not invite.data:
+    if not invite or not invite.data:
         raise HTTPException(status_code=404, detail="Invitacion no encontrada")
 
     if invite.data["estado"] != "pendiente":
@@ -740,7 +740,7 @@ async def admin_resend_invite(
     supabase = get_supabase()
 
     invite = supabase.table("invitaciones").select("*").eq("id", invite_id).maybe_single().execute()
-    if not invite.data:
+    if not invite or not invite.data:
         raise HTTPException(status_code=404, detail="Invitacion no encontrada")
 
     if invite.data["estado"] != "pendiente":
@@ -773,7 +773,7 @@ async def admin_org_stats(
     supabase = get_supabase()
 
     org = supabase.table("organizaciones").select("id, nombre").eq("id", org_id).maybe_single().execute()
-    if not org.data:
+    if not org or not org.data:
         raise HTTPException(status_code=404, detail="Organizacion no encontrada")
 
     teams = (
@@ -831,8 +831,8 @@ async def admin_org_stats(
             "partidos": p,
         })
 
-    ai_calls = sub.data.get("uso_ai_calls_month", 0) if sub.data else 0
-    storage_mb = sub.data.get("uso_storage_mb", 0) if sub.data else 0
+    ai_calls = sub.data.get("uso_ai_calls_month", 0) if (sub and sub.data) else 0
+    storage_mb = sub.data.get("uso_storage_mb", 0) if (sub and sub.data) else 0
 
     return {
         "organizacion": org.data,
@@ -841,7 +841,7 @@ async def admin_org_stats(
         "storage_mb": storage_mb,
         "logins_30d": logins.count or 0,
         "per_team": per_team,
-        "suscripcion": sub.data if sub.data else None,
+        "suscripcion": sub.data if (sub and sub.data) else None,
     }
 
 
@@ -954,8 +954,8 @@ async def admin_org_comparisons(
             "nombre": org["nombre"],
             "users": users.count or 0,
             "sesiones": total_sesiones,
-            "ai_calls": sub.data.get("uso_ai_calls_month", 0) if sub.data else 0,
-            "storage_mb": sub.data.get("uso_storage_mb", 0) if sub.data else 0,
+            "ai_calls": sub.data.get("uso_ai_calls_month", 0) if (sub and sub.data) else 0,
+            "storage_mb": sub.data.get("uso_storage_mb", 0) if (sub and sub.data) else 0,
         })
 
     return {
