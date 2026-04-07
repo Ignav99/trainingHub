@@ -1438,32 +1438,7 @@ def _tool_buscar_tareas(supabase, params: dict) -> str:
     org_id = params.get("organizacion_id")
     semantic_query = params.get("query")
 
-    # Try semantic search if query is provided
-    if semantic_query and org_id:
-        try:
-            from app.services.embedding_service import generate_query_embedding
-            query_embedding = generate_query_embedding(semantic_query)
-
-            rpc_params = {
-                "p_query_text": semantic_query,
-                "p_query_embedding": query_embedding,
-                "p_organizacion_id": org_id,
-                "p_match_count": limite,
-            }
-            if params.get("categoria"):
-                rpc_params["p_categoria_codigo"] = params["categoria"]
-            if params.get("fase_juego"):
-                rpc_params["p_fase_juego"] = params["fase_juego"]
-
-            result = supabase.rpc("hybrid_search_tareas", rpc_params).execute()
-            if result.data:
-                for t in result.data:
-                    t["relevancia"] = f"{t.get('relevance_pct', 0)}%"
-                return json.dumps(result.data, ensure_ascii=False, default=str)
-        except Exception as e:
-            logger.warning(f"Semantic search failed in buscar_tareas tool, falling back to keyword: {e}")
-
-    # Fallback: keyword search (original behavior)
+    # Keyword search (hybrid_search_tareas RPC not deployed yet)
     query = supabase.table("tareas").select(
         "id, titulo, descripcion, duracion_total, num_jugadores_min, num_jugadores_max, "
         "num_porteros, fase_juego, principio_tactico, nivel_cognitivo, densidad, "
