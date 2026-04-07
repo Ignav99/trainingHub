@@ -904,6 +904,7 @@ class DuplicarYEditarTareaRequest(BaseModel):
     fase_juego: Optional[str] = None
     principio_tactico: Optional[str] = None
     subprincipio_tactico: Optional[str] = None
+    grafico_data: Optional[dict] = None
 
 
 @router.post("/{sesion_id}/tareas/{sesion_tarea_id}/duplicar-y-editar")

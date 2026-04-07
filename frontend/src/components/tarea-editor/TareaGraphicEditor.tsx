@@ -267,7 +267,21 @@ export default function TareaGraphicEditor({
 
       case 'mini_goal':
         return (
-          <g {...commonProps} transform={`translate(${position.x}, ${position.y})`}>
+          <g
+            {...commonProps}
+            transform={`translate(${position.x}, ${position.y}) rotate(${element.rotation || 0})`}
+            onDoubleClick={(e) => {
+              if (readOnly || selectedTool !== 'select') return
+              e.stopPropagation()
+              const newRotation = ((element.rotation || 0) + 90) % 360
+              updateData({
+                ...data,
+                elements: data.elements.map(el =>
+                  el.id === id ? { ...el, rotation: newRotation } : el
+                ),
+              })
+            }}
+          >
             <rect
               x="-20"
               y="-12"

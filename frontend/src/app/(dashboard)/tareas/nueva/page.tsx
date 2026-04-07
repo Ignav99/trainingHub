@@ -17,6 +17,8 @@ import {
   X
 } from 'lucide-react'
 import { tareasApi, catalogosApi, TareaCreateData } from '@/lib/api/tareas'
+import TareaGraphicEditor from '@/components/tarea-editor/TareaGraphicEditor'
+import { DiagramData, emptyDiagramData } from '@/components/tarea-editor/types'
 import { TipoContraccion, ZonaCuerpo, ObjetivoGym, SeriesRepeticiones } from '@/types'
 
 const FASES_JUEGO = [
@@ -76,7 +78,7 @@ export default function NuevaTareaPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [step, setStep] = useState(1)
-  const totalSteps = 4
+  const totalSteps = 5
 
   // Catalogos
   const [categorias, setCategorias] = useState<Array<{ codigo: string; nombre: string; color: string; naturaleza?: string }>>([])
@@ -108,6 +110,9 @@ export default function NuevaTareaPage() {
     es_plantilla: false,
     tags: [],
   })
+
+  // Graphic editor data
+  const [graficoData, setGraficoData] = useState<DiagramData>(emptyDiagramData)
 
   // Inputs temporales para arrays
   const [newReglaTecnica, setNewReglaTecnica] = useState('')
@@ -190,6 +195,7 @@ export default function NuevaTareaPage() {
       const dataToSend: TareaCreateData = {
         ...formData,
         categoria_id: formData.categoria_id, // El backend resolvera esto
+        ...(graficoData.elements.length > 0 ? { grafico_data: graficoData } : {}),
       }
 
       await tareasApi.create(dataToSend)
@@ -240,6 +246,8 @@ export default function NuevaTareaPage() {
         return true // Paso de contenido tactico/gym es opcional
       case 4:
         return true // Paso de coaching points es opcional
+      case 5:
+        return true // Paso de pizarra es opcional
       default:
         return false
     }
@@ -935,6 +943,24 @@ export default function NuevaTareaPage() {
                 </div>
               </label>
             </div>
+          </div>
+        )}
+
+        {/* Paso 5: Pizarra tactica */}
+        {step === 5 && (
+          <div className="space-y-6">
+            <div className="flex items-center gap-2 text-primary mb-4">
+              <Maximize2 className="h-5 w-5" />
+              <h2 className="text-lg font-semibold">Pizarra Tactica</h2>
+            </div>
+            <p className="text-sm text-gray-500">
+              Opcional: dibuja el esquema de la tarea. Puedes saltarlo y guardar directamente.
+            </p>
+            <TareaGraphicEditor
+              value={graficoData}
+              onChange={setGraficoData}
+              readOnly={false}
+            />
           </div>
         )}
 

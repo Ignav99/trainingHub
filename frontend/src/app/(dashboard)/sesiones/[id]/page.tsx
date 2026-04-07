@@ -74,6 +74,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
 import ABPSessionLink from '@/components/abp/ABPSessionLink'
+import TareaGraphicEditor from '@/components/tarea-editor/TareaGraphicEditor'
+import { emptyDiagramData } from '@/components/tarea-editor/types'
 import GKTrainingSection from '@/components/portero/GKTrainingSection'
 import { sesionesApi, SesionUpdateData } from '@/lib/api/sesiones'
 import { tareasApi } from '@/lib/api/tareas'
@@ -1561,6 +1563,7 @@ export default function SesionDetailPage() {
       nivel_cognitivo: st.tarea?.nivel_cognitivo || 2,
       fase_juego: st.tarea?.fase_juego || '',
       principio_tactico: st.tarea?.principio_tactico || '',
+      grafico_data: st.tarea?.grafico_data || null,
     })
     setAiInstruction('')
     setAiPreview(null)
@@ -3478,6 +3481,22 @@ export default function SesionDetailPage() {
                 />
               </div>
             </div>
+
+            {/* Pizarra Tactica */}
+            <details className="border-t pt-4 mt-4">
+              <summary className="text-sm font-semibold cursor-pointer flex items-center gap-2 select-none">
+                <Target className="h-4 w-4 text-primary" />
+                Pizarra Tactica
+                <span className="text-xs font-normal text-muted-foreground ml-1">(click para abrir)</span>
+              </summary>
+              <div className="mt-3">
+                <TareaGraphicEditor
+                  value={editForm.grafico_data || emptyDiagramData}
+                  onChange={(data) => setEditForm((f: Record<string, any>) => ({ ...f, grafico_data: data }))}
+                  readOnly={false}
+                />
+              </div>
+            </details>
 
             {/* AI Edit section */}
             <div className="border-t pt-4 mt-4">

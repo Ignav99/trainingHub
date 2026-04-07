@@ -358,7 +358,8 @@ def render_element_svg(element: dict) -> str:
         return svg
 
     elif el_type == "mini_goal":
-        svg = f'<g transform="translate({x},{y})">'
+        rotation = element.get("rotation", 0)
+        svg = f'<g transform="translate({x},{y}) rotate({rotation})">'
         svg += '<rect x="-20" y="-8" width="40" height="16" fill="white" stroke="#111" stroke-width="1.5"/>'
         # Net pattern
         for i in range(-15, 20, 10):
