@@ -922,7 +922,8 @@ async def duplicar_y_editar_tarea(
     ).eq("id", str(sesion_tarea_id)).eq("sesion_id", str(sesion_id)).maybe_single().execute()
 
     if not st_response or not st_response.data:
-        raise HTTPException(status_code=404, detail="Tarea de sesion no encontrada")
+        logger.warning(f"sesion_tarea not found: id={sesion_tarea_id}, sesion={sesion_id}")
+        raise HTTPException(status_code=404, detail="Tarea de sesion no encontrada. Recarga la pagina e intentalo de nuevo.")
 
     old_tarea_id = st_response.data.get("tarea_id")
     original_tarea = st_response.data.get("tareas", {})
