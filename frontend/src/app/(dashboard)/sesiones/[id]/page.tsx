@@ -1456,9 +1456,11 @@ export default function SesionDetailPage() {
       t.id === tareaId ? { ...t, duracion_override: duration } : t
     )
     setSesion((prev) => prev ? { ...prev, tareas: newAll } : prev)
-    // Debounced save
-    const timer = setTimeout(() => saveTareasBatch(newAll), 600)
-    return () => clearTimeout(timer)
+  }
+
+  const handleCommitTareaDuration = (tareaId: string) => {
+    // Save current state on blur/Enter — avoids race conditions with debounce
+    saveTareasBatch(allTareas)
   }
 
   const handleUpdateTareaNotas = (tareaId: string, notas: string) => {
@@ -2274,9 +2276,13 @@ export default function SesionDetailPage() {
                                         <Clock className="h-3 w-3 text-muted-foreground" />
                                         <input
                                           type="number"
-                                          className="w-12 text-sm bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none text-center"
+                                          min={1}
+                                          max={120}
+                                          className="w-16 text-sm bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                           value={st.duracion_override || st.tarea?.duracion_total || 0}
                                           onChange={(e) => handleUpdateTareaDuration(st.id, parseInt(e.target.value) || 0)}
+                                          onBlur={() => handleCommitTareaDuration(st.id)}
+                                          onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur() } }}
                                         />
                                         <span className="text-xs text-muted-foreground">min</span>
                                       </div>
