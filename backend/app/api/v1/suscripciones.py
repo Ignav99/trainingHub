@@ -147,7 +147,7 @@ async def create_checkout_session(
         .maybe_single()
         .execute()
     )
-    if not plan.data:
+    if not plan or not plan.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan no encontrado.")
 
     # Determine price: use stripe_price_id if available, else create from price_cents
@@ -171,7 +171,7 @@ async def create_checkout_session(
         .maybe_single()
         .execute()
     )
-    customer_id = current_sub.data.get("stripe_customer_id") if current_sub.data else None
+    customer_id = current_sub.data.get("stripe_customer_id") if (current_sub and current_sub.data) else None
 
     checkout_params = {
         "mode": "subscription",
@@ -189,7 +189,7 @@ async def create_checkout_session(
     else:
         # Get org owner email
         user = supabase.table("usuarios").select("email").eq("id", auth.user_id).maybe_single().execute()
-        if user.data:
+        if user and user.data:
             checkout_params["customer_email"] = user.data["email"]
 
     if stripe_price_id:
@@ -230,7 +230,7 @@ async def create_portal_session(
         .execute()
     )
 
-    if not sub.data or not sub.data.get("stripe_customer_id"):
+    if not sub or not sub.data or not sub.data.get("stripe_customer_id"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No hay cliente de Stripe asociado. Realiza primero una suscripcion.",

@@ -258,7 +258,7 @@ async def club_create_equipo(
         .maybe_single()
         .execute()
     )
-    if sub.data:
+    if sub and sub.data:
         plan = sub.data.get("planes", {})
         max_equipos = plan.get("max_equipos", 1) if plan else 1
 
@@ -321,7 +321,7 @@ async def club_update_equipo(
         .maybe_single()
         .execute()
     )
-    if not team.data:
+    if not team or not team.data:
         raise HTTPException(status_code=404, detail="Equipo no encontrado en tu organizacion")
 
     update_fields = {}
@@ -390,7 +390,7 @@ async def club_change_member_role(
         .maybe_single()
         .execute()
     )
-    if not target.data:
+    if not target or not target.data:
         raise HTTPException(status_code=404, detail="Usuario no encontrado en tu organizacion")
 
     # Can't change your own role
@@ -447,7 +447,7 @@ async def club_deactivate_member(
         .maybe_single()
         .execute()
     )
-    if not target.data:
+    if not target or not target.data:
         raise HTTPException(status_code=404, detail="Usuario no encontrado en tu organizacion")
 
     supabase.table("usuarios").update({
@@ -489,7 +489,7 @@ async def club_invite_staff(
         .maybe_single()
         .execute()
     )
-    if existing.data:
+    if existing and existing.data:
         raise HTTPException(status_code=409, detail=f"Ya existe una invitacion pendiente para {data.email}")
 
     # Check if already member
@@ -501,7 +501,7 @@ async def club_invite_staff(
         .maybe_single()
         .execute()
     )
-    if existing_user.data:
+    if existing_user and existing_user.data:
         raise HTTPException(status_code=409, detail=f"{data.email} ya es miembro de tu organizacion")
 
     # Get equipo_id
@@ -573,7 +573,7 @@ async def club_batch_invite_players(
         .maybe_single()
         .execute()
     )
-    if not team.data:
+    if not team or not team.data:
         raise HTTPException(status_code=404, detail="Equipo no encontrado en tu organizacion")
 
     if not data.nombres or len(data.nombres) == 0:
@@ -645,7 +645,7 @@ async def club_revoke_invite(
         .maybe_single()
         .execute()
     )
-    if not invite.data:
+    if not invite or not invite.data:
         raise HTTPException(status_code=404, detail="Invitacion no encontrada")
 
     if invite.data["estado"] != "pendiente":
@@ -702,7 +702,7 @@ async def club_list_tareas(
         query = query.eq("equipo_id", equipo_id)
     if categoria:
         cat = supabase.table("categorias_tarea").select("id").eq("codigo", categoria).maybe_single().execute()
-        if cat.data:
+        if cat and cat.data:
             query = query.eq("categoria_id", cat.data["id"])
     if fase_juego:
         query = query.eq("fase_juego", fase_juego)
