@@ -691,11 +691,11 @@ async def task_design_chat(
         raise HTTPException(status_code=400, detail="Se requiere equipo_id")
 
     try:
-        from app.services.ai_factory import get_ai_service
+        from app.services.ai_factory import call_ai_with_fallback
         from app.services.ai_errors import AIError
 
-        service = get_ai_service()
-        result = await service.task_design_chat(
+        result = await call_ai_with_fallback(
+            "task_design_chat",
             mensajes=[{"rol": m.rol, "contenido": m.contenido} for m in request.mensajes],
             equipo_id=equipo_id,
             organizacion_id=auth.organizacion_id,

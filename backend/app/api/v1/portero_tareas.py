@@ -222,12 +222,12 @@ async def ai_design_portero_tarea(
     auth: AuthContext = Depends(require_permission(Permission.SESSION_CREATE)),
 ):
     """Diseña una tarea de portero con IA."""
-    from app.services.ai_factory import get_ai_service
+    from app.services.ai_factory import call_ai_with_fallback
     from app.services.ai_errors import AIError
 
     try:
-        service = get_ai_service()
-        result = await service.design_portero_tarea(
+        result = await call_ai_with_fallback(
+            "design_portero_tarea",
             prompt=data.prompt,
             context=data.context or {},
         )

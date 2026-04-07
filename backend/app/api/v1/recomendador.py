@@ -302,12 +302,11 @@ async def recomendar_sesion_ai(
     notas_str = "\n".join(notas_adicionales) if notas_adicionales else None
 
     try:
-        from app.services.ai_factory import get_ai_service
-
-        service = get_ai_service()
+        from app.services.ai_factory import call_ai_with_fallback
 
         # Generar recomendaciones
-        ai_response = await service.generate_session_recommendations(
+        ai_response = await call_ai_with_fallback(
+            "generate_session_recommendations",
             tareas=tareas_para_ia,
             match_day=params.match_day.value,
             num_jugadores=params.num_jugadores,

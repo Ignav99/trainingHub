@@ -1023,10 +1023,10 @@ async def ai_edit_tarea(
 
     # 2. Call Claude to get modifications
     try:
-        from app.services.ai_factory import get_ai_service
+        from app.services.ai_factory import call_ai_with_fallback
         from app.services.ai_errors import AIError
-        service = get_ai_service()
-        cambios_ia = await service.edit_task_with_ai(
+        cambios_ia = await call_ai_with_fallback(
+            "edit_task_with_ai",
             tarea=tarea_actual,
             instruccion=request.instruccion,
         )
@@ -1213,10 +1213,10 @@ async def ai_crear_tarea_en_sesion(
 
     # Call Claude to generate the task
     try:
-        from app.services.ai_factory import get_ai_service
+        from app.services.ai_factory import call_ai_with_fallback
         from app.services.ai_errors import AIError
-        service = get_ai_service()
-        tarea_data = await service.create_task_from_prompt(
+        tarea_data = await call_ai_with_fallback(
+            "create_task_from_prompt",
             prompt=request.prompt,
             session_context={
                 "match_day": sesion.data.get("match_day"),
@@ -1911,11 +1911,11 @@ async def design_session_chat(
         raise HTTPException(status_code=400, detail="Se requiere equipo_id")
 
     try:
-        from app.services.ai_factory import get_ai_service
+        from app.services.ai_factory import call_ai_with_fallback
         from app.services.ai_errors import AIError
 
-        service = get_ai_service()
-        result = await service.session_design_chat(
+        result = await call_ai_with_fallback(
+            "session_design_chat",
             mensajes=[{"rol": m.rol, "contenido": m.contenido} for m in request.mensajes],
             equipo_id=equipo_id,
             organizacion_id=auth.organizacion_id,

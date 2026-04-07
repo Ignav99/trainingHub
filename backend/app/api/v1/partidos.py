@@ -27,7 +27,7 @@ from app.services.audit_service import log_create, log_update, log_delete
 from app.services.notification_service import notify_partido_resultado
 from app.services.pdf_service import generate_informe_partido_pdf, generate_informe_rival_pdf, generate_plan_partido_pdf, generate_plan_partido_jugadores_pdf
 from app.services.pre_match_service import populate_partido_intel
-from app.services.ai_factory import get_ai_service
+from app.services.ai_factory import call_ai_with_fallback
 from app.services.ai_errors import AIError
 
 import json
@@ -551,8 +551,8 @@ async def pre_match_chat(
     intel_data = partido_data.get("pre_match_intel") or {}
 
     try:
-        service = get_ai_service()
-        result = await service.pre_match_chat(
+        result = await call_ai_with_fallback(
+            "pre_match_chat",
             mensajes=mensajes,
             intel_data=intel_data,
             rival_nombre=rival_nombre,
