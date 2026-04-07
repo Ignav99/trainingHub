@@ -35,12 +35,23 @@ interface TareaGraphicEditorProps {
 
 type Tool = 'select' | 'player' | 'opponent' | 'player_gk' | 'cone' | 'ball' | 'mini_goal' | 'arrow_movement' | 'arrow_pass'
 
+// Ensure grafico_data from DB always has valid arrays
+function sanitizeDiagramData(raw: any): DiagramData {
+  if (!raw || typeof raw !== 'object') return emptyDiagramData
+  return {
+    pitchType: raw.pitchType || 'full',
+    elements: Array.isArray(raw.elements) ? raw.elements.filter((e: any) => e?.position) : [],
+    arrows: Array.isArray(raw.arrows) ? raw.arrows.filter((a: any) => a?.from && a?.to) : [],
+    zones: Array.isArray(raw.zones) ? raw.zones.filter((z: any) => z?.position) : [],
+  }
+}
+
 export default function TareaGraphicEditor({
   value = emptyDiagramData,
   onChange,
   readOnly = false,
 }: TareaGraphicEditorProps) {
-  const [data, setData] = useState<DiagramData>(value)
+  const [data, setData] = useState<DiagramData>(() => sanitizeDiagramData(value))
   const [selectedTool, setSelectedTool] = useState<Tool>('select')
   const [selectedElement, setSelectedElement] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -52,7 +63,7 @@ export default function TareaGraphicEditor({
 
   // Sync external value changes
   useEffect(() => {
-    setData(value)
+    setData(sanitizeDiagramData(value))
   }, [value])
 
   // Escape key exits fullscreen

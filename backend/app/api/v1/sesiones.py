@@ -931,62 +931,64 @@ async def duplicar_y_editar_tarea(
     if not original_tarea:
         raise HTTPException(status_code=404, detail="Tarea original no encontrada")
 
-    # 2. Build the duplicated tarea data
-    campos_copiables = [
-        "descripcion", "duracion_total", "num_jugadores_min", "num_jugadores_max",
-        "espacio_largo", "espacio_ancho", "reglas_tecnicas", "reglas_tacticas",
-        "consignas_ofensivas", "consignas_defensivas", "errores_comunes",
-        "variantes", "progresiones", "estructura_equipos", "material",
-        "fase_juego", "principio_tactico", "subprincipio_tactico", "densidad",
-        "nivel_cognitivo", "num_series", "grafico_data",
-        "categoria_id", "equipo_id", "organizacion_id",
-    ]
+    # 2. Check if the task is already a non-template (session-specific copy)
+    #    If so, update in place instead of duplicating again.
+    is_template = original_tarea.get("es_plantilla", True)
 
-    nueva_tarea = {}
-    for campo in campos_copiables:
-        if campo in original_tarea and original_tarea[campo] is not None:
-            nueva_tarea[campo] = original_tarea[campo]
-
-    # Strip accumulated "(Editada) " prefixes from title
-    titulo_base = original_tarea.get("titulo", "Sin titulo")
-    while titulo_base.startswith("(Editada) "):
-        titulo_base = titulo_base[len("(Editada) "):]
-    nueva_tarea["titulo"] = titulo_base
-    nueva_tarea["es_plantilla"] = False
-    nueva_tarea["creado_por"] = str(auth.user_id)
-
-    # 3. Apply changes from request (filter to valid DB columns only)
     cambios_dict = cambios.model_dump(exclude_none=True)
-    nueva_tarea.update(cambios_dict)
-    nueva_tarea = {k: v for k, v in nueva_tarea.items() if k in VALID_TAREA_COLUMNS | {"titulo", "es_plantilla", "creado_por"}}
-    _sanitize_tarea_constraints(nueva_tarea)
+    cambios_filtered = {k: v for k, v in cambios_dict.items() if k in VALID_TAREA_COLUMNS | {"titulo"}}
+    _sanitize_tarea_constraints(cambios_filtered)
 
-    # 4. Insert the new tarea
-    try:
-        insert_response = supabase.table("tareas").insert(nueva_tarea).execute()
-    except Exception as e:
-        logger.error(f"Error inserting duplicated tarea: {e}")
-        raise HTTPException(status_code=400, detail=f"Error al duplicar tarea: {str(e)}")
-    if not insert_response.data:
-        raise HTTPException(status_code=500, detail="Error al duplicar tarea")
+    if not is_template:
+        # --- UPDATE IN PLACE (no duplication) ---
+        if cambios_filtered:
+            try:
+                supabase.table("tareas").update(cambios_filtered).eq("id", old_tarea_id).execute()
+            except Exception as e:
+                logger.error(f"Error updating tarea in place: {e}")
+                raise HTTPException(status_code=400, detail=f"Error al guardar cambios: {str(e)}")
+    else:
+        # --- DUPLICATE from template ---
+        campos_copiables = [
+            "descripcion", "duracion_total", "num_jugadores_min", "num_jugadores_max",
+            "espacio_largo", "espacio_ancho", "reglas_tecnicas", "reglas_tacticas",
+            "consignas_ofensivas", "consignas_defensivas", "errores_comunes",
+            "variantes", "progresiones", "estructura_equipos", "material",
+            "fase_juego", "principio_tactico", "subprincipio_tactico", "densidad",
+            "nivel_cognitivo", "num_series", "grafico_data",
+            "categoria_id", "equipo_id", "organizacion_id",
+        ]
 
-    new_tarea_id = insert_response.data[0]["id"]
+        nueva_tarea = {}
+        for campo in campos_copiables:
+            if campo in original_tarea and original_tarea[campo] is not None:
+                nueva_tarea[campo] = original_tarea[campo]
 
-    # 5. Update sesion_tareas to point to the new tarea
-    supabase.table("sesion_tareas").update(
-        {"tarea_id": new_tarea_id}
-    ).eq("id", str(sesion_tarea_id)).execute()
+        titulo_base = original_tarea.get("titulo", "Sin titulo")
+        while titulo_base.startswith("(Editada) "):
+            titulo_base = titulo_base[len("(Editada) "):]
+        nueva_tarea["titulo"] = titulo_base
+        nueva_tarea["es_plantilla"] = False
+        nueva_tarea["creado_por"] = str(auth.user_id)
 
-    # 6. Delete orphan tarea if it's non-template and unreferenced
-    if old_tarea_id:
+        nueva_tarea.update(cambios_filtered)
+        nueva_tarea = {k: v for k, v in nueva_tarea.items() if k in VALID_TAREA_COLUMNS | {"titulo", "es_plantilla", "creado_por"}}
+        _sanitize_tarea_constraints(nueva_tarea)
+
         try:
-            old = supabase.table("tareas").select("es_plantilla").eq("id", old_tarea_id).maybe_single().execute()
-            if old.data and not old.data.get("es_plantilla", True):
-                refs = supabase.table("sesion_tareas").select("id").eq("tarea_id", old_tarea_id).execute()
-                if not refs.data:
-                    supabase.table("tareas").delete().eq("id", old_tarea_id).execute()
-        except Exception:
-            pass
+            insert_response = supabase.table("tareas").insert(nueva_tarea).execute()
+        except Exception as e:
+            logger.error(f"Error inserting duplicated tarea: {e}")
+            raise HTTPException(status_code=400, detail=f"Error al duplicar tarea: {str(e)}")
+        if not insert_response.data:
+            raise HTTPException(status_code=500, detail="Error al duplicar tarea")
+
+        new_tarea_id = insert_response.data[0]["id"]
+
+        # Point sesion_tarea to the new copy
+        supabase.table("sesion_tareas").update(
+            {"tarea_id": new_tarea_id}
+        ).eq("id", str(sesion_tarea_id)).execute()
 
     # 7. Return the updated sesion_tarea with new tarea data
     updated = supabase.table("sesion_tareas").select(
