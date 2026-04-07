@@ -228,6 +228,7 @@ async def ai_design_portero_tarea(
     try:
         result = await call_ai_with_fallback(
             "design_portero_tarea",
+            use_fast_model=True,
             prompt=data.prompt,
             context=data.context or {},
         )

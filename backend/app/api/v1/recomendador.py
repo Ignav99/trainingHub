@@ -307,6 +307,7 @@ async def recomendar_sesion_ai(
         # Generar recomendaciones
         ai_response = await call_ai_with_fallback(
             "generate_session_recommendations",
+            use_fast_model=True,
             tareas=tareas_para_ia,
             match_day=params.match_day.value,
             num_jugadores=params.num_jugadores,

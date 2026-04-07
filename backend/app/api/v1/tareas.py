@@ -696,6 +696,7 @@ async def task_design_chat(
 
         result = await call_ai_with_fallback(
             "task_design_chat",
+            use_fast_model=True,
             mensajes=[{"rol": m.rol, "contenido": m.contenido} for m in request.mensajes],
             equipo_id=equipo_id,
             organizacion_id=auth.organizacion_id,

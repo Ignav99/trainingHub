@@ -27,11 +27,12 @@ def _get_fallback_service():
     return ClaudeService(model=settings.CLAUDE_MODEL_FAST)
 
 
-async def call_ai_with_fallback(method_name: str, **kwargs):
+async def call_ai_with_fallback(method_name: str, *, use_fast_model: bool = False, **kwargs):
     """Call AI with automatic Sonnet → Haiku fallback on 429/503.
 
     Args:
         method_name: The method to call (e.g. 'pre_match_chat', 'ask')
+        use_fast_model: If True, use Haiku directly (faster, cheaper)
         **kwargs: Arguments passed to the method
 
     Returns:
@@ -40,7 +41,10 @@ async def call_ai_with_fallback(method_name: str, **kwargs):
     Raises:
         AIError: If both models fail.
     """
-    primary = get_ai_service()
+    if use_fast_model:
+        primary = _get_fallback_service()  # Haiku
+    else:
+        primary = get_ai_service()  # Sonnet
 
     try:
         method = getattr(primary, method_name)

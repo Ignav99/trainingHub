@@ -1027,6 +1027,7 @@ async def ai_edit_tarea(
         from app.services.ai_errors import AIError
         cambios_ia = await call_ai_with_fallback(
             "edit_task_with_ai",
+            use_fast_model=True,
             tarea=tarea_actual,
             instruccion=request.instruccion,
         )
@@ -1217,6 +1218,7 @@ async def ai_crear_tarea_en_sesion(
         from app.services.ai_errors import AIError
         tarea_data = await call_ai_with_fallback(
             "create_task_from_prompt",
+            use_fast_model=True,
             prompt=request.prompt,
             session_context={
                 "match_day": sesion.data.get("match_day"),
@@ -1916,6 +1918,7 @@ async def design_session_chat(
 
         result = await call_ai_with_fallback(
             "session_design_chat",
+            use_fast_model=True,
             mensajes=[{"rol": m.rol, "contenido": m.contenido} for m in request.mensajes],
             equipo_id=equipo_id,
             organizacion_id=auth.organizacion_id,
