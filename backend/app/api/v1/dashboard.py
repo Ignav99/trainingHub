@@ -262,7 +262,8 @@ async def dashboard_carga_semanal(
             semanas_data[semana_key] = {"rpe_vals": [], "carga_vals": []}
 
         if r.get("rpe") is not None:
-            semanas_data[semana_key]["rpe_vals"].append(r["rpe"])
+            if r["rpe"] is not None:
+                semanas_data[semana_key]["rpe_vals"].append(r["rpe"])
         if r.get("carga_sesion") is not None:
             semanas_data[semana_key]["carga_vals"].append(float(r["carga_sesion"]))
 
@@ -276,7 +277,7 @@ async def dashboard_carga_semanal(
             "num_registros": len(data["rpe_vals"]),
         })
 
-    global_rpe = [r["rpe_promedio"] for r in resultado]
+    global_rpe = [r["rpe_promedio"] for r in resultado if r["rpe_promedio"] is not None]
     promedio_global = round(sum(global_rpe) / len(global_rpe), 1) if global_rpe else None
 
     return {"semanas": resultado, "promedio_global": promedio_global}
