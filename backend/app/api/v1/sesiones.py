@@ -1127,7 +1127,7 @@ class CrearTareaEnSesionRequest(BaseModel):
     descripcion: Optional[str] = None
     duracion_total: int = Field(default=10, ge=1)
     fase_sesion: str = Field(default="desarrollo_1")
-    num_jugadores_min: Optional[int] = None
+    num_jugadores_min: int = Field(default=1, ge=0)
     num_jugadores_max: Optional[int] = None
     estructura_equipos: Optional[str] = None
     espacio_largo: Optional[Union[int, float]] = None
