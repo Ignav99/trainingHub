@@ -4,6 +4,7 @@ Endpoints para invitar usuarios, verificar y aceptar invitaciones.
 """
 
 import hashlib
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 from math import ceil
@@ -29,6 +30,8 @@ from app.security.license_checker import LicenseChecker
 from app.services.audit_service import log_action
 from app.services.email_service import send_invitation_email, send_tutor_consent_email, send_ownership_transfer_email
 from app.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -262,7 +265,7 @@ async def accept_invitacion(data: InvitacionAcceptRequest, request: Request):
         supabase.table("invitaciones").update({"estado": "expirada"}).eq("id", invite["id"]).execute()
         raise HTTPException(status_code=status.HTTP_410_GONE, detail="La invitacion ha expirado.")
 
-    # Check if user already exists
+    # Check if user already exists in our usuarios table
     existing_user = supabase.table("usuarios").select("id").eq("email", invite["email"]).execute()
 
     user_id = None
@@ -273,21 +276,42 @@ async def accept_invitacion(data: InvitacionAcceptRequest, request: Request):
             "organizacion_id": invite["organizacion_id"],
         }).eq("id", user_id).execute()
     else:
-        # New user — create account
+        # No row in usuarios table — user may or may not exist in Supabase Auth
         if not data.password:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Se requiere password para usuarios nuevos.",
             )
 
-        auth_response = supabase.auth.sign_up({
-            "email": invite["email"],
-            "password": data.password,
-        })
-        if not auth_response.user:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Error al crear usuario.")
+        try:
+            auth_response = supabase.auth.sign_up({
+                "email": invite["email"],
+                "password": data.password,
+            })
+            if not auth_response.user:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Error al crear usuario.")
+            user_id = auth_response.user.id
+        except Exception as e:
+            if "User already registered" not in str(e):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Error al crear usuario: {str(e)}")
+            # User exists in Auth but not in usuarios table — sign in to get their ID
+            logger.info(f"User {invite['email']} already in Auth, signing in to recover ID")
+            try:
+                sign_in = supabase.auth.sign_in_with_password({
+                    "email": invite["email"],
+                    "password": data.password,
+                })
+                if not sign_in.user:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Error de autenticacion.")
+                user_id = sign_in.user.id
+            except HTTPException:
+                raise
+            except Exception:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Ya existe una cuenta con este email pero la contraseña no coincide. Usa la contraseña con la que te registraste originalmente.",
+                )
 
-        user_id = auth_response.user.id
         rol = invite.get("rol_organizacion") or invite.get("rol_en_equipo") or "tecnico_asistente"
         supabase.table("usuarios").insert({
             "id": user_id,

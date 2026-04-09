@@ -86,16 +86,25 @@ async def register(user_data: UsuarioCreate, request: Request):
         supabase = get_supabase()
 
         # Crear usuario en Supabase Auth
-        auth_response = supabase.auth.sign_up({
-            "email": user_data.email,
-            "password": user_data.password,
-        })
-
-        if not auth_response.user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Error al crear usuario",
-            )
+        try:
+            auth_response = supabase.auth.sign_up({
+                "email": user_data.email,
+                "password": user_data.password,
+            })
+            if not auth_response.user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Error al crear usuario",
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            if "User already registered" in str(e):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Ya existe una cuenta con este email. Inicia sesion en su lugar.",
+                )
+            raise
 
         user_id = auth_response.user.id
 
