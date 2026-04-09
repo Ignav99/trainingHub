@@ -283,8 +283,15 @@ async def accept_invitacion(data: InvitacionAcceptRequest, request: Request):
                 detail="Se requiere password para usuarios nuevos.",
             )
 
+        # IMPORTANT: Use a TEMPORARY client for auth operations (sign_up / sign_in).
+        # These calls contaminate the client's auth session, which causes RLS
+        # infinite recursion on the "usuarios" table if we use the global singleton.
+        from supabase import create_client
+        settings = get_settings()
+        auth_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+
         try:
-            auth_response = supabase.auth.sign_up({
+            auth_response = auth_client.auth.sign_up({
                 "email": invite["email"],
                 "password": data.password,
             })
@@ -297,7 +304,7 @@ async def accept_invitacion(data: InvitacionAcceptRequest, request: Request):
             # User exists in Auth but not in usuarios table — sign in to get their ID
             logger.info(f"User {invite['email']} already in Auth, signing in to recover ID")
             try:
-                sign_in = supabase.auth.sign_in_with_password({
+                sign_in = auth_client.auth.sign_in_with_password({
                     "email": invite["email"],
                     "password": data.password,
                 })
@@ -312,14 +319,9 @@ async def accept_invitacion(data: InvitacionAcceptRequest, request: Request):
                     detail="Ya existe una cuenta con este email pero la contraseña no coincide. Usa la contraseña con la que te registraste originalmente.",
                 )
 
-        # Use a fresh client for DB operations — sign_up contaminates the
-        # current client's auth session, causing RLS infinite recursion on INSERT.
-        from supabase import create_client
-        settings = get_settings()
-        fresh_sb = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
-
+        # Global supabase singleton is NOT contaminated — safe to use for DB ops
         rol = invite.get("rol_organizacion") or invite.get("rol_en_equipo") or "tecnico_asistente"
-        fresh_sb.table("usuarios").insert({
+        supabase.table("usuarios").insert({
             "id": user_id,
             "email": invite["email"],
             "nombre": data.nombre,
@@ -327,9 +329,6 @@ async def accept_invitacion(data: InvitacionAcceptRequest, request: Request):
             "rol": rol,
             "organizacion_id": invite["organizacion_id"],
         }).execute()
-
-    # Use fresh client for remaining operations to avoid RLS issues
-    supabase = get_supabase()
 
     # Associate to team if specified
     if invite.get("equipo_id") and invite.get("rol_en_equipo"):

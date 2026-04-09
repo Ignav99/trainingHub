@@ -25,7 +25,15 @@ async def login(credentials: LoginRequest, request: Request):
     """
     try:
         supabase = get_supabase()
-        response = supabase.auth.sign_in_with_password({
+
+        # Use a temporary client for sign_in to avoid contaminating
+        # the global singleton's auth session (causes RLS issues).
+        from supabase import create_client
+        from app.config import get_settings
+        _settings = get_settings()
+        auth_client = create_client(_settings.SUPABASE_URL, _settings.SUPABASE_SERVICE_ROLE_KEY)
+
+        response = auth_client.auth.sign_in_with_password({
             "email": credentials.email,
             "password": credentials.password,
         })
@@ -86,8 +94,15 @@ async def register(user_data: UsuarioCreate, request: Request):
         supabase = get_supabase()
 
         # Crear usuario en Supabase Auth
+        # IMPORTANT: Use a temporary client for sign_up to avoid contaminating
+        # the global singleton's auth session (causes RLS infinite recursion).
+        from supabase import create_client
+        from app.config import get_settings
+        _settings = get_settings()
+        auth_client = create_client(_settings.SUPABASE_URL, _settings.SUPABASE_SERVICE_ROLE_KEY)
+
         try:
-            auth_response = supabase.auth.sign_up({
+            auth_response = auth_client.auth.sign_up({
                 "email": user_data.email,
                 "password": user_data.password,
             })
@@ -211,7 +226,15 @@ async def refresh_token(refresh_token: str):
     """Refresca el access token usando el refresh token."""
     try:
         supabase = get_supabase()
-        response = supabase.auth.refresh_session(refresh_token)
+
+        # Use a temporary client for refresh_session to avoid contaminating
+        # the global singleton's auth session.
+        from supabase import create_client
+        from app.config import get_settings
+        _settings = get_settings()
+        auth_client = create_client(_settings.SUPABASE_URL, _settings.SUPABASE_SERVICE_ROLE_KEY)
+
+        response = auth_client.auth.refresh_session(refresh_token)
 
         user_data = (
             supabase.table("usuarios")
