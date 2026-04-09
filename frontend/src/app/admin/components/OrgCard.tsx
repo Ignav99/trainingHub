@@ -31,6 +31,7 @@ interface Props {
   onToggle: () => void
   onReload: () => void
   onReloadData: () => void
+  onRemoveInvite: (inviteId: string) => void
   onConfirm: (opts: { title: string; message: string; confirmLabel?: string; confirmColor?: string; action: () => Promise<void> }) => void
 }
 
@@ -59,6 +60,7 @@ export default function OrgCard({
   onToggle,
   onReload,
   onReloadData,
+  onRemoveInvite,
   onConfirm,
 }: Props) {
   // Edit org name
@@ -185,6 +187,7 @@ export default function OrgCard({
       action: async () => {
         await api.delete(`/admin/invitaciones/${inviteId}`)
         toast.success('Invitacion revocada')
+        onRemoveInvite(inviteId)
         onReload()
       },
     })

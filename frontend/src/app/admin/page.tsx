@@ -106,8 +106,9 @@ export default function AdminPage() {
     try {
       const detail = await api.get<OrgDetail>(`/admin/organizaciones/${orgId}/detalle`)
       setOrgDetail(detail)
-    } catch { /* silent */ }
-    finally { setLoadingDetail(false) }
+    } catch (err) {
+      console.error('Error reloading org detail:', err)
+    } finally { setLoadingDetail(false) }
   }
 
   // ── Actions ──
@@ -342,6 +343,7 @@ export default function AdminPage() {
                 onToggle={() => loadOrgDetail(org.id)}
                 onReload={() => reloadOrgDetail(org.id)}
                 onReloadData={loadData}
+                onRemoveInvite={(invId) => setOrgDetail(prev => prev ? { ...prev, invitaciones_pendientes: prev.invitaciones_pendientes.filter(i => i.id !== invId) } : prev)}
                 onConfirm={requestConfirm}
               />
             ))}
