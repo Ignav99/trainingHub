@@ -312,8 +312,14 @@ async def accept_invitacion(data: InvitacionAcceptRequest, request: Request):
                     detail="Ya existe una cuenta con este email pero la contraseña no coincide. Usa la contraseña con la que te registraste originalmente.",
                 )
 
+        # Use a fresh client for DB operations — sign_up contaminates the
+        # current client's auth session, causing RLS infinite recursion on INSERT.
+        from supabase import create_client
+        settings = get_settings()
+        fresh_sb = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+
         rol = invite.get("rol_organizacion") or invite.get("rol_en_equipo") or "tecnico_asistente"
-        supabase.table("usuarios").insert({
+        fresh_sb.table("usuarios").insert({
             "id": user_id,
             "email": invite["email"],
             "nombre": data.nombre,
@@ -321,6 +327,9 @@ async def accept_invitacion(data: InvitacionAcceptRequest, request: Request):
             "rol": rol,
             "organizacion_id": invite["organizacion_id"],
         }).execute()
+
+    # Use fresh client for remaining operations to avoid RLS issues
+    supabase = get_supabase()
 
     # Associate to team if specified
     if invite.get("equipo_id") and invite.get("rol_en_equipo"):
