@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { supabase } from '@/lib/supabase/client'
+import { api } from '@/lib/api/client'
 import { Usuario } from '@/types'
 
 interface AuthState {
@@ -50,24 +51,19 @@ export const useAuthStore = create<AuthState>()(
           const { data: { session } } = await supabase.auth.getSession()
 
           if (session?.user) {
-            // Single query with JOIN — replaces 2 sequential queries
-            const { data: userData } = await supabase
-              .from('usuarios')
-              .select('*, organizaciones(*)')
-              .eq('id', session.user.id)
-              .single()
-
-            if (userData) {
-              const organizacion = userData.organizaciones || null
-              delete userData.organizaciones
-
+            // Use backend API (service-role) instead of direct Supabase query
+            // to avoid RLS infinite recursion on usuarios table
+            try {
+              const userData = await api.get<Usuario>('/auth/me')
               set({
-                user: { ...userData, organizacion },
+                user: userData,
                 accessToken: session.access_token,
                 isAuthenticated: true,
                 isLoading: false,
               })
               return
+            } catch {
+              // Token might be expired or user not found — fall through
             }
           }
 
@@ -82,6 +78,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true })
 
         try {
+          // Use Supabase client for auth (manages session, token refresh, etc.)
           const { data, error } = await supabase.auth.signInWithPassword({
             email,
             password,
@@ -97,35 +94,24 @@ export const useAuthStore = create<AuthState>()(
             return { success: false, error: 'Error al iniciar sesión' }
           }
 
-          // Single query with JOIN — replaces 2 sequential queries
-          const { data: userData, error: userError } = await supabase
-            .from('usuarios')
-            .select('*, organizaciones(*)')
-            .eq('id', data.user.id)
-            .single()
+          // Use backend API (service-role) to fetch user data
+          // instead of direct Supabase query (avoids RLS recursion)
+          try {
+            const userData = await api.get<Usuario>('/auth/me')
 
-          if (userError || !userData) {
+            set({
+              user: userData,
+              accessToken: data.session.access_token,
+              isAuthenticated: true,
+              isLoading: false,
+            })
+
+            return { success: true }
+          } catch {
             await supabase.auth.signOut()
             set({ isLoading: false })
             return { success: false, error: 'Usuario no encontrado en el sistema' }
           }
-
-          const organizacion = userData.organizaciones || null
-          delete userData.organizaciones
-
-          const user: Usuario = {
-            ...userData,
-            organizacion,
-          }
-
-          set({
-            user,
-            accessToken: data.session.access_token,
-            isAuthenticated: true,
-            isLoading: false,
-          })
-
-          return { success: true }
         } catch (error) {
           set({ isLoading: false })
           return { success: false, error: 'Error de conexión' }
@@ -136,72 +122,34 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true })
 
         try {
-          const { data: authData, error: authError } = await supabase.auth.signUp({
+          // Use backend API for registration — handles org creation,
+          // team setup, subscriptions, GDPR, etc.
+          const userData = await api.post<Usuario>('/auth/register', {
+            email: data.email,
+            password: data.password,
+            nombre: data.nombre,
+            apellidos: data.apellidos || null,
+            organizacion_nombre: data.organizacion_nombre || null,
+            gdpr_consentimiento: true,
+          })
+
+          // Sign in via Supabase to get session tokens
+          const { data: authData } = await supabase.auth.signInWithPassword({
             email: data.email,
             password: data.password,
           })
 
-          if (authError) {
-            set({ isLoading: false })
-            return { success: false, error: authError.message }
-          }
-
-          if (!authData.user) {
-            set({ isLoading: false })
-            return { success: false, error: 'Error al crear usuario' }
-          }
-
-          let organizacion = null
-          let organizacionId: string | null = null
-          if (data.organizacion_nombre) {
-            const { data: orgData, error: orgError } = await supabase
-              .from('organizaciones')
-              .insert({ nombre: data.organizacion_nombre })
-              .select()
-              .single()
-
-            if (orgError) {
-              set({ isLoading: false })
-              return { success: false, error: 'Error al crear organización' }
-            }
-            organizacion = orgData
-            organizacionId = orgData.id
-          }
-
-          const { data: userData, error: userError } = await supabase
-            .from('usuarios')
-            .insert({
-              id: authData.user.id,
-              email: data.email,
-              nombre: data.nombre,
-              apellidos: data.apellidos || null,
-              rol: organizacionId ? 'admin' : 'tecnico_asistente',
-              organizacion_id: organizacionId,
-            })
-            .select('*')
-            .single()
-
-          if (userError) {
-            set({ isLoading: false })
-            return { success: false, error: 'Error al crear perfil de usuario' }
-          }
-
-          const user: Usuario = {
-            ...userData,
-            organizacion,
-          }
-
           set({
-            user,
+            user: userData,
             accessToken: authData.session?.access_token || null,
             isAuthenticated: !!authData.session,
             isLoading: false,
           })
 
           return { success: true }
-        } catch (error) {
+        } catch (error: any) {
           set({ isLoading: false })
-          return { success: false, error: 'Error de conexión' }
+          return { success: false, error: error.message || 'Error de conexión' }
         }
       },
 
