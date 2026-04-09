@@ -12,12 +12,16 @@ import {
   Minus,
   Maximize2,
   Minimize2,
+  Square,
+  Undo2,
+  Redo2,
 } from 'lucide-react'
 import FootballPitch from './FootballPitch'
 import {
   DiagramData,
   DiagramElement,
   DiagramArrow,
+  DiagramZone,
   ElementType,
   ArrowType,
   Position,
@@ -33,7 +37,31 @@ interface TareaGraphicEditorProps {
   readOnly?: boolean
 }
 
-type Tool = 'select' | 'player' | 'opponent' | 'player_gk' | 'cone' | 'ball' | 'mini_goal' | 'arrow_movement' | 'arrow_pass'
+type Tool =
+  | 'select'
+  | 'player'
+  | 'opponent'
+  | 'player_gk'
+  | 'cone'
+  | 'ball'
+  | 'mini_goal'
+  | 'arrow_movement'
+  | 'arrow_pass'
+  | 'zone_rect'
+  | 'zone_circle'
+
+const ZONE_COLORS = [
+  '#3B82F6', // Azul
+  '#EF4444', // Rojo
+  '#22C55E', // Verde
+  '#EAB308', // Amarillo
+  '#F97316', // Naranja
+  '#A855F7', // Morado
+  '#06B6D4', // Cyan
+  '#FFFFFF', // Blanco
+]
+
+const MAX_HISTORY = 30
 
 // Ensure grafico_data from DB always has valid arrays
 function sanitizeDiagramData(raw: any): DiagramData {
@@ -58,29 +86,120 @@ export default function TareaGraphicEditor({
   const [arrowStart, setArrowStart] = useState<Position | null>(null)
   const [playerCounter, setPlayerCounter] = useState({ team1: 1, team2: 1, gk: 1 })
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [zoneColor, setZoneColor] = useState(ZONE_COLORS[0])
+
+  // Zone drawing state
+  const [zoneDragStart, setZoneDragStart] = useState<Position | null>(null)
+  const [zoneDragCurrent, setZoneDragCurrent] = useState<Position | null>(null)
+
+  // Undo/Redo
+  const [history, setHistory] = useState<DiagramData[]>([])
+  const [historyIndex, setHistoryIndex] = useState(-1)
+  const isUndoRedoRef = useRef(false)
 
   const svgRef = useRef<SVGSVGElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   // Sync external value changes
   useEffect(() => {
     setData(sanitizeDiagramData(value))
   }, [value])
 
-  // Escape key exits fullscreen
-  useEffect(() => {
-    if (!isFullscreen) return
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsFullscreen(false)
-    }
-    window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
-  }, [isFullscreen])
+  // Push to history before each change
+  const pushHistory = useCallback((currentData: DiagramData) => {
+    setHistory(prev => {
+      const newHistory = prev.slice(0, historyIndex + 1)
+      newHistory.push(currentData)
+      if (newHistory.length > MAX_HISTORY) newHistory.shift()
+      return newHistory
+    })
+    setHistoryIndex(prev => Math.min(prev + 1, MAX_HISTORY - 1))
+  }, [historyIndex])
 
   // Actualizar datos y notificar al padre
   const updateData = useCallback((newData: DiagramData) => {
+    if (!isUndoRedoRef.current) {
+      pushHistory(data)
+    }
+    isUndoRedoRef.current = false
     setData(newData)
     onChange?.(newData)
-  }, [onChange])
+  }, [onChange, data, pushHistory])
+
+  // Undo
+  const undo = useCallback(() => {
+    if (historyIndex < 0) return
+    const prev = history[historyIndex]
+    if (!prev) return
+    isUndoRedoRef.current = true
+    setHistoryIndex(i => i - 1)
+    setData(prev)
+    onChange?.(prev)
+  }, [history, historyIndex, onChange])
+
+  // Redo
+  const redo = useCallback(() => {
+    if (historyIndex >= history.length - 1) return
+    const next = history[historyIndex + 1]
+    if (!next) return
+    isUndoRedoRef.current = true
+    setHistoryIndex(i => i + 1)
+    setData(next)
+    onChange?.(next)
+  }, [history, historyIndex, onChange])
+
+  // Eliminar elemento seleccionado
+  const deleteSelected = useCallback(() => {
+    if (!selectedElement) return
+    updateData({
+      ...data,
+      elements: data.elements.filter(el => el.id !== selectedElement),
+      arrows: data.arrows.filter(ar => ar.id !== selectedElement),
+      zones: data.zones.filter(z => z.id !== selectedElement),
+    })
+    setSelectedElement(null)
+  }, [selectedElement, data, updateData])
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    if (readOnly) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        deleteSelected()
+        return
+      }
+
+      if (e.key === 'Escape') {
+        setSelectedElement(null)
+        setArrowStart(null)
+        setZoneDragStart(null)
+        setZoneDragCurrent(null)
+        if (isFullscreen) setIsFullscreen(false)
+        return
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        undo()
+        return
+      }
+
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'Z' || e.key === 'y')) {
+        e.preventDefault()
+        redo()
+        return
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [readOnly, isFullscreen, deleteSelected, undo, redo])
 
   // Obtener posicion relativa al SVG — uses the actual <svg> ref
   const getSvgPosition = (e: React.MouseEvent): Position => {
@@ -122,6 +241,9 @@ export default function TareaGraphicEditor({
       }
       return
     }
+
+    // Zone tools use mouseDown/mouseUp, not click
+    if (selectedTool === 'zone_rect' || selectedTool === 'zone_circle') return
 
     // Si es herramienta de seleccion, deseleccionar
     if (selectedTool === 'select') {
@@ -165,17 +287,25 @@ export default function TareaGraphicEditor({
     })
   }
 
-  // Manejar drag de elemento
-  const handleElementMouseDown = (e: React.MouseEvent, elementId: string) => {
+  // Zone drawing: mousedown starts drag
+  const handlePitchMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
     if (readOnly) return
-    e.stopPropagation()
-    setSelectedElement(elementId)
-    if (selectedTool === 'select') {
-      setIsDragging(true)
-    }
+    if (selectedTool !== 'zone_rect' && selectedTool !== 'zone_circle') return
+    const pos = getSvgPosition(e)
+    setZoneDragStart(pos)
+    setZoneDragCurrent(pos)
   }
 
+  // Zone drawing: mousemove updates preview
   const handleMouseMove = (e: React.MouseEvent) => {
+    // Zone drag preview
+    if (zoneDragStart && (selectedTool === 'zone_rect' || selectedTool === 'zone_circle')) {
+      const pos = getSvgPosition(e)
+      setZoneDragCurrent(pos)
+      return
+    }
+
+    // Element dragging
     if (!isDragging || !selectedElement) return
     const pos = getSvgPosition(e)
     updateData({
@@ -186,19 +316,49 @@ export default function TareaGraphicEditor({
     })
   }
 
-  const handleMouseUp = () => {
+  // Zone drawing: mouseup creates zone
+  const handleMouseUp = (e: React.MouseEvent) => {
+    // Finish zone drag
+    if (zoneDragStart && zoneDragCurrent && (selectedTool === 'zone_rect' || selectedTool === 'zone_circle')) {
+      const pos = getSvgPosition(e)
+      const x = Math.min(zoneDragStart.x, pos.x)
+      const y = Math.min(zoneDragStart.y, pos.y)
+      const w = Math.abs(pos.x - zoneDragStart.x)
+      const h = Math.abs(pos.y - zoneDragStart.y)
+
+      // Only create zone if it has meaningful size
+      if (w > 5 && h > 5) {
+        const newZone: DiagramZone = {
+          id: generateId(),
+          position: { x, y },
+          width: w,
+          height: h,
+          color: zoneColor,
+          opacity: 0.3,
+          shape: selectedTool === 'zone_circle' ? 'ellipse' : 'rectangle',
+        }
+        updateData({
+          ...data,
+          zones: [...data.zones, newZone],
+        })
+      }
+
+      setZoneDragStart(null)
+      setZoneDragCurrent(null)
+      return
+    }
+
     setIsDragging(false)
   }
 
-  // Eliminar elemento seleccionado
-  const deleteSelected = () => {
-    if (!selectedElement) return
-    updateData({
-      ...data,
-      elements: data.elements.filter(el => el.id !== selectedElement),
-      arrows: data.arrows.filter(ar => ar.id !== selectedElement),
-    })
-    setSelectedElement(null)
+  // Manejar drag de elemento
+  const handleElementMouseDown = (e: React.MouseEvent, elementId: string) => {
+    if (readOnly) return
+    e.stopPropagation()
+    setSelectedElement(elementId)
+    if (selectedTool === 'select') {
+      setIsDragging(true)
+    }
   }
 
   // Limpiar todo
@@ -349,50 +509,239 @@ export default function TareaGraphicEditor({
     )
   }
 
-  // Herramientas disponibles
-  const tools: { id: Tool; icon: React.ReactNode; label: string; color?: string }[] = [
-    { id: 'select', icon: <MousePointer className="h-4 w-4" />, label: 'Seleccionar' },
-    { id: 'player', icon: <Circle className="h-4 w-4" />, label: 'Jugador', color: TEAM_COLORS.team1 },
-    { id: 'opponent', icon: <Circle className="h-4 w-4" />, label: 'Rival', color: TEAM_COLORS.team2 },
-    { id: 'player_gk', icon: <Circle className="h-4 w-4" />, label: 'Portero', color: TEAM_COLORS.goalkeeper },
-    { id: 'cone', icon: <Triangle className="h-4 w-4" />, label: 'Cono', color: '#FF6B00' },
-    { id: 'ball', icon: <Target className="h-4 w-4" />, label: 'Balon' },
-    { id: 'mini_goal', icon: <Minus className="h-4 w-4 rotate-90" />, label: 'Mini porteria' },
-    { id: 'arrow_movement', icon: <ArrowRight className="h-4 w-4" />, label: 'Movimiento', color: '#FFFF00' },
-    { id: 'arrow_pass', icon: <ArrowRight className="h-4 w-4" />, label: 'Pase', color: '#FFFFFF' },
-  ]
+  // Renderizar zona
+  const renderZone = (zone: DiagramZone) => {
+    const { id, position, width, height, color, opacity, shape } = zone
+    const isSelected = selectedElement === id
+
+    return (
+      <g
+        key={id}
+        onClick={(e) => { e.stopPropagation(); setSelectedElement(id) }}
+        style={{ cursor: 'pointer' }}
+      >
+        {shape === 'ellipse' ? (
+          <ellipse
+            cx={position.x + width / 2}
+            cy={position.y + height / 2}
+            rx={width / 2}
+            ry={height / 2}
+            fill={color}
+            opacity={opacity || 0.3}
+            stroke={isSelected ? '#FFFF00' : 'none'}
+            strokeWidth={isSelected ? 2 : 0}
+            strokeDasharray={isSelected ? '6,3' : 'none'}
+          />
+        ) : (
+          <rect
+            x={position.x}
+            y={position.y}
+            width={width}
+            height={height}
+            fill={color}
+            opacity={opacity || 0.3}
+            stroke={isSelected ? '#FFFF00' : 'none'}
+            strokeWidth={isSelected ? 2 : 0}
+            strokeDasharray={isSelected ? '6,3' : 'none'}
+          />
+        )}
+      </g>
+    )
+  }
+
+  // Zone drag preview
+  const renderZoneDragPreview = () => {
+    if (!zoneDragStart || !zoneDragCurrent) return null
+    const x = Math.min(zoneDragStart.x, zoneDragCurrent.x)
+    const y = Math.min(zoneDragStart.y, zoneDragCurrent.y)
+    const w = Math.abs(zoneDragCurrent.x - zoneDragStart.x)
+    const h = Math.abs(zoneDragCurrent.y - zoneDragStart.y)
+
+    if (selectedTool === 'zone_circle') {
+      return (
+        <ellipse
+          cx={x + w / 2}
+          cy={y + h / 2}
+          rx={w / 2}
+          ry={h / 2}
+          fill={zoneColor}
+          opacity={0.3}
+          stroke="#FFFF00"
+          strokeWidth="1"
+          strokeDasharray="4,2"
+        />
+      )
+    }
+    return (
+      <rect
+        x={x}
+        y={y}
+        width={w}
+        height={h}
+        fill={zoneColor}
+        opacity={0.3}
+        stroke="#FFFF00"
+        strokeWidth="1"
+        strokeDasharray="4,2"
+      />
+    )
+  }
+
+  const isZoneTool = selectedTool === 'zone_rect' || selectedTool === 'zone_circle'
+
+  // Separator component
+  const Sep = () => <div className="w-px h-6 bg-gray-700 mx-0.5" />
 
   const toolbar = (
-    <div className="flex flex-wrap items-center gap-1.5 p-2 bg-gray-900 rounded-lg">
-      {tools.map(tool => (
-        <button
-          key={tool.id}
-          onClick={() => {
-            setSelectedTool(tool.id)
-            setArrowStart(null)
-          }}
-          className={`flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${
-            selectedTool === tool.id
-              ? 'bg-white text-gray-900'
-              : 'text-gray-300 hover:bg-gray-700'
-          }`}
-          title={tool.label}
-        >
-          <span style={{ color: selectedTool === tool.id ? (tool.color || '#111') : tool.color }}>
-            {tool.icon}
-          </span>
-          <span className={isFullscreen ? '' : 'hidden sm:inline'}>{tool.label}</span>
-        </button>
-      ))}
+    <div className="flex flex-wrap items-center gap-1 p-2 bg-gray-900 rounded-lg">
+      {/* Select */}
+      <ToolButton
+        active={selectedTool === 'select'}
+        onClick={() => { setSelectedTool('select'); setArrowStart(null) }}
+        icon={<MousePointer className="h-4 w-4" />}
+        label="Seleccionar"
+        fullscreen={isFullscreen}
+      />
+
+      <Sep />
+
+      {/* Players */}
+      <ToolButton
+        active={selectedTool === 'player'}
+        onClick={() => { setSelectedTool('player'); setArrowStart(null) }}
+        icon={<Circle className="h-4 w-4" />}
+        label="Jugador"
+        color={TEAM_COLORS.team1}
+        fullscreen={isFullscreen}
+      />
+      <ToolButton
+        active={selectedTool === 'opponent'}
+        onClick={() => { setSelectedTool('opponent'); setArrowStart(null) }}
+        icon={<Circle className="h-4 w-4" />}
+        label="Rival"
+        color={TEAM_COLORS.team2}
+        fullscreen={isFullscreen}
+      />
+      <ToolButton
+        active={selectedTool === 'player_gk'}
+        onClick={() => { setSelectedTool('player_gk'); setArrowStart(null) }}
+        icon={<Circle className="h-4 w-4" />}
+        label="Portero"
+        color={TEAM_COLORS.goalkeeper}
+        fullscreen={isFullscreen}
+      />
+
+      <Sep />
+
+      {/* Objects */}
+      <ToolButton
+        active={selectedTool === 'cone'}
+        onClick={() => { setSelectedTool('cone'); setArrowStart(null) }}
+        icon={<Triangle className="h-4 w-4" />}
+        label="Cono"
+        color="#FF6B00"
+        fullscreen={isFullscreen}
+      />
+      <ToolButton
+        active={selectedTool === 'ball'}
+        onClick={() => { setSelectedTool('ball'); setArrowStart(null) }}
+        icon={<Target className="h-4 w-4" />}
+        label="Balon"
+        fullscreen={isFullscreen}
+      />
+      <ToolButton
+        active={selectedTool === 'mini_goal'}
+        onClick={() => { setSelectedTool('mini_goal'); setArrowStart(null) }}
+        icon={<Minus className="h-4 w-4 rotate-90" />}
+        label="Mini"
+        fullscreen={isFullscreen}
+      />
+
+      <Sep />
+
+      {/* Arrows */}
+      <ToolButton
+        active={selectedTool === 'arrow_movement'}
+        onClick={() => { setSelectedTool('arrow_movement'); setArrowStart(null) }}
+        icon={<ArrowRight className="h-4 w-4" />}
+        label="Movimiento"
+        color="#FFFF00"
+        fullscreen={isFullscreen}
+      />
+      <ToolButton
+        active={selectedTool === 'arrow_pass'}
+        onClick={() => { setSelectedTool('arrow_pass'); setArrowStart(null) }}
+        icon={<ArrowRight className="h-4 w-4" />}
+        label="Pase"
+        color="#FFFFFF"
+        fullscreen={isFullscreen}
+      />
+
+      <Sep />
+
+      {/* Zones */}
+      <ToolButton
+        active={selectedTool === 'zone_rect'}
+        onClick={() => { setSelectedTool('zone_rect'); setArrowStart(null) }}
+        icon={<Square className="h-4 w-4" />}
+        label="Zona"
+        color={zoneColor}
+        fullscreen={isFullscreen}
+      />
+      <ToolButton
+        active={selectedTool === 'zone_circle'}
+        onClick={() => { setSelectedTool('zone_circle'); setArrowStart(null) }}
+        icon={<Circle className="h-4 w-4" />}
+        label="Elipse"
+        color={zoneColor}
+        fullscreen={isFullscreen}
+      />
+
+      {/* Zone color picker — only visible when zone tool active */}
+      {isZoneTool && (
+        <div className="flex items-center gap-0.5 ml-1">
+          {ZONE_COLORS.map(c => (
+            <button
+              key={c}
+              onClick={() => setZoneColor(c)}
+              className={`w-5 h-5 rounded-full border-2 transition-transform ${
+                zoneColor === c ? 'border-yellow-400 scale-110' : 'border-gray-600'
+              }`}
+              style={{ backgroundColor: c }}
+              title={c}
+            />
+          ))}
+        </div>
+      )}
 
       <div className="flex-1" />
 
-      {/* Acciones */}
+      {/* Undo/Redo */}
+      <button
+        onClick={undo}
+        disabled={historyIndex < 0}
+        className="p-1.5 rounded-md text-gray-400 hover:bg-gray-700 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+        title="Deshacer (Ctrl+Z)"
+      >
+        <Undo2 className="h-4 w-4" />
+      </button>
+      <button
+        onClick={redo}
+        disabled={historyIndex >= history.length - 1}
+        className="p-1.5 rounded-md text-gray-400 hover:bg-gray-700 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+        title="Rehacer (Ctrl+Shift+Z)"
+      >
+        <Redo2 className="h-4 w-4" />
+      </button>
+
+      <Sep />
+
+      {/* Delete & Clear */}
       <button
         onClick={deleteSelected}
         disabled={!selectedElement}
         className="p-1.5 rounded-md text-gray-400 hover:bg-red-900/50 hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed"
-        title="Eliminar seleccionado"
+        title="Eliminar seleccionado (Delete)"
       >
         <Trash2 className="h-4 w-4" />
       </button>
@@ -416,17 +765,10 @@ export default function TareaGraphicEditor({
   const pitchContent = (
     <g>
       {/* Zonas primero (fondo) */}
-      {data.zones.map(zone => (
-        <rect
-          key={zone.id}
-          x={zone.position.x}
-          y={zone.position.y}
-          width={zone.width}
-          height={zone.height}
-          fill={zone.color}
-          opacity={zone.opacity || 0.3}
-        />
-      ))}
+      {data.zones.map(renderZone)}
+
+      {/* Zone drag preview */}
+      {renderZoneDragPreview()}
 
       {/* Flechas */}
       {data.arrows.map(renderArrow)}
@@ -447,17 +789,19 @@ export default function TareaGraphicEditor({
         ? arrowStart
           ? 'Haz click en el destino de la flecha'
           : 'Haz click en el origen de la flecha'
-        : `Haz click en el campo para colocar: ${tools.find(t => t.id === selectedTool)?.label}`}
+        : isZoneTool
+          ? 'Click y arrastra para dibujar la zona'
+          : `Haz click en el campo para colocar: ${selectedTool === 'mini_goal' ? 'Mini porteria' : selectedTool}`}
     </div>
   )
 
   const info = (
     <div className={`flex items-center justify-between text-xs ${isFullscreen ? 'text-gray-400' : 'text-gray-400'}`}>
       <span>
-        {data.elements.length} elementos, {data.arrows.length} flechas
+        {data.elements.length} elementos, {data.arrows.length} flechas, {data.zones.length} zonas
       </span>
       {!readOnly && selectedElement && (
-        <span>Elemento seleccionado - Click en Eliminar o selecciona otro</span>
+        <span>Seleccionado — Delete para eliminar</span>
       )}
     </div>
   )
@@ -465,7 +809,7 @@ export default function TareaGraphicEditor({
   // Fullscreen Pro Mode
   if (isFullscreen) {
     return (
-      <div className="fixed inset-0 z-[70] bg-gray-950 flex flex-col">
+      <div ref={containerRef} className="fixed inset-0 z-[70] bg-gray-950 flex flex-col">
         {/* Fullscreen header */}
         <div className="px-4 py-2 border-b border-gray-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -490,7 +834,7 @@ export default function TareaGraphicEditor({
           className="flex-1 flex items-center justify-center p-4 overflow-hidden"
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
+          onMouseLeave={() => { setIsDragging(false); setZoneDragStart(null); setZoneDragCurrent(null) }}
         >
           <FootballPitch
             ref={svgRef}
@@ -498,6 +842,7 @@ export default function TareaGraphicEditor({
             height="100%"
             className="max-w-full max-h-full"
             onClick={handlePitchClick}
+            onMouseDown={handlePitchMouseDown}
           >
             {pitchContent}
           </FootballPitch>
@@ -525,12 +870,13 @@ export default function TareaGraphicEditor({
         className="border border-gray-300 rounded-lg overflow-hidden bg-gray-900"
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onMouseLeave={() => { setIsDragging(false); setZoneDragStart(null); setZoneDragCurrent(null) }}
       >
         <FootballPitch
           ref={svgRef}
           type={data.pitchType}
           onClick={handlePitchClick}
+          onMouseDown={handlePitchMouseDown}
         >
           {pitchContent}
         </FootballPitch>
@@ -539,5 +885,39 @@ export default function TareaGraphicEditor({
       {/* Info */}
       {info}
     </div>
+  )
+}
+
+// Toolbar button component
+function ToolButton({
+  active,
+  onClick,
+  icon,
+  label,
+  color,
+  fullscreen = false,
+}: {
+  active: boolean
+  onClick: () => void
+  icon: React.ReactNode
+  label: string
+  color?: string
+  fullscreen?: boolean
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${
+        active
+          ? 'bg-white text-gray-900'
+          : 'text-gray-300 hover:bg-gray-700'
+      }`}
+      title={label}
+    >
+      <span style={{ color: active ? (color || '#111') : color }}>
+        {icon}
+      </span>
+      <span className={fullscreen ? '' : 'hidden sm:inline'}>{label}</span>
+    </button>
   )
 }

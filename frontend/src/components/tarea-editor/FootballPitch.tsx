@@ -9,6 +9,7 @@ interface FootballPitchProps {
   className?: string
   children?: React.ReactNode
   onClick?: (e: React.MouseEvent<SVGSVGElement>) => void
+  onMouseDown?: (e: React.MouseEvent<SVGSVGElement>) => void
 }
 
 // Dimensiones del campo en metros (proporcionales)
@@ -22,6 +23,7 @@ const FootballPitch = forwardRef<SVGSVGElement, FootballPitchProps>(function Foo
   className = '',
   children,
   onClick,
+  onMouseDown,
 }, ref) {
   // Dimensiones del viewBox segun tipo
   const getViewBox = () => {
@@ -56,6 +58,7 @@ const FootballPitch = forwardRef<SVGSVGElement, FootballPitchProps>(function Foo
       preserveAspectRatio="xMidYMid meet"
       className={`rounded-lg ${className}`}
       onClick={onClick}
+      onMouseDown={onMouseDown}
       style={{ cursor: 'crosshair', display: 'block' }}
     >
       {/* Fondo de cesped con franjas */}

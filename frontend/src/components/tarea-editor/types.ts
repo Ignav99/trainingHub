@@ -37,6 +37,7 @@ export interface DiagramZone {
   color: string
   opacity?: number
   label?: string
+  shape: 'rectangle' | 'ellipse'
 }
 
 export interface DiagramData {

@@ -406,19 +406,33 @@ def render_arrow_svg(arrow: dict) -> str:
 # ============ Zone Rendering ============
 
 def _render_zone_svg(zone: dict) -> str:
-    """Render a zone/area highlight."""
-    x = zone.get("x", 0)
-    y = zone.get("y", 0)
+    """Render a zone/area highlight (rectangle or ellipse)."""
+    # Support both flat x/y and nested position:{x,y} formats
+    pos = zone.get("position", {})
+    x = pos.get("x", zone.get("x", 0))
+    y = pos.get("y", zone.get("y", 0))
     w = zone.get("width", 100)
     h = zone.get("height", 100)
     color = zone.get("color", "rgba(46,204,113,0.08)")
+    opacity = zone.get("opacity", 0.3)
     label = zone.get("label", "")
+    shape = zone.get("shape", "rectangle")
 
-    svg = f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{color}" stroke="rgba(255,255,255,0.5)" stroke-width="1.5" stroke-dasharray="6,4"/>'
-    if label:
+    stroke_attrs = 'stroke="rgba(255,255,255,0.5)" stroke-width="1.5" stroke-dasharray="6,4"'
+
+    if shape == "ellipse":
         cx = x + w / 2
-        cy = y + 15
-        svg += f'<text x="{cx}" y="{cy}" font-family="Barlow Condensed,sans-serif" font-size="8" fill="rgba(255,255,255,0.5)" font-weight="600" text-anchor="middle">{_escape_xml(str(label))}</text>'
+        cy = y + h / 2
+        rx = w / 2
+        ry = h / 2
+        svg = f'<ellipse cx="{cx}" cy="{cy}" rx="{rx}" ry="{ry}" fill="{color}" opacity="{opacity}" {stroke_attrs}/>'
+    else:
+        svg = f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{color}" opacity="{opacity}" {stroke_attrs}/>'
+
+    if label:
+        lx = x + w / 2
+        ly = y + 15
+        svg += f'<text x="{lx}" y="{ly}" font-family="Barlow Condensed,sans-serif" font-size="8" fill="rgba(255,255,255,0.5)" font-weight="600" text-anchor="middle">{_escape_xml(str(label))}</text>'
     return svg
 
 
