@@ -379,6 +379,7 @@ export default function TareaGraphicEditor({
       key: id,
       style: { cursor: readOnly ? 'default' : 'move' },
       onMouseDown: (e: React.MouseEvent) => handleElementMouseDown(e, id),
+      onClick: (e: React.MouseEvent) => e.stopPropagation(),
     }
 
     switch (type) {
@@ -485,7 +486,7 @@ export default function TareaGraphicEditor({
     const tipY = to.y - arrowSize * Math.sin(angle)
 
     return (
-      <g key={id} onClick={() => setSelectedElement(id)} style={{ cursor: 'pointer' }}>
+      <g key={id} onClick={(e) => { e.stopPropagation(); setSelectedElement(id) }} style={{ cursor: 'pointer' }}>
         {/* Linea */}
         <line
           x1={from.x}
