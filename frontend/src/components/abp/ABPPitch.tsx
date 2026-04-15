@@ -8,6 +8,7 @@ interface ABPPitchProps {
   className?: string
   children?: React.ReactNode
   onClick?: (e: React.MouseEvent<SVGSVGElement>) => void
+  onMouseDown?: (e: React.MouseEvent<SVGSVGElement>) => void
 }
 
 /**
@@ -31,6 +32,7 @@ export default function ABPPitch({
   className = '',
   children,
   onClick,
+  onMouseDown,
 }: ABPPitchProps) {
   const uid = useId().replace(/:/g, '')
   const grassId = `abpGrass${uid}`
@@ -82,6 +84,7 @@ export default function ABPPitch({
       viewBox={`0 0 ${vbW} ${vbH}`}
       className={`w-full h-full ${className}`}
       onClick={onClick}
+      onMouseDown={onMouseDown}
       style={{ cursor: 'crosshair' }}
       preserveAspectRatio="xMidYMid meet"
     >

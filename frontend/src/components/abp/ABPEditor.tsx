@@ -1,13 +1,13 @@
 'use client'
 
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 import {
   Circle, Triangle, Target, Trash2, RotateCcw, MousePointer,
-  ArrowRight, Minus, Save, X, ChevronDown, ChevronUp, Settings2,
+  ArrowRight, Minus, Save, X, Settings2, Square, Undo2, Redo2,
 } from 'lucide-react'
 import ABPPitch from './ABPPitch'
 import {
-  DiagramElement, DiagramArrow, ElementType, ArrowType,
+  DiagramElement, DiagramArrow, DiagramZone, ElementType, ArrowType,
   Position, TEAM_COLORS, ELEMENT_SIZES, generateId,
 } from '@/components/tarea-editor/types'
 import {
@@ -15,7 +15,11 @@ import {
   SistemaMarcaje, ABP_TIPOS, ABP_SUBTIPOS, ABP_ROLES, ABPPlayerRol,
 } from '@/types'
 
-type Tool = 'select' | 'player' | 'opponent' | 'player_gk' | 'cone' | 'ball' | 'mini_goal' | 'arrow_movement' | 'arrow_pass'
+type Tool =
+  | 'select' | 'player' | 'opponent' | 'player_gk'
+  | 'cone' | 'ball' | 'mini_goal'
+  | 'arrow_movement' | 'arrow_pass'
+  | 'zone_rect' | 'zone_circle'
 
 interface ABPEditorProps {
   jugada?: Partial<ABPJugada>
@@ -41,6 +45,20 @@ const ROLE_ABBREV: Record<ABPPlayerRol, string> = {
   otro: '?',
 }
 
+const ZONE_COLORS = [
+  '#3B82F6', '#EF4444', '#22C55E', '#EAB308',
+  '#F97316', '#A855F7', '#06B6D4', '#FFFFFF',
+]
+
+const MAX_HISTORY = 30
+
+interface DiagramSnapshot {
+  elements: DiagramElement[]
+  arrows: DiagramArrow[]
+  zones: DiagramZone[]
+  elementRoles: Record<string, ABPPlayerRol>
+}
+
 function getPitchView(tipo: TipoABP): 'full' | 'half' {
   return tipo === 'falta_lejana' ? 'full' : 'half'
 }
@@ -63,6 +81,7 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEdito
   const initialDiagram = jugada?.fases?.[0]?.diagram || { elements: [], arrows: [], zones: [], pitchType: 'half' }
   const [elements, setElements] = useState<DiagramElement[]>(initialDiagram.elements || [])
   const [arrows, setArrows] = useState<DiagramArrow[]>(initialDiagram.arrows || [])
+  const [zones, setZones] = useState<DiagramZone[]>(initialDiagram.zones || [])
 
   // Role assignments per element (element_id → role)
   const initialRoles: Record<string, ABPPlayerRol> = {}
@@ -79,12 +98,115 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEdito
   const [playerCounter, setPlayerCounter] = useState({ team1: 1, team2: 1, gk: 1 })
   const [arrowCounter, setArrowCounter] = useState(1)
   const [showSettings, setShowSettings] = useState(false)
+  const [zoneColor, setZoneColor] = useState(ZONE_COLORS[0])
+
+  // Zone drawing state
+  const [zoneDragStart, setZoneDragStart] = useState<Position | null>(null)
+  const [zoneDragCurrent, setZoneDragCurrent] = useState<Position | null>(null)
+
+  // Undo/Redo
+  const [history, setHistory] = useState<DiagramSnapshot[]>([])
+  const [historyIndex, setHistoryIndex] = useState(-1)
+  const isUndoRedoRef = useRef(false)
 
   const gRef = useRef<SVGGElement>(null)
   const pitchView = getPitchView(tipo)
 
-  // Get SVG coordinates from mouse event — uses getScreenCTM for accurate
-  // coordinate mapping that handles preserveAspectRatio padding correctly
+  // Push snapshot to history before a change
+  const pushHistory = useCallback(() => {
+    if (isUndoRedoRef.current) {
+      isUndoRedoRef.current = false
+      return
+    }
+    const snap: DiagramSnapshot = {
+      elements: [...elements],
+      arrows: [...arrows],
+      zones: [...zones],
+      elementRoles: { ...elementRoles },
+    }
+    setHistory(prev => {
+      const trimmed = prev.slice(0, historyIndex + 1)
+      trimmed.push(snap)
+      if (trimmed.length > MAX_HISTORY) trimmed.shift()
+      return trimmed
+    })
+    setHistoryIndex(prev => Math.min(prev + 1, MAX_HISTORY - 1))
+  }, [elements, arrows, zones, elementRoles, historyIndex])
+
+  // Undo
+  const undo = useCallback(() => {
+    if (historyIndex < 0) return
+    const snap = history[historyIndex]
+    if (!snap) return
+    isUndoRedoRef.current = true
+    setHistoryIndex(i => i - 1)
+    setElements(snap.elements)
+    setArrows(snap.arrows)
+    setZones(snap.zones)
+    setElementRoles(snap.elementRoles)
+  }, [history, historyIndex])
+
+  // Redo
+  const redo = useCallback(() => {
+    if (historyIndex >= history.length - 1) return
+    const snap = history[historyIndex + 1]
+    if (!snap) return
+    isUndoRedoRef.current = true
+    setHistoryIndex(i => i + 1)
+    setElements(snap.elements)
+    setArrows(snap.arrows)
+    setZones(snap.zones)
+    setElementRoles(snap.elementRoles)
+  }, [history, historyIndex])
+
+  // Delete selected
+  const deleteSelected = useCallback(() => {
+    if (!selectedElement) return
+    pushHistory()
+    setElements(prev => prev.filter(el => el.id !== selectedElement))
+    setArrows(prev => prev.filter(ar => ar.id !== selectedElement))
+    setZones(prev => prev.filter(z => z.id !== selectedElement))
+    setElementRoles(prev => {
+      const { [selectedElement]: _, ...rest } = prev
+      return rest
+    })
+    setSelectedElement(null)
+  }, [selectedElement, pushHistory])
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        deleteSelected()
+        return
+      }
+      if (e.key === 'Escape') {
+        setSelectedElement(null)
+        setArrowStart(null)
+        setZoneDragStart(null)
+        setZoneDragCurrent(null)
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        undo()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'Z' || e.key === 'y')) {
+        e.preventDefault()
+        redo()
+        return
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [deleteSelected, undo, redo])
+
+  // Get SVG coordinates from mouse event
   const getSvgPosition = useCallback((e: React.MouseEvent): Position => {
     const svg = gRef.current?.ownerSVGElement
     if (!svg) return { x: 0, y: 0 }
@@ -109,6 +231,7 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEdito
       if (!arrowStart) {
         setArrowStart(pos)
       } else {
+        pushHistory()
         const arrowType: ArrowType = selectedTool === 'arrow_pass' ? 'pass' : 'movement'
         const num = arrowCounter
         setArrowCounter(prev => prev + 1)
@@ -126,11 +249,15 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEdito
       return
     }
 
+    // Zone tools use mouseDown/mouseUp
+    if (selectedTool === 'zone_rect' || selectedTool === 'zone_circle') return
+
     if (selectedTool === 'select') {
       setSelectedElement(null)
       return
     }
 
+    pushHistory()
     const elementType = selectedTool as ElementType
     let label = ''
     let color = TEAM_COLORS.team1
@@ -160,38 +287,72 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEdito
       color,
     }
     setElements(prev => [...prev, newElement])
-  }, [selectedTool, arrowStart, arrowCounter, playerCounter, getSvgPosition])
+  }, [selectedTool, arrowStart, arrowCounter, playerCounter, getSvgPosition, pushHistory])
 
-  // Drag
-  const handleElementMouseDown = useCallback((e: React.MouseEvent, elementId: string) => {
-    e.stopPropagation()
-    setSelectedElement(elementId)
-    if (selectedTool === 'select') setIsDragging(true)
-  }, [selectedTool])
+  // Zone drawing: mousedown starts drag
+  const handlePitchMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (selectedTool !== 'zone_rect' && selectedTool !== 'zone_circle') return
+    const pos = getSvgPosition(e)
+    setZoneDragStart(pos)
+    setZoneDragCurrent(pos)
+  }, [selectedTool, getSvgPosition])
 
+  // Mouse move: zone drag preview or element dragging
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (zoneDragStart && (selectedTool === 'zone_rect' || selectedTool === 'zone_circle')) {
+      const pos = getSvgPosition(e)
+      setZoneDragCurrent(pos)
+      return
+    }
     if (!isDragging || !selectedElement) return
     const pos = getSvgPosition(e)
     if (pos.x === 0 && pos.y === 0) return
     setElements(prev => prev.map(el =>
       el.id === selectedElement ? { ...el, position: pos } : el
     ))
-  }, [isDragging, selectedElement, getSvgPosition])
+  }, [isDragging, selectedElement, getSvgPosition, zoneDragStart, selectedTool])
 
-  const handleMouseUp = useCallback(() => setIsDragging(false), [])
+  // Mouse up: finish zone drag or element drag
+  const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    if (zoneDragStart && zoneDragCurrent && (selectedTool === 'zone_rect' || selectedTool === 'zone_circle')) {
+      const pos = getSvgPosition(e)
+      const x = Math.min(zoneDragStart.x, pos.x)
+      const y = Math.min(zoneDragStart.y, pos.y)
+      const w = Math.abs(pos.x - zoneDragStart.x)
+      const h = Math.abs(pos.y - zoneDragStart.y)
 
-  const deleteSelected = () => {
-    if (!selectedElement) return
-    setElements(prev => prev.filter(el => el.id !== selectedElement))
-    setArrows(prev => prev.filter(ar => ar.id !== selectedElement))
-    const { [selectedElement]: _, ...rest } = elementRoles
-    setElementRoles(rest)
-    setSelectedElement(null)
-  }
+      if (w > 5 && h > 5) {
+        pushHistory()
+        const newZone: DiagramZone = {
+          id: generateId(),
+          position: { x, y },
+          width: w,
+          height: h,
+          color: zoneColor,
+          opacity: 0.3,
+          shape: selectedTool === 'zone_circle' ? 'ellipse' : 'rectangle',
+        }
+        setZones(prev => [...prev, newZone])
+      }
+      setZoneDragStart(null)
+      setZoneDragCurrent(null)
+      return
+    }
+    setIsDragging(false)
+  }, [zoneDragStart, zoneDragCurrent, selectedTool, getSvgPosition, zoneColor, pushHistory])
+
+  // Drag element
+  const handleElementMouseDown = useCallback((e: React.MouseEvent, elementId: string) => {
+    e.stopPropagation()
+    setSelectedElement(elementId)
+    if (selectedTool === 'select') setIsDragging(true)
+  }, [selectedTool])
 
   const clearDiagram = () => {
+    pushHistory()
     setElements([])
     setArrows([])
+    setZones([])
     setElementRoles({})
     setPlayerCounter({ team1: 1, team2: 1, gk: 1 })
     setArrowCounter(1)
@@ -206,8 +367,8 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEdito
     }
   }
 
-  // Assign role to selected element
   const setRole = (elementId: string, role: ABPPlayerRol | '') => {
+    pushHistory()
     if (!role) {
       const { [elementId]: _, ...rest } = elementRoles
       setElementRoles(rest)
@@ -219,14 +380,13 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEdito
   // Save
   const handleSave = () => {
     if (!nombre.trim()) return
-    const diagram = { elements, arrows, zones: [], pitchType: pitchView }
+    const diagram = { elements, arrows, zones, pitchType: pitchView }
     const fase: ABPFase = {
       id: jugada?.fases?.[0]?.id || generateId(),
       nombre: 'Principal',
       orden: 0,
       diagram,
     }
-    // Build asignaciones from elementRoles
     const asignaciones = Object.entries(elementRoles).map(([element_id, rol]) => ({
       element_id,
       rol,
@@ -247,16 +407,15 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEdito
     })
   }
 
-  // Get the display label for an element (role abbreviation or number)
   const getElementLabel = (element: DiagramElement): string => {
     const role = elementRoles[element.id]
     if (role) return ROLE_ABBREV[role]
     return element.label || ''
   }
 
-  // Selected element info for role panel
   const selectedEl = elements.find(e => e.id === selectedElement)
   const isPlayerType = selectedEl && (selectedEl.type === 'player' || selectedEl.type === 'opponent' || selectedEl.type === 'player_gk')
+  const isZoneTool = selectedTool === 'zone_rect' || selectedTool === 'zone_circle'
 
   // ============ Renderers ============
 
@@ -271,6 +430,7 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEdito
       key: id,
       style: { cursor: 'move' } as React.CSSProperties,
       onMouseDown: (e: React.MouseEvent) => handleElementMouseDown(e, id),
+      onClick: (e: React.MouseEvent) => e.stopPropagation(),
     }
 
     switch (type) {
@@ -324,7 +484,7 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEdito
     const num = arrow.label || ''
 
     return (
-      <g key={id} onClick={() => setSelectedElement(id)} style={{ cursor: 'pointer' }}>
+      <g key={id} onClick={(e) => { e.stopPropagation(); setSelectedElement(id) }} style={{ cursor: 'pointer' }}>
         <line x1={from.x} y1={from.y} x2={tipX} y2={tipY}
           stroke={color || '#FFFFFF'} strokeWidth={isSelected ? 4 : 2.5}
           strokeDasharray={type === 'pass' ? '8,4' : 'none'}
@@ -345,17 +505,80 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEdito
     )
   }
 
-  const tools: { id: Tool; icon: React.ReactNode; label: string; color?: string }[] = [
-    { id: 'select', icon: <MousePointer className="h-4 w-4" />, label: 'Seleccionar' },
-    { id: 'player', icon: <Circle className="h-4 w-4" />, label: 'Jugador', color: TEAM_COLORS.team1 },
-    { id: 'opponent', icon: <Circle className="h-4 w-4" />, label: 'Rival', color: TEAM_COLORS.team2 },
-    { id: 'player_gk', icon: <Circle className="h-4 w-4" />, label: 'Portero', color: TEAM_COLORS.goalkeeper },
-    { id: 'cone', icon: <Triangle className="h-4 w-4" />, label: 'Cono', color: '#FF6B00' },
-    { id: 'ball', icon: <Target className="h-4 w-4" />, label: 'Balon' },
-    { id: 'mini_goal', icon: <Minus className="h-4 w-4 rotate-90" />, label: 'Mini porteria' },
-    { id: 'arrow_movement', icon: <ArrowRight className="h-4 w-4" />, label: 'Movimiento', color: '#FFFF00' },
-    { id: 'arrow_pass', icon: <ArrowRight className="h-4 w-4" />, label: 'Pase', color: '#FFFFFF' },
-  ]
+  const renderZone = (zone: DiagramZone) => {
+    const { id, position, width, height, color, opacity, shape } = zone
+    const isSelected = selectedElement === id
+
+    return (
+      <g
+        key={id}
+        onClick={(e) => { e.stopPropagation(); setSelectedElement(id) }}
+        style={{ cursor: 'pointer' }}
+      >
+        {shape === 'ellipse' ? (
+          <ellipse
+            cx={position.x + width / 2}
+            cy={position.y + height / 2}
+            rx={width / 2}
+            ry={height / 2}
+            fill={color}
+            opacity={opacity || 0.3}
+            stroke={isSelected ? '#FFFF00' : 'none'}
+            strokeWidth={isSelected ? 2 : 0}
+            strokeDasharray={isSelected ? '6,3' : 'none'}
+          />
+        ) : (
+          <rect
+            x={position.x}
+            y={position.y}
+            width={width}
+            height={height}
+            fill={color}
+            opacity={opacity || 0.3}
+            stroke={isSelected ? '#FFFF00' : 'none'}
+            strokeWidth={isSelected ? 2 : 0}
+            strokeDasharray={isSelected ? '6,3' : 'none'}
+          />
+        )}
+      </g>
+    )
+  }
+
+  const renderZoneDragPreview = () => {
+    if (!zoneDragStart || !zoneDragCurrent) return null
+    const x = Math.min(zoneDragStart.x, zoneDragCurrent.x)
+    const y = Math.min(zoneDragStart.y, zoneDragCurrent.y)
+    const w = Math.abs(zoneDragCurrent.x - zoneDragStart.x)
+    const h = Math.abs(zoneDragCurrent.y - zoneDragStart.y)
+
+    if (selectedTool === 'zone_circle') {
+      return (
+        <ellipse cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2}
+          fill={zoneColor} opacity={0.3} stroke="#FFFF00" strokeWidth="1" strokeDasharray="4,2" />
+      )
+    }
+    return (
+      <rect x={x} y={y} width={w} height={h}
+        fill={zoneColor} opacity={0.3} stroke="#FFFF00" strokeWidth="1" strokeDasharray="4,2" />
+    )
+  }
+
+  // Separator
+  const Sep = () => <div className="w-px h-6 bg-gray-200 mx-0.5" />
+
+  // Toolbar button
+  const TB = ({ id, icon, label, color: c }: { id: Tool; icon: React.ReactNode; label: string; color?: string }) => (
+    <button
+      onClick={() => { setSelectedTool(id); setArrowStart(null) }}
+      className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+        selectedTool === id ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+      }`}
+      title={label}
+    >
+      <span style={{ color: selectedTool === id ? 'white' : c }}>{icon}</span>
+      <span className="hidden lg:inline">{label}</span>
+    </button>
+  )
 
   return (
     <div className="flex flex-col h-full">
@@ -372,7 +595,6 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEdito
           autoFocus
         />
         <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Quick tipo/lado selectors inline */}
           <select value={tipo} onChange={e => setTipo(e.target.value as TipoABP)} className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white">
             {ABP_TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
@@ -460,22 +682,69 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEdito
 
       {/* Toolbar + role selector */}
       <div className="px-4 py-2 border-b border-gray-200 bg-white flex-shrink-0">
-        <div className="flex flex-wrap items-center gap-1.5">
-          {tools.map(tool => (
-            <button
-              key={tool.id}
-              onClick={() => { setSelectedTool(tool.id); setArrowStart(null) }}
-              className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                selectedTool === tool.id ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-              title={tool.label}
-            >
-              <span style={{ color: selectedTool === tool.id ? 'white' : tool.color }}>{tool.icon}</span>
-              <span className="hidden lg:inline">{tool.label}</span>
-            </button>
-          ))}
-          <div className="w-px h-6 bg-gray-200 mx-1" />
-          <button onClick={deleteSelected} disabled={!selectedElement} className="p-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-red-100 disabled:opacity-30" title="Eliminar">
+        <div className="flex flex-wrap items-center gap-1">
+          {/* Select */}
+          <TB id="select" icon={<MousePointer className="h-4 w-4" />} label="Seleccionar" />
+
+          <Sep />
+
+          {/* Players */}
+          <TB id="player" icon={<Circle className="h-4 w-4" />} label="Jugador" color={TEAM_COLORS.team1} />
+          <TB id="opponent" icon={<Circle className="h-4 w-4" />} label="Rival" color={TEAM_COLORS.team2} />
+          <TB id="player_gk" icon={<Circle className="h-4 w-4" />} label="Portero" color={TEAM_COLORS.goalkeeper} />
+
+          <Sep />
+
+          {/* Objects */}
+          <TB id="cone" icon={<Triangle className="h-4 w-4" />} label="Cono" color="#FF6B00" />
+          <TB id="ball" icon={<Target className="h-4 w-4" />} label="Balon" />
+          <TB id="mini_goal" icon={<Minus className="h-4 w-4 rotate-90" />} label="Mini" />
+
+          <Sep />
+
+          {/* Arrows */}
+          <TB id="arrow_movement" icon={<ArrowRight className="h-4 w-4" />} label="Movimiento" color="#FFFF00" />
+          <TB id="arrow_pass" icon={<ArrowRight className="h-4 w-4" />} label="Pase" color="#FFFFFF" />
+
+          <Sep />
+
+          {/* Zones */}
+          <TB id="zone_rect" icon={<Square className="h-4 w-4" />} label="Zona" color={zoneColor} />
+          <TB id="zone_circle" icon={<Circle className="h-4 w-4" />} label="Elipse" color={zoneColor} />
+
+          {/* Zone color picker */}
+          {isZoneTool && (
+            <div className="flex items-center gap-0.5 ml-1">
+              {ZONE_COLORS.map(c => (
+                <button
+                  key={c}
+                  onClick={() => setZoneColor(c)}
+                  className={`w-5 h-5 rounded-full border-2 transition-transform ${
+                    zoneColor === c ? 'border-yellow-400 scale-110' : 'border-gray-300'
+                  }`}
+                  style={{ backgroundColor: c }}
+                  title={c}
+                />
+              ))}
+            </div>
+          )}
+
+          <Sep />
+
+          {/* Undo / Redo */}
+          <button onClick={undo} disabled={historyIndex < 0}
+            className="p-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed" title="Deshacer (Ctrl+Z)">
+            <Undo2 className="h-4 w-4" />
+          </button>
+          <button onClick={redo} disabled={historyIndex >= history.length - 1}
+            className="p-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed" title="Rehacer (Ctrl+Shift+Z)">
+            <Redo2 className="h-4 w-4" />
+          </button>
+
+          <Sep />
+
+          {/* Delete & Clear */}
+          <button onClick={deleteSelected} disabled={!selectedElement} className="p-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-red-100 disabled:opacity-30" title="Eliminar (Delete)">
             <Trash2 className="h-4 w-4" />
           </button>
           <button onClick={clearDiagram} className="p-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-red-100" title="Limpiar todo">
@@ -485,7 +754,7 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEdito
           {/* Role selector — appears when a player element is selected */}
           {isPlayerType && selectedEl && (
             <>
-              <div className="w-px h-6 bg-gray-200 mx-1" />
+              <Sep />
               <span className="text-xs text-gray-500">Rol:</span>
               <select
                 value={elementRoles[selectedEl.id] || ''}
@@ -501,7 +770,7 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEdito
           )}
 
           <div className="flex-1" />
-          <span className="text-[10px] text-gray-400">{elements.length} elem, {arrows.length} flechas</span>
+          <span className="text-[10px] text-gray-400">{elements.length} elem, {arrows.length} flechas, {zones.length} zonas</span>
         </div>
 
         {/* Instructions */}
@@ -511,7 +780,9 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEdito
               ? arrowStart
                 ? '2. Click en el destino de la flecha'
                 : '1. Click en el origen de la flecha'
-              : `Click en el campo para colocar: ${tools.find(t => t.id === selectedTool)?.label}`}
+              : isZoneTool
+                ? 'Click y arrastra para dibujar la zona'
+                : `Click en el campo para colocar: ${selectedTool === 'mini_goal' ? 'Mini porteria' : selectedTool}`}
           </div>
         )}
       </div>
@@ -521,18 +792,26 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEdito
         className="flex-1 min-h-0 bg-green-900 overflow-hidden"
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onMouseLeave={() => { setIsDragging(false); setZoneDragStart(null); setZoneDragCurrent(null) }}
       >
         <ABPPitch
           type={pitchView}
           className="w-full h-full"
           onClick={handlePitchClick}
+          onMouseDown={handlePitchMouseDown}
         >
           <g ref={gRef}>
-            {arrows.map(arrow => renderArrow(arrow))}
+            {/* Zones first (background) */}
+            {zones.map(renderZone)}
+            {renderZoneDragPreview()}
+
+            {/* Arrows */}
+            {arrows.map(renderArrow)}
             {arrowStart && (
               <circle cx={arrowStart.x} cy={arrowStart.y} r="6" fill="#FFFF00" stroke="#000" strokeWidth="1" opacity="0.8" />
             )}
+
+            {/* Elements on top */}
             {elements.map(renderElement)}
           </g>
         </ABPPitch>
