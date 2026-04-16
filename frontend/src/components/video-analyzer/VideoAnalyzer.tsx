@@ -104,9 +104,9 @@ export function VideoAnalyzer({
 
   // Load tags when videoId is available
   useEffect(() => {
+    fetchCategories(equipoId)
     if (videoId) {
       fetchTags(videoId)
-      fetchCategories(equipoId)
     }
     return () => { resetTagging() }
   }, [videoId, equipoId, fetchTags, fetchCategories, resetTagging])
@@ -861,9 +861,9 @@ export function VideoAnalyzer({
 
           {/* Tab content */}
           <div className="flex-1 overflow-hidden">
-            {activeTab === 'tagging' && videoId && (
+            {activeTab === 'tagging' && (
               <TagMatrix
-                videoId={videoId}
+                videoId={videoId || ''}
                 equipoId={equipoId}
                 getCurrentMs={getCurrentMs}
                 jugadores={jugadores}
