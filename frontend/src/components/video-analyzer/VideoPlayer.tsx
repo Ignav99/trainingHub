@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react'
+import Hls from 'hls.js'
 import { Button } from '@/components/ui/button'
 import {
   Play,
@@ -54,6 +55,31 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       pause: () => videoRef.current?.pause(),
       play: () => videoRef.current?.play(),
     }))
+
+    // HLS.js support for .m3u8 streams
+    const hlsRef = useRef<Hls | null>(null)
+
+    useEffect(() => {
+      const v = videoRef.current
+      if (!v || !src) return
+
+      const isHls = src.includes('.m3u8')
+
+      if (isHls && Hls.isSupported()) {
+        const hls = new Hls({ maxBufferLength: 30, maxMaxBufferLength: 60 })
+        hls.loadSource(src)
+        hls.attachMedia(v)
+        hlsRef.current = hls
+        return () => {
+          hls.destroy()
+          hlsRef.current = null
+        }
+      } else if (isHls && v.canPlayType('application/vnd.apple.mpegurl')) {
+        // Native HLS (Safari)
+        v.src = src
+      }
+      // For non-HLS, the src attribute on <video> handles it
+    }, [src])
 
     const togglePlay = useCallback(() => {
       const v = videoRef.current
@@ -147,7 +173,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       <div className="flex flex-col">
         <video
           ref={videoRef}
-          src={src}
+          src={src.includes('.m3u8') ? undefined : src}
           preload="metadata"
           muted={muted}
           className="w-full h-full object-contain bg-black"
