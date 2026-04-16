@@ -13,6 +13,8 @@ import { AnnotationPanel } from './AnnotationPanel'
 import { Timeline } from './Timeline'
 import { TagMatrix } from '../video/TagMatrix'
 import { TagList } from '../video/TagList'
+import { TagDetailPanel } from '../video/TagDetailPanel'
+import { PlaylistManager } from '../video/PlaylistManager'
 import { ShortcutOverlay } from '../video/ShortcutOverlay'
 import { useTaggingStore, type SidebarTab } from '@/stores/useTaggingStore'
 import { useTaggingKeyboard } from '@/hooks/useTaggingKeyboard'
@@ -81,6 +83,10 @@ export function VideoAnalyzer({
   const fetchTags = useTaggingStore((s) => s.fetchTags)
   const fetchCategories = useTaggingStore((s) => s.fetchCategories)
   const resetTagging = useTaggingStore((s) => s.reset)
+  const taggingCategories = useTaggingStore((s) => s.categories)
+  const taggingTags = useTaggingStore((s) => s.tags)
+  const selectedTagId = useTaggingStore((s) => s.selectedTagId)
+  const setSelectedTagId = useTaggingStore((s) => s.setSelectedTagId)
 
   // Jugadores for player assignment
   const [jugadores, setJugadores] = useState<Array<{ id: string; nombre: string; apellidos: string; dorsal?: number }>>([])
@@ -864,10 +870,19 @@ export function VideoAnalyzer({
               />
             )}
             {activeTab === 'tags' && (
-              <TagList
-                onSeek={(ms) => playerRef.current?.seekTo(ms / 1000)}
-                jugadores={jugadores}
-              />
+              selectedTagId && taggingTags.find((t) => t.id === selectedTagId) ? (
+                <TagDetailPanel
+                  tag={taggingTags.find((t) => t.id === selectedTagId)!}
+                  categories={taggingCategories}
+                  jugadores={jugadores}
+                  onClose={() => setSelectedTagId(null)}
+                />
+              ) : (
+                <TagList
+                  onSeek={(ms) => playerRef.current?.seekTo(ms / 1000)}
+                  jugadores={jugadores}
+                />
+              )
             )}
             {activeTab === 'playlists' && (
               <AnnotationPanel

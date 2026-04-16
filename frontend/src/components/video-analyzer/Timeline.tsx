@@ -6,6 +6,8 @@ import type { DrawingElement } from '@/types'
 import { useFilmstrip } from './useFilmstrip'
 import { ClipBar } from './ClipBar'
 import { DrawingBar } from './DrawingBar'
+import { TagLanes } from '../video/TagLanes'
+import { useTaggingStore } from '@/stores/useTaggingStore'
 import { useVirtualTimeline, virtualToReal, realToVirtual } from './useVirtualTimeline'
 import type { TimeSegment } from './useVirtualTimeline'
 
@@ -59,6 +61,9 @@ export function Timeline({
   const rafRef = useRef<number>(0)
   const dragCreateRef = useRef<{ startX: number; startTime: number } | null>(null)
   const [dragPreview, setDragPreview] = useState<{ left: number; width: number } | null>(null)
+
+  const tags = useTaggingStore((s) => s.tags)
+  const setSelectedTagId = useTaggingStore((s) => s.setSelectedTagId)
 
   const isClipMode = viewMode === 'clip-editor' && editingClip
 
@@ -301,6 +306,16 @@ export function Timeline({
         style={{ height: 48 }}
         onClick={handleFilmstripClick}
       />
+
+      {/* Tag lanes (only in general mode when tags exist) */}
+      {!isClipMode && tags.length > 0 && (
+        <TagLanes
+          duration={duration}
+          onSeek={(ms) => onSeek(ms / 1000)}
+          onTagSelect={setSelectedTagId}
+          timeToPercent={timeToPercent}
+        />
+      )}
 
       {/* Clips / Segments row — 32px */}
       <div
