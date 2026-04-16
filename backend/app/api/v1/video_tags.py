@@ -291,3 +291,43 @@ async def export_tags_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=tags_{video_id}.csv"},
     )
+
+
+# ============ EXPORT CLIP (individual) ============
+
+@router.post("/video-tags/{tag_id}/export-clip")
+async def export_tag_clip(
+    tag_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.EXPORT_DATA)),
+):
+    """Exporta un clip MP4 de un tag individual."""
+    from pathlib import Path as PathLib
+    from fastapi.responses import FileResponse
+    from app.services.video_clip_service import extract_clip
+
+    supabase = get_supabase()
+
+    tag = (
+        supabase.table("video_tags")
+        .select("*, videos_partido(url)")
+        .eq("id", str(tag_id))
+        .limit(1)
+        .execute()
+    )
+    if not tag.data:
+        raise HTTPException(status_code=404, detail="Tag no encontrado.")
+
+    tag_data = tag.data[0]
+    video_url = tag_data.get("videos_partido", {}).get("url")
+    if not video_url:
+        raise HTTPException(status_code=400, detail="Video sin URL disponible.")
+
+    try:
+        clip_path = await extract_clip(video_url, tag_data["start_ms"], tag_data["end_ms"])
+        return FileResponse(
+            clip_path.as_posix(),
+            media_type="video/mp4",
+            filename=f"clip_{tag_id}.mp4",
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
