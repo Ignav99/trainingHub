@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { X, Camera, Scissors, ArrowLeft, Snowflake, Download } from 'lucide-react'
+import { X, Camera, Scissors, ArrowLeft, Snowflake, Download, Tag, Film, ListMusic, Pencil as PencilIcon } from 'lucide-react'
 import type { DrawingElement } from '@/types'
 
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
@@ -11,6 +11,12 @@ import { DrawingOverlay } from './DrawingOverlay'
 import { DrawingToolbar } from './DrawingToolbar'
 import { AnnotationPanel } from './AnnotationPanel'
 import { Timeline } from './Timeline'
+import { TagMatrix } from '../video/TagMatrix'
+import { TagList } from '../video/TagList'
+import { ShortcutOverlay } from '../video/ShortcutOverlay'
+import { useTaggingStore, type SidebarTab } from '@/stores/useTaggingStore'
+import { useTaggingKeyboard } from '@/hooks/useTaggingKeyboard'
+import { jugadoresApi } from '@/lib/api/jugadores'
 import { ClipExportDialog } from './ClipExportDialog'
 import { useDrawingEngine } from './useDrawingEngine'
 import { useUndoRedo } from './useUndoRedo'
@@ -66,6 +72,60 @@ export function VideoAnalyzer({
   const setActiveFreezeFrameId = useVideoAnalyzerStore((s) => s.setActiveFreezeFrameId)
   const updateFreezeFrameStore = useVideoAnalyzerStore((s) => s.updateFreezeFrame)
   const removeFreezeFrameStore = useVideoAnalyzerStore((s) => s.removeFreezeFrame)
+
+  // Tagging store
+  const activeTab = useTaggingStore((s) => s.activeTab)
+  const setActiveTab = useTaggingStore((s) => s.setActiveTab)
+  const taggingMode = useTaggingStore((s) => s.mode)
+  const setTaggingMode = useTaggingStore((s) => s.setMode)
+  const fetchTags = useTaggingStore((s) => s.fetchTags)
+  const fetchCategories = useTaggingStore((s) => s.fetchCategories)
+  const resetTagging = useTaggingStore((s) => s.reset)
+
+  // Jugadores for player assignment
+  const [jugadores, setJugadores] = useState<Array<{ id: string; nombre: string; apellidos: string; dorsal?: number }>>([])
+
+  useEffect(() => {
+    jugadoresApi.list({ equipo_id: equipoId }).then((res) => {
+      setJugadores(res.data.map((j) => ({
+        id: j.id,
+        nombre: j.nombre || '',
+        apellidos: j.apellidos || '',
+        dorsal: j.dorsal,
+      })))
+    }).catch(() => {})
+  }, [equipoId])
+
+  // Load tags when videoId is available
+  useEffect(() => {
+    if (videoId) {
+      fetchTags(videoId)
+      fetchCategories(equipoId)
+    }
+    return () => { resetTagging() }
+  }, [videoId, equipoId, fetchTags, fetchCategories, resetTagging])
+
+  // Get current time in ms for tagging
+  const getCurrentMs = useCallback(() => {
+    return Math.round(currentTimeRef.current * 1000)
+  }, [])
+
+  // Shortcut overlay
+  const [showShortcuts, setShowShortcuts] = useState(false)
+
+  // Tagging keyboard hook
+  useTaggingKeyboard({
+    videoId,
+    getCurrentMs,
+    onSeek: (ms) => playerRef.current?.seekTo(ms / 1000),
+    onPlay: () => playerRef.current?.play(),
+    onPause: () => playerRef.current?.pause(),
+    isPlaying,
+    duration,
+    onToggleDrawMode: () => setTaggingMode(taggingMode === 'draw' ? 'tag' : 'draw'),
+    onToggleShortcutOverlay: () => setShowShortcuts((v) => !v),
+    enabled: !!videoId && taggingMode === 'tag',
+  })
 
   // Create object URL for local file
   const src = useMemo(() => {
@@ -747,21 +807,86 @@ export function VideoAnalyzer({
 
         {/* Right: Sidebar */}
         <div className="w-72 border-l border-white/10 bg-black/90 flex flex-col shrink-0">
-          <AnnotationPanel
-            clips={clips}
-            activeClipId={activeClipId}
-            onSelectClip={handleSelectClipFromSidebar}
-            onDeleteClip={deleteClip}
-            onExportClip={handleExportClip}
-            exportingClipId={exportingClipId}
-            viewMode={viewMode}
-            editingClip={editingClip}
-            onEnterClipEditor={handleEnterClipEditor}
-            onExitClipEditor={handleExitClipEditor}
-            onSelectFreezeFrame={handleSelectFreezeFrame}
-            onDeleteFreezeFrame={handleDeleteFreezeFrame}
-            onUpdateFreezeFrameDuration={handleUpdateFreezeFrameDuration}
-          />
+          {/* Sidebar tabs */}
+          <div className="flex border-b border-white/10 shrink-0">
+            {([
+              { key: 'tagging' as SidebarTab, icon: Tag, label: 'Tagging' },
+              { key: 'tags' as SidebarTab, icon: ListMusic, label: 'Tags' },
+              { key: 'playlists' as SidebarTab, icon: Film, label: 'Clips' },
+            ]).map(({ key, icon: Icon, label }) => (
+              <button
+                key={key}
+                className={`flex-1 flex items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors ${
+                  activeTab === key
+                    ? 'text-white border-b-2 border-blue-500'
+                    : 'text-white/40 hover:text-white/60'
+                }`}
+                onClick={() => setActiveTab(key)}
+              >
+                <Icon className="h-3 w-3" />
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Mode toggle (tag vs draw) */}
+          {activeTab === 'tagging' && (
+            <div className="flex items-center gap-1 px-2 py-1.5 border-b border-white/10">
+              <button
+                className={`flex-1 flex items-center justify-center gap-1 py-1 rounded text-[10px] font-medium transition-colors ${
+                  taggingMode === 'tag' ? 'bg-blue-500/20 text-blue-400' : 'text-white/40 hover:text-white/60'
+                }`}
+                onClick={() => setTaggingMode('tag')}
+              >
+                <Tag className="h-3 w-3" />
+                Tag
+              </button>
+              <button
+                className={`flex-1 flex items-center justify-center gap-1 py-1 rounded text-[10px] font-medium transition-colors ${
+                  taggingMode === 'draw' ? 'bg-blue-500/20 text-blue-400' : 'text-white/40 hover:text-white/60'
+                }`}
+                onClick={() => setTaggingMode('draw')}
+              >
+                <PencilIcon className="h-3 w-3" />
+                Draw
+              </button>
+            </div>
+          )}
+
+          {/* Tab content */}
+          <div className="flex-1 overflow-hidden">
+            {activeTab === 'tagging' && videoId && (
+              <TagMatrix
+                videoId={videoId}
+                equipoId={equipoId}
+                getCurrentMs={getCurrentMs}
+                jugadores={jugadores}
+              />
+            )}
+            {activeTab === 'tags' && (
+              <TagList
+                onSeek={(ms) => playerRef.current?.seekTo(ms / 1000)}
+                jugadores={jugadores}
+              />
+            )}
+            {activeTab === 'playlists' && (
+              <AnnotationPanel
+                clips={clips}
+                activeClipId={activeClipId}
+                onSelectClip={handleSelectClipFromSidebar}
+                onDeleteClip={deleteClip}
+                onExportClip={handleExportClip}
+                exportingClipId={exportingClipId}
+                viewMode={viewMode}
+                editingClip={editingClip}
+                onEnterClipEditor={handleEnterClipEditor}
+                onExitClipEditor={handleExitClipEditor}
+                onSelectFreezeFrame={handleSelectFreezeFrame}
+                onDeleteFreezeFrame={handleDeleteFreezeFrame}
+                onUpdateFreezeFrameDuration={handleUpdateFreezeFrameDuration}
+              />
+            )}
+          </div>
         </div>
       </div>
 
@@ -770,6 +895,9 @@ export function VideoAnalyzer({
         open={!!exportingClip}
         clipTitle={exportingClip?.title || ''}
       />
+
+      {/* Shortcut overlay */}
+      <ShortcutOverlay open={showShortcuts} onClose={() => setShowShortcuts(false)} />
     </div>
   )
 }

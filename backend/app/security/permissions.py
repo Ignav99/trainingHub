@@ -65,6 +65,9 @@ class Permission(str, Enum):
     # Video / Media
     VIDEO_UPLOAD = "video.upload"
     VIDEO_READ = "video.read"
+    VIDEO_TAG_CREATE = "video_tag.create"
+    VIDEO_TAG_READ = "video_tag.read"
+    VIDEO_TAG_DELETE = "video_tag.delete"
 
     # Exports
     EXPORT_DATA = "export.data"
@@ -147,6 +150,7 @@ _CT_FULL_PERMISSIONS = {
     Permission.COMUNICACION_MSG_JUGADORES,
     # Video / Media
     Permission.VIDEO_UPLOAD, Permission.VIDEO_READ,
+    Permission.VIDEO_TAG_CREATE, Permission.VIDEO_TAG_READ, Permission.VIDEO_TAG_DELETE,
     # Exports
     Permission.EXPORT_DATA,
     # AI / Knowledge Base
@@ -179,6 +183,7 @@ _PLAYER_READ_ONLY = {
     Permission.RIVAL_READ,
     Permission.RPE_READ,
     Permission.VIDEO_READ,
+    Permission.VIDEO_TAG_READ,
     Permission.ABP_READ,
 }
 
