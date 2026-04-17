@@ -28,7 +28,7 @@ router = APIRouter()
 @router.get("/equipos/{equipo_id}/video-playlists")
 async def list_playlists(
     equipo_id: UUID,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_READ)),
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_READ)),
 ):
     """Lista playlists de un equipo."""
     supabase = get_supabase()
@@ -48,7 +48,7 @@ async def list_playlists(
 @router.get("/video-playlists/{playlist_id}")
 async def get_playlist(
     playlist_id: UUID,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_READ)),
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_READ)),
 ):
     """Obtiene una playlist con sus items y tags asociados."""
     supabase = get_supabase()
@@ -82,7 +82,7 @@ async def get_playlist(
 async def create_playlist(
     equipo_id: UUID,
     data: VideoPlaylistCreate,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):
     """Crea una nueva playlist."""
     supabase = get_supabase()
@@ -104,7 +104,7 @@ async def create_playlist(
 async def update_playlist(
     playlist_id: UUID,
     data: VideoPlaylistUpdate,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):
     """Actualiza una playlist."""
     supabase = get_supabase()
@@ -139,7 +139,7 @@ async def update_playlist(
 @router.delete("/video-playlists/{playlist_id}")
 async def delete_playlist(
     playlist_id: UUID,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):
     """Elimina una playlist (cascadea items)."""
     supabase = get_supabase()
@@ -164,7 +164,7 @@ async def delete_playlist(
 async def add_playlist_item(
     playlist_id: UUID,
     data: VideoPlaylistItemCreate,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):
     """Añade un tag a la playlist."""
     supabase = get_supabase()
@@ -195,7 +195,7 @@ async def add_playlist_item(
 @router.delete("/video-playlist-items/{item_id}")
 async def remove_playlist_item(
     item_id: UUID,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):
     """Elimina un item de la playlist."""
     supabase = get_supabase()
@@ -220,7 +220,7 @@ async def remove_playlist_item(
 async def reorder_playlist_items(
     playlist_id: UUID,
     items: list[dict],
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):
     """Reordena items de la playlist. Espera [{"id": "...", "orden": 0}, ...]"""
     supabase = get_supabase()

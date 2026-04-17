@@ -139,7 +139,7 @@ DEFAULT_CATEGORIES = [
 @router.get("/equipos/{equipo_id}/video-tag-categories")
 async def list_categories(
     equipo_id: UUID,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_READ)),
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_READ)),
 ):
     """Lista categorías de tag con sus descriptores."""
     supabase = get_supabase()
@@ -182,7 +182,7 @@ async def list_categories(
 async def create_category(
     equipo_id: UUID,
     data: VideoTagCategoryCreate,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):
     """Crea una nueva categoría de tag."""
     supabase = get_supabase()
@@ -207,7 +207,7 @@ async def create_category(
 async def update_category(
     category_id: UUID,
     data: VideoTagCategoryUpdate,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):
     """Actualiza una categoría de tag."""
     supabase = get_supabase()
@@ -242,7 +242,7 @@ async def update_category(
 @router.delete("/video-tag-categories/{category_id}")
 async def delete_category(
     category_id: UUID,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):
     """Elimina una categoría de tag (cascadea descriptores y tags)."""
     supabase = get_supabase()
@@ -267,7 +267,7 @@ async def delete_category(
 async def create_descriptor(
     category_id: UUID,
     data: VideoTagDescriptorCreate,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):
     """Crea un descriptor bajo una categoría."""
     supabase = get_supabase()
@@ -300,7 +300,7 @@ async def create_descriptor(
 async def update_descriptor(
     descriptor_id: UUID,
     data: VideoTagDescriptorUpdate,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):
     """Actualiza un descriptor."""
     supabase = get_supabase()
@@ -333,7 +333,7 @@ async def update_descriptor(
 @router.delete("/video-tag-descriptors/{descriptor_id}")
 async def delete_descriptor(
     descriptor_id: UUID,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):
     """Elimina un descriptor."""
     supabase = get_supabase()
@@ -357,7 +357,7 @@ async def delete_descriptor(
 @router.post("/equipos/{equipo_id}/video-tag-categories/seed", status_code=201)
 async def seed_default_categories(
     equipo_id: UUID,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):
     """Crea categorías y descriptores por defecto para fútbol."""
     supabase = get_supabase()

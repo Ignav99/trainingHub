@@ -33,7 +33,7 @@ router = APIRouter()
 async def create_tag(
     video_id: UUID,
     data: VideoTagCreate,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):
     """Crea un nuevo tag sobre un video."""
     supabase = get_supabase()
@@ -83,7 +83,7 @@ async def create_tag(
 async def create_tags_bulk(
     video_id: UUID,
     data: VideoTagBulkCreate,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):
     """Crea múltiples tags en lote."""
     supabase = get_supabase()
@@ -143,7 +143,7 @@ async def list_tags(
     start_ms: Optional[int] = Query(None, description="Filtrar tags desde este ms"),
     end_ms: Optional[int] = Query(None, description="Filtrar tags hasta este ms"),
     source: Optional[str] = Query(None),
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_READ)),
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_READ)),
 ):
     """Lista tags de un video con filtros opcionales."""
     supabase = get_supabase()
@@ -177,7 +177,7 @@ async def list_tags(
 async def update_tag(
     tag_id: UUID,
     data: VideoTagUpdate,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):
     """Actualiza un tag existente."""
     supabase = get_supabase()
@@ -217,7 +217,7 @@ async def update_tag(
 @router.delete("/video-tags/{tag_id}")
 async def delete_tag(
     tag_id: UUID,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):
     """Elimina un tag."""
     supabase = get_supabase()
