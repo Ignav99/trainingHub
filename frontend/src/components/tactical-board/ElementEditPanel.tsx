@@ -13,6 +13,7 @@ export default function ElementEditPanel() {
   const setSelectedElementId = useTacticalBoardStore((s) => s.setSelectedElementId)
   const updateElementColor = useTacticalBoardStore((s) => s.updateElementColor)
   const updateElementLabel = useTacticalBoardStore((s) => s.updateElementLabel)
+  const updateElementSize = useTacticalBoardStore((s) => s.updateElementSize)
   const updateElementRotation = useTacticalBoardStore((s) => s.updateElementRotation)
   const updateArrowLabel = useTacticalBoardStore((s) => s.updateArrowLabel)
   const updateArrowComment = useTacticalBoardStore((s) => s.updateArrowComment)
@@ -88,6 +89,17 @@ export default function ElementEditPanel() {
                 onChange={(e) => updateElementLabel(element.id, e.target.value)}
                 className="mt-0.5 w-full px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white focus:border-blue-400 focus:outline-none"
                 placeholder="Escribe aqui..."
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-gray-500 uppercase">Tamano: {element.size || 13}px</label>
+              <input
+                type="range"
+                min={8}
+                max={40}
+                value={element.size || 13}
+                onChange={(e) => updateElementSize(element.id, parseInt(e.target.value))}
+                className="mt-1 w-full"
               />
             </div>
             <div>

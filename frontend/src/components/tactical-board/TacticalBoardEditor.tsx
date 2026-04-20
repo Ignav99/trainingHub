@@ -319,9 +319,35 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
     e.stopPropagation()
     elementInteractionRef.current = true
     setTimeout(() => { elementInteractionRef.current = false }, 0)
+
+    // Arrow tool: use player position as arrow start/end point
+    if (activeTool.startsWith('arrow_')) {
+      const el = elements.find((el) => el.id === elementId)
+      if (el) {
+        const pos = el.position
+        if (!arrowStart) {
+          setArrowStart(pos)
+        } else {
+          pushHistory()
+          const arrowType: ArrowType = activeTool === 'arrow_pass' ? 'pass' : 'movement'
+          const newArrow: DiagramArrow = {
+            id: generateId(),
+            type: arrowType,
+            from: arrowStart,
+            to: pos,
+            color: arrowType === 'pass' ? '#FFFFFF' : '#FFFF00',
+            label: String(arrowCounter),
+          }
+          addArrow(newArrow)
+          setArrowStart(null)
+        }
+      }
+      return
+    }
+
     setSelectedElementId(elementId)
     if (activeTool === 'select') setIsDragging(true)
-  }, [activeTool, setSelectedElementId, isPlaying])
+  }, [activeTool, setSelectedElementId, isPlaying, elements, arrowStart, arrowCounter, pushHistory, addArrow])
 
   const handleZoneMouseDown = useCallback((e: React.MouseEvent, zoneId: string) => {
     if (isPlaying) return
@@ -420,17 +446,20 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
             <circle cx="0" cy="0" r={size / 2} fill="none" stroke="#cccccc" strokeWidth="0.3" />
           </g>
         )
-      case 'text':
+      case 'text': {
+        const fontSize = element.size || 13
+        const textWidth = Math.max(40, (label || 'Texto').length * fontSize * 0.6)
         return (
           <g {...commonProps} transform={`translate(${position.x}, ${position.y})`}>
             {isSelected && (
-              <rect x="-30" y="-10" width="60" height="20" fill="none" stroke="#FFFF00" strokeWidth="1.5" strokeDasharray="4,2" rx="3" />
+              <rect x={-textWidth / 2 - 4} y={-fontSize / 2 - 4} width={textWidth + 8} height={fontSize + 8} fill="none" stroke="#FFFF00" strokeWidth="1.5" strokeDasharray="4,2" rx="3" />
             )}
-            <text x="0" y="1" textAnchor="middle" dominantBaseline="middle" fill={color || '#FFFFFF'} fontSize="13" fontWeight="bold" fontFamily="Arial">
+            <text x="0" y="1" textAnchor="middle" dominantBaseline="middle" fill={color || '#FFFFFF'} fontSize={fontSize} fontWeight="bold" fontFamily="Arial">
               {label || 'Texto'}
             </text>
           </g>
         )
+      }
       case 'mini_goal': {
         const rot = rotation || 0
         return (
