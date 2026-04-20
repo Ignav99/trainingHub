@@ -51,6 +51,7 @@ from app.api.v1 import (
     video_playlists,
     nutricion,
     entrenamientos_margen,
+    tactical_boards,
 )
 
 api_router = APIRouter()
@@ -323,6 +324,12 @@ api_router.include_router(
     entrenamientos_margen.router,
     prefix="/entrenamientos-margen",
     tags=["Entrenamientos al Margen"]
+)
+
+api_router.include_router(
+    tactical_boards.router,
+    prefix="/tactical-boards",
+    tags=["Pizarra Tactica"]
 )
 
 

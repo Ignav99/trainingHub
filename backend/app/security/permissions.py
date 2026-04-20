@@ -100,6 +100,12 @@ class Permission(str, Enum):
     ABP_UPDATE = "abp.update"
     ABP_DELETE = "abp.delete"
 
+    # Tactical Board (Pizarra Táctica)
+    TACTICAL_BOARD_CREATE = "tactical_board.create"
+    TACTICAL_BOARD_READ = "tactical_board.read"
+    TACTICAL_BOARD_UPDATE = "tactical_board.update"
+    TACTICAL_BOARD_DELETE = "tactical_board.delete"
+
     # Nutrition
     NUTRITION_CREATE = "nutrition.create"
     NUTRITION_READ = "nutrition.read"
@@ -160,6 +166,9 @@ _CT_FULL_PERMISSIONS = {
     # ABP
     Permission.ABP_CREATE, Permission.ABP_READ,
     Permission.ABP_UPDATE, Permission.ABP_DELETE,
+    # Tactical Board
+    Permission.TACTICAL_BOARD_CREATE, Permission.TACTICAL_BOARD_READ,
+    Permission.TACTICAL_BOARD_UPDATE, Permission.TACTICAL_BOARD_DELETE,
     # Nutrition
     Permission.NUTRITION_CREATE, Permission.NUTRITION_READ,
     Permission.NUTRITION_UPDATE,
@@ -185,6 +194,7 @@ _PLAYER_READ_ONLY = {
     Permission.VIDEO_READ,
     Permission.VIDEO_TAG_READ,
     Permission.ABP_READ,
+    Permission.TACTICAL_BOARD_READ,
 }
 
 DEFAULT_PERMISSIONS: dict[str, set[Permission]] = {

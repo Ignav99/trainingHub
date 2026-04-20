@@ -27,6 +27,7 @@ import {
   Flag,
   UtensilsCrossed,
   Crown,
+  PenTool,
 } from 'lucide-react'
 import { preload } from 'swr'
 import { apiFetcher } from '@/lib/swr'
@@ -60,6 +61,7 @@ const secondaryNavigation = [
   { name: 'AI Asistente', href: '/ai', icon: Bot },
   { name: 'Biblioteca AI', href: '/biblioteca-ai', icon: Library },
   { name: 'Video Análisis', href: '/video-analisis', icon: ScanSearch },
+  { name: 'Pizarra Táctica', href: '/pizarra-tactica', icon: PenTool },
   { name: 'Configuracion', href: '/configuracion', icon: Settings },
 ]
 
@@ -155,6 +157,8 @@ export default function DashboardLayout({
           apiKey('/dashboard/carga-semanal', { equipo_id: eid, semanas: 12 }),
           // ABP
           apiKey('/abp', { equipo_id: eid }),
+          // Pizarra Táctica
+          apiKey('/tactical-boards', { equipo_id: eid }),
           // Rivales
           apiKey('/rivales', { orden: 'nombre', direccion: 'asc' }),
           // RPE / Wellness
