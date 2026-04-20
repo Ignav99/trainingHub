@@ -3,9 +3,9 @@
 import React from 'react'
 import {
   Circle, Triangle, Target, Trash2, RotateCcw, MousePointer,
-  ArrowRight, Minus, Square, Undo2, Redo2,
+  ArrowRight, Minus, Square, Undo2, Redo2, Type,
 } from 'lucide-react'
-import { BoardTool, ZONE_COLORS, TEAM_COLORS, PLAYER_COLORS } from './types'
+import { BoardTool, ZONE_COLORS, TEAM_COLORS } from './types'
 import { FORMATIONS } from '@/lib/formations'
 import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
 
@@ -42,18 +42,14 @@ export default function BoardToolbar({ arrowStart, onLoadFormation }: BoardToolb
   const arrows = useTacticalBoardStore((s) => s.arrows)
   const zones = useTacticalBoardStore((s) => s.zones)
   const historyIndex = useTacticalBoardStore((s) => s.historyIndex)
+  // Note: elements/arrows/zones still used for count display
   const history = useTacticalBoardStore((s) => s.history)
   const setActiveTool = useTacticalBoardStore((s) => s.setActiveTool)
   const setZoneColor = useTacticalBoardStore((s) => s.setZoneColor)
-  const updateElementColor = useTacticalBoardStore((s) => s.updateElementColor)
   const deleteSelected = useTacticalBoardStore((s) => s.deleteSelected)
   const clearDiagram = useTacticalBoardStore((s) => s.clearDiagram)
   const undo = useTacticalBoardStore((s) => s.undo)
   const redo = useTacticalBoardStore((s) => s.redo)
-
-  // Check if selected element is a player/opponent/gk
-  const selectedElement = selectedElementId ? elements.find((el) => el.id === selectedElementId) : null
-  const isPlayerSelected = selectedElement && ['player', 'opponent', 'player_gk'].includes(selectedElement.type)
 
   const isZoneTool = activeTool === 'zone_rect' || activeTool === 'zone_circle'
 
@@ -93,6 +89,11 @@ export default function BoardToolbar({ arrowStart, onLoadFormation }: BoardToolb
         <TB id="zone_rect" icon={<Square className="h-4 w-4" />} label="Zona" color={zoneColor} activeTool={activeTool} onSelect={handleSelect} />
         <TB id="zone_circle" icon={<Circle className="h-4 w-4" />} label="Elipse" color={zoneColor} activeTool={activeTool} onSelect={handleSelect} />
 
+        <Sep />
+
+        {/* Text */}
+        <TB id="text" icon={<Type className="h-4 w-4" />} label="Texto" activeTool={activeTool} onSelect={handleSelect} />
+
         {/* Zone color picker */}
         {isZoneTool && (
           <div className="flex items-center gap-0.5 ml-1">
@@ -108,27 +109,6 @@ export default function BoardToolbar({ arrowStart, onLoadFormation }: BoardToolb
               />
             ))}
           </div>
-        )}
-
-        {/* Player color picker (when player selected) */}
-        {isPlayerSelected && (
-          <>
-            <Sep />
-            <span className="text-[10px] text-gray-500 mr-1">Color:</span>
-            <div className="flex items-center gap-0.5">
-              {PLAYER_COLORS.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => updateElementColor(selectedElement!.id, c)}
-                  className={`w-5 h-5 rounded-full border-2 transition-transform ${
-                    selectedElement!.color === c ? 'border-yellow-400 scale-110' : 'border-gray-300'
-                  }`}
-                  style={{ backgroundColor: c }}
-                  title={c}
-                />
-              ))}
-            </div>
-          </>
         )}
 
         <Sep />
@@ -200,7 +180,9 @@ export default function BoardToolbar({ arrowStart, onLoadFormation }: BoardToolb
               : '1. Click en el origen de la flecha'
             : isZoneTool
               ? 'Click y arrastra para dibujar la zona'
-              : `Click en el campo para colocar: ${activeTool === 'mini_goal' ? 'Mini porteria' : activeTool}`}
+              : activeTool === 'text'
+                ? 'Click en el campo para colocar texto'
+                : `Click en el campo para colocar: ${activeTool === 'mini_goal' ? 'Mini porteria' : activeTool}`}
         </div>
       )}
     </div>

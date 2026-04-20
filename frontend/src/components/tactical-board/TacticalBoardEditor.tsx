@@ -12,6 +12,7 @@ import BoardToolbar from './BoardToolbar'
 import KeyframeTimeline from './KeyframeTimeline'
 import AnimationPlayer, { AnimationState } from './AnimationPlayer'
 import ExportDialog from './ExportDialog'
+import ElementEditPanel from './ElementEditPanel'
 
 interface TacticalBoardEditorProps {
   onSave: () => void
@@ -43,6 +44,7 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
   const addArrow = useTacticalBoardStore((s) => s.addArrow)
   const updateArrowEndpoint = useTacticalBoardStore((s) => s.updateArrowEndpoint)
   const addZone = useTacticalBoardStore((s) => s.addZone)
+  const updateZonePosition = useTacticalBoardStore((s) => s.updateZonePosition)
   const deleteSelected = useTacticalBoardStore((s) => s.deleteSelected)
   const pushHistory = useTacticalBoardStore((s) => s.pushHistory)
   const undo = useTacticalBoardStore((s) => s.undo)
@@ -59,9 +61,15 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
   const [draggingEndpoint, setDraggingEndpoint] = useState<{ arrowId: string; endpoint: 'from' | 'to' } | null>(null)
   // Mini-goal rotation dragging
   const [isRotating, setIsRotating] = useState(false)
+  // Zone dragging
+  const [draggingZoneId, setDraggingZoneId] = useState<string | null>(null)
+  const [zoneDragOffset, setZoneDragOffset] = useState<Position>({ x: 0, y: 0 })
 
   // Animation overlay state (during playback, we render these instead of store state)
   const [animState, setAnimState] = useState<AnimationState | null>(null)
+
+  // Ref guard: prevents pitch click from clearing selection when an element was just interacted with
+  const elementInteractionRef = useRef(false)
 
   const gRef = useRef<SVGGElement>(null)
   const svgRef = useRef<SVGSVGElement | null>(null)
@@ -132,6 +140,13 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
   // Click on pitch
   const handlePitchClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     if (isPlaying) return
+
+    // Guard: if an element was just interacted with, skip clearing selection
+    if (elementInteractionRef.current) {
+      elementInteractionRef.current = false
+      return
+    }
+
     const pos = getSvgPosition(e)
     if (pos.x === 0 && pos.y === 0) return
 
@@ -159,6 +174,19 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
 
     if (activeTool === 'select') {
       setSelectedElementId(null)
+      return
+    }
+
+    // Text tool
+    if (activeTool === 'text') {
+      pushHistory()
+      addElement({
+        id: generateId(),
+        type: 'text',
+        position: pos,
+        label: 'Texto',
+        color: '#FFFFFF',
+      })
       return
     }
 
@@ -222,6 +250,14 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
       return
     }
 
+    // Zone dragging (move existing zone)
+    if (draggingZoneId) {
+      const pos = getSvgPosition(e)
+      if (pos.x === 0 && pos.y === 0) return
+      updateZonePosition(draggingZoneId, pos.x - zoneDragOffset.x, pos.y - zoneDragOffset.y)
+      return
+    }
+
     if (zoneDragStart && (activeTool === 'zone_rect' || activeTool === 'zone_circle')) {
       setZoneDragCurrent(getSvgPosition(e))
       return
@@ -230,7 +266,7 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
     const pos = getSvgPosition(e)
     if (pos.x === 0 && pos.y === 0) return
     updateElementPosition(selectedElementId, pos.x, pos.y)
-  }, [isDragging, selectedElementId, getSvgPosition, zoneDragStart, activeTool, updateElementPosition, isPlaying, draggingEndpoint, updateArrowEndpoint, isRotating, elements, updateElementRotation])
+  }, [isDragging, selectedElementId, getSvgPosition, zoneDragStart, activeTool, updateElementPosition, isPlaying, draggingEndpoint, updateArrowEndpoint, isRotating, elements, updateElementRotation, draggingZoneId, zoneDragOffset, updateZonePosition])
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     if (isPlaying) return
@@ -242,6 +278,13 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
 
     if (isRotating) {
       setIsRotating(false)
+      elementInteractionRef.current = true
+      setTimeout(() => { elementInteractionRef.current = false }, 0)
+      return
+    }
+
+    if (draggingZoneId) {
+      setDraggingZoneId(null)
       return
     }
 
@@ -269,14 +312,34 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
       return
     }
     setIsDragging(false)
-  }, [zoneDragStart, zoneDragCurrent, activeTool, getSvgPosition, zoneColor, pushHistory, addZone, isPlaying, draggingEndpoint, isRotating])
+  }, [zoneDragStart, zoneDragCurrent, activeTool, getSvgPosition, zoneColor, pushHistory, addZone, isPlaying, draggingEndpoint, isRotating, draggingZoneId])
 
   const handleElementMouseDown = useCallback((e: React.MouseEvent, elementId: string) => {
     if (isPlaying) return
     e.stopPropagation()
+    elementInteractionRef.current = true
+    setTimeout(() => { elementInteractionRef.current = false }, 0)
     setSelectedElementId(elementId)
     if (activeTool === 'select') setIsDragging(true)
   }, [activeTool, setSelectedElementId, isPlaying])
+
+  const handleZoneMouseDown = useCallback((e: React.MouseEvent, zoneId: string) => {
+    if (isPlaying) return
+    if (activeTool !== 'select') return
+    e.stopPropagation()
+    elementInteractionRef.current = true
+    setTimeout(() => { elementInteractionRef.current = false }, 0)
+    setSelectedElementId(zoneId)
+
+    // Start zone drag
+    const zone = zones.find((z) => z.id === zoneId)
+    if (zone) {
+      const pos = getSvgPosition(e)
+      pushHistory()
+      setDraggingZoneId(zoneId)
+      setZoneDragOffset({ x: pos.x - zone.position.x, y: pos.y - zone.position.y })
+    }
+  }, [activeTool, setSelectedElementId, isPlaying, zones, getSvgPosition, pushHistory])
 
   const handleLoadFormation = useCallback((name: string, team: 'home' | 'away') => {
     loadFormation(name, team)
@@ -289,6 +352,8 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
   // Arrow endpoint drag start
   const handleEndpointMouseDown = useCallback((e: React.MouseEvent, arrowId: string, endpoint: 'from' | 'to') => {
     e.stopPropagation()
+    elementInteractionRef.current = true
+    setTimeout(() => { elementInteractionRef.current = false }, 0)
     pushHistory()
     setDraggingEndpoint({ arrowId, endpoint })
   }, [pushHistory])
@@ -296,6 +361,8 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
   // Rotation handle drag start
   const handleRotationMouseDown = useCallback((e: React.MouseEvent, elementId: string) => {
     e.stopPropagation()
+    elementInteractionRef.current = true
+    setTimeout(() => { elementInteractionRef.current = false }, 0)
     pushHistory()
     setIsRotating(true)
     setSelectedElementId(elementId)
@@ -353,6 +420,17 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
             <circle cx="0" cy="0" r={size / 2} fill="none" stroke="#cccccc" strokeWidth="0.3" />
           </g>
         )
+      case 'text':
+        return (
+          <g {...commonProps} transform={`translate(${position.x}, ${position.y})`}>
+            {isSelected && (
+              <rect x="-30" y="-10" width="60" height="20" fill="none" stroke="#FFFF00" strokeWidth="1.5" strokeDasharray="4,2" rx="3" />
+            )}
+            <text x="0" y="1" textAnchor="middle" dominantBaseline="middle" fill={color || '#FFFFFF'} fontSize="13" fontWeight="bold" fontFamily="Arial">
+              {label || 'Texto'}
+            </text>
+          </g>
+        )
       case 'mini_goal': {
         const rot = rotation || 0
         return (
@@ -397,7 +475,7 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
     const midY = (from.y + to.y) / 2
 
     return (
-      <g key={id} onClick={(e) => { e.stopPropagation(); if (!isPlaying) setSelectedElementId(id) }} style={{ cursor: isPlaying ? 'default' : 'pointer' }}>
+      <g key={id} onClick={(e) => { e.stopPropagation(); if (!isPlaying) { elementInteractionRef.current = true; setTimeout(() => { elementInteractionRef.current = false }, 0); setSelectedElementId(id) } }} style={{ cursor: isPlaying ? 'default' : 'pointer' }}>
         <line x1={from.x} y1={from.y} x2={tipX} y2={tipY}
           stroke={color || '#FFFFFF'} strokeWidth={isSelected ? 4 : 2.5}
           strokeDasharray={type === 'pass' ? '8,4' : 'none'}
@@ -436,11 +514,15 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
   }
 
   const renderZone = (zone: DiagramZone) => {
-    const { id, position, width, height, color, opacity, shape } = zone
+    const { id, position, width, height, color, opacity, shape, label } = zone
     const isSelected = !isPlaying && selectedElementId === id
 
     return (
-      <g key={id} onClick={(e) => { e.stopPropagation(); if (!isPlaying) setSelectedElementId(id) }} style={{ cursor: isPlaying ? 'default' : 'pointer' }}>
+      <g key={id}
+        onMouseDown={(e) => handleZoneMouseDown(e, id)}
+        onClick={(e) => { e.stopPropagation(); if (!isPlaying) { elementInteractionRef.current = true; setTimeout(() => { elementInteractionRef.current = false }, 0); setSelectedElementId(id) } }}
+        style={{ cursor: isPlaying ? 'default' : (activeTool === 'select' ? 'move' : 'pointer') }}
+      >
         {shape === 'ellipse' ? (
           <ellipse
             cx={position.x + width / 2} cy={position.y + height / 2}
@@ -456,6 +538,16 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
             stroke={isSelected ? '#FFFF00' : 'none'} strokeWidth={isSelected ? 2 : 0}
             strokeDasharray={isSelected ? '6,3' : 'none'}
           />
+        )}
+        {label && (
+          <text
+            x={position.x + width / 2} y={position.y + height / 2}
+            textAnchor="middle" dominantBaseline="middle"
+            fill="#FFFFFF" fontSize="11" fontWeight="bold" fontFamily="Arial"
+            opacity="0.9"
+          >
+            {label}
+          </text>
         )}
       </g>
     )
@@ -539,10 +631,10 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
 
       {/* Pitch */}
       <div
-        className="flex-1 min-h-0 bg-green-900 overflow-hidden"
+        className="flex-1 min-h-0 bg-green-900 overflow-hidden relative"
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={() => { setIsDragging(false); setZoneDragStart(null); setZoneDragCurrent(null); setDraggingEndpoint(null); setIsRotating(false) }}
+        onMouseLeave={() => { setIsDragging(false); setZoneDragStart(null); setZoneDragCurrent(null); setDraggingEndpoint(null); setIsRotating(false); setDraggingZoneId(null) }}
       >
         <ABPPitch
           type={pitchType}
@@ -561,6 +653,9 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
             {renderElements.map(renderElement)}
           </g>
         </ABPPitch>
+
+        {/* Edit panel (floating, absolute positioned) */}
+        {!isPlaying && <ElementEditPanel />}
       </div>
 
       {/* Animation controls (only in animated mode) */}

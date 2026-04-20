@@ -66,9 +66,16 @@ interface TacticalBoardState {
   updateElementPosition: (id: string, x: number, y: number) => void
   updateElementColor: (id: string, color: string) => void
   updateElementRotation: (id: string, rotation: number) => void
+  updateElementLabel: (id: string, label: string) => void
   addArrow: (arrow: DiagramArrow) => void
   updateArrowEndpoint: (id: string, endpoint: 'from' | 'to', pos: Position) => void
+  updateArrowLabel: (id: string, label: string) => void
+  updateArrowComment: (id: string, comment: string) => void
   addZone: (zone: DiagramZone) => void
+  updateZoneLabel: (id: string, label: string) => void
+  updateZoneColor: (id: string, color: string) => void
+  updateZoneOpacity: (id: string, opacity: number) => void
+  updateZonePosition: (id: string, x: number, y: number) => void
   deleteSelected: () => void
   clearDiagram: () => void
 
@@ -86,6 +93,7 @@ interface TacticalBoardState {
   selectKeyframe: (index: number) => void
   updateKeyframeDuration: (index: number, duration: number) => void
   updateKeyframeTransition: (index: number, transition: TransitionType) => void
+  updateKeyframeNotes: (index: number, notes: string) => void
   saveCurrentToKeyframe: () => void
 
   // Actions: board lifecycle
@@ -145,6 +153,8 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
       elements: [...s.elements, el],
       playerCounter: counter,
       isDirty: true,
+      activeTool: 'select',
+      selectedElementId: el.id,
     }))
   },
 
@@ -171,6 +181,13 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
     }))
   },
 
+  updateElementLabel: (id, label) => {
+    set((s) => ({
+      elements: s.elements.map((el) => el.id === id ? { ...el, label } : el),
+      isDirty: true,
+    }))
+  },
+
   addArrow: (arrow) => {
     set((s) => ({
       arrows: [...s.arrows, arrow],
@@ -186,9 +203,51 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
     }))
   },
 
+  updateArrowLabel: (id, label) => {
+    set((s) => ({
+      arrows: s.arrows.map((ar) => ar.id === id ? { ...ar, label } : ar),
+      isDirty: true,
+    }))
+  },
+
+  updateArrowComment: (id, comment) => {
+    set((s) => ({
+      arrows: s.arrows.map((ar) => ar.id === id ? { ...ar, comment } : ar),
+      isDirty: true,
+    }))
+  },
+
   addZone: (zone) => {
     set((s) => ({
       zones: [...s.zones, zone],
+      isDirty: true,
+    }))
+  },
+
+  updateZoneLabel: (id, label) => {
+    set((s) => ({
+      zones: s.zones.map((z) => z.id === id ? { ...z, label } : z),
+      isDirty: true,
+    }))
+  },
+
+  updateZoneColor: (id, color) => {
+    set((s) => ({
+      zones: s.zones.map((z) => z.id === id ? { ...z, color } : z),
+      isDirty: true,
+    }))
+  },
+
+  updateZoneOpacity: (id, opacity) => {
+    set((s) => ({
+      zones: s.zones.map((z) => z.id === id ? { ...z, opacity } : z),
+      isDirty: true,
+    }))
+  },
+
+  updateZonePosition: (id, x, y) => {
+    set((s) => ({
+      zones: s.zones.map((z) => z.id === id ? { ...z, position: { x, y } } : z),
       isDirty: true,
     }))
   },
@@ -276,8 +335,14 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
     const isHorizontal = state.pitchType === 'full'
 
     const newElements: DiagramElement[] = formation.slots.map((slot) => {
-      const pctLeft = parseFloat(slot.left) / 100
-      const pctTop = parseFloat(slot.top) / 100
+      let pctLeft = parseFloat(slot.left) / 100
+      let pctTop = parseFloat(slot.top) / 100
+
+      // Mirror away team so they face opposite direction
+      if (!isHome) {
+        pctLeft = 1 - pctLeft
+        pctTop = 1 - pctTop
+      }
 
       let x: number, y: number
       if (isHorizontal) {
@@ -380,6 +445,13 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
   updateKeyframeTransition: (index, transition) => {
     set((s) => ({
       keyframes: s.keyframes.map((kf, i) => i === index ? { ...kf, transition_type: transition } : kf),
+      isDirty: true,
+    }))
+  },
+
+  updateKeyframeNotes: (index, notes) => {
+    set((s) => ({
+      keyframes: s.keyframes.map((kf, i) => i === index ? { ...kf, notes } : kf),
       isDirty: true,
     }))
   },

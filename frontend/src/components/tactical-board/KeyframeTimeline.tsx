@@ -14,6 +14,7 @@ export default function KeyframeTimeline() {
   const selectKeyframe = useTacticalBoardStore((s) => s.selectKeyframe)
   const updateKeyframeDuration = useTacticalBoardStore((s) => s.updateKeyframeDuration)
   const updateKeyframeTransition = useTacticalBoardStore((s) => s.updateKeyframeTransition)
+  const updateKeyframeNotes = useTacticalBoardStore((s) => s.updateKeyframeNotes)
 
   return (
     <div className="flex items-center gap-2 px-4 py-2 border-t border-gray-200 bg-gray-50 flex-shrink-0 overflow-x-auto">
@@ -67,6 +68,15 @@ export default function KeyframeTimeline() {
             <option value="ease">Ease</option>
             <option value="ease-in-out">Ease In-Out</option>
           </select>
+          <input
+            type="text"
+            value={kf.notes || ''}
+            onChange={(e) => updateKeyframeNotes(idx, e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            placeholder="Nota..."
+            className="mt-1 w-full text-[10px] px-1 py-0.5 border border-gray-200 rounded bg-white placeholder-gray-300"
+            disabled={isPlaying}
+          />
         </div>
       ))}
 

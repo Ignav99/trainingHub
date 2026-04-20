@@ -70,6 +70,7 @@ class TacticalBoardFrameCreate(BaseModel):
     arrows: Optional[list] = None
     zones: Optional[list] = None
     transition_type: str = "linear"
+    notes: Optional[str] = None
 
 
 class TacticalBoardFrameUpdate(BaseModel):
@@ -80,6 +81,7 @@ class TacticalBoardFrameUpdate(BaseModel):
     arrows: Optional[list] = None
     zones: Optional[list] = None
     transition_type: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class TacticalBoardFrameResponse(BaseModel):
@@ -92,6 +94,7 @@ class TacticalBoardFrameResponse(BaseModel):
     arrows: Optional[list] = None
     zones: Optional[list] = None
     transition_type: str
+    notes: Optional[str] = None
     created_at: Optional[datetime] = None
 
 

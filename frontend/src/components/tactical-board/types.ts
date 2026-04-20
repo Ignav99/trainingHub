@@ -18,7 +18,7 @@ export {
 
 export type BoardTool =
   | 'select' | 'player' | 'opponent' | 'player_gk'
-  | 'cone' | 'ball' | 'mini_goal'
+  | 'cone' | 'ball' | 'mini_goal' | 'text'
   | 'arrow_movement' | 'arrow_pass'
   | 'zone_rect' | 'zone_circle'
 
@@ -41,6 +41,7 @@ export interface Keyframe {
   arrows: any[]
   zones: any[]
   transition_type: TransitionType
+  notes?: string
 }
 
 export interface DiagramSnapshot {

@@ -1,6 +1,6 @@
 // Tipos para el editor de graficos de tareas
 
-export type ElementType = 'player' | 'player_gk' | 'opponent' | 'cone' | 'ball' | 'mini_goal' | 'zone'
+export type ElementType = 'player' | 'player_gk' | 'opponent' | 'cone' | 'ball' | 'mini_goal' | 'zone' | 'text'
 
 export type ArrowType = 'movement' | 'pass' | 'dribble' | 'shot'
 
@@ -27,6 +27,7 @@ export interface DiagramArrow {
   curved?: boolean // Flecha curva
   color?: string
   label?: string // Numero cronologico (ABP)
+  comment?: string // Comentario/nota de la flecha
 }
 
 export interface DiagramZone {
