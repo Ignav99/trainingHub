@@ -5,7 +5,7 @@ import {
   Circle, Triangle, Target, Trash2, RotateCcw, MousePointer,
   ArrowRight, Minus, Square, Undo2, Redo2,
 } from 'lucide-react'
-import { BoardTool, ZONE_COLORS, TEAM_COLORS } from './types'
+import { BoardTool, ZONE_COLORS, TEAM_COLORS, PLAYER_COLORS } from './types'
 import { FORMATIONS } from '@/lib/formations'
 import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
 
@@ -45,10 +45,15 @@ export default function BoardToolbar({ arrowStart, onLoadFormation }: BoardToolb
   const history = useTacticalBoardStore((s) => s.history)
   const setActiveTool = useTacticalBoardStore((s) => s.setActiveTool)
   const setZoneColor = useTacticalBoardStore((s) => s.setZoneColor)
+  const updateElementColor = useTacticalBoardStore((s) => s.updateElementColor)
   const deleteSelected = useTacticalBoardStore((s) => s.deleteSelected)
   const clearDiagram = useTacticalBoardStore((s) => s.clearDiagram)
   const undo = useTacticalBoardStore((s) => s.undo)
   const redo = useTacticalBoardStore((s) => s.redo)
+
+  // Check if selected element is a player/opponent/gk
+  const selectedElement = selectedElementId ? elements.find((el) => el.id === selectedElementId) : null
+  const isPlayerSelected = selectedElement && ['player', 'opponent', 'player_gk'].includes(selectedElement.type)
 
   const isZoneTool = activeTool === 'zone_rect' || activeTool === 'zone_circle'
 
@@ -103,6 +108,27 @@ export default function BoardToolbar({ arrowStart, onLoadFormation }: BoardToolb
               />
             ))}
           </div>
+        )}
+
+        {/* Player color picker (when player selected) */}
+        {isPlayerSelected && (
+          <>
+            <Sep />
+            <span className="text-[10px] text-gray-500 mr-1">Color:</span>
+            <div className="flex items-center gap-0.5">
+              {PLAYER_COLORS.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => updateElementColor(selectedElement!.id, c)}
+                  className={`w-5 h-5 rounded-full border-2 transition-transform ${
+                    selectedElement!.color === c ? 'border-yellow-400 scale-110' : 'border-gray-300'
+                  }`}
+                  style={{ backgroundColor: c }}
+                  title={c}
+                />
+              ))}
+            </div>
+          </>
         )}
 
         <Sep />

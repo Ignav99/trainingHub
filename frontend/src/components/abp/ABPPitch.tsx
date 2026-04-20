@@ -5,6 +5,8 @@ import React, { useId } from 'react'
 interface ABPPitchProps {
   /** 'half' = medio campo (goal bottom), 'full' = campo completo */
   type?: 'half' | 'full'
+  /** 'vertical' = standard (goal at bottom), 'horizontal' = TV view (goals left/right) */
+  orientation?: 'vertical' | 'horizontal'
   className?: string
   children?: React.ReactNode
   onClick?: (e: React.MouseEvent<SVGSVGElement>) => void
@@ -29,6 +31,7 @@ interface ABPPitchProps {
  */
 export default function ABPPitch({
   type = 'half',
+  orientation = 'vertical',
   className = '',
   children,
   onClick,
@@ -37,8 +40,12 @@ export default function ABPPitch({
   const uid = useId().replace(/:/g, '')
   const grassId = `abpGrass${uid}`
   const isHalf = type === 'half'
+  const isHorizontal = !isHalf && orientation === 'horizontal'
   const vbW = 680
   const vbH = isHalf ? 525 : 1050
+  // For horizontal full field, swap viewBox dimensions
+  const svgVbW = isHorizontal ? vbH : vbW  // 1050 or 680
+  const svgVbH = isHorizontal ? vbW : vbH  // 680 or 525/1050
 
   const grassColor = '#2D5016'
   const grassLight = '#3D6B1E'
@@ -81,23 +88,31 @@ export default function ABPPitch({
 
   return (
     <svg
-      viewBox={`0 0 ${vbW} ${vbH}`}
+      viewBox={`0 0 ${svgVbW} ${svgVbH}`}
       className={`w-full h-full ${className}`}
       onClick={onClick}
       onMouseDown={onMouseDown}
       style={{ cursor: 'crosshair' }}
       preserveAspectRatio="xMidYMid meet"
     >
-      {/* Grass stripes (horizontal for this orientation) */}
+      {/* Grass stripes */}
       <defs>
-        <pattern id={grassId} patternUnits="userSpaceOnUse" width="680" height="60">
-          <rect width="680" height="30" fill={grassColor} />
-          <rect y="30" width="680" height="30" fill={grassLight} />
-        </pattern>
+        {isHorizontal ? (
+          <pattern id={grassId} patternUnits="userSpaceOnUse" width="60" height="680">
+            <rect width="30" height="680" fill={grassColor} />
+            <rect x="30" width="30" height="680" fill={grassLight} />
+          </pattern>
+        ) : (
+          <pattern id={grassId} patternUnits="userSpaceOnUse" width="680" height="60">
+            <rect width="680" height="30" fill={grassColor} />
+            <rect y="30" width="680" height="30" fill={grassLight} />
+          </pattern>
+        )}
       </defs>
       <rect width="100%" height="100%" fill={`url(#${grassId})`} />
 
-      <g stroke={lineColor} strokeWidth={lw} fill="none">
+      <g stroke={lineColor} strokeWidth={lw} fill="none"
+        transform={isHorizontal ? `translate(${vbH}, 0) rotate(90)` : undefined}>
         {/* Field outline */}
         <rect x={L} y={T} width={FW} height={B - T} />
 

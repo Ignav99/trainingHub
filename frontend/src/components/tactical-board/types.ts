@@ -54,4 +54,10 @@ export const ZONE_COLORS = [
   '#F97316', '#A855F7', '#06B6D4', '#FFFFFF',
 ]
 
+export const PLAYER_COLORS = [
+  '#3B82F6', '#EF4444', '#22C55E', '#F59E0B',
+  '#8B5CF6', '#EC4899', '#06B6D4', '#F97316',
+  '#FFFFFF', '#1F2937',
+]
+
 export const MAX_HISTORY = 30

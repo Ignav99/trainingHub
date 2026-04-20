@@ -12,6 +12,7 @@ import {
   MAX_HISTORY,
   generateId,
   TEAM_COLORS,
+  Position,
 } from '@/components/tactical-board/types'
 import { FORMATIONS } from '@/lib/formations'
 
@@ -63,7 +64,10 @@ interface TacticalBoardState {
   // Actions: diagram mutations
   addElement: (el: DiagramElement) => void
   updateElementPosition: (id: string, x: number, y: number) => void
+  updateElementColor: (id: string, color: string) => void
+  updateElementRotation: (id: string, rotation: number) => void
   addArrow: (arrow: DiagramArrow) => void
+  updateArrowEndpoint: (id: string, endpoint: 'from' | 'to', pos: Position) => void
   addZone: (zone: DiagramZone) => void
   deleteSelected: () => void
   clearDiagram: () => void
@@ -153,10 +157,31 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
     }))
   },
 
+  updateElementColor: (id, color) => {
+    set((s) => ({
+      elements: s.elements.map((el) => el.id === id ? { ...el, color } : el),
+      isDirty: true,
+    }))
+  },
+
+  updateElementRotation: (id, rotation) => {
+    set((s) => ({
+      elements: s.elements.map((el) => el.id === id ? { ...el, rotation } : el),
+      isDirty: true,
+    }))
+  },
+
   addArrow: (arrow) => {
     set((s) => ({
       arrows: [...s.arrows, arrow],
       arrowCounter: s.arrowCounter + 1,
+      isDirty: true,
+    }))
+  },
+
+  updateArrowEndpoint: (id, endpoint, pos) => {
+    set((s) => ({
+      arrows: s.arrows.map((ar) => ar.id === id ? { ...ar, [endpoint]: pos } : ar),
       isDirty: true,
     }))
   },
@@ -247,15 +272,24 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
     const isHome = team === 'home'
     const color = isHome ? TEAM_COLORS.team1 : TEAM_COLORS.team2
 
-    // Pitch viewBox: 680x1050 (full) or 680x525 (half)
-    const pitchW = 680
-    const pitchH = state.pitchType === 'full' ? 1050 : 525
+    // Full field is displayed horizontally (1050x680), half is vertical (680x525)
+    const isHorizontal = state.pitchType === 'full'
 
-    const newElements: DiagramElement[] = formation.slots.map((slot, idx) => {
+    const newElements: DiagramElement[] = formation.slots.map((slot) => {
       const pctLeft = parseFloat(slot.left) / 100
       const pctTop = parseFloat(slot.top) / 100
-      const x = Math.round(pctLeft * pitchW)
-      const y = Math.round(pctTop * pitchH)
+
+      let x: number, y: number
+      if (isHorizontal) {
+        // Convert vertical coordinates (680x1050) to horizontal (1050x680)
+        const vx = Math.round(pctLeft * 680)
+        const vy = Math.round(pctTop * 1050)
+        x = 1050 - vy
+        y = vx
+      } else {
+        x = Math.round(pctLeft * 680)
+        y = Math.round(pctTop * 525)
+      }
 
       return {
         id: generateId(),

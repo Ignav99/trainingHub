@@ -39,7 +39,9 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
   const setSelectedElementId = useTacticalBoardStore((s) => s.setSelectedElementId)
   const addElement = useTacticalBoardStore((s) => s.addElement)
   const updateElementPosition = useTacticalBoardStore((s) => s.updateElementPosition)
+  const updateElementRotation = useTacticalBoardStore((s) => s.updateElementRotation)
   const addArrow = useTacticalBoardStore((s) => s.addArrow)
+  const updateArrowEndpoint = useTacticalBoardStore((s) => s.updateArrowEndpoint)
   const addZone = useTacticalBoardStore((s) => s.addZone)
   const deleteSelected = useTacticalBoardStore((s) => s.deleteSelected)
   const pushHistory = useTacticalBoardStore((s) => s.pushHistory)
@@ -53,18 +55,22 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
   const [zoneDragStart, setZoneDragStart] = useState<Position | null>(null)
   const [zoneDragCurrent, setZoneDragCurrent] = useState<Position | null>(null)
   const [showExport, setShowExport] = useState(false)
+  // Arrow endpoint dragging
+  const [draggingEndpoint, setDraggingEndpoint] = useState<{ arrowId: string; endpoint: 'from' | 'to' } | null>(null)
+  // Mini-goal rotation dragging
+  const [isRotating, setIsRotating] = useState(false)
 
   // Animation overlay state (during playback, we render these instead of store state)
   const [animState, setAnimState] = useState<AnimationState | null>(null)
 
   const gRef = useRef<SVGGElement>(null)
-  // Get SVG ref from gRef's parent for export
   const svgRef = useRef<SVGSVGElement | null>(null)
   useEffect(() => {
     if (gRef.current) svgRef.current = gRef.current.ownerSVGElement || null
   })
 
   const isAnimated = tipo === 'animated'
+  const isHorizontal = pitchType === 'full'
 
   // Clear animation overlay when playback stops
   useEffect(() => {
@@ -196,6 +202,26 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isPlaying) return
+
+    // Arrow endpoint dragging
+    if (draggingEndpoint) {
+      const pos = getSvgPosition(e)
+      if (pos.x === 0 && pos.y === 0) return
+      updateArrowEndpoint(draggingEndpoint.arrowId, draggingEndpoint.endpoint, pos)
+      return
+    }
+
+    // Mini-goal rotation
+    if (isRotating && selectedElementId) {
+      const el = elements.find((e) => e.id === selectedElementId)
+      if (el) {
+        const pos = getSvgPosition(e)
+        const angle = Math.atan2(pos.y - el.position.y, pos.x - el.position.x) * (180 / Math.PI)
+        updateElementRotation(selectedElementId, Math.round(angle))
+      }
+      return
+    }
+
     if (zoneDragStart && (activeTool === 'zone_rect' || activeTool === 'zone_circle')) {
       setZoneDragCurrent(getSvgPosition(e))
       return
@@ -204,10 +230,21 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
     const pos = getSvgPosition(e)
     if (pos.x === 0 && pos.y === 0) return
     updateElementPosition(selectedElementId, pos.x, pos.y)
-  }, [isDragging, selectedElementId, getSvgPosition, zoneDragStart, activeTool, updateElementPosition, isPlaying])
+  }, [isDragging, selectedElementId, getSvgPosition, zoneDragStart, activeTool, updateElementPosition, isPlaying, draggingEndpoint, updateArrowEndpoint, isRotating, elements, updateElementRotation])
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     if (isPlaying) return
+
+    if (draggingEndpoint) {
+      setDraggingEndpoint(null)
+      return
+    }
+
+    if (isRotating) {
+      setIsRotating(false)
+      return
+    }
+
     if (zoneDragStart && zoneDragCurrent && (activeTool === 'zone_rect' || activeTool === 'zone_circle')) {
       const pos = getSvgPosition(e)
       const x = Math.min(zoneDragStart.x, pos.x)
@@ -232,7 +269,7 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
       return
     }
     setIsDragging(false)
-  }, [zoneDragStart, zoneDragCurrent, activeTool, getSvgPosition, zoneColor, pushHistory, addZone, isPlaying])
+  }, [zoneDragStart, zoneDragCurrent, activeTool, getSvgPosition, zoneColor, pushHistory, addZone, isPlaying, draggingEndpoint, isRotating])
 
   const handleElementMouseDown = useCallback((e: React.MouseEvent, elementId: string) => {
     if (isPlaying) return
@@ -249,10 +286,25 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
     setAnimState(state)
   }, [])
 
+  // Arrow endpoint drag start
+  const handleEndpointMouseDown = useCallback((e: React.MouseEvent, arrowId: string, endpoint: 'from' | 'to') => {
+    e.stopPropagation()
+    pushHistory()
+    setDraggingEndpoint({ arrowId, endpoint })
+  }, [pushHistory])
+
+  // Rotation handle drag start
+  const handleRotationMouseDown = useCallback((e: React.MouseEvent, elementId: string) => {
+    e.stopPropagation()
+    pushHistory()
+    setIsRotating(true)
+    setSelectedElementId(elementId)
+  }, [pushHistory, setSelectedElementId])
+
   // ============ Renderers ============
 
   const renderElement = (element: DiagramElement) => {
-    const { id, type, position, color, label } = element
+    const { id, type, position, color, label, rotation } = element
     const isSelected = !isPlaying && selectedElementId === id
     const size = ELEMENT_SIZES[type as keyof typeof ELEMENT_SIZES] || 24
 
@@ -285,18 +337,50 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
       case 'ball':
         return (
           <g {...commonProps} transform={`translate(${position.x}, ${position.y})`}>
-            <circle cx="0" cy="0" r={size / 2} fill="#FFFFFF" stroke="#000000" strokeWidth="1" />
-            <circle cx="-2" cy="-2" r="2" fill="#000000" />
-            <circle cx="3" cy="0" r="2" fill="#000000" />
-            <circle cx="0" cy="3" r="2" fill="#000000" />
+            {/* Realistic football with pentagon pattern */}
+            <circle cx="0" cy="0" r={size / 2 + 1} fill="#FFFFFF" stroke={isSelected ? '#FFFF00' : '#333333'} strokeWidth={isSelected ? 2.5 : 1.5} />
+            {/* Center pentagon */}
+            <polygon points="0,-4 3.8,-1.2 2.4,3.2 -2.4,3.2 -3.8,-1.2" fill="#1a1a1a" />
+            {/* Top pentagon */}
+            <polygon points="0,-7 1.8,-5.5 1.1,-3.8 -1.1,-3.8 -1.8,-5.5" fill="#1a1a1a" transform="translate(0, 0.5)" />
+            {/* Bottom-left */}
+            <polygon points="-5,-1 -3.5,-2.2 -2.2,-0.8 -2.8,1.2 -4.5,1.2" fill="#1a1a1a" />
+            {/* Bottom-right */}
+            <polygon points="5,-1 3.5,-2.2 2.2,-0.8 2.8,1.2 4.5,1.2" fill="#1a1a1a" />
+            {/* Bottom */}
+            <polygon points="0,7 -1.8,5.5 -1.1,4.2 1.1,4.2 1.8,5.5" fill="#1a1a1a" transform="translate(0, -0.5)" />
+            {/* Seam lines */}
+            <circle cx="0" cy="0" r={size / 2} fill="none" stroke="#cccccc" strokeWidth="0.3" />
           </g>
         )
-      case 'mini_goal':
+      case 'mini_goal': {
+        const rot = rotation || 0
         return (
           <g {...commonProps} transform={`translate(${position.x}, ${position.y})`}>
-            <rect x="-20" y="-12" width="40" height="24" fill="none" stroke={isSelected ? '#FFFF00' : '#FFFFFF'} strokeWidth={isSelected ? 3 : 2} />
+            <g transform={`rotate(${rot})`}>
+              {/* Goal frame */}
+              <rect x="-20" y="-12" width="40" height="24" fill="rgba(255,255,255,0.1)" stroke={isSelected ? '#FFFF00' : '#FFFFFF'} strokeWidth={isSelected ? 3 : 2} rx="2" />
+              {/* Net pattern */}
+              <line x1="-20" y1="-4" x2="20" y2="-4" stroke="#FFFFFF" strokeWidth="0.5" opacity="0.4" />
+              <line x1="-20" y1="4" x2="20" y2="4" stroke="#FFFFFF" strokeWidth="0.5" opacity="0.4" />
+              <line x1="-10" y1="-12" x2="-10" y2="12" stroke="#FFFFFF" strokeWidth="0.5" opacity="0.4" />
+              <line x1="0" y1="-12" x2="0" y2="12" stroke="#FFFFFF" strokeWidth="0.5" opacity="0.4" />
+              <line x1="10" y1="-12" x2="10" y2="12" stroke="#FFFFFF" strokeWidth="0.5" opacity="0.4" />
+            </g>
+            {/* Rotation handle (visible when selected) */}
+            {isSelected && !isPlaying && (
+              <g
+                onMouseDown={(e) => handleRotationMouseDown(e, id)}
+                style={{ cursor: 'grab' }}
+              >
+                <line x1="0" y1="-16" x2="0" y2="-28" stroke="#FFFF00" strokeWidth="1.5" strokeDasharray="3,2" />
+                <circle cx="0" cy="-30" r="5" fill="#FFFF00" stroke="#000" strokeWidth="1" opacity="0.9" />
+                <text x="0" y="-29" textAnchor="middle" dominantBaseline="middle" fontSize="6" fill="#000" fontFamily="Arial">↻</text>
+              </g>
+            )}
           </g>
         )
+      }
       default:
         return null
     }
@@ -328,6 +412,23 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
             <text x={midX} y={midY + 1} textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize="9" fontWeight="bold" fontFamily="Arial">
               {arrow.label}
             </text>
+          </>
+        )}
+        {/* Drag handles for endpoints when selected */}
+        {isSelected && !isPlaying && (
+          <>
+            <circle
+              cx={from.x} cy={from.y} r="7"
+              fill="#FFFF00" stroke="#000" strokeWidth="1.5" opacity="0.85"
+              style={{ cursor: 'grab' }}
+              onMouseDown={(e) => handleEndpointMouseDown(e, id, 'from')}
+            />
+            <circle
+              cx={to.x} cy={to.y} r="7"
+              fill="#FFFF00" stroke="#000" strokeWidth="1.5" opacity="0.85"
+              style={{ cursor: 'grab' }}
+              onMouseDown={(e) => handleEndpointMouseDown(e, id, 'to')}
+            />
           </>
         )}
       </g>
@@ -441,10 +542,11 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
         className="flex-1 min-h-0 bg-green-900 overflow-hidden"
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={() => { setIsDragging(false); setZoneDragStart(null); setZoneDragCurrent(null) }}
+        onMouseLeave={() => { setIsDragging(false); setZoneDragStart(null); setZoneDragCurrent(null); setDraggingEndpoint(null); setIsRotating(false) }}
       >
         <ABPPitch
           type={pitchType}
+          orientation={isHorizontal ? 'horizontal' : 'vertical'}
           className="w-full h-full"
           onClick={handlePitchClick}
           onMouseDown={handlePitchMouseDown}
