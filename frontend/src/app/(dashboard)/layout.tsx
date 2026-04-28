@@ -28,6 +28,7 @@ import {
   UtensilsCrossed,
   Crown,
   PenTool,
+  Crosshair,
 } from 'lucide-react'
 import { preload } from 'swr'
 import { apiFetcher } from '@/lib/swr'
@@ -62,6 +63,7 @@ const secondaryNavigation = [
   { name: 'Biblioteca AI', href: '/biblioteca-ai', icon: Library },
   { name: 'Video Análisis', href: '/video-analisis', icon: ScanSearch },
   { name: 'Pizarra Táctica', href: '/pizarra-tactica', icon: PenTool },
+  { name: 'Modelo de Juego', href: '/modelo-juego', icon: Crosshair },
   { name: 'Configuracion', href: '/configuracion', icon: Settings },
 ]
 
@@ -159,6 +161,8 @@ export default function DashboardLayout({
           apiKey('/abp', { equipo_id: eid }),
           // Pizarra Táctica
           apiKey('/tactical-boards', { equipo_id: eid }),
+          // Game Model
+          apiKey('/game-models', { equipo_id: eid }),
           // Rivales
           apiKey('/rivales', { orden: 'nombre', direccion: 'asc' }),
           // RPE / Wellness

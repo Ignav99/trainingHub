@@ -106,6 +106,12 @@ class Permission(str, Enum):
     TACTICAL_BOARD_UPDATE = "tactical_board.update"
     TACTICAL_BOARD_DELETE = "tactical_board.delete"
 
+    # Game Model (Modelo de Juego)
+    GAME_MODEL_CREATE = "game_model.create"
+    GAME_MODEL_READ = "game_model.read"
+    GAME_MODEL_UPDATE = "game_model.update"
+    GAME_MODEL_DELETE = "game_model.delete"
+
     # Nutrition
     NUTRITION_CREATE = "nutrition.create"
     NUTRITION_READ = "nutrition.read"
@@ -169,6 +175,9 @@ _CT_FULL_PERMISSIONS = {
     # Tactical Board
     Permission.TACTICAL_BOARD_CREATE, Permission.TACTICAL_BOARD_READ,
     Permission.TACTICAL_BOARD_UPDATE, Permission.TACTICAL_BOARD_DELETE,
+    # Game Model
+    Permission.GAME_MODEL_CREATE, Permission.GAME_MODEL_READ,
+    Permission.GAME_MODEL_UPDATE, Permission.GAME_MODEL_DELETE,
     # Nutrition
     Permission.NUTRITION_CREATE, Permission.NUTRITION_READ,
     Permission.NUTRITION_UPDATE,
@@ -195,6 +204,7 @@ _PLAYER_READ_ONLY = {
     Permission.VIDEO_TAG_READ,
     Permission.ABP_READ,
     Permission.TACTICAL_BOARD_READ,
+    Permission.GAME_MODEL_READ,
 }
 
 DEFAULT_PERMISSIONS: dict[str, set[Permission]] = {

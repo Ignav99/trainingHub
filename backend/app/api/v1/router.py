@@ -52,6 +52,7 @@ from app.api.v1 import (
     nutricion,
     entrenamientos_margen,
     tactical_boards,
+    game_models,
 )
 
 api_router = APIRouter()
@@ -330,6 +331,12 @@ api_router.include_router(
     tactical_boards.router,
     prefix="/tactical-boards",
     tags=["Pizarra Tactica"]
+)
+
+api_router.include_router(
+    game_models.router,
+    prefix="/game-models",
+    tags=["Modelo de Juego"]
 )
 
 

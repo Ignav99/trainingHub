@@ -66,6 +66,28 @@ export interface Equipo {
   updated_at: string
 }
 
+// Modelo de Juego
+export interface GameModel {
+  id: string
+  equipo_id: string
+  created_by?: string
+  nombre: string
+  sistema_juego?: string
+  estilo?: string
+  descripcion_general?: string
+  principios_ataque_organizado: string[]
+  principios_defensa_organizada: string[]
+  principios_transicion_of: string[]
+  principios_transicion_def: string[]
+  principios_balon_parado: string[]
+  subprincipios: Record<string, string>
+  roles_posicionales: Record<string, string>
+  pressing_tipo?: string
+  salida_balon?: string
+  created_at: string
+  updated_at: string
+}
+
 // Usuario
 export interface Usuario {
   id: string
