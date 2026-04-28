@@ -63,6 +63,24 @@ class Settings(BaseSettings):
     GEMINI_MODEL: str = "gemini-2.5-flash"
     GEMINI_TEMPERATURE: float = 1.0
 
+    # DeepSeek (free tier via OpenAI-compatible API)
+    DEEPSEEK_API_KEY: str | None = None
+    DEEPSEEK_MODEL: str = "deepseek-chat"
+    DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
+
+    # Cerebras (free tier via OpenAI-compatible API)
+    CEREBRAS_API_KEY: str | None = None
+    CEREBRAS_MODEL: str = "qwen-3-235b"
+    CEREBRAS_BASE_URL: str = "https://api.cerebras.ai/v1"
+
+    # Groq (free tier via OpenAI-compatible API)
+    GROQ_API_KEY: str | None = None
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
+
+    # AI Provider Chain — comma-separated priority list
+    AI_PROVIDER_CHAIN: str = "deepseek,cerebras,groq,claude"
+
     # Medical data encryption (AES-256-GCM, base64-encoded 32-byte key)
     MEDICAL_ENCRYPTION_KEY: str | None = None
 

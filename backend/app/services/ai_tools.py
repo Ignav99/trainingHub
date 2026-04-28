@@ -1,6 +1,6 @@
 """
 TrainingHub Pro - AI Tool Schema Converter
-Converts Claude tool definitions (input_schema) to Gemini FunctionDeclaration format.
+Converts Claude tool definitions to Gemini and OpenAI formats.
 """
 
 from google.genai import types
@@ -76,3 +76,27 @@ def claude_tools_to_gemini(claude_tools: list[dict]) -> list[types.FunctionDecla
             parameters=params,
         ))
     return declarations
+
+
+def claude_tools_to_openai(claude_tools: list[dict]) -> list[dict]:
+    """Convert Claude tool definitions to OpenAI function calling format.
+
+    Claude tool format:
+        {"name": "...", "description": "...", "input_schema": {type: "object", properties: {...}, required: [...]}}
+
+    OpenAI format:
+        {"type": "function", "function": {"name": "...", "description": "...", "parameters": {...}}}
+
+    The inner JSON Schema is identical — only the wrapper structure differs.
+    """
+    openai_tools = []
+    for tool in claude_tools:
+        openai_tools.append({
+            "type": "function",
+            "function": {
+                "name": tool["name"],
+                "description": tool.get("description", ""),
+                "parameters": tool.get("input_schema", {"type": "object", "properties": {}}),
+            },
+        })
+    return openai_tools
