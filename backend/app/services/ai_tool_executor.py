@@ -378,3 +378,54 @@ def _tool_mejores_practicas(params: dict) -> str:
     except Exception as e:
         logger.warning(f"Error querying best practices: {e}")
         return json.dumps({"mensaje": "Datos de mejores practicas no disponibles.", "resultados": []})
+
+
+def get_team_game_model(equipo_id: str) -> str | None:
+    """Fetch the team's game model and format it for AI context injection."""
+    try:
+        supabase = get_supabase()
+        result = supabase.table("game_models").select("*").eq(
+            "equipo_id", equipo_id
+        ).order("updated_at", desc=True).limit(1).execute()
+
+        if not result.data:
+            return None
+
+        gm = result.data[0]
+        parts = []
+        if gm.get("sistema_juego"):
+            parts.append(f"Sistema: {gm['sistema_juego']}")
+        if gm.get("estilo"):
+            parts.append(f"Estilo: {gm['estilo']}")
+        if gm.get("descripcion_general"):
+            parts.append(f"Filosofia: {gm['descripcion_general']}")
+        if gm.get("pressing_tipo"):
+            parts.append(f"Pressing: {gm['pressing_tipo']}")
+        if gm.get("salida_balon"):
+            parts.append(f"Salida de balon: {gm['salida_balon']}")
+
+        fase_names = {
+            "principios_ataque_organizado": "Ataque Organizado",
+            "principios_defensa_organizada": "Defensa Organizada",
+            "principios_transicion_of": "Transicion Ofensiva",
+            "principios_transicion_def": "Transicion Defensiva",
+            "principios_balon_parado": "Balon Parado",
+        }
+        for key, label in fase_names.items():
+            principios = gm.get(key, [])
+            if principios:
+                parts.append(f"Principios {label}: {', '.join(principios)}")
+
+        roles = gm.get("roles_posicionales", {})
+        if roles:
+            role_lines = [f"  - {k}: {v}" for k, v in roles.items() if v]
+            if role_lines:
+                parts.append("Roles Posicionales:\n" + "\n".join(role_lines))
+
+        if not parts:
+            return None
+
+        return "MODELO DE JUEGO DEL EQUIPO:\n" + "\n".join(parts)
+    except Exception as e:
+        logger.warning(f"Error fetching game model for team {equipo_id}: {e}")
+        return None

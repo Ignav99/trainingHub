@@ -2101,6 +2101,15 @@ Responde SOLO con JSON válido:
         Returns:
             dict con: respuesta, sesion_propuesta (si el AI la generó), herramientas_usadas
         """
+        from app.services.ai_tool_executor import get_team_game_model
+
+        context_text = f"## CONTEXTO ACTUAL\n- ID del equipo activo: {equipo_id}"
+        if organizacion_id:
+            context_text += f"\n- ID de la organizacion: {organizacion_id}"
+        game_model_context = get_team_game_model(equipo_id)
+        if game_model_context:
+            context_text += "\n\n" + game_model_context
+
         # Build system prompt for session design with prompt caching
         system = [
             {
@@ -2110,8 +2119,7 @@ Responde SOLO con JSON válido:
             },
             {
                 "type": "text",
-                "text": f"## CONTEXTO ACTUAL\n- ID del equipo activo: {equipo_id}"
-                + (f"\n- ID de la organizacion: {organizacion_id}" if organizacion_id else ""),
+                "text": context_text,
             },
         ]
 
@@ -2264,6 +2272,15 @@ Responde SOLO con JSON válido:
         Returns:
             dict con: respuesta, tarea_propuesta (si el AI la generó), herramientas_usadas
         """
+        from app.services.ai_tool_executor import get_team_game_model
+
+        context_text = f"## CONTEXTO ACTUAL\n- ID del equipo activo: {equipo_id}"
+        if organizacion_id:
+            context_text += f"\n- ID de la organizacion: {organizacion_id}"
+        game_model_context = get_team_game_model(equipo_id)
+        if game_model_context:
+            context_text += "\n\n" + game_model_context
+
         system = [
             {
                 "type": "text",
@@ -2272,8 +2289,7 @@ Responde SOLO con JSON válido:
             },
             {
                 "type": "text",
-                "text": f"## CONTEXTO ACTUAL\n- ID del equipo activo: {equipo_id}"
-                + (f"\n- ID de la organizacion: {organizacion_id}" if organizacion_id else ""),
+                "text": context_text,
             },
         ]
 

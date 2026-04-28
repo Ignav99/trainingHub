@@ -250,10 +250,16 @@ class OpenAICompatibleService:
         organizacion_id: Optional[str] = None,
     ) -> dict:
         """Chat for designing training sessions."""
+        from app.services.ai_tool_executor import get_team_game_model
+
         system_text = SYSTEM_PROMPT + SESSION_DESIGN_PROMPT
         system_text += f"\n\n## CONTEXTO ACTUAL\n- ID del equipo activo: {equipo_id}"
         if organizacion_id:
             system_text += f"\n- ID de la organizacion: {organizacion_id}"
+
+        game_model_context = get_team_game_model(equipo_id)
+        if game_model_context:
+            system_text += "\n\n" + game_model_context
 
         messages = [{"role": "system", "content": system_text}]
         for msg in mensajes:
@@ -305,10 +311,16 @@ class OpenAICompatibleService:
         organizacion_id: Optional[str] = None,
     ) -> dict:
         """Chat for designing individual training tasks."""
+        from app.services.ai_tool_executor import get_team_game_model
+
         system_text = SYSTEM_PROMPT + TASK_DESIGN_PROMPT
         system_text += f"\n\n## CONTEXTO ACTUAL\n- ID del equipo activo: {equipo_id}"
         if organizacion_id:
             system_text += f"\n- ID de la organizacion: {organizacion_id}"
+
+        game_model_context = get_team_game_model(equipo_id)
+        if game_model_context:
+            system_text += "\n\n" + game_model_context
 
         messages = [{"role": "system", "content": system_text}]
         for msg in mensajes:
