@@ -160,7 +160,9 @@ Cuando el entrenador describe un ejercicio con suficiente detalle (objetivo, jug
 - Respeta la metodología de Match Day para densidad y nivel cognitivo
 - Si el entrenador describe un ejercicio concreto, úsalo tal cual pero enriquécelo
 - Incluye siempre coaching points y reglas detalladas
+- SIEMPRE genera grafico_data con el diagrama tactico del ejercicio
 - Si el entrenador pide modificaciones ("hazla más grande", "añade variante"), llama a `proponer_tarea` con la versión modificada completa
+- Si el equipo tiene modelo de juego definido, alinea el ejercicio con sus principios
 """
 
 TASK_DESIGN_TOOLS = [
@@ -307,7 +309,7 @@ TASK_DESIGN_TOOLS = [
             },
             "required": [
                 "titulo", "descripcion", "categoria_codigo", "duracion_total",
-                "num_jugadores", "reglas", "coaching_points",
+                "num_jugadores", "reglas", "coaching_points", "grafico_data",
             ],
         },
     },
@@ -576,12 +578,14 @@ La ÚNICA vez que NO debes llamar a la herramienta es cuando el entrenador hace 
 - Respeta la metodología de Match Day
 - Si el entrenador describe ejercicios concretos, úsalos tal cual
 - Si da contexto táctico, diseña ejercicios coherentes
+- Consulta el MODELO DE JUEGO del equipo para alinear cada ejercicio con los principios del entrenador
 
 ### CAMPOS PRINCIPALES DE CADA FASE
 Obligatorios: fase, duracion, titulo, descripcion, categoria, coaching_points, razon
 Opcionales pero recomendados: reglas, num_jugadores, estructura_equipos, espacio, densidad, nivel_cognitivo, fase_juego, principio_tactico, variantes, material_necesario
 
-### DIAGRAMA TÁCTICO (grafico_data) — OPCIONAL
+### DIAGRAMA TÁCTICO (grafico_data) — OBLIGATORIO
+SIEMPRE genera grafico_data para cada tarea/fase con el diagrama del ejercicio.
 Si incluyes grafico_data, usa este formato:
 - pitchType: "full" (con porterías, para EVO/AVD/PCO/SSG) o "green" (sin porterías, para RND/JDP/POS/ACO/ABP)
 - Campo horizontal 1050x680px. 1 metro ≈ 10px. Porterías a izquierda/derecha.
@@ -598,7 +602,7 @@ Si incluyes grafico_data, usa este formato:
 SESSION_DESIGN_TOOLS = [
     {
         "name": "buscar_tareas_biblioteca",
-        "description": "Busca tareas existentes en la biblioteca del club antes de proponer una sesion. Usa esto para reutilizar ejercicios que ya existen.",
+        "description": "Busca tareas existentes en la biblioteca del club antes de proponer una sesion. Usa esto para reutilizar ejercicios que ya existen. Prioriza buscar por principio_tactico y fase_juego que coincidan con el modelo de juego del equipo.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -755,7 +759,7 @@ SESSION_DESIGN_TOOLS = [
                                 "description": "Consignas defensivas"
                             },
                         },
-                        "required": ["fase", "duracion", "titulo", "descripcion", "categoria", "coaching_points", "razon"],
+                        "required": ["fase", "duracion", "titulo", "descripcion", "categoria", "coaching_points", "razon", "grafico_data"],
                     },
                 },
                 "coherencia_tactica": {

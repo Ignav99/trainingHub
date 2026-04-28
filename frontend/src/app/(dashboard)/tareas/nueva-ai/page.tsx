@@ -29,6 +29,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { tareasApi } from '@/lib/api/tareas'
 import type { AITareaNueva } from '@/types'
+import { TareaGraphicEditor } from '@/components/tarea-editor'
 
 // Quick-select chips
 const CATEGORIAS = [
@@ -78,6 +79,7 @@ interface TareaProposal {
   variantes?: string[]
   material_necesario?: string[]
   posicion_entrenador?: string
+  grafico_data?: Record<string, any>
   densidad?: string
   nivel_cognitivo?: number
   razon?: string
@@ -262,6 +264,7 @@ export default function NuevaTareaAIPage() {
         posicion_entrenador: proposal.posicion_entrenador,
         errores_comunes: proposal.errores_comunes || [],
         consignas_defensivas: proposal.consignas_defensivas || [],
+        grafico_data: proposal.grafico_data,
       }
 
       const created = await tareasApi.createFromAI(aiTarea)
@@ -497,6 +500,19 @@ export default function NuevaTareaAIPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Tactical diagram */}
+              {proposal.grafico_data && (proposal.grafico_data as any).elements?.length > 0 && (
+                <Card>
+                  <CardContent className="p-4">
+                    <h3 className="text-xs font-medium text-muted-foreground uppercase mb-2">Diagrama tactico</h3>
+                    <TareaGraphicEditor
+                      value={proposal.grafico_data as any}
+                      readOnly={true}
+                    />
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Description */}
               <Card>
