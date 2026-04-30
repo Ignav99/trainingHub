@@ -22,6 +22,8 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
 
 SEED_TAG = "seed_v1"
+# Fields that exist in exercise data but not in the DB schema
+FIELDS_TO_STRIP = {"posicion_entrenador", "categoria_codigo"}
 
 
 def get_supabase():
@@ -1546,11 +1548,19 @@ EXERCISES = [
 def seed():
     supabase = get_supabase()
 
-    # Idempotency check: if any exercise with seed_v1 tag exists, skip
-    existing = supabase.table("tareas").select("id").contains("tags", [SEED_TAG]).limit(1).execute()
+    # Idempotency check: if any seed exercise already exists, skip
+    existing = supabase.table("tareas").select("id").eq("es_plantilla", True).eq("titulo", "Rondo 4v2 Clasico").limit(1).execute()
     if existing.data:
-        print(f"Seed exercises already exist (found '{SEED_TAG}' tag). Skipping.")
+        print(f"Seed exercises already exist. Skipping.")
         return
+
+    # Get a valid organizacion_id (required NOT NULL column)
+    org_result = supabase.table("organizaciones").select("id").limit(1).execute()
+    if not org_result.data:
+        print("ERROR: No organizations found. Create one first.")
+        sys.exit(1)
+    org_id = org_result.data[0]["id"]
+    print(f"Using organizacion_id: {org_id}")
 
     # Build category map
     cat_map = build_categoria_map(supabase)
@@ -1576,13 +1586,18 @@ def seed():
             ex["categoria_codigo"] = cat_code
             continue
 
+        # Remove fields not in DB schema
         payload = {
-            **ex,
+            k: v for k, v in ex.items()
+            if k not in FIELDS_TO_STRIP
+        }
+        payload.update({
             "categoria_id": cat_id,
+            "organizacion_id": org_id,
             "es_plantilla": True,
             "es_publica": True,
             "tags": [SEED_TAG, cat_code.lower()],
-        }
+        })
 
         try:
             result = supabase.table("tareas").insert(payload).execute()
