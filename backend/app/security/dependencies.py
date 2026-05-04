@@ -252,7 +252,7 @@ def require_permission(
                     .select("rol_en_equipo")
                     .eq("usuario_id", user_id)
                     .eq("equipo_id", equipo_id)
-                    .single()
+                    .maybe_single()
                     .execute()
                 )
                 if ue_result.data:
@@ -395,7 +395,7 @@ def require_any_permission(
                     .select("rol_en_equipo")
                     .eq("usuario_id", user_id)
                     .eq("equipo_id", equipo_id)
-                    .single()
+                    .maybe_single()
                     .execute()
                 )
                 if ue.data:

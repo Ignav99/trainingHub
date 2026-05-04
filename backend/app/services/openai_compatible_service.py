@@ -281,7 +281,7 @@ class OpenAICompatibleService:
             if tool_name == "buscar_tareas_biblioteca":
                 search_params = {
                     "organizacion_id": organizacion_id,
-                    "query": tool_input.get("query", ""),
+                    "busqueda": tool_input.get("query", ""),
                     "categoria": tool_input.get("categoria"),
                     "fase_juego": tool_input.get("fase_juego"),
                     "limite": tool_input.get("limite", 5),
