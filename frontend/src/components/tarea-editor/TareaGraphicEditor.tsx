@@ -923,7 +923,6 @@ export default function TareaGraphicEditor({
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={() => { setZoneDragStart(null); setZoneDragCurrent(null) }}
-          onMouseDown={(e) => { if (!readOnly) e.preventDefault() }}
         >
           <FootballPitch
             ref={svgRef}
@@ -960,7 +959,6 @@ export default function TareaGraphicEditor({
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={() => { setZoneDragStart(null); setZoneDragCurrent(null) }}
-        onMouseDown={(e) => { if (!readOnly) e.preventDefault() }}
       >
         <FootballPitch
           ref={svgRef}
