@@ -168,6 +168,14 @@ export const tareasApi = {
     if (!response.ok) throw new Error('Error generating PDF')
     return response.blob()
   },
+
+  async generateDiagram(id: string): Promise<{ grafico_data: Record<string, any> }> {
+    return api.post(`/tareas/${id}/generate-diagram`, null, { timeout: 60000 })
+  },
+
+  async batchGenerateDiagrams(): Promise<{ generated: number; failed: number; total: number }> {
+    return api.post('/tareas/batch-generate-diagrams', null, { timeout: 300000 })
+  },
 }
 
 export const catalogosApi = {

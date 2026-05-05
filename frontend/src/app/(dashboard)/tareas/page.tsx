@@ -34,6 +34,7 @@ import { apiKey } from '@/lib/swr'
 import { ListPageSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
+import { TacticalBoardMini } from '@/components/task-preview'
 
 // ── Color maps ──────────────────────────────────────────────
 const CATEGORY_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
@@ -185,6 +186,7 @@ export default function TareasPage() {
   // Action menu
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
   const [copying, setCopying] = useState<string | null>(null)
+  const [batchGenerating, setBatchGenerating] = useState(false)
 
   const [orden, direccion] = sortBy.split(':')
 
@@ -276,6 +278,19 @@ export default function TareasPage() {
 
   const invalidateTareas = () => {
     mutate((key: string) => typeof key === 'string' && key.includes('/tareas'), undefined, { revalidate: true })
+  }
+
+  const handleBatchGenerateDiagrams = async () => {
+    setBatchGenerating(true)
+    try {
+      const result = await tareasApi.batchGenerateDiagrams()
+      invalidateTareas()
+      alert(`Diagramas generados: ${result.generated}/${result.total}${result.failed ? ` (${result.failed} fallidos)` : ''}`)
+    } catch (e: any) {
+      alert(`Error: ${e.message || 'Error al generar diagramas'}`)
+    } finally {
+      setBatchGenerating(false)
+    }
   }
 
   const handleDuplicate = async (tarea: Tarea, e: React.MouseEvent) => {
@@ -458,6 +473,14 @@ export default function TareasPage() {
         description={`${total} tareas ${tab === 'biblioteca' ? 'en la biblioteca del club' : 'en tu colección'}`}
         actions={
           <>
+            <button
+              onClick={handleBatchGenerateDiagrams}
+              disabled={batchGenerating}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              {batchGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {batchGenerating ? 'Generando...' : 'Auto-diagramas'}
+            </button>
             <Link
               href="/tareas/nueva"
               className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
@@ -805,6 +828,7 @@ export default function TareasPage() {
                 <table className="min-w-full divide-y divide-gray-100">
                   <thead className="bg-gray-50/80">
                     <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-20">Diagrama</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Categoría</th>
                       <SortableHeader label="Título" field="titulo" currentSort={sortBy} onSort={handleSort} />
                       <SortableHeader label="Duración" field="duracion_total" currentSort={sortBy} onSort={handleSort} className="w-24" />
@@ -823,6 +847,17 @@ export default function TareasPage() {
                         onClick={() => router.push(`/tareas/${tarea.id}`)}
                         className="hover:bg-gray-50/80 cursor-pointer transition-colors group"
                       >
+                        {/* Diagram thumbnail */}
+                        <td className="px-4 py-2">
+                          <div className="w-16 h-11 rounded overflow-hidden border border-gray-100 bg-[#2D5016]">
+                            <TacticalBoardMini
+                              data={tarea.grafico_data as any}
+                              width="100%"
+                              height="100%"
+                            />
+                          </div>
+                        </td>
+
                         {/* Category */}
                         <td className="px-4 py-3">
                           <CategoryBadge

@@ -39,6 +39,8 @@ import {
   SesionCreateData,
 } from '@/lib/api/sesiones'
 import { tareasApi } from '@/lib/api/tareas'
+import { TaskPreviewCard } from '@/components/task-preview'
+import type { DiagramData } from '@/components/tarea-editor/types'
 import type { AITareaNueva } from '@/types'
 
 // Quick-select chips data
@@ -666,148 +668,44 @@ export default function NuevaSesionAIPage() {
                 </div>
               )}
 
-              {/* Phases - detailed task cards */}
-              {Array.isArray(proposal.fases) && proposal.fases.map((fase) => {
-                const isExpanded = expandedFases.has(fase.fase)
-
-                return (
-                  <Card key={fase.fase} className="overflow-hidden">
-                    {/* Phase header bar */}
-                    <div
-                      className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors"
-                      onClick={() => toggleFaseExpand(fase.fase)}
-                    >
-                      <div className={`w-1.5 h-10 rounded-full ${FASE_COLORS[fase.fase] || 'bg-gray-400'}`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-muted-foreground uppercase">
-                            {FASE_LABELS[fase.fase] || fase.fase}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {fase.duracion} min
-                          </span>
-                          {fase.categoria && (
-                            <Badge variant="outline" className="text-[10px] h-5">
-                              {fase.categoria}
-                            </Badge>
-                          )}
-                          {fase.tarea_id && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-700">
-                              <Library className="h-3 w-3" />
-                              Biblioteca
-                            </span>
-                          )}
-                          {fase.densidad && (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${DENSIDAD_STYLES[fase.densidad] || 'bg-gray-100 text-gray-600'}`}>
-                              {fase.densidad}
-                            </span>
-                          )}
-                        </div>
-                        <h3 className="text-sm font-semibold truncate">{fase.titulo}</h3>
-                      </div>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleEditFase(fase) }}
-                        className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors"
-                        title="Modificar en chat"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      {isExpanded ? (
-                        <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                      )}
-                    </div>
-
-                    {/* Expanded content */}
-                    {isExpanded && (
-                      <CardContent className="px-4 pb-4 pt-0 border-t">
-                        {/* Description */}
-                        <p className="text-sm text-muted-foreground mt-3 mb-3">{fase.descripcion}</p>
-
-                        {/* Info grid */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
-                          {fase.num_jugadores && (
-                            <div className="flex items-center gap-1.5 text-xs">
-                              <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span>{fase.num_jugadores}</span>
-                            </div>
-                          )}
-                          {fase.estructura_equipos && (
-                            <div className="flex items-center gap-1.5 text-xs">
-                              <Target className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span>{fase.estructura_equipos}</span>
-                            </div>
-                          )}
-                          {fase.espacio && (
-                            <div className="flex items-center gap-1.5 text-xs">
-                              <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span>{fase.espacio}</span>
-                            </div>
-                          )}
-                          {fase.num_series && (
-                            <div className="flex items-center gap-1.5 text-xs">
-                              <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span>{fase.num_series}x{fase.duracion_serie || '?'}min</span>
-                            </div>
-                          )}
-                          {fase.nivel_cognitivo && (
-                            <div className="flex items-center gap-1.5 text-xs">
-                              <Brain className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span>Cog: {NIVEL_COG_LABELS[fase.nivel_cognitivo] || fase.nivel_cognitivo}</span>
-                            </div>
-                          )}
-                          {fase.fase_juego && (
-                            <div className="flex items-center gap-1.5 text-xs">
-                              <Zap className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span className="truncate">{fase.fase_juego}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Rules */}
-                        {fase.reglas && fase.reglas.length > 0 && (
-                          <div className="mb-3">
-                            <h4 className="text-[11px] font-medium text-muted-foreground uppercase mb-1.5">Reglas</h4>
-                            <div className="space-y-1">
-                              {fase.reglas.map((r, i) => (
-                                <div key={i} className="flex items-start gap-2 text-xs">
-                                  <span className="text-primary font-bold mt-0.5">{i + 1}.</span>
-                                  <span>{r}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Coaching points */}
-                        {fase.coaching_points && fase.coaching_points.length > 0 && (
-                          <div className="mb-3">
-                            <h4 className="text-[11px] font-medium text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
-                              <MessageCircle className="h-3 w-3" />
-                              Coaching Points
-                            </h4>
-                            <div className="flex flex-wrap gap-1.5">
-                              {fase.coaching_points.map((cp, i) => (
-                                <span key={i} className="text-[11px] px-2 py-1 bg-amber-50 text-amber-700 rounded-lg">
-                                  {cp}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Justification */}
-                        {fase.razon && (
-                          <div className="p-2.5 rounded-lg bg-muted/50 text-xs text-muted-foreground italic">
-                            {fase.razon}
-                          </div>
-                        )}
-                      </CardContent>
-                    )}
-                  </Card>
-                )
-              })}
+              {/* Phases - tactical preview cards */}
+              {Array.isArray(proposal.fases) && proposal.fases.map((fase) => (
+                <div key={fase.fase} className="space-y-1">
+                  {/* Phase label header */}
+                  <div className="flex items-center gap-2 px-1">
+                    <div className={`w-2 h-2 rounded-full ${FASE_COLORS[fase.fase] || 'bg-gray-400'}`} />
+                    <span className="text-[11px] font-medium text-muted-foreground uppercase">
+                      {FASE_LABELS[fase.fase] || fase.fase}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">{fase.duracion} min</span>
+                  </div>
+                  <TaskPreviewCard
+                    titulo={fase.titulo}
+                    descripcion={fase.descripcion}
+                    duracion={fase.duracion}
+                    categoria={fase.categoria}
+                    fase_sesion={fase.fase}
+                    grafico_data={fase.grafico_data as DiagramData | undefined}
+                    num_jugadores={fase.num_jugadores}
+                    estructura_equipos={fase.estructura_equipos}
+                    espacio={fase.espacio}
+                    densidad={fase.densidad}
+                    nivel_cognitivo={fase.nivel_cognitivo}
+                    fase_juego={fase.fase_juego}
+                    principio_tactico={fase.principio_tactico}
+                    reglas={fase.reglas}
+                    coaching_points={fase.coaching_points}
+                    variantes={fase.variantes}
+                    razon={fase.razon}
+                    tarea_id={fase.tarea_id}
+                    errores_comunes={fase.errores_comunes}
+                    consignas_defensivas={fase.consignas_defensivas}
+                    material_necesario={fase.material_necesario}
+                    defaultExpanded={expandedFases.has(fase.fase)}
+                    onEdit={() => handleEditFase(fase)}
+                  />
+                </div>
+              ))}
 
               {/* Tactical coherence */}
               {proposal.coherencia_tactica && (

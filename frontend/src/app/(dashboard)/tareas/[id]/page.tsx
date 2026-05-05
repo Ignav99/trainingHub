@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import useSWR, { mutate } from 'swr'
@@ -26,6 +26,7 @@ import {
   Ruler,
   Heart,
   Download,
+  Sparkles,
 } from 'lucide-react'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { tareasApi } from '@/lib/api/tareas'
@@ -72,7 +73,21 @@ export default function TareaDetailPage() {
   const [deleting, setDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
+  const [generatingDiagram, setGeneratingDiagram] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+
+  const handleGenerateDiagram = useCallback(async () => {
+    if (!tareaId) return
+    setGeneratingDiagram(true)
+    try {
+      await tareasApi.generateDiagram(tareaId)
+      mutate(apiKey(`/tareas/${tareaId}`))
+    } catch (e: any) {
+      setActionError(e.message || 'Error al generar diagrama')
+    } finally {
+      setGeneratingDiagram(false)
+    }
+  }, [tareaId])
 
   // SWR: Tarea detail
   const { data: tarea, error: swrError, isLoading } = useSWR<Tarea>(
@@ -251,13 +266,28 @@ export default function TareaDetailPage() {
         {/* Left column - Main info */}
         <div className="lg:col-span-2 space-y-6">
           {/* Diagram */}
-          {tarea.grafico_data && (tarea.grafico_data as any).elements?.length > 0 && (
+          {tarea.grafico_data && (tarea.grafico_data as any).elements?.length > 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Grafico de la tarea</h2>
               <TareaGraphicEditor
                 value={tarea.grafico_data as any}
                 readOnly={true}
               />
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-dashed border-gray-300 p-6 text-center">
+              <div className="text-gray-400 mb-3">
+                <Sparkles className="h-8 w-8 mx-auto" />
+              </div>
+              <p className="text-sm text-gray-500 mb-3">Esta tarea no tiene diagrama tactico</p>
+              <button
+                onClick={handleGenerateDiagram}
+                disabled={generatingDiagram}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {generatingDiagram ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {generatingDiagram ? 'Generando...' : 'Generar diagrama con IA'}
+              </button>
             </div>
           )}
 

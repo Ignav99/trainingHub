@@ -267,7 +267,7 @@ def _tool_buscar_tareas(supabase, params: dict) -> str:
         "num_series, espacio_largo, espacio_ancho, estructura_equipos, "
         "reglas_tecnicas, reglas_tacticas, consignas_ofensivas, consignas_defensivas, "
         "es_complementaria, grupo_muscular, equipamiento, tipo_contraccion, zona_cuerpo, "
-        "objetivo_gym, series_repeticiones, categorias_tarea(codigo, nombre)"
+        "objetivo_gym, series_repeticiones, grafico_data, categorias_tarea(codigo, nombre)"
     )
 
     if org_id:

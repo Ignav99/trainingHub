@@ -935,3 +935,102 @@ async def generate_tarea_pdf_endpoint(
             "Content-Disposition": f'attachment; filename="tarea_{tarea_id}.pdf"'
         },
     )
+
+
+# ============ Diagram Generation ============
+
+@router.post("/{tarea_id}/generate-diagram")
+async def generate_diagram_for_tarea(
+    tarea_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.TASK_UPDATE)),
+):
+    """Generate a tactical diagram for an existing tarea using AI."""
+    from app.services.diagram_generator import generate_diagram
+
+    supabase = get_supabase()
+
+    # Fetch the tarea
+    resp = supabase.table("tareas").select(
+        "id, titulo, descripcion, estructura_equipos, espacio_largo, espacio_ancho, "
+        "categorias_tarea(codigo, nombre)"
+    ).eq("id", str(tarea_id)).maybe_single().execute()
+
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Tarea not found")
+
+    tarea = resp.data
+    cat = tarea.pop("categorias_tarea", None)
+    categoria_codigo = cat.get("codigo") if cat else None
+
+    espacio = None
+    if tarea.get("espacio_largo") and tarea.get("espacio_ancho"):
+        espacio = f"{tarea['espacio_largo']}x{tarea['espacio_ancho']}m"
+
+    diagram_data = await generate_diagram(
+        descripcion=tarea.get("descripcion") or tarea.get("titulo", ""),
+        categoria_codigo=categoria_codigo,
+        estructura_equipos=tarea.get("estructura_equipos"),
+        espacio=espacio,
+        titulo=tarea.get("titulo"),
+    )
+
+    # Save to DB
+    supabase.table("tareas").update(
+        {"grafico_data": diagram_data}
+    ).eq("id", str(tarea_id)).execute()
+
+    return {"grafico_data": diagram_data}
+
+
+class BatchGenerateResponse(BaseModel):
+    generated: int
+    failed: int
+    total: int
+
+
+@router.post("/batch-generate-diagrams", response_model=BatchGenerateResponse)
+async def batch_generate_diagrams(
+    auth: AuthContext = Depends(require_permission(Permission.TASK_UPDATE)),
+):
+    """Generate diagrams for all tareas that don't have one yet (org-wide)."""
+    from app.services.diagram_generator import generate_diagram
+
+    supabase = get_supabase()
+
+    # Get tareas without grafico_data
+    resp = supabase.table("tareas").select(
+        "id, titulo, descripcion, estructura_equipos, espacio_largo, espacio_ancho, "
+        "categorias_tarea(codigo, nombre)"
+    ).eq("organizacion_id", auth.organizacion_id).is_("grafico_data", "null").limit(50).execute()
+
+    generated = 0
+    failed = 0
+    total = len(resp.data)
+
+    for tarea in resp.data:
+        try:
+            cat = tarea.pop("categorias_tarea", None)
+            categoria_codigo = cat.get("codigo") if cat else None
+
+            espacio = None
+            if tarea.get("espacio_largo") and tarea.get("espacio_ancho"):
+                espacio = f"{tarea['espacio_largo']}x{tarea['espacio_ancho']}m"
+
+            diagram_data = await generate_diagram(
+                descripcion=tarea.get("descripcion") or tarea.get("titulo", ""),
+                categoria_codigo=categoria_codigo,
+                estructura_equipos=tarea.get("estructura_equipos"),
+                espacio=espacio,
+                titulo=tarea.get("titulo"),
+            )
+
+            supabase.table("tareas").update(
+                {"grafico_data": diagram_data}
+            ).eq("id", tarea["id"]).execute()
+
+            generated += 1
+        except Exception as e:
+            logger.warning(f"Failed to generate diagram for tarea {tarea['id']}: {e}")
+            failed += 1
+
+    return BatchGenerateResponse(generated=generated, failed=failed, total=total)

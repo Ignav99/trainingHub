@@ -76,6 +76,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import ABPSessionLink from '@/components/abp/ABPSessionLink'
 import TareaGraphicEditor from '@/components/tarea-editor/TareaGraphicEditor'
 import { emptyDiagramData } from '@/components/tarea-editor/types'
+import { TacticalBoardMini } from '@/components/task-preview'
 import GKTrainingSection from '@/components/portero/GKTrainingSection'
 import { sesionesApi, SesionUpdateData } from '@/lib/api/sesiones'
 import { tareasApi } from '@/lib/api/tareas'
@@ -2260,6 +2261,16 @@ export default function SesionDetailPage() {
                                       <ChevronDown className="h-3 w-3" />
                                     </button>
                                   </div>
+                                  {/* Mini tactical board */}
+                                  {st.tarea?.grafico_data && (
+                                    <div className="w-16 h-20 shrink-0 rounded overflow-hidden border border-border/30">
+                                      <TacticalBoardMini
+                                        data={st.tarea.grafico_data as any}
+                                        width="100%"
+                                        height="100%"
+                                      />
+                                    </div>
+                                  )}
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
                                       <h4 className="font-medium">{st.tarea?.titulo || 'Tarea sin titulo'}</h4>
