@@ -87,3 +87,4 @@ generated_pdfs/
 .turbo
 *.tsbuildinfo
 next-env.d.ts
+.mcp.json

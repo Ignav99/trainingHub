@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import useSWR, { mutate } from 'swr'
@@ -74,6 +74,7 @@ export default function TareaDetailPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
   const [generatingDiagram, setGeneratingDiagram] = useState(false)
+  const [savingDiagram, setSavingDiagram] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
   const handleGenerateDiagram = useCallback(async () => {
@@ -87,6 +88,22 @@ export default function TareaDetailPage() {
     } finally {
       setGeneratingDiagram(false)
     }
+  }, [tareaId])
+
+  const diagramSaveTimer = useRef<NodeJS.Timeout | null>(null)
+  const handleDiagramChange = useCallback((data: any) => {
+    if (!tareaId) return
+    if (diagramSaveTimer.current) clearTimeout(diagramSaveTimer.current)
+    setSavingDiagram(true)
+    diagramSaveTimer.current = setTimeout(async () => {
+      try {
+        await tareasApi.update(tareaId, { grafico_data: data })
+      } catch (e: any) {
+        setActionError(e.message || 'Error al guardar diagrama')
+      } finally {
+        setSavingDiagram(false)
+      }
+    }, 1500)
   }, [tareaId])
 
   // SWR: Tarea detail
@@ -145,7 +162,7 @@ export default function TareaDetailPage() {
 
   if (error || !tarea) {
     return (
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <div className="flex items-center gap-4 mb-6">
           <Link
             href="/tareas"
@@ -166,7 +183,7 @@ export default function TareaDetailPage() {
   const nivelCognitivo = formatNivelCognitivo(tarea.nivel_cognitivo)
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div className="flex items-center gap-4">
@@ -268,10 +285,23 @@ export default function TareaDetailPage() {
           {/* Diagram */}
           {tarea.grafico_data && (tarea.grafico_data as any).elements?.length > 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Grafico de la tarea</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">Pizarra Tactica</h2>
+                <div className="flex items-center gap-2">
+                  {savingDiagram && <span className="text-xs text-gray-400">Guardando...</span>}
+                  <button
+                    onClick={handleGenerateDiagram}
+                    disabled={generatingDiagram}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-600 disabled:opacity-50"
+                  >
+                    {generatingDiagram ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    Re-generar
+                  </button>
+                </div>
+              </div>
               <TareaGraphicEditor
                 value={tarea.grafico_data as any}
-                readOnly={true}
+                onChange={handleDiagramChange}
               />
             </div>
           ) : (

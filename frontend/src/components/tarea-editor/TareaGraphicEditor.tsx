@@ -63,14 +63,31 @@ const ZONE_COLORS = [
 
 const MAX_HISTORY = 30
 
-// Ensure grafico_data from DB always has valid arrays
+// Normalize element position: handles both {position: {x,y}} and {x, y} formats
+function normalizePosition(el: any): { x: number; y: number } | null {
+  if (el.position && typeof el.position.x === 'number') return el.position
+  if (typeof el.x === 'number' && typeof el.y === 'number') return { x: el.x, y: el.y }
+  return null
+}
+
+// Ensure grafico_data from DB always has valid arrays, normalizing position formats
 function sanitizeDiagramData(raw: any): DiagramData {
   if (!raw || typeof raw !== 'object') return emptyDiagramData
   return {
     pitchType: raw.pitchType || 'full',
-    elements: Array.isArray(raw.elements) ? raw.elements.filter((e: any) => e?.position) : [],
-    arrows: Array.isArray(raw.arrows) ? raw.arrows.filter((a: any) => a?.from && a?.to) : [],
-    zones: Array.isArray(raw.zones) ? raw.zones.filter((z: any) => z?.position) : [],
+    elements: Array.isArray(raw.elements)
+      ? raw.elements
+          .filter((e: any) => e && normalizePosition(e))
+          .map((e: any) => ({ ...e, position: normalizePosition(e) }))
+      : [],
+    arrows: Array.isArray(raw.arrows)
+      ? raw.arrows.filter((a: any) => a && a.from && a.to && typeof a.from.x === 'number' && typeof a.to.x === 'number')
+      : [],
+    zones: Array.isArray(raw.zones)
+      ? raw.zones
+          .filter((z: any) => z && (z.position || (typeof z.x === 'number' && typeof z.y === 'number')))
+          .map((z: any) => ({ ...z, position: z.position || { x: z.x, y: z.y } }))
+      : [],
   }
 }
 

@@ -2263,7 +2263,7 @@ export default function SesionDetailPage() {
                                   </div>
                                   {/* Mini tactical board */}
                                   {st.tarea?.grafico_data && (
-                                    <div className="w-16 h-20 shrink-0 rounded overflow-hidden border border-border/30">
+                                    <div className="w-56 h-36 shrink-0 rounded-lg overflow-hidden border border-border/30">
                                       <TacticalBoardMini
                                         data={st.tarea.grafico_data as any}
                                         width="100%"
