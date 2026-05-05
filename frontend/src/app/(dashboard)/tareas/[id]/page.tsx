@@ -94,8 +94,8 @@ export default function TareaDetailPage() {
   const handleDiagramChange = useCallback((data: any) => {
     if (!tareaId) return
     if (diagramSaveTimer.current) clearTimeout(diagramSaveTimer.current)
-    setSavingDiagram(true)
     diagramSaveTimer.current = setTimeout(async () => {
+      setSavingDiagram(true)
       try {
         await tareasApi.update(tareaId, { grafico_data: data })
       } catch (e: any) {
@@ -103,7 +103,7 @@ export default function TareaDetailPage() {
       } finally {
         setSavingDiagram(false)
       }
-    }, 1500)
+    }, 2000)
   }, [tareaId])
 
   // SWR: Tarea detail

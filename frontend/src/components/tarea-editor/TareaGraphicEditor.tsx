@@ -114,11 +114,20 @@ export default function TareaGraphicEditor({
   const [historyIndex, setHistoryIndex] = useState(-1)
   const isUndoRedoRef = useRef(false)
 
+  // Track if we're modifying data internally (to skip useEffect sync)
+  const internalChangeRef = useRef(false)
+  // Track data snapshot at drag start (for single undo entry per drag)
+  const dragStartDataRef = useRef<DiagramData | null>(null)
+
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Sync external value changes
+  // Sync external value changes — skip if we just changed data internally
   useEffect(() => {
+    if (internalChangeRef.current) {
+      internalChangeRef.current = false
+      return
+    }
     setData(sanitizeDiagramData(value))
   }, [value])
 
@@ -133,15 +142,17 @@ export default function TareaGraphicEditor({
     setHistoryIndex(prev => Math.min(prev + 1, MAX_HISTORY - 1))
   }, [historyIndex])
 
-  // Actualizar datos y notificar al padre
+  // Actualizar datos y notificar al padre (for discrete actions like add/delete)
   const updateData = useCallback((newData: DiagramData) => {
     if (!isUndoRedoRef.current) {
       pushHistory(data)
     }
     isUndoRedoRef.current = false
+    internalChangeRef.current = true
     setData(newData)
     onChange?.(newData)
   }, [onChange, data, pushHistory])
+
 
   // Undo
   const undo = useCallback(() => {
@@ -217,6 +228,52 @@ export default function TareaGraphicEditor({
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [readOnly, isFullscreen, deleteSelected, undo, redo])
+
+  // Global mouse listeners for smooth dragging (works even if mouse leaves SVG)
+  useEffect(() => {
+    if (!isDragging || !selectedElement) return
+
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      const svg = svgRef.current
+      if (!svg) return
+      const rect = svg.getBoundingClientRect()
+      const viewBox = svg.viewBox.baseVal
+      const scaleX = viewBox.width / rect.width
+      const scaleY = viewBox.height / rect.height
+      const pos = {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY,
+      }
+      internalChangeRef.current = true
+      setData(prev => ({
+        ...prev,
+        elements: prev.elements.map(el =>
+          el.id === selectedElement ? { ...el, position: pos } : el
+        ),
+      }))
+    }
+
+    const handleGlobalMouseUp = () => {
+      if (dragStartDataRef.current) {
+        // Commit: push original state to history, notify parent of final position
+        pushHistory(dragStartDataRef.current)
+        dragStartDataRef.current = null
+        internalChangeRef.current = true
+        setData(prev => {
+          onChange?.(prev)
+          return prev
+        })
+      }
+      setIsDragging(false)
+    }
+
+    window.addEventListener('mousemove', handleGlobalMouseMove)
+    window.addEventListener('mouseup', handleGlobalMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMouseMove)
+      window.removeEventListener('mouseup', handleGlobalMouseUp)
+    }
+  }, [isDragging, selectedElement, onChange, pushHistory])
 
   // Obtener posicion relativa al SVG — uses the actual <svg> ref
   const getSvgPosition = (e: React.MouseEvent): Position => {
@@ -313,27 +370,15 @@ export default function TareaGraphicEditor({
     setZoneDragCurrent(pos)
   }
 
-  // Zone drawing: mousemove updates preview
+  // Zone drawing: mousemove updates preview (element drag is handled by global listener)
   const handleMouseMove = (e: React.MouseEvent) => {
-    // Zone drag preview
     if (zoneDragStart && (selectedTool === 'zone_rect' || selectedTool === 'zone_circle')) {
       const pos = getSvgPosition(e)
       setZoneDragCurrent(pos)
-      return
     }
-
-    // Element dragging
-    if (!isDragging || !selectedElement) return
-    const pos = getSvgPosition(e)
-    updateData({
-      ...data,
-      elements: data.elements.map(el =>
-        el.id === selectedElement ? { ...el, position: pos } : el
-      ),
-    })
   }
 
-  // Zone drawing: mouseup creates zone
+  // Zone drawing: mouseup creates zone (element drag commit is in global listener)
   const handleMouseUp = (e: React.MouseEvent) => {
     // Finish zone drag
     if (zoneDragStart && zoneDragCurrent && (selectedTool === 'zone_rect' || selectedTool === 'zone_circle')) {
@@ -362,10 +407,7 @@ export default function TareaGraphicEditor({
 
       setZoneDragStart(null)
       setZoneDragCurrent(null)
-      return
     }
-
-    setIsDragging(false)
   }
 
   // Manejar drag de elemento
@@ -374,6 +416,7 @@ export default function TareaGraphicEditor({
     e.stopPropagation()
     setSelectedElement(elementId)
     if (selectedTool === 'select') {
+      dragStartDataRef.current = data // snapshot for undo
       setIsDragging(true)
     }
   }
@@ -394,7 +437,7 @@ export default function TareaGraphicEditor({
 
     const commonProps = {
       key: id,
-      style: { cursor: readOnly ? 'default' : 'move' },
+      style: { cursor: readOnly ? 'default' : 'move', pointerEvents: 'all' as const },
       onMouseDown: (e: React.MouseEvent) => handleElementMouseDown(e, id),
       onClick: (e: React.MouseEvent) => e.stopPropagation(),
     }
@@ -503,8 +546,18 @@ export default function TareaGraphicEditor({
     const tipY = to.y - arrowSize * Math.sin(angle)
 
     return (
-      <g key={id} onClick={(e) => { e.stopPropagation(); setSelectedElement(id) }} style={{ cursor: 'pointer' }}>
-        {/* Linea */}
+      <g key={id} onClick={(e) => { e.stopPropagation(); if (!readOnly) setSelectedElement(id) }} style={{ cursor: readOnly ? 'default' : 'pointer' }}>
+        {/* Invisible thick hit area for easier clicking */}
+        <line
+          x1={from.x}
+          y1={from.y}
+          x2={to.x}
+          y2={to.y}
+          stroke="transparent"
+          strokeWidth={14}
+          pointerEvents="stroke"
+        />
+        {/* Linea visible */}
         <line
           x1={from.x}
           y1={from.y}
@@ -513,6 +566,7 @@ export default function TareaGraphicEditor({
           stroke={color || '#FFFFFF'}
           strokeWidth={isSelected ? 4 : 2}
           strokeDasharray={type === 'pass' ? '8,4' : 'none'}
+          pointerEvents="none"
         />
         {/* Punta de flecha */}
         <polygon
@@ -522,7 +576,22 @@ export default function TareaGraphicEditor({
             ${to.x - arrowSize * Math.cos(angle + Math.PI / 6)},${to.y - arrowSize * Math.sin(angle + Math.PI / 6)}
           `}
           fill={color || '#FFFFFF'}
+          pointerEvents="none"
         />
+        {/* Selection indicator */}
+        {isSelected && (
+          <line
+            x1={from.x}
+            y1={from.y}
+            x2={to.x}
+            y2={to.y}
+            stroke="#FFFF00"
+            strokeWidth={2}
+            strokeDasharray="4,4"
+            opacity={0.7}
+            pointerEvents="none"
+          />
+        )}
       </g>
     )
   }
@@ -852,7 +921,7 @@ export default function TareaGraphicEditor({
           className="flex-1 flex items-center justify-center p-4 overflow-hidden"
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
-          onMouseLeave={() => { setIsDragging(false); setZoneDragStart(null); setZoneDragCurrent(null) }}
+          onMouseLeave={() => { setZoneDragStart(null); setZoneDragCurrent(null) }}
         >
           <FootballPitch
             ref={svgRef}
@@ -888,7 +957,7 @@ export default function TareaGraphicEditor({
         className="border border-gray-300 rounded-lg overflow-hidden bg-gray-900"
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={() => { setIsDragging(false); setZoneDragStart(null); setZoneDragCurrent(null) }}
+        onMouseLeave={() => { setZoneDragStart(null); setZoneDragCurrent(null) }}
       >
         <FootballPitch
           ref={svgRef}
