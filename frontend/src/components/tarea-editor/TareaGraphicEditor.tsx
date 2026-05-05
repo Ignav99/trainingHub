@@ -70,7 +70,7 @@ function normalizePosition(el: any): { x: number; y: number } | null {
   return null
 }
 
-// Ensure grafico_data from DB always has valid arrays, normalizing position formats
+// Ensure grafico_data from DB always has valid arrays, normalizing position formats and IDs
 function sanitizeDiagramData(raw: any): DiagramData {
   if (!raw || typeof raw !== 'object') return emptyDiagramData
   return {
@@ -78,15 +78,17 @@ function sanitizeDiagramData(raw: any): DiagramData {
     elements: Array.isArray(raw.elements)
       ? raw.elements
           .filter((e: any) => e && normalizePosition(e))
-          .map((e: any) => ({ ...e, position: normalizePosition(e) }))
+          .map((e: any) => ({ ...e, id: e.id || generateId(), position: normalizePosition(e) }))
       : [],
     arrows: Array.isArray(raw.arrows)
-      ? raw.arrows.filter((a: any) => a && a.from && a.to && typeof a.from.x === 'number' && typeof a.to.x === 'number')
+      ? raw.arrows
+          .filter((a: any) => a && a.from && a.to && typeof a.from.x === 'number' && typeof a.to.x === 'number')
+          .map((a: any) => ({ ...a, id: a.id || generateId() }))
       : [],
     zones: Array.isArray(raw.zones)
       ? raw.zones
           .filter((z: any) => z && (z.position || (typeof z.x === 'number' && typeof z.y === 'number')))
-          .map((z: any) => ({ ...z, position: z.position || { x: z.x, y: z.y } }))
+          .map((z: any) => ({ ...z, id: z.id || generateId(), position: z.position || { x: z.x, y: z.y } }))
       : [],
   }
 }
