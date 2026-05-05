@@ -1,6 +1,6 @@
 'use client'
 
-import React, { memo } from 'react'
+import React, { memo, useId } from 'react'
 import type { DiagramData, DiagramElement, DiagramArrow, DiagramZone } from '../tarea-editor/types'
 import { ELEMENT_SIZES } from '../tarea-editor/types'
 
@@ -19,6 +19,7 @@ function getPos(el: any): { x: number; y: number } {
 }
 
 function renderElement(element: DiagramElement) {
+  if (!element) return null
   const pos = getPos(element)
   const { id, type, label, color } = element
   const size = ELEMENT_SIZES[type as keyof typeof ELEMENT_SIZES] || 24
@@ -77,7 +78,11 @@ function renderElement(element: DiagramElement) {
 }
 
 function renderArrow(arrow: DiagramArrow) {
-  const { id, from, to, type, color } = arrow
+  if (!arrow) return null
+  const { id, type, color } = arrow
+  const from = arrow.from || (arrow as any).position || { x: 0, y: 0 }
+  const to = arrow.to || { x: from.x + 50, y: from.y }
+  if (!from || !to || typeof from.x !== 'number' || typeof to.x !== 'number') return null
   const angle = Math.atan2(to.y - from.y, to.x - from.x)
   const arrowSize = 8
 
@@ -108,7 +113,10 @@ function renderArrow(arrow: DiagramArrow) {
 }
 
 function renderZone(zone: DiagramZone) {
-  const { id, position, width, height, color, opacity, shape } = zone
+  if (!zone) return null
+  const { id, width, height, color, opacity, shape } = zone
+  const position = zone.position || { x: (zone as any).x || 0, y: (zone as any).y || 0 }
+  if (!position || typeof position.x !== 'number') return null
 
   if (shape === 'ellipse') {
     return (
@@ -209,11 +217,11 @@ function TacticalBoardMiniInner({ data, width = '100%', height, className = '' }
     >
       <PitchBackground pitchType={pitchType} />
       {/* Zones first (background layer) */}
-      {data.zones?.map(renderZone)}
+      {Array.isArray(data.zones) && data.zones.filter(Boolean).map(renderZone)}
       {/* Arrows */}
-      {data.arrows?.map(renderArrow)}
+      {Array.isArray(data.arrows) && data.arrows.filter(Boolean).map(renderArrow)}
       {/* Elements on top */}
-      {data.elements?.map(renderElement)}
+      {Array.isArray(data.elements) && data.elements.filter(Boolean).map(renderElement)}
     </svg>
   )
 }
