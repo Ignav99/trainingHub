@@ -59,7 +59,8 @@ const FootballPitch = forwardRef<SVGSVGElement, FootballPitchProps>(function Foo
       className={`rounded-lg ${className}`}
       onClick={onClick}
       onMouseDown={onMouseDown}
-      style={{ cursor: 'crosshair', display: 'block' }}
+      style={{ cursor: 'crosshair', display: 'block', userSelect: 'none', WebkitUserSelect: 'none' }}
+      onDragStart={(e) => e.preventDefault()}
     >
       {/* Fondo de cesped con franjas */}
       <defs>

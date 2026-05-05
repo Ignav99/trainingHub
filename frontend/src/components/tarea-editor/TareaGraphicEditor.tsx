@@ -413,6 +413,7 @@ export default function TareaGraphicEditor({
   // Manejar drag de elemento
   const handleElementMouseDown = (e: React.MouseEvent, elementId: string) => {
     if (readOnly) return
+    e.preventDefault()
     e.stopPropagation()
     setSelectedElement(elementId)
     if (selectedTool === 'select') {
@@ -918,10 +919,11 @@ export default function TareaGraphicEditor({
 
         {/* Pitch — fills remaining space */}
         <div
-          className="flex-1 flex items-center justify-center p-4 overflow-hidden"
+          className="flex-1 flex items-center justify-center p-4 overflow-hidden select-none"
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={() => { setZoneDragStart(null); setZoneDragCurrent(null) }}
+          onMouseDown={(e) => { if (!readOnly) e.preventDefault() }}
         >
           <FootballPitch
             ref={svgRef}
@@ -954,10 +956,11 @@ export default function TareaGraphicEditor({
 
       {/* Campo de futbol — responsive, fills container width */}
       <div
-        className="border border-gray-300 rounded-lg overflow-hidden bg-gray-900"
+        className="border border-gray-300 rounded-lg overflow-hidden bg-gray-900 select-none"
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={() => { setZoneDragStart(null); setZoneDragCurrent(null) }}
+        onMouseDown={(e) => { if (!readOnly) e.preventDefault() }}
       >
         <FootballPitch
           ref={svgRef}
