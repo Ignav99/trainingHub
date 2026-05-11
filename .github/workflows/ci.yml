@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend:
     name: Backend Tests
@@ -63,3 +67,21 @@ jobs:
       - name: Type check
         working-directory: frontend
         run: npx tsc --noEmit
+
+  # ── Gate ────────────────────────────────────────────────────────────────────
+  # Single required status check for branch protection.
+  # Add all jobs above as `needs` — if any fail, this fails too.
+
+  ci-passed:
+    name: CI Passed
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: All checks passed
+        run: |
+          if [[ "${{ needs.backend.result }}" != "success" || "${{ needs.frontend.result }}" != "success" ]]; then
+            echo "One or more CI jobs failed."
+            exit 1
+          fi
+          echo "All CI jobs passed."
