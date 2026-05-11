@@ -33,6 +33,7 @@ env/
 # Variables de entorno (IMPORTANTE)
 # ============================================
 .env
+*.env
 .env.local
 .env.development.local
 .env.test.local
@@ -88,3 +89,9 @@ generated_pdfs/
 *.tsbuildinfo
 next-env.d.ts
 .mcp.json
+
+# ============================================
+# Archivos locales (no pertenecen al repo)
+# ============================================
+documentacion/
+docs/superpowers/
