@@ -27,6 +27,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/dependency-review-action@v4
+        # Requires Dependency Graph enabled:
+        # GitHub → Settings → Security & Analysis → Dependency graph → Enable
+        continue-on-error: true
         with:
           fail-on-severity: high
 
@@ -89,6 +92,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Claude Security Review
-        uses: anthropics/claude-code-security-review@v1
+        # Pinned to latest main SHA (no versioned releases exist yet)
+        uses: anthropics/claude-code-security-review@0c6a49f1fa56a1d472575da86a94dbc1edb78eda
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
