@@ -61,7 +61,7 @@ resend>=2.0.0
 sentry-sdk[fastapi]>=2.0
 
 # Rate Limiting (optional Redis backend)
-redis>=5.0
+redis>=7.4.0
 
 # Production Server
 gunicorn>=26.0.0
