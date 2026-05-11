@@ -21,7 +21,7 @@ jobs:
     steps:
       - name: Deploy backend
         run: |
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}")
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}")
           echo "Backend deploy hook response: $HTTP_CODE"
           if [[ "$HTTP_CODE" =~ ^2 ]]; then
             echo "Backend deploy triggered successfully"
@@ -32,7 +32,7 @@ jobs:
 
       - name: Deploy frontend
         run: |
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}")
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}")
           echo "Frontend deploy hook response: $HTTP_CODE"
           if [[ "$HTTP_CODE" =~ ^2 ]]; then
             echo "Frontend deploy triggered successfully"
