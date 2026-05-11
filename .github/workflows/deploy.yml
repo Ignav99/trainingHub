@@ -1,10 +1,12 @@
 name: Deploy
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
 
-# Only one deploy at a time
+# Only one deploy at a time — never cancel in-progress deploys
 concurrency:
   group: deploy-production
   cancel-in-progress: false
@@ -13,11 +15,9 @@ jobs:
   deploy:
     name: Deploy to Render
     runs-on: ubuntu-latest
-    environment: production
-    needs: []
-    # Deploy only when CI workflow passes on main
-    # CI runs in parallel — we use workflow_run for that.
-    # Here we trigger via push to main after CI gates merge.
+    # Only deploy when CI passed — never on failure
+    if: github.event.workflow_run.conclusion == 'success'
+
     steps:
       - name: Deploy backend
         run: |
