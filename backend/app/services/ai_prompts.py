@@ -581,21 +581,8 @@ La ÚNICA vez que NO debes llamar a la herramienta es cuando el entrenador hace 
 - Consulta el MODELO DE JUEGO del equipo para alinear cada ejercicio con los principios del entrenador
 
 ### CAMPOS PRINCIPALES DE CADA FASE
-Obligatorios: fase, duracion, titulo, descripcion, categoria, coaching_points, razon
-Opcionales pero recomendados: reglas, num_jugadores, estructura_equipos, espacio, densidad, nivel_cognitivo, fase_juego, principio_tactico, variantes, material_necesario
-
-### DIAGRAMA TÁCTICO (grafico_data) — OBLIGATORIO
-SIEMPRE genera grafico_data para cada tarea/fase con el diagrama del ejercicio.
-Si incluyes grafico_data, usa este formato:
-- pitchType: "full" (con porterías, para EVO/AVD/PCO/SSG) o "green" (sin porterías, para RND/JDP/POS/ACO/ABP)
-- Campo horizontal 1050x680px. 1 metro ≈ 10px. Porterías a izquierda/derecha.
-- elements: [{"type":"player","x":N,"y":N,"color":"#3B82F6","label":"1"}, {"type":"cone","x":N,"y":N}, ...]
-- arrows: [{"from":{"x":N,"y":N},"to":{"x":N,"y":N},"type":"pass","color":"#FFFFFF"}, ...]
-- zones: [{"x":N,"y":N,"width":N,"height":N,"color":"rgba(46,204,113,0.08)","label":"Zona A"}]
-- Colores: equipo=#3B82F6, rival=#EF4444, comodín=#F59E0B, portero=#22C55E
-- Tipos de jugador: "player", "player_gk". Otros: "cone", "ball", "mini_goal"
-- Flechas: type="pass" (dashed blanca) o type="movement" (sólida verde)
-- DIRECCIÓN: ataques siempre HORIZONTALES (→ o ←). "Verticalidad" táctica = horizontal en diagrama.
+Obligatorios: fase, duracion, titulo, descripcion, categoria, coaching_points
+Opcionales: reglas, num_jugadores, estructura_equipos, espacio, densidad, nivel_cognitivo, fase_juego, principio_tactico
 """
 
 
@@ -726,41 +713,9 @@ SESSION_DESIGN_TOOLS = [
                                 "items": {"type": "string"},
                                 "description": "Consignas clave para el entrenador (2-4 puntos)"
                             },
-                            "razon": {
-                                "type": "string",
-                                "description": "Por qué se elige este ejercicio para esta fase"
-                            },
-                            "variantes": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "1-3 variantes/progresiones. Obligatorio para JDP, POS, EVO, AVD, PCO."
-                            },
-                            "material_necesario": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "Material: 'Petos 3 colores', 'Conos x20', 'Porterías pequeñas x2', 'Balones x10'"
-                            },
-                            "posicion_entrenador": {
-                                "type": "string",
-                                "description": "Dónde se coloca el entrenador principal y asistentes durante la tarea"
-                            },
-                            "errores_comunes": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "2-3 errores comunes a corregir"
-                            },
-                            "consignas_defensivas": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "Consignas defensivas"
-                            },
                         },
-                        "required": ["fase", "duracion", "titulo", "descripcion", "categoria", "coaching_points", "razon"],
+                        "required": ["fase", "duracion", "titulo", "descripcion", "categoria", "coaching_points"],
                     },
-                },
-                "coherencia_tactica": {
-                    "type": "string",
-                    "description": "Explicación de por qué las tareas elegidas son coherentes entre sí"
                 },
                 "carga_estimada": {
                     "type": "object",
@@ -778,7 +733,7 @@ SESSION_DESIGN_TOOLS = [
                     "required": ["fisica", "cognitiva", "duracion_total"],
                 },
             },
-            "required": ["titulo_sugerido", "match_day", "resumen", "fases", "coherencia_tactica", "carga_estimada"],
+            "required": ["titulo_sugerido", "match_day", "resumen", "fases", "carga_estimada"],
         },
     },
 ]
