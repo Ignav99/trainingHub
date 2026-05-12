@@ -91,6 +91,7 @@ class OpenAICompatibleService:
         max_iterations: int = 10,
         tool_handler: callable = None,
         stop_on_tools: set[str] | None = None,
+        request_timeout: float | None = 55.0,
     ) -> tuple[str, list[dict], int, int]:
         """Core tool-use loop for OpenAI-compatible APIs.
 
@@ -115,6 +116,7 @@ class OpenAICompatibleService:
                     "model": self.model,
                     "max_tokens": max_tokens,
                     "messages": messages,
+                    "timeout": request_timeout,
                 }
                 if tools:
                     kwargs["tools"] = tools
@@ -329,6 +331,7 @@ class OpenAICompatibleService:
             messages, tools, max_tokens=1500, max_iterations=3,
             tool_handler=tool_handler,
             stop_on_tools={"proponer_sesion"},  # Exit immediately after capture — no second LLM call
+            request_timeout=None,  # No HTTP timeout — asyncio.wait_for(75s) in endpoint is the only limit
         )
 
         # If session was proposed, return a friendly message without an extra LLM call
