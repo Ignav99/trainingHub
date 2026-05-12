@@ -730,10 +730,6 @@ SESSION_DESIGN_TOOLS = [
                                 "type": "string",
                                 "description": "Por qué se elige este ejercicio para esta fase"
                             },
-                            "grafico_data": {
-                                "type": "object",
-                                "description": "Diagrama táctico del ejercicio con field_type, elements, arrows, zones"
-                            },
                             "variantes": {
                                 "type": "array",
                                 "items": {"type": "string"},
@@ -759,7 +755,7 @@ SESSION_DESIGN_TOOLS = [
                                 "description": "Consignas defensivas"
                             },
                         },
-                        "required": ["fase", "duracion", "titulo", "descripcion", "categoria", "coaching_points", "razon", "grafico_data"],
+                        "required": ["fase", "duracion", "titulo", "descripcion", "categoria", "coaching_points", "razon"],
                     },
                 },
                 "coherencia_tactica": {
