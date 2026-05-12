@@ -564,14 +564,14 @@ Esto incluye:
 La ÚNICA vez que NO debes llamar a la herramienta es cuando el entrenador hace una pregunta informativa sin pedir cambios.
 
 ### FLUJO
-1. El entrenador describe lo que necesita → PRIMERO busca en la biblioteca con `buscar_tareas_biblioteca` para cada fase, LUEGO llama a `proponer_sesion`.
+1. El entrenador describe lo que necesita → revisa la BIBLIOTECA DE EJERCICIOS DEL CLUB que ya está incluida en este contexto (sección "BIBLIOTECA DE EJERCICIOS DEL CLUB"), luego llama a `proponer_sesion`.
 2. El entrenador pide cambios → TÚ llamas a `proponer_sesion` con la sesión completa actualizada (mantén lo que no cambia, modifica solo lo pedido).
 3. Si falta el número de jugadores: asume 18 (16 + 2 GK). Si falta match_day: asume MD-3.
-4. Para CADA fase, busca primero en la biblioteca con `buscar_tareas_biblioteca`.
+4. Para CADA fase, consulta la biblioteca del club que ya tienes en el contexto:
    - Relevancia >= 70% → proponla como tarea existente (incluye tarea_id en la fase).
    - Relevancia 50-69% → proponla adaptada (incluye tarea_id + describe adaptaciones en la descripción).
    - Relevancia < 50% → crea tarea nueva (sin tarea_id).
-5. No hay límite de iteraciones. El entrenador puede pedir cambios INFINITAS veces hasta estar satisfecho.
+5. NO uses herramientas de búsqueda — la biblioteca ya está pre-cargada en el contexto. Úsala directamente.
 
 ### REGLAS DEL DISEÑO
 - 4 fases obligatorias: activacion (10-15min), desarrollo_1 (15-25min), desarrollo_2 (20-30min), vuelta_calma (5-10min)

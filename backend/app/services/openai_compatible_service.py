@@ -310,6 +310,9 @@ class OpenAICompatibleService:
             if tool_name == "proponer_sesion":
                 sesion_propuesta = tool_input
                 return "Sesion propuesta presentada al entrenador. Ahora resume brevemente lo que has propuesto y pregunta si quiere modificar algo."
+            if tool_name == "buscar_tareas_biblioteca":
+                # Library is pre-loaded in context — no roundtrip needed
+                return "La biblioteca de ejercicios ya está disponible en el contexto del sistema. Úsala directamente para seleccionar tareas y llama a proponer_sesion."
             return None
 
         text, tools_used, tok_in, tok_out = await self._call_with_tools(
