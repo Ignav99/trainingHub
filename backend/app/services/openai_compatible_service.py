@@ -37,7 +37,7 @@ class OpenAICompatibleService:
             api_key=api_key,
             base_url=base_url,
             timeout=55.0,
-            max_retries=1,
+            max_retries=0,
         )
         self.model = model
         self.provider_name = provider_name

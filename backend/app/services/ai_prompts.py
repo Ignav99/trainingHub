@@ -658,7 +658,7 @@ SESSION_DESIGN_TOOLS = [
                             },
                             "descripcion": {
                                 "type": "string",
-                                "description": "Descripción detallada del ejercicio: qué hacen los jugadores, cómo se organiza, dinámica"
+                                "description": "Descripción breve del ejercicio en 1-2 frases"
                             },
                             "categoria": {
                                 "type": "string",
@@ -711,10 +711,11 @@ SESSION_DESIGN_TOOLS = [
                             "coaching_points": {
                                 "type": "array",
                                 "items": {"type": "string"},
-                                "description": "Consignas clave para el entrenador (2-4 puntos)"
+                                "maxItems": 2,
+                                "description": "Consignas clave para el entrenador (máximo 2)"
                             },
                         },
-                        "required": ["fase", "duracion", "titulo", "descripcion", "categoria", "coaching_points"],
+                        "required": ["fase", "duracion", "titulo", "categoria", "coaching_points"],
                     },
                 },
                 "carga_estimada": {
