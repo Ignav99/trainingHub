@@ -326,7 +326,7 @@ class OpenAICompatibleService:
             return None
 
         text, tools_used, tok_in, tok_out = await self._call_with_tools(
-            messages, tools, max_tokens=4096, max_iterations=3,
+            messages, tools, max_tokens=1500, max_iterations=3,
             tool_handler=tool_handler,
             stop_on_tools={"proponer_sesion"},  # Exit immediately after capture — no second LLM call
         )
