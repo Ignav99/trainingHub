@@ -1926,12 +1926,15 @@ async def design_session_chat(
         from app.services.ai_factory import call_ai_with_fallback
         from app.services.ai_errors import AIError
 
-        result = await call_ai_with_fallback(
-            "session_design_chat",
-            use_fast_model=True,
-            mensajes=[{"rol": m.rol, "contenido": m.contenido} for m in request.mensajes],
-            equipo_id=equipo_id,
-            organizacion_id=auth.organizacion_id,
+        result = await asyncio.wait_for(
+            call_ai_with_fallback(
+                "session_design_chat",
+                use_fast_model=True,
+                mensajes=[{"rol": m.rol, "contenido": m.contenido} for m in request.mensajes],
+                equipo_id=equipo_id,
+                organizacion_id=auth.organizacion_id,
+            ),
+            timeout=75.0,
         )
 
         return SessionDesignResponse(
@@ -1940,6 +1943,12 @@ async def design_session_chat(
             herramientas_usadas=result.get("herramientas_usadas", []),
         )
 
+    except asyncio.TimeoutError:
+        logger.error("session design chat timed out after 75s")
+        raise HTTPException(
+            status_code=504,
+            detail="La IA tardó demasiado en responder. Inténtalo de nuevo.",
+        )
     except AIError as e:
         logger.error(f"AIError in session design chat: {e}")
         error_msg = str(e)

@@ -30,8 +30,8 @@ def _get_async_client() -> anthropic.AsyncAnthropic:
         clean_key = "".join(settings.ANTHROPIC_API_KEY.split())
         _async_client = anthropic.AsyncAnthropic(
             api_key=clean_key,
-            timeout=120.0,
-            max_retries=3,
+            timeout=40.0,
+            max_retries=1,
         )
     return _async_client
 
@@ -2147,19 +2147,19 @@ Responde SOLO con JSON válido:
         first_user_msg = messages[-1].get("content", "") if messages else ""
         first_msg_is_substantial = isinstance(first_user_msg, str) and len(first_user_msg) > 80
 
-        max_iterations = 10
+        max_iterations = 5
         for iteration in range(max_iterations):
             try:
                 kwargs = {
                     "model": self.model,
-                    "max_tokens": 16384,
+                    "max_tokens": 4096,
                     "system": system,
                     "messages": messages,
                     "tools": tools,
                 }
 
                 # Let AI search library first, then propose — no forced tool on first msg
-                response = await self.client.messages.create(**kwargs)
+                response = await self.client.messages.create(**kwargs, timeout=35.0)
 
                 total_input_tokens += response.usage.input_tokens
                 total_output_tokens += response.usage.output_tokens

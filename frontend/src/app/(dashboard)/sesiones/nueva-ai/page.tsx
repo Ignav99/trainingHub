@@ -279,13 +279,16 @@ export default function NuevaSesionAIPage() {
       }
     } catch (err: any) {
       console.error('Session design chat error:', err)
+      const msg = err?.message?.includes('504') || err?.message?.toLowerCase().includes('timeout')
+        ? 'La IA tardó demasiado en responder. Intenta con un mensaje más corto o vuelve a intentarlo.'
+        : 'Lo siento, ha ocurrido un error. Por favor, intentalo de nuevo.'
       setMessages((prev) => {
         const withoutLoading = prev.filter((m) => !m.isLoading)
         return [
           ...withoutLoading,
           {
             rol: 'assistant' as const,
-            contenido: 'Lo siento, ha ocurrido un error. Por favor, intentalo de nuevo.',
+            contenido: msg,
             timestamp: new Date(),
           },
         ]
