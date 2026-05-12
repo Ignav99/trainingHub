@@ -36,8 +36,8 @@ class OpenAICompatibleService:
         self.client = openai.AsyncOpenAI(
             api_key=api_key,
             base_url=base_url,
-            timeout=120.0,
-            max_retries=2,
+            timeout=55.0,
+            max_retries=1,
         )
         self.model = model
         self.provider_name = provider_name
@@ -261,6 +261,37 @@ class OpenAICompatibleService:
         if game_model_context:
             system_text += "\n\n" + game_model_context
 
+        # Pre-load exercise library to avoid tool roundtrips during the AI loop
+        try:
+            biblioteca_json = execute_tool("buscar_tareas", {
+                "organizacion_id": organizacion_id,
+                "limite": 40,
+            })
+            biblioteca = json.loads(biblioteca_json)
+            if biblioteca:
+                lines = [
+                    "\n## BIBLIOTECA DE EJERCICIOS DEL CLUB",
+                    "Estas tareas ya están disponibles. Para reutilizar una, incluye su tarea_id en la fase correspondiente.\n",
+                ]
+                for t in biblioteca:
+                    parts = [f"ID:{t.get('id', '')}", f"Titulo:{str(t.get('titulo', ''))[:60]}"]
+                    if t.get("fase_juego"):
+                        parts.append(f"Fase:{t['fase_juego']}")
+                    if t.get("duracion_total"):
+                        parts.append(f"Dur:{t['duracion_total']}min")
+                    cat = t.get("categoria") or {}
+                    if isinstance(cat, dict) and cat.get("codigo"):
+                        parts.append(f"Cat:{cat['codigo']}")
+                    elif isinstance(cat, str) and cat:
+                        parts.append(f"Cat:{cat}")
+                    if t.get("descripcion"):
+                        parts.append(f"Desc:{str(t['descripcion'])[:80]}")
+                    lines.append("- " + " | ".join(parts))
+                system_text += "\n".join(lines)
+            logger.info(f"Library pre-loaded: {len(biblioteca)} tasks for session design")
+        except Exception as e:
+            logger.warning(f"Could not pre-load exercise library: {e}")
+
         messages = [{"role": "system", "content": system_text}]
         for msg in mensajes:
             rol = msg.get("rol", "user")
@@ -270,7 +301,8 @@ class OpenAICompatibleService:
             elif rol == "user":
                 messages.append({"role": "user", "content": contenido})
 
-        tools = claude_tools_to_openai(SESSION_DESIGN_TOOLS)
+        # Only proponer_sesion — library is pre-loaded in context, no tool roundtrips needed
+        tools = claude_tools_to_openai([t for t in SESSION_DESIGN_TOOLS if t["name"] == "proponer_sesion"])
         sesion_propuesta = None
 
         def tool_handler(tool_name, tool_input, tool_call_id):
@@ -278,19 +310,10 @@ class OpenAICompatibleService:
             if tool_name == "proponer_sesion":
                 sesion_propuesta = tool_input
                 return "Sesion propuesta presentada al entrenador. Ahora resume brevemente lo que has propuesto y pregunta si quiere modificar algo."
-            if tool_name == "buscar_tareas_biblioteca":
-                search_params = {
-                    "organizacion_id": organizacion_id,
-                    "busqueda": tool_input.get("query", ""),
-                    "categoria": tool_input.get("categoria"),
-                    "fase_juego": tool_input.get("fase_juego"),
-                    "limite": tool_input.get("limite", 5),
-                }
-                return execute_tool("buscar_tareas", search_params)
             return None
 
         text, tools_used, tok_in, tok_out = await self._call_with_tools(
-            messages, tools, max_tokens=16384, max_iterations=10, tool_handler=tool_handler,
+            messages, tools, max_tokens=4096, max_iterations=3, tool_handler=tool_handler,
         )
 
         return {
