@@ -700,14 +700,14 @@ Esto incluye:
 La ÚNICA vez que NO debes llamar a la herramienta es cuando el entrenador hace una pregunta informativa sin pedir cambios.
 
 ### FLUJO
-1. El entrenador describe lo que necesita → PRIMERO busca en la biblioteca con `buscar_tareas_biblioteca` para cada fase, LUEGO llama a `proponer_sesion`.
+1. El entrenador describe lo que necesita → Revisa la BIBLIOTECA DE EJERCICIOS DEL CLUB en el contexto del sistema y llama directamente a `proponer_sesion`. NO hagas preguntas adicionales salvo que la petición sea muy ambigua.
 2. El entrenador pide cambios → TÚ llamas a `proponer_sesion` con la sesión completa actualizada (mantén lo que no cambia, modifica solo lo pedido).
 3. Si falta el número de jugadores: asume 18 (16 + 2 GK). Si falta match_day: asume MD-3.
-4. Para CADA fase, busca primero en la biblioteca con `buscar_tareas_biblioteca`.
-   - Relevancia >= 70% → proponla como tarea existente (incluye tarea_id en la fase).
+4. Para CADA fase, revisa la BIBLIOTECA DEL CLUB disponible en el contexto del sistema.
+   - Relevancia >= 70% → proponla (incluye tarea_id en la fase).
    - Relevancia 50-69% → proponla adaptada (incluye tarea_id + describe adaptaciones en la descripción).
    - Relevancia < 50% → crea tarea nueva (sin tarea_id).
-5. No hay límite de iteraciones. El entrenador puede pedir cambios INFINITAS veces hasta estar satisfecho.
+5. El entrenador puede pedir cambios cuantas veces quiera.
 
 ### REGLAS DEL DISEÑO
 - 4 fases obligatorias: activacion (10-15min), desarrollo_1 (15-25min), desarrollo_2 (20-30min), vuelta_calma (5-10min)
@@ -2110,6 +2110,36 @@ Responde SOLO con JSON válido:
         if game_model_context:
             context_text += "\n\n" + game_model_context
 
+        # Pre-load exercise library to avoid tool roundtrips during the Claude loop
+        try:
+            biblioteca_json = _tool_buscar_tareas(get_supabase(), {
+                "organizacion_id": organizacion_id,
+                "limite": 40,
+            })
+            import json as _json
+            biblioteca = _json.loads(biblioteca_json)
+            if biblioteca:
+                lines = [
+                    "\n## BIBLIOTECA DE EJERCICIOS DEL CLUB",
+                    "Estas tareas ya están disponibles. Para reutilizar una, incluye su tarea_id en la fase correspondiente.\n",
+                ]
+                for t in biblioteca:
+                    parts = [f"ID:{t.get('id', '')}", f"Titulo:{str(t.get('titulo', ''))[:60]}"]
+                    if t.get("fase_juego"):
+                        parts.append(f"Fase:{t['fase_juego']}")
+                    if t.get("duracion_total"):
+                        parts.append(f"Dur:{t['duracion_total']}min")
+                    cat = t.get("categoria") or {}
+                    if isinstance(cat, dict) and cat.get("codigo"):
+                        parts.append(f"Cat:{cat['codigo']}")
+                    if t.get("descripcion"):
+                        parts.append(f"Desc:{str(t['descripcion'])[:80]}")
+                    lines.append("- " + " | ".join(parts))
+                context_text += "\n".join(lines)
+            logger.info(f"Library pre-loaded: {len(biblioteca)} tasks for session design")
+        except Exception as e:
+            logger.warning(f"Could not pre-load exercise library: {e}")
+
         # Build system prompt for session design with prompt caching
         system = [
             {
@@ -2133,9 +2163,8 @@ Responde SOLO con JSON válido:
             elif rol == "user":
                 messages.append({"role": "user", "content": contenido})
 
-        # Tools: only session design tools (proponer_sesion)
-        # No team query tools — the AI should generate directly from user context
-        tools = SESSION_DESIGN_TOOLS
+        # Only proponer_sesion — library is pre-loaded in context, no tool roundtrips needed
+        tools = [t for t in SESSION_DESIGN_TOOLS if t["name"] == "proponer_sesion"]
 
         herramientas_usadas = []
         sesion_propuesta = None
@@ -2147,7 +2176,7 @@ Responde SOLO con JSON válido:
         first_user_msg = messages[-1].get("content", "") if messages else ""
         first_msg_is_substantial = isinstance(first_user_msg, str) and len(first_user_msg) > 80
 
-        max_iterations = 5
+        max_iterations = 3
         for iteration in range(max_iterations):
             try:
                 kwargs = {
@@ -2158,7 +2187,6 @@ Responde SOLO con JSON válido:
                     "tools": tools,
                 }
 
-                # Let AI search library first, then propose — no forced tool on first msg
                 response = await self.client.messages.create(**kwargs, timeout=35.0)
 
                 total_input_tokens += response.usage.input_tokens
