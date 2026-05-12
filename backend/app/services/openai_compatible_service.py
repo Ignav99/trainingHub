@@ -90,6 +90,7 @@ class OpenAICompatibleService:
         max_tokens: int = 4096,
         max_iterations: int = 10,
         tool_handler: callable = None,
+        stop_on_tools: set[str] | None = None,
     ) -> tuple[str, list[dict], int, int]:
         """Core tool-use loop for OpenAI-compatible APIs.
 
@@ -99,6 +100,7 @@ class OpenAICompatibleService:
             max_tokens: Max tokens per response
             max_iterations: Max tool-use iterations
             tool_handler: Optional custom handler for special tools (returns tool result string or None to skip)
+            stop_on_tools: If any tool in this set is called, stop the loop immediately after (no second LLM call)
 
         Returns:
             (text_response, tools_used, total_input_tokens, total_output_tokens)
@@ -134,6 +136,7 @@ class OpenAICompatibleService:
                 # Add assistant message with tool calls
                 messages.append(message.model_dump())
 
+                stop_early = False
                 for tool_call in message.tool_calls:
                     fn = tool_call.function
                     tool_name = fn.name
@@ -160,6 +163,13 @@ class OpenAICompatibleService:
                         "tool_call_id": tool_call.id,
                         "content": result_content,
                     })
+
+                    if stop_on_tools and tool_name in stop_on_tools:
+                        stop_early = True
+
+                if stop_early:
+                    # Exit without a second LLM call — caller provides the response text
+                    return "", tools_used, total_input, total_output
 
                 continue  # Let the model process tool results
             else:
@@ -262,30 +272,29 @@ class OpenAICompatibleService:
             system_text += "\n\n" + game_model_context
 
         # Pre-load exercise library to avoid tool roundtrips during the AI loop
+        # Keep context small: 20 tasks, minimal fields (no descriptions) to reduce LLM generation time
         try:
             biblioteca_json = execute_tool("buscar_tareas", {
                 "organizacion_id": organizacion_id,
-                "limite": 40,
+                "limite": 20,
             })
             biblioteca = json.loads(biblioteca_json)
             if biblioteca:
                 lines = [
                     "\n## BIBLIOTECA DE EJERCICIOS DEL CLUB",
-                    "Estas tareas ya están disponibles. Para reutilizar una, incluye su tarea_id en la fase correspondiente.\n",
+                    "Tareas disponibles para reutilizar (incluye tarea_id en la fase):\n",
                 ]
                 for t in biblioteca:
-                    parts = [f"ID:{t.get('id', '')}", f"Titulo:{str(t.get('titulo', ''))[:60]}"]
+                    parts = [f"ID:{t.get('id', '')}", f"T:{str(t.get('titulo', ''))[:50]}"]
                     if t.get("fase_juego"):
-                        parts.append(f"Fase:{t['fase_juego']}")
+                        parts.append(f"F:{t['fase_juego']}")
                     if t.get("duracion_total"):
-                        parts.append(f"Dur:{t['duracion_total']}min")
-                    cat = t.get("categoria") or {}
+                        parts.append(f"D:{t['duracion_total']}m")
+                    cat = t.get("categorias_tarea") or t.get("categoria") or {}
                     if isinstance(cat, dict) and cat.get("codigo"):
-                        parts.append(f"Cat:{cat['codigo']}")
+                        parts.append(f"C:{cat['codigo']}")
                     elif isinstance(cat, str) and cat:
-                        parts.append(f"Cat:{cat}")
-                    if t.get("descripcion"):
-                        parts.append(f"Desc:{str(t['descripcion'])[:80]}")
+                        parts.append(f"C:{cat}")
                     lines.append("- " + " | ".join(parts))
                 system_text += "\n".join(lines)
             logger.info(f"Library pre-loaded: {len(biblioteca)} tasks for session design")
@@ -309,15 +318,23 @@ class OpenAICompatibleService:
             nonlocal sesion_propuesta
             if tool_name == "proponer_sesion":
                 sesion_propuesta = tool_input
-                return "Sesion propuesta presentada al entrenador. Ahora resume brevemente lo que has propuesto y pregunta si quiere modificar algo."
+                # Return a result but we'll stop_on_tools so no second LLM call is made
+                return "OK"
             if tool_name == "buscar_tareas_biblioteca":
                 # Library is pre-loaded in context — no roundtrip needed
                 return "La biblioteca de ejercicios ya está disponible en el contexto del sistema. Úsala directamente para seleccionar tareas y llama a proponer_sesion."
             return None
 
         text, tools_used, tok_in, tok_out = await self._call_with_tools(
-            messages, tools, max_tokens=4096, max_iterations=3, tool_handler=tool_handler,
+            messages, tools, max_tokens=4096, max_iterations=3,
+            tool_handler=tool_handler,
+            stop_on_tools={"proponer_sesion"},  # Exit immediately after capture — no second LLM call
         )
+
+        # If session was proposed, return a friendly message without an extra LLM call
+        if sesion_propuesta and not text:
+            titulo = sesion_propuesta.get("titulo_sesion") or sesion_propuesta.get("titulo", "")
+            text = f"¡Aquí tienes tu sesión{f' «{titulo}»' if titulo else ''} diseñada! Revisá las fases y decime si querés ajustar algo."
 
         return {
             "respuesta": text or "He procesado mucha informacion. ¿Quieres que continue?",
