@@ -2,7 +2,9 @@
 TrainingHub Pro - AI Factory
 Multi-provider chain: tries each provider in order, falls through on 429/503.
 Default chain: deepseek → cerebras → groq → claude
-Backward compatible: if only ANTHROPIC_API_KEY is set, works exactly as before.
+
+Intelligent routing: certain methods (e.g. session_design_chat) are routed to
+Claude first because it generates structured JSON 5-10x faster than DeepSeek.
 """
 
 import logging
@@ -14,6 +16,12 @@ from app.services.ai_errors import AIError
 logger = logging.getLogger(__name__)
 
 _FALLBACK_CODES = {429, 503}
+
+# Methods that need fast structured JSON → Claude first, DeepSeek fallback.
+# Everything else uses the default AI_PROVIDER_CHAIN from settings.
+_METHOD_PROVIDER_OVERRIDES: dict[str, str] = {
+    "session_design_chat": "claude,deepseek",
+}
 
 # Provider config: maps provider name → (key_attr, service_factory_args)
 _PROVIDER_REGISTRY = {
@@ -35,13 +43,15 @@ _PROVIDER_REGISTRY = {
 }
 
 
-def _build_provider_chain() -> list[tuple[str, Any]]:
-    """Build ordered list of (provider_name, service_instance) from AI_PROVIDER_CHAIN.
+def _build_provider_chain(chain_override: str | None = None) -> list[tuple[str, Any]]:
+    """Build ordered list of (provider_name, service_instance).
 
+    Args:
+        chain_override: If provided, use this comma-separated chain instead of settings.
     Only includes providers that have valid API keys configured.
     """
     settings = get_settings()
-    chain_str = settings.AI_PROVIDER_CHAIN
+    chain_str = chain_override or settings.AI_PROVIDER_CHAIN
     provider_names = [p.strip().lower() for p in chain_str.split(",") if p.strip()]
 
     chain = []
@@ -111,7 +121,13 @@ async def call_ai_with_fallback(method_name: str, *, use_fast_model: bool = Fals
     Raises:
         AIError: If all providers fail.
     """
-    chain = _build_provider_chain()
+    # Intelligent routing: some methods have a preferred provider chain
+    override = _METHOD_PROVIDER_OVERRIDES.get(method_name)
+    if override:
+        chain = _build_provider_chain(chain_override=override)
+        logger.info(f"Using override chain for {method_name}: {[n for n, _ in chain]}")
+    else:
+        chain = _build_provider_chain()
     if not chain:
         raise AIError("No AI providers configured", status_code=500, provider="none")
 
