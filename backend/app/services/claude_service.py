@@ -2187,6 +2187,10 @@ Responde SOLO con JSON válido:
                     "tools": tools,
                 }
 
+                # Force tool use on first call if user gave enough context
+                if iteration == 0 and user_msg_count >= 1 and first_msg_is_substantial:
+                    kwargs["tool_choice"] = {"type": "tool", "name": "proponer_sesion"}
+
                 response = await self.client.messages.create(**kwargs, timeout=70.0)
 
                 total_input_tokens += response.usage.input_tokens
@@ -2222,16 +2226,29 @@ Responde SOLO con JSON válido:
 
                         logger.info(f"Session design tool: {tool_name}")
 
-                        # Handle proponer_sesion specially
+                        # Handle proponer_sesion — return immediately, no 2nd API call
                         if tool_name == "proponer_sesion":
                             sesion_propuesta = tool_input
-                            tool_results.append({
-                                "type": "tool_result",
-                                "tool_use_id": block.id,
-                                "content": "Sesion propuesta presentada al entrenador. Ahora resume brevemente lo que has propuesto y pregunta si quiere modificar algo.",
-                            })
                             herramientas_usadas.append({"nombre": tool_name})
-                            continue
+
+                            # Use any text Claude wrote alongside the tool call
+                            text_parts = []
+                            for b in assistant_content:
+                                if hasattr(b, "text") and b.text:
+                                    text_parts.append(b.text)
+
+                            if not text_parts:
+                                titulo = tool_input.get("titulo_sugerido", "la sesión")
+                                resumen = tool_input.get("resumen", "")
+                                text_parts = [f"He diseñado **{titulo}**. {resumen}\n\n¿Quieres modificar algo?"]
+
+                            return {
+                                "respuesta": "\n".join(text_parts),
+                                "sesion_propuesta": sesion_propuesta,
+                                "tokens_input": total_input_tokens,
+                                "tokens_output": total_output_tokens,
+                                "herramientas_usadas": herramientas_usadas,
+                            }
 
                         # Handle buscar_tareas_biblioteca
                         if tool_name == "buscar_tareas_biblioteca":
