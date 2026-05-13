@@ -17,6 +17,8 @@ import {
 import { sesionesApi, SesionCreateData } from '@/lib/api/sesiones'
 import { tareasApi, catalogosApi } from '@/lib/api/tareas'
 import { Tarea } from '@/types'
+import { useEquipoStore } from '@/stores/equipoStore'
+import { AttendanceStep, PlayerAttendance } from '@/components/sesiones/AttendanceStep'
 
 const MATCH_DAYS = [
   { value: 'MD+1', label: 'MD+1 - Recuperación', color: 'bg-green-100 text-green-800' },
@@ -45,11 +47,13 @@ export default function NuevaSesionPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const isAssisted = searchParams.get('mode') === 'assisted'
+  const { equipoActivo } = useEquipoStore()
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [step, setStep] = useState(1)
-  const totalSteps = isAssisted ? 3 : 2
+  const [step, setStep] = useState(0)
+  const [attendanceData, setAttendanceData] = useState<PlayerAttendance[] | null>(null)
+  const totalSteps = isAssisted ? 4 : 3
 
   // Form data
   const [formData, setFormData] = useState<SesionCreateData>({
@@ -88,18 +92,42 @@ export default function NuevaSesionPage() {
     }
   }
 
+  function handleAttendanceConfirm(attendance: PlayerAttendance[]) {
+    setAttendanceData(attendance)
+    setStep(1)
+  }
+
+  function handleAttendanceSkip() {
+    setStep(1)
+  }
+
   const handleSubmit = async () => {
     setLoading(true)
     setError(null)
 
     try {
-      // TODO: Obtener equipo_id del contexto/store
       const dataToSend = {
         ...formData,
-        equipo_id: formData.equipo_id || '00000000-0000-0000-0000-000000000000', // Placeholder
+        equipo_id: formData.equipo_id || equipoActivo?.id || '00000000-0000-0000-0000-000000000000',
       }
 
       const sesion = await sesionesApi.create(dataToSend)
+
+      // Save attendance batch if we have it
+      if (attendanceData && attendanceData.length > 0) {
+        try {
+          await sesionesApi.saveAsistenciasBatch(
+            sesion.id,
+            attendanceData.map((a) => ({
+              jugador_id: a.jugador_id,
+              presente: a.presente,
+              motivo_ausencia: a.presente ? undefined : a.motivo_ausencia,
+            }))
+          )
+        } catch {
+          console.warn('Attendance batch save failed')
+        }
+      }
 
       // Añadir tareas a la sesión
       for (const t of tareasEnSesion) {
@@ -138,6 +166,8 @@ export default function NuevaSesionPage() {
 
   const canGoNext = () => {
     switch (step) {
+      case 0:
+        return true
       case 1:
         return formData.titulo && formData.fecha && formData.match_day
       case 2:
@@ -167,7 +197,7 @@ export default function NuevaSesionPage() {
               </span>
             )}
           </div>
-          <p className="text-gray-500">Paso {step} de {totalSteps}</p>
+          <p className="text-gray-500">{step === 0 ? 'Asistencia' : `Paso ${step} de ${totalSteps - 1}`}</p>
         </div>
       </div>
 
@@ -190,7 +220,31 @@ export default function NuevaSesionPage() {
         </div>
       )}
 
+      {/* Paso 0: Asistencia */}
+      {step === 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          {equipoActivo ? (
+            <AttendanceStep
+              equipoId={equipoActivo.id}
+              onConfirm={handleAttendanceConfirm}
+              onSkip={handleAttendanceSkip}
+            />
+          ) : (
+            <div className="text-center py-12 text-gray-500">
+              <p>No hay equipo activo. La asistencia se registrará después de crear la sesión.</p>
+              <button
+                className="mt-4 text-primary underline text-sm"
+                onClick={handleAttendanceSkip}
+              >
+                Continuar
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Formulario */}
+      {step > 0 && (
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         {/* Paso 1: Configuración */}
         {step === 1 && (
@@ -465,6 +519,7 @@ export default function NuevaSesionPage() {
           )}
         </div>
       </div>
+      )}
     </div>
   )
 }
