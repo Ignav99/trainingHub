@@ -4,6 +4,7 @@ Agente conversacional inteligente para entrenadores de futbol.
 Usa Claude (Anthropic) con tool use para consultar datos del equipo.
 """
 
+import asyncio
 import json
 import logging
 from typing import Any, Optional
@@ -2230,6 +2231,35 @@ Responde SOLO con JSON válido:
                         if tool_name == "proponer_sesion":
                             sesion_propuesta = tool_input
                             herramientas_usadas.append({"nombre": tool_name})
+
+                            # Generate diagrams in parallel for phases that don't have one
+                            fases_list = sesion_propuesta.get("fases", [])
+                            fases_sin_diagrama = [
+                                (i, f)
+                                for i, f in enumerate(fases_list)
+                                if isinstance(f, dict) and not f.get("grafico_data")
+                            ]
+                            if fases_sin_diagrama:
+                                from app.services.diagram_generator import generate_diagram as _gen_diagram
+                                logger.info(f"Generating diagrams for {len(fases_sin_diagrama)} session phases")
+                                diagram_results = await asyncio.gather(
+                                    *[
+                                        _gen_diagram(
+                                            descripcion=f.get("descripcion", ""),
+                                            categoria_codigo=f.get("categoria", ""),
+                                            estructura_equipos=f.get("estructura_equipos", ""),
+                                            espacio=f.get("espacio"),
+                                            titulo=f.get("titulo", ""),
+                                        )
+                                        for _, f in fases_sin_diagrama
+                                    ],
+                                    return_exceptions=True,
+                                )
+                                for (idx, _), result in zip(fases_sin_diagrama, diagram_results):
+                                    if isinstance(result, Exception):
+                                        logger.warning(f"Diagram generation failed for fase {idx}: {result}")
+                                    else:
+                                        fases_list[idx]["grafico_data"] = result
 
                             # Use any text Claude wrote alongside the tool call
                             text_parts = []
