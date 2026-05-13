@@ -2187,7 +2187,7 @@ Responde SOLO con JSON válido:
                     "tools": tools,
                 }
 
-                response = await self.client.messages.create(**kwargs, timeout=35.0)
+                response = await self.client.messages.create(**kwargs, timeout=70.0)
 
                 total_input_tokens += response.usage.input_tokens
                 total_output_tokens += response.usage.output_tokens
