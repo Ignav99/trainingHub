@@ -1963,3 +1963,46 @@ async def design_session_chat(
             status_code=500,
             detail="Error inesperado al comunicarse con la IA. Inténtalo de nuevo."
         )
+
+
+@router.post("/design-chat/stream")
+async def stream_session_design_chat(
+    request: SessionDesignRequest,
+    auth: AuthContext = Depends(require_permission(Permission.SESSION_CREATE)),
+):
+    """
+    SSE streaming version of design-chat.
+    Returns text/event-stream — no asyncio.wait_for guard.
+    Events: progress(thinking) → progress(session_ready) → progress(diagrams_start) → done
+    """
+    import json as _json
+    from app.config import get_settings
+    from app.services.claude_service import ClaudeService
+
+    equipo_id = str(request.equipo_id) if request.equipo_id else auth.equipo_id
+    if not equipo_id:
+        raise HTTPException(status_code=400, detail="Se requiere equipo_id")
+
+    settings = get_settings()
+    service = ClaudeService(model=settings.CLAUDE_MODEL_FAST)
+
+    async def event_generator():
+        try:
+            async for event in service.session_design_chat_stream(
+                mensajes=[{"rol": m.rol, "contenido": m.contenido} for m in request.mensajes],
+                equipo_id=equipo_id,
+                organizacion_id=auth.organizacion_id,
+            ):
+                yield f"data: {_json.dumps(event, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            logger.error(f"Error in session design SSE stream: {e}", exc_info=True)
+            yield f"data: {_json.dumps({'type': 'error', 'message': 'Error inesperado. Inténtalo de nuevo.'})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
