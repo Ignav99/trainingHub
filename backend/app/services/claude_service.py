@@ -2181,7 +2181,7 @@ Responde SOLO con JSON válido:
             try:
                 kwargs = {
                     "model": self.model,
-                    "max_tokens": 4096,
+                    "max_tokens": 8192,
                     "system": system,
                     "messages": messages,
                     "tools": tools,
