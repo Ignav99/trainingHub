@@ -147,6 +147,56 @@ class ApiClient {
     return response.json()
   }
 
+  async *postStream<T>(path: string, data?: unknown): AsyncGenerator<T, void, unknown> {
+    const url = this.buildUrl(path)
+    const authHeaders = await this.getAuthHeaders()
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authHeaders as Record<string, string>),
+      },
+      body: data ? JSON.stringify(data) : undefined,
+      // No AbortSignal — SSE connections are long-lived by design
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      if (response.status === 401) {
+        throw new Error('Error de autenticación: ' + ((error as any)?.detail || 'Sesión expirada'))
+      }
+      throw new Error(extractErrorMessage(error, response.status))
+    }
+
+    const reader = response.body!.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+
+        for (const line of lines) {
+          if (line.startsWith('data: ') && line.length > 6) {
+            try {
+              yield JSON.parse(line.slice(6)) as T
+            } catch {
+              // skip malformed SSE line
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock()
+    }
+  }
+
   async put<T>(path: string, data?: unknown, options?: FetchOptions): Promise<T> {
     const url = this.buildUrl(path, options?.params)
     const authHeaders = await this.getAuthHeaders()
