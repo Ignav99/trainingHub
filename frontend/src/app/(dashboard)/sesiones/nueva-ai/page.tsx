@@ -35,6 +35,7 @@ import { useEquipoStore } from '@/stores/equipoStore'
 import {
   sessionDesignApi,
   SessionDesignMessage,
+  SessionDesignSSEEvent,
   sesionesApi,
   SesionCreateData,
 } from '@/lib/api/sesiones'
@@ -171,6 +172,7 @@ export default function NuevaSesionAIPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_MESSAGE])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [loadingStage, setLoadingStage] = useState<'thinking' | 'session_ready' | 'diagrams_start' | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -233,7 +235,6 @@ export default function NuevaSesionAIPage() {
     ])
 
     try {
-      // Skip the initial hardcoded greeting — only send real conversation to Claude
       const realMessages = messages.filter((m) => !m.isLoading).slice(1)
       const allMessages: SessionDesignMessage[] = [
         ...realMessages.map((m) => ({
@@ -243,10 +244,27 @@ export default function NuevaSesionAIPage() {
         { rol: 'user' as const, contenido: text.trim() },
       ]
 
-      const response = await sessionDesignApi.chat(
-        allMessages,
-        equipoActivo?.id
-      )
+      setLoadingStage('thinking')
+
+      const stream = sessionDesignApi.stream(allMessages, equipoActivo?.id)
+
+      let finalResponse: { respuesta: string; sesion_propuesta: any | null } | null = null
+
+      for await (const event of stream) {
+        if (event.type === 'progress') {
+          if (event.stage === 'session_ready' || event.stage === 'diagrams_start') {
+            setLoadingStage(event.stage)
+          }
+        } else if (event.type === 'done') {
+          finalResponse = { respuesta: event.respuesta, sesion_propuesta: event.sesion_propuesta }
+        } else if (event.type === 'error') {
+          throw new Error(event.message)
+        }
+      }
+
+      if (!finalResponse) throw new Error('La IA no respondió correctamente.')
+
+      setLoadingStage(null)
 
       setMessages((prev) => {
         const withoutLoading = prev.filter((m) => !m.isLoading)
@@ -254,34 +272,27 @@ export default function NuevaSesionAIPage() {
           ...withoutLoading,
           {
             rol: 'assistant' as const,
-            contenido: response.respuesta,
+            contenido: finalResponse!.respuesta,
             timestamp: new Date(),
           },
         ]
       })
 
-      // Check if AI proposed a session
-      if (response.sesion_propuesta) {
-        const p = response.sesion_propuesta as Proposal
+      if (finalResponse.sesion_propuesta) {
+        const p = finalResponse.sesion_propuesta as Proposal
         setProposal(p)
         setSessionTitle(p.titulo_sugerido || '')
         setShowProposal(true)
-        // Expand all fases by default
         if (Array.isArray(p.fases)) {
           setExpandedFases(new Set(p.fases.map((f: FaseData) => f.fase)))
         }
-      }
-
-      // Hide chips once we have a proposal
-      if (response.sesion_propuesta) {
         setShowMatchDayChips(false)
         setShowObjectiveChips(false)
       }
     } catch (err: any) {
-      console.error('Session design chat error:', err)
-      const msg = err?.message?.includes('504') || err?.message?.toLowerCase().includes('timeout')
-        ? 'La IA tardó demasiado en responder. Intenta con un mensaje más corto o vuelve a intentarlo.'
-        : 'Lo siento, ha ocurrido un error. Por favor, intentalo de nuevo.'
+      setLoadingStage(null)
+      console.error('Session design stream error:', err)
+      const msg = err?.message || 'Lo siento, ha ocurrido un error. Por favor, intentalo de nuevo.'
       setMessages((prev) => {
         const withoutLoading = prev.filter((m) => !m.isLoading)
         return [
@@ -499,7 +510,13 @@ export default function NuevaSesionAIPage() {
                   {msg.isLoading ? (
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-sm">Pensando...</span>
+                      <span className="text-sm">
+                        {loadingStage === 'session_ready'
+                          ? 'Sesión diseñada ✓ Generando diagramas...'
+                          : loadingStage === 'diagrams_start'
+                          ? 'Generando diagramas tácticos...'
+                          : 'Analizando tu sesión...'}
+                      </span>
                     </div>
                   ) : (
                     <div className="text-sm whitespace-pre-wrap leading-relaxed">
