@@ -33,6 +33,7 @@ import { tareasApi } from '@/lib/api/tareas'
 import { TaskPreviewCard } from '@/components/task-preview'
 import type { DiagramData } from '@/components/tarea-editor/types'
 import type { AITareaNueva } from '@/types'
+import { AttendanceStep, PlayerAttendance } from '@/components/sesiones/AttendanceStep'
 
 // Quick-select chips data
 const MATCH_DAYS = [
@@ -140,13 +141,14 @@ function normalizeIntensidad(value?: string): string | undefined {
   return map[value.toLowerCase()] || 'media'
 }
 
-type View = 'chat' | 'proposal'
+type View = 'attendance' | 'chat' | 'proposal'
 
 export default function NuevaSesionAIPage() {
   const router = useRouter()
   const { equipoActivo } = useEquipoStore()
 
-  const [view, setView] = useState<View>('chat')
+  const [view, setView] = useState<View>('attendance')
+  const [attendanceData, setAttendanceData] = useState<PlayerAttendance[] | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_MESSAGE])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -390,9 +392,101 @@ export default function NuevaSesionAIPage() {
     sendMessage('Regenera la sesión con un enfoque diferente, por favor.')
   }
 
+  function buildAttendanceSummary(attendance: PlayerAttendance[]): string {
+    const presentes = attendance.filter((a) => a.presente)
+    const ausentes = attendance.filter((a) => !a.presente)
+    const porteros = presentes.filter((a) => a.jugador.es_portero).length
+    const campo = presentes.length - porteros
+
+    let summary = `Jugadores disponibles hoy: ${presentes.length} en total (${campo} de campo, ${porteros} portero${porteros !== 1 ? 's' : ''}).`
+
+    if (ausentes.length > 0) {
+      const ausentesList = ausentes
+        .map((a) => {
+          const nombre = a.jugador.apodo || `${a.jugador.nombre} ${a.jugador.apellidos}`
+          return a.motivo_ausencia ? `${nombre} (${a.motivo_ausencia})` : nombre
+        })
+        .join(', ')
+      summary += ` Ausentes: ${ausentesList}.`
+    }
+
+    const nombresList = presentes
+      .map((a) => a.jugador.apodo || `${a.jugador.nombre} ${a.jugador.apellidos}`)
+      .join(', ')
+    summary += ` Presentes: ${nombresList}.`
+
+    return summary
+  }
+
+  function handleAttendanceConfirm(attendance: PlayerAttendance[]) {
+    setAttendanceData(attendance)
+    const summary = buildAttendanceSummary(attendance)
+    const presentes = attendance.filter((a) => a.presente)
+    const porteros = presentes.filter((a) => a.jugador.es_portero).length
+
+    const userMsg: ChatMessage = {
+      rol: 'user',
+      contenido: summary,
+      timestamp: new Date(),
+    }
+    const assistantMsg: ChatMessage = {
+      rol: 'assistant',
+      contenido: `Perfecto. Tengo registrados **${presentes.length} jugadores disponibles** (${presentes.length - porteros} de campo, ${porteros} portero${porteros !== 1 ? 's' : ''}). Ahora dime:\n\n- **Match Day** (MD-1, MD-2, MD-3...)\n- **Contexto táctico**: rival, plan de partido, objetivos\n- **Ejercicios** que tenés en mente (si los tenés)`,
+      timestamp: new Date(),
+    }
+    setMessages([INITIAL_MESSAGE, userMsg, assistantMsg])
+    setView('chat')
+  }
+
+  function handleAttendanceSkip() {
+    setView('chat')
+  }
+
   const totalDuration = proposal && Array.isArray(proposal.fases)
     ? proposal.fases.reduce((sum, f) => sum + (f.duracion || 0), 0)
     : proposal?.carga_estimada?.duracion_total || 0
+
+  // ─── ATTENDANCE VIEW ──────────────────────────────────────────────────────
+  if (view === 'attendance') {
+    return (
+      <div className="flex flex-col min-h-[calc(100vh-7rem)]">
+        <div className="flex items-center gap-3 mb-6 shrink-0">
+          <Link href="/sesiones" className="p-2 hover:bg-muted rounded-lg transition-colors">
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold">Diseñar Sesión</h1>
+              <Badge className="bg-primary/10 text-primary border-primary/20">
+                <Sparkles className="h-3 w-3 mr-1" />
+                IA
+              </Badge>
+            </div>
+            <p className="text-muted-foreground text-xs">{equipoActivo?.nombre || 'Selecciona un equipo'}</p>
+          </div>
+        </div>
+        <div className="flex-1 flex items-start justify-center overflow-y-auto">
+          {equipoActivo ? (
+            <AttendanceStep
+              equipoId={equipoActivo.id}
+              onConfirm={handleAttendanceConfirm}
+              onSkip={handleAttendanceSkip}
+            />
+          ) : (
+            <div className="text-center py-16 text-muted-foreground">
+              <p>No hay equipo activo seleccionado.</p>
+              <button
+                className="mt-4 text-primary underline text-sm"
+                onClick={handleAttendanceSkip}
+              >
+                Continuar sin asistencia
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   // ─── CHAT VIEW ────────────────────────────────────────────────────────────
   if (view === 'chat') {
