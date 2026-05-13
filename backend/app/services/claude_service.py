@@ -2333,6 +2333,176 @@ Responde SOLO con JSON válido:
             "herramientas_usadas": herramientas_usadas,
         }
 
+    async def session_design_chat_stream(
+        self,
+        mensajes: list[dict],
+        equipo_id: str,
+        organizacion_id: Optional[str] = None,
+    ):
+        """
+        SSE streaming version of session_design_chat.
+        Yields dicts that become SSE events: { type, stage, ... }
+        No asyncio.wait_for — the connection stays open as long as needed.
+        """
+        from app.services.ai_tool_executor import get_team_game_model
+
+        yield {"type": "progress", "stage": "thinking"}
+
+        context_text = f"## CONTEXTO ACTUAL\n- ID del equipo activo: {equipo_id}"
+        if organizacion_id:
+            context_text += f"\n- ID de la organizacion: {organizacion_id}"
+        game_model_context = get_team_game_model(equipo_id)
+        if game_model_context:
+            context_text += "\n\n" + game_model_context
+
+        # Pre-load exercise library
+        try:
+            biblioteca_json = _tool_buscar_tareas(get_supabase(), {
+                "organizacion_id": organizacion_id,
+                "limite": 40,
+            })
+            import json as _json
+            biblioteca = _json.loads(biblioteca_json)
+            if biblioteca:
+                lines = [
+                    "\n## BIBLIOTECA DE EJERCICIOS DEL CLUB",
+                    "Estas tareas ya están disponibles. Para reutilizar una, incluye su tarea_id en la fase correspondiente.\n",
+                ]
+                for t in biblioteca:
+                    parts = [f"ID:{t.get('id', '')}", f"Titulo:{str(t.get('titulo', ''))[:60]}"]
+                    if t.get("fase_juego"):
+                        parts.append(f"Fase:{t['fase_juego']}")
+                    if t.get("duracion_total"):
+                        parts.append(f"Dur:{t['duracion_total']}min")
+                    cat = t.get("categoria") or {}
+                    if isinstance(cat, dict) and cat.get("codigo"):
+                        parts.append(f"Cat:{cat['codigo']}")
+                    if t.get("descripcion"):
+                        parts.append(f"Desc:{str(t['descripcion'])[:80]}")
+                    lines.append("- " + " | ".join(parts))
+                context_text += "\n".join(lines)
+            logger.info(f"Stream: Library pre-loaded: {len(biblioteca)} tasks")
+        except Exception as e:
+            logger.warning(f"Stream: Could not pre-load exercise library: {e}")
+
+        system = [
+            {
+                "type": "text",
+                "text": SYSTEM_PROMPT + SESSION_DESIGN_PROMPT,
+                "cache_control": {"type": "ephemeral"},
+            },
+            {
+                "type": "text",
+                "text": context_text,
+            },
+        ]
+
+        messages = []
+        for msg in mensajes:
+            rol = msg.get("rol", "user")
+            contenido = msg.get("contenido", "")
+            if rol == "assistant":
+                messages.append({"role": "assistant", "content": contenido})
+            elif rol == "user":
+                messages.append({"role": "user", "content": contenido})
+
+        tools = [t for t in SESSION_DESIGN_TOOLS if t["name"] == "proponer_sesion"]
+
+        first_user_msg = messages[-1].get("content", "") if messages else ""
+        first_msg_is_substantial = isinstance(first_user_msg, str) and len(first_user_msg) > 80
+
+        kwargs = {
+            "model": self.model,
+            "max_tokens": 8192,
+            "system": system,
+            "messages": messages,
+            "tools": tools,
+        }
+
+        if first_msg_is_substantial:
+            kwargs["tool_choice"] = {"type": "tool", "name": "proponer_sesion"}
+
+        try:
+            response = await self.client.messages.create(**kwargs, timeout=180.0)
+        except anthropic.APIConnectionError as e:
+            yield {"type": "error", "message": "Error de conexion con Claude. Inténtalo de nuevo."}
+            return
+        except anthropic.RateLimitError:
+            yield {"type": "error", "message": "Claude está saturado. Espera unos segundos e inténtalo de nuevo."}
+            return
+        except anthropic.APIError as e:
+            yield {"type": "error", "message": f"Error de comunicacion con Claude: {str(e)}"}
+            return
+
+        logger.info(
+            f"Stream session design: stop_reason={response.stop_reason}, "
+            f"tokens_in={response.usage.input_tokens}, tokens_out={response.usage.output_tokens}"
+        )
+
+        if response.stop_reason == "tool_use":
+            sesion_propuesta = None
+            for block in response.content:
+                if block.type == "tool_use" and block.name == "proponer_sesion":
+                    sesion_propuesta = block.input
+                    break
+
+            if sesion_propuesta is None:
+                text_response = "".join(
+                    b.text for b in response.content if hasattr(b, "text")
+                )
+                yield {"type": "done", "respuesta": text_response, "sesion_propuesta": None}
+                return
+
+            yield {"type": "progress", "stage": "session_ready"}
+
+            # Generate diagrams in parallel
+            fases_list = sesion_propuesta.get("fases", [])
+            fases_sin_diagrama = [
+                (i, f)
+                for i, f in enumerate(fases_list)
+                if isinstance(f, dict) and not f.get("grafico_data")
+            ]
+
+            if fases_sin_diagrama:
+                from app.services.diagram_generator import generate_diagram as _gen_diagram
+                logger.info(f"Stream: Generating {len(fases_sin_diagrama)} diagrams")
+                yield {"type": "progress", "stage": "diagrams_start", "count": len(fases_sin_diagrama)}
+
+                diagram_results = await asyncio.gather(
+                    *[
+                        _gen_diagram(
+                            descripcion=f.get("descripcion", ""),
+                            categoria_codigo=f.get("categoria", ""),
+                            estructura_equipos=f.get("estructura_equipos", ""),
+                            espacio=f.get("espacio"),
+                            titulo=f.get("titulo", ""),
+                        )
+                        for _, f in fases_sin_diagrama
+                    ],
+                    return_exceptions=True,
+                )
+                for (idx, _), result in zip(fases_sin_diagrama, diagram_results):
+                    if isinstance(result, Exception):
+                        logger.warning(f"Stream: Diagram failed for fase {idx}: {result}")
+                    else:
+                        fases_list[idx]["grafico_data"] = result
+
+            text_parts = [b.text for b in response.content if hasattr(b, "text") and b.text]
+            if not text_parts:
+                titulo = sesion_propuesta.get("titulo_sugerido", "la sesión")
+                resumen = sesion_propuesta.get("resumen", "")
+                text_parts = [f"He diseñado **{titulo}**. {resumen}\n\n¿Quieres modificar algo?"]
+
+            yield {
+                "type": "done",
+                "respuesta": "\n".join(text_parts),
+                "sesion_propuesta": sesion_propuesta,
+            }
+
+        else:
+            text_response = "".join(b.text for b in response.content if hasattr(b, "text"))
+            yield {"type": "done", "respuesta": text_response, "sesion_propuesta": None}
+
     # ============ Task Design Chat ============
 
     async def task_design_chat(
