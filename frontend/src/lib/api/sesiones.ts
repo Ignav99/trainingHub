@@ -324,12 +324,26 @@ export interface SessionDesignResponse {
   herramientas_usadas: any[]
 }
 
+export type SessionDesignSSEEvent =
+  | { type: 'progress'; stage: 'thinking' }
+  | { type: 'progress'; stage: 'session_ready' }
+  | { type: 'progress'; stage: 'diagrams_start'; count: number }
+  | { type: 'done'; respuesta: string; sesion_propuesta: any | null }
+  | { type: 'error'; message: string }
+
 export const sessionDesignApi = {
   async chat(mensajes: SessionDesignMessage[], equipo_id?: string): Promise<SessionDesignResponse> {
     return api.post<SessionDesignResponse>('/sesiones/design-chat', {
       mensajes,
       equipo_id,
     }, { timeout: 120000 })
+  },
+
+  stream(mensajes: SessionDesignMessage[], equipo_id?: string): AsyncGenerator<SessionDesignSSEEvent, void, unknown> {
+    return api.postStream<SessionDesignSSEEvent>('/sesiones/design-chat/stream', {
+      mensajes,
+      equipo_id,
+    })
   },
 }
 
