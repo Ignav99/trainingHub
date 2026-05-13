@@ -1,34 +1,31 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Clock, Users, Target, Maximize2, Brain, ChevronDown, ChevronUp, Pencil, MessageCircle } from 'lucide-react'
+import { Clock, Users, Maximize2, Brain, ChevronDown, ChevronUp, Pencil, MessageCircle, Target, AlertTriangle, Package } from 'lucide-react'
 import TacticalBoardMini from './TacticalBoardMini'
 import type { DiagramData } from '../tarea-editor/types'
 
-// Phase-session color mapping
-const FASE_BORDER_COLORS: Record<string, string> = {
-  calentamiento: 'border-l-green-500',
-  activacion: 'border-l-green-500',
-  desarrollo_1: 'border-l-blue-500',
-  desarrollo_2: 'border-l-orange-500',
-  vuelta_calma: 'border-l-purple-500',
+const FASE_ACCENT: Record<string, { bar: string; badge: string; label: string }> = {
+  calentamiento:  { bar: 'bg-green-500',  badge: 'bg-green-100 text-green-800',  label: 'Calentamiento' },
+  activacion:     { bar: 'bg-green-500',  badge: 'bg-green-100 text-green-800',  label: 'Activación' },
+  desarrollo_1:   { bar: 'bg-blue-500',   badge: 'bg-blue-100 text-blue-800',    label: 'Desarrollo 1' },
+  desarrollo_2:   { bar: 'bg-orange-500', badge: 'bg-orange-100 text-orange-800',label: 'Desarrollo 2' },
+  vuelta_calma:   { bar: 'bg-purple-500', badge: 'bg-purple-100 text-purple-800',label: 'Vuelta a calma' },
 }
 
-// Density badge styles
-const DENSIDAD_STYLES: Record<string, string> = {
-  baja: 'bg-green-100 text-green-700',
-  media: 'bg-yellow-100 text-yellow-700',
-  alta: 'bg-orange-100 text-orange-700',
-  'muy alta': 'bg-red-100 text-red-700',
+const DENSIDAD_DOTS: Record<string, { dots: number; color: string; label: string }> = {
+  baja:     { dots: 1, color: 'bg-green-500',  label: 'Baja' },
+  media:    { dots: 2, color: 'bg-yellow-500', label: 'Media' },
+  alta:     { dots: 3, color: 'bg-orange-500', label: 'Alta' },
+  'muy alta':{ dots: 4, color: 'bg-red-500',   label: 'Muy alta' },
 }
 
-// Cognitive level labels
-const NIVEL_COG_LABELS: Record<number, string> = {
-  1: 'Bajo',
-  2: 'Medio-Bajo',
-  3: 'Medio',
-  4: 'Medio-Alto',
-  5: 'Alto',
+const NIVEL_COG: Record<number, { label: string; color: string }> = {
+  1: { label: 'Cog. Bajo',      color: 'text-green-600' },
+  2: { label: 'Cog. Medio-Bajo',color: 'text-lime-600' },
+  3: { label: 'Cog. Medio',     color: 'text-yellow-600' },
+  4: { label: 'Cog. Medio-Alto',color: 'text-orange-600' },
+  5: { label: 'Cog. Alto',      color: 'text-red-600' },
 }
 
 export interface TaskPreviewCardProps {
@@ -53,7 +50,6 @@ export interface TaskPreviewCardProps {
   errores_comunes?: string[]
   consignas_defensivas?: string[]
   material_necesario?: string[]
-  // UI
   defaultExpanded?: boolean
   onEdit?: () => void
   onClickBoard?: () => void
@@ -89,129 +85,164 @@ export default function TaskPreviewCard({
 }: TaskPreviewCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
 
-  const borderColor = fase_sesion ? FASE_BORDER_COLORS[fase_sesion] || 'border-l-gray-300' : 'border-l-gray-300'
+  const accent = fase_sesion ? FASE_ACCENT[fase_sesion] : undefined
+  const densityInfo = densidad ? DENSIDAD_DOTS[densidad] : undefined
+  const cogInfo = nivel_cognitivo ? NIVEL_COG[nivel_cognitivo] : undefined
+
+  const hasDetails = (reglas?.length ?? 0) > 0
+    || (coaching_points?.length ?? 0) > 0
+    || (variantes?.length ?? 0) > 0
+    || (errores_comunes?.length ?? 0) > 0
+    || (consignas_defensivas?.length ?? 0) > 0
+    || (material_necesario?.length ?? 0) > 0
+    || !!razon || !!principio_tactico
 
   return (
-    <div className={`bg-card border rounded-lg border-l-4 ${borderColor} overflow-hidden shadow-sm hover:shadow-md transition-shadow ${className}`}>
-      {/* Main card: horizontal layout */}
-      <div className="flex flex-col sm:flex-row">
-        {/* Left: Tactical Board */}
-        <div
-          className="relative sm:w-[40%] w-full shrink-0 cursor-pointer bg-[#1a3a0a]"
-          onClick={onClickBoard}
-        >
-          <div className="aspect-[525/680] sm:aspect-auto sm:h-full">
-            <TacticalBoardMini
-              data={grafico_data}
-              width="100%"
-              height="100%"
-              className="w-full h-full object-cover"
-            />
-          </div>
-          {/* Duration badge overlay */}
-          {duracion && (
-            <div className="absolute top-2 right-2 bg-black/70 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded flex items-center gap-0.5">
-              <Clock className="h-2.5 w-2.5" />
-              {duracion}′
-            </div>
-          )}
+    <div className={`bg-card border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all ${className}`}>
+      {/* Top accent bar */}
+      {accent && <div className={`h-1 w-full ${accent.bar}`} />}
+
+      {/* Tactical board — hero area */}
+      <div
+        className="relative w-full bg-[#1a3a0a] cursor-pointer"
+        style={{ paddingBottom: '56%' }}
+        onClick={onClickBoard}
+      >
+        <div className="absolute inset-0">
+          <TacticalBoardMini
+            data={grafico_data}
+            width="100%"
+            height="100%"
+            className="w-full h-full"
+          />
         </div>
 
-        {/* Right: Details */}
-        <div className="flex-1 min-w-0 p-3 sm:p-4 flex flex-col">
-          {/* Title row */}
-          <div className="flex items-start justify-between gap-2 mb-1.5">
-            <h3 className="text-sm font-semibold leading-tight line-clamp-2">{titulo}</h3>
-            {onEdit && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onEdit() }}
-                className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors shrink-0"
-                title="Editar"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
-            )}
+        {/* Duration badge */}
+        {duracion && (
+          <div className="absolute top-2 left-2 bg-black/70 text-white text-xs font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {duracion}′
           </div>
+        )}
 
-          {/* Badges */}
-          <div className="flex flex-wrap gap-1 mb-2">
-            {categoria && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
-                {categoria}
-              </span>
-            )}
-            {densidad && (
-              <span className={`text-[10px] px-1.5 py-0.5 rounded ${DENSIDAD_STYLES[densidad] || 'bg-gray-100 text-gray-600'}`}>
-                {densidad}
-              </span>
-            )}
-            {nivel_cognitivo && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-700">
-                Cog: {NIVEL_COG_LABELS[nivel_cognitivo] || nivel_cognitivo}
-              </span>
-            )}
-            {tarea_id && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-medium">
-                Biblioteca
-              </span>
-            )}
+        {/* Phase badge */}
+        {accent && (
+          <div className={`absolute top-2 right-2 ${accent.badge} text-[10px] font-semibold px-2 py-0.5 rounded-full`}>
+            {accent.label}
           </div>
+        )}
 
-          {/* Description (2 lines truncated) */}
-          {descripcion && (
-            <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{descripcion}</p>
-          )}
-
-          {/* Info grid */}
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mt-auto">
-            {num_jugadores && (
-              <span className="flex items-center gap-1">
-                <Users className="h-3 w-3" />
-                {num_jugadores}
-              </span>
-            )}
-            {espacio && (
-              <span className="flex items-center gap-1">
-                <Maximize2 className="h-3 w-3" />
-                {espacio}
-              </span>
-            )}
-            {estructura_equipos && (
-              <span className="flex items-center gap-1">
-                <Target className="h-3 w-3" />
-                {estructura_equipos}
-              </span>
-            )}
-            {fase_juego && (
-              <span className="flex items-center gap-1">
-                <Brain className="h-3 w-3" />
-                {fase_juego}
-              </span>
-            )}
+        {/* Library badge */}
+        {tarea_id && (
+          <div className="absolute bottom-2 left-2 bg-blue-500/80 text-white text-[10px] font-medium px-1.5 py-0.5 rounded flex items-center gap-1">
+            <Target className="h-2.5 w-2.5" />
+            Biblioteca
           </div>
+        )}
 
-          {/* Expand toggle */}
+        {/* Edit button */}
+        {onEdit && (
           <button
-            onClick={() => setExpanded(!expanded)}
-            className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors self-start"
+            onClick={(e) => { e.stopPropagation(); onEdit() }}
+            className="absolute bottom-2 right-2 bg-black/50 hover:bg-black/70 text-white p-1.5 rounded-lg transition-colors"
+            title="Modificar en chat"
           >
-            {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            {expanded ? 'Menos' : 'Mas detalles'}
+            <Pencil className="h-3.5 w-3.5" />
           </button>
-        </div>
+        )}
       </div>
 
-      {/* Expanded section */}
+      {/* Details section */}
+      <div className="p-3">
+        {/* Title */}
+        <h3 className="font-semibold text-sm leading-snug mb-2 line-clamp-2">{titulo}</h3>
+
+        {/* Metrics row */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground mb-2">
+          {num_jugadores && (
+            <span className="flex items-center gap-1">
+              <Users className="h-3 w-3" />
+              {num_jugadores}
+            </span>
+          )}
+          {espacio && (
+            <span className="flex items-center gap-1">
+              <Maximize2 className="h-3 w-3" />
+              {espacio}
+            </span>
+          )}
+          {estructura_equipos && (
+            <span className="flex items-center gap-1">
+              <Target className="h-3 w-3" />
+              {estructura_equipos}
+            </span>
+          )}
+          {fase_juego && (
+            <span className="flex items-center gap-1">
+              <Brain className="h-3 w-3" />
+              {fase_juego}
+            </span>
+          )}
+        </div>
+
+        {/* Intensity + cognitive row */}
+        <div className="flex items-center gap-3 mb-2">
+          {densityInfo && (
+            <div className="flex items-center gap-1.5">
+              <div className="flex gap-0.5">
+                {[1,2,3,4].map(i => (
+                  <div
+                    key={i}
+                    className={`w-1.5 h-3 rounded-sm ${i <= densityInfo.dots ? densityInfo.color : 'bg-muted'}`}
+                  />
+                ))}
+              </div>
+              <span className="text-[11px] text-muted-foreground">{densityInfo.label}</span>
+            </div>
+          )}
+          {cogInfo && (
+            <span className={`text-[11px] font-medium ${cogInfo.color}`}>
+              {cogInfo.label}
+            </span>
+          )}
+          {categoria && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium ml-auto">
+              {categoria}
+            </span>
+          )}
+        </div>
+
+        {/* Description — collapsed */}
+        {descripcion && !expanded && (
+          <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{descripcion}</p>
+        )}
+
+        {/* Expand toggle */}
+        {hasDetails && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors w-full pt-1 border-t"
+          >
+            {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            {expanded ? 'Menos detalles' : 'Ver detalles'}
+          </button>
+        )}
+      </div>
+
+      {/* Expanded details */}
       {expanded && (
-        <div className="border-t px-4 py-3 space-y-3 bg-muted/20">
-          {/* Rules */}
+        <div className="px-3 pb-3 space-y-3 border-t pt-3 bg-muted/20">
+          {descripcion && (
+            <p className="text-xs text-muted-foreground">{descripcion}</p>
+          )}
+
           {reglas && reglas.length > 0 && (
             <div>
-              <h4 className="text-[11px] font-medium text-muted-foreground uppercase mb-1">Reglas</h4>
-              <div className="space-y-0.5">
+              <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Reglas</h4>
+              <div className="space-y-1">
                 {reglas.map((r, i) => (
                   <div key={i} className="flex items-start gap-2 text-xs">
-                    <span className="text-primary font-bold">{i + 1}.</span>
+                    <span className="text-primary font-bold shrink-0 mt-0.5">{i + 1}.</span>
                     <span>{r}</span>
                   </div>
                 ))}
@@ -219,16 +250,15 @@ export default function TaskPreviewCard({
             </div>
           )}
 
-          {/* Coaching points */}
           {coaching_points && coaching_points.length > 0 && (
             <div>
-              <h4 className="text-[11px] font-medium text-muted-foreground uppercase mb-1 flex items-center gap-1">
+              <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 flex items-center gap-1">
                 <MessageCircle className="h-3 w-3" />
                 Coaching Points
               </h4>
-              <div className="flex flex-wrap gap-1">
+              <div className="flex flex-wrap gap-1.5">
                 {coaching_points.map((cp, i) => (
-                  <span key={i} className="text-[11px] px-2 py-0.5 bg-amber-50 text-amber-700 rounded">
+                  <span key={i} className="text-[11px] px-2 py-1 bg-amber-50 text-amber-700 rounded-lg border border-amber-200">
                     {cp}
                   </span>
                 ))}
@@ -236,39 +266,39 @@ export default function TaskPreviewCard({
             </div>
           )}
 
-          {/* Variantes */}
           {variantes && variantes.length > 0 && (
             <div>
-              <h4 className="text-[11px] font-medium text-muted-foreground uppercase mb-1">Variantes</h4>
-              <ul className="space-y-0.5">
+              <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Variantes</h4>
+              <ul className="space-y-1">
                 {variantes.map((v, i) => (
                   <li key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
-                    <span className="text-primary">-</span> {v}
+                    <span className="text-primary mt-0.5">→</span> {v}
                   </li>
                 ))}
               </ul>
             </div>
           )}
 
-          {/* Errores comunes */}
           {errores_comunes && errores_comunes.length > 0 && (
             <div>
-              <h4 className="text-[11px] font-medium text-muted-foreground uppercase mb-1">Errores comunes</h4>
-              <ul className="space-y-0.5">
+              <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3 text-red-500" />
+                Errores comunes
+              </h4>
+              <ul className="space-y-1">
                 {errores_comunes.map((e, i) => (
                   <li key={i} className="text-xs text-red-600 flex items-start gap-1.5">
-                    <span>!</span> {e}
+                    <span className="shrink-0">!</span> {e}
                   </li>
                 ))}
               </ul>
             </div>
           )}
 
-          {/* Consignas */}
           {consignas_defensivas && consignas_defensivas.length > 0 && (
             <div>
-              <h4 className="text-[11px] font-medium text-muted-foreground uppercase mb-1">Consignas defensivas</h4>
-              <ul className="space-y-0.5">
+              <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Consignas defensivas</h4>
+              <ul className="space-y-1">
                 {consignas_defensivas.map((c, i) => (
                   <li key={i} className="text-xs text-muted-foreground">- {c}</li>
                 ))}
@@ -276,29 +306,29 @@ export default function TaskPreviewCard({
             </div>
           )}
 
-          {/* Material */}
           {material_necesario && material_necesario.length > 0 && (
             <div>
-              <h4 className="text-[11px] font-medium text-muted-foreground uppercase mb-1">Material</h4>
+              <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                <Package className="h-3 w-3" />
+                Material
+              </h4>
               <div className="flex flex-wrap gap-1">
                 {material_necesario.map((m, i) => (
-                  <span key={i} className="text-[11px] px-1.5 py-0.5 bg-muted rounded">{m}</span>
+                  <span key={i} className="text-[11px] px-1.5 py-0.5 bg-muted rounded border">{m}</span>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Razon / Justification */}
-          {razon && (
-            <div className="p-2 rounded bg-muted/50 text-xs text-muted-foreground italic">
-              {razon}
+          {principio_tactico && (
+            <div className="text-xs text-muted-foreground">
+              <span className="font-medium">Principio táctico:</span> {principio_tactico}
             </div>
           )}
 
-          {/* Principio tactico */}
-          {principio_tactico && (
-            <div className="text-xs text-muted-foreground">
-              <span className="font-medium">Principio:</span> {principio_tactico}
+          {razon && (
+            <div className="p-2 rounded-lg bg-muted/50 text-xs text-muted-foreground italic border-l-2 border-primary/30">
+              {razon}
             </div>
           )}
         </div>
