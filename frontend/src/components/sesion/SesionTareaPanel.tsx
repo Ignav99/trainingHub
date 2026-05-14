@@ -292,41 +292,46 @@ export default function SesionTareaPanel({
           {/* Spaces + series under board — stat chips */}
           <div className="mt-2 grid grid-cols-2 gap-2">
             {/* Dimensions chip */}
-            <div className="flex items-center gap-1.5 bg-muted/50 border border-border/50 rounded-md px-2.5 py-1.5">
-              <Maximize2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              <div className="flex items-center gap-0.5 flex-1">
+            <div className="flex flex-col bg-muted/40 border border-border/60 rounded-lg px-3 py-2">
+              <div className="flex items-center gap-1 mb-1">
+                <Maximize2 className="h-3 w-3 text-muted-foreground" />
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Espacio</span>
+              </div>
+              <div className="flex items-center gap-1">
                 <input
                   type="number"
-                  className="w-9 bg-transparent font-semibold text-sm text-foreground text-center focus:outline-none focus:text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="w-10 bg-transparent font-bold text-base text-foreground text-center focus:outline-none focus:text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   value={form.espacio_largo || ''}
                   onChange={e => updateForm('espacio_largo', parseInt(e.target.value) || 0)}
                   onBlur={handleBlurSave}
-                  placeholder="—"
+                  placeholder="0"
                 />
-                <span className="text-muted-foreground text-xs">×</span>
+                <span className="text-muted-foreground text-sm font-medium">×</span>
                 <input
                   type="number"
-                  className="w-9 bg-transparent font-semibold text-sm text-foreground text-center focus:outline-none focus:text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="w-10 bg-transparent font-bold text-base text-foreground text-center focus:outline-none focus:text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   value={form.espacio_ancho || ''}
                   onChange={e => updateForm('espacio_ancho', parseInt(e.target.value) || 0)}
                   onBlur={handleBlurSave}
-                  placeholder="—"
+                  placeholder="0"
                 />
-                <span className="text-muted-foreground text-xs font-medium">m</span>
+                <span className="text-muted-foreground text-xs font-semibold">m</span>
               </div>
             </div>
             {/* Series chip */}
-            <div className="flex items-center gap-1.5 bg-muted/50 border border-border/50 rounded-md px-2.5 py-1.5">
-              <LayoutGrid className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <div className="flex flex-col bg-muted/40 border border-border/60 rounded-lg px-3 py-2">
+              <div className="flex items-center gap-1 mb-1">
+                <LayoutGrid className="h-3 w-3 text-muted-foreground" />
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Series</span>
+              </div>
               <input
                 type="number"
                 min={1}
-                className="w-8 bg-transparent font-semibold text-sm text-foreground text-center focus:outline-none focus:text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                className="w-12 bg-transparent font-bold text-base text-foreground text-center focus:outline-none focus:text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 value={form.num_series || 1}
                 onChange={e => updateForm('num_series', parseInt(e.target.value) || 1)}
                 onBlur={handleBlurSave}
               />
-              <span className="text-xs text-muted-foreground">series</span>
             </div>
           </div>
         </div>
@@ -540,50 +545,62 @@ export default function SesionTareaPanel({
       </div>
 
       {/* ── Footer bar ── */}
-      <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 bg-muted/20 border-t">
+      <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-muted/20 border-t">
         {/* Duration chip */}
-        <div className="flex items-center gap-1.5 bg-background border border-border rounded-md px-2.5 py-1 text-xs">
-          <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <input
-            type="number"
-            min={1}
-            max={120}
-            className="w-10 font-bold text-base text-foreground bg-transparent text-center focus:outline-none focus:text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            value={st.duracion_override || tarea?.duracion_total || 0}
-            onChange={e => onDurationChange(parseInt(e.target.value) || 0)}
-            onBlur={onDurationCommit}
-          />
-          <span className="text-muted-foreground font-medium">min</span>
+        <div className="flex flex-col bg-background border border-border rounded-lg px-3 py-2 min-w-[64px]">
+          <div className="flex items-center gap-1 mb-0.5">
+            <Clock className="h-3 w-3 text-muted-foreground" />
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Tiempo</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              min={1}
+              max={120}
+              className="w-12 font-bold text-lg text-foreground bg-transparent text-center focus:outline-none focus:text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              value={st.duracion_override || tarea?.duracion_total || 0}
+              onChange={e => onDurationChange(parseInt(e.target.value) || 0)}
+              onBlur={onDurationCommit}
+            />
+            <span className="text-xs text-muted-foreground font-semibold">min</span>
+          </div>
         </div>
 
         {/* Players chip */}
-        <div className="flex items-center gap-1 bg-background border border-border rounded-md px-2.5 py-1 text-xs">
-          <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <input
-            type="number"
-            className="w-9 font-bold text-sm text-foreground bg-transparent text-center focus:outline-none focus:text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            value={form.num_jugadores_min || ''}
-            onChange={e => updateForm('num_jugadores_min', parseInt(e.target.value) || 0)}
-            onBlur={handleBlurSave}
-            placeholder="—"
-          />
-          <span className="text-muted-foreground">–</span>
-          <input
-            type="number"
-            className="w-9 font-bold text-sm text-foreground bg-transparent text-center focus:outline-none focus:text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            value={form.num_jugadores_max || ''}
-            onChange={e => updateForm('num_jugadores_max', parseInt(e.target.value) || 0)}
-            onBlur={handleBlurSave}
-            placeholder="—"
-          />
-          <span className="text-muted-foreground font-medium">jug.</span>
+        <div className="flex flex-col bg-background border border-border rounded-lg px-3 py-2 min-w-[80px]">
+          <div className="flex items-center gap-1 mb-0.5">
+            <Users className="h-3 w-3 text-muted-foreground" />
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Jugadores</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              className="w-10 font-bold text-lg text-foreground bg-transparent text-center focus:outline-none focus:text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              value={form.num_jugadores_min || ''}
+              onChange={e => updateForm('num_jugadores_min', parseInt(e.target.value) || 0)}
+              onBlur={handleBlurSave}
+              placeholder="—"
+            />
+            <span className="text-muted-foreground text-sm">–</span>
+            <input
+              type="number"
+              className="w-10 font-bold text-lg text-foreground bg-transparent text-center focus:outline-none focus:text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              value={form.num_jugadores_max || ''}
+              onChange={e => updateForm('num_jugadores_max', parseInt(e.target.value) || 0)}
+              onBlur={handleBlurSave}
+              placeholder="—"
+            />
+          </div>
         </div>
 
         {/* Estructura chip */}
-        <div className="flex items-center gap-1.5 bg-background border border-border rounded-md px-2.5 py-1 text-xs">
-          <Target className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <div className="flex flex-col bg-background border border-border rounded-lg px-3 py-2 min-w-[72px]">
+          <div className="flex items-center gap-1 mb-0.5">
+            <Target className="h-3 w-3 text-muted-foreground" />
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Estructura</span>
+          </div>
           <input
-            className="w-16 font-bold text-sm text-foreground bg-transparent focus:outline-none focus:text-primary"
+            className="w-20 font-bold text-base text-foreground bg-transparent focus:outline-none focus:text-primary"
             value={form.estructura_equipos}
             onChange={e => updateForm('estructura_equipos', e.target.value)}
             onBlur={handleBlurSave}
