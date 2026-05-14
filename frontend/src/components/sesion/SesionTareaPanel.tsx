@@ -22,6 +22,7 @@ import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { TacticalBoardMini } from '@/components/task-preview'
 import TareaGraphicEditor from '@/components/tarea-editor/TareaGraphicEditor'
 import { emptyDiagramData } from '@/components/tarea-editor/types'
@@ -254,40 +255,38 @@ export default function SesionTareaPanel({
       <div className="flex gap-4 px-4 py-3">
         {/* LEFT: Tactical board */}
         <div className="shrink-0 w-[320px]">
-          {boardEditing ? (
-            <div className="border rounded-lg overflow-hidden">
-              <div className="flex items-center justify-between px-3 py-1.5 bg-muted/50 border-b">
-                <span className="text-xs font-medium">Pizarra táctica</span>
-                <button
-                  onClick={() => setBoardEditing(false)}
-                  className="text-xs text-muted-foreground hover:text-foreground px-2 py-0.5 rounded hover:bg-muted"
-                >
-                  Cerrar
-                </button>
-              </div>
-              <TareaGraphicEditor
-                value={form.grafico_data || emptyDiagramData}
-                onChange={handleBoardChange}
-                readOnly={false}
-              />
+          {/* Always show mini preview — click opens fullscreen modal */}
+          <div
+            className="w-full h-[220px] rounded-lg overflow-hidden border border-border/40 cursor-pointer relative group"
+            onClick={() => setBoardEditing(true)}
+          >
+            <TacticalBoardMini
+              data={form.grafico_data as any}
+              width="100%"
+              height="100%"
+            />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+              <span className="text-white text-xs font-medium flex items-center gap-1 bg-black/40 px-2 py-1 rounded">
+                <Pencil className="h-3 w-3" /> Editar pizarra
+              </span>
             </div>
-          ) : (
-            <div
-              className="w-full h-[220px] rounded-lg overflow-hidden border border-border/40 cursor-pointer relative group"
-              onClick={() => setBoardEditing(true)}
-            >
-              <TacticalBoardMini
-                data={form.grafico_data as any}
-                width="100%"
-                height="100%"
-              />
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                <span className="text-white text-xs font-medium flex items-center gap-1 bg-black/40 px-2 py-1 rounded">
-                  <Pencil className="h-3 w-3" /> Editar pizarra
-                </span>
+          </div>
+
+          {/* Fullscreen tactical board editor modal */}
+          <Dialog open={boardEditing} onOpenChange={setBoardEditing}>
+            <DialogContent className="max-w-[95vw] w-[95vw] h-[92vh] max-h-[92vh] p-0 flex flex-col">
+              <DialogHeader className="px-4 py-3 border-b shrink-0">
+                <DialogTitle className="text-sm font-semibold">Pizarra táctica</DialogTitle>
+              </DialogHeader>
+              <div className="flex-1 overflow-hidden">
+                <TareaGraphicEditor
+                  value={form.grafico_data || emptyDiagramData}
+                  onChange={handleBoardChange}
+                  readOnly={false}
+                />
               </div>
-            </div>
-          )}
+            </DialogContent>
+          </Dialog>
 
           {/* Spaces + series under board — stat chips */}
           <div className="mt-2 grid grid-cols-2 gap-2">
