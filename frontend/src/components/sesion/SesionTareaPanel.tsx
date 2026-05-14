@@ -25,7 +25,7 @@ import { Badge } from '@/components/ui/badge'
 import { TacticalBoardMini } from '@/components/task-preview'
 import TareaGraphicEditor from '@/components/tarea-editor/TareaGraphicEditor'
 import { emptyDiagramData } from '@/components/tarea-editor/types'
-import type { SesionTarea } from '@/lib/types'
+import type { SesionTarea } from '@/types'
 
 // ---- Types ----
 export interface SesionTareaPanelProps {
