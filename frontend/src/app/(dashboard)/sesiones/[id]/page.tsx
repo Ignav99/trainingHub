@@ -56,8 +56,6 @@ import {
   Minus,
   UserPlus,
   Pencil,
-  Wand2,
-  Send,
   Copy,
   ClipboardPaste,
   UserCircle,
@@ -77,6 +75,7 @@ import ABPSessionLink from '@/components/abp/ABPSessionLink'
 import TareaGraphicEditor from '@/components/tarea-editor/TareaGraphicEditor'
 import { emptyDiagramData } from '@/components/tarea-editor/types'
 import { TacticalBoardMini } from '@/components/task-preview'
+import { SesionTareaPanel } from '@/components/sesion'
 import GKTrainingSection from '@/components/portero/GKTrainingSection'
 import { sesionesApi, SesionUpdateData } from '@/lib/api/sesiones'
 import { tareasApi } from '@/lib/api/tareas'
@@ -1008,13 +1007,7 @@ export default function SesionDetailPage() {
     posicion_principal: 'MC',
   })
 
-  // Task editing state
-  const [editingTarea, setEditingTarea] = useState<SesionTarea | null>(null)
-  const [editForm, setEditForm] = useState<Record<string, any>>({})
-  const [savingEdit, setSavingEdit] = useState(false)
-  const [aiInstruction, setAiInstruction] = useState('')
-  const [aiProcessing, setAiProcessing] = useState(false)
-  const [aiPreview, setAiPreview] = useState<Record<string, any> | null>(null)
+  // Task editing state (inline — no modal)
 
   // Task creation state (in picker)
   const [pickerTab, setPickerTab] = useState<'biblioteca' | 'crear'>('biblioteca')
@@ -1536,54 +1529,16 @@ export default function SesionDetailPage() {
     }
   }
 
-  // ============ Task editing ============
-  const openEditTarea = (st: SesionTarea) => {
-    // Helper: convert array fields to newline-separated strings for textarea display
-    const toStr = (val: any) => Array.isArray(val) ? val.join('\n') : (val || '')
-    setEditingTarea(st)
-    setEditForm({
-      titulo: st.tarea?.titulo || '',
-      descripcion: st.tarea?.descripcion || '',
-      duracion_total: st.tarea?.duracion_total || 0,
-      reglas_tecnicas: toStr(st.tarea?.reglas_tecnicas),
-      reglas_tacticas: toStr(st.tarea?.reglas_tacticas),
-      consignas_ofensivas: toStr(st.tarea?.consignas_ofensivas),
-      consignas_defensivas: toStr(st.tarea?.consignas_defensivas),
-      variantes: toStr(st.tarea?.variantes),
-      espacio_largo: st.tarea?.espacio_largo || 0,
-      espacio_ancho: st.tarea?.espacio_ancho || 0,
-      errores_comunes: toStr(st.tarea?.errores_comunes),
-      progresiones: toStr(st.tarea?.progresiones),
-      estructura_equipos: st.tarea?.estructura_equipos || '',
-      num_jugadores_min: st.tarea?.num_jugadores_min || 0,
-      num_jugadores_max: st.tarea?.num_jugadores_max || 0,
-      material: st.tarea?.material || [],
-      num_series: st.tarea?.num_series || 1,
-      posicion_entrenador: st.tarea?.posicion_entrenador || '',
-      densidad: st.tarea?.densidad || '',
-      nivel_cognitivo: st.tarea?.nivel_cognitivo || 2,
-      fase_juego: st.tarea?.fase_juego || '',
-      principio_tactico: st.tarea?.principio_tactico || '',
-      grafico_data: st.tarea?.grafico_data || null,
-    })
-    setAiInstruction('')
-    setAiPreview(null)
-  }
-
-  const handleSaveEdit = async () => {
-    if (!editingTarea) return
-    // Resolve real sesion_tarea ID (may have changed from temp- after batch save)
-    const realSt = sesion?.tareas?.find(t =>
-      t.tarea_id === editingTarea.tarea_id && t.fase_sesion === editingTarea.fase_sesion
-    ) || editingTarea
+  // ============ Task editing (inline — no modal) ============
+  const handleInlineSaveEdit = useCallback(async (stId: string, form: Record<string, any>) => {
+    const realSt = sesion?.tareas?.find(t => t.id === stId)
+    if (!realSt) return
     if (realSt.id.startsWith('temp-')) {
-      toast.error('La tarea aun se esta guardando, espera un momento')
+      toast.error('La tarea aún se está guardando, espera un momento')
       return
     }
-    setSavingEdit(true)
     try {
-      const result = await sesionesApi.duplicarYEditarTarea(sesionId, realSt.id, editForm)
-      // Update the local session state
+      const result = await sesionesApi.duplicarYEditarTarea(sesionId, realSt.id, form)
       setSesion((prev) => {
         if (!prev) return prev
         return {
@@ -1595,29 +1550,21 @@ export default function SesionDetailPage() {
           ),
         }
       })
-      setEditingTarea(null)
-      toast.success('Tarea editada')
     } catch (err: any) {
-      console.error('Error saving edit:', err)
       toast.error(err?.message || 'Error al guardar cambios')
-    } finally {
-      setSavingEdit(false)
+      throw err
     }
-  }
+  }, [sesion, sesionId])
 
-  const handleAiEdit = async () => {
-    if (!editingTarea || !aiInstruction.trim()) return
-    const realSt = sesion?.tareas?.find(t =>
-      t.tarea_id === editingTarea.tarea_id && t.fase_sesion === editingTarea.fase_sesion
-    ) || editingTarea
+  const handleInlineAiEdit = useCallback(async (stId: string, instruction: string) => {
+    const realSt = sesion?.tareas?.find(t => t.id === stId)
+    if (!realSt) return
     if (realSt.id.startsWith('temp-')) {
-      toast.error('La tarea aun se esta guardando, espera un momento')
+      toast.error('La tarea aún se está guardando, espera un momento')
       return
     }
-    setAiProcessing(true)
-    setAiPreview(null)
     try {
-      const result = await sesionesApi.aiEditTarea(sesionId, realSt.id, aiInstruction)
+      const result = await sesionesApi.aiEditTarea(sesionId, realSt.id, instruction)
       setSesion((prev) => {
         if (!prev) return prev
         return {
@@ -1629,16 +1576,12 @@ export default function SesionDetailPage() {
           ),
         }
       })
-      setEditingTarea(null)
-      setAiInstruction('')
       toast.success('Tarea editada con IA')
     } catch (err: any) {
-      console.error('Error with AI edit:', err)
       toast.error(err?.message || 'Error al editar con IA')
-    } finally {
-      setAiProcessing(false)
+      throw err
     }
-  }
+  }, [sesion, sesionId])
 
   // ============ Task picker search ============
   const searchTasks = async () => {
@@ -2232,156 +2175,47 @@ export default function SesionDetailPage() {
                     </div>
 
                     {hasTareas ? (
-                      <div className="divide-y">
-                        {tareas.map((st, idx) => {
-                          const isExpanded = expandedFormaciones.has(st.id)
-                          const hasFormacion = !!st.formacion_equipos
-                          const hasEstructura = !!st.tarea?.estructura_equipos
-
-                          return (
-                            <div key={st.id}>
-                              <div className="p-4 hover:bg-muted/30 transition-colors group">
-                                <div className="flex items-start gap-3">
-                                  <div className="flex flex-col items-center gap-1 pt-1">
-                                    <button
-                                      onClick={() => handleMoveTarea(st, 'up')}
-                                      disabled={idx === 0}
-                                      className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
-                                    >
-                                      <ChevronUp className="h-3 w-3" />
-                                    </button>
-                                    <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-xs">
-                                      {idx + 1}
-                                    </div>
-                                    <button
-                                      onClick={() => handleMoveTarea(st, 'down')}
-                                      disabled={idx === tareas.length - 1}
-                                      className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
-                                    >
-                                      <ChevronDown className="h-3 w-3" />
-                                    </button>
-                                  </div>
-                                  {/* Mini tactical board */}
-                                  {st.tarea?.grafico_data && (
-                                    <div className="w-56 h-36 shrink-0 rounded-lg overflow-hidden border border-border/30">
-                                      <TacticalBoardMini
-                                        data={st.tarea.grafico_data as any}
-                                        width="100%"
-                                        height="100%"
-                                      />
-                                    </div>
-                                  )}
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                      <h4 className="font-medium">{st.tarea?.titulo || 'Tarea sin titulo'}</h4>
-                                      {st.tarea?.categoria && (
-                                        <Badge variant="outline" className="text-[10px]">
-                                          {st.tarea.categoria.nombre}
-                                        </Badge>
-                                      )}
-                                      {hasEstructura && (
-                                        <Badge variant="outline" className="text-[10px]">
-                                          {st.tarea?.estructura_equipos}
-                                        </Badge>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center gap-3 mt-1">
-                                      <div className="flex items-center gap-1">
-                                        <Clock className="h-3 w-3 text-muted-foreground" />
-                                        <input
-                                          type="number"
-                                          min={1}
-                                          max={120}
-                                          className="w-16 text-sm bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                          value={st.duracion_override || st.tarea?.duracion_total || 0}
-                                          onChange={(e) => handleUpdateTareaDuration(st.id, parseInt(e.target.value) || 0)}
-                                          onBlur={() => handleCommitTareaDuration(st.id)}
-                                          onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur() } }}
-                                        />
-                                        <span className="text-xs text-muted-foreground">min</span>
-                                      </div>
-                                      {st.tarea?.num_jugadores_min && (
-                                        <span className="text-xs text-muted-foreground">
-                                          {st.tarea.num_jugadores_min}{st.tarea.num_jugadores_max ? `-${st.tarea.num_jugadores_max}` : ''} jug.
-                                        </span>
-                                      )}
-                                      <div className="flex items-center gap-1">
-                                        <UserCircle className="h-3 w-3 text-muted-foreground" />
-                                        <input
-                                          list={`staff-${st.id}`}
-                                          className="w-24 text-xs bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none"
-                                          placeholder="CT..."
-                                          value={st.responsable || ''}
-                                          onChange={(e) => handleUpdateTareaResponsable(st.id, e.target.value)}
-                                          onBlur={() => debouncedSaveTareasBatch(allTareas)}
-                                        />
-                                        <datalist id={`staff-${st.id}`}>
-                                          {staffOptions.map(name => <option key={name} value={name} />)}
-                                        </datalist>
-                                      </div>
-                                    </div>
-                                    <input
-                                      className="mt-1 text-sm text-muted-foreground bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none w-full italic"
-                                      placeholder="Notas de la tarea..."
-                                      value={st.notas || ''}
-                                      onChange={(e) => handleUpdateTareaNotas(st.id, e.target.value)}
-                                      onBlur={() => debouncedSaveTareasBatch(allTareas)}
-                                    />
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    {/* Edit task button */}
-                                    <button
-                                      onClick={() => openEditTarea(st)}
-                                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                                      title="Editar tarea"
-                                    >
-                                      <Pencil className="h-4 w-4" />
-                                    </button>
-                                    {/* Equipos toggle button */}
-                                    <button
-                                      onClick={() => toggleFormacionPanel(st.id)}
-                                      className={`p-1.5 rounded-md transition-colors ${
-                                        isExpanded
-                                          ? 'bg-primary/10 text-primary'
-                                          : hasFormacion
-                                            ? 'text-primary hover:bg-primary/10'
-                                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                                      }`}
-                                      title="Equipos"
-                                    >
-                                      <Users className="h-4 w-4" />
-                                    </button>
-                                    <button
-                                      onClick={() => handleRemoveTarea(st)}
-                                      className="p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                                      title="Eliminar tarea"
-                                    >
-                                      <X className="h-4 w-4" />
-                                    </button>
-                                  </div>
+                      <div>
+                        {tareas.map((st, idx) => (
+                          <div key={st.id}>
+                            <SesionTareaPanel
+                              st={st}
+                              index={idx}
+                              totalInFase={tareas.length}
+                              staffOptions={staffOptions}
+                              isFormacionExpanded={expandedFormaciones.has(st.id)}
+                              onMoveUp={() => handleMoveTarea(st, 'up')}
+                              onMoveDown={() => handleMoveTarea(st, 'down')}
+                              onRemove={() => handleRemoveTarea(st)}
+                              onDurationChange={(val) => handleUpdateTareaDuration(st.id, val)}
+                              onDurationCommit={() => handleCommitTareaDuration(st.id)}
+                              onResponsableChange={(val) => handleUpdateTareaResponsable(st.id, val)}
+                              onResponsableBlur={() => debouncedSaveTareasBatch(allTareas)}
+                              onNotasChange={(val) => handleUpdateTareaNotas(st.id, val)}
+                              onNotasBlur={() => debouncedSaveTareasBatch(allTareas)}
+                              onToggleFormacion={() => toggleFormacionPanel(st.id)}
+                              onSaveEdit={(form) => handleInlineSaveEdit(st.id, form)}
+                              onAiEdit={(instruction) => handleInlineAiEdit(st.id, instruction)}
+                            />
+                            {/* Inline Formation Panel */}
+                            {expandedFormaciones.has(st.id) && (
+                              <div className="px-4 pb-4 pt-0 ml-12 mr-4">
+                                <div className="border rounded-lg p-3 bg-muted/20">
+                                  <FormacionPanel
+                                    sesionId={sesionId}
+                                    sesionTarea={st}
+                                    jugadoresMap={jugadoresMap}
+                                    onFormacionChange={handleFormacionChange}
+                                    onCopy={() => handleCopyFormacion(st)}
+                                    onPaste={() => handlePasteFormacion(st.id)}
+                                    hasCopied={!!copiedFormacion}
+                                    copiedFrom={copiedFormacion?.taskName}
+                                  />
                                 </div>
                               </div>
-
-                              {/* Inline Formation Panel */}
-                              {isExpanded && (
-                                <div className="px-4 pb-4 pt-0 ml-10 mr-4">
-                                  <div className="border rounded-lg p-3 bg-muted/20">
-                                    <FormacionPanel
-                                      sesionId={sesionId}
-                                      sesionTarea={st}
-                                      jugadoresMap={jugadoresMap}
-                                      onFormacionChange={handleFormacionChange}
-                                      onCopy={() => handleCopyFormacion(st)}
-                                      onPaste={() => handlePasteFormacion(st.id)}
-                                      hasCopied={!!copiedFormacion}
-                                      copiedFrom={copiedFormacion?.taskName}
-                                    />
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
+                            )}
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <div className="p-6 text-center">
@@ -3278,282 +3112,6 @@ export default function SesionDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ==================== EDIT TASK DIALOG ==================== */}
-      <Dialog open={!!editingTarea} onOpenChange={(open) => { if (!open) setEditingTarea(null) }}>
-        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Pencil className="h-5 w-5" />
-              Editar tarea
-            </DialogTitle>
-            <DialogDescription>
-              Los cambios se guardan como copia — la tarea original en la biblioteca no se modifica.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex-1 overflow-y-auto space-y-4 py-2">
-            {/* Manual edit fields */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Titulo</label>
-                <Input
-                  value={editForm.titulo || ''}
-                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, titulo: e.target.value }))}
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Descripcion</label>
-                <Textarea
-                  value={editForm.descripcion || ''}
-                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, descripcion: e.target.value }))}
-                  rows={3}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Duracion (min)</label>
-                <Input
-                  type="number"
-                  value={editForm.duracion_total || 0}
-                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, duracion_total: parseInt(e.target.value) || 0 }))}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Series</label>
-                <Input
-                  type="number"
-                  value={editForm.num_series || 1}
-                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, num_series: parseInt(e.target.value) || 1 }))}
-                />
-              </div>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Espacio largo (m)</label>
-                  <Input
-                    type="number"
-                    value={editForm.espacio_largo || 0}
-                    onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, espacio_largo: parseInt(e.target.value) || 0 }))}
-                  />
-                </div>
-                <div className="flex-1">
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Espacio ancho (m)</label>
-                  <Input
-                    type="number"
-                    value={editForm.espacio_ancho || 0}
-                    onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, espacio_ancho: parseInt(e.target.value) || 0 }))}
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Estructura equipos</label>
-                <Input
-                  value={editForm.estructura_equipos || ''}
-                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, estructura_equipos: e.target.value }))}
-                  placeholder="Ej: 4v4+2"
-                />
-              </div>
-
-              {/* Jugadores */}
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Jug. min</label>
-                  <Input
-                    type="number"
-                    value={editForm.num_jugadores_min || 0}
-                    onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, num_jugadores_min: parseInt(e.target.value) || 0 }))}
-                  />
-                </div>
-                <div className="flex-1">
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Jug. max</label>
-                  <Input
-                    type="number"
-                    value={editForm.num_jugadores_max || 0}
-                    onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, num_jugadores_max: parseInt(e.target.value) || 0 }))}
-                  />
-                </div>
-              </div>
-
-              {/* Tactico */}
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Fase de juego</label>
-                <select
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                  value={editForm.fase_juego || ''}
-                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, fase_juego: e.target.value || null }))}
-                >
-                  <option value="">Sin definir</option>
-                  <option value="ataque_organizado">Ataque organizado</option>
-                  <option value="defensa_organizada">Defensa organizada</option>
-                  <option value="transicion_ataque_defensa">Transicion ataque-defensa</option>
-                  <option value="transicion_defensa_ataque">Transicion defensa-ataque</option>
-                  <option value="balon_parado_ofensivo">Balon parado ofensivo</option>
-                  <option value="balon_parado_defensivo">Balon parado defensivo</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Principio tactico</label>
-                <Input
-                  value={editForm.principio_tactico || ''}
-                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, principio_tactico: e.target.value }))}
-                  placeholder="Ej: Salida de balon"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Densidad</label>
-                <select
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                  value={editForm.densidad || ''}
-                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, densidad: e.target.value || null }))}
-                >
-                  <option value="">Sin definir</option>
-                  <option value="alta">Alta</option>
-                  <option value="media">Media</option>
-                  <option value="baja">Baja</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Nivel cognitivo</label>
-                <select
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                  value={editForm.nivel_cognitivo || ''}
-                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, nivel_cognitivo: parseInt(e.target.value) || null }))}
-                >
-                  <option value="">Sin definir</option>
-                  <option value="1">1 - Bajo</option>
-                  <option value="2">2 - Medio</option>
-                  <option value="3">3 - Alto</option>
-                </select>
-              </div>
-
-              {/* Reglas y consignas */}
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Reglas tecnicas</label>
-                <Textarea
-                  value={editForm.reglas_tecnicas || ''}
-                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, reglas_tecnicas: e.target.value }))}
-                  rows={2}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Reglas tacticas</label>
-                <Textarea
-                  value={editForm.reglas_tacticas || ''}
-                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, reglas_tacticas: e.target.value }))}
-                  rows={2}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Consignas ofensivas</label>
-                <Textarea
-                  value={editForm.consignas_ofensivas || ''}
-                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, consignas_ofensivas: e.target.value }))}
-                  rows={2}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Consignas defensivas</label>
-                <Textarea
-                  value={editForm.consignas_defensivas || ''}
-                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, consignas_defensivas: e.target.value }))}
-                  rows={2}
-                />
-              </div>
-
-              {/* Coaching */}
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Errores comunes</label>
-                <Textarea
-                  value={editForm.errores_comunes || ''}
-                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, errores_comunes: e.target.value }))}
-                  rows={2}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Posicion entrenador</label>
-                <Input
-                  value={editForm.posicion_entrenador || ''}
-                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, posicion_entrenador: e.target.value }))}
-                  placeholder="Ej: Fuera del campo, lateral..."
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Variantes</label>
-                <Textarea
-                  value={editForm.variantes || ''}
-                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, variantes: e.target.value }))}
-                  rows={2}
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Progresiones</label>
-                <Textarea
-                  value={editForm.progresiones || ''}
-                  onChange={(e) => setEditForm((f: Record<string, any>) => ({ ...f, progresiones: e.target.value }))}
-                  rows={2}
-                />
-              </div>
-            </div>
-
-            {/* Pizarra Tactica */}
-            <details className="border-t pt-4 mt-4">
-              <summary className="text-sm font-semibold cursor-pointer flex items-center gap-2 select-none">
-                <Target className="h-4 w-4 text-primary" />
-                Pizarra Tactica
-                <span className="text-xs font-normal text-muted-foreground ml-1">(click para abrir)</span>
-              </summary>
-              <div className="mt-3">
-                <TareaGraphicEditor
-                  value={editForm.grafico_data || emptyDiagramData}
-                  onChange={(data) => setEditForm((f: Record<string, any>) => ({ ...f, grafico_data: data }))}
-                  readOnly={false}
-                />
-              </div>
-            </details>
-
-            {/* AI Edit section */}
-            <div className="border-t pt-4 mt-4">
-              <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
-                <Wand2 className="h-4 w-4 text-primary" />
-                Editar con IA
-              </h4>
-              <p className="text-xs text-muted-foreground mb-3">
-                Describe los cambios que quieres y la IA modificara la tarea automaticamente.
-              </p>
-              <div className="flex gap-2">
-                <Input
-                  value={aiInstruction}
-                  onChange={(e) => setAiInstruction(e.target.value)}
-                  placeholder="Ej: Hazla mas intensa, anade variante con presion tras perdida..."
-                  className="flex-1"
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAiEdit() } }}
-                />
-                <Button
-                  onClick={handleAiEdit}
-                  disabled={aiProcessing || !aiInstruction.trim()}
-                  size="sm"
-                >
-                  {aiProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
-                  Aplicar
-                </Button>
-              </div>
-              {aiProcessing && (
-                <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                  <Sparkles className="h-3 w-3" /> Procesando cambios con IA...
-                </p>
-              )}
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingTarea(null)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSaveEdit} disabled={savingEdit}>
-              {savingEdit ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
-              Guardar cambios
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
