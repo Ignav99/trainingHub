@@ -5,6 +5,7 @@ import useSWR from 'swr'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { partidosApi } from '@/lib/api/partidos'
 import { videoAnotacionesApi } from '@/lib/api/videoAnotaciones'
+import { videosApi } from '@/lib/api/videos'
 import type { Partido, VideoAnotacion } from '@/types'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
@@ -52,6 +53,7 @@ export default function VideoAnalisisPage() {
   const anotaciones = anotacionesData?.data || []
 
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [localVideoId, setLocalVideoId] = useState<string | null>(null)
 
   const handleFileSelect = () => {
     if (!selectedPartidoId) {
@@ -61,13 +63,26 @@ export default function VideoAnalisisPage() {
     fileRef.current?.click()
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     if (!f) return
     if (!f.type.startsWith('video/')) {
       toast.error('Solo se permiten archivos de video')
       return
     }
+
+    // Register a local session to enable tagging — non-blocking
+    try {
+      const session = await videosApi.createLocalSession({
+        partido_id: selectedPartidoId!,
+        equipo_id: equipoId,
+        filename: f.name,
+      })
+      setLocalVideoId(session.id)
+    } catch {
+      setLocalVideoId(null) // tagging disabled, but video still loads
+    }
+
     setAnalyzerFile(f)
     if (fileRef.current) fileRef.current.value = ''
   }
@@ -89,7 +104,8 @@ export default function VideoAnalisisPage() {
   const formatPartidoLabel = (p: Partido) => {
     const fecha = new Date(p.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
     const jornada = p.jornada ? `J${p.jornada}` : ''
-    return `${fecha} ${jornada} · ${p.localia === 'local' ? 'vs' : '@'} ${p.rival_id ? 'Rival' : '—'}`.trim()
+    const rivalNombre = p.rival?.nombre_corto || p.rival?.nombre || '—'
+    return `${fecha} ${jornada} · ${p.localia === 'local' ? 'vs' : '@'} ${rivalNombre}`.trim()
   }
 
   if (!equipoActivo) {
@@ -222,8 +238,10 @@ export default function VideoAnalisisPage() {
             localFile={analyzerFile}
             partidoId={selectedPartidoId}
             equipoId={equipoId}
+            videoId={localVideoId || undefined}
             onClose={() => {
               setAnalyzerFile(null)
+              setLocalVideoId(null)
               mutateAnotaciones()
             }}
           />

@@ -39,4 +39,12 @@ export const videosApi = {
   async delete(id: string, equipoId: string): Promise<void> {
     return api.delete(`/videos/${id}`, { params: { equipo_id: equipoId } })
   },
+
+  async createLocalSession(data: {
+    partido_id: string
+    equipo_id: string
+    filename: string
+  }): Promise<{ id: string }> {
+    return api.post<{ id: string }>('/videos/local-session', data)
+  },
 }

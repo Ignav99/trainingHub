@@ -27,6 +27,7 @@ import { useVideoAnalyzerStore } from './useVideoAnalyzerStore'
 import { useVirtualTimeline, virtualToReal, realToVirtual } from './useVirtualTimeline'
 import type { TimeSegment } from './useVirtualTimeline'
 import { exportFramePNG, downloadDataUrl } from './utils'
+import { useClipPersistence } from './useClipPersistence'
 import type { DrawingTool, FreezeFrame } from './types'
 
 interface VideoAnalyzerProps {
@@ -83,6 +84,8 @@ export function VideoAnalyzer({
   const fetchTags = useTaggingStore((s) => s.fetchTags)
   const fetchCategories = useTaggingStore((s) => s.fetchCategories)
   const resetTagging = useTaggingStore((s) => s.reset)
+  const resetAll = useVideoAnalyzerStore((s) => s.resetAll)
+  const setClipsFromStorage = useVideoAnalyzerStore((s) => s.setClipsFromStorage)
   const taggingCategories = useTaggingStore((s) => s.categories)
   const taggingTags = useTaggingStore((s) => s.tags)
   const selectedTagId = useTaggingStore((s) => s.selectedTagId)
@@ -101,6 +104,13 @@ export function VideoAnalyzer({
       })))
     }).catch(() => {})
   }, [equipoId])
+
+  // Reset analyzer state on mount/unmount to prevent session bleed
+  useEffect(() => {
+    resetAll()
+    return () => { resetAll() }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Load tags when videoId is available
   useEffect(() => {
@@ -153,6 +163,9 @@ export function VideoAnalyzer({
     createClipAtTime, createClipFromRange, updateClip, deleteClip, exportClip,
     mergeClips, captureFreezeFrame, updateFreezeFrame, removeFreezeFrame,
   } = useClips()
+
+  // Persist clips to localStorage per partido
+  useClipPersistence(partidoId, clips, setClipsFromStorage)
 
   // Find editing clip
   const editingClip = editingClipId ? clips.find((c) => c.id === editingClipId) || null : null
@@ -862,12 +875,19 @@ export function VideoAnalyzer({
           {/* Tab content */}
           <div className="flex-1 overflow-hidden">
             {activeTab === 'tagging' && (
-              <TagMatrix
-                videoId={videoId || ''}
-                equipoId={equipoId}
-                getCurrentMs={getCurrentMs}
-                jugadores={jugadores}
-              />
+              videoId ? (
+                <TagMatrix
+                  videoId={videoId}
+                  equipoId={equipoId}
+                  getCurrentMs={getCurrentMs}
+                  jugadores={jugadores}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full gap-2 text-white/40 p-4 text-center">
+                  <p className="text-sm">Tagging no disponible</p>
+                  <p className="text-xs">El video no pudo registrarse en la sesión</p>
+                </div>
+              )
             )}
             {activeTab === 'tags' && (
               selectedTagId && taggingTags.find((t) => t.id === selectedTagId) ? (

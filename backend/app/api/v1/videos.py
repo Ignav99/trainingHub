@@ -21,6 +21,7 @@ router = APIRouter()
 VIDEO_BUCKET = "partido-videos"
 MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
 VALID_CONTEXTOS = ("pre_partido", "post_partido")
+VALID_TIPOS_ENLACE = ("veo", "enlace_externo")
 
 
 def _ensure_video_bucket(supabase) -> None:
@@ -76,6 +77,42 @@ async def list_videos(
     return {"data": result.data or []}
 
 
+# ============ LOCAL SESSION (for tagging local files) ============
+
+@router.post("/local-session", status_code=201)
+async def create_local_session(
+    data: dict,
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """Registers a local video analysis session to enable the tagging system.
+
+    Creates a minimal videos_partido record so the frontend can use videoId
+    for tag persistence when analyzing a local file (not uploaded to storage).
+    """
+    partido_id = data.get("partido_id")
+    equipo_id = data.get("equipo_id")
+    filename = data.get("filename", "local_video")
+
+    if not partido_id or not equipo_id:
+        raise HTTPException(status_code=400, detail="partido_id y equipo_id son requeridos.")
+
+    supabase = get_supabase()
+
+    if not _verify_partido(supabase, partido_id, equipo_id):
+        raise HTTPException(status_code=404, detail="Partido no encontrado.")
+
+    row = {
+        "partido_id": partido_id,
+        "equipo_id": equipo_id,
+        "tipo": "local_session",
+        "contexto": "post_partido",
+        "titulo": f"Sesión local: {filename}",
+        "url": "",  # local sessions have no remote URL
+    }
+    result = supabase.table("videos_partido").insert(row).execute()
+    return result.data[0]
+
+
 # ============ ADD LINK (Veo / External) ============
 
 @router.post("/link", status_code=201)
@@ -84,8 +121,8 @@ async def add_video_link(
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
 ):
     """Añade un enlace de video (Veo o externo) a un partido."""
-    if data.tipo not in ("veo", "enlace_externo"):
-        raise HTTPException(status_code=400, detail="Use tipo 'veo' o 'enlace_externo' para enlaces.")
+    if data.tipo not in VALID_TIPOS_ENLACE:
+        raise HTTPException(status_code=400, detail=f"Use tipo: {VALID_TIPOS_ENLACE}")
 
     if data.contexto not in VALID_CONTEXTOS:
         raise HTTPException(status_code=400, detail=f"Contexto inválido. Use: {VALID_CONTEXTOS}")

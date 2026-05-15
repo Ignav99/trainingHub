@@ -64,6 +64,12 @@ interface VideoAnalyzerState {
 
   // UI actions
   setExportingClipId: (id: string | null) => void
+
+  // Persistence
+  setClipsFromStorage: (clips: Clip[]) => void
+
+  // Reset
+  resetAll: () => void
 }
 
 export const useVideoAnalyzerStore = create<VideoAnalyzerState>((set, get) => ({
@@ -207,4 +213,25 @@ export const useVideoAnalyzerStore = create<VideoAnalyzerState>((set, get) => ({
 
   // UI actions
   setExportingClipId: (exportingClipId) => set({ exportingClipId }),
+
+  // Persistence
+  setClipsFromStorage: (clips) => set({ clips }),
+
+  // Reset all state (call on mount/unmount to prevent session bleed)
+  resetAll: () => set({
+    src: '',
+    duration: 0,
+    isPlaying: false,
+    tool: 'select',
+    color: '#ef4444',
+    strokeWidth: 4,
+    selectedId: null,
+    elements: [],
+    clips: [],
+    activeClipId: null,
+    viewMode: 'general',
+    editingClipId: null,
+    activeFreezeFrameId: null,
+    exportingClipId: null,
+  }),
 }))
