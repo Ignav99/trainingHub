@@ -116,8 +116,15 @@ function ClipsList({
     )
   }
 
+  const totalDuration = clips.reduce((sum, c) => sum + (c.endTime - c.startTime), 0)
+
   return (
-    <div className="flex flex-col gap-1 p-2">
+    <div className="flex flex-col">
+      <div className="flex justify-between items-center px-3 py-1.5 border-b border-white/10">
+        <span className="text-[10px] text-white/40">{clips.length} clip{clips.length !== 1 ? 's' : ''}</span>
+        <span className="text-[10px] text-white/40 font-mono">{formatTime(totalDuration)} total</span>
+      </div>
+      <div className="flex flex-col gap-1 p-2">
       {clips.map((clip) => {
         const dur = clip.endTime - clip.startTime
         const isExporting = exportingId === clip.id
@@ -192,6 +199,7 @@ function ClipsList({
           </div>
         )
       })}
+      </div>
     </div>
   )
 }

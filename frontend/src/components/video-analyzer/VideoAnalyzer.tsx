@@ -825,7 +825,7 @@ export function VideoAnalyzer({
         </div>
 
         {/* Right: Sidebar */}
-        <div className="w-72 border-l border-white/10 bg-black/90 flex flex-col shrink-0">
+        <div className="border-l border-white/10 bg-black/90 flex flex-col shrink-0" style={{ width: 340 }}>
           {/* Sidebar tabs */}
           <div className="flex border-b border-white/10 shrink-0">
             {([
@@ -835,14 +835,14 @@ export function VideoAnalyzer({
             ]).map(({ key, icon: Icon, label }) => (
               <button
                 key={key}
-                className={`flex-1 flex items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors ${
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
                   activeTab === key
                     ? 'text-white border-b-2 border-blue-500'
                     : 'text-white/40 hover:text-white/60'
                 }`}
                 onClick={() => setActiveTab(key)}
               >
-                <Icon className="h-3 w-3" />
+                <Icon className="h-3.5 w-3.5" />
                 {label}
               </button>
             ))}
@@ -873,7 +873,7 @@ export function VideoAnalyzer({
           )}
 
           {/* Tab content */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden min-h-0">
             {activeTab === 'tagging' && (
               videoId ? (
                 <TagMatrix
@@ -921,6 +921,19 @@ export function VideoAnalyzer({
                 onUpdateFreezeFrameDuration={handleUpdateFreezeFrameDuration}
               />
             )}
+          </div>
+
+          {/* Sidebar footer — keyboard shortcuts hint */}
+          <div className="border-t border-white/10 px-3 py-2 flex items-center justify-between shrink-0">
+            <span className="text-[9px] text-white/25">
+              Space: play · C: clip · F: freeze · Esc: salir
+            </span>
+            <button
+              className="text-[9px] text-white/30 hover:text-white/60 transition-colors"
+              onClick={() => setShowShortcuts(true)}
+            >
+              más atajos
+            </button>
           </div>
         </div>
       </div>

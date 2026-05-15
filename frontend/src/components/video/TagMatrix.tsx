@@ -154,13 +154,13 @@ export function TagMatrix({ videoId, equipoId, getCurrentMs, jugadores }: TagMat
               {faseLabels[fase] || fase}
             </div>
           )}
-          <div className="grid grid-cols-3 gap-1">
+          <div className="grid grid-cols-2 gap-1.5">
             {cats.map((cat) => (
               <button
                 key={cat.id}
                 ref={(el) => { buttonRefs.current[cat.id] = el }}
                 className={`
-                  flex flex-col items-center gap-0.5 px-1 py-1.5 rounded text-[10px] font-medium
+                  flex flex-col items-center justify-center gap-1 px-2 py-2.5 rounded text-xs font-medium h-14
                   transition-all border border-transparent
                   ${activeCategory?.id === cat.id && isTagging
                     ? 'ring-1 ring-white/50'
@@ -174,10 +174,10 @@ export function TagMatrix({ videoId, equipoId, getCurrentMs, jugadores }: TagMat
                 onClick={(e) => handleCategoryClick(cat, e)}
                 title={cat.shortcut_key ? `Atajo: ${cat.shortcut_key}` : undefined}
               >
-                <span className="truncate w-full text-center">{cat.nombre}</span>
+                <span className="truncate w-full text-center leading-tight">{cat.nombre}</span>
                 {cat.shortcut_key && (
-                  <kbd className="text-[8px] text-white/40 bg-white/10 px-1 rounded">
-                    {cat.shortcut_key}
+                  <kbd className="text-[9px] font-mono bg-white/10 rounded px-1 py-0.5 text-white/50">
+                    {cat.shortcut_key.toUpperCase()}
                   </kbd>
                 )}
               </button>

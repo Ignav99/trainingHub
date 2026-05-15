@@ -101,12 +101,12 @@ export function Timeline({
     if (!canvas || !containerWidth || !rangeDuration || thumbCount === 0) return
 
     canvas.width = containerWidth
-    canvas.height = 48
+    canvas.height = 68
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
     ctx.fillStyle = '#1a1a1a'
-    ctx.fillRect(0, 0, containerWidth, 48)
+    ctx.fillRect(0, 0, containerWidth, 68)
 
     const entries = Array.from(thumbnails.entries()).sort((a, b) => a[0] - b[0])
 
@@ -119,25 +119,25 @@ export function Timeline({
         if (seg.type === 'freeze') {
           // Cyan tinted freeze bar
           ctx.fillStyle = '#0e7490'
-          ctx.fillRect(startX, 0, segWidth, 48)
+          ctx.fillRect(startX, 0, segWidth, 68)
 
           // Draw freeze image if available
           if (seg.freezeFrame?.imageData) {
             const img = new Image()
             img.onload = () => {
               ctx.globalAlpha = 0.4
-              ctx.drawImage(img, startX, 0, segWidth, 48)
+              ctx.drawImage(img, startX, 0, segWidth, 68)
               ctx.globalAlpha = 1
               // Tint overlay
               ctx.fillStyle = '#0e749060'
-              ctx.fillRect(startX, 0, segWidth, 48)
+              ctx.fillRect(startX, 0, segWidth, 68)
               // Snowflake icon
               ctx.fillStyle = '#22d3ee'
               ctx.font = 'bold 14px sans-serif'
               ctx.textAlign = 'center'
               ctx.textBaseline = 'middle'
               if (segWidth > 20) {
-                ctx.fillText('❄', startX + segWidth / 2, 24)
+                ctx.fillText('❄', startX + segWidth / 2, 34)
               }
             }
             img.src = seg.freezeFrame.imageData
@@ -153,7 +153,7 @@ export function Timeline({
               const x = startX + relPct * segWidth
               const img = new Image()
               img.onload = () => {
-                ctx.drawImage(img, x, 0, Math.max(thumbW, segWidth / 8), 48)
+                ctx.drawImage(img, x, 0, Math.max(thumbW, segWidth / 8), 68)
               }
               img.src = thumbUrl
             }
@@ -167,7 +167,7 @@ export function Timeline({
         const img = new Image()
         img.onload = () => {
           const x = i * thumbW
-          ctx.drawImage(img, x, 0, thumbW, 48)
+          ctx.drawImage(img, x, 0, thumbW, 68)
         }
         img.src = entry[1]
       })
@@ -299,11 +299,11 @@ export function Timeline({
 
   return (
     <div ref={containerRef} className="relative w-full select-none bg-[#111]">
-      {/* Filmstrip row — 48px */}
+      {/* Filmstrip row — 68px */}
       <canvas
         ref={filmstripCanvasRef}
         className="w-full cursor-pointer"
-        style={{ height: 48 }}
+        style={{ height: 68 }}
         onClick={handleFilmstripClick}
       />
 
