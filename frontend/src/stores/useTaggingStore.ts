@@ -11,7 +11,7 @@ export type TagFilter = {
   search?: string
 }
 
-export type SidebarTab = 'tagging' | 'tags' | 'playlists'
+export type SidebarTab = 'codes' | 'tagging' | 'tags' | 'playlists'
 
 interface TaggingState {
   // Data

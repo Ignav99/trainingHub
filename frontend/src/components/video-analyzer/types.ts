@@ -52,3 +52,24 @@ export const DRAWING_COLORS = [
 ]
 
 export const STROKE_WIDTHS = [2, 4, 6]
+
+// ─── Code Window (Sportscode-style event coding) ───────────────────────────
+
+export interface CodeButton {
+  id: string
+  label: string
+  color: string
+  shortcut?: string   // single char: '1'..'9', 'a'..'z'
+  preRoll: number     // seconds before press included in clip (default 5)
+  postRoll: number    // seconds after press included in clip (default 5)
+  description?: string
+}
+
+export interface CodeEvent {
+  id: string
+  buttonId: string
+  timestamp: number   // exact moment button was pressed (seconds)
+  startTime: number   // timestamp - preRoll
+  endTime: number     // timestamp + postRoll
+  notes?: string
+}

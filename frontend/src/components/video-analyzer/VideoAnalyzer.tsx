@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { X, Camera, Scissors, ArrowLeft, Snowflake, Download, Tag, Film, ListMusic, Pencil as PencilIcon } from 'lucide-react'
+import { X, Camera, Scissors, ArrowLeft, Snowflake, Download, Tag, Film, ListMusic, Pencil as PencilIcon, Grid3x3 } from 'lucide-react'
 import type { DrawingElement } from '@/types'
 
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
@@ -28,6 +28,8 @@ import { useVirtualTimeline, virtualToReal, realToVirtual } from './useVirtualTi
 import type { TimeSegment } from './useVirtualTimeline'
 import { exportFramePNG, downloadDataUrl } from './utils'
 import { useClipPersistence } from './useClipPersistence'
+import { useCodeWindowStore } from './useCodeWindowStore'
+import { CodeWindowPanel } from './CodeWindowPanel'
 import type { DrawingTool, FreezeFrame } from './types'
 
 interface VideoAnalyzerProps {
@@ -51,6 +53,7 @@ export function VideoAnalyzer({
 }: VideoAnalyzerProps) {
   const playerRef = useRef<VideoPlayerHandle>(null)
   const svgRef = useRef<SVGSVGElement>(null)
+  const videoContainerRef = useRef<HTMLDivElement>(null)
   const currentTimeRef = useRef(0)
 
   // Store — individual selectors
@@ -90,6 +93,20 @@ export function VideoAnalyzer({
   const taggingTags = useTaggingStore((s) => s.tags)
   const selectedTagId = useTaggingStore((s) => s.selectedTagId)
   const setSelectedTagId = useTaggingStore((s) => s.setSelectedTagId)
+
+  // Code Window store
+  const codeButtons = useCodeWindowStore((s) => s.buttons)
+  const setCodeVideoKey = useCodeWindowStore((s) => s.setCurrentVideoKey)
+  const currentCodeEvents = useCodeWindowStore((s) => {
+    const key = s.currentVideoKey || '_default'
+    return s.events[key] || []
+  })
+
+  // Set video key for code window (uses partidoId or file name)
+  useEffect(() => {
+    const key = partidoId || (localFile?.name ?? '_local')
+    setCodeVideoKey(key)
+  }, [partidoId, localFile, setCodeVideoKey])
 
   // Jugadores for player assignment
   const [jugadores, setJugadores] = useState<Array<{ id: string; nombre: string; apellidos: string; dorsal?: number }>>([])
@@ -142,6 +159,24 @@ export function VideoAnalyzer({
     onToggleShortcutOverlay: () => setShowShortcuts((v) => !v),
     enabled: !!videoId && taggingMode === 'tag',
   })
+
+  // Trackpad scrubbing — two-finger horizontal swipe over video
+  useEffect(() => {
+    const el = videoContainerRef.current
+    if (!el) return
+    const handler = (e: WheelEvent) => {
+      // Only horizontal scroll (two-finger swipe) → scrub video
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) * 0.5 && Math.abs(e.deltaX) > 5) {
+        e.preventDefault()
+        // sensitivity: 80px = 3s of video scrub
+        const deltaSeconds = (e.deltaX / 80) * 3
+        const clampedTime = Math.max(0, Math.min(duration, currentTimeRef.current + deltaSeconds))
+        playerRef.current?.seekTo(clampedTime)
+      }
+    }
+    el.addEventListener('wheel', handler, { passive: false })
+    return () => el.removeEventListener('wheel', handler)
+  }, [duration])
 
   // Create object URL for local file
   const src = useMemo(() => {
@@ -745,7 +780,7 @@ export function VideoAnalyzer({
         {/* Left: Video + controls + timeline */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Video + SVG overlay */}
-          <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
+          <div ref={videoContainerRef} className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
             <div className="relative w-full h-full flex items-center justify-center">
               <div className="relative w-full" style={{ maxHeight: '100%', aspectRatio: '16/9' }}>
                 <VideoPlayer
@@ -821,6 +856,11 @@ export function VideoAnalyzer({
             activeFreezeFrameId={activeFreezeFrameId}
             drawingElements={elements}
             onDrawingTimeUpdate={handleDrawingTimeUpdate}
+            codeButtons={codeButtons}
+            codeEvents={currentCodeEvents}
+            onCodeLaneClick={(btnId) => {
+              setActiveTab('codes' as SidebarTab)
+            }}
           />
         </div>
 
@@ -829,20 +869,21 @@ export function VideoAnalyzer({
           {/* Sidebar tabs */}
           <div className="flex border-b border-white/10 shrink-0">
             {([
-              { key: 'tagging' as SidebarTab, icon: Tag, label: 'Tagging' },
-              { key: 'tags' as SidebarTab, icon: ListMusic, label: 'Tags' },
+              { key: 'codes' as SidebarTab, icon: Grid3x3, label: 'Codes' },
+              { key: 'tagging' as SidebarTab, icon: Tag, label: 'Tags' },
+              { key: 'tags' as SidebarTab, icon: ListMusic, label: 'Eventos' },
               { key: 'playlists' as SidebarTab, icon: Film, label: 'Clips' },
             ]).map(({ key, icon: Icon, label }) => (
               <button
                 key={key}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
+                className={`flex-1 flex items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors ${
                   activeTab === key
                     ? 'text-white border-b-2 border-blue-500'
                     : 'text-white/40 hover:text-white/60'
                 }`}
                 onClick={() => setActiveTab(key)}
               >
-                <Icon className="h-3.5 w-3.5" />
+                <Icon className="h-3 w-3" />
                 {label}
               </button>
             ))}
@@ -874,6 +915,12 @@ export function VideoAnalyzer({
 
           {/* Tab content */}
           <div className="flex-1 overflow-hidden min-h-0">
+            {activeTab === 'codes' && (
+              <CodeWindowPanel
+                getCurrentTime={() => currentTimeRef.current}
+                videoDuration={duration}
+              />
+            )}
             {activeTab === 'tagging' && (
               videoId ? (
                 <TagMatrix
