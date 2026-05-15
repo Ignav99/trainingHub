@@ -23,12 +23,33 @@ function getPersistedToken(): string | null {
 }
 
 function extractErrorMessage(error: any, status: number): string {
-  if (!error?.detail) return `API Error: ${status}`
+  if (!error?.detail) return `Error del servidor (${status})`
   if (typeof error.detail === 'string') return error.detail
   if (Array.isArray(error.detail)) {
     return error.detail.map((e: any) => e.msg || JSON.stringify(e)).join('; ')
   }
-  return String(error.detail)
+  if (typeof error.detail === 'object') {
+    const detail = error.detail as Record<string, unknown>
+    if (detail.error === 'permission_denied') {
+      return 'No tenés permiso para realizar esta acción'
+    }
+    if (detail.error === 'feature_not_available') {
+      return 'Esta funcionalidad no está disponible en tu plan actual'
+    }
+    if (detail.error === 'subscription_required') {
+      return 'Tu suscripción no permite esta acción. Contactá al administrador'
+    }
+    if (typeof detail.message === 'string') return detail.message
+    if (typeof detail.detail === 'string') return detail.detail
+  }
+  return `Error del servidor (${status})`
+}
+
+function extractPermissionError(error: any, status: number): Error {
+  const message = extractErrorMessage(error, status)
+  const err = new Error(message)
+  ;(err as any).statusCode = status
+  return err
 }
 
 class ApiClient {
@@ -111,9 +132,8 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
-      if (response.status === 401) {
-        throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
-      }
+      if (response.status === 401) throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
+      if (response.status === 403 || response.status === 402) throw extractPermissionError(error, response.status)
       throw new Error(extractErrorMessage(error, response.status))
     }
 
@@ -138,9 +158,8 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
-      if (response.status === 401) {
-        throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
-      }
+      if (response.status === 401) throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
+      if (response.status === 403 || response.status === 402) throw extractPermissionError(error, response.status)
       throw new Error(extractErrorMessage(error, response.status))
     }
 
@@ -163,9 +182,8 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
-      if (response.status === 401) {
-        throw new Error('Error de autenticación: ' + ((error as any)?.detail || 'Sesión expirada'))
-      }
+      if (response.status === 401) throw new Error('Error de autenticación: ' + ((error as any)?.detail || 'Sesión expirada'))
+      if (response.status === 403 || response.status === 402) throw extractPermissionError(error, response.status)
       throw new Error(extractErrorMessage(error, response.status))
     }
 
@@ -215,9 +233,8 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
-      if (response.status === 401) {
-        throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
-      }
+      if (response.status === 401) throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
+      if (response.status === 403 || response.status === 402) throw extractPermissionError(error, response.status)
       throw new Error(extractErrorMessage(error, response.status))
     }
 
@@ -242,9 +259,8 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
-      if (response.status === 401) {
-        throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
-      }
+      if (response.status === 401) throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
+      if (response.status === 403 || response.status === 402) throw extractPermissionError(error, response.status)
       throw new Error(extractErrorMessage(error, response.status))
     }
 
@@ -270,9 +286,8 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
-      if (response.status === 401) {
-        throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
-      }
+      if (response.status === 401) throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
+      if (response.status === 403 || response.status === 402) throw extractPermissionError(error, response.status)
       throw new Error(extractErrorMessage(error, response.status))
     }
 
@@ -318,9 +333,8 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
-      if (response.status === 401) {
-        throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
-      }
+      if (response.status === 401) throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
+      if (response.status === 403 || response.status === 402) throw extractPermissionError(error, response.status)
       throw new Error(extractErrorMessage(error, response.status))
     }
   }

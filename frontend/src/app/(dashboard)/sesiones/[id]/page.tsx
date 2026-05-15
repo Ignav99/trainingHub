@@ -212,8 +212,12 @@ function useAutoSave(sesionId: string, delay = 800) {
         setSaving(true)
         try {
           await sesionesApi.update(sesionId, data)
-        } catch (err) {
+        } catch (err: any) {
           console.error('Auto-save failed:', err)
+          const msg: string = err?.message || ''
+          if (msg.includes('permiso') || msg.includes('plan') || msg.includes('suscripci')) {
+            toast.error(msg)
+          }
         } finally {
           dirtyRef.current = false
           setSaving(false)
@@ -1389,8 +1393,12 @@ export default function SesionDetailPage() {
       }))
       const updated = await sesionesApi.batchUpdateTareas(sesionId, batch)
       setSesion(updated)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error saving tareas:', err)
+      const msg: string = err?.message || ''
+      if (msg.includes('permiso') || msg.includes('plan') || msg.includes('suscripci')) {
+        toast.error(msg)
+      }
     } finally {
       setSavingTareas(false)
     }
