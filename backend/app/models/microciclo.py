@@ -31,6 +31,7 @@ class MicrocicloBase(BaseModel):
     objetivo_fisico: Optional[str] = None
     estado: EstadoMicrociclo = EstadoMicrociclo.BORRADOR
     notas: Optional[str] = None
+    plan_ct: Optional[dict] = None
 
 
 class MicrocicloCreate(MicrocicloBase):
@@ -48,6 +49,7 @@ class MicrocicloUpdate(BaseModel):
     objetivo_fisico: Optional[str] = None
     estado: Optional[EstadoMicrociclo] = None
     notas: Optional[str] = None
+    plan_ct: Optional[dict] = None
 
 
 class MicrocicloResponse(MicrocicloBase):

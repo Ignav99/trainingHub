@@ -44,11 +44,13 @@ import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { microciclosApi, CreateMicrocicloData } from '@/lib/api/microciclos'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { formatDate } from '@/lib/utils'
-import type { MicrocicloCompleto, Partido, PaginatedResponse, MatchDay } from '@/types'
+import type { MicrocicloCompleto, Partido, PaginatedResponse, MatchDay, Jugador } from '@/types'
 
 import { WeekView } from '@/components/microciclos/WeekView'
 import { LoadChart } from '@/components/microciclos/LoadChart'
 import { MATCH_DAY_COLORS } from '@/components/microciclos/SessionCard'
+import { SalaLunes } from '@/components/microciclos/SalaLunes'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 // ============ Constants ============
 const ESTADO_COLORS: Record<string, string> = {
@@ -98,6 +100,14 @@ export default function MicrocicloDetallePage() {
     apiKey(`/microciclos/${id}/completo`)
   )
   const error = swrError ? (swrError.message || 'Error al cargar microciclo') : null
+
+  // SWR for jugadores (needed by SalaLunes)
+  const { data: jugadoresResponse } = useSWR<PaginatedResponse<Jugador>>(
+    data?.microciclo?.equipo_id
+      ? apiKey('/jugadores', { equipo_id: data.microciclo.equipo_id, limit: 100 })
+      : null
+  )
+  const jugadores = jugadoresResponse?.data ?? []
 
   // SWR for upcoming matches (for the edit dialog)
   const { data: matchesResponse } = useSWR<PaginatedResponse<Partido>>(
@@ -218,7 +228,7 @@ export default function MicrocicloDetallePage() {
   const rangeLabel = `${formatDateShort(micro.fecha_inicio.slice(0, 10))} - ${formatDateShort(micro.fecha_fin.slice(0, 10))}`
 
   return (
-    <div className="animate-fade-in space-y-6">
+    <div className="animate-fade-in space-y-4">
       {/* ============ Header ============ */}
       <div>
         <Link
@@ -283,254 +293,276 @@ export default function MicrocicloDetallePage() {
         </div>
       </div>
 
-      {/* ============ Card de Partido ============ */}
-      {partido && (
-        <Card className="border-l-4 border-l-amber-500">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-2.5 rounded-xl bg-amber-50">
-                  {partido.rival?.escudo_url ? (
-                    <Image src={partido.rival.escudo_url} alt="" width={24} height={24} className="object-contain" unoptimized />
-                  ) : (
-                    <Swords className="h-6 w-6 text-amber-600" />
-                  )}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-lg font-bold">
-                      {partido.localia === 'local' ? 'vs' : '@'}{' '}
-                      {partido.rival?.nombre || 'Rival'}
-                    </span>
-                    {partido.rival?.nombre_corto && (
-                      <Badge variant="outline" className="text-[10px]">{partido.rival.nombre_corto}</Badge>
+      {/* ============ Tabs ============ */}
+      <Tabs defaultValue="resumen">
+        <TabsList>
+          <TabsTrigger value="resumen">Resumen</TabsTrigger>
+          <TabsTrigger value="sala-lunes">Sala del Lunes</TabsTrigger>
+        </TabsList>
+
+        {/* ========== Tab: Resumen ========== */}
+        <TabsContent value="resumen" className="space-y-6 mt-4">
+
+          {/* ============ Card de Partido ============ */}
+          {partido && (
+            <Card className="border-l-4 border-l-amber-500">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2.5 rounded-xl bg-amber-50">
+                      {partido.rival?.escudo_url ? (
+                        <Image src={partido.rival.escudo_url} alt="" width={24} height={24} className="object-contain" unoptimized />
+                      ) : (
+                        <Swords className="h-6 w-6 text-amber-600" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-lg font-bold">
+                          {partido.localia === 'local' ? 'vs' : '@'}{' '}
+                          {partido.rival?.nombre || 'Rival'}
+                        </span>
+                        {partido.rival?.nombre_corto && (
+                          <Badge variant="outline" className="text-[10px]">{partido.rival.nombre_corto}</Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                        <span>{formatDateLong(partido.fecha.slice(0, 10))}</span>
+                        {partido.hora && <span>{partido.hora}h</span>}
+                        {partido.competicion && <Badge variant="secondary" className="text-[10px]">{partido.competicion}</Badge>}
+                        <Badge variant="outline" className="text-[10px]">{partido.localia === 'local' ? 'Local' : 'Visitante'}</Badge>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    {partido.goles_favor !== undefined && partido.goles_favor !== null && (
+                      <div className="text-center">
+                        <span className={`text-2xl font-bold ${
+                          partido.goles_favor > (partido.goles_contra || 0) ? 'text-green-700'
+                            : partido.goles_favor < (partido.goles_contra || 0) ? 'text-red-700'
+                              : 'text-amber-700'
+                        }`}>
+                          {partido.goles_favor} - {partido.goles_contra}
+                        </span>
+                        <Badge variant="outline" className="ml-2 text-[10px]">
+                          {partido.resultado || (
+                            partido.goles_favor > (partido.goles_contra || 0) ? 'Victoria'
+                              : partido.goles_favor < (partido.goles_contra || 0) ? 'Derrota' : 'Empate'
+                          )}
+                        </Badge>
+                      </div>
                     )}
-                  </div>
-                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                    <span>{formatDateLong(partido.fecha.slice(0, 10))}</span>
-                    {partido.hora && <span>{partido.hora}h</span>}
-                    {partido.competicion && <Badge variant="secondary" className="text-[10px]">{partido.competicion}</Badge>}
-                    <Badge variant="outline" className="text-[10px]">{partido.localia === 'local' ? 'Local' : 'Visitante'}</Badge>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/partidos/${partido.id}`}>
+                        Ver partido <ChevronRight className="h-4 w-4 ml-1" />
+                      </Link>
+                    </Button>
                   </div>
                 </div>
-              </div>
+              </CardContent>
+            </Card>
+          )}
 
-              <div className="flex items-center gap-3">
-                {partido.goles_favor !== undefined && partido.goles_favor !== null && (
-                  <div className="text-center">
-                    <span className={`text-2xl font-bold ${
-                      partido.goles_favor > (partido.goles_contra || 0) ? 'text-green-700'
-                        : partido.goles_favor < (partido.goles_contra || 0) ? 'text-red-700'
-                          : 'text-amber-700'
-                    }`}>
-                      {partido.goles_favor} - {partido.goles_contra}
-                    </span>
-                    <Badge variant="outline" className="ml-2 text-[10px]">
-                      {partido.resultado || (
-                        partido.goles_favor > (partido.goles_contra || 0) ? 'Victoria'
-                          : partido.goles_favor < (partido.goles_contra || 0) ? 'Derrota' : 'Empate'
-                      )}
-                    </Badge>
-                  </div>
-                )}
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={`/partidos/${partido.id}`}>
-                    Ver partido <ChevronRight className="h-4 w-4 ml-1" />
-                  </Link>
-                </Button>
-              </div>
+          {/* ============ Disponibilidad de Plantilla ============ */}
+          <div>
+            <h2 className="text-base font-semibold mb-3 flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Disponibilidad de Plantilla
+            </h2>
+            <div className="grid grid-cols-4 gap-4">
+              <Card className="card-hover border-t-4 border-t-green-500">
+                <CardContent className="p-4 text-center">
+                  <p className="text-3xl font-bold text-green-700">{data.plantilla.disponibles}</p>
+                  <p className="text-sm text-green-600">Disponibles</p>
+                </CardContent>
+              </Card>
+              <Card className="card-hover border-t-4 border-t-red-500">
+                <CardContent className="p-4 text-center">
+                  <p className="text-3xl font-bold text-red-700">{data.plantilla.lesionados}</p>
+                  <p className="text-sm text-red-600">Lesionados</p>
+                </CardContent>
+              </Card>
+              <Card className="card-hover border-t-4 border-t-yellow-500">
+                <CardContent className="p-4 text-center">
+                  <p className="text-3xl font-bold text-yellow-700">{data.plantilla.en_recuperacion || 0}</p>
+                  <p className="text-sm text-yellow-600">Recuperacion</p>
+                </CardContent>
+              </Card>
+              <Card className="card-hover border-t-4 border-t-amber-500">
+                <CardContent className="p-4 text-center">
+                  <p className="text-3xl font-bold text-amber-700">{data.plantilla.sancionados}</p>
+                  <p className="text-sm text-amber-600">Sancionados</p>
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {/* ============ Disponibilidad de Plantilla ============ */}
-      <div>
-        <h2 className="text-base font-semibold mb-3 flex items-center gap-2">
-          <Users className="h-5 w-5" />
-          Disponibilidad de Plantilla
-        </h2>
-        <div className="grid grid-cols-4 gap-4">
-          <Card className="card-hover border-t-4 border-t-green-500">
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold text-green-700">{data.plantilla.disponibles}</p>
-              <p className="text-sm text-green-600">Disponibles</p>
-            </CardContent>
-          </Card>
-          <Card className="card-hover border-t-4 border-t-red-500">
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold text-red-700">{data.plantilla.lesionados}</p>
-              <p className="text-sm text-red-600">Lesionados</p>
-            </CardContent>
-          </Card>
-          <Card className="card-hover border-t-4 border-t-yellow-500">
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold text-yellow-700">{data.plantilla.en_recuperacion || 0}</p>
-              <p className="text-sm text-yellow-600">Recuperacion</p>
-            </CardContent>
-          </Card>
-          <Card className="card-hover border-t-4 border-t-amber-500">
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold text-amber-700">{data.plantilla.sancionados}</p>
-              <p className="text-sm text-amber-600">Sancionados</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Injured/Sanctioned lists */}
-        {(data.plantilla.jugadores_lesionados.length > 0 || data.plantilla.jugadores_sancionados.length > 0) && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-            {data.plantilla.jugadores_lesionados.length > 0 && (
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm text-red-700">Jugadores lesionados</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {data.plantilla.jugadores_lesionados.map((j) => (
-                    <div key={j.id} className="flex items-center gap-3 p-2 rounded-lg bg-red-50/50">
-                      <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-xs font-bold text-red-700">
-                        {j.dorsal || '?'}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{j.nombre} {j.apellidos}</p>
-                        <p className="text-[10px] text-muted-foreground">{j.posicion_principal}</p>
-                      </div>
-                      {j.fecha_vuelta_estimada && (
-                        <span className="text-[10px] text-muted-foreground shrink-0">
-                          Vuelta: {formatDateShort(j.fecha_vuelta_estimada.slice(0, 10))}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
-            {data.plantilla.jugadores_sancionados.length > 0 && (
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm text-amber-700">Jugadores sancionados</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {data.plantilla.jugadores_sancionados.map((j) => (
-                    <div key={j.id} className="flex items-center gap-3 p-2 rounded-lg bg-amber-50/50">
-                      <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-xs font-bold text-amber-700">
-                        {j.dorsal || '?'}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{j.nombre} {j.apellidos}</p>
-                        <p className="text-[10px] text-muted-foreground">{j.posicion_principal}</p>
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
+            {/* Injured/Sanctioned lists */}
+            {(data.plantilla.jugadores_lesionados.length > 0 || data.plantilla.jugadores_sancionados.length > 0) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                {data.plantilla.jugadores_lesionados.length > 0 && (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm text-red-700">Jugadores lesionados</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {data.plantilla.jugadores_lesionados.map((j) => (
+                        <div key={j.id} className="flex items-center gap-3 p-2 rounded-lg bg-red-50/50">
+                          <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-xs font-bold text-red-700">
+                            {j.dorsal || '?'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{j.nombre} {j.apellidos}</p>
+                            <p className="text-[10px] text-muted-foreground">{j.posicion_principal}</p>
+                          </div>
+                          {j.fecha_vuelta_estimada && (
+                            <span className="text-[10px] text-muted-foreground shrink-0">
+                              Vuelta: {formatDateShort(j.fecha_vuelta_estimada.slice(0, 10))}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                )}
+                {data.plantilla.jugadores_sancionados.length > 0 && (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm text-amber-700">Jugadores sancionados</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {data.plantilla.jugadores_sancionados.map((j) => (
+                        <div key={j.id} className="flex items-center gap-3 p-2 rounded-lg bg-amber-50/50">
+                          <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-xs font-bold text-amber-700">
+                            {j.dorsal || '?'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{j.nombre} {j.apellidos}</p>
+                            <p className="text-[10px] text-muted-foreground">{j.posicion_principal}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
             )}
           </div>
-        )}
-      </div>
 
-      {/* ============ Timeline Semanal ============ */}
-      <WeekView
-        weekDates={weekDates}
-        sessionsByDate={sessionsByDate}
-        partido={partido}
-      />
+          {/* ============ Timeline Semanal ============ */}
+          <WeekView
+            weekDates={weekDates}
+            sessionsByDate={sessionsByDate}
+            partido={partido}
+          />
 
-      {/* ============ Lista de Sesiones ============ */}
-      <div>
-        <h2 className="text-base font-semibold mb-3 flex items-center gap-2">
-          <ClipboardList className="h-5 w-5" />
-          Sesiones ({data.sesiones.length})
-        </h2>
-        {data.sesiones.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center text-muted-foreground">
-              <p>No hay sesiones asociadas a este microciclo</p>
-              <Button variant="outline" className="mt-3" asChild>
-                <Link href="/sesiones/nueva">
-                  <Plus className="h-4 w-4 mr-2" /> Crear sesion
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-2">
-            {data.sesiones.map((s) => {
-              const mdColors = s.match_day ? MATCH_DAY_COLORS[s.match_day] : null
-              const estadoInfo = ESTADO_SESION_COLORS[s.estado] || ESTADO_SESION_COLORS.borrador
-              const rpeInfo = data.rpe.registros_por_sesion[s.id]
+          {/* ============ Lista de Sesiones ============ */}
+          <div>
+            <h2 className="text-base font-semibold mb-3 flex items-center gap-2">
+              <ClipboardList className="h-5 w-5" />
+              Sesiones ({data.sesiones.length})
+            </h2>
+            {data.sesiones.length === 0 ? (
+              <Card>
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  <p>No hay sesiones asociadas a este microciclo</p>
+                  <Button variant="outline" className="mt-3" asChild>
+                    <Link href="/sesiones/nueva">
+                      <Plus className="h-4 w-4 mr-2" /> Crear sesion
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {data.sesiones.map((s) => {
+                  const mdColors = s.match_day ? MATCH_DAY_COLORS[s.match_day] : null
+                  const estadoInfo = ESTADO_SESION_COLORS[s.estado] || ESTADO_SESION_COLORS.borrador
+                  const rpeInfo = data.rpe.registros_por_sesion[s.id]
 
-              return (
-                <Link
-                  key={s.id}
-                  href={`/sesiones/${s.id}`}
-                  className="flex items-center gap-4 p-4 rounded-lg border hover:bg-muted/30 transition-colors group"
-                >
-                  {/* MD badge */}
-                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
-                    mdColors ? `${mdColors.bg} ${mdColors.text}` : 'bg-gray-100 text-gray-600'
-                  }`}>
-                    {s.match_day || '\u2014'}
-                  </div>
-
-                  {/* Session info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium group-hover:text-primary transition-colors">{s.titulo}</span>
-                      <Badge variant="outline" className={`text-[10px] ${estadoInfo.bg}`}>
-                        {estadoInfo.label}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
-                      <span>{formatDateLong(s.fecha.slice(0, 10))}</span>
-                      {s.duracion_total && (
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" /> {s.duracion_total} min
-                        </span>
-                      )}
-                      {s.num_tareas > 0 && (
-                        <span>{s.num_tareas} tareas</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* RPE */}
-                  {rpeInfo && (
-                    <div className="text-center shrink-0">
-                      <p className={`text-lg font-bold ${
-                        rpeInfo.rpe_promedio >= 7 ? 'text-red-600' : rpeInfo.rpe_promedio >= 5 ? 'text-amber-600' : 'text-green-600'
+                  return (
+                    <Link
+                      key={s.id}
+                      href={`/sesiones/${s.id}`}
+                      className="flex items-center gap-4 p-4 rounded-lg border hover:bg-muted/30 transition-colors group"
+                    >
+                      {/* MD badge */}
+                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
+                        mdColors ? `${mdColors.bg} ${mdColors.text}` : 'bg-gray-100 text-gray-600'
                       }`}>
-                        {rpeInfo.rpe_promedio}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">RPE ({rpeInfo.num_registros})</p>
-                    </div>
-                  )}
+                        {s.match_day || '\u2014'}
+                      </div>
 
-                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                </Link>
-              )
-            })}
+                      {/* Session info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium group-hover:text-primary transition-colors">{s.titulo}</span>
+                          <Badge variant="outline" className={`text-[10px] ${estadoInfo.bg}`}>
+                            {estadoInfo.label}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                          <span>{formatDateLong(s.fecha.slice(0, 10))}</span>
+                          {s.duracion_total && (
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" /> {s.duracion_total} min
+                            </span>
+                          )}
+                          {s.num_tareas > 0 && (
+                            <span>{s.num_tareas} tareas</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* RPE */}
+                      {rpeInfo && (
+                        <div className="text-center shrink-0">
+                          <p className={`text-lg font-bold ${
+                            rpeInfo.rpe_promedio >= 7 ? 'text-red-600' : rpeInfo.rpe_promedio >= 5 ? 'text-amber-600' : 'text-green-600'
+                          }`}>
+                            {rpeInfo.rpe_promedio}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">RPE ({rpeInfo.num_registros})</p>
+                        </div>
+                      )}
+
+                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                    </Link>
+                  )
+                })}
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* ============ Carga de Entrenamiento (RPE) ============ */}
-      <LoadChart sesiones={data.sesiones} rpe={data.rpe} />
+          {/* ============ Carga de Entrenamiento (RPE) ============ */}
+          <LoadChart sesiones={data.sesiones} rpe={data.rpe} />
 
-      {/* ============ Notas ============ */}
-      {micro.notas && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Notas
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{micro.notas}</p>
-          </CardContent>
-        </Card>
-      )}
+          {/* ============ Notas ============ */}
+          {micro.notas && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Notas
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{micro.notas}</p>
+              </CardContent>
+            </Card>
+          )}
+
+        </TabsContent>
+
+        {/* ========== Tab: Sala del Lunes ========== */}
+        <TabsContent value="sala-lunes" className="mt-4">
+          <SalaLunes
+            microcicloId={id}
+            data={data}
+            jugadores={jugadores}
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* ============ Edit Dialog ============ */}
       <Dialog open={showEdit} onOpenChange={(open) => !open && setShowEdit(false)}>

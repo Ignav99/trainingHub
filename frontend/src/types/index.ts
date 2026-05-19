@@ -761,6 +761,71 @@ export interface EstadisticaPartido {
 }
 
 // ============================================
+// MICROCICLOS — PLAN CT (Sala del Lunes)
+// ============================================
+
+export type TipoMicrociclo = 'competicion' | 'carga' | 'choque' | 'aproximacion' | 'recuperacion'
+
+export type EstructuraSHD =
+  | 'condicional'
+  | 'coordinativa'
+  | 'cognitiva'
+  | 'socioafectiva'
+  | 'emotivo_volitiva'
+  | 'creativo_expresiva'
+  | 'mental_bioenergetica'
+
+export interface ClipRival {
+  id: string
+  titulo: string
+  url?: string
+  fase: 'ataque' | 'defensa' | 'transicion_of' | 'transicion_def' | 'abp' | 'general'
+  notas: string
+}
+
+export interface RivalScoutData {
+  sistema: string
+  fortalezas: string[]
+  debilidades: string[]
+  clips: ClipRival[]
+  anotaciones: string
+}
+
+export interface PlanPartidoData {
+  ataque_organizado: string
+  defensa_organizada: string
+  transicion_ofensiva: string
+  transicion_defensiva: string
+  abp_ofensiva: string
+  abp_defensiva: string
+  consignas_clave: string[]
+}
+
+export interface OnceProbableData {
+  sistema: string
+  titulares: Record<string, string>  // slot_key -> jugador_id
+  suplentes: string[]
+  notas: string
+}
+
+export interface DiaMorfociclo {
+  objetivo_dia: string
+  tipo_sesion: string
+  estructuras_shd: EstructuraSHD[]
+  notas: string
+}
+
+export interface PlanCT {
+  tipo_microciclo?: TipoMicrociclo
+  objetivo_semana?: string
+  notas_ct?: string
+  rival_scout?: Partial<RivalScoutData>
+  plan_partido?: Partial<PlanPartidoData>
+  once_probable?: Partial<OnceProbableData>
+  dias?: Partial<Record<MatchDay, DiaMorfociclo>>
+}
+
+// ============================================
 // MICROCICLOS
 // ============================================
 
@@ -777,6 +842,7 @@ export interface Microciclo {
   objetivo_fisico?: string
   estado: EstadoMicrociclo
   notas?: string
+  plan_ct?: PlanCT
   created_at: string
   updated_at: string
   // Joined relations (from /completo or list with joins)

@@ -1,5 +1,5 @@
 import { api } from './client'
-import { Microciclo, MicrocicloCompleto, PaginatedResponse, Sesion } from '@/types'
+import { Microciclo, MicrocicloCompleto, PaginatedResponse, Sesion, PlanCT } from '@/types'
 
 export interface CreateMicrocicloData {
   equipo_id: string
@@ -11,6 +11,7 @@ export interface CreateMicrocicloData {
   objetivo_fisico?: string
   estado?: string
   notas?: string
+  plan_ct?: PlanCT
 }
 
 interface ListMicrociclosParams {
@@ -50,5 +51,9 @@ export const microciclosApi = {
 
   async delete(id: string): Promise<void> {
     return api.delete(`/microciclos/${id}`)
+  },
+
+  async patchPlanCT(id: string, plan_ct: PlanCT): Promise<Microciclo> {
+    return api.put<Microciclo>(`/microciclos/${id}`, { plan_ct })
   },
 }
