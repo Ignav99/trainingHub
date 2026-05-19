@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { ClipboardList, Zap, Clock, Flame, Trophy } from 'lucide-react'
+import { ClipboardList, Zap, Clock, Flame, Trophy, type LucideIcon } from 'lucide-react'
 import type { DiaMorfociclo, EstructuraSHD, MatchDay } from '@/types'
 
 // ---------------------------------------------------------------------------
@@ -40,7 +40,7 @@ const DAY_CONFIG: Record<
     badgeText: string
     cardBorder: string
     cardHeader: string
-    Icon: React.ComponentType<{ size?: number; className?: string }>
+    Icon: LucideIcon
   }
 > = {
   'MD+1': {
