@@ -49,34 +49,40 @@ export function useAppPreloader() {
 
     const eqId = equipoActivo.id
 
-    const endpoints = [
-      // Plantilla page
-      { path: '/jugadores', options: { params: { equipo_id: eqId } }, label: 'jugadores' },
-      // Sesiones page (default view)
-      { path: '/sesiones', options: { params: { page: 1, limit: 10 } }, label: 'sesiones' },
-      // Tareas page (default view)
-      { path: '/tareas', options: { params: { page: 1, limit: 12 } }, label: 'tareas' },
-      // Partidos (default list)
-      { path: '/partidos', options: { params: { page: 1, limit: 10 } }, label: 'partidos' },
-      // Rivales (for selectors)
-      { path: '/rivales', options: { params: { page: 1, limit: 50 } }, label: 'rivales' },
-      // Catálogos (shared across pages)
-      { path: '/catalogos/categorias-tarea', label: 'categorías' },
-      { path: '/catalogos/match-days', label: 'match days' },
-      { path: '/catalogos/fases-juego', label: 'fases de juego' },
+    const fetches = [
+      api.get('/jugadores', { params: { equipo_id: eqId } }),
+      api.get('/sesiones', { params: { page: 1, limit: 10 } }),
+      api.get('/tareas', { params: { page: 1, limit: 12 } }),
+      api.get('/partidos', { params: { page: 1, limit: 10 } }),
+      api.get('/rivales', { params: { page: 1, limit: 50 } }),
+      api.get('/catalogos/categorias-tarea'),
+      api.get('/catalogos/match-days'),
+      api.get('/catalogos/fases-juego'),
     ]
 
-    api.prefetchAll(endpoints, handleProgress).then(() => {
+    let completed = 0
+    const total = fetches.length
+    const tracked = fetches.map((p) =>
+      p.then((r) => {
+        completed++
+        handleProgress(completed, total)
+        return r
+      }).catch(() => {
+        completed++
+        handleProgress(completed, total)
+      })
+    )
+
+    Promise.all(tracked).then(() => {
       setProgress(100)
       setMessage('¡Todo listo!')
 
-      // Ensure minimum display time so the loading screen doesn't flash
       const elapsed = Date.now() - startTimeRef.current
       const remaining = Math.max(0, MIN_DISPLAY_MS - elapsed)
 
       setTimeout(() => {
         setIsReady(true)
-      }, remaining + 500) // +500ms to show "¡Todo listo!" before transition
+      }, remaining + 500)
     })
   }, [equipoActivo?.id, handleProgress])
 
