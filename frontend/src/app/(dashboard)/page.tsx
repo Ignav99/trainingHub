@@ -15,12 +15,10 @@ import {
   ArrowRight,
   Users,
   Loader2,
-  Swords,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { useClubStore } from '@/stores/clubStore'
-import { EmptyState } from '@/components/ui/empty-state'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -30,7 +28,6 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { DashboardResumen, DashboardPlantilla } from '@/lib/api/dashboard'
 import { microciclosApi } from '@/lib/api/microciclos'
-import { partidosApi } from '@/lib/api/partidos'
 import { descansosApi } from '@/lib/api/descansos'
 import { RFEFCompeticion } from '@/lib/api/rfef'
 import { apiKey } from '@/lib/swr'
@@ -38,7 +35,6 @@ import { formatDate } from '@/lib/utils'
 import type { Sesion, Microciclo, Partido, Descanso, PaginatedResponse } from '@/types'
 
 import { NextMatchBanner } from '@/components/dashboard/NextMatchBanner'
-import { QuickStats } from '@/components/dashboard/QuickStats'
 import { CalendarSection } from '@/components/dashboard/CalendarSection'
 import { DayDetailPanel } from '@/components/dashboard/DayDetailPanel'
 
@@ -80,9 +76,6 @@ export default function DashboardPage() {
   const { data: borradoresRes } = useSWR<PaginatedResponse<Sesion>>(
     apiKey('/sesiones', { equipo_id: equipoId, estado: 'borrador', limit: 1 }, ['equipo_id'])
   )
-  const { data: ultimoPartidoRes } = useSWR<PaginatedResponse<Partido>>(
-    apiKey('/partidos', { equipo_id: equipoId, solo_jugados: true, limit: 1, orden: 'fecha', direccion: 'desc' }, ['equipo_id'])
-  )
   const { data: rfefRes } = useSWR<{ data: RFEFCompeticion[] }>(
     apiKey('/rfef/competiciones', { equipo_id: equipoId }, ['equipo_id'])
   )
@@ -112,7 +105,6 @@ export default function DashboardPage() {
   // Derived data
   const microcicloActivo = microActivoRes?.data?.[0] || null
   const sesionesBorrador = borradoresRes?.total || 0
-  const ultimoPartido = ultimoPartidoRes?.data?.[0] || null
   const sesionesMes = calSesRes?.data || []
   const partidosMes = calParRes?.data || []
   const microciclosMes = calMicroRes?.data || []
@@ -128,16 +120,15 @@ export default function DashboardPage() {
   }, [descansosRes])
 
   // RFEF liga position (derived)
-  const { rfefComp, ligaPosition } = useMemo(() => {
+  const { ligaPosition } = useMemo(() => {
     const comps = rfefRes?.data || []
     const comp = comps.find((c) => c.rfef_codcompeticion && c.clasificacion?.length) || null
-    if (!comp || !equipoActivo?.nombre) return { rfefComp: comp, ligaPosition: null }
+    if (!comp || !equipoActivo?.nombre) return { ligaPosition: null }
     const nombreLower = equipoActivo.nombre.toLowerCase()
     const miEquipo = comp.clasificacion?.find(
       (e) => e.equipo.toLowerCase().includes(nombreLower) || nombreLower.includes(e.equipo.toLowerCase())
     )
     return {
-      rfefComp: comp,
       ligaPosition: miEquipo ? { posicion: miEquipo.posicion, puntos: miEquipo.puntos } : null,
     }
   }, [rfefRes, equipoActivo?.nombre])
@@ -247,62 +238,7 @@ export default function DashboardPage() {
         onShowDisponibilidad={() => setShowDisponibilidad(true)}
       />
 
-      {/* ============ SECTION 2: Quick stats — Informe + Plan de partido ============ */}
-      <QuickStats
-        loading={loading}
-        ultimoPartido={ultimoPartido}
-        proximoPartido={proximoPartido}
-      />
-
-      {/* ============ Empty states when no data ============ */}
-      {!loading && !microcicloActivo && !proximoPartido && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {!microcicloActivo && (
-            <Card>
-              <CardContent className="p-0">
-                <EmptyState
-                  icon={<CalendarDays className="h-12 w-12" />}
-                  title="Sin microciclo activo"
-                  description="Crea un microciclo semanal para organizar tus sesiones en torno al partido."
-                  action={
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setMicroForm({ partido_id: '', objetivo_principal: '', objetivo_tactico: '', objetivo_fisico: '', notas: '' })
-                        setShowCreateMicro(true)
-                      }}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Nuevo Microciclo
-                    </Button>
-                  }
-                />
-              </CardContent>
-            </Card>
-          )}
-          {!proximoPartido && (
-            <Card>
-              <CardContent className="p-0">
-                <EmptyState
-                  icon={<Swords className="h-12 w-12" />}
-                  title="Sin partidos programados"
-                  description="Anade tu proximo partido para activar la inteligencia pre-partido."
-                  action={
-                    <Button size="sm" asChild>
-                      <Link href="/partidos/nuevo">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Nuevo Partido
-                      </Link>
-                    </Button>
-                  }
-                />
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
-
-      {/* ============ SECTION 3: Interactive monthly calendar ============ */}
+      {/* ============ SECTION 2: Interactive monthly calendar ============ */}
       <CalendarSection
         calYear={calYear}
         calMonth={calMonth}
