@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard,
   Calendar,
+  CalendarDays,
   Library,
   Settings,
   ChevronDown,
@@ -46,6 +47,7 @@ import { registerServiceWorker } from '@/lib/register-sw'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Microciclos', href: '/microciclos', icon: CalendarDays },
   { name: 'Sesiones', href: '/sesiones', icon: Calendar },
   { name: 'Plantilla', href: '/plantilla', icon: Users },
   { name: 'Partidos', href: '/partidos', icon: Swords },

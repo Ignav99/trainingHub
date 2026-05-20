@@ -235,6 +235,21 @@ export function CalendarSection({
     return weeks
   }, [isMobile, calendarCells])
 
+  // Desktop: week rows for hover/click grouping
+  const desktopWeeks = useMemo(() => {
+    const { cells, firstDow } = calendarCells
+    const padded: (typeof cells[0] | null)[] = Array.from({ length: firstDow }, () => null)
+    padded.push(...cells)
+    while (padded.length % 7 !== 0) padded.push(null)
+    const weeks: (typeof cells[0] | null)[][] = []
+    for (let i = 0; i < padded.length; i += 7) {
+      weeks.push(padded.slice(i, i + 7))
+    }
+    return weeks
+  }, [calendarCells])
+
+  const [hoveredWeekIdx, setHoveredWeekIdx] = useState<number | null>(null)
+
   // Auto-navigate to current week on mobile
   useEffect(() => {
     if (!isMobile || mobileWeeks.length === 0) return
@@ -509,18 +524,34 @@ export function CalendarSection({
           ) : (
             /* ===== DESKTOP/TABLET: Full month grid ===== */
             <>
-              <div className="grid grid-cols-7">
-                {/* Empty cells for offset */}
-                {Array.from({ length: calendarCells.firstDow }).map((_, i) => (
-                  <div key={`empty-${i}`} className="min-h-[70px] md:min-h-[100px] border-b border-r last:border-r-0 bg-muted/10" />
-                ))}
+              {desktopWeeks.map((week, weekIdx) => {
+                const weekMicro = microciclosMes.find(m =>
+                  week.some(cell => cell !== null && cell.date >= m.fecha_inicio.slice(0, 10) && cell.date <= m.fecha_fin.slice(0, 10))
+                ) ?? null
+                const isWeekHovered = hoveredWeekIdx === weekIdx && weekMicro !== null
 
-                {calendarCells.cells.map(({ day, date, isToday }) => {
+                return (
+                  <div
+                    key={weekIdx}
+                    className={`grid grid-cols-7 relative ${weekMicro ? 'cursor-pointer' : ''}`}
+                    onMouseEnter={() => weekMicro && setHoveredWeekIdx(weekIdx)}
+                    onMouseLeave={() => setHoveredWeekIdx(null)}
+                    onClick={() => { if (weekMicro) onNavigate(`/microciclos/${weekMicro.id}`) }}
+                  >
+                    {/* Week border highlight */}
+                    {isWeekHovered && (
+                      <div className="absolute inset-0 border-2 border-primary/50 rounded pointer-events-none z-20 transition-opacity" />
+                    )}
+
+                {week.map((cell, dayIdx) => {
+                  if (!cell) {
+                    return <div key={`empty-${weekIdx}-${dayIdx}`} className="min-h-[70px] md:min-h-[100px] border-b border-r last:border-r-0 bg-muted/10" />
+                  }
+
+                  const { day, date, isToday } = cell
                   const daySesiones = sesionesMes.filter((s) => isSameDay(s.fecha, date))
                   const dayPartidos = partidosMes.filter((p) => isSameDay(p.fecha, date))
-                  const inMicrociclo = microciclosMes.some(
-                    (m) => date >= m.fecha_inicio.slice(0, 10) && date <= m.fecha_fin.slice(0, 10)
-                  )
+                  const inMicrociclo = weekMicro !== null
                   const isDescanso = descansos.has(date)
                   const hasContent = daySesiones.length > 0 || dayPartidos.length > 0 || isDescanso
                   const isEmpty = !hasContent
@@ -529,11 +560,9 @@ export function CalendarSection({
                   const mondayMicro = mondayMicrociclos[date]
 
                   // Determine if this day is in the last 2 rows → open menu upward
-                  const cellIndex = calendarCells.firstDow + day - 1
                   const totalCells = calendarCells.firstDow + calendarCells.daysInMonth
                   const totalRows = Math.ceil(totalCells / 7)
-                  const rowIndex = Math.floor(cellIndex / 7)
-                  const menuOpensUp = rowIndex >= totalRows - 2
+                  const menuOpensUp = weekIdx >= totalRows - 2
 
                   // Determine dominant Match Day for cell coloring
                   const hasMatch = dayPartidos.length > 0
@@ -543,8 +572,9 @@ export function CalendarSection({
                   return (
                     <div
                       key={day}
-                      onClick={() => {
+                      onClick={(e) => {
                         if (hasContent) {
+                          e.stopPropagation()
                           onSelectDay(date)
                           setAddMenuDay(null)
                         }
@@ -601,7 +631,7 @@ export function CalendarSection({
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            setSelectedMicro(mondayMicro.microciclo)
+                            onNavigate(`/microciclos/${mondayMicro.microciclo.id}`)
                           }}
                           className={`absolute left-0 top-7 z-10 px-1.5 py-0.5 rounded-r-md text-[9px] font-bold text-white cursor-pointer hover:opacity-90 transition-opacity ${
                             MICRO_ESTADO_COLORS[mondayMicro.microciclo.estado]?.tab || 'bg-gray-500'
@@ -809,6 +839,8 @@ export function CalendarSection({
                   )
                 })}
               </div>
+                )
+              })}
 
               {/* Legend bar — hidden on mobile */}
               <div className="hidden md:flex flex-wrap items-center gap-x-5 gap-y-1 px-4 py-2.5 border-t bg-muted/20 text-[11px] text-muted-foreground">

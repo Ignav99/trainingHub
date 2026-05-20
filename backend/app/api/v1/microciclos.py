@@ -249,7 +249,7 @@ async def create_microciclo(
     """Crea un nuevo microciclo."""
     supabase = get_supabase()
 
-    data = microciclo.model_dump(mode="json")
+    data = microciclo.model_dump(mode="json", exclude_none=True)
     data["equipo_id"] = str(data["equipo_id"])
     if data.get("partido_id"):
         data["partido_id"] = str(data["partido_id"])
