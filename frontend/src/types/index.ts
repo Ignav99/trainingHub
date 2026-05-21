@@ -532,7 +532,7 @@ export interface AIRecomendadorOutput {
 // ============================================
 
 export type PiernaDominante = 'derecha' | 'izquierda' | 'ambas'
-export type EstadoJugador = 'activo' | 'lesionado' | 'en_recuperacion' | 'enfermo' | 'sancionado' | 'viaje' | 'permiso' | 'seleccion' | 'baja'
+export type EstadoJugador = 'activo' | 'lesionado' | 'en_recuperacion' | 'enfermo' | 'sancionado' | 'viaje' | 'permiso' | 'seleccion' | 'baja' | 'invitado'
 export type Posicion = 'POR' | 'DFC' | 'LTD' | 'LTI' | 'CAD' | 'CAI' | 'MCD' | 'MC' | 'MCO' | 'MID' | 'MII' | 'EXD' | 'EXI' | 'MP' | 'DC' | 'SD'
 
 export interface Jugador {
