@@ -71,8 +71,8 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip }: AttendanceStepPr
     jugadoresApi
       .list({ equipo_id: equipoId, limit: 100 } as Parameters<typeof jugadoresApi.list>[0])
       .then(({ data }) => {
-        const plantilla = data.filter((j) => j.estado !== 'invitado')
-        const invitados = data.filter((j) => j.estado === 'invitado')
+        const plantilla = data.filter((j) => !j.es_invitado)
+        const invitados = data.filter((j) => j.es_invitado)
         setJugadores(plantilla)
         setInvitadosDisponibles(invitados)
         const initial: Record<string, PlayerAttendance> = {}
