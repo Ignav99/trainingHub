@@ -359,6 +359,22 @@ export default function NuevaSesionAIPage() {
 
       const sesion = await sesionesApi.create(sessionData)
 
+      // Save pre-session attendance so the in-session tab shows the same data
+      if (attendanceData && attendanceData.length > 0) {
+        try {
+          await sesionesApi.saveAsistenciasBatch(
+            sesion.id,
+            attendanceData.map((a) => ({
+              jugador_id: a.jugador.id,
+              presente: a.presente,
+              motivo_ausencia: a.presente ? undefined : a.motivo_ausencia,
+            }))
+          )
+        } catch {
+          console.warn('Attendance batch save failed')
+        }
+      }
+
       let orden = 1
       for (const fase of fases) {
         const tareaId = faseTaskIds[fase.fase]
