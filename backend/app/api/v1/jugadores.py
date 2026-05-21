@@ -216,6 +216,16 @@ async def delete_jugador(jugador_id: UUID, auth: AuthContext = Depends(require_p
         except Exception:
             pass  # Table might not exist or have no rows
 
+    # Medical records cascade: accesos_medicos_log -> registros_medicos -> jugador
+    try:
+        med_res = supabase.table("registros_medicos").select("id").eq("jugador_id", jid).execute()
+        registro_ids = [r["id"] for r in (med_res.data or [])]
+        if registro_ids:
+            supabase.table("accesos_medicos_log").delete().in_("registro_medico_id", registro_ids).execute()
+        supabase.table("registros_medicos").delete().eq("jugador_id", jid).execute()
+    except Exception:
+        pass
+
     supabase.table("jugadores").delete().eq("id", jid).execute()
     log_delete(auth.user_id, "jugador", jid)
     return None

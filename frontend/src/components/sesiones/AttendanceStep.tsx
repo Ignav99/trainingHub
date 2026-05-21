@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Users, ChevronRight, SkipForward, Check, X } from 'lucide-react'
+import { Users, ChevronRight, SkipForward, Check, X, UserPlus, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { jugadoresApi, Jugador } from '@/lib/api/jugadores'
@@ -62,16 +62,21 @@ function mapEstadoToMotivo(estado: string): MotivoAusencia {
 
 export function AttendanceStep({ equipoId, onConfirm, onSkip }: AttendanceStepProps) {
   const [jugadores, setJugadores] = useState<Jugador[]>([])
+  const [invitadosDisponibles, setInvitadosDisponibles] = useState<Jugador[]>([])
   const [loading, setLoading] = useState(true)
   const [attendance, setAttendance] = useState<Record<string, PlayerAttendance>>({})
+  const [showInvitados, setShowInvitados] = useState(false)
 
   useEffect(() => {
     jugadoresApi
       .list({ equipo_id: equipoId, limit: 100 } as Parameters<typeof jugadoresApi.list>[0])
       .then(({ data }) => {
-        setJugadores(data)
+        const plantilla = data.filter((j) => j.estado !== 'invitado')
+        const invitados = data.filter((j) => j.estado === 'invitado')
+        setJugadores(plantilla)
+        setInvitadosDisponibles(invitados)
         const initial: Record<string, PlayerAttendance> = {}
-        data.forEach((j) => {
+        plantilla.forEach((j) => {
           const isInactive = ['lesionado', 'en_recuperacion', 'enfermedad', 'sancionado', 'viaje', 'permiso', 'seleccion', 'baja'].includes(j.estado)
           initial[j.id] = {
             jugador_id: j.id,
@@ -84,6 +89,25 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip }: AttendanceStepPr
       })
       .finally(() => setLoading(false))
   }, [equipoId])
+
+  function addInvitado(j: Jugador) {
+    setJugadores((prev) => [...prev, j])
+    setInvitadosDisponibles((prev) => prev.filter((i) => i.id !== j.id))
+    setAttendance((prev) => ({
+      ...prev,
+      [j.id]: { jugador_id: j.id, jugador: j, presente: true },
+    }))
+  }
+
+  function removeInvitado(j: Jugador) {
+    setJugadores((prev) => prev.filter((p) => p.id !== j.id))
+    setInvitadosDisponibles((prev) => [...prev, j])
+    setAttendance((prev) => {
+      const next = { ...prev }
+      delete next[j.id]
+      return next
+    })
+  }
 
   function togglePlayer(id: string) {
     setAttendance((prev) => ({
@@ -217,6 +241,58 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip }: AttendanceStepPr
           </div>
         ))}
       </div>
+
+      {/* Invitados section */}
+      {invitadosDisponibles.length > 0 && (
+        <div className="border rounded-lg overflow-hidden">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-muted/50 transition-colors"
+            onClick={() => setShowInvitados((v) => !v)}
+          >
+            <span className="flex items-center gap-2 text-muted-foreground">
+              <UserPlus className="w-4 h-4" />
+              Añadir invitados ({invitadosDisponibles.length} disponibles)
+            </span>
+            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showInvitados ? 'rotate-180' : ''}`} />
+          </button>
+          {showInvitados && (
+            <div className="px-4 pb-4 pt-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {invitadosDisponibles.map((j) => (
+                <button
+                  key={j.id}
+                  type="button"
+                  className="flex items-center gap-3 p-3 rounded-lg border border-dashed border-muted-foreground/30 hover:border-primary hover:bg-primary/5 transition-colors text-left"
+                  onClick={() => addInvitado(j)}
+                >
+                  <UserPlus className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{j.apodo || `${j.nombre} ${j.apellidos}`}</p>
+                    <p className="text-xs text-muted-foreground">{j.posicion_principal} · Invitado</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Invitados added (chips to remove) */}
+      {jugadores.filter((j) => j.estado === 'invitado').length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {jugadores.filter((j) => j.estado === 'invitado').map((j) => (
+            <span
+              key={j.id}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-sm"
+            >
+              {j.apodo || `${j.nombre} ${j.apellidos}`}
+              <button type="button" onClick={() => removeInvitado(j)} className="hover:text-red-500 transition-colors">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex gap-3 pt-2">
