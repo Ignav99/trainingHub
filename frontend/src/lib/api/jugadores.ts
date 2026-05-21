@@ -19,7 +19,7 @@ export interface Jugador {
   nivel_tactico: number
   nivel_fisico: number
   nivel_mental: number
-  estado: 'activo' | 'lesionado' | 'en_recuperacion' | 'enfermo' | 'sancionado' | 'viaje' | 'permiso' | 'seleccion' | 'baja'
+  estado: 'activo' | 'lesionado' | 'en_recuperacion' | 'enfermo' | 'sancionado' | 'viaje' | 'permiso' | 'seleccion' | 'baja' | 'invitado'
   fecha_lesion?: string
   fecha_vuelta_estimada?: string
   motivo_baja?: string
@@ -54,7 +54,7 @@ export interface JugadorCreate {
   nivel_tactico?: number
   nivel_fisico?: number
   nivel_mental?: number
-  estado?: 'activo' | 'lesionado' | 'en_recuperacion' | 'enfermo' | 'sancionado' | 'viaje' | 'permiso' | 'seleccion' | 'baja'
+  estado?: 'activo' | 'lesionado' | 'en_recuperacion' | 'enfermo' | 'sancionado' | 'viaje' | 'permiso' | 'seleccion' | 'baja' | 'invitado'
   es_capitan?: boolean
   es_convocable?: boolean
   es_invitado?: boolean
