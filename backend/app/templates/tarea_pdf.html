@@ -9,40 +9,40 @@
 body {
     font-family: 'Helvetica Neue', Arial, sans-serif;
     color: #0f172a;
-    font-size: 9px;
+    font-size: 8.5px;
+    line-height: 1.3;
     background: #fff;
 }
 
-/* ═══ PAGE SHELL ═══ */
 .page {
     width: 297mm;
     height: 210mm;
-    display: flex;
-    flex-direction: column;
     overflow: hidden;
 }
 
-/* ═══ HEADER ═══ */
-.header {
+/* ═══ HEADER 13mm ═══ */
+.hdr {
+    height: 13mm;
     background: {{ color_primario }};
-    padding: 6px 14px;
+    width: 100%;
+    overflow: hidden;
+    padding: 0 13px;
+}
+.hdr-inner {
+    height: 13mm;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    flex-shrink: 0;
 }
-.header-left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.org-logo {
+.hdr-left { display: flex; align-items: center; }
+.hdr-logo {
     width: 28px;
     height: 28px;
     object-fit: contain;
+    margin-right: 9px;
     border-radius: 3px;
 }
-.org-initial {
+.hdr-initial {
     width: 28px;
     height: 28px;
     border-radius: 50%;
@@ -50,247 +50,253 @@ body {
     color: white;
     font-size: 12px;
     font-weight: 800;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
+    text-align: center;
+    line-height: 28px;
+    margin-right: 9px;
+    display: inline-block;
 }
-.org-name {
-    color: rgba(255,255,255,0.65);
-    font-size: 6.5px;
+.hdr-org {
+    color: rgba(255,255,255,0.6);
+    font-size: 6px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1.5px;
 }
-.equipo-name {
+.hdr-team {
     color: white;
     font-size: 10px;
     font-weight: 800;
     margin-top: 1px;
 }
-.header-right {
-    display: flex;
-    align-items: center;
-    gap: 18px;
-}
-.hdr-item { text-align: right; }
-.hdr-lbl {
-    color: rgba(255,255,255,0.55);
-    font-size: 6px;
+.hdr-right { display: flex; align-items: center; }
+.hdr-meta { text-align: right; margin-left: 18px; }
+.hdr-meta-lbl {
+    color: rgba(255,255,255,0.5);
+    font-size: 5.5px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1.2px;
+    letter-spacing: 1px;
 }
-.hdr-val {
+.hdr-meta-val {
     color: white;
-    font-size: 8.5px;
+    font-size: 8px;
     font-weight: 700;
     margin-top: 1px;
 }
 
-/* ═══ TITLE BAND ═══ */
-.title-band {
-    padding: 5px 14px 5px;
+/* ═══ TITLE BAND 11mm ═══ */
+.ttl {
+    height: 11mm;
     background: #f8fafc;
-    border-bottom: 2px solid {{ color_primario }};
+    border-bottom: 2.5px solid {{ color_primario }};
+    width: 100%;
+    overflow: hidden;
+    padding: 0 13px;
     display: flex;
     align-items: center;
-    gap: 10px;
-    flex-shrink: 0;
 }
-.task-title {
-    font-size: 17px;
+.ttl-name {
+    font-size: 15px;
     font-weight: 900;
     color: #0f172a;
-    line-height: 1.1;
-    flex: 1;
     letter-spacing: -0.3px;
+    line-height: 1;
+    flex: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
-.badges {
+.ttl-badges {
     display: flex;
-    gap: 4px;
     align-items: center;
-    flex-shrink: 0;
+    margin-left: 10px;
 }
 .badge {
-    padding: 2px 8px;
+    padding: 2px 7px;
     border-radius: 3px;
-    font-size: 7px;
+    font-size: 6.5px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     white-space: nowrap;
+    margin-left: 4px;
 }
-.badge-solid { background: {{ color_primario }}; color: white; }
 .badge-outline { border: 1.5px solid {{ color_primario }}; color: {{ color_primario }}; }
-.density-tag {
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 7px;
-    font-weight: 700;
-    text-transform: uppercase;
-}
-.d-alta   { background: #fee2e2; color: #dc2626; }
-.d-media  { background: #fef3c7; color: #d97706; }
-.d-baja   { background: #dcfce7; color: #16a34a; }
+.badge-solid   { background: {{ color_primario }}; color: white; }
+.d-alta        { background: #fee2e2; color: #dc2626; }
+.d-media       { background: #fef3c7; color: #d97706; }
+.d-baja        { background: #dcfce7; color: #16a34a; }
+.cog-badge     { background: #6366f1; color: white; }
 
-/* ═══ METRICS STRIP (dark bar) ═══ */
-.metrics-strip {
+/* ═══ METRICS STRIP 13mm ═══ */
+.mtr-strip {
+    height: 13mm;
     background: #0f172a;
+    width: 100%;
+    overflow: hidden;
     display: flex;
-    flex-shrink: 0;
 }
-.mtr {
+.mtr-cell {
     flex: 1;
-    padding: 5px 10px;
     border-right: 1px solid rgba(255,255,255,0.07);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    text-align: center;
+    padding: 3px 4px;
 }
-.mtr:last-child { border-right: none; }
-.mtr-label {
-    font-size: 6px;
+.mtr-cell:last-child { border-right: none; }
+.mtr-lbl {
+    font-size: 5.5px;
     font-weight: 700;
     color: rgba(255,255,255,0.4);
     text-transform: uppercase;
     letter-spacing: 1px;
-    margin-bottom: 1px;
+    margin-bottom: 2px;
 }
-.mtr-value {
+.mtr-val {
     font-size: 15px;
     font-weight: 900;
     color: white;
     line-height: 1;
 }
 .mtr-sub {
-    font-size: 6.5px;
+    font-size: 6px;
     color: rgba(255,255,255,0.45);
     margin-top: 1px;
 }
 
-/* ═══ MAIN BODY ═══ */
-.body {
-    display: flex;
-    flex: 1;
+/* ═══ BODY TABLE 165mm ═══
+   Table layout is 100% WeasyPrint-safe.
+   Flexbox col fill (flex:1) collapses in WeasyPrint — table-layout:fixed does not.
+   ═══ */
+.body-tbl {
+    width: 297mm;
+    height: 165mm;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+.body-tbl td {
+    vertical-align: top;
+    padding: 0;
     overflow: hidden;
-    min-height: 0;
 }
 
-/* LEFT: campograma 52% */
-.col-left {
-    width: 52%;
-    display: flex;
-    flex-direction: column;
-    border-right: 2px solid #e2e8f0;
-    min-width: 0;
+/* ─── Col 1: Campograma 40% ─── */
+.td-campo {
+    width: 40%;
+    border-right: 2px solid #d1d5db;
 }
-.diagram-area {
-    flex: 1;
+.campo-diagram-wrap {
+    height: 137mm;
+    background: #173d1a;
     overflow: hidden;
-    background: #1b3d1b;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 0;
-}
-.diagram-area svg {
-    width: 100%;
-    height: 100%;
-    display: block;
-}
-.diagram-area img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    display: block;
-}
-.diagram-empty {
-    color: rgba(255,255,255,0.25);
-    font-size: 10px;
     text-align: center;
-    padding: 20px;
-    line-height: 2;
 }
-.desc-strip {
-    padding: 6px 10px;
-    background: #f8fafc;
+/* Force SVG to fill the container — WeasyPrint ignores max-width on SVG */
+.campo-diagram-wrap svg {
+    display: block;
+    width: 100% !important;
+    height: 137mm !important;
+    max-width: none !important;
+}
+.campo-diagram-wrap img {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 137mm;
+}
+.campo-empty {
+    color: rgba(255,255,255,0.2);
+    font-size: 9px;
+    line-height: 3;
+    padding-top: 55mm;
+}
+.campo-desc {
+    height: 28mm;
+    background: #f1f5f9;
     border-top: 1px solid #e2e8f0;
-    font-size: 7.5px;
+    padding: 5px 10px;
+    overflow: hidden;
+}
+.campo-desc-lbl {
+    font-size: 5.5px;
+    font-weight: 800;
+    color: {{ color_primario }};
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin-bottom: 3px;
+}
+.campo-desc-text {
+    font-size: 7px;
     color: #374151;
     line-height: 1.5;
-    flex-shrink: 0;
-    max-height: 42px;
-    overflow: hidden;
 }
 
-/* RIGHT: info panel */
-.col-right {
-    flex: 1;
-    display: flex;
-    overflow: hidden;
-    min-width: 0;
-}
-
-/* INFO COLUMNS */
-.info-col {
-    flex: 1;
+/* ─── Col 2: Tactical 30% ─── */
+.td-info {
+    width: 30%;
     border-right: 1px solid #e2e8f0;
-    padding: 7px 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 0;
+    padding: 7px 9px;
     overflow: hidden;
-    min-width: 0;
+    height: 165mm;
 }
-.info-col:last-child { border-right: none; }
 
-.ic-header {
-    font-size: 6.5px;
+/* ─── Col 3: Rules 30% ─── */
+.td-rules {
+    width: 30%;
+    padding: 7px 9px;
+    overflow: hidden;
+    height: 165mm;
+}
+
+/* ─── Section headers ─── */
+.sec-hdr {
+    font-size: 6px;
     font-weight: 800;
     color: {{ color_primario }};
     text-transform: uppercase;
     letter-spacing: 1.2px;
     padding-bottom: 3px;
     border-bottom: 1.5px solid {{ color_primario }};
-    margin-bottom: 4px;
+    margin-bottom: 5px;
+    margin-top: 9px;
 }
-.ic-header + .ic-header,
-.ic-spacer {
-    margin-top: 6px;
-}
-.ic-row {
-    margin-bottom: 4px;
-}
+.sec-hdr.first { margin-top: 0; }
+
+/* ─── Data rows ─── */
+.ic-row { margin-bottom: 4px; }
 .ic-lbl {
-    font-size: 6px;
+    font-size: 5.5px;
     font-weight: 700;
     color: #9ca3af;
     text-transform: uppercase;
-    letter-spacing: 0.6px;
+    letter-spacing: 0.5px;
 }
 .ic-val {
-    font-size: 8px;
+    font-size: 7.5px;
     color: #0f172a;
     font-weight: 600;
     line-height: 1.35;
 }
 
-.rule-list {
-    list-style: none;
-    padding: 0;
-    margin: 0 0 0 0;
+/* ─── Lists ─── */
+.sub-lbl {
+    font-size: 5.5px;
+    font-weight: 700;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-top: 5px;
+    margin-bottom: 2px;
 }
+.rule-list { list-style: none; padding: 0; margin: 0; }
 .rule-list li {
     font-size: 7px;
     color: #374151;
-    line-height: 1.45;
-    padding: 1px 0;
-    padding-left: 8px;
-    border-bottom: 1px dotted #f1f5f9;
+    line-height: 1.4;
+    padding: 1.5px 0 1.5px 9px;
+    border-bottom: 1px dotted #f0f4f8;
     position: relative;
 }
+.rule-list li:last-child { border-bottom: none; }
 .rule-list li::before {
     content: '›';
     position: absolute;
@@ -298,312 +304,310 @@ body {
     color: {{ color_primario }};
     font-weight: 900;
     font-size: 9px;
-    line-height: 1.2;
+    line-height: 1.1;
 }
-.sub-lbl {
-    font-size: 6px;
-    font-weight: 700;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin: 5px 0 2px;
-}
+.mat-item { font-size: 7px; color: #374151; padding: 1px 0; line-height: 1.4; }
 
-/* ═══ FOOTER ═══ */
-.footer {
+/* ═══ FOOTER 8mm ═══ */
+.ftr {
+    height: 8mm;
     background: #f1f5f9;
-    padding: 3px 14px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
     border-top: 1px solid #e2e8f0;
-    flex-shrink: 0;
+    width: 100%;
+    padding: 0 13px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
-.footer-brand { font-weight: 800; color: {{ color_primario }}; font-size: 7px; }
-.footer-meta { font-size: 6.5px; color: #9ca3af; }
+.ftr-brand { font-weight: 800; color: {{ color_primario }}; font-size: 7px; }
+.ftr-meta  { font-size: 6px; color: #9ca3af; }
 </style>
 </head>
 <body>
 <div class="page">
 
-    <!-- ═══ HEADER ═══ -->
-    <div class="header">
-        <div class="header-left">
-            {% if org_logo_url %}
-            <img class="org-logo" src="{{ org_logo_url }}" alt="{{ org_nombre }}">
-            {% else %}
-            <div class="org-initial">{{ org_nombre[0]|upper if org_nombre else 'K' }}</div>
-            {% endif %}
-            <div>
-                <div class="org-name">{{ org_nombre }}</div>
-                {% if equipo_nombre %}<div class="equipo-name">{{ equipo_nombre }}</div>{% endif %}
-            </div>
-        </div>
-        <div class="header-right">
-            {% if tarea.get('codigo') %}
-            <div class="hdr-item">
-                <div class="hdr-lbl">Código</div>
-                <div class="hdr-val">{{ tarea.get('codigo') }}</div>
-            </div>
-            {% endif %}
-            {% if categoria_nombre %}
-            <div class="hdr-item">
-                <div class="hdr-lbl">Categoría</div>
-                <div class="hdr-val">{{ categoria_codigo }} — {{ categoria_nombre }}</div>
-            </div>
-            {% endif %}
-            {% set fecha = tarea.get('created_at', '')[:10] %}
-            {% if fecha %}
-            <div class="hdr-item">
-                <div class="hdr-lbl">Fecha</div>
-                <div class="hdr-val">{{ fecha }}</div>
-            </div>
-            {% endif %}
-        </div>
+<!-- ═══ HEADER ═══ -->
+<div class="hdr">
+  <div class="hdr-inner">
+    <div class="hdr-left">
+      {% if org_logo_url %}
+      <img class="hdr-logo" src="{{ org_logo_url }}" alt="{{ org_nombre }}">
+      {% else %}
+      <div class="hdr-initial">{{ (org_nombre[0]|upper) if org_nombre else 'K' }}</div>
+      {% endif %}
+      <div>
+        <div class="hdr-org">{{ org_nombre }}</div>
+        {% if equipo_nombre %}<div class="hdr-team">{{ equipo_nombre }}</div>{% endif %}
+      </div>
     </div>
-
-    <!-- ═══ TITLE BAND ═══ -->
-    <div class="title-band">
-        <div class="task-title">{{ tarea.get('titulo', 'Tarea de Entrenamiento') }}</div>
-        <div class="badges">
-            {% if tarea.get('fase_juego') %}
-            <span class="badge badge-outline">{{ tarea.get('fase_juego').replace('_', ' ') | title }}</span>
-            {% endif %}
-            {% if tarea.get('densidad') %}
-            {% set d = tarea.get('densidad') | lower %}
-            <span class="density-tag {{ 'd-alta' if d=='alta' else 'd-media' if d=='media' else 'd-baja' if d=='baja' else '' }}">{{ d | capitalize }}</span>
-            {% endif %}
-            {% if tarea.get('nivel_cognitivo') %}
-            <span class="badge badge-solid" style="background:#6366f1;">COG {{ tarea.get('nivel_cognitivo') }}/3</span>
-            {% endif %}
-        </div>
+    <div class="hdr-right">
+      {% if tarea.get('codigo') %}
+      <div class="hdr-meta">
+        <div class="hdr-meta-lbl">Código</div>
+        <div class="hdr-meta-val">{{ tarea.get('codigo') }}</div>
+      </div>
+      {% endif %}
+      {% if categoria_nombre %}
+      <div class="hdr-meta">
+        <div class="hdr-meta-lbl">Categoría</div>
+        <div class="hdr-meta-val">{% if categoria_codigo %}{{ categoria_codigo }} — {% endif %}{{ categoria_nombre }}</div>
+      </div>
+      {% endif %}
+      {% set fecha = tarea.get('created_at', '')[:10] %}
+      {% if fecha %}
+      <div class="hdr-meta">
+        <div class="hdr-meta-lbl">Fecha</div>
+        <div class="hdr-meta-val">{{ fecha }}</div>
+      </div>
+      {% endif %}
     </div>
+  </div>
+</div>
 
-    <!-- ═══ METRICS STRIP ═══ -->
-    <div class="metrics-strip">
-        {% if tarea.get('duracion_total') %}
-        <div class="mtr">
-            <div class="mtr-label">Duración</div>
-            <div class="mtr-value">{{ tarea.get('duracion_total') }}'</div>
-        </div>
+<!-- ═══ TITLE BAND ═══ -->
+<div class="ttl">
+  <div class="ttl-name">{{ tarea.get('titulo', 'Tarea de Entrenamiento') }}</div>
+  <div class="ttl-badges">
+    {% if tarea.get('fase_juego') %}
+    <span class="badge badge-outline">{{ tarea.get('fase_juego').replace('_', ' ') | title }}</span>
+    {% endif %}
+    {% if tarea.get('densidad') %}
+    {% set d = tarea.get('densidad') | lower %}
+    <span class="badge {{ 'd-alta' if d=='alta' else 'd-media' if d=='media' else 'd-baja' }}">{{ d | capitalize }}</span>
+    {% endif %}
+    {% if tarea.get('nivel_cognitivo') %}
+    <span class="badge cog-badge">COG {{ tarea.get('nivel_cognitivo') }}/3</span>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ═══ METRICS STRIP ═══ -->
+<div class="mtr-strip">
+  {% if tarea.get('duracion_total') %}
+  <div class="mtr-cell">
+    <div class="mtr-lbl">Duración</div>
+    <div class="mtr-val">{{ tarea.get('duracion_total') }}'</div>
+  </div>
+  {% endif %}
+  {% if tarea.get('num_series') %}
+  <div class="mtr-cell">
+    <div class="mtr-lbl">Series</div>
+    <div class="mtr-val">{{ tarea.get('num_series') }}{% if tarea.get('duracion_serie') %}×{{ tarea.get('duracion_serie') }}'{% endif %}</div>
+    {% if tarea.get('tiempo_descanso') %}<div class="mtr-sub">desc {{ tarea.get('tiempo_descanso') }}'</div>{% endif %}
+  </div>
+  {% endif %}
+  <div class="mtr-cell">
+    <div class="mtr-lbl">Jugadores</div>
+    <div class="mtr-val">{{ tarea.get('num_jugadores_min', '—') }}{% if tarea.get('num_jugadores_max') and tarea.get('num_jugadores_max') != tarea.get('num_jugadores_min') %}–{{ tarea.get('num_jugadores_max') }}{% endif %}</div>
+    {% if tarea.get('num_porteros', 0) > 0 %}<div class="mtr-sub">+{{ tarea.get('num_porteros') }} POR</div>{% endif %}
+  </div>
+  {% if tarea.get('espacio_largo') and tarea.get('espacio_ancho') %}
+  <div class="mtr-cell">
+    <div class="mtr-lbl">Espacio</div>
+    <div class="mtr-val" style="font-size:12px;">{{ tarea.get('espacio_largo')|int }}×{{ tarea.get('espacio_ancho')|int }}m</div>
+    {% if tarea.get('espacio_forma') %}<div class="mtr-sub">{{ tarea.get('espacio_forma') }}</div>{% endif %}
+  </div>
+  {% endif %}
+  {% if tarea.get('estructura_equipos') %}
+  <div class="mtr-cell">
+    <div class="mtr-lbl">Estructura</div>
+    <div class="mtr-val" style="font-size:11px;">{{ tarea.get('estructura_equipos') }}</div>
+  </div>
+  {% endif %}
+  {% if tarea.get('m2_por_jugador') %}
+  <div class="mtr-cell">
+    <div class="mtr-lbl">m²/jug</div>
+    <div class="mtr-val" style="font-size:12px;">{{ tarea.get('m2_por_jugador') }}</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ═══ BODY TABLE ═══
+     Table layout is the only WeasyPrint-safe way to get 3 equal-height columns.
+     flex:1 to fill remaining height collapses silently in WeasyPrint.
+     ═══ -->
+<table class="body-tbl">
+  <colgroup>
+    <col style="width:40%;">
+    <col style="width:30%;">
+    <col style="width:30%;">
+  </colgroup>
+  <tbody>
+  <tr>
+
+    <!-- ─── COL 1: Campograma ─── -->
+    <td class="td-campo">
+      <div class="campo-diagram-wrap">
+        {% if grafico_svg_rendered %}
+        {{ grafico_svg_rendered | safe }}
+        {% elif grafico_data_uri %}
+        <img src="{{ grafico_data_uri }}" alt="Diagrama de la tarea">
+        {% else %}
+        <div class="campo-empty">Sin diagrama</div>
         {% endif %}
-        {% if tarea.get('num_series') %}
-        <div class="mtr">
-            <div class="mtr-label">Series</div>
-            <div class="mtr-value">{{ tarea.get('num_series') }}{% if tarea.get('duracion_serie') %}×{{ tarea.get('duracion_serie') }}'{% endif %}</div>
-            {% if tarea.get('tiempo_descanso') %}<div class="mtr-sub">desc {{ tarea.get('tiempo_descanso') }}'</div>{% endif %}
-        </div>
+      </div>
+      <div class="campo-desc">
+        {% if tarea.get('descripcion') %}
+        <div class="campo-desc-lbl">Descripción</div>
+        <div class="campo-desc-text">{{ tarea.get('descripcion') }}</div>
         {% endif %}
-        <div class="mtr">
-            <div class="mtr-label">Jugadores</div>
-            <div class="mtr-value">
-                {{ tarea.get('num_jugadores_min', '—') }}{% if tarea.get('num_jugadores_max') and tarea.get('num_jugadores_max') != tarea.get('num_jugadores_min') %}–{{ tarea.get('num_jugadores_max') }}{% endif %}
-            </div>
-            {% if tarea.get('num_porteros', 0) > 0 %}<div class="mtr-sub">+{{ tarea.get('num_porteros') }} POR</div>{% endif %}
-        </div>
-        {% if tarea.get('espacio_largo') and tarea.get('espacio_ancho') %}
-        <div class="mtr">
-            <div class="mtr-label">Espacio</div>
-            <div class="mtr-value">{{ tarea.get('espacio_largo')|int }}×{{ tarea.get('espacio_ancho')|int }}m</div>
-            {% if tarea.get('espacio_forma') %}<div class="mtr-sub">{{ tarea.get('espacio_forma') }}</div>{% endif %}
-        </div>
-        {% endif %}
-        {% if tarea.get('estructura_equipos') %}
-        <div class="mtr">
-            <div class="mtr-label">Estructura</div>
-            <div class="mtr-value" style="font-size:11px;">{{ tarea.get('estructura_equipos') }}</div>
-        </div>
-        {% endif %}
-        {% if tarea.get('m2_por_jugador') %}
-        <div class="mtr">
-            <div class="mtr-label">m²/jug</div>
-            <div class="mtr-value" style="font-size:12px;">{{ tarea.get('m2_por_jugador') }}</div>
-        </div>
-        {% endif %}
-    </div>
+      </div>
+    </td>
 
-    <!-- ═══ MAIN BODY ═══ -->
-    <div class="body">
+    <!-- ─── COL 2: Contenido táctico + Objetivos + Carga + Material ─── -->
+    <td class="td-info">
 
-        <!-- LEFT: Campograma + Descripción -->
-        <div class="col-left">
-            <div class="diagram-area">
-                {% if grafico_svg_rendered %}
-                {{ grafico_svg_rendered | safe }}
-                {% elif tarea.get('grafico_svg') %}
-                {{ tarea.get('grafico_svg') | safe }}
-                {% elif grafico_data_uri %}
-                <img src="{{ grafico_data_uri }}" alt="Diagrama de tarea">
-                {% else %}
-                <div class="diagram-empty">
-                    ⬜<br>Sin diagrama
-                </div>
-                {% endif %}
-            </div>
-            {% if tarea.get('descripcion') %}
-            <div class="desc-strip">{{ tarea.get('descripcion') }}</div>
-            {% endif %}
-        </div>
+      {% if tarea.get('fase_juego') or tarea.get('principio_tactico') or tarea.get('intencion_tactica') or tarea.get('accion_tecnica') %}
+      <div class="sec-hdr first">Contenido Táctico</div>
+      {% if tarea.get('fase_juego') %}
+      <div class="ic-row">
+        <div class="ic-lbl">Fase de juego</div>
+        <div class="ic-val">{{ tarea.get('fase_juego').replace('_', ' ') | title }}</div>
+      </div>
+      {% endif %}
+      {% if tarea.get('principio_tactico') %}
+      <div class="ic-row">
+        <div class="ic-lbl">Principio</div>
+        <div class="ic-val">{{ tarea.get('principio_tactico') }}</div>
+      </div>
+      {% endif %}
+      {% if tarea.get('subprincipio_tactico') %}
+      <div class="ic-row">
+        <div class="ic-lbl">Subprincipio</div>
+        <div class="ic-val">{{ tarea.get('subprincipio_tactico') }}</div>
+      </div>
+      {% endif %}
+      {% if tarea.get('intencion_tactica') %}
+      <div class="ic-row">
+        <div class="ic-lbl">Intención táctica</div>
+        <div class="ic-val">{{ tarea.get('intencion_tactica') }}</div>
+      </div>
+      {% endif %}
+      {% if tarea.get('accion_tecnica') %}
+      <div class="ic-row">
+        <div class="ic-lbl">Acción técnica</div>
+        <div class="ic-val">{{ tarea.get('accion_tecnica') }}</div>
+      </div>
+      {% endif %}
+      {% else %}
+      <!-- No tactical data — show placeholder so column isn't blank -->
+      <div class="sec-hdr first" style="opacity:0.3;">Contenido Táctico</div>
+      {% endif %}
 
-        <!-- RIGHT: Info Columns -->
-        <div class="col-right">
+      {% if tarea.get('objetivo_fisico') or tarea.get('objetivo_psicologico') %}
+      <div class="sec-hdr">Objetivos</div>
+      {% if tarea.get('objetivo_fisico') %}
+      <div class="ic-row">
+        <div class="ic-lbl">Físico</div>
+        <div class="ic-val">{{ tarea.get('objetivo_fisico') }}</div>
+      </div>
+      {% endif %}
+      {% if tarea.get('objetivo_psicologico') %}
+      <div class="ic-row">
+        <div class="ic-lbl">Mental</div>
+        <div class="ic-val">{{ tarea.get('objetivo_psicologico') }}</div>
+      </div>
+      {% endif %}
+      {% endif %}
 
-            <!-- COL A: Táctica + Objetivos + Carga + Material -->
-            <div class="info-col">
-                {% if tarea.get('fase_juego') or tarea.get('principio_tactico') or tarea.get('intencion_tactica') %}
-                <div class="ic-header">Contenido Táctico</div>
-                {% if tarea.get('fase_juego') %}
-                <div class="ic-row">
-                    <div class="ic-lbl">Fase</div>
-                    <div class="ic-val">{{ tarea.get('fase_juego').replace('_', ' ') | title }}</div>
-                </div>
-                {% endif %}
-                {% if tarea.get('principio_tactico') %}
-                <div class="ic-row">
-                    <div class="ic-lbl">Principio</div>
-                    <div class="ic-val">{{ tarea.get('principio_tactico') }}</div>
-                </div>
-                {% endif %}
-                {% if tarea.get('subprincipio_tactico') %}
-                <div class="ic-row">
-                    <div class="ic-lbl">Subprincipio</div>
-                    <div class="ic-val">{{ tarea.get('subprincipio_tactico') }}</div>
-                </div>
-                {% endif %}
-                {% if tarea.get('intencion_tactica') %}
-                <div class="ic-row">
-                    <div class="ic-lbl">Intención</div>
-                    <div class="ic-val">{{ tarea.get('intencion_tactica') }}</div>
-                </div>
-                {% endif %}
-                {% if tarea.get('accion_tecnica') %}
-                <div class="ic-row">
-                    <div class="ic-lbl">Acción Técnica</div>
-                    <div class="ic-val">{{ tarea.get('accion_tecnica') }}</div>
-                </div>
-                {% endif %}
-                {% endif %}
+      {% if tarea.get('tipo_esfuerzo') or tarea.get('fc_esperada_min') or tarea.get('ratio_trabajo_descanso') %}
+      <div class="sec-hdr">Carga Física</div>
+      {% if tarea.get('tipo_esfuerzo') %}
+      <div class="ic-row">
+        <div class="ic-lbl">Tipo de esfuerzo</div>
+        <div class="ic-val">{{ tarea.get('tipo_esfuerzo') }}</div>
+      </div>
+      {% endif %}
+      {% if tarea.get('fc_esperada_min') and tarea.get('fc_esperada_max') %}
+      <div class="ic-row">
+        <div class="ic-lbl">FC esperada</div>
+        <div class="ic-val">{{ tarea.get('fc_esperada_min') }}–{{ tarea.get('fc_esperada_max') }} bpm</div>
+      </div>
+      {% endif %}
+      {% if tarea.get('ratio_trabajo_descanso') %}
+      <div class="ic-row">
+        <div class="ic-lbl">Ratio T:D</div>
+        <div class="ic-val">{{ tarea.get('ratio_trabajo_descanso') }}</div>
+      </div>
+      {% endif %}
+      {% endif %}
 
-                {% if tarea.get('objetivo_fisico') or tarea.get('objetivo_psicologico') %}
-                <div class="ic-header ic-spacer">Objetivos</div>
-                {% if tarea.get('objetivo_fisico') %}
-                <div class="ic-row">
-                    <div class="ic-lbl">Físico</div>
-                    <div class="ic-val">{{ tarea.get('objetivo_fisico') }}</div>
-                </div>
-                {% endif %}
-                {% if tarea.get('objetivo_psicologico') %}
-                <div class="ic-row">
-                    <div class="ic-lbl">Mental</div>
-                    <div class="ic-val">{{ tarea.get('objetivo_psicologico') }}</div>
-                </div>
-                {% endif %}
-                {% endif %}
+      {% if tarea.get('material') %}
+      <div class="sec-hdr">Material</div>
+      {% for m in tarea.get('material', []) %}
+      <div class="mat-item">• {{ m }}</div>
+      {% endfor %}
+      {% endif %}
 
-                {% if tarea.get('tipo_esfuerzo') or tarea.get('fc_esperada_min') %}
-                <div class="ic-header ic-spacer">Carga Física</div>
-                {% if tarea.get('tipo_esfuerzo') %}
-                <div class="ic-row">
-                    <div class="ic-lbl">Esfuerzo</div>
-                    <div class="ic-val">{{ tarea.get('tipo_esfuerzo') }}</div>
-                </div>
-                {% endif %}
-                {% if tarea.get('fc_esperada_min') and tarea.get('fc_esperada_max') %}
-                <div class="ic-row">
-                    <div class="ic-lbl">FC esperada</div>
-                    <div class="ic-val">{{ tarea.get('fc_esperada_min') }}–{{ tarea.get('fc_esperada_max') }} bpm</div>
-                </div>
-                {% endif %}
-                {% if tarea.get('ratio_trabajo_descanso') %}
-                <div class="ic-row">
-                    <div class="ic-lbl">Ratio T:D</div>
-                    <div class="ic-val">{{ tarea.get('ratio_trabajo_descanso') }}</div>
-                </div>
-                {% endif %}
-                {% endif %}
+    </td>
 
-                {% if tarea.get('material') %}
-                <div class="ic-header ic-spacer">Material</div>
-                {% for m in tarea.get('material', []) %}
-                <div style="font-size:7px;color:#374151;padding:1px 0;line-height:1.4;">• {{ m }}</div>
-                {% endfor %}
-                {% endif %}
-            </div>
+    <!-- ─── COL 3: Reglas + Consignas + Errores + Variantes ─── -->
+    <td class="td-rules">
 
-            <!-- COL B: Reglas -->
-            {% set reg_tec = tarea.get('reglas_tecnicas', []) or [] %}
-            {% set reg_tac = tarea.get('reglas_tacticas', []) or [] %}
-            {% set reg_psi = tarea.get('reglas_psicologicas', []) or [] %}
-            {% if reg_tec or reg_tac or reg_psi %}
-            <div class="info-col">
-                <div class="ic-header">Reglas</div>
-                {% if reg_tec %}
-                <div class="sub-lbl">Técnicas</div>
-                <ul class="rule-list">{% for r in reg_tec %}<li>{{ r }}</li>{% endfor %}</ul>
-                {% endif %}
-                {% if reg_tac %}
-                <div class="sub-lbl">Tácticas</div>
-                <ul class="rule-list">{% for r in reg_tac %}<li>{{ r }}</li>{% endfor %}</ul>
-                {% endif %}
-                {% if reg_psi %}
-                <div class="sub-lbl">Psicológicas</div>
-                <ul class="rule-list">{% for r in reg_psi %}<li>{{ r }}</li>{% endfor %}</ul>
-                {% endif %}
-            </div>
-            {% endif %}
+      {% set reg_tec = tarea.get('reglas_tecnicas', []) or [] %}
+      {% set reg_tac = tarea.get('reglas_tacticas', []) or [] %}
+      {% set reg_psi = tarea.get('reglas_psicologicas', []) or [] %}
+      {% if reg_tec or reg_tac or reg_psi %}
+      <div class="sec-hdr first">Reglas</div>
+      {% if reg_tec %}
+      <div class="sub-lbl">Técnicas</div>
+      <ul class="rule-list">{% for r in reg_tec %}<li>{{ r }}</li>{% endfor %}</ul>
+      {% endif %}
+      {% if reg_tac %}
+      <div class="sub-lbl">Tácticas</div>
+      <ul class="rule-list">{% for r in reg_tac %}<li>{{ r }}</li>{% endfor %}</ul>
+      {% endif %}
+      {% if reg_psi %}
+      <div class="sub-lbl">Psicológicas</div>
+      <ul class="rule-list">{% for r in reg_psi %}<li>{{ r }}</li>{% endfor %}</ul>
+      {% endif %}
+      {% else %}
+      <div class="sec-hdr first" style="opacity:0.3;">Reglas</div>
+      {% endif %}
 
-            <!-- COL C: Consignas -->
-            {% set cons_of = tarea.get('consignas_ofensivas', []) or [] %}
-            {% set cons_def = tarea.get('consignas_defensivas', []) or [] %}
-            {% if cons_of or cons_def %}
-            <div class="info-col">
-                <div class="ic-header">Consignas</div>
-                {% if cons_of %}
-                <div class="sub-lbl">Ofensivas</div>
-                <ul class="rule-list">{% for c in cons_of %}<li>{{ c }}</li>{% endfor %}</ul>
-                {% endif %}
-                {% if cons_def %}
-                <div class="sub-lbl">Defensivas</div>
-                <ul class="rule-list">{% for c in cons_def %}<li>{{ c }}</li>{% endfor %}</ul>
-                {% endif %}
-            </div>
-            {% endif %}
+      {% set cons_of  = tarea.get('consignas_ofensivas', [])  or [] %}
+      {% set cons_def = tarea.get('consignas_defensivas', []) or [] %}
+      {% if cons_of or cons_def %}
+      <div class="sec-hdr">Consignas</div>
+      {% if cons_of %}
+      <div class="sub-lbl">Ofensivas</div>
+      <ul class="rule-list">{% for c in cons_of %}<li>{{ c }}</li>{% endfor %}</ul>
+      {% endif %}
+      {% if cons_def %}
+      <div class="sub-lbl">Defensivas</div>
+      <ul class="rule-list">{% for c in cons_def %}<li>{{ c }}</li>{% endfor %}</ul>
+      {% endif %}
+      {% endif %}
 
-            <!-- COL D: Errores + Variantes -->
-            {% set errores = tarea.get('errores_comunes', []) or [] %}
-            {% set variantes = tarea.get('variantes', []) or [] %}
-            {% set progresiones = tarea.get('progresiones', []) or [] %}
-            {% set regresiones = tarea.get('regresiones', []) or [] %}
-            {% if errores or variantes or progresiones or regresiones %}
-            <div class="info-col">
-                {% if errores %}
-                <div class="ic-header">Errores Comunes</div>
-                <ul class="rule-list">{% for e in errores %}<li>{{ e }}</li>{% endfor %}</ul>
-                {% endif %}
-                {% if variantes %}
-                <div class="ic-header ic-spacer">Variantes</div>
-                <ul class="rule-list">{% for v in variantes %}<li>{{ v }}</li>{% endfor %}</ul>
-                {% endif %}
-                {% if progresiones %}
-                <div class="sub-lbl">Progresiones</div>
-                <ul class="rule-list">{% for p in progresiones %}<li>{{ p }}</li>{% endfor %}</ul>
-                {% endif %}
-                {% if regresiones %}
-                <div class="sub-lbl">Regresiones</div>
-                <ul class="rule-list">{% for r in regresiones %}<li>{{ r }}</li>{% endfor %}</ul>
-                {% endif %}
-            </div>
-            {% endif %}
+      {% set errores     = tarea.get('errores_comunes', []) or [] %}
+      {% set variantes   = tarea.get('variantes', [])       or [] %}
+      {% set progresiones = tarea.get('progresiones', [])   or [] %}
+      {% set regresiones  = tarea.get('regresiones', [])    or [] %}
+      {% if errores %}
+      <div class="sec-hdr">Errores Comunes</div>
+      <ul class="rule-list">{% for e in errores %}<li>{{ e }}</li>{% endfor %}</ul>
+      {% endif %}
+      {% if variantes or progresiones or regresiones %}
+      <div class="sec-hdr">Variantes</div>
+      <ul class="rule-list">
+        {% for v in variantes %}<li>{{ v }}</li>{% endfor %}
+        {% if progresiones %}<li><strong>Prog:</strong> {{ progresiones | join(' / ') }}</li>{% endif %}
+        {% if regresiones  %}<li><strong>Reg:</strong>  {{ regresiones  | join(' / ') }}</li>{% endif %}
+      </ul>
+      {% endif %}
 
-        </div>
-    </div>
+    </td>
 
-    <!-- ═══ FOOTER ═══ -->
-    <div class="footer">
-        <span><span class="footer-brand">Kabin-e</span> Training Platform</span>
-        <span class="footer-meta">{{ org_nombre }}{% if equipo_nombre %} · {{ equipo_nombre }}{% endif %}</span>
-        <span class="footer-meta">{{ tarea.get('created_at', '')[:10] if tarea.get('created_at') else '' }}</span>
-    </div>
+  </tr>
+  </tbody>
+</table>
+
+<!-- ═══ FOOTER ═══ -->
+<div class="ftr">
+  <span class="ftr-brand">Kabin-e</span>
+  <span class="ftr-meta">{{ org_nombre }}{% if equipo_nombre %} · {{ equipo_nombre }}{% endif %}</span>
+  <span class="ftr-meta">{{ tarea.get('created_at', '')[:10] if tarea.get('created_at') else '' }}</span>
+</div>
 
 </div>
 </body>
