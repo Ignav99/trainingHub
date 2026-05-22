@@ -364,4 +364,20 @@ async def link_sesiones_to_microciclo(
         }).eq("id", s["id"]).execute()
         linked += 1
 
-    return {"linked": linked, "microciclo_id": str(microciclo_id)}
+    # Link partido: find the partido of this team in the date range
+    partido_result = supabase.table("partidos").select("id").eq(
+        "equipo_id", equipo_id
+    ).gte(
+        "fecha", fecha_inicio
+    ).lte(
+        "fecha", fecha_fin
+    ).limit(1).execute()
+
+    partido_id = None
+    if partido_result.data:
+        partido_id = partido_result.data[0]["id"]
+        supabase.table("microciclos").update({
+            "partido_id": str(partido_id)
+        }).eq("id", str(microciclo_id)).execute()
+
+    return {"linked": linked, "partido_linked": partido_id is not None, "microciclo_id": str(microciclo_id)}
