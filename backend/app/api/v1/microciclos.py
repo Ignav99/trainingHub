@@ -329,7 +329,7 @@ async def link_sesiones_to_microciclo(
     microciclo_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.MICROCICLO_UPDATE)),
 ):
-    """Vincula sesiones sin microciclo que caigan en el rango de fechas del microciclo."""
+    """Vincula todas las sesiones del equipo que caigan en el rango de fechas del microciclo."""
     supabase = get_supabase()
 
     # Get microciclo
@@ -347,10 +347,11 @@ async def link_sesiones_to_microciclo(
     fecha_inicio = micro.data["fecha_inicio"]
     fecha_fin = micro.data["fecha_fin"]
 
-    # Find unlinked sessions in date range
+    # Find ALL sessions in date range for this team (including already-linked ones)
+    # This handles the case where sessions were linked to a previous/deleted microciclo
     sesiones = supabase.table("sesiones").select("id").eq(
         "equipo_id", equipo_id
-    ).is_("microciclo_id", "null").gte(
+    ).gte(
         "fecha", fecha_inicio
     ).lte(
         "fecha", fecha_fin
