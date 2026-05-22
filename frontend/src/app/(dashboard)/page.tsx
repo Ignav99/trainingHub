@@ -211,6 +211,8 @@ export default function DashboardPage() {
         fecha_fin: fechaFin,
         estado: 'completado',
       })
+      // Link orphaned sessions that fall within this week's date range
+      await microciclosApi.linkSesiones(res.id)
       mutate((key: string) => typeof key === 'string' && key.includes('/microciclos'), undefined, { revalidate: true })
       router.push(`/microciclos/${res.id}`)
     } catch (err: any) {
