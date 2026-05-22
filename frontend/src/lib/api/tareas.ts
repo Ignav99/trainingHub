@@ -160,13 +160,7 @@ export const tareasApi = {
   },
 
   async generatePdf(id: string): Promise<Blob> {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/tareas/${id}/pdf`, {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-      },
-    })
-    if (!response.ok) throw new Error('Error generating PDF')
-    return response.blob()
+    return api.getBlob(`/tareas/${id}/pdf`)
   },
 
   async generateDiagram(id: string): Promise<{ grafico_data: Record<string, any> }> {
