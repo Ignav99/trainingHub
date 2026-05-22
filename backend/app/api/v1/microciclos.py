@@ -107,6 +107,22 @@ async def get_microciclo_completo(
     fecha_inicio = micro["fecha_inicio"]
     fecha_fin = micro["fecha_fin"]
 
+    # Auto-link partido si el microciclo no tiene uno asignado
+    if not micro.get("partido_id"):
+        partido_auto = supabase.table("partidos").select("id").eq(
+            "equipo_id", equipo_id
+        ).gte("fecha", fecha_inicio).lte("fecha", fecha_fin).limit(1).execute()
+        if partido_auto.data:
+            pid = partido_auto.data[0]["id"]
+            supabase.table("microciclos").update({
+                "partido_id": str(pid)
+            }).eq("id", str(microciclo_id)).execute()
+            # Reload to get the partido joined data
+            micro_resp = supabase.table("microciclos").select(
+                "*, equipos(id, nombre, categoria), partidos(*, rivales(nombre, nombre_corto, escudo_url))"
+            ).eq("id", str(microciclo_id)).single().execute()
+            micro = micro_resp.data
+
     # 2. Sesiones del microciclo con count de tareas
     sesiones_resp = supabase.table("sesiones").select(
         "id, titulo, fecha, match_day, estado, duracion_total, objetivo_principal, "
