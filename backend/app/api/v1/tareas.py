@@ -922,10 +922,19 @@ async def generate_tarea_pdf_endpoint(
         "id", tarea_resp.data["organizacion_id"]
     ).maybe_single().execute()
 
+    equipo_nombre = ""
+    if tarea_resp.data.get("equipo_id"):
+        eq_resp = supabase.table("equipos").select("nombre").eq(
+            "id", tarea_resp.data["equipo_id"]
+        ).maybe_single().execute()
+        if eq_resp and eq_resp.data:
+            equipo_nombre = eq_resp.data.get("nombre", "")
+
     pdf_bytes = await asyncio.to_thread(
         gen_pdf,
         tarea=tarea_resp.data,
         organizacion=(org_resp.data if org_resp else None) or {},
+        equipo_nombre=equipo_nombre,
     )
 
     return StreamingResponse(

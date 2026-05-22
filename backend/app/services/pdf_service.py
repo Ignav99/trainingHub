@@ -1067,6 +1067,7 @@ def generate_plan_partido_jugadores_pdf(
 def generate_tarea_pdf(
     tarea: dict,
     organizacion: dict,
+    equipo_nombre: str = "",
 ) -> bytes:
     """Genera PDF de ficha de tarea (ejercicio individual)."""
     env = _get_jinja_env()
@@ -1079,8 +1080,10 @@ def generate_tarea_pdf(
         tarea=tarea,
         color_primario=color,
         org_nombre=organizacion.get("nombre", "TrainingHub Pro"),
+        org_logo_url=organizacion.get("logo_url") or organizacion.get("logo") or "",
         categoria_nombre=categoria.get("nombre", ""),
         categoria_codigo=categoria.get("codigo", ""),
+        equipo_nombre=equipo_nombre,
     )
 
     try:

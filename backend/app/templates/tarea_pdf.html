@@ -1,195 +1,397 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            margin: 30px 40px;
-            color: #1a1a2e;
-            font-size: 13px;
-            line-height: 1.5;
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 25px;
-            padding-bottom: 20px;
-            border-bottom: 3px solid {{ color_primario }};
-        }
-        .header-left .org-name {
-            font-size: 11px;
-            color: #888;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        }
-        .header-left .title {
-            font-size: 22px;
-            font-weight: 700;
-            color: {{ color_primario }};
-            margin-top: 5px;
-        }
-        .header-left .categoria {
-            display: inline-block;
-            padding: 3px 12px;
-            background: {{ color_primario }};
-            color: white;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-top: 8px;
-        }
-        .header-right {
-            text-align: right;
-        }
-        .header-right .cognitive {
-            font-size: 11px;
-            color: #666;
-            margin-bottom: 4px;
-        }
-        .header-right .dots {
-            display: flex;
-            gap: 4px;
-            justify-content: flex-end;
-        }
-        .header-right .dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-        }
-        .header-right .dot-on { background: {{ color_primario }}; }
-        .header-right .dot-off { background: #e5e7eb; }
+<meta charset="UTF-8">
+<style>
+@page { size: A4; margin: 0; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
-        .info-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin: 20px 0;
-        }
-        .info-item {
-            flex: 1 1 22%;
-            background: #f8f9fa;
-            border-radius: 6px;
-            padding: 10px 14px;
-            border-left: 3px solid {{ color_primario }};
-        }
-        .info-label {
-            font-size: 9px;
-            font-weight: 700;
-            color: #888;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        .info-value {
-            font-size: 14px;
-            font-weight: 600;
-            color: #1a1a2e;
-            margin-top: 2px;
-        }
+body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    color: #111827;
+    font-size: 11px;
+    line-height: 1.4;
+    background: white;
+}
 
-        .description {
-            margin: 20px 0;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 8px;
-        }
-        .description p {
-            font-size: 13px;
-            color: #333;
-        }
+/* ── PAGE ── */
+.page {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 12mm 13mm 9mm;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
 
-        .section {
-            margin: 20px 0;
-        }
-        .section-title {
-            font-size: 13px;
-            font-weight: 700;
-            color: {{ color_primario }};
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 10px;
-            padding-bottom: 5px;
-            border-bottom: 1px solid #e2e8f0;
-        }
-        .section ul {
-            margin: 0;
-            padding-left: 18px;
-            font-size: 12px;
-            color: #444;
-        }
-        .section li {
-            margin-bottom: 3px;
-        }
+/* ── HEADER ── */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 10px;
+    border-bottom: 3px solid {{ color_primario }};
+}
+.header-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.org-logo {
+    width: 42px;
+    height: 42px;
+    object-fit: contain;
+    border-radius: 4px;
+}
+.org-initial {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: {{ color_primario }};
+    color: white;
+    font-size: 17px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.brand-text .org-name {
+    font-size: 8.5px;
+    font-weight: 700;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+}
+.brand-text .equipo-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: #374151;
+    margin-top: 1px;
+}
+.header-meta {
+    text-align: right;
+}
+.header-meta .codigo {
+    font-size: 10px;
+    font-weight: 700;
+    color: {{ color_primario }};
+    letter-spacing: 1px;
+}
+.header-meta .fecha {
+    font-size: 8.5px;
+    color: #9ca3af;
+    margin-top: 2px;
+}
 
-        .two-cols {
-            display: flex;
-            gap: 20px;
-        }
-        .two-cols .col {
-            flex: 1;
-        }
+/* ── TITLE BLOCK ── */
+.title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+.task-title {
+    font-size: 20px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.15;
+    flex: 1;
+}
+.badges {
+    display: flex;
+    gap: 5px;
+    margin-top: 5px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 8.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+}
+.badge-solid { background: {{ color_primario }}; color: white; }
+.badge-outline {
+    border: 1.5px solid {{ color_primario }};
+    color: {{ color_primario }};
+}
+.title-aside {
+    text-align: right;
+    flex-shrink: 0;
+    min-width: 70px;
+}
+.cog-label {
+    font-size: 8px;
+    font-weight: 600;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 3px;
+}
+.dots {
+    display: flex;
+    gap: 4px;
+    justify-content: flex-end;
+    margin-bottom: 5px;
+}
+.dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+}
+.dot-on { background: {{ color_primario }}; }
+.dot-off { background: #e5e7eb; }
 
-        .tactical-box {
-            background: #f0f9ff;
-            border: 1px solid #bae6fd;
-            border-radius: 8px;
-            padding: 15px;
-            margin: 15px 0;
-        }
-        .tactical-box h4 {
-            font-size: 12px;
-            font-weight: 700;
-            color: #0369a1;
-            text-transform: uppercase;
-            margin-bottom: 6px;
-        }
-        .tactical-box p {
-            font-size: 12px;
-            color: #0c4a6e;
-        }
+.density-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 8.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.d-alta   { background: #fee2e2; color: #dc2626; }
+.d-media  { background: #fef3c7; color: #d97706; }
+.d-baja   { background: #dcfce7; color: #16a34a; }
+.d-other  { background: #f3f4f6; color: #6b7280; }
 
-        .coaching-box {
-            margin: 15px 0;
-        }
-        .coaching-title {
-            font-size: 11px;
-            font-weight: 700;
-            color: #555;
-            text-transform: uppercase;
-            margin-bottom: 5px;
-        }
-        .coaching-box ul {
-            padding-left: 16px;
-            font-size: 12px;
-            color: #444;
-        }
+/* ── METRICS BAR ── */
+.metrics-bar {
+    display: flex;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #f9fafb;
+}
+.metric {
+    flex: 1;
+    padding: 7px 8px;
+    border-right: 1px solid #e5e7eb;
+    text-align: center;
+}
+.metric:last-child { border-right: none; }
+.metric-label {
+    font-size: 7.5px;
+    font-weight: 700;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    display: block;
+    margin-bottom: 2px;
+}
+.metric-value {
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f172a;
+    display: block;
+    line-height: 1;
+}
+.metric-sub {
+    font-size: 8px;
+    color: #9ca3af;
+    display: block;
+    margin-top: 1px;
+}
 
-        .footer {
-            margin-top: 40px;
-            padding-top: 15px;
-            border-top: 1px solid #e2e8f0;
-            text-align: center;
-            color: #aaa;
-            font-size: 10px;
-        }
-    </style>
+/* ── MAIN GRID ── */
+.main-grid {
+    display: flex;
+    gap: 11px;
+}
+.col-diagram {
+    flex: 1.1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+.col-sidebar {
+    width: 148px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* ── DIAGRAM BOX ── */
+.diagram-box {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: #f0fdf4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 130px;
+    overflow: hidden;
+    padding: 4px;
+}
+.diagram-box svg {
+    width: 100%;
+    height: auto;
+    max-height: 190px;
+}
+.diagram-box img {
+    width: 100%;
+    height: auto;
+    max-height: 190px;
+    object-fit: contain;
+}
+.diagram-empty {
+    color: #d1d5db;
+    font-size: 9.5px;
+    text-align: center;
+    padding: 24px;
+    line-height: 1.6;
+}
+.diagram-empty .icon { font-size: 22px; display: block; margin-bottom: 4px; }
+
+/* ── DESCRIPTION ── */
+.desc-box {
+    background: #f8fafc;
+    border-left: 3px solid {{ color_primario }};
+    border-radius: 0 5px 5px 0;
+    padding: 9px 11px;
+    font-size: 10px;
+    color: #374151;
+    line-height: 1.55;
+}
+
+/* ── SIDEBAR CARD ── */
+.sb-card {
+    background: #f9fafb;
+    border-radius: 6px;
+    padding: 8px 9px;
+    border-top: 2.5px solid {{ color_primario }};
+}
+.sb-card-title {
+    font-size: 7.5px;
+    font-weight: 700;
+    color: {{ color_primario }};
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 5px;
+}
+.sb-row {
+    display: flex;
+    flex-direction: column;
+    gap: 2.5px;
+}
+.sb-item {
+    font-size: 9px;
+    color: #1f2937;
+    line-height: 1.4;
+}
+.sb-lbl {
+    font-size: 8px;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ── FULL-WIDTH SECTIONS ── */
+.fw-section {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.section-header {
+    font-size: 8.5px;
+    font-weight: 700;
+    color: {{ color_primario }};
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    padding-bottom: 3px;
+    border-bottom: 1.5px solid {{ color_primario }};
+}
+.cols-2 {
+    display: flex;
+    gap: 14px;
+}
+.cols-2 .col { flex: 1; }
+.col-sub {
+    font-size: 8px;
+    font-weight: 700;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 3px;
+}
+.item-list {
+    padding-left: 12px;
+    font-size: 9.5px;
+    color: #374151;
+}
+.item-list li { margin-bottom: 2px; line-height: 1.4; }
+
+/* ── FOOTER ── */
+.footer {
+    margin-top: auto;
+    padding-top: 7px;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 7.5px;
+    color: #9ca3af;
+}
+.footer-brand {
+    font-weight: 700;
+    color: {{ color_primario }};
+    font-size: 8px;
+}
+</style>
 </head>
 <body>
+<div class="page">
+
+    <!-- ═══ HEADER ═══ -->
     <div class="header">
-        <div class="header-left">
-            <div class="org-name">{{ org_nombre }}</div>
-            <div class="title">{{ tarea.get('titulo', 'Tarea de Entrenamiento') }}</div>
-            {% if categoria_nombre %}
-            <div class="categoria">{{ categoria_codigo }} &mdash; {{ categoria_nombre }}</div>
+        <div class="header-brand">
+            {% if org_logo_url %}
+            <img class="org-logo" src="{{ org_logo_url }}" alt="{{ org_nombre }}">
+            {% else %}
+            <div class="org-initial">{{ org_nombre[0] | upper if org_nombre else 'K' }}</div>
+            {% endif %}
+            <div class="brand-text">
+                <div class="org-name">{{ org_nombre }}</div>
+                {% if equipo_nombre %}
+                <div class="equipo-name">{{ equipo_nombre }}</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="header-meta">
+            {% if tarea.get('codigo') %}
+            <div class="codigo">{{ tarea.get('codigo') }}</div>
+            {% endif %}
+            {% set fecha = tarea.get('created_at', '')[:10] %}
+            {% if fecha %}
+            <div class="fecha">{{ fecha }}</div>
             {% endif %}
         </div>
-        <div class="header-right">
+    </div>
+
+    <!-- ═══ TITLE BLOCK ═══ -->
+    <div class="title-row">
+        <div style="flex: 1;">
+            <div class="task-title">{{ tarea.get('titulo', 'Tarea de Entrenamiento') }}</div>
+            <div class="badges">
+                {% if categoria_nombre %}
+                <span class="badge badge-solid">{{ categoria_codigo }} — {{ categoria_nombre }}</span>
+                {% endif %}
+                {% if tarea.get('fase_juego') %}
+                <span class="badge badge-outline">{{ tarea.get('fase_juego').replace('_', ' ') | title }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="title-aside">
             {% if tarea.get('nivel_cognitivo') %}
-            <div class="cognitive">Nivel cognitivo</div>
+            <div class="cog-label">Cognitivo</div>
             <div class="dots">
                 {% for i in range(1, 4) %}
                 <div class="dot {{ 'dot-on' if i <= tarea.get('nivel_cognitivo', 0) else 'dot-off' }}"></div>
@@ -197,130 +399,288 @@
             </div>
             {% endif %}
             {% if tarea.get('densidad') %}
-            <div style="font-size: 11px; color: #666; margin-top: 8px;">
-                Densidad: <strong>{{ tarea.get('densidad') | capitalize }}</strong>
-            </div>
+            {% set d = tarea.get('densidad') | lower %}
+            <span class="density-tag {{ 'd-' + d if d in ['alta', 'media', 'baja'] else 'd-other' }}">
+                {{ d | capitalize }}
+            </span>
             {% endif %}
         </div>
     </div>
 
-    <div class="info-grid">
-        <div class="info-item">
-            <div class="info-label">Duración</div>
-            <div class="info-value">{{ tarea.get('duracion_total', 0) }} min</div>
+    <!-- ═══ METRICS BAR ═══ -->
+    <div class="metrics-bar">
+        {% if tarea.get('duracion_total') %}
+        <div class="metric">
+            <span class="metric-label">Duración</span>
+            <span class="metric-value">{{ tarea.get('duracion_total') }}'</span>
+            {% if tarea.get('num_series', 1) > 1 %}
+            <span class="metric-sub">{{ tarea.get('num_series') }} series</span>
+            {% endif %}
         </div>
-        <div class="info-item">
-            <div class="info-label">Series</div>
-            <div class="info-value">{{ tarea.get('num_series', 1) }}</div>
+        {% endif %}
+        {% if tarea.get('num_series') %}
+        <div class="metric">
+            <span class="metric-label">Series</span>
+            <span class="metric-value">
+                {{ tarea.get('num_series') }}{% if tarea.get('duracion_serie') %}×{{ tarea.get('duracion_serie') }}'{% endif %}
+            </span>
+            {% if tarea.get('tiempo_descanso') %}
+            <span class="metric-sub">desc. {{ tarea.get('tiempo_descanso') }}'</span>
+            {% endif %}
         </div>
-        <div class="info-item">
-            <div class="info-label">Jugadores</div>
-            <div class="info-value">
-                {{ tarea.get('num_jugadores_min', 0) }}{% if tarea.get('num_jugadores_max') and tarea.get('num_jugadores_max') != tarea.get('num_jugadores_min') %}-{{ tarea.get('num_jugadores_max') }}{% endif %}
-                {% if tarea.get('num_porteros', 0) > 0 %} (+{{ tarea.get('num_porteros') }} POR){% endif %}
-            </div>
+        {% endif %}
+        <div class="metric">
+            <span class="metric-label">Jugadores</span>
+            <span class="metric-value">
+                {{ tarea.get('num_jugadores_min', '—') }}{% if tarea.get('num_jugadores_max') and tarea.get('num_jugadores_max') != tarea.get('num_jugadores_min') %}–{{ tarea.get('num_jugadores_max') }}{% endif %}
+            </span>
+            {% if tarea.get('num_porteros', 0) > 0 %}
+            <span class="metric-sub">+{{ tarea.get('num_porteros') }} POR</span>
+            {% endif %}
         </div>
         {% if tarea.get('espacio_largo') and tarea.get('espacio_ancho') %}
-        <div class="info-item">
-            <div class="info-label">Espacio</div>
-            <div class="info-value">{{ tarea.get('espacio_largo')|int }}x{{ tarea.get('espacio_ancho')|int }}m</div>
+        <div class="metric">
+            <span class="metric-label">Espacio</span>
+            <span class="metric-value">{{ tarea.get('espacio_largo')|int }}×{{ tarea.get('espacio_ancho')|int }}m</span>
+            {% if tarea.get('espacio_forma') %}
+            <span class="metric-sub">{{ tarea.get('espacio_forma') }}</span>
+            {% endif %}
         </div>
         {% endif %}
-    </div>
-
-    {% if tarea.get('estructura_equipos') %}
-    <div class="info-grid">
-        <div class="info-item" style="flex: 1 1 48%;">
-            <div class="info-label">Estructura</div>
-            <div class="info-value">{{ tarea.get('estructura_equipos') }}</div>
+        {% if tarea.get('estructura_equipos') %}
+        <div class="metric">
+            <span class="metric-label">Estructura</span>
+            <span class="metric-value" style="font-size: 10.5px;">{{ tarea.get('estructura_equipos') }}</span>
         </div>
+        {% endif %}
         {% if tarea.get('m2_por_jugador') %}
-        <div class="info-item" style="flex: 1 1 48%;">
-            <div class="info-label">m&sup2;/jugador</div>
-            <div class="info-value">{{ tarea.get('m2_por_jugador') }}</div>
+        <div class="metric">
+            <span class="metric-label">m²/jug</span>
+            <span class="metric-value">{{ tarea.get('m2_por_jugador') }}</span>
         </div>
         {% endif %}
     </div>
-    {% endif %}
 
-    {% if tarea.get('descripcion') %}
-    <div class="description">
-        <p>{{ tarea.get('descripcion') }}</p>
-    </div>
-    {% endif %}
+    <!-- ═══ MAIN GRID: campograma + descripción | sidebar táctica ═══ -->
+    <div class="main-grid">
 
-    {% if tarea.get('fase_juego') or tarea.get('principio_tactico') %}
-    <div class="tactical-box">
-        <h4>Contenido Táctico</h4>
-        <p>
-            {% if tarea.get('fase_juego') %}Fase: {{ tarea.get('fase_juego').replace('_', ' ') | capitalize }}{% endif %}
-            {% if tarea.get('principio_tactico') %} &rarr; {{ tarea.get('principio_tactico') }}{% endif %}
-            {% if tarea.get('subprincipio_tactico') %} &rarr; {{ tarea.get('subprincipio_tactico') }}{% endif %}
-        </p>
-    </div>
-    {% endif %}
-
-    {% set has_rules = tarea.get('reglas_tecnicas') or tarea.get('reglas_tacticas') %}
-    {% set has_coaching = tarea.get('consignas_ofensivas') or tarea.get('consignas_defensivas') %}
-
-    {% if has_rules or has_coaching %}
-    <div class="two-cols">
-        {% if has_rules %}
-        <div class="col">
-            <div class="section">
-                <div class="section-title">Reglas</div>
-                <ul>
-                    {% for r in tarea.get('reglas_tecnicas', []) %}
-                    <li>{{ r }}</li>
-                    {% endfor %}
-                    {% for r in tarea.get('reglas_tacticas', []) %}
-                    <li>{{ r }}</li>
-                    {% endfor %}
-                </ul>
+        <!-- LEFT: diagrama + descripción -->
+        <div class="col-diagram">
+            {% if tarea.get('grafico_svg') %}
+            <div class="diagram-box">{{ tarea.get('grafico_svg') | safe }}</div>
+            {% elif tarea.get('grafico_url') %}
+            <div class="diagram-box">
+                <img src="{{ tarea.get('grafico_url') }}" alt="Diagrama de tarea">
             </div>
-        </div>
-        {% endif %}
-
-        {% if has_coaching %}
-        <div class="col">
-            {% if tarea.get('consignas_ofensivas') %}
-            <div class="coaching-box">
-                <div class="coaching-title">Consignas Ofensivas</div>
-                <ul>
-                    {% for c in tarea.get('consignas_ofensivas', []) %}
-                    <li>{{ c }}</li>
-                    {% endfor %}
-                </ul>
+            {% else %}
+            <div class="diagram-box">
+                <div class="diagram-empty">
+                    <span class="icon">⬜</span>
+                    Sin diagrama
+                </div>
             </div>
             {% endif %}
-            {% if tarea.get('consignas_defensivas') %}
-            <div class="coaching-box">
-                <div class="coaching-title">Consignas Defensivas</div>
-                <ul>
-                    {% for c in tarea.get('consignas_defensivas', []) %}
-                    <li>{{ c }}</li>
+
+            {% if tarea.get('descripcion') %}
+            <div class="desc-box">{{ tarea.get('descripcion') }}</div>
+            {% endif %}
+        </div>
+
+        <!-- RIGHT: sidebar táctica -->
+        <div class="col-sidebar">
+
+            {% if tarea.get('fase_juego') or tarea.get('principio_tactico') or tarea.get('intencion_tactica') %}
+            <div class="sb-card">
+                <div class="sb-card-title">Contenido Táctico</div>
+                <div class="sb-row">
+                    {% if tarea.get('fase_juego') %}
+                    <div class="sb-item">
+                        <div class="sb-lbl">Fase</div>
+                        {{ tarea.get('fase_juego').replace('_', ' ') | title }}
+                    </div>
+                    {% endif %}
+                    {% if tarea.get('principio_tactico') %}
+                    <div class="sb-item">
+                        <div class="sb-lbl">Principio</div>
+                        {{ tarea.get('principio_tactico') }}
+                    </div>
+                    {% endif %}
+                    {% if tarea.get('subprincipio_tactico') %}
+                    <div class="sb-item">
+                        <div class="sb-lbl">Subprincipio</div>
+                        {{ tarea.get('subprincipio_tactico') }}
+                    </div>
+                    {% endif %}
+                    {% if tarea.get('intencion_tactica') %}
+                    <div class="sb-item">
+                        <div class="sb-lbl">Intención</div>
+                        {{ tarea.get('intencion_tactica') }}
+                    </div>
+                    {% endif %}
+                    {% if tarea.get('accion_tecnica') %}
+                    <div class="sb-item">
+                        <div class="sb-lbl">Acción técnica</div>
+                        {{ tarea.get('accion_tecnica') }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if tarea.get('objetivo_fisico') or tarea.get('objetivo_psicologico') %}
+            <div class="sb-card">
+                <div class="sb-card-title">Objetivos</div>
+                <div class="sb-row">
+                    {% if tarea.get('objetivo_fisico') %}
+                    <div class="sb-item">
+                        <div class="sb-lbl">Físico</div>
+                        {{ tarea.get('objetivo_fisico') }}
+                    </div>
+                    {% endif %}
+                    {% if tarea.get('objetivo_psicologico') %}
+                    <div class="sb-item">
+                        <div class="sb-lbl">Mental</div>
+                        {{ tarea.get('objetivo_psicologico') }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if tarea.get('tipo_esfuerzo') or tarea.get('fc_esperada_min') %}
+            <div class="sb-card">
+                <div class="sb-card-title">Carga Física</div>
+                <div class="sb-row">
+                    {% if tarea.get('tipo_esfuerzo') %}
+                    <div class="sb-item">
+                        <div class="sb-lbl">Tipo esfuerzo</div>
+                        {{ tarea.get('tipo_esfuerzo') }}
+                    </div>
+                    {% endif %}
+                    {% if tarea.get('fc_esperada_min') and tarea.get('fc_esperada_max') %}
+                    <div class="sb-item">
+                        <div class="sb-lbl">FC esperada</div>
+                        {{ tarea.get('fc_esperada_min') }}–{{ tarea.get('fc_esperada_max') }} bpm
+                    </div>
+                    {% endif %}
+                    {% if tarea.get('ratio_trabajo_descanso') %}
+                    <div class="sb-item">
+                        <div class="sb-lbl">Ratio T:D</div>
+                        {{ tarea.get('ratio_trabajo_descanso') }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if tarea.get('material') %}
+            <div class="sb-card">
+                <div class="sb-card-title">Material</div>
+                <div class="sb-row">
+                    {% for m in tarea.get('material', []) %}
+                    <div class="sb-item">• {{ m }}</div>
                     {% endfor %}
-                </ul>
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+
+    <!-- ═══ REGLAS ═══ -->
+    {% set reg_tec = tarea.get('reglas_tecnicas', []) or [] %}
+    {% set reg_tac = tarea.get('reglas_tacticas', []) or [] %}
+    {% set reg_psi = tarea.get('reglas_psicologicas', []) or [] %}
+    {% if reg_tec or reg_tac or reg_psi %}
+    <div class="fw-section">
+        <div class="section-header">Reglas</div>
+        <div class="cols-2">
+            {% if reg_tec %}
+            <div class="col">
+                <div class="col-sub">Técnicas</div>
+                <ul class="item-list">{% for r in reg_tec %}<li>{{ r }}</li>{% endfor %}</ul>
+            </div>
+            {% endif %}
+            {% if reg_tac %}
+            <div class="col">
+                <div class="col-sub">Tácticas</div>
+                <ul class="item-list">{% for r in reg_tac %}<li>{{ r }}</li>{% endfor %}</ul>
+            </div>
+            {% endif %}
+            {% if reg_psi %}
+            <div class="col">
+                <div class="col-sub">Psicológicas</div>
+                <ul class="item-list">{% for r in reg_psi %}<li>{{ r }}</li>{% endfor %}</ul>
             </div>
             {% endif %}
         </div>
-        {% endif %}
     </div>
     {% endif %}
 
-    {% if tarea.get('errores_comunes') %}
-    <div class="section">
-        <div class="section-title">Errores Comunes a Corregir</div>
-        <ul>
-            {% for e in tarea.get('errores_comunes', []) %}
-            <li>{{ e }}</li>
-            {% endfor %}
-        </ul>
+    <!-- ═══ CONSIGNAS ═══ -->
+    {% set cons_of = tarea.get('consignas_ofensivas', []) or [] %}
+    {% set cons_def = tarea.get('consignas_defensivas', []) or [] %}
+    {% if cons_of or cons_def %}
+    <div class="fw-section">
+        <div class="section-header">Consignas del Entrenador</div>
+        <div class="cols-2">
+            {% if cons_of %}
+            <div class="col">
+                <div class="col-sub">Ofensivas</div>
+                <ul class="item-list">{% for c in cons_of %}<li>{{ c }}</li>{% endfor %}</ul>
+            </div>
+            {% endif %}
+            {% if cons_def %}
+            <div class="col">
+                <div class="col-sub">Defensivas</div>
+                <ul class="item-list">{% for c in cons_def %}<li>{{ c }}</li>{% endfor %}</ul>
+            </div>
+            {% endif %}
+        </div>
     </div>
     {% endif %}
 
+    <!-- ═══ ERRORES + VARIANTES ═══ -->
+    {% set errores = tarea.get('errores_comunes', []) or [] %}
+    {% set variantes = tarea.get('variantes', []) or [] %}
+    {% set progresiones = tarea.get('progresiones', []) or [] %}
+    {% set regresiones = tarea.get('regresiones', []) or [] %}
+    {% if errores or variantes or progresiones or regresiones %}
+    <div class="fw-section">
+        <div class="cols-2">
+            {% if errores %}
+            <div class="col">
+                <div class="section-header">Errores Comunes</div>
+                <ul class="item-list" style="margin-top: 4px;">{% for e in errores %}<li>{{ e }}</li>{% endfor %}</ul>
+            </div>
+            {% endif %}
+            {% if variantes or progresiones or regresiones %}
+            <div class="col">
+                {% if variantes %}
+                <div class="section-header">Variantes</div>
+                <ul class="item-list" style="margin-top: 4px;">{% for v in variantes %}<li>{{ v }}</li>{% endfor %}</ul>
+                {% endif %}
+                {% if progresiones %}
+                <div class="col-sub" style="margin-top: 5px;">Progresiones</div>
+                <ul class="item-list">{% for p in progresiones %}<li>{{ p }}</li>{% endfor %}</ul>
+                {% endif %}
+                {% if regresiones %}
+                <div class="col-sub" style="margin-top: 5px;">Regresiones</div>
+                <ul class="item-list">{% for r in regresiones %}<li>{{ r }}</li>{% endfor %}</ul>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ═══ FOOTER ═══ -->
     <div class="footer">
-        Generado con Kabin-e &bull; {{ org_nombre }}
+        <span><span class="footer-brand">Kabin-e</span> Training Platform</span>
+        <span>{{ org_nombre }}</span>
+        <span>{{ tarea.get('created_at', '')[:10] if tarea.get('created_at') else '' }}</span>
     </div>
+
+</div>
 </body>
 </html>
