@@ -99,6 +99,22 @@ function dateToStr(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
+function getWeekBounds(week: ({ day: number; date: string; isToday: boolean } | null)[]) {
+  const firstCell = week.find(c => c !== null)
+  if (!firstCell) return null
+  const d = new Date(firstCell.date + 'T12:00:00')
+  const dow = d.getDay()
+  const daysSinceMonday = dow === 0 ? 6 : dow - 1
+  const monday = new Date(d)
+  monday.setDate(d.getDate() - daysSinceMonday)
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  return {
+    fechaInicio: monday.toISOString().split('T')[0],
+    fechaFin: sunday.toISOString().split('T')[0],
+  }
+}
+
 const MONTH_NAMES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
@@ -125,6 +141,7 @@ interface CalendarSectionProps {
   onToggleDescanso: (date: string) => void
   onDeleteDescanso: (id: string) => void
   onNavigate: (path: string) => void
+  onCreateMicrocicloForWeek: (fechaInicio: string, fechaFin: string) => void
 }
 
 export function CalendarSection({
@@ -146,6 +163,7 @@ export function CalendarSection({
   onToggleDescanso,
   onDeleteDescanso,
   onNavigate,
+  onCreateMicrocicloForWeek,
 }: CalendarSectionProps) {
   const isMobile = useIsMobile()
   const now = new Date()
@@ -315,17 +333,20 @@ export function CalendarSection({
         </CardHeader>
         <CardContent className="p-0 animate-fade-in">
           {/* Day headers */}
-          <div className="grid grid-cols-7 border-b bg-muted/30">
-            {DAY_NAMES.map((d, i) => (
-              <div
-                key={d}
-                className={`text-center text-[11px] font-semibold uppercase tracking-wider py-2 ${
-                  i >= 5 ? 'text-muted-foreground/60' : 'text-muted-foreground'
-                }`}
-              >
-                {isMobile ? d.charAt(0) : d}
-              </div>
-            ))}
+          <div className="flex border-b bg-muted/30">
+            <div className="hidden md:block w-6 shrink-0" />
+            <div className="flex-1 grid grid-cols-7">
+              {DAY_NAMES.map((d, i) => (
+                <div
+                  key={d}
+                  className={`text-center text-[11px] font-semibold uppercase tracking-wider py-2 ${
+                    i >= 5 ? 'text-muted-foreground/60' : 'text-muted-foreground'
+                  }`}
+                >
+                  {isMobile ? d.charAt(0) : d}
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* ===== MOBILE: Weekly strip view ===== */}
@@ -528,16 +549,48 @@ export function CalendarSection({
                 const weekMicro = microciclosMes.find(m =>
                   week.some(cell => cell !== null && cell.date >= m.fecha_inicio.slice(0, 10) && cell.date <= m.fecha_fin.slice(0, 10))
                 ) ?? null
-                const isWeekHovered = hoveredWeekIdx === weekIdx && weekMicro !== null
+                const isWeekHovered = hoveredWeekIdx === weekIdx && (weekMicro !== null)
+                const weekBounds = getWeekBounds(week)
+                const weekHasContent = week.some(cell =>
+                  cell !== null && (
+                    sesionesMes.some(s => isSameDay(s.fecha, cell.date)) ||
+                    partidosMes.some(p => isSameDay(p.fecha, cell.date))
+                  )
+                )
 
                 return (
                   <div
                     key={weekIdx}
-                    className={`grid grid-cols-7 relative ${weekMicro ? 'cursor-pointer' : ''}`}
+                    className="flex relative"
                     onMouseEnter={() => weekMicro && setHoveredWeekIdx(weekIdx)}
                     onMouseLeave={() => setHoveredWeekIdx(null)}
-                    onClick={() => { if (weekMicro) onNavigate(`/microciclos/${weekMicro.id}`) }}
                   >
+                    {/* LEFT SIDEBAR — microciclo bar */}
+                    <div className="hidden md:flex w-6 shrink-0 items-stretch py-0.5 justify-center">
+                      {weekMicro ? (
+                        <button
+                          className={`w-2.5 rounded-sm opacity-70 hover:opacity-100 transition-opacity ${MICRO_ESTADO_COLORS[weekMicro.estado]?.tab || 'bg-gray-500'}`}
+                          onClick={(e) => { e.stopPropagation(); onNavigate(`/microciclos/${weekMicro.id}`) }}
+                          title={`Ver microciclo (${weekMicro.estado})`}
+                        />
+                      ) : weekHasContent && weekBounds ? (
+                        <button
+                          className="w-2.5 rounded-sm bg-muted-foreground/15 hover:bg-primary/30 transition-colors flex items-center justify-center group/sidebar"
+                          onClick={(e) => { e.stopPropagation(); onCreateMicrocicloForWeek(weekBounds.fechaInicio, weekBounds.fechaFin) }}
+                          title="Crear microciclo para esta semana"
+                        >
+                          <Plus className="h-2 w-2 text-muted-foreground/40 group-hover/sidebar:text-primary/60" />
+                        </button>
+                      ) : (
+                        <div className="w-2.5" />
+                      )}
+                    </div>
+
+                    {/* WEEK GRID */}
+                    <div
+                      className={`flex-1 grid grid-cols-7 relative ${weekMicro ? 'cursor-pointer' : ''}`}
+                      onClick={() => { if (weekMicro) onNavigate(`/microciclos/${weekMicro.id}`) }}
+                    >
                     {/* Week border highlight */}
                     {isWeekHovered && (
                       <div className="absolute inset-0 border-2 border-primary/50 rounded pointer-events-none z-20 transition-opacity" />
@@ -838,7 +891,8 @@ export function CalendarSection({
                     </div>
                   )
                 })}
-              </div>
+                    </div> {/* end WEEK GRID */}
+                  </div> {/* end flex wrapper */}
                 )
               })}
 

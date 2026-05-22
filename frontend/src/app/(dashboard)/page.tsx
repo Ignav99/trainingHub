@@ -201,6 +201,23 @@ export default function DashboardPage() {
     }
   }
 
+  // ============ Create Microciclo for specific week (past or future) ============
+  const handleCreateMicroForWeek = async (fechaInicio: string, fechaFin: string) => {
+    if (!equipoActivo?.id) return
+    try {
+      const res = await microciclosApi.create({
+        equipo_id: equipoActivo.id,
+        fecha_inicio: fechaInicio,
+        fecha_fin: fechaFin,
+        estado: 'completado',
+      })
+      mutate((key: string) => typeof key === 'string' && key.includes('/microciclos'), undefined, { revalidate: true })
+      router.push(`/microciclos/${res.id}`)
+    } catch (err: any) {
+      toast.error(err.message || 'Error al crear microciclo')
+    }
+  }
+
   // ============ Descanso handlers ============
   const handleToggleDescanso = async (date: string) => {
     if (equipoId) {
@@ -261,6 +278,7 @@ export default function DashboardPage() {
         onToggleDescanso={handleToggleDescanso}
         onDeleteDescanso={handleDeleteDescanso}
         onNavigate={(path) => router.push(path)}
+        onCreateMicrocicloForWeek={handleCreateMicroForWeek}
       />
 
       {/* ============ SECTION 4: Action buttons ============ */}
