@@ -892,7 +892,7 @@ export function CalendarSection({
                   )
                 })}
                     </div> {/* end WEEK GRID */}
-                  </div> {/* end flex wrapper */}
+                  </div>
                 )
               })}
 
