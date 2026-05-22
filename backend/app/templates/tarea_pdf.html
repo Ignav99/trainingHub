@@ -432,8 +432,8 @@ body {
                 {{ grafico_svg_rendered | safe }}
                 {% elif tarea.get('grafico_svg') %}
                 {{ tarea.get('grafico_svg') | safe }}
-                {% elif tarea.get('grafico_url') %}
-                <img src="{{ tarea.get('grafico_url') }}" alt="Diagrama de tarea">
+                {% elif grafico_data_uri %}
+                <img src="{{ grafico_data_uri }}" alt="Diagrama de tarea">
                 {% else %}
                 <div class="diagram-empty">
                     ⬜<br>Sin diagrama

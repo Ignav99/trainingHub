@@ -160,7 +160,7 @@ export const tareasApi = {
   },
 
   async generatePdf(id: string): Promise<Blob> {
-    return api.getBlob(`/tareas/${id}/pdf`)
+    return api.getBlob(`/tareas/${id}/pdf`, { timeout: 90000 })
   },
 
   async generateDiagram(id: string): Promise<{ grafico_data: Record<string, any> }> {

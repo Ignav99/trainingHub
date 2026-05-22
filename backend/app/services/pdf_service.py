@@ -3,14 +3,33 @@ TrainingHub Pro - PDF Service
 Generación de PDFs profesionales con WeasyPrint + Jinja2.
 """
 
+import base64
 import logging
 import re
 from pathlib import Path
 from typing import Optional
 
+import httpx
 from jinja2 import Environment, FileSystemLoader
 
 logger = logging.getLogger(__name__)
+
+
+def _url_to_data_uri(url: str) -> str:
+    """Fetch an external URL and return a base64 data URI. Returns original URL on failure."""
+    if not url or url.startswith("data:"):
+        return url
+    try:
+        with httpx.Client(timeout=8.0) as client:
+            r = client.get(url)
+            r.raise_for_status()
+            content_type = r.headers.get("content-type", "image/png").split(";")[0]
+            b64 = base64.b64encode(r.content).decode()
+            return f"data:{content_type};base64,{b64}"
+    except Exception as e:
+        logger.warning(f"Could not pre-fetch image {url}: {e}")
+        return url
+
 
 # Directorio de templates
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
@@ -1085,15 +1104,24 @@ def generate_tarea_pdf(
         except Exception as e:
             logger.warning(f"Could not render tarea diagram SVG: {e}")
 
+    # Pre-fetch external images as base64 data URIs so WeasyPrint doesn't
+    # make slow HTTP requests during PDF rendering (saves ~25s in production).
+    raw_logo = organizacion.get("logo_url") or organizacion.get("logo") or ""
+    org_logo_data = _url_to_data_uri(raw_logo) if raw_logo else ""
+
+    raw_grafico = tarea.get("grafico_url") or ""
+    grafico_data_uri = _url_to_data_uri(raw_grafico) if raw_grafico and not grafico_svg_rendered else raw_grafico
+
     html_content = template.render(
         tarea=tarea,
         color_primario=color,
         org_nombre=organizacion.get("nombre", "TrainingHub Pro"),
-        org_logo_url=organizacion.get("logo_url") or organizacion.get("logo") or "",
+        org_logo_url=org_logo_data,
         categoria_nombre=categoria.get("nombre", ""),
         categoria_codigo=categoria.get("codigo", ""),
         equipo_nombre=equipo_nombre,
         grafico_svg_rendered=grafico_svg_rendered,
+        grafico_data_uri=grafico_data_uri,
     )
 
     try:
