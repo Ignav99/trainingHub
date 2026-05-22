@@ -181,14 +181,17 @@ async def get_microciclo_completo(
             if sid:
                 if sid not in por_sesion:
                     por_sesion[sid] = {"rpe_vals": [], "count": 0}
-                por_sesion[sid]["rpe_vals"].append(r["rpe"])
+                if r["rpe"] is not None:
+                    por_sesion[sid]["rpe_vals"].append(r["rpe"])
                 por_sesion[sid]["count"] += 1
-            all_rpe.append(r["rpe"])
+            if r["rpe"] is not None:
+                all_rpe.append(r["rpe"])
 
         registros_por_sesion = {}
         for sid, data in por_sesion.items():
+            vals = data["rpe_vals"]
             registros_por_sesion[sid] = {
-                "rpe_promedio": round(sum(data["rpe_vals"]) / len(data["rpe_vals"]), 1),
+                "rpe_promedio": round(sum(vals) / len(vals), 1) if vals else None,
                 "num_registros": data["count"],
             }
 
