@@ -1076,6 +1076,15 @@ def generate_tarea_pdf(
     color = organizacion.get("color_primario", "#1a365d")
     categoria = tarea.get("categorias_tarea", {}) or {}
 
+    # Render diagram SVG from grafico_data if available
+    grafico_svg_rendered = tarea.get("grafico_svg") or ""
+    if not grafico_svg_rendered and tarea.get("grafico_data"):
+        try:
+            from app.services.svg_renderer import render_diagram_svg
+            grafico_svg_rendered = render_diagram_svg(tarea["grafico_data"]) or ""
+        except Exception as e:
+            logger.warning(f"Could not render tarea diagram SVG: {e}")
+
     html_content = template.render(
         tarea=tarea,
         color_primario=color,
@@ -1084,6 +1093,7 @@ def generate_tarea_pdf(
         categoria_nombre=categoria.get("nombre", ""),
         categoria_codigo=categoria.get("codigo", ""),
         equipo_nombre=equipo_nombre,
+        grafico_svg_rendered=grafico_svg_rendered,
     )
 
     try:
