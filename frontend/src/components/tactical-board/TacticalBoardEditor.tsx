@@ -53,6 +53,7 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
   const pasteClipboard = useTacticalBoardStore((s) => s.pasteClipboard)
   const duplicateSelected = useTacticalBoardStore((s) => s.duplicateSelected)
   const nudgeSelected = useTacticalBoardStore((s) => s.nudgeSelected)
+  const setActiveTool = useTacticalBoardStore((s) => s.setActiveTool)
   const loadFormation = useTacticalBoardStore((s) => s.loadFormation)
 
   // Local interaction state
