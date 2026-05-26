@@ -43,6 +43,7 @@ interface TacticalBoardState {
   // Editor state
   activeTool: BoardTool
   selectedElementId: string | null
+  selectedElementIds: string[]
   isDirty: boolean
   saving: boolean
   zoneColor: string
@@ -64,6 +65,9 @@ interface TacticalBoardState {
   setTags: (tags: string[]) => void
   setActiveTool: (tool: BoardTool) => void
   setSelectedElementId: (id: string | null) => void
+  setSelectedElementIds: (ids: string[]) => void
+  addToSelection: (id: string) => void
+  selectAll: () => void
   setZoneColor: (color: string) => void
   setSaving: (saving: boolean) => void
   setIsPlaying: (playing: boolean) => void
@@ -72,6 +76,7 @@ interface TacticalBoardState {
   // Actions: diagram mutations
   addElement: (el: DiagramElement) => void
   updateElementPosition: (id: string, x: number, y: number) => void
+  moveSelectedBy: (dx: number, dy: number) => void
   updateElementColor: (id: string, color: string) => void
   updateElementRotation: (id: string, rotation: number) => void
   updateElementLabel: (id: string, label: string) => void
@@ -132,6 +137,7 @@ const initialState = {
   isPlaying: false,
   activeTool: 'select' as BoardTool,
   selectedElementId: null as string | null,
+  selectedElementIds: [] as string[],
   isDirty: false,
   saving: false,
   zoneColor: '#3B82F6',
@@ -151,8 +157,23 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
   setTipo: (tipo) => set({ tipo, isDirty: true }),
   setPitchType: (pitchType) => set({ pitchType, isDirty: true }),
   setTags: (tags) => set({ tags, isDirty: true }),
-  setActiveTool: (activeTool) => set({ activeTool, selectedElementId: null }),
-  setSelectedElementId: (selectedElementId) => set({ selectedElementId }),
+  setActiveTool: (activeTool) => set({ activeTool, selectedElementId: null, selectedElementIds: [] }),
+  setSelectedElementId: (selectedElementId) => set({ selectedElementId, selectedElementIds: [] }),
+  setSelectedElementIds: (ids) => set({
+    selectedElementIds: ids,
+    selectedElementId: ids.length === 1 ? ids[0] : null,
+  }),
+  addToSelection: (id) => set((s) => {
+    const newIds = s.selectedElementIds.includes(id)
+      ? s.selectedElementIds.filter((i) => i !== id)
+      : [...s.selectedElementIds, id]
+    return { selectedElementIds: newIds, selectedElementId: newIds.length === 1 ? newIds[0] : null }
+  }),
+  selectAll: () => {
+    const { elements, arrows, zones } = get()
+    const ids = [...elements.map((e) => e.id), ...arrows.map((a) => a.id), ...zones.map((z) => z.id)]
+    set({ selectedElementIds: ids, selectedElementId: null })
+  },
   setZoneColor: (zoneColor) => set({ zoneColor }),
   setSaving: (saving) => set({ saving }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),
@@ -178,6 +199,29 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
     set((s) => ({
       elements: s.elements.map((el) =>
         el.id === id ? { ...el, position: { x, y } } : el
+      ),
+      isDirty: true,
+    }))
+  },
+
+  moveSelectedBy: (dx, dy) => {
+    const { selectedElementIds } = get()
+    if (selectedElementIds.length === 0 || (dx === 0 && dy === 0)) return
+    set((s) => ({
+      elements: s.elements.map((el) =>
+        selectedElementIds.includes(el.id)
+          ? { ...el, position: { x: el.position.x + dx, y: el.position.y + dy } }
+          : el
+      ),
+      arrows: s.arrows.map((ar) =>
+        selectedElementIds.includes(ar.id)
+          ? { ...ar, from: { x: ar.from.x + dx, y: ar.from.y + dy }, to: { x: ar.to.x + dx, y: ar.to.y + dy } }
+          : ar
+      ),
+      zones: s.zones.map((z) =>
+        selectedElementIds.includes(z.id)
+          ? { ...z, position: { x: z.position.x + dx, y: z.position.y + dy } }
+          : z
       ),
       isDirty: true,
     }))
@@ -276,14 +320,16 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
   },
 
   deleteSelected: () => {
-    const { selectedElementId } = get()
-    if (!selectedElementId) return
+    const { selectedElementId, selectedElementIds } = get()
+    const idsToDelete = new Set([...selectedElementIds, ...(selectedElementId ? [selectedElementId] : [])])
+    if (idsToDelete.size === 0) return
     get().pushHistory()
     set((s) => ({
-      elements: s.elements.filter((el) => el.id !== selectedElementId),
-      arrows: s.arrows.filter((ar) => ar.id !== selectedElementId),
-      zones: s.zones.filter((z) => z.id !== selectedElementId),
+      elements: s.elements.filter((el) => !idsToDelete.has(el.id)),
+      arrows: s.arrows.filter((ar) => !idsToDelete.has(ar.id)),
+      zones: s.zones.filter((z) => !idsToDelete.has(z.id)),
       selectedElementId: null,
+      selectedElementIds: [],
       isDirty: true,
     }))
   },
@@ -603,6 +649,7 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
       saving: false,
       activeTool: 'select',
       selectedElementId: null,
+      selectedElementIds: [],
       history: [],
       historyIndex: -1,
       playerCounter: { team1: 1, team2: 1, gk: 1 },
