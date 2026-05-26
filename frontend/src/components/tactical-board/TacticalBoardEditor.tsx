@@ -60,6 +60,7 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
   const nudgeSelected = useTacticalBoardStore((s) => s.nudgeSelected)
   const setActiveTool = useTacticalBoardStore((s) => s.setActiveTool)
   const loadFormation = useTacticalBoardStore((s) => s.loadFormation)
+  const updateElementLabel = useTacticalBoardStore((s) => s.updateElementLabel)
 
   // Local interaction state
   const [isDragging, setIsDragging] = useState(false)
@@ -86,6 +87,11 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
 
   // Animation overlay state (during playback, we render these instead of store state)
   const [animState, setAnimState] = useState<AnimationState | null>(null)
+
+  // Inline text editing
+  const [editingTextId, setEditingTextId] = useState<string | null>(null)
+  const [editingTextValue, setEditingTextValue] = useState('')
+  const inlineInputRef = useRef<HTMLInputElement>(null)
 
   // Ref guard: prevents pitch click from clearing selection when an element was just interacted with
   const elementInteractionRef = useRef(false)
@@ -275,13 +281,21 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
     // Text tool
     if (activeTool === 'text') {
       pushHistory()
+      const newTextId = generateId()
       addElement({
-        id: generateId(),
+        id: newTextId,
         type: 'text',
         position: pos,
         label: 'Texto',
         color: '#FFFFFF',
       })
+      setSelectedElementId(newTextId)
+      setEditingTextId(newTextId)
+      setEditingTextValue('Texto')
+      setTimeout(() => {
+        inlineInputRef.current?.focus()
+        inlineInputRef.current?.select()
+      }, 30)
       return
     }
 
@@ -559,6 +573,27 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
     setSelectedElementId(elementId)
   }, [pushHistory, setSelectedElementId])
 
+  // Inline text editing helpers
+  const startEditingText = useCallback((element: DiagramElement) => {
+    if (isPlaying) return
+    setEditingTextId(element.id)
+    setEditingTextValue(element.label || '')
+    setTimeout(() => {
+      inlineInputRef.current?.focus()
+      inlineInputRef.current?.select()
+    }, 20)
+  }, [isPlaying])
+
+  const commitTextEdit = useCallback(() => {
+    if (!editingTextId) return
+    updateElementLabel(editingTextId, editingTextValue || 'Texto')
+    setEditingTextId(null)
+  }, [editingTextId, editingTextValue, updateElementLabel])
+
+  const cancelTextEdit = useCallback(() => {
+    setEditingTextId(null)
+  }, [])
+
   // ============ Renderers ============
 
   const renderElement = (element: DiagramElement) => {
@@ -613,15 +648,55 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
         )
       case 'text': {
         const fontSize = element.size || 13
-        const textWidth = Math.max(40, (label || 'Texto').length * fontSize * 0.6)
+        const currentLabel = editingTextId === id ? editingTextValue : (label || 'Texto')
+        const textWidth = Math.max(80, currentLabel.length * fontSize * 0.6 + 24)
+        const isEditing = editingTextId === id
         return (
-          <g {...commonProps} transform={`translate(${position.x}, ${position.y})`}>
-            {isSelected && (
+          <g
+            {...commonProps}
+            transform={`translate(${position.x}, ${position.y})`}
+            onDoubleClick={(e) => { e.stopPropagation(); startEditingText(element) }}
+            style={{ cursor: isPlaying ? 'default' : isEditing ? 'text' : 'move' }}
+          >
+            {isSelected && !isEditing && (
               <rect x={-textWidth / 2 - 4} y={-fontSize / 2 - 4} width={textWidth + 8} height={fontSize + 8} fill="none" stroke="#FFFF00" strokeWidth="1.5" strokeDasharray="4,2" rx="3" />
             )}
-            <text x="0" y="1" textAnchor="middle" dominantBaseline="middle" fill={color || '#FFFFFF'} fontSize={fontSize} fontWeight="bold" fontFamily="Arial">
-              {label || 'Texto'}
-            </text>
+            {isEditing ? (
+              <foreignObject x={-textWidth / 2 - 4} y={-fontSize / 2 - 6} width={textWidth + 8} height={fontSize + 12}>
+                <input
+                  ref={inlineInputRef}
+                  value={editingTextValue}
+                  onChange={(e) => setEditingTextValue(e.target.value)}
+                  onBlur={commitTextEdit}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); commitTextEdit() }
+                    if (e.key === 'Escape') { e.preventDefault(); cancelTextEdit() }
+                    e.stopPropagation()
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    background: 'rgba(0,0,0,0.75)',
+                    color: color || '#FFFFFF',
+                    border: '1.5px solid #FFFF00',
+                    borderRadius: '3px',
+                    fontSize: `${fontSize}px`,
+                    fontWeight: 'bold',
+                    fontFamily: 'Arial',
+                    textAlign: 'center',
+                    outline: 'none',
+                    padding: '0 4px',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </foreignObject>
+            ) : (
+              <text x="0" y="1" textAnchor="middle" dominantBaseline="middle" fill={color || '#FFFFFF'} fontSize={fontSize} fontWeight="bold" fontFamily="Arial">
+                {label || 'Texto'}
+              </text>
+            )}
           </g>
         )
       }
