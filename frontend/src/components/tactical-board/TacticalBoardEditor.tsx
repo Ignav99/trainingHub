@@ -77,9 +77,16 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
 
   const gRef = useRef<SVGGElement>(null)
   const svgRef = useRef<SVGSVGElement | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     if (gRef.current) svgRef.current = gRef.current.ownerSVGElement || null
   })
+
+  // Focus the container on mount so keyboard shortcuts work immediately
+  useEffect(() => {
+    containerRef.current?.focus()
+  }, [])
 
   const isAnimated = tipo === 'animated'
   const isHorizontal = pitchType === 'full'
@@ -630,7 +637,7 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div ref={containerRef} tabIndex={0} className="flex flex-col h-full outline-none">
       {/* Top bar */}
       <div className="flex items-center gap-3 px-4 py-2 border-b border-gray-200 bg-white flex-shrink-0">
         <button onClick={onCancel} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
@@ -641,7 +648,6 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
           onChange={(e) => setNombre(e.target.value)}
           placeholder="Nombre de la pizarra..."
           className="flex-1 text-lg font-bold text-gray-900 bg-transparent border-none outline-none placeholder-gray-300"
-          autoFocus
         />
         <div className="flex items-center gap-2 flex-shrink-0">
           <select
@@ -698,6 +704,7 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={() => { setIsDragging(false); setZoneDragStart(null); setZoneDragCurrent(null); setDraggingEndpoint(null); setIsRotating(false); setDraggingZoneId(null) }}
+        onClick={() => containerRef.current?.focus()}
       >
         <ABPPitch
           type={pitchType}
