@@ -78,6 +78,9 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
   // Marquee (rubber-band) selection
   const [marqueeStart, setMarqueeStart] = useState<Position | null>(null)
   const [marqueeEnd, setMarqueeEnd] = useState<Position | null>(null)
+  // Ref-based marquee tracking (avoids stale closure issues with React state)
+  const marqueeStartRef = useRef<Position | null>(null)
+  const marqueeEndRef = useRef<Position | null>(null)
   // Multi-drag
   const lastDragPosRef = useRef<Position | null>(null)
   // Copy/paste clipboard
@@ -339,6 +342,9 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
     }
     // Start marquee in select mode
     if (activeTool === 'select') {
+      e.preventDefault()
+      marqueeStartRef.current = pos
+      marqueeEndRef.current = pos
       setMarqueeStart(pos)
       setMarqueeEnd(pos)
     }
@@ -379,9 +385,11 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
       return
     }
 
-    // Marquee update
-    if (marqueeStart && activeTool === 'select') {
-      setMarqueeEnd(getSvgPosition(e))
+    // Marquee update — use ref (avoids stale closure: marqueeStart state may lag one render)
+    if (marqueeStartRef.current && activeTool === 'select') {
+      const pos = getSvgPosition(e)
+      marqueeEndRef.current = pos
+      setMarqueeEnd(pos)
       return
     }
 
@@ -401,7 +409,7 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
     const pos = getSvgPosition(e)
     if (pos.x === 0 && pos.y === 0) return
     updateElementPosition(selectedElementId, pos.x, pos.y)
-  }, [isDragging, selectedElementId, selectedElementIds, getSvgPosition, zoneDragStart, activeTool, updateElementPosition, isPlaying, draggingEndpoint, updateArrowEndpoint, isRotating, elements, updateElementRotation, draggingZoneId, zoneDragOffset, updateZonePosition, marqueeStart, moveSelectedBy])
+  }, [isDragging, selectedElementId, selectedElementIds, getSvgPosition, zoneDragStart, activeTool, updateElementPosition, isPlaying, draggingEndpoint, updateArrowEndpoint, isRotating, elements, updateElementRotation, draggingZoneId, zoneDragOffset, updateZonePosition, moveSelectedBy])
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     if (isPlaying) return
@@ -447,13 +455,17 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
       return
     }
 
-    // Marquee finalize
-    if (marqueeStart && activeTool === 'select') {
-      const end = marqueeEnd || marqueeStart
-      const minX = Math.min(marqueeStart.x, end.x)
-      const maxX = Math.max(marqueeStart.x, end.x)
-      const minY = Math.min(marqueeStart.y, end.y)
-      const maxY = Math.max(marqueeStart.y, end.y)
+    // Marquee finalize — use refs (always current, no stale closure risk)
+    if (marqueeStartRef.current && activeTool === 'select') {
+      const start = marqueeStartRef.current
+      const end = marqueeEndRef.current || start
+      marqueeStartRef.current = null
+      marqueeEndRef.current = null
+
+      const minX = Math.min(start.x, end.x)
+      const maxX = Math.max(start.x, end.x)
+      const minY = Math.min(start.y, end.y)
+      const maxY = Math.max(start.y, end.y)
 
       if (maxX - minX > 5 && maxY - minY > 5) {
         const selectedIds: string[] = []
@@ -482,7 +494,7 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
 
     setIsDragging(false)
     lastDragPosRef.current = null
-  }, [zoneDragStart, zoneDragCurrent, activeTool, getSvgPosition, zoneColor, pushHistory, addZone, isPlaying, draggingEndpoint, isRotating, draggingZoneId, marqueeStart, marqueeEnd, elements, zones, setSelectedElementIds])
+  }, [zoneDragStart, zoneDragCurrent, activeTool, getSvgPosition, zoneColor, pushHistory, addZone, isPlaying, draggingEndpoint, isRotating, draggingZoneId, elements, zones, setSelectedElementIds])
 
   const handleElementMouseDown = useCallback((e: React.MouseEvent, elementId: string) => {
     if (isPlaying) return
@@ -902,7 +914,7 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
         className="flex-1 min-h-0 bg-green-900 overflow-hidden relative"
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={() => { setIsDragging(false); setZoneDragStart(null); setZoneDragCurrent(null); setDraggingEndpoint(null); setIsRotating(false); setDraggingZoneId(null); setMarqueeStart(null); setMarqueeEnd(null); lastDragPosRef.current = null }}
+        onMouseLeave={() => { setIsDragging(false); setZoneDragStart(null); setZoneDragCurrent(null); setDraggingEndpoint(null); setIsRotating(false); setDraggingZoneId(null); marqueeStartRef.current = null; marqueeEndRef.current = null; setMarqueeStart(null); setMarqueeEnd(null); lastDragPosRef.current = null }}
         onClick={() => containerRef.current?.focus()}
       >
         <ABPPitch
