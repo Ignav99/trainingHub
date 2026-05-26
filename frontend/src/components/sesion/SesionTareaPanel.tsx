@@ -22,10 +22,9 @@ import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { TacticalBoardMini } from '@/components/task-preview'
-import TareaGraphicEditor from '@/components/tarea-editor/TareaGraphicEditor'
-import { emptyDiagramData } from '@/components/tarea-editor/types'
+import TacticalBoardEditor from '@/components/tactical-board/TacticalBoardEditor'
+import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
 import type { SesionTarea } from '@/types'
 
 // ---- Types ----
@@ -118,6 +117,47 @@ export default function SesionTareaPanel({
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [boardEditing, setBoardEditing] = useState(false)
   const [saving, setSaving] = useState(false)
+
+  const handleOpenBoard = useCallback(() => {
+    const grafico = formRef.current.grafico_data as any
+    useTacticalBoardStore.getState().loadBoard({
+      id: null,
+      nombre: 'Tarea',
+      descripcion: '',
+      tipo: 'static',
+      pitch_type: grafico?.pitchType || 'full',
+      elements: grafico?.elements || [],
+      arrows: grafico?.arrows || [],
+      zones: grafico?.zones || [],
+      frames: [],
+    })
+    setBoardEditing(true)
+  }, [])
+
+  const handleBoardSave = useCallback(async () => {
+    const s = useTacticalBoardStore.getState()
+    const newForm = {
+      ...formRef.current,
+      grafico_data: {
+        pitchType: s.pitchType,
+        elements: s.elements,
+        arrows: s.arrows,
+        zones: s.zones,
+      },
+    }
+    setForm(newForm)
+    dirtyRef.current = false
+    setSaving(true)
+    try {
+      await onSaveEdit(newForm)
+    } catch {
+      // handled in onSaveEdit
+    } finally {
+      setSaving(false)
+    }
+    setBoardEditing(false)
+    useTacticalBoardStore.getState().reset()
+  }, [onSaveEdit])
   const [aiInstruction, setAiInstruction] = useState('')
   const [aiProcessing, setAiProcessing] = useState(false)
   const dirtyRef = useRef(false)
@@ -258,7 +298,7 @@ export default function SesionTareaPanel({
           {/* Always show mini preview — click opens fullscreen modal */}
           <div
             className="w-full h-[220px] rounded-lg overflow-hidden border border-border/40 cursor-pointer relative group"
-            onClick={() => setBoardEditing(true)}
+            onClick={handleOpenBoard}
           >
             <TacticalBoardMini
               data={form.grafico_data as any}
@@ -272,21 +312,15 @@ export default function SesionTareaPanel({
             </div>
           </div>
 
-          {/* Fullscreen tactical board editor modal */}
-          <Dialog open={boardEditing} onOpenChange={setBoardEditing}>
-            <DialogContent className="max-w-[95vw] w-[95vw] h-[92vh] max-h-[92vh] p-0 flex flex-col">
-              <DialogHeader className="px-4 py-3 border-b shrink-0">
-                <DialogTitle className="text-sm font-semibold">Pizarra táctica</DialogTitle>
-              </DialogHeader>
-              <div className="flex-1 overflow-hidden">
-                <TareaGraphicEditor
-                  value={form.grafico_data || emptyDiagramData}
-                  onChange={handleBoardChange}
-                  readOnly={false}
-                />
-              </div>
-            </DialogContent>
-          </Dialog>
+          {/* Fullscreen tactical board editor — igual que en herramientas/pizarra-tactica */}
+          {boardEditing && (
+            <div className="fixed inset-0 z-50 bg-white flex flex-col">
+              <TacticalBoardEditor
+                onSave={handleBoardSave}
+                onCancel={() => { setBoardEditing(false); useTacticalBoardStore.getState().reset() }}
+              />
+            </div>
+          )}
 
           {/* Spaces + series under board — stat chips */}
           <div className="mt-2 grid grid-cols-2 gap-2">

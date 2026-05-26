@@ -293,7 +293,6 @@ export default function TareaGraphicEditor({
 
   // Manejar click en el campo
   const handlePitchClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    addDebug(`pitchClick | target=${(e.target as Element).tagName} | tool=${selectedTool}`)
     if (readOnly) return
     const pos = getSvgPosition(e)
 
@@ -413,15 +412,8 @@ export default function TareaGraphicEditor({
     }
   }
 
-  // Debug log state
-  const [debugLog, setDebugLog] = useState<string[]>([])
-  const addDebug = (msg: string) => {
-    setDebugLog(prev => [...prev.slice(-9), `${new Date().toLocaleTimeString()}: ${msg}`])
-  }
-
   // Manejar drag de elemento
   const handleElementMouseDown = (e: React.MouseEvent, elementId: string) => {
-    addDebug(`mouseDown on "${elementId}" | readOnly=${readOnly} | tool=${selectedTool}`)
     if (readOnly) return
     e.preventDefault()
     e.stopPropagation()
@@ -429,7 +421,6 @@ export default function TareaGraphicEditor({
     if (selectedTool === 'select') {
       dragStartDataRef.current = data // snapshot for undo
       setIsDragging(true)
-      addDebug(`DRAG START: element=${elementId}`)
     }
   }
 
@@ -983,13 +974,6 @@ export default function TareaGraphicEditor({
 
       {/* Info */}
       {info}
-
-      {/* Debug panel — REMOVE after fixing */}
-      <div className="mt-2 p-3 bg-gray-900 rounded-lg text-xs font-mono text-green-400 max-h-48 overflow-auto">
-        <div className="font-bold text-yellow-400 mb-1">DEBUG: readOnly={String(readOnly)} | tool={selectedTool} | selected={selectedElement || 'none'} | dragging={String(isDragging)} | elements={data.elements.length}</div>
-        {debugLog.length === 0 && <div className="text-gray-500">Haz click en un elemento para ver los eventos...</div>}
-        {debugLog.map((log, i) => <div key={i}>{log}</div>)}
-      </div>
     </div>
   )
 }
