@@ -16,6 +16,11 @@ import {
 } from '@/components/tactical-board/types'
 import { FORMATIONS } from '@/lib/formations'
 
+type ClipboardItem =
+  | { kind: 'element'; data: DiagramElement }
+  | { kind: 'arrow'; data: DiagramArrow }
+  | { kind: 'zone'; data: DiagramZone }
+
 interface TacticalBoardState {
   // Board identity
   boardId: string | null
@@ -47,6 +52,9 @@ interface TacticalBoardState {
   // Undo/Redo
   history: DiagramSnapshot[]
   historyIndex: number
+
+  // Clipboard
+  clipboard: ClipboardItem | null
 
   // Actions: state setters
   setNombre: (nombre: string) => void
@@ -84,6 +92,12 @@ interface TacticalBoardState {
   pushHistory: () => void
   undo: () => void
   redo: () => void
+
+  // Actions: clipboard + nudge
+  copySelected: () => void
+  pasteClipboard: () => void
+  duplicateSelected: () => void
+  nudgeSelected: (dx: number, dy: number) => void
 
   // Actions: formations
   loadFormation: (formationName: string, team: 'home' | 'away') => void
@@ -125,6 +139,7 @@ const initialState = {
   arrowCounter: 1,
   history: [] as DiagramSnapshot[],
   historyIndex: -1,
+  clipboard: null as ClipboardItem | null,
 }
 
 export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
@@ -327,6 +342,86 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
       arrows: snap.arrows,
       zones: snap.zones,
     })
+  },
+
+  // Clipboard + nudge
+  copySelected: () => {
+    const { selectedElementId, elements, arrows, zones } = get()
+    if (!selectedElementId) return
+    const element = elements.find((e) => e.id === selectedElementId)
+    if (element) { set({ clipboard: { kind: 'element', data: element } }); return }
+    const arrow = arrows.find((a) => a.id === selectedElementId)
+    if (arrow) { set({ clipboard: { kind: 'arrow', data: arrow } }); return }
+    const zone = zones.find((z) => z.id === selectedElementId)
+    if (zone) { set({ clipboard: { kind: 'zone', data: zone } }); return }
+  },
+
+  pasteClipboard: () => {
+    const { clipboard } = get()
+    if (!clipboard) return
+    get().pushHistory()
+    const OFFSET = 20
+    if (clipboard.kind === 'element') {
+      const el = clipboard.data
+      const newEl: DiagramElement = { ...el, id: generateId(), position: { x: el.position.x + OFFSET, y: el.position.y + OFFSET } }
+      set((s) => ({ elements: [...s.elements, newEl], selectedElementId: newEl.id, isDirty: true, activeTool: 'select' }))
+    } else if (clipboard.kind === 'arrow') {
+      const ar = clipboard.data
+      const newAr: DiagramArrow = { ...ar, id: generateId(), from: { x: ar.from.x + OFFSET, y: ar.from.y + OFFSET }, to: { x: ar.to.x + OFFSET, y: ar.to.y + OFFSET } }
+      set((s) => ({ arrows: [...s.arrows, newAr], selectedElementId: newAr.id, isDirty: true, activeTool: 'select' }))
+    } else if (clipboard.kind === 'zone') {
+      const z = clipboard.data
+      const newZ: DiagramZone = { ...z, id: generateId(), position: { x: z.position.x + OFFSET, y: z.position.y + OFFSET } }
+      set((s) => ({ zones: [...s.zones, newZ], selectedElementId: newZ.id, isDirty: true, activeTool: 'select' }))
+    }
+  },
+
+  duplicateSelected: () => {
+    const { selectedElementId, elements, arrows, zones } = get()
+    if (!selectedElementId) return
+    get().pushHistory()
+    const OFFSET = 20
+    const element = elements.find((e) => e.id === selectedElementId)
+    if (element) {
+      const newEl: DiagramElement = { ...element, id: generateId(), position: { x: element.position.x + OFFSET, y: element.position.y + OFFSET } }
+      set((s) => ({ elements: [...s.elements, newEl], selectedElementId: newEl.id, isDirty: true }))
+      return
+    }
+    const arrow = arrows.find((a) => a.id === selectedElementId)
+    if (arrow) {
+      const newAr: DiagramArrow = { ...arrow, id: generateId(), from: { x: arrow.from.x + OFFSET, y: arrow.from.y + OFFSET }, to: { x: arrow.to.x + OFFSET, y: arrow.to.y + OFFSET } }
+      set((s) => ({ arrows: [...s.arrows, newAr], selectedElementId: newAr.id, isDirty: true }))
+      return
+    }
+    const zone = zones.find((z) => z.id === selectedElementId)
+    if (zone) {
+      const newZ: DiagramZone = { ...zone, id: generateId(), position: { x: zone.position.x + OFFSET, y: zone.position.y + OFFSET } }
+      set((s) => ({ zones: [...s.zones, newZ], selectedElementId: newZ.id, isDirty: true }))
+    }
+  },
+
+  nudgeSelected: (dx, dy) => {
+    const { selectedElementId, elements, zones } = get()
+    if (!selectedElementId) return
+    const element = elements.find((e) => e.id === selectedElementId)
+    if (element) {
+      set((s) => ({
+        elements: s.elements.map((el) =>
+          el.id === selectedElementId ? { ...el, position: { x: el.position.x + dx, y: el.position.y + dy } } : el
+        ),
+        isDirty: true,
+      }))
+      return
+    }
+    const zone = zones.find((z) => z.id === selectedElementId)
+    if (zone) {
+      set((s) => ({
+        zones: s.zones.map((z) =>
+          z.id === selectedElementId ? { ...z, position: { x: z.position.x + dx, y: z.position.y + dy } } : z
+        ),
+        isDirty: true,
+      }))
+    }
   },
 
   // Formations

@@ -49,6 +49,10 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
   const pushHistory = useTacticalBoardStore((s) => s.pushHistory)
   const undo = useTacticalBoardStore((s) => s.undo)
   const redo = useTacticalBoardStore((s) => s.redo)
+  const copySelected = useTacticalBoardStore((s) => s.copySelected)
+  const pasteClipboard = useTacticalBoardStore((s) => s.pasteClipboard)
+  const duplicateSelected = useTacticalBoardStore((s) => s.duplicateSelected)
+  const nudgeSelected = useTacticalBoardStore((s) => s.nudgeSelected)
   const loadFormation = useTacticalBoardStore((s) => s.loadFormation)
 
   // Local interaction state
@@ -119,10 +123,40 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
         redo()
         return
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        e.preventDefault()
+        copySelected()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+        e.preventDefault()
+        pasteClipboard()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+        e.preventDefault()
+        duplicateSelected()
+        return
+      }
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        if (selectedElementId) {
+          e.preventDefault()
+          const step = e.shiftKey ? 10 : 1
+          if (e.key === 'ArrowUp') nudgeSelected(0, -step)
+          else if (e.key === 'ArrowDown') nudgeSelected(0, step)
+          else if (e.key === 'ArrowLeft') nudgeSelected(-step, 0)
+          else nudgeSelected(step, 0)
+          return
+        }
+      }
+      if (e.key === 'v' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        setActiveTool('select')
+        return
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [deleteSelected, undo, redo, setSelectedElementId, isPlaying])
+  }, [deleteSelected, undo, redo, setSelectedElementId, copySelected, pasteClipboard, duplicateSelected, nudgeSelected, setActiveTool, selectedElementId, isPlaying])
 
   // SVG coordinate conversion
   const getSvgPosition = useCallback((e: React.MouseEvent): Position => {
