@@ -686,19 +686,29 @@ export function MatchDetailPanel({
   return (
     <div className="animate-fade-in">
       {/* Match header */}
-      <div className="mb-4">
-        <h2 className="text-lg font-bold flex items-center gap-2">
-          {selectedPartido.rival?.escudo_url && (
-            <Image src={selectedPartido.rival.escudo_url} alt="" width={24} height={24} className="object-contain" unoptimized />
-          )}
-          {selectedPartido.localia === 'local' ? 'vs' : '@'}{' '}
-          {(selectedPartido as any).rival?.nombre || 'Rival'}
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          {formatDate(selectedPartido.fecha)}
-          {selectedPartido.competicion && ` · ${selectedPartido.competicion}`}
-          {selectedPartido.jornada && ` · J${selectedPartido.jornada}`}
-        </p>
+      <div className="mb-4 flex items-start justify-between gap-2">
+        <div>
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            {selectedPartido.rival?.escudo_url && (
+              <Image src={selectedPartido.rival.escudo_url} alt="" width={24} height={24} className="object-contain" unoptimized />
+            )}
+            {selectedPartido.localia === 'local' ? 'vs' : '@'}{' '}
+            {(selectedPartido as any).rival?.nombre || 'Rival'}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {formatDate(selectedPartido.fecha)}
+            {selectedPartido.competicion && ` · ${selectedPartido.competicion}`}
+            {selectedPartido.jornada && ` · J${selectedPartido.jornada}`}
+          </p>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <Button variant="outline" size="icon" onClick={handleOpenEdit}>
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="icon" onClick={() => setShowDelete(true)} className="text-destructive">
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       <Tabs value={tabParam} onValueChange={onSetTab}>
