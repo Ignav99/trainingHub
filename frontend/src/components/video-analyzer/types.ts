@@ -73,3 +73,29 @@ export interface CodeEvent {
   endTime: number     // timestamp + postRoll
   notes?: string
 }
+
+// ─── Botonera (Tactical Button Groups) ────────────────────────────────────
+
+export interface Botonera {
+  id: string
+  name: string                   // "Ataque", "Defensa", etc.
+  buttons: CodeButton[]          // reusa el type existente
+  color: string                  // color de la fila en el Timeline
+}
+
+export type WindowType = 'botonera' | 'organizer' | 'studio'
+
+export interface FloatingWindow {
+  id: string
+  type: WindowType
+  title: string
+  x: number
+  y: number
+  width: number
+  height: number
+  zIndex: number
+  minimized: boolean
+  // payload según type:
+  botoneraId?: string            // para type='botonera'
+  clipId?: string                // para type='studio'
+}
