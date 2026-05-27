@@ -21,6 +21,8 @@ import {
   BarChart3,
   MessageSquare,
   Eye,
+  Pencil,
+  Clock,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -42,14 +44,14 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { convocatoriasApi, CreateConvocatoriaData } from '@/lib/api/convocatorias'
 import { estadisticasPartidoApi, EstadisticaPartidoUpdateData } from '@/lib/api/estadisticasPartido'
-import { partidosApi } from '@/lib/api/partidos'
+import { partidosApi, rivalesApi } from '@/lib/api/partidos'
 import { jugadoresApi, Jugador, POSICIONES } from '@/lib/api/jugadores'
 import { FORMATIONS, Formation, FormationSlot } from '@/lib/formations'
 import { formatDate } from '@/lib/utils'
 import { mutate } from 'swr'
 import dynamic from 'next/dynamic'
 import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
-import type { Convocatoria, Partido, EstadisticaPartido, GolDetalle, FaltaPosicion } from '@/types'
+import type { Convocatoria, Partido, EstadisticaPartido, GolDetalle, FaltaPosicion, Rival } from '@/types'
 import { GoalDetailEditor } from './GoalDetailEditor'
 import { FoulMapEditor } from './FoulMapEditor'
 
@@ -168,6 +170,21 @@ export function MatchDetailPanel({
   const [generatingInforme, setGeneratingInforme] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+
+  // ---- Edit partido state ----
+  const [showEdit, setShowEdit] = useState(false)
+  const [editForm, setEditForm] = useState({
+    rival_id: '',
+    fecha: '',
+    hora: '',
+    localia: 'local' as 'local' | 'visitante' | 'neutral',
+    competicion: 'liga' as 'liga' | 'copa' | 'amistoso' | 'torneo' | 'otro',
+    jornada: '',
+    ubicacion: '',
+  })
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [rivalesEdit, setRivalesEdit] = useState<Rival[]>([])
+  const [loadingRivalesEdit, setLoadingRivalesEdit] = useState(false)
 
   // Team stats local state (for post-partido tab)
   const [teamStats, setTeamStats] = useState<Record<string, number>>({})
@@ -560,6 +577,55 @@ export function MatchDetailPanel({
       console.error(err)
     } finally {
       setDeleting(false)
+    }
+  }
+
+  const handleOpenEdit = async () => {
+    if (!selectedPartido) return
+    setEditForm({
+      rival_id: (selectedPartido as any).rival_id || (selectedPartido as any).rival?.id || '',
+      fecha: selectedPartido.fecha ? selectedPartido.fecha.split('T')[0] : '',
+      hora: selectedPartido.hora || '',
+      localia: selectedPartido.localia as 'local' | 'visitante' | 'neutral' || 'local',
+      competicion: selectedPartido.competicion as 'liga' | 'copa' | 'amistoso' | 'torneo' | 'otro' || 'liga',
+      jornada: selectedPartido.jornada ? String(selectedPartido.jornada) : '',
+      ubicacion: selectedPartido.ubicacion || '',
+    })
+    setShowEdit(true)
+    if (rivalesEdit.length === 0) {
+      setLoadingRivalesEdit(true)
+      try {
+        const res = await rivalesApi.list()
+        setRivalesEdit(res.data)
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setLoadingRivalesEdit(false)
+      }
+    }
+  }
+
+  const handleEditPartido = async () => {
+    if (!selectedId) return
+    setSavingEdit(true)
+    try {
+      await partidosApi.update(selectedId, {
+        rival_id: editForm.rival_id,
+        fecha: editForm.fecha,
+        hora: editForm.hora || undefined,
+        localia: editForm.localia,
+        competicion: editForm.competicion,
+        jornada: editForm.jornada ? parseInt(editForm.jornada) : undefined,
+        ubicacion: editForm.ubicacion || undefined,
+      })
+      mutate((key: string) => typeof key === 'string' && key.includes('/partidos'), undefined, { revalidate: true })
+      setShowEdit(false)
+      toast.success('Partido actualizado')
+    } catch (err) {
+      console.error(err)
+      toast.error('Error al actualizar el partido')
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -1135,7 +1201,10 @@ export function MatchDetailPanel({
                 Editar resultado
               </Button>
             )}
-            <Button variant="outline" size="icon" onClick={() => setShowDelete(true)} className="text-destructive ml-auto">
+            <Button variant="outline" size="icon" onClick={handleOpenEdit} className="ml-auto">
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="icon" onClick={() => setShowDelete(true)} className="text-destructive">
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>
@@ -1341,6 +1410,93 @@ export function MatchDetailPanel({
             <Button onClick={handleSaveResult} disabled={savingResult}>
               {savingResult ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
               Guardar resultado
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit partido dialog */}
+      <Dialog open={showEdit} onOpenChange={setShowEdit}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editar partido</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Rival */}
+            <div className="space-y-1">
+              <Label>Rival</Label>
+              {loadingRivalesEdit ? (
+                <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" /> Cargando...</div>
+              ) : (
+                <select
+                  value={editForm.rival_id}
+                  onChange={(e) => setEditForm({ ...editForm, rival_id: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-md text-sm bg-background"
+                >
+                  <option value="">Seleccionar rival...</option>
+                  {rivalesEdit.map((r) => (
+                    <option key={r.id} value={r.id}>{r.nombre}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+            {/* Fecha y Hora */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label><Calendar className="h-3.5 w-3.5 inline mr-1" />Fecha</Label>
+                <Input type="date" value={editForm.fecha} onChange={(e) => setEditForm({ ...editForm, fecha: e.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label><Clock className="h-3.5 w-3.5 inline mr-1" />Hora</Label>
+                <Input type="time" value={editForm.hora} onChange={(e) => setEditForm({ ...editForm, hora: e.target.value })} />
+              </div>
+            </div>
+            {/* Localía y Competición */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Localía</Label>
+                <select
+                  value={editForm.localia}
+                  onChange={(e) => setEditForm({ ...editForm, localia: e.target.value as 'local' | 'visitante' | 'neutral' })}
+                  className="w-full px-3 py-2 border rounded-md text-sm bg-background"
+                >
+                  <option value="local">Local</option>
+                  <option value="visitante">Visitante</option>
+                  <option value="neutral">Campo neutral</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label>Competición</Label>
+                <select
+                  value={editForm.competicion}
+                  onChange={(e) => setEditForm({ ...editForm, competicion: e.target.value as 'liga' | 'copa' | 'amistoso' | 'torneo' | 'otro' })}
+                  className="w-full px-3 py-2 border rounded-md text-sm bg-background"
+                >
+                  <option value="liga">Liga</option>
+                  <option value="copa">Copa</option>
+                  <option value="amistoso">Amistoso</option>
+                  <option value="torneo">Torneo</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </div>
+            </div>
+            {/* Jornada y Ubicación */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Jornada</Label>
+                <Input type="number" min="1" value={editForm.jornada} onChange={(e) => setEditForm({ ...editForm, jornada: e.target.value })} placeholder="Ej: 15" />
+              </div>
+              <div className="space-y-1">
+                <Label><MapPin className="h-3.5 w-3.5 inline mr-1" />Ubicación</Label>
+                <Input type="text" value={editForm.ubicacion} onChange={(e) => setEditForm({ ...editForm, ubicacion: e.target.value })} placeholder="Ej: Estadio Municipal" />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEdit(false)}>Cancelar</Button>
+            <Button onClick={handleEditPartido} disabled={savingEdit}>
+              {savingEdit ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+              Guardar cambios
             </Button>
           </DialogFooter>
         </DialogContent>
