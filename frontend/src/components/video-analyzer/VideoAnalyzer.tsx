@@ -896,7 +896,7 @@ export function VideoAnalyzer({
             onDrawingTimeUpdate={handleDrawingTimeUpdate}
             codeButtons={codeButtons}
             codeEvents={currentCodeEvents}
-            onCodeLaneClick={() => handleOpenBotonera()}
+            onCodeLaneClick={(_buttonId: string) => handleOpenBotonera()}
             onCodeEventDoubleClick={handleOpenStudio}
           />
         </div>
