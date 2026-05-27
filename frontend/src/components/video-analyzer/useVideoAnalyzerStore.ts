@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 import type { DrawingElement } from '@/types'
-import type { Clip, DrawingTool, FreezeFrame, ViewMode } from './types'
+import type { Clip, DrawingTool, FreezeFrame, ViewMode, FloatingWindow } from './types'
 import { CLIP_COLORS } from './types'
 import { generateId } from './utils'
 
@@ -30,6 +30,10 @@ interface VideoAnalyzerState {
 
   // UI
   exportingClipId: string | null
+
+  // Floating windows
+  floatingWindows: FloatingWindow[]
+  setFloatingWindows: (windows: FloatingWindow[]) => void
 
   // Video actions
   setSrc: (src: string) => void
@@ -96,6 +100,9 @@ export const useVideoAnalyzerStore = create<VideoAnalyzerState>((set, get) => ({
 
   // UI
   exportingClipId: null,
+
+  // Floating windows
+  floatingWindows: [],
 
   // Video actions
   setSrc: (src) => set({ src }),
@@ -213,6 +220,7 @@ export const useVideoAnalyzerStore = create<VideoAnalyzerState>((set, get) => ({
 
   // UI actions
   setExportingClipId: (exportingClipId) => set({ exportingClipId }),
+  setFloatingWindows: (floatingWindows) => set({ floatingWindows }),
 
   // Persistence
   setClipsFromStorage: (clips) => set({ clips }),
@@ -233,5 +241,6 @@ export const useVideoAnalyzerStore = create<VideoAnalyzerState>((set, get) => ({
     editingClipId: null,
     activeFreezeFrameId: null,
     exportingClipId: null,
+    floatingWindows: [],
   }),
 }))
