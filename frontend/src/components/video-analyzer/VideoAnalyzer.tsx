@@ -3,22 +3,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { X, Camera, Scissors, ArrowLeft, Snowflake, Download, Tag, Film, ListMusic, Pencil as PencilIcon, Grid3x3 } from 'lucide-react'
+import { X, Camera, Scissors, ArrowLeft, Snowflake, Download } from 'lucide-react'
 import type { DrawingElement } from '@/types'
 
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 import { DrawingOverlay } from './DrawingOverlay'
 import { DrawingToolbar } from './DrawingToolbar'
-import { AnnotationPanel } from './AnnotationPanel'
 import { Timeline } from './Timeline'
-import { TagMatrix } from '../video/TagMatrix'
-import { TagList } from '../video/TagList'
-import { TagDetailPanel } from '../video/TagDetailPanel'
-import { PlaylistManager } from '../video/PlaylistManager'
 import { ShortcutOverlay } from '../video/ShortcutOverlay'
-import { useTaggingStore, type SidebarTab } from '@/stores/useTaggingStore'
+import { useTaggingStore } from '@/stores/useTaggingStore'
 import { useTaggingKeyboard } from '@/hooks/useTaggingKeyboard'
-import { jugadoresApi } from '@/lib/api/jugadores'
 import { ClipExportDialog } from './ClipExportDialog'
 import { useDrawingEngine } from './useDrawingEngine'
 import { useUndoRedo } from './useUndoRedo'
@@ -29,7 +23,9 @@ import type { TimeSegment } from './useVirtualTimeline'
 import { exportFramePNG, downloadDataUrl } from './utils'
 import { useClipPersistence } from './useClipPersistence'
 import { useCodeWindowStore } from './useCodeWindowStore'
-import { CodeWindowPanel } from './CodeWindowPanel'
+import { FloatingWindowManager } from './FloatingWindowManager'
+import { MainToolbar } from './MainToolbar'
+import { useFloatingWindows } from './useFloatingWindows'
 import type { DrawingTool, FreezeFrame } from './types'
 
 interface VideoAnalyzerProps {
@@ -55,6 +51,8 @@ export function VideoAnalyzer({
   const svgRef = useRef<SVGSVGElement>(null)
   const videoContainerRef = useRef<HTMLDivElement>(null)
   const currentTimeRef = useRef(0)
+  const isScrubRef = useRef(false)
+  const scrubFinalTimeRef = useRef<number | null>(null)
 
   // Store — individual selectors
   const tool = useVideoAnalyzerStore((s) => s.tool)
@@ -80,8 +78,6 @@ export function VideoAnalyzer({
   const removeFreezeFrameStore = useVideoAnalyzerStore((s) => s.removeFreezeFrame)
 
   // Tagging store
-  const activeTab = useTaggingStore((s) => s.activeTab)
-  const setActiveTab = useTaggingStore((s) => s.setActiveTab)
   const taggingMode = useTaggingStore((s) => s.mode)
   const setTaggingMode = useTaggingStore((s) => s.setMode)
   const fetchTags = useTaggingStore((s) => s.fetchTags)
@@ -89,10 +85,12 @@ export function VideoAnalyzer({
   const resetTagging = useTaggingStore((s) => s.reset)
   const resetAll = useVideoAnalyzerStore((s) => s.resetAll)
   const setClipsFromStorage = useVideoAnalyzerStore((s) => s.setClipsFromStorage)
-  const taggingCategories = useTaggingStore((s) => s.categories)
-  const taggingTags = useTaggingStore((s) => s.tags)
-  const selectedTagId = useTaggingStore((s) => s.selectedTagId)
-  const setSelectedTagId = useTaggingStore((s) => s.setSelectedTagId)
+
+  // Floating windows
+  const { openWindow } = useFloatingWindows()
+  const handleOpenBotonera = useCallback(() => openWindow('botonera', { title: 'Botonera', botoneraId: 'default' }), [openWindow])
+  const handleOpenOrganizer = useCallback(() => openWindow('organizer', { title: 'Organizer' }), [openWindow])
+  const handleOpenStudio = useCallback((eventId: string) => openWindow('studio', { title: 'Studio', clipId: eventId }), [openWindow])
 
   // Code Window store
   const codeButtons = useCodeWindowStore((s) => s.buttons)
@@ -102,25 +100,14 @@ export function VideoAnalyzer({
     return s.events[key] || []
   })
 
+  // Video key (used by code window and floating windows)
+  const videoKey = partidoId || (localFile?.name ?? '_local')
+
   // Set video key for code window (uses partidoId or file name)
   useEffect(() => {
     const key = partidoId || (localFile?.name ?? '_local')
     setCodeVideoKey(key)
   }, [partidoId, localFile, setCodeVideoKey])
-
-  // Jugadores for player assignment
-  const [jugadores, setJugadores] = useState<Array<{ id: string; nombre: string; apellidos: string; dorsal?: number }>>([])
-
-  useEffect(() => {
-    jugadoresApi.list({ equipo_id: equipoId }).then((res) => {
-      setJugadores(res.data.map((j) => ({
-        id: j.id,
-        nombre: j.nombre || '',
-        apellidos: j.apellidos || '',
-        dorsal: j.dorsal,
-      })))
-    }).catch(() => {})
-  }, [equipoId])
 
   // Reset analyzer state on mount/unmount to prevent session bleed
   useEffect(() => {
@@ -178,17 +165,15 @@ export function VideoAnalyzer({
     return () => el.removeEventListener('wheel', handler)
   }, [duration])
 
-  // Create object URL for local file
-  const src = useMemo(() => {
-    if (localFile) return URL.createObjectURL(localFile)
-    return videoUrl || ''
-  }, [localFile, videoUrl])
-
+  // Create object URL for local file (must be in useEffect — side effect, not memo)
+  const [objectUrl, setObjectUrl] = useState<string>('')
   useEffect(() => {
-    return () => {
-      if (localFile && src) URL.revokeObjectURL(src)
-    }
-  }, [localFile, src])
+    if (!localFile) { setObjectUrl(''); return }
+    const url = URL.createObjectURL(localFile)
+    setObjectUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [localFile])
+  const src = localFile ? objectUrl : (videoUrl || '')
 
   const title = videoTitle || localFile?.name || 'Video'
 
@@ -403,6 +388,8 @@ export function VideoAnalyzer({
   // Time update — also feeds displayTime for temporal visibility
   const handleTimeUpdate = useCallback((time: number) => {
     currentTimeRef.current = time
+    // During scrub: skip React state updates — playhead animates via its own RAF loop
+    if (isScrubRef.current) return
     if (isClipEditor) {
       setDisplayTime(virtualTimeRef.current)
     } else {
@@ -503,9 +490,44 @@ export function VideoAnalyzer({
     captureFreezeFrame(editingClipId, currentTimeRef.current, videoEl)
   }, [editingClipId, captureFreezeFrame])
 
+  // Scrub lifecycle callbacks — skip React state during drag
+  const handleScrubStart = useCallback(() => {
+    isScrubRef.current = true
+    scrubFinalTimeRef.current = null
+    // Reset freeze state once at scrub start (not on every move)
+    passedFreezesRef.current.clear()
+    isFrozenRef.current = false
+    activeFreezeSegRef.current = null
+    setFreezeOverlayUrl(null)
+  }, [])
+
+  const handleScrubEnd = useCallback(() => {
+    isScrubRef.current = false
+    // Flush pending display time after scrub ends
+    if (scrubFinalTimeRef.current !== null) {
+      setDisplayTime(scrubFinalTimeRef.current)
+      scrubFinalTimeRef.current = null
+    }
+  }, [])
+
   // Seek — converts virtual time to real time in clip mode
   const handleSeek = useCallback((time: number) => {
-    // Reset freeze state
+    if (isScrubRef.current) {
+      // During scrub: only move the video, skip all setState
+      scrubFinalTimeRef.current = time
+      if (isClipEditor && segmentsRef.current.length > 0) {
+        const result = virtualToReal(segmentsRef.current, time)
+        virtualTimeRef.current = time
+        if (result.type === 'video') {
+          playerRef.current?.seekTo(result.time)
+        }
+      } else {
+        playerRef.current?.seekTo(time)
+      }
+      return
+    }
+
+    // Normal (non-scrub) seek
     passedFreezesRef.current.clear()
     isFrozenRef.current = false
     activeFreezeSegRef.current = null
@@ -650,12 +672,20 @@ export function VideoAnalyzer({
             handleCaptureFreezeFrame()
           }
           break
+        case 'b':
+        case 'B':
+          if (!e.ctrlKey && !e.metaKey) handleOpenBotonera()
+          break
+        case 'o':
+        case 'O':
+          if (!e.ctrlKey && !e.metaKey) handleOpenOrganizer()
+          break
       }
     }
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [isPlaying, tool, selectedId, duration, viewMode, clipRange, activeFreezeFrameId, onClose, engineDeleteSelected, undo, redo, setTool, setSelectedId, setActiveFreezeFrameId, createClipAtTime, handleExitClipEditor, handleCaptureFreezeFrame])
+  }, [isPlaying, tool, selectedId, duration, viewMode, clipRange, activeFreezeFrameId, onClose, engineDeleteSelected, undo, redo, setTool, setSelectedId, setActiveFreezeFrameId, createClipAtTime, handleExitClipEditor, handleCaptureFreezeFrame, handleOpenBotonera, handleOpenOrganizer])
 
   const interactive = !isPlaying && tool !== 'select'
 
@@ -837,6 +867,12 @@ export function VideoAnalyzer({
             onUpdateSelectedProps={handleUpdateSelectedProps}
           />
 
+          <MainToolbar
+            onOpenBotonera={handleOpenBotonera}
+            onOpenOrganizer={handleOpenOrganizer}
+            clipCount={currentCodeEvents.length}
+          />
+
           {/* Timeline */}
           <Timeline
             videoSrc={src}
@@ -845,6 +881,8 @@ export function VideoAnalyzer({
             clips={clips}
             activeClipId={activeClipId}
             onSeek={handleSeek}
+            onScrubStart={handleScrubStart}
+            onScrubEnd={handleScrubEnd}
             onClipUpdate={updateClip}
             onClipSelect={setActiveClipId}
             onClipCreate={createClipFromRange}
@@ -858,132 +896,21 @@ export function VideoAnalyzer({
             onDrawingTimeUpdate={handleDrawingTimeUpdate}
             codeButtons={codeButtons}
             codeEvents={currentCodeEvents}
-            onCodeLaneClick={(btnId) => {
-              setActiveTab('codes' as SidebarTab)
-            }}
+            onCodeLaneClick={() => handleOpenBotonera()}
+            onCodeEventDoubleClick={handleOpenStudio}
           />
         </div>
-
-        {/* Right: Sidebar */}
-        <div className="border-l border-white/10 bg-black/90 flex flex-col shrink-0" style={{ width: 340 }}>
-          {/* Sidebar tabs */}
-          <div className="flex border-b border-white/10 shrink-0">
-            {([
-              { key: 'codes' as SidebarTab, icon: Grid3x3, label: 'Codes' },
-              { key: 'tagging' as SidebarTab, icon: Tag, label: 'Tags' },
-              { key: 'tags' as SidebarTab, icon: ListMusic, label: 'Eventos' },
-              { key: 'playlists' as SidebarTab, icon: Film, label: 'Clips' },
-            ]).map(({ key, icon: Icon, label }) => (
-              <button
-                key={key}
-                className={`flex-1 flex items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors ${
-                  activeTab === key
-                    ? 'text-white border-b-2 border-blue-500'
-                    : 'text-white/40 hover:text-white/60'
-                }`}
-                onClick={() => setActiveTab(key)}
-              >
-                <Icon className="h-3 w-3" />
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {/* Mode toggle (tag vs draw) */}
-          {activeTab === 'tagging' && (
-            <div className="flex items-center gap-1 px-2 py-1.5 border-b border-white/10">
-              <button
-                className={`flex-1 flex items-center justify-center gap-1 py-1 rounded text-[10px] font-medium transition-colors ${
-                  taggingMode === 'tag' ? 'bg-blue-500/20 text-blue-400' : 'text-white/40 hover:text-white/60'
-                }`}
-                onClick={() => setTaggingMode('tag')}
-              >
-                <Tag className="h-3 w-3" />
-                Tag
-              </button>
-              <button
-                className={`flex-1 flex items-center justify-center gap-1 py-1 rounded text-[10px] font-medium transition-colors ${
-                  taggingMode === 'draw' ? 'bg-blue-500/20 text-blue-400' : 'text-white/40 hover:text-white/60'
-                }`}
-                onClick={() => setTaggingMode('draw')}
-              >
-                <PencilIcon className="h-3 w-3" />
-                Draw
-              </button>
-            </div>
-          )}
-
-          {/* Tab content */}
-          <div className="flex-1 overflow-hidden min-h-0">
-            {activeTab === 'codes' && (
-              <CodeWindowPanel
-                getCurrentTime={() => currentTimeRef.current}
-                videoDuration={duration}
-              />
-            )}
-            {activeTab === 'tagging' && (
-              videoId ? (
-                <TagMatrix
-                  videoId={videoId}
-                  equipoId={equipoId}
-                  getCurrentMs={getCurrentMs}
-                  jugadores={jugadores}
-                />
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full gap-2 text-white/40 p-4 text-center">
-                  <p className="text-sm">Tagging no disponible</p>
-                  <p className="text-xs">El video no pudo registrarse en la sesión</p>
-                </div>
-              )
-            )}
-            {activeTab === 'tags' && (
-              selectedTagId && taggingTags.find((t) => t.id === selectedTagId) ? (
-                <TagDetailPanel
-                  tag={taggingTags.find((t) => t.id === selectedTagId)!}
-                  categories={taggingCategories}
-                  jugadores={jugadores}
-                  onClose={() => setSelectedTagId(null)}
-                />
-              ) : (
-                <TagList
-                  onSeek={(ms) => playerRef.current?.seekTo(ms / 1000)}
-                  jugadores={jugadores}
-                />
-              )
-            )}
-            {activeTab === 'playlists' && (
-              <AnnotationPanel
-                clips={clips}
-                activeClipId={activeClipId}
-                onSelectClip={handleSelectClipFromSidebar}
-                onDeleteClip={deleteClip}
-                onExportClip={handleExportClip}
-                exportingClipId={exportingClipId}
-                viewMode={viewMode}
-                editingClip={editingClip}
-                onEnterClipEditor={handleEnterClipEditor}
-                onExitClipEditor={handleExitClipEditor}
-                onSelectFreezeFrame={handleSelectFreezeFrame}
-                onDeleteFreezeFrame={handleDeleteFreezeFrame}
-                onUpdateFreezeFrameDuration={handleUpdateFreezeFrameDuration}
-              />
-            )}
-          </div>
-
-          {/* Sidebar footer — keyboard shortcuts hint */}
-          <div className="border-t border-white/10 px-3 py-2 flex items-center justify-between shrink-0">
-            <span className="text-[9px] text-white/25">
-              Space: play · C: clip · F: freeze · Esc: salir
-            </span>
-            <button
-              className="text-[9px] text-white/30 hover:text-white/60 transition-colors"
-              onClick={() => setShowShortcuts(true)}
-            >
-              más atajos
-            </button>
-          </div>
-        </div>
       </div>
+
+      {/* Floating windows overlay */}
+      <FloatingWindowManager
+        videoSrc={src}
+        currentTime={displayTime}
+        videoDuration={duration}
+        videoKey={videoKey}
+        onTagCreated={() => {}}
+        onSeekTo={handleSeek}
+      />
 
       {/* Clip export dialog */}
       <ClipExportDialog
