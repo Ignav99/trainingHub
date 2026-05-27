@@ -40,6 +40,10 @@ interface TimelineProps {
   codeButtons?: CodeButton[]
   codeEvents?: CodeEvent[]
   onCodeLaneClick?: (buttonId: string) => void
+  onCodeEventDoubleClick?: (eventId: string) => void
+  // Scrub lifecycle — lets parent skip React setState during scrub
+  onScrubStart?: () => void
+  onScrubEnd?: () => void
 }
 
 export function Timeline({
@@ -63,6 +67,9 @@ export function Timeline({
   codeButtons = [],
   codeEvents = [],
   onCodeLaneClick,
+  onCodeEventDoubleClick,
+  onScrubStart,
+  onScrubEnd,
 }: TimelineProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const filmstripCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -71,6 +78,11 @@ export function Timeline({
   const rafRef = useRef<number>(0)
   const dragCreateRef = useRef<{ startX: number; startTime: number } | null>(null)
   const [dragPreview, setDragPreview] = useState<{ left: number; width: number } | null>(null)
+  // Scrub drag state (filmstrip + ruler)
+  const scrubActiveRef = useRef(false)
+  const pendingSeekTimeRef = useRef<number | null>(null)
+  const scrubRafRef = useRef<number>(0)
+  const scrubCachedRectRef = useRef<DOMRect | null>(null)
 
   const tags = useTaggingStore((s) => s.tags)
   const setSelectedTagId = useTaggingStore((s) => s.setSelectedTagId)
@@ -226,13 +238,58 @@ export function Timeline({
     [rangeDuration, rangeStart]
   )
 
-  // Click filmstrip to seek
-  const handleFilmstripClick = useCallback(
-    (e: React.MouseEvent) => {
+  // Filmstrip / ruler scrub — RAF-throttled for smooth touch scrubbing
+  const handleScrubStart = useCallback(
+    (e: React.PointerEvent) => {
+      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+      scrubActiveRef.current = true
+      onScrubStart?.()
+      // Cache rect once at drag start — avoid getBoundingClientRect on every move
+      scrubCachedRectRef.current = containerRef.current?.getBoundingClientRect() ?? null
       const t = xToTime(e.clientX)
       onSeek(t)
     },
-    [xToTime, onSeek]
+    [xToTime, onSeek, onScrubStart]
+  )
+
+  const handleScrubMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!scrubActiveRef.current) return
+      const rect = scrubCachedRectRef.current
+      if (!rect || !rangeDuration) return
+      const contentWidth = rect.width - LABEL_WIDTH
+      const pct = Math.max(0, Math.min(1, (e.clientX - rect.left - LABEL_WIDTH) / contentWidth))
+      const t = pct * rangeDuration + rangeStart
+      // Store pending time and let RAF flush it — throttles to ~60fps max
+      pendingSeekTimeRef.current = t
+      if (!scrubRafRef.current) {
+        scrubRafRef.current = requestAnimationFrame(() => {
+          scrubRafRef.current = 0
+          if (pendingSeekTimeRef.current !== null) {
+            onSeek(pendingSeekTimeRef.current)
+            pendingSeekTimeRef.current = null
+          }
+        })
+      }
+    },
+    [rangeDuration, rangeStart, onSeek]
+  )
+
+  const handleScrubEnd = useCallback(
+    (e: React.PointerEvent) => {
+      ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
+      scrubActiveRef.current = false
+      scrubCachedRectRef.current = null
+      cancelAnimationFrame(scrubRafRef.current)
+      scrubRafRef.current = 0
+      // Flush final seek position before notifying parent
+      if (pendingSeekTimeRef.current !== null) {
+        onSeek(pendingSeekTimeRef.current)
+        pendingSeekTimeRef.current = null
+      }
+      onScrubEnd?.()
+    },
+    [onSeek, onScrubEnd]
   )
 
   // Drag in clips zone to create clip (only in general mode)
@@ -313,7 +370,7 @@ export function Timeline({
   }
 
   return (
-    <div ref={containerRef} className="relative w-full select-none bg-[#111] flex">
+    <div ref={containerRef} className="relative w-full select-none bg-[#111] flex touch-none">
       {/* ── Left label column ───────────────────────────────────────────── */}
       <div
         className="shrink-0 flex flex-col bg-[#0d0d0d] border-r border-white/5 z-10"
@@ -347,7 +404,7 @@ export function Timeline({
         {hasCodeLanes && activeLanes.map((btn) => (
           <button
             key={btn.id}
-            style={{ height: 22, borderLeft: `3px solid ${btn.color}` }}
+            style={{ height: 40, borderLeft: `3px solid ${btn.color}` }}
             className="flex items-center px-1.5 hover:bg-white/5 transition-colors w-full text-left group"
             onClick={() => onCodeLaneClick?.(btn.id)}
             title={`Ver todos los eventos: ${btn.label}`}
@@ -370,8 +427,11 @@ export function Timeline({
         {/* Time ruler */}
         <div
           className="relative w-full bg-[#0d0d0d] border-b border-white/5 overflow-hidden"
-          style={{ height: 16 }}
-          onClick={handleFilmstripClick}
+          style={{ height: 16, touchAction: 'none' }}
+          onPointerDown={handleScrubStart}
+          onPointerMove={handleScrubMove}
+          onPointerUp={handleScrubEnd}
+          onPointerCancel={handleScrubEnd}
         >
           {rulerMarkers.map((t) => {
             const pct = (t / rangeDuration) * 100
@@ -395,9 +455,12 @@ export function Timeline({
         {/* Filmstrip canvas */}
         <canvas
           ref={filmstripCanvasRef}
-          className="w-full cursor-pointer block"
+          className="w-full cursor-pointer block touch-none"
           style={{ height: 68 }}
-          onClick={handleFilmstripClick}
+          onPointerDown={handleScrubStart}
+          onPointerMove={handleScrubMove}
+          onPointerUp={handleScrubEnd}
+          onPointerCancel={handleScrubEnd}
         />
 
         {/* Tag lanes */}
@@ -536,7 +599,7 @@ export function Timeline({
             <div
               key={btn.id}
               className="relative w-full border-t border-white/5 cursor-pointer hover:bg-white/3 transition-colors"
-              style={{ height: 22, backgroundColor: btn.color + '08' }}
+              style={{ height: 40, backgroundColor: btn.color + '08' }}
               onClick={() => onCodeLaneClick?.(btn.id)}
             >
               {btnEvents.map((ev) => {
@@ -548,7 +611,7 @@ export function Timeline({
                   <div key={ev.id}>
                     {/* Event clip block */}
                     <div
-                      className="absolute top-1 bottom-1 rounded-sm opacity-50 hover:opacity-80 transition-opacity"
+                      className="absolute top-2 bottom-2 rounded-sm opacity-70 hover:opacity-100 transition-opacity"
                       style={{
                         left: `${startPct}%`,
                         width: `${widthPct}%`,
@@ -558,6 +621,10 @@ export function Timeline({
                       onClick={(e) => {
                         e.stopPropagation()
                         onSeek(ev.startTime)
+                      }}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation()
+                        onCodeEventDoubleClick?.(ev.id)
                       }}
                     />
                     {/* Press point marker */}
