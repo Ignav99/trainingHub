@@ -6,6 +6,9 @@ on:
     types: [completed]
     branches: [main]
 
+# This workflow only calls Render deploy hooks — it needs no repo token access.
+permissions: {}
+
 # Only one deploy at a time — never cancel in-progress deploys
 concurrency:
   group: deploy-production
