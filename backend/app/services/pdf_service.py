@@ -3,6 +3,7 @@ TrainingHub Pro - PDF Service
 Generación de PDFs profesionales con WeasyPrint + Jinja2.
 """
 
+import asyncio
 import base64
 import logging
 import re
@@ -410,7 +411,7 @@ def _get_jinja_env_v2() -> Environment:
     return env
 
 
-def generate_sesion_pdf(
+async def generate_sesion_pdf(
     sesion_data: dict,
     tareas: list,
     organizacion: dict,
@@ -463,26 +464,24 @@ def generate_sesion_pdf(
                 "notas": tarea_sesion.get("notas", ""),
             })
 
-    # Renderizar HTML
-    html_content = template.render(
-        sesion=sesion_data,
-        fases=fases,
-        organizacion=organizacion,
-        equipo=sesion_data.get("equipos", {}),
-    )
+    def _render() -> bytes:
+        html_content = template.render(
+            sesion=sesion_data,
+            fases=fases,
+            organizacion=organizacion,
+            equipo=sesion_data.get("equipos", {}),
+        )
+        try:
+            from weasyprint import HTML
+            return HTML(string=html_content).write_pdf()
+        except ImportError:
+            logger.warning("WeasyPrint not available, returning HTML as bytes")
+            return html_content.encode("utf-8")
 
-    # Generar PDF
-    try:
-        from weasyprint import HTML
-
-        pdf_bytes = HTML(string=html_content).write_pdf()
-        return pdf_bytes
-    except ImportError:
-        logger.warning("WeasyPrint not available, returning HTML as bytes")
-        return html_content.encode("utf-8")
+    return await asyncio.to_thread(_render)
 
 
-def generate_informe_partido_pdf(
+async def generate_informe_partido_pdf(
     partido: dict,
     rival: dict,
     convocatoria: list,
@@ -514,25 +513,25 @@ def generate_informe_partido_pdf(
         if not c.get("posicion_asignada") and jugador.get("posicion_principal"):
             c["posicion_asignada"] = jugador["posicion_principal"]
 
-    html_content = template.render(
-        partido=partido,
-        rival=rival,
-        convocatoria=convocatoria,
-        organizacion=organizacion,
-        equipo_nombre=equipo_nombre,
-    )
+    def _render() -> bytes:
+        html_content = template.render(
+            partido=partido,
+            rival=rival,
+            convocatoria=convocatoria,
+            organizacion=organizacion,
+            equipo_nombre=equipo_nombre,
+        )
+        try:
+            from weasyprint import HTML
+            return HTML(string=html_content).write_pdf()
+        except ImportError:
+            logger.warning("WeasyPrint not available, returning HTML as bytes")
+            return html_content.encode("utf-8")
 
-    try:
-        from weasyprint import HTML
-
-        pdf_bytes = HTML(string=html_content).write_pdf()
-        return pdf_bytes
-    except ImportError:
-        logger.warning("WeasyPrint not available, returning HTML as bytes")
-        return html_content.encode("utf-8")
+    return await asyncio.to_thread(_render)
 
 
-def generate_convocatoria_pdf(
+async def generate_convocatoria_pdf(
     partido: dict,
     rival: dict,
     convocatoria: list,
@@ -560,28 +559,30 @@ def generate_convocatoria_pdf(
         else:
             suplentes.append(entry)
 
-    html_content = template.render(
-        color_primario=color,
-        org_nombre=organizacion.get("nombre", "TrainingHub Pro"),
-        equipo_nombre=equipo_nombre,
-        equipo_categoria=equipo_categoria,
-        rival_nombre=rival.get("nombre", "Rival"),
-        fecha=partido.get("fecha", ""),
-        hora=partido.get("hora"),
-        competicion=partido.get("competicion"),
-        jornada=partido.get("jornada"),
-        localia=partido.get("localia", ""),
-        titulares=titulares,
-        suplentes=suplentes,
-        total_convocados=len(convocatoria),
-    )
+    def _render() -> bytes:
+        html_content = template.render(
+            color_primario=color,
+            org_nombre=organizacion.get("nombre", "TrainingHub Pro"),
+            equipo_nombre=equipo_nombre,
+            equipo_categoria=equipo_categoria,
+            rival_nombre=rival.get("nombre", "Rival"),
+            fecha=partido.get("fecha", ""),
+            hora=partido.get("hora"),
+            competicion=partido.get("competicion"),
+            jornada=partido.get("jornada"),
+            localia=partido.get("localia", ""),
+            titulares=titulares,
+            suplentes=suplentes,
+            total_convocados=len(convocatoria),
+        )
+        try:
+            from weasyprint import HTML
+            return HTML(string=html_content).write_pdf()
+        except ImportError:
+            logger.warning("WeasyPrint not available, returning HTML as bytes")
+            return html_content.encode("utf-8")
 
-    try:
-        from weasyprint import HTML
-        return HTML(string=html_content).write_pdf()
-    except ImportError:
-        logger.warning("WeasyPrint not available, returning HTML as bytes")
-        return html_content.encode("utf-8")
+    return await asyncio.to_thread(_render)
 
 
 def _get_peto_info(color: str) -> dict:
@@ -685,7 +686,7 @@ def _build_formation_html(
     return html
 
 
-def generate_sesion_pdf_v2(
+async def generate_sesion_pdf_v2(
     sesion_data: dict,
     tareas_sesion: list,
     organizacion: dict,
@@ -881,45 +882,43 @@ def generate_sesion_pdf_v2(
             "notas": jp.get("notas", ""),
         })
 
-    # Render HTML
-    html_content = template.render(
-        sesion=sesion_data,
-        fases=fases,
-        all_tareas=all_tareas,
-        cover_tareas=cover_tareas,
-        color_primario=color_primario,
-        color_secundario=color_secundario,
-        org_nombre=organizacion.get("nombre", "TrainingHub Pro"),
-        logo_url=organizacion.get("logo_url", ""),
-        equipo_nombre=equipo.get("nombre", ""),
-        equipo_categoria=equipo.get("categoria", ""),
-        duracion_total=duracion_total,
-        num_ejercicios=len(all_tareas),
-        microciclo_nombre=microciclo_nombre or "",
-        lugar=lugar or "",
-        material_sesion=material_sesion,
-        asistencia_roster=asistencia_roster or [],
-        objetivo_principal=sesion_data.get("objetivo_principal", ""),
-        fase_juego_principal=sesion_data.get("fase_juego_principal", "").replace("_", " ").title() if sesion_data.get("fase_juego_principal") else "",
-        principio_tactico_principal=sesion_data.get("principio_tactico_principal", ""),
-        portero_tareas=portero_enriched,
-        portero_duracion=portero_duracion,
-        abp_jugadas=abp_enriched,
-        margen_entrenamientos=margen_entrenamientos or [],
-    )
+    def _render() -> bytes:
+        html_content = template.render(
+            sesion=sesion_data,
+            fases=fases,
+            all_tareas=all_tareas,
+            cover_tareas=cover_tareas,
+            color_primario=color_primario,
+            color_secundario=color_secundario,
+            org_nombre=organizacion.get("nombre", "TrainingHub Pro"),
+            logo_url=organizacion.get("logo_url", ""),
+            equipo_nombre=equipo.get("nombre", ""),
+            equipo_categoria=equipo.get("categoria", ""),
+            duracion_total=duracion_total,
+            num_ejercicios=len(all_tareas),
+            microciclo_nombre=microciclo_nombre or "",
+            lugar=lugar or "",
+            material_sesion=material_sesion,
+            asistencia_roster=asistencia_roster or [],
+            objetivo_principal=sesion_data.get("objetivo_principal", ""),
+            fase_juego_principal=sesion_data.get("fase_juego_principal", "").replace("_", " ").title() if sesion_data.get("fase_juego_principal") else "",
+            principio_tactico_principal=sesion_data.get("principio_tactico_principal", ""),
+            portero_tareas=portero_enriched,
+            portero_duracion=portero_duracion,
+            abp_jugadas=abp_enriched,
+            margen_entrenamientos=margen_entrenamientos or [],
+        )
+        try:
+            from weasyprint import HTML
+            return HTML(string=html_content).write_pdf()
+        except ImportError:
+            logger.warning("WeasyPrint not available, returning HTML as bytes")
+            return html_content.encode("utf-8")
 
-    # Generate PDF
-    try:
-        from weasyprint import HTML
-
-        pdf_bytes = HTML(string=html_content).write_pdf()
-        return pdf_bytes
-    except ImportError:
-        logger.warning("WeasyPrint not available, returning HTML as bytes")
-        return html_content.encode("utf-8")
+    return await asyncio.to_thread(_render)
 
 
-def generate_informe_rival_pdf(
+async def generate_informe_rival_pdf(
     informe: dict,
     partido: dict,
     rival: dict,
@@ -933,25 +932,27 @@ def generate_informe_rival_pdf(
 
     color_primario = organizacion.get("color_primario", "#2563eb")
 
-    html_content = template.render(
-        informe=informe,
-        partido=partido,
-        rival=rival,
-        organizacion=organizacion,
-        equipo_nombre=equipo_nombre,
-        color_primario=color_primario,
-        intel=intel or {},
-    )
+    def _render() -> bytes:
+        html_content = template.render(
+            informe=informe,
+            partido=partido,
+            rival=rival,
+            organizacion=organizacion,
+            equipo_nombre=equipo_nombre,
+            color_primario=color_primario,
+            intel=intel or {},
+        )
+        try:
+            from weasyprint import HTML
+            return HTML(string=html_content).write_pdf()
+        except ImportError:
+            logger.warning("WeasyPrint not available, returning HTML as bytes")
+            return html_content.encode("utf-8")
 
-    try:
-        from weasyprint import HTML
-        return HTML(string=html_content).write_pdf()
-    except ImportError:
-        logger.warning("WeasyPrint not available, returning HTML as bytes")
-        return html_content.encode("utf-8")
+    return await asyncio.to_thread(_render)
 
 
-def generate_informe_rival_standalone_pdf(
+async def generate_informe_rival_standalone_pdf(
     informe: dict,
     rival: dict,
     organizacion: dict,
@@ -1000,30 +1001,32 @@ def generate_informe_rival_standalone_pdf(
     # Generate phase diagrams
     phase_svgs = _generate_phase_svgs()
 
-    html_content = template.render(
-        informe=informe,
-        rival=rival,
-        organizacion=organizacion,
-        equipo_nombre=equipo_nombre,
-        equipo_escudo_url=equipo_escudo_url,
-        color_primario=color_primario,
-        intel=intel or {},
-        h2h_stats=h2h_stats,
-        created_at=created_at,
-        formation_svg=formation_svg,
-        sistema_juego=_parse_formation(sistema_juego),
-        phase_svgs=phase_svgs,
-    )
+    def _render() -> bytes:
+        html_content = template.render(
+            informe=informe,
+            rival=rival,
+            organizacion=organizacion,
+            equipo_nombre=equipo_nombre,
+            equipo_escudo_url=equipo_escudo_url,
+            color_primario=color_primario,
+            intel=intel or {},
+            h2h_stats=h2h_stats,
+            created_at=created_at,
+            formation_svg=formation_svg,
+            sistema_juego=_parse_formation(sistema_juego),
+            phase_svgs=phase_svgs,
+        )
+        try:
+            from weasyprint import HTML
+            return HTML(string=html_content).write_pdf()
+        except ImportError:
+            logger.warning("WeasyPrint not available, returning HTML as bytes")
+            return html_content.encode("utf-8")
 
-    try:
-        from weasyprint import HTML
-        return HTML(string=html_content).write_pdf()
-    except ImportError:
-        logger.warning("WeasyPrint not available, returning HTML as bytes")
-        return html_content.encode("utf-8")
+    return await asyncio.to_thread(_render)
 
 
-def generate_plan_partido_pdf(
+async def generate_plan_partido_pdf(
     plan: dict,
     partido: dict,
     rival: dict,
@@ -1036,24 +1039,26 @@ def generate_plan_partido_pdf(
 
     color_primario = organizacion.get("color_primario", "#2563eb")
 
-    html_content = template.render(
-        plan=plan,
-        partido=partido,
-        rival=rival,
-        organizacion=organizacion,
-        equipo_nombre=equipo_nombre,
-        color_primario=color_primario,
-    )
+    def _render() -> bytes:
+        html_content = template.render(
+            plan=plan,
+            partido=partido,
+            rival=rival,
+            organizacion=organizacion,
+            equipo_nombre=equipo_nombre,
+            color_primario=color_primario,
+        )
+        try:
+            from weasyprint import HTML
+            return HTML(string=html_content).write_pdf()
+        except ImportError:
+            logger.warning("WeasyPrint not available, returning HTML as bytes")
+            return html_content.encode("utf-8")
 
-    try:
-        from weasyprint import HTML
-        return HTML(string=html_content).write_pdf()
-    except ImportError:
-        logger.warning("WeasyPrint not available, returning HTML as bytes")
-        return html_content.encode("utf-8")
+    return await asyncio.to_thread(_render)
 
 
-def generate_plan_partido_jugadores_pdf(
+async def generate_plan_partido_jugadores_pdf(
     plan: dict,
     partido: dict,
     rival: dict,
@@ -1066,24 +1071,26 @@ def generate_plan_partido_jugadores_pdf(
 
     color_primario = organizacion.get("color_primario", "#2563eb")
 
-    html_content = template.render(
-        plan=plan,
-        partido=partido,
-        rival=rival,
-        organizacion=organizacion,
-        equipo_nombre=equipo_nombre,
-        color_primario=color_primario,
-    )
+    def _render() -> bytes:
+        html_content = template.render(
+            plan=plan,
+            partido=partido,
+            rival=rival,
+            organizacion=organizacion,
+            equipo_nombre=equipo_nombre,
+            color_primario=color_primario,
+        )
+        try:
+            from weasyprint import HTML
+            return HTML(string=html_content).write_pdf()
+        except ImportError:
+            logger.warning("WeasyPrint not available, returning HTML as bytes")
+            return html_content.encode("utf-8")
 
-    try:
-        from weasyprint import HTML
-        return HTML(string=html_content).write_pdf()
-    except ImportError:
-        logger.warning("WeasyPrint not available, returning HTML as bytes")
-        return html_content.encode("utf-8")
+    return await asyncio.to_thread(_render)
 
 
-def generate_tarea_pdf(
+async def generate_tarea_pdf(
     tarea: dict,
     organizacion: dict,
     equipo_nombre: str = "",
@@ -1112,24 +1119,26 @@ def generate_tarea_pdf(
     raw_grafico = tarea.get("grafico_url") or ""
     grafico_data_uri = _url_to_data_uri(raw_grafico) if raw_grafico and not grafico_svg_rendered else raw_grafico
 
-    html_content = template.render(
-        tarea=tarea,
-        color_primario=color,
-        org_nombre=organizacion.get("nombre", "TrainingHub Pro"),
-        org_logo_url=org_logo_data,
-        categoria_nombre=categoria.get("nombre", ""),
-        categoria_codigo=categoria.get("codigo", ""),
-        equipo_nombre=equipo_nombre,
-        grafico_svg_rendered=grafico_svg_rendered,
-        grafico_data_uri=grafico_data_uri,
-    )
+    def _render() -> bytes:
+        html_content = template.render(
+            tarea=tarea,
+            color_primario=color,
+            org_nombre=organizacion.get("nombre", "TrainingHub Pro"),
+            org_logo_url=org_logo_data,
+            categoria_nombre=categoria.get("nombre", ""),
+            categoria_codigo=categoria.get("codigo", ""),
+            equipo_nombre=equipo_nombre,
+            grafico_svg_rendered=grafico_svg_rendered,
+            grafico_data_uri=grafico_data_uri,
+        )
+        try:
+            from weasyprint import HTML
+            return HTML(string=html_content).write_pdf()
+        except ImportError:
+            logger.warning("WeasyPrint not available, returning HTML as bytes")
+            return html_content.encode("utf-8")
 
-    try:
-        from weasyprint import HTML
-        return HTML(string=html_content).write_pdf()
-    except ImportError:
-        logger.warning("WeasyPrint not available, returning HTML as bytes")
-        return html_content.encode("utf-8")
+    return await asyncio.to_thread(_render)
 
 
 # ============ ABP PDF Functions ============
@@ -1164,7 +1173,7 @@ def _render_abp_diagram_svg(fase: dict, diagram_id: str = "abp") -> str:
         return ""
 
 
-def generate_abp_playbook_pdf(
+async def generate_abp_playbook_pdf(
     jugadas: list[dict],
     equipo_nombre: str = "",
 ) -> bytes:
@@ -1185,22 +1194,24 @@ def generate_abp_playbook_pdf(
         j["rendered_fases"] = rendered_fases
         grouped[tipo].append(j)
 
-    html_content = template.render(
-        grouped=grouped,
-        equipo_nombre=equipo_nombre,
-        tipo_labels=ABP_TIPO_LABELS,
-        lado_labels=ABP_LADO_LABELS,
-    )
+    def _render() -> bytes:
+        html_content = template.render(
+            grouped=grouped,
+            equipo_nombre=equipo_nombre,
+            tipo_labels=ABP_TIPO_LABELS,
+            lado_labels=ABP_LADO_LABELS,
+        )
+        try:
+            from weasyprint import HTML
+            return HTML(string=html_content).write_pdf()
+        except ImportError:
+            logger.warning("WeasyPrint not available, returning HTML as bytes")
+            return html_content.encode("utf-8")
 
-    try:
-        from weasyprint import HTML
-        return HTML(string=html_content).write_pdf()
-    except ImportError:
-        logger.warning("WeasyPrint not available, returning HTML as bytes")
-        return html_content.encode("utf-8")
+    return await asyncio.to_thread(_render)
 
 
-def generate_abp_partido_pdf(
+async def generate_abp_partido_pdf(
     jugadas_partido: list[dict],
     rival_jugadas: list[dict],
     partido: dict,
@@ -1288,30 +1299,32 @@ def generate_abp_partido_pdf(
         "otro": "Otro",
     }
 
-    html_content = template.render(
-        jugadas_partido=jugadas_partido,
-        ofensivas=ofensivas,
-        defensivas=defensivas,
-        rival_jugadas=rival_jugadas,
-        partido=partido,
-        rival_nombre=rival_nombre,
-        plan=plan or {},
-        equipo_nombre=equipo_nombre,
-        equipo_temporada=equipo_temporada,
-        equipo_categoria=equipo_categoria,
-        org_nombre=org.get("nombre", ""),
-        logo_url=org.get("logo_url", ""),
-        color_primario=color_primario,
-        tipo_labels=ABP_TIPO_LABELS,
-        lado_labels=ABP_LADO_LABELS,
-        rol_labels=ABP_ROL_LABELS,
-        total_ofensivas=len(ofensivas),
-        total_defensivas=len(defensivas),
-    )
+    def _render() -> bytes:
+        html_content = template.render(
+            jugadas_partido=jugadas_partido,
+            ofensivas=ofensivas,
+            defensivas=defensivas,
+            rival_jugadas=rival_jugadas,
+            partido=partido,
+            rival_nombre=rival_nombre,
+            plan=plan or {},
+            equipo_nombre=equipo_nombre,
+            equipo_temporada=equipo_temporada,
+            equipo_categoria=equipo_categoria,
+            org_nombre=org.get("nombre", ""),
+            logo_url=org.get("logo_url", ""),
+            color_primario=color_primario,
+            tipo_labels=ABP_TIPO_LABELS,
+            lado_labels=ABP_LADO_LABELS,
+            rol_labels=ABP_ROL_LABELS,
+            total_ofensivas=len(ofensivas),
+            total_defensivas=len(defensivas),
+        )
+        try:
+            from weasyprint import HTML
+            return HTML(string=html_content).write_pdf()
+        except ImportError:
+            logger.warning("WeasyPrint not available, returning HTML as bytes")
+            return html_content.encode("utf-8")
 
-    try:
-        from weasyprint import HTML
-        return HTML(string=html_content).write_pdf()
-    except ImportError:
-        logger.warning("WeasyPrint not available, returning HTML as bytes")
-        return html_content.encode("utf-8")
+    return await asyncio.to_thread(_render)

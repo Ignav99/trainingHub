@@ -1697,8 +1697,7 @@ async def generate_pdf(
 
     # Generar PDF con el servicio v2
     try:
-        pdf_bytes = await asyncio.to_thread(
-            generate_sesion_pdf_v2,
+        pdf_bytes = await generate_sesion_pdf_v2(
             sesion, tareas, organizacion, jugadores_map,
             microciclo_nombre=microciclo_nombre,
             lugar=lugar,

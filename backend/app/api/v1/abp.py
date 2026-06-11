@@ -474,7 +474,7 @@ async def get_playbook_pdf(
     ).execute()
     equipo_nombre = team_resp.data[0]["nombre"] if team_resp.data else "Equipo"
 
-    pdf_bytes = await asyncio.to_thread(generate_abp_playbook_pdf, jugadas, equipo_nombre)
+    pdf_bytes = await generate_abp_playbook_pdf(jugadas, equipo_nombre)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
@@ -548,8 +548,7 @@ async def get_partido_abp_pdf(
     ).eq("id", str(auth.organizacion_id)).execute()
     organizacion = org_resp.data[0] if org_resp.data else {}
 
-    pdf_bytes = await asyncio.to_thread(
-        generate_abp_partido_pdf,
+    pdf_bytes = await generate_abp_partido_pdf(
         jugadas_partido, rival_jugadas, partido,
         plan=plan, jugadores_map=jugadores_map,
         equipo_nombre=equipo_nombre, organizacion=organizacion,

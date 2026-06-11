@@ -570,8 +570,7 @@ async def download_rival_informe_pdf(
     created_at_raw = informe_data.get("created_at", "")
     created_at = created_at_raw[:10] if created_at_raw else ""
 
-    pdf_bytes = await asyncio.to_thread(
-        generate_informe_rival_standalone_pdf,
+    pdf_bytes = await generate_informe_rival_standalone_pdf(
         informe=contenido,
         rival=rival_data,
         organizacion=organizacion,

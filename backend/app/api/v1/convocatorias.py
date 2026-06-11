@@ -287,8 +287,7 @@ async def generate_convocatoria_pdf(
         "*, jugadores(nombre, apellidos, dorsal, posicion_principal, apodo)"
     ).eq("partido_id", str(partido_id)).order("titular", desc=True).execute()
 
-    pdf_bytes = await asyncio.to_thread(
-        gen_pdf,
+    pdf_bytes = await gen_pdf(
         partido=partido,
         rival=rival,
         convocatoria=conv_resp.data or [],
