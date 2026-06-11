@@ -309,7 +309,7 @@ async def registrar_resultado(
     # Verificar que existe y pertenece a la organización del usuario
     # (limit(1): .single()/maybe_single() son frágiles con 0 filas en supabase-py)
     existing = supabase.table("partidos").select(
-        "id, equipos!inner(organizacion_id)"
+        "id, equipo_id, equipos!inner(organizacion_id)"
     ).eq("id", str(partido_id)).eq(
         "equipos.organizacion_id", auth.organizacion_id
     ).limit(1).execute()
@@ -347,7 +347,7 @@ async def registrar_resultado(
         rival_nombre=rival_data.get("nombre", "Rival") if rival_data else "Rival",
         goles_favor=goles_favor,
         goles_contra=goles_contra,
-        equipo_id=existing.data["equipo_id"],
+        equipo_id=existing.data[0]["equipo_id"],
     )
 
     return result
