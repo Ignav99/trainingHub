@@ -35,9 +35,11 @@ async def list_equipos(auth: AuthContext = Depends(require_permission(Permission
 async def get_equipo(equipo_id: UUID, auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_READ, equipo_id_param="equipo_id"))):
     """Obtiene un equipo por ID."""
     supabase = get_supabase()
-    response = supabase.table("equipos").select("*").eq("id", str(equipo_id)).single().execute()
+    response = supabase.table("equipos").select("*").eq("id", str(equipo_id)).eq(
+        "organizacion_id", auth.organizacion_id
+    ).maybe_single().execute()
 
-    if not response.data:
+    if not response or not response.data:
         raise HTTPException(status_code=404, detail="Equipo no encontrado")
 
     return EquipoResponse(**response.data)
@@ -66,8 +68,16 @@ async def update_equipo(equipo_id: UUID, equipo: EquipoUpdate, auth: AuthContext
     supabase = get_supabase()
     data = equipo.model_dump(exclude_unset=True)
 
-    supabase.table("equipos").update(data).eq("id", str(equipo_id)).execute()
-    response = supabase.table("equipos").select("*").eq("id", str(equipo_id)).single().execute()
+    supabase.table("equipos").update(data).eq("id", str(equipo_id)).eq(
+        "organizacion_id", auth.organizacion_id
+    ).execute()
+    response = supabase.table("equipos").select("*").eq("id", str(equipo_id)).eq(
+        "organizacion_id", auth.organizacion_id
+    ).maybe_single().execute()
+
+    if not response or not response.data:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+
     return EquipoResponse(**response.data)
 
 
@@ -75,5 +85,7 @@ async def update_equipo(equipo_id: UUID, equipo: EquipoUpdate, auth: AuthContext
 async def delete_equipo(equipo_id: UUID, auth: AuthContext = Depends(require_permission(Permission.CONFIG_TEAM, equipo_id_param="equipo_id"))):
     """Desactiva un equipo."""
     supabase = get_supabase()
-    supabase.table("equipos").update({"activo": False}).eq("id", str(equipo_id)).execute()
+    supabase.table("equipos").update({"activo": False}).eq("id", str(equipo_id)).eq(
+        "organizacion_id", auth.organizacion_id
+    ).execute()
     return None

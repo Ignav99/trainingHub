@@ -195,6 +195,12 @@ async def list_sesiones(
 
     # Filter by team: skip org-wide equipos query when equipo_id is provided
     if equipo_id:
+        # Verify the requested team belongs to the caller's organization
+        owner = supabase.table("equipos").select("id").eq(
+            "id", str(equipo_id)
+        ).eq("organizacion_id", auth.organizacion_id).execute()
+        if not owner.data:
+            raise HTTPException(status_code=404, detail="Equipo no encontrado")
         query = query.eq("equipo_id", str(equipo_id))
     else:
         equipos = supabase.table("equipos").select("id").eq(
