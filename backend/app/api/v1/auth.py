@@ -133,6 +133,25 @@ async def register(user_data: UsuarioCreate, request: Request):
             }).execute()
             org_id = org_response.data[0]["id"]
 
+        # Crear registro en nuestra tabla de usuarios.
+        # Debe ir ANTES de usuarios_equipos: su FK usuario_id referencia usuarios(id).
+        now = datetime.now(timezone.utc)
+        usuario_db = supabase.table("usuarios").insert({
+            "id": user_id,
+            "email": user_data.email,
+            "nombre": user_data.nombre,
+            "apellidos": user_data.apellidos,
+            "rol": "entrenador_principal" if user_data.organizacion_nombre else (
+                user_data.rol.value if user_data.rol else "tecnico_asistente"
+            ),
+            "organizacion_id": org_id,
+            "fecha_nacimiento": user_data.fecha_nacimiento.isoformat() if user_data.fecha_nacimiento else None,
+            "gdpr_consentimiento": user_data.gdpr_consentimiento,
+            "gdpr_consentimiento_fecha": now.isoformat() if user_data.gdpr_consentimiento else None,
+            "ultimo_acceso": now.isoformat(),
+        }).execute()
+
+        if user_data.organizacion_nombre:
             # Create default team
             equipo_response = supabase.table("equipos").insert({
                 "nombre": user_data.organizacion_nombre,
@@ -154,23 +173,6 @@ async def register(user_data: UsuarioCreate, request: Request):
             supabase.table("suscripciones").update({
                 "uso_equipos": 1,
             }).eq("organizacion_id", org_id).execute()
-
-        # Crear registro en nuestra tabla de usuarios
-        now = datetime.now(timezone.utc)
-        usuario_db = supabase.table("usuarios").insert({
-            "id": user_id,
-            "email": user_data.email,
-            "nombre": user_data.nombre,
-            "apellidos": user_data.apellidos,
-            "rol": "entrenador_principal" if user_data.organizacion_nombre else (
-                user_data.rol.value if user_data.rol else "tecnico_asistente"
-            ),
-            "organizacion_id": org_id,
-            "fecha_nacimiento": user_data.fecha_nacimiento.isoformat() if user_data.fecha_nacimiento else None,
-            "gdpr_consentimiento": user_data.gdpr_consentimiento,
-            "gdpr_consentimiento_fecha": now.isoformat() if user_data.gdpr_consentimiento else None,
-            "ultimo_acceso": now.isoformat(),
-        }).execute()
 
         # Record GDPR consents if accepted
         if user_data.gdpr_consentimiento:
