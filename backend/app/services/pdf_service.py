@@ -21,7 +21,7 @@ def _url_to_data_uri(url: str) -> str:
     if not url or url.startswith("data:"):
         return url
     try:
-        with httpx.Client(timeout=8.0) as client:
+        with httpx.Client(timeout=8.0, http2=False) as client:
             r = client.get(url)
             r.raise_for_status()
             content_type = r.headers.get("content-type", "image/png").split(";")[0]
