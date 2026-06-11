@@ -37,12 +37,12 @@ async def get_equipo(equipo_id: UUID, auth: AuthContext = Depends(require_permis
     supabase = get_supabase()
     response = supabase.table("equipos").select("*").eq("id", str(equipo_id)).eq(
         "organizacion_id", auth.organizacion_id
-    ).maybe_single().execute()
+    ).limit(1).execute()
 
     if not response or not response.data:
         raise HTTPException(status_code=404, detail="Equipo no encontrado")
 
-    return EquipoResponse(**response.data)
+    return EquipoResponse(**response.data[0])
 
 
 @router.post("", response_model=EquipoResponse, status_code=status.HTTP_201_CREATED)
@@ -73,12 +73,12 @@ async def update_equipo(equipo_id: UUID, equipo: EquipoUpdate, auth: AuthContext
     ).execute()
     response = supabase.table("equipos").select("*").eq("id", str(equipo_id)).eq(
         "organizacion_id", auth.organizacion_id
-    ).maybe_single().execute()
+    ).limit(1).execute()
 
     if not response or not response.data:
         raise HTTPException(status_code=404, detail="Equipo no encontrado")
 
-    return EquipoResponse(**response.data)
+    return EquipoResponse(**response.data[0])
 
 
 @router.delete("/{equipo_id}", status_code=status.HTTP_204_NO_CONTENT)
