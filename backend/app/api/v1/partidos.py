@@ -216,12 +216,15 @@ async def update_partido(
     """
     supabase = get_supabase()
 
-    # Verificar que existe
-    existing = supabase.table("partidos").select("*, rivales(*)").eq(
-        "id", str(partido_id)
-    ).single().execute()
+    # Verificar que existe y pertenece a la organización del usuario
+    # (maybe_single: .single() lanza PGRST116 con 0 filas y devolvía 500)
+    existing = supabase.table("partidos").select(
+        "id, equipos!inner(organizacion_id)"
+    ).eq("id", str(partido_id)).eq(
+        "equipos.organizacion_id", auth.organizacion_id
+    ).maybe_single().execute()
 
-    if not existing.data:
+    if not existing or not existing.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Partido no encontrado"
@@ -268,12 +271,15 @@ async def delete_partido(
     """
     supabase = get_supabase()
 
-    # Verificar que existe
-    existing = supabase.table("partidos").select("*").eq(
-        "id", str(partido_id)
-    ).single().execute()
+    # Verificar que existe y pertenece a la organización del usuario
+    # (maybe_single: .single() lanza PGRST116 con 0 filas y devolvía 500)
+    existing = supabase.table("partidos").select(
+        "id, equipos!inner(organizacion_id)"
+    ).eq("id", str(partido_id)).eq(
+        "equipos.organizacion_id", auth.organizacion_id
+    ).maybe_single().execute()
 
-    if not existing.data:
+    if not existing or not existing.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Partido no encontrado"
@@ -300,12 +306,15 @@ async def registrar_resultado(
     """
     supabase = get_supabase()
 
-    # Verificar que existe
-    existing = supabase.table("partidos").select("*").eq(
-        "id", str(partido_id)
-    ).single().execute()
+    # Verificar que existe y pertenece a la organización del usuario
+    # (maybe_single: .single() lanza PGRST116 con 0 filas y devolvía 500)
+    existing = supabase.table("partidos").select(
+        "id, equipos!inner(organizacion_id)"
+    ).eq("id", str(partido_id)).eq(
+        "equipos.organizacion_id", auth.organizacion_id
+    ).maybe_single().execute()
 
-    if not existing.data:
+    if not existing or not existing.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Partido no encontrado"

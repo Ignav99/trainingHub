@@ -571,10 +571,13 @@ export function MatchDetailPanel({
     try {
       await partidosApi.delete(selectedId)
       mutate((key: string) => typeof key === 'string' && key.includes('/partidos'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/calendario'), undefined, { revalidate: true })
+      toast.success('Partido eliminado')
       setShowDelete(false)
       onDeleteSuccess()
     } catch (err) {
       console.error(err)
+      toast.error('Error al eliminar el partido')
     } finally {
       setDeleting(false)
     }
