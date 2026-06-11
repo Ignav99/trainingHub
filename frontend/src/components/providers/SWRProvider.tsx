@@ -38,7 +38,9 @@ export function SWRProvider({ children }: { children: React.ReactNode }) {
       value={{
         fetcher: apiFetcher,
         revalidateOnFocus: false,
-        dedupingInterval: 30000,
+        // 30s deduping made every list look stale for up to 30s after a
+        // mutation + navigation; 5s still absorbs request bursts on preload.
+        dedupingInterval: 5000,
         focusThrottleInterval: 30000,
         errorRetryCount: 2,
         errorRetryInterval: 3000,

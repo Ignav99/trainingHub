@@ -189,6 +189,8 @@ export default function EnfermeriaDetailPage() {
     setDeleting(true)
     try {
       await medicoApi.delete(registro.id)
+      mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'), undefined, { revalidate: true })
       toast.success('Registro eliminado')
       router.push('/enfermeria')
     } catch (err) {
