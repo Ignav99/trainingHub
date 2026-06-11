@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
+from app.security.dependencies import invalidate_subscription_cache
 from app.models import (
     PlanResponse,
     PlanListResponse,
@@ -289,6 +290,7 @@ async def upgrade_plan(
         "ciclo": data.ciclo.value,
         "estado": "active",
     }).eq("organizacion_id", auth.organizacion_id).execute()
+    invalidate_subscription_cache(str(auth.organizacion_id))  # bust 5-min TTL cache
 
     # If plan changes to club, update org
     if new_plan.data["tipo_licencia"] == "club":
@@ -341,6 +343,7 @@ async def cancel_suscripcion(
         "estado": "cancelled",
         "fecha_cancelacion": datetime.now(timezone.utc).isoformat(),
     }).eq("organizacion_id", auth.organizacion_id).execute()
+    invalidate_subscription_cache(str(auth.organizacion_id))  # bust 5-min TTL cache
 
     supabase.table("historial_suscripciones").insert({
         "organizacion_id": auth.organizacion_id,

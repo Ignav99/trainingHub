@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from app.config import get_settings
 from app.services.license_service import LicenseService
 from app.services.audit_service import log_action
+from app.security.dependencies import invalidate_subscription_cache
 
 logger = logging.getLogger(__name__)
 
@@ -165,6 +166,7 @@ def _handle_payment_succeeded(data: dict):
         supabase.table("suscripciones").update({
             "fecha_proximo_pago": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
         }).eq("organizacion_id", org_id).execute()
+        invalidate_subscription_cache(org_id)  # bust 5-min TTL cache
         logger.info(f"Subscription renewed for org {org_id}")
 
 
@@ -234,6 +236,7 @@ def _handle_subscription_deleted(data: dict):
         "estado": "cancelled",
         "fecha_cancelacion": datetime.now(timezone.utc).isoformat(),
     }).eq("organizacion_id", org_id).execute()
+    invalidate_subscription_cache(org_id)  # bust 5-min TTL cache
 
     supabase.table("historial_suscripciones").insert({
         "organizacion_id": org_id,

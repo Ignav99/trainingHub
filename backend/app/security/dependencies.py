@@ -4,6 +4,7 @@ FastAPI dependencies for role-based access control and license enforcement.
 """
 
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Optional
 from uuid import UUID
@@ -22,6 +23,55 @@ from app.security.permissions import (
 logger = logging.getLogger(__name__)
 
 security = HTTPBearer()
+
+
+# ---------------------------------------------------------------------------
+# TTL Cache for subscription lookups
+# ---------------------------------------------------------------------------
+
+class TTLCache:
+    """Simple in-process TTL cache backed by a plain dict.
+    Thread-safe for CPython (GIL protects dict ops).
+    max_size is a soft cap — LRU eviction not implemented; excess entries
+    are evicted lazily on get() by expiry sweep.
+    """
+
+    def __init__(self, ttl_seconds: int = 300, max_size: int = 512):
+        self._ttl = ttl_seconds
+        self._max_size = max_size
+        self._store: dict[str, tuple[float, object]] = {}  # key -> (expires_at, value)
+
+    def get(self, key: str):
+        entry = self._store.get(key)
+        if entry is None:
+            return None
+        expires_at, value = entry
+        if time.monotonic() >= expires_at:
+            del self._store[key]
+            return None
+        return value
+
+    def set(self, key: str, value) -> None:
+        if len(self._store) >= self._max_size:
+            # Evict expired entries first
+            now = time.monotonic()
+            expired = [k for k, (exp, _) in self._store.items() if now >= exp]
+            for k in expired:
+                del self._store[k]
+        self._store[key] = (time.monotonic() + self._ttl, value)
+
+    def invalidate(self, key: str) -> None:
+        self._store.pop(key, None)
+
+
+_subscription_cache = TTLCache(ttl_seconds=300, max_size=512)
+
+
+def invalidate_subscription_cache(org_id: str) -> None:
+    """Evict a specific org's subscription data from the in-process cache.
+    Call this from any endpoint that mutates suscripciones state.
+    """
+    _subscription_cache.invalidate(org_id)
 
 
 @dataclass
@@ -107,7 +157,11 @@ def _resolve_equipo_id(request: Request, equipo_id_param: str) -> Optional[str]:
 
 
 def _get_subscription_info(organizacion_id: str) -> dict:
-    """Fetch subscription and plan info for an organization. Cached logic can be added."""
+    """Fetch subscription and plan info for an organization. Cached for 5 minutes."""
+    cached = _subscription_cache.get(organizacion_id)
+    if cached is not None:
+        return cached
+
     supabase = get_supabase()
     try:
         result = (
@@ -118,6 +172,7 @@ def _get_subscription_info(organizacion_id: str) -> dict:
             .execute()
         )
         if result.data:
+            _subscription_cache.set(organizacion_id, result.data)
             return result.data
     except Exception:
         pass
