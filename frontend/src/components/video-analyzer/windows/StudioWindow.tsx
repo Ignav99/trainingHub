@@ -1,6 +1,6 @@
 'use client'
 import { useRef, useState } from 'react'
-import { VideoPlayer } from '../VideoPlayer'
+import { VideoPlayer, type VideoPlayerHandle } from '../VideoPlayer'
 import { DrawingOverlay } from '../DrawingOverlay'
 import { DrawingToolbar } from '../DrawingToolbar'
 import { useDrawingEngine } from '../useDrawingEngine'
@@ -24,7 +24,7 @@ export function StudioWindow({ videoSrc, eventId }: StudioWindowProps) {
   const event = getEventsForVideo().find(e => e.id === eventId)
   const button = event ? buttons.find(b => b.id === event.buttonId) : null
 
-  const playerRef = useRef<{ seekTo: (t: number) => void; play: () => void; pause: () => void } | null>(null)
+  const playerRef = useRef<VideoPlayerHandle | null>(null)
   const [tool, setTool] = useState<DrawingTool>('select')
   const [color, setColor] = useState('#ef4444')
   const [strokeWidth, setStrokeWidth] = useState(4)
