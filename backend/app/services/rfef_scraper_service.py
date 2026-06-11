@@ -31,6 +31,16 @@ LOGIN_URL = "https://www.rfaf.es/pnfg/NLogin"
 RFAF_BASE = "https://www.rfaf.es"
 CHARSET = "iso-8859-15"
 
+# ---------------------------------------------------------------------------
+# Circuit Breaker
+# ---------------------------------------------------------------------------
+CIRCUIT_BREAKER_THRESHOLD: int = 3       # consecutive full-run failures to open
+CIRCUIT_BREAKER_COOLDOWN_SECS: int = 6 * 3600  # 6 hours
+
+_cb_consecutive_failures: int = 0
+_cb_open: bool = False
+_cb_open_until: float = 0.0  # monotonic timestamp
+
 
 def _safe_int(text: str) -> int:
     """Convierte texto a int, devuelve 0 si falla."""

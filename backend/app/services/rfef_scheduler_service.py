@@ -15,7 +15,10 @@ from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+import time as _time
+
 from app.database import get_supabase
+import app.services.rfef_scraper_service as _scraper_mod
 from app.services.rfef_scraper_service import RFAFScraper
 from app.services.competition_linker_service import link_competition
 from app.services.pre_match_service import auto_populate_upcoming_matches
@@ -67,6 +70,22 @@ scheduler = AsyncIOScheduler()
 
 async def sync_all_competitions():
     """Sincroniza todas las competiciones con sync_habilitado=true."""
+    # --- Circuit breaker check ---
+    if _scraper_mod._cb_open:
+        if _time.monotonic() < _scraper_mod._cb_open_until:
+            logger.warning(
+                "RFEF circuit breaker open until %s — skipping sync run",
+                _time.strftime("%Y-%m-%d %H:%M:%S", _time.localtime(
+                    _time.time() + (_scraper_mod._cb_open_until - _time.monotonic())
+                )),
+            )
+            return
+        else:
+            # Cooldown elapsed — half-open: allow one attempt
+            _scraper_mod._cb_open = False
+            logger.info("RFEF circuit breaker half-open — attempting recovery run")
+    # --- end circuit breaker check ---
+
     supabase = get_supabase()
 
     try:
@@ -77,6 +96,7 @@ async def sync_all_competitions():
         competiciones = response.data or []
         if not competiciones:
             logger.info("No competitions to sync")
+            _scraper_mod._cb_consecutive_failures = 0
             return
 
         logger.info("Starting RFAF sync for %d competitions", len(competiciones))
@@ -100,8 +120,24 @@ async def sync_all_competitions():
         except Exception as e:
             logger.warning("Error in auto_populate_upcoming_matches: %s", e)
 
+        # Reset circuit breaker on success
+        _scraper_mod._cb_consecutive_failures = 0
+        _scraper_mod._cb_open = False
+
     except Exception as e:
+        _scraper_mod._cb_consecutive_failures += 1
         logger.error("Error in sync_all_competitions: %s", e, exc_info=True)
+        if _scraper_mod._cb_consecutive_failures >= _scraper_mod.CIRCUIT_BREAKER_THRESHOLD:
+            _scraper_mod._cb_open = True
+            _scraper_mod._cb_open_until = _time.monotonic() + _scraper_mod.CIRCUIT_BREAKER_COOLDOWN_SECS
+            logger.warning(
+                "RFEF circuit breaker OPENED after %d consecutive failures. "
+                "Will retry after %s",
+                _scraper_mod._cb_consecutive_failures,
+                _time.strftime("%Y-%m-%d %H:%M:%S", _time.localtime(
+                    _time.time() + _scraper_mod.CIRCUIT_BREAKER_COOLDOWN_SECS
+                )),
+            )
 
 
 def _upsert_jornada(supabase, comp_id: str, jornada: dict):
