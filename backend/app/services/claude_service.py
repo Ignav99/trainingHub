@@ -99,6 +99,7 @@ async def generate_diagram_data(
     espacio_ancho: float = None,
     num_jugadores_min: int = 0,
     fase_juego: str = "",
+    model: str | None = None,
 ) -> Optional[dict]:
     """Generate a diagram JSON for a training exercise using Claude AI.
 
@@ -106,6 +107,9 @@ async def generate_diagram_data(
     """
     try:
         client = _get_async_client()
+        if not model:
+            from app.config import get_settings
+            model = get_settings().CLAUDE_MODEL_HEAVY
 
         user_prompt = f"""Generate a diagram for this football training exercise:
 
@@ -118,7 +122,7 @@ Players: {num_jugadores_min or 'Not specified'}
 Game phase: {fase_juego or 'Not specified'}"""
 
         response = await client.messages.create(
-            model="claude-sonnet-4-5-20250929",
+            model=model,
             max_tokens=2048,
             system=DIAGRAM_GENERATION_PROMPT,
             messages=[{"role": "user", "content": user_prompt}],

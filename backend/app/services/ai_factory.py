@@ -1,10 +1,14 @@
 """
 TrainingHub Pro - AI Factory
-Multi-provider chain: tries each provider in order, falls through on 429/503.
-Default chain: deepseek → cerebras → groq → claude
+Proveedor único: Anthropic, con enrutado híbrido multi-modelo por método.
 
-Intelligent routing: certain methods (e.g. session_design_chat) are routed to
-Claude first because it generates structured JSON 5-10x faster than DeepSeek.
+Niveles (configurables en settings):
+  CLAUDE_MODEL_FAST  → barato/rápido: chats interactivos, ediciones
+  CLAUDE_MODEL       → equilibrado: análisis, generación de tareas
+  CLAUDE_MODEL_HEAVY → potente: diagramas y estructurado complejo
+
+La infraestructura de cadena multi-proveedor se conserva (reactivable vía
+AI_PROVIDER_CHAIN) pero por defecto solo corre Claude.
 """
 
 import logging
@@ -17,11 +21,20 @@ logger = logging.getLogger(__name__)
 
 _FALLBACK_CODES = {429, 503}
 
-# Methods that need fast structured JSON → Claude first, DeepSeek fallback.
-# Everything else uses the default AI_PROVIDER_CHAIN from settings.
-_METHOD_PROVIDER_OVERRIDES: dict[str, str] = {
-    "session_design_chat": "claude,deepseek",
+# Enrutado híbrido: método → atributo de settings con el modelo a usar.
+# Ahorrador por defecto (FAST); el equilibrado donde la calidad del contenido
+# importa; el pesado solo en generate_diagram (ver generate_diagram()).
+_METHOD_MODEL_TIERS: dict[str, str] = {
+    "session_design_chat": "CLAUDE_MODEL_FAST",   # latencia crítica (SSE)
+    "task_design_chat": "CLAUDE_MODEL_FAST",
+    "edit_task_with_ai": "CLAUDE_MODEL_FAST",
+    "generate_session_recommendations": "CLAUDE_MODEL_FAST",
+    "chat": "CLAUDE_MODEL",
+    "pre_match_chat": "CLAUDE_MODEL",
+    "create_task_from_prompt": "CLAUDE_MODEL",
+    "design_portero_tarea": "CLAUDE_MODEL",
 }
+_DEFAULT_TIER = "CLAUDE_MODEL_FAST"
 
 # Provider config: maps provider name → (key_attr, service_factory_args)
 _PROVIDER_REGISTRY = {
@@ -121,25 +134,23 @@ async def call_ai_with_fallback(method_name: str, *, use_fast_model: bool = Fals
     Raises:
         AIError: If all providers fail.
     """
-    # Intelligent routing: some methods have a preferred provider chain
-    override = _METHOD_PROVIDER_OVERRIDES.get(method_name)
-    if override:
-        chain = _build_provider_chain(chain_override=override)
-        logger.info(f"Using override chain for {method_name}: {[n for n, _ in chain]}")
-    else:
-        chain = _build_provider_chain()
+    chain = _build_provider_chain()
     if not chain:
         raise AIError("No AI providers configured", status_code=500, provider="none")
 
     last_error = None
+    settings = get_settings()
+    tier_attr = _METHOD_MODEL_TIERS.get(method_name, _DEFAULT_TIER)
+    tier_model = getattr(settings, tier_attr, settings.CLAUDE_MODEL)
 
     for i, (provider_name, config) in enumerate(chain):
         try:
-            # For Claude, support fast model (Haiku)
+            # Enrutado híbrido por método (use_fast_model fuerza el barato)
             model_override = None
-            if use_fast_model and provider_name == "claude":
-                settings = get_settings()
-                model_override = settings.CLAUDE_MODEL_FAST
+            if provider_name == "claude":
+                model_override = (settings.CLAUDE_MODEL_FAST
+                                  if use_fast_model else tier_model)
+                logger.info(f"AI routing: {method_name} -> {model_override}")
 
             service = _get_service(provider_name, config, model_override)
             method = getattr(service, method_name, None)

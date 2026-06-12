@@ -345,20 +345,45 @@ async def dashboard_actividad_reciente(
 # AI USAGE ANALYTICS
 # ============================================
 
-# Anthropic pricing (per million tokens) — Claude Sonnet 4.5
-# https://docs.anthropic.com/en/docs/about-claude/models
+# Anthropic pricing (per million tokens)
+# https://platform.claude.com/docs/en/docs/about-claude/pricing
 PRICING = {
+    "claude-fable-5": {
+        "input_per_mtok": 10.00,
+        "output_per_mtok": 50.00,
+        "cache_read_per_mtok": 1.00,
+        "cache_write_per_mtok": 12.50,
+    },
+    "claude-sonnet-4-6": {
+        "input_per_mtok": 3.00,
+        "output_per_mtok": 15.00,
+        "cache_read_per_mtok": 0.30,
+        "cache_write_per_mtok": 3.75,
+    },
+    "claude-haiku-4-5": {
+        "input_per_mtok": 1.00,
+        "output_per_mtok": 5.00,
+        "cache_read_per_mtok": 0.10,
+        "cache_write_per_mtok": 1.25,
+    },
+    # histórico: registros de uso previos a la migración de modelos
     "claude-sonnet-4-5-20250929": {
-        "input_per_mtok": 3.00,        # $3 per 1M input tokens
-        "output_per_mtok": 15.00,      # $15 per 1M output tokens
-        "cache_read_per_mtok": 0.30,   # $0.30 per 1M cached input tokens (90% discount)
-        "cache_write_per_mtok": 3.75,  # $3.75 per 1M cache creation tokens (25% premium)
+        "input_per_mtok": 3.00,
+        "output_per_mtok": 15.00,
+        "cache_read_per_mtok": 0.30,
+        "cache_write_per_mtok": 3.75,
+    },
+    "claude-haiku-4-5-20251001": {
+        "input_per_mtok": 1.00,
+        "output_per_mtok": 5.00,
+        "cache_read_per_mtok": 0.10,
+        "cache_write_per_mtok": 1.25,
     },
     "gemini_embedding": {
         "per_1k_chars": 0.0,           # text-embedding-004 is free tier for most usage
     },
 }
-DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
+DEFAULT_MODEL = "claude-sonnet-4-6"
 
 
 def _calculate_cost_usd(

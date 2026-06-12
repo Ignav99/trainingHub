@@ -52,11 +52,15 @@ class Settings(BaseSettings):
     STORAGE_BUCKET_GRAFICOS: str = "graficos"
     STORAGE_BUCKET_PDFS: str = "pdfs"
 
-    # Claude API (primary AI provider)
+    # Claude API (único proveedor de IA) — enrutado híbrido por niveles:
+    #   FAST  → barato y rápido: chats interactivos, ediciones, recomendaciones
+    #   CLAUDE_MODEL → equilibrado: análisis y generación de tareas
+    #   HEAVY → solo donde aporta: diagramas y estructurado complejo
     ANTHROPIC_API_KEY: str | None = None
     AI_PROVIDER: str = "claude"
-    CLAUDE_MODEL: str = "claude-sonnet-4-5-20250929"
-    CLAUDE_MODEL_FAST: str = "claude-haiku-4-5-20251001"
+    CLAUDE_MODEL: str = "claude-sonnet-4-6"
+    CLAUDE_MODEL_FAST: str = "claude-haiku-4-5"
+    CLAUDE_MODEL_HEAVY: str = "claude-fable-5"
 
     # Google Gemini API (deprecated, kept for backward compat)
     GEMINI_API_KEY: str | None = None
@@ -78,8 +82,9 @@ class Settings(BaseSettings):
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
     GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
 
-    # AI Provider Chain — comma-separated priority list
-    AI_PROVIDER_CHAIN: str = "deepseek,cerebras,groq,claude"
+    # AI Provider Chain — solo Anthropic (los proveedores OpenAI-compatible
+    # siguen en el código y pueden reactivarse vía esta env si hiciera falta)
+    AI_PROVIDER_CHAIN: str = "claude"
 
     # Medical data encryption (AES-256-GCM, base64-encoded 32-byte key)
     MEDICAL_ENCRYPTION_KEY: str | None = None
