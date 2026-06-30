@@ -19,7 +19,31 @@ logger = logging.getLogger("traininghub.requests")
 # ============ Security Headers Middleware ============
 
 class SecurityHeadersMiddleware:
-    """Adds security headers to all responses (pure ASGI)."""
+    """Adds security headers to all responses (pure ASGI).
+
+    Includes Content-Security-Policy as a second line of defence
+    against XSS, clickjacking, and data injection.
+    """
+
+    # frame-ancestors, base-uri, form-action are strict.
+    # script-src allows inline for Next.js RSC streaming (if needed),
+    # but unsafe-inline is scoped to 'self'.
+    # connect-src allows API, Supabase, and uploads.
+    # upgrade-insecure-requests ensures HTTPS for all sub-resources.
+    CSP_VALUE = (
+        b"default-src 'self'; "
+        b"script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co; "
+        b"style-src 'self' 'unsafe-inline'; "
+        b"img-src 'self' data: blob: https://*.supabase.co https://*.unsplash.com; "
+        b"font-src 'self' data:; "
+        b"connect-src 'self' https://*.supabase.co https://*.googleapis.com https://*.resend.com https://*.stripe.com wss://*.supabase.co; "
+        b"media-src 'self' blob: https://*.supabase.co; "
+        b"frame-src 'self' https://*.stripe.com https://*.supabase.co; "
+        b"frame-ancestors 'none'; "
+        b"base-uri 'self'; "
+        b"form-action 'self'; "
+        b"upgrade-insecure-requests;"
+    )
 
     HEADERS = [
         (b"x-content-type-options", b"nosniff"),
@@ -28,6 +52,7 @@ class SecurityHeadersMiddleware:
         (b"referrer-policy", b"strict-origin-when-cross-origin"),
         (b"permissions-policy", b"camera=(), microphone=(), geolocation=()"),
         (b"strict-transport-security", b"max-age=31536000; includeSubDomains"),
+        (b"content-security-policy", CSP_VALUE),
     ]
 
     def __init__(self, app: ASGIApp):
@@ -83,7 +108,7 @@ class RequestLoggingMiddleware:
         await self.app(scope, receive, send_with_logging)
 
 
-# ============ Rate Limiting Middleware ============
+# ============ Cache Control Middleware ============
 
 class CacheControlMiddleware:
     """Sets Cache-Control headers on GET responses based on endpoint type (pure ASGI).

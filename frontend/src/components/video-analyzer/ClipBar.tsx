@@ -12,6 +12,7 @@ interface ClipBarProps {
   onUpdate: (id: string, patch: Partial<Omit<Clip, 'id'>>) => void
   onSelect: (id: string) => void
   onDoubleClick?: (id: string) => void
+  onAddToOrganizer?: (clipId: string) => void
 }
 
 const MIN_CLIP_DURATION = 0.5
@@ -25,6 +26,7 @@ export function ClipBar({
   onUpdate,
   onSelect,
   onDoubleClick,
+  onAddToOrganizer,
 }: ClipBarProps) {
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState(clip.title)
@@ -167,6 +169,21 @@ export function ClipBar({
         style={{ touchAction: 'none' }}
         onPointerDown={(e) => handlePointerDown(e, 'end')}
       />
+
+      {/* Add to organizer button — shown on hover */}
+      {onAddToOrganizer && (
+        <button
+          className="absolute top-0.5 right-2.5 w-4 h-4 flex items-center justify-center rounded bg-white/20 text-white text-[9px] leading-none z-10 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white/40"
+          title="Añadir al Organizer"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            onAddToOrganizer(clip.id)
+          }}
+        >
+          +
+        </button>
+      )}
     </div>
   )
 }

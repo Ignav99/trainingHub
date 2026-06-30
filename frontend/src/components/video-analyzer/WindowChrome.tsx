@@ -16,16 +16,18 @@ interface WindowChromeProps {
   onMove: (id: string, x: number, y: number) => void
   onClose: (id: string) => void
   onMinimize: (id: string) => void
+  onResize?: (id: string, width: number, height: number) => void
   children: ReactNode
   className?: string
 }
 
 export function WindowChrome({
   id, title, x, y, width, height, minimized, zIndex,
-  onFocus, onMove, onClose, onMinimize, children, className = ''
+  onFocus, onMove, onClose, onMinimize, onResize, children, className = ''
 }: WindowChromeProps) {
   const dragOffset = useRef<{ ox: number; oy: number } | null>(null)
 
+  // ── Drag to move ────────────────────────────────────────────────
   const handleMouseDownHeader = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     onFocus(id)
@@ -44,6 +46,39 @@ export function WindowChrome({
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('mouseup', handleMouseUp)
   }, [id, onFocus, onMove])
+
+  // ── Resize handles ───────────────────────────────────────────────
+  // edge: 'e' = right edge (width only), 's' = bottom edge (height only), 'se' = corner (both)
+  const handleResizePointerDown = useCallback(
+    (e: React.PointerEvent, edge: 'e' | 's' | 'se') => {
+      if (!onResize) return
+      e.preventDefault()
+      e.stopPropagation()
+      onFocus(id)
+
+      const startX = e.clientX
+      const startY = e.clientY
+      const startW = width
+      const startH = height
+
+      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+
+      const handleMove = (ev: PointerEvent) => {
+        const dw = edge === 's' ? 0 : ev.clientX - startX
+        const dh = edge === 'e' ? 0 : ev.clientY - startY
+        const newW = Math.max(200, startW + dw)
+        const newH = Math.max(120, startH + dh)
+        onResize(id, newW, newH)
+      }
+      const handleUp = () => {
+        window.removeEventListener('pointermove', handleMove)
+        window.removeEventListener('pointerup', handleUp)
+      }
+      window.addEventListener('pointermove', handleMove)
+      window.addEventListener('pointerup', handleUp)
+    },
+    [id, width, height, onFocus, onResize]
+  )
 
   return (
     <div
@@ -79,6 +114,36 @@ export function WindowChrome({
         <div className="flex-1 overflow-hidden">
           {children}
         </div>
+      )}
+
+      {/* ── Resize handles ── */}
+      {!minimized && onResize && (
+        <>
+          {/* Right edge */}
+          <div
+            className="absolute top-10 right-0 w-1.5 bottom-4 cursor-ew-resize z-20 hover:bg-white/10 transition-colors"
+            style={{ touchAction: 'none' }}
+            onPointerDown={(e) => handleResizePointerDown(e, 'e')}
+          />
+          {/* Bottom edge */}
+          <div
+            className="absolute bottom-0 left-4 right-4 h-1.5 cursor-ns-resize z-20 hover:bg-white/10 transition-colors"
+            style={{ touchAction: 'none' }}
+            onPointerDown={(e) => handleResizePointerDown(e, 's')}
+          />
+          {/* Bottom-right corner (SE) — most commonly used */}
+          <div
+            className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize z-30 flex items-end justify-end pb-0.5 pr-0.5"
+            style={{ touchAction: 'none' }}
+            onPointerDown={(e) => handleResizePointerDown(e, 'se')}
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" className="text-white/25 pointer-events-none">
+              <line x1="10" y1="3" x2="3" y2="10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              <line x1="10" y1="6" x2="6" y2="10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              <line x1="10" y1="9" x2="9" y2="10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          </div>
+        </>
       )}
     </div>
   )

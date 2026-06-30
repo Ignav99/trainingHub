@@ -44,12 +44,20 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       getVideoElement: () => videoRef.current,
       getCurrentTime: () => videoRef.current?.currentTime || 0,
       seekTo: (time: number) => {
-        if (videoRef.current) {
+        const v = videoRef.current
+        if (v) {
           // Clamp to clip range if active
           if (clipRange) {
             time = Math.max(clipRange.start, Math.min(clipRange.end, time))
           }
-          videoRef.current.currentTime = time
+          // Skip if already seeking — prevents decoder queue overflow during fast scrub
+          if (v.seeking) return
+          // fastSeek() seeks to nearest keyframe — much faster for scrubbing
+          if ('fastSeek' in v) {
+            v.fastSeek(time)
+          } else {
+            v.currentTime = time
+          }
         }
       },
       pause: () => videoRef.current?.pause(),

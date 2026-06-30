@@ -22,7 +22,7 @@ export function FloatingWindowManager({
   onTagCreated,
   onSeekTo,
 }: FloatingWindowManagerProps) {
-  const { windows, closeWindow, focusWindow, moveWindow, toggleMinimize, openWindow } = useFloatingWindows()
+  const { windows, closeWindow, focusWindow, moveWindow, resizeWindow, toggleMinimize, openWindow } = useFloatingWindows()
 
   const handleOpenStudio = (eventId: string) => {
     openWindow('studio', { title: 'Studio', clipId: eventId })
@@ -45,6 +45,7 @@ export function FloatingWindowManager({
           onMove={moveWindow}
           onClose={closeWindow}
           onMinimize={toggleMinimize}
+          onResize={resizeWindow}
         >
           {win.type === 'botonera' && (
             <BotoneraWindow
@@ -56,6 +57,7 @@ export function FloatingWindowManager({
           )}
           {win.type === 'organizer' && (
             <OrganizerWindow
+              videoSrc={videoSrc}
               onOpenInStudio={handleOpenStudio}
               onSeekTo={onSeekTo}
             />

@@ -44,6 +44,9 @@ interface TimelineProps {
   // Scrub lifecycle — lets parent skip React setState during scrub
   onScrubStart?: () => void
   onScrubEnd?: () => void
+  // Organizer integration
+  onAddClipToOrganizer?: (clipId: string) => void
+  onAddCodeEventToOrganizer?: (eventId: string) => void
 }
 
 export function Timeline({
@@ -70,11 +73,15 @@ export function Timeline({
   onCodeEventDoubleClick,
   onScrubStart,
   onScrubEnd,
+  onAddClipToOrganizer,
+  onAddCodeEventToOrganizer,
 }: TimelineProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const filmstripCanvasRef = useRef<HTMLCanvasElement>(null)
   const playheadRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(0)
+  const [zoomLevel, setZoomLevel] = useState(1)
   const rafRef = useRef<number>(0)
   const dragCreateRef = useRef<{ startX: number; startTime: number } | null>(null)
   const [dragPreview, setDragPreview] = useState<{ left: number; width: number } | null>(null)
@@ -83,6 +90,12 @@ export function Timeline({
   const pendingSeekTimeRef = useRef<number | null>(null)
   const scrubRafRef = useRef<number>(0)
   const scrubCachedRectRef = useRef<DOMRect | null>(null)
+
+  // Content width = visual width × zoom
+  const contentWidth = Math.max(containerWidth - LABEL_WIDTH, 0) * zoomLevel
+
+  const zoomIn = useCallback(() => setZoomLevel((z) => Math.min(8, parseFloat((z * 1.5).toFixed(2)))), [])
+  const zoomOut = useCallback(() => setZoomLevel((z) => Math.max(1, parseFloat((z / 1.5).toFixed(2)))), [])
 
   const tags = useTaggingStore((s) => s.tags)
   const setSelectedTagId = useTaggingStore((s) => s.setSelectedTagId)
@@ -120,22 +133,22 @@ export function Timeline({
   // Draw filmstrip on canvas
   useEffect(() => {
     const canvas = filmstripCanvasRef.current
-    if (!canvas || !containerWidth || !rangeDuration || thumbCount === 0) return
+    if (!canvas || !contentWidth || !rangeDuration || thumbCount === 0) return
 
-    canvas.width = containerWidth
+    canvas.width = contentWidth
     canvas.height = 68
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
     ctx.fillStyle = '#1a1a1a'
-    ctx.fillRect(0, 0, containerWidth, 68)
+    ctx.fillRect(0, 0, contentWidth, 68)
 
     const entries = Array.from(thumbnails.entries()).sort((a, b) => a[0] - b[0])
 
     if (isClipMode && segments.length > 0) {
       for (const seg of segments) {
-        const startX = (seg.virtualStart / rangeDuration) * containerWidth
-        const segWidth = ((seg.virtualEnd - seg.virtualStart) / rangeDuration) * containerWidth
+        const startX = (seg.virtualStart / rangeDuration) * contentWidth
+        const segWidth = ((seg.virtualEnd - seg.virtualStart) / rangeDuration) * contentWidth
 
         if (seg.type === 'freeze') {
           ctx.fillStyle = '#0e7490'
@@ -160,7 +173,7 @@ export function Timeline({
         } else {
           const realStart = seg.realStart!
           const realEnd = seg.realEnd!
-          const thumbW = containerWidth / thumbCount
+          const thumbW = contentWidth / thumbCount
           for (const [thumbTime, thumbUrl] of entries) {
             if (thumbTime >= realStart - duration / thumbCount && thumbTime <= realEnd + duration / thumbCount) {
               const relPct = (thumbTime - realStart) / (realEnd - realStart)
@@ -175,7 +188,7 @@ export function Timeline({
         }
       }
     } else {
-      const thumbW = containerWidth / thumbCount
+      const thumbW = contentWidth / thumbCount
       entries.forEach((entry, i) => {
         const img = new Image()
         img.onload = () => {
@@ -185,7 +198,7 @@ export function Timeline({
         img.src = entry[1]
       })
     }
-  }, [thumbnails, thumbCount, containerWidth, duration, rangeDuration, isClipMode, segments])
+  }, [thumbnails, thumbCount, contentWidth, duration, rangeDuration, isClipMode, segments])
 
   // Playhead animation
   useEffect(() => {
@@ -208,13 +221,26 @@ export function Timeline({
         }
       }
 
-      playhead.style.left = `${Math.max(0, Math.min(100, pct))}%`
+      const clampedPct = Math.max(0, Math.min(100, pct))
+      playhead.style.left = `${clampedPct}%`
+
+      // Auto-scroll to keep playhead visible when zoomed
+      const scrollEl = scrollContainerRef.current
+      if (scrollEl && contentWidth > 0) {
+        const playheadPx = (clampedPct / 100) * contentWidth
+        const visW = scrollEl.clientWidth
+        const sl = scrollEl.scrollLeft
+        if (playheadPx < sl + 20 || playheadPx > sl + visW - 20) {
+          scrollEl.scrollLeft = Math.max(0, playheadPx - visW / 2)
+        }
+      }
+
       rafRef.current = requestAnimationFrame(tick)
     }
 
     rafRef.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(rafRef.current)
-  }, [rangeDuration, rangeStart, getVideoElement, isClipMode, getVirtualTime])
+  }, [rangeDuration, rangeStart, getVideoElement, isClipMode, getVirtualTime, contentWidth])
 
   const timeToPercent = useCallback(
     (t: number) => (rangeDuration > 0 ? ((t - rangeStart) / rangeDuration) * 100 : 0),
@@ -226,16 +252,17 @@ export function Timeline({
     [rangeDuration, rangeStart]
   )
 
-  // xToTime accounts for the label column offset
+  // xToTime accounts for the label column offset, zoom, and scroll position
   const xToTime = useCallback(
     (clientX: number) => {
       const rect = containerRef.current?.getBoundingClientRect()
-      if (!rect || !rangeDuration) return rangeStart
-      const contentWidth = rect.width - LABEL_WIDTH
-      const pct = Math.max(0, Math.min(1, (clientX - rect.left - LABEL_WIDTH) / contentWidth))
+      if (!rect || !rangeDuration || !contentWidth) return rangeStart
+      const scrollLeft = scrollContainerRef.current?.scrollLeft ?? 0
+      const px = clientX - rect.left - LABEL_WIDTH + scrollLeft
+      const pct = Math.max(0, Math.min(1, px / contentWidth))
       return pct * rangeDuration + rangeStart
     },
-    [rangeDuration, rangeStart]
+    [rangeDuration, rangeStart, contentWidth]
   )
 
   // Filmstrip / ruler scrub — RAF-throttled for smooth touch scrubbing
@@ -255,11 +282,8 @@ export function Timeline({
   const handleScrubMove = useCallback(
     (e: React.PointerEvent) => {
       if (!scrubActiveRef.current) return
-      const rect = scrubCachedRectRef.current
-      if (!rect || !rangeDuration) return
-      const contentWidth = rect.width - LABEL_WIDTH
-      const pct = Math.max(0, Math.min(1, (e.clientX - rect.left - LABEL_WIDTH) / contentWidth))
-      const t = pct * rangeDuration + rangeStart
+      if (!rangeDuration) return
+      const t = xToTime(e.clientX)
       // Store pending time and let RAF flush it — throttles to ~60fps max
       pendingSeekTimeRef.current = t
       if (!scrubRafRef.current) {
@@ -272,7 +296,7 @@ export function Timeline({
         })
       }
     },
-    [rangeDuration, rangeStart, onSeek]
+    [rangeDuration, xToTime, onSeek]
   )
 
   const handleScrubEnd = useCallback(
@@ -370,7 +394,24 @@ export function Timeline({
   }
 
   return (
-    <div ref={containerRef} className="relative w-full select-none bg-[#111] flex touch-none">
+    <div ref={containerRef} className="relative w-full h-full select-none bg-[#111] flex flex-col touch-none">
+      {/* ── Zoom controls bar ─────────────────────────────────────────── */}
+      <div className="shrink-0 flex items-center gap-1.5 px-2 bg-[#0a0a0a] border-b border-white/10 z-30" style={{ height: 26 }}>
+        <span className="text-[9px] text-white/30 uppercase tracking-wider mr-0.5">Zoom</span>
+        <button
+          className="w-5 h-5 flex items-center justify-center rounded bg-white/10 hover:bg-white/25 text-white/80 hover:text-white text-sm font-bold transition-colors"
+          onClick={zoomOut}
+          title="Alejar (zoom out)"
+        >−</button>
+        <span className="text-[10px] text-white/50 tabular-nums w-7 text-center font-mono">{zoomLevel.toFixed(1)}×</span>
+        <button
+          className="w-5 h-5 flex items-center justify-center rounded bg-white/10 hover:bg-white/25 text-white/80 hover:text-white text-sm font-bold transition-colors"
+          onClick={zoomIn}
+          title="Acercar (zoom in)"
+        >+</button>
+      </div>
+      {/* ── Main row: label + scroll ───────────────────────────────────── */}
+      <div className="flex flex-1 min-h-0">
       {/* ── Left label column ───────────────────────────────────────────── */}
       <div
         className="shrink-0 flex flex-col bg-[#0d0d0d] border-r border-white/5 z-10"
@@ -384,13 +425,6 @@ export function Timeline({
         {!isClipMode && tags.length > 0 && (
           <div style={{ height: Math.max(20, tags.length * 20) }} />
         )}
-        {/* Clips row label */}
-        <div
-          style={{ height: 32 }}
-          className="flex items-center px-1"
-        >
-          <span className="text-[8px] text-white/25 uppercase tracking-wide truncate">Clips</span>
-        </div>
         {/* Drawing rows placeholder (one per temporal drawing) */}
         {showDrawingBars && temporalDrawings.map((el) => (
           <div key={el.id} style={{ height: 20 }} className="flex items-center px-1">
@@ -423,11 +457,12 @@ export function Timeline({
       </div>
 
       {/* ── Main timeline content ────────────────────────────────────────── */}
-      <div className="flex-1 relative min-w-0">
+      <div ref={scrollContainerRef} className="flex-1 relative min-w-0 overflow-x-auto">
+        <div style={{ width: contentWidth > 0 ? contentWidth : undefined, minWidth: '100%', position: 'relative' }}>
         {/* Time ruler */}
         <div
-          className="relative w-full bg-[#0d0d0d] border-b border-white/5 overflow-hidden"
-          style={{ height: 16, touchAction: 'none' }}
+          className="relative bg-[#0d0d0d] border-b border-white/5 overflow-hidden"
+          style={{ height: 16, touchAction: 'none', width: '100%' }}
           onPointerDown={handleScrubStart}
           onPointerMove={handleScrubMove}
           onPointerUp={handleScrubEnd}
@@ -455,8 +490,8 @@ export function Timeline({
         {/* Filmstrip canvas */}
         <canvas
           ref={filmstripCanvasRef}
-          className="w-full cursor-pointer block touch-none"
-          style={{ height: 68 }}
+          className="cursor-pointer block touch-none"
+          style={{ height: 68, width: '100%' }}
           onPointerDown={handleScrubStart}
           onPointerMove={handleScrubMove}
           onPointerUp={handleScrubEnd}
@@ -472,108 +507,6 @@ export function Timeline({
             timeToPercent={timeToPercent}
           />
         )}
-
-        {/* Clips / Segments row */}
-        <div
-          className="relative w-full bg-white/5 border-t border-white/10"
-          style={{ height: 32 }}
-          onPointerDown={handleClipZonePointerDown}
-          onPointerMove={handleClipZonePointerMove}
-          onPointerUp={handleClipZonePointerUp}
-        >
-          {isClipMode ? (
-            <>
-              {segments.map((seg, i) => {
-                const leftPct = (seg.virtualStart / rangeDuration) * 100
-                const widthPct = ((seg.virtualEnd - seg.virtualStart) / rangeDuration) * 100
-
-                if (seg.type === 'freeze') {
-                  const isActive = activeFreezeFrameId === seg.freezeFrame?.id
-                  return (
-                    <div
-                      key={`seg-${i}`}
-                      className={`absolute top-0 h-full cursor-pointer transition-all ${
-                        isActive ? 'ring-1 ring-cyan-400 z-10' : 'hover:brightness-125'
-                      }`}
-                      style={{
-                        left: `${leftPct}%`,
-                        width: `${Math.max(widthPct, 0.5)}%`,
-                        backgroundColor: isActive ? '#0e7490' : '#0891b260',
-                        borderLeft: '1px solid #22d3ee',
-                        borderRight: '1px solid #22d3ee',
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (seg.freezeFrame) onFreezeFrameClick?.(seg.freezeFrame)
-                      }}
-                    >
-                      <span className="text-[8px] text-cyan-300 truncate px-0.5 pointer-events-none flex items-center gap-0.5 h-full select-none">
-                        ❄ {seg.freezeFrame!.duration}s
-                      </span>
-                    </div>
-                  )
-                }
-
-                return (
-                  <div
-                    key={`seg-${i}`}
-                    className="absolute top-0 h-full"
-                    style={{
-                      left: `${leftPct}%`,
-                      width: `${widthPct}%`,
-                      backgroundColor: 'rgba(255,255,255,0.03)',
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onFreezeFrameClick?.(null as any)
-                    }}
-                  />
-                )
-              })}
-
-              {freezeFrames.length === 0 && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <span className="text-[10px] text-white/20">
-                    Pulsa Captura para añadir freeze frames
-                  </span>
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              {clips.length === 0 && !dragPreview && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <span className="text-[10px] text-white/20">Arrastra aqui para crear clips</span>
-                </div>
-              )}
-
-              {clips.map((clip) => (
-                <div key={clip.id} data-clip-bar>
-                  <ClipBar
-                    clip={clip}
-                    isActive={activeClipId === clip.id}
-                    timeToPercent={timeToPercent}
-                    xToTime={xToTime}
-                    duration={duration}
-                    onUpdate={onClipUpdate}
-                    onSelect={onClipSelect}
-                    onDoubleClick={onClipDoubleClick}
-                  />
-                </div>
-              ))}
-
-              {dragPreview && (
-                <div
-                  className="absolute top-0 h-full bg-white/15 border border-white/30 rounded-sm pointer-events-none"
-                  style={{
-                    left: dragPreview.left,
-                    width: dragPreview.width,
-                  }}
-                />
-              )}
-            </>
-          )}
-        </div>
 
         {/* Drawing temporal bars (one row per element) */}
         {showDrawingBars && temporalDrawings.map((el) => (
@@ -608,7 +541,7 @@ export function Timeline({
                 const widthPct = Math.max(endPct - startPct, 0.3)
                 const centerPct = timeToPercent(ev.timestamp)
                 return (
-                  <div key={ev.id}>
+                  <div key={ev.id} className="group/ev">
                     {/* Event clip block */}
                     <div
                       className="absolute top-2 bottom-2 rounded-sm opacity-70 hover:opacity-100 transition-opacity"
@@ -626,7 +559,22 @@ export function Timeline({
                         e.stopPropagation()
                         onCodeEventDoubleClick?.(ev.id)
                       }}
-                    />
+                    >
+                      {/* + Add to organizer — visible on hover */}
+                      {onAddCodeEventToOrganizer && (
+                        <button
+                          className="absolute top-0.5 right-0.5 w-4 h-4 flex items-center justify-center rounded bg-black/60 text-white text-[9px] leading-none z-10 opacity-0 group-hover/ev:opacity-100 transition-opacity hover:bg-white/30"
+                          title="Añadir al Organizer"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onAddCodeEventToOrganizer(ev.id)
+                          }}
+                        >
+                          +
+                        </button>
+                      )}
+                    </div>
                     {/* Press point marker */}
                     <div
                       className="absolute top-0 bottom-0 w-0.5 z-10"
@@ -649,7 +597,9 @@ export function Timeline({
         >
           <div className="absolute -top-0.5 -translate-x-1/2 w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[5px] border-t-white" />
         </div>
+        </div>{/* end zoomed content div */}
       </div>
+      </div>{/* end main row */}
     </div>
   )
 }

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { X, Camera, Scissors, ArrowLeft, Snowflake, Download } from 'lucide-react'
+import { X, Camera, Scissors, ArrowLeft, Snowflake, Download, List, LayoutGrid } from 'lucide-react'
 import type { DrawingElement } from '@/types'
 
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
@@ -23,8 +23,8 @@ import type { TimeSegment } from './useVirtualTimeline'
 import { exportFramePNG, downloadDataUrl } from './utils'
 import { useClipPersistence } from './useClipPersistence'
 import { useCodeWindowStore } from './useCodeWindowStore'
+import { useOrganizerStore } from './useOrganizerStore'
 import { FloatingWindowManager } from './FloatingWindowManager'
-import { MainToolbar } from './MainToolbar'
 import { useFloatingWindows } from './useFloatingWindows'
 import type { DrawingTool, FreezeFrame } from './types'
 
@@ -53,6 +53,28 @@ export function VideoAnalyzer({
   const currentTimeRef = useRef(0)
   const isScrubRef = useRef(false)
   const scrubFinalTimeRef = useRef<number | null>(null)
+
+  // Resizable timeline height
+  const [timelineHeight, setTimelineHeight] = useState(220)
+  const resizeDragRef = useRef<{ startY: number; startHeight: number } | null>(null)
+
+  const handleResizeHandlePointerDown = useCallback((e: React.PointerEvent) => {
+    e.preventDefault()
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    resizeDragRef.current = { startY: e.clientY, startHeight: timelineHeight }
+  }, [timelineHeight])
+
+  const handleResizeHandlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!resizeDragRef.current) return
+    const delta = resizeDragRef.current.startY - e.clientY
+    const newH = Math.max(80, Math.min(600, resizeDragRef.current.startHeight + delta))
+    setTimelineHeight(newH)
+  }, [])
+
+  const handleResizeHandlePointerUp = useCallback((e: React.PointerEvent) => {
+    ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
+    resizeDragRef.current = null
+  }, [])
 
   // Store — individual selectors
   const tool = useVideoAnalyzerStore((s) => s.tool)
@@ -99,6 +121,9 @@ export function VideoAnalyzer({
     const key = s.currentVideoKey || '_default'
     return s.events[key] || []
   })
+
+  // Organizer store
+  const addClipToOrganizer = useOrganizerStore((s) => s.addClip)
 
   // Video key (used by code window and floating windows)
   const videoKey = partidoId || (localFile?.name ?? '_local')
@@ -186,6 +211,49 @@ export function VideoAnalyzer({
 
   // Persist clips to localStorage per partido
   useClipPersistence(partidoId, clips, setClipsFromStorage)
+
+  // Organizer: add code event from timeline lanes
+  const handleAddCodeEventToOrganizer = useCallback((eventId: string) => {
+    const event = currentCodeEvents.find((e) => e.id === eventId)
+    if (!event) return
+    const btn = codeButtons.find((b) => b.id === event.buttonId)
+    const rows = useOrganizerStore.getState().rows
+    let rowId = rows[0]?.id
+    if (!rowId) {
+      useOrganizerStore.getState().addRow('Sin categoría', '#6366f1')
+      rowId = useOrganizerStore.getState().rows[0]?.id ?? 'default'
+    }
+    addClipToOrganizer({
+      sourceId: eventId,
+      sourceType: 'codeEvent',
+      title: btn?.label ?? 'Evento',
+      startTime: event.startTime,
+      endTime: event.endTime,
+      color: btn?.color ?? '#6366f1',
+      rowId,
+    })
+  }, [currentCodeEvents, codeButtons, addClipToOrganizer])
+
+  // Organizer: add clip from timeline
+  const handleAddClipToOrganizer = useCallback((clipId: string) => {
+    const clip = clips.find((c) => c.id === clipId)
+    if (!clip) return
+    const rows = useOrganizerStore.getState().rows
+    let rowId = rows[0]?.id
+    if (!rowId) {
+      useOrganizerStore.getState().addRow('Sin categoría', '#6366f1')
+      rowId = useOrganizerStore.getState().rows[0]?.id ?? 'default'
+    }
+    addClipToOrganizer({
+      sourceId: clipId,
+      sourceType: 'clip',
+      title: clip.title,
+      startTime: clip.startTime,
+      endTime: clip.endTime,
+      color: clip.color,
+      rowId,
+    })
+  }, [clips, addClipToOrganizer])
 
   // Find editing clip
   const editingClip = editingClipId ? clips.find((c) => c.id === editingClipId) || null : null
@@ -780,26 +848,25 @@ export function VideoAnalyzer({
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-white hover:text-white hover:bg-white/20"
-                onClick={handleCreateClipHere}
-                title="Crear clip en posicion actual (C)"
+                className="text-blue-400 hover:text-white hover:bg-blue-600/60"
+                onClick={handleOpenBotonera}
+                title="Botonera (B)"
               >
-                <Scissors className="h-4 w-4 mr-1" />
-                Clip
+                <LayoutGrid className="h-4 w-4 mr-1" />
+                Botonera
               </Button>
-
-              <div className="w-px h-5 bg-white/20" />
 
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-white hover:text-white hover:bg-white/20"
-                onClick={handleExportPNG}
-                title="Exportar PNG"
+                className="text-white/70 hover:text-white hover:bg-white/20"
+                onClick={handleOpenOrganizer}
+                title="Organizer (O)"
               >
-                <Camera className="h-4 w-4 mr-1" />
-                PNG
+                <List className="h-4 w-4 mr-1" />
+                Organizer
               </Button>
+
             </div>
           </>
         )}
@@ -810,7 +877,7 @@ export function VideoAnalyzer({
         {/* Left: Video + controls + timeline */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Video + SVG overlay */}
-          <div ref={videoContainerRef} className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
+          <div ref={videoContainerRef} className="flex-1 min-h-[120px] relative bg-black flex items-center justify-center overflow-hidden">
             <div className="relative w-full h-full flex items-center justify-center">
               <div className="relative w-full" style={{ maxHeight: '100%', aspectRatio: '16/9' }}>
                 <VideoPlayer
@@ -848,57 +915,73 @@ export function VideoAnalyzer({
             </div>
           </div>
 
-          {/* Drawing toolbar */}
-          <DrawingToolbar
-            activeTool={tool}
-            onToolChange={handleToolChange}
-            color={color}
-            onColorChange={setColor}
-            strokeWidth={strokeWidth}
-            onStrokeWidthChange={setStrokeWidth}
-            canUndo={canUndo}
-            canRedo={canRedo}
-            onUndo={undo}
-            onRedo={redo}
-            onDeleteSelected={engineDeleteSelected}
-            onClearAll={clearAll}
-            selectedId={selectedId}
-            elements={visibleElements}
-            onUpdateSelectedProps={handleUpdateSelectedProps}
-          />
+          {/* Add to Organizer bar — shown when a clip is selected in general mode */}
+          {viewMode === 'general' && activeClipId && (() => {
+            const selectedClip = clips.find((c) => c.id === activeClipId)
+            if (!selectedClip) return null
+            return (
+              <div className="flex items-center justify-between px-3 py-1 bg-[#1a1a1a] border-t border-white/10">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: selectedClip.color }} />
+                  <span className="text-[11px] text-white/70 truncate max-w-[200px]">{selectedClip.title}</span>
+                </div>
+                <button
+                  className="text-[11px] px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-colors shrink-0"
+                  onClick={() => handleAddClipToOrganizer(activeClipId)}
+                >
+                  + Añadir al Organizer
+                </button>
+              </div>
+            )
+          })()}
 
-          <MainToolbar
-            onOpenBotonera={handleOpenBotonera}
-            onOpenOrganizer={handleOpenOrganizer}
-            clipCount={currentCodeEvents.length}
-          />
+          {/* Resize handle */}
+          <div
+            className="group relative w-full flex items-center justify-center bg-[#111] hover:bg-[#1e3a5f] border-t border-b border-white/10 hover:border-blue-500/50 cursor-row-resize select-none shrink-0 transition-colors"
+            style={{ height: 14 }}
+            onPointerDown={handleResizeHandlePointerDown}
+            onPointerMove={handleResizeHandlePointerMove}
+            onPointerUp={handleResizeHandlePointerUp}
+            onPointerCancel={handleResizeHandlePointerUp}
+            title="Arrastrá para cambiar el tamaño del timeline"
+          >
+            <div className="flex items-center gap-1">
+              <div className="w-4 h-1 rounded-full bg-white/20 group-hover:bg-blue-400/70 transition-colors" />
+              <div className="w-4 h-1 rounded-full bg-white/20 group-hover:bg-blue-400/70 transition-colors" />
+              <div className="w-4 h-1 rounded-full bg-white/20 group-hover:bg-blue-400/70 transition-colors" />
+            </div>
+          </div>
 
-          {/* Timeline */}
-          <Timeline
-            videoSrc={src}
-            duration={duration}
-            getVideoElement={getVideoElement}
-            clips={clips}
-            activeClipId={activeClipId}
-            onSeek={handleSeek}
-            onScrubStart={handleScrubStart}
-            onScrubEnd={handleScrubEnd}
-            onClipUpdate={updateClip}
-            onClipSelect={setActiveClipId}
-            onClipCreate={createClipFromRange}
-            onClipDoubleClick={handleEnterClipEditor}
-            viewMode={viewMode}
-            editingClip={editingClip}
-            getVirtualTime={getVirtualTime}
-            onFreezeFrameClick={handleFreezeFrameClick}
-            activeFreezeFrameId={activeFreezeFrameId}
-            drawingElements={elements}
-            onDrawingTimeUpdate={handleDrawingTimeUpdate}
-            codeButtons={codeButtons}
-            codeEvents={currentCodeEvents}
-            onCodeLaneClick={(_buttonId: string) => handleOpenBotonera()}
-            onCodeEventDoubleClick={handleOpenStudio}
-          />
+          {/* Timeline — height controlled by drag handle */}
+          <div className="shrink-0 overflow-hidden" style={{ height: timelineHeight }}>
+            <Timeline
+              videoSrc={src}
+              duration={duration}
+              getVideoElement={getVideoElement}
+              clips={clips}
+              activeClipId={activeClipId}
+              onSeek={handleSeek}
+              onScrubStart={handleScrubStart}
+              onScrubEnd={handleScrubEnd}
+              onClipUpdate={updateClip}
+              onClipSelect={setActiveClipId}
+              onClipCreate={createClipFromRange}
+              onClipDoubleClick={handleEnterClipEditor}
+              viewMode={viewMode}
+              editingClip={editingClip}
+              getVirtualTime={getVirtualTime}
+              onFreezeFrameClick={handleFreezeFrameClick}
+              activeFreezeFrameId={activeFreezeFrameId}
+              drawingElements={elements}
+              onDrawingTimeUpdate={handleDrawingTimeUpdate}
+              codeButtons={codeButtons}
+              codeEvents={currentCodeEvents}
+              onCodeLaneClick={(_buttonId: string) => handleOpenBotonera()}
+              onCodeEventDoubleClick={handleOpenStudio}
+              onAddClipToOrganizer={handleAddClipToOrganizer}
+              onAddCodeEventToOrganizer={handleAddCodeEventToOrganizer}
+            />
+          </div>
         </div>
       </div>
 

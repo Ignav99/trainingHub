@@ -34,7 +34,7 @@ if settings.SENTRY_DSN:
     )
 
 from app.api.v1.router import api_router
-from app.database import init_supabase, get_supabase
+from app.database import init_supabase
 from app.middleware import (
     SecurityHeadersMiddleware,
     RequestLoggingMiddleware,
@@ -49,17 +49,6 @@ async def lifespan(app: FastAPI):
     # Startup
     print(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     init_supabase()
-
-    # Sync player estados from active medical records (one-time fix for existing data)
-    try:
-        sb = get_supabase()
-        rehab = sb.table("registros_medicos").select("jugador_id").eq("tipo", "rehabilitacion").neq("estado", "alta").execute()
-        for r in (rehab.data or []):
-            sb.table("jugadores").update({"estado": "en_recuperacion"}).eq("id", r["jugador_id"]).eq("estado", "activo").execute()
-        if rehab.data:
-            print(f"✅ Synced {len(rehab.data)} rehabilitacion → en_recuperacion")
-    except Exception as e:
-        print(f"⚠️ Player estado sync failed: {e}")
 
     # Start RFAF scraping scheduler
     from app.services.rfef_scheduler_service import start_scheduler, stop_scheduler
@@ -111,11 +100,11 @@ app = FastAPI(
 app.add_middleware(RequestLoggingMiddleware)
 # 2. Cache-Control headers
 app.add_middleware(CacheControlMiddleware)
-# 3. Security headers
+# 3. Security headers (includes Content-Security-Policy)
 app.add_middleware(SecurityHeadersMiddleware)
 # 4. Rate limiting
 app.add_middleware(RateLimitMiddleware, max_requests=100, window_seconds=60)
-# 4. CORS (outermost - MUST wrap everything so error responses get CORS headers)
+# 5. CORS (outermost - MUST wrap everything so error responses get CORS headers)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,

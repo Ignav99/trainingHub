@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react'
+import { useState, useEffect, useRef, memo, useCallback } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
@@ -44,6 +44,28 @@ import { Toaster } from '@/components/ui/toast'
 import { MobileBottomNav } from '@/components/ui/mobile-nav'
 import { InstallPrompt } from '@/components/ui/install-prompt'
 import { registerServiceWorker } from '@/lib/register-sw'
+import type { Equipo, Usuario } from '@/types'
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface ClubTheme {
+  colorPrimario: string
+  colorSecundario: string
+  logoUrl: string | null
+}
+
+interface SidebarProps {
+  pathname: string
+  equipos: Equipo[]
+  equipoActivo: Equipo | null
+  onSelectEquipo: (equipo: Equipo) => void
+  user: Usuario | null
+  theme: ClubTheme
+  onClose?: () => void
+  onLogout: () => void
+}
+
+// ─── Navigation ───────────────────────────────────────────────────────────────
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -69,6 +91,8 @@ const secondaryNavigation = [
   { name: 'Configuracion', href: '/configuracion', icon: Settings },
 ]
 
+// ─── Layout ───────────────────────────────────────────────────────────────────
+
 export default function DashboardLayout({
   children,
 }: {
@@ -81,7 +105,10 @@ export default function DashboardLayout({
   const { theme, isOnboardingComplete } = useClubStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [dataReady, setDataReady] = useState(false)
+  // Generation counter prevents stale preload results from old team switches
+  const genRef = useRef(0)
 
+  // ── Auth redirect ──
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push('/login')
@@ -101,12 +128,14 @@ export default function DashboardLayout({
     }
   }, [isAuthenticated, isOnboardingComplete, pathname, router])
 
-  // Preload ALL dashboard data and wait before showing the app.
-  // The SplashScreen stays visible until everything resolves, so the
-  // user enters a fully populated dashboard with zero skeletons.
+  // ── Preload all dashboard data ──
+  // Uses a generation counter to cancel stale requests when equipoActivo changes.
   useEffect(() => {
     if (!isAuthenticated || !equipoActivo?.id) return
     const eid = equipoActivo.id
+    // Bump generation — only THIS generation's results will be accepted
+    genRef.current += 1
+    const gen = genRef.current
 
     // Current month range for calendar queries
     const now = new Date()
@@ -142,10 +171,12 @@ export default function DashboardLayout({
       apiKey('/carga/equipo/' + eid),
     ].filter(Boolean) as string[]
 
-    // Wait for ALL to resolve, then show the app
+    // Wait for ALL to resolve, then show the app — only if this generation is still current
     Promise.allSettled(allEndpoints.map(key => preload(key, apiFetcher)))
       .then(() => {
-        setDataReady(true)
+        if (gen === genRef.current) {
+          setDataReady(true)
+        }
 
         // Phase 2: background preload for secondary pages (non-blocking)
         const hoy = `${y}-${String(m + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
@@ -175,7 +206,11 @@ export default function DashboardLayout({
       })
 
     // Safety timeout: show app after 15s max even if some endpoints are slow
-    const timeout = setTimeout(() => setDataReady(true), 15000)
+    const timeout = setTimeout(() => {
+      if (gen === genRef.current) {
+        setDataReady(true)
+      }
+    }, 15000)
     return () => clearTimeout(timeout)
   }, [isAuthenticated, equipoActivo?.id])
 
@@ -193,8 +228,11 @@ export default function DashboardLayout({
   const handleCloseSidebar = useCallback(() => setSidebarOpen(false), [])
   const handleOpenSidebar = useCallback(() => setSidebarOpen(true), [])
 
+  // ── Find active Equipo object for the sidebar (equipoActivo in store may be stale) ──
+  const activeTeam = equipoActivo ?? equipos[0] ?? null
+
   // Show SplashScreen until auth + equipos + critical data are ready
-  if (!isAuthenticated || !equipoActivo || !dataReady) {
+  if (!isAuthenticated || !activeTeam || !dataReady) {
     return <SplashScreen />
   }
 
@@ -207,7 +245,7 @@ export default function DashboardLayout({
           <SidebarContent
             pathname={pathname}
             equipos={equipos}
-            equipoActivo={equipoActivo}
+            equipoActivo={activeTeam}
             onSelectEquipo={setEquipoActivo}
             user={user}
             theme={theme}
@@ -223,7 +261,7 @@ export default function DashboardLayout({
           <SidebarContent
             pathname={pathname}
             equipos={equipos}
-            equipoActivo={equipoActivo}
+            equipoActivo={activeTeam}
             onSelectEquipo={setEquipoActivo}
             user={user}
             theme={theme}
@@ -275,18 +313,7 @@ export default function DashboardLayout({
   )
 }
 
-// ============ Sidebar Component ============
-
-interface SidebarProps {
-  pathname: string
-  equipos: any[]
-  equipoActivo: any | null
-  onSelectEquipo: (equipo: any) => void
-  user: any
-  theme: { colorPrimario: string; colorSecundario: string; logoUrl: string | null }
-  onClose?: () => void
-  onLogout: () => void
-}
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
 
 const SidebarContent = memo(function SidebarContent({
   pathname,

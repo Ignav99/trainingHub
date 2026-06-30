@@ -1,0 +1,42 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+# Only one deploy at a time — never cancel in-progress deploys
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Render
+    runs-on: ubuntu-latest
+    # Only deploy when CI passed — never on failure
+    if: github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - name: Deploy backend
+        run: |
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}")
+          echo "Backend deploy hook response: $HTTP_CODE"
+          if [[ "$HTTP_CODE" =~ ^2 ]]; then
+            echo "Backend deploy triggered successfully"
+          else
+            echo "Backend deploy failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+      - name: Deploy frontend
+        run: |
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}")
+          echo "Frontend deploy hook response: $HTTP_CODE"
+          if [[ "$HTTP_CODE" =~ ^2 ]]; then
+            echo "Frontend deploy triggered successfully"
+          else
+            echo "Frontend deploy failed with HTTP $HTTP_CODE"
+            exit 1
+          fi

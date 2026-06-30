@@ -1,24 +1,30 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { useAuthStore } from '@/stores/authStore'
 import { useClubStore } from '@/stores/clubStore'
 import { SplashScreen } from '@/components/ui/splash-screen'
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [isReady, setIsReady] = useState(false)
+  const pathname = usePathname()
+  // Skip auth initialization entirely for /local/* routes — no login, no Supabase
+  const isLocalRoute = pathname?.startsWith('/local')
+
+  const [isReady, setIsReady] = useState(isLocalRoute)
   const initializeAuth = useAuthStore((s) => s.initializeAuth)
   const user = useAuthStore((s) => s.user)
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const setOrganizacion = useClubStore((s) => s.setOrganizacion)
 
   useEffect(() => {
+    if (isLocalRoute) return
     const init = async () => {
       await initializeAuth()
       setIsReady(true)
     }
     init()
-  }, [initializeAuth])
+  }, [initializeAuth, isLocalRoute])
 
   // Sync organization data to club store when user loads
   useEffect(() => {

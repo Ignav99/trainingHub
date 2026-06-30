@@ -105,7 +105,7 @@ export function StudioWindow({ videoSrc, eventId }: StudioWindowProps) {
           elements={elements}
           preview={preview}
           selectedId={selectedId}
-          interactive={true}
+          interactive={!isPlaying}
           tool={tool}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
