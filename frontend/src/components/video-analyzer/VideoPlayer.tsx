@@ -33,7 +33,7 @@ interface VideoPlayerProps {
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
   function VideoPlayer({ src, clipRange, onTimeUpdate, onPlayStateChange, onDurationChange }, ref) {
-    const videoRef = useRef<HTMLVideoElement>(null)
+    const videoRef = useRef<HTMLVideoElement>(null as unknown as HTMLVideoElement)
     const [playing, setPlaying] = useState(false)
     const [currentTime, setCurrentTime] = useState(0)
     const [duration, setDuration] = useState(0)
@@ -53,10 +53,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           // Skip if already seeking — prevents decoder queue overflow during fast scrub
           if (v.seeking) return
           // fastSeek() seeks to nearest keyframe — much faster for scrubbing
-          if ('fastSeek' in v) {
-            v.fastSeek(time)
+          const videoEl = v as HTMLVideoElement & { fastSeek?: (time: number) => void }
+          if (videoEl.fastSeek) {
+            videoEl.fastSeek(time)
           } else {
-            v.currentTime = time
+            videoEl.currentTime = time
           }
         }
       },
