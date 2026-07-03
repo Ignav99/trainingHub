@@ -26,6 +26,8 @@ class MicrocicloBase(BaseModel):
     fecha_inicio: date
     fecha_fin: date
     partido_id: Optional[UUID] = None
+    rival_id: Optional[UUID] = None
+    game_model_id: Optional[UUID] = None
     objetivo_principal: Optional[str] = None
     objetivo_tactico: Optional[str] = None
     objetivo_fisico: Optional[str] = None
@@ -44,6 +46,8 @@ class MicrocicloUpdate(BaseModel):
     fecha_inicio: Optional[date] = None
     fecha_fin: Optional[date] = None
     partido_id: Optional[UUID] = None
+    rival_id: Optional[UUID] = None
+    game_model_id: Optional[UUID] = None
     objetivo_principal: Optional[str] = None
     objetivo_tactico: Optional[str] = None
     objetivo_fisico: Optional[str] = None

@@ -387,6 +387,36 @@ from app.models.entrenamiento_margen import (
     TIPOS_EJERCICIO_MARGEN_INFO,
 )
 
+# Fase 1 — Plan de Partido, Informe Rival, Alertas
+from app.models.plan_partido import (
+    EstadoPlanPartido,
+    AlturaBloque,
+    TipoPresion,
+    TipoEmparejamiento,
+    MovimientoClave,
+    Emparejamiento,
+    EspacioCampo,
+    FasePlan,
+    FasePlanABP,
+    CambioPrevisto,
+    MomentoPartido,
+    EscenarioPartido,
+    PlanPartidoBase,
+    PlanPartidoCreate,
+    PlanPartidoUpdate,
+    PlanPartidoResponse,
+    RivalJugadorClave,
+    RivalPartidoHistorico,
+    InformeRivalEnriquecidoCreate,
+    InformeRivalEnriquecidoResponse,
+    TipoAlerta,
+    PrioridadAlerta,
+    AlertaCreate,
+    AlertaUpdate,
+    AlertaResponse,
+    VistaCompletaMicrociclo,
+)
+
 __all__ = [
     # Tarea
     "FaseJuego", "Densidad", "NivelCognitivo",
@@ -524,4 +554,15 @@ __all__ = [
     # Video Playlists
     "VideoPlaylistCreate", "VideoPlaylistUpdate", "VideoPlaylistResponse",
     "VideoPlaylistItemCreate", "VideoPlaylistItemResponse",
+    # Fase 1 — Plan de Partido + Informe Rival + Alertas
+    "EstadoPlanPartido", "AlturaBloque", "TipoPresion", "TipoEmparejamiento",
+    "MovimientoClave", "Emparejamiento", "EspacioCampo",
+    "FasePlan", "FasePlanABP", "CambioPrevisto",
+    "MomentoPartido", "EscenarioPartido",
+    "PlanPartidoBase", "PlanPartidoCreate", "PlanPartidoUpdate", "PlanPartidoResponse",
+    "RivalJugadorClave", "RivalPartidoHistorico",
+    "InformeRivalEnriquecidoCreate", "InformeRivalEnriquecidoResponse",
+    "TipoAlerta", "PrioridadAlerta",
+    "AlertaCreate", "AlertaUpdate", "AlertaResponse",
+    "VistaCompletaMicrociclo",
 ]

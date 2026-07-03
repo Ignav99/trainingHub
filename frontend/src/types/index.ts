@@ -2102,3 +2102,204 @@ export const TIPOS_EJERCICIO_MARGEN: { value: TipoEjercicioMargen; label: string
   { value: 'flexibilidad', label: 'Flexibilidad', color: '#14B8A6' },
   { value: 'otro', label: 'Otro', color: '#6B7280' },
 ]
+
+// ============================================
+// FASE 1 — PLAN DE PARTIDO + INFORME RIVAL + ALERTAS
+// ============================================
+
+export type EstadoPlanPartido = 'borrador' | 'finalizado' | 'compartido'
+export type AlturaBloque = 'alto' | 'medio' | 'bajo'
+export type TipoPresion = 'hombre' | 'zona' | 'mixta'
+export type TipoEmparejamiento = 'marca' | 'presion' | 'cobertura'
+
+export interface MovimientoClave {
+  titulo: string
+  descripcion: string
+  jugadores_involucrados: string[]
+  zona_inicio?: Record<string, any>
+  zona_fin?: Record<string, any>
+  referencia_visual?: string
+}
+
+export interface Emparejamiento {
+  nuestro_jugador_id: string
+  rival_jugador_id?: string
+  rival_dorsal?: number
+  rival_nombre?: string
+  tipo: TipoEmparejamiento
+  notas?: string
+}
+
+export interface EspacioCampo {
+  nombre: string
+  zona: Record<string, any>
+  descripcion?: string
+}
+
+export interface FasePlan {
+  nombre: string
+  descripcion?: string
+  altura_bloque?: AlturaBloque
+  zona_presion?: Record<string, any>
+  tipo_presion?: TipoPresion
+  emparejamientos: Emparejamiento[]
+  movimientos_clave: MovimientoClave[]
+  espacios_a_atacar: EspacioCampo[]
+  espacios_a_proteger: EspacioCampo[]
+  referencias_visuales: string[]
+  triggers: string[]
+  video_clips: string[]
+}
+
+export interface FasePlanABP {
+  nombre: string
+  descripcion?: string
+  sistema_marcaje?: string
+  referencias: string[]
+  jugadores_area: string[]
+  jugadores_rechace: string[]
+  jugadores_contra: string[]
+  notas?: string
+}
+
+export interface CambioPrevisto {
+  minuto_aprox: number
+  sale_jugador_id: string
+  entra_jugador_id: string
+  motivo?: string
+}
+
+export interface MomentoPartido {
+  rango: string
+  estrategia?: string
+  cambios_previstos: CambioPrevisto[]
+  notas?: string
+}
+
+export interface EscenarioPartido {
+  condicion: string
+  cambios_sistema?: string
+  cambios_jugadores: CambioPrevisto[]
+  ajustes_tacticos?: string
+}
+
+export interface PlanPartido {
+  id: string
+  partido_id: string
+  microciclo_id: string
+  game_model_id?: string
+  sistema_juego: string
+  estilo_previsto?: string
+  once_inicial: Record<string, string>
+  suplentes: string[]
+  descartados: string[]
+  capitan_id?: string
+  fase_ataque_organizado?: FasePlan
+  fase_defensa_organizada?: FasePlan
+  fase_transicion_ofensiva?: FasePlan
+  fase_transicion_defensiva?: FasePlan
+  fase_abp_ofensivo?: FasePlanABP
+  fase_abp_defensivo?: FasePlanABP
+  momentos_partido: MomentoPartido[]
+  escenarios: EscenarioPartido[]
+  estado: EstadoPlanPartido
+  notas?: string
+  created_by?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface RivalJugadorClave {
+  nombre: string
+  dorsal?: number
+  posicion?: string
+  fortalezas: string[]
+  debilidades: string[]
+  tipo: 'peligroso' | 'debilidad' | 'neutral'
+  notas?: string
+}
+
+export interface RivalPartidoHistorico {
+  rival_nombre: string
+  fecha?: string
+  resultado?: string
+  goles_favor?: number
+  goles_contra?: number
+  sistema_rival?: string
+  notas?: string
+}
+
+export interface InformeRivalEnriquecido {
+  id: string
+  rival_id: string
+  partido_id?: string
+  sistema_juego?: string
+  sistema_variantes: string[]
+  estilo?: string
+  fortalezas: string[]
+  debilidades: string[]
+  jugadores_clave: RivalJugadorClave[]
+  lesionados_sancionados: string[]
+  ultimos_partidos: RivalPartidoHistorico[]
+  abp_ofensivo?: string
+  abp_defensivo?: string
+  mapa_presion?: Record<string, any>
+  notas?: string
+  created_by?: string
+  created_at: string
+  updated_at: string
+}
+
+export type TipoAlerta =
+  | 'microciclo_sin_sesion'
+  | 'plan_partido_faltante'
+  | 'jugador_sancion'
+  | 'carga_critica'
+  | 'rival_nuevo_entrenador'
+  | 'lesion_recaida'
+  | 'falta_abp_plan'
+  | 'personalizada'
+
+export type PrioridadAlerta = 'baja' | 'normal' | 'alta' | 'urgente'
+
+export interface Alerta {
+  id: string
+  equipo_id: string
+  microciclo_id?: string
+  tipo: TipoAlerta
+  prioridad: PrioridadAlerta
+  titulo: string
+  mensaje?: string
+  entidad_tipo?: string
+  entidad_id?: string
+  accion_url?: string
+  metadata: Record<string, any>
+  resuelta: boolean
+  resuelta_por?: string
+  resuelta_en?: string
+  notas_resolucion?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface VistaCompletaMicrociclo {
+  microciclo: Microciclo
+  sesiones: (Pick<Sesion, 'id' | 'titulo' | 'fecha' | 'match_day' | 'estado' | 'duracion_total' | 'objetivo_principal' | 'intensidad_objetivo' | 'fase_juego_principal' | 'notas_pre' | 'notas_post'> & { num_tareas: number })[]
+  plantilla: {
+    total: number
+    disponibles: number
+    lesionados: number
+    en_recuperacion: number
+    sancionados: number
+    jugadores_lesionados: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado' | 'fecha_lesion' | 'fecha_vuelta_estimada'>[]
+    jugadores_en_recuperacion: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado' | 'fecha_vuelta_estimada'>[]
+    jugadores_sancionados: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado'>[]
+  }
+  rpe: {
+    registros_por_sesion: Record<string, { rpe_promedio: number | null; num_registros: number }>
+    rpe_promedio_semana: number | null
+  }
+  plan_partido?: PlanPartido | null
+  informe_rival?: InformeRivalEnriquecido | null
+  alertas: Alerta[]
+}

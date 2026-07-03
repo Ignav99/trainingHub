@@ -16,6 +16,12 @@ from app.models import (
     MicrocicloListResponse,
     EstadoMicrociclo,
 )
+from app.models.plan_partido import (
+    PlanPartidoResponse,
+    InformeRivalEnriquecidoResponse,
+    AlertaResponse,
+    VistaCompletaMicrociclo,
+)
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
@@ -37,7 +43,7 @@ async def list_microciclos(
     supabase = get_supabase()
 
     query = supabase.table("microciclos").select(
-        "*, equipos(nombre, categoria), partidos(*, rivales(nombre, nombre_corto))",
+        "*, equipos(nombre, categoria), partidos(*, rivales(nombre, nombre_corto)), rivales(nombre, nombre_corto, escudo_url)",
         count="exact"
     )
 
@@ -86,14 +92,15 @@ async def get_microciclo_completo(
     auth: AuthContext = Depends(require_permission(Permission.MICROCICLO_READ)),
 ):
     """
-    Devuelve toda la info de un microciclo en una sola llamada:
-    microciclo (con partido+rival), sesiones, plantilla y RPE.
+    WAR ROOM — Devuelve TODA la info de un microciclo:
+    microciclo (partido+rival+game_model), sesiones, plantilla, RPE,
+    plan de partido, informe rival y alertas.
     """
     supabase = get_supabase()
 
-    # 1. Microciclo con joins a partido, rival y equipo
+    # 1. Microciclo con todos los joins
     micro_resp = supabase.table("microciclos").select(
-        "*, equipos(id, nombre, categoria), partidos(*, rivales(nombre, nombre_corto, escudo_url))"
+        "*, equipos(id, nombre, categoria), partidos(*, rivales(nombre, nombre_corto, escudo_url)), rivales(nombre, nombre_corto, escudo_url), game_models(id, nombre, sistema_juego, estilo)"
     ).eq("id", str(microciclo_id)).single().execute()
 
     if not micro_resp.data:
@@ -104,10 +111,11 @@ async def get_microciclo_completo(
 
     micro = micro_resp.data
     equipo_id = micro["equipo_id"]
+    rival_id = micro.get("rival_id")
     fecha_inicio = micro["fecha_inicio"]
     fecha_fin = micro["fecha_fin"]
 
-    # Auto-link partido si el microciclo no tiene uno asignado
+    # Auto-link partido si no tiene uno
     if not micro.get("partido_id"):
         partido_auto = supabase.table("partidos").select("id").eq(
             "equipo_id", equipo_id
@@ -117,13 +125,13 @@ async def get_microciclo_completo(
             supabase.table("microciclos").update({
                 "partido_id": str(pid)
             }).eq("id", str(microciclo_id)).execute()
-            # Reload to get the partido joined data
+            # Reload
             micro_resp = supabase.table("microciclos").select(
-                "*, equipos(id, nombre, categoria), partidos(*, rivales(nombre, nombre_corto, escudo_url))"
+                "*, equipos(id, nombre, categoria), partidos(*, rivales(nombre, nombre_corto, escudo_url)), rivales(nombre, nombre_corto, escudo_url), game_models(id, nombre, sistema_juego, estilo)"
             ).eq("id", str(microciclo_id)).single().execute()
             micro = micro_resp.data
 
-    # 2. Sesiones del microciclo con count de tareas
+    # 2. Sesiones con count de tareas
     sesiones_resp = supabase.table("sesiones").select(
         "id, titulo, fecha, match_day, estado, duracion_total, objetivo_principal, "
         "intensidad_objetivo, fase_juego_principal, notas_pre, notas_post, "
@@ -136,7 +144,7 @@ async def get_microciclo_completo(
         s["num_tareas"] = len(tareas_rel)
         sesiones.append(s)
 
-    # 3. Plantilla — disponibilidad del equipo
+    # 3. Plantilla
     jugadores_resp = supabase.table("jugadores").select(
         "id, nombre, apellidos, dorsal, posicion_principal, estado, "
         "fecha_lesion, fecha_vuelta_estimada, motivo_baja"
@@ -162,7 +170,7 @@ async def get_microciclo_completo(
         "jugadores_sancionados": sancionados,
     }
 
-    # 4. RPE del rango de fechas del microciclo
+    # 4. RPE
     jugador_ids = [j["id"] for j in jugadores]
     rpe_data = {"registros_por_sesion": {}, "rpe_promedio_semana": None}
 
@@ -173,7 +181,6 @@ async def get_microciclo_completo(
             "fecha", fecha_inicio
         ).lte("fecha", fecha_fin).execute()
 
-        # Agrupar por sesion
         por_sesion: dict = {}
         all_rpe = []
         for r in rpe_resp.data:
@@ -200,11 +207,37 @@ async def get_microciclo_completo(
             "rpe_promedio_semana": round(sum(all_rpe) / len(all_rpe), 1) if all_rpe else None,
         }
 
+    # 5. Plan de Partido
+    plan_partido = None
+    plan_resp = supabase.table("planes_partido").select("*").eq(
+        "microciclo_id", str(microciclo_id)
+    ).limit(1).single().execute()
+    if plan_resp.data:
+        plan_partido = PlanPartidoResponse(**plan_resp.data)
+
+    # 6. Informe del Rival
+    informe_rival = None
+    if rival_id:
+        informe_resp = supabase.table("informes_rival").select("*").eq(
+            "rival_id", str(rival_id)
+        ).order("created_at", desc=True).limit(1).single().execute()
+        if informe_resp.data:
+            informe_rival = InformeRivalEnriquecidoResponse(**informe_resp.data)
+
+    # 7. Alertas activas
+    alertas_resp = supabase.table("alertas").select("*").eq(
+        "microciclo_id", str(microciclo_id)
+    ).eq("resuelta", False).order("created_at", desc=True).execute()
+    alertas = [AlertaResponse(**a) for a in alertas_resp.data] if alertas_resp.data else []
+
     return {
         "microciclo": micro,
         "sesiones": sesiones,
         "plantilla": plantilla,
         "rpe": rpe_data,
+        "plan_partido": plan_partido.model_dump(mode="json") if plan_partido else None,
+        "informe_rival": informe_rival.model_dump(mode="json") if informe_rival else None,
+        "alertas": [a.model_dump(mode="json") for a in alertas],
     }
 
 
@@ -272,6 +305,10 @@ async def create_microciclo(
     data["equipo_id"] = str(data["equipo_id"])
     if data.get("partido_id"):
         data["partido_id"] = str(data["partido_id"])
+    if data.get("rival_id"):
+        data["rival_id"] = str(data["rival_id"])
+    if data.get("game_model_id"):
+        data["game_model_id"] = str(data["game_model_id"])
 
     response = supabase.table("microciclos").insert(data).execute()
 
@@ -313,6 +350,10 @@ async def update_microciclo(
 
     if update_data.get("partido_id"):
         update_data["partido_id"] = str(update_data["partido_id"])
+    if update_data.get("rival_id"):
+        update_data["rival_id"] = str(update_data["rival_id"])
+    if update_data.get("game_model_id"):
+        update_data["game_model_id"] = str(update_data["game_model_id"])
 
     response = supabase.table("microciclos").update(update_data).eq(
         "id", str(microciclo_id)
@@ -366,8 +407,7 @@ async def link_sesiones_to_microciclo(
     fecha_inicio = micro.data["fecha_inicio"]
     fecha_fin = micro.data["fecha_fin"]
 
-    # Find ALL sessions in date range for this team (including already-linked ones)
-    # This handles the case where sessions were linked to a previous/deleted microciclo
+    # Find ALL sessions in date range for this team
     sesiones = supabase.table("sesiones").select("id").eq(
         "equipo_id", equipo_id
     ).gte(
@@ -383,7 +423,7 @@ async def link_sesiones_to_microciclo(
         }).eq("id", s["id"]).execute()
         linked += 1
 
-    # Link partido: find the partido of this team in the date range
+    # Link partido
     partido_result = supabase.table("partidos").select("id").eq(
         "equipo_id", equipo_id
     ).gte(

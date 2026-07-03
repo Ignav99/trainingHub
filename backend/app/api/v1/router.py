@@ -53,6 +53,10 @@ from app.api.v1 import (
     entrenamientos_margen,
     tactical_boards,
     game_models,
+    # Fase 1 — Plan de Partido + Informe Rival + Alertas
+    plan_partido,
+    rival_informes,
+    alertas,
 )
 
 api_router = APIRouter()
@@ -125,6 +129,24 @@ api_router.include_router(
     microciclos.router,
     prefix="/microciclos",
     tags=["Microciclos"]
+)
+
+api_router.include_router(
+    plan_partido.router,
+    prefix="",
+    tags=["Plan de Partido"]
+)
+
+api_router.include_router(
+    rival_informes.router,
+    prefix="",
+    tags=["Informes Rival"]
+)
+
+api_router.include_router(
+    alertas.router,
+    prefix="",
+    tags=["Alertas"]
 )
 
 api_router.include_router(
