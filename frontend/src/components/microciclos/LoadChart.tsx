@@ -10,7 +10,7 @@ interface LoadChartSession {
 }
 
 interface RpeData {
-  registros_por_sesion: Record<string, { rpe_promedio: number; num_registros: number }>
+  registros_por_sesion: Record<string, { rpe_promedio: number | null; num_registros: number }>
   rpe_promedio_semana: number | null
 }
 
@@ -24,7 +24,7 @@ export function LoadChart({ sesiones, rpe }: LoadChartProps) {
 
   if (!hasData) return null
 
-  const sessionsWithRpe = sesiones.filter((s) => rpe.registros_por_sesion[s.id])
+  const sessionsWithRpe = sesiones.filter((s) => { const info = rpe.registros_por_sesion[s.id]; return info && info.rpe_promedio !== null })
 
   return (
     <Card>
@@ -57,8 +57,8 @@ export function LoadChart({ sesiones, rpe }: LoadChartProps) {
           <div className="space-y-3">
             {sessionsWithRpe.map((s) => {
               const rpeInfo = rpe.registros_por_sesion[s.id]
-              const pct = Math.min((rpeInfo.rpe_promedio / 10) * 100, 100)
-              const color = rpeInfo.rpe_promedio >= 7 ? 'bg-red-500' : rpeInfo.rpe_promedio >= 5 ? 'bg-amber-500' : 'bg-green-500'
+              const pct = Math.min((rpeInfo.rpe_promedio! / 10) * 100, 100)
+              const color = rpeInfo.rpe_promedio! >= 7 ? 'bg-red-500' : rpeInfo.rpe_promedio! >= 5 ? 'bg-amber-500' : 'bg-green-500'
               const mdColors = s.match_day ? MATCH_DAY_COLORS[s.match_day] : null
 
               return (
@@ -71,7 +71,7 @@ export function LoadChart({ sesiones, rpe }: LoadChartProps) {
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs font-medium truncate">{s.titulo}</span>
-                      <span className="text-xs font-bold ml-2">{rpeInfo.rpe_promedio}</span>
+                      <span className="text-xs font-bold ml-2">{rpeInfo.rpe_promedio!}</span>
                     </div>
                     <div className="h-2 rounded-full bg-muted overflow-hidden">
                       <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${pct}%` }} />

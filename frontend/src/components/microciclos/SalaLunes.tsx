@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { microciclosApi } from '@/lib/api/microciclos'
-import type { MicrocicloCompleto, PlanCT, TipoMicrociclo, Jugador } from '@/types'
+import type { VistaCompletaMicrociclo, PlanCT, TipoMicrociclo, Jugador } from '@/types'
 
 import { RivalScout } from './RivalScout'
 import { PlanPartido } from './PlanPartido'
@@ -62,7 +62,7 @@ function SaveIndicator({ status }: { status: SaveStatus }) {
 
 // ============ Disponibilidad summary card ============
 
-function DisponibilidadCard({ plantilla }: { plantilla: MicrocicloCompleto['plantilla'] }) {
+function DisponibilidadCard({ plantilla }: { plantilla: VistaCompletaMicrociclo['plantilla'] }) {
   return (
     <Card>
       <CardContent className="p-5 space-y-4">
@@ -122,7 +122,7 @@ function DisponibilidadCard({ plantilla }: { plantilla: MicrocicloCompleto['plan
 
 interface SalaLunesProps {
   microcicloId: string
-  data: MicrocicloCompleto
+  data: VistaCompletaMicrociclo
   jugadores: Jugador[]
 }
 

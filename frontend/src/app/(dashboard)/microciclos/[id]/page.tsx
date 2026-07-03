@@ -24,6 +24,9 @@ import {
   AlertCircle,
   ClipboardList,
   Plus,
+  Heart,
+  Apple,
+  Trophy,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,18 +42,21 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { apiKey } from '@/lib/swr'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
-import { microciclosApi, CreateMicrocicloData } from '@/lib/api/microciclos'
+import { microciclosApi } from '@/lib/api/microciclos'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { formatDate } from '@/lib/utils'
-import type { MicrocicloCompleto, Partido, PaginatedResponse, MatchDay, Jugador } from '@/types'
+import type { VistaCompletaMicrociclo, Partido, PaginatedResponse, Jugador } from '@/types'
 
 import { WeekView } from '@/components/microciclos/WeekView'
 import { LoadChart } from '@/components/microciclos/LoadChart'
-import { MATCH_DAY_COLORS } from '@/components/microciclos/SessionCard'
 import { SalaLunes } from '@/components/microciclos/SalaLunes'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { WarRoomAlerts } from '@/components/microciclos/WarRoomAlerts'
+import { WarRoomRivalResumen } from '@/components/microciclos/WarRoomRivalResumen'
+import { WarRoomVideos } from '@/components/microciclos/WarRoomVideos'
+import { WarRoomCargas } from '@/components/microciclos/WarRoomCargas'
 
 // ============ Constants ============
 const ESTADO_COLORS: Record<string, string> = {
@@ -89,19 +95,20 @@ function getDatesInRange(start: string, end: string): string[] {
   return dates
 }
 
+// ============ Component ============
 export default function MicrocicloDetallePage() {
   const params = useParams()
   const router = useRouter()
   const { equipoActivo } = useEquipoStore()
   const id = params.id as string
 
-  // SWR for microciclo completo
-  const { data, isLoading: loading, error: swrError } = useSWR<MicrocicloCompleto>(
+  // WAR ROOM — uses VistaCompletaMicrociclo (includes plan_partido, informe_rival, alertas)
+  const { data, isLoading: loading, error: swrError } = useSWR<VistaCompletaMicrociclo>(
     apiKey(`/microciclos/${id}/completo`)
   )
   const error = swrError ? (swrError.message || 'Error al cargar microciclo') : null
 
-  // SWR for jugadores (needed by SalaLunes)
+  // Jugadores for SalaLunes
   const { data: jugadoresResponse } = useSWR<PaginatedResponse<Jugador>>(
     data?.microciclo?.equipo_id
       ? apiKey('/jugadores', { equipo_id: data.microciclo.equipo_id, limit: 100 })
@@ -109,7 +116,7 @@ export default function MicrocicloDetallePage() {
   )
   const jugadores = jugadoresResponse?.data ?? []
 
-  // SWR for upcoming matches (for the edit dialog)
+  // Upcoming matches for edit dialog
   const { data: matchesResponse } = useSWR<PaginatedResponse<Partido>>(
     equipoActivo?.id
       ? apiKey('/partidos', {
@@ -123,7 +130,7 @@ export default function MicrocicloDetallePage() {
   )
   const upcomingMatches = matchesResponse?.data || []
 
-  // Edit dialog
+  // Edit dialog state
   const [showEdit, setShowEdit] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
@@ -184,7 +191,7 @@ export default function MicrocicloDetallePage() {
     }
   }
 
-  // Weekly timeline data
+  // Weekly timeline
   const weekDates = useMemo(() => {
     if (!data) return []
     return getDatesInRange(
@@ -204,20 +211,17 @@ export default function MicrocicloDetallePage() {
     return map
   }, [data])
 
-  // Loading state
-  if (loading) {
-    return <DetailPageSkeleton />
-  }
+  // Loading
+  if (loading) return <DetailPageSkeleton />
 
-  // Error state
+  // Error
   if (error || !data) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
         <AlertCircle className="h-12 w-12 text-destructive" />
         <p className="text-lg font-medium">{error || 'Microciclo no encontrado'}</p>
         <Button variant="outline" onClick={() => router.push('/')}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Volver al Dashboard
+          <ArrowLeft className="h-4 w-4 mr-2" /> Volver al Dashboard
         </Button>
       </div>
     )
@@ -228,8 +232,8 @@ export default function MicrocicloDetallePage() {
   const rangeLabel = `${formatDateShort(micro.fecha_inicio.slice(0, 10))} - ${formatDateShort(micro.fecha_fin.slice(0, 10))}`
 
   return (
-    <div className="animate-fade-in space-y-4">
-      {/* ============ Header ============ */}
+    <div className="animate-fade-in space-y-6">
+      {/* ============ HEADER ============ */}
       <div>
         <Link
           href="/"
@@ -247,19 +251,16 @@ export default function MicrocicloDetallePage() {
               <Badge className={ESTADO_COLORS[micro.estado] || ESTADO_COLORS.borrador}>
                 {micro.estado.replace('_', ' ')}
               </Badge>
-            </div>
-            <p className="text-muted-foreground flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              {rangeLabel}
               {micro.equipos && (
-                <>
-                  <span className="text-muted-foreground/50">·</span>
-                  <span>{micro.equipos.nombre}</span>
-                </>
+                <Badge variant="outline" className="text-xs">{micro.equipos.nombre}</Badge>
               )}
-            </p>
+            </div>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Calendar className="h-4 w-4" />
+              <span>{rangeLabel}</span>
+            </div>
 
-            {/* Objectives */}
+            {/* Objectives row */}
             <div className="flex flex-wrap gap-3 mt-3">
               {micro.objetivo_principal && (
                 <div className="flex items-center gap-1.5 text-sm">
@@ -293,182 +294,176 @@ export default function MicrocicloDetallePage() {
         </div>
       </div>
 
-      {/* ============ Tabs ============ */}
+      {/* ============ WAR ROOM GRID ============ */}
       <Tabs defaultValue="resumen">
         <TabsList>
-          <TabsTrigger value="resumen">Resumen</TabsTrigger>
-          <TabsTrigger value="sala-lunes">Sala del Lunes</TabsTrigger>
+          <TabsTrigger value="resumen">🏟️ War Room</TabsTrigger>
+          <TabsTrigger value="sala-lunes">📹 Sala del Lunes</TabsTrigger>
+          <TabsTrigger value="plan-partido">📋 Plan de Partido</TabsTrigger>
         </TabsList>
 
-        {/* ========== Tab: Resumen ========== */}
+        {/* ========== TAB: WAR ROOM ========== */}
         <TabsContent value="resumen" className="space-y-6 mt-4">
 
-          {/* ============ Card de Partido ============ */}
-          {partido && (
-            <Card className="border-l-4 border-l-amber-500">
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2.5 rounded-xl bg-amber-50">
-                      {partido.rival?.escudo_url ? (
-                        <Image src={partido.rival.escudo_url} alt="" width={24} height={24} className="object-contain" unoptimized />
-                      ) : (
-                        <Swords className="h-6 w-6 text-amber-600" />
-                      )}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-lg font-bold">
-                          {partido.localia === 'local' ? 'vs' : '@'}{' '}
-                          {partido.rival?.nombre || 'Rival'}
+          {/* ROW 1: WeekView + Alertas */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+            {/* Week timeline — 3 cols wide */}
+            <div className="lg:col-span-3">
+              <WeekView
+                weekDates={weekDates}
+                sessionsByDate={sessionsByDate}
+                partido={partido}
+              />
+            </div>
+            {/* Alertas panel — 1 col */}
+            <div className="lg:col-span-1">
+              <WarRoomAlerts alertas={data.alertas || []} />
+            </div>
+          </div>
+
+          {/* ROW 2: Plantilla + Partido/Rival + Cargas */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Plantilla */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Users className="h-4 w-4 text-blue-600" />
+                  Plantilla
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="text-center p-3 rounded-lg bg-green-50">
+                    <p className="text-2xl font-bold text-green-700">{data.plantilla.disponibles}</p>
+                    <p className="text-[11px] text-green-600">Disponibles</p>
+                  </div>
+                  <div className="text-center p-3 rounded-lg bg-red-50">
+                    <p className="text-2xl font-bold text-red-700">{data.plantilla.lesionados}</p>
+                    <p className="text-[11px] text-red-600">Lesionados</p>
+                  </div>
+                  <div className="text-center p-3 rounded-lg bg-yellow-50">
+                    <p className="text-2xl font-bold text-yellow-700">{data.plantilla.en_recuperacion || 0}</p>
+                    <p className="text-[11px] text-yellow-600">Recuperación</p>
+                  </div>
+                  <div className="text-center p-3 rounded-lg bg-amber-50">
+                    <p className="text-2xl font-bold text-amber-700">{data.plantilla.sancionados}</p>
+                    <p className="text-[11px] text-amber-600">Sancionados</p>
+                  </div>
+                </div>
+
+                {/* Lesionados list */}
+                {data.plantilla.jugadores_lesionados.length > 0 && (
+                  <div className="mt-3 space-y-1.5">
+                    <p className="text-[11px] font-semibold text-red-700">🚑 Lesionados</p>
+                    {data.plantilla.jugadores_lesionados.slice(0, 2).map((j) => (
+                      <div key={j.id} className="flex items-center gap-2 p-1.5 rounded bg-red-50/60">
+                        <span className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center text-[10px] font-bold text-red-700 shrink-0">
+                          {j.dorsal || '?'}
                         </span>
-                        {partido.rival?.nombre_corto && (
-                          <Badge variant="outline" className="text-[10px]">{partido.rival.nombre_corto}</Badge>
+                        <span className="text-[11px] font-medium truncate">{j.nombre}</span>
+                        {j.fecha_vuelta_estimada && (
+                          <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
+                            {formatDateShort(j.fecha_vuelta_estimada.slice(0, 10))}
+                          </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                        <span>{formatDateLong(partido.fecha.slice(0, 10))}</span>
-                        {partido.hora && <span>{partido.hora}h</span>}
-                        {partido.competicion && <Badge variant="secondary" className="text-[10px]">{partido.competicion}</Badge>}
-                        <Badge variant="outline" className="text-[10px]">{partido.localia === 'local' ? 'Local' : 'Visitante'}</Badge>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    {partido.goles_favor !== undefined && partido.goles_favor !== null && (
-                      <div className="text-center">
-                        <span className={`text-2xl font-bold ${
-                          partido.goles_favor > (partido.goles_contra || 0) ? 'text-green-700'
-                            : partido.goles_favor < (partido.goles_contra || 0) ? 'text-red-700'
-                              : 'text-amber-700'
-                        }`}>
-                          {partido.goles_favor} - {partido.goles_contra}
-                        </span>
-                        <Badge variant="outline" className="ml-2 text-[10px]">
-                          {partido.resultado || (
-                            partido.goles_favor > (partido.goles_contra || 0) ? 'Victoria'
-                              : partido.goles_favor < (partido.goles_contra || 0) ? 'Derrota' : 'Empate'
-                          )}
-                        </Badge>
-                      </div>
+                    ))}
+                    {data.plantilla.jugadores_lesionados.length > 2 && (
+                      <p className="text-[10px] text-muted-foreground text-center">
+                        +{data.plantilla.jugadores_lesionados.length - 2} más
+                      </p>
                     )}
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`/partidos/${partido.id}`}>
-                        Ver partido <ChevronRight className="h-4 w-4 ml-1" />
+                  </div>
+                )}
+
+                {/* Sancionados */}
+                {data.plantilla.jugadores_sancionados.length > 0 && (
+                  <div className="mt-2 space-y-1.5">
+                    <p className="text-[11px] font-semibold text-amber-700">🟡 Sancionados</p>
+                    {data.plantilla.jugadores_sancionados.map((j) => (
+                      <div key={j.id} className="flex items-center gap-2 p-1.5 rounded bg-amber-50/60">
+                        <span className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center text-[10px] font-bold text-amber-700 shrink-0">
+                          {j.dorsal || '?'}
+                        </span>
+                        <span className="text-[11px] font-medium truncate">{j.nombre}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <Button variant="outline" size="sm" className="w-full mt-3 text-[11px]" asChild>
+                  <Link href="/plantilla">
+                    Ver plantilla completa
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Partido + Rival */}
+            <WarRoomRivalResumen
+              rivalInfo={data.informe_rival}
+              partido={partido}
+            />
+
+            {/* Cargas + Nutrición */}
+            <div className="space-y-4">
+              <WarRoomCargas rpe={data.rpe} />
+
+              {/* Nutrición quick */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Apple className="h-4 w-4 text-green-600" />
+                    Nutrición
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-green-600">🍽️</span>
+                      <span>Plan PRE-partido asignado</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-blue-600">💊</span>
+                      <span>Suplementación actualizada</span>
+                    </div>
+                    <Button variant="outline" size="sm" className="w-full mt-1 text-[10px]" asChild>
+                      <Link href="/nutricion">
+                        <Apple className="h-3 w-3 mr-1" /> Ver nutrición
                       </Link>
                     </Button>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* ============ Disponibilidad de Plantilla ============ */}
-          <div>
-            <h2 className="text-base font-semibold mb-3 flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Disponibilidad de Plantilla
-            </h2>
-            <div className="grid grid-cols-4 gap-4">
-              <Card className="card-hover border-t-4 border-t-green-500">
-                <CardContent className="p-4 text-center">
-                  <p className="text-3xl font-bold text-green-700">{data.plantilla.disponibles}</p>
-                  <p className="text-sm text-green-600">Disponibles</p>
-                </CardContent>
-              </Card>
-              <Card className="card-hover border-t-4 border-t-red-500">
-                <CardContent className="p-4 text-center">
-                  <p className="text-3xl font-bold text-red-700">{data.plantilla.lesionados}</p>
-                  <p className="text-sm text-red-600">Lesionados</p>
-                </CardContent>
-              </Card>
-              <Card className="card-hover border-t-4 border-t-yellow-500">
-                <CardContent className="p-4 text-center">
-                  <p className="text-3xl font-bold text-yellow-700">{data.plantilla.en_recuperacion || 0}</p>
-                  <p className="text-sm text-yellow-600">Recuperacion</p>
-                </CardContent>
-              </Card>
-              <Card className="card-hover border-t-4 border-t-amber-500">
-                <CardContent className="p-4 text-center">
-                  <p className="text-3xl font-bold text-amber-700">{data.plantilla.sancionados}</p>
-                  <p className="text-sm text-amber-600">Sancionados</p>
                 </CardContent>
               </Card>
             </div>
-
-            {/* Injured/Sanctioned lists */}
-            {(data.plantilla.jugadores_lesionados.length > 0 || data.plantilla.jugadores_sancionados.length > 0) && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                {data.plantilla.jugadores_lesionados.length > 0 && (
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm text-red-700">Jugadores lesionados</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      {data.plantilla.jugadores_lesionados.map((j) => (
-                        <div key={j.id} className="flex items-center gap-3 p-2 rounded-lg bg-red-50/50">
-                          <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-xs font-bold text-red-700">
-                            {j.dorsal || '?'}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{j.nombre} {j.apellidos}</p>
-                            <p className="text-[10px] text-muted-foreground">{j.posicion_principal}</p>
-                          </div>
-                          {j.fecha_vuelta_estimada && (
-                            <span className="text-[10px] text-muted-foreground shrink-0">
-                              Vuelta: {formatDateShort(j.fecha_vuelta_estimada.slice(0, 10))}
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </CardContent>
-                  </Card>
-                )}
-                {data.plantilla.jugadores_sancionados.length > 0 && (
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm text-amber-700">Jugadores sancionados</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      {data.plantilla.jugadores_sancionados.map((j) => (
-                        <div key={j.id} className="flex items-center gap-3 p-2 rounded-lg bg-amber-50/50">
-                          <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-xs font-bold text-amber-700">
-                            {j.dorsal || '?'}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{j.nombre} {j.apellidos}</p>
-                            <p className="text-[10px] text-muted-foreground">{j.posicion_principal}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            )}
           </div>
 
-          {/* ============ Timeline Semanal ============ */}
-          <WeekView
-            weekDates={weekDates}
-            sessionsByDate={sessionsByDate}
-            partido={partido}
+          {/* ROW 3: Videos */}
+          <WarRoomVideos
+            microcicloId={id}
+            planPartido={data.plan_partido ? { id: data.plan_partido.id } : null}
           />
 
-          {/* ============ Lista de Sesiones ============ */}
+          {/* ROW 4: Lista de Sesiones */}
           <div>
-            <h2 className="text-base font-semibold mb-3 flex items-center gap-2">
-              <ClipboardList className="h-5 w-5" />
-              Sesiones ({data.sesiones.length})
-            </h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-semibold flex items-center gap-2">
+                <ClipboardList className="h-5 w-5" />
+                Sesiones ({data.sesiones.length})
+              </h2>
+              <Button size="sm" asChild>
+                <Link href="/sesiones/nueva">
+                  <Plus className="h-4 w-4 mr-1" /> Nueva sesión
+                </Link>
+              </Button>
+            </div>
             {data.sesiones.length === 0 ? (
               <Card>
                 <CardContent className="py-8 text-center text-muted-foreground">
                   <p>No hay sesiones asociadas a este microciclo</p>
                   <Button variant="outline" className="mt-3" asChild>
                     <Link href="/sesiones/nueva">
-                      <Plus className="h-4 w-4 mr-2" /> Crear sesion
+                      <Plus className="h-4 w-4 mr-2" /> Crear sesión
                     </Link>
                   </Button>
                 </CardContent>
@@ -476,9 +471,17 @@ export default function MicrocicloDetallePage() {
             ) : (
               <div className="space-y-2">
                 {data.sesiones.map((s) => {
-                  const mdColors = s.match_day ? MATCH_DAY_COLORS[s.match_day] : null
                   const estadoInfo = ESTADO_SESION_COLORS[s.estado] || ESTADO_SESION_COLORS.borrador
                   const rpeInfo = data.rpe.registros_por_sesion[s.id]
+                  const mdMap: Record<string, { bg: string; text: string }> = {
+                    'MD+1': { bg: 'bg-green-100', text: 'text-green-700' },
+                    'MD-4': { bg: 'bg-red-100', text: 'text-red-700' },
+                    'MD-3': { bg: 'bg-orange-100', text: 'text-orange-700' },
+                    'MD-2': { bg: 'bg-blue-100', text: 'text-blue-700' },
+                    'MD-1': { bg: 'bg-purple-100', text: 'text-purple-700' },
+                    'MD': { bg: 'bg-amber-100', text: 'text-amber-700' },
+                  }
+                  const mdStyle = s.match_day ? mdMap[s.match_day] : null
 
                   return (
                     <Link
@@ -486,14 +489,12 @@ export default function MicrocicloDetallePage() {
                       href={`/sesiones/${s.id}`}
                       className="flex items-center gap-4 p-4 rounded-lg border hover:bg-muted/30 transition-colors group"
                     >
-                      {/* MD badge */}
                       <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
-                        mdColors ? `${mdColors.bg} ${mdColors.text}` : 'bg-gray-100 text-gray-600'
+                        mdStyle ? `${mdStyle.bg} ${mdStyle.text}` : 'bg-gray-100 text-gray-600'
                       }`}>
                         {s.match_day || '\u2014'}
                       </div>
 
-                      {/* Session info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="font-medium group-hover:text-primary transition-colors">{s.titulo}</span>
@@ -508,21 +509,19 @@ export default function MicrocicloDetallePage() {
                               <Clock className="h-3 w-3" /> {s.duracion_total} min
                             </span>
                           )}
-                          {s.num_tareas > 0 && (
-                            <span>{s.num_tareas} tareas</span>
-                          )}
+                          {s.num_tareas > 0 && <span>{s.num_tareas} tareas</span>}
+                          <Badge variant="secondary" className="text-[10px]">{s.fase_juego_principal || 'General'}</Badge>
                         </div>
                       </div>
 
-                      {/* RPE */}
-                      {rpeInfo && (
+                      {rpeInfo?.rpe_promedio && (
                         <div className="text-center shrink-0">
                           <p className={`text-lg font-bold ${
                             rpeInfo.rpe_promedio >= 7 ? 'text-red-600' : rpeInfo.rpe_promedio >= 5 ? 'text-amber-600' : 'text-green-600'
                           }`}>
                             {rpeInfo.rpe_promedio}
                           </p>
-                          <p className="text-[10px] text-muted-foreground">RPE ({rpeInfo.num_registros})</p>
+                          <p className="text-[10px] text-muted-foreground">RPE</p>
                         </div>
                       )}
 
@@ -534,10 +533,10 @@ export default function MicrocicloDetallePage() {
             )}
           </div>
 
-          {/* ============ Carga de Entrenamiento (RPE) ============ */}
+          {/* ROW 5: Carga gráfico (full-width) */}
           <LoadChart sesiones={data.sesiones} rpe={data.rpe} />
 
-          {/* ============ Notas ============ */}
+          {/* ROW 6: Notas */}
           {micro.notas && (
             <Card>
               <CardHeader>
@@ -551,10 +550,9 @@ export default function MicrocicloDetallePage() {
               </CardContent>
             </Card>
           )}
-
         </TabsContent>
 
-        {/* ========== Tab: Sala del Lunes ========== */}
+        {/* ========== TAB: SALA DEL LUNES ========== */}
         <TabsContent value="sala-lunes" className="mt-4">
           <SalaLunes
             microcicloId={id}
@@ -562,9 +560,122 @@ export default function MicrocicloDetallePage() {
             jugadores={jugadores}
           />
         </TabsContent>
+
+        {/* ========== TAB: PLAN DE PARTIDO ========== */}
+        <TabsContent value="plan-partido" className="mt-4">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-amber-600" />
+                Plan de Partido
+              </h2>
+              <Button size="sm" asChild>
+                <Link href={`/partidos/${partido?.id || 'nuevo'}/plan`}>
+                  {data.plan_partido ? 'Editar plan' : 'Crear plan'}
+                </Link>
+              </Button>
+            </div>
+
+            {data.plan_partido ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Sistema y estilo */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Sistema</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Badge className="text-sm px-3 py-1">{data.plan_partido.sistema_juego}</Badge>
+                    {data.plan_partido.estilo_previsto && (
+                      <Badge variant="outline" className="ml-2">{data.plan_partido.estilo_previsto}</Badge>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* 11 inicial */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">11 Inicial</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                      {Object.keys(data.plan_partido.once_inicial).length} posiciones definidas
+                    </p>
+                    {data.plan_partido.suplentes.length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        +{data.plan_partido.suplentes.length} suplentes
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Fases */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Fases del plan</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-1">
+                    {[
+                      { key: 'fase_ataque_organizado', label: 'Ataque organizado' },
+                      { key: 'fase_defensa_organizada', label: 'Defensa organizada' },
+                      { key: 'fase_transicion_ofensiva', label: 'Transición ofensiva' },
+                      { key: 'fase_transicion_defensiva', label: 'Transición defensiva' },
+                      { key: 'fase_abp_ofensivo', label: 'ABP ofensivo' },
+                      { key: 'fase_abp_defensivo', label: 'ABP defensivo' },
+                    ].map(({ key, label }) => (
+                      <div key={key} className="flex items-center gap-2 text-xs">
+                        <span className={data.plan_partido?.[key as keyof typeof data.plan_partido] ? 'text-green-500' : 'text-gray-300'}>
+                          {data.plan_partido?.[key as keyof typeof data.plan_partido] ? '✅' : '⬜'}
+                        </span>
+                        <span className="text-muted-foreground">{label}</span>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+
+                {/* Escenarios */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Escenarios</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm">{data.plan_partido.escenarios?.length || 0} escenarios previstos</p>
+                  </CardContent>
+                </Card>
+
+                {/* Estado */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Estado</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Badge className={
+                      data.plan_partido.estado === 'finalizado' ? 'bg-green-100 text-green-700' :
+                      data.plan_partido.estado === 'compartido' ? 'bg-blue-100 text-blue-700' :
+                      'bg-gray-100 text-gray-700'
+                    }>
+                      {data.plan_partido.estado}
+                    </Badge>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <Trophy className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
+                  <p className="text-muted-foreground mb-4">No hay plan de partido creado aún</p>
+                  <Button asChild>
+                    <Link href={`/partidos/${partido?.id || 'nuevo'}/plan`}>
+                      <Plus className="h-4 w-4 mr-2" /> Crear Plan de Partido
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </TabsContent>
       </Tabs>
 
-      {/* ============ Edit Dialog ============ */}
+      {/* ============ EDIT DIALOG ============ */}
       <Dialog open={showEdit} onOpenChange={(open) => !open && setShowEdit(false)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -594,7 +705,7 @@ export default function MicrocicloDetallePage() {
             <div className="space-y-2">
               <Label>Objetivo principal</Label>
               <Input
-                placeholder="Ej: Mejorar salida de balon bajo presion"
+                placeholder="Ej: Mejorar salida de balón bajo presión"
                 value={form.objetivo_principal}
                 onChange={(e) => setForm({ ...form, objetivo_principal: e.target.value })}
               />
@@ -602,17 +713,17 @@ export default function MicrocicloDetallePage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Objetivo tactico</Label>
+                <Label>Objetivo táctico</Label>
                 <Input
-                  placeholder="Ej: Progresion por interior"
+                  placeholder="Ej: Progresión por interior"
                   value={form.objetivo_tactico}
                   onChange={(e) => setForm({ ...form, objetivo_tactico: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Objetivo fisico</Label>
+                <Label>Objetivo físico</Label>
                 <Input
-                  placeholder="Ej: Potencia aerobica"
+                  placeholder="Ej: Potencia aeróbica"
                   value={form.objetivo_fisico}
                   onChange={(e) => setForm({ ...form, objetivo_fisico: e.target.value })}
                 />
@@ -640,13 +751,13 @@ export default function MicrocicloDetallePage() {
         </DialogContent>
       </Dialog>
 
-      {/* ============ Delete Dialog ============ */}
+      {/* ============ DELETE DIALOG ============ */}
       <Dialog open={showDelete} onOpenChange={(open) => !open && setShowDelete(false)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Eliminar microciclo</DialogTitle>
             <DialogDescription>
-              Se eliminara el microciclo pero las sesiones asociadas se mantendran.
+              Se eliminará el microciclo pero las sesiones asociadas se mantendrán.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
