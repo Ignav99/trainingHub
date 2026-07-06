@@ -2229,6 +2229,23 @@ export interface RivalPartidoHistorico {
   notas?: string
 }
 
+// Mapa de presión del rival (zonas normalizadas 0-1)
+export interface MapaPresion {
+  altura_bloque: 'alto' | 'medio' | 'bajo'
+  tipo_presion: 'hombre' | 'zona' | 'mixta'
+  primera_linea_presion?: string
+  zonas: MapaPresionZona[]
+}
+
+export interface MapaPresionZona {
+  label: string
+  x: number      // 0-1 normalizado
+  y: number      // 0-1 normalizado
+  width: number  // 0-1 normalizado
+  height: number // 0-1 normalizado
+  intensidad: 'alta' | 'media' | 'baja'
+}
+
 export interface InformeRivalEnriquecido {
   id: string
   rival_id: string

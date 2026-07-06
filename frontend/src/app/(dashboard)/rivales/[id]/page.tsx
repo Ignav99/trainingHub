@@ -8,7 +8,6 @@ import dynamic from 'next/dynamic'
 import useSWR, { mutate } from 'swr'
 import {
   Shield,
-  ChevronLeft,
   MapPin,
   Building,
   Loader2,
@@ -17,11 +16,12 @@ import {
   RefreshCw,
   Brain,
   FileText,
-  FileDown,
   Info,
   Clock,
   LinkIcon,
   Flag,
+  Swords,
+  Download,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -35,7 +35,9 @@ import { RFEFCompeticion } from '@/lib/api/rfef'
 import { toast } from 'sonner'
 import { rivalesApi } from '@/lib/api/partidos'
 import { useEquipoStore } from '@/stores/equipoStore'
-import type { Rival, PreMatchIntel, RivalInforme, AIInformeRival, AIPlanPartido } from '@/types'
+import { MiniFieldPressure } from '@/components/rivales/MiniFieldPressure'
+import { ModeloComparativa } from '@/components/rivales/ModeloComparativa'
+import type { Rival, PreMatchIntel, RivalInforme, AIInformeRival, AIPlanPartido, GameModel, InformeRivalEnriquecido, MapaPresion } from '@/types'
 
 // Dynamic imports for heavy pre-match widgets
 const WidgetSkeleton = () => (
@@ -51,11 +53,12 @@ const InformeRivalSection = dynamic(() => import('@/components/pre-match/Informe
 const PlanPartidoSection = dynamic(() => import('@/components/pre-match/PlanPartidoSection').then(m => ({ default: m.PlanPartidoSection })), { loading: () => <WidgetSkeleton /> })
 const ABPRivalPlays = dynamic(() => import('@/components/abp/ABPRivalPlays'), { loading: () => <WidgetSkeleton /> })
 
-type TabId = 'scouting' | 'informes' | 'abp' | 'info'
+type TabId = 'scouting' | 'informes' | 'comparativa' | 'abp' | 'info'
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'scouting', label: 'Scouting', icon: <Database className="h-3.5 w-3.5" /> },
   { id: 'informes', label: 'Informes', icon: <Brain className="h-3.5 w-3.5" /> },
+  { id: 'comparativa', label: 'Comparativa', icon: <Swords className="h-3.5 w-3.5" /> },
   { id: 'abp', label: 'ABP', icon: <Flag className="h-3.5 w-3.5" /> },
   { id: 'info', label: 'Info', icon: <Info className="h-3.5 w-3.5" /> },
 ]
@@ -72,19 +75,18 @@ export default function RivalDetailPage() {
     apiKey(`/rivales/${id}`)
   )
 
-  // SWR for RFEF competitions (to find the active one)
+  // SWR for RFEF competitions
   const { data: rfefRes } = useSWR<{ data: RFEFCompeticion[]; total: number }>(
     equipoActivo?.id ? apiKey('/rfef/competiciones', { equipo_id: equipoActivo.id }) : null
   )
 
-  // Derive the competition ID from the RFEF response
   const competicionId = useMemo(() => {
     if (!rfefRes?.data) return undefined
     const comp = rfefRes.data.find((c: RFEFCompeticion) => c.mi_equipo_nombre)
     return comp?.id
   }, [rfefRes])
 
-  // SWR for rival intel (new endpoint)
+  // SWR for rival intel
   const { data: intel, mutate: mutateIntel } = useSWR<PreMatchIntel>(
     id && competicionId
       ? apiKey(`/rivales/${id}/intel`, { competicion_id: competicionId })
@@ -98,17 +100,25 @@ export default function RivalDetailPage() {
 
   const informes = informesRes?.data || []
 
+  // FASE 2 — SWR for game model (for Comparativa tab)
+  const { data: gameModel } = useSWR<GameModel>(
+    equipoActivo?.id ? apiKey(`/modelo-juego/equipo/${equipoActivo.id}`) : null
+  )
+
+  // FASE 2 — SWR for latest enriched informe
+  const { data: informeEnriquecido } = useSWR<InformeRivalEnriquecido>(
+    id ? apiKey(`/rivales/${id}/informes/latest`) : null
+  )
+
   const [notas, setNotas] = useState('')
   const [notasInitialized, setNotasInitialized] = useState(false)
   const [savingNotas, setSavingNotas] = useState(false)
   const [uploadingEscudo, setUploadingEscudo] = useState(false)
   const [refreshingIntel, setRefreshingIntel] = useState(false)
 
-  // AI state for informe tab
   const [aiInforme, setAiInforme] = useState<AIInformeRival | null>(null)
   const [aiPlan, setAiPlan] = useState<AIPlanPartido | null>(null)
 
-  // Initialize notas from rival data when it arrives
   useEffect(() => {
     if (rival && !notasInitialized) {
       setNotas(rival.notas || '')
@@ -120,7 +130,6 @@ export default function RivalDetailPage() {
     setNotasInitialized(false)
   }, [id])
 
-  // Load latest informe/plan from informes list
   useEffect(() => {
     if (informes.length > 0) {
       const latestInforme = informes.find((i) => i.tipo === 'informe')
@@ -202,7 +211,6 @@ export default function RivalDetailPage() {
 
   return (
     <div className="space-y-6 max-w-3xl animate-fade-in">
-      {/* Header with breadcrumbs */}
       <PageHeader
         title={rival.nombre}
         breadcrumbs={[
@@ -261,12 +269,12 @@ export default function RivalDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-border">
+      <div className="flex gap-1 border-b border-border overflow-x-auto">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
               activeTab === tab.id
                 ? 'border-primary text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -305,6 +313,15 @@ export default function RivalDetailPage() {
         />
       )}
 
+      {activeTab === 'comparativa' && (
+        <ComparativaTab
+          rivalId={id}
+          gameModel={gameModel || null}
+          informeEnriquecido={informeEnriquecido || null}
+          rival={rival}
+        />
+      )}
+
       {activeTab === 'abp' && (
         <Card>
           <CardContent className="p-6">
@@ -321,6 +338,67 @@ export default function RivalDetailPage() {
           savingNotas={savingNotas}
           onSaveNotas={handleSaveNotas}
         />
+      )}
+    </div>
+  )
+}
+
+// ==================== Comparativa Tab (FASE 2) ====================
+
+function ComparativaTab({
+  rivalId,
+  gameModel,
+  informeEnriquecido,
+  rival,
+}: {
+  rivalId: string
+  gameModel: GameModel | null
+  informeEnriquecido: InformeRivalEnriquecido | null
+  rival: Rival
+}) {
+  return (
+    <div className="space-y-4">
+      {/* Modelo vs Rival comparison */}
+      <ModeloComparativa
+        nuestroModelo={gameModel}
+        rivalInfo={informeEnriquecido}
+      />
+
+      {/* Mini-field pressure map */}
+      {informeEnriquecido?.mapa_presion && (
+        <Card>
+          <CardContent className="p-4">
+            <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+              <Shield className="h-3.5 w-3.5 text-indigo-500" />
+              Mapa de presión del rival
+            </h3>
+            <MiniFieldPressure
+              mapaPresion={informeEnriquecido.mapa_presion as unknown as MapaPresion}
+              size="md"
+            />
+            {informeEnriquecido.notas && (
+              <p className="text-xs text-muted-foreground mt-2 border-t pt-2">
+                {informeEnriquecido.notas}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Empty state */}
+      {!informeEnriquecido && !gameModel && (
+        <Card className="bg-slate-900/50 border-slate-700 border-dashed">
+          <CardContent className="p-6 text-center">
+            <Swords className="h-8 w-8 text-slate-600 mx-auto mb-2" />
+            <p className="text-sm text-slate-500">
+              Sin datos para comparar
+            </p>
+            <p className="text-xs text-slate-600 mt-1">
+              {!gameModel && 'Define tu modelo de juego y '}
+              {!informeEnriquecido && 'genera un informe del rival para ver la comparativa lado a lado.'}
+            </p>
+          </CardContent>
+        </Card>
       )}
     </div>
   )
@@ -439,7 +517,7 @@ function InformeDownloadButton({ rivalId, informeId }: { rivalId: string; inform
   }
   return (
     <Button variant="ghost" size="sm" onClick={handleDownload} disabled={downloading} className="h-7 text-[10px]">
-      {downloading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileDown className="h-3 w-3" />}
+      {downloading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
       PDF
     </Button>
   )
@@ -464,21 +542,18 @@ function InformesTab({
 }) {
   return (
     <div className="space-y-4">
-      {/* AI Informe del Rival */}
       <InformeRivalSection
         onSend={(msgs) => rivalesApi.scoutingChat(rivalId, msgs, 'informe')}
         informe={aiInforme}
         onResult={onInformeResult}
       />
 
-      {/* AI Plan de Partido */}
       <PlanPartidoSection
         onSend={(msgs) => rivalesApi.scoutingChat(rivalId, msgs, 'plan')}
         plan={aiPlan}
         onResult={onPlanResult}
       />
 
-      {/* Timeline of past informes */}
       {informes.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-sm font-semibold flex items-center gap-2">
@@ -547,7 +622,6 @@ function InfoTab({
 }) {
   return (
     <div className="space-y-4">
-      {/* Basic info */}
       <Card>
         <CardContent className="p-4 space-y-3">
           <h3 className="text-sm font-semibold">Informacion basica</h3>
@@ -580,7 +654,6 @@ function InfoTab({
         </CardContent>
       </Card>
 
-      {/* Coach notes */}
       <Card>
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center gap-2">

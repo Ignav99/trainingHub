@@ -1,5 +1,5 @@
 import { api } from './client'
-import { Partido, Rival, PaginatedResponse, TipoCompeticion, LocaliaPartido, OnceProbableResponse, TarjetasResumenResponse, PreMatchIntel, RivalInforme } from '@/types'
+import { Partido, Rival, PaginatedResponse, TipoCompeticion, LocaliaPartido, OnceProbableResponse, TarjetasResumenResponse, PreMatchIntel, RivalInforme, InformeRivalEnriquecido } from '@/types'
 
 // ============ Rivales ============
 
@@ -92,6 +92,19 @@ export const rivalesApi = {
 
   async listInformes(rivalId: string): Promise<{ data: RivalInforme[] }> {
     return api.get<{ data: RivalInforme[] }>(`/rivales/${rivalId}/informes`)
+  },
+
+  // FASE 2 — Informes enriquecidos
+  async createInforme(rivalId: string, data: Partial<InformeRivalEnriquecido>): Promise<InformeRivalEnriquecido> {
+    return api.post<InformeRivalEnriquecido>(`/rivales/${rivalId}/informes`, data)
+  },
+
+  async getLatestInforme(rivalId: string): Promise<InformeRivalEnriquecido | null> {
+    try {
+      return await api.get<InformeRivalEnriquecido>(`/rivales/${rivalId}/informes/latest`)
+    } catch {
+      return null
+    }
   },
 
   async downloadInformePdf(rivalId: string, informeId: string): Promise<void> {
