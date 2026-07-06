@@ -1,5 +1,5 @@
 import { api } from './client'
-import { Microciclo, MicrocicloCompleto, PaginatedResponse, Sesion, PlanCT } from '@/types'
+import type { Microciclo, Sesion, PaginatedResponse, PlanCT, ReordenarSesionesRequest } from '@/types'
 
 export interface CreateMicrocicloData {
   equipo_id: string
@@ -33,8 +33,8 @@ export const microciclosApi = {
     return api.get<Microciclo>(`/microciclos/${id}`)
   },
 
-  async getCompleto(id: string): Promise<MicrocicloCompleto> {
-    return api.get<MicrocicloCompleto>(`/microciclos/${id}/completo`)
+  async getCompleto(id: string): Promise<import('@/types').VistaCompletaMicrociclo> {
+    return api.get<import('@/types').VistaCompletaMicrociclo>(`/microciclos/${id}/completo`)
   },
 
   async getSesiones(id: string): Promise<{ data: Sesion[]; total: number }> {
@@ -59,5 +59,9 @@ export const microciclosApi = {
 
   async linkSesiones(id: string): Promise<{ linked: number }> {
     return api.post<{ linked: number }>(`/microciclos/${id}/link-sesiones`, {})
+  },
+
+  async reordenarSesiones(id: string, data: ReordenarSesionesRequest): Promise<{ success: boolean; updated: number; total: number }> {
+    return api.put<{ success: boolean; updated: number; total: number }>(`/microciclos/${id}/reordenar`, data)
   },
 }

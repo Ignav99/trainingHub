@@ -15,6 +15,7 @@ from app.models import (
     MicrocicloResponse,
     MicrocicloListResponse,
     EstadoMicrociclo,
+    ReordenarSesionesRequest,
 )
 from app.models.plan_partido import (
     PlanPartidoResponse,
@@ -131,12 +132,13 @@ async def get_microciclo_completo(
             ).eq("id", str(microciclo_id)).single().execute()
             micro = micro_resp.data
 
-    # 2. Sesiones con count de tareas
+    # 2. Sesiones con count de tareas + dia_numero + orden
     sesiones_resp = supabase.table("sesiones").select(
         "id, titulo, fecha, match_day, estado, duracion_total, objetivo_principal, "
         "intensidad_objetivo, fase_juego_principal, notas_pre, notas_post, "
+        "dia_numero, orden, hora, microciclo_id, "
         "sesion_tareas(id)"
-    ).eq("microciclo_id", str(microciclo_id)).order("fecha").execute()
+    ).eq("microciclo_id", str(microciclo_id)).order("dia_numero", nulls_last=True).order("orden").execute()
 
     sesiones = []
     for s in sesiones_resp.data:
@@ -283,7 +285,7 @@ async def get_microciclo_sesiones(
 
     response = supabase.table("sesiones").select(
         "*, equipos(nombre, categoria)"
-    ).eq("microciclo_id", str(microciclo_id)).order("fecha").execute()
+    ).eq("microciclo_id", str(microciclo_id)).order("dia_numero", nulls_last=True).order("orden").execute()
 
     sesiones = []
     for s in response.data:
@@ -440,3 +442,59 @@ async def link_sesiones_to_microciclo(
         }).eq("id", str(microciclo_id)).execute()
 
     return {"linked": linked, "partido_linked": partido_id is not None, "microciclo_id": str(microciclo_id)}
+
+
+@router.put("/{microciclo_id}/reordenar")
+async def reordenar_sesiones(
+    microciclo_id: UUID,
+    request: ReordenarSesionesRequest,
+    auth: AuthContext = Depends(require_permission(Permission.MICROCICLO_UPDATE)),
+):
+    """
+    DRAG & DROP — Reordena las sesiones del microciclo.
+    Recibe una lista de {sesion_id, dia_numero, orden} y persiste los cambios.
+    """
+    supabase = get_supabase()
+
+    # Verificar que el microciclo existe
+    micro = supabase.table("microciclos").select("id").eq(
+        "id", str(microciclo_id)
+    ).single().execute()
+
+    if not micro.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Microciclo no encontrado"
+        )
+
+    # Validar que todas las sesiones pertenecen al microciclo
+    sesion_ids = [str(item.sesion_id) for item in request.sesiones]
+    existing = supabase.table("sesiones").select("id").eq(
+        "microciclo_id", str(microciclo_id)
+    ).in_("id", sesion_ids).execute()
+
+    existing_ids = {s["id"] for s in existing.data}
+
+    for item in request.sesiones:
+        if str(item.sesion_id) not in existing_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Sesión {item.sesion_id} no pertenece al microciclo {microciclo_id}"
+            )
+
+    # Actualizar en lote — una query por sesión (Supabase no soporta CASE WHEN batch)
+    updated = 0
+    for item in request.sesiones:
+        result = supabase.table("sesiones").update({
+            "dia_numero": item.dia_numero,
+            "orden": item.orden,
+        }).eq("id", str(item.sesion_id)).eq("microciclo_id", str(microciclo_id)).execute()
+        if result.data:
+            updated += 1
+
+    return {
+        "success": True,
+        "updated": updated,
+        "total": len(request.sesiones),
+        "microciclo_id": str(microciclo_id),
+    }

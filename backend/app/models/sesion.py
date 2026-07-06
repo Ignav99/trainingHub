@@ -258,6 +258,20 @@ class SesionFiltros(BaseModel):
     busqueda: Optional[str] = None
 
 
+# ============ Schemas para Reordenar Sesiones (DnD) ============
+
+class ReordenarSesionItem(BaseModel):
+    """Un item en la operación de reordenamiento DnD."""
+    sesion_id: UUID
+    dia_numero: int = Field(..., ge=1, le=7, description="Día dentro del microciclo (1=lunes, 7=domingo)")
+    orden: int = Field(default=1, ge=1, description="Orden de la sesión dentro del día")
+
+
+class ReordenarSesionesRequest(BaseModel):
+    """Request para reordenar sesiones mediante drag & drop."""
+    sesiones: List[ReordenarSesionItem]
+
+
 # ============ Schemas para Recomendador ============
 
 class RecomendadorInput(BaseModel):

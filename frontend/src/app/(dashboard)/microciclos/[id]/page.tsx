@@ -50,7 +50,7 @@ import { useEquipoStore } from '@/stores/equipoStore'
 import { formatDate } from '@/lib/utils'
 import type { VistaCompletaMicrociclo, Partido, PaginatedResponse, Jugador } from '@/types'
 
-import { WeekView } from '@/components/microciclos/WeekView'
+import { WarRoomTimeline } from '@/components/microciclos/WarRoomTimeline'
 import { LoadChart } from '@/components/microciclos/LoadChart'
 import { SalaLunes } from '@/components/microciclos/SalaLunes'
 import { WarRoomAlerts } from '@/components/microciclos/WarRoomAlerts'
@@ -305,11 +305,12 @@ export default function MicrocicloDetallePage() {
         {/* ========== TAB: WAR ROOM ========== */}
         <TabsContent value="resumen" className="space-y-6 mt-4">
 
-          {/* ROW 1: WeekView + Alertas */}
+          {/* ROW 1: WarRoomTimeline + Alertas */}
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
             {/* Week timeline — 3 cols wide */}
             <div className="lg:col-span-3">
-              <WeekView
+              <WarRoomTimeline
+                microcicloId={id}
                 weekDates={weekDates}
                 sessionsByDate={sessionsByDate}
                 partido={partido}

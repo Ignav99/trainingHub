@@ -50,6 +50,9 @@ from app.models.sesion import (
     AIRecomendadorOutput,
     AIFaseRecomendacion,
     AICargaEstimada,
+    # Drag & Drop Reordenar
+    ReordenarSesionItem,
+    ReordenarSesionesRequest,
 )
 
 from app.models.asistencia import (
@@ -433,7 +436,7 @@ __all__ = [
     "SesionListResponse", "SesionFiltros",
     "RecomendadorInput", "RecomendadorOutput", "TareaRecomendada", "MatchDayConfig",
     "AITareaNueva", "AIRecomendadorInput", "AIRecomendadorOutput",
-    "AIFaseRecomendacion", "AICargaEstimada",
+    "AIFaseRecomendacion", "AICargaEstimada", "ReordenarSesionItem", "ReordenarSesionesRequest",
     # Asistencia
     "MotivoAusencia", "TipoParticipacion", "AsistenciaCreate", "AsistenciaBatchCreate",
     "AsistenciaUpdate", "AsistenciaResponse", "AsistenciaListResponse",

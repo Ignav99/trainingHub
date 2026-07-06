@@ -862,7 +862,7 @@ export interface Descanso {
 
 export interface MicrocicloCompleto {
   microciclo: Microciclo
-  sesiones: (Pick<Sesion, 'id' | 'titulo' | 'fecha' | 'match_day' | 'estado' | 'duracion_total' | 'objetivo_principal' | 'intensidad_objetivo' | 'fase_juego_principal' | 'notas_pre' | 'notas_post'> & { num_tareas: number })[]
+  sesiones: (Pick<Sesion, 'id' | 'titulo' | 'fecha' | 'match_day' | 'estado' | 'duracion_total' | 'objetivo_principal' | 'intensidad_objetivo' | 'fase_juego_principal' | 'notas_pre' | 'notas_post'> & { dia_numero?: number; orden?: number; hora?: string; microciclo_id?: string } & { num_tareas: number })[]
   plantilla: {
     total: number
     disponibles: number
@@ -2284,7 +2284,7 @@ export interface Alerta {
 
 export interface VistaCompletaMicrociclo {
   microciclo: Microciclo
-  sesiones: (Pick<Sesion, 'id' | 'titulo' | 'fecha' | 'match_day' | 'estado' | 'duracion_total' | 'objetivo_principal' | 'intensidad_objetivo' | 'fase_juego_principal' | 'notas_pre' | 'notas_post'> & { num_tareas: number })[]
+  sesiones: (Pick<Sesion, 'id' | 'titulo' | 'fecha' | 'match_day' | 'estado' | 'duracion_total' | 'objetivo_principal' | 'intensidad_objetivo' | 'fase_juego_principal' | 'notas_pre' | 'notas_post'> & { dia_numero?: number; orden?: number; hora?: string; microciclo_id?: string } & { num_tareas: number })[]
   plantilla: {
     total: number
     disponibles: number
@@ -2302,4 +2302,38 @@ export interface VistaCompletaMicrociclo {
   plan_partido?: PlanPartido | null
   informe_rival?: InformeRivalEnriquecido | null
   alertas: Alerta[]
+}
+
+// ============================================
+// DnD — DRAG & DROP REORDENAR SESIONES
+// ============================================
+
+export interface ReordenarSesionItem {
+  sesion_id: string
+  dia_numero: number  // 1=Lun ... 7=Dom
+  orden: number       // orden dentro del día
+}
+
+export interface ReordenarSesionesRequest {
+  sesiones: ReordenarSesionItem[]
+}
+
+// Sesión enriquecida para el DnD (lo que devuelve /completo)
+export interface SesionTimeline {
+  id: string
+  titulo: string
+  fecha: string
+  match_day: MatchDay | null
+  estado: string
+  duracion_total?: number
+  objetivo_principal?: string
+  intensidad_objetivo?: string
+  fase_juego_principal?: string
+  notas_pre?: string
+  notas_post?: string
+  num_tareas: number
+  dia_numero?: number  // DnD field
+  orden?: number       // DnD field
+  hora?: string
+  microciclo_id?: string
 }
