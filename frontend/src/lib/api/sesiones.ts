@@ -29,6 +29,7 @@ export interface SesionCreateData {
   principio_tactico_principal?: string
   carga_fisica_objetivo?: string
   intensidad_objetivo?: string
+  duracion_total?: number
   hora?: string
   lugar?: string
   notas_pre?: string
