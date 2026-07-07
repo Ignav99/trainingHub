@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
-import { Loader2, Save, Plus, Trash2, Shield, Users, Clock, Swords } from 'lucide-react'
+import { Loader2, Save, Plus, Trash2, Shield, Users, Clock, Swords, Wifi, WifiOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,11 +11,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { planPartidoApi } from '@/lib/api/planPartido'
+import { useTrainingHubSocket } from '@/hooks/useTrainingHubSocket'
+import { PlanVideoClipsSelector } from './PlanVideoClipsSelector'
 import type { PlanPartido, FasePlan, FasePlanABP, Jugador, Emparejamiento, MovimientoClave, MomentoPartido, EscenarioPartido } from '@/types'
 
 interface Props {
   microcicloId: string
   partidoId: string
+  equipoId: string
   plan: PlanPartido | null
   jugadores: Jugador[]
   onSaved: (plan: PlanPartido) => void
@@ -55,7 +58,8 @@ const emptyFaseABP = (): FasePlanABP => ({
   notas: '',
 })
 
-export function PlanPartidoEditor({ microcicloId, partidoId, plan, jugadores, onSaved }: Props) {
+export function PlanPartidoEditor({ microcicloId, partidoId, equipoId, plan, jugadores, onSaved }: Props) {
+  const { connected, onlineUsers, lastCollabEvent, sendCollabEdit, currentUserId } = useTrainingHubSocket(equipoId)
   const [form, setForm] = useState<Partial<PlanPartido>>({
     sistema_juego: plan?.sistema_juego || '',
     estilo_previsto: plan?.estilo_previsto || '',
@@ -75,6 +79,12 @@ export function PlanPartidoEditor({ microcicloId, partidoId, plan, jugadores, on
   })
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('once')
+
+  useEffect(() => {
+    if (plan?.id) {
+      sendCollabEdit(plan.id, `tab_${activeTab}`)
+    }
+  }, [activeTab, plan?.id, sendCollabEdit])
 
   const jugadoresMap = useMemo(() => {
     const map: Record<string, Jugador> = {}
@@ -235,12 +245,29 @@ export function PlanPartidoEditor({ microcicloId, partidoId, plan, jugadores, on
         <div className="flex items-center gap-2">
           <Shield className="h-5 w-5 text-amber-600" />
           <h2 className="text-lg font-bold">Editor del Plan de Partido</h2>
+          <span className="text-xs text-muted-foreground flex items-center gap-1">
+            {connected ? <Wifi className="h-3 w-3 text-green-500" /> : <WifiOff className="h-3 w-3 text-gray-400" />}
+            {connected ? 'Colaboración activa' : 'Offline'}
+          </span>
         </div>
-        <Button onClick={handleSave} disabled={saving}>
-          {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-          <Save className="h-4 w-4 mr-2" />
-          Guardar plan
-        </Button>
+        <div className="flex items-center gap-2">
+          {onlineUsers.filter(uid => uid !== currentUserId).length > 0 && (
+            <div className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+              <Users className="h-3 w-3" />
+              {onlineUsers.filter(uid => uid !== currentUserId).length} en línea
+            </div>
+          )}
+          {lastCollabEvent && lastCollabEvent.user_id !== currentUserId && (
+            <div className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
+              {lastCollabEvent.user_name} editó {lastCollabEvent.field}
+            </div>
+          )}
+          <Button onClick={handleSave} disabled={saving}>
+            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            <Save className="h-4 w-4 mr-2" />
+            Guardar plan
+          </Button>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -530,6 +557,13 @@ export function PlanPartidoEditor({ microcicloId, partidoId, plan, jugadores, on
                           <Plus className="h-4 w-4 mr-1" /> Añadir trigger
                         </Button>
                       </div>
+
+                      <PlanVideoClipsSelector
+                        partidoId={partidoId}
+                        equipoId={equipoId}
+                        selectedIds={fp.video_clips || []}
+                        onChange={(ids) => updateFase(f.key, { ...fp, video_clips: ids })}
+                      />
                     </CardContent>
                   </Card>
                 </TabsContent>

@@ -610,6 +610,7 @@ export default function MicrocicloDetallePage() {
           <PlanPartidoEditor
             microcicloId={id}
             partidoId={partido?.id || micro.partido_id || ''}
+            equipoId={micro.equipo_id}
             plan={data.plan_partido || null}
             jugadores={jugadores}
             onSaved={(plan) => {

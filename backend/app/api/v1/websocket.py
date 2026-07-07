@@ -204,6 +204,20 @@ async def websocket_endpoint(
                     exclude_user=user_id,
                 )
 
+            elif msg_type == "collab_edit" and equipo_id:
+                await manager.broadcast_to_team(
+                    equipo_id,
+                    {
+                        "type": "collab_edit",
+                        "user_id": user_id,
+                        "user_name": user.get("nombre", ""),
+                        "plan_id": data.get("plan_id"),
+                        "field": data.get("field"),
+                        "payload": data.get("payload"),
+                    },
+                    exclude_user=user_id,
+                )
+
     except WebSocketDisconnect:
         manager.disconnect_user(websocket, user_id, equipo_id)
 
