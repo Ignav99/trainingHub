@@ -29,6 +29,10 @@ export const planPartidoApi = {
     return api.get<PlanPartido>(`/microciclos/${microcicloId}/plan-partido`)
   },
 
+  async get(planId: string): Promise<PlanPartido> {
+    return api.get<PlanPartido>(`/planes-partido/${planId}`)
+  },
+
   async create(microcicloId: string, data: PlanPartidoCreateData): Promise<PlanPartido> {
     return api.post<PlanPartido>(`/microciclos/${microcicloId}/plan-partido`, data)
   },

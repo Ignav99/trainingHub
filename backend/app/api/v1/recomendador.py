@@ -299,6 +299,18 @@ async def recomendar_sesion_ai(
     if params.notas_plantilla:
         notas_adicionales.append(f"Plantilla: {params.notas_plantilla}")
 
+    # Cargar contexto del plan de partido si se proporciona
+    contexto_plan = None
+    if params.plan_partido_id:
+        plan_resp = supabase.table("planes_partido").select("*").eq("id", str(params.plan_partido_id)).limit(1).single().execute()
+        if plan_resp.data:
+            contexto_plan = plan_resp.data
+            notas_adicionales.append(
+                f"Plan de partido: sistema {contexto_plan.get('sistema_juego')}, "
+                f"estilo {contexto_plan.get('estilo_previsto')}. "
+                f"Fase a trabajar: {params.fase_plan or 'general'}"
+            )
+
     notas_str = "\n".join(notas_adicionales) if notas_adicionales else None
 
     try:
@@ -314,6 +326,8 @@ async def recomendar_sesion_ai(
             duracion_total=params.duracion_total,
             fase_juego=params.fase_juego,
             principio_tactico=params.principio_tactico,
+            fase_plan=params.fase_plan,
+            contexto_plan=contexto_plan,
             notas_adicionales=notas_str,
         )
 

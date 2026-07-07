@@ -250,6 +250,7 @@ export default function MicrocicloDetallePage() {
   const micro = data.microciclo
   const partido = micro.partidos
   const rangeLabel = `${formatDateShort(micro.fecha_inicio.slice(0, 10))} - ${formatDateShort(micro.fecha_fin.slice(0, 10))}`
+  const nuevaSesionUrl = `/sesiones/nueva?microciclo_id=${id}${data.plan_partido?.id ? `&plan_partido_id=${data.plan_partido.id}` : ''}`
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -491,7 +492,7 @@ export default function MicrocicloDetallePage() {
                 Sesiones ({data.sesiones.length})
               </h2>
               <Button size="sm" asChild>
-                <Link href="/sesiones/nueva">
+                <Link href={nuevaSesionUrl}>
                   <Plus className="h-4 w-4 mr-1" /> Nueva sesión
                 </Link>
               </Button>
@@ -501,7 +502,7 @@ export default function MicrocicloDetallePage() {
                 <CardContent className="py-8 text-center text-muted-foreground">
                   <p>No hay sesiones asociadas a este microciclo</p>
                   <Button variant="outline" className="mt-3" asChild>
-                    <Link href="/sesiones/nueva">
+                    <Link href={nuevaSesionUrl}>
                       <Plus className="h-4 w-4 mr-2" /> Crear sesión
                     </Link>
                   </Button>

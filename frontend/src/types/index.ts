@@ -286,6 +286,8 @@ export interface Sesion {
 
   pdf_url?: string
   microciclo_id?: string
+  plan_partido_id?: string
+  fase_plan?: string
 
   // Personalizacion
   materiales?: string[]
@@ -414,6 +416,8 @@ export interface RecomendadorInput {
   duracion_total: number
   fase_juego?: FaseJuego
   principio_tactico?: string
+  plan_partido_id?: string
+  fase_plan?: string
   enfasis_fisico?: string[]
   excluir_categorias?: string[]
   excluir_tareas?: string[]
@@ -456,6 +460,8 @@ export interface AIRecomendadorInput {
   areas_enfoque?: string[]
   notas_ultimo_partido?: string
   notas_plantilla?: string
+  plan_partido_id?: string
+  fase_plan?: string
   excluir_tareas?: string[]
 }
 
@@ -2357,4 +2363,6 @@ export interface SesionTimeline {
   orden?: number       // DnD field
   hora?: string
   microciclo_id?: string
+  plan_partido_id?: string
+  fase_plan?: string
 }

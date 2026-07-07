@@ -16,7 +16,9 @@ import {
 } from 'lucide-react'
 import { sesionesApi, SesionCreateData, recomendadorApi } from '@/lib/api/sesiones'
 import { tareasApi } from '@/lib/api/tareas'
-import { Tarea, AIRecomendadorOutput, AIFaseRecomendacion } from '@/types'
+import { microciclosApi } from '@/lib/api/microciclos'
+import { planPartidoApi } from '@/lib/api/planPartido'
+import { Tarea, AIRecomendadorOutput, AIFaseRecomendacion, Microciclo, PlanPartido } from '@/types'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { AttendanceStep, PlayerAttendance } from '@/components/sesiones/AttendanceStep'
 import { jugadoresApi } from '@/lib/api/jugadores'
@@ -48,6 +50,8 @@ export default function NuevaSesionPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const isAssisted = searchParams.get('mode') === 'assisted'
+  const microcicloIdFromQuery = searchParams.get('microciclo_id')
+  const planPartidoIdFromQuery = searchParams.get('plan_partido_id')
   const { equipoActivo } = useEquipoStore()
 
   const [loading, setLoading] = useState(false)
@@ -70,6 +74,8 @@ export default function NuevaSesionPage() {
     intensidad_objetivo: 'media',
     duracion_total: 90,
     notas_pre: '',
+    plan_partido_id: planPartidoIdFromQuery || undefined,
+    fase_plan: '',
   })
 
   // Tareas seleccionadas
@@ -77,6 +83,10 @@ export default function NuevaSesionPage() {
   const [tareasDisponibles, setTareasDisponibles] = useState<Tarea[]>([])
   const [loadingTareas, setLoadingTareas] = useState(false)
   const [showTareaSelector, setShowTareaSelector] = useState<string | null>(null)
+
+  // Contexto desde microciclo/plan
+  const [microcicloContexto, setMicrocicloContexto] = useState<Microciclo | null>(null)
+  const [planContexto, setPlanContexto] = useState<PlanPartido | null>(null)
 
   // Recomendador asistido
   const [aiRecommendations, setAiRecommendations] = useState<AIRecomendadorOutput | null>(null)
@@ -90,6 +100,17 @@ export default function NuevaSesionPage() {
       jugadoresApi.list({ equipo_id: equipoActivo.id, estado: 'activo', limit: 100 }).then(r => {
         setJugadoresCount(r.total || 16)
       }).catch(() => setJugadoresCount(16))
+    }
+    if (microcicloIdFromQuery) {
+      microciclosApi.get(microcicloIdFromQuery).then(m => {
+        setMicrocicloContexto(m)
+        if (m.partido_id) setFormData(prev => ({ ...prev, rival: m.partidos?.rival?.nombre || m.rivales?.nombre || prev.rival }))
+      }).catch(() => {})
+    }
+    if (planPartidoIdFromQuery) {
+      planPartidoApi.get(planPartidoIdFromQuery).then(p => {
+        setPlanContexto(p)
+      }).catch(() => {})
     }
   }, [])
 
@@ -117,6 +138,8 @@ export default function NuevaSesionPage() {
         duracion_total: formData.duracion_total || 90,
         fase_juego: formData.fase_juego_principal || undefined,
         principio_tactico: formData.principio_tactico_principal || undefined,
+        plan_partido_id: formData.plan_partido_id || undefined,
+        fase_plan: formData.fase_plan || undefined,
         excluir_tareas: tareasEnSesion.map(t => t.tarea.id),
       })
       setAiRecommendations(recs)
@@ -176,6 +199,8 @@ export default function NuevaSesionPage() {
       const dataToSend = {
         ...formData,
         equipo_id: formData.equipo_id || equipoActivo?.id || '00000000-0000-0000-0000-000000000000',
+        microciclo_id: microcicloIdFromQuery || formData.microciclo_id || undefined,
+        plan_partido_id: planPartidoIdFromQuery || formData.plan_partido_id || undefined,
       }
 
       const sesion = await sesionesApi.create(dataToSend)
@@ -385,6 +410,41 @@ export default function NuevaSesionPage() {
                 ))}
               </div>
             </div>
+
+            {planContexto && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-amber-900">
+                  <Zap className="h-4 w-4" />
+                  Contexto del plan de partido
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-amber-800 mb-1">Sistema</label>
+                    <p className="text-sm font-medium">{planContexto.sistema_juego}</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-amber-800 mb-1">Estilo</label>
+                    <p className="text-sm font-medium">{planContexto.estilo_previsto || '—'}</p>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-amber-800 mb-1">Fase del plan a trabajar</label>
+                  <select
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    value={formData.fase_plan || ''}
+                    onChange={(e) => setFormData({ ...formData, fase_plan: e.target.value || undefined })}
+                  >
+                    <option value="">General</option>
+                    <option value="ataque_organizado">Ataque organizado</option>
+                    <option value="defensa_organizada">Defensa organizada</option>
+                    <option value="transicion_ofensiva">Transición ofensiva</option>
+                    <option value="transicion_defensiva">Transición defensiva</option>
+                    <option value="abp_ofensivo">ABP ofensivo</option>
+                    <option value="abp_defensivo">ABP defensivo</option>
+                  </select>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div>

@@ -36,6 +36,9 @@ export interface SesionCreateData {
   materiales?: string[]
   staff_asistentes?: { nombre: string; rol: string; presente?: boolean }[]
   fase_notas?: Record<string, string>
+  microciclo_id?: string
+  plan_partido_id?: string
+  fase_plan?: string
 }
 
 export interface SesionUpdateData extends Partial<SesionCreateData> {
