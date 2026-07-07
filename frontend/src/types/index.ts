@@ -837,6 +837,8 @@ export interface Microciclo {
   fecha_inicio: string
   fecha_fin: string
   partido_id?: string
+  rival_id?: string
+  game_model_id?: string
   objetivo_principal?: string
   objetivo_tactico?: string
   objetivo_fisico?: string
@@ -848,6 +850,8 @@ export interface Microciclo {
   // Joined relations (from /completo or list with joins)
   equipos?: { id: string; nombre: string; categoria?: string }
   partidos?: Partido
+  rivales?: Rival
+  game_models?: GameModel
 }
 
 export interface Descanso {

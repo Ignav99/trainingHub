@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import useSWR from 'swr'
+import useSWR, { mutate } from 'swr'
 import {
   CalendarDays,
   Plus,
@@ -15,14 +15,29 @@ import {
   Clock,
   AlertCircle,
   Users,
+  Swords,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { apiKey } from '@/lib/swr'
+import { microciclosApi } from '@/lib/api/microciclos'
+import { rivalesApi } from '@/lib/api/partidos'
+import { gameModelsApi } from '@/lib/api/gameModels'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { formatDate } from '@/lib/utils'
-import type { Microciclo, PaginatedResponse } from '@/types'
+import type { Microciclo, PaginatedResponse, Partido, Rival, GameModel } from '@/types'
 
 // ============ Constants ============
 const ESTADO_COLORS: Record<string, string> = {
@@ -47,12 +62,74 @@ function formatDateShort(dateStr: string): string {
 export default function MicrociclosListPage() {
   const { equipoActivo } = useEquipoStore()
   const [page, setPage] = useState(1)
+  const [showCreate, setShowCreate] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [form, setForm] = useState({
+    fecha_inicio: '',
+    fecha_fin: '',
+    partido_id: '',
+    rival_id: '',
+    game_model_id: '',
+    objetivo_principal: '',
+  })
 
   const { data, isLoading, error } = useSWR<PaginatedResponse<Microciclo>>(
     equipoActivo?.id
       ? apiKey('/microciclos', { equipo_id: equipoActivo.id, limit: 12, page })
       : null
   )
+
+  // Rivales y game models para el formulario de creación
+  const { data: rivalesData } = useSWR<PaginatedResponse<Rival>>(
+    equipoActivo?.id ? apiKey('/rivales', { limit: 100 }) : null
+  )
+  const { data: gameModelsData } = useSWR<{ data: GameModel[] }>(
+    equipoActivo?.id ? `game-models-${equipoActivo.id}` : null,
+    () => gameModelsApi.list(equipoActivo!.id)
+  )
+  const { data: partidosData } = useSWR<PaginatedResponse<Partido>>(
+    equipoActivo?.id
+      ? apiKey('/partidos', { equipo_id: equipoActivo.id, solo_pendientes: true, limit: 50 })
+      : null
+  )
+
+  const rivales = rivalesData?.data || []
+  const gameModels = gameModelsData?.data || []
+  const partidos = partidosData?.data || []
+
+  const handleCreate = async () => {
+    if (!equipoActivo?.id || !form.fecha_inicio || !form.fecha_fin) return
+    setCreating(true)
+    try {
+      const created = await microciclosApi.create({
+        equipo_id: equipoActivo.id,
+        fecha_inicio: form.fecha_inicio,
+        fecha_fin: form.fecha_fin,
+        partido_id: form.partido_id || undefined,
+        rival_id: form.rival_id || undefined,
+        game_model_id: form.game_model_id || undefined,
+        objetivo_principal: form.objetivo_principal || undefined,
+      })
+      toast.success('Microciclo creado')
+      setShowCreate(false)
+      setForm({ fecha_inicio: '', fecha_fin: '', partido_id: '', rival_id: '', game_model_id: '', objetivo_principal: '' })
+      mutate(
+        (key: string) => typeof key === 'string' && key.includes('/microciclos'),
+        undefined,
+        { revalidate: true }
+      )
+      // Auto-link sessions and match
+      try {
+        await microciclosApi.linkSesiones(created.id)
+      } catch {
+        // ignore
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Error al crear microciclo')
+    } finally {
+      setCreating(false)
+    }
+  }
 
   const microciclos = data?.data || []
   const total = data?.total || 0
@@ -78,10 +155,8 @@ export default function MicrociclosListPage() {
             Planificación semanal de {equipoActivo?.nombre || 'tu equipo'}
           </p>
         </div>
-        <Button asChild>
-          <Link href="/sesiones/nueva">
-            <Plus className="h-4 w-4 mr-2" /> Nueva sesión
-          </Link>
+        <Button onClick={() => setShowCreate(true)}>
+          <Plus className="h-4 w-4 mr-2" /> Nuevo microciclo
         </Button>
       </div>
 
@@ -117,10 +192,8 @@ export default function MicrociclosListPage() {
             <p className="text-sm text-muted-foreground mb-4">
               Crea sesiones y vincúlalas a un microciclo para empezar a planificar
             </p>
-            <Button asChild>
-              <Link href="/sesiones/nueva">
-                <Plus className="h-4 w-4 mr-2" /> Crear primera sesión
-              </Link>
+            <Button onClick={() => setShowCreate(true)}>
+              <Plus className="h-4 w-4 mr-2" /> Crear primer microciclo
             </Button>
           </CardContent>
         </Card>
@@ -272,9 +345,108 @@ export default function MicrociclosListPage() {
           </Button>
         </div>
       )}
+
+      {/* ============ CREATE DIALOG ============ */}
+      <Dialog open={showCreate} onOpenChange={(open) => !open && setShowCreate(false)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Nuevo microciclo</DialogTitle>
+            <DialogDescription>
+              Crea una semana de planificación y vincúlala al rival, partido y modelo de juego.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Fecha inicio</Label>
+                <Input
+                  type="date"
+                  value={form.fecha_inicio}
+                  onChange={(e) => setForm({ ...form, fecha_inicio: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Fecha fin</Label>
+                <Input
+                  type="date"
+                  value={form.fecha_fin}
+                  onChange={(e) => setForm({ ...form, fecha_fin: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Partido de referencia</Label>
+              <select
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={form.partido_id}
+                onChange={(e) => setForm({ ...form, partido_id: e.target.value })}
+              >
+                <option value="">Sin partido asignado</option>
+                {partidos.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {formatDate(p.fecha)} - {p.localia === 'local' ? 'vs' : '@'} {p.rival?.nombre || 'Rival'}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Rival</Label>
+                <select
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  value={form.rival_id}
+                  onChange={(e) => setForm({ ...form, rival_id: e.target.value })}
+                >
+                  <option value="">Sin rival</option>
+                  {rivales.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.nombre_corto || r.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Modelo de juego</Label>
+                <select
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  value={form.game_model_id}
+                  onChange={(e) => setForm({ ...form, game_model_id: e.target.value })}
+                >
+                  <option value="">Sin modelo</option>
+                  {gameModels.map((gm) => (
+                    <option key={gm.id} value={gm.id}>
+                      {gm.nombre || gm.sistema_juego || 'Modelo'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Objetivo principal</Label>
+              <Input
+                placeholder="Ej: Mejorar salida de balón bajo presión"
+                value={form.objetivo_principal}
+                onChange={(e) => setForm({ ...form, objetivo_principal: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>Cancelar</Button>
+            <Button
+              onClick={handleCreate}
+              disabled={creating || !form.fecha_inicio || !form.fecha_fin}
+            >
+              {creating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Crear microciclo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
-
-// Need this import for the partido icon
-import { Swords } from 'lucide-react'

@@ -46,9 +46,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { apiKey } from '@/lib/swr'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { microciclosApi } from '@/lib/api/microciclos'
+import { rivalesApi } from '@/lib/api/partidos'
+import { gameModelsApi } from '@/lib/api/gameModels'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { formatDate } from '@/lib/utils'
-import type { VistaCompletaMicrociclo, Partido, PaginatedResponse, Jugador } from '@/types'
+import type { VistaCompletaMicrociclo, Partido, PaginatedResponse, Jugador, Rival, GameModel } from '@/types'
 
 import { WarRoomTimeline } from '@/components/microciclos/WarRoomTimeline'
 import { LoadChart } from '@/components/microciclos/LoadChart'
@@ -135,11 +137,24 @@ export default function MicrocicloDetallePage() {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     partido_id: '',
+    rival_id: '',
+    game_model_id: '',
     objetivo_principal: '',
     objetivo_tactico: '',
     objetivo_fisico: '',
     notas: '',
   })
+
+  // Select options for edit dialog
+  const { data: rivalesData } = useSWR<PaginatedResponse<Rival>>(
+    equipoActivo?.id ? apiKey('/rivales', { limit: 100 }) : null
+  )
+  const { data: gameModelsData } = useSWR<{ data: GameModel[] }>(
+    equipoActivo?.id ? `game-models-${equipoActivo.id}` : null,
+    () => gameModelsApi.list(equipoActivo!.id)
+  )
+  const rivales = rivalesData?.data || []
+  const gameModels = gameModelsData?.data || []
 
   // Delete dialog
   const [showDelete, setShowDelete] = useState(false)
@@ -150,6 +165,8 @@ export default function MicrocicloDetallePage() {
     const m = data.microciclo
     setForm({
       partido_id: m.partido_id || '',
+      rival_id: m.rival_id || '',
+      game_model_id: m.game_model_id || '',
       objetivo_principal: m.objetivo_principal || '',
       objetivo_tactico: m.objetivo_tactico || '',
       objetivo_fisico: m.objetivo_fisico || '',
@@ -164,6 +181,8 @@ export default function MicrocicloDetallePage() {
     try {
       await microciclosApi.update(data.microciclo.id, {
         partido_id: form.partido_id || undefined,
+        rival_id: form.rival_id || undefined,
+        game_model_id: form.game_model_id || undefined,
         objetivo_principal: form.objetivo_principal || undefined,
         objetivo_tactico: form.objetivo_tactico || undefined,
         objetivo_fisico: form.objetivo_fisico || undefined,
@@ -278,6 +297,24 @@ export default function MicrocicloDetallePage() {
                 <div className="flex items-center gap-1.5 text-sm">
                   <Dumbbell className="h-4 w-4 text-orange-600" />
                   <span>{micro.objetivo_fisico}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Rival + Game Model row */}
+            <div className="flex flex-wrap gap-3 mt-2">
+              {micro.rivales && (
+                <div className="flex items-center gap-1.5 text-sm">
+                  <Swords className="h-4 w-4 text-amber-600" />
+                  <span className="text-muted-foreground">Rival:</span>
+                  <span className="font-medium">{micro.rivales.nombre_corto || micro.rivales.nombre}</span>
+                </div>
+              )}
+              {micro.game_models && (
+                <div className="flex items-center gap-1.5 text-sm">
+                  <Brain className="h-4 w-4 text-violet-600" />
+                  <span className="text-muted-foreground">Modelo:</span>
+                  <span className="font-medium">{micro.game_models.nombre || micro.game_models.sistema_juego}</span>
                 </div>
               )}
             </div>
@@ -701,6 +738,39 @@ export default function MicrocicloDetallePage() {
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Rival</Label>
+                <select
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  value={form.rival_id}
+                  onChange={(e) => setForm({ ...form, rival_id: e.target.value })}
+                >
+                  <option value="">Sin rival</option>
+                  {rivales.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.nombre_corto || r.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Modelo de juego</Label>
+                <select
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  value={form.game_model_id}
+                  onChange={(e) => setForm({ ...form, game_model_id: e.target.value })}
+                >
+                  <option value="">Sin modelo</option>
+                  {gameModels.map((gm) => (
+                    <option key={gm.id} value={gm.id}>
+                      {gm.nombre || gm.sistema_juego || 'Modelo'}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="space-y-2">
