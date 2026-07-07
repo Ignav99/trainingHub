@@ -357,7 +357,11 @@ export default function MicrocicloDetallePage() {
             </div>
             {/* Alertas panel — 1 col */}
             <div className="lg:col-span-1">
-              <WarRoomAlerts alertas={data.alertas || []} />
+              <WarRoomAlerts
+                alertas={data.alertas || []}
+                equipoId={micro.equipo_id}
+                microcicloId={id}
+              />
             </div>
           </div>
 

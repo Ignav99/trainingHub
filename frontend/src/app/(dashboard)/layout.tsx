@@ -80,6 +80,7 @@ const navigation = [
   { name: 'RPE / Wellness', href: '/rpe', icon: Activity },
   { name: 'Competición', href: '/competicion', icon: Trophy },
   { name: 'Estadísticas', href: '/estadisticas', icon: BarChart3 },
+  { name: 'Alertas', href: '/alertas', icon: Bell },
 ]
 
 const secondaryNavigation = [
