@@ -59,6 +59,7 @@ import { WarRoomAlerts } from '@/components/microciclos/WarRoomAlerts'
 import { WarRoomRivalResumen } from '@/components/microciclos/WarRoomRivalResumen'
 import { WarRoomVideos } from '@/components/microciclos/WarRoomVideos'
 import { WarRoomCargas } from '@/components/microciclos/WarRoomCargas'
+import { PlanPartidoEditor } from '@/components/plan-partido/PlanPartidoEditor'
 
 // ============ Constants ============
 const ESTADO_COLORS: Record<string, string> = {
@@ -601,115 +602,16 @@ export default function MicrocicloDetallePage() {
 
         {/* ========== TAB: PLAN DE PARTIDO ========== */}
         <TabsContent value="plan-partido" className="mt-4">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold flex items-center gap-2">
-                <Trophy className="h-5 w-5 text-amber-600" />
-                Plan de Partido
-              </h2>
-              <Button size="sm" asChild>
-                <Link href={`/partidos/${partido?.id || 'nuevo'}/plan`}>
-                  {data.plan_partido ? 'Editar plan' : 'Crear plan'}
-                </Link>
-              </Button>
-            </div>
-
-            {data.plan_partido ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Sistema y estilo */}
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">Sistema</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Badge className="text-sm px-3 py-1">{data.plan_partido.sistema_juego}</Badge>
-                    {data.plan_partido.estilo_previsto && (
-                      <Badge variant="outline" className="ml-2">{data.plan_partido.estilo_previsto}</Badge>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* 11 inicial */}
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">11 Inicial</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                      {Object.keys(data.plan_partido.once_inicial).length} posiciones definidas
-                    </p>
-                    {data.plan_partido.suplentes.length > 0 && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        +{data.plan_partido.suplentes.length} suplentes
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Fases */}
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">Fases del plan</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-1">
-                    {[
-                      { key: 'fase_ataque_organizado', label: 'Ataque organizado' },
-                      { key: 'fase_defensa_organizada', label: 'Defensa organizada' },
-                      { key: 'fase_transicion_ofensiva', label: 'Transición ofensiva' },
-                      { key: 'fase_transicion_defensiva', label: 'Transición defensiva' },
-                      { key: 'fase_abp_ofensivo', label: 'ABP ofensivo' },
-                      { key: 'fase_abp_defensivo', label: 'ABP defensivo' },
-                    ].map(({ key, label }) => (
-                      <div key={key} className="flex items-center gap-2 text-xs">
-                        <span className={data.plan_partido?.[key as keyof typeof data.plan_partido] ? 'text-green-500' : 'text-gray-300'}>
-                          {data.plan_partido?.[key as keyof typeof data.plan_partido] ? '✅' : '⬜'}
-                        </span>
-                        <span className="text-muted-foreground">{label}</span>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-
-                {/* Escenarios */}
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">Escenarios</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm">{data.plan_partido.escenarios?.length || 0} escenarios previstos</p>
-                  </CardContent>
-                </Card>
-
-                {/* Estado */}
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">Estado</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Badge className={
-                      data.plan_partido.estado === 'finalizado' ? 'bg-green-100 text-green-700' :
-                      data.plan_partido.estado === 'compartido' ? 'bg-blue-100 text-blue-700' :
-                      'bg-gray-100 text-gray-700'
-                    }>
-                      {data.plan_partido.estado}
-                    </Badge>
-                  </CardContent>
-                </Card>
-              </div>
-            ) : (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <Trophy className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-                  <p className="text-muted-foreground mb-4">No hay plan de partido creado aún</p>
-                  <Button asChild>
-                    <Link href={`/partidos/${partido?.id || 'nuevo'}/plan`}>
-                      <Plus className="h-4 w-4 mr-2" /> Crear Plan de Partido
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+          <PlanPartidoEditor
+            microcicloId={id}
+            partidoId={partido?.id || micro.partido_id || ''}
+            plan={data.plan_partido || null}
+            jugadores={jugadores}
+            onSaved={(plan) => {
+              mutate((key: string) => typeof key === 'string' && key.includes(`/microciclos/${id}`), undefined, { revalidate: true })
+              toast.success('Plan de partido actualizado')
+            }}
+          />
         </TabsContent>
       </Tabs>
 
