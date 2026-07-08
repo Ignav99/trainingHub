@@ -4,7 +4,7 @@
 `cursor/redisenio-traininghub-ae84` (creada y empujada a origin).
 
 ## PR abierto
-https://github.com/ignav99/traininghub/pull/113 (draft, todas las fases implementadas).
+https://github.com/ignav99/traininghub/pull/113 (todas las fases implementadas + fix de CodeQL).
 
 ## Resumen de implementación
 
@@ -45,11 +45,21 @@ https://github.com/ignav99/traininghub/pull/113 (draft, todas las fases implemen
 - Mensajes `collab_edit` broadcasteados.
 - Selector de video clips por fase del plan.
 
+## Fix de CI incluido
+- Workflow `.github/workflows/security.yml`: unificada la versión de `github/codeql-action` a `54f647b7e1bb85c95cddabcd46b0c578ec92bc1a` en `init`, `autobuild` y `analyze` para evitar el error de autobuild por mismatch de versiones.
+
+## Deploy en Render
+- Servicios identificados: `traininghub-frontend-eu` y `traininghub-api-eu`.
+- `autoDeploy` activado en ambos servicios (`autoDeployTrigger: commit`).
+- Se forzó un deploy manual del commit `481aade` de la rama `cursor/redisenio-traininghub-ae84` para validación inmediata.
+- Pendiente: una vez mergeado el PR a `main`, la branch de los servicios debe volver a `main` para que los deploys sean automáticos desde la rama principal.
+
 ## Validación
 - `npx tsc --noEmit` en frontend pasa sin errores.
 - `python3 -m py_compile` pasa en archivos backend modificados.
 
-## Próximos pasos sugeridos
-- Desplegar en entorno de staging y probar flujos end-to-end.
-- Añadir tests unitarios para los nuevos endpoints y componentes.
-- Revisar UX con usuarios reales (CTs) y ajustar detalles.
+## Próximos pasos
+- Monitorizar el deploy manual en Render hasta que pase a `live`.
+- Revisar que el PR pase todos los checks tras el fix de CodeQL.
+- Mergear el PR a `main` y volver a configurar la branch de los servicios a `main`.
+- Probar flujos end-to-end en producción y recopilar feedback de UX/UI.
