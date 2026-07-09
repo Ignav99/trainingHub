@@ -301,6 +301,8 @@ async def create_microciclo(
     auth: AuthContext = Depends(require_permission(Permission.MICROCICLO_CREATE)),
 ):
     """Crea un nuevo microciclo."""
+    import logging
+    logger = logging.getLogger("traininghub.microciclos")
     supabase = get_supabase()
 
     data = microciclo.model_dump(mode="json", exclude_none=True)
@@ -312,9 +314,19 @@ async def create_microciclo(
     if data.get("game_model_id"):
         data["game_model_id"] = str(data["game_model_id"])
 
-    response = supabase.table("microciclos").insert(data).execute()
+    logger.info(f"Creating microciclo: {data} for org={auth.organizacion_id} user={auth.user_id}")
+
+    try:
+        response = supabase.table("microciclos").insert(data).execute()
+    except Exception as e:
+        logger.error(f"Error creating microciclo: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error al crear microciclo: {str(e)}"
+        )
 
     if not response.data:
+        logger.error("Supabase insert returned no data")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Error al crear microciclo"
