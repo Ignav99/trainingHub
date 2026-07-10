@@ -1,65 +1,32 @@
-# TrainingHub Pro - Rediseño Total - Estado final
+# TrainingHub Pro — Memory de sesión
 
-## Rama activa
-`cursor/redisenio-traininghub-ae84` (creada y empujada a origin).
+## Estado actual
+- Rama activa: `cursor/redisenio-traininghub-ae84`.
+- Último commit: `88d9816` — redesign: unificar War Room/Sala de Lunes con objetivos, rival por fases, plan de partido vinculado, morfociclo sin domingo y nutrición.
+- PR: #113 (https://github.com/Ignav99/trainingHub/pull/113). No se pudo actualizar desde el agente porque la herramienta reportó que la URL no pertenece al repo actual (posiblemente por el movimiento de repo).
+- Frontend TypeScript pasa (`npx tsc --noEmit`). Build local falla por falta de variables de entorno `supabaseUrl`, no por errores de compilación.
 
-## PR abierto
-https://github.com/ignav99/traininghub/pull/113 (todas las fases implementadas + fix de CodeQL).
+## Rediseño de Sala de Lunes / War Room (feedback usuario 10 jul 2026)
+Se implementó el rediseño de la vista de microciclo según el feedback del usuario:
+- Página de detalle de microciclo ahora muestra una sola vista: `SalaLunes` (se eliminaron las tabs duplicadas War Room / Sala del Lunes / Plan de Partido).
+- Tipos actualizados en `frontend/src/types/index.ts`:
+  - `TipoSesionDia`, `FaseRival`, `FasePlanPartido`.
+  - `RivalPhaseAnalysis`, `PlanPartidoPhase`, `NutricionSemana`.
+  - `DiaMorfociclo` ahora incluye `tipo_sesion: TipoSesionDia[]`, `descanso`, `observacion_importante`, `aspecto_psicologico`, `sesion_id`.
+  - `PlanCT` incluye `objetivos_semana`, `olfato_ct`, `observaciones_ct`, `nutricion`.
+  - `VistaCompletaMicrociclo.plantilla.jugadores_lesionados/en_recuperacion` incluyen `motivo_baja`.
+- Componentes modificados:
+  - `SalaLunes.tsx`: header con múltiples objetivos, olfato CT, observaciones, secciones unificadas, botón resumen copiable.
+  - `MorfocicloGrid.tsx`: 6 días (sin domingo), día de descanso gris, enfoques táctico/físico/técnico-táctico/psicológico, observación importante, link a sesión.
+  - `RivalScout.tsx`: análisis por fases con fortalezas, debilidades, clips y anotaciones por fase.
+  - `PlanPartido.tsx`: plan por fases con texto, principios del modelo de juego, consignas y clips.
+  - `frontend/src/app/(dashboard)/microciclos/[id]/page.tsx`: eliminadas tabs, imports limpiados, renderiza solo `SalaLunes`.
 
-## Resumen de implementación
+## Pendiente / Blockers
+- Deploy: no se dispone del token `RENDER_API_KEY` en el entorno de este turno, por lo que no se puede forzar deploy manual en Render. El autoDeploy para `main` ya estaba activado en turnos anteriores; mergear a `main` desplegará automáticamente.
+- El usuario debe revisar el rediseño en Render y dar feedback para iterar.
 
-### FASE 1: Fundación — Microciclo como centro (100%)
-- Tipos y API de microciclo actualizados con `rival_id` y `game_model_id`.
-- Creación de microciclos desde `/microciclos` con vinculación a partido, rival y modelo de juego.
-- Edición en detalle con selectores de rival y modelo de juego.
-- Recomendador AI conectado en `/sesiones/nueva?mode=assisted`.
-
-### FASE 2: Inteligencia del rival (100%)
-- Editor de informe de rival enriquecido (`InformeRivalEnriquecidoEditor`).
-- Bug de comparativa corregido (endpoint `/game-models?equipo_id=`).
-- Rutas desambiguadas a `/rivales/{id}/informes-enriquecidos`.
-- PUT/DELETE consolidados en `rival_informes.py`; archivo duplicado eliminado.
-
-### FASE 3: Plan de partido (100%)
-- Cliente API `planPartido.ts` con CRUD + GET por plan_id.
-- Editor completo `PlanPartidoEditor` integrado en War Room.
-- 11 inicial, suplentes, descartados, capitán, sistema y estilo.
-- Fases tácticas, emparejamientos, movimientos clave, triggers.
-- Momentos del partido y escenarios.
-
-### FASE 4: Diseñador de sesiones (100%)
-- Vinculación sesión ↔ plan de partido (`plan_partido_id`, `fase_plan`).
-- Recomendador contextualizado con plan de partido.
-- URLs de nueva sesión desde microciclo/plan con contexto.
-- Migración SQL `044_sesion_plan_partido.sql`.
-
-### FASE 5: Alertas + dashboard (100%)
-- Cliente API `alertas.ts` y página `/alertas`.
-- Detección automática conectada desde War Room y dashboard.
-- Acciones de resolución y eliminación.
-- Navegación en sidebar.
-
-### FASE 6: Colaboración + video (100%)
-- Hook `useTrainingHubSocket` para WebSocket.
-- Presencia en editor de plan de partido.
-- Mensajes `collab_edit` broadcasteados.
-- Selector de video clips por fase del plan.
-
-## Fix de CI incluido
-- Workflow `.github/workflows/security.yml`: unificada la versión de `github/codeql-action` a `54f647b7e1bb85c95cddabcd46b0c578ec92bc1a` en `init`, `autobuild` y `analyze` para evitar el error de autobuild por mismatch de versiones.
-
-## Deploy en Render
-- Servicios identificados: `traininghub-frontend-eu` y `traininghub-api-eu`.
-- `autoDeploy` activado en ambos servicios (`autoDeployTrigger: commit`).
-- Se forzó un deploy manual del commit `481aade` de la rama `cursor/redisenio-traininghub-ae84` para validación inmediata.
-- Pendiente: una vez mergeado el PR a `main`, la branch de los servicios debe volver a `main` para que los deploys sean automáticos desde la rama principal.
-
-## Validación
-- `npx tsc --noEmit` en frontend pasa sin errores.
-- `python3 -m py_compile` pasa en archivos backend modificados.
-
-## Próximos pasos
-- Monitorizar el deploy manual en Render hasta que pase a `live`.
-- Revisar que el PR pase todos los checks tras el fix de CodeQL.
-- Mergear el PR a `main` y volver a configurar la branch de los servicios a `main`.
-- Probar flujos end-to-end en producción y recopilar feedback de UX/UI.
+## Próximos pasos sugeridos
+1. Desplegar la rama (requiere token de Render en Secrets o merge a `main`).
+2. Recoger feedback del usuario sobre la nueva Sala de Lunes.
+3. Iterar ajustes UX/UI y posiblemente vincular principios del modelo de juego real desde `game_models`.
