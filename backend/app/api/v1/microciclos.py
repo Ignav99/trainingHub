@@ -97,9 +97,12 @@ async def get_microciclo_completo(
     microciclo (partido+rival+game_model), sesiones, plantilla, RPE,
     plan de partido, informe rival y alertas.
     """
+    import logging
+    logger = logging.getLogger("traininghub.microciclos")
     supabase = get_supabase()
 
-    # 1. Microciclo con todos los joins
+    try:
+        # 1. Microciclo con todos los joins
     micro_resp = supabase.table("microciclos").select(
         "*, equipos(id, nombre, categoria), partidos(*, rivales(nombre, nombre_corto, escudo_url)), rivales(nombre, nombre_corto, escudo_url), game_models(id, nombre, sistema_juego, estilo)"
     ).eq("id", str(microciclo_id)).single().execute()
@@ -232,15 +235,21 @@ async def get_microciclo_completo(
     ).eq("resuelta", False).order("created_at", desc=True).execute()
     alertas = [AlertaResponse(**a) for a in alertas_resp.data] if alertas_resp.data else []
 
-    return {
-        "microciclo": micro,
-        "sesiones": sesiones,
-        "plantilla": plantilla,
-        "rpe": rpe_data,
-        "plan_partido": plan_partido.model_dump(mode="json") if plan_partido else None,
-        "informe_rival": informe_rival.model_dump(mode="json") if informe_rival else None,
-        "alertas": [a.model_dump(mode="json") for a in alertas],
-    }
+        return {
+            "microciclo": micro,
+            "sesiones": sesiones,
+            "plantilla": plantilla,
+            "rpe": rpe_data,
+            "plan_partido": plan_partido.model_dump(mode="json") if plan_partido else None,
+            "informe_rival": informe_rival.model_dump(mode="json") if informe_rival else None,
+            "alertas": [a.model_dump(mode="json") for a in alertas],
+        }
+    except Exception as e:
+        logger.error(f"Error loading microciclo completo {microciclo_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al cargar el microciclo: {str(e)}"
+        )
 
 
 @router.get("/{microciclo_id}", response_model=MicrocicloResponse)
