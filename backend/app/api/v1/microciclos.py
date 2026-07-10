@@ -141,10 +141,10 @@ async def get_microciclo_completo(
         "intensidad_objetivo, fase_juego_principal, notas_pre, notas_post, "
         "dia_numero, orden, hora, microciclo_id, "
         "sesion_tareas(id)"
-    ).eq("microciclo_id", str(microciclo_id)).order("dia_numero", nulls_last=True).order("orden").execute()
+    ).eq("microciclo_id", str(microciclo_id)).execute()
 
     sesiones = []
-    for s in sesiones_resp.data:
+    for s in sorted(sesiones_resp.data, key=lambda x: (x.get("dia_numero") or 0, x.get("orden") or 0)):
         tareas_rel = s.pop("sesion_tareas", []) or []
         s["num_tareas"] = len(tareas_rel)
         sesiones.append(s)
@@ -294,10 +294,10 @@ async def get_microciclo_sesiones(
 
     response = supabase.table("sesiones").select(
         "*, equipos(nombre, categoria)"
-    ).eq("microciclo_id", str(microciclo_id)).order("dia_numero", nulls_last=True).order("orden").execute()
+    ).eq("microciclo_id", str(microciclo_id)).execute()
 
     sesiones = []
-    for s in response.data:
+    for s in sorted(response.data, key=lambda x: (x.get("dia_numero") or 0, x.get("orden") or 0)):
         s["equipo"] = s.pop("equipos", None)
         sesiones.append(s)
 
