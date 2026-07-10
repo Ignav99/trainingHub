@@ -2,8 +2,8 @@
 
 ## Estado actual
 - Rama activa: `cursor/redisenio-traininghub-ae84`.
-- Último commit: `88d9816` — redesign: unificar War Room/Sala de Lunes con objetivos, rival por fases, plan de partido vinculado, morfociclo sin domingo y nutrición.
-- PR: #113 (https://github.com/Ignav99/trainingHub/pull/113). No se pudo actualizar desde el agente porque la herramienta reportó que la URL no pertenece al repo actual (posiblemente por el movimiento de repo).
+- Últimos commits: `5da21f7` — docs: actualizar memory con rediseño de Sala de Lunes.
+- PR: #113 (https://github.com/Ignav99/trainingHub/pull/113).
 - Frontend TypeScript pasa (`npx tsc --noEmit`). Build local falla por falta de variables de entorno `supabaseUrl`, no por errores de compilación.
 
 ## Rediseño de Sala de Lunes / War Room (feedback usuario 10 jul 2026)
@@ -22,11 +22,16 @@ Se implementó el rediseño de la vista de microciclo según el feedback del usu
   - `PlanPartido.tsx`: plan por fases con texto, principios del modelo de juego, consignas y clips.
   - `frontend/src/app/(dashboard)/microciclos/[id]/page.tsx`: eliminadas tabs, imports limpiados, renderiza solo `SalaLunes`.
 
-## Pendiente / Blockers
-- Deploy: no se dispone del token `RENDER_API_KEY` en el entorno de este turno, por lo que no se puede forzar deploy manual en Render. El autoDeploy para `main` ya estaba activado en turnos anteriores; mergear a `main` desplegará automáticamente.
-- El usuario debe revisar el rediseño en Render y dar feedback para iterar.
+## Deploy
+- El usuario ha añadido `RENDER_API_KEY` como Runtime Secret en Cursor Dashboard.
+- Este run actual no tiene el secret inyectado; el siguiente run sí lo tendrá.
+- El agente no puede reiniciarse a sí mismo desde dentro de la conversación.
+- Opciones para desplegar:
+  1. Reiniciar el agente desde la interfaz de Cursor para que reciba `RENDER_API_KEY` y forzar deploy manual de `cursor/redisenio-traininghub-ae84`.
+  2. Mergear la rama a `main`; Render tiene `autoDeploy` activado para `main` y desplegará automáticamente.
+- Una vez desplegado, verificar que `/microciclos/{id}` carga correctamente y muestra la nueva Sala de Lunes unificada.
 
 ## Próximos pasos sugeridos
-1. Desplegar la rama (requiere token de Render en Secrets o merge a `main`).
+1. Desplegar la rama (reiniciar agente o mergear a `main`).
 2. Recoger feedback del usuario sobre la nueva Sala de Lunes.
 3. Iterar ajustes UX/UI y posiblemente vincular principios del modelo de juego real desde `game_models`.
