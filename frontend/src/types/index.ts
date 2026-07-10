@@ -774,14 +774,7 @@ export type TipoMicrociclo = 'competicion' | 'carga' | 'choque' | 'aproximacion'
 
 export type TipoSesionDia = 'tactico' | 'fisico' | 'tecnico_tactico' | 'psicologico'
 
-export type EstructuraSHD =
-  | 'condicional'
-  | 'coordinativa'
-  | 'cognitiva'
-  | 'socioafectiva'
-  | 'emotivo_volitiva'
-  | 'creativo_expresiva'
-  | 'mental_bioenergetica'
+export type SubtipoFisico = 'fuerza' | 'resistencia' | 'velocidad' | 'activacion'
 
 export type FaseRival = 'ataque_organizado' | 'defensa_organizada' | 'transicion_ofensiva' | 'transicion_defensiva' | 'abp_ofensiva' | 'abp_defensiva' | 'general'
 
@@ -841,20 +834,28 @@ export interface OnceProbableData {
 
 export interface DiaMorfociclo {
   objetivo_dia: string
+  objetivo_tactico?: string
   tipo_sesion: TipoSesionDia[]
-  estructuras_shd: EstructuraSHD[]
+  subtipo_fisico?: SubtipoFisico[]
   notas: string
   descanso: boolean
   sesion_id?: string
   observacion_importante?: string
-  aspecto_psicologico?: string
+  aspecto_psicologico?: boolean
+  aspecto_psicologico_texto?: string
 }
 
 export interface NutricionSemana {
-  pre_partido?: string
-  recuperacion?: string
+  plan_ch_semanal?: string
+  hidratacion_pre?: string
+  hidratacion_durante?: string
+  hidratacion_post?: string
+  comida_pre_partido?: string
+  comida_post_partido?: string
+  snacks_entrenamiento?: string
+  snacks_partido?: string
   suplementacion?: string
-  hidratacion?: string
+  recuperacion?: string
   notas?: string
 }
 

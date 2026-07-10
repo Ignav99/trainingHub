@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { CalendarDays, Apple, Dumbbell, HeartPulse, Users, ClipboardList, Target, Share2, Eye, Sparkles } from 'lucide-react'
+import { CalendarDays, Users, ClipboardList, Target, Share2, Sparkles } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
@@ -24,6 +24,7 @@ import { PlanPartido } from './PlanPartido'
 import { MorfocicloGrid } from './MorfocicloGrid'
 import { OnceProbable } from './OnceProbable'
 import { WarRoomCargas } from './WarRoomCargas'
+import { NutricionSemanalEditor } from './NutricionSemanalEditor'
 
 // ============ Constants ============
 
@@ -39,30 +40,6 @@ const TIPO_MICROCICLO_OPTIONS: { value: TipoMicrociclo; label: string; color: st
 
 function formatDateShort(dateStr: string) {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
-}
-
-function formatDayLabel(dateStr: string) {
-  return new Date(dateStr + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'short' })
-}
-
-function getWeekDates(start: string, end: string): { date: string; matchDay: MatchDay }[] {
-  const startDate = new Date(start + 'T12:00:00')
-  const endDate = new Date(end + 'T12:00:00')
-  const days: { date: string; matchDay: MatchDay }[] = []
-  const current = new Date(startDate)
-
-  // Lunes = MD+1, Martes = MD+2, Miércoles = MD-4, Jueves = MD-3, Viernes = MD-2, Sábado = MD-1, Domingo = MD
-  const map: MatchDay[] = ['MD+1', 'MD+2', 'MD-4', 'MD-3', 'MD-2', 'MD-1', 'MD']
-
-  while (current <= endDate) {
-    const dayIndex = current.getDay() === 0 ? 6 : current.getDay() - 1
-    days.push({
-      date: current.toISOString().split('T')[0],
-      matchDay: map[dayIndex],
-    })
-    current.setDate(current.getDate() + 1)
-  }
-  return days
 }
 
 // ============ Save status indicator ============
@@ -152,7 +129,6 @@ export function SalaLunes({ microcicloId, data, jugadores }: SalaLunesProps) {
 
   const micro = data.microciclo
   const rangeLabel = `${formatDateShort(micro.fecha_inicio.slice(0, 10))} - ${formatDateShort(micro.fecha_fin.slice(0, 10))}`
-  const weekDates = getWeekDates(micro.fecha_inicio.slice(0, 10), micro.fecha_fin.slice(0, 10))
 
   const linkedSessions = data.sesiones.map((s) => ({
     match_day: s.match_day as MatchDay,
@@ -335,7 +311,7 @@ export function SalaLunes({ microcicloId, data, jugadores }: SalaLunesProps) {
         sesiones={linkedSessions}
       />
 
-      {/* ============ Once + Disponibilidad + Cargas ============ */}
+      {/* ============ Once + Disponibilidad + Cargas (1/3 cada uno) ============ */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <OnceProbable
           data={planCT.once_probable ?? {}}
@@ -359,68 +335,10 @@ export function SalaLunes({ microcicloId, data, jugadores }: SalaLunesProps) {
       </div>
 
       {/* ============ Nutrición y suplementación ============ */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Apple className="h-4 w-4 text-green-600" />
-            Nutrición y suplementación
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Pre-partido</Label>
-              <Textarea
-                rows={2}
-                value={planCT.nutricion?.pre_partido ?? ''}
-                onChange={(e) => updatePlanCT({ nutricion: { ...planCT.nutricion, pre_partido: e.target.value } })}
-                placeholder="Pautas pre-partido..."
-                className="text-xs"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Recuperación</Label>
-              <Textarea
-                rows={2}
-                value={planCT.nutricion?.recuperacion ?? ''}
-                onChange={(e) => updatePlanCT({ nutricion: { ...planCT.nutricion, recuperacion: e.target.value } })}
-                placeholder="Pautas de recuperación..."
-                className="text-xs"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Suplementación</Label>
-              <Textarea
-                rows={2}
-                value={planCT.nutricion?.suplementacion ?? ''}
-                onChange={(e) => updatePlanCT({ nutricion: { ...planCT.nutricion, suplementacion: e.target.value } })}
-                placeholder="Suplementos recomendados..."
-                className="text-xs"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Hidratación</Label>
-              <Textarea
-                rows={2}
-                value={planCT.nutricion?.hidratacion ?? ''}
-                onChange={(e) => updatePlanCT({ nutricion: { ...planCT.nutricion, hidratacion: e.target.value } })}
-                placeholder="Pautas de hidratación..."
-                className="text-xs"
-              />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Notas adicionales</Label>
-            <Textarea
-              rows={2}
-              value={planCT.nutricion?.notas ?? ''}
-              onChange={(e) => updatePlanCT({ nutricion: { ...planCT.nutricion, notas: e.target.value } })}
-              placeholder="Observaciones nutricionales..."
-              className="text-xs"
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <NutricionSemanalEditor
+        data={planCT.nutricion}
+        onChange={(d) => updatePlanCT({ nutricion: d })}
+      />
     </div>
   )
 }

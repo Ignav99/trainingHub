@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, KeyboardEvent } from 'react'
-import { Swords, TrendingUp, TrendingDown, Plus, Trash2, X, Video, FileText } from 'lucide-react'
+import { Swords, TrendingUp, TrendingDown, Plus, Trash2, X, Video, FileText, Download } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { ClipRival, FaseRival, RivalPhaseAnalysis, RivalScoutData } from '@/types'
+import { exportRivalScoutPDF } from '@/lib/pdf/exportRivalScoutPDF'
 
 interface RivalScoutProps {
   data: Partial<RivalScoutData>
@@ -128,11 +129,25 @@ export function RivalScout({ data, rivalNombre, onChange }: RivalScoutProps) {
   return (
     <Card className="w-full">
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Swords className="h-4 w-4 shrink-0" />
-          Análisis del Rival
-        </CardTitle>
-        {rivalNombre && <p className="text-sm text-muted-foreground font-medium">{rivalNombre}</p>}
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Swords className="h-4 w-4 shrink-0" />
+              Análisis del Rival
+            </CardTitle>
+            {rivalNombre && <p className="text-sm text-muted-foreground font-medium">{rivalNombre}</p>}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1"
+            onClick={() => exportRivalScoutPDF(data, rivalNombre)}
+          >
+            <Download className="h-3.5 w-3.5" />
+            Exportar PDF
+          </Button>
+        </div>
       </CardHeader>
 
       <CardContent className="space-y-5">
