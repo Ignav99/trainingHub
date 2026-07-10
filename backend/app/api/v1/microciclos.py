@@ -216,18 +216,18 @@ async def get_microciclo_completo(
         plan_partido = None
         plan_resp = supabase.table("planes_partido").select("*").eq(
             "microciclo_id", str(microciclo_id)
-        ).limit(1).single().execute()
+        ).limit(1).execute()
         if plan_resp.data:
-            plan_partido = PlanPartidoResponse(**plan_resp.data)
+            plan_partido = PlanPartidoResponse(**plan_resp.data[0])
 
         # 6. Informe del Rival
         informe_rival = None
         if rival_id:
             informe_resp = supabase.table("informes_rival").select("*").eq(
                 "rival_id", str(rival_id)
-            ).order("created_at", desc=True).limit(1).single().execute()
+            ).order("created_at", desc=True).limit(1).execute()
             if informe_resp.data:
-                informe_rival = InformeRivalEnriquecidoResponse(**informe_resp.data)
+                informe_rival = InformeRivalEnriquecidoResponse(**informe_resp.data[0])
 
         # 7. Alertas activas
         alertas_resp = supabase.table("alertas").select("*").eq(
