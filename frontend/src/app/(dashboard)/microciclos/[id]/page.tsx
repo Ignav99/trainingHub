@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -15,17 +15,12 @@ import {
   Dumbbell,
   Swords,
   Users,
-  Clock,
-  FileText,
   Edit3,
   Trash2,
   Loader2,
-  ChevronRight,
   AlertCircle,
   ClipboardList,
-  Plus,
   Heart,
-  Apple,
   Trophy,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -42,24 +37,15 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { apiKey } from '@/lib/swr'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { microciclosApi } from '@/lib/api/microciclos'
-import { rivalesApi } from '@/lib/api/partidos'
 import { gameModelsApi } from '@/lib/api/gameModels'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { formatDate } from '@/lib/utils'
 import type { VistaCompletaMicrociclo, Partido, PaginatedResponse, Jugador, Rival, GameModel } from '@/types'
 
-import { WarRoomTimeline } from '@/components/microciclos/WarRoomTimeline'
-import { LoadChart } from '@/components/microciclos/LoadChart'
 import { SalaLunes } from '@/components/microciclos/SalaLunes'
-import { WarRoomAlerts } from '@/components/microciclos/WarRoomAlerts'
-import { WarRoomRivalResumen } from '@/components/microciclos/WarRoomRivalResumen'
-import { WarRoomVideos } from '@/components/microciclos/WarRoomVideos'
-import { WarRoomCargas } from '@/components/microciclos/WarRoomCargas'
-import { PlanPartidoEditor } from '@/components/plan-partido/PlanPartidoEditor'
 
 // ============ Constants ============
 const ESTADO_COLORS: Record<string, string> = {
@@ -69,33 +55,9 @@ const ESTADO_COLORS: Record<string, string> = {
   completado: 'bg-violet-100 text-violet-700',
 }
 
-const ESTADO_SESION_COLORS: Record<string, { bg: string; label: string }> = {
-  completada: { bg: 'bg-green-100 text-green-800', label: 'Completada' },
-  planificada: { bg: 'bg-blue-100 text-blue-800', label: 'Planificada' },
-  borrador: { bg: 'bg-gray-100 text-gray-800', label: 'Borrador' },
-  cancelada: { bg: 'bg-red-100 text-red-800', label: 'Cancelada' },
-}
-
 // ============ Helpers ============
 function formatDateShort(dateStr: string): string {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
-}
-
-function formatDateLong(dateStr: string): string {
-  return new Date(dateStr + 'T12:00:00').toLocaleDateString('es-ES', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  })
-}
-
-function getDatesInRange(start: string, end: string): string[] {
-  const dates: string[] = []
-  const current = new Date(start + 'T12:00:00')
-  const endDate = new Date(end + 'T12:00:00')
-  while (current <= endDate) {
-    dates.push(current.toISOString().split('T')[0])
-    current.setDate(current.getDate() + 1)
-  }
-  return dates
 }
 
 // ============ Component ============
@@ -211,26 +173,6 @@ export default function MicrocicloDetallePage() {
     }
   }
 
-  // Weekly timeline
-  const weekDates = useMemo(() => {
-    if (!data) return []
-    return getDatesInRange(
-      data.microciclo.fecha_inicio.slice(0, 10),
-      data.microciclo.fecha_fin.slice(0, 10),
-    )
-  }, [data])
-
-  const sessionsByDate = useMemo(() => {
-    if (!data) return {}
-    const map: Record<string, typeof data.sesiones> = {}
-    data.sesiones.forEach((s) => {
-      const key = s.fecha.split('T')[0]
-      if (!map[key]) map[key] = []
-      map[key].push(s)
-    })
-    return map
-  }, [data])
-
   // Loading
   if (loading) return <DetailPageSkeleton />
 
@@ -248,9 +190,7 @@ export default function MicrocicloDetallePage() {
   }
 
   const micro = data.microciclo
-  const partido = micro.partidos
   const rangeLabel = `${formatDateShort(micro.fecha_inicio.slice(0, 10))} - ${formatDateShort(micro.fecha_fin.slice(0, 10))}`
-  const nuevaSesionUrl = `/sesiones/nueva?microciclo_id=${id}${data.plan_partido?.id ? `&plan_partido_id=${data.plan_partido.id}` : ''}`
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -334,292 +274,11 @@ export default function MicrocicloDetallePage() {
       </div>
 
       {/* ============ WAR ROOM GRID ============ */}
-      <Tabs defaultValue="resumen">
-        <TabsList>
-          <TabsTrigger value="resumen">🏟️ War Room</TabsTrigger>
-          <TabsTrigger value="sala-lunes">📹 Sala del Lunes</TabsTrigger>
-          <TabsTrigger value="plan-partido">📋 Plan de Partido</TabsTrigger>
-        </TabsList>
-
-        {/* ========== TAB: WAR ROOM ========== */}
-        <TabsContent value="resumen" className="space-y-6 mt-4">
-
-          {/* ROW 1: WarRoomTimeline + Alertas */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-            {/* Week timeline — 3 cols wide */}
-            <div className="lg:col-span-3">
-              <WarRoomTimeline
-                microcicloId={id}
-                weekDates={weekDates}
-                sessionsByDate={sessionsByDate}
-                partido={partido}
-              />
-            </div>
-            {/* Alertas panel — 1 col */}
-            <div className="lg:col-span-1">
-              <WarRoomAlerts
-                alertas={data.alertas || []}
-                equipoId={micro.equipo_id}
-                microcicloId={id}
-              />
-            </div>
-          </div>
-
-          {/* ROW 2: Plantilla + Partido/Rival + Cargas */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Plantilla */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Users className="h-4 w-4 text-blue-600" />
-                  Plantilla
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="text-center p-3 rounded-lg bg-green-50">
-                    <p className="text-2xl font-bold text-green-700">{data.plantilla.disponibles}</p>
-                    <p className="text-[11px] text-green-600">Disponibles</p>
-                  </div>
-                  <div className="text-center p-3 rounded-lg bg-red-50">
-                    <p className="text-2xl font-bold text-red-700">{data.plantilla.lesionados}</p>
-                    <p className="text-[11px] text-red-600">Lesionados</p>
-                  </div>
-                  <div className="text-center p-3 rounded-lg bg-yellow-50">
-                    <p className="text-2xl font-bold text-yellow-700">{data.plantilla.en_recuperacion || 0}</p>
-                    <p className="text-[11px] text-yellow-600">Recuperación</p>
-                  </div>
-                  <div className="text-center p-3 rounded-lg bg-amber-50">
-                    <p className="text-2xl font-bold text-amber-700">{data.plantilla.sancionados}</p>
-                    <p className="text-[11px] text-amber-600">Sancionados</p>
-                  </div>
-                </div>
-
-                {/* Lesionados list */}
-                {data.plantilla.jugadores_lesionados.length > 0 && (
-                  <div className="mt-3 space-y-1.5">
-                    <p className="text-[11px] font-semibold text-red-700">🚑 Lesionados</p>
-                    {data.plantilla.jugadores_lesionados.slice(0, 2).map((j) => (
-                      <div key={j.id} className="flex items-center gap-2 p-1.5 rounded bg-red-50/60">
-                        <span className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center text-[10px] font-bold text-red-700 shrink-0">
-                          {j.dorsal || '?'}
-                        </span>
-                        <span className="text-[11px] font-medium truncate">{j.nombre}</span>
-                        {j.fecha_vuelta_estimada && (
-                          <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
-                            {formatDateShort(j.fecha_vuelta_estimada.slice(0, 10))}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                    {data.plantilla.jugadores_lesionados.length > 2 && (
-                      <p className="text-[10px] text-muted-foreground text-center">
-                        +{data.plantilla.jugadores_lesionados.length - 2} más
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Sancionados */}
-                {data.plantilla.jugadores_sancionados.length > 0 && (
-                  <div className="mt-2 space-y-1.5">
-                    <p className="text-[11px] font-semibold text-amber-700">🟡 Sancionados</p>
-                    {data.plantilla.jugadores_sancionados.map((j) => (
-                      <div key={j.id} className="flex items-center gap-2 p-1.5 rounded bg-amber-50/60">
-                        <span className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center text-[10px] font-bold text-amber-700 shrink-0">
-                          {j.dorsal || '?'}
-                        </span>
-                        <span className="text-[11px] font-medium truncate">{j.nombre}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <Button variant="outline" size="sm" className="w-full mt-3 text-[11px]" asChild>
-                  <Link href="/plantilla">
-                    Ver plantilla completa
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Partido + Rival */}
-            <WarRoomRivalResumen
-              rivalInfo={data.informe_rival}
-              partido={partido}
-            />
-
-            {/* Cargas + Nutrición */}
-            <div className="space-y-4">
-              <WarRoomCargas rpe={data.rpe} />
-
-              {/* Nutrición quick */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Apple className="h-4 w-4 text-green-600" />
-                    Nutrición
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="text-green-600">🍽️</span>
-                      <span>Plan PRE-partido asignado</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="text-blue-600">💊</span>
-                      <span>Suplementación actualizada</span>
-                    </div>
-                    <Button variant="outline" size="sm" className="w-full mt-1 text-[10px]" asChild>
-                      <Link href="/nutricion">
-                        <Apple className="h-3 w-3 mr-1" /> Ver nutrición
-                      </Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-
-          {/* ROW 3: Videos */}
-          <WarRoomVideos
-            microcicloId={id}
-            planPartido={data.plan_partido ? { id: data.plan_partido.id } : null}
-          />
-
-          {/* ROW 4: Lista de Sesiones */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-base font-semibold flex items-center gap-2">
-                <ClipboardList className="h-5 w-5" />
-                Sesiones ({data.sesiones.length})
-              </h2>
-              <Button size="sm" asChild>
-                <Link href={nuevaSesionUrl}>
-                  <Plus className="h-4 w-4 mr-1" /> Nueva sesión
-                </Link>
-              </Button>
-            </div>
-            {data.sesiones.length === 0 ? (
-              <Card>
-                <CardContent className="py-8 text-center text-muted-foreground">
-                  <p>No hay sesiones asociadas a este microciclo</p>
-                  <Button variant="outline" className="mt-3" asChild>
-                    <Link href={nuevaSesionUrl}>
-                      <Plus className="h-4 w-4 mr-2" /> Crear sesión
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-2">
-                {data.sesiones.map((s) => {
-                  const estadoInfo = ESTADO_SESION_COLORS[s.estado] || ESTADO_SESION_COLORS.borrador
-                  const rpeInfo = data.rpe.registros_por_sesion[s.id]
-                  const mdMap: Record<string, { bg: string; text: string }> = {
-                    'MD+1': { bg: 'bg-green-100', text: 'text-green-700' },
-                    'MD-4': { bg: 'bg-red-100', text: 'text-red-700' },
-                    'MD-3': { bg: 'bg-orange-100', text: 'text-orange-700' },
-                    'MD-2': { bg: 'bg-blue-100', text: 'text-blue-700' },
-                    'MD-1': { bg: 'bg-purple-100', text: 'text-purple-700' },
-                    'MD': { bg: 'bg-amber-100', text: 'text-amber-700' },
-                  }
-                  const mdStyle = s.match_day ? mdMap[s.match_day] : null
-
-                  return (
-                    <Link
-                      key={s.id}
-                      href={`/sesiones/${s.id}`}
-                      className="flex items-center gap-4 p-4 rounded-lg border hover:bg-muted/30 transition-colors group"
-                    >
-                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
-                        mdStyle ? `${mdStyle.bg} ${mdStyle.text}` : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {s.match_day || '\u2014'}
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium group-hover:text-primary transition-colors">{s.titulo}</span>
-                          <Badge variant="outline" className={`text-[10px] ${estadoInfo.bg}`}>
-                            {estadoInfo.label}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
-                          <span>{formatDateLong(s.fecha.slice(0, 10))}</span>
-                          {s.duracion_total && (
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" /> {s.duracion_total} min
-                            </span>
-                          )}
-                          {s.num_tareas > 0 && <span>{s.num_tareas} tareas</span>}
-                          <Badge variant="secondary" className="text-[10px]">{s.fase_juego_principal || 'General'}</Badge>
-                        </div>
-                      </div>
-
-                      {rpeInfo?.rpe_promedio && (
-                        <div className="text-center shrink-0">
-                          <p className={`text-lg font-bold ${
-                            rpeInfo.rpe_promedio >= 7 ? 'text-red-600' : rpeInfo.rpe_promedio >= 5 ? 'text-amber-600' : 'text-green-600'
-                          }`}>
-                            {rpeInfo.rpe_promedio}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">RPE</p>
-                        </div>
-                      )}
-
-                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                    </Link>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* ROW 5: Carga gráfico (full-width) */}
-          <LoadChart sesiones={data.sesiones} rpe={data.rpe} />
-
-          {/* ROW 6: Notas */}
-          {micro.notas && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Notas
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{micro.notas}</p>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        {/* ========== TAB: SALA DEL LUNES ========== */}
-        <TabsContent value="sala-lunes" className="mt-4">
-          <SalaLunes
-            microcicloId={id}
-            data={data}
-            jugadores={jugadores}
-          />
-        </TabsContent>
-
-        {/* ========== TAB: PLAN DE PARTIDO ========== */}
-        <TabsContent value="plan-partido" className="mt-4">
-          <PlanPartidoEditor
-            microcicloId={id}
-            partidoId={partido?.id || micro.partido_id || ''}
-            equipoId={micro.equipo_id}
-            plan={data.plan_partido || null}
-            jugadores={jugadores}
-            onSaved={(plan) => {
-              mutate((key: string) => typeof key === 'string' && key.includes(`/microciclos/${id}`), undefined, { revalidate: true })
-              toast.success('Plan de partido actualizado')
-            }}
-          />
-        </TabsContent>
-      </Tabs>
+      <SalaLunes
+        microcicloId={id}
+        data={data}
+        jugadores={jugadores}
+      />
 
       {/* ============ EDIT DIALOG ============ */}
       <Dialog open={showEdit} onOpenChange={(open) => !open && setShowEdit(false)}>
