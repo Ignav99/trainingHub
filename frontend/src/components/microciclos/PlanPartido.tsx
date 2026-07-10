@@ -1,14 +1,16 @@
 'use client'
 
 import { useState, KeyboardEvent } from 'react'
-import { ClipboardList, X, Video, Target, Lightbulb, Plus } from 'lucide-react'
+import { ClipboardList, X, Video, Target, Lightbulb, Plus, Download } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { ClipRival, FasePlanPartido, PlanPartidoData, PlanPartidoPhase } from '@/types'
+import { exportPlanPartidoPDF } from '@/lib/pdf/exportPlanPartidoPDF'
 
 interface PlanPartidoProps {
   data: Partial<PlanPartidoData>
@@ -61,6 +63,7 @@ const FASES: { fase: FasePlanPartido; label: string; icon: string; color: string
 ]
 
 export function PlanPartido({ data, onChange }: PlanPartidoProps) {
+  const [activeTab, setActiveTab] = useState<FasePlanPartido>('ataque_organizado')
   const [principioInputs, setPrincipioInputs] = useState<Record<string, string>>({})
   const [consignaInputs, setConsignaInputs] = useState<Record<string, string>>({})
 
@@ -87,36 +90,24 @@ export function PlanPartido({ data, onChange }: PlanPartidoProps) {
     update({ fases: next })
   }
 
-  const addPrincipio = (fase: FasePlanPartido) => {
-    const value = principioInputs[fase] ?? ''
+  const addTag = (
+    fase: FasePlanPartido,
+    field: 'principios_modelo' | 'consignas',
+    value: string,
+    clearInput: () => void
+  ) => {
     const trimmed = value.trim()
     if (!trimmed) return
     const phase = getPhase(fase)
-    const current = phase.principios_modelo ?? []
+    const current = phase[field] ?? []
     if (current.includes(trimmed)) return
-    updatePhase(fase, { principios_modelo: [...current, trimmed] })
-    setPrincipioInputs((prev) => ({ ...prev, [fase]: '' }))
+    updatePhase(fase, { [field]: [...current, trimmed] })
+    clearInput()
   }
 
-  const removePrincipio = (fase: FasePlanPartido, index: number) => {
+  const removeTag = (fase: FasePlanPartido, field: 'principios_modelo' | 'consignas', index: number) => {
     const phase = getPhase(fase)
-    updatePhase(fase, { principios_modelo: phase.principios_modelo?.filter((_, i) => i !== index) })
-  }
-
-  const addConsigna = (fase: FasePlanPartido) => {
-    const value = consignaInputs[fase] ?? ''
-    const trimmed = value.trim()
-    if (!trimmed) return
-    const phase = getPhase(fase)
-    const current = phase.consignas ?? []
-    if (current.includes(trimmed)) return
-    updatePhase(fase, { consignas: [...current, trimmed] })
-    setConsignaInputs((prev) => ({ ...prev, [fase]: '' }))
-  }
-
-  const removeConsigna = (fase: FasePlanPartido, index: number) => {
-    const phase = getPhase(fase)
-    updatePhase(fase, { consignas: phase.consignas?.filter((_, i) => i !== index) })
+    updatePhase(fase, { [field]: phase[field]?.filter((_, i) => i !== index) })
   }
 
   const addClip = (fase: FasePlanPartido) => {
@@ -156,111 +147,146 @@ export function PlanPartido({ data, onChange }: PlanPartidoProps) {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <ClipboardList className="h-4 w-4 text-muted-foreground" />
-          Plan de Partido
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ClipboardList className="h-4 w-4 text-muted-foreground" />
+            Plan de Partido
+          </CardTitle>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1"
+            onClick={() => exportPlanPartidoPDF(data)}
+          >
+            <Download className="h-3.5 w-3.5" />
+            Exportar PDF
+          </Button>
+        </div>
       </CardHeader>
 
       <CardContent className="space-y-5">
-        {FASES.map((section) => {
-          const phase = getPhase(section.fase)
-          return (
-            <div key={section.fase} className="space-y-3 border-b last:border-b-0 pb-4 last:pb-0">
-              <p className={`text-xs font-semibold flex items-center gap-1.5 ${section.color}`}>
-                <span>{section.icon}</span>
-                {section.label}
-              </p>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FasePlanPartido)}>
+          <TabsList className="flex flex-wrap h-auto gap-1">
+            {FASES.map((f) => (
+              <TabsTrigger key={f.fase} value={f.fase} className="text-[10px] px-2 py-1">
+                <span className="mr-1">{f.icon}</span>
+                {f.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-              <Textarea
-                rows={2}
-                className="resize-none text-sm"
-                placeholder={section.placeholder}
-                value={phase.texto}
-                onChange={(e) => updatePhase(section.fase, { texto: e.target.value })}
-              />
+          {FASES.map((section) => {
+            const phase = getPhase(section.fase)
+            return (
+              <TabsContent key={section.fase} value={section.fase} className="space-y-4 mt-4">
+                <p className={`text-xs font-semibold flex items-center gap-1.5 ${section.color}`}>
+                  <span>{section.icon}</span>
+                  {section.label}
+                </p>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <TagInput
-                  label="Principios del modelo de juego"
-                  icon={Target}
-                  items={phase.principios_modelo ?? []}
-                  inputValue={principioInputs[section.fase] ?? ''}
-                  onInputChange={(v) => setPrincipioInputs((prev) => ({ ...prev, [section.fase]: v }))}
-                  onAdd={() => addPrincipio(section.fase)}
-                  onKey={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      addPrincipio(section.fase)
-                    }
-                  }}
-                  onRemove={(i) => removePrincipio(section.fase, i)}
-                  color="blue"
+                <Textarea
+                  rows={3}
+                  className="resize-none text-sm"
+                  placeholder={section.placeholder}
+                  value={phase.texto}
+                  onChange={(e) => updatePhase(section.fase, { texto: e.target.value })}
                 />
-                <TagInput
-                  label="Consignas de la semana"
-                  icon={Lightbulb}
-                  items={phase.consignas ?? []}
-                  inputValue={consignaInputs[section.fase] ?? ''}
-                  onInputChange={(v) => setConsignaInputs((prev) => ({ ...prev, [section.fase]: v }))}
-                  onAdd={() => addConsigna(section.fase)}
-                  onKey={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      addConsigna(section.fase)
-                    }
-                  }}
-                  onRemove={(i) => removeConsigna(section.fase, i)}
-                  color="amber"
-                />
-              </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                  <Video size={14} />
-                  Clips de vídeo
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <TagInput
+                    label="Principios del modelo de juego"
+                    icon={Target}
+                    items={phase.principios_modelo ?? []}
+                    inputValue={principioInputs[section.fase] ?? ''}
+                    onInputChange={(v) => setPrincipioInputs((prev) => ({ ...prev, [section.fase]: v }))}
+                    onAdd={() =>
+                      addTag(section.fase, 'principios_modelo', principioInputs[section.fase] ?? '', () =>
+                        setPrincipioInputs((prev) => ({ ...prev, [section.fase]: '' }))
+                      )
+                    }
+                    onKey={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        addTag(section.fase, 'principios_modelo', principioInputs[section.fase] ?? '', () =>
+                          setPrincipioInputs((prev) => ({ ...prev, [section.fase]: '' }))
+                        )
+                      }
+                    }}
+                    onRemove={(i) => removeTag(section.fase, 'principios_modelo', i)}
+                    color="blue"
+                  />
+                  <TagInput
+                    label="Consignas de la semana"
+                    icon={Lightbulb}
+                    items={phase.consignas ?? []}
+                    inputValue={consignaInputs[section.fase] ?? ''}
+                    onInputChange={(v) => setConsignaInputs((prev) => ({ ...prev, [section.fase]: v }))}
+                    onAdd={() =>
+                      addTag(section.fase, 'consignas', consignaInputs[section.fase] ?? '', () =>
+                        setConsignaInputs((prev) => ({ ...prev, [section.fase]: '' }))
+                      )
+                    }
+                    onKey={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        addTag(section.fase, 'consignas', consignaInputs[section.fase] ?? '', () =>
+                          setConsignaInputs((prev) => ({ ...prev, [section.fase]: '' }))
+                        )
+                      }
+                    }}
+                    onRemove={(i) => removeTag(section.fase, 'consignas', i)}
+                    color="amber"
+                  />
                 </div>
+
                 <div className="space-y-2">
-                  {(phase.clips ?? []).map((clip) => (
-                    <div key={clip.id} className="flex items-center gap-2 rounded-md border bg-muted/30 p-2">
-                      <Input
-                        value={clip.titulo}
-                        onChange={(e) => updateClip(section.fase, clip.id, { titulo: e.target.value })}
-                        placeholder="Título"
-                        className="h-7 text-xs flex-1"
-                      />
-                      <Input
-                        value={clip.url ?? ''}
-                        onChange={(e) => updateClip(section.fase, clip.id, { url: e.target.value })}
-                        placeholder="https://..."
-                        className="h-7 text-xs flex-1"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
-                        onClick={() => removeClip(section.fase, clip.id)}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  ))}
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                    <Video size={14} />
+                    Clips de vídeo
+                  </div>
+                  <div className="space-y-2">
+                    {(phase.clips ?? []).map((clip) => (
+                      <div key={clip.id} className="flex items-center gap-2 rounded-md border bg-muted/30 p-2">
+                        <Input
+                          value={clip.titulo}
+                          onChange={(e) => updateClip(section.fase, clip.id, { titulo: e.target.value })}
+                          placeholder="Título"
+                          className="h-7 text-xs flex-1"
+                        />
+                        <Input
+                          value={clip.url ?? ''}
+                          onChange={(e) => updateClip(section.fase, clip.id, { url: e.target.value })}
+                          placeholder="https://..."
+                          className="h-7 text-xs flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => removeClip(section.fase, clip.id)}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs gap-1"
+                    onClick={() => addClip(section.fase)}
+                  >
+                    <Video className="h-3 w-3" />
+                    Añadir clip
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs gap-1"
-                  onClick={() => addClip(section.fase)}
-                >
-                  <Video className="h-3 w-3" />
-                  Añadir clip
-                </Button>
-              </div>
-            </div>
-          )
-        })}
+              </TabsContent>
+            )
+          })}
+        </Tabs>
 
         {/* Consignas Clave globales */}
         <div className="space-y-2 pt-1 border-t">

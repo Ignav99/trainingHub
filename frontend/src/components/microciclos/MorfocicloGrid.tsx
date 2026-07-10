@@ -7,9 +7,9 @@ import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { Link2, BedDouble, Dumbbell, Brain, Puzzle, Eye, Activity } from 'lucide-react'
+import { Link2, BedDouble, Dumbbell, Brain, Puzzle, Eye, Activity, Zap, Flame, TrendingUp, X } from 'lucide-react'
 import Link from 'next/link'
-import type { DiaMorfociclo, EstructuraSHD, MatchDay, TipoSesionDia } from '@/types'
+import type { DiaMorfociclo, MatchDay, SubtipoFisico, TipoSesionDia } from '@/types'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -119,31 +119,28 @@ const DAY_CONFIG: Record<
   },
 }
 
-const TIPO_SESION_OPTIONS: { key: TipoSesionDia; label: string; icon: typeof Dumbbell }[] = [
-  { key: 'tactico', label: 'Táctico', icon: Eye },
-  { key: 'fisico', label: 'Físico', icon: Activity },
-  { key: 'tecnico_tactico', label: 'Técnico-táctico', icon: Puzzle },
-  { key: 'psicologico', label: 'Psicológico', icon: Brain },
+const TIPO_SESION_OPTIONS: { key: TipoSesionDia; label: string; icon: typeof Dumbbell; color: string }[] = [
+  { key: 'tactico', label: 'Táctico', icon: Eye, color: 'text-blue-600' },
+  { key: 'fisico', label: 'Físico', icon: Activity, color: 'text-orange-600' },
+  { key: 'tecnico_tactico', label: 'Técnico-táctico', icon: Puzzle, color: 'text-purple-600' },
+  { key: 'psicologico', label: 'Psicológico', icon: Brain, color: 'text-emerald-600' },
 ]
 
-const SHD_STRUCTURES: { key: EstructuraSHD; label: string }[] = [
-  { key: 'condicional', label: 'Condicional' },
-  { key: 'coordinativa', label: 'Coordinativa' },
-  { key: 'cognitiva', label: 'Cognitiva' },
-  { key: 'socioafectiva', label: 'Socioafectiva' },
-  { key: 'emotivo_volitiva', label: 'Emotivo-volitiva' },
-  { key: 'creativo_expresiva', label: 'Creativo-expresiva' },
-  { key: 'mental_bioenergetica', label: 'Mental-bioenerg.' },
+const SUBTIPO_FISICO_OPTIONS: { key: SubtipoFisico; label: string; icon: typeof Zap }[] = [
+  { key: 'fuerza', label: 'Fuerza', icon: TrendingUp },
+  { key: 'resistencia', label: 'Resistencia', icon: Flame },
+  { key: 'velocidad', label: 'Velocidad', icon: Zap },
+  { key: 'activacion', label: 'Activación', icon: Activity },
 ]
 
 const EMPTY_DAY: DiaMorfociclo = {
   objetivo_dia: '',
   tipo_sesion: [],
-  estructuras_shd: [],
   notas: '',
   descanso: false,
   observacion_importante: '',
-  aspecto_psicologico: '',
+  aspecto_psicologico: false,
+  aspecto_psicologico_texto: '',
 }
 
 // ---------------------------------------------------------------------------
@@ -160,6 +157,7 @@ interface DayCardProps {
 function DayCard({ matchDay, data, linkedSession, onUpdate }: DayCardProps) {
   const cfg = DAY_CONFIG[matchDay]
   const isDescanso = data.descanso
+  const [showPsicologico, setShowPsicologico] = useState(data.aspecto_psicologico || false)
 
   function handleField<K extends keyof DiaMorfociclo>(field: K, value: DiaMorfociclo[K]) {
     onUpdate({ ...data, [field]: value })
@@ -171,27 +169,34 @@ function DayCard({ matchDay, data, linkedSession, onUpdate }: DayCardProps) {
     handleField('tipo_sesion', next)
   }
 
-  function toggleSHD(key: EstructuraSHD) {
-    const current = data.estructuras_shd ?? []
+  function toggleSubtipoFisico(key: SubtipoFisico) {
+    const current = data.subtipo_fisico ?? []
     const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key]
-    handleField('estructuras_shd', next)
+    handleField('subtipo_fisico', next)
+  }
+
+  function togglePsicologico() {
+    const next = !showPsicologico
+    setShowPsicologico(next)
+    handleField('aspecto_psicologico', next)
+    if (!next) handleField('aspecto_psicologico_texto', '')
   }
 
   return (
     <div
-      className={`flex min-w-[180px] flex-col rounded-lg border bg-card shadow-sm transition-opacity ${
+      className={`flex min-w-[200px] flex-col rounded-xl border bg-card shadow-sm transition-all ${
         isDescanso ? 'border-slate-300 bg-slate-100/60 opacity-70' : cfg.cardBorder
       }`}
     >
       {/* Header */}
-      <div className={`${isDescanso ? 'bg-slate-200/50' : cfg.cardHeader} rounded-t-lg px-3 py-2`}>
+      <div className={`${isDescanso ? 'bg-slate-200/50' : cfg.cardHeader} rounded-t-xl px-4 py-3`}>
         <div className="flex items-center justify-between gap-1">
-          <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${cfg.badgeBg} ${cfg.badgeText}`}>
+          <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${cfg.badgeBg} ${cfg.badgeText}`}>
             {cfg.label}
           </span>
           <span className="text-[10px] font-medium text-muted-foreground">{cfg.diaSemana}</span>
         </div>
-        <p className="mt-0.5 text-[11px] font-semibold leading-tight text-foreground">
+        <p className="mt-1 text-xs font-semibold leading-tight text-foreground">
           {isDescanso ? 'Descanso' : cfg.concepto}
         </p>
         <span className="mt-1 inline-block text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -199,7 +204,7 @@ function DayCard({ matchDay, data, linkedSession, onUpdate }: DayCardProps) {
         </span>
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 p-2">
+      <div className="flex flex-1 flex-col gap-3 p-3">
         {/* Descanso toggle */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
@@ -217,8 +222,8 @@ function DayCard({ matchDay, data, linkedSession, onUpdate }: DayCardProps) {
         </div>
 
         {isDescanso ? (
-          <div className="flex-1 flex items-center justify-center py-4">
-            <p className="text-[11px] text-slate-500 text-center">Día de descanso</p>
+          <div className="flex-1 flex items-center justify-center py-6">
+            <p className="text-xs text-slate-500 text-center">Día de descanso</p>
           </div>
         ) : (
           <>
@@ -226,16 +231,16 @@ function DayCard({ matchDay, data, linkedSession, onUpdate }: DayCardProps) {
             {linkedSession && (
               <Link
                 href={`/sesiones/${linkedSession.id}`}
-                className="flex items-center gap-1 rounded bg-primary/10 px-1.5 py-1 hover:bg-primary/20 transition-colors"
+                className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-2 py-1.5 hover:bg-primary/20 transition-colors"
               >
-                <Link2 size={10} className="shrink-0 text-primary" />
-                <span className="truncate text-[10px] text-primary" title={linkedSession.titulo}>
+                <Link2 size={12} className="shrink-0 text-primary" />
+                <span className="truncate text-[10px] text-primary font-medium" title={linkedSession.titulo}>
                   {linkedSession.titulo}
                 </span>
               </Link>
             )}
 
-            {/* Objetivo */}
+            {/* Objetivo general */}
             <div className="flex flex-col gap-1">
               <Label className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Objetivo del día
@@ -243,49 +248,101 @@ function DayCard({ matchDay, data, linkedSession, onUpdate }: DayCardProps) {
               <Textarea
                 value={data.objetivo_dia}
                 onChange={(e) => handleField('objetivo_dia', e.target.value)}
-                placeholder="Objetivo del día…"
+                placeholder="Objetivo general..."
                 rows={2}
                 className="resize-none text-[11px] leading-tight"
               />
             </div>
 
-            {/* Tipo de sesión */}
+            {/* Objetivo táctico */}
             <div className="flex flex-col gap-1">
+              <Label className="text-[9px] font-semibold uppercase tracking-wide text-blue-600">
+                Objetivo táctico
+              </Label>
+              <Textarea
+                value={data.objetivo_tactico ?? ''}
+                onChange={(e) => handleField('objetivo_tactico', e.target.value)}
+                placeholder="Qué queremos a nivel táctico..."
+                rows={2}
+                className="resize-none text-[11px] leading-tight"
+              />
+            </div>
+
+            {/* Enfoque */}
+            <div className="flex flex-col gap-2">
               <Label className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Enfoque
               </Label>
-              <div className="grid grid-cols-2 gap-x-1 gap-y-1">
-                {TIPO_SESION_OPTIONS.map(({ key, label, icon: Icon }) => (
-                  <div key={key} className="flex items-center gap-1">
-                    <Checkbox
-                      id={`${matchDay}-${key}`}
-                      checked={(data.tipo_sesion ?? []).includes(key)}
-                      onCheckedChange={() => toggleTipoSesion(key)}
-                      className="h-3 w-3"
-                    />
-                    <label
-                      htmlFor={`${matchDay}-${key}`}
-                      className="cursor-pointer text-[9px] leading-tight text-foreground flex items-center gap-0.5"
+              <div className="grid grid-cols-2 gap-1.5">
+                {TIPO_SESION_OPTIONS.map(({ key, label, icon: Icon, color }) => {
+                  const checked = (data.tipo_sesion ?? []).includes(key)
+                  return (
+                    <div
+                      key={key}
+                      onClick={() => toggleTipoSesion(key)}
+                      className={`flex items-center gap-1.5 rounded-md border px-2 py-1.5 cursor-pointer transition-colors ${
+                        checked ? 'bg-muted border-primary/30' : 'hover:bg-muted/50'
+                      }`}
                     >
-                      <Icon size={9} />
-                      {label}
-                    </label>
-                  </div>
-                ))}
+                      <Icon size={12} className={color} />
+                      <span className="text-[10px] font-medium">{label}</span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
 
-            {/* Aspecto psicológico */}
-            <div className="flex flex-col gap-1">
-              <Label className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Aspecto psicológico (opcional)
-              </Label>
-              <Input
-                value={data.aspecto_psicologico ?? ''}
-                onChange={(e) => handleField('aspecto_psicologico', e.target.value)}
-                placeholder="Mentalidad, motivación..."
-                className="h-7 text-[11px]"
-              />
+            {/* Subtipo físico */}
+            {(data.tipo_sesion ?? []).includes('fisico') && (
+              <div className="flex flex-col gap-2">
+                <Label className="text-[9px] font-semibold uppercase tracking-wide text-orange-600">
+                  Tipo físico
+                </Label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {SUBTIPO_FISICO_OPTIONS.map(({ key, label, icon: Icon }) => {
+                    const checked = (data.subtipo_fisico ?? []).includes(key)
+                    return (
+                      <div
+                        key={key}
+                        onClick={() => toggleSubtipoFisico(key)}
+                        className={`flex items-center gap-1.5 rounded-md border px-2 py-1.5 cursor-pointer transition-colors ${
+                          checked ? 'bg-orange-50 border-orange-200' : 'hover:bg-muted/50'
+                        }`}
+                      >
+                        <Icon size={12} className="text-orange-600" />
+                        <span className="text-[10px] font-medium">{label}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Aspecto psicológico: aparece al clicar */}
+            <div className="flex flex-col gap-2">
+              <div
+                onClick={togglePsicologico}
+                className={`flex items-center justify-between rounded-md border px-2 py-1.5 cursor-pointer transition-colors ${
+                  showPsicologico ? 'bg-emerald-50 border-emerald-200' : 'hover:bg-muted/50'
+                }`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <Brain size={12} className="text-emerald-600" />
+                  <span className="text-[10px] font-medium">Aspecto psicológico</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground">
+                  {showPsicologico ? 'Activo' : 'Añadir'}
+                </span>
+              </div>
+              {showPsicologico && (
+                <Textarea
+                  value={data.aspecto_psicologico_texto ?? ''}
+                  onChange={(e) => handleField('aspecto_psicologico_texto', e.target.value)}
+                  placeholder="Detalle del aspecto psicológico..."
+                  rows={2}
+                  className="resize-none text-[11px] leading-tight"
+                />
+              )}
             </div>
 
             {/* Observación importante */}
@@ -296,34 +353,9 @@ function DayCard({ matchDay, data, linkedSession, onUpdate }: DayCardProps) {
               <Input
                 value={data.observacion_importante ?? ''}
                 onChange={(e) => handleField('observacion_importante', e.target.value)}
-                placeholder="Nota crítica del día..."
+                placeholder="Nota crítica..."
                 className="h-7 text-[11px]"
               />
-            </div>
-
-            {/* Estructuras SHD */}
-            <div className="flex flex-col gap-1">
-              <Label className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Estructuras SHD
-              </Label>
-              <div className="grid grid-cols-2 gap-x-2 gap-y-1">
-                {SHD_STRUCTURES.map(({ key, label }) => (
-                  <div key={key} className="flex items-center gap-1">
-                    <Checkbox
-                      id={`${matchDay}-${key}`}
-                      checked={(data.estructuras_shd ?? []).includes(key)}
-                      onCheckedChange={() => toggleSHD(key)}
-                      className="h-3 w-3"
-                    />
-                    <label
-                      htmlFor={`${matchDay}-${key}`}
-                      className="cursor-pointer text-[9px] leading-tight text-foreground"
-                    >
-                      {label}
-                    </label>
-                  </div>
-                ))}
-              </div>
             </div>
 
             {/* Notas */}
