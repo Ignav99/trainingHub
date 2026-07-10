@@ -61,6 +61,21 @@ async def get_plan_partido(
     return PlanPartidoResponse(**response.data)
 
 
+@router.get("/planes-partido/{plan_id}", response_model=PlanPartidoResponse)
+async def get_plan_partido_by_id(
+    plan_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.MICROCICLO_READ)),
+):
+    """Obtiene un plan de partido por su ID."""
+    supabase = get_supabase()
+
+    response = supabase.table("planes_partido").select("*").eq("id", str(plan_id)).limit(1).single().execute()
+    if not response.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan de partido no encontrado")
+
+    return PlanPartidoResponse(**response.data)
+
+
 @router.put("/planes-partido/{plan_id}", response_model=PlanPartidoResponse)
 async def update_plan_partido(
     plan_id: UUID,

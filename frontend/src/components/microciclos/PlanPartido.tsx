@@ -1,92 +1,156 @@
 'use client'
 
 import { useState, KeyboardEvent } from 'react'
-import { ClipboardList, X } from 'lucide-react'
+import { ClipboardList, X, Video, Target, Lightbulb, Plus } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import type { PlanPartidoData } from '@/types'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import type { ClipRival, FasePlanPartido, PlanPartidoData, PlanPartidoPhase } from '@/types'
 
 interface PlanPartidoProps {
   data: Partial<PlanPartidoData>
   onChange: (data: Partial<PlanPartidoData>) => void
 }
 
-interface SectionConfig {
-  key: keyof Omit<PlanPartidoData, 'consignas_clave'>
-  label: string
-  icon: string
-  color: string
-  placeholder: string
-}
-
-const SECTIONS: SectionConfig[] = [
+const FASES: { fase: FasePlanPartido; label: string; icon: string; color: string; placeholder: string }[] = [
   {
-    key: 'ataque_organizado',
+    fase: 'ataque_organizado',
     label: 'Ataque Organizado',
     icon: '⚽',
     color: 'text-blue-600',
-    placeholder: 'Ej: Salida de balón en 3-2-5, amplitud por bandas, pivote como referencia...',
+    placeholder: 'Salida, progresión, creación, finalización...',
   },
   {
-    key: 'defensa_organizada',
+    fase: 'defensa_organizada',
     label: 'Defensa Organizada',
     icon: '🛡️',
     color: 'text-red-600',
-    placeholder: 'Ej: Bloque medio-bajo en 4-4-2, presión tras pérdida, línea defensiva alta...',
+    placeholder: 'Presión, bloque, repliegue, vigilancias...',
   },
   {
-    key: 'transicion_ofensiva',
+    fase: 'transicion_ofensiva',
     label: 'Transición Ofensiva',
     icon: '→',
     color: 'text-green-600',
-    placeholder: 'Ej: Verticalidad en 3 segundos, atacar los espacios a la espalda...',
+    placeholder: 'Verticalidad, espacios, cambio de ritmo...',
   },
   {
-    key: 'transicion_defensiva',
+    fase: 'transicion_defensiva',
     label: 'Transición Defensiva',
     icon: '←',
     color: 'text-orange-600',
-    placeholder: 'Ej: PPDA alto, presión inmediata al portador, repliegue intensivo...',
+    placeholder: 'PPDA, repliegue, equilibrio...',
   },
   {
-    key: 'abp_ofensiva',
+    fase: 'abp_ofensiva',
     label: 'ABP Ofensiva',
     icon: '🎯',
     color: 'text-purple-600',
-    placeholder: 'Ej: Corners zona 2ª palo, faltas laterales directo al área, saques de banda...',
+    placeholder: 'Corners, faltas, saques de banda...',
   },
   {
-    key: 'abp_defensiva',
+    fase: 'abp_defensiva',
     label: 'ABP Defensiva',
     icon: '🔒',
     color: 'text-amber-600',
-    placeholder: 'Ej: Zona en corners, marcajes individuales en faltas, atención a su lanzador...',
+    placeholder: 'Defensa de corners, faltas, saques...',
   },
 ]
 
 export function PlanPartido({ data, onChange }: PlanPartidoProps) {
-  const [consignaInput, setConsignaInput] = useState('')
+  const [principioInputs, setPrincipioInputs] = useState<Record<string, string>>({})
+  const [consignaInputs, setConsignaInputs] = useState<Record<string, string>>({})
 
-  const handleSectionChange = (key: keyof Omit<PlanPartidoData, 'consignas_clave'>, value: string) => {
-    onChange({ ...data, [key]: value })
+  const fases = data.fases ?? []
+  const consignasClave = data.consignas_clave ?? []
+
+  const update = (patch: Partial<PlanPartidoData>) => onChange({ ...data, ...patch })
+
+  const getPhase = (fase: FasePlanPartido): PlanPartidoPhase => {
+    return fases.find((f) => f.fase === fase) ?? {
+      fase,
+      texto: '',
+      principios_modelo: [],
+      consignas: [],
+      clips: [],
+    }
   }
 
-  const handleAddConsigna = (e: KeyboardEvent<HTMLInputElement>) => {
+  const updatePhase = (fase: FasePlanPartido, patch: Partial<PlanPartidoPhase>) => {
+    const existing = fases.find((f) => f.fase === fase)
+    const next = existing
+      ? fases.map((f) => (f.fase === fase ? { ...f, ...patch } : f))
+      : [...fases, { fase, texto: '', principios_modelo: [], consignas: [], clips: [], ...patch }]
+    update({ fases: next })
+  }
+
+  const addPrincipio = (fase: FasePlanPartido) => {
+    const value = principioInputs[fase] ?? ''
+    const trimmed = value.trim()
+    if (!trimmed) return
+    const phase = getPhase(fase)
+    const current = phase.principios_modelo ?? []
+    if (current.includes(trimmed)) return
+    updatePhase(fase, { principios_modelo: [...current, trimmed] })
+    setPrincipioInputs((prev) => ({ ...prev, [fase]: '' }))
+  }
+
+  const removePrincipio = (fase: FasePlanPartido, index: number) => {
+    const phase = getPhase(fase)
+    updatePhase(fase, { principios_modelo: phase.principios_modelo?.filter((_, i) => i !== index) })
+  }
+
+  const addConsigna = (fase: FasePlanPartido) => {
+    const value = consignaInputs[fase] ?? ''
+    const trimmed = value.trim()
+    if (!trimmed) return
+    const phase = getPhase(fase)
+    const current = phase.consignas ?? []
+    if (current.includes(trimmed)) return
+    updatePhase(fase, { consignas: [...current, trimmed] })
+    setConsignaInputs((prev) => ({ ...prev, [fase]: '' }))
+  }
+
+  const removeConsigna = (fase: FasePlanPartido, index: number) => {
+    const phase = getPhase(fase)
+    updatePhase(fase, { consignas: phase.consignas?.filter((_, i) => i !== index) })
+  }
+
+  const addClip = (fase: FasePlanPartido) => {
+    const phase = getPhase(fase)
+    const newClip: ClipRival = {
+      id: typeof crypto !== 'undefined' ? crypto.randomUUID() : Date.now().toString(),
+      titulo: '',
+      url: '',
+      fase,
+      notas: '',
+    }
+    updatePhase(fase, { clips: [...(phase.clips ?? []), newClip] })
+  }
+
+  const updateClip = (fase: FasePlanPartido, id: string, patch: Partial<ClipRival>) => {
+    const phase = getPhase(fase)
+    updatePhase(fase, {
+      clips: phase.clips?.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+    })
+  }
+
+  const removeClip = (fase: FasePlanPartido, id: string) => {
+    const phase = getPhase(fase)
+    updatePhase(fase, { clips: phase.clips?.filter((c) => c.id !== id) })
+  }
+
+  const handleConsignaClave = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== 'Enter') return
     e.preventDefault()
-    const trimmed = consignaInput.trim()
+    const trimmed = (e.target as HTMLInputElement).value.trim()
     if (!trimmed) return
-    const current = data.consignas_clave ?? []
-    if (current.includes(trimmed)) return
-    onChange({ ...data, consignas_clave: [...current, trimmed] })
-    setConsignaInput('')
-  }
-
-  const handleRemoveConsigna = (index: number) => {
-    const current = data.consignas_clave ?? []
-    onChange({ ...data, consignas_clave: current.filter((_, i) => i !== index) })
+    if (consignasClave.includes(trimmed)) return
+    update({ consignas_clave: [...consignasClave, trimmed] })
+    ;(e.target as HTMLInputElement).value = ''
   }
 
   return (
@@ -98,36 +162,116 @@ export function PlanPartido({ data, onChange }: PlanPartidoProps) {
         </CardTitle>
       </CardHeader>
 
-      <CardContent className="space-y-4">
-        {/* 6-section grid */}
-        <div className="grid grid-cols-2 gap-3">
-          {SECTIONS.map((section) => (
-            <div key={section.key} className="space-y-1.5">
-              <p className={`text-xs font-semibold flex items-center gap-1 ${section.color}`}>
+      <CardContent className="space-y-5">
+        {FASES.map((section) => {
+          const phase = getPhase(section.fase)
+          return (
+            <div key={section.fase} className="space-y-3 border-b last:border-b-0 pb-4 last:pb-0">
+              <p className={`text-xs font-semibold flex items-center gap-1.5 ${section.color}`}>
                 <span>{section.icon}</span>
                 {section.label}
               </p>
+
               <Textarea
-                rows={3}
+                rows={2}
                 className="resize-none text-sm"
                 placeholder={section.placeholder}
-                value={data[section.key] ?? ''}
-                onChange={(e) => handleSectionChange(section.key, e.target.value)}
+                value={phase.texto}
+                onChange={(e) => updatePhase(section.fase, { texto: e.target.value })}
               />
-            </div>
-          ))}
-        </div>
 
-        {/* Consignas Clave */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <TagInput
+                  label="Principios del modelo de juego"
+                  icon={Target}
+                  items={phase.principios_modelo ?? []}
+                  inputValue={principioInputs[section.fase] ?? ''}
+                  onInputChange={(v) => setPrincipioInputs((prev) => ({ ...prev, [section.fase]: v }))}
+                  onAdd={() => addPrincipio(section.fase)}
+                  onKey={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      addPrincipio(section.fase)
+                    }
+                  }}
+                  onRemove={(i) => removePrincipio(section.fase, i)}
+                  color="blue"
+                />
+                <TagInput
+                  label="Consignas de la semana"
+                  icon={Lightbulb}
+                  items={phase.consignas ?? []}
+                  inputValue={consignaInputs[section.fase] ?? ''}
+                  onInputChange={(v) => setConsignaInputs((prev) => ({ ...prev, [section.fase]: v }))}
+                  onAdd={() => addConsigna(section.fase)}
+                  onKey={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      addConsigna(section.fase)
+                    }
+                  }}
+                  onRemove={(i) => removeConsigna(section.fase, i)}
+                  color="amber"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                  <Video size={14} />
+                  Clips de vídeo
+                </div>
+                <div className="space-y-2">
+                  {(phase.clips ?? []).map((clip) => (
+                    <div key={clip.id} className="flex items-center gap-2 rounded-md border bg-muted/30 p-2">
+                      <Input
+                        value={clip.titulo}
+                        onChange={(e) => updateClip(section.fase, clip.id, { titulo: e.target.value })}
+                        placeholder="Título"
+                        className="h-7 text-xs flex-1"
+                      />
+                      <Input
+                        value={clip.url ?? ''}
+                        onChange={(e) => updateClip(section.fase, clip.id, { url: e.target.value })}
+                        placeholder="https://..."
+                        className="h-7 text-xs flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeClip(section.fase, clip.id)}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs gap-1"
+                  onClick={() => addClip(section.fase)}
+                >
+                  <Video className="h-3 w-3" />
+                  Añadir clip
+                </Button>
+              </div>
+            </div>
+          )
+        })}
+
+        {/* Consignas Clave globales */}
         <div className="space-y-2 pt-1 border-t">
           <p className="text-xs font-semibold text-amber-600 flex items-center gap-1">
             <span>💬</span>
-            Consignas Clave
+            Consignas Clave Globales
             <span className="text-muted-foreground font-normal ml-1">(mensajes de la semana)</span>
           </p>
 
           <div className="flex flex-wrap gap-1.5 min-h-[28px]">
-            {(data.consignas_clave ?? []).map((consigna, index) => (
+            {consignasClave.map((consigna, index) => (
               <Badge
                 key={index}
                 variant="secondary"
@@ -136,9 +280,8 @@ export function PlanPartido({ data, onChange }: PlanPartidoProps) {
                 {consigna}
                 <button
                   type="button"
-                  onClick={() => handleRemoveConsigna(index)}
+                  onClick={() => update({ consignas_clave: consignasClave.filter((_, i) => i !== index) })}
                   className="ml-0.5 rounded-sm hover:bg-amber-200 p-0.5 transition-colors"
-                  aria-label={`Eliminar consigna: ${consigna}`}
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -149,12 +292,60 @@ export function PlanPartido({ data, onChange }: PlanPartidoProps) {
           <Input
             className="text-sm h-8"
             placeholder="Escribir consigna y pulsar Enter..."
-            value={consignaInput}
-            onChange={(e) => setConsignaInput(e.target.value)}
-            onKeyDown={handleAddConsigna}
+            onKeyDown={handleConsignaClave}
           />
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+interface TagInputProps {
+  label: string
+  icon: typeof Target
+  items: string[]
+  inputValue: string
+  onInputChange: (v: string) => void
+  onAdd: () => void
+  onKey: (e: KeyboardEvent<HTMLInputElement>) => void
+  onRemove: (index: number) => void
+  color: 'blue' | 'amber'
+}
+
+function TagInput({ label, icon: Icon, items, inputValue, onInputChange, onAdd, onKey, onRemove, color }: TagInputProps) {
+  const colors =
+    color === 'blue'
+      ? 'bg-blue-50 text-blue-800 border-blue-200'
+      : 'bg-amber-50 text-amber-800 border-amber-200'
+
+  return (
+    <div className="space-y-2">
+      <div className={`flex items-center gap-1.5 text-xs font-semibold ${color === 'blue' ? 'text-blue-700' : 'text-amber-700'}`}>
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </div>
+      <div className="flex flex-wrap gap-1 min-h-[28px]">
+        {items.map((item, i) => (
+          <span key={i} className={`inline-flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-xs ${colors}`}>
+            {item}
+            <button type="button" onClick={() => onRemove(i)} className="ml-0.5 hover:opacity-70">
+              <X className="h-2.5 w-2.5" />
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-1">
+        <Input
+          value={inputValue}
+          onChange={(e) => onInputChange(e.target.value)}
+          onKeyDown={onKey}
+          placeholder="Añadir..."
+          className="h-7 text-xs"
+        />
+        <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onAdd}>
+          <Plus className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    </div>
   )
 }

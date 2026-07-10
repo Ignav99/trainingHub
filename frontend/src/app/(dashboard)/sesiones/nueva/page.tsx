@@ -14,11 +14,14 @@ import {
   X,
   GripVertical
 } from 'lucide-react'
-import { sesionesApi, SesionCreateData } from '@/lib/api/sesiones'
-import { tareasApi, catalogosApi } from '@/lib/api/tareas'
-import { Tarea } from '@/types'
+import { sesionesApi, SesionCreateData, recomendadorApi } from '@/lib/api/sesiones'
+import { tareasApi } from '@/lib/api/tareas'
+import { microciclosApi } from '@/lib/api/microciclos'
+import { planPartidoApi } from '@/lib/api/planPartido'
+import { Tarea, AIRecomendadorOutput, AIFaseRecomendacion, Microciclo, PlanPartido } from '@/types'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { AttendanceStep, PlayerAttendance } from '@/components/sesiones/AttendanceStep'
+import { jugadoresApi } from '@/lib/api/jugadores'
 
 const MATCH_DAYS = [
   { value: 'MD+1', label: 'MD+1 - Recuperación', color: 'bg-green-100 text-green-800' },
@@ -47,6 +50,8 @@ export default function NuevaSesionPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const isAssisted = searchParams.get('mode') === 'assisted'
+  const microcicloIdFromQuery = searchParams.get('microciclo_id')
+  const planPartidoIdFromQuery = searchParams.get('plan_partido_id')
   const { equipoActivo } = useEquipoStore()
 
   const [loading, setLoading] = useState(false)
@@ -67,7 +72,10 @@ export default function NuevaSesionPage() {
     fase_juego_principal: '',
     principio_tactico_principal: '',
     intensidad_objetivo: 'media',
+    duracion_total: 90,
     notas_pre: '',
+    plan_partido_id: planPartidoIdFromQuery || undefined,
+    fase_plan: '',
   })
 
   // Tareas seleccionadas
@@ -76,19 +84,101 @@ export default function NuevaSesionPage() {
   const [loadingTareas, setLoadingTareas] = useState(false)
   const [showTareaSelector, setShowTareaSelector] = useState<string | null>(null)
 
+  // Contexto desde microciclo/plan
+  const [microcicloContexto, setMicrocicloContexto] = useState<Microciclo | null>(null)
+  const [planContexto, setPlanContexto] = useState<PlanPartido | null>(null)
+
+  // Recomendador asistido
+  const [aiRecommendations, setAiRecommendations] = useState<AIRecomendadorOutput | null>(null)
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false)
+  const [recommendationError, setRecommendationError] = useState<string | null>(null)
+  const [jugadoresCount, setJugadoresCount] = useState(16)
+
   useEffect(() => {
     loadTareas()
+    if (equipoActivo?.id) {
+      jugadoresApi.list({ equipo_id: equipoActivo.id, estado: 'activo', limit: 100 }).then(r => {
+        setJugadoresCount(r.total || 16)
+      }).catch(() => setJugadoresCount(16))
+    }
+    if (microcicloIdFromQuery) {
+      microciclosApi.get(microcicloIdFromQuery).then(m => {
+        setMicrocicloContexto(m)
+        if (m.partido_id) setFormData(prev => ({ ...prev, rival: m.partidos?.rival?.nombre || m.rivales?.nombre || prev.rival }))
+      }).catch(() => {})
+    }
+    if (planPartidoIdFromQuery) {
+      planPartidoApi.get(planPartidoIdFromQuery).then(p => {
+        setPlanContexto(p)
+      }).catch(() => {})
+    }
   }, [])
 
   const loadTareas = async () => {
     setLoadingTareas(true)
     try {
-      const response = await tareasApi.list({ limit: 50 })
+      const response = await tareasApi.list({ limit: 200 })
       setTareasDisponibles(response.data)
     } catch (err) {
       console.error('Error loading tareas:', err)
     } finally {
       setLoadingTareas(false)
+    }
+  }
+
+  const generateRecommendations = async () => {
+    if (!formData.match_day) return
+    setLoadingRecommendations(true)
+    setRecommendationError(null)
+    try {
+      const recs = await recomendadorApi.getAIRecomendaciones({
+        match_day: formData.match_day as import('@/types').MatchDay,
+        num_jugadores: jugadoresCount,
+        num_porteros: 2,
+        duracion_total: formData.duracion_total || 90,
+        fase_juego: formData.fase_juego_principal || undefined,
+        principio_tactico: formData.principio_tactico_principal || undefined,
+        plan_partido_id: formData.plan_partido_id || undefined,
+        fase_plan: formData.fase_plan || undefined,
+        excluir_tareas: tareasEnSesion.map(t => t.tarea.id),
+      })
+      setAiRecommendations(recs)
+    } catch (err: any) {
+      setRecommendationError(err.message || 'Error al generar recomendaciones')
+    } finally {
+      setLoadingRecommendations(false)
+    }
+  }
+
+  const applyRecommendation = (fase: string, rec: AIFaseRecomendacion) => {
+    if (rec.tarea) {
+      addTareaToSesion(rec.tarea, fase)
+    } else if (rec.tarea_nueva) {
+      // Crear una tarea temporal a partir de la sugerencia nueva
+      const tareaNueva = {
+        id: rec.tarea_nueva.temp_id,
+        titulo: rec.tarea_nueva.titulo,
+        descripcion: rec.tarea_nueva.descripcion,
+        duracion_total: rec.tarea_nueva.duracion_total,
+        num_series: rec.tarea_nueva.num_series || 1,
+        tiempo_descanso: 0,
+        espacio_forma: 'libre',
+        num_jugadores_min: rec.tarea_nueva.num_jugadores_min || jugadoresCount,
+        num_jugadores_max: rec.tarea_nueva.num_jugadores_max,
+        num_porteros: rec.tarea_nueva.num_porteros || 0,
+        categoria_id: '',
+        organizacion_id: '',
+        creado_por: '',
+        reglas_tecnicas: [],
+        reglas_tacticas: [],
+        reglas_psicologicas: [],
+        consignas_ofensivas: rec.tarea_nueva.consignas || [],
+        consignas_defensivas: [],
+        errores_comunes: [],
+        fase_juego: rec.tarea_nueva.fase_juego as any,
+        principio_tactico: rec.tarea_nueva.principio_tactico,
+      } as unknown as Tarea
+      addTareaToSesion(tareaNueva, fase)
     }
   }
 
@@ -109,6 +199,8 @@ export default function NuevaSesionPage() {
       const dataToSend = {
         ...formData,
         equipo_id: formData.equipo_id || equipoActivo?.id || '00000000-0000-0000-0000-000000000000',
+        microciclo_id: microcicloIdFromQuery || formData.microciclo_id || undefined,
+        plan_partido_id: planPartidoIdFromQuery || formData.plan_partido_id || undefined,
       }
 
       const sesion = await sesionesApi.create(dataToSend)
@@ -164,6 +256,8 @@ export default function NuevaSesionPage() {
     return tareasEnSesion.reduce((acc, t) => acc + (t.duracion_override || t.tarea.duracion_total), 0)
   }
 
+  const isLastStep = () => (isAssisted && step === 3) || (!isAssisted && step === 2)
+
   const canGoNext = () => {
     switch (step) {
       case 0:
@@ -171,10 +265,20 @@ export default function NuevaSesionPage() {
       case 1:
         return formData.titulo && formData.fecha && formData.match_day
       case 2:
+        return isAssisted ? true : tareasEnSesion.length > 0
+      case 3:
         return tareasEnSesion.length > 0
       default:
         return true
     }
+  }
+
+  const handleNext = () => {
+    if (isAssisted && step === 1) {
+      // Al pasar de configuración a recomendación, generar recomendaciones automáticamente
+      generateRecommendations()
+    }
+    setStep(step + 1)
   }
 
   return (
@@ -307,6 +411,41 @@ export default function NuevaSesionPage() {
               </div>
             </div>
 
+            {planContexto && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-amber-900">
+                  <Zap className="h-4 w-4" />
+                  Contexto del plan de partido
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-amber-800 mb-1">Sistema</label>
+                    <p className="text-sm font-medium">{planContexto.sistema_juego}</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-amber-800 mb-1">Estilo</label>
+                    <p className="text-sm font-medium">{planContexto.estilo_previsto || '—'}</p>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-amber-800 mb-1">Fase del plan a trabajar</label>
+                  <select
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    value={formData.fase_plan || ''}
+                    onChange={(e) => setFormData({ ...formData, fase_plan: e.target.value || undefined })}
+                  >
+                    <option value="">General</option>
+                    <option value="ataque_organizado">Ataque organizado</option>
+                    <option value="defensa_organizada">Defensa organizada</option>
+                    <option value="transicion_ofensiva">Transición ofensiva</option>
+                    <option value="transicion_defensiva">Transición defensiva</option>
+                    <option value="abp_ofensivo">ABP ofensivo</option>
+                    <option value="abp_defensivo">ABP defensivo</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -362,8 +501,109 @@ export default function NuevaSesionPage() {
           </div>
         )}
 
-        {/* Paso 2: Selección de tareas */}
-        {step === 2 && (
+        {/* Paso 2: Recomendación asistida (solo modo assisted) */}
+        {step === 2 && isAssisted && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2 text-primary">
+                <Zap className="h-5 w-5" />
+                <h2 className="text-lg font-semibold">Recomendación asistida</h2>
+              </div>
+              <button
+                type="button"
+                onClick={generateRecommendations}
+                disabled={loadingRecommendations}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-primary border border-primary rounded-lg hover:bg-primary/5 disabled:opacity-50"
+              >
+                {loadingRecommendations ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+                Regenerar
+              </button>
+            </div>
+
+            {recommendationError && (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                {recommendationError}
+              </div>
+            )}
+
+            {loadingRecommendations && (
+              <div className="flex flex-col items-center justify-center py-12 gap-3">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm text-gray-500">La IA está diseñando la sesión óptima para {formData.match_day}...</p>
+              </div>
+            )}
+
+            {!loadingRecommendations && aiRecommendations && (
+              <div className="space-y-4">
+                {aiRecommendations.resumen && (
+                  <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg text-sm text-gray-700">
+                    <p className="font-medium text-blue-900 mb-1">{aiRecommendations.titulo_sugerido}</p>
+                    <p>{aiRecommendations.resumen}</p>
+                    {aiRecommendations.carga_estimada && (
+                      <p className="mt-2 text-xs text-blue-700">
+                        Carga: {aiRecommendations.carga_estimada.fisica} · Duración: {aiRecommendations.carga_estimada.duracion_total} min
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  {FASES_SESION.map((fase) => {
+                    const faseKey = fase.value as keyof typeof aiRecommendations.fases
+                    const rec = aiRecommendations.fases?.[faseKey]
+                    const tarea = rec?.tarea
+                    const tareaNueva = rec?.tarea_nueva
+                    if (!rec || (!tarea && !tareaNueva)) return null
+                    return (
+                      <div key={fase.value} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <h3 className="font-medium text-gray-900">{fase.label}</h3>
+                            <p className="text-xs text-gray-500">{fase.duration}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => applyRecommendation(fase.value, rec)}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-primary border border-primary rounded-lg hover:bg-primary/5"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Añadir
+                          </button>
+                        </div>
+                        <div className="p-3 bg-gray-50 rounded-lg">
+                          <p className="text-sm font-medium text-gray-900">{tarea?.titulo || tareaNueva?.titulo}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {tarea?.duracion_total || tareaNueva?.duracion_total} min · {rec.razon}
+                          </p>
+                          {rec.coaching_points && rec.coaching_points.length > 0 && (
+                            <ul className="mt-2 text-xs text-gray-600 list-disc list-inside">
+                              {rec.coaching_points.slice(0, 3).map((cp: string, i: number) => <li key={i}>{cp}</li>)}
+                            </ul>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {aiRecommendations.coherencia_tactica && (
+                  <div className="p-3 bg-gray-50 rounded-lg text-xs text-gray-600">
+                    <span className="font-medium">Coherencia táctica:</span> {aiRecommendations.coherencia_tactica}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!loadingRecommendations && !aiRecommendations && !recommendationError && (
+              <div className="text-center py-12 text-gray-500">
+                <p>Pulsa "Siguiente" para generar recomendaciones de tareas adaptadas a {formData.match_day}.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Paso 3 (o 2 sin assisted): Selección de tareas */}
+        {((step === 2 && !isAssisted) || step === 3) && (
           <div className="space-y-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2 text-primary">
@@ -493,16 +733,7 @@ export default function NuevaSesionPage() {
             <div />
           )}
 
-          {step < totalSteps ? (
-            <button
-              type="button"
-              onClick={() => setStep(step + 1)}
-              disabled={!canGoNext()}
-              className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Siguiente
-            </button>
-          ) : (
+          {isLastStep() ? (
             <button
               type="button"
               onClick={handleSubmit}
@@ -515,6 +746,15 @@ export default function NuevaSesionPage() {
                 <Save className="h-4 w-4" />
               )}
               {loading ? 'Guardando...' : 'Guardar sesión'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={!canGoNext()}
+              className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Siguiente
             </button>
           )}
         </div>

@@ -29,12 +29,16 @@ export interface SesionCreateData {
   principio_tactico_principal?: string
   carga_fisica_objetivo?: string
   intensidad_objetivo?: string
+  duracion_total?: number
   hora?: string
   lugar?: string
   notas_pre?: string
   materiales?: string[]
   staff_asistentes?: { nombre: string; rol: string; presente?: boolean }[]
   fase_notas?: Record<string, string>
+  microciclo_id?: string
+  plan_partido_id?: string
+  fase_plan?: string
 }
 
 export interface SesionUpdateData extends Partial<SesionCreateData> {

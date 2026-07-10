@@ -6,6 +6,8 @@ export interface CreateMicrocicloData {
   fecha_inicio: string
   fecha_fin: string
   partido_id?: string
+  rival_id?: string
+  game_model_id?: string
   objetivo_principal?: string
   objetivo_tactico?: string
   objetivo_fisico?: string

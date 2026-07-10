@@ -164,6 +164,10 @@ class SesionBase(BaseModel):
     notas_pre: Optional[str] = None
     notas_post: Optional[str] = None
 
+    # Relaciones con plan de partido
+    plan_partido_id: Optional[UUID] = None
+    fase_plan: Optional[str] = None
+
     # Personalizacion
     materiales: Optional[List[str]] = None
     staff_asistentes: Optional[List[dict]] = None
@@ -194,6 +198,8 @@ class SesionUpdate(BaseModel):
     notas_post: Optional[str] = None
     estado: Optional[EstadoSesion] = None
     microciclo_id: Optional[UUID] = None
+    plan_partido_id: Optional[UUID] = None
+    fase_plan: Optional[str] = None
     materiales: Optional[List[str]] = None
     staff_asistentes: Optional[List[dict]] = None
     fase_notas: Optional[dict] = None
@@ -209,6 +215,8 @@ class SesionResponse(SesionBase):
     estado: EstadoSesion
     pdf_url: Optional[str] = None
     microciclo_id: Optional[UUID] = None
+    plan_partido_id: Optional[UUID] = None
+    fase_plan: Optional[str] = None
 
     # Personalizacion
     materiales: Optional[List[str]] = None
@@ -288,6 +296,9 @@ class RecomendadorInput(BaseModel):
     # Objetivo táctico
     fase_juego: Optional[str] = None
     principio_tactico: Optional[str] = None
+
+    # Contexto del plan de partido
+    plan_partido_id: Optional[UUID] = None
     
     # Preferencias
     enfasis_fisico: Optional[List[str]] = None  # ["fuerza", "velocidad"]
@@ -415,6 +426,16 @@ class AIRecomendadorInput(BaseModel):
         None,
         description="Lesiones, ausencias, etc.",
         max_length=300
+    )
+
+    # Contexto del plan de partido
+    plan_partido_id: Optional[UUID] = Field(
+        None,
+        description="ID del plan de partido para contextualizar recomendaciones"
+    )
+    fase_plan: Optional[str] = Field(
+        None,
+        description="Fase del plan de partido a trabajar en la sesión"
     )
 
     # Preferencias

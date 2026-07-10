@@ -1,9 +1,13 @@
 'use client'
 
-import { Bell, CheckCircle, AlertTriangle, Info, ShieldAlert, Zap } from 'lucide-react'
+import Link from 'next/link'
+import { useState } from 'react'
+import { Bell, CheckCircle, AlertTriangle, Info, ShieldAlert, Zap, RefreshCw, Loader2, ArrowRight } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { alertasApi } from '@/lib/api/alertas'
+import { mutate } from 'swr'
 import type { Alerta } from '@/types'
 
 const PRIORIDAD_ICONS: Record<string, React.ReactNode> = {
@@ -22,9 +26,24 @@ const PRIORIDAD_COLORS: Record<string, string> = {
 
 interface WarRoomAlertsProps {
   alertas: Alerta[]
+  equipoId?: string
+  microcicloId?: string
 }
 
-export function WarRoomAlerts({ alertas }: WarRoomAlertsProps) {
+export function WarRoomAlerts({ alertas, equipoId, microcicloId }: WarRoomAlertsProps) {
+  const [detecting, setDetecting] = useState(false)
+
+  const handleDetect = async () => {
+    if (!equipoId) return
+    setDetecting(true)
+    try {
+      await alertasApi.detectar(equipoId, microcicloId)
+      mutate((key: string) => typeof key === 'string' && key.includes('/microciclos'), undefined, { revalidate: true })
+    } finally {
+      setDetecting(false)
+    }
+  }
+
   if (alertas.length === 0) {
     return (
       <Card>
@@ -38,6 +57,17 @@ export function WarRoomAlerts({ alertas }: WarRoomAlertsProps) {
           <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
             <CheckCircle className="h-4 w-4 text-green-500" />
             <span>Sin alertas activas</span>
+          </div>
+          <div className="flex gap-2 mt-3">
+            {equipoId && (
+              <Button variant="outline" size="sm" className="text-[10px] h-7" onClick={handleDetect} disabled={detecting}>
+                {detecting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                Detectar
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" className="text-[10px] h-7" asChild>
+              <Link href="/alertas">Ver todas <ArrowRight className="h-3 w-3 ml-1" /></Link>
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -82,6 +112,17 @@ export function WarRoomAlerts({ alertas }: WarRoomAlertsProps) {
             )}
           </div>
         ))}
+        <div className="flex gap-2 pt-2">
+          {equipoId && (
+            <Button variant="outline" size="sm" className="text-[10px] h-7" onClick={handleDetect} disabled={detecting}>
+              {detecting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+              Detectar
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" className="text-[10px] h-7" asChild>
+            <Link href="/alertas">Ver todas <ArrowRight className="h-3 w-3 ml-1" /></Link>
+          </Button>
+        </div>
       </CardContent>
     </Card>
   )

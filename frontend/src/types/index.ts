@@ -286,6 +286,8 @@ export interface Sesion {
 
   pdf_url?: string
   microciclo_id?: string
+  plan_partido_id?: string
+  fase_plan?: string
 
   // Personalizacion
   materiales?: string[]
@@ -414,6 +416,8 @@ export interface RecomendadorInput {
   duracion_total: number
   fase_juego?: FaseJuego
   principio_tactico?: string
+  plan_partido_id?: string
+  fase_plan?: string
   enfasis_fisico?: string[]
   excluir_categorias?: string[]
   excluir_tareas?: string[]
@@ -456,6 +460,8 @@ export interface AIRecomendadorInput {
   areas_enfoque?: string[]
   notas_ultimo_partido?: string
   notas_plantilla?: string
+  plan_partido_id?: string
+  fase_plan?: string
   excluir_tareas?: string[]
 }
 
@@ -766,6 +772,8 @@ export interface EstadisticaPartido {
 
 export type TipoMicrociclo = 'competicion' | 'carga' | 'choque' | 'aproximacion' | 'recuperacion'
 
+export type TipoSesionDia = 'tactico' | 'fisico' | 'tecnico_tactico' | 'psicologico'
+
 export type EstructuraSHD =
   | 'condicional'
   | 'coordinativa'
@@ -775,12 +783,25 @@ export type EstructuraSHD =
   | 'creativo_expresiva'
   | 'mental_bioenergetica'
 
+export type FaseRival = 'ataque_organizado' | 'defensa_organizada' | 'transicion_ofensiva' | 'transicion_defensiva' | 'abp_ofensiva' | 'abp_defensiva' | 'general'
+
+export type FasePlanPartido = 'ataque_organizado' | 'defensa_organizada' | 'transicion_ofensiva' | 'transicion_defensiva' | 'abp_ofensiva' | 'abp_defensiva'
+
 export interface ClipRival {
   id: string
   titulo: string
   url?: string
-  fase: 'ataque' | 'defensa' | 'transicion_of' | 'transicion_def' | 'abp' | 'general'
+  fase: FaseRival
   notas: string
+}
+
+export interface RivalPhaseAnalysis {
+  fase: FaseRival
+  sistema?: string
+  fortalezas: string[]
+  debilidades: string[]
+  clips: ClipRival[]
+  anotaciones: string
 }
 
 export interface RivalScoutData {
@@ -789,6 +810,15 @@ export interface RivalScoutData {
   debilidades: string[]
   clips: ClipRival[]
   anotaciones: string
+  fases: RivalPhaseAnalysis[]
+}
+
+export interface PlanPartidoPhase {
+  fase: FasePlanPartido
+  texto: string
+  principios_modelo?: string[]
+  consignas?: string[]
+  clips?: ClipRival[]
 }
 
 export interface PlanPartidoData {
@@ -799,6 +829,7 @@ export interface PlanPartidoData {
   abp_ofensiva: string
   abp_defensiva: string
   consignas_clave: string[]
+  fases: PlanPartidoPhase[]
 }
 
 export interface OnceProbableData {
@@ -810,19 +841,34 @@ export interface OnceProbableData {
 
 export interface DiaMorfociclo {
   objetivo_dia: string
-  tipo_sesion: string
+  tipo_sesion: TipoSesionDia[]
   estructuras_shd: EstructuraSHD[]
   notas: string
+  descanso: boolean
+  sesion_id?: string
+  observacion_importante?: string
+  aspecto_psicologico?: string
+}
+
+export interface NutricionSemana {
+  pre_partido?: string
+  recuperacion?: string
+  suplementacion?: string
+  hidratacion?: string
+  notas?: string
 }
 
 export interface PlanCT {
   tipo_microciclo?: TipoMicrociclo
-  objetivo_semana?: string
+  objetivos_semana?: string[]
+  olfato_ct?: string
+  observaciones_ct?: string
   notas_ct?: string
   rival_scout?: Partial<RivalScoutData>
   plan_partido?: Partial<PlanPartidoData>
   once_probable?: Partial<OnceProbableData>
   dias?: Partial<Record<MatchDay, DiaMorfociclo>>
+  nutricion?: NutricionSemana
 }
 
 // ============================================
@@ -837,6 +883,8 @@ export interface Microciclo {
   fecha_inicio: string
   fecha_fin: string
   partido_id?: string
+  rival_id?: string
+  game_model_id?: string
   objetivo_principal?: string
   objetivo_tactico?: string
   objetivo_fisico?: string
@@ -848,6 +896,8 @@ export interface Microciclo {
   // Joined relations (from /completo or list with joins)
   equipos?: { id: string; nombre: string; categoria?: string }
   partidos?: Partido
+  rivales?: Rival
+  game_models?: GameModel
 }
 
 export interface Descanso {
@@ -869,8 +919,8 @@ export interface MicrocicloCompleto {
     lesionados: number
     en_recuperacion: number
     sancionados: number
-    jugadores_lesionados: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado' | 'fecha_lesion' | 'fecha_vuelta_estimada'>[]
-    jugadores_en_recuperacion: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado' | 'fecha_vuelta_estimada'>[]
+    jugadores_lesionados: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado' | 'fecha_lesion' | 'fecha_vuelta_estimada' | 'motivo_baja'>[]
+    jugadores_en_recuperacion: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado' | 'fecha_vuelta_estimada' | 'motivo_baja'>[]
     jugadores_sancionados: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado'>[]
   }
   rpe: {
@@ -2308,8 +2358,8 @@ export interface VistaCompletaMicrociclo {
     lesionados: number
     en_recuperacion: number
     sancionados: number
-    jugadores_lesionados: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado' | 'fecha_lesion' | 'fecha_vuelta_estimada'>[]
-    jugadores_en_recuperacion: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado' | 'fecha_vuelta_estimada'>[]
+    jugadores_lesionados: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado' | 'fecha_lesion' | 'fecha_vuelta_estimada' | 'motivo_baja'>[]
+    jugadores_en_recuperacion: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado' | 'fecha_vuelta_estimada' | 'motivo_baja'>[]
     jugadores_sancionados: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado'>[]
   }
   rpe: {
@@ -2353,4 +2403,6 @@ export interface SesionTimeline {
   orden?: number       // DnD field
   hora?: string
   microciclo_id?: string
+  plan_partido_id?: string
+  fase_plan?: string
 }

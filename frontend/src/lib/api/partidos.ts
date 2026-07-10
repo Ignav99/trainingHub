@@ -96,12 +96,12 @@ export const rivalesApi = {
 
   // FASE 2 — Informes enriquecidos
   async createInforme(rivalId: string, data: Partial<InformeRivalEnriquecido>): Promise<InformeRivalEnriquecido> {
-    return api.post<InformeRivalEnriquecido>(`/rivales/${rivalId}/informes`, data)
+    return api.post<InformeRivalEnriquecido>(`/rivales/${rivalId}/informes-enriquecidos`, data)
   },
 
   async getLatestInforme(rivalId: string): Promise<InformeRivalEnriquecido | null> {
     try {
-      return await api.get<InformeRivalEnriquecido>(`/rivales/${rivalId}/informes/latest`)
+      return await api.get<InformeRivalEnriquecido>(`/rivales/${rivalId}/informes-enriquecidos/latest`)
     } catch {
       return null
     }

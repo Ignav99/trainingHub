@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { apiKey } from '@/lib/swr'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
@@ -37,6 +38,7 @@ import { rivalesApi } from '@/lib/api/partidos'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { MiniFieldPressure } from '@/components/rivales/MiniFieldPressure'
 import { ModeloComparativa } from '@/components/rivales/ModeloComparativa'
+import { InformeRivalEnriquecidoEditor } from '@/components/rivales/InformeRivalEnriquecidoEditor'
 import type { Rival, PreMatchIntel, RivalInforme, AIInformeRival, AIPlanPartido, GameModel, InformeRivalEnriquecido, MapaPresion } from '@/types'
 
 // Dynamic imports for heavy pre-match widgets
@@ -101,13 +103,14 @@ export default function RivalDetailPage() {
   const informes = informesRes?.data || []
 
   // FASE 2 — SWR for game model (for Comparativa tab)
-  const { data: gameModel } = useSWR<GameModel>(
-    equipoActivo?.id ? apiKey(`/modelo-juego/equipo/${equipoActivo.id}`) : null
+  const { data: gameModelsRes } = useSWR<{ data: GameModel[] }>(
+    equipoActivo?.id ? apiKey('/game-models', { equipo_id: equipoActivo.id }) : null
   )
+  const gameModel = gameModelsRes?.data?.[0]
 
   // FASE 2 — SWR for latest enriched informe
   const { data: informeEnriquecido } = useSWR<InformeRivalEnriquecido>(
-    id ? apiKey(`/rivales/${id}/informes/latest`) : null
+    id ? apiKey(`/rivales/${id}/informes-enriquecidos/latest`) : null
   )
 
   const [notas, setNotas] = useState('')
@@ -308,8 +311,10 @@ export default function RivalDetailPage() {
           informes={informes}
           aiInforme={aiInforme}
           aiPlan={aiPlan}
+          informeEnriquecido={informeEnriquecido || null}
           onInformeResult={handleInformeResult}
           onPlanResult={handlePlanResult}
+          onEnriquecidoSaved={() => mutate((key: string) => typeof key === 'string' && key.includes(`/rivales/${id}/informes`), undefined, { revalidate: true })}
         />
       )}
 
@@ -530,36 +535,55 @@ function InformesTab({
   informes,
   aiInforme,
   aiPlan,
+  informeEnriquecido,
   onInformeResult,
   onPlanResult,
+  onEnriquecidoSaved,
 }: {
   rivalId: string
   informes: RivalInforme[]
   aiInforme: AIInformeRival | null
   aiPlan: AIPlanPartido | null
+  informeEnriquecido: InformeRivalEnriquecido | null
   onInformeResult: (informe: AIInformeRival) => void
   onPlanResult: (plan: AIPlanPartido) => void
+  onEnriquecidoSaved: () => void
 }) {
   return (
-    <div className="space-y-4">
-      <InformeRivalSection
-        onSend={(msgs) => rivalesApi.scoutingChat(rivalId, msgs, 'informe')}
-        informe={aiInforme}
-        onResult={onInformeResult}
-      />
+    <Tabs defaultValue="ai">
+      <TabsList className="mb-4">
+        <TabsTrigger value="ai">Informe AI</TabsTrigger>
+        <TabsTrigger value="enriquecido">Informe enriquecido</TabsTrigger>
+        <TabsTrigger value="historial">Historial ({informes.length})</TabsTrigger>
+      </TabsList>
 
-      <PlanPartidoSection
-        onSend={(msgs) => rivalesApi.scoutingChat(rivalId, msgs, 'plan')}
-        plan={aiPlan}
-        onResult={onPlanResult}
-      />
+      <TabsContent value="ai" className="space-y-4">
+        <InformeRivalSection
+          onSend={(msgs) => rivalesApi.scoutingChat(rivalId, msgs, 'informe')}
+          informe={aiInforme}
+          onResult={onInformeResult}
+        />
 
-      {informes.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold flex items-center gap-2">
-            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-            Historial de informes ({informes.length})
-          </h3>
+        <PlanPartidoSection
+          onSend={(msgs) => rivalesApi.scoutingChat(rivalId, msgs, 'plan')}
+          plan={aiPlan}
+          onResult={onPlanResult}
+        />
+      </TabsContent>
+
+      <TabsContent value="enriquecido">
+        <InformeRivalEnriquecidoEditor
+          rivalId={rivalId}
+          informe={informeEnriquecido}
+          onSaved={() => {
+            onEnriquecidoSaved()
+            toast.success('Informe guardado')
+          }}
+        />
+      </TabsContent>
+
+      <TabsContent value="historial">
+        {informes.length > 0 ? (
           <div className="space-y-2">
             {informes.map((informe) => (
               <div
@@ -599,9 +623,11 @@ function InformesTab({
               </div>
             ))}
           </div>
-        </div>
-      )}
-    </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No hay informes AI generados aún.</p>
+        )}
+      </TabsContent>
+    </Tabs>
   )
 }
 
