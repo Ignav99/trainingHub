@@ -152,8 +152,10 @@ export function SalaLunes({ microcicloId, data, jugadores }: SalaLunesProps) {
         await microciclosApi.patchPlanCT(microcicloId, planCT)
         setSaveStatus('saved')
         idleTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
-      } catch {
+      } catch (err: any) {
         setSaveStatus('error')
+        toast.error(err?.message || 'Error al guardar la Sala del Lunes')
+        console.error('Error guardando plan_ct:', err)
       }
     }, 1500)
 

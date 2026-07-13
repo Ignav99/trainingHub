@@ -572,9 +572,13 @@ async def upload_rival_clip(
 
     supabase = get_supabase()
 
-    micro = supabase.table("microciclos").select("id, plan_ct").eq(
-        "id", str(microciclo_id)
-    ).single().execute()
+    try:
+        micro = supabase.table("microciclos").select("*").eq(
+            "id", str(microciclo_id)
+        ).single().execute()
+    except Exception as e:
+        logger.error(f"Error fetching microciclo {microciclo_id} for clip upload: {e}")
+        raise HTTPException(status_code=500, detail="Error al verificar el microciclo")
 
     if not micro.data:
         raise HTTPException(status_code=404, detail="Microciclo no encontrado")
