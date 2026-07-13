@@ -38,18 +38,24 @@ El usuario pidió que la pizarra táctica de la Sala de Lunes (RivalScout / Plan
 - **Sin desplegable de formación** como se solicitó.
 
 ### 3. Nueva pestaña Estrategia en análisis del rival
-El usuario pidió una pestaña de estrategia para el rival con el once probable.
+El usuario pidió una pestaña de estrategia para el rival con el once probable, y posteriormente reorganizar el análisis del rival.
 
 - **Cambios**:
   - El sistema/formación por fase del rival pasa de desplegable a campo de texto libre (`RivalScout.tsx`).
-  - Nueva pestaña `Estrategia` en `RivalScout`.
+  - Nueva pestaña `Estrategia` en `RivalScout`, ahora la primera pestaña.
+  - Se eliminó el campo general "Sistema de juego rival" del resto de pestañas; solo Estrategia tiene sistema.
   - Nuevo componente `RivalStrategy.tsx` que:
     - Carga el once probable desde `/rivales/{id}/once-probable`.
     - Permite escribir el sistema del rival y colocar jugadores en el campograma con layouts automáticos (4-3-3, 4-4-2, etc.).
     - Permite añadir comentarios individuales por futbolista.
     - Permite puntuar cada futbolista con 1-5 estrellas.
     - Persiste todo en `rival_scout.estrategia` dentro de `plan_ct`.
-  - Tipos añadidos: `RivalScoutStrategy`, `RivalJugadorEvaluacion`.
+  - Subpestañas en Ataque Organizado: Creación, Progresión, Finalización.
+  - Subpestañas en Defensa Organizada: Bloque alto, Bloque medio, Bloque bajo.
+  - Orden de cada fase: subpestañas -> sistema/formación -> espacios -> fortalezas/debilidades -> pizarra táctica -> clips.
+  - Eliminado el campo de anotaciones tácticas de las fases.
+  - Tipos añadidos: `RivalScoutStrategy`, `RivalJugadorEvaluacion`, `RivalSubfaseData`, `RivalSubfaseAtaque`, `RivalSubfaseDefensa`.
+  - Actualizado `exportRivalScoutPDF.ts` para reflejar la nueva estructura.
 
 - **Verificación**: deployado en Render, ambos servicios `live` y saludables.
 
