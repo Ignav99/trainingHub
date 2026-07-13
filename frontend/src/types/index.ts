@@ -796,6 +796,7 @@ export interface RivalJugadorEvaluacion {
   apariciones: number
   sancionado?: boolean
   posicion?: string
+  rol?: string
   comentario?: string
   puntuacion?: number
 }
@@ -807,6 +808,8 @@ export interface RivalScoutStrategy {
     jugadores: RivalJugadorEvaluacion[]
     colocacion?: Record<string, string>
   }
+  actitud_estilo?: string
+  dimensiones_campo?: string
   notas?: string
 }
 

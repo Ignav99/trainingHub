@@ -65,9 +65,11 @@ const SUBFASES_DEFENSA: { key: RivalSubfaseDefensa; label: string }[] = [
   { key: 'bloque_bajo', label: 'Bloque bajo' },
 ]
 
+type TabValue = 'contexto' | 'once_probable' | FaseRival
+
 export function RivalScout({ data, rivalNombre, rivalId, microcicloId, onChange }: RivalScoutProps) {
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({})
-  const [activeTab, setActiveTab] = useState<FaseRival | 'estrategia'>('estrategia')
+  const [activeTab, setActiveTab] = useState<TabValue>('contexto')
 
   const fases = data.fases ?? []
 
@@ -154,12 +156,14 @@ export function RivalScout({ data, rivalNombre, rivalId, microcicloId, onChange 
     }
   }
 
+  const estrategia = data.estrategia ?? {}
+
   return (
     <Card className="w-full">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-base">Análisis del Rival</CardTitle>
+            <CardTitle className="text-base">Estrategia del Rival</CardTitle>
             {rivalNombre && <p className="text-sm text-muted-foreground font-medium">{rivalNombre}</p>}
           </div>
           <Button
@@ -175,10 +179,13 @@ export function RivalScout({ data, rivalNombre, rivalId, microcicloId, onChange 
       </CardHeader>
 
       <CardContent className="space-y-5">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FaseRival | 'estrategia')}>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)}>
           <TabsList className="flex flex-wrap h-auto gap-1">
-            <TabsTrigger value="estrategia" className="text-[10px] px-2 py-1">
-              Estrategia
+            <TabsTrigger value="contexto" className="text-[10px] px-2 py-1">
+              Contexto
+            </TabsTrigger>
+            <TabsTrigger value="once_probable" className="text-[10px] px-2 py-1">
+              Once Probable
             </TabsTrigger>
             {FASES.map((f) => (
               <TabsTrigger key={f} value={f} className="text-[10px] px-2 py-1">
@@ -187,11 +194,44 @@ export function RivalScout({ data, rivalNombre, rivalId, microcicloId, onChange 
             ))}
           </TabsList>
 
-          <TabsContent value="estrategia" className="space-y-4 mt-3">
+          <TabsContent value="contexto" className="space-y-4 mt-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Actitud / estilo del rival</Label>
+              <Textarea
+                value={estrategia.actitud_estilo ?? ''}
+                onChange={(e) => update({ estrategia: { ...estrategia, actitud_estilo: e.target.value } })}
+                placeholder="Cómo suelen afrontar el partido, intensidad, agresividad, presión del público local..."
+                rows={3}
+                className="text-sm resize-none"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Dimensiones del campo (si jugamos fuera)</Label>
+              <Textarea
+                value={estrategia.dimensiones_campo ?? ''}
+                onChange={(e) => update({ estrategia: { ...estrategia, dimensiones_campo: e.target.value } })}
+                placeholder="Medidas del campo, tipo de césped, condiciones particulares del estadio..."
+                rows={2}
+                className="text-sm resize-none"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Notas generales de estrategia</Label>
+              <Textarea
+                value={estrategia.notas ?? ''}
+                onChange={(e) => update({ estrategia: { ...estrategia, notas: e.target.value } })}
+                placeholder="Cualquier otra consideración estratégica sobre el rival..."
+                rows={3}
+                className="text-sm resize-none"
+              />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="once_probable" className="space-y-4 mt-3">
             <RivalStrategy
               data={data.estrategia}
               rivalId={rivalId}
-              onChange={(estrategia) => update({ estrategia })}
+              onChange={(nuevaEstrategia) => update({ estrategia: nuevaEstrategia })}
             />
           </TabsContent>
 
