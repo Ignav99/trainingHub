@@ -23,7 +23,7 @@ import type {
 import { exportRivalScoutPDF } from '@/lib/pdf/exportRivalScoutPDF'
 import { TacticalBoard } from './TacticalBoard'
 import { RivalStrategy } from './RivalStrategy'
-import { getSupabaseClient } from '@/lib/supabase/client'
+import { api } from '@/lib/api/client'
 
 interface RivalScoutProps {
   data: Partial<RivalScoutData>
@@ -479,8 +479,8 @@ interface ClipUploadProps {
   onUploaded: (fase: FaseRival, clip: ClipRival) => void
 }
 
-const MAX_CLIP_SIZE = 300 * 1024 * 1024 // 300 MB por microciclo
-const BUCKET = 'rival-clips'
+const MAX_CLIP_SIZE = 300 * 1024 * 1024 // 300 MB acumulados por microciclo
+const MAX_SINGLE_FILE_SIZE = 50 * 1024 * 1024 // 50 MB por archivo (límite del plan de Supabase)
 
 function ClipUpload({ fase, microcicloId, existingSize, onUploaded }: ClipUploadProps) {
   const [uploading, setUploading] = useState(false)
@@ -492,6 +492,11 @@ function ClipUpload({ fase, microcicloId, existingSize, onUploaded }: ClipUpload
 
     if (!file.type.startsWith('video/')) {
       toast.error('El archivo debe ser un vídeo (mp4, mov, etc.)')
+      return
+    }
+
+    if (file.size > MAX_SINGLE_FILE_SIZE) {
+      toast.error(`El vídeo supera el límite de 50 MB por archivo (${formatSize(file.size)}). Comprímelo antes de subirlo.`)
       return
     }
 
@@ -507,33 +512,24 @@ function ClipUpload({ fase, microcicloId, existingSize, onUploaded }: ClipUpload
 
     setUploading(true)
     try {
-      const supabase = getSupabaseClient()
-      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-      const path = `${microcicloId}/${fase}/${Date.now()}_${safeName}`
-      const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, file, {
-        cacheControl: '3600',
-        upsert: false,
-        contentType: file.type,
-      })
+      const formData = new FormData()
+      formData.append('fase', fase)
+      formData.append('file', file)
 
-      if (uploadError) {
-        if (uploadError.message?.includes('bucket') || uploadError.message?.includes('not found')) {
-          toast.error(`El bucket '${BUCKET}' no existe en Supabase Storage. Crea el bucket desde el dashboard.`)
-        } else {
-          toast.error(`Error subiendo clip: ${uploadError.message}`)
-        }
-        return
-      }
+      const result = await api.upload<{ url: string; size: number; mimeType: string; titulo: string }>(
+        `/microciclos/${microcicloId}/rival-clips`,
+        formData,
+        { timeout: 180000 }
+      )
 
-      const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path)
       const newClip: ClipRival = {
         id: typeof crypto !== 'undefined' ? crypto.randomUUID() : Date.now().toString(),
-        titulo: file.name.replace(/\.[^/.]+$/, ''),
-        url: urlData?.publicUrl || '',
+        titulo: result.titulo || file.name.replace(/\.[^/.]+$/, ''),
+        url: result.url,
         fase,
         notas: '',
-        size: file.size,
-        mimeType: file.type,
+        size: result.size,
+        mimeType: result.mimeType,
       }
       onUploaded(fase, newClip)
       toast.success('Clip subido correctamente')
@@ -563,9 +559,9 @@ function ClipUpload({ fase, microcicloId, existingSize, onUploaded }: ClipUpload
         disabled={uploading}
       >
         {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
-        Subir clip
+        {uploading ? 'Subiendo...' : 'Subir clip'}
       </Button>
-      <span className="text-[10px] text-muted-foreground">mp4, mov. Máx. 300 MB total.</span>
+      <span className="text-[10px] text-muted-foreground">mp4, mov. Máx. 50 MB/archivo, 300 MB total.</span>
     </div>
   )
 }
