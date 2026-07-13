@@ -24,6 +24,7 @@ import { exportRivalScoutPDF } from '@/lib/pdf/exportRivalScoutPDF'
 import { TacticalBoard } from './TacticalBoard'
 import { RivalStrategy } from './RivalStrategy'
 import { api } from '@/lib/api/client'
+import { VideoPlayer } from '@/components/video-analyzer/VideoPlayer'
 
 interface RivalScoutProps {
   data: Partial<RivalScoutData>
@@ -445,6 +446,11 @@ function PhaseEditor({
                 placeholder="https://..."
                 className="h-7 text-xs"
               />
+              {clip.url && (
+                <div className="rounded-md overflow-hidden border bg-black">
+                  <VideoPlayer src={clip.url} />
+                </div>
+              )}
               <Textarea
                 value={clip.notas}
                 onChange={(e) => onUpdateClip(fase, clip.id, { notas: e.target.value })}
