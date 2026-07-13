@@ -6,10 +6,9 @@ on:
     types: [completed]
     branches: [main]
 
-# This workflow only calls Render deploy hooks — it needs no repo token access.
-permissions: {}
+permissions:
+  contents: read
 
-# Only one deploy at a time — never cancel in-progress deploys
 concurrency:
   group: deploy-production
   cancel-in-progress: false
@@ -18,8 +17,12 @@ jobs:
   deploy:
     name: Deploy to Render
     runs-on: ubuntu-latest
-    # Only deploy when CI passed — never on failure
     if: github.event.workflow_run.conclusion == 'success'
+
+    env:
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      RENDER_SERVICE_FRONTEND: ${{ secrets.RENDER_SERVICE_ID_FRONTEND || 'srv-d8lbud6gvqtc73aphqi0' }}
+      RENDER_SERVICE_BACKEND: ${{ secrets.RENDER_SERVICE_ID_BACKEND || 'srv-d8lbubeq1p3s73c65mmg' }}
 
     steps:
       - name: Deploy backend
@@ -44,10 +47,46 @@ jobs:
             exit 1
           fi
 
-      - name: Wait for Render deploy
-        run: sleep 90
+      - name: Wait for deploys to start
+        run: sleep 45
 
-      - name: Verify Render services
+      - name: Poll Render deploy status
+        if: env.RENDER_API_KEY != ''
+        run: |
+          poll_service() {
+            local service_id=$1
+            local name=$2
+            local attempts=30
+            local sleep_seconds=30
+
+            for i in $(seq 1 $attempts); do
+              local response=$(curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
+                "https://api.render.com/v1/services/$service_id/deploys?limit=1")
+              local status=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['deploy']['status'])")
+              local commit_id=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['deploy']['commit']['id'])")
+              echo "[$name] attempt $i/$attempts -> status=$status commit=$commit_id"
+
+              if [[ "$status" == "live" ]]; then
+                echo "[$name] deploy is live"
+                return 0
+              fi
+
+              if [[ "$status" == "build_failed" || "$status" == "update_failed" || "$status" == "canceled" ]]; then
+                echo "[$name] deploy failed with status=$status"
+                return 1
+              fi
+
+              sleep $sleep_seconds
+            done
+
+            echo "[$name] deploy did not reach live status within timeout"
+            return 1
+          }
+
+          poll_service "$RENDER_SERVICE_BACKEND" "backend" || exit 1
+          poll_service "$RENDER_SERVICE_FRONTEND" "frontend" || exit 1
+
+      - name: Verify Render services healthy
         run: |
           FRONTEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://traininghub-frontend-eu.onrender.com/login" || echo "000")
           BACKEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://traininghub-api-eu.onrender.com/" || echo "000")
