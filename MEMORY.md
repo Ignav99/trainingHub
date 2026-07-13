@@ -117,6 +117,17 @@ El usuario pidió pantalla completa, gesto de dos dedos (trackpad Mac) para adel
 - `frontend/src/components/microciclos/RivalScout.tsx`: el `<VideoPlayer>` de cada clip ahora pasa `standalonePreview`.
 - `frontend/src/components/microciclos/TacticalBoard.tsx`: se añadió el mismo patrón de "Ampliar ventana" (botón Expand/Shrink) usando `createPortal`, preservando el estado interno (elementos, flechas, zonas, historial) porque es la misma instancia de React, solo se renderiza en un overlay a pantalla mayor en vez de en el sitio original. Aplica automáticamente también a la pizarra dentro de `PlanPartido.tsx` (mismo componente compartido).
 
+### 6.2 Scrubbing profesional: trackpad fluido + frame-stepping exacto
+El usuario reportó que el gesto de dos dedos del trackpad iba "muy pillado" (poco fluido), y pidió que el frame-by-frame fuera mucho más sensible/preciso ("professional-grade"), sugiriendo investigar librerías/técnicas conocidas.
+
+- **Causa del "pillado"**: cada evento `wheel` del trackpad (que dispara decenas de veces por segundo durante un gesto) llamaba a `seekTo`/`currentTime =` inmediatamente, saturando el decodificador de vídeo con peticiones de seek encoladas.
+- **Fix**: en `VideoPlayer.tsx`, el scrub de trackpad ahora acumula los deltas y aplica UN solo seek coalescido por frame renderizado (`requestAnimationFrame`), usando `fastSeek()` (al keyframe más cercano, mucho más rápido) durante el arrastre, y omite un frame si el seek anterior aún no ha resuelto (`video.seeking`) en vez de encolarlos.
+- **Frame-stepping profesional**: se reemplazó la suposición fija de 1/30s por un algoritmo basado en `requestVideoFrameCallback` (API estándar recomendada por MDN/web.dev para trabajo por-frame; técnica documentada en el repo `angrycoding/requestVideoFrameCallback-prev-next`): se hacen micro-avances de `currentTime` y se observa el `metadata.mediaTime` REAL del frame presentado hasta que cambia, en vez de asumir un fps fijo. Funciona correctamente sea el clip a 24/25/30/50/60fps, sin importar la estructura de GOP del codec. Con fallback al método antiguo (1/30s) en navegadores sin soporte de `requestVideoFrameCallback`.
+  - Se investigó también `byomakase/omakase-player` (librería open source "frame accurate video experiences" con `seekToFrame` nativo) como referencia, pero no se integró como dependencia por el coste/riesgo de reescribir el reproductor entero solo para esto; se optó por aplicar la misma técnica de bajo nivel (`requestVideoFrameCallback`) directamente sobre nuestro `<video>` existente.
+- **Teclado**: en el modo `standalonePreview`, ← / → ahora avanzan/retroceden UN fotograma exacto (para repasar jugadas al detalle); Shift+← / Shift+→ mantienen el salto de ±5s.
+- Se añadió una pequeña ayuda visual debajo de cada clip explicando los atajos (dos dedos, flechas, Shift+flechas).
+- El frame-stepping mejorado beneficia también a la herramienta completa de Vídeo Análisis (comparten la misma función `frameStep`), sin haber tocado su scrubbing de página propio (que sigue igual).
+
 ### 7. Pendientes
 - **CRÍTICO**: usuario debe ejecutar la migración 043 en Supabase SQL Editor (ver punto 5).
 - Añadir secret `RENDER_API_KEY` en GitHub para que el nuevo deploy polling funcione automáticamente tras merge.
