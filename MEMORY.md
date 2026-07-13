@@ -53,8 +53,10 @@ El usuario pidió una pestaña de estrategia para el rival con el once probable,
   - Subpestañas en Ataque Organizado: Creación, Progresión, Finalización (input corto, sin textarea grande).
   - Subpestañas en Defensa Organizada: Bloque alto, Bloque medio, Bloque bajo (input corto, sin textarea grande).
   - Orden de cada fase: subpestañas -> sistema/formación -> espacios -> fortalezas/debilidades -> pizarra táctica -> clips.
-  - Transición Ofensiva: campo específico `vigilancias` (sistema defensivo rival).
-  - Transición Defensiva: campo específico `repliegue` (tipo de repliegue, presión tras pérdida, bloque bajo).
+  - Transición Ofensiva: campo específico `vigilancias` (sistema defensivo rival) en textarea más grande; sin espacios.
+  - Transición Defensiva: campo específico `repliegue` (tipo de repliegue, presión tras pérdida, bloque bajo) en textarea más grande; sin espacios.
+  - ABP Ofensiva: campo `abp_comentarios` para describir cómo trabaja el rival; sin sistema/formación; con pizarra para diseñar jugadas.
+  - ABP Defensiva: campo `abp_defensa` para describir marca (zona/mixto/al hombre), estructura y fortalezas/debilidades; sin sistema/formación; con pizarra.
   - Eliminado el campo de anotaciones tácticas de las fases.
   - Subida de clips de vídeo a Supabase Storage bucket `rival-clips` con límite de 300 MB por microciclo.
   - Tipos ampliados: `ClipRival` ahora tiene `size` y `mimeType`; `RivalPhaseAnalysis` añade `vigilancias` y `repliegue`.
