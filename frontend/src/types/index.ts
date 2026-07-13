@@ -786,6 +786,8 @@ export interface ClipRival {
   url?: string
   fase: FaseRival
   notas: string
+  size?: number
+  mimeType?: string
 }
 
 export interface RivalJugadorEvaluacion {
@@ -820,6 +822,8 @@ export interface RivalPhaseAnalysis {
   pizarra_tactica?: string
   formacion?: string
   espacios?: string
+  vigilancias?: string
+  repliegue?: string
   subfases?: Partial<Record<RivalSubfaseAtaque | RivalSubfaseDefensa, RivalSubfaseData>>
 }
 

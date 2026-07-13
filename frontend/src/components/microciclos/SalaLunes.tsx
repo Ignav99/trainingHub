@@ -297,6 +297,7 @@ export function SalaLunes({ microcicloId, data, jugadores }: SalaLunesProps) {
           data={planCT.rival_scout ?? {}}
           rivalNombre={data.informe_rival ? data.microciclo.rivales?.nombre : undefined}
           rivalId={data.microciclo.rival_id}
+          microcicloId={data.microciclo.id}
           onChange={(d) => updatePlanCT({ rival_scout: d })}
         />
         <PlanPartido

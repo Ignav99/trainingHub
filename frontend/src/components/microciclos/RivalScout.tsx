@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, KeyboardEvent } from 'react'
-import { X } from 'lucide-react'
+import { useState, KeyboardEvent, useRef } from 'react'
+import { X, Loader2, Upload } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -22,11 +23,13 @@ import type {
 import { exportRivalScoutPDF } from '@/lib/pdf/exportRivalScoutPDF'
 import { TacticalBoard } from './TacticalBoard'
 import { RivalStrategy } from './RivalStrategy'
+import { getSupabaseClient } from '@/lib/supabase/client'
 
 interface RivalScoutProps {
   data: Partial<RivalScoutData>
   rivalNombre?: string
   rivalId?: string
+  microcicloId?: string
   onChange: (data: Partial<RivalScoutData>) => void
 }
 
@@ -61,7 +64,7 @@ const SUBFASES_DEFENSA: { key: RivalSubfaseDefensa; label: string }[] = [
   { key: 'bloque_bajo', label: 'Bloque bajo' },
 ]
 
-export function RivalScout({ data, rivalNombre, rivalId, onChange }: RivalScoutProps) {
+export function RivalScout({ data, rivalNombre, rivalId, microcicloId, onChange }: RivalScoutProps) {
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({})
   const [activeTab, setActiveTab] = useState<FaseRival | 'estrategia'>('estrategia')
 
@@ -113,9 +116,9 @@ export function RivalScout({ data, rivalNombre, rivalId, onChange }: RivalScoutP
     updatePhase(fase, { [field]: current.filter((_, i) => i !== index) })
   }
 
-  const addClip = (fase: FaseRival) => {
+  const addClip = (fase: FaseRival, clip?: ClipRival) => {
     const phase = getPhase(fase)
-    const newClip: ClipRival = {
+    const newClip = clip ?? {
       id: typeof crypto !== 'undefined' ? crypto.randomUUID() : Date.now().toString(),
       titulo: '',
       url: '',
@@ -196,6 +199,7 @@ export function RivalScout({ data, rivalNombre, rivalId, onChange }: RivalScoutP
               <PhaseEditor
                 fase={fase}
                 phase={getPhase(fase)}
+                microcicloId={microcicloId}
                 tagInputs={tagInputs}
                 setTagInputs={setTagInputs}
                 onUpdate={updatePhase}
@@ -218,6 +222,7 @@ export function RivalScout({ data, rivalNombre, rivalId, onChange }: RivalScoutP
 interface PhaseEditorProps {
   fase: FaseRival
   phase: RivalPhaseAnalysis
+  microcicloId?: string
   tagInputs: Record<string, string>
   setTagInputs: React.Dispatch<React.SetStateAction<Record<string, string>>>
   onUpdate: (fase: FaseRival, patch: Partial<RivalPhaseAnalysis>) => void
@@ -228,7 +233,7 @@ interface PhaseEditorProps {
   ) => void
   onAddTag: (fase: FaseRival, field: 'fortalezas' | 'debilidades', value: string) => void
   onRemoveTag: (fase: FaseRival, field: 'fortalezas' | 'debilidades', index: number) => void
-  onAddClip: (fase: FaseRival) => void
+  onAddClip: (fase: FaseRival, clip: ClipRival) => void
   onUpdateClip: (fase: FaseRival, id: string, patch: Partial<ClipRival>) => void
   onRemoveClip: (fase: FaseRival, id: string) => void
   onTagKey: (
@@ -242,6 +247,7 @@ interface PhaseEditorProps {
 function PhaseEditor({
   fase,
   phase,
+  microcicloId,
   tagInputs,
   setTagInputs,
   onUpdate,
@@ -279,12 +285,11 @@ function PhaseEditor({
               const data = phase.subfases?.[s.key] ?? { notas: '' }
               return (
                 <TabsContent key={s.key} value={s.key} className="mt-2">
-                  <Textarea
+                  <Input
                     value={data.notas}
                     onChange={(e) => onUpdateSubfase(fase, s.key, { notas: e.target.value })}
-                    placeholder={`Notas sobre ${s.label.toLowerCase()}...`}
-                    rows={3}
-                    className="text-sm resize-none"
+                    placeholder={`Apunte sobre ${s.label.toLowerCase()}...`}
+                    className="h-8 text-xs"
                   />
                 </TabsContent>
               )
@@ -293,16 +298,41 @@ function PhaseEditor({
         </div>
       )}
 
-      {/* Sistema de juego para esta fase */}
-      <div className="space-y-2">
-        <Label className="text-xs text-muted-foreground">Sistema / formación para esta fase</Label>
-        <Input
-          value={phase.formacion || ''}
-          onChange={(e) => onUpdate(fase, { formacion: e.target.value })}
-          placeholder="4-3-3, 4-4-2..."
-          className="h-8 text-xs w-40"
-        />
-      </div>
+      {/* Sistema / formación / vigilancias / repliegue según fase */}
+      {fase !== 'transicion_ofensiva' && fase !== 'transicion_defensiva' && (
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Sistema / formación para esta fase</Label>
+          <Input
+            value={phase.formacion || ''}
+            onChange={(e) => onUpdate(fase, { formacion: e.target.value })}
+            placeholder="4-3-3, 4-4-2..."
+            className="h-8 text-xs w-40"
+          />
+        </div>
+      )}
+      {fase === 'transicion_ofensiva' && (
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Vigilancias / sistema defensivo rival</Label>
+          <Input
+            value={phase.vigilancias || ''}
+            onChange={(e) => onUpdate(fase, { vigilancias: e.target.value })}
+            placeholder="Vigilancias, coberturas..."
+            className="h-8 text-xs w-full max-w-md"
+          />
+        </div>
+      )}
+      {fase === 'transicion_defensiva' && (
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Tipo de repliegue</Label>
+          <Textarea
+            value={phase.repliegue || ''}
+            onChange={(e) => onUpdate(fase, { repliegue: e.target.value })}
+            placeholder="Presión tras pérdida, repliegue a bloque bajo, comportamiento de los jugadores..."
+            rows={3}
+            className="text-sm resize-none"
+          />
+        </div>
+      )}
 
       {/* Espacios */}
       <div className="space-y-1">
@@ -351,7 +381,12 @@ function PhaseEditor({
 
       {/* Clips de vídeo */}
       <div className="space-y-2">
-        <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">Clips de vídeo</div>
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-semibold text-muted-foreground">Clips de vídeo</div>
+          <div className="text-[10px] text-muted-foreground">
+            {formatSize(phase.clips?.reduce((sum, c) => sum + (c.size ?? 0), 0) ?? 0)} / 300 MB
+          </div>
+        </div>
         <div className="space-y-2">
           {(phase.clips ?? []).map((clip) => (
             <div key={clip.id} className="rounded-md border bg-muted/30 p-2.5 space-y-2">
@@ -362,6 +397,9 @@ function PhaseEditor({
                   placeholder="Título del clip"
                   className="h-7 text-xs flex-1"
                 />
+                {clip.size && (
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">{formatSize(clip.size)}</span>
+                )}
                 <Button
                   type="button"
                   variant="ghost"
@@ -388,16 +426,117 @@ function PhaseEditor({
             </div>
           ))}
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-7 text-xs"
-          onClick={() => onAddClip(fase)}
-        >
-          Añadir clip
-        </Button>
+        <ClipUpload
+          fase={fase}
+          microcicloId={microcicloId}
+          existingSize={phase.clips?.reduce((sum, c) => sum + (c.size ?? 0), 0) ?? 0}
+          onUploaded={onAddClip}
+        />
       </div>
+    </div>
+  )
+}
+
+function formatSize(bytes: number): string {
+  if (bytes === 0) return '0 MB'
+  const mb = bytes / (1024 * 1024)
+  return `${mb.toFixed(1)} MB`
+}
+
+interface ClipUploadProps {
+  fase: FaseRival
+  microcicloId?: string
+  existingSize: number
+  onUploaded: (fase: FaseRival, clip: ClipRival) => void
+}
+
+const MAX_CLIP_SIZE = 300 * 1024 * 1024 // 300 MB por microciclo
+const BUCKET = 'rival-clips'
+
+function ClipUpload({ fase, microcicloId, existingSize, onUploaded }: ClipUploadProps) {
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('video/')) {
+      toast.error('El archivo debe ser un vídeo (mp4, mov, etc.)')
+      return
+    }
+
+    if (existingSize + file.size > MAX_CLIP_SIZE) {
+      toast.error(`Límite de 300 MB por microciclo. Actual: ${formatSize(existingSize)}. Nuevo: ${formatSize(file.size)}`)
+      return
+    }
+
+    if (!microcicloId) {
+      toast.error('Guarda el microciclo antes de subir clips')
+      return
+    }
+
+    setUploading(true)
+    try {
+      const supabase = getSupabaseClient()
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const path = `${microcicloId}/${fase}/${Date.now()}_${safeName}`
+      const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, file, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: file.type,
+      })
+
+      if (uploadError) {
+        if (uploadError.message?.includes('bucket') || uploadError.message?.includes('not found')) {
+          toast.error(`El bucket '${BUCKET}' no existe en Supabase Storage. Crea el bucket desde el dashboard.`)
+        } else {
+          toast.error(`Error subiendo clip: ${uploadError.message}`)
+        }
+        return
+      }
+
+      const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path)
+      const newClip: ClipRival = {
+        id: typeof crypto !== 'undefined' ? crypto.randomUUID() : Date.now().toString(),
+        titulo: file.name.replace(/\.[^/.]+$/, ''),
+        url: urlData?.publicUrl || '',
+        fase,
+        notas: '',
+        size: file.size,
+        mimeType: file.type,
+      }
+      onUploaded(fase, newClip)
+      toast.success('Clip subido correctamente')
+    } catch (err: any) {
+      toast.error(err.message || 'Error subiendo clip')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="video/mp4,video/quicktime,video/*"
+        className="hidden"
+        onChange={handleFile}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-7 text-xs"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={uploading}
+      >
+        {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
+        Subir clip
+      </Button>
+      <span className="text-[10px] text-muted-foreground">mp4, mov. Máx. 300 MB total.</span>
     </div>
   )
 }
