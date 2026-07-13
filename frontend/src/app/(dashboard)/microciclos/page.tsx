@@ -125,7 +125,9 @@ export default function MicrociclosListPage() {
         // ignore
       }
     } catch (err: any) {
-      toast.error(err.message || 'Error al crear microciclo')
+      console.error('Error al crear microciclo:', err)
+      const status = err.statusCode || err.status || ''
+      toast.error(`${status ? `[${status}] ` : ''}${err.message || 'Error al crear microciclo'}`)
     } finally {
       setCreating(false)
     }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, KeyboardEvent } from 'react'
-import { Swords, TrendingUp, TrendingDown, Plus, Trash2, X, Video, FileText, Download } from 'lucide-react'
+import { X } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -12,6 +12,14 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { ClipRival, FaseRival, RivalPhaseAnalysis, RivalScoutData } from '@/types'
 import { exportRivalScoutPDF } from '@/lib/pdf/exportRivalScoutPDF'
+import { TacticalBoard } from './TacticalBoard'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface RivalScoutProps {
   data: Partial<RivalScoutData>
@@ -37,16 +45,6 @@ const FASES: FaseRival[] = [
   'abp_ofensiva',
   'abp_defensiva',
 ]
-
-const FASE_COLORS: Record<FaseRival, string> = {
-  ataque_organizado: 'bg-blue-100 text-blue-800 border-blue-200',
-  defensa_organizada: 'bg-red-100 text-red-800 border-red-200',
-  transicion_ofensiva: 'bg-green-100 text-green-800 border-green-200',
-  transicion_defensiva: 'bg-orange-100 text-orange-800 border-orange-200',
-  abp_ofensiva: 'bg-purple-100 text-purple-800 border-purple-200',
-  abp_defensiva: 'bg-amber-100 text-amber-800 border-amber-200',
-  general: 'bg-gray-100 text-gray-800 border-gray-200',
-}
 
 export function RivalScout({ data, rivalNombre, onChange }: RivalScoutProps) {
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({})
@@ -131,8 +129,7 @@ export function RivalScout({ data, rivalNombre, onChange }: RivalScoutProps) {
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Swords className="h-4 w-4 shrink-0" />
+            <CardTitle className="text-base">
               Análisis del Rival
             </CardTitle>
             {rivalNombre && <p className="text-sm text-muted-foreground font-medium">{rivalNombre}</p>}
@@ -141,10 +138,9 @@ export function RivalScout({ data, rivalNombre, onChange }: RivalScoutProps) {
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 text-xs gap-1"
+            className="h-8 text-xs"
             onClick={() => exportRivalScoutPDF(data, rivalNombre)}
           >
-            <Download className="h-3.5 w-3.5" />
             Exportar PDF
           </Button>
         </div>
@@ -228,7 +224,7 @@ function PhaseEditor({
 }: PhaseEditorProps) {
   return (
     <div className="space-y-4">
-      <Badge className={`${FASE_COLORS[fase]} text-[10px]`}>{FASE_LABELS[fase]}</Badge>
+        <p className="text-xs font-semibold text-muted-foreground">{FASE_LABELS[fase]}</p>
 
       <div className="grid grid-cols-2 gap-3">
         <TagBox
@@ -254,10 +250,9 @@ function PhaseEditor({
       </div>
 
       <div className="space-y-2">
-        <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-          <Video size={14} />
-          Clips de vídeo
-        </div>
+          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+            Clips de vídeo
+          </div>
         <div className="space-y-2">
           {(phase.clips ?? []).map((clip) => (
             <div key={clip.id} className="rounded-md border bg-muted/30 p-2.5 space-y-2">
@@ -271,11 +266,11 @@ function PhaseEditor({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
                   onClick={() => onRemoveClip(fase, clip.id)}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  Eliminar
                 </Button>
               </div>
               <Input
@@ -294,31 +289,72 @@ function PhaseEditor({
             </div>
           ))}
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-7 text-xs gap-1"
-          onClick={() => onAddClip(fase)}
-        >
-          <Plus className="h-3 w-3" />
-          Añadir clip
-        </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => onAddClip(fase)}
+          >
+            Añadir clip
+          </Button>
       </div>
 
       <div className="space-y-1">
-        <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-          <FileText size={14} />
-          Anotaciones tácticas
+          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+            Anotaciones tácticas
+          </div>
+          <Textarea
+            value={phase.anotaciones ?? ''}
+            onChange={(e) => onUpdate(fase, { anotaciones: e.target.value })}
+            placeholder={`Anotaciones sobre ${FASE_LABELS[fase]} del rival...`}
+            rows={3}
+            className="text-sm resize-none"
+          />
         </div>
-        <Textarea
-          value={phase.anotaciones ?? ''}
-          onChange={(e) => onUpdate(fase, { anotaciones: e.target.value })}
-          placeholder={`Anotaciones sobre ${FASE_LABELS[fase]} del rival...`}
-          rows={3}
-          className="text-sm resize-none"
-        />
-      </div>
+
+        {/* Formación */}
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Formación / sistema</Label>
+          <Select
+            value={phase.formacion || ''}
+            onValueChange={(v) => onUpdate(fase, { formacion: v })}
+          >
+            <SelectTrigger className="h-8 text-xs w-40">
+              <SelectValue placeholder="Seleccionar..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="4-3-3">4-3-3</SelectItem>
+              <SelectItem value="4-4-2">4-4-2</SelectItem>
+              <SelectItem value="4-2-3-1">4-2-3-1</SelectItem>
+              <SelectItem value="3-4-3">3-4-3</SelectItem>
+              <SelectItem value="3-5-2">3-5-2</SelectItem>
+              <SelectItem value="4-1-4-1">4-1-4-1</SelectItem>
+              <SelectItem value="4-3-2-1">4-3-2-1</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Espacios */}
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Espacios / ocupaciones del rival</Label>
+          <Textarea
+            value={phase.espacios || ''}
+            onChange={(e) => onUpdate(fase, { espacios: e.target.value })}
+            placeholder="Zona de presión, espacios que deja, carriles..."
+            rows={2}
+            className="text-sm resize-none"
+          />
+        </div>
+
+        {/* Pizarra táctica */}
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Pizarra táctica</Label>
+          <TacticalBoard
+            value={phase.pizarra_tactica}
+            onChange={(v) => onUpdate(fase, { pizarra_tactica: v })}
+          />
+        </div>
     </div>
   )
 }
@@ -335,7 +371,6 @@ interface TagBoxProps {
 }
 
 function TagBox({ title, color, items, inputValue, onInputChange, onAdd, onKey, onRemove }: TagBoxProps) {
-  const Icon = color === 'green' ? TrendingUp : TrendingDown
   const colors =
     color === 'green'
       ? 'text-green-700 bg-green-50 border-green-200'
@@ -343,9 +378,8 @@ function TagBox({ title, color, items, inputValue, onInputChange, onAdd, onKey, 
 
   return (
     <div className="space-y-2">
-      <div className={`flex items-center gap-1.5 ${color === 'green' ? 'text-green-700' : 'text-red-700'}`}>
-        <Icon className="h-3.5 w-3.5" />
-        <span className="text-xs font-semibold uppercase tracking-wide">{title}</span>
+      <div className={`text-xs font-semibold uppercase tracking-wide ${color === 'green' ? 'text-green-700' : 'text-red-700'}`}>
+        {title}
       </div>
       <div className="flex flex-wrap gap-1 min-h-[28px]">
         {items.map((item, i) => (
@@ -376,11 +410,11 @@ function TagBox({ title, color, items, inputValue, onInputChange, onAdd, onKey, 
         <Button
           type="button"
           variant="ghost"
-          size="icon"
-          className="h-7 w-7 shrink-0"
+          size="sm"
+          className="h-7 px-2 text-xs"
           onClick={onAdd}
         >
-          <Plus className="h-3.5 w-3.5" />
+          Añadir
         </Button>
       </div>
     </div>

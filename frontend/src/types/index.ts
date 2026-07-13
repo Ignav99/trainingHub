@@ -795,6 +795,9 @@ export interface RivalPhaseAnalysis {
   debilidades: string[]
   clips: ClipRival[]
   anotaciones: string
+  pizarra_tactica?: string
+  formacion?: string
+  espacios?: string
 }
 
 export interface RivalScoutData {
@@ -812,6 +815,9 @@ export interface PlanPartidoPhase {
   principios_modelo?: string[]
   consignas?: string[]
   clips?: ClipRival[]
+  pizarra_tactica?: string
+  formacion?: string
+  espacios?: string
 }
 
 export interface PlanPartidoData {

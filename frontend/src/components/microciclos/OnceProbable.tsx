@@ -9,7 +9,7 @@ import type { OnceProbableData, Jugador, Posicion } from '@/types'
 
 interface OnceProbableProps {
   data: Partial<OnceProbableData>
-  jugadores: Array<Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'apodo' | 'dorsal' | 'posicion_principal' | 'estado'>>
+  jugadores: Array<Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'apodo' | 'dorsal' | 'posicion_principal' | 'estado' | 'es_invitado'>>
   onChange: (data: Partial<OnceProbableData>) => void
 }
 
@@ -113,7 +113,7 @@ interface SlotProps {
 
 function PositionSlot({ slot, jugadores, titulares, onSelect }: SlotProps) {
   const selectedId = titulares[slot.slotKey] ?? ''
-  const active = jugadores.filter((j) => j.estado === 'activo')
+  const active = jugadores.filter((j) => j.estado === 'activo' && !j.es_invitado)
 
   return (
     <div className="flex flex-col items-center gap-1 min-w-[72px]">
@@ -178,7 +178,7 @@ export function OnceProbable({ data, jugadores, onChange }: OnceProbableProps) {
   }
 
   const availableForSuplentes = jugadores
-    .filter((j) => j.estado === 'activo' && !titularIds.has(j.id))
+    .filter((j) => j.estado === 'activo' && !j.es_invitado && !titularIds.has(j.id))
     .sort((a, b) => getPlayerLabel(a).localeCompare(getPlayerLabel(b)))
 
   return (
@@ -210,19 +210,19 @@ export function OnceProbable({ data, jugadores, onChange }: OnceProbableProps) {
 
         {/* Formation pitch */}
         <div
-          className="rounded-lg overflow-hidden"
+          className="rounded-lg overflow-hidden min-h-[360px] flex flex-col"
           style={{ background: 'linear-gradient(180deg, #1a6b2e 0%, #155a26 50%, #1a6b2e 100%)' }}
         >
           {/* Pitch markings */}
-          <div className="relative px-4 py-6 space-y-4">
+          <div className="relative flex-1 px-6 py-8 flex flex-col justify-between">
             {/* Center circle hint */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-20 h-20 rounded-full border border-white/10" />
+              <div className="w-24 h-24 rounded-full border border-white/10" />
             </div>
             <div className="absolute left-1/2 top-0 bottom-0 w-px bg-white/10 -translate-x-px pointer-events-none" />
 
             {layout.rows.map((row, rowIndex) => (
-              <div key={rowIndex} className="flex justify-center gap-3 flex-wrap relative z-10">
+              <div key={rowIndex} className="flex justify-center gap-4 flex-wrap relative z-10">
                 {row.map((slot) => (
                   <PositionSlot
                     key={slot.slotKey}

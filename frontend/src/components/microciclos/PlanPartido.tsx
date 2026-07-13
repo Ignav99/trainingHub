@@ -1,62 +1,64 @@
 'use client'
 
 import { useState, KeyboardEvent } from 'react'
-import { ClipboardList, X, Video, Target, Lightbulb, Plus, Download } from 'lucide-react'
+import { X } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { ClipRival, FasePlanPartido, PlanPartidoData, PlanPartidoPhase } from '@/types'
 import { exportPlanPartidoPDF } from '@/lib/pdf/exportPlanPartidoPDF'
+import { TacticalBoard } from './TacticalBoard'
 
 interface PlanPartidoProps {
   data: Partial<PlanPartidoData>
   onChange: (data: Partial<PlanPartidoData>) => void
 }
 
-const FASES: { fase: FasePlanPartido; label: string; icon: string; color: string; placeholder: string }[] = [
+const FASES: { fase: FasePlanPartido; label: string; color: string; placeholder: string }[] = [
   {
     fase: 'ataque_organizado',
     label: 'Ataque Organizado',
-    icon: '⚽',
     color: 'text-blue-600',
     placeholder: 'Salida, progresión, creación, finalización...',
   },
   {
     fase: 'defensa_organizada',
     label: 'Defensa Organizada',
-    icon: '🛡️',
     color: 'text-red-600',
     placeholder: 'Presión, bloque, repliegue, vigilancias...',
   },
   {
     fase: 'transicion_ofensiva',
     label: 'Transición Ofensiva',
-    icon: '→',
     color: 'text-green-600',
     placeholder: 'Verticalidad, espacios, cambio de ritmo...',
   },
   {
     fase: 'transicion_defensiva',
     label: 'Transición Defensiva',
-    icon: '←',
     color: 'text-orange-600',
     placeholder: 'PPDA, repliegue, equilibrio...',
   },
   {
     fase: 'abp_ofensiva',
     label: 'ABP Ofensiva',
-    icon: '🎯',
     color: 'text-purple-600',
     placeholder: 'Corners, faltas, saques de banda...',
   },
   {
     fase: 'abp_defensiva',
     label: 'ABP Defensiva',
-    icon: '🔒',
     color: 'text-amber-600',
     placeholder: 'Defensa de corners, faltas, saques...',
   },
@@ -148,18 +150,16 @@ export function PlanPartido({ data, onChange }: PlanPartidoProps) {
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <ClipboardList className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-base">
             Plan de Partido
           </CardTitle>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 text-xs gap-1"
+            className="h-8 text-xs"
             onClick={() => exportPlanPartidoPDF(data)}
           >
-            <Download className="h-3.5 w-3.5" />
             Exportar PDF
           </Button>
         </div>
@@ -170,7 +170,6 @@ export function PlanPartido({ data, onChange }: PlanPartidoProps) {
           <TabsList className="flex flex-wrap h-auto gap-1">
             {FASES.map((f) => (
               <TabsTrigger key={f.fase} value={f.fase} className="text-[10px] px-2 py-1">
-                <span className="mr-1">{f.icon}</span>
                 {f.label}
               </TabsTrigger>
             ))}
@@ -180,10 +179,9 @@ export function PlanPartido({ data, onChange }: PlanPartidoProps) {
             const phase = getPhase(section.fase)
             return (
               <TabsContent key={section.fase} value={section.fase} className="space-y-4 mt-4">
-                <p className={`text-xs font-semibold flex items-center gap-1.5 ${section.color}`}>
-                  <span>{section.icon}</span>
-                  {section.label}
-                </p>
+              <p className={`text-xs font-semibold ${section.color}`}>
+                {section.label}
+              </p>
 
                 <Textarea
                   rows={3}
@@ -196,7 +194,6 @@ export function PlanPartido({ data, onChange }: PlanPartidoProps) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <TagInput
                     label="Principios del modelo de juego"
-                    icon={Target}
                     items={phase.principios_modelo ?? []}
                     inputValue={principioInputs[section.fase] ?? ''}
                     onInputChange={(v) => setPrincipioInputs((prev) => ({ ...prev, [section.fase]: v }))}
@@ -218,7 +215,6 @@ export function PlanPartido({ data, onChange }: PlanPartidoProps) {
                   />
                   <TagInput
                     label="Consignas de la semana"
-                    icon={Lightbulb}
                     items={phase.consignas ?? []}
                     inputValue={consignaInputs[section.fase] ?? ''}
                     onInputChange={(v) => setConsignaInputs((prev) => ({ ...prev, [section.fase]: v }))}
@@ -241,8 +237,7 @@ export function PlanPartido({ data, onChange }: PlanPartidoProps) {
                 </div>
 
                 <div className="space-y-2">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                    <Video size={14} />
+                  <div className="text-xs font-semibold text-muted-foreground">
                     Clips de vídeo
                   </div>
                   <div className="space-y-2">
@@ -276,12 +271,54 @@ export function PlanPartido({ data, onChange }: PlanPartidoProps) {
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-7 text-xs gap-1"
+                    className="h-7 text-xs"
                     onClick={() => addClip(section.fase)}
                   >
-                    <Video className="h-3 w-3" />
                     Añadir clip
                   </Button>
+                </div>
+
+                {/* Formación */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Formación / sistema</Label>
+                  <Select
+                    value={phase.formacion || ''}
+                    onValueChange={(v) => updatePhase(section.fase, { formacion: v })}
+                  >
+                    <SelectTrigger className="h-8 text-xs w-40">
+                      <SelectValue placeholder="Seleccionar..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="4-3-3">4-3-3</SelectItem>
+                      <SelectItem value="4-4-2">4-4-2</SelectItem>
+                      <SelectItem value="4-2-3-1">4-2-3-1</SelectItem>
+                      <SelectItem value="3-4-3">3-4-3</SelectItem>
+                      <SelectItem value="3-5-2">3-5-2</SelectItem>
+                      <SelectItem value="4-1-4-1">4-1-4-1</SelectItem>
+                      <SelectItem value="4-3-2-1">4-3-2-1</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Espacios y ocupaciones */}
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Espacios / ocupaciones</Label>
+                  <Textarea
+                    rows={2}
+                    value={phase.espacios || ''}
+                    onChange={(e) => updatePhase(section.fase, { espacios: e.target.value })}
+                    placeholder="Espacios a ocupar, zonas de presión, carriles..."
+                    className="text-xs resize-none"
+                  />
+                </div>
+
+                {/* Pizarra táctica */}
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Pizarra táctica</Label>
+                  <TacticalBoard
+                    value={phase.pizarra_tactica}
+                    onChange={(v) => updatePhase(section.fase, { pizarra_tactica: v })}
+                  />
                 </div>
               </TabsContent>
             )
@@ -328,7 +365,6 @@ export function PlanPartido({ data, onChange }: PlanPartidoProps) {
 
 interface TagInputProps {
   label: string
-  icon: typeof Target
   items: string[]
   inputValue: string
   onInputChange: (v: string) => void
@@ -338,7 +374,7 @@ interface TagInputProps {
   color: 'blue' | 'amber'
 }
 
-function TagInput({ label, icon: Icon, items, inputValue, onInputChange, onAdd, onKey, onRemove, color }: TagInputProps) {
+function TagInput({ label, items, inputValue, onInputChange, onAdd, onKey, onRemove, color }: TagInputProps) {
   const colors =
     color === 'blue'
       ? 'bg-blue-50 text-blue-800 border-blue-200'
@@ -346,8 +382,7 @@ function TagInput({ label, icon: Icon, items, inputValue, onInputChange, onAdd, 
 
   return (
     <div className="space-y-2">
-      <div className={`flex items-center gap-1.5 text-xs font-semibold ${color === 'blue' ? 'text-blue-700' : 'text-amber-700'}`}>
-        <Icon className="h-3.5 w-3.5" />
+      <div className={`text-xs font-semibold ${color === 'blue' ? 'text-blue-700' : 'text-amber-700'}`}>
         {label}
       </div>
       <div className="flex flex-wrap gap-1 min-h-[28px]">
@@ -368,8 +403,8 @@ function TagInput({ label, icon: Icon, items, inputValue, onInputChange, onAdd, 
           placeholder="Añadir..."
           className="h-7 text-xs"
         />
-        <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onAdd}>
-          <Plus className="h-3.5 w-3.5" />
+        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={onAdd}>
+          Añadir
         </Button>
       </div>
     </div>

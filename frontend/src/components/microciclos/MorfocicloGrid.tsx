@@ -3,11 +3,10 @@
 import { useState } from 'react'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { Link2, BedDouble, Dumbbell, Brain, Puzzle, Eye, Activity, Zap, Flame, TrendingUp, X } from 'lucide-react'
+import { BedDouble, Link2, Eye, Activity, Puzzle, Brain } from 'lucide-react'
 import Link from 'next/link'
 import type { DiaMorfociclo, MatchDay, SubtipoFisico, TipoSesionDia } from '@/types'
 
@@ -31,7 +30,6 @@ interface MorfocicloGridProps {
 // Constants
 // ---------------------------------------------------------------------------
 
-// MD (domingo) se omite: es día de competición
 const MATCH_DAY_ORDER: MatchDay[] = ['MD+1', 'MD+2', 'MD-4', 'MD-3', 'MD-2', 'MD-1']
 
 const DAY_CONFIG: Record<
@@ -119,18 +117,18 @@ const DAY_CONFIG: Record<
   },
 }
 
-const TIPO_SESION_OPTIONS: { key: TipoSesionDia; label: string; icon: typeof Dumbbell; color: string }[] = [
-  { key: 'tactico', label: 'Táctico', icon: Eye, color: 'text-blue-600' },
-  { key: 'fisico', label: 'Físico', icon: Activity, color: 'text-orange-600' },
-  { key: 'tecnico_tactico', label: 'Técnico-táctico', icon: Puzzle, color: 'text-purple-600' },
-  { key: 'psicologico', label: 'Psicológico', icon: Brain, color: 'text-emerald-600' },
+const TIPO_SESION_OPTIONS: { key: TipoSesionDia; label: string; color: string }[] = [
+  { key: 'tactico', label: 'Táctico', color: 'text-blue-600' },
+  { key: 'fisico', label: 'Físico', color: 'text-orange-600' },
+  { key: 'tecnico_tactico', label: 'Téc-tactico', color: 'text-purple-600' },
+  { key: 'psicologico', label: 'Psicológico', color: 'text-emerald-600' },
 ]
 
-const SUBTIPO_FISICO_OPTIONS: { key: SubtipoFisico; label: string; icon: typeof Zap }[] = [
-  { key: 'fuerza', label: 'Fuerza', icon: TrendingUp },
-  { key: 'resistencia', label: 'Resistencia', icon: Flame },
-  { key: 'velocidad', label: 'Velocidad', icon: Zap },
-  { key: 'activacion', label: 'Activación', icon: Activity },
+const SUBTIPO_FISICO_OPTIONS: { key: SubtipoFisico; label: string }[] = [
+  { key: 'fuerza', label: 'Fuerza' },
+  { key: 'resistencia', label: 'Resistencia' },
+  { key: 'velocidad', label: 'Velocidad' },
+  { key: 'activacion', label: 'Activación' },
 ]
 
 const EMPTY_DAY: DiaMorfociclo = {
@@ -157,7 +155,14 @@ interface DayCardProps {
 function DayCard({ matchDay, data, linkedSession, onUpdate }: DayCardProps) {
   const cfg = DAY_CONFIG[matchDay]
   const isDescanso = data.descanso
-  const [showPsicologico, setShowPsicologico] = useState(data.aspecto_psicologico || false)
+
+  // Track which focus areas are expanded
+  const [expanded, setExpanded] = useState<Record<TipoSesionDia, boolean>>({
+    tactico: data.objetivo_tactico ? true : false,
+    fisico: (data.subtipo_fisico && data.subtipo_fisico.length > 0) ? true : false,
+    tecnico_tactico: false,
+    psicologico: data.aspecto_psicologico ? true : false,
+  })
 
   function handleField<K extends keyof DiaMorfociclo>(field: K, value: DiaMorfociclo[K]) {
     onUpdate({ ...data, [field]: value })
@@ -165,21 +170,26 @@ function DayCard({ matchDay, data, linkedSession, onUpdate }: DayCardProps) {
 
   function toggleTipoSesion(key: TipoSesionDia) {
     const current = data.tipo_sesion ?? []
-    const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key]
+    const active = current.includes(key)
+    const next = active ? current.filter((k) => k !== key) : [...current, key]
     handleField('tipo_sesion', next)
+
+    // Expand/collapse when toggling
+    setExpanded((prev) => ({ ...prev, [key]: !active }))
+
+    if (key === 'psicologico' && active) {
+      handleField('aspecto_psicologico', false)
+      handleField('aspecto_psicologico_texto', '')
+    }
+    if (key === 'fisico' && active) {
+      handleField('subtipo_fisico', [])
+    }
   }
 
   function toggleSubtipoFisico(key: SubtipoFisico) {
     const current = data.subtipo_fisico ?? []
     const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key]
     handleField('subtipo_fisico', next)
-  }
-
-  function togglePsicologico() {
-    const next = !showPsicologico
-    setShowPsicologico(next)
-    handleField('aspecto_psicologico', next)
-    if (!next) handleField('aspecto_psicologico_texto', '')
   }
 
   return (
@@ -240,7 +250,7 @@ function DayCard({ matchDay, data, linkedSession, onUpdate }: DayCardProps) {
               </Link>
             )}
 
-            {/* Objetivo general */}
+            {/* Objetivo general — always visible */}
             <div className="flex flex-col gap-1">
               <Label className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Objetivo del día
@@ -254,94 +264,83 @@ function DayCard({ matchDay, data, linkedSession, onUpdate }: DayCardProps) {
               />
             </div>
 
-            {/* Objetivo táctico */}
-            <div className="flex flex-col gap-1">
-              <Label className="text-[9px] font-semibold uppercase tracking-wide text-blue-600">
-                Objetivo táctico
-              </Label>
-              <Textarea
-                value={data.objetivo_tactico ?? ''}
-                onChange={(e) => handleField('objetivo_tactico', e.target.value)}
-                placeholder="Qué queremos a nivel táctico..."
-                rows={2}
-                className="resize-none text-[11px] leading-tight"
-              />
-            </div>
-
-            {/* Enfoque */}
+            {/* Enfoque — pill selectors, expand on click */}
             <div className="flex flex-col gap-2">
               <Label className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Enfoque
+                Enfoque (pincha para ampliar)
               </Label>
-              <div className="grid grid-cols-2 gap-1.5">
-                {TIPO_SESION_OPTIONS.map(({ key, label, icon: Icon, color }) => {
+              <div className="flex flex-wrap gap-1.5">
+                {TIPO_SESION_OPTIONS.map(({ key, label, color }) => {
                   const checked = (data.tipo_sesion ?? []).includes(key)
                   return (
-                    <div
+                    <button
                       key={key}
+                      type="button"
                       onClick={() => toggleTipoSesion(key)}
-                      className={`flex items-center gap-1.5 rounded-md border px-2 py-1.5 cursor-pointer transition-colors ${
-                        checked ? 'bg-muted border-primary/30' : 'hover:bg-muted/50'
+                      className={`rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors ${
+                        checked
+                          ? 'bg-muted border-primary/40 text-foreground'
+                          : 'bg-card border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
-                      <Icon size={12} className={color} />
-                      <span className="text-[10px] font-medium">{label}</span>
-                    </div>
+                      <span className={checked ? color : ''}>{label}</span>
+                    </button>
                   )
                 })}
               </div>
-            </div>
 
-            {/* Subtipo físico */}
-            {(data.tipo_sesion ?? []).includes('fisico') && (
-              <div className="flex flex-col gap-2">
-                <Label className="text-[9px] font-semibold uppercase tracking-wide text-orange-600">
-                  Tipo físico
-                </Label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {SUBTIPO_FISICO_OPTIONS.map(({ key, label, icon: Icon }) => {
-                    const checked = (data.subtipo_fisico ?? []).includes(key)
-                    return (
-                      <div
-                        key={key}
-                        onClick={() => toggleSubtipoFisico(key)}
-                        className={`flex items-center gap-1.5 rounded-md border px-2 py-1.5 cursor-pointer transition-colors ${
-                          checked ? 'bg-orange-50 border-orange-200' : 'hover:bg-muted/50'
-                        }`}
-                      >
-                        <Icon size={12} className="text-orange-600" />
-                        <span className="text-[10px] font-medium">{label}</span>
-                      </div>
-                    )
-                  })}
+              {/* Táctico expanded */}
+              {expanded.tactico && (data.tipo_sesion ?? []).includes('tactico') && (
+                <div className="flex flex-col gap-1 mt-1">
+                  <Label className="text-[9px] font-semibold text-blue-600">Objetivo táctico</Label>
+                  <Textarea
+                    value={data.objetivo_tactico ?? ''}
+                    onChange={(e) => handleField('objetivo_tactico', e.target.value)}
+                    placeholder="Qué queremos a nivel táctico..."
+                    rows={2}
+                    className="resize-none text-[11px] leading-tight"
+                  />
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Aspecto psicológico: aparece al clicar */}
-            <div className="flex flex-col gap-2">
-              <div
-                onClick={togglePsicologico}
-                className={`flex items-center justify-between rounded-md border px-2 py-1.5 cursor-pointer transition-colors ${
-                  showPsicologico ? 'bg-emerald-50 border-emerald-200' : 'hover:bg-muted/50'
-                }`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <Brain size={12} className="text-emerald-600" />
-                  <span className="text-[10px] font-medium">Aspecto psicológico</span>
+              {/* Físico expanded */}
+              {expanded.fisico && (data.tipo_sesion ?? []).includes('fisico') && (
+                <div className="flex flex-col gap-2 mt-1">
+                  <Label className="text-[9px] font-semibold text-orange-600">Tipo físico</Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {SUBTIPO_FISICO_OPTIONS.map(({ key, label }) => {
+                      const checked = (data.subtipo_fisico ?? []).includes(key)
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => toggleSubtipoFisico(key)}
+                          className={`rounded-full border px-2 py-0.5 text-[10px] transition-colors ${
+                            checked
+                              ? 'bg-orange-50 border-orange-200 text-orange-700'
+                              : 'bg-card border-border text-muted-foreground hover:bg-muted/50'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
-                <span className="text-[10px] text-muted-foreground">
-                  {showPsicologico ? 'Activo' : 'Añadir'}
-                </span>
-              </div>
-              {showPsicologico && (
-                <Textarea
-                  value={data.aspecto_psicologico_texto ?? ''}
-                  onChange={(e) => handleField('aspecto_psicologico_texto', e.target.value)}
-                  placeholder="Detalle del aspecto psicológico..."
-                  rows={2}
-                  className="resize-none text-[11px] leading-tight"
-                />
+              )}
+
+              {/* Psicológico expanded */}
+              {expanded.psicologico && (data.tipo_sesion ?? []).includes('psicologico') && (
+                <div className="flex flex-col gap-1 mt-1">
+                  <Label className="text-[9px] font-semibold text-emerald-600">Aspecto psicológico</Label>
+                  <Textarea
+                    value={data.aspecto_psicologico_texto ?? ''}
+                    onChange={(e) => handleField('aspecto_psicologico_texto', e.target.value)}
+                    placeholder="Detalle del aspecto psicológico..."
+                    rows={2}
+                    className="resize-none text-[11px] leading-tight"
+                  />
+                </div>
               )}
             </div>
 
