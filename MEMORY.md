@@ -86,7 +86,27 @@ El usuario reportó: al subir un clip, error "El bucket 'rival-clips' no existe 
 
 - **Verificación**: desplegado en Render. `GET /openapi.json` confirma la nueva ruta `/v1/microciclos/{microciclo_id}/rival-clips`. Una petición sin autenticar devuelve `403` (comportamiento esperado). Bucket confirmado en Supabase con `public: true`, `file_size_limit: 52428800`.
 
-### 5. Pendientes
+### 5. HALLAZGO CRÍTICO: la columna `plan_ct` nunca existió en producción
+Al depurar el error 500 al subir un clip (`column microciclos.plan_ct does not exist`), se verificó **directamente contra la REST API de Supabase** (con el service role key) que la columna `plan_ct` de la tabla `microciclos` **no existe en la base de datos de producción**.
+
+- La migración `043_sala_lunes.sql` (que añade `plan_ct JSONB`) nunca se ejecutó, a diferencia de la `053_microciclo_relaciones.sql` (rival_id, game_model_id) que sí se aplicó y funciona.
+- **Impacto real**: TODO el autoguardado de la Sala del Lunes (`patchPlanCT` → `PUT /microciclos/{id}` con `{plan_ct: ...}`) ha estado fallando con el mismo error 42703 desde que se implementó esa función, de forma silenciosa. La UI solo mostraba un badge genérico "error" sin toast, así que pasó desapercibido. Ningún dato de rival_scout, plan_partido, once_probable, morfociclo (dias) o nutrición se ha guardado nunca en la base de datos real — solo vivía en el estado de React durante la sesión del navegador y se perdía al recargar la página.
+- **Buena noticia**: como nunca se guardó nada, no hay pérdida de datos que recuperar; solo hay que crear la columna para que, a partir de ahora, sí persista.
+- **Fix aplicado en código** (ya desplegado):
+  - El endpoint de subida de clips ahora usa `select("*")` en vez de nombrar `plan_ct` explícitamente, envuelto en try/except, para no crashear feo mientras falte la columna.
+  - El autoguardado de `SalaLunes.tsx` ahora muestra un `toast.error` con el mensaje real y lo loguea en consola si el guardado falla, en vez de solo cambiar un badge silencioso.
+- **ACCIÓN PENDIENTE DEL USUARIO (crítica)**: ejecutar en el SQL Editor de Supabase:
+  ```sql
+  ALTER TABLE microciclos
+  ADD COLUMN IF NOT EXISTS plan_ct JSONB DEFAULT '{}'::jsonb;
+
+  COMMENT ON COLUMN microciclos.plan_ct IS
+    'CT planning for the week (Sala del Lunes): rival_scout, plan_partido, once_probable, dias (morfociclo structure per Frade/Seirulo).';
+  ```
+  Este es el contenido íntegro de `backend/database/migrations/043_sala_lunes.sql`, que ya estaba en el repo pero nunca se aplicó. Tras ejecutarlo, la Sala del Lunes (rival, plan de partido, once probable, morfociclo, nutrición, clips de vídeo) empezará a persistir correctamente.
+
+### 6. Pendientes
+- **CRÍTICO**: usuario debe ejecutar la migración 043 en Supabase SQL Editor (ver punto 5).
 - Añadir secret `RENDER_API_KEY` en GitHub para que el nuevo deploy polling funcione automáticamente tras merge.
 - Seguir iterando UX/UI de la Sala de Lunes según feedback.
 - Si el usuario necesita subir clips >50MB en el futuro, requeriría pasar el proyecto de Supabase a un plan de pago (Pro permite hasta 500GB por archivo).
