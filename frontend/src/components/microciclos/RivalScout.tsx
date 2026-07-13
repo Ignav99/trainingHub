@@ -13,17 +13,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { ClipRival, FaseRival, RivalPhaseAnalysis, RivalScoutData } from '@/types'
 import { exportRivalScoutPDF } from '@/lib/pdf/exportRivalScoutPDF'
 import { TacticalBoard } from './TacticalBoard'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { RivalStrategy } from './RivalStrategy'
 
 interface RivalScoutProps {
   data: Partial<RivalScoutData>
   rivalNombre?: string
+  rivalId?: string
   onChange: (data: Partial<RivalScoutData>) => void
 }
 
@@ -46,9 +41,9 @@ const FASES: FaseRival[] = [
   'abp_defensiva',
 ]
 
-export function RivalScout({ data, rivalNombre, onChange }: RivalScoutProps) {
+export function RivalScout({ data, rivalNombre, rivalId, onChange }: RivalScoutProps) {
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({})
-  const [activeTab, setActiveTab] = useState<FaseRival>('ataque_organizado')
+  const [activeTab, setActiveTab] = useState<FaseRival | 'estrategia'>('ataque_organizado')
 
   const fases = data.fases ?? []
 
@@ -158,13 +153,16 @@ export function RivalScout({ data, rivalNombre, onChange }: RivalScoutProps) {
           />
         </div>
 
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FaseRival)}>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FaseRival | 'estrategia')}>
           <TabsList className="flex flex-wrap h-auto gap-1">
             {FASES.map((f) => (
               <TabsTrigger key={f} value={f} className="text-[10px] px-2 py-1">
                 {FASE_LABELS[f]}
               </TabsTrigger>
             ))}
+            <TabsTrigger value="estrategia" className="text-[10px] px-2 py-1">
+              Estrategia
+            </TabsTrigger>
           </TabsList>
 
           {FASES.map((fase) => (
@@ -184,6 +182,14 @@ export function RivalScout({ data, rivalNombre, onChange }: RivalScoutProps) {
               />
             </TabsContent>
           ))}
+
+          <TabsContent value="estrategia" className="space-y-4 mt-3">
+            <RivalStrategy
+              data={data.estrategia}
+              rivalId={rivalId}
+              onChange={(estrategia) => update({ estrategia })}
+            />
+          </TabsContent>
         </Tabs>
       </CardContent>
     </Card>
@@ -313,26 +319,15 @@ function PhaseEditor({
           />
         </div>
 
-        {/* Formación */}
+        {/* Sistema de juego para esta fase */}
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Formación / sistema</Label>
-          <Select
+          <Label className="text-xs text-muted-foreground">Sistema / formación para esta fase</Label>
+          <Input
             value={phase.formacion || ''}
-            onValueChange={(v) => onUpdate(fase, { formacion: v })}
-          >
-            <SelectTrigger className="h-8 text-xs w-40">
-              <SelectValue placeholder="Seleccionar..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="4-3-3">4-3-3</SelectItem>
-              <SelectItem value="4-4-2">4-4-2</SelectItem>
-              <SelectItem value="4-2-3-1">4-2-3-1</SelectItem>
-              <SelectItem value="3-4-3">3-4-3</SelectItem>
-              <SelectItem value="3-5-2">3-5-2</SelectItem>
-              <SelectItem value="4-1-4-1">4-1-4-1</SelectItem>
-              <SelectItem value="4-3-2-1">4-3-2-1</SelectItem>
-            </SelectContent>
-          </Select>
+            onChange={(e) => onUpdate(fase, { formacion: e.target.value })}
+            placeholder="4-3-3, 4-4-2..."
+            className="h-8 text-xs w-40"
+          />
         </div>
 
         {/* Espacios */}

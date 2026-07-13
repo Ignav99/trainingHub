@@ -800,6 +800,26 @@ export interface RivalPhaseAnalysis {
   espacios?: string
 }
 
+export interface RivalJugadorEvaluacion {
+  nombre: string
+  dorsal: number | null
+  apariciones: number
+  sancionado?: boolean
+  posicion?: string
+  comentario?: string
+  puntuacion?: number
+}
+
+export interface RivalScoutStrategy {
+  sistema?: string
+  once_probable?: {
+    actas_analizadas: number
+    jugadores: RivalJugadorEvaluacion[]
+    colocacion?: Record<string, string>
+  }
+  notas?: string
+}
+
 export interface RivalScoutData {
   sistema: string
   fortalezas: string[]
@@ -807,6 +827,7 @@ export interface RivalScoutData {
   clips: ClipRival[]
   anotaciones: string
   fases: RivalPhaseAnalysis[]
+  estrategia?: RivalScoutStrategy
 }
 
 export interface PlanPartidoPhase {
