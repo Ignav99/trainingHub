@@ -311,14 +311,8 @@ export function SalaLunes({ microcicloId, data, jugadores }: SalaLunesProps) {
         sesiones={linkedSessions}
       />
 
-      {/* ============ Once + Disponibilidad + Cargas (1/3 cada uno) ============ */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <OnceProbable
-          data={planCT.once_probable ?? {}}
-          onChange={(d) => updatePlanCT({ once_probable: d })}
-          jugadores={jugadores}
-        />
-
+      {/* ============ Disponibilidad + Cargas encima del Once ============ */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -333,6 +327,13 @@ export function SalaLunes({ microcicloId, data, jugadores }: SalaLunesProps) {
 
         <WarRoomCargas rpe={data.rpe} />
       </div>
+
+      {/* ============ Once titular — ancho completo ============ */}
+      <OnceProbable
+        data={planCT.once_probable ?? {}}
+        onChange={(d) => updatePlanCT({ once_probable: d })}
+        jugadores={jugadores}
+      />
 
       {/* ============ Nutrición y suplementación ============ */}
       <NutricionSemanalEditor
