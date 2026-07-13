@@ -25,6 +25,7 @@ import { TacticalBoard } from './TacticalBoard'
 import { RivalStrategy } from './RivalStrategy'
 import { api } from '@/lib/api/client'
 import { VideoPlayer } from '@/components/video-analyzer/VideoPlayer'
+import ABPRivalPlays from '@/components/abp/ABPRivalPlays'
 
 interface RivalScoutProps {
   data: Partial<RivalScoutData>
@@ -241,6 +242,7 @@ export function RivalScout({ data, rivalNombre, rivalId, microcicloId, onChange 
                 fase={fase}
                 phase={getPhase(fase)}
                 microcicloId={microcicloId}
+                rivalId={rivalId}
                 tagInputs={tagInputs}
                 setTagInputs={setTagInputs}
                 onUpdate={updatePhase}
@@ -264,6 +266,7 @@ interface PhaseEditorProps {
   fase: FaseRival
   phase: RivalPhaseAnalysis
   microcicloId?: string
+  rivalId?: string
   tagInputs: Record<string, string>
   setTagInputs: React.Dispatch<React.SetStateAction<Record<string, string>>>
   onUpdate: (fase: FaseRival, patch: Partial<RivalPhaseAnalysis>) => void
@@ -289,6 +292,7 @@ function PhaseEditor({
   fase,
   phase,
   microcicloId,
+  rivalId,
   tagInputs,
   setTagInputs,
   onUpdate,
@@ -440,14 +444,25 @@ function PhaseEditor({
         </div>
       )}
 
-      {/* Pizarra táctica */}
-      <div className="space-y-1">
-        <Label className="text-xs text-muted-foreground">Pizarra táctica</Label>
-        <TacticalBoard
-          value={phase.pizarra_tactica}
-          onChange={(v) => onUpdate(fase, { pizarra_tactica: v })}
-        />
-      </div>
+      {/* ABP: jugadas dibujadas y guardadas (pueden ser varias, editables) */}
+      {(fase === 'abp_ofensiva' || fase === 'abp_defensiva') ? (
+        rivalId ? (
+          <ABPRivalPlays rivalId={rivalId} lado={fase === 'abp_ofensiva' ? 'ofensivo' : 'defensivo'} />
+        ) : (
+          <p className="text-xs text-muted-foreground italic">
+            Vincula un rival al microciclo para diseñar y guardar sus jugadas de ABP.
+          </p>
+        )
+      ) : (
+        /* Resto de fases: pizarra táctica libre de un solo uso */
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Pizarra táctica</Label>
+          <TacticalBoard
+            value={phase.pizarra_tactica}
+            onChange={(v) => onUpdate(fase, { pizarra_tactica: v })}
+          />
+        </div>
+      )}
 
       {/* Clips de vídeo */}
       <div className="space-y-2">
