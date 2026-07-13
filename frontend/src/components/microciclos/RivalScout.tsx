@@ -447,8 +447,13 @@ function PhaseEditor({
                 className="h-7 text-xs"
               />
               {clip.url && (
-                <div className="rounded-md overflow-hidden border bg-black">
-                  <VideoPlayer src={clip.url} standalonePreview />
+                <div className="space-y-1">
+                  <div className="rounded-md overflow-hidden border bg-black">
+                    <VideoPlayer src={clip.url} standalonePreview />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Click + dos dedos para adelantar/retroceder · ←/→ un fotograma · Shift+←/→ 5s
+                  </p>
                 </div>
               )}
               <Textarea
