@@ -128,6 +128,17 @@ El usuario reportó que el gesto de dos dedos del trackpad iba "muy pillado" (po
 - Se añadió una pequeña ayuda visual debajo de cada clip explicando los atajos (dos dedos, flechas, Shift+flechas).
 - El frame-stepping mejorado beneficia también a la herramienta completa de Vídeo Análisis (comparten la misma función `frameStep`), sin haber tocado su scrubbing de página propio (que sigue igual).
 
+### 6.3 Rediseño completo de "Estrategia" del rival
+El usuario pidió que la pestaña Estrategia fuera "más currada": confirmar si el scraping del 11 probable ya estaba hecho (sí, `rivalesApi.getOnceProbable` ya existía), añadir un campograma más profesional para colocar jugadores (como en Partidos > Convocatoria > Alineación), edición de roles/comportamiento por jugador, contexto general (actitud, dimensiones del campo si se juega fuera), y consolidar ahí mismo el ABP Ofensivo/Defensivo y las 4 fases del juego.
+
+- **Nueva pestaña "Contexto"** (primera): actitud/estilo del rival, dimensiones del campo (partidos fuera), notas generales de estrategia (antes vivían dentro de la vieja pestaña "Estrategia").
+- **`RivalStrategy.tsx` (pestaña "Once Probable") reescrito por completo**:
+  - Ahora usa las MISMAS 9 formaciones (`FORMATIONS` de `@/lib/formations`) y el mismo sistema de posicionamiento por porcentajes (`top`/`left`) que usa `MatchDetailPanel.tsx` (Convocatoria > Alineación), con jugadores como círculos de color según posición (`POSICIONES`).
+  - Interacción: click en hueco vacío → modo "elegir jugador" que resalta la lista lateral de disponibles; click en jugador colocado → abre el editor de rol/comportamiento de ese jugador (también accesible clicando su nombre en la lista).
+  - Nuevo campo `rol` (corto, ej. "pivote defensivo") además del `comentario` (largo) y la puntuación de 1-5 estrellas ya existente — esto es lo que refleja la estrategia/actitud/tendencias de cada jugador del rival.
+- **Pestañas del rival consolidadas**: `RivalScout.tsx` pasa de tener una pestaña "Estrategia" separada + 6 fases, a: Contexto, Once Probable, Ataque Organizado, Defensa Organizada, Transición OF, Transición DEF, ABP Ofensiva, ABP Defensiva — todo bajo el mismo card de "Estrategia del Rival", según lo pedido explícitamente ("ahí vamos a meter el ABP... y las 4 fases del juego").
+- Tipos ampliados: `RivalScoutStrategy.actitud_estilo`, `RivalScoutStrategy.dimensiones_campo`, `RivalJugadorEvaluacion.rol`.
+
 ### 7. Pendientes
 - **CRÍTICO**: usuario debe ejecutar la migración 043 en Supabase SQL Editor (ver punto 5).
 - Añadir secret `RENDER_API_KEY` en GitHub para que el nuevo deploy polling funcione automáticamente tras merge.
