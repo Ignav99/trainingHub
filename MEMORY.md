@@ -139,6 +139,16 @@ El usuario pidió que la pestaña Estrategia fuera "más currada": confirmar si 
 - **Pestañas del rival consolidadas**: `RivalScout.tsx` pasa de tener una pestaña "Estrategia" separada + 6 fases, a: Contexto, Once Probable, Ataque Organizado, Defensa Organizada, Transición OF, Transición DEF, ABP Ofensiva, ABP Defensiva — todo bajo el mismo card de "Estrategia del Rival", según lo pedido explícitamente ("ahí vamos a meter el ABP... y las 4 fases del juego").
 - Tipos ampliados: `RivalScoutStrategy.actitud_estilo`, `RivalScoutStrategy.dimensiones_campo`, `RivalJugadorEvaluacion.rol`.
 
+### 6.4 ABP del rival: dibujar y guardar varias jugadas (como el balón parado propio)
+El usuario pidió que ABP Ofensiva/Defensiva del rival funcionara como la herramienta de balón parado ya existente para el propio equipo: poder diseñar/dibujar jugadas, guardarlas, y tener varias por rival (tanto ofensivas como defensivas), pudiendo verlas y editarlas después.
+
+- Se descubrió que el backend YA soportaba esto (`abp_rival_jugadas` con columna `fases` que incluye el diagrama completo — elementos, flechas, zonas), pero el frontend (`ABPRivalPlays.tsx`, usado en la ficha del rival) solo tenía un formulario de texto sin ningún editor de dibujo.
+- **`ABPRivalPlays.tsx` reescrito**: ahora embebe el mismo `ABPEditor` (editor completo de balón parado: jugadores, flechas, zonas, roles, undo/redo) que ya usa la biblioteca ABP del propio equipo, abierto en un overlay a pantalla completa. Al guardar, llama a `abpApi.createRival`/`updateRival` (endpoints que ya existían).
+- Cada jugada guardada se muestra como una tarjeta con una mini-vista SVG real de su diagrama (mismo enfoque que `ABPPlayCard`), click para reabrir y editar, hover para eliminar.
+- Nuevo prop opcional `lado` en `ABPRivalPlays`: si se indica, filtra y bloquea a solo ofensivo o solo defensivo (usado desde las pestañas ABP de `RivalScout`); si no se indica, mantiene el comportamiento original (todas las jugadas agrupadas por tipo, usado en la ficha del rival en `/rivales/[id]`).
+- En las pestañas "ABP Ofensiva" y "ABP Defensiva" de Estrategia del Rival, la pizarra libre de un solo uso (`TacticalBoard`) se sustituyó por esta biblioteca de jugadas (se mantiene la pizarra libre en las otras 4 fases, donde un boceto puntual sigue teniendo sentido).
+- Como `abp_rival_jugadas` está ligado al `rival_id` (no al microciclo), las jugadas creadas desde la Sala del Lunes son las MISMAS que se ven en la ficha del rival (`/rivales/[id]` > pestaña ABP) — una sola fuente de verdad.
+
 ### 7. Pendientes
 - **CRÍTICO**: usuario debe ejecutar la migración 043 en Supabase SQL Editor (ver punto 5).
 - Añadir secret `RENDER_API_KEY` en GitHub para que el nuevo deploy polling funcione automáticamente tras merge.
