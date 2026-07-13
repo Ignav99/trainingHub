@@ -298,8 +298,8 @@ function PhaseEditor({
         </div>
       )}
 
-      {/* Sistema / formación / vigilancias / repliegue según fase */}
-      {fase !== 'transicion_ofensiva' && fase !== 'transicion_defensiva' && (
+      {/* Campo principal según fase */}
+      {(fase === 'ataque_organizado' || fase === 'defensa_organizada') && (
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground">Sistema / formación para esta fase</Label>
           <Input
@@ -313,11 +313,12 @@ function PhaseEditor({
       {fase === 'transicion_ofensiva' && (
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground">Vigilancias / sistema defensivo rival</Label>
-          <Input
+          <Textarea
             value={phase.vigilancias || ''}
             onChange={(e) => onUpdate(fase, { vigilancias: e.target.value })}
-            placeholder="Vigilancias, coberturas..."
-            className="h-8 text-xs w-full max-w-md"
+            placeholder="Vigilancias, coberturas, comportamiento defensivo del rival en transición..."
+            rows={4}
+            className="text-sm resize-none"
           />
         </div>
       )}
@@ -328,47 +329,75 @@ function PhaseEditor({
             value={phase.repliegue || ''}
             onChange={(e) => onUpdate(fase, { repliegue: e.target.value })}
             placeholder="Presión tras pérdida, repliegue a bloque bajo, comportamiento de los jugadores..."
+            rows={4}
+            className="text-sm resize-none"
+          />
+        </div>
+      )}
+      {fase === 'abp_ofensiva' && (
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Comentarios ABP</Label>
+          <Textarea
+            value={phase.abp_comentarios || ''}
+            onChange={(e) => onUpdate(fase, { abp_comentarios: e.target.value })}
+            placeholder="Cómo trabaja el rival en ABP, tipos de saques, estructuras..."
+            rows={3}
+            className="text-sm resize-none"
+          />
+        </div>
+      )}
+      {fase === 'abp_defensiva' && (
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Defensa ABP</Label>
+          <Textarea
+            value={phase.abp_defensa || ''}
+            onChange={(e) => onUpdate(fase, { abp_defensa: e.target.value })}
+            placeholder="Cómo defienden: zona, mixto, al hombre. Estructura y organización..."
             rows={3}
             className="text-sm resize-none"
           />
         </div>
       )}
 
-      {/* Espacios */}
-      <div className="space-y-1">
-        <Label className="text-xs text-muted-foreground">Espacios / ocupaciones del rival</Label>
-        <Textarea
-          value={phase.espacios || ''}
-          onChange={(e) => onUpdate(fase, { espacios: e.target.value })}
-          placeholder="Zona de presión, espacios que deja, carriles..."
-          rows={2}
-          className="text-sm resize-none"
-        />
-      </div>
+      {/* Espacios (solo ataque/defensa) */}
+      {(fase === 'ataque_organizado' || fase === 'defensa_organizada') && (
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Espacios / ocupaciones del rival</Label>
+          <Textarea
+            value={phase.espacios || ''}
+            onChange={(e) => onUpdate(fase, { espacios: e.target.value })}
+            placeholder="Zona de presión, espacios que deja, carriles..."
+            rows={2}
+            className="text-sm resize-none"
+          />
+        </div>
+      )}
 
-      {/* Fortalezas + Debilidades más juntas */}
-      <div className="grid grid-cols-2 gap-3">
-        <TagBox
-          title="Fortalezas"
-          color="green"
-          items={phase.fortalezas ?? []}
-          inputValue={tagInputs[`${fase}-fortalezas`] ?? ''}
-          onInputChange={(v) => setTagInputs((prev) => ({ ...prev, [`${fase}-fortalezas`]: v }))}
-          onAdd={() => onAddTag(fase, 'fortalezas', tagInputs[`${fase}-fortalezas`] ?? '')}
-          onKey={(e) => onTagKey(e, fase, 'fortalezas', tagInputs[`${fase}-fortalezas`] ?? '')}
-          onRemove={(i) => onRemoveTag(fase, 'fortalezas', i)}
-        />
-        <TagBox
-          title="Debilidades"
-          color="red"
-          items={phase.debilidades ?? []}
-          inputValue={tagInputs[`${fase}-debilidades`] ?? ''}
-          onInputChange={(v) => setTagInputs((prev) => ({ ...prev, [`${fase}-debilidades`]: v }))}
-          onAdd={() => onAddTag(fase, 'debilidades', tagInputs[`${fase}-debilidades`] ?? '')}
-          onKey={(e) => onTagKey(e, fase, 'debilidades', tagInputs[`${fase}-debilidades`] ?? '')}
-          onRemove={(i) => onRemoveTag(fase, 'debilidades', i)}
-        />
-      </div>
+      {/* Fortalezas + Debilidades (ataque, defensa, abp defensiva) */}
+      {(fase === 'ataque_organizado' || fase === 'defensa_organizada' || fase === 'abp_defensiva') && (
+        <div className="grid grid-cols-2 gap-3">
+          <TagBox
+            title="Fortalezas"
+            color="green"
+            items={phase.fortalezas ?? []}
+            inputValue={tagInputs[`${fase}-fortalezas`] ?? ''}
+            onInputChange={(v) => setTagInputs((prev) => ({ ...prev, [`${fase}-fortalezas`]: v }))}
+            onAdd={() => onAddTag(fase, 'fortalezas', tagInputs[`${fase}-fortalezas`] ?? '')}
+            onKey={(e) => onTagKey(e, fase, 'fortalezas', tagInputs[`${fase}-fortalezas`] ?? '')}
+            onRemove={(i) => onRemoveTag(fase, 'fortalezas', i)}
+          />
+          <TagBox
+            title="Debilidades"
+            color="red"
+            items={phase.debilidades ?? []}
+            inputValue={tagInputs[`${fase}-debilidades`] ?? ''}
+            onInputChange={(v) => setTagInputs((prev) => ({ ...prev, [`${fase}-debilidades`]: v }))}
+            onAdd={() => onAddTag(fase, 'debilidades', tagInputs[`${fase}-debilidades`] ?? '')}
+            onKey={(e) => onTagKey(e, fase, 'debilidades', tagInputs[`${fase}-debilidades`] ?? '')}
+            onRemove={(i) => onRemoveTag(fase, 'debilidades', i)}
+          />
+        </div>
+      )}
 
       {/* Pizarra táctica */}
       <div className="space-y-1">

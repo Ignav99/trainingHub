@@ -824,6 +824,8 @@ export interface RivalPhaseAnalysis {
   espacios?: string
   vigilancias?: string
   repliegue?: string
+  abp_comentarios?: string
+  abp_defensa?: string
   subfases?: Partial<Record<RivalSubfaseAtaque | RivalSubfaseDefensa, RivalSubfaseData>>
 }
 
