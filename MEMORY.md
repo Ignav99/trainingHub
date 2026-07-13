@@ -105,7 +105,19 @@ Al depurar el error 500 al subir un clip (`column microciclos.plan_ct does not e
   ```
   Este es el contenido íntegro de `backend/database/migrations/043_sala_lunes.sql`, que ya estaba en el repo pero nunca se aplicó. Tras ejecutarlo, la Sala del Lunes (rival, plan de partido, once probable, morfociclo, nutrición, clips de vídeo) empezará a persistir correctamente.
 
-### 6. Pendientes
+### 6.1 Reproductor de vídeo: fullscreen, scrub con trackpad y ventana emergente ampliada
+El usuario pidió pantalla completa, gesto de dos dedos (trackpad Mac) para adelantar/retroceder (como ya existe en la herramienta completa de Vídeo Análisis), y que tanto el vídeo como la pizarra táctica se puedan ampliar como "ventana emergente" para trabajar mejor sin necesidad de fullscreen real.
+
+- `frontend/src/components/video-analyzer/VideoPlayer.tsx`: se añadió un prop opcional `standalonePreview` (por defecto `false`, para no tocar el comportamiento ya existente de la herramienta completa de Vídeo Análisis, que ya implementa su propio scrub a nivel de página). Cuando está activo:
+  - Scrub horizontal de dos dedos en el trackpad, delimitado al contenedor del propio reproductor (mismo cálculo que ya usa `VideoAnalyzer.tsx`).
+  - Flechas izquierda/derecha del teclado para ±5s, solo mientras el reproductor tiene el foco.
+  - Botón de pantalla completa real (Fullscreen API del navegador).
+  - Botón "Ampliar ventana": renderiza la MISMA instancia del reproductor (mismo estado de reproducción) dentro de un overlay fijo vía `createPortal` a `document.body`, sin recargar el vídeo ni perder la posición.
+  - Escape cierra el modo ampliado.
+- `frontend/src/components/microciclos/RivalScout.tsx`: el `<VideoPlayer>` de cada clip ahora pasa `standalonePreview`.
+- `frontend/src/components/microciclos/TacticalBoard.tsx`: se añadió el mismo patrón de "Ampliar ventana" (botón Expand/Shrink) usando `createPortal`, preservando el estado interno (elementos, flechas, zonas, historial) porque es la misma instancia de React, solo se renderiza en un overlay a pantalla mayor en vez de en el sitio original. Aplica automáticamente también a la pizarra dentro de `PlanPartido.tsx` (mismo componente compartido).
+
+### 7. Pendientes
 - **CRÍTICO**: usuario debe ejecutar la migración 043 en Supabase SQL Editor (ver punto 5).
 - Añadir secret `RENDER_API_KEY` en GitHub para que el nuevo deploy polling funcione automáticamente tras merge.
 - Seguir iterando UX/UI de la Sala de Lunes según feedback.
