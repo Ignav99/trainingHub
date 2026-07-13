@@ -448,7 +448,7 @@ function PhaseEditor({
               />
               {clip.url && (
                 <div className="rounded-md overflow-hidden border bg-black">
-                  <VideoPlayer src={clip.url} />
+                  <VideoPlayer src={clip.url} standalonePreview />
                 </div>
               )}
               <Textarea

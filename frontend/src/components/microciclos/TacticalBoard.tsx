@@ -1,9 +1,10 @@
 'use client'
 
 import React, { useRef, useState, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Circle, Triangle, Target, Trash2, RotateCcw, MousePointer,
-  ArrowRight, Minus, Square, Undo2, Redo2, Type,
+  ArrowRight, Minus, Square, Undo2, Redo2, Type, Expand, Shrink,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -65,6 +66,7 @@ export function TacticalBoard({ value, onChange, height = 300, showFormations = 
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [playerCounter, setPlayerCounter] = useState({ team1: 1, team2: 1 })
   const [arrowCounter, setArrowCounter] = useState(1)
+  const [isExpanded, setIsExpanded] = useState(false)
 
   const isZoneTool = activeTool === 'zone_rect' || activeTool === 'zone_circle'
 
@@ -126,10 +128,13 @@ export function TacticalBoard({ value, onChange, height = 300, showFormations = 
         e.preventDefault()
         redo()
       }
+      if (e.key === 'Escape' && isExpanded) {
+        setIsExpanded(false)
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [deleteSelected, undo, redo])
+  }, [deleteSelected, undo, redo, isExpanded])
 
   useEffect(() => {
     if (gRef.current) svgRef.current = gRef.current.ownerSVGElement || null
@@ -441,8 +446,14 @@ export function TacticalBoard({ value, onChange, height = 300, showFormations = 
     return <rect x={x} y={y} width={w} height={h} fill={zoneColor} opacity={0.3} stroke="#FFFF00" strokeWidth="1" strokeDasharray="4,2" />
   }
 
-  return (
-    <Card className="p-2 space-y-2">
+  const boardCard = (
+    <Card
+      className={
+        isExpanded
+          ? 'fixed inset-4 z-[100] flex flex-col p-2 space-y-2 overflow-y-auto shadow-2xl'
+          : 'p-2 space-y-2'
+      }
+    >
       <div className="flex flex-wrap items-center gap-1">
         <TB id="select" icon={<MousePointer className="h-3.5 w-3.5" />} label="Seleccionar" activeTool={activeTool} onSelect={setActiveTool} />
         <Sep />
@@ -510,12 +521,23 @@ export function TacticalBoard({ value, onChange, height = 300, showFormations = 
         >
           <RotateCcw className="h-3.5 w-3.5" />
         </button>
+
+        <div className="flex-1" />
+
+        <button
+          type="button"
+          onClick={() => setIsExpanded((v) => !v)}
+          className="p-1 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200"
+          title={isExpanded ? 'Contraer' : 'Ampliar ventana'}
+        >
+          {isExpanded ? <Shrink className="h-3.5 w-3.5" /> : <Expand className="h-3.5 w-3.5" />}
+        </button>
       </div>
 
       <div
         ref={containerRef}
-        className="w-full rounded-lg overflow-hidden border border-white/10"
-        style={{ height }}
+        className={isExpanded ? 'w-full flex-1 min-h-0 rounded-lg overflow-hidden border border-white/10' : 'w-full rounded-lg overflow-hidden border border-white/10'}
+        style={isExpanded ? undefined : { height }}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
@@ -551,4 +573,16 @@ export function TacticalBoard({ value, onChange, height = 300, showFormations = 
       </div>
     </Card>
   )
+
+  if (isExpanded && typeof document !== 'undefined') {
+    return createPortal(
+      <>
+        <div className="fixed inset-0 z-[99] bg-black/60" onClick={() => setIsExpanded(false)} />
+        {boardCard}
+      </>,
+      document.body
+    )
+  }
+
+  return boardCard
 }
