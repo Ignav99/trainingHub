@@ -37,7 +37,22 @@ El usuario pidió que la pizarra táctica de la Sala de Lunes (RivalScout / Plan
   - Exportar a PNG y persistir vía `onChange`.
 - **Sin desplegable de formación** como se solicitó.
 
-### 3. Pendientes
-- Revisar si el usuario quiere añadir el desplegable de formación más adelante o mantenerlo oculto.
+### 3. Nueva pestaña Estrategia en análisis del rival
+El usuario pidió una pestaña de estrategia para el rival con el once probable.
+
+- **Cambios**:
+  - El sistema/formación por fase del rival pasa de desplegable a campo de texto libre (`RivalScout.tsx`).
+  - Nueva pestaña `Estrategia` en `RivalScout`.
+  - Nuevo componente `RivalStrategy.tsx` que:
+    - Carga el once probable desde `/rivales/{id}/once-probable`.
+    - Permite escribir el sistema del rival y colocar jugadores en el campograma con layouts automáticos (4-3-3, 4-4-2, etc.).
+    - Permite añadir comentarios individuales por futbolista.
+    - Permite puntuar cada futbolista con 1-5 estrellas.
+    - Persiste todo en `rival_scout.estrategia` dentro de `plan_ct`.
+  - Tipos añadidos: `RivalScoutStrategy`, `RivalJugadorEvaluacion`.
+
+- **Verificación**: deployado en Render, ambos servicios `live` y saludables.
+
+### 4. Pendientes
+- Añadir secret `RENDER_API_KEY` en GitHub para que el nuevo deploy polling funcione automáticamente tras merge.
 - Seguir iterando UX/UI de la Sala de Lunes según feedback.
-- Añadir secret `RENDER_API_KEY` en GitHub para que el nuevo deploy polling funcione automáticamente tras merge (actualmente el workflow usa IDs hardcodeados como fallback, pero el polling requiere el token).
