@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase/client'
+import { getSupabaseClient } from '@/lib/supabase/client'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/v1'
 
@@ -64,7 +64,7 @@ class ApiClient {
 
     // Invalidate cache on auth state changes
     if (typeof window !== 'undefined') {
-      supabase.auth.onAuthStateChange(() => {
+      getSupabaseClient().auth.onAuthStateChange(() => {
         this.cachedToken = null
         this.tokenExpiry = 0
       })
@@ -86,7 +86,7 @@ class ApiClient {
     }
 
     // Fallback: ask Supabase for session (may require network for token refresh)
-    const { data: { session } } = await supabase.auth.getSession()
+    const { data: { session } } = await getSupabaseClient().auth.getSession()
     const token = session?.access_token || null
 
     if (token) {
