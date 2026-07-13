@@ -50,10 +50,14 @@ El usuario pidió una pestaña de estrategia para el rival con el once probable,
     - Permite añadir comentarios individuales por futbolista.
     - Permite puntuar cada futbolista con 1-5 estrellas.
     - Persiste todo en `rival_scout.estrategia` dentro de `plan_ct`.
-  - Subpestañas en Ataque Organizado: Creación, Progresión, Finalización.
-  - Subpestañas en Defensa Organizada: Bloque alto, Bloque medio, Bloque bajo.
+  - Subpestañas en Ataque Organizado: Creación, Progresión, Finalización (input corto, sin textarea grande).
+  - Subpestañas en Defensa Organizada: Bloque alto, Bloque medio, Bloque bajo (input corto, sin textarea grande).
   - Orden de cada fase: subpestañas -> sistema/formación -> espacios -> fortalezas/debilidades -> pizarra táctica -> clips.
+  - Transición Ofensiva: campo específico `vigilancias` (sistema defensivo rival).
+  - Transición Defensiva: campo específico `repliegue` (tipo de repliegue, presión tras pérdida, bloque bajo).
   - Eliminado el campo de anotaciones tácticas de las fases.
+  - Subida de clips de vídeo a Supabase Storage bucket `rival-clips` con límite de 300 MB por microciclo.
+  - Tipos ampliados: `ClipRival` ahora tiene `size` y `mimeType`; `RivalPhaseAnalysis` añade `vigilancias` y `repliegue`.
   - Tipos añadidos: `RivalScoutStrategy`, `RivalJugadorEvaluacion`, `RivalSubfaseData`, `RivalSubfaseAtaque`, `RivalSubfaseDefensa`.
   - Actualizado `exportRivalScoutPDF.ts` para reflejar la nueva estructura.
 
