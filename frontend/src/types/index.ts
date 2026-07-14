@@ -855,14 +855,36 @@ export interface RivalScoutData {
   estrategia?: RivalScoutStrategy
 }
 
+export interface PlanPartidoSubfaseData {
+  sistema?: string
+  notas: string
+}
+
+export interface PlanPartidoABPItem {
+  jugada_id: string
+  comentario: string
+  orden: number
+}
+
 export interface PlanPartidoPhase {
   fase: FasePlanPartido
-  texto: string
+  /** Transiciones: notas generales de la fase */
+  texto?: string
+  /** Transiciones: sistema general */
+  sistema?: string
+  /** Ataque/defensa: creación, progresión, finalización / bloques */
+  subfases?: Partial<Record<RivalSubfaseAtaque | RivalSubfaseDefensa, PlanPartidoSubfaseData>>
+  /** ABP: jugadas del laboratorio seleccionadas para el partido */
+  jugadas_abp?: PlanPartidoABPItem[]
+  /** @deprecated */
   principios_modelo?: string[]
+  /** Solo microciclo — consignas semanales */
   consignas?: string[]
   clips?: ClipRival[]
   pizarra_tactica?: string
+  /** @deprecated usar subfases[].sistema */
   formacion?: string
+  /** @deprecated */
   espacios?: string
 }
 
