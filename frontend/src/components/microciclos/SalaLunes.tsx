@@ -17,6 +17,9 @@ import {
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { microciclosApi } from '@/lib/api/microciclos'
+import { rivalesApi } from '@/lib/api/partidos'
+import { extractPersistentScout, mergeScoutOnLoad } from '@/lib/rivalScoutSync'
+import { extractPersistentPlanPartido, mergePlanPartidoOnLoad } from '@/lib/rivalPlanPartidoSync'
 import { toast } from 'sonner'
 import type { VistaCompletaMicrociclo, PlanCT, TipoMicrociclo, Jugador, MatchDay } from '@/types'
 
@@ -138,6 +141,32 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
     id: s.id,
   }))
 
+  // Hidratar informe rival desde el perfil persistente del rival (7 semanas antes, etc.)
+  const hydratedRivalRef = useRef<string | null>(null)
+  useEffect(() => {
+    const rivalId = micro.rival_id
+    if (!rivalId || hydratedRivalRef.current === rivalId) return
+    hydratedRivalRef.current = rivalId
+
+    Promise.all([
+      rivalesApi.getScoutManual(rivalId),
+      rivalesApi.getPlanPartidoManual(rivalId),
+    ])
+      .then(([persistentScout, persistentPlan]) => {
+        setPlanCT((prev) => {
+          const next = { ...prev }
+          if (persistentScout && (persistentScout.fases?.length || persistentScout.estrategia)) {
+            next.rival_scout = mergeScoutOnLoad(persistentScout, prev.rival_scout)
+          }
+          if (persistentPlan && persistentPlan.fases?.length) {
+            next.plan_partido = mergePlanPartidoOnLoad(persistentPlan, prev.plan_partido)
+          }
+          return next
+        })
+      })
+      .catch((err) => console.error('Error cargando perfil del rival:', err))
+  }, [micro.rival_id])
+
   // Auto-save
   useEffect(() => {
     if (!isMountedRef.current) {
@@ -152,6 +181,15 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
     saveTimerRef.current = setTimeout(async () => {
       try {
         await microciclosApi.patchPlanCT(microcicloId, planCT)
+        if (micro.rival_id && planCT.rival_scout) {
+          await rivalesApi.putScoutManual(micro.rival_id, extractPersistentScout(planCT.rival_scout))
+        }
+        if (micro.rival_id && planCT.plan_partido) {
+          await rivalesApi.putPlanPartidoManual(
+            micro.rival_id,
+            extractPersistentPlanPartido(planCT.plan_partido)
+          )
+        }
         setSaveStatus('saved')
         idleTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
       } catch (err: any) {
@@ -359,6 +397,8 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
         />
         <PlanPartido
           data={planCT.plan_partido ?? {}}
+          rivalId={data.microciclo.rival_id}
+          microcicloId={data.microciclo.id}
           onChange={(d) => updatePlanCT({ plan_partido: d })}
         />
       </div>

@@ -26,6 +26,7 @@ import { exportRivalScoutPDF } from '@/lib/pdf/exportRivalScoutPDF'
 import { TacticalBoard } from './TacticalBoard'
 import { RivalStrategy } from './RivalStrategy'
 import { api } from '@/lib/api/client'
+import { rivalesApi } from '@/lib/api/partidos'
 import { VideoPlayer } from '@/components/video-analyzer/VideoPlayer'
 import ABPRivalPlays from '@/components/abp/ABPRivalPlays'
 import { apiKey } from '@/lib/swr'
@@ -173,6 +174,10 @@ export function RivalScout({ data, rivalNombre, rivalId, microcicloId, equipoId,
 
   const estrategia = data.estrategia ?? {}
   const dimensiones = parseDimensionesCampo(estrategia.dimensiones_campo)
+  const totalClipsSize = (data.fases ?? []).reduce(
+    (sum, f) => sum + (f.clips ?? []).reduce((s, c) => s + (c.size ?? 0), 0),
+    0
+  )
 
   return (
     <Card className="w-full">
@@ -283,6 +288,7 @@ export function RivalScout({ data, rivalNombre, rivalId, microcicloId, equipoId,
                 phase={getPhase(fase)}
                 microcicloId={microcicloId}
                 rivalId={rivalId}
+                totalClipsSize={totalClipsSize}
                 tagInputs={tagInputs}
                 setTagInputs={setTagInputs}
                 onUpdate={updatePhase}
@@ -307,6 +313,7 @@ interface PhaseEditorProps {
   phase: RivalPhaseAnalysis
   microcicloId?: string
   rivalId?: string
+  totalClipsSize?: number
   tagInputs: Record<string, string>
   setTagInputs: React.Dispatch<React.SetStateAction<Record<string, string>>>
   onUpdate: (fase: FaseRival, patch: Partial<RivalPhaseAnalysis>) => void
@@ -333,6 +340,7 @@ function PhaseEditor({
   phase,
   microcicloId,
   rivalId,
+  totalClipsSize = 0,
   tagInputs,
   setTagInputs,
   onUpdate,
@@ -509,7 +517,7 @@ function PhaseEditor({
         <div className="flex items-center justify-between">
           <div className="text-xs font-semibold text-muted-foreground">Clips de vídeo</div>
           <div className="text-[10px] text-muted-foreground">
-            {formatSize(phase.clips?.reduce((sum, c) => sum + (c.size ?? 0), 0) ?? 0)} / 300 MB
+            {formatSize(phase.clips?.reduce((sum, c) => sum + (c.size ?? 0), 0) ?? 0)} fase · {formatSize(totalClipsSize)} total
           </div>
         </div>
         <div className="space-y-2">
@@ -563,8 +571,9 @@ function PhaseEditor({
         </div>
         <ClipUpload
           fase={fase}
+          rivalId={rivalId}
           microcicloId={microcicloId}
-          existingSize={phase.clips?.reduce((sum, c) => sum + (c.size ?? 0), 0) ?? 0}
+          existingSize={totalClipsSize}
           onUploaded={onAddClip}
         />
       </div>
@@ -592,15 +601,17 @@ function formatDimensionesCampo(ancho: string, largo: string): string {
 
 interface ClipUploadProps {
   fase: FaseRival
+  rivalId?: string
   microcicloId?: string
   existingSize: number
   onUploaded: (fase: FaseRival, clip: ClipRival) => void
 }
 
-const MAX_CLIP_SIZE = 300 * 1024 * 1024 // 300 MB acumulados por microciclo
 const MAX_SINGLE_FILE_SIZE = 50 * 1024 * 1024 // 50 MB por archivo (límite del plan de Supabase)
 
-function ClipUpload({ fase, microcicloId, existingSize, onUploaded }: ClipUploadProps) {
+function ClipUpload({ fase, rivalId, microcicloId, existingSize, onUploaded }: ClipUploadProps) {
+  const maxTotal = rivalId ? 500 * 1024 * 1024 : 300 * 1024 * 1024
+  const maxLabel = rivalId ? '500 MB por rival' : '300 MB por microciclo'
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -618,27 +629,30 @@ function ClipUpload({ fase, microcicloId, existingSize, onUploaded }: ClipUpload
       return
     }
 
-    if (existingSize + file.size > MAX_CLIP_SIZE) {
-      toast.error(`Límite de 300 MB por microciclo. Actual: ${formatSize(existingSize)}. Nuevo: ${formatSize(file.size)}`)
+    if (existingSize + file.size > maxTotal) {
+      toast.error(`Límite de ${maxLabel}. Actual: ${formatSize(existingSize)}. Nuevo: ${formatSize(file.size)}`)
       return
     }
 
-    if (!microcicloId) {
-      toast.error('Guarda el microciclo antes de subir clips')
+    if (!rivalId && !microcicloId) {
+      toast.error('Vincula un rival o guarda el microciclo antes de subir clips')
       return
     }
 
     setUploading(true)
     try {
-      const formData = new FormData()
-      formData.append('fase', fase)
-      formData.append('file', file)
-
-      const result = await api.upload<{ url: string; size: number; mimeType: string; titulo: string }>(
-        `/microciclos/${microcicloId}/rival-clips`,
-        formData,
-        { timeout: 180000 }
-      )
+      const result = rivalId
+        ? await rivalesApi.uploadRivalClip(rivalId, fase, file)
+        : await api.upload<{ url: string; size: number; mimeType: string; titulo: string }>(
+            `/microciclos/${microcicloId}/rival-clips`,
+            (() => {
+              const formData = new FormData()
+              formData.append('fase', fase)
+              formData.append('file', file)
+              return formData
+            })(),
+            { timeout: 180000 }
+          )
 
       const newClip: ClipRival = {
         id: typeof crypto !== 'undefined' ? crypto.randomUUID() : Date.now().toString(),

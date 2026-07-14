@@ -14,6 +14,7 @@ import type {
   RivalJugadorAtributos,
 } from '@/types'
 import { rivalesApi } from '@/lib/api/partidos'
+import { mergeOnceProbableAnnotations } from '@/lib/rivalScoutSync'
 import { FORMATIONS } from '@/lib/formations'
 import { POSICIONES } from '@/lib/api/jugadores'
 
@@ -108,30 +109,30 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
     setLoadingOnce(true)
     try {
       const res = await rivalesApi.getOnceProbable(rivalId, competicionId)
-      const nuevosJugadores = (res.once_probable ?? []).map((j) => {
-        const existing = jugadores.find((e) => e.nombre === j.nombre)
-        return {
+      const merged = mergeOnceProbableAnnotations(
+        (res.once_probable ?? []).map((j) => ({
           ...j,
-          posicion: existing?.posicion ?? '',
-          rol: existing?.rol ?? '',
-          comentario: existing?.comentario ?? '',
-          atributos: existing?.atributos,
-        }
-      })
+          posicion: '',
+          rol: '',
+          comentario: '',
+          puntuacion: undefined,
+        })),
+        jugadores,
+        onceProbable?.colocacion,
+        res.actas_analizadas
+      )
 
-      if (nuevosJugadores.length === 0) {
+      if (!merged?.jugadores?.length) {
         toast.warning('No hay actas con titulares para este rival en la competición')
       } else {
-        toast.success(`${nuevosJugadores.length} jugadores cargados (${res.actas_analizadas} actas analizadas)`)
+        toast.success(`${merged.jugadores.length} jugadores cargados (${res.actas_analizadas} actas analizadas)`)
       }
 
-      updateStrategy({
-        once_probable: {
-          actas_analizadas: res.actas_analizadas,
-          jugadores: nuevosJugadores,
-          colocacion: onceProbable?.colocacion ?? {},
-        },
-      })
+      if (merged) {
+        updateStrategy({
+          once_probable: merged,
+        })
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error cargando once probable'
       console.error('Error cargando once probable:', err)

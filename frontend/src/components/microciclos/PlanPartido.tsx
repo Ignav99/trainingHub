@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, KeyboardEvent } from 'react'
-import { X } from 'lucide-react'
+import { useState, KeyboardEvent, useRef } from 'react'
+import { X, Loader2, Upload } from 'lucide-react'
+import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
@@ -19,10 +20,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { ClipRival, FasePlanPartido, PlanPartidoData, PlanPartidoPhase } from '@/types'
 import { exportPlanPartidoPDF } from '@/lib/pdf/exportPlanPartidoPDF'
 import { TacticalBoard } from './TacticalBoard'
+import { api } from '@/lib/api/client'
+import { rivalesApi } from '@/lib/api/partidos'
+import { VideoPlayer } from '@/components/video-analyzer/VideoPlayer'
 
 interface PlanPartidoProps {
   data: Partial<PlanPartidoData>
   onChange: (data: Partial<PlanPartidoData>) => void
+  rivalId?: string
+  microcicloId?: string
+  /** false en ficha rival: oculta consignas semanales (solo microciclo) */
+  weeklyMode?: boolean
 }
 
 const FASES: { fase: FasePlanPartido; label: string; color: string; placeholder: string }[] = [
@@ -64,13 +72,24 @@ const FASES: { fase: FasePlanPartido; label: string; color: string; placeholder:
   },
 ]
 
-export function PlanPartido({ data, onChange }: PlanPartidoProps) {
+export function PlanPartido({
+  data,
+  onChange,
+  rivalId,
+  microcicloId,
+  weeklyMode = true,
+}: PlanPartidoProps) {
   const [activeTab, setActiveTab] = useState<FasePlanPartido>('ataque_organizado')
   const [principioInputs, setPrincipioInputs] = useState<Record<string, string>>({})
   const [consignaInputs, setConsignaInputs] = useState<Record<string, string>>({})
 
   const fases = data.fases ?? []
   const consignasClave = data.consignas_clave ?? []
+
+  const totalClipsSize = fases.reduce(
+    (sum, f) => sum + (f.clips ?? []).reduce((s, c) => s + (c.size ?? 0), 0),
+    0
+  )
 
   const update = (patch: Partial<PlanPartidoData>) => onChange({ ...data, ...patch })
 
@@ -112,16 +131,9 @@ export function PlanPartido({ data, onChange }: PlanPartidoProps) {
     updatePhase(fase, { [field]: phase[field]?.filter((_, i) => i !== index) })
   }
 
-  const addClip = (fase: FasePlanPartido) => {
+  const addClip = (fase: FasePlanPartido, clip: ClipRival) => {
     const phase = getPhase(fase)
-    const newClip: ClipRival = {
-      id: typeof crypto !== 'undefined' ? crypto.randomUUID() : Date.now().toString(),
-      titulo: '',
-      url: '',
-      fase,
-      notas: '',
-    }
-    updatePhase(fase, { clips: [...(phase.clips ?? []), newClip] })
+    updatePhase(fase, { clips: [...(phase.clips ?? []), clip] })
   }
 
   const updateClip = (fase: FasePlanPartido, id: string, patch: Partial<ClipRival>) => {
@@ -213,27 +225,29 @@ export function PlanPartido({ data, onChange }: PlanPartidoProps) {
                     onRemove={(i) => removeTag(section.fase, 'principios_modelo', i)}
                     color="blue"
                   />
-                  <TagInput
-                    label="Consignas de la semana"
-                    items={phase.consignas ?? []}
-                    inputValue={consignaInputs[section.fase] ?? ''}
-                    onInputChange={(v) => setConsignaInputs((prev) => ({ ...prev, [section.fase]: v }))}
-                    onAdd={() =>
-                      addTag(section.fase, 'consignas', consignaInputs[section.fase] ?? '', () =>
-                        setConsignaInputs((prev) => ({ ...prev, [section.fase]: '' }))
-                      )
-                    }
-                    onKey={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
+                  {weeklyMode && (
+                    <TagInput
+                      label="Consignas de la semana"
+                      items={phase.consignas ?? []}
+                      inputValue={consignaInputs[section.fase] ?? ''}
+                      onInputChange={(v) => setConsignaInputs((prev) => ({ ...prev, [section.fase]: v }))}
+                      onAdd={() =>
                         addTag(section.fase, 'consignas', consignaInputs[section.fase] ?? '', () =>
                           setConsignaInputs((prev) => ({ ...prev, [section.fase]: '' }))
                         )
                       }
-                    }}
-                    onRemove={(i) => removeTag(section.fase, 'consignas', i)}
-                    color="amber"
-                  />
+                      onKey={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          addTag(section.fase, 'consignas', consignaInputs[section.fase] ?? '', () =>
+                            setConsignaInputs((prev) => ({ ...prev, [section.fase]: '' }))
+                          )
+                        }
+                      }}
+                      onRemove={(i) => removeTag(section.fase, 'consignas', i)}
+                      color="amber"
+                    />
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -242,40 +256,46 @@ export function PlanPartido({ data, onChange }: PlanPartidoProps) {
                   </div>
                   <div className="space-y-2">
                     {(phase.clips ?? []).map((clip) => (
-                      <div key={clip.id} className="flex items-center gap-2 rounded-md border bg-muted/30 p-2">
-                        <Input
-                          value={clip.titulo}
-                          onChange={(e) => updateClip(section.fase, clip.id, { titulo: e.target.value })}
-                          placeholder="Título"
-                          className="h-7 text-xs flex-1"
+                      <div key={clip.id} className="rounded-md border bg-muted/30 p-2 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={clip.titulo}
+                            onChange={(e) => updateClip(section.fase, clip.id, { titulo: e.target.value })}
+                            placeholder="Título"
+                            className="h-7 text-xs flex-1"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => removeClip(section.fase, clip.id)}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                        {clip.url && (
+                          <div className="rounded-md overflow-hidden border bg-black max-h-40">
+                            <VideoPlayer src={clip.url} standalonePreview />
+                          </div>
+                        )}
+                        <Textarea
+                          value={clip.notas ?? ''}
+                          onChange={(e) => updateClip(section.fase, clip.id, { notas: e.target.value })}
+                          placeholder="Notas del clip..."
+                          rows={1}
+                          className="text-xs resize-none min-h-0"
                         />
-                        <Input
-                          value={clip.url ?? ''}
-                          onChange={(e) => updateClip(section.fase, clip.id, { url: e.target.value })}
-                          placeholder="https://..."
-                          className="h-7 text-xs flex-1"
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
-                          onClick={() => removeClip(section.fase, clip.id)}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
                       </div>
                     ))}
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => addClip(section.fase)}
-                  >
-                    Añadir clip
-                  </Button>
+                  <PlanClipUpload
+                    fase={section.fase}
+                    rivalId={rivalId}
+                    microcicloId={microcicloId}
+                    existingSize={totalClipsSize}
+                    onUploaded={(clip) => addClip(section.fase, clip)}
+                  />
                 </div>
 
                 {/* Formación */}
@@ -325,7 +345,8 @@ export function PlanPartido({ data, onChange }: PlanPartidoProps) {
           })}
         </Tabs>
 
-        {/* Consignas Clave globales */}
+        {/* Consignas Clave globales — solo en microciclo (semana de partido) */}
+        {weeklyMode && (
         <div className="space-y-2 pt-1 border-t">
           <p className="text-xs font-semibold text-amber-600 flex items-center gap-1">
             <span>💬</span>
@@ -358,6 +379,7 @@ export function PlanPartido({ data, onChange }: PlanPartidoProps) {
             onKeyDown={handleConsignaClave}
           />
         </div>
+        )}
       </CardContent>
     </Card>
   )
@@ -407,6 +429,106 @@ function TagInput({ label, items, inputValue, onInputChange, onAdd, onKey, onRem
           Añadir
         </Button>
       </div>
+    </div>
+  )
+}
+
+function formatClipSize(bytes: number): string {
+  if (bytes === 0) return '0 MB'
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+interface PlanClipUploadProps {
+  fase: FasePlanPartido
+  rivalId?: string
+  microcicloId?: string
+  existingSize: number
+  onUploaded: (clip: ClipRival) => void
+}
+
+const MAX_SINGLE_CLIP = 50 * 1024 * 1024
+
+function PlanClipUpload({ fase, rivalId, microcicloId, existingSize, onUploaded }: PlanClipUploadProps) {
+  const maxTotal = rivalId ? 500 * 1024 * 1024 : 300 * 1024 * 1024
+  const maxLabel = rivalId ? '500 MB por rival' : '300 MB por microciclo'
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('video/')) {
+      toast.error('El archivo debe ser un vídeo (mp4, mov, etc.)')
+      return
+    }
+    if (file.size > MAX_SINGLE_CLIP) {
+      toast.error(`El vídeo supera 50 MB (${formatClipSize(file.size)})`)
+      return
+    }
+    if (existingSize + file.size > maxTotal) {
+      toast.error(`Límite de ${maxLabel}. Actual: ${formatClipSize(existingSize)}`)
+      return
+    }
+    if (!rivalId && !microcicloId) {
+      toast.error('Vincula un rival o guarda el microciclo antes de subir clips')
+      return
+    }
+
+    setUploading(true)
+    try {
+      const result = rivalId
+        ? await rivalesApi.uploadRivalClip(rivalId, `plan_${fase}`, file)
+        : await api.upload<{ url: string; size: number; mimeType: string; titulo: string }>(
+            `/microciclos/${microcicloId}/rival-clips`,
+            (() => {
+              const formData = new FormData()
+              formData.append('fase', `plan_${fase}`)
+              formData.append('file', file)
+              return formData
+            })(),
+            { timeout: 180000 }
+          )
+
+      onUploaded({
+        id: typeof crypto !== 'undefined' ? crypto.randomUUID() : Date.now().toString(),
+        titulo: result.titulo || file.name.replace(/\.[^/.]+$/, ''),
+        url: result.url,
+        fase,
+        notas: '',
+        size: result.size,
+        mimeType: result.mimeType,
+      })
+      toast.success('Clip subido correctamente')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error subiendo clip')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={handleFile} />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-7 text-xs"
+        disabled={uploading}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        {uploading ? (
+          <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+        ) : (
+          <Upload className="h-3.5 w-3.5 mr-1" />
+        )}
+        Subir vídeo
+      </Button>
+      <span className="text-[10px] text-muted-foreground">
+        {formatClipSize(existingSize)} / {rivalId ? '500' : '300'} MB
+      </span>
     </div>
   )
 }

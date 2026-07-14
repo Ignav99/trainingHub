@@ -22,6 +22,7 @@ import {
   Flag,
   Swords,
   Download,
+  Target,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -54,12 +55,16 @@ const HeadToHeadWidget = dynamic(() => import('@/components/pre-match/HeadToHead
 const InformeRivalSection = dynamic(() => import('@/components/pre-match/InformeRivalSection').then(m => ({ default: m.InformeRivalSection })), { loading: () => <WidgetSkeleton /> })
 const PlanPartidoSection = dynamic(() => import('@/components/pre-match/PlanPartidoSection').then(m => ({ default: m.PlanPartidoSection })), { loading: () => <WidgetSkeleton /> })
 const ABPRivalPlays = dynamic(() => import('@/components/abp/ABPRivalPlays'), { loading: () => <WidgetSkeleton /> })
+const RivalInformeTab = dynamic(() => import('@/components/rivales/RivalInformeTab').then(m => ({ default: m.RivalInformeTab })), { loading: () => <WidgetSkeleton /> })
+const RivalPlanPartidoTab = dynamic(() => import('@/components/rivales/RivalPlanPartidoTab').then(m => ({ default: m.RivalPlanPartidoTab })), { loading: () => <WidgetSkeleton /> })
 
-type TabId = 'scouting' | 'informes' | 'comparativa' | 'abp' | 'info'
+type TabId = 'scouting' | 'informe' | 'plan_partido' | 'informes' | 'comparativa' | 'abp' | 'info'
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'scouting', label: 'Scouting', icon: <Database className="h-3.5 w-3.5" /> },
-  { id: 'informes', label: 'Informes', icon: <Brain className="h-3.5 w-3.5" /> },
+  { id: 'informe', label: 'Informe Rival', icon: <FileText className="h-3.5 w-3.5" /> },
+  { id: 'plan_partido', label: 'Plan de Partido', icon: <Target className="h-3.5 w-3.5" /> },
+  { id: 'informes', label: 'Informes AI', icon: <Brain className="h-3.5 w-3.5" /> },
   { id: 'comparativa', label: 'Comparativa', icon: <Swords className="h-3.5 w-3.5" /> },
   { id: 'abp', label: 'ABP', icon: <Flag className="h-3.5 w-3.5" /> },
   { id: 'info', label: 'Info', icon: <Info className="h-3.5 w-3.5" /> },
@@ -213,7 +218,7 @@ export default function RivalDetailPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl animate-fade-in">
+    <div className={`space-y-6 animate-fade-in ${activeTab === 'informe' || activeTab === 'plan_partido' ? 'max-w-6xl' : 'max-w-3xl'}`}>
       <PageHeader
         title={rival.nombre}
         breadcrumbs={[
@@ -303,6 +308,18 @@ export default function RivalDetailPage() {
           onRefresh={handleRefreshIntel}
           rivalNombre={rival.nombre}
         />
+      )}
+
+      {activeTab === 'informe' && (
+        <RivalInformeTab
+          rivalId={id}
+          rivalNombre={rival.nombre}
+          equipoId={equipoActivo?.id}
+        />
+      )}
+
+      {activeTab === 'plan_partido' && (
+        <RivalPlanPartidoTab rivalId={id} />
       )}
 
       {activeTab === 'informes' && (
