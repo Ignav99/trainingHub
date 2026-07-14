@@ -350,9 +350,11 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <RivalScout
           data={planCT.rival_scout ?? {}}
-          rivalNombre={data.informe_rival ? data.microciclo.rivales?.nombre : undefined}
+          rivalNombre={data.microciclo.rivales?.nombre}
           rivalId={data.microciclo.rival_id}
           microcicloId={data.microciclo.id}
+          equipoId={data.microciclo.equipo_id}
+          localia={data.microciclo.partidos?.localia}
           onChange={(d) => updatePlanCT({ rival_scout: d })}
         />
         <PlanPartido

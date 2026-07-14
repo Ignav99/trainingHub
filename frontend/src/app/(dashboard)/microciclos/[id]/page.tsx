@@ -173,6 +173,16 @@ export default function MicrocicloDetallePage() {
     }
   }
 
+  const handleUpdateEstado = async (nuevoEstado: string) => {
+    if (!data) return
+    try {
+      await microciclosApi.update(data.microciclo.id, { estado: nuevoEstado })
+      mutate((key: string) => typeof key === 'string' && key.includes('/microciclos'), undefined, { revalidate: true })
+    } catch (err: any) {
+      toast.error(err.message || 'Error al actualizar el estado')
+    }
+  }
+
   // Loading
   if (loading) return <DetailPageSkeleton />
 
@@ -209,9 +219,17 @@ export default function MicrocicloDetallePage() {
             <div className="flex items-center gap-3 mb-2">
               <CalendarDays className="h-6 w-6 text-primary" />
               <h1 className="text-2xl font-bold">Microciclo</h1>
-              <Badge className={ESTADO_COLORS[micro.estado] || ESTADO_COLORS.borrador}>
-                {micro.estado.replace('_', ' ')}
-              </Badge>
+              <select
+                value={micro.estado}
+                onChange={(e) => handleUpdateEstado(e.target.value)}
+                className={`text-xs font-medium px-2.5 py-1 rounded-full border-0 cursor-pointer capitalize ${ESTADO_COLORS[micro.estado] || ESTADO_COLORS.borrador}`}
+                title="Cambiar estado del microciclo"
+              >
+                <option value="borrador">Borrador</option>
+                <option value="planificado">Planificado</option>
+                <option value="en_curso">En curso</option>
+                <option value="completado">Completado</option>
+              </select>
               {micro.equipos && (
                 <Badge variant="outline" className="text-xs">{micro.equipos.nombre}</Badge>
               )}
