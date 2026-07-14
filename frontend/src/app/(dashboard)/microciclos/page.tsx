@@ -33,11 +33,9 @@ import {
 } from '@/components/ui/dialog'
 import { apiKey } from '@/lib/swr'
 import { microciclosApi } from '@/lib/api/microciclos'
-import { rivalesApi } from '@/lib/api/partidos'
-import { gameModelsApi } from '@/lib/api/gameModels'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { formatDate } from '@/lib/utils'
-import type { Microciclo, PaginatedResponse, Partido, Rival, GameModel } from '@/types'
+import type { Microciclo, PaginatedResponse } from '@/types'
 
 // ============ Constants ============
 const ESTADO_COLORS: Record<string, string> = {
@@ -67,10 +65,6 @@ export default function MicrociclosListPage() {
   const [form, setForm] = useState({
     fecha_inicio: '',
     fecha_fin: '',
-    partido_id: '',
-    rival_id: '',
-    game_model_id: '',
-    objetivo_principal: '',
   })
 
   const { data, isLoading, error } = useSWR<PaginatedResponse<Microciclo>>(
@@ -78,24 +72,6 @@ export default function MicrociclosListPage() {
       ? apiKey('/microciclos', { equipo_id: equipoActivo.id, limit: 12, page })
       : null
   )
-
-  // Rivales y game models para el formulario de creación
-  const { data: rivalesData } = useSWR<PaginatedResponse<Rival>>(
-    equipoActivo?.id ? apiKey('/rivales', { limit: 100 }) : null
-  )
-  const { data: gameModelsData } = useSWR<{ data: GameModel[] }>(
-    equipoActivo?.id ? `game-models-${equipoActivo.id}` : null,
-    () => gameModelsApi.list(equipoActivo!.id)
-  )
-  const { data: partidosData } = useSWR<PaginatedResponse<Partido>>(
-    equipoActivo?.id
-      ? apiKey('/partidos', { equipo_id: equipoActivo.id, solo_pendientes: true, limit: 50 })
-      : null
-  )
-
-  const rivales = rivalesData?.data || []
-  const gameModels = gameModelsData?.data || []
-  const partidos = partidosData?.data || []
 
   const handleCreate = async () => {
     if (!equipoActivo?.id || !form.fecha_inicio || !form.fecha_fin) return
@@ -105,14 +81,10 @@ export default function MicrociclosListPage() {
         equipo_id: equipoActivo.id,
         fecha_inicio: form.fecha_inicio,
         fecha_fin: form.fecha_fin,
-        partido_id: form.partido_id || undefined,
-        rival_id: form.rival_id || undefined,
-        game_model_id: form.game_model_id || undefined,
-        objetivo_principal: form.objetivo_principal || undefined,
       })
       toast.success('Microciclo creado')
       setShowCreate(false)
-      setForm({ fecha_inicio: '', fecha_fin: '', partido_id: '', rival_id: '', game_model_id: '', objetivo_principal: '' })
+      setForm({ fecha_inicio: '', fecha_fin: '' })
       mutate(
         (key: string) => typeof key === 'string' && key.includes('/microciclos'),
         undefined,
@@ -350,89 +322,29 @@ export default function MicrociclosListPage() {
 
       {/* ============ CREATE DIALOG ============ */}
       <Dialog open={showCreate} onOpenChange={(open) => !open && setShowCreate(false)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Nuevo microciclo</DialogTitle>
             <DialogDescription>
-              Crea una semana de planificación y vincúlala al rival, partido y modelo de juego.
+              Elige el rango de fechas de la semana. El resto (rival, partido, modelo de juego, objetivos...) se configura después, dentro del microciclo.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Fecha inicio</Label>
-                <Input
-                  type="date"
-                  value={form.fecha_inicio}
-                  onChange={(e) => setForm({ ...form, fecha_inicio: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Fecha fin</Label>
-                <Input
-                  type="date"
-                  value={form.fecha_fin}
-                  onChange={(e) => setForm({ ...form, fecha_fin: e.target.value })}
-                />
-              </div>
-            </div>
-
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>Partido de referencia</Label>
-              <select
-                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                value={form.partido_id}
-                onChange={(e) => setForm({ ...form, partido_id: e.target.value })}
-              >
-                <option value="">Sin partido asignado</option>
-                {partidos.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {formatDate(p.fecha)} - {p.localia === 'local' ? 'vs' : '@'} {p.rival?.nombre || 'Rival'}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Rival</Label>
-                <select
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                  value={form.rival_id}
-                  onChange={(e) => setForm({ ...form, rival_id: e.target.value })}
-                >
-                  <option value="">Sin rival</option>
-                  {rivales.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.nombre_corto || r.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label>Modelo de juego</Label>
-                <select
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                  value={form.game_model_id}
-                  onChange={(e) => setForm({ ...form, game_model_id: e.target.value })}
-                >
-                  <option value="">Sin modelo</option>
-                  {gameModels.map((gm) => (
-                    <option key={gm.id} value={gm.id}>
-                      {gm.nombre || gm.sistema_juego || 'Modelo'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Objetivo principal</Label>
+              <Label>Fecha inicio</Label>
               <Input
-                placeholder="Ej: Mejorar salida de balón bajo presión"
-                value={form.objetivo_principal}
-                onChange={(e) => setForm({ ...form, objetivo_principal: e.target.value })}
+                type="date"
+                value={form.fecha_inicio}
+                onChange={(e) => setForm({ ...form, fecha_inicio: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Fecha fin</Label>
+              <Input
+                type="date"
+                value={form.fecha_fin}
+                onChange={(e) => setForm({ ...form, fecha_fin: e.target.value })}
               />
             </div>
           </div>

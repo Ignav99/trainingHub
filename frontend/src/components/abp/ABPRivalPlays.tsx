@@ -2,10 +2,10 @@
 
 import { useState } from 'react'
 import useSWR from 'swr'
-import { Plus, Trash2, Video, ExternalLink } from 'lucide-react'
+import { Plus, Trash2, Video } from 'lucide-react'
 import { apiKey, apiFetcher } from '@/lib/swr'
 import { abpApi } from '@/lib/api/abp'
-import { ABPRivalJugada, ABPJugada, ABP_TIPOS, TipoABP, LadoABP } from '@/types'
+import { ABPRivalJugada, ABPJugada, ABP_TIPOS, LadoABP } from '@/types'
 import { TEAM_COLORS, ELEMENT_SIZES } from '@/components/tarea-editor/types'
 import ABPPitch from './ABPPitch'
 import ABPEditor from './ABPEditor'
@@ -17,7 +17,7 @@ interface ABPRivalPlaysProps {
 }
 
 export default function ABPRivalPlays({ rivalId, lado }: ABPRivalPlaysProps) {
-  const [editorOpen, setEditorOpen] = useState(false)
+  // null = editor is blank, ready for a new play
   const [editingJugada, setEditingJugada] = useState<ABPRivalJugada | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -25,20 +25,15 @@ export default function ABPRivalPlays({ rivalId, lado }: ABPRivalPlaysProps) {
   const { data, mutate } = useSWR<{ data: ABPRivalJugada[] }>(swrKey, apiFetcher)
   const jugadas = data?.data || []
 
-  const handleNew = () => {
-    setEditingJugada(null)
-    setEditorOpen(true)
-  }
+  const handleNew = () => setEditingJugada(null)
 
-  const handleEdit = (j: ABPRivalJugada) => {
-    setEditingJugada(j)
-    setEditorOpen(true)
-  }
+  const handleEdit = (j: ABPRivalJugada) => setEditingJugada(j)
 
   const handleDelete = async (id: string) => {
     if (!confirm('¿Eliminar esta jugada del rival?')) return
     try {
       await abpApi.deleteRival(rivalId, id)
+      if (editingJugada?.id === id) setEditingJugada(null)
       mutate()
     } catch (e) {
       console.error('Error deleting rival play:', e)
@@ -58,13 +53,13 @@ export default function ABPRivalPlays({ rivalId, lado }: ABPRivalPlaysProps) {
         tags: partial.tags,
       }
       if (editingJugada?.id) {
-        await abpApi.updateRival(rivalId, editingJugada.id, payload)
+        const updated = await abpApi.updateRival(rivalId, editingJugada.id, payload)
+        setEditingJugada(updated)
       } else {
         await abpApi.createRival(rivalId, payload as any)
+        setEditingJugada(null)
       }
       mutate()
-      setEditorOpen(false)
-      setEditingJugada(null)
     } catch (e) {
       console.error('Error saving rival play:', e)
     } finally {
@@ -72,20 +67,7 @@ export default function ABPRivalPlays({ rivalId, lado }: ABPRivalPlaysProps) {
     }
   }
 
-  if (editorOpen) {
-    return (
-      <div className="fixed inset-0 z-[100] bg-white flex flex-col">
-        <ABPEditor
-          jugada={editingJugada ? { ...editingJugada, lado: editingJugada.lado } as Partial<ABPJugada> : (lado ? { lado } : undefined)}
-          onSave={handleSave}
-          onCancel={() => { setEditorOpen(false); setEditingJugada(null) }}
-          saving={saving}
-        />
-      </div>
-    )
-  }
-
-  // Group by tipo when showing both sides together (no lado filter)
+  // Group by tipo only when showing both sides together (no lado filter)
   const grouped: Record<string, ABPRivalJugada[]> = {}
   for (const j of jugadas) {
     if (!grouped[j.tipo]) grouped[j.tipo] = []
@@ -94,59 +76,91 @@ export default function ABPRivalPlays({ rivalId, lado }: ABPRivalPlaysProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-foreground">
-            Jugadas de ABP{lado ? ` ${lado === 'ofensivo' ? 'ofensiva' : 'defensiva'}` : ''} del rival
-          </h3>
-          <span className="text-xs text-muted-foreground">({jugadas.length})</span>
-        </div>
-        <button
-          type="button"
-          onClick={handleNew}
-          className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-orange-600 bg-orange-50 rounded-lg hover:bg-orange-100"
-        >
-          <Plus className="h-3.5 w-3.5" /> Nueva jugada
-        </button>
+      {/* Pizarra interactiva — siempre visible, dedicada a las jugadas de ABP */}
+      <div className="rounded-lg border overflow-hidden" style={{ height: 520 }}>
+        <ABPEditor
+          key={editingJugada?.id ?? 'new'}
+          jugada={editingJugada ? ({ ...editingJugada } as Partial<ABPJugada>) : undefined}
+          lockLado={lado}
+          onSave={handleSave}
+          onCancel={handleNew}
+          saving={saving}
+        />
       </div>
+      <p className="text-[10px] text-muted-foreground">
+        Dibuja la jugada y pulsa Guardar. La pizarra se vacía para poder crear la siguiente — puedes tener varias jugadas
+        {lado ? (lado === 'ofensivo' ? ' ofensivas' : ' defensivas') : ''} guardadas para este rival.
+      </p>
 
-      {jugadas.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground text-xs border border-dashed rounded-lg">
-          No hay jugadas de ABP dibujadas para este rival todavía.
+      {/* Biblioteca de jugadas guardadas */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Jugadas guardadas ({jugadas.length})
+          </h3>
+          {editingJugada && (
+            <button
+              type="button"
+              onClick={handleNew}
+              className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-orange-600 bg-orange-50 rounded-md hover:bg-orange-100"
+            >
+              <Plus className="h-3 w-3" /> Nueva jugada
+            </button>
+          )}
         </div>
-      ) : lado ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {jugadas.map((j) => (
-            <RivalPlayCard key={j.id} jugada={j} onClick={() => handleEdit(j)} onDelete={() => handleDelete(j.id)} />
-          ))}
-        </div>
-      ) : (
-        Object.entries(grouped).map(([tipoCode, plays]) => {
-          const tipoInfo = ABP_TIPOS.find((t) => t.value === tipoCode)
-          return (
-            <div key={tipoCode}>
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                {tipoInfo?.label || tipoCode}
-              </h4>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {plays.map((j) => (
-                  <RivalPlayCard key={j.id} jugada={j} onClick={() => handleEdit(j)} onDelete={() => handleDelete(j.id)} />
-                ))}
+
+        {jugadas.length === 0 ? (
+          <div className="text-center py-6 text-muted-foreground text-xs border border-dashed rounded-lg">
+            Todavía no hay jugadas guardadas para este rival.
+          </div>
+        ) : lado ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {jugadas.map((j) => (
+              <RivalPlayCard
+                key={j.id}
+                jugada={j}
+                active={editingJugada?.id === j.id}
+                onClick={() => handleEdit(j)}
+                onDelete={() => handleDelete(j.id)}
+              />
+            ))}
+          </div>
+        ) : (
+          Object.entries(grouped).map(([tipoCode, plays]) => {
+            const tipoInfo = ABP_TIPOS.find((t) => t.value === tipoCode)
+            return (
+              <div key={tipoCode}>
+                <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                  {tipoInfo?.label || tipoCode}
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {plays.map((j) => (
+                    <RivalPlayCard
+                      key={j.id}
+                      jugada={j}
+                      active={editingJugada?.id === j.id}
+                      onClick={() => handleEdit(j)}
+                      onDelete={() => handleDelete(j.id)}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
-          )
-        })
-      )}
+            )
+          })
+        )}
+      </div>
     </div>
   )
 }
 
 function RivalPlayCard({
   jugada,
+  active,
   onClick,
   onDelete,
 }: {
   jugada: ABPRivalJugada
+  active?: boolean
   onClick: () => void
   onDelete: () => void
 }) {
@@ -158,7 +172,9 @@ function RivalPlayCard({
 
   return (
     <div
-      className="group relative border rounded-xl overflow-hidden hover:shadow-md hover:border-orange-300 transition-all cursor-pointer bg-card"
+      className={`group relative border rounded-xl overflow-hidden hover:shadow-md hover:border-orange-300 transition-all cursor-pointer bg-card ${
+        active ? 'ring-2 ring-orange-400 border-orange-300' : ''
+      }`}
       onClick={onClick}
     >
       <div className="relative h-32 overflow-hidden">
