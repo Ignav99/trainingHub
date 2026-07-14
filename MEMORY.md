@@ -149,6 +149,17 @@ El usuario pidió que ABP Ofensiva/Defensiva del rival funcionara como la herram
 - En las pestañas "ABP Ofensiva" y "ABP Defensiva" de Estrategia del Rival, la pizarra libre de un solo uso (`TacticalBoard`) se sustituyó por esta biblioteca de jugadas (se mantiene la pizarra libre en las otras 4 fases, donde un boceto puntual sigue teniendo sentido).
 - Como `abp_rival_jugadas` está ligado al `rival_id` (no al microciclo), las jugadas creadas desde la Sala del Lunes son las MISMAS que se ven en la ficha del rival (`/rivales/[id]` > pestaña ABP) — una sola fuente de verdad.
 
+### 6.5 Fix: pizarra ABP siempre visible (no modal desconectado) + creación de microciclo simplificada
+El usuario reportó dos problemas en la misma sesión:
+
+1. **ABP sin pizarra interactiva dedicada**: al probar la implementación anterior (jugadas ABP con editor completo), la sensación era "como si llamáramos a la parte de balón parado de la app" — el editor solo aparecía dentro de un modal a pantalla completa activado por un botón "Nueva jugada", desconectado visualmente del resto de la pestaña.
+   - **Fix**: `ABPRivalPlays.tsx` ahora incrusta `ABPEditor` de forma inline y permanente (contenedor de altura fija ~520px) — la pizarra interactiva SIEMPRE está visible en la pestaña, sin necesidad de ningún botón para revelarla. Al hacer click en una jugada guardada, se carga en esa MISMA pizarra (remount forzado vía `key`). "Nueva jugada" simplemente vacía la pizarra para empezar otra.
+   - Se añadió un botón "Ampliar ventana" DENTRO de `ABPEditor.tsx` (mismo patrón que `TacticalBoard`/`VideoPlayer`: `createPortal` a `document.body`, sin perder el dibujo), esta vez opcional/opt-in, no el comportamiento por defecto.
+   - Se añadió el prop `lockLado` a `ABPEditor` para fijar y ocultar el selector ofensivo/defensivo cuando se usa desde una pestaña ya específica (Estrategia > ABP Ofensiva/Defensiva), manteniendo el selector visible en el uso sin filtrar de la ficha del rival.
+
+2. **Creación de microciclo con demasiados campos**: tanto en el dashboard general como en `/microciclos`, el diálogo de "Nuevo microciclo" pedía partido, rival, modelo de juego, objetivo principal, táctico, físico y notas.
+   - **Fix**: ambos diálogos (`frontend/src/app/(dashboard)/page.tsx` y `frontend/src/app/(dashboard)/microciclos/page.tsx`) se simplificaron a pedir ÚNICAMENTE fecha de inicio y fecha de fin. Todo lo demás (rival, partido, modelo de juego, objetivos, notas) ya era editable después dentro del microciclo (`/microciclos/[id]` > diálogo "Editar Microciclo", que no se tocó). Se limpiaron los fetches SWR e imports que solo servían para poblar esos selectores eliminados.
+
 ### 7. Pendientes
 - **CRÍTICO**: usuario debe ejecutar la migración 043 en Supabase SQL Editor (ver punto 5).
 - Añadir secret `RENDER_API_KEY` en GitHub para que el nuevo deploy polling funcione automáticamente tras merge.
