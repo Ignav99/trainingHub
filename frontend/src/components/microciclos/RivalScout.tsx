@@ -222,10 +222,11 @@ export function RivalScout({ data, rivalNombre, rivalId, microcicloId, equipoId,
               />
             </div>
 
-            {localia === 'visitante' && (
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Dimensiones del campo (m)</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Dimensiones terreno de juego (m)</Label>
+              <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">Ancho:</span>
                   <Input
                     type="number"
                     min={0}
@@ -239,10 +240,12 @@ export function RivalScout({ data, rivalNombre, rivalId, microcicloId, equipoId,
                         },
                       })
                     }
-                    placeholder="Ancho"
-                    className="h-8 text-xs w-24"
+                    placeholder="105"
+                    className="h-8 text-xs w-20"
                   />
-                  <span className="text-xs text-muted-foreground">×</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">Largo:</span>
                   <Input
                     type="number"
                     min={0}
@@ -256,12 +259,12 @@ export function RivalScout({ data, rivalNombre, rivalId, microcicloId, equipoId,
                         },
                       })
                     }
-                    placeholder="Largo"
-                    className="h-8 text-xs w-24"
+                    placeholder="68"
+                    className="h-8 text-xs w-20"
                   />
                 </div>
               </div>
-            )}
+            </div>
           </TabsContent>
 
           <TabsContent value="once_probable" className="space-y-4 mt-3">
