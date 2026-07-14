@@ -790,6 +790,14 @@ export interface ClipRival {
   mimeType?: string
 }
 
+export type RivalAtributoEmoji = 'muro' | 'correcaminos' | 'bombilla'
+
+export interface RivalJugadorAtributos {
+  muro?: boolean
+  correcaminos?: boolean
+  bombilla?: boolean
+}
+
 export interface RivalJugadorEvaluacion {
   nombre: string
   dorsal: number | null
@@ -799,6 +807,7 @@ export interface RivalJugadorEvaluacion {
   rol?: string
   comentario?: string
   puntuacion?: number
+  atributos?: RivalJugadorAtributos
 }
 
 export interface RivalScoutStrategy {

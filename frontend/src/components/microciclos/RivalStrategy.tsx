@@ -2,22 +2,80 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Star, Plus, X } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
-import type { RivalScoutStrategy, RivalJugadorEvaluacion } from '@/types'
+import type {
+  RivalScoutStrategy,
+  RivalJugadorEvaluacion,
+  RivalAtributoEmoji,
+  RivalJugadorAtributos,
+} from '@/types'
 import { rivalesApi } from '@/lib/api/partidos'
 import { FORMATIONS } from '@/lib/formations'
 import { POSICIONES } from '@/lib/api/jugadores'
+
+const TABLA_FILAS = 18
+
+const ATRIBUTO_OPTIONS: { key: RivalAtributoEmoji; emoji: string; title: string }[] = [
+  { key: 'muro', emoji: '🧱', title: 'Muro' },
+  { key: 'correcaminos', emoji: '🏃', title: 'Correcaminos' },
+  { key: 'bombilla', emoji: '💡', title: 'Bombilla' },
+]
 
 interface RivalStrategyProps {
   data: RivalScoutStrategy | undefined
   rivalId?: string
   competicionId?: string
   onChange: (data: RivalScoutStrategy) => void
+}
+
+function toHorizontalPos(top: string, left: string) {
+  const t = parseFloat(top)
+  const l = parseFloat(left)
+  return { top: `${l}%`, left: `${100 - t}%` }
+}
+
+function AtributoEmojis({
+  atributos,
+  size = 'sm',
+  onToggle,
+}: {
+  atributos?: RivalJugadorAtributos
+  size?: 'sm' | 'md'
+  onToggle?: (key: RivalAtributoEmoji) => void
+}) {
+  const textSize = size === 'sm' ? 'text-[10px]' : 'text-sm'
+  return (
+    <div className="flex items-center gap-0.5">
+      {ATRIBUTO_OPTIONS.map(({ key, emoji, title }) => {
+        const active = !!atributos?.[key]
+        if (onToggle) {
+          return (
+            <button
+              key={key}
+              type="button"
+              title={title}
+              onClick={() => onToggle(key)}
+              className={`${textSize} leading-none rounded p-0.5 transition-opacity ${
+                active ? 'opacity-100 ring-1 ring-primary/40 bg-primary/10' : 'opacity-30 hover:opacity-70'
+              }`}
+            >
+              {emoji}
+            </button>
+          )
+        }
+        if (!active) return null
+        return (
+          <span key={key} className={textSize} title={title}>
+            {emoji}
+          </span>
+        )
+      })}
+    </div>
+  )
 }
 
 export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalStrategyProps) {
@@ -28,13 +86,10 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
   const activeFormation = FORMATIONS.find((f) => f.name === sistema) ?? FORMATIONS[1]
 
   const [loadingOnce, setLoadingOnce] = useState(false)
-  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null)
   const [pickingSlot, setPickingSlot] = useState<string | null>(null)
 
   const jugadores = onceProbable?.jugadores ?? []
   const placedNames = new Set(Object.values(colocacion).filter(Boolean))
-  const availablePlayers = jugadores.filter((j) => !placedNames.has(j.nombre))
-  const selectedJugador = jugadores.find((j) => j.nombre === selectedPlayer) ?? null
 
   const updateStrategy = (patch: Partial<RivalScoutStrategy>) => {
     onChange({ ...strategy, ...patch })
@@ -53,13 +108,16 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
     setLoadingOnce(true)
     try {
       const res = await rivalesApi.getOnceProbable(rivalId, competicionId)
-      const nuevosJugadores = (res.once_probable ?? []).map((j) => ({
-        ...j,
-        posicion: '',
-        rol: '',
-        comentario: '',
-        puntuacion: undefined,
-      }))
+      const nuevosJugadores = (res.once_probable ?? []).map((j) => {
+        const existing = jugadores.find((e) => e.nombre === j.nombre)
+        return {
+          ...j,
+          posicion: existing?.posicion ?? '',
+          rol: existing?.rol ?? '',
+          comentario: existing?.comentario ?? '',
+          atributos: existing?.atributos,
+        }
+      })
 
       if (nuevosJugadores.length === 0) {
         toast.warning('No hay actas con titulares para este rival en la competición')
@@ -117,7 +175,6 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
     }
     const current = colocacion[slotId]
     if (current) {
-      setSelectedPlayer(current)
       setPickingSlot(null)
     } else {
       setPickingSlot(slotId)
@@ -130,17 +187,34 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
     updateStrategy({ once_probable: { ...onceProbable, jugadores: updated } })
   }
 
+  const toggleAtributo = (nombre: string, key: RivalAtributoEmoji) => {
+    const j = jugadores.find((p) => p.nombre === nombre)
+    if (!j) return
+    const current = j.atributos ?? {}
+    updateJugador(nombre, {
+      atributos: { ...current, [key]: !current[key] },
+    })
+  }
+
   const totalActas = onceProbable?.actas_analizadas ?? 0
   const frecuenciaLabel = (apariciones?: number) =>
     totalActas > 0 ? `${apariciones ?? 0}/${totalActas}` : apariciones != null ? String(apariciones) : '—'
 
+  const tablaFilas: (RivalJugadorEvaluacion | null)[] = Array.from({ length: TABLA_FILAS }, (_, i) =>
+    jugadores[i] ?? null
+  )
+
+  const pickingSlotLabel = pickingSlot
+    ? activeFormation.slots.find((s) => s.id === pickingSlot)?.label
+    : null
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
         <div>
           <Label className="text-sm font-medium">Sistema y once probable</Label>
           <p className="text-xs text-muted-foreground">
-            Coloca a los jugadores según los partidos jugados y el conocimiento del rival
+            Coloca jugadores en el campo y anota estilo/atributos en la tabla
           </p>
         </div>
         <Button
@@ -179,26 +253,36 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
       </div>
 
       {onceProbable && jugadores.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="md:col-span-2 space-y-2">
+        <div className="space-y-4">
+          {/* Campograma horizontal */}
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-xs text-muted-foreground">Colocación en el campo</Label>
               <Badge variant="secondary" className="text-[10px]">
-                {onceProbable.actas_analizadas} actas analizadas
+                {onceProbable.actas_analizadas} actas · 🧱 muro · 🏃 velocidad · 💡 creatividad
               </Badge>
             </div>
+            {pickingSlot && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                Elige un jugador de la tabla para la posición <strong>{pickingSlotLabel}</strong>
+                <button type="button" className="ml-2 underline" onClick={() => setPickingSlot(null)}>
+                  Cancelar
+                </button>
+              </p>
+            )}
             <div
-              className="relative bg-emerald-700/90 rounded-xl overflow-hidden mx-auto max-w-sm"
-              style={{ aspectRatio: '3/4' }}
+              className="relative bg-emerald-700/90 rounded-xl overflow-hidden w-full max-w-3xl mx-auto"
+              style={{ aspectRatio: '4/3' }}
             >
               <div className="absolute inset-3">
                 <div className="absolute inset-0 border-2 border-white/25 rounded" />
-                <div className="absolute top-1/2 left-0 right-0 border-t-2 border-white/25" />
+                <div className="absolute top-0 bottom-0 left-1/2 border-l-2 border-white/25" />
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 border-2 border-white/25 rounded-full" />
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-[16%] border-2 border-t-0 border-white/25" />
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2/3 h-[16%] border-2 border-b-0 border-white/25" />
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 h-2/3 w-[16%] border-2 border-l-0 border-white/25" />
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 h-2/3 w-[16%] border-2 border-r-0 border-white/25" />
               </div>
               {activeFormation.slots.map((slot) => {
+                const pos = toHorizontalPos(slot.top, slot.left)
                 const playerName = colocacion[slot.id]
                 const jugador = playerName ? jugadores.find((j) => j.nombre === playerName) : null
                 const posInfo = POSICIONES[slot.position as keyof typeof POSICIONES]
@@ -206,47 +290,42 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
                 const isPicking = pickingSlot === slot.id
 
                 if (jugador) {
-                  const isSelected = selectedPlayer === jugador.nombre
                   return (
                     <button
                       key={slot.id}
                       type="button"
                       className="absolute -translate-x-1/2 -translate-y-1/2 text-center group cursor-pointer"
-                      style={{ top: slot.top, left: slot.left }}
+                      style={{ top: pos.top, left: pos.left }}
                       onClick={() => handleSlotClick(slot.id)}
-                      title="Click para ver/editar rol"
+                      title={`${jugador.nombre} — click para cambiar`}
                     >
                       <div
-                        className={`w-9 h-9 rounded-full font-bold text-xs flex items-center justify-center shadow-md text-white transition-all ${
-                          isSelected ? 'ring-2 ring-yellow-400 ring-offset-1 scale-110' : ''
-                        }`}
+                        className="w-8 h-8 rounded-full font-bold text-[10px] flex items-center justify-center shadow-md text-white"
                         style={{ backgroundColor: bgColor }}
                       >
                         {jugador.dorsal ?? '?'}
                       </div>
-                      <span className="block text-[9px] text-white font-medium mt-0.5 max-w-[72px] truncate drop-shadow mx-auto">
-                        {jugador.nombre}
+                      <span className="block text-[8px] text-white font-medium mt-0.5 max-w-[56px] truncate drop-shadow mx-auto">
+                        {jugador.nombre.split(',')[0]}
                       </span>
                       {totalActas > 0 && (
-                        <span className="block text-[8px] text-blue-200 font-semibold leading-none tabular-nums">
+                        <span className="block text-[7px] text-blue-200 font-semibold tabular-nums leading-none">
                           {frecuenciaLabel(jugador.apariciones)}
                         </span>
                       )}
-                      {!!jugador.puntuacion && (
-                        <span className="block text-[8px] text-amber-300 leading-none">
-                          {'★'.repeat(jugador.puntuacion)}
-                        </span>
-                      )}
+                      <div className="flex justify-center mt-0.5">
+                        <AtributoEmojis atributos={jugador.atributos} size="sm" />
+                      </div>
                       <button
                         type="button"
-                        className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                         onClick={(e) => {
                           e.stopPropagation()
                           clearSlot(slot.id)
                         }}
                         title="Quitar del puesto"
                       >
-                        <X className="h-2.5 w-2.5" />
+                        <X className="h-2 w-2" />
                       </button>
                     </button>
                   )
@@ -257,132 +336,117 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
                     key={slot.id}
                     type="button"
                     className="absolute -translate-x-1/2 -translate-y-1/2 text-center cursor-pointer"
-                    style={{ top: slot.top, left: slot.left }}
+                    style={{ top: pos.top, left: pos.left }}
                     onClick={() => handleSlotClick(slot.id)}
                     title={`Añadir jugador: ${slot.label}`}
                   >
                     <div
-                      className={`w-9 h-9 rounded-full border-2 border-dashed flex items-center justify-center transition-colors ${
+                      className={`w-8 h-8 rounded-full border-2 border-dashed flex items-center justify-center transition-colors ${
                         isPicking ? 'border-yellow-300 bg-yellow-300/20' : 'border-white/50 hover:border-white hover:bg-white/10'
                       }`}
                     >
-                      <Plus className="h-3.5 w-3.5 text-white/70" />
+                      <Plus className="h-3 w-3 text-white/70" />
                     </div>
-                    <span className="block text-[9px] text-white/60 font-medium mt-0.5">{slot.label}</span>
+                    <span className="block text-[8px] text-white/60 font-medium mt-0.5">{slot.label}</span>
                   </button>
                 )
               })}
             </div>
           </div>
 
-          <div className="md:col-span-1 space-y-2">
-            <Label className="text-xs font-medium">
-              {pickingSlot ? 'Elige jugador para esa posición' : `Jugadores (${jugadores.length})`}
-            </Label>
-            <div className="space-y-1 max-h-[340px] overflow-y-auto rounded-md border p-1.5">
-              {(pickingSlot ? availablePlayers : jugadores).map((j) => (
-                <button
-                  key={j.nombre}
-                  type="button"
-                  onClick={() => (pickingSlot ? assignSlot(pickingSlot, j.nombre) : setSelectedPlayer(j.nombre))}
-                  className={`w-full flex items-center gap-2 text-left px-2 py-1.5 rounded text-xs transition-colors ${
-                    selectedPlayer === j.nombre ? 'bg-blue-50 text-blue-800' : 'hover:bg-muted'
-                  }`}
-                >
-                  <span className="w-5 h-5 rounded-full bg-slate-200 text-[10px] font-bold flex items-center justify-center shrink-0">
-                    {j.dorsal ?? '?'}
-                  </span>
-                  <span className="truncate flex-1">{j.nombre}</span>
-                  {totalActas > 0 && (
-                    <span className="text-[10px] font-semibold text-blue-600 tabular-nums shrink-0">
-                      {frecuenciaLabel(j.apariciones)}
-                    </span>
-                  )}
-                  {placedNames.has(j.nombre) && (
-                    <Badge variant="secondary" className="text-[8px] px-1 shrink-0">en 11</Badge>
-                  )}
-                </button>
-              ))}
-              {pickingSlot && availablePlayers.length === 0 && (
-                <p className="text-[10px] text-muted-foreground text-center py-2">No hay más jugadores disponibles</p>
-              )}
+          {/* Tabla de 18 jugadores */}
+          <div className="space-y-2">
+            <Label className="text-xs font-medium">Plantilla rival ({jugadores.length} jugadores)</Label>
+            <div className="rounded-md border overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-muted/50 border-b">
+                    <th className="text-left px-2 py-1.5 font-semibold w-8">#</th>
+                    <th className="text-left px-2 py-1.5 font-semibold w-10">Dors.</th>
+                    <th className="text-left px-2 py-1.5 font-semibold min-w-[120px]">Jugador</th>
+                    <th className="text-center px-2 py-1.5 font-semibold w-12">Freq.</th>
+                    <th className="text-center px-2 py-1.5 font-semibold w-20">Atributos</th>
+                    <th className="text-left px-2 py-1.5 font-semibold min-w-[200px]">Comentario / estilo</th>
+                    <th className="text-center px-2 py-1.5 font-semibold w-14">11</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tablaFilas.map((j, i) => {
+                    if (!j) {
+                      return (
+                        <tr key={`empty-${i}`} className="border-b last:border-0 text-muted-foreground/40">
+                          <td className="px-2 py-1.5">{i + 1}</td>
+                          <td colSpan={6} className="px-2 py-1.5 italic">
+                            —
+                          </td>
+                        </tr>
+                      )
+                    }
+
+                    const enOnce = placedNames.has(j.nombre)
+                    const puedeAsignar = pickingSlot && !enOnce
+
+                    return (
+                      <tr
+                        key={j.nombre}
+                        className={`border-b last:border-0 transition-colors ${
+                          puedeAsignar
+                            ? 'cursor-pointer hover:bg-amber-50'
+                            : enOnce
+                              ? 'bg-blue-50/50'
+                              : 'hover:bg-muted/30'
+                        }`}
+                        onClick={() => {
+                          if (pickingSlot && !enOnce) assignSlot(pickingSlot, j.nombre)
+                        }}
+                      >
+                        <td className="px-2 py-1.5 text-muted-foreground">{i + 1}</td>
+                        <td className="px-2 py-1.5 font-bold">{j.dorsal ?? '?'}</td>
+                        <td className="px-2 py-1.5 font-medium truncate max-w-[160px]" title={j.nombre}>
+                          {j.nombre}
+                        </td>
+                        <td className="px-2 py-1.5 text-center tabular-nums text-blue-600 font-semibold">
+                          {frecuenciaLabel(j.apariciones)}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+                            <AtributoEmojis
+                              atributos={j.atributos}
+                              size="md"
+                              onToggle={(key) => toggleAtributo(j.nombre, key)}
+                            />
+                          </div>
+                        </td>
+                        <td className="px-2 py-1" onClick={(e) => e.stopPropagation()}>
+                          <Input
+                            value={j.comentario ?? ''}
+                            onChange={(e) => updateJugador(j.nombre, { comentario: e.target.value })}
+                            placeholder="Líder, regateador, agresivo..."
+                            className="h-7 text-[11px] border-0 bg-transparent focus-visible:ring-1"
+                          />
+                        </td>
+                        <td className="px-2 py-1.5 text-center">
+                          {enOnce ? (
+                            <Badge variant="secondary" className="text-[9px] px-1">✓</Badge>
+                          ) : pickingSlot ? (
+                            <span className="text-[9px] text-amber-600">+</span>
+                          ) : null}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
             </div>
-            {pickingSlot && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-6 text-[10px] w-full"
-                onClick={() => setPickingSlot(null)}
-              >
-                Cancelar
-              </Button>
-            )}
+            <p className="text-[10px] text-muted-foreground">
+              Pincha una posición vacía en el campo y luego un jugador de la tabla. Atributos: 🧱 muro · 🏃 correcaminos · 💡 bombilla
+            </p>
           </div>
         </div>
       ) : (
         <p className="text-xs text-muted-foreground italic">
           Pulsa &quot;Cargar 11 probable&quot; para traer los jugadores desde las actas RFEF del rival.
         </p>
-      )}
-
-      {selectedJugador && (
-        <div className="rounded-md border p-3 space-y-2 bg-muted/30">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-slate-200 text-[10px] font-bold flex items-center justify-center">
-                {selectedJugador.dorsal ?? '?'}
-              </span>
-              <span className="text-sm font-semibold">{selectedJugador.nombre}</span>
-              {totalActas > 0 && (
-                <Badge variant="secondary" className="text-[10px] tabular-nums">
-                  {frecuenciaLabel(selectedJugador.apariciones)} titularidades
-                </Badge>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-0.5">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    type="button"
-                    onClick={() =>
-                      updateJugador(selectedJugador.nombre, {
-                        puntuacion: selectedJugador.puntuacion === star ? undefined : star,
-                      })
-                    }
-                  >
-                    <Star
-                      className={`h-4 w-4 ${
-                        (selectedJugador.puntuacion ?? 0) >= star ? 'fill-amber-400 text-amber-400' : 'text-gray-300'
-                      }`}
-                    />
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                className="text-muted-foreground hover:text-foreground"
-                onClick={() => setSelectedPlayer(null)}
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-          <Input
-            value={selectedJugador.rol ?? ''}
-            onChange={(e) => updateJugador(selectedJugador.nombre, { rol: e.target.value })}
-            placeholder="Rol / tendencia (ej. pivote defensivo, extremo desequilibrante...)"
-            className="h-8 text-xs"
-          />
-          <Textarea
-            value={selectedJugador.comentario ?? ''}
-            onChange={(e) => updateJugador(selectedJugador.nombre, { comentario: e.target.value })}
-            placeholder="Comportamiento, actitud, qué suele hacer en el campo..."
-            rows={2}
-            className="text-xs resize-none"
-          />
-        </div>
       )}
     </div>
   )
