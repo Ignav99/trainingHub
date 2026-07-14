@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Star, Plus, X } from 'lucide-react'
+import { toast } from 'sonner'
 import type { RivalScoutStrategy, RivalJugadorEvaluacion } from '@/types'
 import { rivalesApi } from '@/lib/api/partidos'
 import { FORMATIONS } from '@/lib/formations'
@@ -15,10 +16,11 @@ import { POSICIONES } from '@/lib/api/jugadores'
 interface RivalStrategyProps {
   data: RivalScoutStrategy | undefined
   rivalId?: string
+  competicionId?: string
   onChange: (data: RivalScoutStrategy) => void
 }
 
-export function RivalStrategy({ data, rivalId, onChange }: RivalStrategyProps) {
+export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalStrategyProps) {
   const strategy = data ?? {}
   const onceProbable = strategy.once_probable
   const colocacion = onceProbable?.colocacion ?? {}
@@ -39,10 +41,18 @@ export function RivalStrategy({ data, rivalId, onChange }: RivalStrategyProps) {
   }
 
   const handleLoadOnceProbable = async () => {
-    if (!rivalId) return
+    if (!rivalId) {
+      toast.error('Vincula un rival al microciclo para cargar el 11 probable')
+      return
+    }
+    if (!competicionId) {
+      toast.error('No se encontró la competición RFEF del equipo. Comprueba que el equipo tiene liga vinculada.')
+      return
+    }
+
     setLoadingOnce(true)
     try {
-      const res = await rivalesApi.getOnceProbable(rivalId)
+      const res = await rivalesApi.getOnceProbable(rivalId, competicionId)
       const nuevosJugadores = (res.once_probable ?? []).map((j) => ({
         ...j,
         posicion: '',
@@ -50,19 +60,37 @@ export function RivalStrategy({ data, rivalId, onChange }: RivalStrategyProps) {
         comentario: '',
         puntuacion: undefined,
       }))
+
+      if (nuevosJugadores.length === 0) {
+        toast.warning('No hay actas con titulares para este rival en la competición')
+      } else {
+        toast.success(`${nuevosJugadores.length} jugadores cargados (${res.actas_analizadas} actas analizadas)`)
+      }
+
       updateStrategy({
         once_probable: {
           actas_analizadas: res.actas_analizadas,
           jugadores: nuevosJugadores,
-          colocacion: {},
+          colocacion: onceProbable?.colocacion ?? {},
         },
       })
-    } catch (err) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error cargando once probable'
       console.error('Error cargando once probable:', err)
+      toast.error(message)
     } finally {
       setLoadingOnce(false)
     }
   }
+
+  const autoLoadedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!rivalId || !competicionId || onceProbable?.jugadores?.length) return
+    const key = `${rivalId}:${competicionId}`
+    if (autoLoadedRef.current === key) return
+    autoLoadedRef.current = key
+    handleLoadOnceProbable()
+  }, [rivalId, competicionId, onceProbable?.jugadores?.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const assignSlot = (slotId: string, playerName: string) => {
     if (!onceProbable) return
@@ -111,21 +139,24 @@ export function RivalStrategy({ data, rivalId, onChange }: RivalStrategyProps) {
             Coloca a los jugadores según los partidos jugados y el conocimiento del rival
           </p>
         </div>
-        {rivalId && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 text-xs shrink-0"
-            onClick={handleLoadOnceProbable}
-            disabled={loadingOnce}
-          >
-            {loadingOnce ? 'Cargando...' : 'Cargar 11 probable'}
-          </Button>
-        )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 text-xs shrink-0"
+          onClick={handleLoadOnceProbable}
+          disabled={loadingOnce || !rivalId}
+        >
+          {loadingOnce ? 'Cargando...' : 'Cargar 11 probable'}
+        </Button>
       </div>
 
-      {/* Formation pills — same formations used in Convocatoria / Alineación */}
+      {!rivalId && (
+        <p className="text-xs text-amber-600">
+          Vincula un rival al microciclo para cargar el 11 probable desde las actas RFEF.
+        </p>
+      )}
+
       <div className="flex flex-wrap gap-1.5">
         {FORMATIONS.map((f) => (
           <button
@@ -143,9 +174,8 @@ export function RivalStrategy({ data, rivalId, onChange }: RivalStrategyProps) {
         ))}
       </div>
 
-      {onceProbable ? (
+      {onceProbable && jugadores.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Pitch */}
           <div className="md:col-span-2 space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-xs text-muted-foreground">Colocación en el campo</Label>
@@ -236,7 +266,6 @@ export function RivalStrategy({ data, rivalId, onChange }: RivalStrategyProps) {
             </div>
           </div>
 
-          {/* Sidebar: player list / picker */}
           <div className="md:col-span-1 space-y-2">
             <Label className="text-xs font-medium">
               {pickingSlot ? 'Elige jugador para esa posición' : `Jugadores (${jugadores.length})`}
@@ -279,12 +308,10 @@ export function RivalStrategy({ data, rivalId, onChange }: RivalStrategyProps) {
         </div>
       ) : (
         <p className="text-xs text-muted-foreground italic">
-          Carga el once probable para empezar a colocar jugadores.
+          Pulsa &quot;Cargar 11 probable&quot; para traer los jugadores desde las actas RFEF del rival.
         </p>
       )}
 
-      {/* Role / behaviour editor for the selected player — click any player
-          on the pitch or in the list to open this. */}
       {selectedJugador && (
         <div className="rounded-md border p-3 space-y-2 bg-muted/30">
           <div className="flex items-center justify-between">

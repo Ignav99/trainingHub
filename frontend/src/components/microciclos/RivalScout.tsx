@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, KeyboardEvent, useRef } from 'react'
+import { useState, useMemo, KeyboardEvent, useRef } from 'react'
+import useSWR from 'swr'
 import { X, Loader2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -19,6 +20,7 @@ import type {
   RivalSubfaseAtaque,
   RivalSubfaseDefensa,
   RivalSubfaseData,
+  LocaliaPartido,
 } from '@/types'
 import { exportRivalScoutPDF } from '@/lib/pdf/exportRivalScoutPDF'
 import { TacticalBoard } from './TacticalBoard'
@@ -26,12 +28,16 @@ import { RivalStrategy } from './RivalStrategy'
 import { api } from '@/lib/api/client'
 import { VideoPlayer } from '@/components/video-analyzer/VideoPlayer'
 import ABPRivalPlays from '@/components/abp/ABPRivalPlays'
+import { apiKey } from '@/lib/swr'
+import type { RFEFCompeticion } from '@/lib/api/rfef'
 
 interface RivalScoutProps {
   data: Partial<RivalScoutData>
   rivalNombre?: string
   rivalId?: string
   microcicloId?: string
+  equipoId?: string
+  localia?: LocaliaPartido
   onChange: (data: Partial<RivalScoutData>) => void
 }
 
@@ -68,9 +74,17 @@ const SUBFASES_DEFENSA: { key: RivalSubfaseDefensa; label: string }[] = [
 
 type TabValue = 'contexto' | 'once_probable' | FaseRival
 
-export function RivalScout({ data, rivalNombre, rivalId, microcicloId, onChange }: RivalScoutProps) {
+export function RivalScout({ data, rivalNombre, rivalId, microcicloId, equipoId, localia, onChange }: RivalScoutProps) {
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({})
   const [activeTab, setActiveTab] = useState<TabValue>('contexto')
+
+  const { data: rfefRes } = useSWR<{ data: RFEFCompeticion[] }>(
+    equipoId ? apiKey('/rfef/competiciones', { equipo_id: equipoId }) : null
+  )
+  const competicionId = useMemo(() => {
+    if (!rfefRes?.data) return undefined
+    return rfefRes.data.find((c) => c.mi_equipo_nombre)?.id
+  }, [rfefRes])
 
   const fases = data.fases ?? []
 
@@ -158,13 +172,14 @@ export function RivalScout({ data, rivalNombre, rivalId, microcicloId, onChange 
   }
 
   const estrategia = data.estrategia ?? {}
+  const dimensiones = parseDimensionesCampo(estrategia.dimensiones_campo)
 
   return (
     <Card className="w-full">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-base">Estrategia del Rival</CardTitle>
+            <CardTitle className="text-base">Informe Rival</CardTitle>
             {rivalNombre && <p className="text-sm text-muted-foreground font-medium">{rivalNombre}</p>}
           </div>
           <Button
@@ -197,41 +212,63 @@ export function RivalScout({ data, rivalNombre, rivalId, microcicloId, onChange 
 
           <TabsContent value="contexto" className="space-y-4 mt-3">
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Actitud / estilo del rival</Label>
-              <Textarea
-                value={estrategia.actitud_estilo ?? ''}
-                onChange={(e) => update({ estrategia: { ...estrategia, actitud_estilo: e.target.value } })}
-                placeholder="Cómo suelen afrontar el partido, intensidad, agresividad, presión del público local..."
-                rows={3}
-                className="text-sm resize-none"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Dimensiones del campo (si jugamos fuera)</Label>
-              <Textarea
-                value={estrategia.dimensiones_campo ?? ''}
-                onChange={(e) => update({ estrategia: { ...estrategia, dimensiones_campo: e.target.value } })}
-                placeholder="Medidas del campo, tipo de césped, condiciones particulares del estadio..."
-                rows={2}
-                className="text-sm resize-none"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Notas generales de estrategia</Label>
+              <Label className="text-xs text-muted-foreground">Comentarios Rival</Label>
               <Textarea
                 value={estrategia.notas ?? ''}
                 onChange={(e) => update({ estrategia: { ...estrategia, notas: e.target.value } })}
-                placeholder="Cualquier otra consideración estratégica sobre el rival..."
-                rows={3}
+                placeholder="Actitud, estilo, intensidad, agresividad, cualquier otra consideración sobre el rival..."
+                rows={4}
                 className="text-sm resize-none"
               />
             </div>
+
+            {localia === 'visitante' && (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Dimensiones del campo (m)</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    value={dimensiones.ancho}
+                    onChange={(e) =>
+                      update({
+                        estrategia: {
+                          ...estrategia,
+                          dimensiones_campo: formatDimensionesCampo(e.target.value, dimensiones.largo),
+                        },
+                      })
+                    }
+                    placeholder="Ancho"
+                    className="h-8 text-xs w-24"
+                  />
+                  <span className="text-xs text-muted-foreground">×</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    value={dimensiones.largo}
+                    onChange={(e) =>
+                      update({
+                        estrategia: {
+                          ...estrategia,
+                          dimensiones_campo: formatDimensionesCampo(dimensiones.ancho, e.target.value),
+                        },
+                      })
+                    }
+                    placeholder="Largo"
+                    className="h-8 text-xs w-24"
+                  />
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="once_probable" className="space-y-4 mt-3">
             <RivalStrategy
               data={data.estrategia}
               rivalId={rivalId}
+              competicionId={competicionId}
               onChange={(nuevaEstrategia) => update({ estrategia: nuevaEstrategia })}
             />
           </TabsContent>
@@ -536,6 +573,18 @@ function formatSize(bytes: number): string {
   if (bytes === 0) return '0 MB'
   const mb = bytes / (1024 * 1024)
   return `${mb.toFixed(1)} MB`
+}
+
+function parseDimensionesCampo(value?: string): { ancho: string; largo: string } {
+  if (!value) return { ancho: '', largo: '' }
+  const match = value.match(/^(\d+)\s*[x×]\s*(\d+)$/)
+  if (match) return { ancho: match[1], largo: match[2] }
+  return { ancho: '', largo: '' }
+}
+
+function formatDimensionesCampo(ancho: string, largo: string): string {
+  if (!ancho && !largo) return ''
+  return `${ancho || '0'} x ${largo || '0'}`
 }
 
 interface ClipUploadProps {
