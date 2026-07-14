@@ -25,13 +25,11 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { DashboardResumen, DashboardPlantilla } from '@/lib/api/dashboard'
 import { microciclosApi } from '@/lib/api/microciclos'
 import { descansosApi } from '@/lib/api/descansos'
 import { RFEFCompeticion } from '@/lib/api/rfef'
 import { apiKey } from '@/lib/swr'
-import { formatDate } from '@/lib/utils'
 import type { Sesion, Microciclo, Partido, Descanso, PaginatedResponse } from '@/types'
 
 import { NextMatchBanner } from '@/components/dashboard/NextMatchBanner'
@@ -97,18 +95,12 @@ export default function DashboardPage() {
   const descansosKey = apiKey('/descansos', { equipo_id: equipoId, fecha_desde: fechaDesde, fecha_hasta: fechaHasta }, ['equipo_id'])
   const { data: descansosRes, mutate: mutateDescansos } = useSWR<{ data: Descanso[] }>(descansosKey)
 
-  // Upcoming matches for create microciclo dialog
-  const { data: upcomingRes } = useSWR<PaginatedResponse<Partido>>(
-    apiKey('/partidos', { equipo_id: equipoId, solo_pendientes: true, orden: 'fecha', direccion: 'asc', limit: 20 }, ['equipo_id'])
-  )
-
   // Derived data
   const microcicloActivo = microActivoRes?.data?.[0] || null
   const sesionesBorrador = borradoresRes?.total || 0
   const sesionesMes = calSesRes?.data || []
   const partidosMes = calParRes?.data || []
   const microciclosMes = calMicroRes?.data || []
-  const upcomingMatches = upcomingRes?.data || []
   const loading = l1 || l3
 
   // Descansos derived from SWR
@@ -139,13 +131,7 @@ export default function DashboardPage() {
   const [addMenuDay, setAddMenuDay] = useState<string | null>(null)
   const [showCreateMicro, setShowCreateMicro] = useState(false)
   const [creatingMicro, setCreatingMicro] = useState(false)
-  const [microForm, setMicroForm] = useState({
-    partido_id: '',
-    objetivo_principal: '',
-    objetivo_tactico: '',
-    objetivo_fisico: '',
-    notas: '',
-  })
+  const [microDateForm, setMicroDateForm] = useState({ fecha_inicio: '', fecha_fin: '' })
 
   const handlePrevMonth = () => {
     if (calMonth === 0) {
@@ -165,33 +151,31 @@ export default function DashboardPage() {
     }
   }
 
+  // Default Monday-Sunday range of the week containing the 1st of the calendar's current month
+  const getDefaultMicroRange = () => {
+    const firstDay = new Date(calYear, calMonth, 1)
+    const mondayOffset = firstDay.getDay() === 0 ? -6 : 1 - firstDay.getDay()
+    const startDate = new Date(firstDay)
+    startDate.setDate(firstDay.getDate() + mondayOffset)
+    const endDate = new Date(startDate)
+    endDate.setDate(startDate.getDate() + 6)
+    return {
+      fecha_inicio: startDate.toISOString().split('T')[0],
+      fecha_fin: endDate.toISOString().split('T')[0],
+    }
+  }
+
   // ============ Create Microciclo handler ============
   const handleCreateMicro = async () => {
-    if (!equipoActivo?.id) return
+    if (!equipoActivo?.id || !microDateForm.fecha_inicio || !microDateForm.fecha_fin) return
     setCreatingMicro(true)
     try {
-      // Use current month as default range (Mon of first week - Sun of last week)
-      const firstDay = new Date(calYear, calMonth, 1)
-      // Find the Monday of the week containing the 1st
-      const mondayOffset = firstDay.getDay() === 0 ? -6 : 1 - firstDay.getDay()
-      const startDate = new Date(firstDay)
-      startDate.setDate(firstDay.getDate() + mondayOffset)
-      // Use Sunday of that week
-      const endDate = new Date(startDate)
-      endDate.setDate(startDate.getDate() + 6)
-
       const res = await microciclosApi.create({
         equipo_id: equipoActivo.id,
-        fecha_inicio: startDate.toISOString().split('T')[0],
-        fecha_fin: endDate.toISOString().split('T')[0],
-        partido_id: microForm.partido_id || undefined,
-        objetivo_principal: microForm.objetivo_principal || undefined,
-        objetivo_tactico: microForm.objetivo_tactico || undefined,
-        objetivo_fisico: microForm.objetivo_fisico || undefined,
-        notas: microForm.notas || undefined,
+        fecha_inicio: microDateForm.fecha_inicio,
+        fecha_fin: microDateForm.fecha_fin,
       })
       setShowCreateMicro(false)
-      setMicroForm({ partido_id: '', objetivo_principal: '', objetivo_tactico: '', objetivo_fisico: '', notas: '' })
       mutate((key: string) => typeof key === 'string' && key.includes('/microciclos'), undefined, { revalidate: true })
       router.push(`/microciclos/${res.id}`)
     } catch (err: any) {
@@ -301,7 +285,7 @@ export default function DashboardPage() {
           variant="outline"
           className="flex-1"
           onClick={() => {
-            setMicroForm({ partido_id: '', objetivo_principal: '', objetivo_tactico: '', objetivo_fisico: '', notas: '' })
+            setMicroDateForm(getDefaultMicroRange())
             setShowCreateMicro(true)
           }}
         >
@@ -502,69 +486,29 @@ export default function DashboardPage() {
 
       {/* ============ DIALOG: Create Microciclo ============ */}
       <Dialog open={showCreateMicro} onOpenChange={(open) => !open && setShowCreateMicro(false)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Nuevo Microciclo</DialogTitle>
             <DialogDescription>
-              Define los objetivos de la semana en torno al partido.
+              Elige el rango de fechas de la semana. El resto (rival, partido, modelo de juego, objetivos...) se configura después, dentro del microciclo.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>Partido de referencia</Label>
-              <select
-                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                value={microForm.partido_id}
-                onChange={(e) => setMicroForm({ ...microForm, partido_id: e.target.value })}
-              >
-                <option value="">Sin partido asignado</option>
-                {upcomingMatches.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {formatDate(m.fecha)} - {m.localia === 'local' ? 'vs' : '@'} {m.rival?.nombre || 'Rival'} ({m.competicion})
-                  </option>
-                ))}
-              </select>
-              <p className="text-[11px] text-muted-foreground">
-                Conecta el microciclo con el partido para organizar la carga por Match Days
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Objetivo principal</Label>
+              <Label>Fecha inicio</Label>
               <Input
-                placeholder="Ej: Mejorar salida de balon bajo presion"
-                value={microForm.objetivo_principal}
-                onChange={(e) => setMicroForm({ ...microForm, objetivo_principal: e.target.value })}
+                type="date"
+                value={microDateForm.fecha_inicio}
+                onChange={(e) => setMicroDateForm({ ...microDateForm, fecha_inicio: e.target.value })}
               />
             </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Objetivo tactico</Label>
-                <Input
-                  placeholder="Ej: Progresion por interior"
-                  value={microForm.objetivo_tactico}
-                  onChange={(e) => setMicroForm({ ...microForm, objetivo_tactico: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Objetivo fisico</Label>
-                <Input
-                  placeholder="Ej: Potencia aerobica"
-                  value={microForm.objetivo_fisico}
-                  onChange={(e) => setMicroForm({ ...microForm, objetivo_fisico: e.target.value })}
-                />
-              </div>
-            </div>
-
             <div className="space-y-2">
-              <Label>Notas</Label>
-              <Textarea
-                placeholder="Observaciones sobre la semana, jugadores lesionados, detalles del rival..."
-                rows={3}
-                value={microForm.notas}
-                onChange={(e) => setMicroForm({ ...microForm, notas: e.target.value })}
+              <Label>Fecha fin</Label>
+              <Input
+                type="date"
+                value={microDateForm.fecha_fin}
+                onChange={(e) => setMicroDateForm({ ...microDateForm, fecha_fin: e.target.value })}
               />
             </div>
           </div>
@@ -573,7 +517,10 @@ export default function DashboardPage() {
             <Button variant="outline" onClick={() => setShowCreateMicro(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleCreateMicro} disabled={creatingMicro}>
+            <Button
+              onClick={handleCreateMicro}
+              disabled={creatingMicro || !microDateForm.fecha_inicio || !microDateForm.fecha_fin}
+            >
               {creatingMicro && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Crear microciclo
             </Button>

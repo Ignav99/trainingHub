@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { Eye, EyeOff, Loader2, CheckCircle, AlertCircle, Users } from 'lucide-react'
 import { invitacionesApi } from '@/lib/api/invitaciones'
-import { supabase } from '@/lib/supabase/client'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import type { InvitacionVerify } from '@/types'
 
 const STADIUM_BG = 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?w=1920&q=80'
@@ -59,7 +59,7 @@ export default function JoinPage() {
       })
 
       // Sign in with Supabase to get a session
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { error: signInError } = await getSupabaseClient().auth.signInWithPassword({
         email: inviteInfo.email,
         password: formData.password,
       })

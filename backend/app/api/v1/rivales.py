@@ -7,7 +7,6 @@ import asyncio
 import io
 import json
 import logging
-from collections import Counter
 
 from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File, status
 from fastapi.responses import StreamingResponse
@@ -25,7 +24,7 @@ from app.models import (
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
-from app.services.pre_match_service import populate_rival_intel, gather_rival_intel_standalone, _match_rival_name, _query_actas, _get_rival_data
+from app.services.pre_match_service import populate_rival_intel, gather_rival_intel_standalone, _match_rival_name, _query_actas, _get_rival_data, _get_once_probable
 from app.services.ai_factory import call_ai_with_fallback
 from app.services.ai_errors import AIError
 
@@ -140,83 +139,29 @@ async def get_once_probable(
     """
     supabase = get_supabase()
 
-    # Get rival name
     rival_res = supabase.table("rivales").select("nombre, rfef_nombre").eq(
         "id", str(rival_id)
-    ).single().execute()
+    ).eq("organizacion_id", auth.organizacion_id).single().execute()
 
     if not rival_res.data:
         raise HTTPException(status_code=404, detail="Rival no encontrado")
 
     rival_nombre = rival_res.data.get("rfef_nombre") or rival_res.data.get("nombre", "")
 
-    # Use shared _query_actas (handles empty acta names via jornadas fallback)
     comp_filter = str(competicion_id) if competicion_id else None
     if not comp_filter:
-        raise HTTPException(status_code=400, detail="competicion_id is required")
+        raise HTTPException(status_code=400, detail="competicion_id es obligatorio")
 
-    actas = _query_actas(
-        supabase, comp_filter, rival_nombre,
-        "local_nombre, visitante_nombre, titulares_local, titulares_visitante, jornada_numero",
-        desc=True, limit=5,
+    once = _get_once_probable(supabase, comp_filter, rival_nombre)
+
+    logger.info(
+        "Once probable rival=%s comp=%s actas=%d jugadores=%d",
+        rival_id, comp_filter, once.get("actas_analizadas", 0), len(once.get("jugadores", [])),
     )
-
-    # Count appearances of each starter for the rival's side
-    player_counts: Counter = Counter()
-    player_dorsals: dict[str, int | None] = {}
-    actas_with_data = 0
-
-    for acta in actas:
-        titulares = _get_rival_data(acta, rival_nombre, "titulares_local", "titulares_visitante")
-        if titulares:
-            actas_with_data += 1
-        for jugador in titulares:
-            nombre = jugador.get("nombre", "").strip()
-            if nombre:
-                player_counts[nombre] += 1
-                if nombre not in player_dorsals:
-                    player_dorsals[nombre] = jugador.get("dorsal")
-
-    # Fetch tarjetas to cross-reference sanctions
-    tarjetas_actas = _query_actas(
-        supabase, comp_filter, rival_nombre,
-        "local_nombre, visitante_nombre, tarjetas_local, tarjetas_visitante, jornada_numero",
-    )
-
-    sancionados = set()
-    tarjeta_cards: dict[str, dict] = {}
-    for acta in tarjetas_actas:
-        tarjetas = _get_rival_data(acta, rival_nombre, "tarjetas_local", "tarjetas_visitante")
-        for tarjeta in tarjetas:
-            nombre_t = tarjeta.get("jugador", "").strip()
-            tipo = tarjeta.get("tipo", "")
-            if not nombre_t:
-                continue
-            if nombre_t not in tarjeta_cards:
-                tarjeta_cards[nombre_t] = {"amarillas": 0}
-            if tipo == "amarilla":
-                tarjeta_cards[nombre_t]["amarillas"] += 1
-
-    for nombre_t, cards in tarjeta_cards.items():
-        amarillas = cards["amarillas"]
-        if amarillas > 0 and amarillas % 5 == 0:
-            sancionados.add(nombre_t)
-
-    # All players by frequency (not just top 11)
-    all_players = player_counts.most_common()
-    once_probable = [
-        {
-            "nombre": nombre,
-            "dorsal": player_dorsals.get(nombre),
-            "apariciones": count,
-            "sancionado": nombre in sancionados,
-        }
-        for nombre, count in all_players
-    ]
 
     return {
-        "actas_analizadas": actas_with_data,
-        "once_probable": once_probable,
+        "actas_analizadas": once.get("actas_analizadas", 0),
+        "once_probable": once.get("jugadores", []),
     }
 
 

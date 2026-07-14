@@ -786,27 +786,64 @@ export interface ClipRival {
   url?: string
   fase: FaseRival
   notas: string
+  size?: number
+  mimeType?: string
+}
+
+export interface RivalJugadorEvaluacion {
+  nombre: string
+  dorsal: number | null
+  apariciones: number
+  sancionado?: boolean
+  posicion?: string
+  rol?: string
+  comentario?: string
+  puntuacion?: number
+}
+
+export interface RivalScoutStrategy {
+  sistema?: string
+  once_probable?: {
+    actas_analizadas: number
+    jugadores: RivalJugadorEvaluacion[]
+    colocacion?: Record<string, string>
+  }
+  actitud_estilo?: string
+  dimensiones_campo?: string
+  notas?: string
+}
+
+export interface RivalSubfaseData {
+  notas: string
 }
 
 export interface RivalPhaseAnalysis {
   fase: FaseRival
-  sistema?: string
   fortalezas: string[]
   debilidades: string[]
   clips: ClipRival[]
-  anotaciones: string
   pizarra_tactica?: string
   formacion?: string
   espacios?: string
+  vigilancias?: string
+  repliegue?: string
+  abp_comentarios?: string
+  abp_defensa?: string
+  subfases?: Partial<Record<RivalSubfaseAtaque | RivalSubfaseDefensa, RivalSubfaseData>>
 }
+
+export type RivalSubfaseAtaque = 'creacion' | 'progresion' | 'finalizacion'
+
+export type RivalSubfaseDefensa = 'bloque_alto' | 'bloque_medio' | 'bloque_bajo'
 
 export interface RivalScoutData {
   sistema: string
   fortalezas: string[]
   debilidades: string[]
   clips: ClipRival[]
-  anotaciones: string
+  anotaciones?: string
   fases: RivalPhaseAnalysis[]
+  estrategia?: RivalScoutStrategy
 }
 
 export interface PlanPartidoPhase {

@@ -3,7 +3,9 @@ TrainingHub Pro - Router de Microciclos
 CRUD para planificación semanal de entrenamiento.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query, status
+import logging
+
+from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File, Form, status
 from typing import Optional
 from uuid import UUID
 from datetime import date, timedelta
@@ -27,7 +29,13 @@ from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
+
+RIVAL_CLIPS_BUCKET = "rival-clips"
+MAX_CLIP_SIZE = 50 * 1024 * 1024  # 50MB por archivo (límite del plan Supabase)
+MAX_TOTAL_CLIPS_SIZE = 300 * 1024 * 1024  # 300MB por microciclo (agregado)
+ALLOWED_VIDEO_TYPES = ("video/",)
 
 
 @router.get("", response_model=MicrocicloListResponse)
@@ -518,4 +526,92 @@ async def reordenar_sesiones(
         "updated": updated,
         "total": len(request.sesiones),
         "microciclo_id": str(microciclo_id),
+    }
+
+
+def _current_clips_size(plan_ct: Optional[dict]) -> int:
+    """Suma el tamaño (bytes) de todos los clips de vídeo ya guardados en rival_scout."""
+    if not plan_ct:
+        return 0
+    rival_scout = plan_ct.get("rival_scout") or {}
+    fases = rival_scout.get("fases") or []
+    total = 0
+    for fase in fases:
+        for clip in fase.get("clips") or []:
+            total += clip.get("size") or 0
+    return total
+
+
+@router.post("/{microciclo_id}/rival-clips")
+async def upload_rival_clip(
+    microciclo_id: UUID,
+    fase: str = Form(...),
+    file: UploadFile = File(...),
+    auth: AuthContext = Depends(require_permission(Permission.MICROCICLO_UPDATE)),
+):
+    """
+    Sube un clip de vídeo del análisis del rival (Sala de Lunes) usando el
+    service role de Supabase, evitando así depender de políticas RLS sobre
+    storage.objects para el bucket 'rival-clips'.
+
+    Límites:
+      - 50MB por archivo (máximo permitido por el plan de Supabase)
+      - 300MB acumulados por microciclo (sumando todos los clips ya guardados)
+    """
+    if not file.content_type or not file.content_type.startswith(ALLOWED_VIDEO_TYPES):
+        raise HTTPException(status_code=400, detail="El archivo debe ser un vídeo (mp4, mov, etc.)")
+
+    content = await file.read()
+    size = len(content)
+
+    if size > MAX_CLIP_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El vídeo supera el límite de 50MB por archivo (recibido: {size / (1024 * 1024):.1f}MB)",
+        )
+
+    supabase = get_supabase()
+
+    try:
+        micro = supabase.table("microciclos").select("*").eq(
+            "id", str(microciclo_id)
+        ).single().execute()
+    except Exception as e:
+        logger.error(f"Error fetching microciclo {microciclo_id} for clip upload: {e}")
+        raise HTTPException(status_code=500, detail="Error al verificar el microciclo")
+
+    if not micro.data:
+        raise HTTPException(status_code=404, detail="Microciclo no encontrado")
+
+    existing_size = _current_clips_size(micro.data.get("plan_ct"))
+    if existing_size + size > MAX_TOTAL_CLIPS_SIZE:
+        remaining = max(0, MAX_TOTAL_CLIPS_SIZE - existing_size)
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Límite de 300MB por microciclo alcanzado. "
+                f"Espacio disponible: {remaining / (1024 * 1024):.1f}MB"
+            ),
+        )
+
+    safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in (file.filename or "clip"))
+    extension = safe_name.rsplit(".", 1)[-1] if "." in safe_name else "mp4"
+    storage_path = f"{microciclo_id}/{fase}/{auth.organizacion_id}_{safe_name}"
+
+    try:
+        supabase.storage.from_(RIVAL_CLIPS_BUCKET).upload(
+            storage_path,
+            content,
+            file_options={"content-type": file.content_type, "upsert": "true"},
+        )
+        url = supabase.storage.from_(RIVAL_CLIPS_BUCKET).get_public_url(storage_path)
+    except Exception as e:
+        logger.error(f"Error uploading rival clip: {e}")
+        raise HTTPException(status_code=500, detail="Error al subir el clip de vídeo")
+
+    return {
+        "url": url,
+        "size": size,
+        "mimeType": file.content_type,
+        "titulo": safe_name.rsplit(".", 1)[0] if "." in safe_name else safe_name,
     }

@@ -84,12 +84,6 @@ export function exportRivalScoutPDF(data: Partial<RivalScoutData>, rivalNombre?:
     doc.setFontSize(10)
     doc.setTextColor(60, 60, 60)
 
-    if (phase.anotaciones) {
-      const split = doc.splitTextToSize(phase.anotaciones, pageWidth - margin * 2)
-      doc.text(split, margin, y)
-      y += split.length * 5 + 4
-    }
-
     renderSection('Fortalezas', phase.fortalezas, [16, 185, 129])
     renderSection('Debilidades', phase.debilidades, [239, 68, 68])
 

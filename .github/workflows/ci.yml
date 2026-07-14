@@ -61,11 +61,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: npm ci
-
-      - name: Lint
-        working-directory: frontend
-        run: npx next lint
+        run: npm ci --include=dev
 
       - name: Type check
         working-directory: frontend

@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, KeyboardEvent } from 'react'
-import { X } from 'lucide-react'
+import { useState, useMemo, KeyboardEvent, useRef } from 'react'
+import useSWR from 'swr'
+import { X, Loader2, Upload } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -10,20 +12,32 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import type { ClipRival, FaseRival, RivalPhaseAnalysis, RivalScoutData } from '@/types'
+import type {
+  ClipRival,
+  FaseRival,
+  RivalPhaseAnalysis,
+  RivalScoutData,
+  RivalSubfaseAtaque,
+  RivalSubfaseDefensa,
+  RivalSubfaseData,
+  LocaliaPartido,
+} from '@/types'
 import { exportRivalScoutPDF } from '@/lib/pdf/exportRivalScoutPDF'
 import { TacticalBoard } from './TacticalBoard'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { RivalStrategy } from './RivalStrategy'
+import { api } from '@/lib/api/client'
+import { VideoPlayer } from '@/components/video-analyzer/VideoPlayer'
+import ABPRivalPlays from '@/components/abp/ABPRivalPlays'
+import { apiKey } from '@/lib/swr'
+import type { RFEFCompeticion } from '@/lib/api/rfef'
 
 interface RivalScoutProps {
   data: Partial<RivalScoutData>
   rivalNombre?: string
+  rivalId?: string
+  microcicloId?: string
+  equipoId?: string
+  localia?: LocaliaPartido
   onChange: (data: Partial<RivalScoutData>) => void
 }
 
@@ -46,9 +60,31 @@ const FASES: FaseRival[] = [
   'abp_defensiva',
 ]
 
-export function RivalScout({ data, rivalNombre, onChange }: RivalScoutProps) {
+const SUBFASES_ATAQUE: { key: RivalSubfaseAtaque; label: string }[] = [
+  { key: 'creacion', label: 'Creación' },
+  { key: 'progresion', label: 'Progresión' },
+  { key: 'finalizacion', label: 'Finalización' },
+]
+
+const SUBFASES_DEFENSA: { key: RivalSubfaseDefensa; label: string }[] = [
+  { key: 'bloque_alto', label: 'Bloque alto' },
+  { key: 'bloque_medio', label: 'Bloque medio' },
+  { key: 'bloque_bajo', label: 'Bloque bajo' },
+]
+
+type TabValue = 'contexto' | 'once_probable' | FaseRival
+
+export function RivalScout({ data, rivalNombre, rivalId, microcicloId, equipoId, localia, onChange }: RivalScoutProps) {
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({})
-  const [activeTab, setActiveTab] = useState<FaseRival>('ataque_organizado')
+  const [activeTab, setActiveTab] = useState<TabValue>('contexto')
+
+  const { data: rfefRes } = useSWR<{ data: RFEFCompeticion[] }>(
+    equipoId ? apiKey('/rfef/competiciones', { equipo_id: equipoId }) : null
+  )
+  const competicionId = useMemo(() => {
+    if (!rfefRes?.data) return undefined
+    return rfefRes.data.find((c) => c.mi_equipo_nombre)?.id
+  }, [rfefRes])
 
   const fases = data.fases ?? []
 
@@ -60,7 +96,6 @@ export function RivalScout({ data, rivalNombre, onChange }: RivalScoutProps) {
       fortalezas: [],
       debilidades: [],
       clips: [],
-      anotaciones: '',
     }
   }
 
@@ -68,8 +103,20 @@ export function RivalScout({ data, rivalNombre, onChange }: RivalScoutProps) {
     const existing = fases.find((f) => f.fase === fase)
     const next = existing
       ? fases.map((f) => (f.fase === fase ? { ...f, ...patch } : f))
-      : [...fases, { fase, fortalezas: [], debilidades: [], clips: [], anotaciones: '', ...patch }]
+      : [...fases, { fase, fortalezas: [], debilidades: [], clips: [], ...patch }]
     update({ fases: next })
+  }
+
+  const updateSubfase = (
+    fase: FaseRival,
+    key: RivalSubfaseAtaque | RivalSubfaseDefensa,
+    patch: Partial<RivalSubfaseData>
+  ) => {
+    const phase = getPhase(fase)
+    const subfases = { ...(phase.subfases ?? {}) }
+    const current = subfases[key] ?? { notas: '' }
+    subfases[key] = { ...current, ...patch }
+    updatePhase(fase, { subfases })
   }
 
   const addTag = (fase: FaseRival, field: 'fortalezas' | 'debilidades', value: string) => {
@@ -87,9 +134,9 @@ export function RivalScout({ data, rivalNombre, onChange }: RivalScoutProps) {
     updatePhase(fase, { [field]: current.filter((_, i) => i !== index) })
   }
 
-  const addClip = (fase: FaseRival) => {
+  const addClip = (fase: FaseRival, clip?: ClipRival) => {
     const phase = getPhase(fase)
-    const newClip: ClipRival = {
+    const newClip = clip ?? {
       id: typeof crypto !== 'undefined' ? crypto.randomUUID() : Date.now().toString(),
       titulo: '',
       url: '',
@@ -124,14 +171,15 @@ export function RivalScout({ data, rivalNombre, onChange }: RivalScoutProps) {
     }
   }
 
+  const estrategia = data.estrategia ?? {}
+  const dimensiones = parseDimensionesCampo(estrategia.dimensiones_campo)
+
   return (
     <Card className="w-full">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-base">
-              Análisis del Rival
-            </CardTitle>
+            <CardTitle className="text-base">Informe Rival</CardTitle>
             {rivalNombre && <p className="text-sm text-muted-foreground font-medium">{rivalNombre}</p>}
           </div>
           <Button
@@ -147,19 +195,14 @@ export function RivalScout({ data, rivalNombre, onChange }: RivalScoutProps) {
       </CardHeader>
 
       <CardContent className="space-y-5">
-        {/* Sistema rival */}
-        <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Sistema de juego rival</Label>
-          <Input
-            value={data.sistema ?? ''}
-            onChange={(e) => update({ sistema: e.target.value })}
-            placeholder="4-3-3"
-            className="h-8 text-sm w-28"
-          />
-        </div>
-
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FaseRival)}>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)}>
           <TabsList className="flex flex-wrap h-auto gap-1">
+            <TabsTrigger value="contexto" className="text-[10px] px-2 py-1">
+              Contexto
+            </TabsTrigger>
+            <TabsTrigger value="once_probable" className="text-[10px] px-2 py-1">
+              Once Probable
+            </TabsTrigger>
             {FASES.map((f) => (
               <TabsTrigger key={f} value={f} className="text-[10px] px-2 py-1">
                 {FASE_LABELS[f]}
@@ -167,14 +210,80 @@ export function RivalScout({ data, rivalNombre, onChange }: RivalScoutProps) {
             ))}
           </TabsList>
 
+          <TabsContent value="contexto" className="space-y-4 mt-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Comentarios Rival</Label>
+              <Textarea
+                value={estrategia.notas ?? ''}
+                onChange={(e) => update({ estrategia: { ...estrategia, notas: e.target.value } })}
+                placeholder="Actitud, estilo, intensidad, agresividad, cualquier otra consideración sobre el rival..."
+                rows={4}
+                className="text-sm resize-none"
+              />
+            </div>
+
+            {localia === 'visitante' && (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Dimensiones del campo (m)</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    value={dimensiones.ancho}
+                    onChange={(e) =>
+                      update({
+                        estrategia: {
+                          ...estrategia,
+                          dimensiones_campo: formatDimensionesCampo(e.target.value, dimensiones.largo),
+                        },
+                      })
+                    }
+                    placeholder="Ancho"
+                    className="h-8 text-xs w-24"
+                  />
+                  <span className="text-xs text-muted-foreground">×</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    value={dimensiones.largo}
+                    onChange={(e) =>
+                      update({
+                        estrategia: {
+                          ...estrategia,
+                          dimensiones_campo: formatDimensionesCampo(dimensiones.ancho, e.target.value),
+                        },
+                      })
+                    }
+                    placeholder="Largo"
+                    className="h-8 text-xs w-24"
+                  />
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="once_probable" className="space-y-4 mt-3">
+            <RivalStrategy
+              data={data.estrategia}
+              rivalId={rivalId}
+              competicionId={competicionId}
+              onChange={(nuevaEstrategia) => update({ estrategia: nuevaEstrategia })}
+            />
+          </TabsContent>
+
           {FASES.map((fase) => (
             <TabsContent key={fase} value={fase} className="space-y-4 mt-3">
               <PhaseEditor
                 fase={fase}
                 phase={getPhase(fase)}
+                microcicloId={microcicloId}
+                rivalId={rivalId}
                 tagInputs={tagInputs}
                 setTagInputs={setTagInputs}
                 onUpdate={updatePhase}
+                onUpdateSubfase={updateSubfase}
                 onAddTag={addTag}
                 onRemoveTag={removeTag}
                 onAddClip={addClip}
@@ -193,12 +302,19 @@ export function RivalScout({ data, rivalNombre, onChange }: RivalScoutProps) {
 interface PhaseEditorProps {
   fase: FaseRival
   phase: RivalPhaseAnalysis
+  microcicloId?: string
+  rivalId?: string
   tagInputs: Record<string, string>
   setTagInputs: React.Dispatch<React.SetStateAction<Record<string, string>>>
   onUpdate: (fase: FaseRival, patch: Partial<RivalPhaseAnalysis>) => void
+  onUpdateSubfase: (
+    fase: FaseRival,
+    key: RivalSubfaseAtaque | RivalSubfaseDefensa,
+    patch: Partial<RivalSubfaseData>
+  ) => void
   onAddTag: (fase: FaseRival, field: 'fortalezas' | 'debilidades', value: string) => void
   onRemoveTag: (fase: FaseRival, field: 'fortalezas' | 'debilidades', index: number) => void
-  onAddClip: (fase: FaseRival) => void
+  onAddClip: (fase: FaseRival, clip: ClipRival) => void
   onUpdateClip: (fase: FaseRival, id: string, patch: Partial<ClipRival>) => void
   onRemoveClip: (fase: FaseRival, id: string) => void
   onTagKey: (
@@ -212,9 +328,12 @@ interface PhaseEditorProps {
 function PhaseEditor({
   fase,
   phase,
+  microcicloId,
+  rivalId,
   tagInputs,
   setTagInputs,
   onUpdate,
+  onUpdateSubfase,
   onAddTag,
   onRemoveTag,
   onAddClip,
@@ -222,37 +341,174 @@ function PhaseEditor({
   onRemoveClip,
   onTagKey,
 }: PhaseEditorProps) {
+  const subfases =
+    fase === 'ataque_organizado'
+      ? SUBFASES_ATAQUE
+      : fase === 'defensa_organizada'
+        ? SUBFASES_DEFENSA
+        : null
+
   return (
     <div className="space-y-4">
-        <p className="text-xs font-semibold text-muted-foreground">{FASE_LABELS[fase]}</p>
+      <p className="text-xs font-semibold text-muted-foreground">{FASE_LABELS[fase]}</p>
 
-      <div className="grid grid-cols-2 gap-3">
-        <TagBox
-          title="Fortalezas"
-          color="green"
-          items={phase.fortalezas ?? []}
-          inputValue={tagInputs[`${fase}-fortalezas`] ?? ''}
-          onInputChange={(v) => setTagInputs((prev) => ({ ...prev, [`${fase}-fortalezas`]: v }))}
-          onAdd={() => onAddTag(fase, 'fortalezas', tagInputs[`${fase}-fortalezas`] ?? '')}
-          onKey={(e) => onTagKey(e, fase, 'fortalezas', tagInputs[`${fase}-fortalezas`] ?? '')}
-          onRemove={(i) => onRemoveTag(fase, 'fortalezas', i)}
-        />
-        <TagBox
-          title="Debilidades"
-          color="red"
-          items={phase.debilidades ?? []}
-          inputValue={tagInputs[`${fase}-debilidades`] ?? ''}
-          onInputChange={(v) => setTagInputs((prev) => ({ ...prev, [`${fase}-debilidades`]: v }))}
-          onAdd={() => onAddTag(fase, 'debilidades', tagInputs[`${fase}-debilidades`] ?? '')}
-          onKey={(e) => onTagKey(e, fase, 'debilidades', tagInputs[`${fase}-debilidades`] ?? '')}
-          onRemove={(i) => onRemoveTag(fase, 'debilidades', i)}
-        />
-      </div>
+      {/* Subfases para ataque/defensa */}
+      {subfases && (
+        <div className="space-y-3">
+          <Tabs defaultValue={subfases[0].key}>
+            <TabsList className="flex flex-wrap h-auto gap-1">
+              {subfases.map((s) => (
+                <TabsTrigger key={s.key} value={s.key} className="text-[10px] px-2 py-1">
+                  {s.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            {subfases.map((s) => {
+              const data = phase.subfases?.[s.key] ?? { notas: '' }
+              return (
+                <TabsContent key={s.key} value={s.key} className="mt-2">
+                  <Input
+                    value={data.notas}
+                    onChange={(e) => onUpdateSubfase(fase, s.key, { notas: e.target.value })}
+                    placeholder={`Apunte sobre ${s.label.toLowerCase()}...`}
+                    className="h-8 text-xs"
+                  />
+                </TabsContent>
+              )
+            })}
+          </Tabs>
+        </div>
+      )}
 
+      {/* Campo principal según fase */}
+      {(fase === 'ataque_organizado' || fase === 'defensa_organizada') && (
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Sistema / formación para esta fase</Label>
+          <Input
+            value={phase.formacion || ''}
+            onChange={(e) => onUpdate(fase, { formacion: e.target.value })}
+            placeholder="4-3-3, 4-4-2..."
+            className="h-8 text-xs w-40"
+          />
+        </div>
+      )}
+      {fase === 'transicion_ofensiva' && (
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Vigilancias / sistema defensivo rival</Label>
+          <Textarea
+            value={phase.vigilancias || ''}
+            onChange={(e) => onUpdate(fase, { vigilancias: e.target.value })}
+            placeholder="Vigilancias, coberturas, comportamiento defensivo del rival en transición..."
+            rows={4}
+            className="text-sm resize-none"
+          />
+        </div>
+      )}
+      {fase === 'transicion_defensiva' && (
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Tipo de repliegue</Label>
+          <Textarea
+            value={phase.repliegue || ''}
+            onChange={(e) => onUpdate(fase, { repliegue: e.target.value })}
+            placeholder="Presión tras pérdida, repliegue a bloque bajo, comportamiento de los jugadores..."
+            rows={4}
+            className="text-sm resize-none"
+          />
+        </div>
+      )}
+      {fase === 'abp_ofensiva' && (
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Comentarios ABP</Label>
+          <Textarea
+            value={phase.abp_comentarios || ''}
+            onChange={(e) => onUpdate(fase, { abp_comentarios: e.target.value })}
+            placeholder="Cómo trabaja el rival en ABP, tipos de saques, estructuras..."
+            rows={3}
+            className="text-sm resize-none"
+          />
+        </div>
+      )}
+      {fase === 'abp_defensiva' && (
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Defensa ABP</Label>
+          <Textarea
+            value={phase.abp_defensa || ''}
+            onChange={(e) => onUpdate(fase, { abp_defensa: e.target.value })}
+            placeholder="Cómo defienden: zona, mixto, al hombre. Estructura y organización..."
+            rows={3}
+            className="text-sm resize-none"
+          />
+        </div>
+      )}
+
+      {/* Espacios (solo ataque/defensa) */}
+      {(fase === 'ataque_organizado' || fase === 'defensa_organizada') && (
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Espacios / ocupaciones del rival</Label>
+          <Textarea
+            value={phase.espacios || ''}
+            onChange={(e) => onUpdate(fase, { espacios: e.target.value })}
+            placeholder="Zona de presión, espacios que deja, carriles..."
+            rows={2}
+            className="text-sm resize-none"
+          />
+        </div>
+      )}
+
+      {/* Fortalezas + Debilidades (ataque, defensa, abp defensiva) */}
+      {(fase === 'ataque_organizado' || fase === 'defensa_organizada' || fase === 'abp_defensiva') && (
+        <div className="grid grid-cols-2 gap-3">
+          <TagBox
+            title="Fortalezas"
+            color="green"
+            items={phase.fortalezas ?? []}
+            inputValue={tagInputs[`${fase}-fortalezas`] ?? ''}
+            onInputChange={(v) => setTagInputs((prev) => ({ ...prev, [`${fase}-fortalezas`]: v }))}
+            onAdd={() => onAddTag(fase, 'fortalezas', tagInputs[`${fase}-fortalezas`] ?? '')}
+            onKey={(e) => onTagKey(e, fase, 'fortalezas', tagInputs[`${fase}-fortalezas`] ?? '')}
+            onRemove={(i) => onRemoveTag(fase, 'fortalezas', i)}
+          />
+          <TagBox
+            title="Debilidades"
+            color="red"
+            items={phase.debilidades ?? []}
+            inputValue={tagInputs[`${fase}-debilidades`] ?? ''}
+            onInputChange={(v) => setTagInputs((prev) => ({ ...prev, [`${fase}-debilidades`]: v }))}
+            onAdd={() => onAddTag(fase, 'debilidades', tagInputs[`${fase}-debilidades`] ?? '')}
+            onKey={(e) => onTagKey(e, fase, 'debilidades', tagInputs[`${fase}-debilidades`] ?? '')}
+            onRemove={(i) => onRemoveTag(fase, 'debilidades', i)}
+          />
+        </div>
+      )}
+
+      {/* ABP: jugadas dibujadas y guardadas (pueden ser varias, editables) */}
+      {(fase === 'abp_ofensiva' || fase === 'abp_defensiva') ? (
+        rivalId ? (
+          <ABPRivalPlays rivalId={rivalId} lado={fase === 'abp_ofensiva' ? 'ofensivo' : 'defensivo'} />
+        ) : (
+          <p className="text-xs text-muted-foreground italic">
+            Vincula un rival al microciclo para diseñar y guardar sus jugadas de ABP.
+          </p>
+        )
+      ) : (
+        /* Resto de fases: pizarra táctica libre de un solo uso */
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Pizarra táctica</Label>
+          <TacticalBoard
+            value={phase.pizarra_tactica}
+            onChange={(v) => onUpdate(fase, { pizarra_tactica: v })}
+          />
+        </div>
+      )}
+
+      {/* Clips de vídeo */}
       <div className="space-y-2">
-          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-            Clips de vídeo
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-semibold text-muted-foreground">Clips de vídeo</div>
+          <div className="text-[10px] text-muted-foreground">
+            {formatSize(phase.clips?.reduce((sum, c) => sum + (c.size ?? 0), 0) ?? 0)} / 300 MB
           </div>
+        </div>
         <div className="space-y-2">
           {(phase.clips ?? []).map((clip) => (
             <div key={clip.id} className="rounded-md border bg-muted/30 p-2.5 space-y-2">
@@ -263,6 +519,9 @@ function PhaseEditor({
                   placeholder="Título del clip"
                   className="h-7 text-xs flex-1"
                 />
+                {clip.size && (
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">{formatSize(clip.size)}</span>
+                )}
                 <Button
                   type="button"
                   variant="ghost"
@@ -279,6 +538,16 @@ function PhaseEditor({
                 placeholder="https://..."
                 className="h-7 text-xs"
               />
+              {clip.url && (
+                <div className="space-y-1">
+                  <div className="rounded-md overflow-hidden border bg-black">
+                    <VideoPlayer src={clip.url} standalonePreview />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Click + dos dedos para adelantar/retroceder · ←/→ un fotograma · Shift+←/→ 5s
+                  </p>
+                </div>
+              )}
               <Textarea
                 value={clip.notas}
                 onChange={(e) => onUpdateClip(fase, clip.id, { notas: e.target.value })}
@@ -289,72 +558,125 @@ function PhaseEditor({
             </div>
           ))}
         </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs"
-            onClick={() => onAddClip(fase)}
-          >
-            Añadir clip
-          </Button>
+        <ClipUpload
+          fase={fase}
+          microcicloId={microcicloId}
+          existingSize={phase.clips?.reduce((sum, c) => sum + (c.size ?? 0), 0) ?? 0}
+          onUploaded={onAddClip}
+        />
       </div>
+    </div>
+  )
+}
 
-      <div className="space-y-1">
-          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-            Anotaciones tácticas
-          </div>
-          <Textarea
-            value={phase.anotaciones ?? ''}
-            onChange={(e) => onUpdate(fase, { anotaciones: e.target.value })}
-            placeholder={`Anotaciones sobre ${FASE_LABELS[fase]} del rival...`}
-            rows={3}
-            className="text-sm resize-none"
-          />
-        </div>
+function formatSize(bytes: number): string {
+  if (bytes === 0) return '0 MB'
+  const mb = bytes / (1024 * 1024)
+  return `${mb.toFixed(1)} MB`
+}
 
-        {/* Formación */}
-        <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Formación / sistema</Label>
-          <Select
-            value={phase.formacion || ''}
-            onValueChange={(v) => onUpdate(fase, { formacion: v })}
-          >
-            <SelectTrigger className="h-8 text-xs w-40">
-              <SelectValue placeholder="Seleccionar..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="4-3-3">4-3-3</SelectItem>
-              <SelectItem value="4-4-2">4-4-2</SelectItem>
-              <SelectItem value="4-2-3-1">4-2-3-1</SelectItem>
-              <SelectItem value="3-4-3">3-4-3</SelectItem>
-              <SelectItem value="3-5-2">3-5-2</SelectItem>
-              <SelectItem value="4-1-4-1">4-1-4-1</SelectItem>
-              <SelectItem value="4-3-2-1">4-3-2-1</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+function parseDimensionesCampo(value?: string): { ancho: string; largo: string } {
+  if (!value) return { ancho: '', largo: '' }
+  const match = value.match(/^(\d+)\s*[x×]\s*(\d+)$/)
+  if (match) return { ancho: match[1], largo: match[2] }
+  return { ancho: '', largo: '' }
+}
 
-        {/* Espacios */}
-        <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Espacios / ocupaciones del rival</Label>
-          <Textarea
-            value={phase.espacios || ''}
-            onChange={(e) => onUpdate(fase, { espacios: e.target.value })}
-            placeholder="Zona de presión, espacios que deja, carriles..."
-            rows={2}
-            className="text-sm resize-none"
-          />
-        </div>
+function formatDimensionesCampo(ancho: string, largo: string): string {
+  if (!ancho && !largo) return ''
+  return `${ancho || '0'} x ${largo || '0'}`
+}
 
-        {/* Pizarra táctica */}
-        <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Pizarra táctica</Label>
-          <TacticalBoard
-            value={phase.pizarra_tactica}
-            onChange={(v) => onUpdate(fase, { pizarra_tactica: v })}
-          />
-        </div>
+interface ClipUploadProps {
+  fase: FaseRival
+  microcicloId?: string
+  existingSize: number
+  onUploaded: (fase: FaseRival, clip: ClipRival) => void
+}
+
+const MAX_CLIP_SIZE = 300 * 1024 * 1024 // 300 MB acumulados por microciclo
+const MAX_SINGLE_FILE_SIZE = 50 * 1024 * 1024 // 50 MB por archivo (límite del plan de Supabase)
+
+function ClipUpload({ fase, microcicloId, existingSize, onUploaded }: ClipUploadProps) {
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('video/')) {
+      toast.error('El archivo debe ser un vídeo (mp4, mov, etc.)')
+      return
+    }
+
+    if (file.size > MAX_SINGLE_FILE_SIZE) {
+      toast.error(`El vídeo supera el límite de 50 MB por archivo (${formatSize(file.size)}). Comprímelo antes de subirlo.`)
+      return
+    }
+
+    if (existingSize + file.size > MAX_CLIP_SIZE) {
+      toast.error(`Límite de 300 MB por microciclo. Actual: ${formatSize(existingSize)}. Nuevo: ${formatSize(file.size)}`)
+      return
+    }
+
+    if (!microcicloId) {
+      toast.error('Guarda el microciclo antes de subir clips')
+      return
+    }
+
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('fase', fase)
+      formData.append('file', file)
+
+      const result = await api.upload<{ url: string; size: number; mimeType: string; titulo: string }>(
+        `/microciclos/${microcicloId}/rival-clips`,
+        formData,
+        { timeout: 180000 }
+      )
+
+      const newClip: ClipRival = {
+        id: typeof crypto !== 'undefined' ? crypto.randomUUID() : Date.now().toString(),
+        titulo: result.titulo || file.name.replace(/\.[^/.]+$/, ''),
+        url: result.url,
+        fase,
+        notas: '',
+        size: result.size,
+        mimeType: result.mimeType,
+      }
+      onUploaded(fase, newClip)
+      toast.success('Clip subido correctamente')
+    } catch (err: any) {
+      toast.error(err.message || 'Error subiendo clip')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="video/mp4,video/quicktime,video/*"
+        className="hidden"
+        onChange={handleFile}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-7 text-xs"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={uploading}
+      >
+        {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
+        {uploading ? 'Subiendo...' : 'Subir clip'}
+      </Button>
+      <span className="text-[10px] text-muted-foreground">mp4, mov. Máx. 50 MB/archivo, 300 MB total.</span>
     </div>
   )
 }

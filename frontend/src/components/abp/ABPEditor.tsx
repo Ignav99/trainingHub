@@ -1,9 +1,11 @@
 'use client'
 
 import React, { useState, useRef, useCallback, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Circle, Triangle, Target, Trash2, RotateCcw, MousePointer,
   ArrowRight, Minus, Save, X, Settings2, Square, Undo2, Redo2,
+  Expand, Shrink,
 } from 'lucide-react'
 import ABPPitch from './ABPPitch'
 import {
@@ -26,6 +28,8 @@ interface ABPEditorProps {
   onSave: (data: Partial<ABPJugada>) => void
   onCancel: () => void
   saving?: boolean
+  /** When set, locks 'lado' to this value and hides the selector (e.g. a dedicated ABP Ofensiva/Defensiva tab). */
+  lockLado?: LadoABP
 }
 
 // Role abbreviations for display on player circles
@@ -63,12 +67,12 @@ function getPitchView(tipo: TipoABP): 'full' | 'half' {
   return tipo === 'falta_lejana' ? 'full' : 'half'
 }
 
-export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEditorProps) {
+export default function ABPEditor({ jugada, onSave, onCancel, saving, lockLado }: ABPEditorProps) {
   // Form state
   const [nombre, setNombre] = useState(jugada?.nombre || '')
   const [codigo, setCodigo] = useState(jugada?.codigo || '')
   const [tipo, setTipo] = useState<TipoABP>(jugada?.tipo || 'corner')
-  const [lado, setLado] = useState<LadoABP>(jugada?.lado || 'ofensivo')
+  const [lado, setLado] = useState<LadoABP>(lockLado || jugada?.lado || 'ofensivo')
   const [subtipo, setSubtipo] = useState<SubtipoABP | ''>(jugada?.subtipo || '')
   const [descripcion, setDescripcion] = useState(jugada?.descripcion || '')
   const [senalCodigo, setSenalCodigo] = useState(jugada?.senal_codigo || '')
@@ -111,6 +115,7 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEdito
 
   const gRef = useRef<SVGGElement>(null)
   const pitchView = getPitchView(tipo)
+  const [isExpanded, setIsExpanded] = useState(false)
 
   // Push snapshot to history before a change
   const pushHistory = useCallback(() => {
@@ -580,8 +585,8 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEdito
     </button>
   )
 
-  return (
-    <div className="flex flex-col h-full">
+  const editorContent = (
+    <div className={isExpanded ? 'flex flex-col fixed inset-4 z-[100] bg-white rounded-xl shadow-2xl overflow-hidden' : 'flex flex-col h-full'}>
       {/* Top bar */}
       <div className="flex items-center gap-3 px-4 py-2 border-b border-gray-200 bg-white flex-shrink-0">
         <button onClick={onCancel} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
@@ -598,16 +603,25 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEdito
           <select value={tipo} onChange={e => setTipo(e.target.value as TipoABP)} className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white">
             {ABP_TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
-          <select value={lado} onChange={e => setLado(e.target.value as LadoABP)} className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white">
-            <option value="ofensivo">Ofensivo</option>
-            <option value="defensivo">Defensivo</option>
-          </select>
+          {!lockLado && (
+            <select value={lado} onChange={e => setLado(e.target.value as LadoABP)} className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white">
+              <option value="ofensivo">Ofensivo</option>
+              <option value="defensivo">Defensivo</option>
+            </select>
+          )}
           <button
             onClick={() => setShowSettings(!showSettings)}
             className={`p-1.5 rounded-lg transition-colors ${showSettings ? 'bg-orange-100 text-orange-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
             title="Mas opciones"
           >
             <Settings2 className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => setIsExpanded((v) => !v)}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+            title={isExpanded ? 'Contraer' : 'Ampliar ventana'}
+          >
+            {isExpanded ? <Shrink className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
           </button>
           <button
             onClick={handleSave}
@@ -818,4 +832,16 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving }: ABPEdito
       </div>
     </div>
   )
+
+  if (isExpanded && typeof document !== 'undefined') {
+    return createPortal(
+      <>
+        <div className="fixed inset-0 z-[99] bg-black/60" onClick={() => setIsExpanded(false)} />
+        {editorContent}
+      </>,
+      document.body
+    )
+  }
+
+  return editorContent
 }

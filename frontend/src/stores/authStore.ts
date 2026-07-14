@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Subscription } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase/client'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { api } from '@/lib/api/client'
 import { Usuario } from '@/types'
 
@@ -46,7 +46,7 @@ export const useAuthStore = create<AuthState>()(
 
         // Register auth listener FIRST so we never miss a token refresh.
         // Store the unsubscribe function to prevent listener leaks.
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        const { data: { subscription } } = getSupabaseClient().auth.onAuthStateChange(
           async (event, session) => {
             if (event === 'SIGNED_OUT') {
               set({
@@ -63,7 +63,7 @@ export const useAuthStore = create<AuthState>()(
         _authListenerUnsub = subscription.unsubscribe
 
         try {
-          const { data: { session } } = await supabase.auth.getSession()
+          const { data: { session } } = await getSupabaseClient().auth.getSession()
 
           if (session?.user) {
             // Use backend API (service-role) instead of direct Supabase query
@@ -94,7 +94,7 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           // Use Supabase client for auth (manages session, token refresh, etc.)
-          const { data, error } = await supabase.auth.signInWithPassword({
+          const { data, error } = await getSupabaseClient().auth.signInWithPassword({
             email,
             password,
           })
@@ -123,7 +123,7 @@ export const useAuthStore = create<AuthState>()(
 
             return { success: true }
           } catch {
-            await supabase.auth.signOut()
+            await getSupabaseClient().auth.signOut()
             set({ isLoading: false })
             return { success: false, error: 'Usuario no encontrado en el sistema' }
           }
@@ -151,7 +151,7 @@ export const useAuthStore = create<AuthState>()(
           // Sign in via Supabase to get session tokens.
           // The onAuthStateChange listener automatically captures the accessToken
           // via SIGNED_IN event — we only need to set user + isAuthenticated here.
-          await supabase.auth.signInWithPassword({
+          await getSupabaseClient().auth.signInWithPassword({
             email: data.email,
             password: data.password,
           })
@@ -170,7 +170,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: async () => {
-        await supabase.auth.signOut()
+        await getSupabaseClient().auth.signOut()
         set({
           user: null,
           accessToken: null,
