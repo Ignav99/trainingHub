@@ -878,6 +878,7 @@ export interface OnceProbableData {
 export interface DiaMorfociclo {
   objetivo_dia: string
   objetivo_tactico?: string
+  objetivo_tecnico_tactico?: string
   tipo_sesion: TipoSesionDia[]
   subtipo_fisico?: SubtipoFisico[]
   notas: string
