@@ -23,6 +23,7 @@ function mapPhasePersistent(f: PlanPartidoPhase): PlanPartidoPhase {
     sistema: f.sistema,
     subfases: f.subfases,
     jugadas_abp: f.jugadas_abp,
+    roles: f.roles,
     clips: f.clips ?? [],
     pizarra_tactica: f.pizarra_tactica,
   }
@@ -68,6 +69,7 @@ function mergeSubfases(
     merged[key] = {
       sistema: s?.sistema ?? l?.sistema ?? '',
       notas: s?.notas ?? l?.notas ?? '',
+      roles: s?.roles?.length ? s.roles : l?.roles ?? [],
     }
   }
   return merged
@@ -94,6 +96,7 @@ export function mergePlanPartidoOnLoad(
       sistema: s?.sistema ?? l?.sistema ?? '',
       subfases: mergeSubfases(s?.subfases, l?.subfases),
       jugadas_abp: s?.jugadas_abp?.length ? s.jugadas_abp : l?.jugadas_abp ?? [],
+      roles: s?.roles?.length ? s.roles : l?.roles ?? [],
       consignas: w?.consignas?.length ? w.consignas : l?.consignas ?? [],
       clips: s?.clips?.length ? s.clips : l?.clips ?? [],
       pizarra_tactica: s?.pizarra_tactica ?? l?.pizarra_tactica,

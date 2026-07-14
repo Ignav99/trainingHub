@@ -824,6 +824,7 @@ export interface RivalScoutStrategy {
 
 export interface RivalSubfaseData {
   notas: string
+  roles?: AsignacionRolTactico[]
 }
 
 export interface RivalPhaseAnalysis {
@@ -839,11 +840,20 @@ export interface RivalPhaseAnalysis {
   abp_comentarios?: string
   abp_defensa?: string
   subfases?: Partial<Record<RivalSubfaseAtaque | RivalSubfaseDefensa, RivalSubfaseData>>
+  /** Roles en transición ofensiva (corredores, carriles...) */
+  roles?: AsignacionRolTactico[]
 }
 
 export type RivalSubfaseAtaque = 'creacion' | 'progresion' | 'finalizacion'
 
 export type RivalSubfaseDefensa = 'bloque_alto' | 'bloque_medio' | 'bloque_bajo'
+
+/** Asignación jugador ↔ rol táctico por fase/subfase */
+export interface AsignacionRolTactico {
+  id: string
+  jugador: string
+  rol: string
+}
 
 export interface RivalScoutData {
   sistema: string
@@ -858,6 +868,7 @@ export interface RivalScoutData {
 export interface PlanPartidoSubfaseData {
   sistema?: string
   notas: string
+  roles?: AsignacionRolTactico[]
 }
 
 export interface PlanPartidoABPItem {
@@ -876,6 +887,8 @@ export interface PlanPartidoPhase {
   subfases?: Partial<Record<RivalSubfaseAtaque | RivalSubfaseDefensa, PlanPartidoSubfaseData>>
   /** ABP: jugadas del laboratorio seleccionadas para el partido */
   jugadas_abp?: PlanPartidoABPItem[]
+  /** Roles en transición ofensiva */
+  roles?: AsignacionRolTactico[]
   /** @deprecated */
   principios_modelo?: string[]
   /** Solo microciclo — consignas semanales */
