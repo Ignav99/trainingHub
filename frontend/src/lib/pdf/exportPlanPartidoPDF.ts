@@ -236,21 +236,6 @@ export async function exportPlanPartidoPDF(data: Partial<PlanPartidoData>, equip
     y += 6
   }
 
-  if (data.consignas_clave?.length) {
-    y = ensureSpace(doc, y, 20, margin)
-    doc.setFillColor(255, 251, 235)
-    doc.rect(margin, y, contentWidth, 8, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(180, 83, 9)
-    doc.setFontSize(12)
-    doc.text('Consignas clave globales', margin + 2, y + 6)
-    y += 14
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(60, 60, 60)
-    doc.setFontSize(10)
-    y = writeWrapped(doc, data.consignas_clave.join(' • '), margin, y, contentWidth)
-  }
-
   doc.save('plan-de-partido.pdf')
 }
 

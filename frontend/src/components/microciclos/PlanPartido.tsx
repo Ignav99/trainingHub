@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, KeyboardEvent, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { X, Loader2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -34,8 +33,6 @@ interface PlanPartidoProps {
   rivalId?: string
   microcicloId?: string
   equipoId?: string
-  /** false en ficha rival: oculta consignas clave globales */
-  weeklyMode?: boolean
 }
 
 const FASES: { fase: FasePlanPartido; label: string; color: string }[] = [
@@ -77,11 +74,9 @@ export function PlanPartido({
   rivalId,
   microcicloId,
   equipoId,
-  weeklyMode = true,
 }: PlanPartidoProps) {
   const [activeTab, setActiveTab] = useState<FasePlanPartido>('ataque_organizado')
   const fases = data.fases ?? []
-  const consignasClave = data.consignas_clave ?? []
 
   const totalClipsSize = fases.reduce(
     (sum, f) => sum + (f.clips ?? []).reduce((s, c) => s + (c.size ?? 0), 0),
@@ -128,15 +123,6 @@ export function PlanPartido({
   const removeClip = (fase: FasePlanPartido, id: string) => {
     const phase = getPhase(fase)
     updatePhase(fase, { clips: phase.clips?.filter((c) => c.id !== id) })
-  }
-
-  const handleConsignaClave = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== 'Enter') return
-    e.preventDefault()
-    const trimmed = (e.target as HTMLInputElement).value.trim()
-    if (!trimmed || consignasClave.includes(trimmed)) return
-    update({ consignas_clave: [...consignasClave, trimmed] })
-    ;(e.target as HTMLInputElement).value = ''
   }
 
   return (
@@ -317,39 +303,6 @@ export function PlanPartido({
             )
           })}
         </Tabs>
-
-        {weeklyMode && (
-          <div className="space-y-2 pt-1 border-t">
-            <p className="text-xs font-semibold text-amber-600 flex items-center gap-1">
-              <span>💬</span>
-              Consignas Clave Globales
-              <span className="text-muted-foreground font-normal ml-1">(mensajes de la semana)</span>
-            </p>
-            <div className="flex flex-wrap gap-1.5 min-h-[28px]">
-              {consignasClave.map((consigna, index) => (
-                <Badge
-                  key={index}
-                  variant="secondary"
-                  className="bg-amber-100 text-amber-800 hover:bg-amber-100 border border-amber-200 pr-1 gap-1"
-                >
-                  {consigna}
-                  <button
-                    type="button"
-                    onClick={() => update({ consignas_clave: consignasClave.filter((_, i) => i !== index) })}
-                    className="ml-0.5 rounded-sm hover:bg-amber-200 p-0.5 transition-colors"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))}
-            </div>
-            <Input
-              className="text-sm h-8"
-              placeholder="Escribir consigna y pulsar Enter..."
-              onKeyDown={handleConsignaClave}
-            />
-          </div>
-        )}
       </CardContent>
     </Card>
   )

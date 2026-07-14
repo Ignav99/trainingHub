@@ -891,7 +891,7 @@ export interface PlanPartidoPhase {
   roles?: AsignacionRolTactico[]
   /** @deprecated */
   principios_modelo?: string[]
-  /** Solo microciclo — consignas semanales */
+  /** @deprecated ya no se usa */
   consignas?: string[]
   clips?: ClipRival[]
   pizarra_tactica?: string
@@ -908,7 +908,8 @@ export interface PlanPartidoData {
   transicion_defensiva: string
   abp_ofensiva: string
   abp_defensiva: string
-  consignas_clave: string[]
+  /** @deprecated ya no se usa */
+  consignas_clave?: string[]
   fases: PlanPartidoPhase[]
 }
 
