@@ -7,6 +7,13 @@ import type {
   RivalSubfaseDefensa,
 } from '@/types'
 import { abpApi } from '@/lib/api/abp'
+import {
+  getContextForSubfase,
+  getRolesForContext,
+  rolLabel,
+  type ContextoRoles,
+} from '@/lib/tacticalRoles'
+import type { AsignacionRolTactico } from '@/types'
 
 const FASE_LABELS: Record<FasePlanPartido, string> = {
   ataque_organizado: 'Ataque Organizado',
@@ -57,11 +64,41 @@ function writeWrapped(
   return y + lines.length * lineHeight
 }
 
+function writeRoles(
+  doc: jsPDF,
+  roles: AsignacionRolTactico[] | undefined,
+  context: ContextoRoles,
+  margin: number,
+  y: number,
+  contentWidth: number
+): number {
+  if (!roles?.length) return y
+  const options = getRolesForContext(context)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(100, 100, 100)
+  doc.text('Roles:', margin, y)
+  y += 5
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(60, 60, 60)
+  for (const r of roles) {
+    y = ensureSpace(doc, y, 8, margin)
+    y = writeWrapped(doc, `• ${rolLabel(r.rol, options)} — ${r.jugador}`, margin + 2, y, contentWidth - 2)
+    y += 2
+  }
+  return y + 2
+}
+
 function phaseHasContent(phase: PlanPartidoPhase | undefined): boolean {
   if (!phase) return false
   if (phase.texto?.trim()) return true
   if (phase.sistema?.trim()) return true
-  if (phase.subfases && Object.values(phase.subfases).some((s) => s?.notas?.trim() || s?.sistema?.trim()))
+  if (phase.roles?.length) return true
+  if (
+    phase.subfases &&
+    Object.values(phase.subfases).some(
+      (s) => s?.notas?.trim() || s?.sistema?.trim() || s?.roles?.length
+    )
+  )
     return true
   if (phase.jugadas_abp?.length) return true
   if (phase.clips?.length) return true
@@ -126,7 +163,7 @@ export async function exportPlanPartidoPDF(data: Partial<PlanPartidoData>, equip
     // Subfases ataque/defensa
     if (phase?.subfases) {
       for (const [key, sub] of Object.entries(phase.subfases)) {
-        if (!sub?.notas?.trim() && !sub?.sistema?.trim()) continue
+        if (!sub?.notas?.trim() && !sub?.sistema?.trim() && !sub?.roles?.length) continue
         y = ensureSpace(doc, y, 16, margin)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(37, 99, 235)
@@ -142,6 +179,11 @@ export async function exportPlanPartidoPDF(data: Partial<PlanPartidoData>, equip
           y = writeWrapped(doc, sub.notas, margin, y, contentWidth)
           y += 4
         }
+        const ctx =
+          phase.fase === 'ataque_organizado' || phase.fase === 'defensa_organizada'
+            ? getContextForSubfase(phase.fase, key as RivalSubfaseAtaque | RivalSubfaseDefensa)
+            : 'creacion_progresion'
+        y = writeRoles(doc, sub.roles, ctx, margin, y, contentWidth)
       }
     }
 
@@ -149,6 +191,10 @@ export async function exportPlanPartidoPDF(data: Partial<PlanPartidoData>, equip
     if (phase?.texto?.trim() && !phase.subfases) {
       y = writeWrapped(doc, phase.texto, margin, y, contentWidth)
       y += 4
+    }
+
+    if (phase?.roles?.length && phase.fase === 'transicion_ofensiva') {
+      y = writeRoles(doc, phase.roles, 'transicion_ofensiva', margin, y, contentWidth)
     }
 
     // ABP jugadas

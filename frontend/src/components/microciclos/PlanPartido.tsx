@@ -22,6 +22,8 @@ import type {
 import { exportPlanPartidoPDF } from '@/lib/pdf/exportPlanPartidoPDF'
 import { TacticalBoard } from './TacticalBoard'
 import { PlanPartidoABPSection } from './PlanPartidoABPSection'
+import { TacticalRolesPanel } from '@/components/tactical/TacticalRolesPanel'
+import { getContextForSubfase } from '@/lib/tacticalRoles'
 import { api } from '@/lib/api/client'
 import { rivalesApi } from '@/lib/api/partidos'
 import { VideoPlayer } from '@/components/video-analyzer/VideoPlayer'
@@ -189,43 +191,92 @@ export function PlanPartido({
                     </TabsList>
                     {subfaseList.map((s) => {
                       const sub = phase.subfases?.[s.key] ?? { notas: '' }
+                      const roleContext = getContextForSubfase(section.fase, s.key)
                       return (
                         <TabsContent key={s.key} value={s.key} className="space-y-3 mt-3">
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Sistema a utilizar</Label>
-                            <Input
-                              value={sub.sistema ?? ''}
-                              onChange={(e) => updateSubfase(section.fase, s.key, { sistema: e.target.value })}
-                              placeholder="Ej: 4-3-3, 3-2-5, rombo en salida..."
-                              className="h-8 text-xs"
-                            />
-                          </div>
-                          <Textarea
-                            rows={4}
-                            value={sub.notas}
-                            onChange={(e) => updateSubfase(section.fase, s.key, { notas: e.target.value })}
-                            placeholder={`Plan táctico en ${s.label.toLowerCase()}...`}
-                            className="text-sm resize-none"
-                          />
+                          <Tabs defaultValue="plan">
+                            <TabsList className="h-7">
+                              <TabsTrigger value="plan" className="text-[10px] px-2 py-0.5">
+                                Plan
+                              </TabsTrigger>
+                              <TabsTrigger value="roles" className="text-[10px] px-2 py-0.5">
+                                Roles
+                              </TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="plan" className="space-y-3 mt-2">
+                              <div className="space-y-1">
+                                <Label className="text-xs text-muted-foreground">Sistema a utilizar</Label>
+                                <Input
+                                  value={sub.sistema ?? ''}
+                                  onChange={(e) =>
+                                    updateSubfase(section.fase, s.key, { sistema: e.target.value })
+                                  }
+                                  placeholder="Ej: 4-3-3, 3-2-5, rombo en salida..."
+                                  className="h-8 text-xs"
+                                />
+                              </div>
+                              <Textarea
+                                rows={4}
+                                value={sub.notas}
+                                onChange={(e) =>
+                                  updateSubfase(section.fase, s.key, { notas: e.target.value })
+                                }
+                                placeholder={`Plan táctico en ${s.label.toLowerCase()}...`}
+                                className="text-sm resize-none"
+                              />
+                            </TabsContent>
+                            <TabsContent value="roles" className="mt-2">
+                              <TacticalRolesPanel
+                                context={roleContext}
+                                roles={sub.roles ?? []}
+                                onChange={(roles) => updateSubfase(section.fase, s.key, { roles })}
+                                jugadorLabel="Nuestro jugador"
+                              />
+                            </TabsContent>
+                          </Tabs>
                         </TabsContent>
                       )
                     })}
                   </Tabs>
                 )}
 
-                {/* Transiciones: solo cuadro de texto */}
+                {/* Transiciones: plan + roles (solo OF) */}
                 {isTransitionPhase(section.fase) && (
-                  <Textarea
-                    rows={4}
-                    value={phase.texto ?? ''}
-                    onChange={(e) => updatePhase(section.fase, { texto: e.target.value })}
-                    placeholder={
-                      section.fase === 'transicion_ofensiva'
-                        ? 'Verticalidad, espacios, cambio de ritmo...'
-                        : 'Presión, repliegue, equilibrio...'
-                    }
-                    className="text-sm resize-none"
-                  />
+                  <Tabs defaultValue="plan">
+                    <TabsList className="h-7">
+                      <TabsTrigger value="plan" className="text-[10px] px-2 py-0.5">
+                        Plan
+                      </TabsTrigger>
+                      {section.fase === 'transicion_ofensiva' && (
+                        <TabsTrigger value="roles" className="text-[10px] px-2 py-0.5">
+                          Roles
+                        </TabsTrigger>
+                      )}
+                    </TabsList>
+                    <TabsContent value="plan" className="mt-2">
+                      <Textarea
+                        rows={4}
+                        value={phase.texto ?? ''}
+                        onChange={(e) => updatePhase(section.fase, { texto: e.target.value })}
+                        placeholder={
+                          section.fase === 'transicion_ofensiva'
+                            ? 'Verticalidad, espacios, cambio de ritmo...'
+                            : 'Presión, repliegue, equilibrio...'
+                        }
+                        className="text-sm resize-none"
+                      />
+                    </TabsContent>
+                    {section.fase === 'transicion_ofensiva' && (
+                      <TabsContent value="roles" className="mt-2">
+                        <TacticalRolesPanel
+                          context="transicion_ofensiva"
+                          roles={phase.roles ?? []}
+                          onChange={(roles) => updatePhase(section.fase, { roles })}
+                          jugadorLabel="Nuestro jugador"
+                        />
+                      </TabsContent>
+                    )}
+                  </Tabs>
                 )}
 
                 {/* ABP: jugadas del laboratorio */}

@@ -29,6 +29,8 @@ import { api } from '@/lib/api/client'
 import { rivalesApi } from '@/lib/api/partidos'
 import { VideoPlayer } from '@/components/video-analyzer/VideoPlayer'
 import ABPRivalPlays from '@/components/abp/ABPRivalPlays'
+import { TacticalRolesPanel } from '@/components/tactical/TacticalRolesPanel'
+import { getContextForSubfase } from '@/lib/tacticalRoles'
 import { apiKey } from '@/lib/swr'
 import type { RFEFCompeticion } from '@/lib/api/rfef'
 
@@ -376,14 +378,49 @@ function PhaseEditor({
             </TabsList>
             {subfases.map((s) => {
               const data = phase.subfases?.[s.key] ?? { notas: '' }
+              const roleContext =
+                fase === 'ataque_organizado' || fase === 'defensa_organizada'
+                  ? getContextForSubfase(fase, s.key)
+                  : 'creacion_progresion'
+              const showRoles =
+                fase === 'ataque_organizado' || fase === 'defensa_organizada'
               return (
                 <TabsContent key={s.key} value={s.key} className="mt-2">
-                  <Input
-                    value={data.notas}
-                    onChange={(e) => onUpdateSubfase(fase, s.key, { notas: e.target.value })}
-                    placeholder={`Apunte sobre ${s.label.toLowerCase()}...`}
-                    className="h-8 text-xs"
-                  />
+                  {showRoles ? (
+                    <Tabs defaultValue="plan">
+                      <TabsList className="h-7">
+                        <TabsTrigger value="plan" className="text-[10px] px-2 py-0.5">
+                          Análisis
+                        </TabsTrigger>
+                        <TabsTrigger value="roles" className="text-[10px] px-2 py-0.5">
+                          Roles
+                        </TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="plan" className="mt-2">
+                        <Input
+                          value={data.notas}
+                          onChange={(e) => onUpdateSubfase(fase, s.key, { notas: e.target.value })}
+                          placeholder={`Apunte sobre ${s.label.toLowerCase()}...`}
+                          className="h-8 text-xs"
+                        />
+                      </TabsContent>
+                      <TabsContent value="roles" className="mt-2">
+                        <TacticalRolesPanel
+                          context={roleContext}
+                          roles={data.roles ?? []}
+                          onChange={(roles) => onUpdateSubfase(fase, s.key, { roles })}
+                          jugadorLabel="Jugador rival"
+                        />
+                      </TabsContent>
+                    </Tabs>
+                  ) : (
+                    <Input
+                      value={data.notas}
+                      onChange={(e) => onUpdateSubfase(fase, s.key, { notas: e.target.value })}
+                      placeholder={`Apunte sobre ${s.label.toLowerCase()}...`}
+                      className="h-8 text-xs"
+                    />
+                  )}
                 </TabsContent>
               )
             })}
@@ -404,15 +441,35 @@ function PhaseEditor({
         </div>
       )}
       {fase === 'transicion_ofensiva' && (
-        <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Vigilancias / sistema defensivo rival</Label>
-          <Textarea
-            value={phase.vigilancias || ''}
-            onChange={(e) => onUpdate(fase, { vigilancias: e.target.value })}
-            placeholder="Vigilancias, coberturas, comportamiento defensivo del rival en transición..."
-            rows={4}
-            className="text-sm resize-none"
-          />
+        <div className="space-y-3">
+          <Tabs defaultValue="plan">
+            <TabsList className="h-7">
+              <TabsTrigger value="plan" className="text-[10px] px-2 py-0.5">
+                Vigilancias
+              </TabsTrigger>
+              <TabsTrigger value="roles" className="text-[10px] px-2 py-0.5">
+                Roles
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="plan" className="mt-2 space-y-2">
+              <Label className="text-xs text-muted-foreground">Vigilancias / sistema defensivo rival</Label>
+              <Textarea
+                value={phase.vigilancias || ''}
+                onChange={(e) => onUpdate(fase, { vigilancias: e.target.value })}
+                placeholder="Vigilancias, coberturas, comportamiento defensivo del rival en transición..."
+                rows={4}
+                className="text-sm resize-none"
+              />
+            </TabsContent>
+            <TabsContent value="roles" className="mt-2">
+              <TacticalRolesPanel
+                context="transicion_ofensiva"
+                roles={phase.roles ?? []}
+                onChange={(roles) => onUpdate(fase, { roles })}
+                jugadorLabel="Jugador rival"
+              />
+            </TabsContent>
+          </Tabs>
         </div>
       )}
       {fase === 'transicion_defensiva' && (
