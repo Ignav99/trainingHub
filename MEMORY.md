@@ -160,6 +160,14 @@ El usuario reportó dos problemas en la misma sesión:
 2. **Creación de microciclo con demasiados campos**: tanto en el dashboard general como en `/microciclos`, el diálogo de "Nuevo microciclo" pedía partido, rival, modelo de juego, objetivo principal, táctico, físico y notas.
    - **Fix**: ambos diálogos (`frontend/src/app/(dashboard)/page.tsx` y `frontend/src/app/(dashboard)/microciclos/page.tsx`) se simplificaron a pedir ÚNICAMENTE fecha de inicio y fecha de fin. Todo lo demás (rival, partido, modelo de juego, objetivos, notas) ya era editable después dentro del microciclo (`/microciclos/[id]` > diálogo "Editar Microciclo", que no se tocó). Se limpiaron los fetches SWR e imports que solo servían para poblar esos selectores eliminados.
 
+### 6.6 Vinculación de rival/partido descubrible desde Sala del Lunes
+Tras simplificar la creación del microciclo (solo fechas), el usuario reportó no encontrar ninguna forma de vincular un rival — aunque el mecanismo YA existía (diálogo "Editar Microciclo" con selects de Partido/Rival/Modelo de juego), solo era accesible desde un botón pequeño "Editar" en la cabecera de la página, fuera de la Sala del Lunes.
+
+- `SalaLunes.tsx` ahora muestra un banner en la parte superior:
+  - **Si hay rival vinculado**: escudo (o icono placeholder), nombre del rival, y si también hay partido vinculado, localía + competición + fecha, más un botón "Editar".
+  - **Si NO hay rival vinculado**: botón con borde discontinuo "Vincular rival / partido de competición (opcional)" — deja claro que sigue siendo opcional, tal y como pidió el usuario.
+- Ambos casos abren el MISMO diálogo "Editar Microciclo" ya existente (vía nuevo prop `onOpenEdit` pasado desde la página padre) — sin duplicar lógica, sin nuevos endpoints.
+
 ### 7. Pendientes
 - **CRÍTICO**: usuario debe ejecutar la migración 043 en Supabase SQL Editor (ver punto 5).
 - Añadir secret `RENDER_API_KEY` en GitHub para que el nuevo deploy polling funcione automáticamente tras merge.
