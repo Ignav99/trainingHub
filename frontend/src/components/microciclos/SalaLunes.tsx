@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { CalendarDays, Users, ClipboardList, Target, Share2, Sparkles } from 'lucide-react'
+import Image from 'next/image'
+import { CalendarDays, Users, ClipboardList, Target, Share2, Sparkles, Swords, Link2, Pencil, Shield } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
@@ -118,9 +119,10 @@ interface SalaLunesProps {
   microcicloId: string
   data: VistaCompletaMicrociclo
   jugadores: Jugador[]
+  onOpenEdit?: () => void
 }
 
-export function SalaLunes({ microcicloId, data, jugadores }: SalaLunesProps) {
+export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLunesProps) {
   const [planCT, setPlanCT] = useState<PlanCT>(data.microciclo.plan_ct ?? {})
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -204,6 +206,57 @@ export function SalaLunes({ microcicloId, data, jugadores }: SalaLunesProps) {
             </Button>
           </div>
         </div>
+
+        {/* ============ Rival / Partido de competición ============ */}
+        {micro.rivales ? (
+          <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
+            <div className="flex items-center gap-3 min-w-0">
+              {micro.rivales.escudo_url ? (
+                <Image
+                  src={micro.rivales.escudo_url}
+                  alt={micro.rivales.nombre}
+                  width={32}
+                  height={32}
+                  className="rounded-md object-contain shrink-0"
+                  unoptimized
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-md bg-muted flex items-center justify-center shrink-0">
+                  <Shield className="h-4 w-4 text-muted-foreground" />
+                </div>
+              )}
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <Swords className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                  <span className="text-sm font-semibold truncate">
+                    {micro.rivales.nombre_corto || micro.rivales.nombre}
+                  </span>
+                </div>
+                {micro.partidos && (
+                  <p className="text-[11px] text-muted-foreground truncate">
+                    {micro.partidos.localia === 'local' ? 'Local' : 'Visitante'} · {micro.partidos.competicion}
+                    {micro.partidos.fecha ? ` · ${formatDateShort(micro.partidos.fecha.slice(0, 10))}` : ''}
+                  </p>
+                )}
+              </div>
+            </div>
+            {onOpenEdit && (
+              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 shrink-0" onClick={onOpenEdit}>
+                <Pencil className="h-3 w-3" />
+                Editar
+              </Button>
+            )}
+          </div>
+        ) : onOpenEdit ? (
+          <button
+            type="button"
+            onClick={onOpenEdit}
+            className="flex items-center justify-center gap-2 w-full rounded-lg border border-dashed px-3 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-primary/50 hover:bg-muted/30 transition-colors"
+          >
+            <Link2 className="h-3.5 w-3.5" />
+            Vincular rival / partido de competición (opcional)
+          </button>
+        ) : null}
 
         <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-3 items-start">
           <div className="space-y-1.5">

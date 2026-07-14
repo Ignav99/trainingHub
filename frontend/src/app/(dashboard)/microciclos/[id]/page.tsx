@@ -278,6 +278,7 @@ export default function MicrocicloDetallePage() {
         microcicloId={id}
         data={data}
         jugadores={jugadores}
+        onOpenEdit={openEdit}
       />
 
       {/* ============ EDIT DIALOG ============ */}
