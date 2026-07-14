@@ -130,6 +130,10 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
     updateStrategy({ once_probable: { ...onceProbable, jugadores: updated } })
   }
 
+  const totalActas = onceProbable?.actas_analizadas ?? 0
+  const frecuenciaLabel = (apariciones?: number) =>
+    totalActas > 0 ? `${apariciones ?? 0}/${totalActas}` : apariciones != null ? String(apariciones) : '—'
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-2">
@@ -220,9 +224,14 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
                       >
                         {jugador.dorsal ?? '?'}
                       </div>
-                      <span className="block text-[9px] text-white font-medium mt-0.5 max-w-[64px] truncate drop-shadow mx-auto">
+                      <span className="block text-[9px] text-white font-medium mt-0.5 max-w-[72px] truncate drop-shadow mx-auto">
                         {jugador.nombre}
                       </span>
+                      {totalActas > 0 && (
+                        <span className="block text-[8px] text-blue-200 font-semibold leading-none tabular-nums">
+                          {frecuenciaLabel(jugador.apariciones)}
+                        </span>
+                      )}
                       {!!jugador.puntuacion && (
                         <span className="block text-[8px] text-amber-300 leading-none">
                           {'★'.repeat(jugador.puntuacion)}
@@ -284,6 +293,11 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
                     {j.dorsal ?? '?'}
                   </span>
                   <span className="truncate flex-1">{j.nombre}</span>
+                  {totalActas > 0 && (
+                    <span className="text-[10px] font-semibold text-blue-600 tabular-nums shrink-0">
+                      {frecuenciaLabel(j.apariciones)}
+                    </span>
+                  )}
                   {placedNames.has(j.nombre) && (
                     <Badge variant="secondary" className="text-[8px] px-1 shrink-0">en 11</Badge>
                   )}
@@ -320,6 +334,11 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
                 {selectedJugador.dorsal ?? '?'}
               </span>
               <span className="text-sm font-semibold">{selectedJugador.nombre}</span>
+              {totalActas > 0 && (
+                <Badge variant="secondary" className="text-[10px] tabular-nums">
+                  {frecuenciaLabel(selectedJugador.apariciones)} titularidades
+                </Badge>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-0.5">
