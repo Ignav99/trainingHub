@@ -1,5 +1,5 @@
 import { api } from './client'
-import { Partido, Rival, PaginatedResponse, TipoCompeticion, LocaliaPartido, OnceProbableResponse, TarjetasResumenResponse, PreMatchIntel, RivalInforme, InformeRivalEnriquecido } from '@/types'
+import { Partido, Rival, PaginatedResponse, TipoCompeticion, LocaliaPartido, OnceProbableResponse, TarjetasResumenResponse, PreMatchIntel, RivalInforme, InformeRivalEnriquecido, RivalScoutData, PlanPartidoData } from '@/types'
 
 // ============ Rivales ============
 
@@ -57,6 +57,40 @@ export const rivalesApi = {
     const params: Record<string, string> = {}
     if (competicionId) params.competicion_id = competicionId
     return api.get<OnceProbableResponse>(`/rivales/${rivalId}/once-probable`, { params })
+  },
+
+  async getScoutManual(rivalId: string): Promise<Partial<RivalScoutData>> {
+    return api.get<Partial<RivalScoutData>>(`/rivales/${rivalId}/scout-manual`)
+  },
+
+  async putScoutManual(rivalId: string, data: Partial<RivalScoutData>): Promise<Partial<RivalScoutData>> {
+    return api.put<Partial<RivalScoutData>>(`/rivales/${rivalId}/scout-manual`, data)
+  },
+
+  async getPlanPartidoManual(rivalId: string): Promise<Partial<PlanPartidoData>> {
+    return api.get<Partial<PlanPartidoData>>(`/rivales/${rivalId}/plan-partido-manual`)
+  },
+
+  async putPlanPartidoManual(
+    rivalId: string,
+    data: Partial<PlanPartidoData>
+  ): Promise<Partial<PlanPartidoData>> {
+    return api.put<Partial<PlanPartidoData>>(`/rivales/${rivalId}/plan-partido-manual`, data)
+  },
+
+  async uploadRivalClip(
+    rivalId: string,
+    fase: string,
+    file: File
+  ): Promise<{ url: string; size: number; mimeType: string; titulo: string }> {
+    const formData = new FormData()
+    formData.append('fase', fase)
+    formData.append('file', file)
+    return api.upload<{ url: string; size: number; mimeType: string; titulo: string }>(
+      `/rivales/${rivalId}/clips`,
+      formData,
+      { timeout: 180000 }
+    )
   },
 
   async getTarjetasResumen(rivalId: string, competicionId?: string): Promise<TarjetasResumenResponse> {

@@ -8,7 +8,7 @@ import io
 import json
 import logging
 
-from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File, status
+from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File, Form, Body, status
 from fastapi.responses import StreamingResponse
 from typing import Optional
 from uuid import UUID
@@ -30,6 +30,143 @@ from app.services.ai_errors import AIError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+RIVAL_CLIPS_BUCKET = "rival-clips"
+MAX_CLIP_SIZE = 50 * 1024 * 1024
+MAX_TOTAL_CLIPS_PER_RIVAL = 500 * 1024 * 1024
+ALLOWED_VIDEO_TYPES = ("video/",)
+
+
+def _clips_size_from_phases(phases: list | None) -> int:
+    total = 0
+    for fase in phases or []:
+        for clip in fase.get("clips") or []:
+            total += clip.get("size") or 0
+    return total
+
+
+def _clips_size_from_scout(scout: dict | None) -> int:
+    if not scout:
+        return 0
+    return _clips_size_from_phases(scout.get("fases"))
+
+
+def _clips_size_from_rival(rival: dict) -> int:
+    total = _clips_size_from_scout(rival.get("scout_manual"))
+    plan = rival.get("plan_partido_manual") or {}
+    total += _clips_size_from_phases(plan.get("fases"))
+    return total
+
+
+def _verify_rival_access(supabase, rival_id: UUID, org_id: UUID) -> dict:
+    res = supabase.table("rivales").select(
+        "id, scout_manual, plan_partido_manual"
+    ).eq(
+        "id", str(rival_id)
+    ).eq("organizacion_id", str(org_id)).single().execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Rival no encontrado")
+    return res.data
+
+
+@router.get("/{rival_id}/scout-manual")
+async def get_scout_manual(
+    rival_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.RIVAL_READ)),
+):
+    """Perfil manual persistente del rival (fases, clips, análisis). Compartido con microciclos."""
+    supabase = get_supabase()
+    rival = _verify_rival_access(supabase, rival_id, auth.organizacion_id)
+    return rival.get("scout_manual") or {}
+
+
+@router.put("/{rival_id}/scout-manual")
+async def put_scout_manual(
+    rival_id: UUID,
+    body: dict = Body(...),
+    auth: AuthContext = Depends(require_permission(Permission.RIVAL_UPDATE)),
+):
+    """Guarda el perfil manual del rival. Se sincroniza desde Informe Rival y Sala del Lunes."""
+    supabase = get_supabase()
+    _verify_rival_access(supabase, rival_id, auth.organizacion_id)
+    supabase.table("rivales").update({
+        "scout_manual": body,
+    }).eq("id", str(rival_id)).eq("organizacion_id", str(auth.organizacion_id)).execute()
+    return body
+
+
+@router.get("/{rival_id}/plan-partido-manual")
+async def get_plan_partido_manual(
+    rival_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.RIVAL_READ)),
+):
+    """Plan de partido persistente del rival. Compartido con microciclos."""
+    supabase = get_supabase()
+    rival = _verify_rival_access(supabase, rival_id, auth.organizacion_id)
+    return rival.get("plan_partido_manual") or {}
+
+
+@router.put("/{rival_id}/plan-partido-manual")
+async def put_plan_partido_manual(
+    rival_id: UUID,
+    body: dict = Body(...),
+    auth: AuthContext = Depends(require_permission(Permission.RIVAL_UPDATE)),
+):
+    """Guarda el plan de partido del rival. Sync desde ficha rival y Sala del Lunes."""
+    supabase = get_supabase()
+    _verify_rival_access(supabase, rival_id, auth.organizacion_id)
+    supabase.table("rivales").update({
+        "plan_partido_manual": body,
+    }).eq("id", str(rival_id)).eq("organizacion_id", str(auth.organizacion_id)).execute()
+    return body
+
+
+@router.post("/{rival_id}/clips")
+async def upload_rival_clip_for_rival(
+    rival_id: UUID,
+    fase: str = Form(...),
+    file: UploadFile = File(...),
+    auth: AuthContext = Depends(require_permission(Permission.RIVAL_UPDATE)),
+):
+    """Sube clip de vídeo a la biblioteca del rival (compartida entre microciclos)."""
+    if not file.content_type or not file.content_type.startswith(ALLOWED_VIDEO_TYPES):
+        raise HTTPException(status_code=400, detail="El archivo debe ser un vídeo (mp4, mov, etc.)")
+
+    content = await file.read()
+    size = len(content)
+    if size > MAX_CLIP_SIZE:
+        raise HTTPException(status_code=400, detail=f"El vídeo supera 50MB ({size / (1024 * 1024):.1f}MB)")
+
+    supabase = get_supabase()
+    rival = _verify_rival_access(supabase, rival_id, auth.organizacion_id)
+    existing_size = _clips_size_from_rival(rival)
+    if existing_size + size > MAX_TOTAL_CLIPS_PER_RIVAL:
+        remaining = max(0, MAX_TOTAL_CLIPS_PER_RIVAL - existing_size)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Límite de 500MB por rival. Disponible: {remaining / (1024 * 1024):.1f}MB",
+        )
+
+    safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in (file.filename or "clip"))
+    storage_path = f"{rival_id}/{fase}/{auth.organizacion_id}_{safe_name}"
+
+    try:
+        supabase.storage.from_(RIVAL_CLIPS_BUCKET).upload(
+            storage_path,
+            content,
+            file_options={"content-type": file.content_type, "upsert": "true"},
+        )
+        url = supabase.storage.from_(RIVAL_CLIPS_BUCKET).get_public_url(storage_path)
+    except Exception as e:
+        logger.error("Error uploading rival clip for rival %s: %s", rival_id, e)
+        raise HTTPException(status_code=500, detail="Error al subir el clip de vídeo")
+
+    return {
+        "url": url,
+        "size": size,
+        "mimeType": file.content_type,
+        "titulo": safe_name.rsplit(".", 1)[0] if "." in safe_name else safe_name,
+    }
 
 
 @router.get("", response_model=RivalListResponse)

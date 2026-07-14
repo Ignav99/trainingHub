@@ -1337,6 +1337,8 @@ export interface Rival {
   rfef_nombre?: string
   sistema_juego?: string
   estilo?: string
+  scout_manual?: Partial<RivalScoutData>
+  plan_partido_manual?: Partial<PlanPartidoData>
   created_at: string
   updated_at: string
 }
