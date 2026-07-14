@@ -17,9 +17,18 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import type { ClipRival, FasePlanPartido, PlanPartidoData, PlanPartidoPhase } from '@/types'
+import type {
+  ClipRival,
+  FasePlanPartido,
+  PlanPartidoData,
+  PlanPartidoPhase,
+  PlanPartidoSubfaseData,
+  RivalSubfaseAtaque,
+  RivalSubfaseDefensa,
+} from '@/types'
 import { exportPlanPartidoPDF } from '@/lib/pdf/exportPlanPartidoPDF'
 import { TacticalBoard } from './TacticalBoard'
+import { PlanPartidoABPSection } from './PlanPartidoABPSection'
 import { api } from '@/lib/api/client'
 import { rivalesApi } from '@/lib/api/partidos'
 import { VideoPlayer } from '@/components/video-analyzer/VideoPlayer'
@@ -29,60 +38,55 @@ interface PlanPartidoProps {
   onChange: (data: Partial<PlanPartidoData>) => void
   rivalId?: string
   microcicloId?: string
-  /** false en ficha rival: oculta consignas semanales (solo microciclo) */
+  equipoId?: string
+  /** false en ficha rival: oculta consignas clave globales */
   weeklyMode?: boolean
 }
 
-const FASES: { fase: FasePlanPartido; label: string; color: string; placeholder: string }[] = [
-  {
-    fase: 'ataque_organizado',
-    label: 'Ataque Organizado',
-    color: 'text-blue-600',
-    placeholder: 'Salida, progresión, creación, finalización...',
-  },
-  {
-    fase: 'defensa_organizada',
-    label: 'Defensa Organizada',
-    color: 'text-red-600',
-    placeholder: 'Presión, bloque, repliegue, vigilancias...',
-  },
-  {
-    fase: 'transicion_ofensiva',
-    label: 'Transición Ofensiva',
-    color: 'text-green-600',
-    placeholder: 'Verticalidad, espacios, cambio de ritmo...',
-  },
-  {
-    fase: 'transicion_defensiva',
-    label: 'Transición Defensiva',
-    color: 'text-orange-600',
-    placeholder: 'PPDA, repliegue, equilibrio...',
-  },
-  {
-    fase: 'abp_ofensiva',
-    label: 'ABP Ofensiva',
-    color: 'text-purple-600',
-    placeholder: 'Corners, faltas, saques de banda...',
-  },
-  {
-    fase: 'abp_defensiva',
-    label: 'ABP Defensiva',
-    color: 'text-amber-600',
-    placeholder: 'Defensa de corners, faltas, saques...',
-  },
+const FASES: { fase: FasePlanPartido; label: string; color: string }[] = [
+  { fase: 'ataque_organizado', label: 'Ataque Organizado', color: 'text-blue-600' },
+  { fase: 'defensa_organizada', label: 'Defensa Organizada', color: 'text-red-600' },
+  { fase: 'transicion_ofensiva', label: 'Transición OF', color: 'text-green-600' },
+  { fase: 'transicion_defensiva', label: 'Transición DEF', color: 'text-orange-600' },
+  { fase: 'abp_ofensiva', label: 'ABP Ofensiva', color: 'text-purple-600' },
+  { fase: 'abp_defensiva', label: 'ABP Defensiva', color: 'text-amber-600' },
 ]
+
+const SUBFASES_ATAQUE: { key: RivalSubfaseAtaque; label: string }[] = [
+  { key: 'creacion', label: 'Creación' },
+  { key: 'progresion', label: 'Progresión' },
+  { key: 'finalizacion', label: 'Finalización' },
+]
+
+const SUBFASES_DEFENSA: { key: RivalSubfaseDefensa; label: string }[] = [
+  { key: 'bloque_alto', label: 'Bloque alto' },
+  { key: 'bloque_medio', label: 'Bloque medio' },
+  { key: 'bloque_bajo', label: 'Bloque bajo' },
+]
+
+const SISTEMAS = ['4-3-3', '4-4-2', '4-2-3-1', '3-4-3', '3-5-2', '4-1-4-1', '4-3-2-1', '5-3-2', '5-4-1']
+
+function isSubfasePhase(fase: FasePlanPartido) {
+  return fase === 'ataque_organizado' || fase === 'defensa_organizada'
+}
+
+function isTransitionPhase(fase: FasePlanPartido) {
+  return fase === 'transicion_ofensiva' || fase === 'transicion_defensiva'
+}
+
+function isAbpPhase(fase: FasePlanPartido) {
+  return fase === 'abp_ofensiva' || fase === 'abp_defensiva'
+}
 
 export function PlanPartido({
   data,
   onChange,
   rivalId,
   microcicloId,
+  equipoId,
   weeklyMode = true,
 }: PlanPartidoProps) {
   const [activeTab, setActiveTab] = useState<FasePlanPartido>('ataque_organizado')
-  const [principioInputs, setPrincipioInputs] = useState<Record<string, string>>({})
-  const [consignaInputs, setConsignaInputs] = useState<Record<string, string>>({})
-
   const fases = data.fases ?? []
   const consignasClave = data.consignas_clave ?? []
 
@@ -93,42 +97,27 @@ export function PlanPartido({
 
   const update = (patch: Partial<PlanPartidoData>) => onChange({ ...data, ...patch })
 
-  const getPhase = (fase: FasePlanPartido): PlanPartidoPhase => {
-    return fases.find((f) => f.fase === fase) ?? {
-      fase,
-      texto: '',
-      principios_modelo: [],
-      consignas: [],
-      clips: [],
-    }
-  }
+  const getPhase = (fase: FasePlanPartido): PlanPartidoPhase =>
+    fases.find((f) => f.fase === fase) ?? { fase, clips: [] }
 
   const updatePhase = (fase: FasePlanPartido, patch: Partial<PlanPartidoPhase>) => {
     const existing = fases.find((f) => f.fase === fase)
     const next = existing
       ? fases.map((f) => (f.fase === fase ? { ...f, ...patch } : f))
-      : [...fases, { fase, texto: '', principios_modelo: [], consignas: [], clips: [], ...patch }]
+      : [...fases, { fase, clips: [], ...patch }]
     update({ fases: next })
   }
 
-  const addTag = (
+  const updateSubfase = (
     fase: FasePlanPartido,
-    field: 'principios_modelo' | 'consignas',
-    value: string,
-    clearInput: () => void
+    key: RivalSubfaseAtaque | RivalSubfaseDefensa,
+    patch: Partial<PlanPartidoSubfaseData>
   ) => {
-    const trimmed = value.trim()
-    if (!trimmed) return
     const phase = getPhase(fase)
-    const current = phase[field] ?? []
-    if (current.includes(trimmed)) return
-    updatePhase(fase, { [field]: [...current, trimmed] })
-    clearInput()
-  }
-
-  const removeTag = (fase: FasePlanPartido, field: 'principios_modelo' | 'consignas', index: number) => {
-    const phase = getPhase(fase)
-    updatePhase(fase, { [field]: phase[field]?.filter((_, i) => i !== index) })
+    const subfases = { ...(phase.subfases ?? {}) }
+    const current = subfases[key] ?? { notas: '' }
+    subfases[key] = { ...current, ...patch }
+    updatePhase(fase, { subfases })
   }
 
   const addClip = (fase: FasePlanPartido, clip: ClipRival) => {
@@ -152,8 +141,7 @@ export function PlanPartido({
     if (e.key !== 'Enter') return
     e.preventDefault()
     const trimmed = (e.target as HTMLInputElement).value.trim()
-    if (!trimmed) return
-    if (consignasClave.includes(trimmed)) return
+    if (!trimmed || consignasClave.includes(trimmed)) return
     update({ consignas_clave: [...consignasClave, trimmed] })
     ;(e.target as HTMLInputElement).value = ''
   }
@@ -162,15 +150,13 @@ export function PlanPartido({
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base">
-            Plan de Partido
-          </CardTitle>
+          <CardTitle className="text-base">Plan de Partido</CardTitle>
           <Button
             type="button"
             variant="outline"
             size="sm"
             className="h-8 text-xs"
-            onClick={() => exportPlanPartidoPDF(data)}
+            onClick={() => void exportPlanPartidoPDF(data, equipoId)}
           >
             Exportar PDF
           </Button>
@@ -189,246 +175,239 @@ export function PlanPartido({
 
           {FASES.map((section) => {
             const phase = getPhase(section.fase)
+            const subfaseList =
+              section.fase === 'ataque_organizado'
+                ? SUBFASES_ATAQUE
+                : section.fase === 'defensa_organizada'
+                  ? SUBFASES_DEFENSA
+                  : null
+
             return (
               <TabsContent key={section.fase} value={section.fase} className="space-y-4 mt-4">
-              <p className={`text-xs font-semibold ${section.color}`}>
-                {section.label}
-              </p>
+                <p className={`text-xs font-semibold ${section.color}`}>{section.label}</p>
 
-                <Textarea
-                  rows={3}
-                  className="resize-none text-sm"
-                  placeholder={section.placeholder}
-                  value={phase.texto}
-                  onChange={(e) => updatePhase(section.fase, { texto: e.target.value })}
-                />
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <TagInput
-                    label="Principios del modelo de juego"
-                    items={phase.principios_modelo ?? []}
-                    inputValue={principioInputs[section.fase] ?? ''}
-                    onInputChange={(v) => setPrincipioInputs((prev) => ({ ...prev, [section.fase]: v }))}
-                    onAdd={() =>
-                      addTag(section.fase, 'principios_modelo', principioInputs[section.fase] ?? '', () =>
-                        setPrincipioInputs((prev) => ({ ...prev, [section.fase]: '' }))
-                      )
-                    }
-                    onKey={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        addTag(section.fase, 'principios_modelo', principioInputs[section.fase] ?? '', () =>
-                          setPrincipioInputs((prev) => ({ ...prev, [section.fase]: '' }))
-                        )
-                      }
-                    }}
-                    onRemove={(i) => removeTag(section.fase, 'principios_modelo', i)}
-                    color="blue"
-                  />
-                  {weeklyMode && (
-                    <TagInput
-                      label="Consignas de la semana"
-                      items={phase.consignas ?? []}
-                      inputValue={consignaInputs[section.fase] ?? ''}
-                      onInputChange={(v) => setConsignaInputs((prev) => ({ ...prev, [section.fase]: v }))}
-                      onAdd={() =>
-                        addTag(section.fase, 'consignas', consignaInputs[section.fase] ?? '', () =>
-                          setConsignaInputs((prev) => ({ ...prev, [section.fase]: '' }))
-                        )
-                      }
-                      onKey={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          addTag(section.fase, 'consignas', consignaInputs[section.fase] ?? '', () =>
-                            setConsignaInputs((prev) => ({ ...prev, [section.fase]: '' }))
-                          )
-                        }
-                      }}
-                      onRemove={(i) => removeTag(section.fase, 'consignas', i)}
-                      color="amber"
-                    />
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <div className="text-xs font-semibold text-muted-foreground">
-                    Clips de vídeo
-                  </div>
-                  <div className="space-y-2">
-                    {(phase.clips ?? []).map((clip) => (
-                      <div key={clip.id} className="rounded-md border bg-muted/30 p-2 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Input
-                            value={clip.titulo}
-                            onChange={(e) => updateClip(section.fase, clip.id, { titulo: e.target.value })}
-                            placeholder="Título"
-                            className="h-7 text-xs flex-1"
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
-                            onClick={() => removeClip(section.fase, clip.id)}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                        {clip.url && (
-                          <div className="rounded-md overflow-hidden border bg-black max-h-40">
-                            <VideoPlayer src={clip.url} standalonePreview />
+                {/* Ataque / Defensa: 3 subfases con sistema + texto */}
+                {isSubfasePhase(section.fase) && subfaseList && (
+                  <Tabs defaultValue={subfaseList[0].key}>
+                    <TabsList className="flex flex-wrap h-auto gap-1">
+                      {subfaseList.map((s) => (
+                        <TabsTrigger key={s.key} value={s.key} className="text-[10px] px-2 py-1">
+                          {s.label}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                    {subfaseList.map((s) => {
+                      const sub = phase.subfases?.[s.key] ?? { notas: '' }
+                      return (
+                        <TabsContent key={s.key} value={s.key} className="space-y-3 mt-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Sistema a utilizar</Label>
+                            <Select
+                              value={sub.sistema || ''}
+                              onValueChange={(v) => updateSubfase(section.fase, s.key, { sistema: v })}
+                            >
+                              <SelectTrigger className="h-8 text-xs w-44">
+                                <SelectValue placeholder="Seleccionar..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {SISTEMAS.map((sys) => (
+                                  <SelectItem key={sys} value={sys}>
+                                    {sys}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
-                        )}
-                        <Textarea
-                          value={clip.notas ?? ''}
-                          onChange={(e) => updateClip(section.fase, clip.id, { notas: e.target.value })}
-                          placeholder="Notas del clip..."
-                          rows={1}
-                          className="text-xs resize-none min-h-0"
-                        />
-                      </div>
-                    ))}
+                          <Textarea
+                            rows={4}
+                            value={sub.notas}
+                            onChange={(e) => updateSubfase(section.fase, s.key, { notas: e.target.value })}
+                            placeholder={`Plan táctico en ${s.label.toLowerCase()}...`}
+                            className="text-sm resize-none"
+                          />
+                        </TabsContent>
+                      )
+                    })}
+                  </Tabs>
+                )}
+
+                {/* Transiciones: sistema + texto */}
+                {isTransitionPhase(section.fase) && (
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Sistema a utilizar</Label>
+                      <Select
+                        value={phase.sistema || ''}
+                        onValueChange={(v) => updatePhase(section.fase, { sistema: v })}
+                      >
+                        <SelectTrigger className="h-8 text-xs w-44">
+                          <SelectValue placeholder="Seleccionar..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SISTEMAS.map((sys) => (
+                            <SelectItem key={sys} value={sys}>
+                              {sys}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Textarea
+                      rows={4}
+                      value={phase.texto ?? ''}
+                      onChange={(e) => updatePhase(section.fase, { texto: e.target.value })}
+                      placeholder={
+                        section.fase === 'transicion_ofensiva'
+                          ? 'Verticalidad, espacios, cambio de ritmo...'
+                          : 'Presión, repliegue, equilibrio...'
+                      }
+                      className="text-sm resize-none"
+                    />
                   </div>
-                  <PlanClipUpload
+                )}
+
+                {/* ABP: jugadas del laboratorio */}
+                {isAbpPhase(section.fase) && (
+                  <PlanPartidoABPSection
+                    lado={section.fase === 'abp_ofensiva' ? 'ofensivo' : 'defensivo'}
+                    items={phase.jugadas_abp ?? []}
+                    equipoId={equipoId}
+                    onChange={(jugadas_abp) => updatePhase(section.fase, { jugadas_abp })}
+                  />
+                )}
+
+                {/* Pizarra táctica (todas las fases excepto solo-ABP sin pizarra? user wants pizarra for all) */}
+                {!isAbpPhase(section.fase) && (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Pizarra táctica</Label>
+                    <TacticalBoard
+                      value={phase.pizarra_tactica}
+                      onChange={(v) => updatePhase(section.fase, { pizarra_tactica: v })}
+                    />
+                  </div>
+                )}
+
+                {/* Clips debajo de la pizarra */}
+                {!isAbpPhase(section.fase) && (
+                  <ClipsSection
+                    phase={phase}
                     fase={section.fase}
                     rivalId={rivalId}
                     microcicloId={microcicloId}
-                    existingSize={totalClipsSize}
-                    onUploaded={(clip) => addClip(section.fase, clip)}
+                    totalClipsSize={totalClipsSize}
+                    onAddClip={(clip) => addClip(section.fase, clip)}
+                    onUpdateClip={(id, patch) => updateClip(section.fase, id, patch)}
+                    onRemoveClip={(id) => removeClip(section.fase, id)}
                   />
-                </div>
-
-                {/* Formación */}
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Formación / sistema</Label>
-                  <Select
-                    value={phase.formacion || ''}
-                    onValueChange={(v) => updatePhase(section.fase, { formacion: v })}
-                  >
-                    <SelectTrigger className="h-8 text-xs w-40">
-                      <SelectValue placeholder="Seleccionar..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="4-3-3">4-3-3</SelectItem>
-                      <SelectItem value="4-4-2">4-4-2</SelectItem>
-                      <SelectItem value="4-2-3-1">4-2-3-1</SelectItem>
-                      <SelectItem value="3-4-3">3-4-3</SelectItem>
-                      <SelectItem value="3-5-2">3-5-2</SelectItem>
-                      <SelectItem value="4-1-4-1">4-1-4-1</SelectItem>
-                      <SelectItem value="4-3-2-1">4-3-2-1</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Espacios y ocupaciones */}
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Espacios / ocupaciones</Label>
-                  <Textarea
-                    rows={2}
-                    value={phase.espacios || ''}
-                    onChange={(e) => updatePhase(section.fase, { espacios: e.target.value })}
-                    placeholder="Espacios a ocupar, zonas de presión, carriles..."
-                    className="text-xs resize-none"
-                  />
-                </div>
-
-                {/* Pizarra táctica */}
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Pizarra táctica</Label>
-                  <TacticalBoard
-                    value={phase.pizarra_tactica}
-                    onChange={(v) => updatePhase(section.fase, { pizarra_tactica: v })}
-                  />
-                </div>
+                )}
               </TabsContent>
             )
           })}
         </Tabs>
 
-        {/* Consignas Clave globales — solo en microciclo (semana de partido) */}
         {weeklyMode && (
-        <div className="space-y-2 pt-1 border-t">
-          <p className="text-xs font-semibold text-amber-600 flex items-center gap-1">
-            <span>💬</span>
-            Consignas Clave Globales
-            <span className="text-muted-foreground font-normal ml-1">(mensajes de la semana)</span>
-          </p>
-
-          <div className="flex flex-wrap gap-1.5 min-h-[28px]">
-            {consignasClave.map((consigna, index) => (
-              <Badge
-                key={index}
-                variant="secondary"
-                className="bg-amber-100 text-amber-800 hover:bg-amber-100 border border-amber-200 pr-1 gap-1"
-              >
-                {consigna}
-                <button
-                  type="button"
-                  onClick={() => update({ consignas_clave: consignasClave.filter((_, i) => i !== index) })}
-                  className="ml-0.5 rounded-sm hover:bg-amber-200 p-0.5 transition-colors"
+          <div className="space-y-2 pt-1 border-t">
+            <p className="text-xs font-semibold text-amber-600 flex items-center gap-1">
+              <span>💬</span>
+              Consignas Clave Globales
+              <span className="text-muted-foreground font-normal ml-1">(mensajes de la semana)</span>
+            </p>
+            <div className="flex flex-wrap gap-1.5 min-h-[28px]">
+              {consignasClave.map((consigna, index) => (
+                <Badge
+                  key={index}
+                  variant="secondary"
+                  className="bg-amber-100 text-amber-800 hover:bg-amber-100 border border-amber-200 pr-1 gap-1"
                 >
-                  <X className="h-3 w-3" />
-                </button>
-              </Badge>
-            ))}
+                  {consigna}
+                  <button
+                    type="button"
+                    onClick={() => update({ consignas_clave: consignasClave.filter((_, i) => i !== index) })}
+                    className="ml-0.5 rounded-sm hover:bg-amber-200 p-0.5 transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+            <Input
+              className="text-sm h-8"
+              placeholder="Escribir consigna y pulsar Enter..."
+              onKeyDown={handleConsignaClave}
+            />
           </div>
-
-          <Input
-            className="text-sm h-8"
-            placeholder="Escribir consigna y pulsar Enter..."
-            onKeyDown={handleConsignaClave}
-          />
-        </div>
         )}
       </CardContent>
     </Card>
   )
 }
 
-interface TagInputProps {
-  label: string
-  items: string[]
-  inputValue: string
-  onInputChange: (v: string) => void
-  onAdd: () => void
-  onKey: (e: KeyboardEvent<HTMLInputElement>) => void
-  onRemove: (index: number) => void
-  color: 'blue' | 'amber'
+interface ClipsSectionProps {
+  phase: PlanPartidoPhase
+  fase: FasePlanPartido
+  rivalId?: string
+  microcicloId?: string
+  totalClipsSize: number
+  onAddClip: (clip: ClipRival) => void
+  onUpdateClip: (id: string, patch: Partial<ClipRival>) => void
+  onRemoveClip: (id: string) => void
 }
 
-function TagInput({ label, items, inputValue, onInputChange, onAdd, onKey, onRemove, color }: TagInputProps) {
-  const colors =
-    color === 'blue'
-      ? 'bg-blue-50 text-blue-800 border-blue-200'
-      : 'bg-amber-50 text-amber-800 border-amber-200'
-
+function ClipsSection({
+  phase,
+  fase,
+  rivalId,
+  microcicloId,
+  totalClipsSize,
+  onAddClip,
+  onUpdateClip,
+  onRemoveClip,
+}: ClipsSectionProps) {
   return (
     <div className="space-y-2">
-      <div className={`text-xs font-semibold ${color === 'blue' ? 'text-blue-700' : 'text-amber-700'}`}>
-        {label}
-      </div>
-      <div className="flex flex-wrap gap-1 min-h-[28px]">
-        {items.map((item, i) => (
-          <span key={i} className={`inline-flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-xs ${colors}`}>
-            {item}
-            <button type="button" onClick={() => onRemove(i)} className="ml-0.5 hover:opacity-70">
-              <X className="h-2.5 w-2.5" />
-            </button>
-          </span>
+      <div className="text-xs font-semibold text-muted-foreground">Clips de vídeo</div>
+      <div className="space-y-2">
+        {(phase.clips ?? []).map((clip) => (
+          <div key={clip.id} className="rounded-md border bg-muted/30 p-2 space-y-2">
+            <div className="flex items-center gap-2">
+              <Input
+                value={clip.titulo}
+                onChange={(e) => onUpdateClip(clip.id, { titulo: e.target.value })}
+                placeholder="Título"
+                className="h-7 text-xs flex-1"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                onClick={() => onRemoveClip(clip.id)}
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            {clip.url && (
+              <div className="rounded-md overflow-hidden border bg-black max-h-40">
+                <VideoPlayer src={clip.url} standalonePreview />
+              </div>
+            )}
+            <Textarea
+              value={clip.notas ?? ''}
+              onChange={(e) => onUpdateClip(clip.id, { notas: e.target.value })}
+              placeholder="Notas del clip..."
+              rows={1}
+              className="text-xs resize-none min-h-0"
+            />
+          </div>
         ))}
       </div>
-      <div className="flex gap-1">
-        <Input
-          value={inputValue}
-          onChange={(e) => onInputChange(e.target.value)}
-          onKeyDown={onKey}
-          placeholder="Añadir..."
-          className="h-7 text-xs"
-        />
-        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={onAdd}>
-          Añadir
-        </Button>
-      </div>
+      <PlanClipUpload
+        fase={fase}
+        rivalId={rivalId}
+        microcicloId={microcicloId}
+        existingSize={totalClipsSize}
+        onUploaded={onAddClip}
+      />
     </div>
   )
 }

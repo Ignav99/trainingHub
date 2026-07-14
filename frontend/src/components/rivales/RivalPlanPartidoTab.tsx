@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { PlanPartido } from '@/components/microciclos/PlanPartido'
 import { rivalesApi } from '@/lib/api/partidos'
+import { useEquipoStore } from '@/stores/equipoStore'
 import type { PlanPartidoData } from '@/types'
 import { extractPersistentPlanPartido } from '@/lib/rivalPlanPartidoSync'
 
@@ -14,6 +15,7 @@ interface RivalPlanPartidoTabProps {
 type SaveStatus = 'idle' | 'pending' | 'saved' | 'error'
 
 export function RivalPlanPartidoTab({ rivalId }: RivalPlanPartidoTabProps) {
+  const { equipoActivo } = useEquipoStore()
   const [plan, setPlan] = useState<Partial<PlanPartidoData>>({})
   const [loaded, setLoaded] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
@@ -81,7 +83,13 @@ export function RivalPlanPartidoTab({ rivalId }: RivalPlanPartidoTabProps) {
         Principios, pizarras y clips se guardan en el perfil del rival. Las consignas semanales se
         editan en el microciclo de la semana de partido.
       </p>
-      <PlanPartido data={plan} rivalId={rivalId} onChange={setPlan} weeklyMode={false} />
+      <PlanPartido
+        data={plan}
+        rivalId={rivalId}
+        equipoId={equipoActivo?.id}
+        onChange={setPlan}
+        weeklyMode={false}
+      />
     </div>
   )
 }

@@ -1,4 +1,11 @@
-import type { FasePlanPartido, PlanPartidoData, PlanPartidoPhase } from '@/types'
+import type {
+  FasePlanPartido,
+  PlanPartidoData,
+  PlanPartidoPhase,
+  PlanPartidoSubfaseData,
+  RivalSubfaseAtaque,
+  RivalSubfaseDefensa,
+} from '@/types'
 
 const FASE_ORDER: FasePlanPartido[] = [
   'ataque_organizado',
@@ -9,27 +16,26 @@ const FASE_ORDER: FasePlanPartido[] = [
   'abp_defensiva',
 ]
 
-/**
- * Partes del plan de partido que viven en rivales.plan_partido_manual (perfil persistente).
- * Se sincronizan entre la ficha del rival y cualquier microciclo que enfrente a ese rival.
- */
+function mapPhasePersistent(f: PlanPartidoPhase): PlanPartidoPhase {
+  return {
+    fase: f.fase,
+    texto: f.texto,
+    sistema: f.sistema,
+    subfases: f.subfases,
+    jugadas_abp: f.jugadas_abp,
+    clips: f.clips ?? [],
+    pizarra_tactica: f.pizarra_tactica,
+  }
+}
+
 export function extractPersistentPlanPartido(
   plan: Partial<PlanPartidoData>
 ): Partial<PlanPartidoData> {
   return {
-    fases: (plan.fases ?? []).map((f) => ({
-      fase: f.fase,
-      texto: f.texto ?? '',
-      principios_modelo: f.principios_modelo ?? [],
-      clips: f.clips ?? [],
-      pizarra_tactica: f.pizarra_tactica,
-      formacion: f.formacion,
-      espacios: f.espacios,
-    })),
+    fases: (plan.fases ?? []).map(mapPhasePersistent),
   }
 }
 
-/** Consignas de la semana — solo en plan_ct del microciclo. */
 export function extractWeeklyPlanPartido(plan: Partial<PlanPartidoData>): Partial<PlanPartidoData> {
   return {
     consignas_clave: plan.consignas_clave ?? [],
@@ -44,7 +50,29 @@ function phaseByFase(fases: PlanPartidoPhase[] | undefined): Map<FasePlanPartido
   return new Map((fases ?? []).map((f) => [f.fase, f]))
 }
 
-/** Combina perfil persistente del rival con consignas semanales del microciclo. */
+function mergeSubfases(
+  saved?: Partial<Record<RivalSubfaseAtaque | RivalSubfaseDefensa, PlanPartidoSubfaseData>>,
+  local?: Partial<Record<RivalSubfaseAtaque | RivalSubfaseDefensa, PlanPartidoSubfaseData>>
+): PlanPartidoPhase['subfases'] {
+  const keys = new Set([
+    ...Object.keys(saved ?? {}),
+    ...Object.keys(local ?? {}),
+  ]) as Set<RivalSubfaseAtaque | RivalSubfaseDefensa>
+
+  if (keys.size === 0) return saved ?? local
+
+  const merged: NonNullable<PlanPartidoPhase['subfases']> = {}
+  for (const key of Array.from(keys)) {
+    const s = saved?.[key]
+    const l = local?.[key]
+    merged[key] = {
+      sistema: s?.sistema ?? l?.sistema ?? '',
+      notas: s?.notas ?? l?.notas ?? '',
+    }
+  }
+  return merged
+}
+
 export function mergePlanPartidoOnLoad(
   persistent: Partial<PlanPartidoData> | null | undefined,
   localPlan: Partial<PlanPartidoData> | null | undefined
@@ -63,14 +91,12 @@ export function mergePlanPartidoOnLoad(
     return {
       fase,
       texto: s?.texto ?? l?.texto ?? '',
-      principios_modelo: s?.principios_modelo?.length
-        ? s.principios_modelo
-        : l?.principios_modelo ?? [],
+      sistema: s?.sistema ?? l?.sistema ?? '',
+      subfases: mergeSubfases(s?.subfases, l?.subfases),
+      jugadas_abp: s?.jugadas_abp?.length ? s.jugadas_abp : l?.jugadas_abp ?? [],
       consignas: w?.consignas?.length ? w.consignas : l?.consignas ?? [],
       clips: s?.clips?.length ? s.clips : l?.clips ?? [],
       pizarra_tactica: s?.pizarra_tactica ?? l?.pizarra_tactica,
-      formacion: s?.formacion ?? l?.formacion,
-      espacios: s?.espacios ?? l?.espacios,
     }
   })
 
