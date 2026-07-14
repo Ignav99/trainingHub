@@ -9,13 +9,6 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type {
   ClipRival,
@@ -63,8 +56,6 @@ const SUBFASES_DEFENSA: { key: RivalSubfaseDefensa; label: string }[] = [
   { key: 'bloque_medio', label: 'Bloque medio' },
   { key: 'bloque_bajo', label: 'Bloque bajo' },
 ]
-
-const SISTEMAS = ['4-3-3', '4-4-2', '4-2-3-1', '3-4-3', '3-5-2', '4-1-4-1', '4-3-2-1', '5-3-2', '5-4-1']
 
 function isSubfasePhase(fase: FasePlanPartido) {
   return fase === 'ataque_organizado' || fase === 'defensa_organizada'
@@ -202,21 +193,12 @@ export function PlanPartido({
                         <TabsContent key={s.key} value={s.key} className="space-y-3 mt-3">
                           <div className="space-y-1">
                             <Label className="text-xs text-muted-foreground">Sistema a utilizar</Label>
-                            <Select
-                              value={sub.sistema || ''}
-                              onValueChange={(v) => updateSubfase(section.fase, s.key, { sistema: v })}
-                            >
-                              <SelectTrigger className="h-8 text-xs w-44">
-                                <SelectValue placeholder="Seleccionar..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {SISTEMAS.map((sys) => (
-                                  <SelectItem key={sys} value={sys}>
-                                    {sys}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <Input
+                              value={sub.sistema ?? ''}
+                              onChange={(e) => updateSubfase(section.fase, s.key, { sistema: e.target.value })}
+                              placeholder="Ej: 4-3-3, 3-2-5, rombo en salida..."
+                              className="h-8 text-xs"
+                            />
                           </div>
                           <Textarea
                             rows={4}
@@ -231,39 +213,19 @@ export function PlanPartido({
                   </Tabs>
                 )}
 
-                {/* Transiciones: sistema + texto */}
+                {/* Transiciones: solo cuadro de texto */}
                 {isTransitionPhase(section.fase) && (
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Sistema a utilizar</Label>
-                      <Select
-                        value={phase.sistema || ''}
-                        onValueChange={(v) => updatePhase(section.fase, { sistema: v })}
-                      >
-                        <SelectTrigger className="h-8 text-xs w-44">
-                          <SelectValue placeholder="Seleccionar..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {SISTEMAS.map((sys) => (
-                            <SelectItem key={sys} value={sys}>
-                              {sys}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Textarea
-                      rows={4}
-                      value={phase.texto ?? ''}
-                      onChange={(e) => updatePhase(section.fase, { texto: e.target.value })}
-                      placeholder={
-                        section.fase === 'transicion_ofensiva'
-                          ? 'Verticalidad, espacios, cambio de ritmo...'
-                          : 'Presión, repliegue, equilibrio...'
-                      }
-                      className="text-sm resize-none"
-                    />
-                  </div>
+                  <Textarea
+                    rows={4}
+                    value={phase.texto ?? ''}
+                    onChange={(e) => updatePhase(section.fase, { texto: e.target.value })}
+                    placeholder={
+                      section.fase === 'transicion_ofensiva'
+                        ? 'Verticalidad, espacios, cambio de ritmo...'
+                        : 'Presión, repliegue, equilibrio...'
+                    }
+                    className="text-sm resize-none"
+                  />
                 )}
 
                 {/* ABP: jugadas del laboratorio */}

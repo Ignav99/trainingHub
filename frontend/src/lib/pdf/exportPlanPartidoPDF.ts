@@ -145,11 +145,7 @@ export async function exportPlanPartidoPDF(data: Partial<PlanPartidoData>, equip
       }
     }
 
-    // Transiciones
-    if (phase?.sistema && !phase.subfases) {
-      doc.text(`Sistema: ${phase.sistema}`, margin, y)
-      y += 6
-    }
+    // Transiciones y fases sin subfases: solo texto
     if (phase?.texto?.trim() && !phase.subfases) {
       y = writeWrapped(doc, phase.texto, margin, y, contentWidth)
       y += 4
