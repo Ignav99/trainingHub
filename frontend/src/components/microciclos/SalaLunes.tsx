@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { CalendarDays, Users, ClipboardList, Target, Share2, Sparkles, Swords, Link2, Pencil, Shield } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -274,6 +275,17 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
                   <p className="text-[11px] text-muted-foreground truncate">
                     {micro.partidos.localia === 'local' ? 'Local' : 'Visitante'} · {micro.partidos.competicion}
                     {micro.partidos.fecha ? ` · ${formatDateShort(micro.partidos.fecha.slice(0, 10))}` : ''}
+                    {micro.partido_id && (
+                      <>
+                        {' · '}
+                        <Link
+                          href={`/partidos?match=${micro.partido_id}&tab=plan-partido`}
+                          className="text-blue-600 hover:underline"
+                        >
+                          Abrir partido
+                        </Link>
+                      </>
+                    )}
                   </p>
                 )}
               </div>

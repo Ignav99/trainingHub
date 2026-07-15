@@ -132,7 +132,7 @@ export function DayDetailPanel({
                             size="sm"
                             variant="outline"
                             className="text-xs h-7"
-                            onClick={() => { onClose(); onNavigate(`/partidos?match=${p.id}&tab=post-partido`) }}
+                            onClick={() => { onClose(); onNavigate(`/partidos?match=${p.id}&tab=informe-partido`) }}
                           >
                             <Eye className="h-3 w-3 mr-1" />
                             Ver partido
@@ -142,7 +142,7 @@ export function DayDetailPanel({
                               size="sm"
                               variant="outline"
                               className="text-xs h-7 border-blue-200 text-blue-700 hover:bg-blue-50"
-                              onClick={() => { onClose(); onNavigate(`/partidos?match=${p.id}&tab=post-partido`) }}
+                              onClick={() => { onClose(); onNavigate(`/partidos?match=${p.id}&tab=informe-partido`) }}
                             >
                               <FileText className="h-3 w-3 mr-1" />
                               Informe rival
@@ -153,7 +153,7 @@ export function DayDetailPanel({
                               size="sm"
                               variant="outline"
                               className="text-xs h-7 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                              onClick={() => { onClose(); onNavigate(`/partidos?match=${p.id}&tab=pre-partido`) }}
+                              onClick={() => { onClose(); onNavigate(`/partidos?match=${p.id}&tab=plan-partido`) }}
                             >
                               <Target className="h-3 w-3 mr-1" />
                               Plan de partido

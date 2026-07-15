@@ -19,7 +19,13 @@ export default function PartidosPage() {
   const searchParams = useSearchParams()
 
   const matchParam = searchParams.get('match')
-  const tabParam = searchParams.get('tab') || 'convocatoria'
+  const rawTab = searchParams.get('tab') || 'convocatoria'
+  const tabParam =
+    rawTab === 'pre-partido'
+      ? 'plan-partido'
+      : rawTab === 'post-partido'
+        ? 'informe-partido'
+        : rawTab
 
   // ---- Data: partidos list ----
   const { data: partidosData, isLoading: loading } = useSWR<PaginatedResponse<Partido>>(
@@ -108,7 +114,7 @@ export default function PartidosPage() {
       {/* Header */}
       <PageHeader
         title="Partidos"
-        description="Pre-partido, convocatoria y post-partido"
+        description="Plan de partido, convocatoria e informe"
         actions={
           <Button asChild>
             <Link href="/partidos/nuevo">

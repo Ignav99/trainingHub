@@ -26,7 +26,7 @@ export function QuickStats({ loading, ultimoPartido, proximoPartido }: QuickStat
             <Skeleton className="h-4 w-24" />
           ) : ultimoPartido ? (
             <Link
-              href={`/partidos?match=${ultimoPartido.id}&tab=post-partido`}
+              href={`/partidos?match=${ultimoPartido.id}&tab=informe-partido`}
               className="text-sm text-blue-600 hover:underline truncate flex items-center gap-1"
             >
               {ultimoPartido.rival?.nombre || 'Ultimo partido'}
@@ -54,7 +54,7 @@ export function QuickStats({ loading, ultimoPartido, proximoPartido }: QuickStat
             <Skeleton className="h-4 w-24" />
           ) : proximoPartido ? (
             <Link
-              href={`/partidos?match=${proximoPartido.id}&tab=pre-partido`}
+              href={`/partidos?match=${proximoPartido.id}&tab=plan-partido`}
               className="text-sm text-emerald-600 hover:underline truncate flex items-center gap-1"
             >
               vs {proximoPartido.rival?.nombre || 'Proximo rival'}
