@@ -19,3 +19,18 @@ HOW to save:
 - If nothing meaningful has changed, skip the update.
 
 This ensures full continuity when the session is closed and reopened.
+
+## Deploy Protocol (Cloud Agents)
+CRITICAL — CHANGES MUST REACH RENDER:
+
+Production only updates when code is on `main` and the Deploy workflow runs (Render `autoDeploy: false`).
+
+REQUIRED workflow for every feature/fix:
+1. Push to `cursor/<name>-ae84` and open PR with **`draft: false`** (never draft)
+2. Wait for CI green → auto-merge via `.github/workflows/auto-merge-cursor-prs.yml`
+3. Verify Deploy workflow succeeded on `main`
+4. Only then tell the user the change is live on Render
+
+If auto-merge does not run, merge the PR manually immediately after CI passes.
+
+See `AGENTS.md` for full agent instructions.

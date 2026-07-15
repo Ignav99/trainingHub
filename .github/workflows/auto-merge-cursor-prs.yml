@@ -1,0 +1,72 @@
+name: Auto-merge Cursor PRs
+
+# Merges cursor/* PRs to main after CI passes so Render deploys automatically.
+# Render has autoDeploy: false — production only updates when main changes.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: automerge-cursor-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  automerge:
+    name: Merge cursor PR to main
+    runs-on: ubuntu-latest
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request'
+
+    steps:
+      - name: Merge PR when CI passes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$HEAD_BRANCH" =~ ^cursor/ ]]; then
+            echo "Branch $HEAD_BRANCH is not cursor/* — skipping auto-merge"
+            exit 0
+          fi
+
+          PR_NUM=$(gh pr list \
+            --repo "${{ github.repository }}" \
+            --head "$HEAD_BRANCH" \
+            --base main \
+            --state open \
+            --json number \
+            -q '.[0].number // empty')
+
+          if [[ -z "$PR_NUM" ]]; then
+            echo "No open PR for branch $HEAD_BRANCH"
+            exit 0
+          fi
+
+          PR_HEAD_SHA=$(gh pr view "$PR_NUM" --repo "${{ github.repository }}" --json headRefOid -q '.headRefOid')
+          if [[ "$PR_HEAD_SHA" != "$HEAD_SHA" ]]; then
+            echo "PR #$PR_NUM head ($PR_HEAD_SHA) does not match CI run ($HEAD_SHA) — skipping stale run"
+            exit 0
+          fi
+
+          IS_DRAFT=$(gh pr view "$PR_NUM" --repo "${{ github.repository }}" --json isDraft -q '.isDraft')
+          if [[ "$IS_DRAFT" == "true" ]]; then
+            echo "PR #$PR_NUM is draft — marking ready for review"
+            gh pr ready "$PR_NUM" --repo "${{ github.repository }}"
+          fi
+
+          echo "Merging PR #$PR_NUM ($HEAD_BRANCH) into main"
+          gh pr merge "$PR_NUM" \
+            --repo "${{ github.repository }}" \
+            --merge \
+            --delete-branch
+
+          echo "Merged. Deploy workflow will run after CI on main completes."
