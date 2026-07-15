@@ -69,4 +69,15 @@ jobs:
             --merge \
             --delete-branch
 
-          echo "Merged. Deploy workflow will run after CI on main completes."
+          echo "Merged PR #$PR_NUM ($HEAD_BRANCH) into main"
+
+      - name: Deploy to Render (CI already passed on PR)
+        run: |
+          BACKEND_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}")
+          FRONTEND_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}")
+          echo "Backend deploy hook: $BACKEND_CODE"
+          echo "Frontend deploy hook: $FRONTEND_CODE"
+          if [[ ! "$BACKEND_CODE" =~ ^2 || ! "$FRONTEND_CODE" =~ ^2 ]]; then
+            echo "Deploy hook failed"
+            exit 1
+          fi
