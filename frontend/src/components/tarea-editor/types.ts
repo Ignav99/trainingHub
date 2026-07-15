@@ -13,7 +13,11 @@ export interface DiagramElement {
   id: string
   type: ElementType
   position: Position
-  label?: string // Numero o texto del jugador
+  label?: string // Numero o texto del jugador (dorsal en el círculo)
+  /** Nombre del jugador — maps to AsignacionRolTactico.jugador */
+  jugador?: string
+  /** Rol táctico (slug, ej. constructor, corredor) */
+  rol?: string
   color?: string // Color personalizado
   size?: number // Tamano (para zonas)
   rotation?: number // Rotacion en grados
