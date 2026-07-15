@@ -27,6 +27,7 @@ import { exportRivalScoutPDF } from '@/lib/pdf/exportRivalScoutPDF'
 import { deriveAsignacionesFromDiagram } from '@/lib/planPartidoDiagramRoles'
 import { TacticalBoard } from './TacticalBoard'
 import { RivalStrategy } from './RivalStrategy'
+import { RivalContextoIntel } from './RivalContextoIntel'
 import { api } from '@/lib/api/client'
 import { rivalesApi } from '@/lib/api/partidos'
 import { VideoPlayer } from '@/components/video-analyzer/VideoPlayer'
@@ -238,6 +239,13 @@ export function RivalScout({ data, rivalNombre, rivalId, microcicloId, equipoId,
           </TabsList>
 
           <TabsContent value="contexto" className="space-y-4 mt-3">
+            <RivalContextoIntel
+              rivalId={rivalId}
+              competicionId={competicionId}
+              rivalNombre={rivalNombre}
+            />
+
+            <div className="border-t pt-4 space-y-4">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Comentarios Rival</Label>
               <Textarea
@@ -291,6 +299,7 @@ export function RivalScout({ data, rivalNombre, rivalId, microcicloId, equipoId,
                   />
                 </div>
               </div>
+            </div>
             </div>
           </TabsContent>
 

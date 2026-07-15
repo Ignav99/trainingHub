@@ -1583,6 +1583,63 @@ export interface PreMatchClasificacion {
   gf?: number
   gc?: number
   ultimos_5?: string[]
+  pg_casa?: number
+  pe_casa?: number
+  pp_casa?: number
+  pg_fuera?: number
+  pe_fuera?: number
+  pp_fuera?: number
+  pj_casa?: number
+  pj_fuera?: number
+  pct_victoria_casa?: number
+  pct_victoria_fuera?: number
+}
+
+export interface PreMatchRachaEstado {
+  estado: 'caliente' | 'fria' | 'irregular' | 'estable' | 'desconocido'
+  etiqueta: string
+  victorias: number
+  empates: number
+  derrotas: number
+  puntos: number
+  ultimos_5: string[]
+}
+
+export interface PreMatchContextoSideStats {
+  pj: number
+  pg: number
+  pe: number
+  pp: number
+  gf: number
+  gc: number
+  pct_victoria?: number | null
+  media_gf?: number | null
+  media_gc?: number | null
+}
+
+export interface PreMatchContextoStats {
+  actas_analizadas: number
+  actas_con_goles_minuto: number
+  racha: PreMatchRachaEstado
+  liga: {
+    gf?: number
+    gc?: number
+    media_gf?: number | null
+    media_gc?: number | null
+  }
+  casa: PreMatchContextoSideStats
+  fuera: PreMatchContextoSideStats
+  mitades: {
+    marcados_1t: number
+    marcados_2t: number
+    encajados_1t: number
+    encajados_2t: number
+  }
+  goles_por_minuto: {
+    buckets: string[]
+    marcados: number[]
+    encajados: number[]
+  }
 }
 
 export interface PreMatchGoleador {
@@ -1641,6 +1698,7 @@ export interface PreMatchIntel {
   sanciones_oficiales?: PreMatchSancion[]
   ultimos_resultados?: PreMatchResultado[]
   head_to_head?: PreMatchH2H[]
+  contexto_stats?: PreMatchContextoStats
 }
 
 // ============================================

@@ -57,6 +57,17 @@ def _match_rival_name(rival_nombre: str, team_name: str) -> bool:
     return False
 
 
+def _pct_victoria(pg: int | None, pe: int | None, pp: int | None) -> float | None:
+    """Win percentage from W/D/L counts."""
+    pg = pg or 0
+    pe = pe or 0
+    pp = pp or 0
+    pj = pg + pe + pp
+    if pj <= 0:
+        return None
+    return round(pg / pj * 100, 1)
+
+
 def _get_clasificacion(comp: dict, rival_nombre: str) -> dict | None:
     """Extract rival's standing from competition clasificacion."""
     clasificacion = comp.get("clasificacion") or []
@@ -65,6 +76,14 @@ def _get_clasificacion(comp: dict, rival_nombre: str) -> dict | None:
     for equipo in clasificacion:
         equipo_nombre = (equipo.get("equipo") or "").lower()
         if _match_rival_name(rival_lower, equipo_nombre):
+            pg_casa = equipo.get("pg_casa")
+            pe_casa = equipo.get("pe_casa")
+            pp_casa = equipo.get("pp_casa")
+            pg_fuera = equipo.get("pg_fuera")
+            pe_fuera = equipo.get("pe_fuera")
+            pp_fuera = equipo.get("pp_fuera")
+            pj_casa = (pg_casa or 0) + (pe_casa or 0) + (pp_casa or 0)
+            pj_fuera = (pg_fuera or 0) + (pe_fuera or 0) + (pp_fuera or 0)
             return {
                 "posicion": equipo.get("posicion"),
                 "puntos": equipo.get("puntos"),
@@ -75,8 +94,268 @@ def _get_clasificacion(comp: dict, rival_nombre: str) -> dict | None:
                 "gf": equipo.get("gf"),
                 "gc": equipo.get("gc"),
                 "ultimos_5": equipo.get("ultimos_5", []),
+                "pg_casa": pg_casa,
+                "pe_casa": pe_casa,
+                "pp_casa": pp_casa,
+                "pg_fuera": pg_fuera,
+                "pe_fuera": pe_fuera,
+                "pp_fuera": pp_fuera,
+                "pj_casa": pj_casa or None,
+                "pj_fuera": pj_fuera or None,
+                "pct_victoria_casa": _pct_victoria(pg_casa, pe_casa, pp_casa),
+                "pct_victoria_fuera": _pct_victoria(pg_fuera, pe_fuera, pp_fuera),
             }
     return None
+
+
+MINUTE_BUCKETS: list[tuple[str, int, int]] = [
+    ("0-15", 0, 15),
+    ("16-30", 16, 30),
+    ("31-45", 31, 45),
+    ("46-60", 46, 60),
+    ("61-75", 61, 75),
+    ("76-90+", 76, 130),
+]
+
+
+def _minute_bucket(minuto: int) -> str:
+    for label, lo, hi in MINUTE_BUCKETS:
+        if lo <= minuto <= hi:
+            return label
+    return "76-90+"
+
+
+def _roster_names(acta: dict, rival_nombre: str) -> tuple[set[str], set[str] | None]:
+    """Return (rival_players, opponent_players) name sets for an acta."""
+    titulares_rival = _get_rival_data(acta, rival_nombre, "titulares_local", "titulares_visitante")
+    suplentes_rival = _get_rival_data(acta, rival_nombre, "suplentes_local", "suplentes_visitante")
+    rival_players = {
+        (j.get("nombre") or "").strip().lower()
+        for j in titulares_rival + suplentes_rival
+        if (j.get("nombre") or "").strip()
+    }
+
+    side = _is_rival_local(acta, rival_nombre)
+    opponent_players: set[str] | None = None
+    if side is True:
+        opponent_list = (acta.get("titulares_visitante") or []) + (acta.get("suplentes_visitante") or [])
+        opponent_players = {
+            (j.get("nombre") or "").strip().lower()
+            for j in opponent_list
+            if (j.get("nombre") or "").strip()
+        }
+    elif side is False:
+        opponent_list = (acta.get("titulares_local") or []) + (acta.get("suplentes_local") or [])
+        opponent_players = {
+            (j.get("nombre") or "").strip().lower()
+            for j in opponent_list
+            if (j.get("nombre") or "").strip()
+        }
+
+    return rival_players, opponent_players
+
+
+def _goal_scored_by_rival(
+    gol: dict,
+    rival_players: set[str],
+    opponent_players: set[str] | None,
+    is_local: bool | None,
+    prev_parcial: tuple[int, int] | None,
+) -> bool | None:
+    """Return True if rival scored, False if conceded, None if unknown."""
+    jugador = (gol.get("jugador") or "").strip().lower()
+    if jugador and jugador in rival_players:
+        return True
+    if jugador and opponent_players and jugador in opponent_players:
+        return False
+
+    pl = gol.get("parcial_local")
+    pv = gol.get("parcial_visitante")
+    if pl is None or pv is None or prev_parcial is None or is_local is None:
+        return None
+
+    prev_l, prev_v = prev_parcial
+    local_scored = pl > prev_l
+    visitante_scored = pv > prev_v
+    if local_scored and not visitante_scored:
+        return is_local
+    if visitante_scored and not local_scored:
+        return not is_local
+    return None
+
+
+def _compute_racha_estado(ultimos_5: list[str]) -> dict:
+    """Summarise recent form as caliente/fria/irregular/estable."""
+    if not ultimos_5:
+        return {
+            "estado": "desconocido",
+            "etiqueta": "Sin datos de racha",
+            "victorias": 0,
+            "empates": 0,
+            "derrotas": 0,
+            "puntos": 0,
+            "ultimos_5": [],
+        }
+
+    victorias = sum(1 for r in ultimos_5 if r == "V")
+    empates = sum(1 for r in ultimos_5 if r == "E")
+    derrotas = sum(1 for r in ultimos_5 if r == "D")
+    puntos = victorias * 3 + empates
+    last3 = ultimos_5[-3:]
+    v3 = sum(1 for r in last3 if r == "V")
+    d3 = sum(1 for r in last3 if r == "D")
+
+    if victorias >= 4 or v3 == 3:
+        estado, etiqueta = "caliente", "Racha caliente — llegan con confianza y resultados"
+    elif derrotas >= 4 or d3 == 3:
+        estado, etiqueta = "fria", "Racha fría — baja confianza, momento vulnerable"
+    elif victorias >= 2 and derrotas >= 2:
+        estado, etiqueta = "irregular", "Forma irregular — alternan buenos y malos partidos"
+    elif empates >= 3:
+        estado, etiqueta = "estable", "Equipo sólido — muchos empates, difícil de batir"
+    else:
+        estado, etiqueta = "estable", "Forma moderada — sin rachas extremas"
+
+    return {
+        "estado": estado,
+        "etiqueta": etiqueta,
+        "victorias": victorias,
+        "empates": empates,
+        "derrotas": derrotas,
+        "puntos": puntos,
+        "ultimos_5": ultimos_5,
+    }
+
+
+def _empty_side_stats() -> dict:
+    return {"pj": 0, "pg": 0, "pe": 0, "pp": 0, "gf": 0, "gc": 0}
+
+
+def _compute_contexto_stats(
+    supabase,
+    comp_id: str,
+    rival_nombre: str,
+    clasificacion: dict | None = None,
+) -> dict | None:
+    """Aggregate contextual stats from actas: goals by minute, halves, home/away."""
+    actas = _query_actas(
+        supabase,
+        comp_id,
+        rival_nombre,
+        "local_nombre, visitante_nombre, goles, goles_local, goles_visitante, "
+        "titulares_local, titulares_visitante, suplentes_local, suplentes_visitante, jornada_numero",
+    )
+    if not actas:
+        return None
+
+    buckets_marcados: Counter = Counter()
+    buckets_encajados: Counter = Counter()
+    mitad_marcados = {"1t": 0, "2t": 0}
+    mitad_encajados = {"1t": 0, "2t": 0}
+    casa = _empty_side_stats()
+    fuera = _empty_side_stats()
+    actas_con_goles_minuto = 0
+
+    for acta in actas:
+        is_local = _is_rival_local(acta, rival_nombre)
+        gl = acta.get("goles_local")
+        gv = acta.get("goles_visitante")
+        if gl is None or gv is None:
+            continue
+
+        if is_local is True:
+            side_stats = casa
+            gf, gc = gl, gv
+        elif is_local is False:
+            side_stats = fuera
+            gf, gc = gv, gl
+        else:
+            side_stats = None
+            gf = gc = None
+
+        if side_stats is not None and gf is not None and gc is not None:
+            side_stats["pj"] += 1
+            side_stats["gf"] += gf
+            side_stats["gc"] += gc
+            if gf > gc:
+                side_stats["pg"] += 1
+            elif gf == gc:
+                side_stats["pe"] += 1
+            else:
+                side_stats["pp"] += 1
+
+        goles_list = acta.get("goles") or []
+        if not goles_list:
+            continue
+
+        rival_players, opponent_players = _roster_names(acta, rival_nombre)
+        prev_parcial: tuple[int, int] | None = (0, 0)
+        had_minute = False
+
+        for gol in sorted(goles_list, key=lambda g: g.get("minuto") or 0):
+            minuto = gol.get("minuto")
+            if minuto is None:
+                continue
+            had_minute = True
+            scored = _goal_scored_by_rival(gol, rival_players, opponent_players, is_local, prev_parcial)
+            bucket = _minute_bucket(int(minuto))
+            half = "1t" if int(minuto) <= 45 else "2t"
+
+            if scored is True:
+                buckets_marcados[bucket] += 1
+                mitad_marcados[half] += 1
+            elif scored is False:
+                buckets_encajados[bucket] += 1
+                mitad_encajados[half] += 1
+
+            pl = gol.get("parcial_local")
+            pv = gol.get("parcial_visitante")
+            if pl is not None and pv is not None:
+                prev_parcial = (pl, pv)
+
+        if had_minute:
+            actas_con_goles_minuto += 1
+
+    ultimos_5 = (clasificacion or {}).get("ultimos_5") or []
+    racha = _compute_racha_estado(ultimos_5)
+
+    total_pj = casa["pj"] + fuera["pj"]
+    total_gf = casa["gf"] + fuera["gf"]
+    total_gc = casa["gc"] + fuera["gc"]
+
+    def _side_payload(stats: dict) -> dict:
+        pj = stats["pj"]
+        return {
+            **stats,
+            "pct_victoria": _pct_victoria(stats["pg"], stats["pe"], stats["pp"]),
+            "media_gf": round(stats["gf"] / pj, 2) if pj else None,
+            "media_gc": round(stats["gc"] / pj, 2) if pj else None,
+        }
+
+    return {
+        "actas_analizadas": len(actas),
+        "actas_con_goles_minuto": actas_con_goles_minuto,
+        "racha": racha,
+        "liga": {
+            "gf": clasificacion.get("gf") if clasificacion else total_gf,
+            "gc": clasificacion.get("gc") if clasificacion else total_gc,
+            "media_gf": round(total_gf / total_pj, 2) if total_pj else None,
+            "media_gc": round(total_gc / total_pj, 2) if total_pj else None,
+        },
+        "casa": _side_payload(casa),
+        "fuera": _side_payload(fuera),
+        "mitades": {
+            "marcados_1t": mitad_marcados["1t"],
+            "marcados_2t": mitad_marcados["2t"],
+            "encajados_1t": mitad_encajados["1t"],
+            "encajados_2t": mitad_encajados["2t"],
+        },
+        "goles_por_minuto": {
+            "buckets": [label for label, _, _ in MINUTE_BUCKETS],
+            "marcados": [buckets_marcados[label] for label, _, _ in MINUTE_BUCKETS],
+            "encajados": [buckets_encajados[label] for label, _, _ in MINUTE_BUCKETS],
+        },
+    }
 
 
 def _get_goleadores_rival(comp: dict, rival_nombre: str) -> list[dict]:
@@ -821,6 +1100,16 @@ def gather_rival_intel_standalone(
                 intel["head_to_head"] = h2h
         except Exception as e:
             logger.debug("Error getting head to head: %s", e)
+
+    # Contextual stats (goals by minute, home/away splits, form narrative)
+    try:
+        contexto = _compute_contexto_stats(
+            supabase, comp_id, rival_nombre, clasificacion=clasificacion
+        )
+        if contexto:
+            intel["contexto_stats"] = contexto
+    except Exception as e:
+        logger.warning("Error computing contexto stats for '%s': %s", rival_nombre, e)
 
     logger.info("Final intel sections for '%s': %s", rival_nombre, list(intel.keys()))
     return intel
