@@ -42,6 +42,14 @@ const TOKEN_TYPES: ElementType[] = ['player', 'player_gk', 'opponent']
 
 const Sep = () => <div className="w-px h-5 bg-gray-200 mx-1" />
 
+function diagramFingerprint(data: DiagramData): string {
+  return JSON.stringify({
+    elements: data.elements,
+    arrows: data.arrows,
+    zones: data.zones,
+  })
+}
+
 function TB({ id, icon, label, color, activeTool, onSelect }: {
   id: BoardTool; icon: React.ReactNode; label: string; color?: string
   activeTool: BoardTool; onSelect: (tool: BoardTool) => void
@@ -73,8 +81,11 @@ export function TacticalBoard({
   const containerRef = useRef<HTMLDivElement>(null)
   const gRef = useRef<SVGGElement>(null)
   const svgRef = useRef<SVGSVGElement | null>(null)
-  const internalChangeRef = useRef(false)
   const pngTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const emitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastEmittedFpRef = useRef('')
+  const dragMovedRef = useRef(false)
+  const suppressPitchClickRef = useRef(false)
 
   const [elements, setElements] = useState<DiagramElement[]>([])
   const [arrows, setArrows] = useState<DiagramArrow[]>([])
@@ -98,24 +109,19 @@ export function TacticalBoard({
   const selectedElement = elements.find((e) => e.id === selectedId)
 
   useEffect(() => {
-    if (internalChangeRef.current) {
-      internalChangeRef.current = false
-      return
-    }
     const sanitized = sanitizeDiagramData(diagramValue ?? emptyDiagramData)
+    const fp = diagramFingerprint(sanitized)
+
+    // Ignorar eco de nuestra propia emisión al padre
+    if (fp === lastEmittedFpRef.current) return
+
+    // No pisar estado local mientras hay un jugador seleccionado (panel abierto)
+    if (selectedId) return
+
     setElements(sanitized.elements)
     setArrows(sanitized.arrows)
     setZones(sanitized.zones)
-  }, [diagramValue])
-
-  const emitDiagram = useCallback((
-    nextElements: DiagramElement[],
-    nextArrows: DiagramArrow[],
-    nextZones: DiagramZone[]
-  ) => {
-    internalChangeRef.current = true
-    onDiagramChange?.(diagramToPayload(nextElements, nextArrows, nextZones))
-  }, [onDiagramChange])
+  }, [diagramValue, selectedId])
 
   const exportToPng = useCallback(() => {
     const svg = svgRef.current
@@ -149,18 +155,41 @@ export function TacticalBoard({
     pngTimerRef.current = setTimeout(() => exportToPng(), 400)
   }, [exportToPng, onChange])
 
+  const scheduleEmit = useCallback((
+    nextElements: DiagramElement[],
+    nextArrows: DiagramArrow[],
+    nextZones: DiagramZone[]
+  ) => {
+    if (!onDiagramChange) return
+    if (emitTimerRef.current) clearTimeout(emitTimerRef.current)
+    emitTimerRef.current = setTimeout(() => {
+      const payload = diagramToPayload(nextElements, nextArrows, nextZones)
+      lastEmittedFpRef.current = diagramFingerprint(payload)
+      onDiagramChange(payload)
+    }, 350)
+  }, [onDiagramChange])
+
+  const applyLocalState = useCallback((
+    nextElements: DiagramElement[],
+    nextArrows: DiagramArrow[],
+    nextZones: DiagramZone[],
+    options?: { emit?: boolean; exportPng?: boolean }
+  ) => {
+    setElements(nextElements)
+    setArrows(nextArrows)
+    setZones(nextZones)
+    if (options?.emit !== false) scheduleEmit(nextElements, nextArrows, nextZones)
+    if (options?.exportPng !== false) schedulePngExport()
+  }, [scheduleEmit, schedulePngExport])
+
   const applyState = useCallback((
     nextElements: DiagramElement[],
     nextArrows: DiagramArrow[],
     nextZones: DiagramZone[],
     exportPng = true
   ) => {
-    setElements(nextElements)
-    setArrows(nextArrows)
-    setZones(nextZones)
-    emitDiagram(nextElements, nextArrows, nextZones)
-    if (exportPng) schedulePngExport()
-  }, [emitDiagram, schedulePngExport])
+    applyLocalState(nextElements, nextArrows, nextZones, { exportPng })
+  }, [applyLocalState])
 
   const pushHistory = useCallback(() => {
     const newHistory = history.slice(0, historyIndex + 1)
@@ -202,8 +231,8 @@ export function TacticalBoard({
   const updateElement = useCallback((id: string, patch: Partial<DiagramElement>, recordHistory = false) => {
     if (recordHistory) pushHistory()
     const nextElements = elements.map((e) => (e.id === id ? { ...e, ...patch } : e))
-    applyState(nextElements, arrows, zones)
-  }, [pushHistory, elements, arrows, zones, applyState])
+    applyLocalState(nextElements, arrows, zones, { exportPng: false })
+  }, [pushHistory, elements, arrows, zones, applyLocalState])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -235,6 +264,7 @@ export function TacticalBoard({
 
   useEffect(() => () => {
     if (pngTimerRef.current) clearTimeout(pngTimerRef.current)
+    if (emitTimerRef.current) clearTimeout(emitTimerRef.current)
   }, [])
 
   const getSvgPosition = useCallback((e: React.MouseEvent): Position => {
@@ -277,7 +307,8 @@ export function TacticalBoard({
     if (activeTool === 'zone_rect' || activeTool === 'zone_circle') return
 
     if (activeTool === 'select') {
-      setSelectedId(null)
+      if (!suppressPitchClickRef.current) setSelectedId(null)
+      suppressPitchClickRef.current = false
       return
     }
 
@@ -291,6 +322,8 @@ export function TacticalBoard({
         color: '#FFFFFF',
       }
       applyState([...elements, newText], arrows, zones)
+      setActiveTool('select')
+      suppressPitchClickRef.current = true
       setSelectedId(newText.id)
       return
     }
@@ -329,6 +362,10 @@ export function TacticalBoard({
     if (elementType === 'player' || elementType === 'opponent') {
       setPlayerCounter(newCounter)
     }
+    if (TOKEN_TYPES.includes(elementType)) {
+      setActiveTool('select')
+      suppressPitchClickRef.current = true
+    }
     setSelectedId(newElement.id)
   }, [activeTool, arrowStart, arrowCounter, playerCounter, elements, arrows, zones, getSvgPosition, pushHistory, applyState])
 
@@ -346,6 +383,7 @@ export function TacticalBoard({
       return
     }
     if (!isDragging || !selectedId) return
+    dragMovedRef.current = true
     const pos = getSvgPosition(e)
     const element = elements.find((el) => el.id === selectedId)
     const zone = zones.find((z) => z.id === selectedId)
@@ -380,16 +418,25 @@ export function TacticalBoard({
       setZoneDragCurrent(null)
       return
     }
-    if (isDragging) {
+    if (isDragging && dragMovedRef.current) {
       applyState(elements, arrows, zones)
     }
+    dragMovedRef.current = false
     setIsDragging(false)
   }, [zoneDragStart, zoneDragCurrent, isZoneTool, activeTool, zoneColor, isDragging, elements, arrows, zones, getSvgPosition, pushHistory, applyState])
 
+  const selectElement = useCallback((elementId: string) => {
+    suppressPitchClickRef.current = true
+    setSelectedId(elementId)
+    setActiveTool('select')
+  }, [])
+
   const handleElementMouseDown = useCallback((e: React.MouseEvent, elementId: string) => {
     e.stopPropagation()
+    e.preventDefault()
+    dragMovedRef.current = false
     if (activeTool === 'select') {
-      setSelectedId(elementId)
+      selectElement(elementId)
       setIsDragging(true)
       const pos = getSvgPosition(e)
       const el = elements.find((item) => item.id === elementId)
@@ -397,9 +444,9 @@ export function TacticalBoard({
       if (el) setDragOffset({ x: pos.x - el.position.x, y: pos.y - el.position.y })
       else if (z) setDragOffset({ x: pos.x - z.position.x, y: pos.y - z.position.y })
     } else {
-      setSelectedId(elementId)
+      selectElement(elementId)
     }
-  }, [activeTool, elements, zones, getSvgPosition])
+  }, [activeTool, elements, zones, getSvgPosition, selectElement])
 
   const renderElement = (element: DiagramElement) => {
     const { id, type, position, color, label, jugador, rol } = element
@@ -480,7 +527,7 @@ export function TacticalBoard({
     const tipY = to.y - arrowSize * Math.sin(angle)
 
     return (
-      <g key={id} onClick={(e) => { e.stopPropagation(); setSelectedId(id) }} style={{ cursor: 'pointer' }}>
+      <g key={id} onClick={(e) => { e.stopPropagation(); selectElement(id) }} style={{ cursor: 'pointer' }}>
         <line x1={from.x} y1={from.y} x2={tipX} y2={tipY}
           stroke={color || '#FFFFFF'} strokeWidth={isSelected ? 4 : 2.5}
           strokeDasharray={type === 'pass' ? '8,4' : 'none'}
@@ -500,7 +547,7 @@ export function TacticalBoard({
     return (
       <g key={id}
         onMouseDown={(e) => handleElementMouseDown(e, id)}
-        onClick={(e) => { e.stopPropagation(); setSelectedId(id) }}
+        onClick={(e) => { e.stopPropagation(); selectElement(id) }}
         style={{ cursor: activeTool === 'select' ? 'move' : 'pointer' }}
       >
         {shape === 'ellipse' ? (
@@ -535,9 +582,11 @@ export function TacticalBoard({
 
   const elementPanel = selectedElement && TOKEN_TYPES.includes(selectedElement.type) && (
     <div
-      className="absolute top-2 right-2 w-52 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden"
+      className="absolute top-2 right-2 w-52 bg-white rounded-xl shadow-lg border border-gray-200 z-[60] overflow-hidden pointer-events-auto"
       onMouseDown={(e) => e.stopPropagation()}
+      onMouseUp={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
     >
       <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-200">
         <span className="text-xs font-semibold text-gray-700">
@@ -573,10 +622,10 @@ export function TacticalBoard({
               value={selectedElement.rol ?? '__none__'}
               onValueChange={(v) => updateElement(selectedElement.id, { rol: v === '__none__' ? undefined : v })}
             >
-              <SelectTrigger className="h-7 text-xs">
+              <SelectTrigger className="h-7 text-xs" onPointerDown={(e) => e.stopPropagation()}>
                 <SelectValue placeholder="Sin rol..." />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent position="popper" className="z-[200]">
                 <SelectItem value="__none__" className="text-xs text-muted-foreground">Sin rol</SelectItem>
                 {roleOptions.map((o) => (
                   <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
