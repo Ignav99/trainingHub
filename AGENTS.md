@@ -18,7 +18,8 @@ Render services (`traininghub-frontend-eu`, `traininghub-api-eu`) have **`autoDe
 2. Branch names: `cursor/<descriptive-name>-ae84`
 3. After CI passes on a `cursor/*` PR, **`.github/workflows/auto-merge-cursor-prs.yml`** merges it to `main` automatically (including undrafting if needed).
 4. If auto-merge fails, merge manually immediately after CI is green.
-5. Confirm the **Deploy** workflow ran successfully on `main` before telling the user the change is live.
+5. Auto-merge triggers Render deploy hooks after merge (CI already passed on the PR).
+6. Confirm deploy completed before telling the user the change is live on Render.
 
 ## Commits and branches
 
