@@ -824,7 +824,10 @@ export interface RivalScoutStrategy {
 
 export interface RivalSubfaseData {
   notas: string
+  /** Derivado de pizarra_diagrama — compat PDF/sync */
   roles?: AsignacionRolTactico[]
+  pizarra_tactica?: string
+  pizarra_diagrama?: import('@/components/tarea-editor/types').DiagramData
 }
 
 export interface RivalPhaseAnalysis {
@@ -833,6 +836,7 @@ export interface RivalPhaseAnalysis {
   debilidades: string[]
   clips: ClipRival[]
   pizarra_tactica?: string
+  pizarra_diagrama?: import('@/components/tarea-editor/types').DiagramData
   formacion?: string
   espacios?: string
   vigilancias?: string
