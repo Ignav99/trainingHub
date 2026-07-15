@@ -88,6 +88,8 @@ export function PlanPartido({
   equipoId,
 }: PlanPartidoProps) {
   const [activeTab, setActiveTab] = useState<FasePlanPartido>('ataque_organizado')
+  const dataRef = useRef(data)
+  dataRef.current = data
   const fases = data.fases ?? []
 
   const totalClipsSize = fases.reduce(
@@ -95,16 +97,23 @@ export function PlanPartido({
     0
   )
 
-  const update = (patch: Partial<PlanPartidoData>) => onChange({ ...data, ...patch })
+  const update = (patch: Partial<PlanPartidoData>) => {
+    const next = { ...dataRef.current, ...patch }
+    dataRef.current = next
+    onChange(next)
+  }
 
-  const getPhase = (fase: FasePlanPartido): PlanPartidoPhase =>
-    fases.find((f) => f.fase === fase) ?? { fase, clips: [] }
+  const getPhase = (fase: FasePlanPartido): PlanPartidoPhase => {
+    const currentFases = dataRef.current.fases ?? []
+    return currentFases.find((f) => f.fase === fase) ?? { fase, clips: [] }
+  }
 
   const updatePhase = (fase: FasePlanPartido, patch: Partial<PlanPartidoPhase>) => {
-    const existing = fases.find((f) => f.fase === fase)
+    const currentFases = dataRef.current.fases ?? []
+    const existing = currentFases.find((f) => f.fase === fase)
     const next = existing
-      ? fases.map((f) => (f.fase === fase ? { ...f, ...patch } : f))
-      : [...fases, { fase, clips: [], ...patch }]
+      ? currentFases.map((f) => (f.fase === fase ? { ...f, ...patch } : f))
+      : [...currentFases, { fase, clips: [], ...patch }]
     update({ fases: next })
   }
 
@@ -216,6 +225,7 @@ export function PlanPartido({
                               Pizarra táctica — coloca jugadores y asigna nombre + rol
                             </Label>
                             <TacticalBoard
+                              boardKey={`plan-${section.fase}-${s.key}`}
                               diagramValue={sub.pizarra_diagrama}
                               onDiagramChange={(diagram) =>
                                 updateSubfase(section.fase, s.key, handleDiagramUpdate(diagram))
@@ -253,6 +263,7 @@ export function PlanPartido({
                           Pizarra táctica — roles en transición ofensiva
                         </Label>
                         <TacticalBoard
+                          boardKey={`plan-${section.fase}`}
                           diagramValue={phase.pizarra_diagrama}
                           onDiagramChange={(diagram) =>
                             updatePhase(section.fase, {
@@ -271,6 +282,7 @@ export function PlanPartido({
                       <div className="space-y-1">
                         <Label className="text-xs text-muted-foreground">Pizarra táctica</Label>
                         <TacticalBoard
+                          boardKey={`plan-${section.fase}`}
                           diagramValue={phase.pizarra_diagrama}
                           onDiagramChange={(diagram) =>
                             updatePhase(section.fase, { pizarra_diagrama: diagram })
