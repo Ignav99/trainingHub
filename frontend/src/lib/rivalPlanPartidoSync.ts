@@ -37,16 +37,6 @@ export function extractPersistentPlanPartido(
   }
 }
 
-export function extractWeeklyPlanPartido(plan: Partial<PlanPartidoData>): Partial<PlanPartidoData> {
-  return {
-    consignas_clave: plan.consignas_clave ?? [],
-    fases: (plan.fases ?? []).map((f) => ({
-      fase: f.fase,
-      consignas: f.consignas ?? [],
-    })) as PlanPartidoPhase[],
-  }
-}
-
 function phaseByFase(fases: PlanPartidoPhase[] | undefined): Map<FasePlanPartido, PlanPartidoPhase> {
   return new Map((fases ?? []).map((f) => [f.fase, f]))
 }
@@ -81,15 +71,12 @@ export function mergePlanPartidoOnLoad(
 ): Partial<PlanPartidoData> {
   const saved = persistent ?? {}
   const local = localPlan ?? {}
-  const weekly = extractWeeklyPlanPartido(local)
   const savedByFase = phaseByFase(saved.fases)
   const localByFase = phaseByFase(local.fases)
-  const weeklyByFase = phaseByFase(weekly.fases)
 
   const fases: PlanPartidoPhase[] = FASE_ORDER.map((fase) => {
     const s = savedByFase.get(fase)
     const l = localByFase.get(fase)
-    const w = weeklyByFase.get(fase)
     return {
       fase,
       texto: s?.texto ?? l?.texto ?? '',
@@ -97,14 +84,10 @@ export function mergePlanPartidoOnLoad(
       subfases: mergeSubfases(s?.subfases, l?.subfases),
       jugadas_abp: s?.jugadas_abp?.length ? s.jugadas_abp : l?.jugadas_abp ?? [],
       roles: s?.roles?.length ? s.roles : l?.roles ?? [],
-      consignas: w?.consignas?.length ? w.consignas : l?.consignas ?? [],
       clips: s?.clips?.length ? s.clips : l?.clips ?? [],
       pizarra_tactica: s?.pizarra_tactica ?? l?.pizarra_tactica,
     }
   })
 
-  return {
-    fases,
-    consignas_clave: weekly.consignas_clave ?? local.consignas_clave ?? [],
-  }
+  return { fases }
 }

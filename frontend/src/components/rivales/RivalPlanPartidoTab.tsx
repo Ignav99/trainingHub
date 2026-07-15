@@ -80,15 +80,13 @@ export function RivalPlanPartidoTab({ rivalId }: RivalPlanPartidoTabProps) {
         <p className="text-xs text-red-600">Error al guardar</p>
       )}
       <p className="text-xs text-muted-foreground">
-        Principios, pizarras y clips se guardan en el perfil del rival. Las consignas semanales se
-        editan en el microciclo de la semana de partido.
+        Pizarras, roles, clips y jugadas ABP se guardan en el perfil del rival.
       </p>
       <PlanPartido
         data={plan}
         rivalId={rivalId}
         equipoId={equipoActivo?.id}
         onChange={setPlan}
-        weeklyMode={false}
       />
     </div>
   )
