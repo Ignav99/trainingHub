@@ -92,6 +92,8 @@ type TabValue = 'contexto' | 'once_probable' | FaseRival
 export function RivalScout({ data, rivalNombre, rivalId, microcicloId, equipoId, localia, onChange }: RivalScoutProps) {
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({})
   const [activeTab, setActiveTab] = useState<TabValue>('contexto')
+  const dataRef = useRef(data)
+  dataRef.current = data
 
   const { data: rfefRes } = useSWR<{ data: RFEFCompeticion[] }>(
     equipoId ? apiKey('/rfef/competiciones', { equipo_id: equipoId }) : null
@@ -103,10 +105,15 @@ export function RivalScout({ data, rivalNombre, rivalId, microcicloId, equipoId,
 
   const fases = data.fases ?? []
 
-  const update = (patch: Partial<RivalScoutData>) => onChange({ ...data, ...patch })
+  const update = (patch: Partial<RivalScoutData>) => {
+    const next = { ...dataRef.current, ...patch }
+    dataRef.current = next
+    onChange(next)
+  }
 
   const getPhase = (fase: FaseRival): RivalPhaseAnalysis => {
-    return fases.find((f) => f.fase === fase) ?? {
+    const currentFases = dataRef.current.fases ?? []
+    return currentFases.find((f) => f.fase === fase) ?? {
       fase,
       fortalezas: [],
       debilidades: [],
@@ -115,10 +122,11 @@ export function RivalScout({ data, rivalNombre, rivalId, microcicloId, equipoId,
   }
 
   const updatePhase = (fase: FaseRival, patch: Partial<RivalPhaseAnalysis>) => {
-    const existing = fases.find((f) => f.fase === fase)
+    const currentFases = dataRef.current.fases ?? []
+    const existing = currentFases.find((f) => f.fase === fase)
     const next = existing
-      ? fases.map((f) => (f.fase === fase ? { ...f, ...patch } : f))
-      : [...fases, { fase, fortalezas: [], debilidades: [], clips: [], ...patch }]
+      ? currentFases.map((f) => (f.fase === fase ? { ...f, ...patch } : f))
+      : [...currentFases, { fase, fortalezas: [], debilidades: [], clips: [], ...patch }]
     update({ fases: next })
   }
 
@@ -404,6 +412,7 @@ function PhaseEditor({
                       Pizarra táctica — coloca jugadores rivales y asigna nombre + rol
                     </Label>
                     <TacticalBoard
+                      boardKey={`scout-${fase}-${s.key}`}
                       diagramValue={sub.pizarra_diagrama}
                       onDiagramChange={(diagram) =>
                         onUpdateSubfase(fase, s.key, handleDiagramUpdate(diagram))
@@ -450,6 +459,7 @@ function PhaseEditor({
               Pizarra táctica — roles del rival en transición ofensiva
             </Label>
             <TacticalBoard
+              boardKey={`scout-${fase}`}
               diagramValue={phase.pizarra_diagrama}
               onDiagramChange={(diagram) =>
                 onUpdate(fase, {
@@ -480,6 +490,7 @@ function PhaseEditor({
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Pizarra táctica</Label>
             <TacticalBoard
+              boardKey={`scout-${fase}`}
               diagramValue={phase.pizarra_diagrama}
               onDiagramChange={(diagram) => onUpdate(fase, { pizarra_diagrama: diagram })}
               value={phase.pizarra_tactica}
