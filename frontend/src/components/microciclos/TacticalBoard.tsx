@@ -4,26 +4,41 @@ import React, { useRef, useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Circle, Triangle, Target, Trash2, RotateCcw, MousePointer,
-  ArrowRight, Minus, Square, Undo2, Redo2, Type, Expand, Shrink,
+  ArrowRight, Minus, Square, Undo2, Redo2, Type, Expand, Shrink, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import ABPPitch from '@/components/abp/ABPPitch'
 import {
-  DiagramElement, DiagramArrow, DiagramZone, ElementType, ArrowType,
-  Position, TEAM_COLORS, ELEMENT_SIZES, generateId,
+  DiagramData, DiagramElement, DiagramArrow, DiagramZone, ElementType, ArrowType,
+  Position, TEAM_COLORS, ELEMENT_SIZES, generateId, emptyDiagramData,
 } from '@/components/tarea-editor/types'
+import { diagramToPayload, sanitizeDiagramData } from '@/lib/diagramUtils'
+import { ContextoRoles, getRolesForContext, rolLabel } from '@/lib/tacticalRoles'
 
 interface TacticalBoardProps {
+  diagramValue?: DiagramData
+  onDiagramChange?: (data: DiagramData) => void
   value?: string
   onChange?: (base64: string) => void
+  roleContext?: ContextoRoles
+  jugadorLabel?: string
   height?: number
-  showFormations?: boolean
 }
 
 type BoardTool = 'select' | ElementType | 'arrow_movement' | 'arrow_pass' | 'zone_rect' | 'zone_circle'
 
 const ZONE_COLORS = ['#EF4444', '#3B82F6', '#F59E0B', '#10B981', '#8B5CF6', '#EC4899']
+const TOKEN_TYPES: ElementType[] = ['player', 'player_gk', 'opponent']
 
 const Sep = () => <div className="w-px h-5 bg-gray-200 mx-1" />
 
@@ -46,10 +61,20 @@ function TB({ id, icon, label, color, activeTool, onSelect }: {
   )
 }
 
-export function TacticalBoard({ value, onChange, height = 300, showFormations = false }: TacticalBoardProps) {
+export function TacticalBoard({
+  diagramValue,
+  onDiagramChange,
+  value,
+  onChange,
+  roleContext,
+  jugadorLabel = 'Jugador',
+  height = 300,
+}: TacticalBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const gRef = useRef<SVGGElement>(null)
   const svgRef = useRef<SVGSVGElement | null>(null)
+  const internalChangeRef = useRef(false)
+  const pngTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [elements, setElements] = useState<DiagramElement[]>([])
   const [arrows, setArrows] = useState<DiagramArrow[]>([])
@@ -68,7 +93,74 @@ export function TacticalBoard({ value, onChange, height = 300, showFormations = 
   const [arrowCounter, setArrowCounter] = useState(1)
   const [isExpanded, setIsExpanded] = useState(false)
 
+  const roleOptions = roleContext ? getRolesForContext(roleContext) : []
   const isZoneTool = activeTool === 'zone_rect' || activeTool === 'zone_circle'
+  const selectedElement = elements.find((e) => e.id === selectedId)
+
+  useEffect(() => {
+    if (internalChangeRef.current) {
+      internalChangeRef.current = false
+      return
+    }
+    const sanitized = sanitizeDiagramData(diagramValue ?? emptyDiagramData)
+    setElements(sanitized.elements)
+    setArrows(sanitized.arrows)
+    setZones(sanitized.zones)
+  }, [diagramValue])
+
+  const emitDiagram = useCallback((
+    nextElements: DiagramElement[],
+    nextArrows: DiagramArrow[],
+    nextZones: DiagramZone[]
+  ) => {
+    internalChangeRef.current = true
+    onDiagramChange?.(diagramToPayload(nextElements, nextArrows, nextZones))
+  }, [onDiagramChange])
+
+  const exportToPng = useCallback(() => {
+    const svg = svgRef.current
+    if (!svg || !containerRef.current || !onChange) return
+    const rect = containerRef.current.getBoundingClientRect()
+    const width = rect.width
+    const heightValue = height
+    const serializer = new XMLSerializer()
+    const svgString = serializer.serializeToString(svg)
+    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = width * 2
+      canvas.height = heightValue * 2
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      ctx.fillStyle = '#2D5016'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      URL.revokeObjectURL(url)
+      onChange(canvas.toDataURL('image/png'))
+    }
+    img.src = url
+  }, [height, onChange])
+
+  const schedulePngExport = useCallback(() => {
+    if (!onChange) return
+    if (pngTimerRef.current) clearTimeout(pngTimerRef.current)
+    pngTimerRef.current = setTimeout(() => exportToPng(), 400)
+  }, [exportToPng, onChange])
+
+  const applyState = useCallback((
+    nextElements: DiagramElement[],
+    nextArrows: DiagramArrow[],
+    nextZones: DiagramZone[],
+    exportPng = true
+  ) => {
+    setElements(nextElements)
+    setArrows(nextArrows)
+    setZones(nextZones)
+    emitDiagram(nextElements, nextArrows, nextZones)
+    if (exportPng) schedulePngExport()
+  }, [emitDiagram, schedulePngExport])
 
   const pushHistory = useCallback(() => {
     const newHistory = history.slice(0, historyIndex + 1)
@@ -80,37 +172,38 @@ export function TacticalBoard({ value, onChange, height = 300, showFormations = 
   const undo = useCallback(() => {
     if (historyIndex < 0) return
     const state = history[historyIndex]
-    setElements(state.elements)
-    setArrows(state.arrows)
-    setZones(state.zones)
+    applyState(state.elements, state.arrows, state.zones)
     setHistoryIndex(historyIndex - 1)
-  }, [history, historyIndex])
+  }, [history, historyIndex, applyState])
 
   const redo = useCallback(() => {
     if (historyIndex >= history.length - 1) return
     const state = history[historyIndex + 1]
-    setElements(state.elements)
-    setArrows(state.arrows)
-    setZones(state.zones)
+    applyState(state.elements, state.arrows, state.zones)
     setHistoryIndex(historyIndex + 1)
-  }, [history, historyIndex])
+  }, [history, historyIndex, applyState])
 
   const clearDiagram = useCallback(() => {
     pushHistory()
-    setElements([])
-    setArrows([])
-    setZones([])
+    applyState([], [], [])
     setSelectedId(null)
-  }, [pushHistory])
+  }, [pushHistory, applyState])
 
   const deleteSelected = useCallback(() => {
     if (!selectedId) return
     pushHistory()
-    setElements((prev) => prev.filter((e) => e.id !== selectedId))
-    setArrows((prev) => prev.filter((a) => a.id !== selectedId))
-    setZones((prev) => prev.filter((z) => z.id !== selectedId))
+    const nextElements = elements.filter((e) => e.id !== selectedId)
+    const nextArrows = arrows.filter((a) => a.id !== selectedId)
+    const nextZones = zones.filter((z) => z.id !== selectedId)
+    applyState(nextElements, nextArrows, nextZones)
     setSelectedId(null)
-  }, [selectedId, pushHistory])
+  }, [selectedId, pushHistory, elements, arrows, zones, applyState])
+
+  const updateElement = useCallback((id: string, patch: Partial<DiagramElement>, recordHistory = false) => {
+    if (recordHistory) pushHistory()
+    const nextElements = elements.map((e) => (e.id === id ? { ...e, ...patch } : e))
+    applyState(nextElements, arrows, zones)
+  }, [pushHistory, elements, arrows, zones, applyState])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -140,6 +233,10 @@ export function TacticalBoard({ value, onChange, height = 300, showFormations = 
     if (gRef.current) svgRef.current = gRef.current.ownerSVGElement || null
   })
 
+  useEffect(() => () => {
+    if (pngTimerRef.current) clearTimeout(pngTimerRef.current)
+  }, [])
+
   const getSvgPosition = useCallback((e: React.MouseEvent): Position => {
     const svg = svgRef.current
     if (!svg) return { x: 0, y: 0 }
@@ -151,33 +248,6 @@ export function TacticalBoard({ value, onChange, height = 300, showFormations = 
     const svgPt = pt.matrixTransform(ctm.inverse())
     return { x: Math.round(svgPt.x), y: Math.round(svgPt.y) }
   }, [])
-
-  const exportToPng = useCallback(() => {
-    const svg = svgRef.current
-    if (!svg || !containerRef.current) return
-    const rect = containerRef.current.getBoundingClientRect()
-    const width = rect.width
-    const heightValue = height
-    const serializer = new XMLSerializer()
-    const svgString = serializer.serializeToString(svg)
-    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const img = new Image()
-    img.onload = () => {
-      const canvas = document.createElement('canvas')
-      canvas.width = width * 2
-      canvas.height = heightValue * 2
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return
-      ctx.fillStyle = '#2D5016'
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-      URL.revokeObjectURL(url)
-      const dataUrl = canvas.toDataURL('image/png')
-      onChange?.(dataUrl)
-    }
-    img.src = url
-  }, [height, onChange])
 
   const handlePitchClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     const pos = getSvgPosition(e)
@@ -197,7 +267,7 @@ export function TacticalBoard({ value, onChange, height = 300, showFormations = 
           color: arrowType === 'pass' ? '#FFFFFF' : '#FFFF00',
           label: String(arrowCounter),
         }
-        setArrows((prev) => [...prev, newArrow])
+        applyState(elements, [...arrows, newArrow], zones)
         setArrowCounter((c) => c + 1)
         setArrowStart(null)
       }
@@ -220,7 +290,7 @@ export function TacticalBoard({ value, onChange, height = 300, showFormations = 
         label: 'Texto',
         color: '#FFFFFF',
       }
-      setElements((prev) => [...prev, newText])
+      applyState([...elements, newText], arrows, zones)
       setSelectedId(newText.id)
       return
     }
@@ -255,12 +325,12 @@ export function TacticalBoard({ value, onChange, height = 300, showFormations = 
       label,
       color,
     }
-    setElements((prev) => [...prev, newElement])
+    applyState([...elements, newElement], arrows, zones)
     if (elementType === 'player' || elementType === 'opponent') {
       setPlayerCounter(newCounter)
     }
-    exportToPng()
-  }, [activeTool, arrowStart, arrowCounter, playerCounter, getSvgPosition, pushHistory, exportToPng])
+    setSelectedId(newElement.id)
+  }, [activeTool, arrowStart, arrowCounter, playerCounter, elements, arrows, zones, getSvgPosition, pushHistory, applyState])
 
   const handlePitchMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     const pos = getSvgPosition(e)
@@ -304,15 +374,17 @@ export function TacticalBoard({ value, onChange, height = 300, showFormations = 
           opacity: 0.3,
           shape: activeTool === 'zone_circle' ? 'ellipse' : 'rectangle',
         }
-        setZones((prev) => [...prev, newZone])
-        exportToPng()
+        applyState(elements, arrows, [...zones, newZone])
       }
       setZoneDragStart(null)
       setZoneDragCurrent(null)
       return
     }
+    if (isDragging) {
+      applyState(elements, arrows, zones)
+    }
     setIsDragging(false)
-  }, [zoneDragStart, zoneDragCurrent, isZoneTool, activeTool, zoneColor, getSvgPosition, pushHistory, exportToPng])
+  }, [zoneDragStart, zoneDragCurrent, isZoneTool, activeTool, zoneColor, isDragging, elements, arrows, zones, getSvgPosition, pushHistory, applyState])
 
   const handleElementMouseDown = useCallback((e: React.MouseEvent, elementId: string) => {
     e.stopPropagation()
@@ -320,8 +392,8 @@ export function TacticalBoard({ value, onChange, height = 300, showFormations = 
       setSelectedId(elementId)
       setIsDragging(true)
       const pos = getSvgPosition(e)
-      const el = elements.find((e) => e.id === elementId)
-      const z = zones.find((z) => z.id === elementId)
+      const el = elements.find((item) => item.id === elementId)
+      const z = zones.find((item) => item.id === elementId)
       if (el) setDragOffset({ x: pos.x - el.position.x, y: pos.y - el.position.y })
       else if (z) setDragOffset({ x: pos.x - z.position.x, y: pos.y - z.position.y })
     } else {
@@ -330,9 +402,10 @@ export function TacticalBoard({ value, onChange, height = 300, showFormations = 
   }, [activeTool, elements, zones, getSvgPosition])
 
   const renderElement = (element: DiagramElement) => {
-    const { id, type, position, color, label } = element
+    const { id, type, position, color, label, jugador, rol } = element
     const isSelected = selectedId === id
     const size = ELEMENT_SIZES[type as keyof typeof ELEMENT_SIZES] || 24
+    const roleText = rol && roleOptions.length ? rolLabel(rol, roleOptions) : rol
 
     const commonProps = {
       key: id,
@@ -351,6 +424,20 @@ export function TacticalBoard({ value, onChange, height = 300, showFormations = 
             <text x="0" y="1" textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize="10" fontWeight="bold" fontFamily="Arial">
               {label || ''}
             </text>
+            {(jugador || roleText) && (
+              <>
+                {jugador && (
+                  <text x="0" y={size / 2 + 10} textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="600" fontFamily="Arial">
+                    {jugador.length > 12 ? `${jugador.slice(0, 11)}…` : jugador}
+                  </text>
+                )}
+                {roleText && (
+                  <text x="0" y={size / 2 + (jugador ? 20 : 10)} textAnchor="middle" fill="#FDE047" fontSize="7" fontFamily="Arial">
+                    {roleText.length > 14 ? `${roleText.slice(0, 13)}…` : roleText}
+                  </text>
+                )}
+              </>
+            )}
           </g>
         )
       case 'cone':
@@ -446,6 +533,62 @@ export function TacticalBoard({ value, onChange, height = 300, showFormations = 
     return <rect x={x} y={y} width={w} height={h} fill={zoneColor} opacity={0.3} stroke="#FFFF00" strokeWidth="1" strokeDasharray="4,2" />
   }
 
+  const elementPanel = selectedElement && TOKEN_TYPES.includes(selectedElement.type) && (
+    <div
+      className="absolute top-2 right-2 w-52 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden"
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-200">
+        <span className="text-xs font-semibold text-gray-700">
+          {selectedElement.type === 'opponent' ? 'Jugador rival' : selectedElement.type === 'player_gk' ? 'Portero' : 'Jugador'}
+        </span>
+        <button type="button" onClick={() => setSelectedId(null)} className="p-0.5 text-gray-400 hover:text-gray-600">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <div className="p-3 space-y-2">
+        <div className="space-y-0.5">
+          <Label className="text-[10px] text-muted-foreground">Dorsal / etiqueta</Label>
+          <Input
+            value={selectedElement.label ?? ''}
+            onChange={(e) => updateElement(selectedElement.id, { label: e.target.value })}
+            className="h-7 text-xs"
+            placeholder="Ej: 8, GK"
+          />
+        </div>
+        <div className="space-y-0.5">
+          <Label className="text-[10px] text-muted-foreground">{jugadorLabel}</Label>
+          <Input
+            value={selectedElement.jugador ?? ''}
+            onChange={(e) => updateElement(selectedElement.id, { jugador: e.target.value })}
+            className="h-7 text-xs"
+            placeholder="Nombre del jugador..."
+          />
+        </div>
+        {roleContext && roleOptions.length > 0 && (
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">Rol táctico</Label>
+            <Select
+              value={selectedElement.rol ?? '__none__'}
+              onValueChange={(v) => updateElement(selectedElement.id, { rol: v === '__none__' ? undefined : v })}
+            >
+              <SelectTrigger className="h-7 text-xs">
+                <SelectValue placeholder="Sin rol..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__" className="text-xs text-muted-foreground">Sin rol</SelectItem>
+                {roleOptions.map((o) => (
+                  <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
   const boardCard = (
     <Card
       className={
@@ -486,62 +629,33 @@ export function TacticalBoard({ value, onChange, height = 300, showFormations = 
         <Sep />
         <TB id="text" icon={<Type className="h-3.5 w-3.5" />} label="Texto" activeTool={activeTool} onSelect={setActiveTool} />
         <Sep />
-        <button
-          type="button"
-          onClick={undo}
-          disabled={historyIndex < 0}
-          className="p-1 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-30"
-          title="Deshacer"
-        >
+        <button type="button" onClick={undo} disabled={historyIndex < 0} className="p-1 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-30" title="Deshacer">
           <Undo2 className="h-3.5 w-3.5" />
         </button>
-        <button
-          type="button"
-          onClick={redo}
-          disabled={historyIndex >= history.length - 1}
-          className="p-1 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-30"
-          title="Rehacer"
-        >
+        <button type="button" onClick={redo} disabled={historyIndex >= history.length - 1} className="p-1 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-30" title="Rehacer">
           <Redo2 className="h-3.5 w-3.5" />
         </button>
-        <button
-          type="button"
-          onClick={deleteSelected}
-          disabled={!selectedId}
-          className="p-1 rounded-lg bg-gray-100 text-gray-700 hover:bg-red-100 disabled:opacity-30"
-          title="Eliminar"
-        >
+        <button type="button" onClick={deleteSelected} disabled={!selectedId} className="p-1 rounded-lg bg-gray-100 text-gray-700 hover:bg-red-100 disabled:opacity-30" title="Eliminar">
           <Trash2 className="h-3.5 w-3.5" />
         </button>
-        <button
-          type="button"
-          onClick={clearDiagram}
-          className="p-1 rounded-lg bg-gray-100 text-gray-700 hover:bg-red-100"
-          title="Limpiar"
-        >
+        <button type="button" onClick={clearDiagram} className="p-1 rounded-lg bg-gray-100 text-gray-700 hover:bg-red-100" title="Limpiar">
           <RotateCcw className="h-3.5 w-3.5" />
         </button>
-
         <div className="flex-1" />
-
-        <button
-          type="button"
-          onClick={() => setIsExpanded((v) => !v)}
-          className="p-1 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200"
-          title={isExpanded ? 'Contraer' : 'Ampliar ventana'}
-        >
+        <button type="button" onClick={() => setIsExpanded((v) => !v)} className="p-1 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200" title={isExpanded ? 'Contraer' : 'Ampliar ventana'}>
           {isExpanded ? <Shrink className="h-3.5 w-3.5" /> : <Expand className="h-3.5 w-3.5" />}
         </button>
       </div>
 
       <div
         ref={containerRef}
-        className={isExpanded ? 'w-full flex-1 min-h-0 rounded-lg overflow-hidden border border-white/10' : 'w-full rounded-lg overflow-hidden border border-white/10'}
+        className={`relative ${isExpanded ? 'w-full flex-1 min-h-0 rounded-lg overflow-hidden border border-white/10' : 'w-full rounded-lg overflow-hidden border border-white/10'}`}
         style={isExpanded ? undefined : { height }}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
+        {elementPanel}
         <ABPPitch
           type="half"
           orientation="vertical"
@@ -561,15 +675,19 @@ export function TacticalBoard({ value, onChange, height = 300, showFormations = 
 
       <div className="flex justify-between items-center">
         <p className="text-[10px] text-muted-foreground">
-          {activeTool.startsWith('arrow_')
-            ? (arrowStart ? '2. Click destino' : '1. Click origen')
-            : isZoneTool
-              ? 'Click y arrastra para dibujar zona'
-              : 'Selecciona una herramienta y click en el campo'}
+          {roleContext
+            ? 'Coloca jugadores, selecciónalos y asigna nombre + rol'
+            : activeTool.startsWith('arrow_')
+              ? (arrowStart ? '2. Click destino' : '1. Click origen')
+              : isZoneTool
+                ? 'Click y arrastra para dibujar zona'
+                : 'Selecciona una herramienta y click en el campo'}
         </p>
-        <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={exportToPng}>
-          Guardar dibujo
-        </Button>
+        {onChange && (
+          <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={exportToPng}>
+            Guardar dibujo
+          </Button>
+        )}
       </div>
     </Card>
   )

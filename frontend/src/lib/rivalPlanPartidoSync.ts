@@ -16,16 +16,36 @@ const FASE_ORDER: FasePlanPartido[] = [
   'abp_defensiva',
 ]
 
+function mapSubfasePersistent(
+  sub?: PlanPartidoSubfaseData
+): PlanPartidoSubfaseData | undefined {
+  if (!sub) return undefined
+  return {
+    sistema: sub.sistema,
+    notas: sub.notas ?? '',
+    roles: sub.roles,
+    pizarra_tactica: sub.pizarra_tactica,
+    pizarra_diagrama: sub.pizarra_diagrama,
+  }
+}
+
 function mapPhasePersistent(f: PlanPartidoPhase): PlanPartidoPhase {
+  const subfases = f.subfases
+    ? Object.fromEntries(
+        Object.entries(f.subfases).map(([k, v]) => [k, mapSubfasePersistent(v)!])
+      )
+    : undefined
+
   return {
     fase: f.fase,
     texto: f.texto,
     sistema: f.sistema,
-    subfases: f.subfases,
+    subfases,
     jugadas_abp: f.jugadas_abp,
     roles: f.roles,
     clips: f.clips ?? [],
     pizarra_tactica: f.pizarra_tactica,
+    pizarra_diagrama: f.pizarra_diagrama,
   }
 }
 
@@ -60,6 +80,8 @@ function mergeSubfases(
       sistema: s?.sistema ?? l?.sistema ?? '',
       notas: s?.notas ?? l?.notas ?? '',
       roles: s?.roles?.length ? s.roles : l?.roles ?? [],
+      pizarra_tactica: s?.pizarra_tactica ?? l?.pizarra_tactica,
+      pizarra_diagrama: s?.pizarra_diagrama ?? l?.pizarra_diagrama,
     }
   }
   return merged
@@ -86,6 +108,7 @@ export function mergePlanPartidoOnLoad(
       roles: s?.roles?.length ? s.roles : l?.roles ?? [],
       clips: s?.clips?.length ? s.clips : l?.clips ?? [],
       pizarra_tactica: s?.pizarra_tactica ?? l?.pizarra_tactica,
+      pizarra_diagrama: s?.pizarra_diagrama ?? l?.pizarra_diagrama,
     }
   })
 

@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import type { DiagramData } from '@/components/tarea-editor/types'
 import type {
   ClipRival,
   FasePlanPartido,
@@ -19,9 +20,9 @@ import type {
   RivalSubfaseDefensa,
 } from '@/types'
 import { exportPlanPartidoPDF } from '@/lib/pdf/exportPlanPartidoPDF'
+import { deriveAsignacionesFromDiagram } from '@/lib/planPartidoDiagramRoles'
 import { TacticalBoard } from './TacticalBoard'
 import { PlanPartidoABPSection } from './PlanPartidoABPSection'
-import { TacticalRolesPanel } from '@/components/tactical/TacticalRolesPanel'
 import { getContextForSubfase } from '@/lib/tacticalRoles'
 import { api } from '@/lib/api/client'
 import { rivalesApi } from '@/lib/api/partidos'
@@ -66,6 +67,17 @@ function isTransitionPhase(fase: FasePlanPartido) {
 
 function isAbpPhase(fase: FasePlanPartido) {
   return fase === 'abp_ofensiva' || fase === 'abp_defensiva'
+}
+
+function handleDiagramUpdate(
+  diagram: DiagramData,
+  extra?: Partial<PlanPartidoSubfaseData>
+): Partial<PlanPartidoSubfaseData> {
+  return {
+    ...extra,
+    pizarra_diagrama: diagram,
+    roles: deriveAsignacionesFromDiagram(diagram),
+  }
 }
 
 export function PlanPartido({
@@ -165,7 +177,6 @@ export function PlanPartido({
               <TabsContent key={section.fase} value={section.fase} className="space-y-4 mt-4">
                 <p className={`text-xs font-semibold ${section.color}`}>{section.label}</p>
 
-                {/* Ataque / Defensa: 3 subfases con sistema + texto */}
                 {isSubfasePhase(section.fase) && subfaseList && (
                   <Tabs defaultValue={subfaseList[0].key}>
                     <TabsList className="flex flex-wrap h-auto gap-1">
@@ -180,92 +191,98 @@ export function PlanPartido({
                       const roleContext = getContextForSubfase(section.fase, s.key)
                       return (
                         <TabsContent key={s.key} value={s.key} className="space-y-3 mt-3">
-                          <Tabs defaultValue="plan">
-                            <TabsList className="h-7">
-                              <TabsTrigger value="plan" className="text-[10px] px-2 py-0.5">
-                                Plan
-                              </TabsTrigger>
-                              <TabsTrigger value="roles" className="text-[10px] px-2 py-0.5">
-                                Roles
-                              </TabsTrigger>
-                            </TabsList>
-                            <TabsContent value="plan" className="space-y-3 mt-2">
-                              <div className="space-y-1">
-                                <Label className="text-xs text-muted-foreground">Sistema a utilizar</Label>
-                                <Input
-                                  value={sub.sistema ?? ''}
-                                  onChange={(e) =>
-                                    updateSubfase(section.fase, s.key, { sistema: e.target.value })
-                                  }
-                                  placeholder="Ej: 4-3-3, 3-2-5, rombo en salida..."
-                                  className="h-8 text-xs"
-                                />
-                              </div>
-                              <Textarea
-                                rows={4}
-                                value={sub.notas}
-                                onChange={(e) =>
-                                  updateSubfase(section.fase, s.key, { notas: e.target.value })
-                                }
-                                placeholder={`Plan táctico en ${s.label.toLowerCase()}...`}
-                                className="text-sm resize-none"
-                              />
-                            </TabsContent>
-                            <TabsContent value="roles" className="mt-2">
-                              <TacticalRolesPanel
-                                context={roleContext}
-                                roles={sub.roles ?? []}
-                                onChange={(roles) => updateSubfase(section.fase, s.key, { roles })}
-                                jugadorLabel="Nuestro jugador"
-                              />
-                            </TabsContent>
-                          </Tabs>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Sistema a utilizar</Label>
+                            <Input
+                              value={sub.sistema ?? ''}
+                              onChange={(e) =>
+                                updateSubfase(section.fase, s.key, { sistema: e.target.value })
+                              }
+                              placeholder="Ej: 4-3-3, 3-2-5, rombo en salida..."
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <Textarea
+                            rows={3}
+                            value={sub.notas}
+                            onChange={(e) =>
+                              updateSubfase(section.fase, s.key, { notas: e.target.value })
+                            }
+                            placeholder={`Plan táctico en ${s.label.toLowerCase()}...`}
+                            className="text-sm resize-none"
+                          />
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">
+                              Pizarra táctica — coloca jugadores y asigna nombre + rol
+                            </Label>
+                            <TacticalBoard
+                              diagramValue={sub.pizarra_diagrama}
+                              onDiagramChange={(diagram) =>
+                                updateSubfase(section.fase, s.key, handleDiagramUpdate(diagram))
+                              }
+                              value={sub.pizarra_tactica}
+                              onChange={(png) =>
+                                updateSubfase(section.fase, s.key, { pizarra_tactica: png })
+                              }
+                              roleContext={roleContext}
+                              jugadorLabel="Nuestro jugador"
+                            />
+                          </div>
                         </TabsContent>
                       )
                     })}
                   </Tabs>
                 )}
 
-                {/* Transiciones: plan + roles (solo OF) */}
                 {isTransitionPhase(section.fase) && (
-                  <Tabs defaultValue="plan">
-                    <TabsList className="h-7">
-                      <TabsTrigger value="plan" className="text-[10px] px-2 py-0.5">
-                        Plan
-                      </TabsTrigger>
-                      {section.fase === 'transicion_ofensiva' && (
-                        <TabsTrigger value="roles" className="text-[10px] px-2 py-0.5">
-                          Roles
-                        </TabsTrigger>
-                      )}
-                    </TabsList>
-                    <TabsContent value="plan" className="mt-2">
-                      <Textarea
-                        rows={4}
-                        value={phase.texto ?? ''}
-                        onChange={(e) => updatePhase(section.fase, { texto: e.target.value })}
-                        placeholder={
-                          section.fase === 'transicion_ofensiva'
-                            ? 'Verticalidad, espacios, cambio de ritmo...'
-                            : 'Presión, repliegue, equilibrio...'
-                        }
-                        className="text-sm resize-none"
-                      />
-                    </TabsContent>
+                  <div className="space-y-3">
+                    <Textarea
+                      rows={4}
+                      value={phase.texto ?? ''}
+                      onChange={(e) => updatePhase(section.fase, { texto: e.target.value })}
+                      placeholder={
+                        section.fase === 'transicion_ofensiva'
+                          ? 'Verticalidad, espacios, cambio de ritmo...'
+                          : 'Presión, repliegue, equilibrio...'
+                      }
+                      className="text-sm resize-none"
+                    />
                     {section.fase === 'transicion_ofensiva' && (
-                      <TabsContent value="roles" className="mt-2">
-                        <TacticalRolesPanel
-                          context="transicion_ofensiva"
-                          roles={phase.roles ?? []}
-                          onChange={(roles) => updatePhase(section.fase, { roles })}
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">
+                          Pizarra táctica — roles en transición ofensiva
+                        </Label>
+                        <TacticalBoard
+                          diagramValue={phase.pizarra_diagrama}
+                          onDiagramChange={(diagram) =>
+                            updatePhase(section.fase, {
+                              pizarra_diagrama: diagram,
+                              roles: deriveAsignacionesFromDiagram(diagram),
+                            })
+                          }
+                          value={phase.pizarra_tactica}
+                          onChange={(png) => updatePhase(section.fase, { pizarra_tactica: png })}
+                          roleContext="transicion_ofensiva"
                           jugadorLabel="Nuestro jugador"
                         />
-                      </TabsContent>
+                      </div>
                     )}
-                  </Tabs>
+                    {section.fase === 'transicion_defensiva' && (
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Pizarra táctica</Label>
+                        <TacticalBoard
+                          diagramValue={phase.pizarra_diagrama}
+                          onDiagramChange={(diagram) =>
+                            updatePhase(section.fase, { pizarra_diagrama: diagram })
+                          }
+                          value={phase.pizarra_tactica}
+                          onChange={(png) => updatePhase(section.fase, { pizarra_tactica: png })}
+                        />
+                      </div>
+                    )}
+                  </div>
                 )}
 
-                {/* ABP: jugadas del laboratorio */}
                 {isAbpPhase(section.fase) && (
                   <PlanPartidoABPSection
                     lado={section.fase === 'abp_ofensiva' ? 'ofensivo' : 'defensivo'}
@@ -275,18 +292,6 @@ export function PlanPartido({
                   />
                 )}
 
-                {/* Pizarra táctica (todas las fases excepto solo-ABP sin pizarra? user wants pizarra for all) */}
-                {!isAbpPhase(section.fase) && (
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Pizarra táctica</Label>
-                    <TacticalBoard
-                      value={phase.pizarra_tactica}
-                      onChange={(v) => updatePhase(section.fase, { pizarra_tactica: v })}
-                    />
-                  </div>
-                )}
-
-                {/* Clips debajo de la pizarra */}
                 {!isAbpPhase(section.fase) && (
                   <ClipsSection
                     phase={phase}

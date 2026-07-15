@@ -88,21 +88,51 @@ function writeRoles(
   return y + 2
 }
 
+import { diagramHasContent } from '@/lib/planPartidoDiagramRoles'
+
+function addPizarraImage(
+  doc: jsPDF,
+  png: string | undefined,
+  margin: number,
+  y: number,
+  contentWidth: number
+): number {
+  if (!png?.startsWith('data:image')) return y
+  try {
+    y = ensureSpace(doc, y, 60, margin)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(100, 100, 100)
+    doc.text('Pizarra:', margin, y)
+    y += 4
+    const imgW = contentWidth
+    const imgH = 45
+    doc.addImage(png, 'PNG', margin, y, imgW, imgH)
+    return y + imgH + 6
+  } catch {
+    return y
+  }
+}
+
 function phaseHasContent(phase: PlanPartidoPhase | undefined): boolean {
   if (!phase) return false
   if (phase.texto?.trim()) return true
   if (phase.sistema?.trim()) return true
   if (phase.roles?.length) return true
+  if (phase.pizarra_tactica || diagramHasContent(phase.pizarra_diagrama)) return true
   if (
     phase.subfases &&
     Object.values(phase.subfases).some(
-      (s) => s?.notas?.trim() || s?.sistema?.trim() || s?.roles?.length
+      (s) =>
+        s?.notas?.trim() ||
+        s?.sistema?.trim() ||
+        s?.roles?.length ||
+        s?.pizarra_tactica ||
+        diagramHasContent(s?.pizarra_diagrama)
     )
   )
     return true
   if (phase.jugadas_abp?.length) return true
   if (phase.clips?.length) return true
-  if (phase.pizarra_tactica) return true
   return false
 }
 
@@ -163,7 +193,14 @@ export async function exportPlanPartidoPDF(data: Partial<PlanPartidoData>, equip
     // Subfases ataque/defensa
     if (phase?.subfases) {
       for (const [key, sub] of Object.entries(phase.subfases)) {
-        if (!sub?.notas?.trim() && !sub?.sistema?.trim() && !sub?.roles?.length) continue
+        if (
+          !sub?.notas?.trim() &&
+          !sub?.sistema?.trim() &&
+          !sub?.roles?.length &&
+          !sub?.pizarra_tactica &&
+          !diagramHasContent(sub?.pizarra_diagrama)
+        )
+          continue
         y = ensureSpace(doc, y, 16, margin)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(37, 99, 235)
@@ -184,6 +221,7 @@ export async function exportPlanPartidoPDF(data: Partial<PlanPartidoData>, equip
             ? getContextForSubfase(phase.fase, key as RivalSubfaseAtaque | RivalSubfaseDefensa)
             : 'creacion_progresion'
         y = writeRoles(doc, sub.roles, ctx, margin, y, contentWidth)
+        y = addPizarraImage(doc, sub.pizarra_tactica, margin, y, contentWidth)
       }
     }
 
@@ -195,6 +233,14 @@ export async function exportPlanPartidoPDF(data: Partial<PlanPartidoData>, equip
 
     if (phase?.roles?.length && phase.fase === 'transicion_ofensiva') {
       y = writeRoles(doc, phase.roles, 'transicion_ofensiva', margin, y, contentWidth)
+    }
+
+    if (
+      phase &&
+      !phase.subfases &&
+      (phase.pizarra_tactica || diagramHasContent(phase.pizarra_diagrama))
+    ) {
+      y = addPizarraImage(doc, phase.pizarra_tactica, margin, y, contentWidth)
     }
 
     // ABP jugadas

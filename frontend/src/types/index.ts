@@ -868,7 +868,10 @@ export interface RivalScoutData {
 export interface PlanPartidoSubfaseData {
   sistema?: string
   notas: string
+  /** Derivado de pizarra_diagrama — compat PDF/sync */
   roles?: AsignacionRolTactico[]
+  pizarra_tactica?: string
+  pizarra_diagrama?: import('@/components/tarea-editor/types').DiagramData
 }
 
 export interface PlanPartidoABPItem {
@@ -895,6 +898,7 @@ export interface PlanPartidoPhase {
   consignas?: string[]
   clips?: ClipRival[]
   pizarra_tactica?: string
+  pizarra_diagrama?: import('@/components/tarea-editor/types').DiagramData
   /** @deprecated usar subfases[].sistema */
   formacion?: string
   /** @deprecated */
