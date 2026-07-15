@@ -1,4 +1,4 @@
-import type { AsignacionRolTactico, FasePlanPartido, RivalSubfaseAtaque } from '@/types'
+import type { AsignacionRolTactico, FasePlanPartido, FaseRival, RivalSubfaseAtaque } from '@/types'
 
 export type ContextoRoles =
   | 'creacion_progresion'
@@ -60,7 +60,7 @@ export function getRolesForContext(context: ContextoRoles): RolTacticoOption[] {
 }
 
 export function getContextForSubfase(
-  fase: 'ataque_organizado' | 'defensa_organizada' | FasePlanPartido,
+  fase: 'ataque_organizado' | 'defensa_organizada' | FasePlanPartido | FaseRival,
   subfase: RivalSubfaseAtaque | string
 ): ContextoRoles {
   if (fase === 'defensa_organizada') return 'defensa_bloque'
