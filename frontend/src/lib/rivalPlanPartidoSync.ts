@@ -54,6 +54,7 @@ export function extractPersistentPlanPartido(
 ): Partial<PlanPartidoData> {
   return {
     fases: (plan.fases ?? []).map(mapPhasePersistent),
+    nutricion_partido: plan.nutricion_partido,
   }
 }
 
@@ -112,5 +113,5 @@ export function mergePlanPartidoOnLoad(
     }
   })
 
-  return { fases }
+  return { fases, nutricion_partido: local.nutricion_partido ?? saved.nutricion_partido }
 }

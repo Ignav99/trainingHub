@@ -28,7 +28,7 @@ import { PlanPartido } from './PlanPartido'
 import { MorfocicloGrid } from './MorfocicloGrid'
 import { OnceProbable } from './OnceProbable'
 import { WarRoomCargas } from './WarRoomCargas'
-import { NutricionSemanalEditor } from './NutricionSemanalEditor'
+import { PlanesEspecialesSemana } from './PlanesEspecialesSemana'
 
 // ============ Constants ============
 
@@ -400,6 +400,7 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
           rivalId={data.microciclo.rival_id}
           microcicloId={data.microciclo.id}
           equipoId={data.microciclo.equipo_id}
+          horaPartido={data.microciclo.partidos?.hora}
           onChange={(d) => updatePlanCT({ plan_partido: d })}
         />
       </div>
@@ -435,10 +436,15 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
         jugadores={jugadores}
       />
 
-      {/* ============ Nutrición y suplementación ============ */}
-      <NutricionSemanalEditor
+      {/* ============ Planes especiales de comida (debajo del 11) ============ */}
+      <PlanesEspecialesSemana
         data={planCT.nutricion}
         onChange={(d) => updatePlanCT({ nutricion: d })}
+        jugadores={jugadores}
+        equipoId={micro.equipo_id}
+        microcicloId={microcicloId}
+        fechaInicio={micro.fecha_inicio}
+        fechaFin={micro.fecha_fin}
       />
     </div>
   )

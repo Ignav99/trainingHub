@@ -27,6 +27,7 @@ import { getContextForSubfase } from '@/lib/tacticalRoles'
 import { api } from '@/lib/api/client'
 import { rivalesApi } from '@/lib/api/partidos'
 import { VideoPlayer } from '@/components/video-analyzer/VideoPlayer'
+import { NutricionPartidoEditor } from './NutricionPartidoEditor'
 
 interface PlanPartidoProps {
   data: Partial<PlanPartidoData>
@@ -34,6 +35,7 @@ interface PlanPartidoProps {
   rivalId?: string
   microcicloId?: string
   equipoId?: string
+  horaPartido?: string
 }
 
 const FASES: { fase: FasePlanPartido; label: string; color: string }[] = [
@@ -86,6 +88,7 @@ export function PlanPartido({
   rivalId,
   microcicloId,
   equipoId,
+  horaPartido,
 }: PlanPartidoProps) {
   const [activeTab, setActiveTab] = useState<FasePlanPartido>('ataque_organizado')
   const dataRef = useRef(data)
@@ -320,6 +323,12 @@ export function PlanPartido({
             )
           })}
         </Tabs>
+
+        <NutricionPartidoEditor
+          data={data.nutricion_partido}
+          horaPartido={horaPartido}
+          onChange={(nutricion_partido) => update({ nutricion_partido })}
+        />
       </CardContent>
     </Card>
   )

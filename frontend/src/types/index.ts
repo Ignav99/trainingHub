@@ -919,6 +919,8 @@ export interface PlanPartidoData {
   /** @deprecated ya no se usa */
   consignas_clave?: string[]
   fases: PlanPartidoPhase[]
+  /** Suplementación sencilla para el partido (2-3 ítems) */
+  nutricion_partido?: NutricionPartidoPlan
 }
 
 export interface OnceProbableData {
@@ -942,7 +944,35 @@ export interface DiaMorfociclo {
   aspecto_psicologico_texto?: string
 }
 
+export interface SuplementacionPartidoItem {
+  nombre: string
+  momento?: string
+  dosis?: string
+}
+
+/** Plan de suplementación del partido (sencillo, 2-3 ítems) */
+export interface NutricionPartidoPlan {
+  suplementaciones: SuplementacionPartidoItem[]
+  /** Recomendación de comida según hora del partido (opcional) */
+  comida_recomendada?: string
+  notas?: string
+}
+
+/** Jugador con plan de comidas especial esta semana (vinculado a módulo nutrición) */
+export interface PlanEspecialJugadorSemana {
+  id: string
+  jugador_id: string
+  descripcion: string
+  notas?: string
+  /** IDs en planes_nutricionales_dia sincronizados desde Sala del Lunes */
+  plan_nutricional_ids?: string[]
+  sincronizado?: boolean
+}
+
 export interface NutricionSemana {
+  /** Jugadores con plan especial de comidas esta semana */
+  planes_especiales?: PlanEspecialJugadorSemana[]
+  /** @deprecated campos legacy del editor anterior */
   plan_ch_semanal?: string
   hidratacion_pre?: string
   hidratacion_durante?: string
