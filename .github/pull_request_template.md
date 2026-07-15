@@ -21,3 +21,4 @@
 - [ ] All existing tests pass
 - [ ] I have updated documentation if needed
 - [ ] No secrets or credentials are included in this PR
+- [ ] PR is **not draft** (cursor/* PRs auto-merge to main after CI → Render deploy)
