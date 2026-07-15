@@ -20,9 +20,9 @@ import {
   Trash2,
   BarChart3,
   MessageSquare,
-  Eye,
   Pencil,
   Clock,
+  ClipboardList,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -55,7 +55,7 @@ import type { Convocatoria, Partido, EstadisticaPartido, GolDetalle, FaltaPosici
 import { GoalDetailEditor } from './GoalDetailEditor'
 import { FoulMapEditor } from './FoulMapEditor'
 
-const PreMatchTab = dynamic(() => import('@/components/pre-match/PreMatchTab').then(m => ({ default: m.PreMatchTab })), {
+const PartidoPlanTab = dynamic(() => import('./PartidoPlanTab').then(m => ({ default: m.PartidoPlanTab })), {
   loading: () => <div className="animate-pulse space-y-4 p-4"><div className="h-8 bg-muted rounded w-1/3" /><div className="h-32 bg-muted rounded" /><div className="h-32 bg-muted rounded" /></div>
 })
 
@@ -716,29 +716,28 @@ export function MatchDetailPanel({
 
       <Tabs value={tabParam} onValueChange={onSetTab}>
         <TabsList className="mb-4">
-          <TabsTrigger value="pre-partido" className="gap-1.5">
-            <Eye className="h-4 w-4" />
-            Pre-partido
+          <TabsTrigger value="plan-partido" className="gap-1.5">
+            <ClipboardList className="h-4 w-4" />
+            Plan de partido
           </TabsTrigger>
           <TabsTrigger value="convocatoria" className="gap-1.5">
             <Users className="h-4 w-4" />
             Convocatoria
           </TabsTrigger>
-          <TabsTrigger value="post-partido" className="gap-1.5">
+          <TabsTrigger value="informe-partido" className="gap-1.5">
             <BarChart3 className="h-4 w-4" />
-            Post-partido
+            Informe del partido
           </TabsTrigger>
         </TabsList>
 
-        {/* ==================== TAB: PRE-PARTIDO ==================== */}
-        <TabsContent value="pre-partido" className="space-y-6">
-          <PreMatchTab
-            key={selectedPartido.id}
-            partido={selectedPartido}
-            onMutate={() => mutate((key: string) => typeof key === 'string' && key.includes('/partidos'), undefined, { revalidate: true })}
-          />
+        {/* ==================== TAB: PLAN DE PARTIDO ==================== */}
+        <TabsContent value="plan-partido" className="space-y-6">
           {equipoActivo?.id && (
-            <VideoSection partidoId={selectedPartido.id} equipoId={equipoActivo.id} contexto="pre_partido" />
+            <PartidoPlanTab
+              key={selectedPartido.id}
+              partido={selectedPartido}
+              equipoId={equipoActivo.id}
+            />
           )}
         </TabsContent>
 
@@ -941,8 +940,8 @@ export function MatchDetailPanel({
           )}
         </TabsContent>
 
-        {/* ==================== TAB: POST-PARTIDO ==================== */}
-        <TabsContent value="post-partido" className="space-y-4">
+        {/* ==================== TAB: INFORME DEL PARTIDO ==================== */}
+        <TabsContent value="informe-partido" className="space-y-4">
           {/* Result card */}
           {(() => {
             const resInfo = selectedPartido.resultado ? RESULTADO_LABELS[selectedPartido.resultado] : null

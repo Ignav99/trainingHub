@@ -10,7 +10,7 @@ export function PartidoFilters() {
           <Swords className="h-6 w-6 text-primary" />
           Partidos
         </h1>
-        <p className="text-muted-foreground mt-1">Pre-partido, convocatoria y post-partido</p>
+        <p className="text-muted-foreground mt-1">Plan de partido, convocatoria e informe</p>
       </div>
       <Button asChild>
         <Link href="/partidos/nuevo">
