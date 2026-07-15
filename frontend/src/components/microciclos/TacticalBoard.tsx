@@ -84,8 +84,14 @@ export function TacticalBoard({
   const pngTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const emitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastEmittedFpRef = useRef('')
+  const localFpRef = useRef('')
   const dragMovedRef = useRef(false)
   const suppressPitchClickRef = useRef(false)
+  const pendingStateRef = useRef<{ elements: DiagramElement[]; arrows: DiagramArrow[]; zones: DiagramZone[] }>({
+    elements: [],
+    arrows: [],
+    zones: [],
+  })
 
   const [elements, setElements] = useState<DiagramElement[]>([])
   const [arrows, setArrows] = useState<DiagramArrow[]>([])
@@ -111,6 +117,7 @@ export function TacticalBoard({
   useEffect(() => {
     const sanitized = sanitizeDiagramData(diagramValue ?? emptyDiagramData)
     const fp = diagramFingerprint(sanitized)
+    const localFp = localFpRef.current
 
     // Ignorar eco de nuestra propia emisión al padre
     if (fp === lastEmittedFpRef.current) return
@@ -118,10 +125,53 @@ export function TacticalBoard({
     // No pisar estado local mientras hay un jugador seleccionado (panel abierto)
     if (selectedId) return
 
+    // Estado local pendiente de guardar — no revertir
+    if (localFp && localFp !== fp && localFp !== lastEmittedFpRef.current) return
+
     setElements(sanitized.elements)
     setArrows(sanitized.arrows)
     setZones(sanitized.zones)
+    pendingStateRef.current = {
+      elements: sanitized.elements,
+      arrows: sanitized.arrows,
+      zones: sanitized.zones,
+    }
+    localFpRef.current = fp
   }, [diagramValue, selectedId])
+
+  const emitDiagramNow = useCallback((
+    nextElements: DiagramElement[],
+    nextArrows: DiagramArrow[],
+    nextZones: DiagramZone[]
+  ) => {
+    if (!onDiagramChange) return
+    if (emitTimerRef.current) clearTimeout(emitTimerRef.current)
+    const payload = diagramToPayload(nextElements, nextArrows, nextZones)
+    const fp = diagramFingerprint(payload)
+    lastEmittedFpRef.current = fp
+    localFpRef.current = fp
+    pendingStateRef.current = { elements: nextElements, arrows: nextArrows, zones: nextZones }
+    onDiagramChange(payload)
+  }, [onDiagramChange])
+
+  const scheduleEmit = useCallback((
+    nextElements: DiagramElement[],
+    nextArrows: DiagramArrow[],
+    nextZones: DiagramZone[]
+  ) => {
+    if (!onDiagramChange) return
+    pendingStateRef.current = { elements: nextElements, arrows: nextArrows, zones: nextZones }
+    localFpRef.current = diagramFingerprint(diagramToPayload(nextElements, nextArrows, nextZones))
+    if (emitTimerRef.current) clearTimeout(emitTimerRef.current)
+    emitTimerRef.current = setTimeout(() => {
+      emitDiagramNow(nextElements, nextArrows, nextZones)
+    }, 350)
+  }, [onDiagramChange, emitDiagramNow])
+
+  const flushEmit = useCallback(() => {
+    const { elements: els, arrows: arr, zones: zon } = pendingStateRef.current
+    emitDiagramNow(els, arr, zon)
+  }, [emitDiagramNow])
 
   const exportToPng = useCallback(() => {
     const svg = svgRef.current
@@ -155,32 +205,24 @@ export function TacticalBoard({
     pngTimerRef.current = setTimeout(() => exportToPng(), 400)
   }, [exportToPng, onChange])
 
-  const scheduleEmit = useCallback((
-    nextElements: DiagramElement[],
-    nextArrows: DiagramArrow[],
-    nextZones: DiagramZone[]
-  ) => {
-    if (!onDiagramChange) return
-    if (emitTimerRef.current) clearTimeout(emitTimerRef.current)
-    emitTimerRef.current = setTimeout(() => {
-      const payload = diagramToPayload(nextElements, nextArrows, nextZones)
-      lastEmittedFpRef.current = diagramFingerprint(payload)
-      onDiagramChange(payload)
-    }, 350)
-  }, [onDiagramChange])
-
   const applyLocalState = useCallback((
     nextElements: DiagramElement[],
     nextArrows: DiagramArrow[],
     nextZones: DiagramZone[],
-    options?: { emit?: boolean; exportPng?: boolean }
+    options?: { emit?: 'immediate' | 'debounced' | false; exportPng?: boolean }
   ) => {
     setElements(nextElements)
     setArrows(nextArrows)
     setZones(nextZones)
-    if (options?.emit !== false) scheduleEmit(nextElements, nextArrows, nextZones)
+    pendingStateRef.current = { elements: nextElements, arrows: nextArrows, zones: nextZones }
+    localFpRef.current = diagramFingerprint(diagramToPayload(nextElements, nextArrows, nextZones))
+    if (options?.emit === 'immediate') {
+      emitDiagramNow(nextElements, nextArrows, nextZones)
+    } else if (options?.emit !== false) {
+      scheduleEmit(nextElements, nextArrows, nextZones)
+    }
     if (options?.exportPng !== false) schedulePngExport()
-  }, [scheduleEmit, schedulePngExport])
+  }, [scheduleEmit, schedulePngExport, emitDiagramNow])
 
   const applyState = useCallback((
     nextElements: DiagramElement[],
@@ -188,7 +230,7 @@ export function TacticalBoard({
     nextZones: DiagramZone[],
     exportPng = true
   ) => {
-    applyLocalState(nextElements, nextArrows, nextZones, { exportPng })
+    applyLocalState(nextElements, nextArrows, nextZones, { emit: 'immediate', exportPng })
   }, [applyLocalState])
 
   const pushHistory = useCallback(() => {
@@ -231,8 +273,13 @@ export function TacticalBoard({
   const updateElement = useCallback((id: string, patch: Partial<DiagramElement>, recordHistory = false) => {
     if (recordHistory) pushHistory()
     const nextElements = elements.map((e) => (e.id === id ? { ...e, ...patch } : e))
-    applyLocalState(nextElements, arrows, zones, { exportPng: false })
+    applyLocalState(nextElements, arrows, zones, { emit: 'debounced', exportPng: false })
   }, [pushHistory, elements, arrows, zones, applyLocalState])
+
+  const clearSelection = useCallback(() => {
+    flushEmit()
+    setSelectedId(null)
+  }, [flushEmit])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -307,8 +354,8 @@ export function TacticalBoard({
     if (activeTool === 'zone_rect' || activeTool === 'zone_circle') return
 
     if (activeTool === 'select') {
-      if (!suppressPitchClickRef.current) setSelectedId(null)
-      suppressPitchClickRef.current = false
+      if (!suppressPitchClickRef.current) clearSelection()
+      else suppressPitchClickRef.current = false
       return
     }
 
@@ -363,10 +410,10 @@ export function TacticalBoard({
       setPlayerCounter(newCounter)
     }
     if (TOKEN_TYPES.includes(elementType)) {
-      setActiveTool('select')
+      // Mantener herramienta activa para colocar varios; rol opcional
+      setSelectedId(null)
       suppressPitchClickRef.current = true
     }
-    setSelectedId(newElement.id)
   }, [activeTool, arrowStart, arrowCounter, playerCounter, elements, arrows, zones, getSvgPosition, pushHistory, applyState])
 
   const handlePitchMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
@@ -425,10 +472,12 @@ export function TacticalBoard({
     setIsDragging(false)
   }, [zoneDragStart, zoneDragCurrent, isZoneTool, activeTool, zoneColor, isDragging, elements, arrows, zones, getSvgPosition, pushHistory, applyState])
 
-  const selectElement = useCallback((elementId: string) => {
+  const selectElement = useCallback((elementId: string, openPanel = true) => {
     suppressPitchClickRef.current = true
-    setSelectedId(elementId)
-    setActiveTool('select')
+    if (openPanel) {
+      setSelectedId(elementId)
+      setActiveTool('select')
+    }
   }, [])
 
   const handleElementMouseDown = useCallback((e: React.MouseEvent, elementId: string) => {
@@ -436,15 +485,18 @@ export function TacticalBoard({
     e.preventDefault()
     dragMovedRef.current = false
     if (activeTool === 'select') {
-      selectElement(elementId)
+      selectElement(elementId, true)
       setIsDragging(true)
       const pos = getSvgPosition(e)
       const el = elements.find((item) => item.id === elementId)
       const z = zones.find((item) => item.id === elementId)
       if (el) setDragOffset({ x: pos.x - el.position.x, y: pos.y - el.position.y })
       else if (z) setDragOffset({ x: pos.x - z.position.x, y: pos.y - z.position.y })
+    } else if (TOKEN_TYPES.includes(elements.find((item) => item.id === elementId)?.type as ElementType)) {
+      // Con herramienta de colocación activa, permitir seguir añadiendo en el campo
+      return
     } else {
-      selectElement(elementId)
+      selectElement(elementId, true)
     }
   }, [activeTool, elements, zones, getSvgPosition, selectElement])
 
@@ -527,7 +579,7 @@ export function TacticalBoard({
     const tipY = to.y - arrowSize * Math.sin(angle)
 
     return (
-      <g key={id} onClick={(e) => { e.stopPropagation(); selectElement(id) }} style={{ cursor: 'pointer' }}>
+      <g key={id} onClick={(e) => { e.stopPropagation(); selectElement(id, true) }} style={{ cursor: 'pointer' }}>
         <line x1={from.x} y1={from.y} x2={tipX} y2={tipY}
           stroke={color || '#FFFFFF'} strokeWidth={isSelected ? 4 : 2.5}
           strokeDasharray={type === 'pass' ? '8,4' : 'none'}
@@ -547,7 +599,7 @@ export function TacticalBoard({
     return (
       <g key={id}
         onMouseDown={(e) => handleElementMouseDown(e, id)}
-        onClick={(e) => { e.stopPropagation(); selectElement(id) }}
+        onClick={(e) => { e.stopPropagation(); selectElement(id, true) }}
         style={{ cursor: activeTool === 'select' ? 'move' : 'pointer' }}
       >
         {shape === 'ellipse' ? (
@@ -592,7 +644,7 @@ export function TacticalBoard({
         <span className="text-xs font-semibold text-gray-700">
           {selectedElement.type === 'opponent' ? 'Jugador rival' : selectedElement.type === 'player_gk' ? 'Portero' : 'Jugador'}
         </span>
-        <button type="button" onClick={() => setSelectedId(null)} className="p-0.5 text-gray-400 hover:text-gray-600">
+        <button type="button" onClick={clearSelection} className="p-0.5 text-gray-400 hover:text-gray-600">
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
@@ -617,13 +669,13 @@ export function TacticalBoard({
         </div>
         {roleContext && roleOptions.length > 0 && (
           <div className="space-y-0.5">
-            <Label className="text-[10px] text-muted-foreground">Rol táctico</Label>
+            <Label className="text-[10px] text-muted-foreground">Rol táctico (opcional)</Label>
             <Select
               value={selectedElement.rol ?? '__none__'}
               onValueChange={(v) => updateElement(selectedElement.id, { rol: v === '__none__' ? undefined : v })}
             >
               <SelectTrigger className="h-7 text-xs" onPointerDown={(e) => e.stopPropagation()}>
-                <SelectValue placeholder="Sin rol..." />
+                <SelectValue placeholder="Sin rol (opcional)" />
               </SelectTrigger>
               <SelectContent position="popper" className="z-[200]">
                 <SelectItem value="__none__" className="text-xs text-muted-foreground">Sin rol</SelectItem>
@@ -725,7 +777,7 @@ export function TacticalBoard({
       <div className="flex justify-between items-center">
         <p className="text-[10px] text-muted-foreground">
           {roleContext
-            ? 'Coloca jugadores, selecciónalos y asigna nombre + rol'
+            ? 'Coloca varios jugadores; usa Seleccionar para nombre/rol (opcional)'
             : activeTool.startsWith('arrow_')
               ? (arrowStart ? '2. Click destino' : '1. Click origen')
               : isZoneTool
