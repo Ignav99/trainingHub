@@ -10,10 +10,11 @@
  * - Grid mensual con chips de partido/sesión/MD + escudos
  * - Barra lateral de microciclos por semana
  *
- * AÑO (overview):
- * - 12 filas × 31 columnas (día 1 alineado en todas)
- * - Colores: casa (ámbar) / fuera (violeta) / sesión (sky) / descanso / micro
- * - Escudo rival o marca C/F/S; clic → DayDetailPanel
+ * AÑO / TEMPORADA (overview):
+ * - 12 filas × 31 columnas (día 1 alineado), orden temporada (default Ago→Jul)
+ * - Mes de inicio personalizable (localStorage)
+ * - Datos de temporada siempre en caché SWR; vista montada oculta
+ * - Colores casa/fuera/sesión + escudos; clic → DayDetailPanel
  *
  * PDF: exportable en las 3 vistas (jsPDF).
  */
