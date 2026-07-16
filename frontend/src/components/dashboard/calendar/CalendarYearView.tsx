@@ -10,7 +10,6 @@ import {
   MONTH_NAMES_ES,
   dateToStr,
   getDaysInMonth,
-  addDays,
 } from '@/lib/calendar/types'
 import {
   formatSeasonLabel,
@@ -33,50 +32,45 @@ interface CalendarYearViewProps {
   loading?: boolean
 }
 
-/**
- * Fill = activity. Contour = microciclo membership.
- * Empty micro days stay almost white with a clear teal outline.
- */
-function dayClasses(opts: {
+/** Contiguous day ranges of the same microciclo within one month (1–31). */
+function microSegmentsForMonth(
+  year: number,
+  month: number,
+  daysInMonth: number,
+  index: ReturnType<typeof buildDayIndex>
+): { startDay: number; endDay: number; microId: string }[] {
+  const segments: { startDay: number; endDay: number; microId: string }[] = []
+  let i = 1
+  while (i <= daysInMonth) {
+    const date = dateToStr(year, month, i)
+    const microId = getBucket(index, date).microciclos[0]?.id
+    if (!microId) {
+      i += 1
+      continue
+    }
+    let j = i
+    while (j + 1 <= daysInMonth) {
+      const nextId = getBucket(index, dateToStr(year, month, j + 1)).microciclos[0]?.id
+      if (nextId !== microId) break
+      j += 1
+    }
+    segments.push({ startDay: i, endDay: j, microId })
+    i = j + 1
+  }
+  return segments
+}
+
+function activityFill(opts: {
   hasMatch: boolean
-  isLocal?: boolean
   hasSesion: boolean
   hasDescanso: boolean
   inMicro: boolean
-  microEdge: { left: boolean; right: boolean }
 }) {
-  const { hasMatch, isLocal, hasSesion, hasDescanso, inMicro, microEdge } = opts
-
-  let fill =
-    'bg-white border-border/50 text-muted-foreground'
-
-  if (hasMatch && hasSesion) {
-    fill = isLocal
-      ? 'bg-amber-200 border-amber-500 text-amber-950'
-      : 'bg-orange-200 border-orange-500 text-orange-950'
-  } else if (hasMatch) {
-    fill = isLocal
-      ? 'bg-amber-300/90 border-amber-500 text-amber-950'
-      : 'bg-orange-300/90 border-orange-500 text-orange-950'
-  } else if (hasSesion) {
-    fill = 'bg-emerald-100 border-emerald-500 text-emerald-950'
-  } else if (hasDescanso) {
-    fill = 'bg-slate-300/90 border-slate-500 text-slate-800'
-  } else if (inMicro) {
-    // Contour only — no solid blue wash on every micro day
-    fill = 'bg-teal-50/50 border-teal-300/80 text-teal-900'
-  }
-
-  // Microciclo contour: stronger ring around the block
-  const contour = inMicro
-    ? [
-        'ring-1 ring-inset ring-teal-500/55',
-        microEdge.left ? 'rounded-l-[4px] ring-2 ring-inset ring-teal-600/70' : '',
-        microEdge.right ? 'rounded-r-[4px] ring-2 ring-inset ring-teal-600/70' : '',
-      ].join(' ')
-    : ''
-
-  return `${fill} ${contour}`
+  if (opts.hasMatch) return 'bg-amber-300/95 border-amber-500 text-amber-950'
+  if (opts.hasSesion) return 'bg-emerald-100 border-emerald-500 text-emerald-950'
+  if (opts.hasDescanso) return 'bg-slate-300 border-slate-500 text-slate-800'
+  if (opts.inMicro) return 'bg-white border-transparent text-muted-foreground'
+  return 'bg-white border-border/40 text-muted-foreground'
 }
 
 function MonthRow({
@@ -94,6 +88,10 @@ function MonthRow({
 }) {
   const daysInMonth = getDaysInMonth(sm.year, sm.month)
   const yearShort = String(sm.year).slice(-2)
+  const segments = useMemo(
+    () => microSegmentsForMonth(sm.year, sm.month, daysInMonth, index),
+    [sm.year, sm.month, daysInMonth, index]
+  )
 
   return (
     <div className="grid grid-cols-[52px_1fr] gap-1 min-h-0">
@@ -107,100 +105,99 @@ function MonthRow({
         <span className="block text-[8px] font-medium opacity-60">'{yearShort}</span>
       </button>
 
-      <div
-        className="grid gap-[1px] min-h-0 h-full"
-        style={{ gridTemplateColumns: 'repeat(31, minmax(0, 1fr))' }}
-      >
-        {Array.from({ length: 31 }, (_, i) => {
-          const day = i + 1
-          if (day > daysInMonth) {
-            return <div key={`e-${sm.year}-${sm.month}-${day}`} className="rounded-[3px] bg-muted/15" />
-          }
-
-          const date = dateToStr(sm.year, sm.month, day)
-          const bucket = getBucket(index, date)
-          const partido = bucket.partidos[0]
-          const hasMatch = bucket.partidos.length > 0
-          const hasSesion = bucket.sesiones.length > 0
-          const hasDescanso = bucket.descanso
-          const microId = bucket.microciclos[0]?.id
-          const inMicro = !!microId
-          const isToday = date === todayStr
-          const isLocal = partido?.localia === 'local'
-
-          const prevDate = addDays(date, -1)
-          const nextDate = addDays(date, 1)
-          const prevMicro = getBucket(index, prevDate).microciclos[0]?.id
-          const nextMicro = getBucket(index, nextDate).microciclos[0]?.id
-          const microEdge = {
-            left: inMicro && prevMicro !== microId,
-            right: inMicro && nextMicro !== microId,
-          }
-
-          const tone = dayClasses({
-            hasMatch,
-            isLocal,
-            hasSesion,
-            hasDescanso,
-            inMicro,
-            microEdge,
-          })
-
-          const tipParts = [
-            `${day}/${sm.month + 1}/${sm.year}`,
-            inMicro ? 'Microciclo' : null,
-            hasMatch
-              ? `Partido ${isLocal ? 'casa' : 'fuera'}: ${partido?.rival?.nombre_corto || partido?.rival?.nombre || 'Rival'}`
-              : null,
-            hasSesion ? `${bucket.sesiones.length} sesión(es)` : null,
-            hasDescanso ? 'Descanso' : null,
-          ].filter(Boolean)
-
+      <div className="relative min-h-0 h-full">
+        {/* Microciclo outlines — continuous boxes over day ranges */}
+        {segments.map((seg) => {
+          const leftPct = ((seg.startDay - 1) / 31) * 100
+          const widthPct = ((seg.endDay - seg.startDay + 1) / 31) * 100
           return (
-            <button
-              key={date}
-              type="button"
-              onClick={() => onSelectDay(date)}
-              title={tipParts.join(' · ')}
-              className={`
-                relative rounded-[2px] border flex flex-col items-center justify-center gap-px
-                hover:brightness-95 hover:scale-[1.03] transition-all min-h-0
-                ${tone}
-                ${isToday ? 'outline outline-2 outline-offset-0 outline-primary z-[1]' : ''}
-              `}
-            >
-              <span className="text-[7px] leading-none font-bold opacity-70 absolute top-0.5 left-0.5">
-                {day}
-              </span>
-              {hasMatch && partido?.rival?.escudo_url ? (
-                <Image
-                  src={partido.rival.escudo_url}
-                  alt=""
-                  width={16}
-                  height={16}
-                  className="object-contain max-h-[50%] w-auto mt-1"
-                  unoptimized
-                />
-              ) : hasMatch ? (
-                <span className="text-[9px] leading-none font-black mt-1 text-amber-900">
-                  {isLocal ? 'C' : 'F'}
-                </span>
-              ) : hasSesion ? (
-                <span className="text-[9px] leading-none font-bold text-emerald-800 mt-1">S</span>
-              ) : hasDescanso ? (
-                <span className="text-[8px] leading-none font-bold text-slate-700 mt-1">D</span>
-              ) : null}
-              {hasMatch && (
-                <span className="absolute top-0.5 right-0.5 text-[6px] font-black leading-none text-amber-800">
-                  {isLocal ? 'L' : 'V'}
-                </span>
-              )}
-              {hasMatch && hasSesion && (
-                <span className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-600 ring-1 ring-white" />
-              )}
-            </button>
+            <div
+              key={`${seg.microId}-${seg.startDay}`}
+              aria-hidden
+              title="Microciclo"
+              className="pointer-events-none absolute inset-y-0 z-[2] rounded-md border-2 border-teal-600 bg-teal-500/[0.07] shadow-[inset_0_0_0_1px_rgba(13,148,136,0.35)]"
+              style={{
+                left: `calc(${leftPct}% + 1px)`,
+                width: `calc(${widthPct}% - 2px)`,
+              }}
+            />
           )
         })}
+
+        <div
+          className="relative z-[1] grid gap-[1px] min-h-0 h-full"
+          style={{ gridTemplateColumns: 'repeat(31, minmax(0, 1fr))' }}
+        >
+          {Array.from({ length: 31 }, (_, i) => {
+            const day = i + 1
+            if (day > daysInMonth) {
+              return <div key={`e-${sm.year}-${sm.month}-${day}`} className="rounded-[2px] bg-muted/15" />
+            }
+
+            const date = dateToStr(sm.year, sm.month, day)
+            const bucket = getBucket(index, date)
+            const partido = bucket.partidos[0]
+            const hasMatch = bucket.partidos.length > 0
+            const hasSesion = bucket.sesiones.length > 0
+            const hasDescanso = bucket.descanso
+            const inMicro = bucket.microciclos.length > 0
+            const isToday = date === todayStr
+            const isLocal = partido?.localia === 'local'
+            const fill = activityFill({ hasMatch, hasSesion, hasDescanso, inMicro })
+
+            const tipParts = [
+              `${day}/${sm.month + 1}/${sm.year}`,
+              inMicro ? 'Microciclo' : null,
+              hasMatch
+                ? `Partido ${isLocal ? 'casa' : 'fuera'}: ${partido?.rival?.nombre_corto || partido?.rival?.nombre || 'Rival'}`
+                : null,
+              hasSesion ? `${bucket.sesiones.length} sesión(es)` : null,
+              hasDescanso ? 'Descanso' : null,
+            ].filter(Boolean)
+
+            return (
+              <button
+                key={date}
+                type="button"
+                onClick={() => onSelectDay(date)}
+                title={tipParts.join(' · ')}
+                className={`
+                  relative rounded-[2px] border flex flex-col items-center justify-center gap-px
+                  hover:brightness-95 transition-all min-h-0
+                  ${fill}
+                  ${isToday ? 'outline outline-2 outline-offset-[-1px] outline-primary z-[3]' : ''}
+                `}
+              >
+                <span className="text-[7px] leading-none font-bold opacity-70 absolute top-0.5 left-0.5">
+                  {day}
+                </span>
+                {hasMatch && partido?.rival?.escudo_url ? (
+                  <Image
+                    src={partido.rival.escudo_url}
+                    alt=""
+                    width={16}
+                    height={16}
+                    className="object-contain max-h-[50%] w-auto mt-1"
+                    unoptimized
+                  />
+                ) : hasMatch ? (
+                  <span className="text-[9px] leading-none font-black mt-1 text-amber-900">
+                    {isLocal ? 'C' : 'F'}
+                  </span>
+                ) : hasSesion ? (
+                  <span className="text-[9px] leading-none font-bold text-emerald-800 mt-1">S</span>
+                ) : hasDescanso ? (
+                  <span className="text-[8px] leading-none font-bold text-slate-700 mt-1">D</span>
+                ) : null}
+                {hasMatch && (
+                  <span className="absolute top-0.5 right-0.5 text-[6px] font-black leading-none text-amber-800">
+                    {isLocal ? 'L' : 'V'}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
@@ -235,6 +232,8 @@ export function CalendarYearView({
     return dateToStr(n.getFullYear(), n.getMonth(), n.getDate())
   }, [])
 
+  const microCount = microciclos.length
+
   return (
     <div className="flex flex-col h-[calc(100vh-240px)] min-h-[580px] max-h-[920px]">
       <div className="flex items-center justify-between gap-2 mb-1.5 shrink-0">
@@ -244,6 +243,7 @@ export function CalendarYearView({
           </p>
           <p className="text-[10px] text-muted-foreground truncate">
             {formatSeasonLongLabel(seasonStartYear, seasonStartMonth)}
+            {microCount > 0 ? ` · ${microCount} microciclo${microCount === 1 ? '' : 's'}` : ''}
             {loading ? ' · actualizando…' : ''}
           </p>
         </div>
@@ -317,7 +317,7 @@ export function CalendarYearView({
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 pt-2 border-t text-[10px] text-muted-foreground shrink-0">
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded border-2 border-teal-500 bg-teal-50/50" /> Contorno microciclo
+          <span className="w-4 h-3 rounded border-2 border-teal-600 bg-teal-500/10" /> Contorno microciclo
         </span>
         <span className="flex items-center gap-1">
           <span className="w-3 h-3 rounded bg-amber-300 border border-amber-500" /> Partido + escudo
@@ -328,7 +328,6 @@ export function CalendarYearView({
         <span className="flex items-center gap-1">
           <span className="w-3 h-3 rounded bg-slate-300 border border-slate-500" /> Descanso
         </span>
-        <span className="ml-auto">El microciclo no pinta todos los días de azul</span>
       </div>
     </div>
   )

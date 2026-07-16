@@ -726,8 +726,16 @@ export function CalendarSection({
                       className={`flex-1 grid grid-cols-7 relative ${weekMicro ? 'cursor-pointer' : ''}`}
                       onClick={() => { if (weekMicro) onNavigate(`/microciclos/${weekMicro.id}`) }}
                     >
-                    {/* Week border highlight */}
-                    {isWeekHovered && (
+                    {/* Microciclo contour — always visible when week has a micro */}
+                    {weekMicro && (
+                      <div
+                        className={`absolute inset-0.5 rounded-md border-2 pointer-events-none z-20 ${
+                          isWeekHovered ? 'border-teal-700 bg-teal-500/[0.06]' : 'border-teal-600 bg-teal-500/[0.04]'
+                        }`}
+                        title="Microciclo"
+                      />
+                    )}
+                    {isWeekHovered && !weekMicro && (
                       <div className="absolute inset-0 border-2 border-primary/50 rounded pointer-events-none z-20 transition-opacity" />
                     )}
 
@@ -757,19 +765,14 @@ export function CalendarSection({
                   const dominantMD = hasMatch ? 'MD' : (daySesiones[0]?.match_day || null)
                   const mdColors = dominantMD ? MATCH_DAY_COLORS[dominantMD] : null
 
-                  // Activity fill + microciclo contour (not a solid blue wash)
+                  // Activity fill (microciclo outline is drawn on the week wrapper)
                   const activityBg = isDescanso
                     ? 'bg-slate-200/70'
                     : hasMatch
                       ? 'bg-amber-50'
                       : daySesiones.length > 0
                         ? 'bg-emerald-50/70'
-                        : inMicrociclo
-                          ? 'bg-teal-50/30'
-                          : ''
-                  const microContour = inMicrociclo
-                    ? 'ring-1 ring-inset ring-teal-500/50'
-                    : ''
+                        : ''
 
                   return (
                     <div
@@ -787,7 +790,7 @@ export function CalendarSection({
                         isToday
                           ? 'ring-2 ring-inset ring-primary/30'
                           : ''
-                      } ${activityBg} ${microContour} ${
+                      } ${activityBg} ${
                         hasContent && !isDescanso ? 'cursor-pointer hover:brightness-[0.98]' : ''
                       }`}
                     >

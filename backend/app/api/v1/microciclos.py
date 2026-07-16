@@ -70,11 +70,13 @@ async def list_microciclos(
     if estado:
         query = query.eq("estado", estado.value)
 
+    # Overlap with [fecha_desde, fecha_hasta]: micro ends after range start
+    # and micro starts before range end (not fully contained — avoids missing edge weeks).
     if fecha_desde:
-        query = query.gte("fecha_inicio", fecha_desde.isoformat())
+        query = query.gte("fecha_fin", fecha_desde.isoformat())
 
     if fecha_hasta:
-        query = query.lte("fecha_fin", fecha_hasta.isoformat())
+        query = query.lte("fecha_inicio", fecha_hasta.isoformat())
 
     query = query.order("fecha_inicio", desc=True)
 
