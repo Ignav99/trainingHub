@@ -28,7 +28,6 @@ import {
   FileText,
   X,
   UtensilsCrossed,
-  Droplets,
   CalendarDays,
 } from 'lucide-react'
 import { toast } from 'sonner'
