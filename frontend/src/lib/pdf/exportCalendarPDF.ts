@@ -121,12 +121,22 @@ function exportYear(input: CalendarExportInput, index: ReturnType<typeof buildDa
       const date = dateToStr(sm.year, sm.month, day)
       const b = getBucket(index, date)
       if (b.partidos.length) {
-        const isLocal = b.partidos[0]?.localia === 'local'
-        doc.setFillColor(isLocal ? 253 : 237, isLocal ? 230 : 233, isLocal ? 138 : 254)
-      } else if (b.sesiones.length) doc.setFillColor(224, 242, 254)
-      else if (b.microciclos.length) doc.setFillColor(219, 234, 254)
-      else doc.setFillColor(250, 250, 250)
+        doc.setFillColor(253, 230, 138) // amber — partido
+      } else if (b.sesiones.length) {
+        doc.setFillColor(209, 250, 229) // emerald — sesión
+      } else if (b.descanso) {
+        doc.setFillColor(203, 213, 225) // slate — descanso
+      } else if (b.microciclos.length) {
+        doc.setFillColor(240, 253, 250) // teal wash — solo contorno micro
+      } else {
+        doc.setFillColor(250, 250, 250)
+      }
       doc.rect(x, y + 1, cellW - 0.3, rowH - 2, 'F')
+      if (b.microciclos.length) {
+        doc.setDrawColor(20, 184, 166)
+        doc.setLineWidth(0.35)
+        doc.rect(x, y + 1, cellW - 0.3, rowH - 2, 'S')
+      }
       doc.setFontSize(4.5)
       doc.setTextColor(90, 90, 90)
       doc.text(String(day), x + 0.4, y + 3)
@@ -136,15 +146,19 @@ function exportYear(input: CalendarExportInput, index: ReturnType<typeof buildDa
         doc.text(b.partidos[0]?.localia === 'local' ? 'C' : 'F', x + cellW / 2, y + rowH - 2.2, { align: 'center' })
       } else if (b.sesiones.length) {
         doc.setFontSize(5)
-        doc.setTextColor(30, 100, 160)
+        doc.setTextColor(6, 95, 70)
         doc.text('S', x + cellW / 2, y + rowH - 2.2, { align: 'center' })
+      } else if (b.descanso) {
+        doc.setFontSize(5)
+        doc.setTextColor(71, 85, 105)
+        doc.text('D', x + cellW / 2, y + rowH - 2.2, { align: 'center' })
       }
     }
   })
 
   doc.setFontSize(7)
   doc.setTextColor(120, 120, 120)
-  doc.text('C/F = Partido casa/fuera   S = Sesión   | Fondo azul = microciclo', left, pageH - 6)
+  doc.text('Contorno = microciclo   C/F = partido   S = sesión   D = descanso', left, pageH - 6)
   doc.save(filename('ano', input.year, input.month, input.focusDate, seasonStartYear, seasonStartMonth))
 }
 
