@@ -130,13 +130,13 @@ function exportYear(input: CalendarExportInput, index: ReturnType<typeof buildDa
       } else if (b.descanso) {
         doc.setFillColor(203, 213, 225) // slate — descanso
       } else if (b.microciclos.length) {
-        doc.setFillColor(240, 253, 250) // teal wash — solo contorno micro
+        doc.setFillColor(255, 247, 237) // orange wash — solo contorno micro
       } else {
         doc.setFillColor(250, 250, 250)
       }
       doc.rect(x, y + 1, cellW - 0.3, rowH - 2, 'F')
       if (b.microciclos.length) {
-        doc.setDrawColor(20, 184, 166)
+        doc.setDrawColor(234, 88, 12) // orange-600
         doc.setLineWidth(0.35)
         doc.rect(x, y + 1, cellW - 0.3, rowH - 2, 'S')
       }
