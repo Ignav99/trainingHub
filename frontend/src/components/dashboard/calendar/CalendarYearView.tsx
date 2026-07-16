@@ -1,13 +1,13 @@
 'use client'
 
 import { useMemo } from 'react'
+import Image from 'next/image'
 import type { Sesion, Partido, Microciclo } from '@/types'
 import { buildDayIndex, getBucket } from '@/lib/calendar/dayIndex'
 import {
   MONTH_NAMES_SHORT,
   dateToStr,
   getDaysInMonth,
-  getFirstDayOfWeek,
 } from '@/lib/calendar/types'
 
 interface CalendarYearViewProps {
@@ -18,6 +18,36 @@ interface CalendarYearViewProps {
   descansos: Set<string>
   onSelectDay: (day: string) => void
   onSelectMonth: (month: number) => void
+}
+
+function dayTone(opts: {
+  hasMatch: boolean
+  isLocal?: boolean
+  hasSesion: boolean
+  hasDescanso: boolean
+  inMicro: boolean
+  isToday: boolean
+}) {
+  if (opts.hasMatch && opts.hasSesion) {
+    return opts.isLocal
+      ? 'bg-amber-100 border-amber-400 text-amber-950'
+      : 'bg-violet-100 border-violet-400 text-violet-950'
+  }
+  if (opts.hasMatch) {
+    return opts.isLocal
+      ? 'bg-amber-200/90 border-amber-500 text-amber-950'
+      : 'bg-violet-200/90 border-violet-500 text-violet-950'
+  }
+  if (opts.hasSesion) {
+    return 'bg-sky-100 border-sky-400 text-sky-950'
+  }
+  if (opts.hasDescanso) {
+    return 'bg-slate-200 border-slate-400 text-slate-800'
+  }
+  if (opts.inMicro) {
+    return 'bg-blue-50 border-blue-200 text-blue-900'
+  }
+  return 'bg-white border-border/60 text-muted-foreground'
 }
 
 export function CalendarYearView({
@@ -40,20 +70,25 @@ export function CalendarYearView({
   }, [])
 
   return (
-    <div className="flex flex-col h-[calc(100vh-240px)] min-h-[560px] max-h-[900px]">
-      <div className="flex-1 grid grid-rows-12 gap-0.5 min-h-0">
+    <div className="flex flex-col h-[calc(100vh-240px)] min-h-[580px] max-h-[920px]">
+      {/* Day number header 1–31 — same for every month */}
+      <div className="grid grid-cols-[48px_1fr] gap-1 mb-1 shrink-0">
+        <div />
+        <div className="grid gap-px" style={{ gridTemplateColumns: 'repeat(31, minmax(0, 1fr))' }}>
+          {Array.from({ length: 31 }, (_, i) => (
+            <div key={i} className="text-center text-[8px] font-semibold text-muted-foreground/70">
+              {i + 1}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex-1 grid grid-rows-12 gap-1 min-h-0">
         {Array.from({ length: 12 }, (_, month) => {
           const daysInMonth = getDaysInMonth(year, month)
-          const firstDow = getFirstDayOfWeek(year, month)
-          const cells: ({ day: number; date: string } | null)[] = []
-          for (let i = 0; i < firstDow; i++) cells.push(null)
-          for (let d = 1; d <= daysInMonth; d++) {
-            cells.push({ day: d, date: dateToStr(year, month, d) })
-          }
-          while (cells.length % 7 !== 0) cells.push(null)
 
           return (
-            <div key={month} className="grid grid-cols-[44px_1fr] gap-1 min-h-0">
+            <div key={month} className="grid grid-cols-[48px_1fr] gap-1 min-h-0">
               <button
                 type="button"
                 onClick={() => onSelectMonth(month)}
@@ -65,42 +100,92 @@ export function CalendarYearView({
 
               <div
                 className="grid gap-px min-h-0 h-full"
-                style={{ gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))` }}
+                style={{ gridTemplateColumns: 'repeat(31, minmax(0, 1fr))' }}
               >
-                {cells.map((cell, idx) => {
-                  if (!cell) {
-                    return <div key={`e-${month}-${idx}`} className="bg-muted/20 rounded-[2px]" />
+                {Array.from({ length: 31 }, (_, i) => {
+                  const day = i + 1
+                  if (day > daysInMonth) {
+                    return <div key={`e-${month}-${day}`} className="rounded-[3px] bg-muted/15" />
                   }
-                  const bucket = getBucket(index, cell.date)
+
+                  const date = dateToStr(year, month, day)
+                  const bucket = getBucket(index, date)
+                  const partido = bucket.partidos[0]
                   const hasMatch = bucket.partidos.length > 0
                   const hasSesion = bucket.sesiones.length > 0
                   const hasDescanso = bucket.descanso
                   const inMicro = bucket.microciclos.length > 0
-                  const isToday = cell.date === todayStr
-                  const isPast = cell.date < todayStr
+                  const isToday = date === todayStr
+                  const isLocal = partido?.localia === 'local'
+                  const tone = dayTone({
+                    hasMatch,
+                    isLocal,
+                    hasSesion,
+                    hasDescanso,
+                    inMicro,
+                    isToday,
+                  })
+
+                  const tipParts = [
+                    `${day}/${month + 1}`,
+                    hasMatch
+                      ? `Partido ${isLocal ? 'casa' : 'fuera'}: ${partido?.rival?.nombre_corto || partido?.rival?.nombre || 'Rival'}`
+                      : null,
+                    hasSesion ? `${bucket.sesiones.length} sesión(es)` : null,
+                    hasDescanso ? 'Descanso' : null,
+                    inMicro ? 'Microciclo' : null,
+                  ].filter(Boolean)
 
                   return (
                     <button
-                      key={cell.date}
+                      key={date}
                       type="button"
-                      onClick={() => onSelectDay(cell.date)}
-                      title={`${cell.day}/${month + 1}: ${bucket.partidos.length}P ${bucket.sesiones.length}S`}
+                      onClick={() => onSelectDay(date)}
+                      title={tipParts.join(' · ')}
                       className={`
-                        relative rounded-[2px] flex flex-col items-center justify-start pt-0.5
-                        border border-transparent hover:border-primary/40 transition-colors
-                        ${inMicro ? 'bg-blue-100/70' : 'bg-muted/30'}
-                        ${isToday ? 'ring-1 ring-primary' : ''}
-                        ${isPast ? 'opacity-70' : ''}
+                        relative rounded-[3px] border flex flex-col items-center justify-center gap-px
+                        hover:brightness-95 hover:scale-[1.03] transition-all min-h-0
+                        ${tone}
+                        ${isToday ? 'ring-2 ring-primary ring-offset-1' : ''}
                       `}
                     >
-                      <span className={`text-[8px] leading-none font-medium ${isToday ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
-                        {cell.day}
+                      <span className="text-[7px] leading-none font-bold opacity-70 absolute top-0.5 left-0.5">
+                        {day}
                       </span>
-                      <div className="flex gap-px mt-0.5">
-                        {hasMatch && <span className="w-1 h-1 rounded-full bg-amber-500" />}
-                        {hasSesion && <span className="w-1 h-1 rounded-full bg-blue-500" />}
-                        {hasDescanso && <span className="w-1 h-1 rounded-full bg-slate-400" />}
-                      </div>
+                      {hasMatch && partido?.rival?.escudo_url ? (
+                        <Image
+                          src={partido.rival.escudo_url}
+                          alt=""
+                          width={16}
+                          height={16}
+                          className="object-contain max-h-[50%] w-auto mt-1"
+                          unoptimized
+                        />
+                      ) : hasMatch ? (
+                        <span
+                          className={`text-[9px] leading-none font-black mt-1 ${
+                            isLocal ? 'text-amber-800' : 'text-violet-800'
+                          }`}
+                        >
+                          {isLocal ? 'C' : 'F'}
+                        </span>
+                      ) : hasSesion ? (
+                        <span className="text-[9px] leading-none font-bold text-sky-800 mt-1">S</span>
+                      ) : hasDescanso ? (
+                        <span className="text-[8px] leading-none font-bold text-slate-700 mt-1">D</span>
+                      ) : null}
+                      {hasMatch && (
+                        <span
+                          className={`absolute top-0.5 right-0.5 text-[6px] font-black leading-none ${
+                            isLocal ? 'text-emerald-700' : 'text-violet-700'
+                          }`}
+                        >
+                          {isLocal ? 'L' : 'V'}
+                        </span>
+                      )}
+                      {hasMatch && hasSesion && (
+                        <span className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-sky-600 ring-1 ring-white" />
+                      )}
                     </button>
                   )
                 })}
@@ -110,12 +195,13 @@ export function CalendarYearView({
         })}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 mt-2 pt-2 border-t text-[10px] text-muted-foreground shrink-0">
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-100 border border-blue-200" /> Microciclo</span>
-        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Partido</span>
-        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Sesión</span>
-        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-slate-400" /> Descanso</span>
-        <span className="ml-auto text-muted-foreground/70">Clic en mes → vista mes · clic en día → detalle</span>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 pt-2 border-t text-[10px] text-muted-foreground shrink-0">
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-200 border border-amber-500" /> Partido casa</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-violet-200 border border-violet-500" /> Partido fuera</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-sky-100 border border-sky-400" /> Sesión</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-slate-200 border border-slate-400" /> Descanso</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-50 border border-blue-200" /> Microciclo</span>
+        <span className="ml-auto">Día 1 alineado en todas las filas · clic abre detalle</span>
       </div>
     </div>
   )
