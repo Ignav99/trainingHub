@@ -111,9 +111,9 @@ export async function syncAllPlanesEspeciales(
 
 export function defaultSuplementacionesPartido() {
   return [
-    { nombre: 'Agua + electrolitos', momento: '2-4 h antes', dosis: '5-7 ml/kg' },
-    { nombre: 'Cafeína', momento: '60 min antes', dosis: '3-6 mg/kg (opcional)' },
-    { nombre: 'Bebida isotónica', momento: 'Durante el partido', dosis: '150-250 ml / 15-20 min' },
+    { nombre: '', etiquetas: [] as string[] },
+    { nombre: '', etiquetas: [] as string[] },
+    { nombre: '', etiquetas: [] as string[] },
   ]
 }
 

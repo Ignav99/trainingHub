@@ -1,6 +1,8 @@
 'use client'
 
-import { Pill, Utensils } from 'lucide-react'
+import { useState, KeyboardEvent } from 'react'
+import { Pill, Utensils, X } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -15,8 +17,11 @@ interface NutricionPartidoEditorProps {
 
 function normalizePlan(data?: NutricionPartidoPlan): NutricionPartidoPlan {
   const base = data ?? defaultNutricionPartidoPlan()
-  const sups = [...(base.suplementaciones ?? [])]
-  while (sups.length < 3) sups.push({ nombre: '', momento: '', dosis: '' })
+  const sups = (base.suplementaciones ?? []).map((s) => ({
+    nombre: s.nombre ?? '',
+    etiquetas: s.etiquetas ?? [],
+  }))
+  while (sups.length < 3) sups.push({ nombre: '', etiquetas: [] })
   return {
     ...base,
     suplementaciones: sups.slice(0, 3),
@@ -25,7 +30,7 @@ function normalizePlan(data?: NutricionPartidoPlan): NutricionPartidoPlan {
 
 function comidaHint(hora?: string): string {
   if (!hora) {
-    return 'Opcional: comida principal 3-4 h antes (HC, poca grasa/fibra). Ej: pasta/arroz + pollo.'
+    return 'Opcional: comida principal 3-4 h antes (HC, poca grasa/fibra).'
   }
   const h = parseInt(hora.split(':')[0] ?? '16', 10)
   if (h < 14) {
@@ -35,6 +40,74 @@ function comidaHint(hora?: string): string {
     return 'Partido tarde: comida 3-4 h antes; merienda ligera 1-1,5 h antes si es necesario.'
   }
   return 'Partido nocturno: comida tardía 4 h antes; snack HC 1 h antes; cena post-partido de recuperación.'
+}
+
+function SuplementoRow({
+  index,
+  item,
+  onChange,
+}: {
+  index: number
+  item: SuplementacionPartidoItem
+  onChange: (patch: Partial<SuplementacionPartidoItem>) => void
+}) {
+  const [tagInput, setTagInput] = useState('')
+
+  const addTag = () => {
+    const tag = tagInput.trim()
+    if (!tag) return
+    const current = item.etiquetas ?? []
+    if (current.includes(tag)) {
+      setTagInput('')
+      return
+    }
+    onChange({ etiquetas: [...current, tag] })
+    setTagInput('')
+  }
+
+  const handleTagKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      addTag()
+    }
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <Textarea
+        value={item.nombre}
+        onChange={(e) => onChange({ nombre: e.target.value })}
+        placeholder={`Suplementación ${index + 1}...`}
+        rows={2}
+        className="text-xs resize-none bg-white"
+      />
+      {(item.etiquetas?.length ?? 0) > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {(item.etiquetas ?? []).map((tag) => (
+            <Badge key={tag} variant="secondary" className="text-[10px] gap-0.5 pr-1">
+              {tag}
+              <button
+                type="button"
+                onClick={() =>
+                  onChange({ etiquetas: (item.etiquetas ?? []).filter((t) => t !== tag) })
+                }
+                className="hover:text-destructive ml-0.5"
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+      <Input
+        value={tagInput}
+        onChange={(e) => setTagInput(e.target.value)}
+        onKeyDown={handleTagKey}
+        placeholder="Añadir etiqueta y Enter (opcional)"
+        className="h-7 text-[10px] bg-white"
+      />
+    </div>
+  )
 }
 
 export function NutricionPartidoEditor({ data, onChange, horaPartido }: NutricionPartidoEditorProps) {
@@ -57,28 +130,14 @@ export function NutricionPartidoEditor({ data, onChange, horaPartido }: Nutricio
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-3">
         {plan.suplementaciones.map((sup, index) => (
-          <div key={index} className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <Input
-              value={sup.nombre}
-              onChange={(e) => updateSup(index, { nombre: e.target.value })}
-              placeholder={index === 0 ? 'Agua + electrolitos' : index === 1 ? 'Cafeína' : 'Isotónica'}
-              className="h-7 text-xs bg-white"
-            />
-            <Input
-              value={sup.momento ?? ''}
-              onChange={(e) => updateSup(index, { momento: e.target.value })}
-              placeholder="Momento"
-              className="h-7 text-xs bg-white"
-            />
-            <Input
-              value={sup.dosis ?? ''}
-              onChange={(e) => updateSup(index, { dosis: e.target.value })}
-              placeholder="Dosis / cantidad"
-              className="h-7 text-xs bg-white"
-            />
-          </div>
+          <SuplementoRow
+            key={index}
+            index={index}
+            item={sup}
+            onChange={(patch) => updateSup(index, patch)}
+          />
         ))}
       </div>
 
