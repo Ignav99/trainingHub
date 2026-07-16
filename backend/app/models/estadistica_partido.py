@@ -48,6 +48,8 @@ class EstadisticaPartidoBase(BaseModel):
 
     # Tactical notes
     comentario_tactico: str = Field(default="", max_length=5000)
+    # Reflexión 1er/2º entrenador (mejora) → Sala del Lunes siguiente microciclo
+    reflexion_entrenador: str = Field(default="", max_length=5000)
 
 
 class EstadisticaPartidoCreate(EstadisticaPartidoBase):
@@ -89,6 +91,7 @@ class EstadisticaPartidoUpdate(BaseModel):
     faltas_mapa_recibidas: Optional[List[Dict[str, Any]]] = None
 
     comentario_tactico: Optional[str] = Field(None, max_length=5000)
+    reflexion_entrenador: Optional[str] = Field(None, max_length=5000)
 
 
 class EstadisticaPartidoResponse(EstadisticaPartidoBase):

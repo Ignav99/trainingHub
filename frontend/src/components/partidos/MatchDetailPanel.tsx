@@ -23,6 +23,8 @@ import {
   Pencil,
   Clock,
   ClipboardList,
+  Star,
+  Lightbulb,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -196,7 +198,11 @@ export function MatchDetailPanel({
   // Team stats local state (for post-partido tab)
   const [teamStats, setTeamStats] = useState<Record<string, number>>({})
   const [comentarioTactico, setComentarioTactico] = useState('')
+  const [reflexionEntrenador, setReflexionEntrenador] = useState('')
   const [playerStats, setPlayerStats] = useState<Record<string, { minutos_jugados: number; goles: number; asistencias: number; tarjeta_amarilla: boolean; tarjeta_roja: boolean }>>({})
+  /** Media colaborativa + mi nota por convocatoria */
+  const [rendimientoByConv, setRendimientoByConv] = useState<Record<string, { media: number | null; num: number; miNota: number | null }>>({})
+  const [savingRendimientoId, setSavingRendimientoId] = useState<string | null>(null)
   const [savingInforme, setSavingInforme] = useState(false)
   const [informeInitialized, setInformeInitialized] = useState<string | null>(null)
 
@@ -223,6 +229,7 @@ export function MatchDetailPanel({
       }
       setTeamStats(stats)
       setComentarioTactico(estadisticasData.comentario_tactico || '')
+      setReflexionEntrenador(estadisticasData.reflexion_entrenador || '')
       setGolesDetalleFavor(estadisticasData.goles_detalle_favor || [])
       setGolesDetalleContra(estadisticasData.goles_detalle_contra || [])
       setFaltasMapaCometidas(estadisticasData.faltas_mapa_cometidas || [])
@@ -230,6 +237,7 @@ export function MatchDetailPanel({
     } else {
       setTeamStats({})
       setComentarioTactico('')
+      setReflexionEntrenador('')
       setGolesDetalleFavor([])
       setGolesDetalleContra([])
       setFaltasMapaCometidas([])
@@ -239,6 +247,7 @@ export function MatchDetailPanel({
     // Player stats from convocados
     if (convocados.length > 0) {
       const ps: Record<string, { minutos_jugados: number; goles: number; asistencias: number; tarjeta_amarilla: boolean; tarjeta_roja: boolean }> = {}
+      const rend: Record<string, { media: number | null; num: number; miNota: number | null }> = {}
       for (const c of convocados) {
         ps[c.id] = {
           minutos_jugados: c.minutos_jugados || 0,
@@ -247,8 +256,14 @@ export function MatchDetailPanel({
           tarjeta_amarilla: c.tarjeta_amarilla || false,
           tarjeta_roja: c.tarjeta_roja || false,
         }
+        rend[c.id] = {
+          media: c.rendimiento_media ?? null,
+          num: c.rendimiento_num_notas ?? 0,
+          miNota: c.mi_nota_rendimiento ?? null,
+        }
       }
       setPlayerStats(ps)
+      setRendimientoByConv(rend)
     }
 
     setInformeInitialized(selectedId)
@@ -663,9 +678,10 @@ export function MatchDetailPanel({
     if (!selectedId) return
     setSavingInforme(true)
     try {
-      // 1. Save team stats + goal details + foul maps
+      // 1. Save team stats + goal details + foul maps + reflexión
       const statsPayload: EstadisticaPartidoUpdateData = {
         comentario_tactico: comentarioTactico,
+        reflexion_entrenador: reflexionEntrenador,
         goles_detalle_favor: golesDetalleFavor,
         goles_detalle_contra: golesDetalleContra,
         faltas_mapa_cometidas: faltasMapaCometidas,
@@ -687,13 +703,57 @@ export function MatchDetailPanel({
       }
 
       // Revalidate + allow re-init from fresh SWR data
-      mutate((key: string) => typeof key === 'string' && (key.includes('/estadisticas-partido') || key.includes('/convocatorias')), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && (key.includes('/estadisticas-partido') || key.includes('/convocatorias') || key.includes('/microciclos')), undefined, { revalidate: true })
       setInformeInitialized(null)
       toast.success('Informe guardado')
     } catch (err: any) {
       toast.error(err.message || 'Error al guardar informe')
     } finally {
       setSavingInforme(false)
+    }
+  }
+
+  const handleRendimientoChange = async (convId: string, raw: string) => {
+    const trimmed = raw.trim()
+    if (trimmed === '') {
+      setSavingRendimientoId(convId)
+      try {
+        const res = await convocatoriasApi.deleteRendimiento(convId)
+        setRendimientoByConv((prev) => ({
+          ...prev,
+          [convId]: {
+            media: res.rendimiento_media ?? null,
+            num: res.rendimiento_num_notas ?? 0,
+            miNota: null,
+          },
+        }))
+      } catch (err: any) {
+        toast.error(err.message || 'Error al quitar nota')
+      } finally {
+        setSavingRendimientoId(null)
+      }
+      return
+    }
+    const nota = Number(trimmed.replace(',', '.'))
+    if (Number.isNaN(nota) || nota < 1 || nota > 10) {
+      toast.error('La nota debe estar entre 1 y 10')
+      return
+    }
+    setSavingRendimientoId(convId)
+    try {
+      const res = await convocatoriasApi.upsertRendimiento(convId, nota)
+      setRendimientoByConv((prev) => ({
+        ...prev,
+        [convId]: {
+          media: res.rendimiento_media ?? null,
+          num: res.rendimiento_num_notas ?? 0,
+          miNota: res.mi_nota ?? nota,
+        },
+      }))
+    } catch (err: any) {
+      toast.error(err.message || 'Error al guardar nota')
+    } finally {
+      setSavingRendimientoId(null)
     }
   }
 
@@ -1089,6 +1149,9 @@ export function MatchDetailPanel({
                   <Users className="h-4 w-4 text-primary" />
                   Rendimiento jugadores
                 </CardTitle>
+                <p className="text-[11px] text-muted-foreground font-normal">
+                  Columna <strong>Rend.</strong>: cada CT pone su nota (1–10) a quien haya jugado; se guarda la media de todas las notas.
+                </p>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
@@ -1103,6 +1166,9 @@ export function MatchDetailPanel({
                         <th className="px-2 pb-2 font-medium text-center">Ast</th>
                         <th className="px-1 pb-2 font-medium text-center"><div className="w-3.5 h-4.5 rounded-sm bg-yellow-400 mx-auto" /></th>
                         <th className="px-1 pb-2 font-medium text-center"><div className="w-3.5 h-4.5 rounded-sm bg-red-500 mx-auto" /></th>
+                        <th className="px-2 pb-2 font-medium text-center" title="Nota colaborativa CT">
+                          <span className="inline-flex items-center gap-0.5"><Star className="h-3.5 w-3.5 text-amber-500" /> Rend.</span>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1111,6 +1177,8 @@ export function MatchDetailPanel({
                         const pos = conv.posicion_asignada || player?.posicion_principal || ''
                         const posColor = getPositionColor(pos)
                         const ps = playerStats[conv.id] || { minutos_jugados: 0, goles: 0, asistencias: 0, tarjeta_amarilla: false, tarjeta_roja: false }
+                        const rend = rendimientoByConv[conv.id] || { media: null, num: 0, miNota: null }
+                        const participated = (ps.minutos_jugados || 0) > 0
                         const updatePS = (field: string, value: any) => {
                           setPlayerStats((prev) => ({ ...prev, [conv.id]: { ...ps, [field]: value } }))
                         }
@@ -1147,6 +1215,37 @@ export function MatchDetailPanel({
                                 onClick={() => updatePS('tarjeta_roja', !ps.tarjeta_roja)}
                                 className={`w-5 h-6 rounded-sm mx-auto transition-all ${ps.tarjeta_roja ? 'bg-red-500 shadow-md scale-110' : 'bg-red-500/20 hover:bg-red-500/40'}`}
                               />
+                            </td>
+                            <td className="px-2 py-2 text-center">
+                              {participated ? (
+                                <div className="flex flex-col items-center gap-0.5 min-w-[52px]">
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    max={10}
+                                    step={0.5}
+                                    disabled={savingRendimientoId === conv.id}
+                                    className="w-14 mx-auto text-center h-7 text-xs font-semibold"
+                                    placeholder="—"
+                                    defaultValue={rend.miNota ?? ''}
+                                    key={`${conv.id}-${rend.miNota ?? 'empty'}`}
+                                    onBlur={(e) => handleRendimientoChange(conv.id, e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                                    }}
+                                    title="Tu nota (1-10). Se promedia con el resto del staff."
+                                  />
+                                  {rend.media != null ? (
+                                    <span className="text-[9px] text-muted-foreground tabular-nums">
+                                      μ {rend.media}{rend.num > 1 ? ` · ${rend.num}` : ''}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[9px] text-muted-foreground/60">tu nota</span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground">—</span>
+                              )}
                             </td>
                           </tr>
                         )
@@ -1220,6 +1319,29 @@ export function MatchDetailPanel({
                 placeholder="Analisis del partido, aspectos a mejorar, puntos fuertes..."
                 rows={4}
                 className="resize-none"
+              />
+            </CardContent>
+          </Card>
+
+          {/* Reflexión entrenador → siguiente Sala del Lunes */}
+          <Card className="border-amber-200 bg-amber-50/30">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Lightbulb className="h-4 w-4 text-amber-600" />
+                Reflexión del entrenador
+                <Badge variant="outline" className="text-[10px] font-normal ml-1">1º / 2º entrenador</Badge>
+              </CardTitle>
+              <p className="text-[11px] text-muted-foreground font-normal">
+                Enfoque en mejora. Aparecerá como recordatorio en la <strong>Sala del Lunes</strong> del siguiente microciclo.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                value={reflexionEntrenador}
+                onChange={(e) => setReflexionEntrenador(e.target.value)}
+                placeholder="Ej.: Fallamos en las segundas jugadas tras córner en contra. Trabajar ABP defensivo y reacción tras pérdida esta semana…"
+                rows={4}
+                className="resize-none bg-background"
               />
             </CardContent>
           </Card>

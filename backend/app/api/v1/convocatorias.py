@@ -5,17 +5,19 @@ Gestión de convocatorias y estadísticas de partido.
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Query, status
 from fastapi.responses import StreamingResponse
-from typing import Optional
 from uuid import UUID
 import asyncio
 import io
 
 import logging
+from typing import Optional, Tuple
 from app.models import (
     ConvocatoriaCreate,
     ConvocatoriaUpdate,
     ConvocatoriaResponse,
     ConvocatoriaListResponse,
+    RendimientoNotaUpsert,
+    RendimientoNotaResponse,
 )
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
@@ -40,12 +42,27 @@ def _recalc_jugador(supabase, jugador_id: str):
         logger.error("Error in auto-recalc for %s: %s", jugador_id, e)
 
 
+def _recompute_rendimiento_media(supabase, convocatoria_id: str) -> Tuple[Optional[float], int]:
+    """Recalcula media y cuenta de notas; actualiza cache en convocatorias."""
+    notes = supabase.table("rendimiento_notas").select("nota").eq(
+        "convocatoria_id", convocatoria_id
+    ).execute()
+    vals = [float(n["nota"]) for n in (notes.data or []) if n.get("nota") is not None]
+    media = round(sum(vals) / len(vals), 1) if vals else None
+    count = len(vals)
+    supabase.table("convocatorias").update({
+        "rendimiento_media": media,
+        "rendimiento_num_notas": count,
+    }).eq("id", convocatoria_id).execute()
+    return media, count
+
+
 @router.get("/partido/{partido_id}", response_model=ConvocatoriaListResponse)
 async def list_convocatorias_partido(
     partido_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_READ)),
 ):
-    """Lista convocatorias de un partido."""
+    """Lista convocatorias de un partido (incluye media y mi nota de rendimiento)."""
     supabase = get_supabase()
 
     response = supabase.table("convocatorias").select(
@@ -53,13 +70,28 @@ async def list_convocatorias_partido(
         count="exact"
     ).eq("partido_id", str(partido_id)).order("titular", desc=True).order("dorsal").execute()
 
+    rows = response.data or []
     total = response.count or 0
+    conv_ids = [c["id"] for c in rows]
+
+    mi_notas: dict[str, float] = {}
+    if conv_ids and auth.user_id:
+        mine = supabase.table("rendimiento_notas").select(
+            "convocatoria_id, nota"
+        ).eq("evaluador_id", str(auth.user_id)).in_("convocatoria_id", conv_ids).execute()
+        for n in (mine.data or []):
+            mi_notas[n["convocatoria_id"]] = float(n["nota"])
+
+    data = []
+    for c in rows:
+        payload = {**c, "mi_nota_rendimiento": mi_notas.get(c["id"])}
+        data.append(ConvocatoriaResponse(**payload))
 
     return ConvocatoriaListResponse(
-        data=[ConvocatoriaResponse(**c) for c in response.data],
+        data=data,
         total=total,
         page=1,
-        limit=total,
+        limit=total or 1,
         pages=1,
     )
 
@@ -78,7 +110,27 @@ async def list_convocatorias_jugador(
     ).eq("jugador_id", str(jugador_id)).order("created_at", desc=True).limit(limit).execute()
 
     # Calcular estadísticas acumuladas
-    convocatorias = response.data
+    convocatorias = response.data or []
+    medias = [
+        float(c["rendimiento_media"])
+        for c in convocatorias
+        if c.get("rendimiento_media") is not None and (c.get("minutos_jugados") or 0) > 0
+    ]
+    minutos_con_nota = sum(
+        (c.get("minutos_jugados") or 0)
+        for c in convocatorias
+        if c.get("rendimiento_media") is not None and (c.get("minutos_jugados") or 0) > 0
+    )
+    rendimiento_ponderado = None
+    if minutos_con_nota > 0:
+        rendimiento_ponderado = round(
+            sum(
+                float(c["rendimiento_media"]) * (c.get("minutos_jugados") or 0)
+                for c in convocatorias
+                if c.get("rendimiento_media") is not None and (c.get("minutos_jugados") or 0) > 0
+            ) / minutos_con_nota,
+            2,
+        )
     stats = {
         "total_convocatorias": len(convocatorias),
         "titularidades": sum(1 for c in convocatorias if c.get("titular")),
@@ -87,6 +139,9 @@ async def list_convocatorias_jugador(
         "asistencias": sum(c.get("asistencias", 0) for c in convocatorias),
         "amarillas": sum(1 for c in convocatorias if c.get("tarjeta_amarilla")),
         "rojas": sum(1 for c in convocatorias if c.get("tarjeta_roja")),
+        "rendimiento_medio": round(sum(medias) / len(medias), 2) if medias else None,
+        "rendimiento_ponderado_minutos": rendimiento_ponderado,
+        "partidos_con_nota": len(medias),
     }
 
     return {"data": convocatorias, "estadisticas": stats}
@@ -111,6 +166,80 @@ async def get_convocatoria(
         )
 
     return ConvocatoriaResponse(**response.data)
+
+
+@router.put("/{convocatoria_id}/rendimiento", response_model=RendimientoNotaResponse)
+async def upsert_rendimiento_nota(
+    convocatoria_id: UUID,
+    body: RendimientoNotaUpsert,
+    auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_UPDATE)),
+):
+    """
+    Upsert de la nota de rendimiento del CT autenticado (1-10).
+    Recalcula la media colaborativa de la convocatoria.
+    """
+    supabase = get_supabase()
+    if not auth.user_id:
+        raise HTTPException(status_code=401, detail="Usuario no autenticado")
+
+    conv = supabase.table("convocatorias").select("id, minutos_jugados").eq(
+        "id", str(convocatoria_id)
+    ).limit(1).execute()
+    if not conv.data:
+        raise HTTPException(status_code=404, detail="Convocatoria no encontrada")
+
+    from datetime import datetime, timezone
+    nota = round(float(body.nota), 1)
+    now_iso = datetime.now(timezone.utc).isoformat()
+    # Upsert by unique (convocatoria_id, evaluador_id)
+    existing = supabase.table("rendimiento_notas").select("id").eq(
+        "convocatoria_id", str(convocatoria_id)
+    ).eq("evaluador_id", str(auth.user_id)).limit(1).execute()
+
+    if existing.data:
+        supabase.table("rendimiento_notas").update({
+            "nota": nota,
+            "updated_at": now_iso,
+        }).eq("id", existing.data[0]["id"]).execute()
+    else:
+        supabase.table("rendimiento_notas").insert({
+            "convocatoria_id": str(convocatoria_id),
+            "evaluador_id": str(auth.user_id),
+            "nota": nota,
+        }).execute()
+
+    media, count = _recompute_rendimiento_media(supabase, str(convocatoria_id))
+    return RendimientoNotaResponse(
+        convocatoria_id=convocatoria_id,
+        nota=nota,
+        rendimiento_media=media,
+        rendimiento_num_notas=count,
+        mi_nota=nota,
+    )
+
+
+@router.delete("/{convocatoria_id}/rendimiento", response_model=RendimientoNotaResponse)
+async def delete_rendimiento_nota(
+    convocatoria_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_UPDATE)),
+):
+    """Elimina la nota del CT autenticado y recalcula la media."""
+    supabase = get_supabase()
+    if not auth.user_id:
+        raise HTTPException(status_code=401, detail="Usuario no autenticado")
+
+    supabase.table("rendimiento_notas").delete().eq(
+        "convocatoria_id", str(convocatoria_id)
+    ).eq("evaluador_id", str(auth.user_id)).execute()
+
+    media, count = _recompute_rendimiento_media(supabase, str(convocatoria_id))
+    return RendimientoNotaResponse(
+        convocatoria_id=convocatoria_id,
+        nota=0,
+        rendimiento_media=media,
+        rendimiento_num_notas=count,
+        mi_nota=None,
+    )
 
 
 @router.post("", response_model=ConvocatoriaResponse, status_code=status.HTTP_201_CREATED)

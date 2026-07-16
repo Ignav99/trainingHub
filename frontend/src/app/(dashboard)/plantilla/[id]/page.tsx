@@ -2127,6 +2127,10 @@ function PlayerStatsTab({ jugadorId }: { jugadorId: string }) {
   const titularPct = stats.total_convocatorias > 0
     ? Math.round((stats.titularidades / stats.total_convocatorias) * 100)
     : 0
+  const contribPer90 =
+    stats.minutos_totales > 0
+      ? ((stats.goles + stats.asistencias) * 90) / stats.minutos_totales
+      : null
 
   // Chart data — reversed so oldest first (left to right)
   const chartData = [...convocatorias].reverse().map((c) => {
@@ -2135,9 +2139,13 @@ function PlayerStatsTab({ jugadorId }: { jugadorId: string }) {
     return {
       rival: rival.length > 8 ? rival.slice(0, 7) + '…' : rival,
       minutos: c.minutos_jugados,
+      goles: c.goles || 0,
+      asistencias: c.asistencias || 0,
+      rendimiento: c.rendimiento_media ?? null,
       fill: resultado ? RESULTADO_BADGE[resultado]?.fill || '#94A3B8' : '#94A3B8',
     }
   })
+  const rendimientoSeries = chartData.filter((d) => d.rendimiento != null)
 
   return (
     <div className="space-y-6">
@@ -2162,20 +2170,41 @@ function PlayerStatsTab({ jugadorId }: { jugadorId: string }) {
             <p className="text-2xl font-bold">{stats.minutos_totales.toLocaleString()}</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-amber-200 bg-amber-50/40">
           <CardContent className="p-4 text-center">
-            <p className="text-xs text-muted-foreground mb-1">Goles</p>
-            <p className="text-2xl font-bold">{stats.goles}</p>
+            <p className="text-xs text-muted-foreground mb-1 flex items-center justify-center gap-1">
+              <Star className="h-3 w-3 text-amber-500" /> Rendimiento
+            </p>
+            <p className="text-2xl font-bold text-amber-800">
+              {stats.rendimiento_ponderado_minutos ?? stats.rendimiento_medio ?? '—'}
+            </p>
+            <p className="text-[10px] text-muted-foreground">
+              {stats.partidos_con_nota
+                ? `${stats.partidos_con_nota} partido${stats.partidos_con_nota === 1 ? '' : 's'} · ponderado min`
+                : 'Sin notas aún'}
+            </p>
           </CardContent>
         </Card>
       </div>
 
       {/* KPI Row 2 */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <Card>
+          <CardContent className="p-3 text-center">
+            <p className="text-xs text-muted-foreground">Goles</p>
+            <p className="text-lg font-bold">{stats.goles}</p>
+          </CardContent>
+        </Card>
         <Card>
           <CardContent className="p-3 text-center">
             <p className="text-xs text-muted-foreground">Asistencias</p>
             <p className="text-lg font-bold">{stats.asistencias}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3 text-center">
+            <p className="text-xs text-muted-foreground">G+A / 90</p>
+            <p className="text-lg font-bold">{contribPer90 != null ? contribPer90.toFixed(2) : '—'}</p>
           </CardContent>
         </Card>
         <Card>
@@ -2189,45 +2218,91 @@ function PlayerStatsTab({ jugadorId }: { jugadorId: string }) {
         </Card>
         <Card>
           <CardContent className="p-3 text-center">
-            <p className="text-xs text-muted-foreground">T. Rojas</p>
-            <p className={`text-lg font-bold ${stats.rojas > 0 ? 'text-red-600' : ''}`}>
-              {stats.rojas}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
             <p className="text-xs text-muted-foreground">Min/Gol</p>
-            <p className="text-lg font-bold">{minPerGoal ?? '-'}</p>
+            <p className="text-lg font-bold">{minPerGoal ?? '—'}</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Minutes Per Match Chart */}
-      {chartData.length > 0 && (
-        <Card>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Minutes Per Match Chart */}
+        {chartData.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Minutos por partido</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={chartData} barCategoryGap="15%">
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <XAxis dataKey="rival" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} width={35} domain={[0, 'auto']} />
+                  <Tooltip formatter={(value: any) => [`${value} min`, 'Minutos']} />
+                  <Bar dataKey="minutos" radius={[3, 3, 0, 0]}>
+                    {chartData.map((entry, i) => (
+                      <Cell key={i} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+              <div className="flex gap-3 justify-center text-[10px] text-muted-foreground mt-1">
+                <span className="flex items-center gap-1"><span className="w-3 h-2 bg-green-500 rounded" /> Vic</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-2 bg-amber-500 rounded" /> Emp</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-2 bg-red-500 rounded" /> Der</span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Goles + asistencias */}
+        {chartData.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Goles y asistencias</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={chartData} barCategoryGap="12%">
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <XAxis dataKey="rival" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} width={28} allowDecimals={false} />
+                  <Tooltip />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="goles" name="Goles" fill="#10B981" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="asistencias" name="Asist." fill="#3B82F6" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Rendimiento CT over time */}
+      {rendimientoSeries.length > 0 && (
+        <Card className="border-amber-100">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Minutos por partido</CardTitle>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Star className="h-4 w-4 text-amber-500" />
+              Rendimiento (media CT) por partido
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={chartData} barCategoryGap="15%">
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={rendimientoSeries}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                 <XAxis dataKey="rival" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} width={35} domain={[0, 'auto']} />
-                <Tooltip formatter={(value: any) => [`${value} min`, 'Minutos']} />
-                <Bar dataKey="minutos">
-                  {chartData.map((entry, i) => (
-                    <Cell key={i} fill={entry.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
+                <YAxis domain={[0, 10]} tick={{ fontSize: 10 }} width={28} />
+                <Tooltip formatter={(v: any) => [v, 'Rendimiento']} />
+                <Line
+                  type="monotone"
+                  dataKey="rendimiento"
+                  stroke="#D97706"
+                  strokeWidth={2.5}
+                  dot={{ r: 4, fill: '#F59E0B' }}
+                  connectNulls
+                />
+              </LineChart>
             </ResponsiveContainer>
-            <div className="flex gap-3 justify-center text-[10px] text-muted-foreground mt-1">
-              <span className="flex items-center gap-1"><span className="w-3 h-2 bg-green-500 rounded" /> Victoria</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-2 bg-amber-500 rounded" /> Empate</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-2 bg-red-500 rounded" /> Derrota</span>
-            </div>
           </CardContent>
         </Card>
       )}
@@ -2246,11 +2321,12 @@ function PlayerStatsTab({ jugadorId }: { jugadorId: string }) {
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Rival</th>
                   <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Res</th>
                   <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Min</th>
-                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Goles</th>
-                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Asist</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">G</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">A</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Rend.</th>
                   <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">TA</th>
                   <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">TR</th>
-                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Titular</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Tit</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -2286,6 +2362,12 @@ function PlayerStatsTab({ jugadorId }: { jugadorId: string }) {
                       </td>
                       <td className="px-3 py-2.5 text-sm text-center">
                         {c.asistencias > 0 ? c.asistencias : '-'}
+                      </td>
+                      <td className="px-3 py-2.5 text-sm text-center font-semibold text-amber-700">
+                        {c.rendimiento_media != null ? c.rendimiento_media : '—'}
+                        {c.rendimiento_num_notas && c.rendimiento_num_notas > 1 ? (
+                          <span className="text-[9px] text-muted-foreground font-normal"> ({c.rendimiento_num_notas})</span>
+                        ) : null}
                       </td>
                       <td className="px-3 py-2.5 text-center">
                         {c.tarjeta_amarilla && (

@@ -255,6 +255,31 @@ async def get_microciclo_completo(
         ).eq("resuelta", False).order("created_at", desc=True).execute()
         alertas = [AlertaResponse(**a) for a in alertas_resp.data] if alertas_resp.data else []
 
+        # 8. Reflexión del partido anterior (mejora → recordatorio Sala del Lunes)
+        reflexion_partido_anterior = None
+        prev_partido = supabase.table("partidos").select(
+            "id, fecha, rival_id, rivales(nombre, nombre_corto, escudo_url)"
+        ).eq("equipo_id", equipo_id).lt(
+            "fecha", fecha_inicio
+        ).order("fecha", desc=True).limit(1).execute()
+        if prev_partido.data:
+            pp = prev_partido.data[0]
+            stats_prev = supabase.table("estadisticas_partido").select(
+                "reflexion_entrenador"
+            ).eq("partido_id", pp["id"]).limit(1).execute()
+            texto = ""
+            if stats_prev.data:
+                texto = (stats_prev.data[0].get("reflexion_entrenador") or "").strip()
+            if texto:
+                rival_join = pp.get("rivales") or {}
+                reflexion_partido_anterior = {
+                    "partido_id": pp["id"],
+                    "fecha": pp.get("fecha"),
+                    "rival_nombre": rival_join.get("nombre_corto") or rival_join.get("nombre") or "Rival",
+                    "rival_escudo_url": rival_join.get("escudo_url"),
+                    "texto": texto,
+                }
+
         return {
             "microciclo": micro,
             "sesiones": sesiones,
@@ -263,6 +288,7 @@ async def get_microciclo_completo(
             "plan_partido": plan_partido.model_dump(mode="json") if plan_partido else None,
             "informe_rival": informe_rival.model_dump(mode="json") if informe_rival else None,
             "alertas": [a.model_dump(mode="json") for a in alertas],
+            "reflexion_partido_anterior": reflexion_partido_anterior,
         }
     except Exception as e:
         logger.error(f"Error loading microciclo completo {microciclo_id}: {e}", exc_info=True)

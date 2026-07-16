@@ -50,6 +50,9 @@ class ConvocatoriaResponse(ConvocatoriaBase):
     created_at: datetime
     updated_at: datetime
     jugadores: Optional[dict] = None  # Join data from Supabase
+    rendimiento_media: Optional[float] = None
+    rendimiento_num_notas: int = 0
+    mi_nota_rendimiento: Optional[float] = None  # nota del usuario autenticado
 
     class Config:
         from_attributes = True
@@ -62,3 +65,16 @@ class ConvocatoriaListResponse(BaseModel):
     page: int
     limit: int
     pages: int
+
+
+class RendimientoNotaUpsert(BaseModel):
+    """Nota de rendimiento colaborativa (1-10)."""
+    nota: float = Field(..., ge=1, le=10)
+
+
+class RendimientoNotaResponse(BaseModel):
+    convocatoria_id: UUID
+    nota: float
+    rendimiento_media: Optional[float] = None
+    rendimiento_num_notas: int = 0
+    mi_nota: Optional[float] = None

@@ -692,6 +692,11 @@ export interface Convocatoria {
   tarjeta_amarilla: boolean
   tarjeta_roja: boolean
   notas?: string
+  /** Media colaborativa de notas CT (1-10) */
+  rendimiento_media?: number | null
+  rendimiento_num_notas?: number
+  /** Nota del usuario autenticado */
+  mi_nota_rendimiento?: number | null
   created_at: string
   updated_at: string
   // Join data
@@ -707,6 +712,17 @@ export interface ConvocatoriasJugadorStats {
   asistencias: number
   amarillas: number
   rojas: number
+  rendimiento_medio?: number | null
+  rendimiento_ponderado_minutos?: number | null
+  partidos_con_nota?: number
+}
+
+export interface RendimientoNotaResponse {
+  convocatoria_id: string
+  nota: number
+  rendimiento_media?: number | null
+  rendimiento_num_notas: number
+  mi_nota?: number | null
 }
 
 // ============================================
@@ -767,6 +783,8 @@ export interface EstadisticaPartido {
 
   // Tactical
   comentario_tactico: string
+  /** Reflexión 1er/2º entrenador (mejora) → Sala del Lunes siguiente microciclo */
+  reflexion_entrenador?: string
 
   created_at: string
   updated_at: string
@@ -2600,6 +2618,14 @@ export interface Alerta {
   updated_at: string
 }
 
+export interface ReflexionPartidoAnterior {
+  partido_id: string
+  fecha?: string
+  rival_nombre: string
+  rival_escudo_url?: string
+  texto: string
+}
+
 export interface VistaCompletaMicrociclo {
   microciclo: Microciclo
   sesiones: (Pick<Sesion, 'id' | 'titulo' | 'fecha' | 'match_day' | 'estado' | 'duracion_total' | 'objetivo_principal' | 'intensidad_objetivo' | 'fase_juego_principal' | 'notas_pre' | 'notas_post'> & { dia_numero?: number; orden?: number; hora?: string; microciclo_id?: string } & { num_tareas: number })[]
@@ -2620,6 +2646,8 @@ export interface VistaCompletaMicrociclo {
   plan_partido?: PlanPartido | null
   informe_rival?: InformeRivalEnriquecido | null
   alertas: Alerta[]
+  /** Recordatorio de mejora del partido anterior (Sala del Lunes) */
+  reflexion_partido_anterior?: ReflexionPartidoAnterior | null
 }
 
 // ============================================
