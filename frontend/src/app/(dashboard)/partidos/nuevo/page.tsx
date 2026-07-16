@@ -95,7 +95,7 @@ export default function NuevoPartidoPage() {
         jornada: formData.jornada ? parseInt(formData.jornada) : undefined
       })
 
-      router.push('/calendario')
+      router.push('/partidos')
     } catch (err) {
       console.error('Error creating partido:', err)
       toast.error('Error al crear el partido')
@@ -109,11 +109,11 @@ export default function NuevoPartidoPage() {
       {/* Header */}
       <div className="mb-6">
         <Link
-          href="/calendario"
+          href="/"
           className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-4"
         >
           <ArrowLeft className="h-4 w-4" />
-          Volver al calendario
+          Volver al dashboard
         </Link>
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <Trophy className="h-7 w-7 text-amber-500" />
@@ -315,7 +315,7 @@ export default function NuevoPartidoPage() {
             )}
           </button>
           <Link
-            href="/calendario"
+            href="/"
             className="px-6 py-3 border border-gray-300 rounded-lg font-medium hover:bg-gray-50 transition-colors"
           >
             Cancelar
