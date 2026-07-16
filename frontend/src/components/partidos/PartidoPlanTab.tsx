@@ -133,6 +133,8 @@ export function PartidoPlanTab({ partido, equipoId }: PartidoPlanTabProps) {
         microcicloId={context.microcicloId ?? undefined}
         equipoId={equipoId}
         horaPartido={partido.hora}
+        fechaPartido={partido.fecha}
+        ciudadPartido={partido.rival?.ciudad || undefined}
       />
     </div>
   )

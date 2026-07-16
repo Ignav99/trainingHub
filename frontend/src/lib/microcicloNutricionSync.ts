@@ -1,4 +1,4 @@
-import type { PlanEspecialJugadorSemana } from '@/types'
+import type { PlanEspecialJugadorSemana, NutricionPartidoPlan } from '@/types'
 import { nutricionApi } from '@/lib/api/nutricion'
 
 const MICROCICLO_TAG = (microcicloId: string) => `[microciclo:${microcicloId}]`
@@ -109,17 +109,11 @@ export async function syncAllPlanesEspeciales(
   )
 }
 
-export function defaultSuplementacionesPartido() {
-  return [
-    { nombre: '', etiquetas: [] as string[] },
-    { nombre: '', etiquetas: [] as string[] },
-    { nombre: '', etiquetas: [] as string[] },
-  ]
-}
-
-export function defaultNutricionPartidoPlan() {
+export function defaultNutricionPartidoPlan(): NutricionPartidoPlan {
   return {
-    suplementaciones: defaultSuplementacionesPartido(),
+    clima_estimacion: '',
+    argumento_suplementacion: '',
+    etiquetas: [],
     comida_recomendada: '',
     notas: '',
   }

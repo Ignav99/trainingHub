@@ -955,12 +955,32 @@ export interface SuplementacionPartidoItem {
   dosis?: string
 }
 
-/** Plan de suplementación del partido (sencillo, 2-3 ítems) */
+export interface ClimaPartidoResumen {
+  ciudad?: string
+  fecha?: string
+  hora?: string
+  temperatura_c?: number
+  humedad_pct?: number
+  viento_kmh?: number
+  precipitacion_prob?: number
+  condicion?: string
+}
+
+/** Plan de nutrición / suplementación del partido */
 export interface NutricionPartidoPlan {
-  suplementaciones: SuplementacionPartidoItem[]
+  /** Estimación climática auto-generada (texto argumentativo del sistema) */
+  clima_estimacion?: string
+  clima_actualizado_at?: string
+  clima_resumen?: ClimaPartidoResumen
+  /** Argumento del nutricionista / fisio sobre la suplementación */
+  argumento_suplementacion?: string
+  /** Etiquetas libres (suplementos, momentos…) */
+  etiquetas?: string[]
   /** Recomendación de comida según hora del partido (opcional) */
   comida_recomendada?: string
   notas?: string
+  /** @deprecated legacy — ya no se usa en el editor */
+  suplementaciones?: SuplementacionPartidoItem[]
 }
 
 /** Jugador con plan de comidas especial esta semana (vinculado a módulo nutrición) */
