@@ -120,7 +120,7 @@ function MonthRow({
               key={`${seg.microId}-${seg.startDay}`}
               aria-hidden
               title="Microciclo"
-              className="pointer-events-none absolute inset-y-0 z-[2] rounded-md border-2 border-teal-600 bg-teal-500/[0.07] shadow-[inset_0_0_0_1px_rgba(13,148,136,0.35)]"
+              className="pointer-events-none absolute inset-y-0 z-[2] rounded-md border-2 border-orange-600 bg-orange-500/[0.08] shadow-[inset_0_0_0_1px_rgba(234,88,12,0.35)]"
               style={{
                 left: `calc(${leftPct}% + 1px)`,
                 width: `calc(${widthPct}% - 2px)`,
@@ -324,7 +324,7 @@ export function CalendarYearView({
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 pt-2 border-t text-[10px] text-muted-foreground shrink-0">
         <span className="flex items-center gap-1">
-          <span className="w-4 h-3 rounded border-2 border-teal-600 bg-teal-500/10" /> Contorno microciclo
+          <span className="w-4 h-3 rounded border-2 border-orange-600 bg-orange-500/10" /> Contorno microciclo
         </span>
         <span className="flex items-center gap-1">
           <span className="w-3 h-3 rounded bg-amber-300 border border-amber-500" /> Casa
