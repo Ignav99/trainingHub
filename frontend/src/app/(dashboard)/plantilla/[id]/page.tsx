@@ -28,10 +28,7 @@ import {
   FileText,
   X,
   UtensilsCrossed,
-  Droplets,
-  Flame,
-  TrendingUp,
-  TrendingDown,
+  CalendarDays,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
@@ -51,7 +48,7 @@ import { convocatoriasApi } from '@/lib/api/convocatorias'
 import { nutricionApi } from '@/lib/api/nutricion'
 import { entrenamientosMargenApi } from '@/lib/api/entrenamientosMargen'
 import { apiKey, apiFetcher } from '@/lib/swr'
-import type { RegistroMedico, CargaDiaria, CargaJugador, WellnessEntry, Convocatoria, ConvocatoriasJugadorStats, TipoRegistroMedico, NutricionOverview, SuplementacionJugador, ComposicionCorporal, AlimentoItem, PlantillaNutricional, PlanNutricionalDia, ContextoNutricional, EntrenamientoMargenHistory } from '@/types'
+import type { RegistroMedico, CargaDiaria, CargaJugador, WellnessEntry, Convocatoria, ConvocatoriasJugadorStats, TipoRegistroMedico, NutricionOverview, SuplementacionJugador, ComposicionCorporal, EntrenamientoMargenHistory } from '@/types'
 import { FASES_RECUPERACION } from '@/types'
 import {
   BarChart,
@@ -103,10 +100,7 @@ export default function JugadorDetailPage() {
   const searchParams = useSearchParams()
   const [saving, setSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(searchParams.get('edit') === 'true')
-  const [activeTab, setActiveTab] = useState<'datos' | 'estadisticas' | 'carga' | 'ficha_clinica' | 'margen' | 'nutricion'>('datos')
-  const [margenHistory, setMargenHistory] = useState<EntrenamientoMargenHistory[]>([])
-  const [margenLoading, setMargenLoading] = useState(false)
-  const [margenExpandedIds, setMargenExpandedIds] = useState<Set<string>>(new Set())
+  const [activeTab, setActiveTab] = useState<'datos' | 'estadisticas' | 'carga' | 'ficha_clinica' | 'nutricion'>('datos')
 
   // Form state
   const [formData, setFormData] = useState<JugadorUpdate>({})
@@ -444,26 +438,6 @@ export default function JugadorDetailPage() {
           {activeIncident && (
             <span className="w-2 h-2 rounded-full bg-red-500" />
           )}
-        </button>
-        <button
-          onClick={() => {
-            setActiveTab('margen')
-            if (jugador && margenHistory.length === 0 && !margenLoading) {
-              setMargenLoading(true)
-              entrenamientosMargenApi.listByJugador(jugador.id)
-                .then(res => setMargenHistory(res.data))
-                .catch(() => {})
-                .finally(() => setMargenLoading(false))
-            }
-          }}
-          className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-            activeTab === 'margen'
-              ? 'bg-white text-gray-900 shadow-sm'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <Activity className="h-4 w-4" />
-          Margen
         </button>
         <button
           onClick={() => setActiveTab('nutricion')}
@@ -1190,129 +1164,6 @@ export default function JugadorDetailPage() {
       </div>
       )}
 
-      {/* Tab: Margen */}
-      {activeTab === 'margen' && jugador && (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Activity className="h-5 w-5 text-amber-600" />
-                Historial de Trabajo al Margen
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {margenLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : margenHistory.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Activity className="h-10 w-10 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">Sin entrenamientos al margen registrados</p>
-                </div>
-              ) : (
-                <>
-                  {/* Phase progression */}
-                  <div className="flex items-center gap-1 mb-4 px-2">
-                    {FASES_RECUPERACION.map((fase, idx) => {
-                      const reached = margenHistory.some(h => h.fase_recuperacion === fase.value)
-                      return (
-                        <div key={fase.value} className="flex items-center">
-                          <div
-                            className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold ${
-                              reached ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-400'
-                            }`}
-                            title={fase.label}
-                          >
-                            {idx + 1}
-                          </div>
-                          {idx < FASES_RECUPERACION.length - 1 && (
-                            <div className={`w-4 h-0.5 ${reached ? 'bg-amber-400' : 'bg-gray-200'}`} />
-                          )}
-                        </div>
-                      )
-                    })}
-                    <span className="text-[9px] text-muted-foreground ml-2">Progresion Return-to-Play</span>
-                  </div>
-
-                  {/* Timeline */}
-                  <div className="space-y-2">
-                    {margenHistory.map((ent) => {
-                      const isExpanded = margenExpandedIds.has(ent.id)
-                      return (
-                        <div
-                          key={ent.id}
-                          className="border border-amber-200 rounded-lg overflow-hidden"
-                        >
-                          <div
-                            className="flex items-center justify-between px-3 py-2 bg-amber-50 cursor-pointer hover:bg-amber-100 transition-colors"
-                            onClick={() => setMargenExpandedIds(prev => {
-                              const next = new Set(prev)
-                              next.has(ent.id) ? next.delete(ent.id) : next.add(ent.id)
-                              return next
-                            })}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-medium text-gray-700">
-                                {ent.sesion?.fecha || ''}
-                              </span>
-                              {ent.sesion?.match_day && (
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-gray-200 text-gray-700">
-                                  {ent.sesion.match_day}
-                                </span>
-                              )}
-                              <span className="text-xs text-gray-600 truncate max-w-[200px]">
-                                {ent.sesion?.titulo || ''}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {ent.fase_recuperacion && (
-                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-amber-200 text-amber-800">
-                                  {FASES_RECUPERACION.find(f => f.value === ent.fase_recuperacion)?.label || ent.fase_recuperacion}
-                                </span>
-                              )}
-                              <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-medium ${
-                                ent.estado === 'completado' ? 'bg-green-100 text-green-700' :
-                                ent.estado === 'en_curso' ? 'bg-blue-100 text-blue-700' :
-                                ent.estado === 'cancelado' ? 'bg-red-100 text-red-700' :
-                                'bg-gray-100 text-gray-600'
-                              }`}>
-                                {ent.estado}
-                              </span>
-                              <span className="text-[10px] text-gray-500">{ent.num_tareas} ej.</span>
-                              {ent.responsable && <span className="text-[10px] text-gray-400">{ent.responsable}</span>}
-                            </div>
-                          </div>
-                          {isExpanded && (
-                            <div className="px-3 py-2 border-t border-amber-200 bg-white text-xs space-y-1">
-                              {ent.objetivo && <p><strong className="text-amber-700">Objetivo:</strong> {ent.objetivo}</p>}
-                              {ent.registro_medico && (
-                                <p><strong className="text-amber-700">Lesion:</strong> {ent.registro_medico.titulo} ({ent.registro_medico.tipo})</p>
-                              )}
-                              {ent.duracion_estimada && <p><strong className="text-amber-700">Duracion:</strong> {ent.duracion_estimada} min</p>}
-                              {ent.rpe_post && <p><strong className="text-amber-700">RPE post:</strong> {ent.rpe_post}/10</p>}
-                              {ent.notas && <p className="text-gray-500 italic">{ent.notas}</p>}
-                              {ent.sesion && (
-                                <Link
-                                  href={`/sesiones/${ent.sesion.id}`}
-                                  className="text-blue-600 hover:underline text-[10px] flex items-center gap-1"
-                                >
-                                  <ExternalLink className="h-3 w-3" /> Ver sesion
-                                </Link>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
       {/* Tab: Nutrición */}
       {activeTab === 'nutricion' && jugador && (
         <PlayerNutritionTab jugadorId={jugador.id} equipoId={jugador.equipo_id} />
@@ -1339,23 +1190,13 @@ const DIETA_LABELS: Record<string, string> = {
   vegetariana: 'Vegetariana',
   vegana: 'Vegana',
   sin_gluten: 'Sin gluten',
-}
-
-const TIPO_COMIDA_LABELS: Record<string, { label: string; emoji: string }> = {
-  desayuno: { label: 'Desayuno', emoji: '🌅' },
-  almuerzo: { label: 'Almuerzo', emoji: '🥪' },
-  comida: { label: 'Comida', emoji: '🍽️' },
-  merienda: { label: 'Merienda', emoji: '🍎' },
-  cena: { label: 'Cena', emoji: '🌙' },
-  snack_pre: { label: 'Snack Pre', emoji: '⚡' },
-  snack_post: { label: 'Snack Post', emoji: '💪' },
+  sin_lactosa: 'Sin lactosa',
 }
 
 function PlayerNutritionTab({ jugadorId, equipoId }: { jugadorId: string; equipoId: string }) {
   const [showPerfilDialog, setShowPerfilDialog] = useState(false)
   const [showComposicionDialog, setShowComposicionDialog] = useState(false)
   const [showSupDialog, setShowSupDialog] = useState(false)
-  const [showPlanDialog, setShowPlanDialog] = useState(false)
 
   const { data: overview, isLoading, mutate: mutateOverview } = useSWR<NutricionOverview>(
     apiKey(`/nutricion/overview/${jugadorId}`, { equipo_id: equipoId }, ['equipo_id']),
@@ -1367,18 +1208,12 @@ function PlayerNutritionTab({ jugadorId, equipoId }: { jugadorId: string; equipo
     apiFetcher
   )
 
-  const { data: planes14d } = useSWR(
-    apiKey('/nutricion/planes', { equipo_id: equipoId, jugador_id: jugadorId }, ['equipo_id']),
-    apiFetcher
-  )
-
   if (isLoading) {
     return <div className="space-y-4"><Skeleton className="h-32" /><Skeleton className="h-48" /><Skeleton className="h-32" /></div>
   }
 
   return (
     <div className="space-y-6">
-      {/* 1. Perfil Nutricional */}
       <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
@@ -1430,61 +1265,25 @@ function PlayerNutritionTab({ jugadorId, equipoId }: { jugadorId: string; equipo
         </CardContent>
       </Card>
 
-      {/* 2. Plan de Hoy */}
       <Card>
         <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Plan de Hoy</CardTitle>
-            <Button size="sm" variant="outline" onClick={() => setShowPlanDialog(true)}>
-              {overview?.plan_hoy ? (
-                <><Edit className="h-3.5 w-3.5 mr-1" /> Editar plan</>
-              ) : (
-                <><Plus className="h-3.5 w-3.5 mr-1" /> Crear plan</>
-              )}
-            </Button>
-          </div>
+          <CardTitle className="text-base flex items-center gap-2">
+            <CalendarDays className="h-4 w-4 text-emerald-600" />
+            Planes especiales
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          {overview?.plan_hoy ? (
-            <div className="space-y-3">
-              <div className="flex gap-3 text-xs flex-wrap">
-                {overview.plan_hoy.calorias_objetivo && (
-                  <span className="px-2 py-1 rounded bg-gray-100">
-                    <Flame className="h-3 w-3 inline mr-1" />{overview.plan_hoy.calorias_objetivo} kcal
-                  </span>
-                )}
-                {overview.plan_hoy.hidratacion_litros && (
-                  <span className="px-2 py-1 rounded bg-cyan-50 text-cyan-600">
-                    <Droplets className="h-3 w-3 inline mr-1" />{overview.plan_hoy.hidratacion_litros}L
-                  </span>
-                )}
-              </div>
-              {overview.plan_hoy.comidas.map((comida, idx) => {
-                const tc = TIPO_COMIDA_LABELS[comida.tipo_comida]
-                return (
-                  <div key={idx} className="flex items-start gap-2 py-1.5 border-b last:border-0">
-                    <span className="text-sm w-24 text-gray-500 shrink-0">{tc?.emoji} {tc?.label || comida.tipo_comida}</span>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-medium">{comida.nombre}</span>
-                      {comida.hora_sugerida && <span className="text-xs text-gray-400 ml-2">{comida.hora_sugerida}</span>}
-                      {comida.alimentos?.length > 0 && (
-                        <p className="text-xs text-gray-500 mt-0.5">{comida.alimentos.map((a) => a.nombre).join(', ')}</p>
-                      )}
-                    </div>
-                    <div className="text-xs text-gray-400 text-right shrink-0">
-                      {comida.calorias && <div>{comida.calorias} kcal</div>}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500 text-center py-4">Sin plan asignado para hoy</p>
-          )}
+          <div className="text-center py-8 text-muted-foreground">
+            <UtensilsCrossed className="h-10 w-10 mx-auto mb-3 opacity-30" />
+            <p className="text-sm font-medium text-gray-700 mb-1">Sin planes especiales activos</p>
+            <p className="text-xs max-w-md mx-auto leading-relaxed">
+              Aquí aparecerán suplementaciones o dietas especiales (semanales o mensuales)
+              asignadas desde esta ficha o al diseñar un microciclo.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
-      {/* 3. Evolución Corporal */}
       <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
@@ -1509,7 +1308,6 @@ function PlayerNutritionTab({ jugadorId, equipoId }: { jugadorId: string; equipo
             <p className="text-sm text-gray-500 text-center py-4">Sin datos suficientes para gráfico</p>
           )}
 
-          {/* Latest measurements table */}
           {composiciones && composiciones.length > 0 && (
             <div className="mt-3 overflow-x-auto">
               <table className="w-full text-xs">
@@ -1531,7 +1329,6 @@ function PlayerNutritionTab({ jugadorId, equipoId }: { jugadorId: string; equipo
         </CardContent>
       </Card>
 
-      {/* 4. Suplementación Activa */}
       <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
@@ -1563,59 +1360,6 @@ function PlayerNutritionTab({ jugadorId, equipoId }: { jugadorId: string; equipo
         </CardContent>
       </Card>
 
-      {/* 5. Historial de Planes */}
-      {Array.isArray(planes14d) && (planes14d as any[]).length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Historial de Planes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead><tr className="border-b text-gray-500"><th className="pb-1 text-left">Fecha</th><th className="pb-1">Contexto</th><th className="pb-1">Kcal</th><th className="pb-1">Prot</th><th className="pb-1">Carbs</th><th className="pb-1">Grasas</th></tr></thead>
-                <tbody>
-                  {(planes14d as any[]).slice(0, 14).map((p: any) => (
-                    <tr key={p.id} className="border-b last:border-0">
-                      <td className="py-1">{new Date(p.fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short', weekday: 'short' })}</td>
-                      <td className="py-1 text-center">{p.contexto || '-'}</td>
-                      <td className="py-1 text-center">{p.calorias_objetivo || '-'}</td>
-                      <td className="py-1 text-center text-blue-600">{p.proteinas_objetivo_g || '-'}</td>
-                      <td className="py-1 text-center text-amber-600">{p.carbohidratos_objetivo_g || '-'}</td>
-                      <td className="py-1 text-center text-red-500">{p.grasas_objetivo_g || '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 6. Recomendaciones Contextuales */}
-      {overview?.recomendaciones?.length ? (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Recomendaciones</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {overview.recomendaciones.map((r, idx) => (
-                <div
-                  key={idx}
-                  className={`flex items-start gap-2 p-3 rounded-lg text-sm ${
-                    r.prioridad === 'alta' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'
-                  }`}
-                >
-                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                  <span>{r.mensaje}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {/* Dialogs */}
       {showPerfilDialog && (
         <PerfilNutricionDialog
           jugadorId={jugadorId}
@@ -1636,14 +1380,6 @@ function PlayerNutritionTab({ jugadorId, equipoId }: { jugadorId: string; equipo
           jugadorId={jugadorId}
           equipoId={equipoId}
           onClose={() => { setShowSupDialog(false); mutateOverview() }}
-        />
-      )}
-      {showPlanDialog && (
-        <CreatePlayerPlanDialog
-          jugadorId={jugadorId}
-          equipoId={equipoId}
-          existingPlan={overview?.plan_hoy || null}
-          onClose={() => { setShowPlanDialog(false); mutateOverview() }}
         />
       )}
     </div>
@@ -1854,243 +1590,6 @@ function SuplementoDialog({ jugadorId, equipoId, onClose }: {
 
 // ============ Constants for plan dialog ============
 
-const PLAN_TIPOS_COMIDA: { value: string; label: string; emoji: string }[] = [
-  { value: 'desayuno', label: 'Desayuno', emoji: '🌅' },
-  { value: 'almuerzo', label: 'Almuerzo', emoji: '🥪' },
-  { value: 'comida', label: 'Comida', emoji: '🍽️' },
-  { value: 'merienda', label: 'Merienda', emoji: '🍎' },
-  { value: 'cena', label: 'Cena', emoji: '🌙' },
-  { value: 'snack_pre', label: 'Snack Pre', emoji: '⚡' },
-  { value: 'snack_post', label: 'Snack Post', emoji: '💪' },
-]
-
-const PLAN_CONTEXTOS: { value: string; label: string }[] = [
-  { value: 'dia_normal', label: 'Día normal' },
-  { value: 'pre_partido', label: 'Pre-partido' },
-  { value: 'post_partido', label: 'Post-partido' },
-  { value: 'dia_descanso', label: 'Descanso' },
-  { value: 'viaje', label: 'Viaje' },
-]
-
-function CreatePlayerPlanDialog({
-  jugadorId, equipoId, existingPlan, onClose,
-}: {
-  jugadorId: string; equipoId: string; existingPlan: PlanNutricionalDia | null; onClose: () => void
-}) {
-  const isEditing = !!existingPlan
-  const hoy = new Date().toISOString().split('T')[0]
-
-  const [saving, setSaving] = useState(false)
-  const [contexto, setContexto] = useState(existingPlan?.contexto || 'dia_normal')
-  const [comidas, setComidas] = useState<Array<{
-    tipo_comida: string; nombre: string; alimentos: AlimentoItem[];
-    calorias: number; proteinas_g: number; carbos_g: number; grasas_g: number; hora_sugerida: string
-  }>>(
-    existingPlan?.comidas?.map((c) => ({
-      tipo_comida: c.tipo_comida,
-      nombre: c.nombre,
-      alimentos: c.alimentos || [],
-      calorias: c.calorias || 0,
-      proteinas_g: c.proteinas_g || 0,
-      carbos_g: c.carbos_g || 0,
-      grasas_g: c.grasas_g || 0,
-      hora_sugerida: c.hora_sugerida || '',
-    })) || []
-  )
-  const [hidratacion, setHidratacion] = useState(existingPlan?.hidratacion_litros?.toString() || '')
-  const [notas, setNotas] = useState(existingPlan?.notas || '')
-
-  const { data: plantillas } = useSWR<PlantillaNutricional[]>(
-    apiKey('/nutricion/plantillas', { equipo_id: equipoId }, ['equipo_id']),
-    apiFetcher
-  )
-
-  const addComidaFromPlantilla = (p: PlantillaNutricional) => {
-    setComidas([...comidas, {
-      tipo_comida: p.tipo_comida,
-      nombre: p.nombre,
-      alimentos: p.alimentos,
-      calorias: p.calorias_total || 0,
-      proteinas_g: p.proteinas_total_g || 0,
-      carbos_g: p.carbohidratos_total_g || 0,
-      grasas_g: p.grasas_total_g || 0,
-      hora_sugerida: '',
-    }])
-  }
-
-  const addEmptyComida = () => {
-    setComidas([...comidas, {
-      tipo_comida: 'comida', nombre: '', alimentos: [],
-      calorias: 0, proteinas_g: 0, carbos_g: 0, grasas_g: 0, hora_sugerida: '',
-    }])
-  }
-
-  const removeComida = (idx: number) => setComidas(comidas.filter((_, i) => i !== idx))
-  const updateComida = (idx: number, field: string, value: any) => {
-    const updated = [...comidas]
-    ;(updated[idx] as any)[field] = value
-    setComidas(updated)
-  }
-
-  const handleSave = async () => {
-    if (!comidas.length) { toast.error('Agrega al menos una comida'); return }
-    setSaving(true)
-    const payload = {
-      equipo_id: equipoId,
-      jugador_id: jugadorId,
-      fecha: existingPlan?.fecha || hoy,
-      contexto,
-      comidas,
-      hidratacion_litros: hidratacion ? parseFloat(hidratacion) : undefined,
-      notas: notas || undefined,
-    }
-    try {
-      if (isEditing && existingPlan) {
-        const { equipo_id, jugador_id, fecha, ...updateData } = payload
-        await nutricionApi.updatePlan(existingPlan.id, updateData)
-        toast.success('Plan actualizado')
-      } else {
-        await nutricionApi.createPlan(payload)
-        toast.success('Plan creado')
-      }
-      mutate((key: string) => typeof key === 'string' && key.includes('/nutricion/'))
-      onClose()
-    } catch { toast.error('Error al guardar plan') }
-    setSaving(false)
-  }
-
-  return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{isEditing ? 'Editar' : 'Nuevo'} plan nutricional</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          {/* Context */}
-          <div>
-            <label className="text-sm font-medium text-gray-700">Contexto</label>
-            <div className="flex flex-wrap gap-2 mt-1">
-              {PLAN_CONTEXTOS.map((c) => (
-                <button
-                  key={c.value}
-                  onClick={() => setContexto(c.value as ContextoNutricional)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                    contexto === c.value
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                  }`}
-                >
-                  {c.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Quick-add from templates */}
-          {plantillas && plantillas.length > 0 && (
-            <div>
-              <label className="text-sm font-medium text-gray-700">Agregar desde plantilla</label>
-              <div className="flex flex-wrap gap-1.5 mt-1">
-                {plantillas.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => addComidaFromPlantilla(p)}
-                    className="text-xs px-2.5 py-1.5 bg-gray-50 border rounded-md hover:bg-gray-100 transition"
-                  >
-                    {PLAN_TIPOS_COMIDA.find((t) => t.value === p.tipo_comida)?.emoji} {p.nombre}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Meals */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-gray-700">Comidas</label>
-              <Button size="sm" variant="outline" onClick={addEmptyComida}>
-                <Plus className="h-3 w-3 mr-1" /> Agregar
-              </Button>
-            </div>
-            <div className="space-y-3">
-              {comidas.map((comida, idx) => (
-                <div key={idx} className="border rounded-lg p-3 space-y-2 bg-gray-50">
-                  <div className="flex gap-2 items-center">
-                    <select
-                      value={comida.tipo_comida}
-                      onChange={(e) => updateComida(idx, 'tipo_comida', e.target.value)}
-                      className="text-sm border rounded px-2 py-1.5"
-                    >
-                      {PLAN_TIPOS_COMIDA.map((t) => (
-                        <option key={t.value} value={t.value}>{t.emoji} {t.label}</option>
-                      ))}
-                    </select>
-                    <Input
-                      placeholder="Nombre de la comida"
-                      value={comida.nombre}
-                      onChange={(e) => updateComida(idx, 'nombre', e.target.value)}
-                      className="flex-1 h-8 text-sm"
-                    />
-                    <Input
-                      type="time"
-                      value={comida.hora_sugerida}
-                      onChange={(e) => updateComida(idx, 'hora_sugerida', e.target.value)}
-                      className="w-28 h-8 text-sm"
-                    />
-                    <button onClick={() => removeComida(idx)} className="text-gray-400 hover:text-red-500">
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-4 gap-2">
-                    <div>
-                      <label className="text-xs text-gray-500">Calorías</label>
-                      <Input type="number" value={comida.calorias || ''} onChange={(e) => updateComida(idx, 'calorias', +e.target.value)} className="h-7 text-xs" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-blue-500">Proteínas (g)</label>
-                      <Input type="number" value={comida.proteinas_g || ''} onChange={(e) => updateComida(idx, 'proteinas_g', +e.target.value)} className="h-7 text-xs" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-amber-500">Carbos (g)</label>
-                      <Input type="number" value={comida.carbos_g || ''} onChange={(e) => updateComida(idx, 'carbos_g', +e.target.value)} className="h-7 text-xs" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-red-500">Grasas (g)</label>
-                      <Input type="number" value={comida.grasas_g || ''} onChange={(e) => updateComida(idx, 'grasas_g', +e.target.value)} className="h-7 text-xs" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Hydration + notes */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium text-gray-700">Hidratación (litros)</label>
-              <Input type="number" step="0.5" min="0" value={hidratacion} onChange={(e) => setHidratacion(e.target.value)} placeholder="3.0" className="mt-1" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700">Notas</label>
-              <Input value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Observaciones..." className="mt-1" />
-            </div>
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-            {isEditing ? 'Guardar cambios' : 'Crear plan'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-
 // ============================================
 // Position Pitch Map — campograma
 // ============================================
@@ -2210,15 +1709,20 @@ function PlayerLoadTab({ jugadorId, equipoId }: { jugadorId: string; equipoId: s
   const [cargaSnapshot, setCargaSnapshot] = useState<CargaJugador | null>(null)
   const [tarjetas, setTarjetas] = useState<{ amarillas: number; rojas: number }>({ amarillas: 0, rojas: 0 })
   const [loading, setLoading] = useState(true)
+  const [margenHistory, setMargenHistory] = useState<EntrenamientoMargenHistory[]>([])
+  const [margenLoading, setMargenLoading] = useState(false)
+  const [margenExpandedIds, setMargenExpandedIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true)
+      setMargenLoading(true)
       try {
-        const [historialRes, wellnessRes, cargaEquipoRes] = await Promise.all([
+        const [historialRes, wellnessRes, cargaEquipoRes, margenRes] = await Promise.all([
           cargaApi.getHistorial(jugadorId, 28),
           wellnessApi.getPlayerHistory(jugadorId, { limit: 14 }),
           cargaApi.getEquipo(equipoId),
+          entrenamientosMargenApi.listByJugador(jugadorId).catch(() => ({ data: [] as EntrenamientoMargenHistory[] })),
         ])
         setLoadData(historialRes.data)
         setWellnessHistory(wellnessRes.data.reverse())
@@ -2227,10 +1731,12 @@ function PlayerLoadTab({ jugadorId, equipoId }: { jugadorId: string; equipoId: s
         if (playerCarga) {
           setTarjetas({ amarillas: playerCarga.tarjetas_amarillas, rojas: playerCarga.tarjetas_rojas })
         }
+        setMargenHistory(margenRes.data || [])
       } catch {
         // silent
       } finally {
         setLoading(false)
+        setMargenLoading(false)
       }
     }
     fetchAll()
@@ -2409,6 +1915,121 @@ function PlayerLoadTab({ jugadorId, equipoId }: { jugadorId: string; equipoId: s
           </CardContent>
         </Card>
       )}
+
+
+      {/* Trabajo al margen (return-to-play) */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Activity className="h-4 w-4 text-amber-600" />
+            Trabajo al margen
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {margenLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : margenHistory.length === 0 ? (
+            <div className="text-center py-6 text-muted-foreground">
+              <p className="text-sm">Sin entrenamientos al margen registrados</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-1 mb-4 px-1">
+                {FASES_RECUPERACION.map((fase, idx) => {
+                  const reached = margenHistory.some(h => h.fase_recuperacion === fase.value)
+                  return (
+                    <div key={fase.value} className="flex items-center">
+                      <div
+                        className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold ${
+                          reached ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-400'
+                        }`}
+                        title={fase.label}
+                      >
+                        {idx + 1}
+                      </div>
+                      {idx < FASES_RECUPERACION.length - 1 && (
+                        <div className={`w-4 h-0.5 ${reached ? 'bg-amber-400' : 'bg-gray-200'}`} />
+                      )}
+                    </div>
+                  )
+                })}
+                <span className="text-[9px] text-muted-foreground ml-2">Progresión Return-to-Play</span>
+              </div>
+
+              <div className="space-y-2">
+                {margenHistory.map((ent) => {
+                  const isExpanded = margenExpandedIds.has(ent.id)
+                  return (
+                    <div key={ent.id} className="border border-amber-200 rounded-lg overflow-hidden">
+                      <div
+                        className="flex items-center justify-between px-3 py-2 bg-amber-50 cursor-pointer hover:bg-amber-100 transition-colors"
+                        onClick={() => setMargenExpandedIds(prev => {
+                          const next = new Set(prev)
+                          next.has(ent.id) ? next.delete(ent.id) : next.add(ent.id)
+                          return next
+                        })}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-xs font-medium text-gray-700 shrink-0">
+                            {ent.sesion?.fecha || ''}
+                          </span>
+                          {ent.sesion?.match_day && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-gray-200 text-gray-700 shrink-0">
+                              {ent.sesion.match_day}
+                            </span>
+                          )}
+                          <span className="text-xs text-gray-600 truncate">
+                            {ent.sesion?.titulo || ''}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {ent.fase_recuperacion && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-amber-200 text-amber-800">
+                              {FASES_RECUPERACION.find(f => f.value === ent.fase_recuperacion)?.label || ent.fase_recuperacion}
+                            </span>
+                          )}
+                          {ent.rpe_post != null && (
+                            <span className="text-[10px] text-amber-700 font-medium">RPE {ent.rpe_post}</span>
+                          )}
+                          <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-medium ${
+                            ent.estado === 'completado' ? 'bg-green-100 text-green-700' :
+                            ent.estado === 'en_curso' ? 'bg-blue-100 text-blue-700' :
+                            ent.estado === 'cancelado' ? 'bg-red-100 text-red-700' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>
+                            {ent.estado}
+                          </span>
+                        </div>
+                      </div>
+                      {isExpanded && (
+                        <div className="px-3 py-2 border-t border-amber-200 bg-white text-xs space-y-1">
+                          {ent.objetivo && <p><strong className="text-amber-700">Objetivo:</strong> {ent.objetivo}</p>}
+                          {ent.registro_medico && (
+                            <p><strong className="text-amber-700">Lesión:</strong> {ent.registro_medico.titulo} ({ent.registro_medico.tipo})</p>
+                          )}
+                          {ent.duracion_estimada && <p><strong className="text-amber-700">Duración:</strong> {ent.duracion_estimada} min</p>}
+                          {ent.rpe_post != null && <p><strong className="text-amber-700">RPE post:</strong> {ent.rpe_post}/10</p>}
+                          {ent.notas && <p className="text-gray-500 italic">{ent.notas}</p>}
+                          {ent.sesion && (
+                            <Link
+                              href={`/sesiones/${ent.sesion.id}`}
+                              className="text-blue-600 hover:underline text-[10px] flex items-center gap-1"
+                            >
+                              <ExternalLink className="h-3 w-3" /> Ver sesión
+                            </Link>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Wellness history mini-chart */}
       {wellnessHistory.length > 0 && (
