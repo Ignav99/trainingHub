@@ -111,6 +111,9 @@ export async function syncAllPlanesEspeciales(
 
 export function defaultNutricionPartidoPlan(): NutricionPartidoPlan {
   return {
+    clima_fecha: '',
+    clima_hora: '',
+    clima_lugar: 'Madrid',
     clima_estimacion: '',
     argumento_suplementacion: '',
     etiquetas: [],
