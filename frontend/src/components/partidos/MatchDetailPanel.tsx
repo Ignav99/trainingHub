@@ -19,7 +19,6 @@ import {
   MapPin,
   Trash2,
   BarChart3,
-  MessageSquare,
   Pencil,
   Clock,
   ClipboardList,
@@ -197,7 +196,6 @@ export function MatchDetailPanel({
 
   // Team stats local state (for post-partido tab)
   const [teamStats, setTeamStats] = useState<Record<string, number>>({})
-  const [comentarioTactico, setComentarioTactico] = useState('')
   const [reflexionEntrenador, setReflexionEntrenador] = useState('')
   const [playerStats, setPlayerStats] = useState<Record<string, { minutos_jugados: number; goles: number; asistencias: number; tarjeta_amarilla: boolean; tarjeta_roja: boolean }>>({})
   /** Media colaborativa + mi nota por convocatoria */
@@ -228,7 +226,6 @@ export function MatchDetailPanel({
         stats[`rival_${field.key}`] = (estadisticasData as any)[`rival_${field.key}`] || 0
       }
       setTeamStats(stats)
-      setComentarioTactico(estadisticasData.comentario_tactico || '')
       setReflexionEntrenador(estadisticasData.reflexion_entrenador || '')
       setGolesDetalleFavor(estadisticasData.goles_detalle_favor || [])
       setGolesDetalleContra(estadisticasData.goles_detalle_contra || [])
@@ -236,7 +233,6 @@ export function MatchDetailPanel({
       setFaltasMapaRecibidas(estadisticasData.faltas_mapa_recibidas || [])
     } else {
       setTeamStats({})
-      setComentarioTactico('')
       setReflexionEntrenador('')
       setGolesDetalleFavor([])
       setGolesDetalleContra([])
@@ -680,7 +676,6 @@ export function MatchDetailPanel({
     try {
       // 1. Save team stats + goal details + foul maps + reflexión
       const statsPayload: EstadisticaPartidoUpdateData = {
-        comentario_tactico: comentarioTactico,
         reflexion_entrenador: reflexionEntrenador,
         goles_detalle_favor: golesDetalleFavor,
         goles_detalle_contra: golesDetalleContra,
@@ -1300,25 +1295,6 @@ export function MatchDetailPanel({
                 recibidas={faltasMapaRecibidas}
                 onCometidasChange={setFaltasMapaCometidas}
                 onRecibidasChange={setFaltasMapaRecibidas}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Comentario tactico */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 text-primary" />
-                Comentario tactico
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Textarea
-                value={comentarioTactico}
-                onChange={(e) => setComentarioTactico(e.target.value)}
-                placeholder="Analisis del partido, aspectos a mejorar, puntos fuertes..."
-                rows={4}
-                className="resize-none"
               />
             </CardContent>
           </Card>
