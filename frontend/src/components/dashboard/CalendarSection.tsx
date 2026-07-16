@@ -498,9 +498,11 @@ export function CalendarSection({
                   const isPast = date < dateToStr(now.getFullYear(), now.getMonth(), now.getDate())
                   const isExpanded = expandedMobileDay === date
 
-                  // Color dots
+                  // Color dots (casa = ámbar, fuera = violeta)
                   const dots: string[] = []
-                  if (dayPartidos.length > 0) dots.push('bg-amber-500')
+                  if (dayPartidos.length > 0) {
+                    dots.push(dayPartidos[0].localia === 'local' ? 'bg-amber-500' : 'bg-violet-500')
+                  }
                   daySesiones.forEach((s) => {
                     if (s.estado === 'completada') dots.push('bg-green-500')
                     else if (s.estado === 'planificada') dots.push('bg-blue-500')
@@ -615,28 +617,37 @@ export function CalendarSection({
                         <span className="text-sm text-slate-600">Descanso</span>
                       </div>
                     )}
-                    {dayPartidos.map((p) => (
+                    {dayPartidos.map((p) => {
+                      const isLocal = p.localia === 'local'
+                      return (
                       <Link
                         key={p.id}
                         href={`/partidos?match=${p.id}`}
-                        className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200"
+                        className={`flex items-center gap-2 p-2.5 rounded-lg border ${
+                          isLocal
+                            ? 'bg-amber-50 border-amber-200'
+                            : 'bg-violet-50 border-violet-200'
+                        }`}
                       >
                         {p.rival?.escudo_url ? (
                           <Image src={p.rival.escudo_url} alt="" width={20} height={20} className="object-contain shrink-0" unoptimized />
                         ) : (
-                          <Swords className="h-4 w-4 text-amber-600 shrink-0" />
+                          <Swords className={`h-4 w-4 shrink-0 ${isLocal ? 'text-amber-600' : 'text-violet-600'}`} />
                         )}
                         <div className="flex-1 min-w-0">
-                          <span className="text-sm font-bold text-amber-800 truncate block">
-                            {p.localia === 'local' ? 'vs' : '@'} {p.rival?.nombre_corto || p.rival?.nombre || 'Rival'}
+                          <span className={`text-sm font-bold truncate block ${isLocal ? 'text-amber-800' : 'text-violet-800'}`}>
+                            {isLocal ? 'vs' : '@'} {p.rival?.nombre_corto || p.rival?.nombre || 'Rival'}
                           </span>
-                          {p.hora && <span className="text-xs text-amber-600">{p.hora}</span>}
+                          {p.hora && (
+                            <span className={`text-xs ${isLocal ? 'text-amber-600' : 'text-violet-600'}`}>{p.hora}</span>
+                          )}
                         </div>
                         {p.goles_favor !== undefined && p.goles_favor !== null && (
                           <span className="text-sm font-bold">{p.goles_favor}-{p.goles_contra}</span>
                         )}
                       </Link>
-                    ))}
+                      )
+                    })}
                     {daySesiones.map((s) => {
                       const dotColors: Record<string, string> = { completada: 'bg-green-500', planificada: 'bg-blue-500', borrador: 'bg-gray-400', en_curso: 'bg-purple-500' }
                       return (
@@ -726,17 +737,8 @@ export function CalendarSection({
                       className={`flex-1 grid grid-cols-7 relative ${weekMicro ? 'cursor-pointer' : ''}`}
                       onClick={() => { if (weekMicro) onNavigate(`/microciclos/${weekMicro.id}`) }}
                     >
-                    {/* Microciclo contour — always visible when week has a micro */}
-                    {weekMicro && (
-                      <div
-                        className={`absolute inset-0.5 rounded-md border-2 pointer-events-none z-20 ${
-                          isWeekHovered ? 'border-teal-700 bg-teal-500/[0.06]' : 'border-teal-600 bg-teal-500/[0.04]'
-                        }`}
-                        title="Microciclo"
-                      />
-                    )}
-                    {isWeekHovered && !weekMicro && (
-                      <div className="absolute inset-0 border-2 border-primary/50 rounded pointer-events-none z-20 transition-opacity" />
+                    {isWeekHovered && (
+                      <div className="absolute inset-0 border-2 border-primary/40 rounded pointer-events-none z-20 transition-opacity" />
                     )}
 
                 {week.map((cell, dayIdx) => {
@@ -747,7 +749,6 @@ export function CalendarSection({
                   const { day, date, isToday } = cell
                   const daySesiones = sesionesMes.filter((s) => isSameDay(s.fecha, date))
                   const dayPartidos = partidosMes.filter((p) => isSameDay(p.fecha, date))
-                  const inMicrociclo = weekMicro !== null
                   const isDescanso = descansos.has(date)
                   const hasContent = daySesiones.length > 0 || dayPartidos.length > 0 || isDescanso
                   const isEmpty = !hasContent
@@ -764,12 +765,15 @@ export function CalendarSection({
                   const hasMatch = dayPartidos.length > 0
                   const dominantMD = hasMatch ? 'MD' : (daySesiones[0]?.match_day || null)
                   const mdColors = dominantMD ? MATCH_DAY_COLORS[dominantMD] : null
+                  const firstMatchLocal = dayPartidos[0]?.localia === 'local'
 
-                  // Activity fill (microciclo outline is drawn on the week wrapper)
+                  // Activity fill (microciclo se marca con barra lateral / badge lunes, no contorno)
                   const activityBg = isDescanso
                     ? 'bg-slate-200/70'
                     : hasMatch
-                      ? 'bg-amber-50'
+                      ? firstMatchLocal
+                        ? 'bg-amber-50'
+                        : 'bg-violet-50'
                       : daySesiones.length > 0
                         ? 'bg-emerald-50/70'
                         : ''
@@ -934,30 +938,38 @@ export function CalendarSection({
                           </div>
                         )}
 
-                        {/* Match cards -- prominent */}
-                        {dayPartidos.map((p) => (
+                        {/* Match cards -- prominent (casa ámbar / fuera violeta) */}
+                        {dayPartidos.map((p) => {
+                          const isLocal = p.localia === 'local'
+                          return (
                           <Link
                             key={p.id}
                             href={`/partidos?match=${p.id}`}
                             onClick={(e) => e.stopPropagation()}
-                            className="block rounded-md px-1.5 py-1 bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors cursor-pointer"
+                            className={`block rounded-md px-1.5 py-1 border transition-colors cursor-pointer ${
+                              isLocal
+                                ? 'bg-amber-50 border-amber-200 hover:bg-amber-100'
+                                : 'bg-violet-50 border-violet-200 hover:bg-violet-100'
+                            }`}
                           >
                             <div className="flex items-center gap-1">
                               {p.rival?.escudo_url ? (
                                 <Image src={p.rival.escudo_url} alt="" width={14} height={14} className="object-contain shrink-0" unoptimized />
                               ) : (
-                                <Swords className="h-3 w-3 text-amber-600 shrink-0" />
+                                <Swords className={`h-3 w-3 shrink-0 ${isLocal ? 'text-amber-600' : 'text-violet-600'}`} />
                               )}
-                              <span className="text-[10px] font-bold text-amber-800 truncate">
-                                {p.localia === 'local' ? 'vs' : '@'}{' '}
+                              <span className={`text-[10px] font-bold truncate ${isLocal ? 'text-amber-800' : 'text-violet-800'}`}>
+                                {isLocal ? 'vs' : '@'}{' '}
                                 {p.rival?.nombre_corto || p.rival?.nombre || 'Rival'}
                               </span>
                               {p.jornada && (
-                                <span className="text-[8px] font-medium bg-amber-100 text-amber-700 px-1 rounded">J{p.jornada}</span>
+                                <span className={`text-[8px] font-medium px-1 rounded ${
+                                  isLocal ? 'bg-amber-100 text-amber-700' : 'bg-violet-100 text-violet-700'
+                                }`}>J{p.jornada}</span>
                               )}
                             </div>
                             {p.hora && (
-                              <span className="text-[9px] text-amber-600 ml-4">{p.hora}</span>
+                              <span className={`text-[9px] ml-4 ${isLocal ? 'text-amber-600' : 'text-violet-600'}`}>{p.hora}</span>
                             )}
                             {p.goles_favor !== undefined && p.goles_favor !== null && (
                               <div className="ml-4 flex items-center gap-1">
@@ -976,7 +988,8 @@ export function CalendarSection({
                               </div>
                             )}
                           </Link>
-                        ))}
+                          )
+                        })}
 
                         {/* Session cards -- with MD tag */}
                         {daySesiones.map((s) => {
@@ -1047,13 +1060,16 @@ export function CalendarSection({
               {/* Legend bar — hidden on mobile */}
               <div className="hidden md:flex flex-wrap items-center gap-x-5 gap-y-1 px-4 py-2.5 border-t bg-muted/20 text-[11px] text-muted-foreground">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded border-2 border-teal-500 bg-teal-50/40" /> Microciclo
+                  <span className="w-2 h-3 rounded-sm bg-emerald-500" /> Microciclo
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-500" /> Sesión
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <Swords className="h-3 w-3 text-amber-600" /> Partido
+                  <Swords className="h-3 w-3 text-amber-600" /> Casa
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Swords className="h-3 w-3 text-violet-600" /> Fuera
                 </span>
                 <span className="flex items-center gap-1.5">
                   <Moon className="h-3 w-3 text-slate-500" /> Descanso
