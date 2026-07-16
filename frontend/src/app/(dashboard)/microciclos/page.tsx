@@ -65,6 +65,7 @@ export default function MicrociclosListPage() {
   const [form, setForm] = useState({
     fecha_inicio: '',
     fecha_fin: '',
+    fase: 'competicion' as 'pretemporada' | 'competicion',
   })
 
   const { data, isLoading, error } = useSWR<PaginatedResponse<Microciclo>>(
@@ -77,20 +78,34 @@ export default function MicrociclosListPage() {
     if (!equipoActivo?.id || !form.fecha_inicio || !form.fecha_fin) return
     setCreating(true)
     try {
+      const isPre = form.fase === 'pretemporada'
       const created = await microciclosApi.create({
         equipo_id: equipoActivo.id,
         fecha_inicio: form.fecha_inicio,
         fecha_fin: form.fecha_fin,
+        plan_ct: isPre
+          ? {
+              fase_temporada: 'pretemporada',
+              tipo_microciclo: 'pretemporada',
+              modo_partido: 'none',
+              auto_link_partido: false,
+            }
+          : {
+              fase_temporada: 'competicion',
+              tipo_microciclo: 'competicion',
+              modo_partido: 'oficial',
+              auto_link_partido: true,
+            },
       })
-      toast.success('Microciclo creado')
+      toast.success(isPre ? 'Microciclo de pretemporada creado' : 'Microciclo creado')
       setShowCreate(false)
-      setForm({ fecha_inicio: '', fecha_fin: '' })
+      setForm({ fecha_inicio: '', fecha_fin: '', fase: 'competicion' })
       mutate(
         (key: string) => typeof key === 'string' && key.includes('/microciclos'),
         undefined,
         { revalidate: true }
       )
-      // Auto-link sessions and match
+      // Link sessions; partido solo si no es pretemporada (backend lo respeta)
       try {
         await microciclosApi.linkSesiones(created.id)
       } catch {
@@ -190,6 +205,9 @@ export default function MicrociclosListPage() {
                         {ESTADO_ICONS[activo.estado]}
                         <span className="ml-1">{activo.estado.replace('_', ' ')}</span>
                       </Badge>
+                      {(activo.plan_ct?.fase_temporada === 'pretemporada' || activo.plan_ct?.tipo_microciclo === 'pretemporada') && (
+                        <Badge variant="outline" className="text-xs border-sky-300 text-sky-700 bg-sky-50">Pretemporada</Badge>
+                      )}
                       {activo.equipos && (
                         <Badge variant="outline" className="text-xs">{activo.equipos.nombre}</Badge>
                       )}
@@ -256,10 +274,15 @@ export default function MicrociclosListPage() {
                 <Card className="hover:shadow-md transition-all cursor-pointer group h-full">
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between mb-2">
-                      <Badge className={ESTADO_COLORS[m.estado] || ESTADO_COLORS.borrador}>
-                        {ESTADO_ICONS[m.estado]}
-                        <span className="ml-1 text-[10px]">{m.estado.replace('_', ' ')}</span>
-                      </Badge>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Badge className={ESTADO_COLORS[m.estado] || ESTADO_COLORS.borrador}>
+                          {ESTADO_ICONS[m.estado]}
+                          <span className="ml-1 text-[10px]">{m.estado.replace('_', ' ')}</span>
+                        </Badge>
+                        {(m.plan_ct?.fase_temporada === 'pretemporada' || m.plan_ct?.tipo_microciclo === 'pretemporada') && (
+                          <Badge variant="outline" className="text-[10px] border-sky-300 text-sky-700 bg-sky-50">Pretemporada</Badge>
+                        )}
+                      </div>
                       <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-all" />
                     </div>
 
@@ -326,26 +349,60 @@ export default function MicrociclosListPage() {
           <DialogHeader>
             <DialogTitle>Nuevo microciclo</DialogTitle>
             <DialogDescription>
-              Elige el rango de fechas de la semana. El resto (rival, partido, modelo de juego, objetivos...) se configura después, dentro del microciclo.
+              Elige fechas y si es semana de competición o de pretemporada (solo sesiones).
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-3">
             <div className="space-y-2">
-              <Label>Fecha inicio</Label>
-              <Input
-                type="date"
-                value={form.fecha_inicio}
-                onChange={(e) => setForm({ ...form, fecha_inicio: e.target.value })}
-              />
+              <Label>Fase</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, fase: 'competicion' })}
+                  className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                    form.fase === 'competicion'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'hover:bg-muted'
+                  }`}
+                >
+                  Competición
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, fase: 'pretemporada' })}
+                  className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                    form.fase === 'pretemporada'
+                      ? 'border-violet-500 bg-violet-50 text-violet-800'
+                      : 'hover:bg-muted'
+                  }`}
+                >
+                  Pretemporada
+                </button>
+              </div>
+              {form.fase === 'pretemporada' && (
+                <p className="text-[10px] text-muted-foreground">
+                  Sin auto-vincular partido. Ideal para semanas solo de sesiones.
+                </p>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label>Fecha fin</Label>
-              <Input
-                type="date"
-                value={form.fecha_fin}
-                onChange={(e) => setForm({ ...form, fecha_fin: e.target.value })}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Fecha inicio</Label>
+                <Input
+                  type="date"
+                  value={form.fecha_inicio}
+                  onChange={(e) => setForm({ ...form, fecha_inicio: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Fecha fin</Label>
+                <Input
+                  type="date"
+                  value={form.fecha_fin}
+                  onChange={(e) => setForm({ ...form, fecha_fin: e.target.value })}
+                />
+              </div>
             </div>
           </div>
 

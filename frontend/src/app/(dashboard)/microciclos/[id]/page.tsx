@@ -125,9 +125,10 @@ export default function MicrocicloDetallePage() {
     setSaving(true)
     try {
       await microciclosApi.update(data.microciclo.id, {
-        partido_id: form.partido_id || undefined,
-        rival_id: form.rival_id || undefined,
-      })
+        // null limpia el FK; undefined no envía el campo
+        partido_id: form.partido_id || null,
+        rival_id: form.rival_id || null,
+      } as Parameters<typeof microciclosApi.update>[1])
       setShowEdit(false)
       mutate((key: string) => typeof key === 'string' && key.includes('/microciclos'), undefined, { revalidate: true })
     } catch (err: any) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import useSWR, { mutate } from 'swr'
 import {
@@ -14,32 +14,62 @@ import {
   Loader2,
   UserPlus,
   Users,
-  AlertCircle
+  AlertCircle,
+  ArrowUpCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Jugador, jugadoresApi, POSICIONES } from '@/lib/api/jugadores'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { apiKey } from '@/lib/swr'
+import {
+  FICHA_ESTADO_LABELS,
+  TIPO_JUGADOR_COLORS,
+  TIPO_JUGADOR_LABELS,
+  resolveFichaEstado,
+  resolveTipoJugador,
+} from '@/lib/jugadorTipo'
+import type { TipoJugador } from '@/types'
 
-// Modal para añadir/editar invitado
-function InvitadoModal({
-  invitado,
+type TipoExtra = Exclude<TipoJugador, 'plantilla'>
+
+const TIPOS_EXTRA: { id: TipoExtra; label: string; hint: string }[] = [
+  { id: 'juvenil', label: 'Juvenil', hint: 'Cantera / seguimiento con pre-ficha' },
+  { id: 'prueba', label: 'Prueba', hint: 'Trial temporal con tracking de cargas' },
+  { id: 'invitado', label: 'Invitado', hint: 'Solo identidad para sesiones' },
+]
+
+function ExtraModal({
+  jugador,
+  defaultTipo,
   equipos,
   onClose,
   onSave,
   saving,
 }: {
-  invitado?: Jugador
+  jugador?: Jugador
+  defaultTipo: TipoExtra
   equipos: { id: string; nombre: string; categoria?: string }[]
   onClose: () => void
-  onSave: (data: { nombre: string; apellidos: string; posicion_principal: string; equipo_origen_id?: string; notas?: string }) => void
+  onSave: (data: {
+    nombre: string
+    apellidos: string
+    posicion_principal: string
+    tipo_jugador: TipoExtra
+    equipo_origen_id?: string
+    notas?: string
+    fecha_fin_prueba?: string
+  }) => void
   saving: boolean
 }) {
-  const [nombre, setNombre] = useState(invitado?.nombre || '')
-  const [apellidos, setApellidos] = useState(invitado?.apellidos || '')
-  const [posicion, setPosicion] = useState(invitado?.posicion_principal || 'MC')
-  const [equipoOrigenId, setEquipoOrigenId] = useState(invitado?.equipo_origen_id || '')
-  const [notas, setNotas] = useState(invitado?.notas || '')
+  const [nombre, setNombre] = useState(jugador?.nombre || '')
+  const [apellidos, setApellidos] = useState(jugador?.apellidos || '')
+  const [posicion, setPosicion] = useState(jugador?.posicion_principal || 'MC')
+  const [tipo, setTipo] = useState<TipoExtra>(
+    jugador ? (resolveTipoJugador(jugador) === 'plantilla' ? defaultTipo : (resolveTipoJugador(jugador) as TipoExtra)) : defaultTipo
+  )
+  const [equipoOrigenId, setEquipoOrigenId] = useState(jugador?.equipo_origen_id || '')
+  const [notas, setNotas] = useState(jugador?.notas || '')
+  const [fechaFinPrueba, setFechaFinPrueba] = useState(jugador?.fecha_fin_prueba || '')
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -48,17 +78,19 @@ function InvitadoModal({
       nombre: nombre.trim(),
       apellidos: apellidos.trim(),
       posicion_principal: posicion,
+      tipo_jugador: tipo,
       equipo_origen_id: equipoOrigenId || undefined,
       notas: notas.trim() || undefined,
+      fecha_fin_prueba: tipo === 'prueba' ? fechaFinPrueba || undefined : undefined,
     })
   }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">
-            {invitado ? 'Editar invitado' : 'Nuevo invitado'}
+            {jugador ? 'Editar jugador' : 'Alta rápida'}
           </h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="h-5 w-5" />
@@ -66,11 +98,30 @@ function InvitadoModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Tipo</label>
+            <div className="grid grid-cols-3 gap-2">
+              {TIPOS_EXTRA.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTipo(t.id)}
+                  className={`px-2 py-2 rounded-lg border text-xs font-medium transition-colors ${
+                    tipo === t.id
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 mt-1.5">{TIPOS_EXTRA.find((t) => t.id === tipo)?.hint}</p>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Nombre *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
               <input
                 type="text"
                 value={nombre}
@@ -82,9 +133,7 @@ function InvitadoModal({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Apellidos *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Apellidos *</label>
               <input
                 type="text"
                 value={apellidos}
@@ -97,9 +146,7 @@ function InvitadoModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Posicion *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Posicion *</label>
             <select
               value={posicion}
               onChange={(e) => setPosicion(e.target.value)}
@@ -113,10 +160,20 @@ function InvitadoModal({
             </select>
           </div>
 
+          {tipo === 'prueba' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Fin de prueba</label>
+              <input
+                type="date"
+                value={fechaFinPrueba}
+                onChange={(e) => setFechaFinPrueba(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+              />
+            </div>
+          )}
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Equipo de origen
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Equipo de origen</label>
             <select
               value={equipoOrigenId}
               onChange={(e) => setEquipoOrigenId(e.target.value)}
@@ -132,24 +189,18 @@ function InvitadoModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Notas
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
             <textarea
               value={notas}
               onChange={(e) => setNotas(e.target.value)}
-              placeholder="Observaciones sobre el jugador..."
+              placeholder="Observaciones..."
               rows={2}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none"
             />
           </div>
 
           <div className="flex justify-end gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
-            >
+            <button type="button" onClick={onClose} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">
               Cancelar
             </button>
             <button
@@ -158,7 +209,7 @@ function InvitadoModal({
               className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {invitado ? 'Guardar' : 'Añadir'}
+              {jugador ? 'Guardar' : 'Añadir'}
             </button>
           </div>
         </form>
@@ -167,14 +218,14 @@ function InvitadoModal({
   )
 }
 
-export default function InvitadosPage() {
+export default function ExtraplantillaPage() {
   const { equipoActivo, equipos } = useEquipoStore()
   const [busqueda, setBusqueda] = useState('')
+  const [tipoTab, setTipoTab] = useState<TipoExtra | 'todos'>('todos')
   const [modalOpen, setModalOpen] = useState(false)
-  const [editingInvitado, setEditingInvitado] = useState<Jugador | null>(null)
+  const [editing, setEditing] = useState<Jugador | null>(null)
   const [saving, setSaving] = useState(false)
 
-  // Fetch invitados from API (real DB players with es_invitado=true)
   const { data: jugadoresResponse, isLoading: loading } = useSWR<{ data: Jugador[]; total: number }>(
     apiKey('/jugadores', {
       equipo_id: equipoActivo?.id,
@@ -182,15 +233,34 @@ export default function InvitadosPage() {
     }, ['equipo_id'])
   )
 
-  // Filter to only show invitados
   const allJugadores = jugadoresResponse?.data || []
-  const invitados = allJugadores.filter((j) => j.es_invitado)
+  const extras = useMemo(
+    () => allJugadores.filter((j) => resolveTipoJugador(j) !== 'plantilla'),
+    [allJugadores]
+  )
+
+  const counts = useMemo(() => {
+    const c: Record<TipoExtra, number> = { juvenil: 0, prueba: 0, invitado: 0 }
+    for (const j of extras) {
+      const t = resolveTipoJugador(j) as TipoExtra
+      if (t in c) c[t] += 1
+    }
+    return c
+  }, [extras])
 
   const invalidate = () => {
     mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'), undefined, { revalidate: true })
   }
 
-  const handleAdd = async (data: { nombre: string; apellidos: string; posicion_principal: string; equipo_origen_id?: string; notas?: string }) => {
+  const handleAdd = async (data: {
+    nombre: string
+    apellidos: string
+    posicion_principal: string
+    tipo_jugador: TipoExtra
+    equipo_origen_id?: string
+    notas?: string
+    fecha_fin_prueba?: string
+  }) => {
     if (!equipoActivo) return
     setSaving(true)
     try {
@@ -201,31 +271,44 @@ export default function InvitadosPage() {
         posicion_principal: data.posicion_principal,
         equipo_origen_id: data.equipo_origen_id,
         notas: data.notas,
+        tipo_jugador: data.tipo_jugador,
+        fecha_fin_prueba: data.fecha_fin_prueba,
         es_invitado: true,
+        es_convocable: data.tipo_jugador !== 'invitado',
       })
-      toast.success('Invitado creado')
+      toast.success(`${TIPO_JUGADOR_LABELS[data.tipo_jugador]} creado`)
       setModalOpen(false)
       invalidate()
     } catch (err: any) {
-      toast.error(err?.message || 'Error al crear invitado')
+      toast.error(err?.message || 'Error al crear')
     } finally {
       setSaving(false)
     }
   }
 
-  const handleEdit = async (data: { nombre: string; apellidos: string; posicion_principal: string; equipo_origen_id?: string; notas?: string }) => {
-    if (!editingInvitado) return
+  const handleEdit = async (data: {
+    nombre: string
+    apellidos: string
+    posicion_principal: string
+    tipo_jugador: TipoExtra
+    equipo_origen_id?: string
+    notas?: string
+    fecha_fin_prueba?: string
+  }) => {
+    if (!editing) return
     setSaving(true)
     try {
-      await jugadoresApi.update(editingInvitado.id, {
+      await jugadoresApi.update(editing.id, {
         nombre: data.nombre,
         apellidos: data.apellidos,
         posicion_principal: data.posicion_principal,
         equipo_origen_id: data.equipo_origen_id,
         notas: data.notas,
+        tipo_jugador: data.tipo_jugador,
+        fecha_fin_prueba: data.fecha_fin_prueba,
       })
-      toast.success('Invitado actualizado')
-      setEditingInvitado(null)
+      toast.success('Jugador actualizado')
+      setEditing(null)
       invalidate()
     } catch (err: any) {
       toast.error(err?.message || 'Error al actualizar')
@@ -235,18 +318,30 @@ export default function InvitadosPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar este jugador invitado?')) return
+    if (!confirm('¿Eliminar este jugador?')) return
     try {
       await jugadoresApi.delete(id)
-      toast.success('Invitado eliminado')
+      toast.success('Jugador eliminado')
       invalidate()
     } catch (err: any) {
       toast.error(err?.message || 'Error al eliminar')
     }
   }
 
-  // Filtrar por busqueda
-  const invitadosFiltrados = invitados.filter((i) => {
+  const handlePromover = async (jugador: Jugador) => {
+    if (!confirm(`¿Promover a ${jugador.nombre} ${jugador.apellidos} a plantilla oficial?`)) return
+    try {
+      await jugadoresApi.promoverPlantilla(jugador.id)
+      toast.success('Promovido a plantilla')
+      invalidate()
+    } catch (err: any) {
+      toast.error(err?.message || 'Error al promover')
+    }
+  }
+
+  const filtrados = extras.filter((i) => {
+    const tipo = resolveTipoJugador(i)
+    if (tipoTab !== 'todos' && tipo !== tipoTab) return false
     if (!busqueda) return true
     const q = busqueda.toLowerCase()
     const fullName = `${i.nombre} ${i.apellidos}`.toLowerCase()
@@ -258,26 +353,22 @@ export default function InvitadosPage() {
       <div className="text-center py-12">
         <AlertCircle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
         <h2 className="text-lg font-medium text-gray-900 mb-2">Selecciona un equipo</h2>
-        <p className="text-gray-500">Debes seleccionar un equipo para gestionar los jugadores invitados</p>
+        <p className="text-gray-500">Debes seleccionar un equipo para gestionar juveniles, pruebas e invitados</p>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Link
-            href="/plantilla"
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
+          <Link href="/plantilla" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <ArrowLeft className="h-5 w-5 text-gray-500" />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Jugadores Invitados</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Alta rápida</h1>
             <p className="text-gray-500">
-              {invitados.length} jugador{invitados.length !== 1 ? 'es' : ''} invitado{invitados.length !== 1 ? 's' : ''} — juveniles y otras categorias
+              {extras.length} jugador{extras.length !== 1 ? 'es' : ''} fuera de plantilla oficial
             </p>
           </div>
         </div>
@@ -286,27 +377,48 @@ export default function InvitadosPage() {
           className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
         >
           <Plus className="h-4 w-4" />
-          Añadir Invitado
+          Añadir
         </button>
       </div>
 
-      {/* Info card */}
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
         <div className="flex gap-3">
           <UserPlus className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
           <div>
-            <h3 className="font-medium text-amber-900">¿Que son los jugadores invitados?</h3>
+            <h3 className="font-medium text-amber-900">Tipologías extraplantilla</h3>
             <p className="text-sm text-amber-700 mt-1">
-              Son jugadores de categorias inferiores (juveniles, cadetes, infantiles) o de otros equipos
-              que participan en tus entrenamientos. No forman parte de la plantilla oficial pero estan
-              disponibles para añadir en las sesiones.
+              <strong>Juvenil</strong> (cantera, convocable en oficiales), <strong>Prueba</strong> (trial con cargas)
+              e <strong>Invitado</strong> (solo sesiones). Puedes promoverlos a plantilla cuando corresponda.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Busqueda */}
-      {invitados.length > 0 && (
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setTipoTab('todos')}
+          className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${
+            tipoTab === 'todos' ? 'border-primary bg-primary/10 text-primary' : 'border-gray-200 bg-white text-gray-600'
+          }`}
+        >
+          Todos ({extras.length})
+        </button>
+        {TIPOS_EXTRA.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTipoTab(t.id)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${
+              tipoTab === t.id ? 'border-primary bg-primary/10 text-primary' : 'border-gray-200 bg-white text-gray-600'
+            }`}
+          >
+            {t.label} ({counts[t.id]})
+          </button>
+        ))}
+      </div>
+
+      {extras.length > 0 && (
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
@@ -319,51 +431,48 @@ export default function InvitadosPage() {
         </div>
       )}
 
-      {/* Lista compacta */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      ) : invitados.length === 0 ? (
+      ) : extras.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
           <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No hay jugadores invitados</h3>
-          <p className="text-gray-500 mb-4">
-            Añade juveniles u otros jugadores que entrenan con tu equipo
-          </p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Nadie fuera de plantilla</h3>
+          <p className="text-gray-500 mb-4">Añade juveniles, pruebas o invitados para entrenamientos</p>
           <button
             onClick={() => setModalOpen(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90"
           >
             <Plus className="h-4 w-4" />
-            Añadir primer invitado
+            Añadir primero
           </button>
         </div>
-      ) : invitadosFiltrados.length === 0 ? (
+      ) : filtrados.length === 0 ? (
         <div className="text-center py-8 bg-white rounded-xl border border-gray-200">
-          <p className="text-gray-500">No se encontraron jugadores con &quot;{busqueda}&quot;</p>
+          <p className="text-gray-500">No se encontraron jugadores</p>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          {/* Table header */}
-          <div className="hidden sm:grid sm:grid-cols-[1fr_100px_1fr_120px_auto] gap-4 px-4 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          <div className="hidden sm:grid sm:grid-cols-[1fr_90px_100px_1fr_100px_auto] gap-4 px-4 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
             <span>Jugador</span>
+            <span>Tipo</span>
             <span>Posición</span>
-            <span>Notas</span>
-            <span>Equipo origen</span>
-            <span className="w-20" />
+            <span>Notas / ficha</span>
+            <span>Origen</span>
+            <span className="w-28" />
           </div>
 
-          {/* Rows */}
           <div className="divide-y divide-gray-100">
-            {invitadosFiltrados.map((inv) => {
+            {filtrados.map((inv) => {
               const pos = POSICIONES[inv.posicion_principal as keyof typeof POSICIONES]
+              const tipo = resolveTipoJugador(inv) as TipoExtra
+              const ficha = resolveFichaEstado(inv)
               return (
                 <div
                   key={inv.id}
-                  className="grid grid-cols-1 sm:grid-cols-[1fr_100px_1fr_120px_auto] gap-2 sm:gap-4 items-center px-4 py-3 hover:bg-gray-50 transition-colors"
+                  className="grid grid-cols-1 sm:grid-cols-[1fr_90px_100px_1fr_100px_auto] gap-2 sm:gap-4 items-center px-4 py-3 hover:bg-gray-50 transition-colors"
                 >
-                  {/* Name + avatar */}
                   <div className="flex items-center gap-3">
                     <div
                       className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0"
@@ -376,30 +485,34 @@ export default function InvitadosPage() {
                     </span>
                   </div>
 
-                  {/* Position */}
-                  <div>
-                    <span
-                      className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white"
-                      style={{ backgroundColor: pos?.color || '#6B7280' }}
-                    >
-                      {inv.posicion_principal}
-                    </span>
-                  </div>
-
-                  {/* Notes */}
-                  <p className="text-sm text-gray-500 truncate">
-                    {inv.notas || '—'}
-                  </p>
-
-                  {/* Origin team */}
-                  <span className="text-sm text-gray-500 truncate">
-                    {inv.equipos?.nombre || '—'}
+                  <span className={`inline-flex w-fit items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${TIPO_JUGADOR_COLORS[tipo]}`}>
+                    {TIPO_JUGADOR_LABELS[tipo]}
                   </span>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 justify-end sm:w-20">
+                  <span
+                    className="inline-flex w-fit items-center px-2 py-0.5 rounded text-xs font-medium text-white"
+                    style={{ backgroundColor: pos?.color || '#6B7280' }}
+                  >
+                    {inv.posicion_principal}
+                  </span>
+
+                  <div className="min-w-0">
+                    <p className="text-sm text-gray-500 truncate">{inv.notas || '—'}</p>
+                    <p className="text-[11px] text-gray-400">{FICHA_ESTADO_LABELS[ficha]}</p>
+                  </div>
+
+                  <span className="text-sm text-gray-500 truncate">{inv.equipos?.nombre || '—'}</span>
+
+                  <div className="flex items-center gap-1 justify-end sm:w-28">
                     <button
-                      onClick={() => setEditingInvitado(inv)}
+                      onClick={() => handlePromover(inv)}
+                      className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                      title="Promover a plantilla"
+                    >
+                      <ArrowUpCircle className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => setEditing(inv)}
                       className="p-1.5 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                       title="Editar"
                     >
@@ -420,16 +533,16 @@ export default function InvitadosPage() {
         </div>
       )}
 
-      {/* Modal */}
-      {(modalOpen || editingInvitado) && (
-        <InvitadoModal
-          invitado={editingInvitado || undefined}
+      {(modalOpen || editing) && (
+        <ExtraModal
+          jugador={editing || undefined}
+          defaultTipo={tipoTab === 'todos' ? 'juvenil' : tipoTab}
           equipos={equipos.filter((e) => e.id !== equipoActivo?.id)}
           onClose={() => {
             setModalOpen(false)
-            setEditingInvitado(null)
+            setEditing(null)
           }}
-          onSave={editingInvitado ? handleEdit : handleAdd}
+          onSave={editing ? handleEdit : handleAdd}
           saving={saving}
         />
       )}

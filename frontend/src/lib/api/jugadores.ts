@@ -27,6 +27,9 @@ export interface Jugador {
   es_convocable: boolean
   es_portero: boolean
   es_invitado?: boolean
+  tipo_jugador?: 'plantilla' | 'juvenil' | 'prueba' | 'invitado'
+  ficha_estado?: 'completa' | 'pre_ficha' | 'minima'
+  fecha_fin_prueba?: string
   notas?: string
   created_at: string
   updated_at: string
@@ -58,6 +61,9 @@ export interface JugadorCreate {
   es_capitan?: boolean
   es_convocable?: boolean
   es_invitado?: boolean
+  tipo_jugador?: 'plantilla' | 'juvenil' | 'prueba' | 'invitado'
+  ficha_estado?: 'completa' | 'pre_ficha' | 'minima'
+  fecha_fin_prueba?: string
   notas?: string
 }
 
@@ -79,6 +85,9 @@ interface ListJugadoresParams {
   posicion?: string
   estado?: string
   es_convocable?: boolean
+  tipo_jugador?: string
+  ficha_estado?: string
+  solo_plantilla?: boolean
   busqueda?: string
   [key: string]: string | number | boolean | undefined
 }
@@ -135,6 +144,13 @@ export const jugadoresApi = {
 
   async getPosiciones(): Promise<{ data: Posicion[] }> {
     return api.get<{ data: Posicion[] }>('/jugadores/posiciones')
+  },
+
+  async promoverPlantilla(
+    id: string,
+    data?: { dorsal?: number; es_convocable?: boolean; notas?: string }
+  ): Promise<Jugador> {
+    return api.post<Jugador>(`/jugadores/${id}/promover-plantilla`, data ?? {})
   },
 }
 

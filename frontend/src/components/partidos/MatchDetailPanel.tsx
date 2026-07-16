@@ -48,6 +48,13 @@ import { partidosApi, rivalesApi } from '@/lib/api/partidos'
 import { jugadoresApi, Jugador, POSICIONES } from '@/lib/api/jugadores'
 import { FORMATIONS, Formation, FormationSlot } from '@/lib/formations'
 import { formatDate } from '@/lib/utils'
+import {
+  isConvocableAmistoso,
+  isConvocableOficial,
+  isPlantilla,
+  resolveTipoJugador,
+  TIPO_JUGADOR_LABELS,
+} from '@/lib/jugadorTipo'
 import { mutate } from 'swr'
 import dynamic from 'next/dynamic'
 import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
@@ -324,16 +331,35 @@ export function MatchDetailPanel({
       .finally(() => setLoadingJug(false))
   }
 
+  const esAmistoso = selectedPartido?.competicion === 'amistoso'
+
   const ownJugadores = useMemo(
-    () => sortJugadoresByPosition(jugadores.filter((j) => j.equipo_id === equipoActivo?.id && !j.es_invitado)),
-    [jugadores, equipoActivo?.id] // eslint-disable-line react-hooks/exhaustive-deps
+    () =>
+      sortJugadoresByPosition(
+        jugadores.filter((j) => {
+          if (j.equipo_id !== equipoActivo?.id) return false
+          return esAmistoso ? isConvocableAmistoso(j) && isPlantilla(j) : isConvocableOficial(j) && isPlantilla(j)
+        })
+      ),
+    [jugadores, equipoActivo?.id, esAmistoso] // eslint-disable-line react-hooks/exhaustive-deps
   )
-  const invitadoJugadores = useMemo(
-    () => sortJugadoresByPosition(jugadores.filter((j) => j.es_invitado)),
-    [jugadores] // eslint-disable-line react-hooks/exhaustive-deps
+  const extraplantillaJugadores = useMemo(
+    () =>
+      sortJugadoresByPosition(
+        jugadores.filter((j) => {
+          if (isPlantilla(j)) return false
+          return esAmistoso
+            ? isConvocableAmistoso(j, { incluirInvitados: true })
+            : isConvocableOficial(j)
+        })
+      ),
+    [jugadores, esAmistoso] // eslint-disable-line react-hooks/exhaustive-deps
   )
   const crossTeamJugadores = useMemo(
-    () => sortJugadoresByPosition(jugadores.filter((j) => j.equipo_id !== equipoActivo?.id && !j.es_invitado)),
+    () =>
+      sortJugadoresByPosition(
+        jugadores.filter((j) => j.equipo_id !== equipoActivo?.id && isPlantilla(j) && j.estado === 'activo')
+      ),
     [jugadores, equipoActivo?.id] // eslint-disable-line react-hooks/exhaustive-deps
   )
 
@@ -349,8 +375,9 @@ export function MatchDetailPanel({
         nombre,
         apellidos,
         posicion_principal: quickAddPos,
+        tipo_jugador: 'invitado',
         es_invitado: true,
-        es_convocable: true,
+        es_convocable: esAmistoso,
         nivel_tecnico: 5,
         nivel_tactico: 5,
         nivel_fisico: 5,
@@ -1267,15 +1294,25 @@ export function MatchDetailPanel({
                 {ownJugadores.filter((j) => !convocados.some((c) => c.jugador_id === j.id)).map((jugador) => (
                   <PlayerSelectRow key={jugador.id} jugador={jugador} selected={selected} onToggle={togglePlayer} onToggleTitular={(id) => setSelected((prev) => ({ ...prev, [id]: { ...prev[id], titular: !prev[id].titular } }))} />
                 ))}
-                {invitadoJugadores.filter((j) => !convocados.some((c) => c.jugador_id === j.id)).length > 0 && (
+                {extraplantillaJugadores.filter((j) => !convocados.some((c) => c.jugador_id === j.id)).length > 0 && (
                   <>
                     <div className="flex items-center gap-2 pt-3 pb-1">
                       <div className="h-px flex-1 bg-border" />
-                      <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Invitados</span>
+                      <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+                        {esAmistoso ? 'Juveniles / pruebas / invitados' : 'Juveniles convocables'}
+                      </span>
                       <div className="h-px flex-1 bg-border" />
                     </div>
-                    {invitadoJugadores.filter((j) => !convocados.some((c) => c.jugador_id === j.id)).map((jugador) => (
-                      <PlayerSelectRow key={jugador.id} jugador={jugador} selected={selected} onToggle={togglePlayer} onToggleTitular={(id) => setSelected((prev) => ({ ...prev, [id]: { ...prev[id], titular: !prev[id].titular } }))} isInvitado />
+                    {extraplantillaJugadores.filter((j) => !convocados.some((c) => c.jugador_id === j.id)).map((jugador) => (
+                      <PlayerSelectRow
+                        key={jugador.id}
+                        jugador={jugador}
+                        selected={selected}
+                        onToggle={togglePlayer}
+                        onToggleTitular={(id) => setSelected((prev) => ({ ...prev, [id]: { ...prev[id], titular: !prev[id].titular } }))}
+                        isInvitado
+                        tipoLabel={TIPO_JUGADOR_LABELS[resolveTipoJugador(jugador)]}
+                      />
                     ))}
                   </>
                 )}
@@ -1543,6 +1580,7 @@ function PlayerSelectRow({
   onToggleTitular,
   crossTeam,
   isInvitado,
+  tipoLabel,
 }: {
   jugador: Jugador
   selected: Record<string, { titular: boolean; dorsal?: number; posicion?: string }>
@@ -1550,6 +1588,7 @@ function PlayerSelectRow({
   onToggleTitular: (id: string) => void
   crossTeam?: boolean
   isInvitado?: boolean
+  tipoLabel?: string
 }) {
   const isSelected = !!selected[jugador.id]
   const info = selected[jugador.id]
@@ -1574,7 +1613,9 @@ function PlayerSelectRow({
           <Badge className={`text-[9px] border-0 ${posColor}`}>{jugador.posicion_principal}</Badge>
           <PlayerStatusBadges estado={jugador.estado} />
           {isInvitado && (
-            <Badge variant="outline" className="text-[9px] border-dashed border-amber-400 text-amber-700 bg-amber-50">Invitado</Badge>
+            <Badge variant="outline" className="text-[9px] border-dashed border-amber-400 text-amber-700 bg-amber-50">
+              {tipoLabel || 'Invitado'}
+            </Badge>
           )}
           {crossTeam && (jugador as any).equipos && (
             <Badge variant="outline" className="text-[9px] border-dashed">{(jugador as any).equipos.nombre}</Badge>

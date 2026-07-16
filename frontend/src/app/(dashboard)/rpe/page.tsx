@@ -122,8 +122,11 @@ export default function RPEPage() {
     }, ['equipo_id'])
   )
 
-  // Exclude invitados from RPE/wellness — they are not part of the squad
-  const jugadores = (jugadoresData?.data || []).filter(j => !j.es_invitado)
+  // Plantilla + juveniles/pruebas con tracking; excluir invitados mínimos
+  const jugadores = (jugadoresData?.data || []).filter((j) => {
+    const tipo = j.tipo_jugador || (j.es_invitado ? 'invitado' : 'plantilla')
+    return tipo !== 'invitado'
+  })
   const wellnessAggregates = wellnessData?.data || []
   const wellnessMap = new Map(wellnessAggregates.map((w) => [w.jugador_id, w]))
   const loading = loadingCarga

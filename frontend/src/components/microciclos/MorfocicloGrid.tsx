@@ -6,7 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { BedDouble, Link2 } from 'lucide-react'
 import Link from 'next/link'
-import type { DiaMorfociclo, MatchDay, SubtipoFisico, TipoSesionDia } from '@/types'
+import type { DiaCalendarioKey, DiaMorfociclo, MatchDay, SubtipoFisico, TipoSesionDia } from '@/types'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -19,8 +19,11 @@ interface LinkedSession {
 }
 
 interface MorfocicloGridProps {
+  mode?: 'md' | 'calendario'
   dias: Partial<Record<MatchDay, DiaMorfociclo>>
+  diasCalendario?: Partial<Record<DiaCalendarioKey, DiaMorfociclo>>
   onChange: (dias: Partial<Record<MatchDay, DiaMorfociclo>>) => void
+  onChangeCalendario?: (dias: Partial<Record<DiaCalendarioKey, DiaMorfociclo>>) => void
   sesiones?: LinkedSession[]
 }
 
@@ -29,6 +32,21 @@ interface MorfocicloGridProps {
 // ---------------------------------------------------------------------------
 
 const MATCH_DAY_ORDER: MatchDay[] = ['MD+1', 'MD+2', 'MD-4', 'MD-3', 'MD-2', 'MD-1']
+
+const CAL_DAY_ORDER: DiaCalendarioKey[] = ['lun', 'mar', 'mie', 'jue', 'vie', 'sab', 'dom']
+
+const CAL_DAY_CONFIG: Record<
+  DiaCalendarioKey,
+  { label: string; diaSemana: string; carga: string; concepto: string; badgeBg: string; badgeText: string; cardBorder: string; cardHeader: string }
+> = {
+  lun: { label: 'LUN', diaSemana: 'Lunes', carga: 'Adaptación', concepto: 'Inicio semana', badgeBg: 'bg-violet-500', badgeText: 'text-white', cardBorder: 'border-violet-400/40', cardHeader: 'bg-violet-500/10' },
+  mar: { label: 'MAR', diaSemana: 'Martes', carga: 'Media', concepto: 'Construcción', badgeBg: 'bg-blue-500', badgeText: 'text-white', cardBorder: 'border-blue-400/40', cardHeader: 'bg-blue-500/10' },
+  mie: { label: 'MIÉ', diaSemana: 'Miércoles', carga: 'Alta', concepto: 'Carga', badgeBg: 'bg-orange-500', badgeText: 'text-white', cardBorder: 'border-orange-400/40', cardHeader: 'bg-orange-500/10' },
+  jue: { label: 'JUE', diaSemana: 'Jueves', carga: 'Alta', concepto: 'Intensidad', badgeBg: 'bg-amber-500', badgeText: 'text-white', cardBorder: 'border-amber-400/40', cardHeader: 'bg-amber-500/10' },
+  vie: { label: 'VIE', diaSemana: 'Viernes', carga: 'Media', concepto: 'Ajuste', badgeBg: 'bg-teal-600', badgeText: 'text-white', cardBorder: 'border-teal-500/40', cardHeader: 'bg-teal-600/10' },
+  sab: { label: 'SÁB', diaSemana: 'Sábado', carga: 'Baja / Amistoso', concepto: 'Activación', badgeBg: 'bg-emerald-500', badgeText: 'text-white', cardBorder: 'border-emerald-400/40', cardHeader: 'bg-emerald-500/10' },
+  dom: { label: 'DOM', diaSemana: 'Domingo', carga: 'Recup / Libre', concepto: 'Descanso', badgeBg: 'bg-slate-500', badgeText: 'text-white', cardBorder: 'border-slate-400/40', cardHeader: 'bg-slate-500/10' },
+}
 
 const DAY_CONFIG: Record<
   MatchDay,
@@ -144,14 +162,23 @@ const EMPTY_DAY: DiaMorfociclo = {
 // ---------------------------------------------------------------------------
 
 interface DayCardProps {
-  matchDay: MatchDay
+  dayId: string
+  cfg: {
+    label: string
+    diaSemana: string
+    carga: string
+    concepto: string
+    badgeBg: string
+    badgeText: string
+    cardBorder: string
+    cardHeader: string
+  }
   data: DiaMorfociclo
   linkedSession?: LinkedSession
   onUpdate: (updated: DiaMorfociclo) => void
 }
 
-function DayCard({ matchDay, data, linkedSession, onUpdate }: DayCardProps) {
-  const cfg = DAY_CONFIG[matchDay]
+function DayCard({ dayId, cfg, data, linkedSession, onUpdate }: DayCardProps) {
   const isDescanso = data.descanso
   const tiposActivos = data.tipo_sesion ?? []
   const isTipoActive = (key: TipoSesionDia) => tiposActivos.includes(key)
@@ -221,13 +248,13 @@ function DayCard({ matchDay, data, linkedSession, onUpdate }: DayCardProps) {
         <div className={`flex items-center ${isDescanso ? 'flex-col gap-1' : 'justify-between'}`}>
           <div className="flex items-center gap-1.5">
             <Checkbox
-              id={`${matchDay}-descanso`}
+              id={`${dayId}-descanso`}
               checked={isDescanso}
               onCheckedChange={() => handleField('descanso', !isDescanso)}
               className="h-3.5 w-3.5"
             />
             {!isDescanso && (
-              <label htmlFor={`${matchDay}-descanso`} className="cursor-pointer text-[10px] font-medium text-muted-foreground">
+              <label htmlFor={`${dayId}-descanso`} className="cursor-pointer text-[10px] font-medium text-muted-foreground">
                 No entrenar
               </label>
             )}
@@ -392,7 +419,43 @@ function DayCard({ matchDay, data, linkedSession, onUpdate }: DayCardProps) {
 // MorfocicloGrid
 // ---------------------------------------------------------------------------
 
-export function MorfocicloGrid({ dias, onChange, sesiones = [] }: MorfocicloGridProps) {
+export function MorfocicloGrid({
+  mode = 'md',
+  dias,
+  diasCalendario = {},
+  onChange,
+  onChangeCalendario,
+  sesiones = [],
+}: MorfocicloGridProps) {
+  if (mode === 'calendario') {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Planificación semanal (pretemporada)</h3>
+          <p className="text-xs text-muted-foreground">Días de calendario · sin MD de competición</p>
+        </div>
+        <div className="overflow-x-auto pb-2">
+          <div className="flex gap-3 min-w-max">
+            {CAL_DAY_ORDER.map((key) => {
+              const data = diasCalendario[key] ?? { ...EMPTY_DAY }
+              return (
+                <DayCard
+                  key={key}
+                  dayId={key}
+                  cfg={CAL_DAY_CONFIG[key]}
+                  data={data}
+                  onUpdate={(updated) =>
+                    onChangeCalendario?.({ ...diasCalendario, [key]: updated })
+                  }
+                />
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   function handleDayUpdate(matchDay: MatchDay, updated: DiaMorfociclo) {
     onChange({ ...dias, [matchDay]: updated })
   }
@@ -412,7 +475,8 @@ export function MorfocicloGrid({ dias, onChange, sesiones = [] }: MorfocicloGrid
             return (
               <DayCard
                 key={md}
-                matchDay={md}
+                dayId={md}
+                cfg={DAY_CONFIG[md]}
                 data={data}
                 linkedSession={linkedSession}
                 onUpdate={(updated) => handleDayUpdate(md, updated)}

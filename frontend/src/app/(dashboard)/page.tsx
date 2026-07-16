@@ -131,7 +131,11 @@ export default function DashboardPage() {
   const [addMenuDay, setAddMenuDay] = useState<string | null>(null)
   const [showCreateMicro, setShowCreateMicro] = useState(false)
   const [creatingMicro, setCreatingMicro] = useState(false)
-  const [microDateForm, setMicroDateForm] = useState({ fecha_inicio: '', fecha_fin: '' })
+  const [microDateForm, setMicroDateForm] = useState({
+    fecha_inicio: '',
+    fecha_fin: '',
+    fase: 'competicion' as 'pretemporada' | 'competicion',
+  })
 
   const handlePrevMonth = () => {
     if (calMonth === 0) {
@@ -162,6 +166,7 @@ export default function DashboardPage() {
     return {
       fecha_inicio: startDate.toISOString().split('T')[0],
       fecha_fin: endDate.toISOString().split('T')[0],
+      fase: 'competicion' as 'pretemporada' | 'competicion',
     }
   }
 
@@ -170,10 +175,24 @@ export default function DashboardPage() {
     if (!equipoActivo?.id || !microDateForm.fecha_inicio || !microDateForm.fecha_fin) return
     setCreatingMicro(true)
     try {
+      const isPre = microDateForm.fase === 'pretemporada'
       const res = await microciclosApi.create({
         equipo_id: equipoActivo.id,
         fecha_inicio: microDateForm.fecha_inicio,
         fecha_fin: microDateForm.fecha_fin,
+        plan_ct: isPre
+          ? {
+              fase_temporada: 'pretemporada',
+              tipo_microciclo: 'pretemporada',
+              modo_partido: 'none',
+              auto_link_partido: false,
+            }
+          : {
+              fase_temporada: 'competicion',
+              tipo_microciclo: 'competicion',
+              modo_partido: 'oficial',
+              auto_link_partido: true,
+            },
       })
       setShowCreateMicro(false)
       mutate((key: string) => typeof key === 'string' && key.includes('/microciclos'), undefined, { revalidate: true })
@@ -490,26 +509,55 @@ export default function DashboardPage() {
           <DialogHeader>
             <DialogTitle>Nuevo Microciclo</DialogTitle>
             <DialogDescription>
-              Elige el rango de fechas de la semana. El resto (rival, partido, modelo de juego, objetivos...) se configura después, dentro del microciclo.
+              Elige fechas y fase (competición o pretemporada). Rival y plan se configuran después en la Sala del Lunes.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-3">
             <div className="space-y-2">
-              <Label>Fecha inicio</Label>
-              <Input
-                type="date"
-                value={microDateForm.fecha_inicio}
-                onChange={(e) => setMicroDateForm({ ...microDateForm, fecha_inicio: e.target.value })}
-              />
+              <Label>Fase</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMicroDateForm({ ...microDateForm, fase: 'competicion' })}
+                  className={`rounded-lg border px-3 py-2 text-xs font-medium ${
+                    microDateForm.fase === 'competicion'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'hover:bg-muted'
+                  }`}
+                >
+                  Competición
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMicroDateForm({ ...microDateForm, fase: 'pretemporada' })}
+                  className={`rounded-lg border px-3 py-2 text-xs font-medium ${
+                    microDateForm.fase === 'pretemporada'
+                      ? 'border-violet-500 bg-violet-50 text-violet-800'
+                      : 'hover:bg-muted'
+                  }`}
+                >
+                  Pretemporada
+                </button>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Fecha fin</Label>
-              <Input
-                type="date"
-                value={microDateForm.fecha_fin}
-                onChange={(e) => setMicroDateForm({ ...microDateForm, fecha_fin: e.target.value })}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Fecha inicio</Label>
+                <Input
+                  type="date"
+                  value={microDateForm.fecha_inicio}
+                  onChange={(e) => setMicroDateForm({ ...microDateForm, fecha_inicio: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Fecha fin</Label>
+                <Input
+                  type="date"
+                  value={microDateForm.fecha_fin}
+                  onChange={(e) => setMicroDateForm({ ...microDateForm, fecha_fin: e.target.value })}
+                />
+              </div>
             </div>
           </div>
 
