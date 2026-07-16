@@ -6,11 +6,8 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import useSWR, { mutate } from 'swr'
 import {
-  Plus,
-  Bot,
   CalendarDays,
   AlertTriangle,
-  Activity,
   Edit,
   ArrowRight,
   Users,
@@ -260,6 +257,21 @@ export default function DashboardPage() {
         onShowDisponibilidad={() => setShowDisponibilidad(true)}
       />
 
+      {/* Nuevo microciclo — debajo de disponibilidad, encima del calendario */}
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setMicroDateForm(getDefaultMicroRange())
+            setShowCreateMicro(true)
+          }}
+        >
+          <CalendarDays className="h-4 w-4 mr-2" />
+          Nuevo Microciclo
+        </Button>
+      </div>
+
       {/* ============ SECTION 2: Interactive monthly calendar ============ */}
       <CalendarSection
         calYear={calYear}
@@ -286,35 +298,8 @@ export default function DashboardPage() {
         onCreateMicrocicloForWeek={handleCreateMicroForWeek}
       />
 
-      {/* ============ SECTION 4: Action buttons ============ */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <Button className="flex-1" asChild>
-          <Link href="/sesiones/nueva">
-            <Plus className="h-4 w-4 mr-2" />
-            Nueva Sesión
-          </Link>
-        </Button>
-        <Button variant="outline" className="flex-1" asChild>
-          <Link href="/sesiones/nueva-ai">
-            <Bot className="h-4 w-4 mr-2" />
-            Crear con IA
-          </Link>
-        </Button>
-        <Button
-          variant="outline"
-          className="flex-1"
-          onClick={() => {
-            setMicroDateForm(getDefaultMicroRange())
-            setShowCreateMicro(true)
-          }}
-        >
-          <CalendarDays className="h-4 w-4 mr-2" />
-          Nuevo Microciclo
-        </Button>
-      </div>
-
-      {/* ============ SECTION 5: Warnings ============ */}
-      {!loading && (sesionesBorrador > 0 || (plantilla && plantilla.lesionados > 0)) && (
+      {/* ============ Avisos (solo borradores) ============ */}
+      {!loading && sesionesBorrador > 0 && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -323,43 +308,19 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {sesionesBorrador > 0 && (
-              <Link
-                href="/sesiones?estado=borrador"
-                className="flex items-center gap-3 p-3 rounded-lg row-hover"
-              >
-                <Edit className="h-4 w-4 text-primary" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">
-                    {sesionesBorrador} sesión{sesionesBorrador > 1 ? 'es' : ''} en borrador
-                  </p>
-                  <p className="text-xs text-muted-foreground">Completa los borradores para publicarlas</p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-              </Link>
-            )}
-
-            {plantilla && plantilla.lesionados > 0 && (
-              <Link
-                href="/enfermeria"
-                className="flex items-center gap-3 p-3 rounded-lg row-hover"
-              >
-                <Activity className="h-4 w-4 text-red-500" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">
-                    {plantilla.lesionados} jugador{plantilla.lesionados > 1 ? 'es' : ''} lesionado{plantilla.lesionados > 1 ? 's' : ''}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {plantilla.jugadores_lesionados
-                      ?.slice(0, 3)
-                      .map((j: any) => j.apodo || `${j.nombre} ${j.apellidos}`)
-                      .join(', ')}
-                    {plantilla.jugadores_lesionados?.length > 3 && '...'}
-                  </p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-              </Link>
-            )}
+            <Link
+              href="/sesiones?estado=borrador"
+              className="flex items-center gap-3 p-3 rounded-lg row-hover"
+            >
+              <Edit className="h-4 w-4 text-primary" />
+              <div className="flex-1">
+                <p className="text-sm font-medium">
+                  {sesionesBorrador} sesión{sesionesBorrador > 1 ? 'es' : ''} en borrador
+                </p>
+                <p className="text-xs text-muted-foreground">Completa los borradores para publicarlas</p>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            </Link>
           </CardContent>
         </Card>
       )}
