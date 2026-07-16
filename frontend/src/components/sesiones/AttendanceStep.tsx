@@ -5,6 +5,7 @@ import { Users, ChevronRight, SkipForward, Check, X, UserPlus, ChevronDown } fro
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { jugadoresApi, Jugador } from '@/lib/api/jugadores'
+import { isPlantilla, resolveTipoJugador, TIPO_JUGADOR_LABELS } from '@/lib/jugadorTipo'
 
 export type MotivoAusencia = 'lesion' | 'enfermedad' | 'sancion' | 'permiso' | 'seleccion' | 'viaje' | 'otro'
 
@@ -71,8 +72,8 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip }: AttendanceStepPr
     jugadoresApi
       .list({ equipo_id: equipoId, limit: 100 } as Parameters<typeof jugadoresApi.list>[0])
       .then(({ data }) => {
-        const plantilla = data.filter((j) => !j.es_invitado)
-        const invitados = data.filter((j) => j.es_invitado)
+        const plantilla = data.filter((j) => isPlantilla(j))
+        const invitados = data.filter((j) => !isPlantilla(j))
         setJugadores(plantilla)
         setInvitadosDisponibles(invitados)
         const initial: Record<string, PlayerAttendance> = {}
@@ -268,7 +269,9 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip }: AttendanceStepPr
                   <UserPlus className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{j.apodo || `${j.nombre} ${j.apellidos}`}</p>
-                    <p className="text-xs text-muted-foreground">{j.posicion_principal} · Invitado</p>
+                    <p className="text-xs text-muted-foreground">
+                      {j.posicion_principal} · {TIPO_JUGADOR_LABELS[resolveTipoJugador(j)]}
+                    </p>
                   </div>
                 </button>
               ))}
@@ -277,15 +280,16 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip }: AttendanceStepPr
         </div>
       )}
 
-      {/* Invitados added (chips to remove) */}
-      {jugadores.filter((j) => j.estado === 'invitado').length > 0 && (
+      {/* Extraplantilla añadidos (chips para quitar) */}
+      {jugadores.filter((j) => !isPlantilla(j)).length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {jugadores.filter((j) => j.estado === 'invitado').map((j) => (
+          {jugadores.filter((j) => !isPlantilla(j)).map((j) => (
             <span
               key={j.id}
               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-sm"
             >
               {j.apodo || `${j.nombre} ${j.apellidos}`}
+              <span className="text-[10px] text-muted-foreground">{TIPO_JUGADOR_LABELS[resolveTipoJugador(j)]}</span>
               <button type="button" onClick={() => removeInvitado(j)} className="hover:text-red-500 transition-colors">
                 <X className="w-3.5 h-3.5" />
               </button>

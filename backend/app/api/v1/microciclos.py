@@ -127,8 +127,18 @@ async def get_microciclo_completo(
         fecha_inicio = micro["fecha_inicio"]
         fecha_fin = micro["fecha_fin"]
 
-        # Auto-link partido si no tiene uno
-        if not micro.get("partido_id"):
+        # Auto-link partido solo en microciclos de competición (no pretemporada / sin partido)
+        plan_ct = micro.get("plan_ct") or {}
+        tipo_mc = plan_ct.get("tipo_microciclo")
+        modo_partido = plan_ct.get("modo_partido")
+        fase = plan_ct.get("fase_temporada")
+        skip_auto_link = (
+            tipo_mc == "pretemporada"
+            or fase == "pretemporada"
+            or modo_partido in ("none", "amistoso_interno")
+            or plan_ct.get("auto_link_partido") is False
+        )
+        if not micro.get("partido_id") and not skip_auto_link:
             partido_auto = supabase.table("partidos").select("id").eq(
                 "equipo_id", equipo_id
             ).gte("fecha", fecha_inicio).lte("fecha", fecha_fin).limit(1).execute()
@@ -379,12 +389,10 @@ async def update_microciclo(
             detail="No hay datos para actualizar"
         )
 
-    if update_data.get("partido_id"):
-        update_data["partido_id"] = str(update_data["partido_id"])
-    if update_data.get("rival_id"):
-        update_data["rival_id"] = str(update_data["rival_id"])
-    if update_data.get("game_model_id"):
-        update_data["game_model_id"] = str(update_data["game_model_id"])
+    # Permitir limpiar FKs enviando null; stringificar UUIDs si vienen con valor
+    for fk in ("partido_id", "rival_id", "game_model_id"):
+        if fk in update_data:
+            update_data[fk] = str(update_data[fk]) if update_data[fk] else None
 
     response = supabase.table("microciclos").update(update_data).eq(
         "id", str(microciclo_id)
@@ -454,21 +462,34 @@ async def link_sesiones_to_microciclo(
         }).eq("id", s["id"]).execute()
         linked += 1
 
-    # Link partido
-    partido_result = supabase.table("partidos").select("id").eq(
-        "equipo_id", equipo_id
-    ).gte(
-        "fecha", fecha_inicio
-    ).lte(
-        "fecha", fecha_fin
-    ).limit(1).execute()
+    # Link partido solo si el microciclo no es de pretemporada / sin partido
+    micro_full = supabase.table("microciclos").select(
+        "partido_id, plan_ct"
+    ).eq("id", str(microciclo_id)).single().execute()
+    plan_ct = (micro_full.data or {}).get("plan_ct") or {}
+    skip_auto_link = (
+        plan_ct.get("tipo_microciclo") == "pretemporada"
+        or plan_ct.get("fase_temporada") == "pretemporada"
+        or plan_ct.get("modo_partido") in ("none", "amistoso_interno")
+        or plan_ct.get("auto_link_partido") is False
+        or bool((micro_full.data or {}).get("partido_id"))
+    )
 
     partido_id = None
-    if partido_result.data:
-        partido_id = partido_result.data[0]["id"]
-        supabase.table("microciclos").update({
-            "partido_id": str(partido_id)
-        }).eq("id", str(microciclo_id)).execute()
+    if not skip_auto_link:
+        partido_result = supabase.table("partidos").select("id").eq(
+            "equipo_id", equipo_id
+        ).gte(
+            "fecha", fecha_inicio
+        ).lte(
+            "fecha", fecha_fin
+        ).limit(1).execute()
+
+        if partido_result.data:
+            partido_id = partido_result.data[0]["id"]
+            supabase.table("microciclos").update({
+                "partido_id": str(partido_id)
+            }).eq("id", str(microciclo_id)).execute()
 
     return {"linked": linked, "partido_linked": partido_id is not None, "microciclo_id": str(microciclo_id)}
 

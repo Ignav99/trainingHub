@@ -30,15 +30,31 @@ import { MorfocicloGrid } from './MorfocicloGrid'
 import { OnceProbable } from './OnceProbable'
 import { WarRoomCargas } from './WarRoomCargas'
 import { PlanesEspecialesSemana } from './PlanesEspecialesSemana'
+import {
+  defaultPlanForFase,
+  isPretemporada,
+  resolveModoPartido,
+  showRivalPlanBlocks,
+  useMorfocicloCalendario,
+} from '@/lib/microcicloModo'
+import type { FaseTemporada, ModoPartidoMicrociclo } from '@/types'
 
 // ============ Constants ============
 
 const TIPO_MICROCICLO_OPTIONS: { value: TipoMicrociclo; label: string; color: string }[] = [
+  { value: 'pretemporada', label: 'Pretemporada', color: 'bg-violet-100 text-violet-700' },
   { value: 'competicion', label: 'Competición', color: 'bg-red-100 text-red-700' },
   { value: 'carga', label: 'Carga', color: 'bg-orange-100 text-orange-700' },
   { value: 'choque', label: 'Choque', color: 'bg-amber-100 text-amber-700' },
   { value: 'aproximacion', label: 'Aproximación', color: 'bg-blue-100 text-blue-700' },
   { value: 'recuperacion', label: 'Recuperación', color: 'bg-green-100 text-green-700' },
+]
+
+const MODO_PARTIDO_OPTIONS: { value: ModoPartidoMicrociclo; label: string }[] = [
+  { value: 'none', label: 'Solo sesiones (sin partido)' },
+  { value: 'amistoso_interno', label: 'Amistoso / entreno interno' },
+  { value: 'amistoso_externo', label: 'Amistoso externo (rival opcional)' },
+  { value: 'oficial', label: 'Partido oficial' },
 ]
 
 // ============ Helpers ============
@@ -209,17 +225,40 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
   const updatePlanCT = (patch: Partial<PlanCT>) => setPlanCT((prev) => ({ ...prev, ...patch }))
 
   const selectedTipo = TIPO_MICROCICLO_OPTIONS.find((o) => o.value === planCT.tipo_microciclo)
+  const pretemporada = isPretemporada(planCT)
+  const modoPartido = resolveModoPartido(planCT)
+  const showRivalPlan = showRivalPlanBlocks(planCT, !!micro.rival_id || !!micro.rivales)
+  const morfocicloCalendario = useMorfocicloCalendario(planCT)
+
+  const handleTipoChange = (v: TipoMicrociclo) => {
+    if (v === 'pretemporada') {
+      updatePlanCT({
+        ...defaultPlanForFase('pretemporada'),
+        tipo_microciclo: 'pretemporada',
+      })
+    } else {
+      updatePlanCT({
+        tipo_microciclo: v,
+        fase_temporada: pretemporada ? 'competicion' : planCT.fase_temporada ?? 'competicion',
+        modo_partido: v === 'competicion' ? 'oficial' : planCT.modo_partido ?? 'oficial',
+        auto_link_partido: true,
+      })
+    }
+  }
 
   const handleExportResumen = () => {
     const resumen = {
       microciclo: `${rangeLabel} - ${micro.equipos?.nombre ?? ''}`,
       tipo: planCT.tipo_microciclo,
+      fase: planCT.fase_temporada,
+      modo_partido: planCT.modo_partido,
       objetivos: planCT.objetivos_semana,
       olfato: planCT.olfato_ct,
       observaciones: planCT.observaciones_ct,
       plan_partido: planCT.plan_partido,
       rival: planCT.rival_scout,
       dias: planCT.dias,
+      dias_calendario: planCT.dias_calendario,
     }
     navigator.clipboard.writeText(JSON.stringify(resumen, null, 2))
     toast.success('Resumen copiado al portapapeles')
@@ -246,8 +285,17 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
           </div>
         </div>
 
-        {/* ============ Rival / Partido de competición ============ */}
-        {micro.rivales ? (
+        {/* ============ Rival / Partido ============ */}
+        {pretemporada && modoPartido === 'none' ? (
+          <div className="rounded-lg border border-violet-200 bg-violet-50/60 px-3 py-2.5 text-xs text-violet-900">
+            Semana de <strong>pretemporada</strong> · solo sesiones (sin plan de partido ni informe rival).
+            {onOpenEdit && (
+              <button type="button" onClick={onOpenEdit} className="ml-2 underline hover:no-underline">
+                Vincular amistoso (opcional)
+              </button>
+            )}
+          </div>
+        ) : micro.rivales ? (
           <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
             <div className="flex items-center gap-3 min-w-0">
               {micro.rivales.escudo_url ? (
@@ -304,16 +352,16 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
             className="flex items-center justify-center gap-2 w-full rounded-lg border border-dashed px-3 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-primary/50 hover:bg-muted/30 transition-colors"
           >
             <Link2 className="h-3.5 w-3.5" />
-            Vincular rival / partido de competición (opcional)
+            {pretemporada ? 'Vincular amistoso / rival (opcional)' : 'Vincular rival / partido de competición (opcional)'}
           </button>
         ) : null}
 
-        <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-3 items-start">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-start">
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">Tipo de microciclo</label>
             <Select
               value={planCT.tipo_microciclo ?? ''}
-              onValueChange={(v) => updatePlanCT({ tipo_microciclo: v as TipoMicrociclo })}
+              onValueChange={(v) => handleTipoChange(v as TipoMicrociclo)}
             >
               <SelectTrigger className="h-9">
                 <SelectValue placeholder="Seleccionar tipo">
@@ -335,6 +383,33 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
           </div>
 
           <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Modo partido</label>
+            <Select
+              value={modoPartido}
+              onValueChange={(v) =>
+                updatePlanCT({
+                  modo_partido: v as ModoPartidoMicrociclo,
+                  auto_link_partido: v === 'oficial',
+                  fase_temporada: (v === 'none' || pretemporada
+                    ? 'pretemporada'
+                    : planCT.fase_temporada ?? 'competicion') as FaseTemporada,
+                })
+              }
+            >
+              <SelectTrigger className="h-9 text-xs">
+                <SelectValue placeholder="Modo partido" />
+              </SelectTrigger>
+              <SelectContent>
+                {MODO_PARTIDO_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
             <label className="text-xs font-medium text-muted-foreground">Objetivos de la semana</label>
             <div className="flex flex-wrap gap-1.5">
               {(planCT.objetivos_semana ?? []).map((obj, i) => (
@@ -396,33 +471,44 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
         </div>
       </div>
 
-      {/* ============ Rival + Plan de Partido ============ */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <RivalScout
-          data={planCT.rival_scout ?? {}}
-          rivalNombre={data.microciclo.rivales?.nombre}
-          rivalId={data.microciclo.rival_id}
-          microcicloId={data.microciclo.id}
-          equipoId={data.microciclo.equipo_id}
-          localia={data.microciclo.partidos?.localia}
-          onChange={(d) => updatePlanCT({ rival_scout: d })}
-        />
-        <PlanPartido
-          data={planCT.plan_partido ?? {}}
-          rivalId={data.microciclo.rival_id}
-          microcicloId={data.microciclo.id}
-          equipoId={data.microciclo.equipo_id}
-          horaPartido={data.microciclo.partidos?.hora}
-          fechaPartido={data.microciclo.partidos?.fecha}
-          ciudadPartido={data.microciclo.rivales?.ciudad || undefined}
-          onChange={(d) => updatePlanCT({ plan_partido: d })}
-        />
-      </div>
+      {/* ============ Rival + Plan de Partido (solo si aplica) ============ */}
+      {showRivalPlan ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <RivalScout
+            data={planCT.rival_scout ?? {}}
+            rivalNombre={data.microciclo.rivales?.nombre}
+            rivalId={data.microciclo.rival_id}
+            microcicloId={data.microciclo.id}
+            equipoId={data.microciclo.equipo_id}
+            localia={data.microciclo.partidos?.localia}
+            onChange={(d) => updatePlanCT({ rival_scout: d })}
+          />
+          <PlanPartido
+            data={planCT.plan_partido ?? {}}
+            rivalId={data.microciclo.rival_id}
+            microcicloId={data.microciclo.id}
+            equipoId={data.microciclo.equipo_id}
+            horaPartido={data.microciclo.partidos?.hora}
+            fechaPartido={data.microciclo.partidos?.fecha}
+            ciudadPartido={data.microciclo.rivales?.ciudad || undefined}
+            onChange={(d) => updatePlanCT({ plan_partido: d })}
+          />
+        </div>
+      ) : (
+        <div className="rounded-xl border border-dashed px-4 py-6 text-center text-xs text-muted-foreground">
+          {pretemporada
+            ? 'Modo pretemporada: el informe del rival y el plan de partido completo están ocultos. Cambia el “Modo partido” si quieres un amistoso externo.'
+            : 'Sin rival/partido vinculado: el plan e informe aparecen cuando elijas un rival o un modo con partido.'}
+        </div>
+      )}
 
       {/* ============ Morfociclo semanal ============ */}
       <MorfocicloGrid
+        mode={morfocicloCalendario ? 'calendario' : 'md'}
         dias={planCT.dias ?? {}}
+        diasCalendario={planCT.dias_calendario ?? {}}
         onChange={(d) => updatePlanCT({ dias: d })}
+        onChangeCalendario={(d) => updatePlanCT({ dias_calendario: d })}
         sesiones={linkedSessions}
       />
 

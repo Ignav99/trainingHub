@@ -29,6 +29,21 @@ class EstadoJugador(str, Enum):
     BAJA = "baja"
 
 
+class TipoJugador(str, Enum):
+    """Vínculo del futbolista con el equipo."""
+    PLANTILLA = "plantilla"
+    JUVENIL = "juvenil"
+    PRUEBA = "prueba"
+    INVITADO = "invitado"
+
+
+class FichaEstado(str, Enum):
+    """Nivel de ficha / seguimiento."""
+    COMPLETA = "completa"
+    PRE_FICHA = "pre_ficha"
+    MINIMA = "minima"
+
+
 class Posicion(str, Enum):
     """Posiciones de juego."""
     POR = "POR"  # Portero
@@ -100,8 +115,19 @@ class JugadorBase(BaseModel):
     es_portero: bool = Field(default=False)
     es_invitado: bool = Field(default=False)
 
+    # Tipología (plantilla / juvenil / prueba / invitado)
+    tipo_jugador: TipoJugador = Field(default=TipoJugador.PLANTILLA)
+    ficha_estado: FichaEstado = Field(default=FichaEstado.COMPLETA)
+    fecha_fin_prueba: Optional[date] = None
+
     # Notas
     notas: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _sync_invitado_flag(self):
+        """Deriva es_invitado desde tipo_jugador para compatibilidad legacy."""
+        object.__setattr__(self, "es_invitado", self.tipo_jugador != TipoJugador.PLANTILLA)
+        return self
 
 
 class JugadorCreate(JugadorBase):
@@ -139,7 +165,20 @@ class JugadorUpdate(BaseModel):
     es_capitan: Optional[bool] = None
     es_convocable: Optional[bool] = None
     es_portero: Optional[bool] = None
+    es_invitado: Optional[bool] = None
 
+    tipo_jugador: Optional[TipoJugador] = None
+    ficha_estado: Optional[FichaEstado] = None
+    fecha_fin_prueba: Optional[date] = None
+    equipo_origen_id: Optional[UUID] = None
+
+    notas: Optional[str] = None
+
+
+class JugadorPromoverPlantilla(BaseModel):
+    """Promueve juvenil/prueba/invitado a plantilla con ficha completa."""
+    dorsal: Optional[int] = Field(None, ge=1, le=99)
+    es_convocable: bool = True
     notas: Optional[str] = None
 
 
@@ -173,14 +212,19 @@ class JugadorFiltros(BaseModel):
     estado: Optional[EstadoJugador] = None
     es_portero: Optional[bool] = None
     es_convocable: Optional[bool] = None
+    tipo_jugador: Optional[TipoJugador] = None
+    ficha_estado: Optional[FichaEstado] = None
     busqueda: Optional[str] = None
 
 
 class JugadorInvitadoCreate(BaseModel):
-    """Schema para crear un jugador invitado (quick-add temporal)."""
+    """Schema para crear un jugador no-plantilla (invitado/prueba/juvenil)."""
     nombre: str = Field(..., min_length=1, max_length=100)
     apellidos: str = Field(default="", max_length=150)
     posicion_principal: Posicion = Field(default=Posicion.MC)
+    tipo_jugador: TipoJugador = Field(default=TipoJugador.INVITADO)
+    ficha_estado: Optional[FichaEstado] = None
+    equipo_origen_id: Optional[UUID] = None
     nivel_tecnico: int = Field(default=5, ge=1, le=10)
     nivel_tactico: int = Field(default=5, ge=1, le=10)
     nivel_fisico: int = Field(default=5, ge=1, le=10)

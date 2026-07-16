@@ -539,6 +539,8 @@ export interface AIRecomendadorOutput {
 
 export type PiernaDominante = 'derecha' | 'izquierda' | 'ambas'
 export type EstadoJugador = 'activo' | 'lesionado' | 'en_recuperacion' | 'enfermo' | 'sancionado' | 'viaje' | 'permiso' | 'seleccion' | 'baja' | 'invitado'
+export type TipoJugador = 'plantilla' | 'juvenil' | 'prueba' | 'invitado'
+export type FichaEstado = 'completa' | 'pre_ficha' | 'minima'
 export type Posicion = 'POR' | 'DFC' | 'LTD' | 'LTI' | 'CAD' | 'CAI' | 'MCD' | 'MC' | 'MCO' | 'MID' | 'MII' | 'EXD' | 'EXI' | 'MP' | 'DC' | 'SD'
 
 export interface Jugador {
@@ -566,7 +568,11 @@ export interface Jugador {
   es_capitan: boolean
   es_convocable: boolean
   es_portero: boolean
+  /** @deprecated preferir tipo_jugador */
   es_invitado?: boolean
+  tipo_jugador?: TipoJugador
+  ficha_estado?: FichaEstado
+  fecha_fin_prueba?: string
   foto_url?: string
   notas?: string
   created_at: string
@@ -770,7 +776,23 @@ export interface EstadisticaPartido {
 // MICROCICLOS — PLAN CT (Sala del Lunes)
 // ============================================
 
-export type TipoMicrociclo = 'competicion' | 'carga' | 'choque' | 'aproximacion' | 'recuperacion'
+export type TipoMicrociclo =
+  | 'pretemporada'
+  | 'competicion'
+  | 'carga'
+  | 'choque'
+  | 'aproximacion'
+  | 'recuperacion'
+
+export type FaseTemporada = 'pretemporada' | 'competicion' | 'transicion'
+export type ModoPartidoMicrociclo =
+  | 'none'
+  | 'amistoso_interno'
+  | 'amistoso_externo'
+  | 'oficial'
+
+/** Clave de día en morfociclo de pretemporada (calendario) */
+export type DiaCalendarioKey = 'lun' | 'mar' | 'mie' | 'jue' | 'vie' | 'sab' | 'dom'
 
 export type TipoSesionDia = 'tactico' | 'fisico' | 'tecnico_tactico' | 'psicologico'
 
@@ -1017,6 +1039,12 @@ export interface NutricionSemana {
 
 export interface PlanCT {
   tipo_microciclo?: TipoMicrociclo
+  /** Fase de temporada (pretemporada | competicion | transicion) */
+  fase_temporada?: FaseTemporada
+  /** Cómo se relaciona el microciclo con un partido */
+  modo_partido?: ModoPartidoMicrociclo
+  /** Si false, nunca auto-vincula partido por fechas */
+  auto_link_partido?: boolean
   objetivos_semana?: string[]
   olfato_ct?: string
   observaciones_ct?: string
@@ -1024,7 +1052,10 @@ export interface PlanCT {
   rival_scout?: Partial<RivalScoutData>
   plan_partido?: Partial<PlanPartidoData>
   once_probable?: Partial<OnceProbableData>
+  /** Morfociclo competición (MD+/-) */
   dias?: Partial<Record<MatchDay, DiaMorfociclo>>
+  /** Morfociclo pretemporada (días de semana) */
+  dias_calendario?: Partial<Record<DiaCalendarioKey, DiaMorfociclo>>
   nutricion?: NutricionSemana
 }
 

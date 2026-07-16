@@ -1837,7 +1837,11 @@ async def quick_add_invitado(
 
     equipo_id = sesion.data["equipo_id"]
 
-    # Create the guest jugador
+    # Create the guest jugador (tipología: invitado / prueba / juvenil)
+    tipo = getattr(data.tipo_jugador, "value", None) or str(data.tipo_jugador or "invitado")
+    ficha_defaults = {"plantilla": "completa", "juvenil": "pre_ficha", "prueba": "pre_ficha", "invitado": "minima"}
+    ficha = getattr(getattr(data, "ficha_estado", None), "value", None) or ficha_defaults.get(tipo, "minima")
+
     jugador_data = {
         "nombre": data.nombre,
         "apellidos": data.apellidos,
@@ -1848,14 +1852,23 @@ async def quick_add_invitado(
         "nivel_mental": data.nivel_mental,
         "notas": data.notas,
         "equipo_id": equipo_id,
-        "es_invitado": True,
-        "es_convocable": True,
+        "es_invitado": tipo != "plantilla",
+        "tipo_jugador": tipo,
+        "ficha_estado": ficha,
+        "es_convocable": tipo != "invitado",
         "estado": "activo",
         "pierna_dominante": "derecha",
         "posiciones_secundarias": [],
     }
+    if getattr(data, "equipo_origen_id", None):
+        jugador_data["equipo_origen_id"] = str(data.equipo_origen_id)
 
-    jug_response = supabase.table("jugadores").insert(jugador_data).execute()
+    try:
+        jug_response = supabase.table("jugadores").insert(jugador_data).execute()
+    except Exception:
+        # Compat si aún no se aplicó migración 059
+        legacy = {k: v for k, v in jugador_data.items() if k not in ("tipo_jugador", "ficha_estado", "fecha_fin_prueba")}
+        jug_response = supabase.table("jugadores").insert(legacy).execute()
 
     if not jug_response.data:
         raise HTTPException(status_code=400, detail="Error al crear jugador invitado")

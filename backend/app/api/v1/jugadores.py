@@ -60,14 +60,41 @@ _DB_COLUMNS = {
     "nivel_tecnico", "nivel_tactico", "nivel_fisico", "nivel_mental",
     "estado", "fecha_lesion", "fecha_vuelta_estimada", "motivo_baja",
     "es_capitan", "es_convocable", "es_portero", "es_invitado",
+    "tipo_jugador", "ficha_estado", "fecha_fin_prueba",
     "notas", "foto_url",
     "equipo_id", "equipo_origen_id",
+}
+
+_FICHA_DEFAULTS = {
+    "plantilla": "completa",
+    "juvenil": "pre_ficha",
+    "prueba": "pre_ficha",
+    "invitado": "minima",
 }
 
 
 def _sanitize_jugador_data(data: dict) -> dict:
     """Keep only fields that exist in the Supabase jugadores table."""
     return {k: v for k, v in data.items() if k in _DB_COLUMNS}
+
+
+def _apply_tipo_defaults(data: dict) -> dict:
+    """Sync tipo_jugador ↔ es_invitado ↔ ficha_estado."""
+    tipo = data.get("tipo_jugador")
+    if not tipo and data.get("es_invitado"):
+        tipo = "invitado"
+        data["tipo_jugador"] = tipo
+    if not tipo:
+        tipo = "plantilla"
+        data["tipo_jugador"] = tipo
+
+    data["es_invitado"] = tipo != "plantilla"
+    if not data.get("ficha_estado"):
+        data["ficha_estado"] = _FICHA_DEFAULTS.get(tipo, "completa")
+    if tipo == "plantilla":
+        data["ficha_estado"] = data.get("ficha_estado") or "completa"
+        data["es_invitado"] = False
+    return data
 
 
 def enrich_jugador(jugador: dict) -> dict:
@@ -77,6 +104,11 @@ def enrich_jugador(jugador: dict) -> dict:
     else:
         jugador['edad'] = None
     jugador['nivel_global'] = calculate_nivel_global(jugador)
+    # Compatibilidad si aún no se ha aplicado la migración 059
+    if not jugador.get("tipo_jugador"):
+        jugador["tipo_jugador"] = "invitado" if jugador.get("es_invitado") else "plantilla"
+    if not jugador.get("ficha_estado"):
+        jugador["ficha_estado"] = _FICHA_DEFAULTS.get(jugador["tipo_jugador"], "completa")
     return jugador
 
 
@@ -87,6 +119,9 @@ async def list_jugadores(
     posicion: Optional[str] = Query(None, description="Filtrar por posición"),
     estado: Optional[str] = Query(None, description="Filtrar por estado"),
     es_convocable: Optional[bool] = Query(None, description="Solo convocables"),
+    tipo_jugador: Optional[str] = Query(None, description="plantilla|juvenil|prueba|invitado"),
+    ficha_estado: Optional[str] = Query(None, description="completa|pre_ficha|minima"),
+    solo_plantilla: Optional[bool] = Query(None, description="Solo jugadores de plantilla oficial"),
     busqueda: Optional[str] = Query(None, description="Buscar por nombre"),
     auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_READ)),
 ):
@@ -125,14 +160,33 @@ async def list_jugadores(
     if es_convocable is not None:
         query = query.eq("es_convocable", es_convocable)
 
+    if solo_plantilla is True:
+        # Compat: es_invitado=false ≡ plantilla (tras sync de tipología)
+        query = query.eq("es_invitado", False)
+
     if busqueda:
         query = query.or_(f"nombre.ilike.%{busqueda}%,apellidos.ilike.%{busqueda}%")
 
     query = query.order("apellidos", desc=False)
 
-    response = query.execute()
+    # tipo_jugador / ficha_estado pueden no existir aún (migración 059)
+    try:
+        if tipo_jugador:
+            response = query.eq("tipo_jugador", tipo_jugador).execute()
+        elif ficha_estado:
+            response = query.eq("ficha_estado", ficha_estado).execute()
+        else:
+            response = query.execute()
+    except Exception:
+        response = query.execute()
 
     jugadores = [enrich_jugador(j) for j in response.data]
+    if tipo_jugador:
+        jugadores = [j for j in jugadores if j.get("tipo_jugador") == tipo_jugador]
+    if ficha_estado:
+        jugadores = [j for j in jugadores if j.get("ficha_estado") == ficha_estado]
+    if solo_plantilla is True:
+        jugadores = [j for j in jugadores if j.get("tipo_jugador") == "plantilla"]
 
     return JugadorListResponse(data=jugadores, total=len(jugadores))
 
@@ -164,12 +218,20 @@ async def create_jugador(jugador: JugadorCreate, auth: AuthContext = Depends(req
 
     data = jugador.model_dump(mode='json', exclude_none=True)
     data["equipo_id"] = str(data["equipo_id"])
+    if data.get("equipo_origen_id"):
+        data["equipo_origen_id"] = str(data["equipo_origen_id"])
+    data = _apply_tipo_defaults(data)
     data = _sanitize_jugador_data(data)
 
     # Determinar si es portero
     data["es_portero"] = data.get("posicion_principal") == "POR"
 
-    response = supabase.table("jugadores").insert(data).execute()
+    try:
+        response = supabase.table("jugadores").insert(data).execute()
+    except Exception:
+        # Compat si aún no se aplicó migración 059
+        legacy = {k: v for k, v in data.items() if k not in ("tipo_jugador", "ficha_estado", "fecha_fin_prueba")}
+        response = supabase.table("jugadores").insert(legacy).execute()
 
     created = response.data[0]
     log_create(auth.user_id, "jugador", created["id"], {"nombre": created.get("nombre")})
@@ -183,6 +245,10 @@ async def update_jugador(jugador_id: UUID, jugador: JugadorUpdate, auth: AuthCon
     supabase = get_supabase()
 
     data = jugador.model_dump(exclude_unset=True, mode='json')
+    if "equipo_origen_id" in data and data["equipo_origen_id"] is not None:
+        data["equipo_origen_id"] = str(data["equipo_origen_id"])
+    if "tipo_jugador" in data or "es_invitado" in data or "ficha_estado" in data:
+        data = _apply_tipo_defaults(data)
     data = _sanitize_jugador_data(data)
 
     # Actualizar flag de portero si cambia la posición
@@ -200,6 +266,44 @@ async def update_jugador(jugador_id: UUID, jugador: JugadorUpdate, auth: AuthCon
 
     log_update(auth.user_id, "jugador", str(jugador_id), datos_nuevos=data)
 
+    return JugadorResponse(**enrich_jugador(response.data))
+
+
+@router.post("/{jugador_id}/promover-plantilla", response_model=JugadorResponse)
+async def promover_a_plantilla(
+    jugador_id: UUID,
+    body: Optional[dict] = None,
+    auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_MANAGE)),
+):
+    """Convierte juvenil/prueba/invitado en jugador de plantilla con ficha completa."""
+    from app.models.jugador import JugadorPromoverPlantilla
+
+    supabase = get_supabase()
+    existing = supabase.table("jugadores").select("*").eq("id", str(jugador_id)).single().execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Jugador no encontrado")
+
+    payload = JugadorPromoverPlantilla(**(body or {}))
+    data = {
+        "tipo_jugador": "plantilla",
+        "ficha_estado": "completa",
+        "es_invitado": False,
+        "es_convocable": payload.es_convocable,
+        "fecha_fin_prueba": None,
+    }
+    if payload.dorsal is not None:
+        data["dorsal"] = payload.dorsal
+    if payload.notas is not None:
+        data["notas"] = payload.notas
+
+    data = _sanitize_jugador_data(data)
+    try:
+        supabase.table("jugadores").update(data).eq("id", str(jugador_id)).execute()
+    except Exception:
+        legacy = {k: v for k, v in data.items() if k not in ("tipo_jugador", "ficha_estado", "fecha_fin_prueba")}
+        supabase.table("jugadores").update(legacy).eq("id", str(jugador_id)).execute()
+    response = supabase.table("jugadores").select("*").eq("id", str(jugador_id)).single().execute()
+    log_update(auth.user_id, "jugador", str(jugador_id), datos_nuevos=data)
     return JugadorResponse(**enrich_jugador(response.data))
 
 

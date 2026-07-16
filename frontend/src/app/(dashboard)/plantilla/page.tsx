@@ -7,7 +7,6 @@ import useSWR, { mutate } from 'swr'
 import {
   Plus,
   Search,
-  Filter,
   Users,
   UserPlus,
   MoreHorizontal,
@@ -26,7 +25,8 @@ import {
   Star,
   Eye,
   UserCog,
-  ChevronDown
+  ChevronDown,
+  ArrowUpCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Jugador, jugadoresApi, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
@@ -36,7 +36,15 @@ import { CardGridSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
-import type { CargaEquipoResponse, CargaJugador } from '@/types'
+import {
+  FICHA_ESTADO_LABELS,
+  TIPO_JUGADOR_COLORS,
+  TIPO_JUGADOR_LABELS,
+  isPlantilla,
+  resolveFichaEstado,
+  resolveTipoJugador,
+} from '@/lib/jugadorTipo'
+import type { CargaEquipoResponse, CargaJugador, TipoJugador } from '@/types'
 
 // Avatar del jugador
 function PlayerAvatar({ jugador, size = 'md' }: { jugador: Jugador; size?: 'sm' | 'md' | 'lg' }) {
@@ -119,6 +127,7 @@ function JugadorCard({
   onEdit,
   onDelete,
   onChangeEstado,
+  onPromover,
   isCrossTeam,
   cargaData,
 }: {
@@ -126,6 +135,7 @@ function JugadorCard({
   onEdit: () => void
   onDelete: () => void
   onChangeEstado: () => void
+  onPromover?: () => void
   isCrossTeam?: boolean
   cargaData?: CargaJugador
 }) {
@@ -134,14 +144,21 @@ function JugadorCard({
 
   const pos = POSICIONES[jugador.posicion_principal as keyof typeof POSICIONES]
   const isNoDisponible = jugador.estado !== 'activo'
+  const tipo = resolveTipoJugador(jugador)
+  const ficha = resolveFichaEstado(jugador)
+  const extraPlantilla = !isPlantilla(jugador)
 
   return (
     <div
       className={`relative card-interactive rounded-xl p-4 group ${
         isCrossTeam
           ? 'border-dashed border-gray-400 bg-gray-50/50'
-          : jugador.es_invitado
+          : tipo === 'prueba'
           ? 'border-2 border-amber-400 bg-amber-50/30'
+          : tipo === 'juvenil'
+          ? 'border-2 border-blue-300 bg-blue-50/30'
+          : tipo === 'invitado'
+          ? 'border-2 border-slate-300 bg-slate-50/40'
           : isNoDisponible ? 'border-gray-300 bg-gray-50' : 'hover:border-primary/30'
       }`}
       onClick={() => router.push(`/plantilla/${jugador.id}`)}
@@ -170,9 +187,14 @@ function JugadorCard({
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             <PosicionBadge posicion={jugador.posicion_principal} />
             {pos && <span className="text-xs text-gray-500">{pos.nombre}</span>}
-            {jugador.es_invitado && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 border border-amber-300">
-                Invitado
+            {extraPlantilla && (
+              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${TIPO_JUGADOR_COLORS[tipo]}`}>
+                {TIPO_JUGADOR_LABELS[tipo]}
+              </span>
+            )}
+            {extraPlantilla && ficha !== 'completa' && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">
+                {FICHA_ESTADO_LABELS[ficha]}
               </span>
             )}
             <PlayerStatusBadges
@@ -196,7 +218,7 @@ function JugadorCard({
             <MoreHorizontal className="h-5 w-5" />
           </button>
           {menuOpen && (
-            <div className="absolute right-0 top-8 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+            <div className="absolute right-0 top-8 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
               <Link
                 href={`/plantilla/${jugador.id}`}
                 className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
@@ -218,6 +240,15 @@ function JugadorCard({
                 <UserCog className="h-4 w-4" />
                 Cambiar estado
               </button>
+              {onPromover && (
+                <button
+                  onClick={() => { onPromover(); setMenuOpen(false) }}
+                  className="flex items-center gap-2 px-4 py-2 text-sm text-emerald-700 hover:bg-emerald-50 w-full"
+                >
+                  <ArrowUpCircle className="h-4 w-4" />
+                  Promover a plantilla
+                </button>
+              )}
               <button
                 onClick={() => { onDelete(); setMenuOpen(false) }}
                 className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full"
@@ -387,8 +418,8 @@ export default function PlantillaPage() {
   const [busquedaActiva, setBusquedaActiva] = useState('')
   const [posicionFilter, setPosicionFilter] = useState('')
   const [estadoFilter, setEstadoFilter] = useState('')
-  const [showFilters, setShowFilters] = useState(false)
   const [showAllTeams, setShowAllTeams] = useState(false)
+  const [tipoTab, setTipoTab] = useState<TipoJugador>('plantilla')
 
   // Modal estado
   const [estadoModal, setEstadoModal] = useState<Jugador | null>(null)
@@ -428,12 +459,24 @@ export default function PlantillaPage() {
   const jugadores = jugadoresResponse?.data || []
   const error = swrError ? 'Error al cargar la plantilla' : null
 
-  // Calcular stats derivados de los datos
+  const countsByTipo = useMemo(() => {
+    const counts: Record<TipoJugador, number> = { plantilla: 0, juvenil: 0, prueba: 0, invitado: 0 }
+    for (const j of jugadores) {
+      counts[resolveTipoJugador(j)] += 1
+    }
+    return counts
+  }, [jugadores])
+
+  const jugadoresTab = useMemo(
+    () => jugadores.filter((j) => resolveTipoJugador(j) === tipoTab),
+    [jugadores, tipoTab]
+  )
+
+  // Calcular stats derivados de los datos (siempre sobre plantilla oficial)
   const stats = useMemo(() => {
     if (jugadores.length === 0 && !jugadoresResponse) return null
 
-    // Only count plantilla players (exclude invitados)
-    const plantilla = jugadores.filter((j) => !j.es_invitado)
+    const plantilla = jugadores.filter((j) => isPlantilla(j))
     const disponibles = plantilla.filter((j) => j.estado === 'activo').length
     const porZona: Record<string, number> = { porteria: 0, defensa: 0, mediocampo: 0, ataque: 0 }
     plantilla.forEach((j) => {
@@ -487,6 +530,18 @@ export default function PlantillaPage() {
     }
   }
 
+  const handlePromover = async (jugador: Jugador) => {
+    if (!confirm(`¿Promover a ${jugador.nombre} ${jugador.apellidos} a plantilla oficial?`)) return
+    try {
+      await jugadoresApi.promoverPlantilla(jugador.id)
+      invalidateJugadores()
+      toast.success('Jugador promovido a plantilla')
+      setTipoTab('plantilla')
+    } catch (err: any) {
+      toast.error(err?.message || 'Error al promover')
+    }
+  }
+
   const clearFilters = () => {
     setBusqueda('')
     setBusquedaActiva('')
@@ -496,15 +551,19 @@ export default function PlantillaPage() {
 
   const hasActiveFilters = posicionFilter || estadoFilter
 
-  // Agrupar jugadores por zona (exclude invitados — they have their own section)
-  const plantillaJugadores = jugadores.filter((j) => !j.es_invitado)
-  const invitadosCount = jugadores.filter((j) => j.es_invitado).length
   const jugadoresPorZona = {
-    porteria: plantillaJugadores.filter((j) => POSICIONES[j.posicion_principal as keyof typeof POSICIONES]?.zona === 'porteria'),
-    defensa: plantillaJugadores.filter((j) => POSICIONES[j.posicion_principal as keyof typeof POSICIONES]?.zona === 'defensa'),
-    mediocampo: plantillaJugadores.filter((j) => POSICIONES[j.posicion_principal as keyof typeof POSICIONES]?.zona === 'mediocampo'),
-    ataque: plantillaJugadores.filter((j) => POSICIONES[j.posicion_principal as keyof typeof POSICIONES]?.zona === 'ataque'),
+    porteria: jugadoresTab.filter((j) => POSICIONES[j.posicion_principal as keyof typeof POSICIONES]?.zona === 'porteria'),
+    defensa: jugadoresTab.filter((j) => POSICIONES[j.posicion_principal as keyof typeof POSICIONES]?.zona === 'defensa'),
+    mediocampo: jugadoresTab.filter((j) => POSICIONES[j.posicion_principal as keyof typeof POSICIONES]?.zona === 'mediocampo'),
+    ataque: jugadoresTab.filter((j) => POSICIONES[j.posicion_principal as keyof typeof POSICIONES]?.zona === 'ataque'),
   }
+
+  const TIPO_TABS: { id: TipoJugador; label: string }[] = [
+    { id: 'plantilla', label: 'Plantilla' },
+    { id: 'juvenil', label: 'Juveniles' },
+    { id: 'prueba', label: 'Pruebas' },
+    { id: 'invitado', label: 'Invitados' },
+  ]
 
   const zonaLabels = {
     porteria: 'Porteros',
@@ -583,7 +642,11 @@ export default function PlantillaPage() {
         {/* Título y acciones */}
         <PageHeader
           title="Plantilla"
-          description={stats ? `${stats.disponibles} disponibles de ${stats.total} jugadores` : 'Selecciona un equipo'}
+          description={
+            tipoTab === 'plantilla' && stats
+              ? `${stats.disponibles} disponibles de ${stats.total} jugadores`
+              : `${countsByTipo[tipoTab]} ${TIPO_JUGADOR_LABELS[tipoTab].toLowerCase()}${countsByTipo[tipoTab] !== 1 ? 's' : ''}`
+          }
           actions={
             <>
               <Link
@@ -591,12 +654,7 @@ export default function PlantillaPage() {
                 className="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm font-medium text-amber-700 hover:bg-amber-100 transition-colors"
               >
                 <UserPlus className="h-4 w-4" />
-                Invitados
-                {invitadosCount > 0 && (
-                  <span className="bg-amber-200 text-amber-800 text-xs font-bold px-1.5 py-0.5 rounded-full">
-                    {invitadosCount}
-                  </span>
-                )}
+                Alta rápida
               </Link>
               <Link
                 href="/plantilla/nuevo"
@@ -610,8 +668,29 @@ export default function PlantillaPage() {
         />
       </div>
 
-      {/* Stats cards */}
-      {stats && (
+      {/* Tabs tipología */}
+      <div className="flex flex-wrap gap-2">
+        {TIPO_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setTipoTab(tab.id)}
+            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+              tipoTab === tab.id
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            {tab.label}
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${tipoTab === tab.id ? 'bg-primary/15' : 'bg-gray-100'}`}>
+              {countsByTipo[tab.id]}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Stats cards (plantilla oficial) */}
+      {stats && tipoTab === 'plantilla' && (
         <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
@@ -728,23 +807,25 @@ export default function PlantillaPage() {
             Reintentar
           </button>
         </div>
-      ) : jugadores.length === 0 ? (
+      ) : jugadoresTab.length === 0 ? (
         <EmptyState
           icon={<Users className="h-12 w-12" />}
-          title="No hay jugadores"
+          title={`No hay ${TIPO_JUGADOR_LABELS[tipoTab].toLowerCase()}s`}
           description={
             hasActiveFilters
               ? 'No se encontraron jugadores con los filtros aplicados'
-              : 'Comienza agregando jugadores a tu plantilla'
+              : tipoTab === 'plantilla'
+              ? 'Comienza agregando jugadores a tu plantilla'
+              : `Añade ${TIPO_JUGADOR_LABELS[tipoTab].toLowerCase()}s desde Alta rápida o Nuevo jugador`
           }
           action={
             !hasActiveFilters ? (
               <Link
-                href="/plantilla/nuevo"
+                href={tipoTab === 'plantilla' ? '/plantilla/nuevo' : '/plantilla/invitados'}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90"
               >
                 <Plus className="h-4 w-4" />
-                Agregar jugador
+                {tipoTab === 'plantilla' ? 'Agregar jugador' : 'Alta rápida'}
               </Link>
             ) : undefined
           }
@@ -767,6 +848,7 @@ export default function PlantillaPage() {
                       onEdit={() => router.push(`/plantilla/${jugador.id}?edit=true`)}
                       onDelete={() => handleDelete(jugador.id)}
                       onChangeEstado={() => setEstadoModal(jugador)}
+                      onPromover={!isPlantilla(jugador) ? () => handlePromover(jugador) : undefined}
                       isCrossTeam={showAllTeams && jugador.equipo_id !== equipoActivo?.id}
                       cargaData={cargaMap[jugador.id]}
                     />

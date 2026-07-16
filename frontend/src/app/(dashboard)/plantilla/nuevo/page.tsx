@@ -15,6 +15,8 @@ import {
 import { CardGridSkeleton } from '@/components/ui/page-skeletons'
 import { jugadoresApi, JugadorCreate, POSICIONES } from '@/lib/api/jugadores'
 import { useEquipoStore } from '@/stores/equipoStore'
+import { TIPO_JUGADOR_LABELS } from '@/lib/jugadorTipo'
+import type { TipoJugador } from '@/types'
 
 export default function NuevoJugadorPage() {
   const router = useRouter()
@@ -39,6 +41,8 @@ export default function NuevoJugadorPage() {
     nivel_mental: 5,
     es_capitan: false,
     es_convocable: true,
+    tipo_jugador: 'plantilla' as TipoJugador,
+    fecha_fin_prueba: '',
     notas: '',
   })
 
@@ -121,6 +125,8 @@ export default function NuevoJugadorPage() {
         nivel_mental: formData.nivel_mental,
         es_capitan: formData.es_capitan,
         es_convocable: formData.es_convocable,
+        tipo_jugador: formData.tipo_jugador,
+        fecha_fin_prueba: formData.tipo_jugador === 'prueba' ? formData.fecha_fin_prueba || undefined : undefined,
         notas: formData.notas || undefined,
       }
 
@@ -168,6 +174,39 @@ export default function NuevoJugadorPage() {
 
       {/* Formulario */}
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Tipología */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Tipología</h2>
+          <p className="text-sm text-gray-500 mb-4">Define si es plantilla oficial, cantera, prueba o invitado</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {(Object.keys(TIPO_JUGADOR_LABELS) as TipoJugador[]).map((tipo) => (
+              <button
+                key={tipo}
+                type="button"
+                onClick={() => handleChange('tipo_jugador', tipo)}
+                className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                  formData.tipo_jugador === tipo
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {TIPO_JUGADOR_LABELS[tipo]}
+              </button>
+            ))}
+          </div>
+          {formData.tipo_jugador === 'prueba' && (
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Fin de prueba</label>
+              <input
+                type="date"
+                value={formData.fecha_fin_prueba}
+                onChange={(e) => handleChange('fecha_fin_prueba', e.target.value)}
+                className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+              />
+            </div>
+          )}
+        </div>
+
         {/* Datos básicos */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Datos básicos</h2>
