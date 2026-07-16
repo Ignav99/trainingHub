@@ -12,6 +12,7 @@ import {
   startOfWeekMonday,
   addDays,
 } from '@/lib/calendar/types'
+import { formatSeasonLabel, getSeasonMonths } from '@/lib/calendar/season'
 import { buildDayIndex, getBucket } from '@/lib/calendar/dayIndex'
 
 export interface CalendarExportInput {
@@ -19,6 +20,8 @@ export interface CalendarExportInput {
   year: number
   month: number // 0-11
   focusDate: string
+  seasonStartYear?: number
+  seasonStartMonth?: number
   clubName?: string
   equipoName?: string
   sesiones: Sesion[]
@@ -27,8 +30,20 @@ export interface CalendarExportInput {
   descansos: Set<string>
 }
 
-function filename(view: CalendarViewMode, year: number, month: number, focusDate: string) {
-  if (view === 'ano') return `calendario_${year}.pdf`
+function filename(
+  view: CalendarViewMode,
+  year: number,
+  month: number,
+  focusDate: string,
+  seasonStartYear?: number,
+  seasonStartMonth?: number
+) {
+  if (view === 'ano') {
+    const sy = seasonStartYear ?? year
+    const sm = seasonStartMonth ?? 7
+    if (sm === 0) return `calendario_${sy}.pdf`
+    return `calendario_temp_${sy}-${String(sy + 1).slice(-2)}.pdf`
+  }
   if (view === 'mes') return `calendario_${year}-${String(month + 1).padStart(2, '0')}.pdf`
   return `calendario_semana_${startOfWeekMonday(focusDate)}.pdf`
 }
@@ -69,9 +84,12 @@ function exportYear(input: CalendarExportInput, index: ReturnType<typeof buildDa
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
   const pageH = doc.internal.pageSize.getHeight()
+  const seasonStartYear = input.seasonStartYear ?? input.year
+  const seasonStartMonth = input.seasonStartMonth ?? 7
+  const months = getSeasonMonths(seasonStartYear, seasonStartMonth)
   header(
     doc,
-    `Calendario anual ${input.year}`,
+    `Temporada ${formatSeasonLabel(seasonStartYear, seasonStartMonth)}`,
     'Vista resumen — partidos, sesiones y microciclos',
     input.clubName,
     input.equipoName
@@ -79,62 +97,55 @@ function exportYear(input: CalendarExportInput, index: ReturnType<typeof buildDa
 
   const left = 14
   const top = 28
-  const labelW = 12
+  const labelW = 14
   const usableW = pageW - left - 14 - labelW
   const usableH = pageH - top - 16
   const rowH = usableH / 12
+  const cellW = usableW / 31
 
-  for (let month = 0; month < 12; month++) {
-    const y = top + month * rowH
+  months.forEach((sm, monthIdx) => {
+    const y = top + monthIdx * rowH
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(7)
     doc.setTextColor(80, 80, 80)
-    doc.text(MONTH_NAMES_SHORT[month], left, y + rowH * 0.55)
+    doc.text(`${MONTH_NAMES_SHORT[sm.month]} '${String(sm.year).slice(-2)}`, left, y + rowH * 0.55)
 
-    const daysInMonth = getDaysInMonth(input.year, month)
-    const firstDow = getFirstDayOfWeek(input.year, month)
-    const totalSlots = firstDow + daysInMonth + ((7 - ((firstDow + daysInMonth) % 7)) % 7)
-    const cellW = usableW / totalSlots
-
-    for (let slot = 0; slot < totalSlots; slot++) {
-      const x = left + labelW + slot * cellW
-      const dayNum = slot - firstDow + 1
-      if (dayNum < 1 || dayNum > daysInMonth) {
+    const daysInMonth = getDaysInMonth(sm.year, sm.month)
+    for (let day = 1; day <= 31; day++) {
+      const x = left + labelW + (day - 1) * cellW
+      if (day > daysInMonth) {
         doc.setFillColor(245, 245, 245)
         doc.rect(x, y + 1, cellW - 0.3, rowH - 2, 'F')
         continue
       }
-      const date = dateToStr(input.year, month, dayNum)
+      const date = dateToStr(sm.year, sm.month, day)
       const b = getBucket(index, date)
-      if (b.microciclos.length) doc.setFillColor(219, 234, 254)
+      if (b.partidos.length) {
+        const isLocal = b.partidos[0]?.localia === 'local'
+        doc.setFillColor(isLocal ? 253 : 237, isLocal ? 230 : 233, isLocal ? 138 : 254)
+      } else if (b.sesiones.length) doc.setFillColor(224, 242, 254)
+      else if (b.microciclos.length) doc.setFillColor(219, 234, 254)
       else doc.setFillColor(250, 250, 250)
       doc.rect(x, y + 1, cellW - 0.3, rowH - 2, 'F')
-      doc.setFontSize(5)
+      doc.setFontSize(4.5)
       doc.setTextColor(90, 90, 90)
-      doc.text(String(dayNum), x + 0.5, y + 3.2)
-      let markX = x + 0.6
-      const markY = y + rowH - 3
+      doc.text(String(day), x + 0.4, y + 3)
       if (b.partidos.length) {
-        doc.setFillColor(245, 158, 11)
-        doc.circle(markX, markY, 0.6, 'F')
-        markX += 1.4
-      }
-      if (b.sesiones.length) {
-        doc.setFillColor(59, 130, 246)
-        doc.circle(markX, markY, 0.6, 'F')
-        markX += 1.4
-      }
-      if (b.descanso) {
-        doc.setFillColor(148, 163, 184)
-        doc.circle(markX, markY, 0.6, 'F')
+        doc.setFontSize(5)
+        doc.setTextColor(120, 80, 20)
+        doc.text(b.partidos[0]?.localia === 'local' ? 'C' : 'F', x + cellW / 2, y + rowH - 2.2, { align: 'center' })
+      } else if (b.sesiones.length) {
+        doc.setFontSize(5)
+        doc.setTextColor(30, 100, 160)
+        doc.text('S', x + cellW / 2, y + rowH - 2.2, { align: 'center' })
       }
     }
-  }
+  })
 
   doc.setFontSize(7)
   doc.setTextColor(120, 120, 120)
-  doc.text('● Partido   ● Sesión   ● Descanso   | Fondo azul = microciclo', left, pageH - 6)
-  doc.save(filename('ano', input.year, input.month, input.focusDate))
+  doc.text('C/F = Partido casa/fuera   S = Sesión   | Fondo azul = microciclo', left, pageH - 6)
+  doc.save(filename('ano', input.year, input.month, input.focusDate, seasonStartYear, seasonStartMonth))
 }
 
 function exportMonth(input: CalendarExportInput, index: ReturnType<typeof buildDayIndex>) {

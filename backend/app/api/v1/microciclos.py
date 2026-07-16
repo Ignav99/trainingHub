@@ -41,7 +41,7 @@ ALLOWED_VIDEO_TYPES = ("video/",)
 @router.get("", response_model=MicrocicloListResponse)
 async def list_microciclos(
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=500),
     equipo_id: Optional[UUID] = None,
     estado: Optional[EstadoMicrociclo] = None,
     fecha_desde: Optional[date] = None,

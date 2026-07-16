@@ -24,6 +24,7 @@ import { CalendarYearView } from '@/components/dashboard/calendar/CalendarYearVi
 import { CalendarWeekView } from '@/components/dashboard/calendar/CalendarWeekView'
 import type { CalendarViewMode } from '@/lib/calendar/types'
 import { CALENDAR_VIEW_LABELS, startOfWeekMonday, addDays, toLocalDateStr } from '@/lib/calendar/types'
+import { formatSeasonLabel } from '@/lib/calendar/season'
 import { exportCalendarPDF } from '@/lib/pdf/exportCalendarPDF'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -138,7 +139,16 @@ interface CalendarSectionProps {
   onViewModeChange: (mode: CalendarViewMode) => void
   focusDate: string
   onFocusDateChange: (date: string) => void
-  onYearChange: (year: number) => void
+  seasonStartYear: number
+  seasonStartMonth: number
+  onSeasonYearChange: (startYear: number) => void
+  onSeasonStartMonthChange: (month: number) => void
+  seasonLoading?: boolean
+  /** Full-season datasets kept mounted for instant year view */
+  sesionesTemporada: Sesion[]
+  partidosTemporada: Partido[]
+  microciclosTemporada: Microciclo[]
+  descansosTemporada: Set<string>
   clubName?: string
   equipoName?: string
   sesionesMes: Sesion[]
@@ -167,7 +177,15 @@ export function CalendarSection({
   onViewModeChange,
   focusDate,
   onFocusDateChange,
-  onYearChange,
+  seasonStartYear,
+  seasonStartMonth,
+  onSeasonYearChange,
+  onSeasonStartMonthChange,
+  seasonLoading,
+  sesionesTemporada,
+  partidosTemporada,
+  microciclosTemporada,
+  descansosTemporada,
   clubName,
   equipoName,
   sesionesMes,
@@ -196,6 +214,17 @@ export function CalendarSection({
     setMobileWeekOffset(0)
     setExpandedMobileDay(null)
   }, [calYear, calMonth])
+
+  // Warm rival crest cache so year view paints instantly
+  useEffect(() => {
+    for (const p of partidosTemporada) {
+      const url = p.rival?.escudo_url
+      if (!url || typeof window === 'undefined') continue
+      const img = new window.Image()
+      img.decoding = 'async'
+      img.src = url
+    }
+  }, [partidosTemporada])
 
   // Close add menu on outside click
   useEffect(() => {
@@ -301,13 +330,13 @@ export function CalendarSection({
   const currentMobileWeek = mobileWeeks[mobileWeekOffset] || mobileWeeks[0] || []
 
   const handlePrev = () => {
-    if (viewMode === 'ano') onYearChange(calYear - 1)
+    if (viewMode === 'ano') onSeasonYearChange(seasonStartYear - 1)
     else if (viewMode === 'semana') onFocusDateChange(addDays(startOfWeekMonday(focusDate), -7))
     else onPrevMonth()
   }
 
   const handleNext = () => {
-    if (viewMode === 'ano') onYearChange(calYear + 1)
+    if (viewMode === 'ano') onSeasonYearChange(seasonStartYear + 1)
     else if (viewMode === 'semana') onFocusDateChange(addDays(startOfWeekMonday(focusDate), 7))
     else onNextMonth()
   }
@@ -318,17 +347,21 @@ export function CalendarSection({
       year: calYear,
       month: calMonth,
       focusDate,
+      seasonStartYear,
+      seasonStartMonth,
       clubName,
       equipoName,
-      sesiones: sesionesMes,
-      partidos: partidosMes,
-      microciclos: microciclosMes,
-      descansos,
+      sesiones: viewMode === 'ano' ? sesionesTemporada : sesionesMes,
+      partidos: viewMode === 'ano' ? partidosTemporada : partidosMes,
+      microciclos: viewMode === 'ano' ? microciclosTemporada : microciclosMes,
+      descansos: viewMode === 'ano' ? descansosTemporada : descansos,
     })
   }
 
   const periodLabel = (() => {
-    if (viewMode === 'ano') return String(calYear)
+    if (viewMode === 'ano') {
+      return `Temp. ${formatSeasonLabel(seasonStartYear, seasonStartMonth)}`
+    }
     if (viewMode === 'semana') {
       const mon = startOfWeekMonday(focusDate)
       const sun = addDays(mon, 6)
@@ -397,23 +430,26 @@ export function CalendarSection({
           </div>
         </CardHeader>
         <CardContent className="p-0 animate-fade-in">
-          {viewMode === 'ano' ? (
-            <div className="p-3">
-              <CalendarYearView
-                year={calYear}
-                sesiones={sesionesMes}
-                partidos={partidosMes}
-                microciclos={microciclosMes}
-                descansos={descansos}
-                onSelectDay={onSelectDay}
-                onSelectMonth={(month) => {
-                  onViewModeChange('mes')
-                  // parent owns calMonth via onFocusDateChange + year
-                  onFocusDateChange(dateToStr(calYear, month, 1))
-                }}
-              />
-            </div>
-          ) : viewMode === 'semana' ? (
+          {/* Year view stays mounted (hidden) so season data + crests stay warm */}
+          <div className={viewMode === 'ano' ? 'p-3' : 'hidden'}>
+            <CalendarYearView
+              seasonStartYear={seasonStartYear}
+              seasonStartMonth={seasonStartMonth}
+              onSeasonStartMonthChange={onSeasonStartMonthChange}
+              sesiones={sesionesTemporada}
+              partidos={partidosTemporada}
+              microciclos={microciclosTemporada}
+              descansos={descansosTemporada}
+              loading={seasonLoading}
+              onSelectDay={onSelectDay}
+              onSelectMonth={(year, month) => {
+                onViewModeChange('mes')
+                onFocusDateChange(dateToStr(year, month, 1))
+              }}
+            />
+          </div>
+
+          {viewMode === 'semana' ? (
             <div className="p-3">
               <CalendarWeekView
                 focusDate={focusDate}
@@ -429,7 +465,7 @@ export function CalendarSection({
                 onNavigate={onNavigate}
               />
             </div>
-          ) : (
+          ) : viewMode === 'mes' ? (
             <>
           {/* Day headers */}
           <div className="flex border-b bg-muted/30">
@@ -1024,7 +1060,7 @@ export function CalendarSection({
             </>
           )}
             </>
-          )}
+          ) : null}
         </CardContent>
       </Card>
 

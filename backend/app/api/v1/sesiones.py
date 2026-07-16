@@ -175,7 +175,7 @@ router = APIRouter()
 @router.get("", response_model=SesionListResponse)
 async def list_sesiones(
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=1000),
     equipo_id: Optional[UUID] = None,
     match_day: Optional[MatchDay] = None,
     fecha_desde: Optional[date] = None,

@@ -34,6 +34,16 @@ import { CalendarSection } from '@/components/dashboard/CalendarSection'
 import { DayDetailPanel } from '@/components/dashboard/DayDetailPanel'
 import type { CalendarViewMode } from '@/lib/calendar/types'
 import { startOfWeekMonday, addDays, toLocalDateStr } from '@/lib/calendar/types'
+import {
+  DEFAULT_SEASON_START_MONTH,
+  filterByDateRange,
+  filterMicrosByOverlap,
+  getSeasonBounds,
+  getStoredSeasonStartMonth,
+  resolveSeasonStartYear,
+  resolveSeasonStartYearFromStr,
+  setStoredSeasonStartMonth,
+} from '@/lib/calendar/season'
 
 // ============ Field pattern SVG background ============
 const FIELD_PATTERN = `url("data:image/svg+xml,%3Csvg width='200' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='10' y='10' width='180' height='180' fill='none' stroke='%23000' stroke-width='0.5' opacity='0.03'/%3E%3Cline x1='100' y1='10' x2='100' y2='190' stroke='%23000' stroke-width='0.5' opacity='0.03'/%3E%3Ccircle cx='100' cy='100' r='30' fill='none' stroke='%23000' stroke-width='0.5' opacity='0.03'/%3E%3C/svg%3E")`
@@ -62,6 +72,17 @@ export default function DashboardPage() {
   const [viewMode, setViewMode] = useState<CalendarViewMode>('mes')
   const [focusDate, setFocusDate] = useState(() => toLocalDateStr(now))
   const lastTodayRef = useRef(toLocalDateStr(now))
+  const [seasonStartMonth, setSeasonStartMonth] = useState(DEFAULT_SEASON_START_MONTH)
+  const [seasonStartYear, setSeasonStartYear] = useState(() =>
+    resolveSeasonStartYear(now, DEFAULT_SEASON_START_MONTH)
+  )
+
+  // Hydrate season start month preference (client-only)
+  useEffect(() => {
+    const stored = getStoredSeasonStartMonth()
+    setSeasonStartMonth(stored)
+    setSeasonStartYear(resolveSeasonStartYear(new Date(), stored))
+  }, [])
 
   // ============ SWR data fetching ============
   const { data: resumen, isLoading: l1 } = useSWR<DashboardResumen>(
@@ -80,56 +101,134 @@ export default function DashboardPage() {
     apiKey('/rfef/competiciones', { equipo_id: equipoId }, ['equipo_id'])
   )
 
-  // Calendar data range depends on view (semana / mes / año)
-  const { fechaDesde, fechaHasta, sesLimit, parLimit } = useMemo(() => {
+  // Full season always loaded (independent of semana/mes/año) so view switches are instant
+  const seasonBounds = useMemo(
+    () => getSeasonBounds(seasonStartYear, seasonStartMonth),
+    [seasonStartYear, seasonStartMonth]
+  )
+
+  const seasonSesKey = apiKey(
+    '/sesiones',
+    {
+      equipo_id: equipoId,
+      fecha_desde: seasonBounds.desde,
+      fecha_hasta: seasonBounds.hasta,
+      limit: 500,
+    },
+    ['equipo_id']
+  )
+  const seasonParKey = apiKey(
+    '/partidos',
+    {
+      equipo_id: equipoId,
+      fecha_desde: seasonBounds.desde,
+      fecha_hasta: seasonBounds.hasta,
+      limit: 300,
+      direccion: 'asc',
+    },
+    ['equipo_id']
+  )
+  const seasonMicroKey = apiKey(
+    '/microciclos',
+    {
+      equipo_id: equipoId,
+      fecha_desde: seasonBounds.desde,
+      fecha_hasta: seasonBounds.hasta,
+      limit: 120,
+    },
+    ['equipo_id']
+  )
+  const seasonDescKey = apiKey(
+    '/descansos',
+    {
+      equipo_id: equipoId,
+      fecha_desde: seasonBounds.desde,
+      fecha_hasta: seasonBounds.hasta,
+    },
+    ['equipo_id']
+  )
+
+  const { data: calSesRes, isLoading: seasonSesLoading } = useSWR<PaginatedResponse<Sesion>>(
+    seasonSesKey,
+    { keepPreviousData: true, revalidateOnFocus: false, dedupingInterval: 60_000 }
+  )
+  const { data: calParRes, isLoading: seasonParLoading } = useSWR<PaginatedResponse<Partido>>(
+    seasonParKey,
+    { keepPreviousData: true, revalidateOnFocus: false, dedupingInterval: 60_000 }
+  )
+  const { data: calMicroRes, isLoading: seasonMicroLoading } = useSWR<PaginatedResponse<Microciclo>>(
+    seasonMicroKey,
+    { keepPreviousData: true, revalidateOnFocus: false, dedupingInterval: 60_000 }
+  )
+  const { data: descansosRes, mutate: mutateDescansos, isLoading: seasonDescLoading } = useSWR<{
+    data: Descanso[]
+  }>(seasonDescKey, { keepPreviousData: true, revalidateOnFocus: false, dedupingInterval: 60_000 })
+
+  const seasonLoading =
+    (seasonSesLoading || seasonParLoading || seasonMicroLoading || seasonDescLoading) &&
+    !calSesRes &&
+    !calParRes
+
+  // Full season datasets (year view + cache)
+  const sesionesTemporada = calSesRes?.data || []
+  const partidosTemporada = calParRes?.data || []
+  const microciclosTemporada = calMicroRes?.data || []
+
+  // Visible range for week/month — filtered client-side from season cache
+  const { fechaDesde, fechaHasta } = useMemo(() => {
     if (viewMode === 'ano') {
-      return {
-        fechaDesde: `${calYear}-01-01`,
-        fechaHasta: `${calYear}-12-31`,
-        sesLimit: 500,
-        parLimit: 120,
-      }
+      return { fechaDesde: seasonBounds.desde, fechaHasta: seasonBounds.hasta }
     }
     if (viewMode === 'semana') {
       const mon = startOfWeekMonday(focusDate)
-      return {
-        fechaDesde: mon,
-        fechaHasta: addDays(mon, 6),
-        sesLimit: 50,
-        parLimit: 20,
-      }
+      return { fechaDesde: mon, fechaHasta: addDays(mon, 6) }
     }
     const lastDay = getDaysInMonth(calYear, calMonth)
     return {
       fechaDesde: dateToStr(calYear, calMonth, 1),
       fechaHasta: dateToStr(calYear, calMonth, lastDay),
-      sesLimit: 80,
-      parLimit: 40,
     }
-  }, [viewMode, calYear, calMonth, focusDate])
-
-  const { data: calSesRes } = useSWR<PaginatedResponse<Sesion>>(
-    apiKey('/sesiones', { equipo_id: equipoId, fecha_desde: fechaDesde, fecha_hasta: fechaHasta, limit: sesLimit }, ['equipo_id'])
-  )
-  const { data: calParRes } = useSWR<PaginatedResponse<Partido>>(
-    apiKey('/partidos', { equipo_id: equipoId, fecha_desde: fechaDesde, fecha_hasta: fechaHasta, limit: parLimit }, ['equipo_id'])
-  )
-  const { data: calMicroRes } = useSWR<PaginatedResponse<Microciclo>>(
-    apiKey('/microciclos', { equipo_id: equipoId, fecha_desde: fechaDesde, fecha_hasta: fechaHasta, limit: 80 }, ['equipo_id'])
-  )
-  const descansosKey = apiKey('/descansos', { equipo_id: equipoId, fecha_desde: fechaDesde, fecha_hasta: fechaHasta }, ['equipo_id'])
-  const { data: descansosRes, mutate: mutateDescansos } = useSWR<{ data: Descanso[] }>(descansosKey)
+  }, [viewMode, calYear, calMonth, focusDate, seasonBounds])
 
   // Derived data
   const microcicloActivo = microActivoRes?.data?.[0] || null
   const sesionesBorrador = borradoresRes?.total || 0
-  const sesionesMes = calSesRes?.data || []
-  const partidosMes = calParRes?.data || []
-  const microciclosMes = calMicroRes?.data || []
+  const sesionesMes = useMemo(
+    () =>
+      viewMode === 'ano'
+        ? sesionesTemporada
+        : filterByDateRange(sesionesTemporada, fechaDesde, fechaHasta),
+    [viewMode, sesionesTemporada, fechaDesde, fechaHasta]
+  )
+  const partidosMes = useMemo(
+    () =>
+      viewMode === 'ano'
+        ? partidosTemporada
+        : filterByDateRange(partidosTemporada, fechaDesde, fechaHasta),
+    [viewMode, partidosTemporada, fechaDesde, fechaHasta]
+  )
+  const microciclosMes = useMemo(
+    () =>
+      viewMode === 'ano'
+        ? microciclosTemporada
+        : filterMicrosByOverlap(microciclosTemporada, fechaDesde, fechaHasta),
+    [viewMode, microciclosTemporada, fechaDesde, fechaHasta]
+  )
   const loading = l1 || l3
 
-  // Descansos derived from SWR
-  const descansos = useMemo(() => new Set((descansosRes?.data || []).map((d) => d.fecha)), [descansosRes])
+  // Descansos derived from SWR (full season; filter for week/month in views that need it)
+  const descansosAll = useMemo(
+    () => new Set((descansosRes?.data || []).map((d) => d.fecha)),
+    [descansosRes]
+  )
+  const descansos = useMemo(() => {
+    if (viewMode === 'ano') return descansosAll
+    const set = new Set<string>()
+    for (const d of Array.from(descansosAll)) {
+      if (d >= fechaDesde && d <= fechaHasta) set.add(d)
+    }
+    return set
+  }, [viewMode, descansosAll, fechaDesde, fechaHasta])
   const descansoIdByDate = useMemo(() => {
     const map: Record<string, string> = {}
     for (const d of descansosRes?.data || []) map[d.fecha] = d.id
@@ -162,6 +261,10 @@ export default function DashboardPage() {
     fase: 'competicion' as 'pretemporada' | 'competicion',
   })
 
+  const syncSeasonForDate = (dateStr: string, startMonth = seasonStartMonth) => {
+    setSeasonStartYear(resolveSeasonStartYearFromStr(dateStr, startMonth))
+  }
+
   const snapToToday = () => {
     const t = new Date()
     const today = toLocalDateStr(t)
@@ -169,6 +272,7 @@ export default function DashboardPage() {
     setCalYear(t.getFullYear())
     setCalMonth(t.getMonth())
     setFocusDate(today)
+    setSeasonStartYear(resolveSeasonStartYear(t, seasonStartMonth))
   }
 
   const handlePrevMonth = () => {
@@ -182,8 +286,9 @@ export default function DashboardPage() {
     }
     setCalYear(y)
     setCalMonth(m)
-    // Keep week anchor in sync with the month being viewed
-    setFocusDate(dateToStr(y, m, 1))
+    const anchor = dateToStr(y, m, 1)
+    setFocusDate(anchor)
+    syncSeasonForDate(anchor)
   }
 
   const handleNextMonth = () => {
@@ -197,12 +302,27 @@ export default function DashboardPage() {
     }
     setCalYear(y)
     setCalMonth(m)
-    setFocusDate(dateToStr(y, m, 1))
+    const anchor = dateToStr(y, m, 1)
+    setFocusDate(anchor)
+    syncSeasonForDate(anchor)
   }
 
-  const handleYearChange = (year: number) => {
-    setCalYear(year)
-    setFocusDate(dateToStr(year, calMonth, 1))
+  /** Prev/next temporada in year view */
+  const handleSeasonYearChange = (startYear: number) => {
+    setSeasonStartYear(startYear)
+    const bounds = getSeasonBounds(startYear, seasonStartMonth)
+    const first = bounds.months[0]
+    setCalYear(first.year)
+    setCalMonth(first.month)
+    setFocusDate(bounds.desde)
+  }
+
+  const handleSeasonStartMonthChange = (month: number) => {
+    setStoredSeasonStartMonth(month)
+    setSeasonStartMonth(month)
+    const anchor = focusDate || toLocalDateStr(new Date())
+    const nextSeasonYear = resolveSeasonStartYearFromStr(anchor, month)
+    setSeasonStartYear(nextSeasonYear)
   }
 
   const handleFocusDateChange = (date: string) => {
@@ -210,6 +330,7 @@ export default function DashboardPage() {
     const d = new Date(date.slice(0, 10) + 'T12:00:00')
     setCalYear(d.getFullYear())
     setCalMonth(d.getMonth())
+    syncSeasonForDate(date)
   }
 
   const handleGoToToday = () => {
@@ -218,21 +339,15 @@ export default function DashboardPage() {
 
   const handleViewModeChange = (mode: CalendarViewMode) => {
     if (mode === 'semana') {
-      // Week starts on the first week of the month currently shown
       setFocusDate(dateToStr(calYear, calMonth, 1))
     } else if (mode === 'mes') {
-      // Month follows the week/year anchor already in focusDate / cal*
       const d = new Date(focusDate.slice(0, 10) + 'T12:00:00')
       if (viewMode === 'semana') {
         setCalYear(d.getFullYear())
         setCalMonth(d.getMonth())
       }
     } else if (mode === 'ano') {
-      if (viewMode === 'semana') {
-        const d = new Date(focusDate.slice(0, 10) + 'T12:00:00')
-        setCalYear(d.getFullYear())
-        setCalMonth(d.getMonth())
-      }
+      syncSeasonForDate(focusDate || dateToStr(calYear, calMonth, 1))
     }
     setViewMode(mode)
   }
@@ -389,7 +504,15 @@ export default function DashboardPage() {
         onViewModeChange={handleViewModeChange}
         focusDate={focusDate}
         onFocusDateChange={handleFocusDateChange}
-        onYearChange={handleYearChange}
+        seasonStartYear={seasonStartYear}
+        seasonStartMonth={seasonStartMonth}
+        onSeasonYearChange={handleSeasonYearChange}
+        onSeasonStartMonthChange={handleSeasonStartMonthChange}
+        seasonLoading={!!seasonLoading}
+        sesionesTemporada={sesionesTemporada}
+        partidosTemporada={partidosTemporada}
+        microciclosTemporada={microciclosTemporada}
+        descansosTemporada={descansosAll}
         clubName={user?.organizacion?.nombre}
         equipoName={equipoActivo?.nombre}
         sesionesMes={sesionesMes}

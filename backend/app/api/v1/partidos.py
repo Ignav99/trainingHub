@@ -41,7 +41,7 @@ router = APIRouter()
 @router.get("", response_model=PartidoListResponse)
 async def list_partidos(
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=1000),
     equipo_id: Optional[UUID] = None,
     rival_id: Optional[UUID] = None,
     competicion: Optional[TipoCompeticion] = None,
