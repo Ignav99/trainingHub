@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -55,12 +55,13 @@ export default function DashboardPage() {
 
   const equipoId = equipoActivo?.id
 
-  // Calendar state
+  // Calendar state — always boots on "today" (current week/month)
   const now = new Date()
   const [calYear, setCalYear] = useState(now.getFullYear())
   const [calMonth, setCalMonth] = useState(now.getMonth())
   const [viewMode, setViewMode] = useState<CalendarViewMode>('mes')
   const [focusDate, setFocusDate] = useState(() => toLocalDateStr(now))
+  const lastTodayRef = useRef(toLocalDateStr(now))
 
   // ============ SWR data fetching ============
   const { data: resumen, isLoading: l1 } = useSWR<DashboardResumen>(
@@ -161,22 +162,47 @@ export default function DashboardPage() {
     fase: 'competicion' as 'pretemporada' | 'competicion',
   })
 
+  const snapToToday = () => {
+    const t = new Date()
+    const today = toLocalDateStr(t)
+    lastTodayRef.current = today
+    setCalYear(t.getFullYear())
+    setCalMonth(t.getMonth())
+    setFocusDate(today)
+  }
+
   const handlePrevMonth = () => {
-    if (calMonth === 0) {
-      setCalMonth(11)
-      setCalYear(calYear - 1)
+    let y = calYear
+    let m = calMonth
+    if (m === 0) {
+      m = 11
+      y -= 1
     } else {
-      setCalMonth(calMonth - 1)
+      m -= 1
     }
+    setCalYear(y)
+    setCalMonth(m)
+    // Keep week anchor in sync with the month being viewed
+    setFocusDate(dateToStr(y, m, 1))
   }
 
   const handleNextMonth = () => {
-    if (calMonth === 11) {
-      setCalMonth(0)
-      setCalYear(calYear + 1)
+    let y = calYear
+    let m = calMonth
+    if (m === 11) {
+      m = 0
+      y += 1
     } else {
-      setCalMonth(calMonth + 1)
+      m += 1
     }
+    setCalYear(y)
+    setCalMonth(m)
+    setFocusDate(dateToStr(y, m, 1))
+  }
+
+  const handleYearChange = (year: number) => {
+    setCalYear(year)
+    setFocusDate(dateToStr(year, calMonth, 1))
   }
 
   const handleFocusDateChange = (date: string) => {
@@ -187,19 +213,50 @@ export default function DashboardPage() {
   }
 
   const handleGoToToday = () => {
-    const t = new Date()
-    const today = toLocalDateStr(t)
-    setCalYear(t.getFullYear())
-    setCalMonth(t.getMonth())
-    setFocusDate(today)
+    snapToToday()
   }
 
   const handleViewModeChange = (mode: CalendarViewMode) => {
-    setViewMode(mode)
     if (mode === 'semana') {
-      setFocusDate((prev) => startOfWeekMonday(prev || toLocalDateStr(new Date())))
+      // Week starts on the first week of the month currently shown
+      setFocusDate(dateToStr(calYear, calMonth, 1))
+    } else if (mode === 'mes') {
+      // Month follows the week/year anchor already in focusDate / cal*
+      const d = new Date(focusDate.slice(0, 10) + 'T12:00:00')
+      if (viewMode === 'semana') {
+        setCalYear(d.getFullYear())
+        setCalMonth(d.getMonth())
+      }
+    } else if (mode === 'ano') {
+      if (viewMode === 'semana') {
+        const d = new Date(focusDate.slice(0, 10) + 'T12:00:00')
+        setCalYear(d.getFullYear())
+        setCalMonth(d.getMonth())
+      }
     }
+    setViewMode(mode)
   }
+
+  // After reload or when the calendar day rolls over (app left open),
+  // return to the current week/month.
+  useEffect(() => {
+    const maybeSnapToCurrentDay = () => {
+      const today = toLocalDateStr(new Date())
+      if (today !== lastTodayRef.current) {
+        snapToToday()
+      }
+    }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') maybeSnapToCurrentDay()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', maybeSnapToCurrentDay)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', maybeSnapToCurrentDay)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only listeners
+  }, [])
 
   // Default Monday-Sunday range of the week containing the 1st of the calendar's current month
   const getDefaultMicroRange = () => {
@@ -332,7 +389,7 @@ export default function DashboardPage() {
         onViewModeChange={handleViewModeChange}
         focusDate={focusDate}
         onFocusDateChange={handleFocusDateChange}
-        onYearChange={setCalYear}
+        onYearChange={handleYearChange}
         clubName={user?.organizacion?.nombre}
         equipoName={equipoActivo?.nombre}
         sesionesMes={sesionesMes}
