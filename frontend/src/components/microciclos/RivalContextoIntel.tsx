@@ -13,7 +13,6 @@ import {
   ShieldAlert,
   Snowflake,
   TrendingUp,
-  Users,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -97,7 +96,7 @@ function MinuteChart({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-end gap-1 h-28">
+      <div className="flex items-end gap-1 h-32">
         {buckets.map((bucket, i) => {
           const scored = marcados[i] ?? 0
           const conceded = encajados[i] ?? 0
@@ -105,7 +104,7 @@ function MinuteChart({
           const concededH = (conceded / maxVal) * 100
           return (
             <div key={bucket} className="flex-1 flex flex-col items-center gap-0.5 min-w-0">
-              <div className="flex items-end justify-center gap-0.5 w-full h-20">
+              <div className="flex items-end justify-center gap-0.5 w-full h-24">
                 <div
                   className="w-[42%] bg-emerald-500 rounded-t-sm transition-all"
                   style={{ height: `${scoredH}%`, minHeight: scored > 0 ? 4 : 0 }}
@@ -117,7 +116,7 @@ function MinuteChart({
                   title={`Encajados: ${conceded}`}
                 />
               </div>
-              <span className="text-[8px] text-muted-foreground text-center leading-tight">{bucket}</span>
+              <span className="text-[8px] text-muted-foreground text-center leading-tight">{bucket}&apos;</span>
             </div>
           )
         })}
@@ -134,6 +133,234 @@ function MinuteChart({
       </div>
     </div>
   )
+}
+
+function NetMinuteChart({
+  buckets,
+  marcados,
+  encajados,
+}: {
+  buckets: string[]
+  marcados: number[]
+  encajados: number[]
+}) {
+  const net = buckets.map((_, i) => (marcados[i] ?? 0) - (encajados[i] ?? 0))
+  const maxAbs = Math.max(...net.map(Math.abs), 1)
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[10px] text-muted-foreground">
+        Balance por tramo (verde = dominan, rojo = vulnerable)
+      </p>
+      <div className="space-y-1.5">
+        {buckets.map((bucket, i) => {
+          const value = net[i]
+          const width = (Math.abs(value) / maxAbs) * 100
+          const isPositive = value >= 0
+          return (
+            <div key={bucket} className="flex items-center gap-2 text-[10px]">
+              <span className="w-12 shrink-0 text-muted-foreground text-right">{bucket}&apos;</span>
+              <div className="flex-1 h-4 bg-muted/50 rounded-full overflow-hidden relative">
+                <div className="absolute inset-y-0 left-1/2 w-px bg-border" />
+                <div
+                  className={`absolute inset-y-0 ${isPositive ? 'left-1/2 bg-emerald-500' : 'right-1/2 bg-red-400'}`}
+                  style={{ width: `${width / 2}%` }}
+                />
+              </div>
+              <span className={`w-6 text-right font-semibold ${isPositive ? 'text-emerald-600' : 'text-red-500'}`}>
+                {value > 0 ? `+${value}` : value}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function PitchMinuteHeatmap({
+  buckets,
+  marcados,
+  encajados,
+}: {
+  buckets: string[]
+  marcados: number[]
+  encajados: number[]
+}) {
+  const maxVal = Math.max(...marcados, ...encajados, 1)
+
+  return (
+    <div className="rounded-lg border bg-emerald-950/5 overflow-hidden">
+      <div className="px-3 py-2 border-b bg-muted/30 flex items-center justify-between">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Mapa temporal del partido
+        </span>
+        <span className="text-[9px] text-muted-foreground">0&apos; → 90&apos;</span>
+      </div>
+      <div className="p-3 space-y-2">
+        <div className="flex h-10 rounded-md overflow-hidden border border-emerald-800/20">
+          {buckets.map((bucket, i) => {
+            const scored = marcados[i] ?? 0
+            const conceded = encajados[i] ?? 0
+            const net = scored - conceded
+            const intensity = Math.abs(net) / maxVal
+            const bg =
+              net > 0
+                ? `rgba(16, 185, 129, ${0.15 + intensity * 0.65})`
+                : net < 0
+                  ? `rgba(248, 113, 113, ${0.15 + intensity * 0.65})`
+                  : 'rgba(148, 163, 184, 0.12)'
+            return (
+              <div
+                key={bucket}
+                className="flex-1 flex flex-col items-center justify-center border-r last:border-r-0 border-emerald-800/10 text-[8px]"
+                style={{ backgroundColor: bg }}
+                title={`${bucket}': ${scored} GF, ${conceded} GC`}
+              >
+                <span className="font-bold text-foreground/80">{scored}/{conceded}</span>
+              </div>
+            )
+          })}
+        </div>
+        <div className="flex justify-between text-[8px] text-muted-foreground px-0.5">
+          {buckets.map((b) => (
+            <span key={b} className="flex-1 text-center">{b}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function HalvesChart({
+  marcados1t,
+  marcados2t,
+  encajados1t,
+  encajados2t,
+}: {
+  marcados1t: number
+  marcados2t: number
+  encajados1t: number
+  encajados2t: number
+}) {
+  const maxHalf = Math.max(marcados1t, marcados2t, encajados1t, encajados2t, 1)
+
+  const bar = (label: string, scored: number, conceded: number) => (
+    <div className="space-y-1">
+      <p className="text-[10px] font-medium text-muted-foreground">{label}</p>
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] w-14 text-muted-foreground">Marcados</span>
+          <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-emerald-500 rounded-full"
+              style={{ width: `${(scored / maxHalf) * 100}%` }}
+            />
+          </div>
+          <span className="text-[10px] font-bold text-emerald-600 w-4">{scored}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] w-14 text-muted-foreground">Encajados</span>
+          <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-red-400 rounded-full"
+              style={{ width: `${(conceded / maxHalf) * 100}%` }}
+            />
+          </div>
+          <span className="text-[10px] font-bold text-red-500 w-4">{conceded}</span>
+        </div>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      {bar('1ª parte', marcados1t, encajados1t)}
+      {bar('2ª parte', marcados2t, encajados2t)}
+    </div>
+  )
+}
+
+function CasaFueraGoalsChart({
+  casa,
+  fuera,
+}: {
+  casa?: { gf: number; gc: number }
+  fuera?: { gf: number; gc: number }
+}) {
+  if (!casa?.gf && !casa?.gc && !fuera?.gf && !fuera?.gc) return null
+  const maxVal = Math.max(casa?.gf ?? 0, casa?.gc ?? 0, fuera?.gf ?? 0, fuera?.gc ?? 0, 1)
+
+  const row = (label: string, gf: number, gc: number) => (
+    <div className="space-y-1">
+      <p className="text-[10px] font-semibold">{label}</p>
+      <div className="flex items-center gap-2">
+        <span className="text-[9px] w-6 text-emerald-600">GF</span>
+        <div className="flex-1 h-2.5 bg-muted rounded-full overflow-hidden">
+          <div className="h-full bg-emerald-500" style={{ width: `${((gf ?? 0) / maxVal) * 100}%` }} />
+        </div>
+        <span className="text-[10px] w-4 font-bold">{gf ?? 0}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-[9px] w-6 text-red-500">GC</span>
+        <div className="flex-1 h-2.5 bg-muted rounded-full overflow-hidden">
+          <div className="h-full bg-red-400" style={{ width: `${((gc ?? 0) / maxVal) * 100}%` }} />
+        </div>
+        <span className="text-[10px] w-4 font-bold">{gc ?? 0}</span>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      {row('En casa', casa?.gf ?? 0, casa?.gc ?? 0)}
+      {row('Fuera', fuera?.gf ?? 0, fuera?.gc ?? 0)}
+    </div>
+  )
+}
+
+function buildGoalInsights(
+  ctx: NonNullable<PreMatchIntel['contexto_stats']>
+): string[] {
+  const insights: string[] = []
+  const { buckets, marcados, encajados } = ctx.goles_por_minuto
+  const totalMarcados = marcados.reduce((a, b) => a + b, 0)
+  const totalEncajados = encajados.reduce((a, b) => a + b, 0)
+
+  if (totalMarcados > 0) {
+    const maxIdx = marcados.indexOf(Math.max(...marcados))
+    if (marcados[maxIdx] > 0) {
+      insights.push(`Marcan con más frecuencia entre ${buckets[maxIdx]}' (${marcados[maxIdx]} goles)`)
+    }
+  }
+  if (totalEncajados > 0) {
+    const maxIdx = encajados.indexOf(Math.max(...encajados))
+    if (encajados[maxIdx] > 0) {
+      insights.push(`Encajan más goles entre ${buckets[maxIdx]}' (${encajados[maxIdx]} goles)`)
+    }
+  }
+
+  const { marcados_1t, marcados_2t, encajados_1t, encajados_2t } = ctx.mitades
+  if (marcados_2t > marcados_1t && marcados_2t > 0) {
+    insights.push('Equipo más goleador en la 2ª parte')
+  } else if (marcados_1t > marcados_2t && marcados_1t > 0) {
+    insights.push('Suelen marcar más en la 1ª parte')
+  }
+  if (encajados_2t > encajados_1t && encajados_2t > 0) {
+    insights.push('Vulnerables al final del partido (más goles encajados en 2ª parte)')
+  }
+
+  if (ctx.casa.pj > 0 && ctx.fuera.pj > 0) {
+    const casaPct = ctx.casa.pct_victoria ?? 0
+    const fueraPct = ctx.fuera.pct_victoria ?? 0
+    if (casaPct - fueraPct >= 25) {
+      insights.push('Muy fuertes en casa respecto a fuera')
+    } else if (fueraPct - casaPct >= 25) {
+      insights.push('Rinden mejor fuera que en casa')
+    }
+  }
+
+  return insights.slice(0, 4)
 }
 
 function SideStatsBlock({
@@ -247,7 +474,7 @@ export function RivalContextoIntel({ rivalId, competicionId, rivalNombre }: Riva
 
   const sancionados = (intel.tarjetas?.jugadores ?? []).filter((j) => j.estado === 'Sancionado')
   const apercibidos = (intel.tarjetas?.jugadores ?? []).filter((j) => j.estado === 'Apercibido')
-  const onceTitulares = intel.once_probable?.jugadores.slice(0, 11) ?? []
+  const goalInsights = ctx ? buildGoalInsights(ctx) : []
 
   return (
     <div className="space-y-4">
@@ -330,47 +557,61 @@ export function RivalContextoIntel({ rivalId, competicionId, rivalNombre }: Riva
         </div>
       </div>
 
-      {/* Mitades */}
+      {/* Mitades + casa/fuera goles */}
       {ctx?.mitades && (
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-lg border p-3">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-2">1ª parte</p>
-            <div className="flex justify-around text-center">
-              <div>
-                <div className="text-sm font-bold text-emerald-600">{ctx.mitades.marcados_1t}</div>
-                <div className="text-[9px] text-muted-foreground">Marcados</div>
-              </div>
-              <div>
-                <div className="text-sm font-bold text-red-500">{ctx.mitades.encajados_1t}</div>
-                <div className="text-[9px] text-muted-foreground">Encajados</div>
-              </div>
-            </div>
-          </div>
-          <div className="rounded-lg border p-3">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-2">2ª parte</p>
-            <div className="flex justify-around text-center">
-              <div>
-                <div className="text-sm font-bold text-emerald-600">{ctx.mitades.marcados_2t}</div>
-                <div className="text-[9px] text-muted-foreground">Marcados</div>
-              </div>
-              <div>
-                <div className="text-sm font-bold text-red-500">{ctx.mitades.encajados_2t}</div>
-                <div className="text-[9px] text-muted-foreground">Encajados</div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <Card>
+          <CardContent className="p-4 space-y-4">
+            <p className="text-xs font-semibold">Goles por mitad</p>
+            <HalvesChart
+              marcados1t={ctx.mitades.marcados_1t}
+              marcados2t={ctx.mitades.marcados_2t}
+              encajados1t={ctx.mitades.encajados_1t}
+              encajados2t={ctx.mitades.encajados_2t}
+            />
+            {(ctx.casa.gf > 0 || ctx.fuera.gf > 0) && (
+              <>
+                <div className="border-t pt-3">
+                  <p className="text-xs font-semibold mb-3">Goles casa vs fuera</p>
+                  <CasaFueraGoalsChart casa={ctx.casa} fuera={ctx.fuera} />
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
       )}
 
-      {/* Goles por minuto */}
+      {/* Goles por minuto — gráficas */}
       {ctx?.goles_por_minuto && ctx.actas_con_goles_minuto > 0 && (
         <Card>
-          <CardContent className="p-4 space-y-2">
+          <CardContent className="p-4 space-y-4">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold">Fortalezas y debilidades por minutos</p>
+              <p className="text-xs font-semibold">Análisis temporal de goles</p>
               <span className="text-[10px] text-muted-foreground">{ctx.actas_con_goles_minuto} actas</span>
             </div>
+
+            {goalInsights.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {goalInsights.map((tip, i) => (
+                  <Badge key={i} variant="secondary" className="text-[10px] font-normal">
+                    {tip}
+                  </Badge>
+                ))}
+              </div>
+            )}
+
+            <PitchMinuteHeatmap
+              buckets={ctx.goles_por_minuto.buckets}
+              marcados={ctx.goles_por_minuto.marcados}
+              encajados={ctx.goles_por_minuto.encajados}
+            />
+
             <MinuteChart
+              buckets={ctx.goles_por_minuto.buckets}
+              marcados={ctx.goles_por_minuto.marcados}
+              encajados={ctx.goles_por_minuto.encajados}
+            />
+
+            <NetMinuteChart
               buckets={ctx.goles_por_minuto.buckets}
               marcados={ctx.goles_por_minuto.marcados}
               encajados={ctx.goles_por_minuto.encajados}
@@ -432,40 +673,6 @@ export function RivalContextoIntel({ rivalId, competicionId, rivalNombre }: Riva
           </Card>
         )}
       </div>
-
-      {/* Once probable compact */}
-      {onceTitulares.length > 0 && (
-        <Card>
-          <CardContent className="p-4 space-y-2">
-            <div className="flex items-center gap-1.5">
-              <Users className="h-3.5 w-3.5 text-blue-600" />
-              <p className="text-xs font-semibold">11 probable</p>
-              {intel.once_probable && (
-                <Badge variant="outline" className="text-[9px]">
-                  {intel.once_probable.actas_analizadas} actas
-                </Badge>
-              )}
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
-              {onceTitulares.map((j, i) => (
-                <div
-                  key={i}
-                  className={`flex items-center gap-2 text-[11px] px-2 py-1 rounded ${
-                    j.sancionado ? 'bg-red-50 line-through text-red-700' : 'bg-muted/40'
-                  }`}
-                >
-                  <span className="w-5 text-center text-muted-foreground font-mono">{j.dorsal ?? '·'}</span>
-                  <span className="truncate flex-1">{j.nombre}</span>
-                  {j.sancionado && (
-                    <Badge variant="destructive" className="text-[8px] h-4 px-1">Sanc.</Badge>
-                  )}
-                  <span className="text-[9px] text-muted-foreground">{j.apariciones}/{intel.once_probable?.actas_analizadas}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Ultimos resultados */}
       {intel.ultimos_resultados && intel.ultimos_resultados.length > 0 && rivalNombre && (
