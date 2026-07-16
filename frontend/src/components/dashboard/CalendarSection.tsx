@@ -757,6 +757,20 @@ export function CalendarSection({
                   const dominantMD = hasMatch ? 'MD' : (daySesiones[0]?.match_day || null)
                   const mdColors = dominantMD ? MATCH_DAY_COLORS[dominantMD] : null
 
+                  // Activity fill + microciclo contour (not a solid blue wash)
+                  const activityBg = isDescanso
+                    ? 'bg-slate-200/70'
+                    : hasMatch
+                      ? 'bg-amber-50'
+                      : daySesiones.length > 0
+                        ? 'bg-emerald-50/70'
+                        : inMicrociclo
+                          ? 'bg-teal-50/30'
+                          : ''
+                  const microContour = inMicrociclo
+                    ? 'ring-1 ring-inset ring-teal-500/50'
+                    : ''
+
                   return (
                     <div
                       key={day}
@@ -771,15 +785,11 @@ export function CalendarSection({
                         mdColors ? `border-t-4 ${mdColors.border}` : ''
                       } ${
                         isToday
-                          ? 'bg-primary/5 ring-2 ring-inset ring-primary/20'
-                          : isDescanso
-                            ? 'bg-slate-50'
-                            : mdColors
-                              ? mdColors.bg + '/40'
-                              : inMicrociclo
-                                ? 'bg-blue-50/40'
-                                : ''
-                      } ${hasContent && !isDescanso ? 'cursor-pointer hover:bg-muted/40' : ''}`}
+                          ? 'ring-2 ring-inset ring-primary/30'
+                          : ''
+                      } ${activityBg} ${microContour} ${
+                        hasContent && !isDescanso ? 'cursor-pointer hover:brightness-[0.98]' : ''
+                      }`}
                     >
                       {/* Day number header */}
                       <div className="flex items-center justify-between mb-1">
@@ -1034,19 +1044,22 @@ export function CalendarSection({
               {/* Legend bar — hidden on mobile */}
               <div className="hidden md:flex flex-wrap items-center gap-x-5 gap-y-1 px-4 py-2.5 border-t bg-muted/20 text-[11px] text-muted-foreground">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-green-500" /> Completada
+                  <span className="w-3 h-3 rounded border-2 border-teal-500 bg-teal-50/40" /> Microciclo
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-blue-500" /> Planificada
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-gray-400" /> Borrador
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" /> Sesión
                 </span>
                 <span className="flex items-center gap-1.5">
                   <Swords className="h-3 w-3 text-amber-600" /> Partido
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <Moon className="h-3 w-3 text-slate-400" /> Descanso
+                  <Moon className="h-3 w-3 text-slate-500" /> Descanso
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-green-500" /> Completada
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-blue-500" /> Planificada
                 </span>
                 <span className="text-muted-foreground/30">|</span>
                 {Object.entries(MATCH_DAY_COLORS).slice(0, 4).map(([md, colors]) => (
