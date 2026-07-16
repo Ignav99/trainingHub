@@ -36,6 +36,8 @@ interface PlanPartidoProps {
   microcicloId?: string
   equipoId?: string
   horaPartido?: string
+  fechaPartido?: string
+  ciudadPartido?: string
 }
 
 const FASES: { fase: FasePlanPartido; label: string; color: string }[] = [
@@ -89,6 +91,8 @@ export function PlanPartido({
   microcicloId,
   equipoId,
   horaPartido,
+  fechaPartido,
+  ciudadPartido,
 }: PlanPartidoProps) {
   const [activeTab, setActiveTab] = useState<FasePlanPartido>('ataque_organizado')
   const dataRef = useRef(data)
@@ -327,6 +331,8 @@ export function PlanPartido({
         <NutricionPartidoEditor
           data={data.nutricion_partido}
           horaPartido={horaPartido}
+          fechaPartido={fechaPartido}
+          ciudadPartido={ciudadPartido}
           onChange={(nutricion_partido) => update({ nutricion_partido })}
         />
       </CardContent>
