@@ -18,7 +18,13 @@ import {
   MoreHorizontal,
   ClipboardList,
   ArrowRight,
+  Download,
 } from 'lucide-react'
+import { CalendarYearView } from '@/components/dashboard/calendar/CalendarYearView'
+import { CalendarWeekView } from '@/components/dashboard/calendar/CalendarWeekView'
+import type { CalendarViewMode } from '@/lib/calendar/types'
+import { CALENDAR_VIEW_LABELS, startOfWeekMonday, addDays, toLocalDateStr } from '@/lib/calendar/types'
+import { exportCalendarPDF } from '@/lib/pdf/exportCalendarPDF'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -128,6 +134,13 @@ interface CalendarSectionProps {
   onPrevMonth: () => void
   onNextMonth: () => void
   onGoToToday: () => void
+  viewMode: CalendarViewMode
+  onViewModeChange: (mode: CalendarViewMode) => void
+  focusDate: string
+  onFocusDateChange: (date: string) => void
+  onYearChange: (year: number) => void
+  clubName?: string
+  equipoName?: string
   sesionesMes: Sesion[]
   partidosMes: Partido[]
   microciclosMes: Microciclo[]
@@ -150,6 +163,13 @@ export function CalendarSection({
   onPrevMonth,
   onNextMonth,
   onGoToToday,
+  viewMode,
+  onViewModeChange,
+  focusDate,
+  onFocusDateChange,
+  onYearChange,
+  clubName,
+  equipoName,
   sesionesMes,
   partidosMes,
   microciclosMes,
@@ -280,58 +300,137 @@ export function CalendarSection({
 
   const currentMobileWeek = mobileWeeks[mobileWeekOffset] || mobileWeeks[0] || []
 
+  const handlePrev = () => {
+    if (viewMode === 'ano') onYearChange(calYear - 1)
+    else if (viewMode === 'semana') onFocusDateChange(addDays(startOfWeekMonday(focusDate), -7))
+    else onPrevMonth()
+  }
+
+  const handleNext = () => {
+    if (viewMode === 'ano') onYearChange(calYear + 1)
+    else if (viewMode === 'semana') onFocusDateChange(addDays(startOfWeekMonday(focusDate), 7))
+    else onNextMonth()
+  }
+
+  const handleExportPdf = () => {
+    exportCalendarPDF({
+      viewMode,
+      year: calYear,
+      month: calMonth,
+      focusDate,
+      clubName,
+      equipoName,
+      sesiones: sesionesMes,
+      partidos: partidosMes,
+      microciclos: microciclosMes,
+      descansos,
+    })
+  }
+
+  const periodLabel = (() => {
+    if (viewMode === 'ano') return String(calYear)
+    if (viewMode === 'semana') {
+      const mon = startOfWeekMonday(focusDate)
+      const sun = addDays(mon, 6)
+      const a = new Date(mon + 'T12:00:00')
+      const b = new Date(sun + 'T12:00:00')
+      return `${a.getDate()} ${MONTH_NAMES[a.getMonth()].slice(0, 3)} – ${b.getDate()} ${MONTH_NAMES[b.getMonth()].slice(0, 3)} ${b.getFullYear()}`
+    }
+    return `${MONTH_NAMES[calMonth]} ${calYear}`
+  })()
+
+
   return (
     <>
       <Card className="overflow-hidden">
-        <CardHeader className="flex flex-row items-center justify-between pb-3 border-b">
-          <div className="flex items-center gap-2 sm:gap-3">
+        <CardHeader className="flex flex-col gap-3 pb-3 border-b sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <CardTitle className="text-base sm:text-lg flex items-center gap-2">
               <Calendar className="h-5 w-5" />
               <span className="hidden sm:inline">Calendario</span>
             </CardTitle>
-            {microcicloActivo && (
+            <div className="inline-flex rounded-lg border bg-muted/40 p-0.5">
+              {(['semana', 'mes', 'ano'] as CalendarViewMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => onViewModeChange(mode)}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                    viewMode === mode
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {CALENDAR_VIEW_LABELS[mode]}
+                </button>
+              ))}
+            </div>
+            {microcicloActivo && viewMode !== 'ano' && (
               <Badge variant="outline" className="text-[10px] border-blue-200 text-blue-700 bg-blue-50 hidden sm:inline-flex">
                 Microciclo activo
               </Badge>
             )}
           </div>
           <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 sm:h-8 text-xs"
-              onClick={onGoToToday}
-            >
+            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={onGoToToday}>
               Hoy
             </Button>
-            {isMobile ? (
-              <>
-                <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => setMobileWeekOffset(Math.max(0, mobileWeekOffset - 1))}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-xs font-semibold min-w-[100px] text-center">
-                  {MONTH_NAMES[calMonth].slice(0, 3)} {calYear}
-                </span>
-                <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => setMobileWeekOffset(Math.min(mobileWeeks.length - 1, mobileWeekOffset + 1))}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onPrevMonth}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-sm font-semibold min-w-[140px] text-center">
-                  {MONTH_NAMES[calMonth]} {calYear}
-                </span>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onNextMonth}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </>
-            )}
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handlePrev}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-xs sm:text-sm font-semibold min-w-[120px] sm:min-w-[160px] text-center">
+              {periodLabel}
+            </span>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleNext}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs ml-1"
+              onClick={handleExportPdf}
+              title="Exportar PDF"
+            >
+              <Download className="h-3.5 w-3.5 sm:mr-1.5" />
+              <span className="hidden sm:inline">PDF</span>
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="p-0 animate-fade-in">
+          {viewMode === 'ano' ? (
+            <div className="p-3">
+              <CalendarYearView
+                year={calYear}
+                sesiones={sesionesMes}
+                partidos={partidosMes}
+                microciclos={microciclosMes}
+                descansos={descansos}
+                onSelectDay={onSelectDay}
+                onSelectMonth={(month) => {
+                  onViewModeChange('mes')
+                  // parent owns calMonth via onFocusDateChange + year
+                  onFocusDateChange(dateToStr(calYear, month, 1))
+                }}
+              />
+            </div>
+          ) : viewMode === 'semana' ? (
+            <div className="p-3">
+              <CalendarWeekView
+                focusDate={focusDate}
+                sesiones={sesionesMes}
+                partidos={partidosMes}
+                microciclos={microciclosMes}
+                descansos={descansos}
+                equipoId={equipoId}
+                addMenuDay={addMenuDay}
+                setAddMenuDay={setAddMenuDay}
+                onSelectDay={onSelectDay}
+                onToggleDescanso={onToggleDescanso}
+                onNavigate={onNavigate}
+              />
+            </div>
+          ) : (
+            <>
           {/* Day headers */}
           <div className="flex border-b bg-muted/30">
             <div className="hidden md:block w-6 shrink-0" />
@@ -922,6 +1021,8 @@ export function CalendarSection({
                 ))}
                 <span className="text-muted-foreground/30">...</span>
               </div>
+            </>
+          )}
             </>
           )}
         </CardContent>

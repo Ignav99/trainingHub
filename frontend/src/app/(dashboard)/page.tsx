@@ -32,6 +32,8 @@ import type { Sesion, Microciclo, Partido, Descanso, PaginatedResponse } from '@
 import { NextMatchBanner } from '@/components/dashboard/NextMatchBanner'
 import { CalendarSection } from '@/components/dashboard/CalendarSection'
 import { DayDetailPanel } from '@/components/dashboard/DayDetailPanel'
+import type { CalendarViewMode } from '@/lib/calendar/types'
+import { startOfWeekMonday, addDays, toLocalDateStr } from '@/lib/calendar/types'
 
 // ============ Field pattern SVG background ============
 const FIELD_PATTERN = `url("data:image/svg+xml,%3Csvg width='200' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='10' y='10' width='180' height='180' fill='none' stroke='%23000' stroke-width='0.5' opacity='0.03'/%3E%3Cline x1='100' y1='10' x2='100' y2='190' stroke='%23000' stroke-width='0.5' opacity='0.03'/%3E%3Ccircle cx='100' cy='100' r='30' fill='none' stroke='%23000' stroke-width='0.5' opacity='0.03'/%3E%3C/svg%3E")`
@@ -57,6 +59,8 @@ export default function DashboardPage() {
   const now = new Date()
   const [calYear, setCalYear] = useState(now.getFullYear())
   const [calMonth, setCalMonth] = useState(now.getMonth())
+  const [viewMode, setViewMode] = useState<CalendarViewMode>('mes')
+  const [focusDate, setFocusDate] = useState(() => toLocalDateStr(now))
 
   // ============ SWR data fetching ============
   const { data: resumen, isLoading: l1 } = useSWR<DashboardResumen>(
@@ -75,19 +79,42 @@ export default function DashboardPage() {
     apiKey('/rfef/competiciones', { equipo_id: equipoId }, ['equipo_id'])
   )
 
-  // Calendar data
-  const fechaDesde = dateToStr(calYear, calMonth, 1)
-  const lastDay = getDaysInMonth(calYear, calMonth)
-  const fechaHasta = dateToStr(calYear, calMonth, lastDay)
+  // Calendar data range depends on view (semana / mes / año)
+  const { fechaDesde, fechaHasta, sesLimit, parLimit } = useMemo(() => {
+    if (viewMode === 'ano') {
+      return {
+        fechaDesde: `${calYear}-01-01`,
+        fechaHasta: `${calYear}-12-31`,
+        sesLimit: 500,
+        parLimit: 120,
+      }
+    }
+    if (viewMode === 'semana') {
+      const mon = startOfWeekMonday(focusDate)
+      return {
+        fechaDesde: mon,
+        fechaHasta: addDays(mon, 6),
+        sesLimit: 50,
+        parLimit: 20,
+      }
+    }
+    const lastDay = getDaysInMonth(calYear, calMonth)
+    return {
+      fechaDesde: dateToStr(calYear, calMonth, 1),
+      fechaHasta: dateToStr(calYear, calMonth, lastDay),
+      sesLimit: 80,
+      parLimit: 40,
+    }
+  }, [viewMode, calYear, calMonth, focusDate])
 
   const { data: calSesRes } = useSWR<PaginatedResponse<Sesion>>(
-    apiKey('/sesiones', { equipo_id: equipoId, fecha_desde: fechaDesde, fecha_hasta: fechaHasta, limit: 50 }, ['equipo_id'])
+    apiKey('/sesiones', { equipo_id: equipoId, fecha_desde: fechaDesde, fecha_hasta: fechaHasta, limit: sesLimit }, ['equipo_id'])
   )
   const { data: calParRes } = useSWR<PaginatedResponse<Partido>>(
-    apiKey('/partidos', { equipo_id: equipoId, fecha_desde: fechaDesde, fecha_hasta: fechaHasta, limit: 20 }, ['equipo_id'])
+    apiKey('/partidos', { equipo_id: equipoId, fecha_desde: fechaDesde, fecha_hasta: fechaHasta, limit: parLimit }, ['equipo_id'])
   )
   const { data: calMicroRes } = useSWR<PaginatedResponse<Microciclo>>(
-    apiKey('/microciclos', { equipo_id: equipoId, fecha_desde: fechaDesde, fecha_hasta: fechaHasta }, ['equipo_id'])
+    apiKey('/microciclos', { equipo_id: equipoId, fecha_desde: fechaDesde, fecha_hasta: fechaHasta, limit: 80 }, ['equipo_id'])
   )
   const descansosKey = apiKey('/descansos', { equipo_id: equipoId, fecha_desde: fechaDesde, fecha_hasta: fechaHasta }, ['equipo_id'])
   const { data: descansosRes, mutate: mutateDescansos } = useSWR<{ data: Descanso[] }>(descansosKey)
@@ -149,6 +176,28 @@ export default function DashboardPage() {
       setCalYear(calYear + 1)
     } else {
       setCalMonth(calMonth + 1)
+    }
+  }
+
+  const handleFocusDateChange = (date: string) => {
+    setFocusDate(date)
+    const d = new Date(date.slice(0, 10) + 'T12:00:00')
+    setCalYear(d.getFullYear())
+    setCalMonth(d.getMonth())
+  }
+
+  const handleGoToToday = () => {
+    const t = new Date()
+    const today = toLocalDateStr(t)
+    setCalYear(t.getFullYear())
+    setCalMonth(t.getMonth())
+    setFocusDate(today)
+  }
+
+  const handleViewModeChange = (mode: CalendarViewMode) => {
+    setViewMode(mode)
+    if (mode === 'semana') {
+      setFocusDate((prev) => startOfWeekMonday(prev || toLocalDateStr(new Date())))
     }
   }
 
@@ -278,10 +327,14 @@ export default function DashboardPage() {
         calMonth={calMonth}
         onPrevMonth={handlePrevMonth}
         onNextMonth={handleNextMonth}
-        onGoToToday={() => {
-          setCalYear(now.getFullYear())
-          setCalMonth(now.getMonth())
-        }}
+        onGoToToday={handleGoToToday}
+        viewMode={viewMode}
+        onViewModeChange={handleViewModeChange}
+        focusDate={focusDate}
+        onFocusDateChange={handleFocusDateChange}
+        onYearChange={setCalYear}
+        clubName={user?.organizacion?.nombre}
+        equipoName={equipoActivo?.nombre}
         sesionesMes={sesionesMes}
         partidosMes={partidosMes}
         microciclosMes={microciclosMes}
