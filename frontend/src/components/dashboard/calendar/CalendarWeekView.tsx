@@ -138,27 +138,26 @@ export function CalendarWeekView({
               ? 'MD'
               : bucket.sesiones[0]?.match_day || null
           const hasContent = bucket.partidos.length > 0 || bucket.sesiones.length > 0 || bucket.descanso
-          const inMicro = bucket.microciclos.length > 0
           const hasMatch = bucket.partidos.length > 0
           const hasSesion = bucket.sesiones.length > 0
+          const firstMatchLocal = bucket.partidos[0]?.localia === 'local'
 
           return (
             <div
               key={date}
               className={`
                 relative rounded-xl border flex flex-col min-h-[340px]
-                ${isToday ? 'border-primary ring-1 ring-primary/30' : inMicro ? 'border-teal-600' : 'border-border'}
-                ${inMicro ? 'shadow-[inset_0_0_0_2px_rgb(13,148,136)] border-2 border-teal-600' : ''}
+                ${isToday ? 'border-primary ring-1 ring-primary/30' : 'border-border'}
                 ${
                   bucket.descanso
                     ? 'bg-slate-100'
                     : hasMatch
-                      ? 'bg-amber-50/50'
+                      ? firstMatchLocal
+                        ? 'bg-amber-50/50'
+                        : 'bg-violet-50/50'
                       : hasSesion
                         ? 'bg-emerald-50/40'
-                        : inMicro
-                          ? 'bg-teal-50/40'
-                          : 'bg-card'
+                        : 'bg-card'
                 }
               `}
             >

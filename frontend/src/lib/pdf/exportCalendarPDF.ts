@@ -120,8 +120,11 @@ function exportYear(input: CalendarExportInput, index: ReturnType<typeof buildDa
       }
       const date = dateToStr(sm.year, sm.month, day)
       const b = getBucket(index, date)
+      const isLocalMatch = b.partidos[0]?.localia === 'local'
       if (b.partidos.length) {
-        doc.setFillColor(253, 230, 138) // amber — partido
+        // Casa = ámbar, fuera = violeta
+        if (isLocalMatch) doc.setFillColor(253, 230, 138)
+        else doc.setFillColor(221, 214, 254)
       } else if (b.sesiones.length) {
         doc.setFillColor(209, 250, 229) // emerald — sesión
       } else if (b.descanso) {
@@ -142,8 +145,8 @@ function exportYear(input: CalendarExportInput, index: ReturnType<typeof buildDa
       doc.text(String(day), x + 0.4, y + 3)
       if (b.partidos.length) {
         doc.setFontSize(5)
-        doc.setTextColor(120, 80, 20)
-        doc.text(b.partidos[0]?.localia === 'local' ? 'C' : 'F', x + cellW / 2, y + rowH - 2.2, { align: 'center' })
+        doc.setTextColor(isLocalMatch ? 120 : 76, isLocalMatch ? 80 : 29, isLocalMatch ? 20 : 149)
+        doc.text(isLocalMatch ? 'C' : 'F', x + cellW / 2, y + rowH - 2.2, { align: 'center' })
       } else if (b.sesiones.length) {
         doc.setFontSize(5)
         doc.setTextColor(6, 95, 70)
@@ -158,7 +161,7 @@ function exportYear(input: CalendarExportInput, index: ReturnType<typeof buildDa
 
   doc.setFontSize(7)
   doc.setTextColor(120, 120, 120)
-  doc.text('Contorno = microciclo   C/F = partido   S = sesión   D = descanso', left, pageH - 6)
+  doc.text('Contorno = microciclo   C = casa   F = fuera   S = sesión   D = descanso', left, pageH - 6)
   doc.save(filename('ano', input.year, input.month, input.focusDate, seasonStartYear, seasonStartMonth))
 }
 
@@ -200,11 +203,6 @@ function exportMonth(input: CalendarExportInput, index: ReturnType<typeof buildD
     if (dayNum < 1 || dayNum > daysInMonth) continue
     const date = dateToStr(input.year, input.month, dayNum)
     const b = getBucket(index, date)
-    if (b.microciclos.length) {
-      doc.setFillColor(239, 246, 255)
-      doc.rect(x, y, cellW - 0.5, cellH - 0.5, 'F')
-      doc.rect(x, y, cellW - 0.5, cellH - 0.5)
-    }
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(8)
     doc.setTextColor(40, 40, 40)
@@ -214,7 +212,9 @@ function exportMonth(input: CalendarExportInput, index: ReturnType<typeof buildD
     doc.setFontSize(6)
     let ty = y + 7
     for (const p of b.partidos.slice(0, 2)) {
-      doc.setTextColor(180, 83, 9)
+      // Casa = ámbar, fuera = violeta
+      if (p.localia === 'local') doc.setTextColor(180, 83, 9)
+      else doc.setTextColor(109, 40, 217)
       const rival = p.rival?.nombre_corto || p.rival?.nombre || 'Rival'
       doc.text(`P ${(p.localia === 'local' ? 'vs' : '@')} ${rival}`.slice(0, 22), x + 1.2, ty)
       ty += 3
@@ -258,10 +258,6 @@ function exportWeek(input: CalendarExportInput, index: ReturnType<typeof buildDa
     const x = left + i * cellW
     const b = getBucket(index, date)
     doc.setDrawColor(210, 210, 210)
-    if (b.microciclos.length) {
-      doc.setFillColor(239, 246, 255)
-      doc.rect(x, top, cellW - 1, cellH, 'F')
-    }
     doc.rect(x, top, cellW - 1, cellH)
 
     const d = new Date(date + 'T12:00:00')
@@ -281,7 +277,8 @@ function exportWeek(input: CalendarExportInput, index: ReturnType<typeof buildDa
       ty += 4
     }
     for (const p of b.partidos) {
-      doc.setTextColor(180, 83, 9)
+      if (p.localia === 'local') doc.setTextColor(180, 83, 9)
+      else doc.setTextColor(109, 40, 217)
       const rival = p.rival?.nombre || 'Rival'
       const lines = doc.splitTextToSize(
         `PARTIDO ${(p.localia === 'local' ? 'vs' : '@')} ${rival}${p.hora ? ' · ' + p.hora : ''}`,

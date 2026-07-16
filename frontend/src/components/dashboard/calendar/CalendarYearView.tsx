@@ -62,11 +62,16 @@ function microSegmentsForMonth(
 
 function activityFill(opts: {
   hasMatch: boolean
+  isLocal: boolean
   hasSesion: boolean
   hasDescanso: boolean
   inMicro: boolean
 }) {
-  if (opts.hasMatch) return 'bg-amber-300/95 border-amber-500 text-amber-950'
+  if (opts.hasMatch) {
+    return opts.isLocal
+      ? 'bg-amber-300/95 border-amber-500 text-amber-950'
+      : 'bg-violet-300/95 border-violet-500 text-violet-950'
+  }
   if (opts.hasSesion) return 'bg-emerald-100 border-emerald-500 text-emerald-950'
   if (opts.hasDescanso) return 'bg-slate-300 border-slate-500 text-slate-800'
   if (opts.inMicro) return 'bg-white border-transparent text-muted-foreground'
@@ -143,7 +148,7 @@ function MonthRow({
             const inMicro = bucket.microciclos.length > 0
             const isToday = date === todayStr
             const isLocal = partido?.localia === 'local'
-            const fill = activityFill({ hasMatch, hasSesion, hasDescanso, inMicro })
+            const fill = activityFill({ hasMatch, isLocal, hasSesion, hasDescanso, inMicro })
 
             const tipParts = [
               `${day}/${sm.month + 1}/${sm.year}`,
@@ -181,7 +186,7 @@ function MonthRow({
                     unoptimized
                   />
                 ) : hasMatch ? (
-                  <span className="text-[9px] leading-none font-black mt-1 text-amber-900">
+                  <span className={`text-[9px] leading-none font-black mt-1 ${isLocal ? 'text-amber-900' : 'text-violet-900'}`}>
                     {isLocal ? 'C' : 'F'}
                   </span>
                 ) : hasSesion ? (
@@ -190,7 +195,9 @@ function MonthRow({
                   <span className="text-[8px] leading-none font-bold text-slate-700 mt-1">D</span>
                 ) : null}
                 {hasMatch && (
-                  <span className="absolute top-0.5 right-0.5 text-[6px] font-black leading-none text-amber-800">
+                  <span className={`absolute top-0.5 right-0.5 text-[6px] font-black leading-none ${
+                    isLocal ? 'text-amber-800' : 'text-violet-800'
+                  }`}>
                     {isLocal ? 'L' : 'V'}
                   </span>
                 )}
@@ -320,7 +327,10 @@ export function CalendarYearView({
           <span className="w-4 h-3 rounded border-2 border-teal-600 bg-teal-500/10" /> Contorno microciclo
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded bg-amber-300 border border-amber-500" /> Partido + escudo
+          <span className="w-3 h-3 rounded bg-amber-300 border border-amber-500" /> Casa
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-3 h-3 rounded bg-violet-300 border border-violet-500" /> Fuera
         </span>
         <span className="flex items-center gap-1">
           <span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-500" /> Sesión
