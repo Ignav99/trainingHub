@@ -433,16 +433,16 @@ export function CalendarSection({
                           className="absolute top-full left-0 right-0 z-50 bg-popover border rounded-lg shadow-lg py-1 min-w-[160px] animate-in fade-in duration-150"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <button className="flex items-center gap-2 w-full px-3 py-2.5 text-xs row-hover text-left" onClick={() => { setAddMenuDay(null); onNavigate('/sesiones/nueva') }}>
+                          <button className="flex items-center gap-2 w-full px-3 py-2.5 text-xs row-hover text-left" onClick={() => { setAddMenuDay(null); onNavigate(`/sesiones/nueva?fecha=${date}`) }}>
                             <ClipboardList className="h-4 w-4 text-blue-600" />
                             <span>Entreno (manual)</span>
                           </button>
-                          <button className="flex items-center gap-2 w-full px-3 py-2.5 text-xs row-hover text-left" onClick={() => { setAddMenuDay(null); onNavigate('/sesiones/nueva-ai') }}>
+                          <button className="flex items-center gap-2 w-full px-3 py-2.5 text-xs row-hover text-left" onClick={() => { setAddMenuDay(null); onNavigate(`/sesiones/nueva-ai?fecha=${date}`) }}>
                             <Bot className="h-4 w-4 text-purple-600" />
                             <span>Entreno con IA</span>
                           </button>
                           <div className="border-t my-1" />
-                          <button className="flex items-center gap-2 w-full px-3 py-2.5 text-xs row-hover text-left" onClick={() => { setAddMenuDay(null); onNavigate('/partidos/nuevo') }}>
+                          <button className="flex items-center gap-2 w-full px-3 py-2.5 text-xs row-hover text-left" onClick={() => { setAddMenuDay(null); onNavigate(`/partidos/nuevo?fecha=${date}`) }}>
                             <Swords className="h-4 w-4 text-amber-600" />
                             <span>Partido</span>
                           </button>
@@ -709,7 +709,7 @@ export function CalendarSection({
                             className="flex items-center gap-2 w-full px-3 py-2 text-xs row-hover text-left"
                             onClick={() => {
                               setAddMenuDay(null)
-                              onNavigate('/sesiones/nueva')
+                              onNavigate(`/sesiones/nueva?fecha=${date}`)
                             }}
                           >
                             <ClipboardList className="h-3.5 w-3.5 text-blue-600" />
@@ -719,7 +719,7 @@ export function CalendarSection({
                             className="flex items-center gap-2 w-full px-3 py-2 text-xs row-hover text-left"
                             onClick={() => {
                               setAddMenuDay(null)
-                              onNavigate('/sesiones/nueva-ai')
+                              onNavigate(`/sesiones/nueva-ai?fecha=${date}`)
                             }}
                           >
                             <Bot className="h-3.5 w-3.5 text-purple-600" />
@@ -730,7 +730,7 @@ export function CalendarSection({
                             className="flex items-center gap-2 w-full px-3 py-2 text-xs row-hover text-left"
                             onClick={() => {
                               setAddMenuDay(null)
-                              onNavigate('/partidos/nuevo')
+                              onNavigate(`/partidos/nuevo?fecha=${date}`)
                             }}
                           >
                             <Swords className="h-3.5 w-3.5 text-amber-600" />

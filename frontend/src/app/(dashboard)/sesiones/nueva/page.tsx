@@ -52,6 +52,7 @@ export default function NuevaSesionPage() {
   const isAssisted = searchParams.get('mode') === 'assisted'
   const microcicloIdFromQuery = searchParams.get('microciclo_id')
   const planPartidoIdFromQuery = searchParams.get('plan_partido_id')
+  const fechaFromQuery = searchParams.get('fecha')
   const { equipoActivo } = useEquipoStore()
 
   const [loading, setLoading] = useState(false)
@@ -63,7 +64,7 @@ export default function NuevaSesionPage() {
   // Form data
   const [formData, setFormData] = useState<SesionCreateData>({
     titulo: '',
-    fecha: new Date().toISOString().split('T')[0],
+    fecha: fechaFromQuery || new Date().toISOString().split('T')[0],
     equipo_id: '', // TODO: Obtener del contexto
     match_day: 'MD-3',
     rival: '',

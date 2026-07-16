@@ -259,7 +259,7 @@ export function DayDetailPanel({
                   <Button
                     size="sm"
                     className="text-xs h-9"
-                    onClick={() => { onClose(); onNavigate('/sesiones/nueva') }}
+                    onClick={() => { onClose(); onNavigate(`/sesiones/nueva?fecha=${selectedDay}`) }}
                   >
                     <ClipboardList className="h-3.5 w-3.5 mr-1.5" />
                     Entreno manual
@@ -268,7 +268,7 @@ export function DayDetailPanel({
                     size="sm"
                     variant="secondary"
                     className="text-xs h-9"
-                    onClick={() => { onClose(); onNavigate('/sesiones/nueva-ai') }}
+                    onClick={() => { onClose(); onNavigate(`/sesiones/nueva-ai?fecha=${selectedDay}`) }}
                   >
                     <Bot className="h-3.5 w-3.5 mr-1.5" />
                     Entreno con IA
@@ -277,7 +277,7 @@ export function DayDetailPanel({
                     size="sm"
                     variant="outline"
                     className="text-xs h-9"
-                    onClick={() => { onClose(); onNavigate('/partidos/nuevo') }}
+                    onClick={() => { onClose(); onNavigate(`/partidos/nuevo?fecha=${selectedDay}`) }}
                   >
                     <Swords className="h-3.5 w-3.5 mr-1.5" />
                     Partido

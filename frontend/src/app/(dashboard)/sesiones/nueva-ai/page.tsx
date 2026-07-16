@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowLeft,
@@ -145,6 +145,8 @@ type View = 'attendance' | 'chat' | 'proposal'
 
 export default function NuevaSesionAIPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const fechaFromQuery = searchParams.get('fecha')
   const { equipoActivo } = useEquipoStore()
 
   const [view, setView] = useState<View>('attendance')
@@ -159,7 +161,7 @@ export default function NuevaSesionAIPage() {
   const [proposal, setProposal] = useState<Proposal | null>(null)
   const [sessionTitle, setSessionTitle] = useState('')
   const [sessionDate, setSessionDate] = useState(
-    new Date().toISOString().split('T')[0]
+    fechaFromQuery || new Date().toISOString().split('T')[0]
   )
 
   const [showMatchDayChips, setShowMatchDayChips] = useState(true)
