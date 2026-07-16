@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { CalendarDays, Users, ClipboardList, Target, Share2, Sparkles, Swords, Link2, Pencil, Shield } from 'lucide-react'
+import { CalendarDays, Users, ClipboardList, Target, Share2, Sparkles, Swords, Link2, Pencil, Shield, Lightbulb } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
@@ -150,6 +150,7 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
   const isMountedRef = useRef(false)
 
   const micro = data.microciclo
+  const reflexionAnterior = data.reflexion_partido_anterior
   const rangeLabel = `${formatDateShort(micro.fecha_inicio.slice(0, 10))} - ${formatDateShort(micro.fecha_fin.slice(0, 10))}`
 
   const linkedSessions = data.sesiones.map((s) => ({
@@ -266,6 +267,37 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
 
   return (
     <div className="space-y-6">
+      {/* Recordatorio mejora partido anterior */}
+      {reflexionAnterior?.texto && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 flex gap-3 items-start">
+          <Lightbulb className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-amber-900/80">
+              <span className="font-semibold uppercase tracking-wide">Del partido anterior</span>
+              <span>·</span>
+              <span className="truncate">
+                vs {reflexionAnterior.rival_nombre}
+                {reflexionAnterior.fecha ? ` · ${formatDateShort(reflexionAnterior.fecha.slice(0, 10))}` : ''}
+              </span>
+              {reflexionAnterior.partido_id && (
+                <Link
+                  href={`/partidos?match=${reflexionAnterior.partido_id}&tab=informe-partido`}
+                  className="text-amber-800 underline hover:no-underline ml-auto"
+                >
+                  Ver informe
+                </Link>
+              )}
+            </div>
+            <p className="text-sm text-amber-950 leading-snug whitespace-pre-wrap">
+              {reflexionAnterior.texto}
+            </p>
+            <p className="text-[10px] text-amber-800/70">
+              Tenlo en cuenta al planificar esta semana (objetivos, morfociclo, ABP…).
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ============ Header ============ */}
       <div className="rounded-xl border bg-card p-5 space-y-4">
         <div className="flex items-start justify-between gap-4">

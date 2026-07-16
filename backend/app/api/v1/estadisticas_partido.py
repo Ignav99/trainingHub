@@ -46,6 +46,7 @@ async def get_estadisticas_partido(
         goles_detalle_favor=[], goles_detalle_contra=[],
         faltas_mapa_cometidas=[], faltas_mapa_recibidas=[],
         comentario_tactico="",
+        reflexion_entrenador="",
         created_at="2000-01-01T00:00:00Z",
         updated_at="2000-01-01T00:00:00Z",
     )

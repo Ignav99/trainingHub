@@ -34,6 +34,7 @@ export interface EstadisticaPartidoUpdateData {
   faltas_mapa_recibidas?: FaltaPosicion[]
 
   comentario_tactico?: string
+  reflexion_entrenador?: string
 }
 
 export const estadisticasPartidoApi = {
