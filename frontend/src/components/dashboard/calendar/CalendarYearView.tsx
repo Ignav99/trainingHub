@@ -10,6 +10,7 @@ import {
   MONTH_NAMES_ES,
   dateToStr,
   getDaysInMonth,
+  addDays,
 } from '@/lib/calendar/types'
 import {
   formatSeasonLabel,
@@ -32,33 +33,50 @@ interface CalendarYearViewProps {
   loading?: boolean
 }
 
-function dayTone(opts: {
+/**
+ * Fill = activity. Contour = microciclo membership.
+ * Empty micro days stay almost white with a clear teal outline.
+ */
+function dayClasses(opts: {
   hasMatch: boolean
   isLocal?: boolean
   hasSesion: boolean
   hasDescanso: boolean
   inMicro: boolean
+  microEdge: { left: boolean; right: boolean }
 }) {
-  if (opts.hasMatch && opts.hasSesion) {
-    return opts.isLocal
-      ? 'bg-amber-100 border-amber-400 text-amber-950'
-      : 'bg-violet-100 border-violet-400 text-violet-950'
+  const { hasMatch, isLocal, hasSesion, hasDescanso, inMicro, microEdge } = opts
+
+  let fill =
+    'bg-white border-border/50 text-muted-foreground'
+
+  if (hasMatch && hasSesion) {
+    fill = isLocal
+      ? 'bg-amber-200 border-amber-500 text-amber-950'
+      : 'bg-orange-200 border-orange-500 text-orange-950'
+  } else if (hasMatch) {
+    fill = isLocal
+      ? 'bg-amber-300/90 border-amber-500 text-amber-950'
+      : 'bg-orange-300/90 border-orange-500 text-orange-950'
+  } else if (hasSesion) {
+    fill = 'bg-emerald-100 border-emerald-500 text-emerald-950'
+  } else if (hasDescanso) {
+    fill = 'bg-slate-300/90 border-slate-500 text-slate-800'
+  } else if (inMicro) {
+    // Contour only — no solid blue wash on every micro day
+    fill = 'bg-teal-50/50 border-teal-300/80 text-teal-900'
   }
-  if (opts.hasMatch) {
-    return opts.isLocal
-      ? 'bg-amber-200/90 border-amber-500 text-amber-950'
-      : 'bg-violet-200/90 border-violet-500 text-violet-950'
-  }
-  if (opts.hasSesion) {
-    return 'bg-sky-100 border-sky-400 text-sky-950'
-  }
-  if (opts.hasDescanso) {
-    return 'bg-slate-200 border-slate-400 text-slate-800'
-  }
-  if (opts.inMicro) {
-    return 'bg-blue-50 border-blue-200 text-blue-900'
-  }
-  return 'bg-white border-border/60 text-muted-foreground'
+
+  // Microciclo contour: stronger ring around the block
+  const contour = inMicro
+    ? [
+        'ring-1 ring-inset ring-teal-500/55',
+        microEdge.left ? 'rounded-l-[4px] ring-2 ring-inset ring-teal-600/70' : '',
+        microEdge.right ? 'rounded-r-[4px] ring-2 ring-inset ring-teal-600/70' : '',
+      ].join(' ')
+    : ''
+
+  return `${fill} ${contour}`
 }
 
 function MonthRow({
@@ -90,7 +108,7 @@ function MonthRow({
       </button>
 
       <div
-        className="grid gap-px min-h-0 h-full"
+        className="grid gap-[1px] min-h-0 h-full"
         style={{ gridTemplateColumns: 'repeat(31, minmax(0, 1fr))' }}
       >
         {Array.from({ length: 31 }, (_, i) => {
@@ -105,25 +123,37 @@ function MonthRow({
           const hasMatch = bucket.partidos.length > 0
           const hasSesion = bucket.sesiones.length > 0
           const hasDescanso = bucket.descanso
-          const inMicro = bucket.microciclos.length > 0
+          const microId = bucket.microciclos[0]?.id
+          const inMicro = !!microId
           const isToday = date === todayStr
           const isLocal = partido?.localia === 'local'
-          const tone = dayTone({
+
+          const prevDate = addDays(date, -1)
+          const nextDate = addDays(date, 1)
+          const prevMicro = getBucket(index, prevDate).microciclos[0]?.id
+          const nextMicro = getBucket(index, nextDate).microciclos[0]?.id
+          const microEdge = {
+            left: inMicro && prevMicro !== microId,
+            right: inMicro && nextMicro !== microId,
+          }
+
+          const tone = dayClasses({
             hasMatch,
             isLocal,
             hasSesion,
             hasDescanso,
             inMicro,
+            microEdge,
           })
 
           const tipParts = [
             `${day}/${sm.month + 1}/${sm.year}`,
+            inMicro ? 'Microciclo' : null,
             hasMatch
               ? `Partido ${isLocal ? 'casa' : 'fuera'}: ${partido?.rival?.nombre_corto || partido?.rival?.nombre || 'Rival'}`
               : null,
             hasSesion ? `${bucket.sesiones.length} sesión(es)` : null,
             hasDescanso ? 'Descanso' : null,
-            inMicro ? 'Microciclo' : null,
           ].filter(Boolean)
 
           return (
@@ -133,10 +163,10 @@ function MonthRow({
               onClick={() => onSelectDay(date)}
               title={tipParts.join(' · ')}
               className={`
-                relative rounded-[3px] border flex flex-col items-center justify-center gap-px
+                relative rounded-[2px] border flex flex-col items-center justify-center gap-px
                 hover:brightness-95 hover:scale-[1.03] transition-all min-h-0
                 ${tone}
-                ${isToday ? 'ring-2 ring-primary ring-offset-1' : ''}
+                ${isToday ? 'outline outline-2 outline-offset-0 outline-primary z-[1]' : ''}
               `}
             >
               <span className="text-[7px] leading-none font-bold opacity-70 absolute top-0.5 left-0.5">
@@ -152,29 +182,21 @@ function MonthRow({
                   unoptimized
                 />
               ) : hasMatch ? (
-                <span
-                  className={`text-[9px] leading-none font-black mt-1 ${
-                    isLocal ? 'text-amber-800' : 'text-violet-800'
-                  }`}
-                >
+                <span className="text-[9px] leading-none font-black mt-1 text-amber-900">
                   {isLocal ? 'C' : 'F'}
                 </span>
               ) : hasSesion ? (
-                <span className="text-[9px] leading-none font-bold text-sky-800 mt-1">S</span>
+                <span className="text-[9px] leading-none font-bold text-emerald-800 mt-1">S</span>
               ) : hasDescanso ? (
                 <span className="text-[8px] leading-none font-bold text-slate-700 mt-1">D</span>
               ) : null}
               {hasMatch && (
-                <span
-                  className={`absolute top-0.5 right-0.5 text-[6px] font-black leading-none ${
-                    isLocal ? 'text-emerald-700' : 'text-violet-700'
-                  }`}
-                >
+                <span className="absolute top-0.5 right-0.5 text-[6px] font-black leading-none text-amber-800">
                   {isLocal ? 'L' : 'V'}
                 </span>
               )}
               {hasMatch && hasSesion && (
-                <span className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-sky-600 ring-1 ring-white" />
+                <span className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-600 ring-1 ring-white" />
               )}
             </button>
           )
@@ -294,12 +316,19 @@ export function CalendarYearView({
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 pt-2 border-t text-[10px] text-muted-foreground shrink-0">
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-200 border border-amber-500" /> Partido casa</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-violet-200 border border-violet-500" /> Partido fuera</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-sky-100 border border-sky-400" /> Sesión</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-slate-200 border border-slate-400" /> Descanso</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-50 border border-blue-200" /> Microciclo</span>
-        <span className="ml-auto">Temporada completa siempre en caché · clic abre detalle</span>
+        <span className="flex items-center gap-1">
+          <span className="w-3 h-3 rounded border-2 border-teal-500 bg-teal-50/50" /> Contorno microciclo
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-3 h-3 rounded bg-amber-300 border border-amber-500" /> Partido + escudo
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-500" /> Sesión
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-3 h-3 rounded bg-slate-300 border border-slate-500" /> Descanso
+        </span>
+        <span className="ml-auto">El microciclo no pinta todos los días de azul</span>
       </div>
     </div>
   )

@@ -138,6 +138,9 @@ export function CalendarWeekView({
               ? 'MD'
               : bucket.sesiones[0]?.match_day || null
           const hasContent = bucket.partidos.length > 0 || bucket.sesiones.length > 0 || bucket.descanso
+          const inMicro = bucket.microciclos.length > 0
+          const hasMatch = bucket.partidos.length > 0
+          const hasSesion = bucket.sesiones.length > 0
 
           return (
             <div
@@ -145,7 +148,18 @@ export function CalendarWeekView({
               className={`
                 relative rounded-xl border flex flex-col min-h-[340px]
                 ${isToday ? 'border-primary ring-1 ring-primary/30' : 'border-border'}
-                ${bucket.microciclos.length ? 'bg-blue-50/30' : 'bg-card'}
+                ${inMicro ? 'ring-1 ring-inset ring-teal-500/45' : ''}
+                ${
+                  bucket.descanso
+                    ? 'bg-slate-100'
+                    : hasMatch
+                      ? 'bg-amber-50/50'
+                      : hasSesion
+                        ? 'bg-emerald-50/40'
+                        : inMicro
+                          ? 'bg-teal-50/25'
+                          : 'bg-card'
+                }
               `}
             >
               {/* Header — opens day popup */}
