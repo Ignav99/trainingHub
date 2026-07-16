@@ -147,8 +147,8 @@ export function CalendarWeekView({
               key={date}
               className={`
                 relative rounded-xl border flex flex-col min-h-[340px]
-                ${isToday ? 'border-primary ring-1 ring-primary/30' : 'border-border'}
-                ${inMicro ? 'ring-1 ring-inset ring-teal-500/45' : ''}
+                ${isToday ? 'border-primary ring-1 ring-primary/30' : inMicro ? 'border-teal-600' : 'border-border'}
+                ${inMicro ? 'shadow-[inset_0_0_0_2px_rgb(13,148,136)] border-2 border-teal-600' : ''}
                 ${
                   bucket.descanso
                     ? 'bg-slate-100'
@@ -157,7 +157,7 @@ export function CalendarWeekView({
                       : hasSesion
                         ? 'bg-emerald-50/40'
                         : inMicro
-                          ? 'bg-teal-50/25'
+                          ? 'bg-teal-50/40'
                           : 'bg-card'
                 }
               `}
