@@ -315,7 +315,7 @@ export default function NuevoPartidoPage() {
             )}
           </button>
           <Link
-            href="/calendario"
+            href="/"
             className="px-6 py-3 border border-gray-300 rounded-lg font-medium hover:bg-gray-50 transition-colors"
           >
             Cancelar
