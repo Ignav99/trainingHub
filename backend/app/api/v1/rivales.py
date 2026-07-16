@@ -24,7 +24,15 @@ from app.models import (
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
-from app.services.pre_match_service import populate_rival_intel, gather_rival_intel_standalone, _match_rival_name, _query_actas, _get_rival_data, _get_once_probable
+from app.services.pre_match_service import (
+    populate_rival_intel,
+    gather_rival_intel_standalone,
+    refresh_rival_intel_contexto,
+    _match_rival_name,
+    _query_actas,
+    _get_rival_data,
+    _get_once_probable,
+)
 from app.services.ai_factory import call_ai_with_fallback
 from app.services.ai_errors import AIError
 
@@ -402,24 +410,27 @@ async def get_rival_intel(
     competicion_id: UUID = Query(..., description="RFEF competition ID"),
     auth: AuthContext = Depends(require_permission(Permission.RIVAL_READ)),
 ):
-    """Returns cached rival_intel or generates if null."""
+    """Returns cached rival_intel or generates if null. Always refreshes contexto_stats from actas."""
     supabase = get_supabase()
 
-    rival_res = supabase.table("rivales").select("rival_intel").eq(
+    rival_res = supabase.table("rivales").select("*").eq(
         "id", str(rival_id)
     ).eq("organizacion_id", auth.organizacion_id).single().execute()
 
     if not rival_res.data:
         raise HTTPException(status_code=404, detail="Rival no encontrado")
 
-    intel = rival_res.data.get("rival_intel")
-    if intel:
+    rival = rival_res.data
+    intel = rival.get("rival_intel")
+
+    if not intel:
+        intel = populate_rival_intel(supabase, str(rival_id), str(competicion_id))
+        if not intel:
+            return {}
         return intel
 
-    # Generate on first request
-    intel = populate_rival_intel(supabase, str(rival_id), str(competicion_id))
-    if not intel:
-        return {}
+    intel = refresh_rival_intel_contexto(supabase, rival, str(competicion_id), intel)
+    supabase.table("rivales").update({"rival_intel": intel}).eq("id", str(rival_id)).execute()
     return intel
 
 

@@ -580,42 +580,81 @@ export function RivalContextoIntel({ rivalId, competicionId, rivalNombre }: Riva
         </Card>
       )}
 
-      {/* Goles por minuto — gráficas */}
-      {ctx?.goles_por_minuto && ctx.actas_con_goles_minuto > 0 && (
+      {/* Goles por minuto — gráficas o aviso de datos faltantes */}
+      {ctx && (
         <Card>
           <CardContent className="p-4 space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-semibold">Análisis temporal de goles</p>
-              <span className="text-[10px] text-muted-foreground">{ctx.actas_con_goles_minuto} actas</span>
+              <span className="text-[10px] text-muted-foreground shrink-0">
+                {ctx.actas_con_goles_minuto}/{ctx.actas_analizadas} actas con minutos
+              </span>
             </div>
 
-            {goalInsights.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {goalInsights.map((tip, i) => (
-                  <Badge key={i} variant="secondary" className="text-[10px] font-normal">
-                    {tip}
-                  </Badge>
-                ))}
+            {ctx.datos_minuto_disponibles && ctx.goles_por_minuto ? (
+              <>
+                {goalInsights.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {goalInsights.map((tip, i) => (
+                      <Badge key={i} variant="secondary" className="text-[10px] font-normal">
+                        {tip}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                <PitchMinuteHeatmap
+                  buckets={ctx.goles_por_minuto.buckets}
+                  marcados={ctx.goles_por_minuto.marcados}
+                  encajados={ctx.goles_por_minuto.encajados}
+                />
+
+                <MinuteChart
+                  buckets={ctx.goles_por_minuto.buckets}
+                  marcados={ctx.goles_por_minuto.marcados}
+                  encajados={ctx.goles_por_minuto.encajados}
+                />
+
+                <NetMinuteChart
+                  buckets={ctx.goles_por_minuto.buckets}
+                  marcados={ctx.goles_por_minuto.marcados}
+                  encajados={ctx.goles_por_minuto.encajados}
+                />
+              </>
+            ) : (
+              <div className="rounded-lg border border-dashed bg-muted/30 p-4 space-y-2 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground">
+                  Sin datos de goles por minuto todavía
+                </p>
+                <p>
+                  Para ver el mapa temporal, las barras por tramos (0-15, 16-30… 76-90+) y el balance
+                  fortaleza/debilidad, hace falta que las <strong>actas RFEF</strong> incluyan la tabla
+                  de goles con el minuto de cada gol.
+                </p>
+                <ul className="list-disc pl-4 space-y-1 text-[11px]">
+                  <li>
+                    Actas encontradas: <strong>{ctx.actas_analizadas}</strong>
+                    {ctx.actas_con_resultado != null && (
+                      <> · con resultado: <strong>{ctx.actas_con_resultado}</strong></>
+                    )}
+                    {ctx.actas_con_goles_detalle != null && (
+                      <> · con detalle de goles: <strong>{ctx.actas_con_goles_detalle}</strong></>
+                    )}
+                  </li>
+                  <li>
+                    Ve a <strong>Competición RFEF → Sync completo</strong> (o sync actas) para re-scrapear
+                    actas que tengan marcador pero no minutos.
+                  </li>
+                  <li>
+                    Pulsa <strong>Actualizar</strong> arriba para regenerar la intel del rival.
+                  </li>
+                </ul>
+                <p className="text-[10px]">
+                  Los goles totales (GF/GC, casa/fuera, mitades) sí salen del marcador de jornada/acta.
+                  Las gráficas temporales requieren el campo <code className="text-[10px]">goles[].minuto</code> del acta.
+                </p>
               </div>
             )}
-
-            <PitchMinuteHeatmap
-              buckets={ctx.goles_por_minuto.buckets}
-              marcados={ctx.goles_por_minuto.marcados}
-              encajados={ctx.goles_por_minuto.encajados}
-            />
-
-            <MinuteChart
-              buckets={ctx.goles_por_minuto.buckets}
-              marcados={ctx.goles_por_minuto.marcados}
-              encajados={ctx.goles_por_minuto.encajados}
-            />
-
-            <NetMinuteChart
-              buckets={ctx.goles_por_minuto.buckets}
-              marcados={ctx.goles_por_minuto.marcados}
-              encajados={ctx.goles_por_minuto.encajados}
-            />
           </CardContent>
         </Card>
       )}

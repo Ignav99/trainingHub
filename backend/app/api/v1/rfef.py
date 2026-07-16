@@ -16,6 +16,7 @@ from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
 from app.services.rfef_scraper_service import RFAFScraper
 from app.services.competition_linker_service import link_competition
+from app.services.rfef_acta_utils import is_acta_complete
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -515,11 +516,11 @@ async def sync_competicion_full(
             if all_actas:
                 # Check which already exist — also re-scrape empty ones (no titulares)
                 existing_actas_res = supabase.table("rfef_actas").select(
-                    "cod_acta, titulares_local"
+                    "cod_acta, titulares_local, goles_local, goles_visitante, goles"
                 ).eq("competicion_id", comp_id).execute()
                 complete_codes = set()
                 for a in existing_actas_res.data or []:
-                    if a.get("titulares_local") and len(a["titulares_local"]) > 0:
+                    if is_acta_complete(a):
                         complete_codes.add(a["cod_acta"])
 
                 new_actas = [a for a in all_actas if a["cod_acta"] not in complete_codes]

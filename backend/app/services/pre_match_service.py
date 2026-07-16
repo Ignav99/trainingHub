@@ -334,7 +334,13 @@ def _compute_contexto_stats(
 
     return {
         "actas_analizadas": len(actas),
+        "actas_con_resultado": sum(
+            1 for a in actas
+            if a.get("goles_local") is not None and a.get("goles_visitante") is not None
+        ),
+        "actas_con_goles_detalle": sum(1 for a in actas if a.get("goles")),
         "actas_con_goles_minuto": actas_con_goles_minuto,
+        "datos_minuto_disponibles": actas_con_goles_minuto > 0,
         "racha": racha,
         "liga": {
             "gf": clasificacion.get("gf") if clasificacion else total_gf,
@@ -1236,4 +1242,31 @@ def populate_rival_intel(supabase, rival_id: str, competicion_id: str) -> dict |
     }).eq("id", rival_id).execute()
 
     logger.info("Populated rival intel for rival %s", rival_id)
+    return intel
+
+
+def refresh_rival_intel_contexto(
+    supabase, rival: dict, competicion_id: str, intel: dict
+) -> dict:
+    """Recompute contexto_stats from live actas (cheap refresh for cached intel)."""
+    rival_nombre = rival.get("rfef_nombre") or rival.get("nombre", "")
+    if not rival_nombre:
+        return intel
+
+    comp_res = supabase.table("rfef_competiciones").select("*").eq(
+        "id", competicion_id
+    ).single().execute()
+    if not comp_res.data:
+        return intel
+
+    clasificacion = _get_clasificacion(comp_res.data, rival_nombre) or intel.get("clasificacion")
+    if clasificacion:
+        intel["clasificacion"] = clasificacion
+
+    contexto = _compute_contexto_stats(
+        supabase, competicion_id, rival_nombre, clasificacion=clasificacion
+    )
+    if contexto:
+        intel["contexto_stats"] = contexto
+
     return intel

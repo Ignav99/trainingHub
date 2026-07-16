@@ -945,8 +945,13 @@ export interface DiaMorfociclo {
 }
 
 export interface SuplementacionPartidoItem {
+  /** Texto libre del fisio / nutricionista */
   nombre: string
+  /** Etiquetas opcionales (ej. Pre-partido, Isotónica) */
+  etiquetas?: string[]
+  /** @deprecated legacy — no se usa en el editor simplificado */
   momento?: string
+  /** @deprecated legacy */
   dosis?: string
 }
 
@@ -1619,7 +1624,10 @@ export interface PreMatchContextoSideStats {
 
 export interface PreMatchContextoStats {
   actas_analizadas: number
+  actas_con_resultado?: number
+  actas_con_goles_detalle?: number
   actas_con_goles_minuto: number
+  datos_minuto_disponibles?: boolean
   racha: PreMatchRachaEstado
   liga: {
     gf?: number
