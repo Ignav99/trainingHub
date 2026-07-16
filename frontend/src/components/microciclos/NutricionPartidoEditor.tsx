@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, KeyboardEvent } from 'react'
-import { CloudSun, Loader2, Pill, RefreshCw, Utensils, X } from 'lucide-react'
+import { CloudSun, Loader2, MapPin, Pill, RefreshCw, Utensils, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
@@ -13,6 +13,8 @@ import type { NutricionPartidoPlan } from '@/types'
 import { defaultNutricionPartidoPlan } from '@/lib/microcicloNutricionSync'
 import { fetchMatchWeatherEstimate } from '@/lib/matchWeatherEstimate'
 
+const DEFAULT_LUGAR = 'Madrid'
+
 interface NutricionPartidoEditorProps {
   data?: NutricionPartidoPlan
   onChange: (data: NutricionPartidoPlan) => void
@@ -21,14 +23,33 @@ interface NutricionPartidoEditorProps {
   ciudadPartido?: string
 }
 
-function normalizePlan(data?: NutricionPartidoPlan): NutricionPartidoPlan {
+function toDateInputValue(fecha?: string): string {
+  if (!fecha) return ''
+  // Accept YYYY-MM-DD or ISO
+  return fecha.slice(0, 10)
+}
+
+function toTimeInputValue(hora?: string): string {
+  if (!hora) return ''
+  // Accept HH:MM or HH:MM:SS
+  const m = hora.match(/^(\d{1,2}):(\d{2})/)
+  if (!m) return ''
+  return `${m[1].padStart(2, '0')}:${m[2]}`
+}
+
+function normalizePlan(
+  data: NutricionPartidoPlan | undefined,
+  defaults: { fecha?: string; hora?: string; lugar?: string }
+): NutricionPartidoPlan {
   const base = data ?? defaultNutricionPartidoPlan()
-  // Migrar etiquetas legacy de suplementaciones si existían
   const legacySups = (data as NutricionPartidoPlan | undefined)?.suplementaciones ?? []
   const legacyTags = legacySups.flatMap((s) => s.etiquetas ?? []).filter(Boolean)
   const etiquetas = Array.from(new Set([...(base.etiquetas ?? []), ...legacyTags]))
 
   return {
+    clima_fecha: base.clima_fecha || defaults.fecha || '',
+    clima_hora: base.clima_hora || defaults.hora || '',
+    clima_lugar: base.clima_lugar || defaults.lugar || DEFAULT_LUGAR,
     clima_estimacion: base.clima_estimacion ?? '',
     clima_actualizado_at: base.clima_actualizado_at,
     clima_resumen: base.clima_resumen,
@@ -60,7 +81,12 @@ export function NutricionPartidoEditor({
   fechaPartido,
   ciudadPartido,
 }: NutricionPartidoEditorProps) {
-  const plan = normalizePlan(data)
+  const planDefaults = {
+    fecha: toDateInputValue(fechaPartido),
+    hora: toTimeInputValue(horaPartido),
+    lugar: (ciudadPartido || '').trim() || DEFAULT_LUGAR,
+  }
+  const plan = normalizePlan(data, planDefaults)
   const [tagInput, setTagInput] = useState('')
   const [loadingClima, setLoadingClima] = useState(false)
 
@@ -86,19 +112,31 @@ export function NutricionPartidoEditor({
   }
 
   const handleActualizarClima = async () => {
+    const fecha = (plan.clima_fecha || '').trim()
+    const hora = (plan.clima_hora || '').trim()
+    const lugar = (plan.clima_lugar || '').trim() || DEFAULT_LUGAR
+
+    if (!fecha) {
+      toast.error('Indica la fecha del partido para consultar el clima')
+      return
+    }
+
     setLoadingClima(true)
     try {
       const result = await fetchMatchWeatherEstimate({
-        fecha: fechaPartido,
-        hora: horaPartido,
-        ciudad: ciudadPartido,
+        fecha,
+        hora: hora || undefined,
+        ciudad: lugar,
       })
       update({
+        clima_fecha: fecha,
+        clima_hora: hora,
+        clima_lugar: lugar,
         clima_estimacion: result.texto,
         clima_resumen: result.resumen,
         clima_actualizado_at: new Date().toISOString(),
       })
-      toast.success('Estimación climática actualizada')
+      toast.success('Clima actualizado')
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error al consultar el clima')
     } finally {
@@ -107,29 +145,64 @@ export function NutricionPartidoEditor({
   }
 
   const resumen = plan.clima_resumen
+  const horaEfectiva = plan.clima_hora || horaPartido
 
   return (
     <div className="rounded-lg border border-green-200 bg-green-50/40 p-3 space-y-4">
       <div className="flex items-center gap-2 flex-wrap">
         <Pill className="h-4 w-4 text-green-700" />
         <p className="text-xs font-semibold text-green-900">Nutrición / suplementación partido</p>
-        {horaPartido && (
-          <span className="text-[10px] text-green-700 ml-auto">Hora: {horaPartido}</span>
-        )}
       </div>
 
-      {/* 1. Clima auto-generado */}
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between gap-2">
-          <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
-            <CloudSun className="h-3 w-3" />
-            Estimación climática del día
-          </Label>
+      {/* 1. Consulta climática */}
+      <div className="space-y-2 rounded-md border bg-white/70 p-3">
+        <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+          <CloudSun className="h-3 w-3" />
+          Consulta climática del partido
+        </Label>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[9px] text-muted-foreground">Fecha</Label>
+            <Input
+              type="date"
+              value={plan.clima_fecha ?? ''}
+              onChange={(e) => update({ clima_fecha: e.target.value })}
+              className="h-8 text-xs bg-white"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[9px] text-muted-foreground">Hora</Label>
+            <Input
+              type="time"
+              value={plan.clima_hora ?? ''}
+              onChange={(e) => update({ clima_hora: e.target.value })}
+              className="h-8 text-xs bg-white"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[9px] text-muted-foreground flex items-center gap-1">
+              <MapPin className="h-3 w-3" />
+              Lugar
+            </Label>
+            <Input
+              value={plan.clima_lugar ?? DEFAULT_LUGAR}
+              onChange={(e) => update({ clima_lugar: e.target.value })}
+              placeholder="Madrid"
+              className="h-8 text-xs bg-white"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-2 pt-1">
+          <p className="text-[9px] text-muted-foreground">
+            Por defecto lugar = Madrid. Rellena y pulsa Actualizar.
+          </p>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="h-7 text-[10px]"
+            className="h-7 text-[10px] shrink-0"
             onClick={handleActualizarClima}
             disabled={loadingClima}
           >
@@ -141,6 +214,7 @@ export function NutricionPartidoEditor({
             Actualizar
           </Button>
         </div>
+
         {(resumen?.temperatura_c != null || resumen?.ciudad) && (
           <div className="flex flex-wrap gap-1.5 text-[10px]">
             {resumen.ciudad && <Badge variant="secondary">{resumen.ciudad}</Badge>}
@@ -150,19 +224,22 @@ export function NutricionPartidoEditor({
             {resumen.humedad_pct != null && (
               <Badge variant="outline">Humedad {resumen.humedad_pct}%</Badge>
             )}
+            {resumen.viento_kmh != null && (
+              <Badge variant="outline">Viento {resumen.viento_kmh} km/h</Badge>
+            )}
+            {resumen.precipitacion_prob != null && resumen.precipitacion_prob > 0 && (
+              <Badge variant="outline">Lluvia {resumen.precipitacion_prob}%</Badge>
+            )}
             {resumen.condicion && <Badge variant="outline">{resumen.condicion}</Badge>}
           </div>
         )}
+
         <Textarea
           rows={4}
           value={plan.clima_estimacion ?? ''}
           readOnly
-          placeholder={
-            ciudadPartido || fechaPartido
-              ? 'Pulsa Actualizar para consultar el clima del día del partido y generar la argumentación...'
-              : 'Vincula un partido con fecha/ciudad y pulsa Actualizar para estimar el clima...'
-          }
-          className="text-xs resize-none bg-white/80 text-muted-foreground"
+          placeholder="Pulsa Actualizar para obtener el tiempo exacto y la argumentación nutricional..."
+          className="text-xs resize-none bg-muted/30 text-muted-foreground"
         />
         {plan.clima_actualizado_at && (
           <p className="text-[9px] text-muted-foreground">
@@ -173,7 +250,6 @@ export function NutricionPartidoEditor({
               hour: '2-digit',
               minute: '2-digit',
             })}
-            {!ciudadPartido && ' · usando ubicación por defecto (Madrid)'}
           </p>
         )}
       </div>
@@ -228,7 +304,7 @@ export function NutricionPartidoEditor({
           <Utensils className="h-3 w-3" />
           Comida según hora del partido (opcional)
         </Label>
-        <p className="text-[10px] text-muted-foreground">{comidaHint(horaPartido)}</p>
+        <p className="text-[10px] text-muted-foreground">{comidaHint(horaEfectiva)}</p>
         <Textarea
           rows={2}
           value={plan.comida_recomendada ?? ''}

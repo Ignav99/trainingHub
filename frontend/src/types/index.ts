@@ -968,6 +968,10 @@ export interface ClimaPartidoResumen {
 
 /** Plan de nutrición / suplementación del partido */
 export interface NutricionPartidoPlan {
+  /** Parámetros de consulta climática (editables; Madrid por defecto en lugar) */
+  clima_fecha?: string
+  clima_hora?: string
+  clima_lugar?: string
   /** Estimación climática auto-generada (texto argumentativo del sistema) */
   clima_estimacion?: string
   clima_actualizado_at?: string
