@@ -24,11 +24,9 @@ import {
   Trophy,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog,
   DialogContent,
@@ -40,10 +38,9 @@ import {
 import { apiKey } from '@/lib/swr'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { microciclosApi } from '@/lib/api/microciclos'
-import { gameModelsApi } from '@/lib/api/gameModels'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { formatDate } from '@/lib/utils'
-import type { VistaCompletaMicrociclo, Partido, PaginatedResponse, Jugador, Rival, GameModel } from '@/types'
+import type { VistaCompletaMicrociclo, Partido, PaginatedResponse, Jugador, Rival } from '@/types'
 
 import { SalaLunes } from '@/components/microciclos/SalaLunes'
 
@@ -101,23 +98,13 @@ export default function MicrocicloDetallePage() {
   const [form, setForm] = useState({
     partido_id: '',
     rival_id: '',
-    game_model_id: '',
-    objetivo_principal: '',
-    objetivo_tactico: '',
-    objetivo_fisico: '',
-    notas: '',
   })
 
   // Select options for edit dialog
   const { data: rivalesData } = useSWR<PaginatedResponse<Rival>>(
     equipoActivo?.id ? apiKey('/rivales', { limit: 100 }) : null
   )
-  const { data: gameModelsData } = useSWR<{ data: GameModel[] }>(
-    equipoActivo?.id ? `game-models-${equipoActivo.id}` : null,
-    () => gameModelsApi.list(equipoActivo!.id)
-  )
   const rivales = rivalesData?.data || []
-  const gameModels = gameModelsData?.data || []
 
   // Delete dialog
   const [showDelete, setShowDelete] = useState(false)
@@ -129,11 +116,6 @@ export default function MicrocicloDetallePage() {
     setForm({
       partido_id: m.partido_id || '',
       rival_id: m.rival_id || '',
-      game_model_id: m.game_model_id || '',
-      objetivo_principal: m.objetivo_principal || '',
-      objetivo_tactico: m.objetivo_tactico || '',
-      objetivo_fisico: m.objetivo_fisico || '',
-      notas: m.notas || '',
     })
     setShowEdit(true)
   }
@@ -145,11 +127,6 @@ export default function MicrocicloDetallePage() {
       await microciclosApi.update(data.microciclo.id, {
         partido_id: form.partido_id || undefined,
         rival_id: form.rival_id || undefined,
-        game_model_id: form.game_model_id || undefined,
-        objetivo_principal: form.objetivo_principal || undefined,
-        objetivo_tactico: form.objetivo_tactico || undefined,
-        objetivo_fisico: form.objetivo_fisico || undefined,
-        notas: form.notas || undefined,
       })
       setShowEdit(false)
       mutate((key: string) => typeof key === 'string' && key.includes('/microciclos'), undefined, { revalidate: true })
@@ -301,9 +278,9 @@ export default function MicrocicloDetallePage() {
 
       {/* ============ EDIT DIALOG ============ */}
       <Dialog open={showEdit} onOpenChange={(open) => !open && setShowEdit(false)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Editar Microciclo</DialogTitle>
+            <DialogTitle>Vincular rival y partido</DialogTitle>
             <DialogDescription>
               Semana del {rangeLabel}
             </DialogDescription>
@@ -311,11 +288,18 @@ export default function MicrocicloDetallePage() {
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Partido de referencia</Label>
+              <Label>Partido</Label>
               <select
                 className="w-full rounded-md border bg-background px-3 py-2 text-sm"
                 value={form.partido_id}
-                onChange={(e) => setForm({ ...form, partido_id: e.target.value })}
+                onChange={(e) => {
+                  const partidoId = e.target.value
+                  const match = upcomingMatches.find((m) => m.id === partidoId)
+                  setForm({
+                    partido_id: partidoId,
+                    rival_id: match?.rival_id || form.rival_id,
+                  })
+                }}
               >
                 <option value="">Sin partido asignado</option>
                 {upcomingMatches.map((m) => (
@@ -326,75 +310,20 @@ export default function MicrocicloDetallePage() {
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Rival</Label>
-                <select
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                  value={form.rival_id}
-                  onChange={(e) => setForm({ ...form, rival_id: e.target.value })}
-                >
-                  <option value="">Sin rival</option>
-                  {rivales.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.nombre_corto || r.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label>Modelo de juego</Label>
-                <select
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                  value={form.game_model_id}
-                  onChange={(e) => setForm({ ...form, game_model_id: e.target.value })}
-                >
-                  <option value="">Sin modelo</option>
-                  {gameModels.map((gm) => (
-                    <option key={gm.id} value={gm.id}>
-                      {gm.nombre || gm.sistema_juego || 'Modelo'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
             <div className="space-y-2">
-              <Label>Objetivo principal</Label>
-              <Input
-                placeholder="Ej: Mejorar salida de balón bajo presión"
-                value={form.objetivo_principal}
-                onChange={(e) => setForm({ ...form, objetivo_principal: e.target.value })}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Objetivo táctico</Label>
-                <Input
-                  placeholder="Ej: Progresión por interior"
-                  value={form.objetivo_tactico}
-                  onChange={(e) => setForm({ ...form, objetivo_tactico: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Objetivo físico</Label>
-                <Input
-                  placeholder="Ej: Potencia aeróbica"
-                  value={form.objetivo_fisico}
-                  onChange={(e) => setForm({ ...form, objetivo_fisico: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Notas</Label>
-              <Textarea
-                placeholder="Observaciones sobre la semana..."
-                rows={3}
-                value={form.notas}
-                onChange={(e) => setForm({ ...form, notas: e.target.value })}
-              />
+              <Label>Rival</Label>
+              <select
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={form.rival_id}
+                onChange={(e) => setForm({ ...form, rival_id: e.target.value })}
+              >
+                <option value="">Sin rival</option>
+                {rivales.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.nombre_corto || r.nombre}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -402,7 +331,7 @@ export default function MicrocicloDetallePage() {
             <Button variant="outline" onClick={() => setShowEdit(false)}>Cancelar</Button>
             <Button onClick={handleSave} disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Guardar cambios
+              Guardar
             </Button>
           </DialogFooter>
         </DialogContent>
