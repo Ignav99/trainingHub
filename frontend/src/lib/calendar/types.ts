@@ -2,21 +2,20 @@
  * Diseño — Calendario dashboard (3 vistas)
  *
  * SEMANA (máximo detalle):
- * - 7 columnas a pantalla completa
- * - Cada día: rival+hora, título sesión, MD, duración, descanso, acciones +
- * - Banner del microciclo de la semana si existe
+ * - 7 columnas: objetivo, hora, duración, intensidad, ~UA, tareas, fase/carga
+ * - Partido: escudo, casa/fuera, enlaces Partido / Informe / Plan
+ * - Banner del microciclo; clic en día → DayDetailPanel
  *
- * MES (detalle medio — actual):
- * - Grid mensual con chips de partido/sesión/MD
+ * MES (detalle medio — estable):
+ * - Grid mensual con chips de partido/sesión/MD + escudos
  * - Barra lateral de microciclos por semana
  *
- * AÑO (mínimo detalle):
- * - 12 filas (una por mes), altura repartida sin scroll vertical
- * - Celda: número + marcas (partido / sesión / descanso)
- * - Fondo suave si el día cae en un microciclo
- * - Clic en mes → vista mes; clic en día → panel detalle
+ * AÑO (overview):
+ * - 12 filas × 31 columnas (día 1 alineado en todas)
+ * - Colores: casa (ámbar) / fuera (violeta) / sesión (sky) / descanso / micro
+ * - Escudo rival o marca C/F/S; clic → DayDetailPanel
  *
- * PDF: exportable en las 3 vistas (jsPDF) para directiva/jugadores.
+ * PDF: exportable en las 3 vistas (jsPDF).
  */
 
 export type CalendarViewMode = 'semana' | 'mes' | 'ano'

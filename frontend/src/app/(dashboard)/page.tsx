@@ -384,6 +384,7 @@ export default function DashboardPage() {
         onClose={() => setSelectedDay(null)}
         sesionesMes={sesionesMes}
         partidosMes={partidosMes}
+        microciclosMes={microciclosMes}
         descansos={descansos}
         equipoId={equipoId}
         onToggleDescanso={handleToggleDescanso}
