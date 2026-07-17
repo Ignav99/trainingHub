@@ -199,6 +199,7 @@ function JugadorCard({
             )}
             <PlayerStatusBadges
               estado={jugador.estado}
+              disponibilidad={jugador.disponibilidad}
               nivelCarga={cargaData?.nivel_carga}
               tarjetasAmarillas={cargaData?.tarjetas_amarillas}
               tarjetasRojas={cargaData?.tarjetas_rojas}

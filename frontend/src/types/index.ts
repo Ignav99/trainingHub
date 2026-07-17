@@ -539,6 +539,7 @@ export interface AIRecomendadorOutput {
 
 export type PiernaDominante = 'derecha' | 'izquierda' | 'ambas'
 export type EstadoJugador = 'activo' | 'lesionado' | 'en_recuperacion' | 'enfermo' | 'sancionado' | 'viaje' | 'permiso' | 'seleccion' | 'baja' | 'invitado'
+export type DisponibilidadOperativa = 'fuera' | 'individual' | 'grupo_adaptado' | 'pleno'
 export type TipoJugador = 'plantilla' | 'juvenil' | 'prueba' | 'invitado'
 export type FichaEstado = 'completa' | 'pre_ficha' | 'minima'
 export type Posicion = 'POR' | 'DFC' | 'LTD' | 'LTI' | 'CAD' | 'CAI' | 'MCD' | 'MC' | 'MCO' | 'MID' | 'MII' | 'EXD' | 'EXI' | 'MP' | 'DC' | 'SD'
@@ -562,6 +563,8 @@ export interface Jugador {
   nivel_fisico: number
   nivel_mental: number
   estado: EstadoJugador
+  /** Disponibilidad operativa: fuera | individual | grupo_adaptado | pleno */
+  disponibilidad?: DisponibilidadOperativa
   fecha_lesion?: string
   fecha_vuelta_estimada?: string
   motivo_baja?: string
@@ -1299,6 +1302,21 @@ export type TipoRegistroMedico =
 
 export type EstadoRegistroMedico = 'activo' | 'en_recuperacion' | 'alta' | 'cronico'
 
+export type SeveridadLesion = 'leve' | 'moderada' | 'grave'
+export type LadoCorporal = 'izquierdo' | 'derecho' | 'bilateral' | 'no_aplica'
+export type FaseRTP =
+  | 'fase_1_control_dolor'
+  | 'fase_2_movilidad'
+  | 'fase_3_fuerza_base'
+  | 'fase_4_fuerza_funcional'
+  | 'fase_5_carrera_lineal'
+  | 'fase_6_cambios_direccion'
+  | 'fase_7_entrenamiento_equipo'
+  | 'fase_8_competicion'
+
+export type TipoPruebaMedica =
+  | 'imagen' | 'reconocimiento' | 'isokinetico' | 'gps_campo' | 'laboratorio' | 'funcional' | 'otro'
+
 export interface RegistroMedico {
   id: string
   jugador_id: string
@@ -1319,6 +1337,31 @@ export interface RegistroMedico {
   documentos_urls?: string[]
   solo_medico: boolean
   registro_padre_id?: string
+  severidad?: SeveridadLesion | null
+  zona_corporal?: string | null
+  lado?: LadoCorporal | null
+  mecanismo?: string | null
+  es_relesion?: boolean
+  registro_origen_id?: string | null
+  disponibilidad?: DisponibilidadOperativa | null
+  fase_rtp?: FaseRTP | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PruebaMedica {
+  id: string
+  registro_medico_id: string
+  jugador_id: string
+  equipo_id: string
+  tipo: TipoPruebaMedica
+  titulo: string
+  fecha: string
+  resultado?: string | null
+  apto?: boolean | null
+  documento_url?: string | null
+  notas?: string | null
+  creado_por?: string | null
   created_at: string
   updated_at: string
 }

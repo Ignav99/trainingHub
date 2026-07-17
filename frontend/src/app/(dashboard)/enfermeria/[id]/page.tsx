@@ -20,6 +20,7 @@ import {
   Trash2,
   Download,
   X,
+  Plus,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -34,7 +35,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { medicoApi } from '@/lib/api/medico'
 import { Jugador, POSICIONES } from '@/lib/api/jugadores'
 import { apiKey } from '@/lib/swr'
-import type { RegistroMedico } from '@/types'
+import type { PruebaMedica, RegistroMedico } from '@/types'
 
 const ESTADO_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   activo: { label: 'Activo', color: 'text-red-700', bg: 'bg-red-100' },
@@ -90,6 +91,11 @@ export default function EnfermeriaDetailPage() {
     registro?.registro_padre_id ? apiKey(`/medico/${registro.registro_padre_id}`) : null
   )
 
+  const { data: pruebas = [], mutate: mutatePruebas } = useSWR<PruebaMedica[]>(
+    params.id ? apiKey(`/medico/${params.id}/pruebas`) : null,
+    () => medicoApi.listPruebas(String(params.id))
+  )
+
   const loading = loadingRegistro
   const error = registroError ? 'Error al cargar el registro médico' : null
 
@@ -97,6 +103,9 @@ export default function EnfermeriaDetailPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [editForm, setEditForm] = useState<Record<string, any>>({})
+
+  const [nuevaPrueba, setNuevaPrueba] = useState({ tipo: 'funcional', titulo: '', fecha: new Date().toISOString().slice(0, 10), apto: '' as string })
+  const [savingPrueba, setSavingPrueba] = useState(false)
 
   // File upload
   const [uploading, setUploading] = useState(false)
@@ -128,6 +137,11 @@ export default function EnfermeriaDetailPage() {
       fecha_inicio: registro.fecha_inicio,
       fecha_fin: registro.fecha_fin || '',
       fecha_alta: registro.fecha_alta || '',
+      severidad: registro.severidad || '',
+      zona_corporal: registro.zona_corporal || '',
+      lado: registro.lado || '',
+      disponibilidad: registro.disponibilidad || '',
+      fase_rtp: registro.fase_rtp || '',
     })
     setIsEditing(true)
   }
@@ -136,7 +150,11 @@ export default function EnfermeriaDetailPage() {
     if (!registro) return
     setSaving(true)
     try {
-      await medicoApi.update(registro.id, editForm)
+      const payload = { ...editForm }
+      for (const k of ['severidad', 'lado', 'disponibilidad', 'fase_rtp', 'zona_corporal']) {
+        if (payload[k] === '') payload[k] = undefined
+      }
+      await medicoApi.update(registro.id, payload)
       setIsEditing(false)
       mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
     } catch (err) {
@@ -279,9 +297,94 @@ export default function EnfermeriaDetailPage() {
             <Badge variant="outline">
               {TIPO_LABELS[registro.tipo] || registro.tipo}
             </Badge>
+            {registro.disponibilidad && (
+              <Badge variant="outline" className="capitalize">
+                {registro.disponibilidad.replace('_', ' ')}
+              </Badge>
+            )}
+            {registro.severidad && (
+              <Badge variant="secondary" className="capitalize">{registro.severidad}</Badge>
+            )}
           </div>
         }
       />
+
+      {/* Disponibilidad / RTP */}
+      {(registro.estado !== 'alta' || isEditing) && (
+        <Card className="border-amber-200 bg-amber-50/40">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Disponibilidad operativa y RTP</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Disponibilidad</label>
+              {isEditing ? (
+                <select
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  value={editForm.disponibilidad || ''}
+                  onChange={(e) => setEditForm({ ...editForm, disponibilidad: e.target.value || undefined })}
+                >
+                  <option value="">—</option>
+                  <option value="fuera">Fuera</option>
+                  <option value="individual">Individual / margen</option>
+                  <option value="grupo_adaptado">Grupo adaptado</option>
+                  <option value="pleno">Pleno</option>
+                </select>
+              ) : (
+                <p className="text-sm font-medium capitalize">{(registro.disponibilidad || '—').replace('_', ' ')}</p>
+              )}
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Fase RTP</label>
+              {isEditing ? (
+                <select
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  value={editForm.fase_rtp || ''}
+                  onChange={(e) => setEditForm({ ...editForm, fase_rtp: e.target.value || undefined })}
+                >
+                  <option value="">Sin fase</option>
+                  <option value="fase_1_control_dolor">1. Control dolor</option>
+                  <option value="fase_2_movilidad">2. Movilidad</option>
+                  <option value="fase_3_fuerza_base">3. Fuerza base</option>
+                  <option value="fase_4_fuerza_funcional">4. Fuerza funcional</option>
+                  <option value="fase_5_carrera_lineal">5. Carrera lineal</option>
+                  <option value="fase_6_cambios_direccion">6. Cambios dirección</option>
+                  <option value="fase_7_entrenamiento_equipo">7. Entreno equipo</option>
+                  <option value="fase_8_competicion">8. Competición</option>
+                </select>
+              ) : (
+                <p className="text-sm font-medium">{registro.fase_rtp?.replace(/fase_\d+_/, '').replace(/_/g, ' ') || '—'}</p>
+              )}
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Severidad / zona</label>
+              {isEditing ? (
+                <div className="space-y-2">
+                  <select
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    value={editForm.severidad || ''}
+                    onChange={(e) => setEditForm({ ...editForm, severidad: e.target.value || undefined })}
+                  >
+                    <option value="">Severidad</option>
+                    <option value="leve">Leve</option>
+                    <option value="moderada">Moderada</option>
+                    <option value="grave">Grave</option>
+                  </select>
+                  <Input
+                    value={editForm.zona_corporal || ''}
+                    onChange={(e) => setEditForm({ ...editForm, zona_corporal: e.target.value })}
+                    placeholder="Zona corporal"
+                  />
+                </div>
+              ) : (
+                <p className="text-sm font-medium">
+                  {[registro.severidad, registro.zona_corporal, registro.lado].filter(Boolean).join(' · ') || '—'}
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Parent record link */}
       {registroPadre && (
@@ -653,6 +756,110 @@ export default function EnfermeriaDetailPage() {
                   Subir documento
                 </Button>
                 <p className="text-xs text-muted-foreground mt-1">PDF, JPG, PNG, DOC, DOCX</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Pruebas médicas */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Pruebas
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {pruebas.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Sin pruebas registradas</p>
+              ) : (
+                <div className="space-y-2">
+                  {pruebas.map((p) => (
+                    <div key={p.id} className="flex items-start justify-between gap-2 p-2 rounded-lg border bg-muted/20">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{p.titulo}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {p.tipo} · {new Date(p.fecha).toLocaleDateString('es-ES')}
+                          {p.apto == null ? '' : p.apto ? ' · Apto' : ' · No apto'}
+                        </p>
+                        {p.resultado && <p className="text-xs mt-1 text-muted-foreground">{p.resultado}</p>}
+                      </div>
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-red-600 p-1"
+                        onClick={async () => {
+                          try {
+                            await medicoApi.deletePrueba(registro.id, p.id)
+                            mutatePruebas()
+                          } catch {
+                            toast.error('No se pudo eliminar la prueba')
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t">
+                <Input
+                  placeholder="Título de la prueba"
+                  value={nuevaPrueba.titulo}
+                  onChange={(e) => setNuevaPrueba({ ...nuevaPrueba, titulo: e.target.value })}
+                />
+                <select
+                  className="rounded-md border bg-background px-3 py-2 text-sm"
+                  value={nuevaPrueba.tipo}
+                  onChange={(e) => setNuevaPrueba({ ...nuevaPrueba, tipo: e.target.value })}
+                >
+                  <option value="imagen">Imagen</option>
+                  <option value="reconocimiento">Reconocimiento</option>
+                  <option value="isokinetico">Isocinético</option>
+                  <option value="gps_campo">GPS / campo</option>
+                  <option value="laboratorio">Laboratorio</option>
+                  <option value="funcional">Funcional</option>
+                  <option value="otro">Otro</option>
+                </select>
+                <Input
+                  type="date"
+                  value={nuevaPrueba.fecha}
+                  onChange={(e) => setNuevaPrueba({ ...nuevaPrueba, fecha: e.target.value })}
+                />
+                <select
+                  className="rounded-md border bg-background px-3 py-2 text-sm"
+                  value={nuevaPrueba.apto}
+                  onChange={(e) => setNuevaPrueba({ ...nuevaPrueba, apto: e.target.value })}
+                >
+                  <option value="">Resultado aptitud</option>
+                  <option value="true">Apto</option>
+                  <option value="false">No apto</option>
+                </select>
+                <Button
+                  size="sm"
+                  className="sm:col-span-2"
+                  disabled={savingPrueba || !nuevaPrueba.titulo}
+                  onClick={async () => {
+                    setSavingPrueba(true)
+                    try {
+                      await medicoApi.createPrueba(registro.id, {
+                        tipo: nuevaPrueba.tipo,
+                        titulo: nuevaPrueba.titulo,
+                        fecha: nuevaPrueba.fecha,
+                        apto: nuevaPrueba.apto === '' ? undefined : nuevaPrueba.apto === 'true',
+                      })
+                      setNuevaPrueba({ tipo: 'funcional', titulo: '', fecha: new Date().toISOString().slice(0, 10), apto: '' })
+                      mutatePruebas()
+                      toast.success('Prueba añadida')
+                    } catch {
+                      toast.error('Error al crear la prueba')
+                    } finally {
+                      setSavingPrueba(false)
+                    }
+                  }}
+                >
+                  {savingPrueba ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                  Añadir prueba
+                </Button>
               </div>
             </CardContent>
           </Card>

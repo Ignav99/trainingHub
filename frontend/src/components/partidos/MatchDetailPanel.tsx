@@ -985,7 +985,7 @@ export function MatchDetailPanel({
                                 <div className="flex-1 min-w-0">
                                   <p className="text-xs font-medium truncate flex items-center gap-1">
                                     {getPlayerDisplayName(conv)}
-                                    {(() => { const fullJ = jugadores.find((j) => j.id === conv.jugador_id); return fullJ ? <PlayerStatusBadges estado={fullJ.estado} /> : null })()}
+                                    {(() => { const fullJ = jugadores.find((j) => j.id === conv.jugador_id); return fullJ ? <PlayerStatusBadges estado={fullJ.estado} disponibilidad={fullJ.disponibilidad} /> : null })()}
                                   </p>
                                 </div>
                                 <Badge className={`text-[8px] border-0 ${posColor}`}>{pos || '-'}</Badge>
@@ -1709,7 +1709,7 @@ function PlayerSelectRow({
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium truncate">{jugador.apodo || `${jugador.nombre} ${jugador.apellidos}`}</span>
           <Badge className={`text-[9px] border-0 ${posColor}`}>{jugador.posicion_principal}</Badge>
-          <PlayerStatusBadges estado={jugador.estado} />
+          <PlayerStatusBadges estado={jugador.estado} disponibilidad={jugador.disponibilidad} />
           {isInvitado && (
             <Badge variant="outline" className="text-[9px] border-dashed border-amber-400 text-amber-700 bg-amber-50">
               {tipoLabel || 'Invitado'}
