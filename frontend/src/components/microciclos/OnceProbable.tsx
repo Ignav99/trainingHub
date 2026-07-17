@@ -6,10 +6,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import type { OnceProbableData, Jugador, Posicion } from '@/types'
+import { isOperativamenteConvocable } from '@/lib/jugadorTipo'
 
 interface OnceProbableProps {
   data: Partial<OnceProbableData>
-  jugadores: Array<Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'apodo' | 'dorsal' | 'posicion_principal' | 'estado' | 'es_invitado' | 'tipo_jugador'>>
+  jugadores: Array<Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'apodo' | 'dorsal' | 'posicion_principal' | 'estado' | 'disponibilidad' | 'es_invitado' | 'tipo_jugador'>>
   onChange: (data: Partial<OnceProbableData>) => void
 }
 
@@ -113,7 +114,7 @@ interface SlotProps {
 
 function PositionSlot({ slot, jugadores, titulares, onSelect }: SlotProps) {
   const selectedId = titulares[slot.slotKey] ?? ''
-  const active = jugadores.filter((j) => j.estado === 'activo' && (j.tipo_jugador ? j.tipo_jugador === 'plantilla' : !j.es_invitado))
+  const active = jugadores.filter((j) => isOperativamenteConvocable(j) && (j.tipo_jugador ? j.tipo_jugador === 'plantilla' : !j.es_invitado))
 
   return (
     <div className="flex flex-col items-center gap-1 min-w-[72px]">
@@ -178,7 +179,7 @@ export function OnceProbable({ data, jugadores, onChange }: OnceProbableProps) {
   }
 
   const availableForSuplentes = jugadores
-    .filter((j) => j.estado === 'activo' && (j.tipo_jugador ? j.tipo_jugador === 'plantilla' : !j.es_invitado) && !titularIds.has(j.id))
+    .filter((j) => isOperativamenteConvocable(j) && (j.tipo_jugador ? j.tipo_jugador === 'plantilla' : !j.es_invitado) && !titularIds.has(j.id))
     .sort((a, b) => getPlayerLabel(a).localeCompare(getPlayerLabel(b)))
 
   return (

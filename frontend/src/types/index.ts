@@ -326,7 +326,7 @@ export interface Asistencia {
   tipo_participacion?: TipoParticipacion[]
   created_at: string
   updated_at: string
-  jugador?: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'apodo' | 'dorsal' | 'posicion_principal' | 'foto_url' | 'es_portero' | 'es_invitado' | 'estado' | 'equipo_id'>
+  jugador?: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'apodo' | 'dorsal' | 'posicion_principal' | 'foto_url' | 'es_portero' | 'es_invitado' | 'estado' | 'disponibilidad' | 'equipo_id'>
 }
 
 export interface AsistenciaListResponse {
@@ -2678,9 +2678,15 @@ export interface VistaCompletaMicrociclo {
     lesionados: number
     en_recuperacion: number
     sancionados: number
-    jugadores_lesionados: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado' | 'fecha_lesion' | 'fecha_vuelta_estimada' | 'motivo_baja'>[]
-    jugadores_en_recuperacion: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado' | 'fecha_vuelta_estimada' | 'motivo_baja'>[]
-    jugadores_sancionados: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado'>[]
+    por_disponibilidad?: {
+      pleno: number
+      grupo_adaptado: number
+      individual: number
+      fuera: number
+    }
+    jugadores_lesionados: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado' | 'disponibilidad' | 'fecha_lesion' | 'fecha_vuelta_estimada' | 'motivo_baja'>[]
+    jugadores_en_recuperacion: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado' | 'disponibilidad' | 'fecha_vuelta_estimada' | 'motivo_baja'>[]
+    jugadores_sancionados: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado' | 'disponibilidad'>[]
   }
   rpe: {
     registros_por_sesion: Record<string, { rpe_promedio: number | null; num_registros: number }>

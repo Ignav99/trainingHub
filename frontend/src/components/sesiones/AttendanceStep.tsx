@@ -14,6 +14,7 @@ export interface PlayerAttendance {
   jugador: Jugador
   presente: boolean
   motivo_ausencia?: MotivoAusencia
+  tipo_participacion?: Array<'sesion' | 'fisio' | 'margen' | 'presente'>
 }
 
 interface AttendanceStepProps {
@@ -84,6 +85,7 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip }: AttendanceStepPr
             jugador: j,
             presente: suggestion.presente,
             motivo_ausencia: suggestion.motivo_ausencia,
+            tipo_participacion: suggestion.tipo_participacion,
           }
         })
         setAttendance(initial)
@@ -117,6 +119,7 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip }: AttendanceStepPr
         ...prev[id],
         presente: !prev[id].presente,
         motivo_ausencia: prev[id].presente ? 'otro' : undefined,
+        tipo_participacion: prev[id].presente ? [] : ['sesion'],
       },
     }))
   }

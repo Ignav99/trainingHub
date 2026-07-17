@@ -89,30 +89,31 @@ function SaveIndicator({ status }: { status: SaveStatus }) {
 // ============ Disponibilidad compacta ============
 
 function DisponibilidadCompacta({ plantilla }: { plantilla: VistaCompletaMicrociclo['plantilla'] }) {
+  const porDisp = plantilla.por_disponibilidad
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-4 gap-2">
         <div className="rounded-lg bg-green-50 p-2 text-center">
-          <p className="text-xl font-bold text-green-700">{plantilla.disponibles}</p>
-          <p className="text-[10px] text-green-600">Disponibles</p>
+          <p className="text-xl font-bold text-green-700">{porDisp?.pleno ?? plantilla.disponibles}</p>
+          <p className="text-[10px] text-green-600">Pleno</p>
         </div>
-        <div className="rounded-lg bg-red-50 p-2 text-center">
-          <p className="text-xl font-bold text-red-700">{plantilla.lesionados}</p>
-          <p className="text-[10px] text-red-600">Lesionados</p>
-        </div>
-        <div className="rounded-lg bg-yellow-50 p-2 text-center">
-          <p className="text-xl font-bold text-yellow-700">{plantilla.en_recuperacion || 0}</p>
-          <p className="text-[10px] text-yellow-600">Recup.</p>
+        <div className="rounded-lg bg-sky-50 p-2 text-center">
+          <p className="text-xl font-bold text-sky-700">{porDisp?.grupo_adaptado ?? 0}</p>
+          <p className="text-[10px] text-sky-600">Adaptado</p>
         </div>
         <div className="rounded-lg bg-amber-50 p-2 text-center">
-          <p className="text-xl font-bold text-amber-700">{plantilla.sancionados}</p>
-          <p className="text-[10px] text-amber-600">Sanc.</p>
+          <p className="text-xl font-bold text-amber-700">{porDisp?.individual ?? plantilla.en_recuperacion ?? 0}</p>
+          <p className="text-[10px] text-amber-600">Individual</p>
+        </div>
+        <div className="rounded-lg bg-red-50 p-2 text-center">
+          <p className="text-xl font-bold text-red-700">{porDisp?.fuera ?? plantilla.lesionados}</p>
+          <p className="text-[10px] text-red-600">Fuera</p>
         </div>
       </div>
 
       {plantilla.jugadores_lesionados.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[10px] font-semibold text-red-700">Lesionados</p>
+          <p className="text-[10px] font-semibold text-red-700">Fuera / lesionados</p>
           {plantilla.jugadores_lesionados.map((j) => (
             <div key={j.id} className="flex items-center justify-between gap-2 text-[11px]">
               <span className="truncate">
@@ -125,6 +126,20 @@ function DisponibilidadCompacta({ plantilla }: { plantilla: VistaCompletaMicroci
                   Vuelta: {formatDateShort(j.fecha_vuelta_estimada.slice(0, 10))}
               </span>
               )}
+            </div>
+          ))}
+        </div>
+      )}
+      {(plantilla.jugadores_en_recuperacion?.length || 0) > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-semibold text-amber-700">Individual / RTP</p>
+          {plantilla.jugadores_en_recuperacion.map((j) => (
+            <div key={j.id} className="flex items-center justify-between gap-2 text-[11px]">
+              <span className="truncate">
+                {j.dorsal ? `${j.dorsal}. ` : ''}
+                {j.nombre} {j.apellidos}
+              </span>
+              <span className="text-amber-700 shrink-0 capitalize">{(j.disponibilidad || 'individual').replace('_', ' ')}</span>
             </div>
           ))}
         </div>

@@ -171,7 +171,7 @@ async def get_microciclo_completo(
 
         # 3. Plantilla
         jugadores_resp = supabase.table("jugadores").select(
-            "id, nombre, apellidos, dorsal, posicion_principal, estado, "
+            "id, nombre, apellidos, dorsal, posicion_principal, estado, disponibilidad, "
             "fecha_lesion, fecha_vuelta_estimada, motivo_baja"
         ).eq("equipo_id", equipo_id).eq(
             "es_invitado", False
@@ -179,10 +179,21 @@ async def get_microciclo_completo(
 
         jugadores = jugadores_resp.data
         total = len(jugadores)
-        lesionados = [j for j in jugadores if j.get("estado") == "lesionado"]
-        en_recuperacion = [j for j in jugadores if j.get("estado") == "en_recuperacion"]
+
+        def _disp(j):
+            return j.get("disponibilidad") or (
+                "pleno" if j.get("estado") == "activo"
+                else "individual" if j.get("estado") == "en_recuperacion"
+                else "fuera"
+            )
+
+        lesionados = [j for j in jugadores if _disp(j) == "fuera" and j.get("estado") in ("lesionado", "enfermo", "baja")]
+        en_recuperacion = [
+            j for j in jugadores
+            if _disp(j) in ("individual", "grupo_adaptado") or j.get("estado") == "en_recuperacion"
+        ]
         sancionados = [j for j in jugadores if j.get("estado") == "sancionado"]
-        disponibles = sum(1 for j in jugadores if j.get("estado") == "activo")
+        disponibles = sum(1 for j in jugadores if _disp(j) == "pleno")
 
         plantilla = {
             "total": total,
@@ -190,6 +201,12 @@ async def get_microciclo_completo(
             "lesionados": len(lesionados),
             "en_recuperacion": len(en_recuperacion),
             "sancionados": len(sancionados),
+            "por_disponibilidad": {
+                "pleno": sum(1 for j in jugadores if _disp(j) == "pleno"),
+                "grupo_adaptado": sum(1 for j in jugadores if _disp(j) == "grupo_adaptado"),
+                "individual": sum(1 for j in jugadores if _disp(j) == "individual"),
+                "fuera": sum(1 for j in jugadores if _disp(j) == "fuera"),
+            },
             "jugadores_lesionados": lesionados,
             "jugadores_en_recuperacion": en_recuperacion,
             "jugadores_sancionados": sancionados,

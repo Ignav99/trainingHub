@@ -122,6 +122,8 @@ export default function EnfermeriaDetailPage() {
   const [showRehab, setShowRehab] = useState(false)
   const [movingToRehab, setMovingToRehab] = useState(false)
   const [diasRecuperacion, setDiasRecuperacion] = useState<number | undefined>(undefined)
+  const [faseRehab, setFaseRehab] = useState('fase_1_control_dolor')
+  const [dispRehab, setDispRehab] = useState('individual')
 
   // Initialize edit form when registro is loaded
   const startEditing = () => {
@@ -189,9 +191,13 @@ export default function EnfermeriaDetailPage() {
     try {
       await medicoApi.moveToRehab(registro.id, {
         dias_recuperacion_estimados: diasRecuperacion,
+        fase_rtp: faseRehab,
+        disponibilidad: dispRehab,
       })
       setShowRehab(false)
       setDiasRecuperacion(undefined)
+      setFaseRehab('fase_1_control_dolor')
+      setDispRehab('individual')
       mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
       toast.success('Jugador pasado a rehabilitación')
     } catch (err) {
@@ -946,6 +952,35 @@ export default function EnfermeriaDetailPage() {
               <strong>{jugador?.apodo || (jugador ? `${jugador.nombre} ${jugador.apellidos}` : 'Jugador')}</strong> lleva{' '}
               <strong>{dias} días</strong> de baja.
             </p>
+            <div>
+              <label className="text-sm font-medium block mb-1">Fase RTP inicial</label>
+              <select
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={faseRehab}
+                onChange={(e) => setFaseRehab(e.target.value)}
+              >
+                <option value="fase_1_control_dolor">1. Control dolor</option>
+                <option value="fase_2_movilidad">2. Movilidad</option>
+                <option value="fase_3_fuerza_base">3. Fuerza base</option>
+                <option value="fase_4_fuerza_funcional">4. Fuerza funcional</option>
+                <option value="fase_5_carrera_lineal">5. Carrera lineal</option>
+                <option value="fase_6_cambios_direccion">6. Cambios dirección</option>
+                <option value="fase_7_entrenamiento_equipo">7. Entreno equipo</option>
+                <option value="fase_8_competicion">8. Competición</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium block mb-1">Disponibilidad</label>
+              <select
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={dispRehab}
+                onChange={(e) => setDispRehab(e.target.value)}
+              >
+                <option value="fuera">Fuera</option>
+                <option value="individual">Individual / margen</option>
+                <option value="grupo_adaptado">Grupo adaptado</option>
+              </select>
+            </div>
             <div>
               <label className="text-sm font-medium block mb-1">Días estimados de recuperación</label>
               <Input

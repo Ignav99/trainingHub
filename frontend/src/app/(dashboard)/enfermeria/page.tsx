@@ -98,6 +98,7 @@ export default function EnfermeriaPage() {
   const [busqueda, setBusqueda] = useState('')
   const [tipoFilter, setTipoFilter] = useState('')
   const [estadoFilter, setEstadoFilter] = useState('')
+  const [dispFilter, setDispFilter] = useState('')
 
   // New record dialog
   const [showNuevo, setShowNuevo] = useState(false)
@@ -123,6 +124,10 @@ export default function EnfermeriaPage() {
   const filteredRegistros = registros.filter((r: RegistroMedico) => {
     if (tipoFilter && r.tipo !== tipoFilter) return false
     if (estadoFilter && r.estado !== estadoFilter) return false
+    if (dispFilter) {
+      const disp = r.disponibilidad || (jugadoresMap.get(r.jugador_id) ? resolveDisponibilidad(jugadoresMap.get(r.jugador_id)!) : '')
+      if (disp !== dispFilter) return false
+    }
     if (busqueda) {
       const j = jugadoresMap.get(r.jugador_id)
       const name = j ? `${j.apodo || ''} ${j.nombre} ${j.apellidos}`.toLowerCase() : ''
@@ -155,7 +160,7 @@ export default function EnfermeriaPage() {
   }
 
   const handleCreate = async () => {
-    if (!equipoActivo?.id || !nuevoForm.jugador_id || !nuevoForm.titulo) return
+    if (!equipoActivo?.id || !nuevoForm.jugador_id || !nuevoForm.titulo?.trim()) return
 
     setSaving(true)
     try {
@@ -163,24 +168,30 @@ export default function EnfermeriaPage() {
         jugador_id: nuevoForm.jugador_id,
         equipo_id: equipoActivo.id,
         tipo: nuevoForm.tipo || 'lesion',
-        titulo: nuevoForm.titulo,
-        diagnostico_fisioterapeutico: nuevoForm.diagnostico_fisioterapeutico,
+        titulo: nuevoForm.titulo.trim(),
+        diagnostico_fisioterapeutico: nuevoForm.diagnostico_fisioterapeutico?.trim() || undefined,
         fecha_inicio: nuevoForm.fecha_inicio || new Date().toISOString().slice(0, 10),
         dias_baja_estimados: esHistorico ? undefined : nuevoForm.dias_baja_estimados,
-        registro_padre_id: nuevoForm.registro_padre_id,
-        severidad: nuevoForm.severidad,
-        zona_corporal: nuevoForm.zona_corporal,
-        lado: nuevoForm.lado,
-        disponibilidad: nuevoForm.disponibilidad,
+        registro_padre_id: nuevoForm.registro_padre_id || undefined,
+        severidad: nuevoForm.severidad || undefined,
+        zona_corporal: nuevoForm.zona_corporal?.trim() || undefined,
+        lado: nuevoForm.lado || undefined,
+        disponibilidad: nuevoForm.disponibilidad || undefined,
         es_relesion: !!nuevoForm.registro_padre_id,
-        registro_origen_id: nuevoForm.registro_padre_id,
+        registro_origen_id: nuevoForm.registro_padre_id || undefined,
       }
 
       // Historical records
       if (esHistorico) {
+        if (!nuevoForm.fecha_fin) {
+          toast.error('Indica la fecha de fin/alta del registro histórico')
+          setSaving(false)
+          return
+        }
         createData.estado = 'alta'
         createData.fecha_fin = nuevoForm.fecha_fin
         createData.fecha_alta = nuevoForm.fecha_fin
+        createData.disponibilidad = 'pleno'
       }
 
       const result = await medicoApi.create(createData)
@@ -230,6 +241,9 @@ export default function EnfermeriaPage() {
       // Also invalidate jugadores cache in case status changed
       mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'), undefined, { revalidate: true })
       toast.success(esHistorico ? 'Registro histórico creado' : 'Registro médico creado')
+      if (!esHistorico && created?.id) {
+        router.push(`/enfermeria/${created.id}`)
+      }
     } catch (err) {
       console.error('Error creating registro:', err)
       toast.error('Error al crear el registro médico')
@@ -330,6 +344,17 @@ export default function EnfermeriaPage() {
             <option value="en_recuperacion">En recuperación</option>
             <option value="alta">Alta</option>
             <option value="cronico">Crónico</option>
+          </select>
+          <select
+            value={dispFilter}
+            onChange={(e) => setDispFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg bg-white"
+          >
+            <option value="">Toda disponibilidad</option>
+            <option value="fuera">Fuera</option>
+            <option value="individual">Individual</option>
+            <option value="grupo_adaptado">Grupo adaptado</option>
+            <option value="pleno">Pleno</option>
           </select>
         </div>
       </div>

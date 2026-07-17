@@ -106,6 +106,7 @@ import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
 import { cargaApi } from '@/lib/api/carga'
 import { entrenamientosMargenApi } from '@/lib/api/entrenamientosMargen'
 import { medicoApi } from '@/lib/api/medico'
+import { suggestAttendanceFromDisponibilidad } from '@/lib/jugadorTipo'
 import type { CargaJugador, RegistroMedico } from '@/types'
 
 const MATCH_DAY_COLORS: Record<string, string> = {
@@ -1080,9 +1081,8 @@ export default function SesionDetailPage() {
           return toAdd.length > 0 ? [...prev, ...toAdd] : prev
         })
       }
-      // NOTE: No auto-marking injured/sick players as absent — the coach decides.
-      // PlayerStatusBadges already shows lesionado/enfermo/sancionado badges.
-      // When the coach manually toggles absent, the motivo auto-fills via toggleAsistencia.
+      // NOTE: jugadores aún no cargados aquí; se rellenan huecos al tener plantilla
+      // según disponibilidad operativa (fuera/individual/grupo).
       setAsistencias(map)
       setAsistenciasLoaded(true)
     } catch (err) {
@@ -1674,27 +1674,68 @@ export default function SesionDetailPage() {
     }
   }
 
+  // Rellenar jugadores sin fila de asistencia según disponibilidad operativa
+  useEffect(() => {
+    if (!asistenciasLoaded || jugadores.length === 0) return
+    setAsistencias((prev) => {
+      let changed = false
+      const next = new Map(prev)
+      for (const j of jugadores) {
+        if (next.has(j.id)) continue
+        const suggestion = suggestAttendanceFromDisponibilidad(j)
+        next.set(j.id, {
+          presente: suggestion.presente,
+          motivo: suggestion.motivo_ausencia,
+          tipo_participacion: suggestion.tipo_participacion as TipoParticipacion[],
+        })
+        changed = true
+      }
+      return changed ? next : prev
+    })
+  }, [asistenciasLoaded, jugadores])
+
   const toggleAsistencia = (jugadorId: string) => {
     const jugador = jugadores.find((j) => j.id === jugadorId)
-    const estadoToMotivo: Record<string, MotivoAusencia> = {
-      lesionado: 'lesion', enfermo: 'enfermedad', sancionado: 'sancion',
-      permiso: 'permiso', seleccion: 'seleccion', viaje: 'viaje',
-    }
     setAsistencias((prev) => {
       const next = new Map(prev)
       const current = next.get(jugadorId)
       if (current) {
         const willBePresent = !current.presente
-        const autoMotivo = !willBePresent && jugador ? estadoToMotivo[jugador.estado as string] : undefined
-        next.set(jugadorId, {
-          ...current,
-          presente: willBePresent,
-          motivo: willBePresent ? undefined : (autoMotivo || current.motivo),
-          tipo_participacion: willBePresent ? ['sesion'] : [],
-        })
+        if (willBePresent && jugador) {
+          const suggestion = suggestAttendanceFromDisponibilidad(jugador)
+          next.set(jugadorId, {
+            ...current,
+            presente: true,
+            motivo: undefined,
+            tipo_participacion: (suggestion.tipo_participacion.length
+              ? suggestion.tipo_participacion
+              : ['sesion']) as TipoParticipacion[],
+          })
+        } else if (willBePresent) {
+          next.set(jugadorId, {
+            ...current,
+            presente: true,
+            motivo: undefined,
+            tipo_participacion: ['sesion'],
+          })
+        } else {
+          const suggestion = jugador ? suggestAttendanceFromDisponibilidad(jugador) : null
+          next.set(jugadorId, {
+            ...current,
+            presente: false,
+            motivo: suggestion?.motivo_ausencia || current.motivo || 'otro',
+            tipo_participacion: [],
+          })
+        }
       } else {
-        const autoMotivo = jugador ? estadoToMotivo[jugador.estado as string] : undefined
-        next.set(jugadorId, { presente: false, motivo: autoMotivo, tipo_participacion: [] })
+        const suggestion = jugador
+          ? suggestAttendanceFromDisponibilidad(jugador)
+          : { presente: true, tipo_participacion: ['sesion'] as const }
+        next.set(jugadorId, {
+          presente: suggestion.presente,
+          motivo: 'motivo_ausencia' in suggestion ? suggestion.motivo_ausencia : undefined,
+          tipo_participacion: suggestion.tipo_participacion as TipoParticipacion[],
+        })
       }
       return next
     })
@@ -1736,13 +1777,26 @@ export default function SesionDetailPage() {
     try {
       const list = jugadores.map((j) => {
         const a = asistencias.get(j.id)
-        const presente = a?.presente ?? true
+        if (a) {
+          const presente = a.presente
+          return {
+            jugador_id: j.id,
+            presente,
+            motivo_ausencia: !presente ? a.motivo : undefined,
+            notas: a.notas,
+            tipo_participacion: presente
+              ? (a.tipo_participacion?.length ? a.tipo_participacion : ['sesion'])
+              : [],
+          }
+        }
+        const suggestion = suggestAttendanceFromDisponibilidad(j)
         return {
           jugador_id: j.id,
-          presente,
-          motivo_ausencia: !presente ? a?.motivo : undefined,
-          notas: a?.notas,
-          tipo_participacion: presente ? (a?.tipo_participacion?.length ? a.tipo_participacion : ['sesion']) : [],
+          presente: suggestion.presente,
+          motivo_ausencia: suggestion.presente ? undefined : suggestion.motivo_ausencia,
+          tipo_participacion: suggestion.presente
+            ? (suggestion.tipo_participacion.length ? suggestion.tipo_participacion : ['sesion'])
+            : [],
         }
       })
       await sesionesApi.saveAsistenciasBatch(sesionId, list)
@@ -2338,8 +2392,11 @@ export default function SesionDetailPage() {
                       <div className="space-y-1">
                         {jugadoresByPosition[pos].map((jugador) => {
                           const asistencia = asistencias.get(jugador.id)
-                          const presente = asistencia?.presente ?? true
-                          const tipos = asistencia?.tipo_participacion || (presente ? ['sesion'] : [])
+                          const suggestion = !asistencia ? suggestAttendanceFromDisponibilidad(jugador) : null
+                          const presente = asistencia?.presente ?? suggestion?.presente ?? true
+                          const tipos = asistencia?.tipo_participacion
+                            || (suggestion?.tipo_participacion as TipoParticipacion[] | undefined)
+                            || (presente ? ['sesion'] : [])
 
                           const isMargen = presente && (tipos.includes('margen') || tipos.includes('fisio'))
                           const hasMargenWorkout = margenMap.has(jugador.id)

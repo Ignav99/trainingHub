@@ -215,6 +215,9 @@ export default function NuevaSesionPage() {
               jugador_id: a.jugador_id,
               presente: a.presente,
               motivo_ausencia: a.presente ? undefined : a.motivo_ausencia,
+              tipo_participacion: a.presente
+                ? (a.tipo_participacion?.length ? a.tipo_participacion : ['sesion'])
+                : [],
             }))
           )
         } catch {

@@ -546,11 +546,13 @@ def recalculate_player_load(jugador_id: UUID, equipo_id: UUID) -> dict:
     # Fetch player metadata
     es_portero = False
     jugador_estado = None
+    jugador_disp = None
     try:
-        jug_resp = supabase.table("jugadores").select("es_portero, estado").eq("id", jid).limit(1).execute()
+        jug_resp = supabase.table("jugadores").select("es_portero, estado, disponibilidad").eq("id", jid).limit(1).execute()
         if jug_resp.data:
             es_portero = bool(jug_resp.data[0].get("es_portero"))
             jugador_estado = jug_resp.data[0].get("estado")
+            jugador_disp = jug_resp.data[0].get("disponibilidad")
     except Exception:
         pass
 
@@ -602,9 +604,16 @@ def recalculate_player_load(jugador_id: UUID, equipo_id: UUID) -> dict:
     if acwr is None and ewma_acute < 5:
         nivel = "bajo"  # insufficient training stimulus
 
-    # Override for injured/sick/recovering players
-    if jugador_estado in ("lesionado", "enfermo", "en_recuperacion"):
+    # Override for players completely out (not for grupo_adaptado)
+    disp = jugador_disp or (
+        "pleno" if jugador_estado == "activo"
+        else "individual" if jugador_estado == "en_recuperacion"
+        else "fuera" if jugador_estado in ("lesionado", "enfermo") else None
+    )
+    if disp == "fuera" or jugador_estado in ("lesionado", "enfermo"):
         nivel = "bajo"
+    elif disp == "individual":
+        nivel = "bajo" if nivel in ("alto", "critico") else nivel
 
     # Last activity & inactivity days
     activity_dates = [d for d in all_dates if d >= since]
