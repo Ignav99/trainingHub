@@ -9,7 +9,6 @@ import {
   Plus,
   Search,
   Loader2,
-  Users,
   AlertCircle,
   Activity,
   CheckCircle,
@@ -17,24 +16,27 @@ import {
   Upload,
   FileText,
   X,
+  LayoutGrid,
+  History,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ListPageSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useEquipoStore } from '@/stores/equipoStore'
-import { useAuthStore } from '@/stores/authStore'
 import { medicoApi, CreateRegistroMedicoData } from '@/lib/api/medico'
 import { Jugador } from '@/lib/api/jugadores'
 import { apiKey } from '@/lib/swr'
-import type { RegistroMedico, TipoRegistroMedico, EstadoRegistroMedico } from '@/types'
-import { DISPONIBILIDAD_COLORS, DISPONIBILIDAD_LABELS, resolveDisponibilidad } from '@/lib/jugadorTipo'
+import type { DisponibilidadOperativa, RegistroMedico, TipoRegistroMedico } from '@/types'
+import { resolveDisponibilidad } from '@/lib/jugadorTipo'
+import { EnfermeriaBoard, EnfermeriaHistorico, type PlayerCaseCard } from '@/components/enfermeria/EnfermeriaBoard'
+import { cn } from '@/lib/utils'
 
 const TIPOS: { value: TipoRegistroMedico; label: string }[] = [
   { value: 'lesion', label: 'Lesión' },
@@ -44,63 +46,71 @@ const TIPOS: { value: TipoRegistroMedico; label: string }[] = [
   { value: 'otro', label: 'Otro' },
 ]
 
-const ESTADO_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  activo: { label: 'Activo', color: 'text-red-700', bg: 'bg-red-100' },
-  en_recuperacion: { label: 'En recuperación', color: 'text-amber-700', bg: 'bg-amber-100' },
-  alta: { label: 'Alta', color: 'text-green-700', bg: 'bg-green-100' },
-  cronico: { label: 'Crónico', color: 'text-purple-700', bg: 'bg-purple-100' },
-}
-
-const TIPO_BADGE: Record<string, { label: string; color: string }> = {
-  lesion: { label: 'Lesión', color: 'bg-red-100 text-red-800' },
-  enfermedad: { label: 'Enfermedad', color: 'bg-orange-100 text-orange-800' },
-  molestias: { label: 'Molestias', color: 'bg-yellow-100 text-yellow-800' },
-  rehabilitacion: { label: 'Rehabilitación', color: 'bg-blue-100 text-blue-800' },
-  otro: { label: 'Otro', color: 'bg-gray-100 text-gray-800' },
+const DISP_RANK: Record<DisponibilidadOperativa, number> = {
+  fuera: 0,
+  individual: 1,
+  grupo_adaptado: 2,
+  pleno: 3,
 }
 
 function daysSince(dateStr: string): number {
-  const start = new Date(dateStr)
+  const start = new Date(dateStr + (dateStr.length <= 10 ? 'T12:00:00' : ''))
   const now = new Date()
-  return Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+  return Math.max(0, Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)))
+}
+
+function daysBetween(a: string, b: string): number {
+  const start = new Date(a + (a.length <= 10 ? 'T12:00:00' : ''))
+  const end = new Date(b + (b.length <= 10 ? 'T12:00:00' : ''))
+  return Math.max(0, Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)))
+}
+
+function resolveCaseDisponibilidad(registro: RegistroMedico, jugador?: Jugador): DisponibilidadOperativa {
+  if (registro.disponibilidad) return registro.disponibilidad
+  if (jugador) return resolveDisponibilidad(jugador)
+  if (registro.estado === 'alta') return 'pleno'
+  if (registro.tipo === 'molestias') return 'pleno'
+  if (registro.tipo === 'enfermedad') return 'fuera'
+  if (registro.tipo === 'rehabilitacion' || registro.estado === 'en_recuperacion') return 'individual'
+  return 'fuera'
 }
 
 export default function EnfermeriaPage() {
   const router = useRouter()
   const { equipoActivo } = useEquipoStore()
-  const user = useAuthStore((s) => s.user)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // SWR: medical records
-  const { data: registrosRaw, isLoading: loadingRegistros, error: registrosError } = useSWR<RegistroMedico[] | { data: RegistroMedico[] }>(
-    apiKey('/medico', {
-      equipo_id: equipoActivo?.id,
-    }, ['equipo_id'])
+  const { data: registrosRaw, isLoading: loadingRegistros, error: registrosError } = useSWR<
+    RegistroMedico[] | { data: RegistroMedico[] }
+  >(
+    apiKey(
+      '/medico',
+      { equipo_id: equipoActivo?.id, limit: 100 },
+      ['equipo_id']
+    )
   )
 
-  // SWR: jugadores
   const { data: jugadoresData, isLoading: loadingJugadores } = useSWR<{ data: Jugador[]; total: number }>(
-    apiKey('/jugadores', {
-      equipo_id: equipoActivo?.id,
-    }, ['equipo_id'])
+    apiKey('/jugadores', { equipo_id: equipoActivo?.id, limit: 100 }, ['equipo_id'])
   )
 
   const registros = useMemo(() => {
     if (!registrosRaw) return []
-    return Array.isArray(registrosRaw) ? registrosRaw : (registrosRaw as any).data || []
+    return Array.isArray(registrosRaw) ? registrosRaw : (registrosRaw as { data: RegistroMedico[] }).data || []
   }, [registrosRaw])
-  const jugadoresAll = jugadoresData?.data || []
-  const jugadores = jugadoresAll.filter((j) => !j.es_invitado)
+
+  const jugadores = useMemo(
+    () => (jugadoresData?.data || []).filter((j) => !j.es_invitado),
+    [jugadoresData]
+  )
+  const jugadoresMap = useMemo(() => new Map(jugadores.map((j) => [j.id, j])), [jugadores])
+
   const loading = loadingRegistros || loadingJugadores
   const error = registrosError ? 'Error al cargar los datos médicos' : null
 
-  // Filters
+  const [view, setView] = useState<'ahora' | 'historico'>('ahora')
   const [busqueda, setBusqueda] = useState('')
-  const [tipoFilter, setTipoFilter] = useState('')
-  const [estadoFilter, setEstadoFilter] = useState('')
-  const [dispFilter, setDispFilter] = useState('')
 
-  // New record dialog
   const [showNuevo, setShowNuevo] = useState(false)
   const [saving, setSaving] = useState(false)
   const [esHistorico, setEsHistorico] = useState(false)
@@ -108,35 +118,128 @@ export default function EnfermeriaPage() {
     tipo: 'lesion',
     fecha_inicio: new Date().toISOString().slice(0, 10),
   })
-  // Files to upload after creation
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
 
-  // Stats basados en disponibilidad operativa
-  const disponibles = jugadores.filter((j) => resolveDisponibilidad(j) === 'pleno').length
-  const enRecuperacion = jugadores.filter((j) => {
-    const d = resolveDisponibilidad(j)
-    return d === 'individual' || d === 'grupo_adaptado' || j.estado === 'en_recuperacion'
-  }).length
-  const lesionados = jugadores.filter((j) => resolveDisponibilidad(j) === 'fuera' && (j.estado === 'lesionado' || j.estado === 'enfermo')).length
+  const openRegistros = useMemo(
+    () => registros.filter((r) => r.estado === 'activo' || r.estado === 'en_recuperacion' || r.estado === 'cronico'),
+    [registros]
+  )
 
-  const jugadoresMap = new Map(jugadores.map((j) => [j.id, j]))
-
-  const filteredRegistros = registros.filter((r: RegistroMedico) => {
-    if (tipoFilter && r.tipo !== tipoFilter) return false
-    if (estadoFilter && r.estado !== estadoFilter) return false
-    if (dispFilter) {
-      const disp = r.disponibilidad || (jugadoresMap.get(r.jugador_id) ? resolveDisponibilidad(jugadoresMap.get(r.jugador_id)!) : '')
-      if (disp !== dispFilter) return false
-    }
-    if (busqueda) {
+  const historicoRegistros = useMemo(() => {
+    const closed = registros
+      .filter((r) => r.estado === 'alta')
+      .sort((a, b) => (b.fecha_alta || b.fecha_fin || b.fecha_inicio).localeCompare(a.fecha_alta || a.fecha_fin || a.fecha_inicio))
+    if (!busqueda.trim()) return closed
+    const q = busqueda.toLowerCase()
+    return closed.filter((r) => {
       const j = jugadoresMap.get(r.jugador_id)
       const name = j ? `${j.apodo || ''} ${j.nombre} ${j.apellidos}`.toLowerCase() : ''
-      const title = r.titulo.toLowerCase()
-      const q = busqueda.toLowerCase()
-      if (!name.includes(q) && !title.includes(q)) return false
+      return name.includes(q) || r.titulo.toLowerCase().includes(q)
+    })
+  }, [registros, busqueda, jugadoresMap])
+
+  const historicoGroups = useMemo(() => {
+    const byPlayer = new Map<string, RegistroMedico[]>()
+    for (const r of historicoRegistros) {
+      const list = byPlayer.get(r.jugador_id) || []
+      list.push(r)
+      byPlayer.set(r.jugador_id, list)
     }
-    return true
-  })
+    return Array.from(byPlayer.entries())
+      .map(([jugadorId, cases]) => {
+        const jugador = jugadoresMap.get(jugadorId)
+        return {
+          jugador: jugador
+            ? {
+                id: jugador.id,
+                nombre: jugador.nombre,
+                apellidos: jugador.apellidos,
+                apodo: jugador.apodo,
+                dorsal: jugador.dorsal,
+                posicion_principal: jugador.posicion_principal,
+                fecha_vuelta_estimada: jugador.fecha_vuelta_estimada,
+              }
+            : {
+                id: jugadorId,
+                nombre: 'Jugador',
+                apellidos: '',
+                posicion_principal: '',
+              },
+          cases,
+        }
+      })
+      .sort((a, b) => {
+        const aDate = a.cases[0]?.fecha_alta || a.cases[0]?.fecha_inicio || ''
+        const bDate = b.cases[0]?.fecha_alta || b.cases[0]?.fecha_inicio || ''
+        return bDate.localeCompare(aDate)
+      })
+  }, [historicoRegistros, jugadoresMap])
+
+  /** Una tarjeta por jugador: caso abierto más restrictivo / reciente */
+  const activePlayerCases = useMemo(() => {
+    const byPlayer = new Map<string, RegistroMedico[]>()
+    for (const r of openRegistros) {
+      const list = byPlayer.get(r.jugador_id) || []
+      list.push(r)
+      byPlayer.set(r.jugador_id, list)
+    }
+
+    const cards: PlayerCaseCard[] = []
+    for (const [jugadorId, list] of Array.from(byPlayer.entries())) {
+      const jugador = jugadoresMap.get(jugadorId)
+      if (!jugador) continue
+
+      const ranked = [...list].sort((a, b) => {
+        const da = resolveCaseDisponibilidad(a, jugador)
+        const db = resolveCaseDisponibilidad(b, jugador)
+        if (DISP_RANK[da] !== DISP_RANK[db]) return DISP_RANK[da] - DISP_RANK[db]
+        return (b.fecha_inicio || '').localeCompare(a.fecha_inicio || '')
+      })
+      const registro = ranked[0]
+      const disponibilidad = resolveCaseDisponibilidad(registro, jugador)
+      if (disponibilidad === 'pleno') continue // molestias sin baja → no van al tablero de baja
+
+      cards.push({
+        jugador: {
+          id: jugador.id,
+          nombre: jugador.nombre,
+          apellidos: jugador.apellidos,
+          apodo: jugador.apodo,
+          dorsal: jugador.dorsal,
+          posicion_principal: jugador.posicion_principal,
+          fecha_vuelta_estimada: jugador.fecha_vuelta_estimada,
+        },
+        registro,
+        dias: daysSince(registro.fecha_inicio),
+        disponibilidad,
+      })
+    }
+
+    cards.sort((a, b) => b.dias - a.dias)
+    return cards
+  }, [openRegistros, jugadoresMap])
+
+  const columns = useMemo(() => {
+    const base: Record<Exclude<DisponibilidadOperativa, 'pleno'>, PlayerCaseCard[]> = {
+      fuera: [],
+      individual: [],
+      grupo_adaptado: [],
+    }
+    for (const c of activePlayerCases) {
+      if (c.disponibilidad === 'fuera') base.fuera.push(c)
+      else if (c.disponibilidad === 'individual') base.individual.push(c)
+      else if (c.disponibilidad === 'grupo_adaptado') base.grupo_adaptado.push(c)
+    }
+    return base
+  }, [activePlayerCases])
+
+  const kpis = {
+    fuera: columns.fuera.length,
+    individual: columns.individual.length,
+    grupo: columns.grupo_adaptado.length,
+    disponibles: jugadores.filter((j) => resolveDisponibilidad(j) === 'pleno').length,
+    historico: registros.filter((r) => r.estado === 'alta').length,
+  }
 
   const resetForm = () => {
     setNuevoForm({
@@ -149,9 +252,7 @@ export default function EnfermeriaPage() {
 
   const handleAddFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      setPendingFiles((prev) => [...prev, file])
-    }
+    if (file) setPendingFiles((prev) => [...prev, file])
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -181,7 +282,6 @@ export default function EnfermeriaPage() {
         registro_origen_id: nuevoForm.registro_padre_id || undefined,
       }
 
-      // Historical records
       if (esHistorico) {
         if (!nuevoForm.fecha_fin) {
           toast.error('Indica la fecha de fin/alta del registro histórico')
@@ -195,9 +295,8 @@ export default function EnfermeriaPage() {
       }
 
       const result = await medicoApi.create(createData)
+      const created = (result as { data?: RegistroMedico } & RegistroMedico)?.data || (result as RegistroMedico)
 
-      // Upload pending files if any
-      const created = (result as any)?.data || result
       if (pendingFiles.length > 0 && created?.id) {
         try {
           const { createClient } = await import('@supabase/supabase-js')
@@ -205,27 +304,19 @@ export default function EnfermeriaPage() {
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
             process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
           )
-
           const uploadedUrls: string[] = []
           for (const file of pendingFiles) {
             const timestamp = Date.now()
             const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
             const path = `medical-documents/${created.id}/${timestamp}_${safeName}`
-
             const { error: uploadError } = await supabase.storage
               .from('medical-documents')
               .upload(path, file, { upsert: false })
-
             if (!uploadError) {
-              const { data: urlData } = supabase.storage
-                .from('medical-documents')
-                .getPublicUrl(path)
-              if (urlData?.publicUrl) {
-                uploadedUrls.push(urlData.publicUrl)
-              }
+              const { data: urlData } = supabase.storage.from('medical-documents').getPublicUrl(path)
+              if (urlData?.publicUrl) uploadedUrls.push(urlData.publicUrl)
             }
           }
-
           if (uploadedUrls.length > 0) {
             await medicoApi.update(created.id, { documentos_urls: uploadedUrls })
           }
@@ -238,12 +329,9 @@ export default function EnfermeriaPage() {
       setShowNuevo(false)
       resetForm()
       mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
-      // Also invalidate jugadores cache in case status changed
       mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'), undefined, { revalidate: true })
       toast.success(esHistorico ? 'Registro histórico creado' : 'Registro médico creado')
-      if (!esHistorico && created?.id) {
-        router.push(`/enfermeria/${created.id}`)
-      }
+      if (!esHistorico && created?.id) router.push(`/enfermeria/${created.id}`)
     } catch (err) {
       console.error('Error creating registro:', err)
       toast.error('Error al crear el registro médico')
@@ -252,240 +340,168 @@ export default function EnfermeriaPage() {
     }
   }
 
-  if (loading) {
-    return <ListPageSkeleton />
-  }
+  if (loading) return <ListPageSkeleton />
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <PageHeader
         title="Enfermería"
-        description={`${registros.length} registro${registros.length !== 1 ? 's' : ''} médico${registros.length !== 1 ? 's' : ''}`}
+        description={`${kpis.fuera + kpis.individual + kpis.grupo} en seguimiento · ${kpis.disponibles} disponibles`}
         actions={
           <Button onClick={() => setShowNuevo(true)}>
             <Plus className="h-4 w-4 mr-2" />
-            Nuevo Registro
+            Nuevo registro
           </Button>
         }
       />
 
-      {/* Status cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="border-l-4 border-l-green-500">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-green-50">
-              <CheckCircle className="h-5 w-5 text-green-600" />
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { label: 'Fuera', value: kpis.fuera, icon: Activity, tone: 'text-red-700', bg: 'bg-red-50', ring: 'ring-red-100' },
+          { label: 'Individual / RTP', value: kpis.individual, icon: Clock, tone: 'text-amber-700', bg: 'bg-amber-50', ring: 'ring-amber-100' },
+          { label: 'Grupo adaptado', value: kpis.grupo, icon: HeartPulse, tone: 'text-sky-700', bg: 'bg-sky-50', ring: 'ring-sky-100' },
+          { label: 'Disponibles', value: kpis.disponibles, icon: CheckCircle, tone: 'text-emerald-700', bg: 'bg-emerald-50', ring: 'ring-emerald-100' },
+        ].map((k) => (
+          <div key={k.label} className={cn('rounded-2xl border p-4 ring-1', k.bg, k.ring)}>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-medium text-muted-foreground">{k.label}</p>
+              <k.icon className={cn('h-4 w-4', k.tone)} />
             </div>
-            <div>
-              <p className="text-2xl font-bold text-green-700">
-                {disponibles}
-              </p>
-              <p className="text-sm text-muted-foreground">Disponibles</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-amber-500">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-amber-50">
-              <Clock className="h-5 w-5 text-amber-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-amber-700">{enRecuperacion}</p>
-              <p className="text-sm text-muted-foreground">En Recuperación</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-red-500">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-red-50">
-              <Activity className="h-5 w-5 text-red-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-red-700">{lesionados}</p>
-              <p className="text-sm text-muted-foreground">Lesionados</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white rounded-xl border p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar por nombre o título..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-            />
+            <p className={cn('text-3xl font-bold tabular-nums mt-1 tracking-tight', k.tone)}>{k.value}</p>
           </div>
-          <select
-            value={tipoFilter}
-            onChange={(e) => setTipoFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg bg-white"
-          >
-            <option value="">Todos los tipos</option>
-            {TIPOS.map((t) => (
-              <option key={t.value} value={t.value}>{t.label}</option>
-            ))}
-          </select>
-          <select
-            value={estadoFilter}
-            onChange={(e) => setEstadoFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg bg-white"
-          >
-            <option value="">Todos los estados</option>
-            <option value="activo">Activo</option>
-            <option value="en_recuperacion">En recuperación</option>
-            <option value="alta">Alta</option>
-            <option value="cronico">Crónico</option>
-          </select>
-          <select
-            value={dispFilter}
-            onChange={(e) => setDispFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg bg-white"
-          >
-            <option value="">Toda disponibilidad</option>
-            <option value="fuera">Fuera</option>
-            <option value="individual">Individual</option>
-            <option value="grupo_adaptado">Grupo adaptado</option>
-            <option value="pleno">Pleno</option>
-          </select>
-        </div>
+        ))}
       </div>
 
-      {/* Records list */}
-      {error ? (
-        <div className="text-center py-12">
-          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <p className="text-red-600 mb-4">{error}</p>
-          <Button onClick={() => mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })}>Reintentar</Button>
-        </div>
-      ) : filteredRegistros.length === 0 ? (
-        <div className="bg-white rounded-xl border">
-          <EmptyState
-            icon={<HeartPulse className="h-12 w-12" />}
-            title="Sin registros médicos"
-            description={
-              busqueda || tipoFilter || estadoFilter
-                ? 'No se encontraron registros con los filtros aplicados'
-                : 'No hay registros médicos activos'
-            }
-            action={
-              <Button onClick={() => setShowNuevo(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Crear registro
-              </Button>
-            }
-          />
-        </div>
-      ) : (
-        <div className="animate-fade-in bg-white rounded-xl border overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jugador</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Título</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Disponib.</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Días</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredRegistros.map((registro: RegistroMedico) => {
-                const jugador = jugadoresMap.get(registro.jugador_id)
-                const estadoConf = ESTADO_CONFIG[registro.estado] || ESTADO_CONFIG.activo
-                const tipoConf = TIPO_BADGE[registro.tipo] || TIPO_BADGE.otro
-                const dias = registro.estado === 'alta' && registro.dias_baja_reales
-                  ? registro.dias_baja_reales
-                  : daysSince(registro.fecha_inicio)
-                const disp = (registro.disponibilidad || (jugador ? resolveDisponibilidad(jugador) : 'pleno')) as keyof typeof DISPONIBILIDAD_LABELS
+      <Tabs value={view} onValueChange={(v) => setView(v as 'ahora' | 'historico')} className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <TabsList>
+            <TabsTrigger value="ahora" className="gap-1.5">
+              <LayoutGrid className="h-3.5 w-3.5" />
+              Ahora
+            </TabsTrigger>
+            <TabsTrigger value="historico" className="gap-1.5">
+              <History className="h-3.5 w-3.5" />
+              Histórico
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px] tabular-nums">
+                {kpis.historico}
+              </Badge>
+            </TabsTrigger>
+          </TabsList>
 
-                return (
-                  <tr
-                    key={registro.id}
-                    onClick={() => router.push(`/enfermeria/${registro.id}`)}
-                    className="row-hover cursor-pointer"
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold">
-                          {jugador?.dorsal || '?'}
-                        </div>
-                        <span className="text-sm font-medium">
-                          {jugador?.apodo || (jugador ? `${jugador.nombre} ${jugador.apellidos}` : 'Desconocido')}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${tipoConf.color}`}>
-                        {tipoConf.label}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm">{registro.titulo}</p>
-                      {registro.zona_corporal && (
-                        <p className="text-[11px] text-muted-foreground">{registro.zona_corporal}{registro.lado ? ` · ${registro.lado}` : ''}</p>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border ${DISPONIBILIDAD_COLORS[disp] || DISPONIBILIDAD_COLORS.pleno}`}>
-                        {DISPONIBILIDAD_LABELS[disp] || disp}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-muted-foreground">{dias} días</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${estadoConf.bg} ${estadoConf.color}`}>
-                        {estadoConf.label}
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+          {view === 'historico' && (
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar jugador o lesión…"
+                className="pl-9"
+              />
+            </div>
+          )}
         </div>
-      )}
+
+        <TabsContent value="ahora" className="mt-0 space-y-4">
+          {error ? (
+            <div className="text-center py-12">
+              <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+              <p className="text-red-600 mb-4">{error}</p>
+              <Button
+                onClick={() =>
+                  mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, {
+                    revalidate: true,
+                  })
+                }
+              >
+                Reintentar
+              </Button>
+            </div>
+          ) : activePlayerCases.length === 0 ? (
+            <div className="rounded-2xl border bg-card">
+              <EmptyState
+                icon={<HeartPulse className="h-12 w-12" />}
+                title="Plantilla disponible"
+                description="No hay jugadores fuera, en individual o en grupo adaptado. Abre Histórico para ver altas anteriores."
+                action={
+                  <Button onClick={() => setShowNuevo(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Registrar baja
+                  </Button>
+                }
+              />
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">
+                Una tarjeta por jugador (caso activo). Los registros cerrados están en Histórico.
+              </p>
+              <EnfermeriaBoard columns={columns} />
+            </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="historico" className="mt-0">
+          {historicoGroups.length === 0 ? (
+            <div className="rounded-2xl border bg-card">
+              <EmptyState
+                icon={<History className="h-12 w-12" />}
+                title={busqueda ? 'Sin resultados' : 'Sin histórico'}
+                description={
+                  busqueda
+                    ? 'Prueba otro término de búsqueda'
+                    : 'Cuando des de alta un caso, aparecerá aquí agrupado por jugador'
+                }
+              />
+            </div>
+          ) : (
+            <EnfermeriaHistorico
+              groups={historicoGroups}
+              daysBetween={daysBetween}
+              daysSince={daysSince}
+            />
+          )}
+        </TabsContent>
+      </Tabs>
 
       {/* New Record Dialog */}
-      <Dialog open={showNuevo} onOpenChange={(open) => { setShowNuevo(open); if (!open) resetForm() }}>
+      <Dialog
+        open={showNuevo}
+        onOpenChange={(open) => {
+          setShowNuevo(open)
+          if (!open) resetForm()
+        }}
+      >
         <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Nuevo Registro Médico</DialogTitle>
+            <DialogTitle>Nuevo registro médico</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            {/* Historical toggle */}
-            <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
+            <div className="flex gap-2 p-1 bg-muted rounded-lg">
               <button
                 type="button"
                 onClick={() => setEsHistorico(false)}
-                className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  !esHistorico ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
-                }`}
+                className={cn(
+                  'flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                  !esHistorico ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
+                )}
               >
-                Registro actual
+                Caso actual
               </button>
               <button
                 type="button"
                 onClick={() => setEsHistorico(true)}
-                className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  esHistorico ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
-                }`}
+                className={cn(
+                  'flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                  esHistorico ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
+                )}
               >
-                Registro histórico
+                Solo histórico
               </button>
             </div>
             {esHistorico && (
-              <p className="text-xs text-muted-foreground bg-blue-50 border border-blue-100 rounded-lg p-2">
-                Un registro histórico se guarda directamente como <strong>alta</strong> y no cambia el estado actual del jugador. Úsalo para documentar lesiones u operaciones pasadas.
+              <p className="text-xs text-muted-foreground bg-sky-50 border border-sky-100 rounded-lg p-2">
+                Se guarda como <strong>alta</strong> y no cambia la disponibilidad actual del jugador.
               </p>
             )}
 
@@ -496,7 +512,7 @@ export default function EnfermeriaPage() {
                 value={nuevoForm.jugador_id || ''}
                 onChange={(e) => setNuevoForm({ ...nuevoForm, jugador_id: e.target.value })}
               >
-                <option value="">Seleccionar jugador...</option>
+                <option value="">Seleccionar jugador…</option>
                 {jugadores.map((j) => (
                   <option key={j.id} value={j.id}>
                     {j.apodo || `${j.nombre} ${j.apellidos}`} {j.dorsal ? `(#${j.dorsal})` : ''}
@@ -504,28 +520,35 @@ export default function EnfermeriaPage() {
                 ))}
               </select>
             </div>
-            {/* Link to previous injury — only when a jugador is selected */}
-            {nuevoForm.jugador_id && (() => {
-              const playerRecords = registros.filter((r: RegistroMedico) => r.jugador_id === nuevoForm.jugador_id)
-              return playerRecords.length > 0 ? (
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Asociar a lesión anterior</label>
-                  <select
-                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                    value={nuevoForm.registro_padre_id || ''}
-                    onChange={(e) => setNuevoForm({ ...nuevoForm, registro_padre_id: e.target.value || undefined })}
-                  >
-                    <option value="">Sin asociar (nueva incidencia)</option>
-                    {playerRecords.map((r: RegistroMedico) => (
-                      <option key={r.id} value={r.id}>
-                        {r.titulo} — {new Date(r.fecha_inicio).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: '2-digit' })}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-muted-foreground mt-1">Selecciona si es una recaída de una lesión previa</p>
-                </div>
-              ) : null
-            })()}
+
+            {nuevoForm.jugador_id &&
+              (() => {
+                const playerRecords = registros.filter((r) => r.jugador_id === nuevoForm.jugador_id)
+                return playerRecords.length > 0 ? (
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">Asociar a lesión anterior</label>
+                    <select
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                      value={nuevoForm.registro_padre_id || ''}
+                      onChange={(e) =>
+                        setNuevoForm({ ...nuevoForm, registro_padre_id: e.target.value || undefined })
+                      }
+                    >
+                      <option value="">Sin asociar (nueva incidencia)</option>
+                      {playerRecords.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.titulo} —{' '}
+                          {new Date(r.fecha_inicio).toLocaleDateString('es-ES', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: '2-digit',
+                          })}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null
+              })()}
 
             <div>
               <label className="text-sm font-medium mb-1 block">Tipo *</label>
@@ -535,10 +558,13 @@ export default function EnfermeriaPage() {
                 onChange={(e) => setNuevoForm({ ...nuevoForm, tipo: e.target.value })}
               >
                 {TIPOS.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
                 ))}
               </select>
             </div>
+
             <div>
               <label className="text-sm font-medium mb-1 block">Título *</label>
               <Input
@@ -568,10 +594,12 @@ export default function EnfermeriaPage() {
                   <select
                     className="w-full rounded-md border bg-background px-3 py-2 text-sm"
                     value={nuevoForm.disponibilidad || ''}
-                    onChange={(e) => setNuevoForm({ ...nuevoForm, disponibilidad: e.target.value || undefined })}
+                    onChange={(e) =>
+                      setNuevoForm({ ...nuevoForm, disponibilidad: e.target.value || undefined })
+                    }
                   >
                     <option value="">Auto (según tipo)</option>
-                    <option value="fuera">Fuera (no entrena / no convoca)</option>
+                    <option value="fuera">Fuera</option>
                     <option value="individual">Individual / margen</option>
                     <option value="grupo_adaptado">Grupo adaptado</option>
                     <option value="pleno">Pleno</option>
@@ -581,7 +609,9 @@ export default function EnfermeriaPage() {
                   <label className="text-sm font-medium mb-1 block">Zona corporal</label>
                   <Input
                     value={nuevoForm.zona_corporal || ''}
-                    onChange={(e) => setNuevoForm({ ...nuevoForm, zona_corporal: e.target.value || undefined })}
+                    onChange={(e) =>
+                      setNuevoForm({ ...nuevoForm, zona_corporal: e.target.value || undefined })
+                    }
                     placeholder="Ej: isquios, tobillo…"
                   />
                 </div>
@@ -602,23 +632,21 @@ export default function EnfermeriaPage() {
               </div>
             )}
 
-            {/* Diagnóstico fisioterapéutico */}
             <div>
               <label className="text-sm font-medium mb-1 block">Diagnóstico fisioterapéutico</label>
               <Textarea
                 value={nuevoForm.diagnostico_fisioterapeutico || ''}
-                onChange={(e) => setNuevoForm({ ...nuevoForm, diagnostico_fisioterapeutico: e.target.value })}
-                placeholder="Valoración y diagnóstico del fisioterapeuta..."
+                onChange={(e) =>
+                  setNuevoForm({ ...nuevoForm, diagnostico_fisioterapeutico: e.target.value })
+                }
+                placeholder="Valoración y diagnóstico del fisioterapeuta…"
                 rows={2}
               />
             </div>
 
-            {/* Dates */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium mb-1 block">
-                  {esHistorico ? 'Fecha inicio' : 'Fecha inicio'}
-                </label>
+                <label className="text-sm font-medium mb-1 block">Fecha inicio</label>
                 <Input
                   type="date"
                   value={nuevoForm.fecha_inicio || ''}
@@ -642,7 +670,10 @@ export default function EnfermeriaPage() {
                     min={1}
                     value={nuevoForm.dias_baja_estimados || ''}
                     onChange={(e) =>
-                      setNuevoForm({ ...nuevoForm, dias_baja_estimados: parseInt(e.target.value) || undefined })
+                      setNuevoForm({
+                        ...nuevoForm,
+                        dias_baja_estimados: parseInt(e.target.value) || undefined,
+                      })
                     }
                     placeholder="Ej: 15"
                   />
@@ -650,60 +681,47 @@ export default function EnfermeriaPage() {
               )}
             </div>
 
-            {/* Aportación de pruebas médicas (file upload) */}
             <div>
-              <label className="text-sm font-medium mb-1 block">Aportación de pruebas médicas</label>
+              <label className="text-sm font-medium mb-1 block">Documentos</label>
               <div className="space-y-2">
                 {pendingFiles.map((file, idx) => (
                   <div key={idx} className="flex items-center justify-between p-2 rounded-lg border bg-muted/30">
                     <div className="flex items-center gap-2 text-sm truncate flex-1 mr-2">
                       <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                       <span className="truncate">{file.name}</span>
-                      <span className="text-xs text-muted-foreground flex-shrink-0">
-                        ({(file.size / 1024).toFixed(0)} KB)
-                      </span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemovePendingFile(idx)}
-                      className="text-gray-400 hover:text-red-500 p-1"
-                    >
+                    <button type="button" onClick={() => handleRemovePendingFile(idx)} className="p-1 text-muted-foreground hover:text-red-500">
                       <X className="h-4 w-4" />
                     </button>
                   </div>
                 ))}
-                <div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                    className="hidden"
-                    onChange={handleAddFile}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Adjuntar archivo
-                  </Button>
-                  <p className="text-xs text-muted-foreground mt-1">PDF, JPG, PNG, DOC, DOCX</p>
-                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  className="hidden"
+                  onChange={handleAddFile}
+                />
+                <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Adjuntar archivo
+                </Button>
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowNuevo(false); resetForm() }}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowNuevo(false)
+                resetForm()
+              }}
+            >
               Cancelar
             </Button>
-            <Button
-              onClick={handleCreate}
-              disabled={saving || !nuevoForm.jugador_id || !nuevoForm.titulo}
-            >
+            <Button onClick={handleCreate} disabled={saving || !nuevoForm.jugador_id || !nuevoForm.titulo}>
               {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              {esHistorico ? 'Guardar Histórico' : 'Crear Registro'}
+              {esHistorico ? 'Guardar histórico' : 'Crear registro'}
             </Button>
           </DialogFooter>
         </DialogContent>
