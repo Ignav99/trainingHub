@@ -183,16 +183,7 @@ export default function NuevaSesionPage() {
     }
   }
 
-  function handleAttendanceConfirm(attendance: PlayerAttendance[]) {
-    setAttendanceData(attendance)
-    setStep(1)
-  }
-
-  function handleAttendanceSkip() {
-    setStep(1)
-  }
-
-  const handleSubmit = async () => {
+  const handleSubmit = async (attendanceOverride?: PlayerAttendance[] | null) => {
     setLoading(true)
     setError(null)
 
@@ -206,12 +197,13 @@ export default function NuevaSesionPage() {
 
       const sesion = await sesionesApi.create(dataToSend)
 
+      const attendance = attendanceOverride !== undefined ? attendanceOverride : attendanceData
       // Save attendance batch if we have it
-      if (attendanceData && attendanceData.length > 0) {
+      if (attendance && attendance.length > 0) {
         try {
           await sesionesApi.saveAsistenciasBatch(
             sesion.id,
-            attendanceData.map((a) => ({
+            attendance.map((a) => ({
               jugador_id: a.jugador_id,
               presente: a.presente,
               motivo_ausencia: a.presente ? undefined : a.motivo_ausencia,
@@ -234,12 +226,22 @@ export default function NuevaSesionPage() {
         })
       }
 
-      router.push('/sesiones')
+      router.push(`/sesiones/${sesion.id}`)
     } catch (err: any) {
       setError(err.message || 'Error al crear la sesión')
     } finally {
       setLoading(false)
     }
+  }
+
+  function handleAttendanceConfirm(attendance: PlayerAttendance[]) {
+    setAttendanceData(attendance)
+    void handleSubmit(attendance)
+  }
+
+  function handleAttendanceSkip() {
+    setAttendanceData(null)
+    void handleSubmit(null)
   }
 
   const addTareaToSesion = (tarea: Tarea, fase: string) => {
@@ -260,30 +262,31 @@ export default function NuevaSesionPage() {
     return tareasEnSesion.reduce((acc, t) => acc + (t.duracion_override || t.tarea.duracion_total), 0)
   }
 
-  const isLastStep = () => (isAssisted && step === 3) || (!isAssisted && step === 2)
-
+  // Flujo: Config → (IA) → Tareas → Convocatoria opcional
   const canGoNext = () => {
     switch (step) {
       case 0:
-        return true
+        return !!(formData.titulo && formData.fecha && formData.match_day)
       case 1:
-        return formData.titulo && formData.fecha && formData.match_day
+        return isAssisted ? true : true // tareas opcionales al crear (se completan en detalle)
       case 2:
-        return isAssisted ? true : tareasEnSesion.length > 0
-      case 3:
-        return tareasEnSesion.length > 0
+        return true
       default:
         return true
     }
   }
 
   const handleNext = () => {
-    if (isAssisted && step === 1) {
-      // Al pasar de configuración a recomendación, generar recomendaciones automáticamente
+    if (isAssisted && step === 0) {
       generateRecommendations()
     }
     setStep(step + 1)
   }
+
+  const stepLabels = isAssisted
+    ? ['Configuración', 'Recomendación IA', 'Tareas', 'Convocatoria']
+    : ['Configuración', 'Tareas', 'Convocatoria']
+
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -305,7 +308,7 @@ export default function NuevaSesionPage() {
               </span>
             )}
           </div>
-          <p className="text-gray-500">{step === 0 ? 'Asistencia' : `Paso ${step} de ${totalSteps - 1}`}</p>
+          <p className="text-gray-500">{stepLabels[step] || `Paso ${step + 1} de ${totalSteps}`}</p>
         </div>
       </div>
 
@@ -328,35 +331,9 @@ export default function NuevaSesionPage() {
         </div>
       )}
 
-      {/* Paso 0: Asistencia */}
+      {/* Paso 0: Configuración */}
       {step === 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          {equipoActivo ? (
-            <AttendanceStep
-              equipoId={equipoActivo.id}
-              onConfirm={handleAttendanceConfirm}
-              onSkip={handleAttendanceSkip}
-            />
-          ) : (
-            <div className="text-center py-12 text-gray-500">
-              <p>No hay equipo activo. La asistencia se registrará después de crear la sesión.</p>
-              <button
-                className="mt-4 text-primary underline text-sm"
-                onClick={handleAttendanceSkip}
-              >
-                Continuar
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Formulario */}
-      {step > 0 && (
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        {/* Paso 1: Configuración */}
-        {step === 1 && (
-          <div className="space-y-6">
+        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
             <div className="flex items-center gap-2 text-primary mb-4">
               <Calendar className="h-5 w-5" />
               <h2 className="text-lg font-semibold">Configuración de la sesión</h2>
@@ -502,12 +479,12 @@ export default function NuevaSesionPage() {
                 placeholder="Aspectos a tener en cuenta, jugadores lesionados, etc."
               />
             </div>
-          </div>
-        )}
+        </div>
+      )}
 
-        {/* Paso 2: Recomendación asistida (solo modo assisted) */}
-        {step === 2 && isAssisted && (
-          <div className="space-y-6">
+      {/* Paso 1 assisted: Recomendación IA */}
+      {step === 1 && isAssisted && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2 text-primary">
                 <Zap className="h-5 w-5" />
@@ -600,15 +577,15 @@ export default function NuevaSesionPage() {
 
             {!loadingRecommendations && !aiRecommendations && !recommendationError && (
               <div className="text-center py-12 text-gray-500">
-                <p>Pulsa "Siguiente" para generar recomendaciones de tareas adaptadas a {formData.match_day}.</p>
+                <p>Pulsa &quot;Siguiente&quot; desde configuración para generar recomendaciones.</p>
               </div>
             )}
-          </div>
-        )}
+        </div>
+      )}
 
-        {/* Paso 3 (o 2 sin assisted): Selección de tareas */}
-        {((step === 2 && !isAssisted) || step === 3) && (
-          <div className="space-y-6">
+      {/* Tareas: step 1 normal / step 2 assisted */}
+      {((step === 1 && !isAssisted) || (step === 2 && isAssisted)) && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2 text-primary">
                 <Target className="h-5 w-5" />
@@ -618,8 +595,10 @@ export default function NuevaSesionPage() {
                 Duración total: <span className="font-medium text-gray-900">{calcularDuracionTotal()} min</span>
               </div>
             </div>
+            <p className="text-sm text-gray-500 -mt-2">
+              Opcional al crear: puedes añadir tareas ahora o completarlas en el detalle.
+            </p>
 
-            {/* Fases de la sesión */}
             <div className="space-y-4">
               {FASES_SESION.map((fase) => (
                 <div key={fase.value} className="border border-gray-200 rounded-lg p-4">
@@ -638,7 +617,6 @@ export default function NuevaSesionPage() {
                     </button>
                   </div>
 
-                  {/* Tareas de esta fase */}
                   <div className="space-y-2">
                     {getTareasByFase(fase.value).map((t, i) => (
                       <div
@@ -671,7 +649,6 @@ export default function NuevaSesionPage() {
               ))}
             </div>
 
-            {/* Modal selector de tareas */}
             {showTareaSelector && (
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                 <div className="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
@@ -720,12 +697,39 @@ export default function NuevaSesionPage() {
                 </div>
               </div>
             )}
-          </div>
-        )}
+        </div>
+      )}
 
-        {/* Navegación */}
+      {/* Convocatoria opcional: último paso */}
+      {((step === 2 && !isAssisted) || (step === 3 && isAssisted)) && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <p className="text-sm text-gray-500 mb-4">
+            Opcional: define quién asiste ahora, o salta y hazlo en el detalle de la sesión.
+          </p>
+          {equipoActivo ? (
+            <AttendanceStep
+              equipoId={equipoActivo.id}
+              onConfirm={handleAttendanceConfirm}
+              onSkip={handleAttendanceSkip}
+            />
+          ) : (
+            <div className="text-center py-12 text-gray-500">
+              <p>No hay equipo activo. La convocatoria se registrará en el detalle.</p>
+              <button
+                className="mt-4 text-primary underline text-sm"
+                onClick={handleAttendanceSkip}
+              >
+                Crear sesión
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Navegación — oculta en convocatoria (AttendanceStep tiene sus botones) */}
+      {!((step === 2 && !isAssisted) || (step === 3 && isAssisted)) && (
         <div className="flex justify-between mt-8 pt-6 border-t border-gray-200">
-          {step > 1 ? (
+          {step > 0 ? (
             <button
               type="button"
               onClick={() => setStep(step - 1)}
@@ -737,21 +741,19 @@ export default function NuevaSesionPage() {
             <div />
           )}
 
-          {isLastStep() ? (
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={loading || !canGoNext()}
-              className="inline-flex items-center gap-2 px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4" />
-              )}
-              {loading ? 'Guardando...' : 'Guardar sesión'}
-            </button>
-          ) : (
+          <div className="flex gap-2">
+            {/* Desde tareas: crear directo sin convocatoria */}
+            {((step === 1 && !isAssisted) || (step === 2 && isAssisted)) && (
+              <button
+                type="button"
+                onClick={() => handleSubmit(null)}
+                disabled={loading || !formData.titulo || !formData.fecha}
+                className="inline-flex items-center gap-2 px-6 py-2 border border-primary text-primary rounded-lg hover:bg-primary/5 disabled:opacity-50"
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Crear sin convocatoria
+              </button>
+            )}
             <button
               type="button"
               onClick={handleNext}
@@ -760,9 +762,8 @@ export default function NuevaSesionPage() {
             >
               Siguiente
             </button>
-          )}
+          </div>
         </div>
-      </div>
       )}
     </div>
   )

@@ -37,6 +37,8 @@ export interface SesionCreateData {
   staff_asistentes?: { nombre: string; rol: string; presente?: boolean }[]
   fase_notas?: Record<string, string>
   microciclo_id?: string
+  dia_numero?: number
+  orden?: number
   plan_partido_id?: string
   fase_plan?: string
 }

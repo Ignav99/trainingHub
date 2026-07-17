@@ -59,6 +59,7 @@ import {
   Copy,
   ClipboardPaste,
   UserCircle,
+  ClipboardList,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -67,7 +68,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
@@ -77,6 +77,8 @@ import { emptyDiagramData } from '@/components/tarea-editor/types'
 import { TacticalBoardMini } from '@/components/task-preview'
 import { SesionTareaPanel } from '@/components/sesion'
 import GKTrainingSection from '@/components/portero/GKTrainingSection'
+import { SesionPhaseNav, type SesionPhase } from '@/components/sesiones/SesionPhaseNav'
+import { SesionCierrePanel } from '@/components/sesiones/SesionCierrePanel'
 import { sesionesApi, SesionUpdateData } from '@/lib/api/sesiones'
 import { tareasApi } from '@/lib/api/tareas'
 import { jugadoresApi } from '@/lib/api/jugadores'
@@ -120,14 +122,14 @@ const MATCH_DAY_COLORS: Record<string, string> = {
 }
 
 const FASE_LABELS: Record<string, string> = {
-  activacion: 'Activacion',
+  activacion: 'Activación',
   desarrollo_1: 'Desarrollo 1',
   desarrollo_2: 'Desarrollo 2',
   desarrollo_3: 'Desarrollo 3',
   desarrollo_4: 'Desarrollo 4',
   desarrollo_5: 'Desarrollo 5',
   desarrollo_6: 'Desarrollo 6',
-  vuelta_calma: 'Vuelta a Calma',
+  vuelta_calma: 'Vuelta a calma',
 }
 
 const ALL_DESARROLLO_FASES: FaseSesion[] = ['desarrollo_1', 'desarrollo_2', 'desarrollo_3', 'desarrollo_4', 'desarrollo_5', 'desarrollo_6']
@@ -953,6 +955,8 @@ export default function SesionDetailPage() {
   const [generatingPdf, setGeneratingPdf] = useState(false)
   const [previewingPdf, setPreviewingPdf] = useState(false)
   const [savingTareas, setSavingTareas] = useState(false)
+  const [phase, setPhase] = useState<SesionPhase>('diseno')
+  const [asistenciaSavedOnce, setAsistenciaSavedOnce] = useState(false)
 
   // Task picker
   const [taskPickerOpen, setTaskPickerOpen] = useState(false)
@@ -1084,6 +1088,7 @@ export default function SesionDetailPage() {
       // NOTE: jugadores aún no cargados aquí; se rellenan huecos al tener plantilla
       // según disponibilidad operativa (fuera/individual/grupo).
       setAsistencias(map)
+      if (map.size > 0) setAsistenciaSavedOnce(true)
       setAsistenciasLoaded(true)
     } catch (err) {
       console.error('Error loading asistencias:', err)
@@ -1665,8 +1670,9 @@ export default function SesionDetailPage() {
     } catch {}
   }
 
-  const handleTabChange = (tab: string) => {
-    if (tab === 'asistencia') {
+  const handlePhaseChange = (next: SesionPhase) => {
+    setPhase(next)
+    if (next === 'convocatoria' || next === 'campo' || next === 'cierre') {
       loadJugadores()
       loadAsistencias()
       loadCargaData()
@@ -1800,8 +1806,11 @@ export default function SesionDetailPage() {
         }
       })
       await sesionesApi.saveAsistenciasBatch(sesionId, list)
+      setAsistenciaSavedOnce(true)
+      toast.success('Convocatoria guardada')
     } catch (err) {
       console.error('Error saving asistencias:', err)
+      toast.error('No se pudo guardar la convocatoria')
     } finally {
       setSavingAsistencias(false)
     }
@@ -2044,41 +2053,56 @@ export default function SesionDetailPage() {
         </div>
       </div>
 
-      {/* Completeness bar */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="flex-1 flex gap-1">
-          {activeFases.map((fase) => (
-            <div
-              key={fase}
-              className={`h-2 flex-1 rounded-full transition-colors ${tareasByFase[fase]?.length ? 'bg-primary' : 'bg-muted'}`}
-              title={`${FASE_LABELS[fase]}: ${tareasByFase[fase]?.length ? 'Completa' : 'Vacia'}`}
-            />
-          ))}
+      {/* Phase timeline */}
+      <div className="mb-6 space-y-3">
+        <SesionPhaseNav
+          value={phase}
+          onChange={handlePhaseChange}
+          done={{
+            contexto: !!(sesion.objetivo_principal && sesion.fecha && sesion.match_day),
+            diseno: allTareas.length > 0,
+            convocatoria: asistenciaSavedOnce,
+            campo: Array.from(asistencias.values()).some((a) => a.presente),
+            cierre: sesion.estado === 'completada',
+          }}
+        />
+        <div className="flex items-center gap-3">
+          <div className="flex-1 flex gap-1">
+            {activeFases.map((fase) => (
+              <div
+                key={fase}
+                className={`h-1.5 flex-1 rounded-full transition-colors ${tareasByFase[fase]?.length ? 'bg-primary' : 'bg-muted'}`}
+                title={`${FASE_LABELS[fase]}: ${tareasByFase[fase]?.length ? 'Completa' : 'Vacía'}`}
+              />
+            ))}
+          </div>
+          <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
+            {completedFases.length}/{activeFases.length} fases · {totalDuration || sesion.duracion_total || 0} min
+          </span>
         </div>
-        <span className="text-xs text-muted-foreground shrink-0">
-          {completedFases.length}/{activeFases.length} fases
-        </span>
+        {sesion.microciclo_id && (
+          <Link
+            href={`/microciclos/${sesion.microciclo_id}`}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-sky-800 bg-sky-50 border border-sky-200 rounded-lg px-2.5 py-1 hover:bg-sky-100"
+          >
+            Ver en Sala del Lunes / microciclo
+            <ChevronRight className="h-3 w-3" />
+          </Link>
+        )}
       </div>
 
-      {/* Tabs - only 2: Diseno and Asistencia */}
-      <Tabs defaultValue="diseno" onValueChange={handleTabChange}>
-        <TabsList className="mb-6">
-          <TabsTrigger value="diseno">Diseno</TabsTrigger>
-          <TabsTrigger value="asistencia">Asistencia</TabsTrigger>
-        </TabsList>
-
-        {/* ==================== TAB: DISENO ==================== */}
-        <TabsContent value="diseno">
-          {/* Metadata */}
-          <Card className="mb-6">
+      {/* ==================== FASE: CONTEXTO ==================== */}
+      {phase === 'contexto' && (
+        <div className="space-y-4 animate-fade-in">
+          <Card>
             <CardContent className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
+                <div className="md:col-span-2">
                   <label className="text-xs font-medium text-muted-foreground mb-1 block">Objetivo principal</label>
                   <Textarea
                     value={sesion.objetivo_principal || ''}
                     onChange={(e) => updateField('objetivo_principal', e.target.value)}
-                    placeholder="Ej: Mejorar salida de balon bajo presion"
+                    placeholder="Ej: Mejorar salida de balón bajo presión"
                     rows={2}
                   />
                 </div>
@@ -2096,6 +2120,14 @@ export default function SesionDetailPage() {
                   </select>
                 </div>
                 <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Lugar</label>
+                  <Input
+                    value={sesion.lugar || ''}
+                    onChange={(e) => updateField('lugar', e.target.value || null)}
+                    placeholder="Campo, instalación…"
+                  />
+                </div>
+                <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1 block">Rival</label>
                   <Input
                     value={sesion.rival || ''}
@@ -2104,42 +2136,24 @@ export default function SesionDetailPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Competicion</label>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Competición</label>
                   <Input
                     value={sesion.competicion || ''}
                     onChange={(e) => updateField('competicion', e.target.value || null)}
-                    placeholder="Liga, Copa..."
+                    placeholder="Liga, Copa…"
                   />
                 </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Lugar</label>
-                  <Input
-                    value={sesion.lugar || ''}
-                    onChange={(e) => updateField('lugar', e.target.value || null)}
-                    placeholder="Campo, instalacion..."
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Notas pre-sesion</label>
+                <div className="md:col-span-2">
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Notas pre-sesión</label>
                   <Textarea
                     value={sesion.notas_pre || ''}
                     onChange={(e) => updateField('notas_pre', e.target.value || null)}
-                    placeholder="Notas para antes de la sesion"
-                    rows={2}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Notas post-sesion</label>
-                  <Textarea
-                    value={sesion.notas_post || ''}
-                    onChange={(e) => updateField('notas_post', e.target.value || null)}
-                    placeholder="Notas despues de la sesion"
+                    placeholder="Notas para antes de la sesión"
                     rows={2}
                   />
                 </div>
               </div>
 
-              {/* Materiales */}
               <div className="mt-4">
                 <label className="text-xs font-medium text-muted-foreground mb-2 block">Materiales</label>
                 <div className="flex flex-wrap gap-2">
@@ -2170,7 +2184,18 @@ export default function SesionDetailPage() {
               </div>
             </CardContent>
           </Card>
+          <div className="flex justify-end">
+            <Button onClick={() => handlePhaseChange('diseno')}>
+              Ir a Diseño
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+        </div>
+      )}
 
+      {/* ==================== FASE: DISENO ==================== */}
+      {phase === 'diseno' && (
+        <div className="space-y-4 animate-fade-in">
           {/* Fases de sesion */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -2345,16 +2370,25 @@ export default function SesionDetailPage() {
               />
             </div>
           )}
-        </TabsContent>
 
-        {/* ==================== TAB: ASISTENCIA ==================== */}
-        <TabsContent value="asistencia">
+          <div className="flex justify-end pt-2">
+            <Button type="button" onClick={() => handlePhaseChange('convocatoria')}>
+              Siguiente: Convocatoria
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== FASE: CONVOCATORIA ==================== */}
+      {phase === 'convocatoria' && (
+        <div className="space-y-4 animate-fade-in">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
                   <Users className="h-5 w-5" />
-                  Control de Asistencia
+                  Convocatoria
                 </CardTitle>
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-3 text-sm">
@@ -2851,8 +2885,104 @@ export default function SesionDetailPage() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+
+          <div className="flex justify-between pt-2">
+            <Button type="button" variant="outline" onClick={() => handlePhaseChange('diseno')}>
+              Volver a Diseño
+            </Button>
+            <Button type="button" onClick={() => handlePhaseChange('campo')}>
+              Siguiente: Campo
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== FASE: CAMPO ==================== */}
+      {phase === 'campo' && (
+        <div className="space-y-6 animate-fade-in">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
+            <h3 className="font-semibold text-slate-900">Modo campo</h3>
+            <p className="text-sm text-slate-600">
+              Vista operativa para dirigir la sesión. Abre la pizarra o exporta el PDF.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild>
+                <Link href={`/pizarra?sesion=${sesionId}`}>
+                  <ClipboardList className="h-4 w-4 mr-2" />
+                  Abrir pizarra
+                </Link>
+              </Button>
+              <Button variant="outline" onClick={handlePreviewPdf} disabled={previewingPdf}>
+                {previewingPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Eye className="h-4 w-4 mr-2" />}
+                Vista previa PDF
+              </Button>
+              <Button variant="outline" onClick={handleGeneratePdf} disabled={generatingPdf}>
+                {generatingPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+                Descargar PDF
+              </Button>
+            </div>
+          </div>
+
+          {(sesion.tareas || []).length > 0 && (
+            <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
+              <h3 className="font-semibold text-slate-900">Secuencia en pista</h3>
+              <ol className="space-y-2">
+                {(sesion.tareas || [])
+                  .slice()
+                  .sort((a, b) => (a.orden || 0) - (b.orden || 0))
+                  .map((st, idx) => (
+                    <li key={st.id} className="flex items-start gap-3 text-sm border-b border-slate-100 pb-2 last:border-0">
+                      <span className="font-mono text-xs text-slate-400 w-6 shrink-0 pt-0.5">{idx + 1}</span>
+                      <div className="min-w-0">
+                        <p className="font-medium text-slate-900">{st.tarea?.titulo || 'Tarea'}</p>
+                        <p className="text-xs text-slate-500">
+                          {st.duracion_override || st.tarea?.duracion_total || 0} min
+                          {st.fase_sesion ? ` · ${FASE_LABELS[st.fase_sesion] || st.fase_sesion}` : ''}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+              </ol>
+            </div>
+          )}
+
+          <div className="flex justify-between pt-2">
+            <Button type="button" variant="outline" onClick={() => handlePhaseChange('convocatoria')}>
+              Volver a Convocatoria
+            </Button>
+            <Button type="button" onClick={() => handlePhaseChange('cierre')}>
+              Siguiente: Cierre
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== FASE: CIERRE ==================== */}
+      {phase === 'cierre' && (
+        <SesionCierrePanel
+          sesionId={sesionId}
+          estado={sesion.estado}
+          notasPost={sesion.notas_post || ''}
+          checklist={{
+            hasObjetivo: !!sesion.objetivo_principal,
+            hasTareas: (sesion.tareas || []).length > 0,
+            asistenciaSaved: asistenciaSavedOnce || asistenciasLoaded,
+            presentes: Array.from(asistencias.values()).filter((a) => a.presente).length,
+            hasNotasPost: !!(sesion.notas_post && sesion.notas_post.trim()),
+            isCompletada: sesion.estado === 'completada',
+          }}
+          onNotasPostChange={(v) => updateField('notas_post', v)}
+          onCompletar={async () => {
+            await handleUpdateEstado('completada')
+          }}
+          onPreviewPdf={handlePreviewPdf}
+          onDownloadPdf={handleGeneratePdf}
+          previewingPdf={previewingPdf}
+          generatingPdf={generatingPdf}
+        />
+      )}
 
       {/* Footer */}
       <div className="mt-8 flex justify-between items-center">

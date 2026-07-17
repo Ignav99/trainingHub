@@ -177,6 +177,11 @@ class SesionBase(BaseModel):
 class SesionCreate(SesionBase):
     """Schema para crear sesión."""
     equipo_id: Optional[UUID] = None  # Optional for testing mode
+    microciclo_id: Optional[UUID] = None
+    dia_numero: Optional[int] = Field(None, ge=1, le=14)
+    orden: Optional[int] = Field(None, ge=0)
+    # Nested tareas are accepted by the API type for docs but MUST NOT be
+    # inserted with the session row (breaks FK). Create then addTarea.
     tareas: Optional[List[SesionTareaCreate]] = None
 
 
@@ -198,6 +203,8 @@ class SesionUpdate(BaseModel):
     notas_post: Optional[str] = None
     estado: Optional[EstadoSesion] = None
     microciclo_id: Optional[UUID] = None
+    dia_numero: Optional[int] = Field(None, ge=1, le=14)
+    orden: Optional[int] = Field(None, ge=0)
     plan_partido_id: Optional[UUID] = None
     fase_plan: Optional[str] = None
     materiales: Optional[List[str]] = None
@@ -215,6 +222,8 @@ class SesionResponse(SesionBase):
     estado: EstadoSesion
     pdf_url: Optional[str] = None
     microciclo_id: Optional[UUID] = None
+    dia_numero: Optional[int] = None
+    orden: Optional[int] = None
     plan_partido_id: Optional[UUID] = None
     fase_plan: Optional[str] = None
 
