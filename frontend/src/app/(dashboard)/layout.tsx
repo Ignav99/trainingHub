@@ -28,8 +28,6 @@ import {
   UtensilsCrossed,
   Crown,
   PenTool,
-  PanelLeftClose,
-  PanelLeftOpen,
 } from 'lucide-react'
 import { preload } from 'swr'
 import { apiFetcher } from '@/lib/swr'
@@ -66,7 +64,6 @@ interface SidebarProps {
   collapsed: boolean
   onClose?: () => void
   onLogout: () => void
-  onToggleCollapse?: () => void
 }
 
 type NavItem = {
@@ -248,8 +245,8 @@ export default function DashboardLayout({
       </div>
 
       {/* Desktop sidebar */}
-      <div className={cn('hidden lg:fixed lg:inset-y-0 lg:flex lg:flex-col transition-[width] duration-200 ease-out', sidebarWidth)}>
-        <div className="flex min-h-0 flex-1 flex-col border-r bg-card">
+      <div className={cn('hidden lg:fixed lg:inset-y-0 lg:z-30 lg:flex lg:flex-col transition-[width] duration-200 ease-out', sidebarWidth)}>
+        <div className="relative flex min-h-0 flex-1 flex-col border-r bg-card">
           <SidebarContent
             pathname={pathname}
             equipos={equipos}
@@ -259,8 +256,27 @@ export default function DashboardLayout({
             theme={theme}
             collapsed={collapsed}
             onLogout={handleLogout}
-            onToggleCollapse={toggleSidebar}
           />
+          {/* Collapse handle on the sidebar edge */}
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className={cn(
+              'absolute top-1/2 -translate-y-1/2 -right-3 z-40',
+              'flex h-8 w-6 items-center justify-center',
+              'rounded-full border bg-card text-muted-foreground shadow-sm',
+              'hover:text-foreground hover:border-foreground/20 hover:shadow',
+              'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+            )}
+            title={collapsed ? 'Expandir menú' : 'Compactar menú'}
+            aria-label={collapsed ? 'Expandir barra lateral' : 'Compactar barra lateral'}
+          >
+            {collapsed ? (
+              <ChevronRight className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5 rotate-180" />
+            )}
+          </button>
         </div>
       </div>
 
@@ -304,61 +320,6 @@ export default function DashboardLayout({
           >
             <Settings className="h-5 w-5" />
           </Link>
-        </div>
-
-        {/* Desktop top bar — user + config + collapse */}
-        <div className="hidden lg:sticky lg:top-0 lg:z-30 lg:flex h-12 items-center gap-3 border-b bg-card/95 backdrop-blur px-4">
-          <button
-            type="button"
-            onClick={toggleSidebar}
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            title={collapsed ? 'Mostrar menú' : 'Ocultar menú'}
-            aria-label={collapsed ? 'Expandir barra lateral' : 'Colapsar barra lateral'}
-          >
-            {collapsed ? <PanelLeftOpen className="h-4.5 w-4.5 h-[18px] w-[18px]" /> : <PanelLeftClose className="h-4.5 w-4.5 h-[18px] w-[18px]" />}
-          </button>
-
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground truncate">
-              {equipoActivo?.nombre}
-              {equipoActivo?.categoria ? ` · ${equipoActivo.categoria}` : ''}
-            </p>
-          </div>
-
-          <Link
-            href="/alertas"
-            className="relative p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            title="Notificaciones"
-            aria-label="Notificaciones"
-          >
-            <Bell className="h-4 w-4" />
-          </Link>
-
-          {user && (
-            <div className="flex items-center gap-2 pl-2 border-l">
-              <Avatar
-                src={user.avatar_url}
-                fallback={user.nombre?.charAt(0)?.toUpperCase()}
-                size="sm"
-              />
-              <div className="min-w-0 max-w-[160px]">
-                <p className="text-sm font-medium truncate leading-tight">
-                  {user.nombre} {user.apellidos}
-                </p>
-                <p className="text-[10px] text-muted-foreground truncate capitalize leading-tight">
-                  {user.rol?.replace('_', ' ')}
-                </p>
-              </div>
-              <Link
-                href="/configuracion"
-                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                title="Configuración"
-                aria-label="Configuración"
-              >
-                <Settings className="h-4 w-4" />
-              </Link>
-            </div>
-          )}
         </div>
 
         <main className="py-6 pb-24 lg:pb-6 px-4 sm:px-6 lg:px-8">{children}</main>
@@ -415,11 +376,11 @@ const SidebarContent = memo(function SidebarContent({
   collapsed,
   onClose,
   onLogout,
-  onToggleCollapse,
 }: SidebarProps) {
   const [equipoDropdownOpen, setEquipoDropdownOpen] = useState(false)
   const [saludOpen, setSaludOpen] = useState(() => isSaludPath(pathname))
   const dropdownRef = useRef<HTMLLIElement>(null)
+  const canManageClub = !!user && ['presidente', 'director_deportivo', 'secretario', 'admin'].includes(user.rol)
 
   useEffect(() => {
     if (isSaludPath(pathname)) setSaludOpen(true)
@@ -463,37 +424,51 @@ const SidebarContent = memo(function SidebarContent({
         )}
       </div>
 
-      {!collapsed && onToggleCollapse && (
-        <div className="px-5 -mt-1 hidden lg:block">
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            className="w-full flex items-center justify-center gap-2 px-2 py-1.5 rounded-lg text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-          >
-            <PanelLeftClose className="h-3.5 w-3.5" />
-            Ocultar menú
-          </button>
-        </div>
-      )}
-
-      {/* Club Admin */}
-      {user && ['presidente', 'director_deportivo', 'secretario', 'admin'].includes(user.rol) && (
+      {/* User + config (where Gestión del Club used to sit) */}
+      {user && (
         <div className={cn(collapsed ? 'px-2' : 'px-5')}>
-          <Link
-            href="/gestion"
-            onClick={onClose}
-            title={collapsed ? 'Gestión del Club' : undefined}
+          <div
             className={cn(
-              'flex items-center rounded-xl text-sm font-semibold transition-all',
-              collapsed ? 'justify-center p-2.5' : 'gap-2 px-3 py-2.5',
-              pathname.startsWith('/gestion')
-                ? 'bg-amber-100 border border-amber-300 text-amber-900'
-                : 'bg-amber-50 border border-amber-200 text-amber-900 hover:bg-amber-100'
+              'flex items-center rounded-xl border bg-muted/50',
+              collapsed ? 'justify-center p-2' : 'gap-2.5 px-3 py-2.5'
             )}
           >
-            <Crown className="h-4 w-4 shrink-0" />
-            {!collapsed && 'Gestión del Club'}
-          </Link>
+            <Avatar
+              src={user.avatar_url}
+              fallback={user.nombre?.charAt(0)?.toUpperCase()}
+              size="sm"
+            />
+            {!collapsed && (
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">
+                  {user.nombre} {user.apellidos}
+                </p>
+                <p className="text-[11px] text-muted-foreground truncate capitalize">
+                  {user.rol?.replace('_', ' ')}
+                </p>
+              </div>
+            )}
+            <Link
+              href="/configuracion"
+              onClick={onClose}
+              title="Configuración"
+              aria-label="Configuración"
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/80 transition-colors shrink-0"
+            >
+              <Settings className="h-4 w-4" />
+            </Link>
+            {!collapsed && (
+              <Link
+                href="/alertas"
+                onClick={onClose}
+                title="Notificaciones"
+                aria-label="Notificaciones"
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/80 transition-colors shrink-0"
+              >
+                <Bell className="h-4 w-4" />
+              </Link>
+            )}
+          </div>
         </div>
       )}
 
@@ -655,6 +630,27 @@ const SidebarContent = memo(function SidebarContent({
               )}
             </div>
           </li>
+
+          {/* Gestión del Club — above logout */}
+          {canManageClub && (
+            <li>
+              <Link
+                href="/gestion"
+                onClick={onClose}
+                title={collapsed ? 'Gestión del Club' : undefined}
+                className={cn(
+                  'flex items-center rounded-xl text-sm font-semibold transition-all',
+                  collapsed ? 'justify-center p-2.5' : 'gap-2 px-3 py-2.5',
+                  pathname.startsWith('/gestion')
+                    ? 'bg-amber-100 border border-amber-300 text-amber-900'
+                    : 'bg-amber-50 border border-amber-200 text-amber-900 hover:bg-amber-100'
+                )}
+              >
+                <Crown className="h-4 w-4 shrink-0" />
+                {!collapsed && 'Gestión del Club'}
+              </Link>
+            </li>
+          )}
 
           <li>
             <button
