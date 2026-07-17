@@ -8,9 +8,9 @@ import {
   LayoutDashboard,
   Calendar,
   CalendarDays,
-  Library,
   Settings,
   ChevronDown,
+  ChevronRight,
   LogOut,
   Menu,
   X,
@@ -18,7 +18,6 @@ import {
   Check,
   Swords,
   Bell,
-  Bot,
   ScanSearch,
   Shield,
   BarChart3,
@@ -29,7 +28,8 @@ import {
   UtensilsCrossed,
   Crown,
   PenTool,
-  Crosshair,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react'
 import { preload } from 'swr'
 import { apiFetcher } from '@/lib/swr'
@@ -37,13 +37,15 @@ import { apiKey } from '@/lib/swr'
 import { useAuthStore } from '@/stores/authStore'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { useClubStore } from '@/stores/clubStore'
+import { useSidebarStore } from '@/stores/sidebarStore'
 import { ClubAvatar, Avatar } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
 import { SplashScreen } from '@/components/ui/splash-screen'
 import { Toaster } from '@/components/ui/toast'
 import { MobileBottomNav } from '@/components/ui/mobile-nav'
 import { InstallPrompt } from '@/components/ui/install-prompt'
 import { registerServiceWorker } from '@/lib/register-sw'
+import { isSaludPath } from '@/components/salud/SaludTabs'
+import { cn } from '@/lib/utils'
 import type { Equipo, Usuario } from '@/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -61,13 +63,22 @@ interface SidebarProps {
   onSelectEquipo: (equipo: Equipo) => void
   user: Usuario | null
   theme: ClubTheme
+  collapsed: boolean
   onClose?: () => void
   onLogout: () => void
+  onToggleCollapse?: () => void
+}
+
+type NavItem = {
+  name: string
+  href: string
+  icon: React.ComponentType<{ className?: string }>
+  match?: (pathname: string) => boolean
 }
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
 
-const navigation = [
+const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Microciclos', href: '/microciclos', icon: CalendarDays },
   { name: 'Sesiones', href: '/sesiones', icon: Calendar },
@@ -75,22 +86,26 @@ const navigation = [
   { name: 'Partidos', href: '/partidos', icon: Swords },
   { name: 'Rivales', href: '/rivales', icon: Shield },
   { name: 'Balón Parado', href: '/abp', icon: Flag },
-  { name: 'Enfermería', href: '/enfermeria', icon: HeartPulse },
-  { name: 'Nutrición', href: '/nutricion', icon: UtensilsCrossed },
-  { name: 'RPE / Wellness', href: '/rpe', icon: Activity },
   { name: 'Competición', href: '/competicion', icon: Trophy },
-  { name: 'Estadísticas', href: '/estadisticas', icon: BarChart3 },
-  { name: 'Alertas', href: '/alertas', icon: Bell },
 ]
 
-const secondaryNavigation = [
-  { name: 'AI Asistente', href: '/ai', icon: Bot },
-  { name: 'Biblioteca AI', href: '/biblioteca-ai', icon: Library },
+const saludNavigation: NavItem[] = [
+  { name: 'Enfermería', href: '/enfermeria', icon: HeartPulse },
+  { name: 'RPE', href: '/rpe', icon: Activity },
+  { name: 'Nutrición', href: '/nutricion', icon: UtensilsCrossed },
+]
+
+const toolsNavigation: NavItem[] = [
   { name: 'Video Análisis', href: '/video-analisis', icon: ScanSearch },
   { name: 'Pizarra Táctica', href: '/pizarra-tactica', icon: PenTool },
-  { name: 'Modelo de Juego', href: '/modelo-juego', icon: Crosshair },
-  { name: 'Configuracion', href: '/configuracion', icon: Settings },
+  { name: 'Estadísticas', href: '/estadisticas', icon: BarChart3 },
 ]
+
+function isNavActive(item: NavItem, pathname: string) {
+  if (item.match) return item.match(pathname)
+  if (item.href === '/') return pathname === '/'
+  return pathname === item.href || pathname.startsWith(item.href)
+}
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
@@ -104,12 +119,11 @@ export default function DashboardLayout({
   const { user, logout, isLoading, isAuthenticated } = useAuthStore()
   const { equipos, equipoActivo, loadEquipos, setEquipoActivo } = useEquipoStore()
   const { theme, isOnboardingComplete } = useClubStore()
+  const { collapsed, toggle: toggleSidebar } = useSidebarStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [dataReady, setDataReady] = useState(false)
-  // Generation counter prevents stale preload results from old team switches
   const genRef = useRef(0)
 
-  // ── Auth redirect ──
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push('/login')
@@ -122,23 +136,18 @@ export default function DashboardLayout({
     }
   }, [isAuthenticated, loadEquipos])
 
-  // Redirect to onboarding if not complete
   useEffect(() => {
     if (isAuthenticated && !isOnboardingComplete && pathname !== '/onboarding') {
       router.push('/onboarding')
     }
   }, [isAuthenticated, isOnboardingComplete, pathname, router])
 
-  // ── Preload all dashboard data ──
-  // Uses a generation counter to cancel stale requests when equipoActivo changes.
   useEffect(() => {
     if (!isAuthenticated || !equipoActivo?.id) return
     const eid = equipoActivo.id
-    // Bump generation — only THIS generation's results will be accepted
     genRef.current += 1
     const gen = genRef.current
 
-    // Current month range for calendar queries
     const now = new Date()
     const y = now.getFullYear()
     const m = now.getMonth()
@@ -146,67 +155,49 @@ export default function DashboardLayout({
     const lastDay = new Date(y, m + 1, 0).getDate()
     const fechaHasta = `${y}-${String(m + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
-    // ALL endpoints the dashboard needs — wait for every one
     const allEndpoints = [
-      // Dashboard main
       apiKey('/dashboard/resumen', { equipo_id: eid }),
       apiKey('/dashboard/plantilla', { equipo_id: eid }),
-      // Sidebar data
       apiKey('/jugadores', { equipo_id: eid, estado: 'activo' }),
       apiKey('/catalogos/categorias-tarea'),
-      // Dashboard cards
       apiKey('/microciclos', { equipo_id: eid, estado: 'en_curso', limit: 1 }),
       apiKey('/sesiones', { equipo_id: eid, estado: 'borrador', limit: 1 }),
       apiKey('/partidos', { equipo_id: eid, solo_jugados: true, limit: 1, orden: 'fecha', direccion: 'desc' }),
       apiKey('/rfef/competiciones', { equipo_id: eid }),
-      // Calendar
       apiKey('/sesiones', { equipo_id: eid, fecha_desde: fechaDesde, fecha_hasta: fechaHasta, limit: 50 }),
       apiKey('/partidos', { equipo_id: eid, fecha_desde: fechaDesde, fecha_hasta: fechaHasta, limit: 20 }),
       apiKey('/microciclos', { equipo_id: eid, fecha_desde: fechaDesde, fecha_hasta: fechaHasta }),
       apiKey('/descansos', { equipo_id: eid, fecha_desde: fechaDesde, fecha_hasta: fechaHasta }),
       apiKey('/partidos', { equipo_id: eid, solo_pendientes: true, orden: 'fecha', direccion: 'asc', limit: 20 }),
-      // Other tabs (preload for instant navigation)
       apiKey('/sesiones', { page: 1, limit: 10, equipo_id: eid }),
       apiKey('/tareas', { page: 1, limit: 20, equipo_id: eid }),
       apiKey('/partidos', { equipo_id: eid, orden: 'fecha', direccion: 'desc', limit: 50 }),
       apiKey('/carga/equipo/' + eid),
     ].filter(Boolean) as string[]
 
-    // Wait for ALL to resolve, then show the app — only if this generation is still current
-    Promise.allSettled(allEndpoints.map(key => preload(key, apiFetcher)))
-      .then(() => {
-        if (gen === genRef.current) {
-          setDataReady(true)
-        }
+    Promise.allSettled(allEndpoints.map((key) => preload(key, apiFetcher))).then(() => {
+      if (gen === genRef.current) {
+        setDataReady(true)
+      }
 
-        // Phase 2: background preload for secondary pages (non-blocking)
-        const hoy = `${y}-${String(m + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-        const bgEndpoints = [
-          // Enfermería
-          apiKey('/medico', { equipo_id: eid }),
-          // Nutrición
-          apiKey('/nutricion/planes', { equipo_id: eid, fecha: hoy }),
-          apiKey('/nutricion/composicion', { equipo_id: eid }),
-          apiKey('/nutricion/suplementos', { equipo_id: eid, activo: true }),
-          // Estadísticas
-          apiKey('/estadisticas/dashboard', { equipo_id: eid }),
-          apiKey('/dashboard/carga-semanal', { equipo_id: eid, semanas: 12 }),
-          // ABP
-          apiKey('/abp', { equipo_id: eid }),
-          // Pizarra Táctica
-          apiKey('/tactical-boards', { equipo_id: eid }),
-          // Game Model
-          apiKey('/game-models', { equipo_id: eid }),
-          // Rivales
-          apiKey('/rivales', { orden: 'nombre', direccion: 'asc' }),
-          // RPE / Wellness
-          apiKey('/wellness/equipo/' + eid),
-          apiKey('/wellness/equipo/' + eid + '/alertas'),
-        ].filter(Boolean) as string[]
-        bgEndpoints.forEach(key => preload(key, apiFetcher))
-      })
+      const hoy = `${y}-${String(m + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+      const bgEndpoints = [
+        apiKey('/medico', { equipo_id: eid }),
+        apiKey('/nutricion/planes', { equipo_id: eid, fecha: hoy }),
+        apiKey('/nutricion/composicion', { equipo_id: eid }),
+        apiKey('/nutricion/suplementos', { equipo_id: eid, activo: true }),
+        apiKey('/estadisticas/dashboard', { equipo_id: eid }),
+        apiKey('/dashboard/carga-semanal', { equipo_id: eid, semanas: 12 }),
+        apiKey('/abp', { equipo_id: eid }),
+        apiKey('/tactical-boards', { equipo_id: eid }),
+        apiKey('/game-models', { equipo_id: eid }),
+        apiKey('/rivales', { orden: 'nombre', direccion: 'asc' }),
+        apiKey('/wellness/equipo/' + eid),
+        apiKey('/wellness/equipo/' + eid + '/alertas'),
+      ].filter(Boolean) as string[]
+      bgEndpoints.forEach((key) => preload(key, apiFetcher))
+    })
 
-    // Safety timeout: show app after 15s max even if some endpoints are slow
     const timeout = setTimeout(() => {
       if (gen === genRef.current) {
         setDataReady(true)
@@ -215,8 +206,6 @@ export default function DashboardLayout({
     return () => clearTimeout(timeout)
   }, [isAuthenticated, equipoActivo?.id])
 
-  // Hooks must be called unconditionally (before any early return)
-  // Register service worker once
   useEffect(() => {
     registerServiceWorker()
   }, [])
@@ -229,18 +218,19 @@ export default function DashboardLayout({
   const handleCloseSidebar = useCallback(() => setSidebarOpen(false), [])
   const handleOpenSidebar = useCallback(() => setSidebarOpen(true), [])
 
-  // ── Find active Equipo object for the sidebar (equipoActivo in store may be stale) ──
   const activeTeam = equipoActivo ?? equipos[0] ?? null
 
-  // Show SplashScreen until auth + equipos + critical data are ready
   if (!isAuthenticated || !activeTeam || !dataReady) {
     return <SplashScreen />
   }
 
+  const sidebarWidth = collapsed ? 'lg:w-[4.5rem]' : 'lg:w-72'
+  const contentPad = collapsed ? 'lg:pl-[4.5rem]' : 'lg:pl-72'
+
   return (
     <div className="min-h-screen bg-muted/30">
       {/* Mobile sidebar overlay */}
-      <div className={`fixed inset-0 z-50 lg:hidden ${sidebarOpen ? '' : 'hidden'}`}>
+      <div className={cn('fixed inset-0 z-50 lg:hidden', sidebarOpen ? '' : 'hidden')}>
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={handleCloseSidebar} />
         <div className="fixed inset-y-0 left-0 w-72 bg-card shadow-xl">
           <SidebarContent
@@ -250,6 +240,7 @@ export default function DashboardLayout({
             onSelectEquipo={setEquipoActivo}
             user={user}
             theme={theme}
+            collapsed={false}
             onClose={handleCloseSidebar}
             onLogout={handleLogout}
           />
@@ -257,7 +248,7 @@ export default function DashboardLayout({
       </div>
 
       {/* Desktop sidebar */}
-      <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-72 lg:flex-col">
+      <div className={cn('hidden lg:fixed lg:inset-y-0 lg:flex lg:flex-col transition-[width] duration-200 ease-out', sidebarWidth)}>
         <div className="flex min-h-0 flex-1 flex-col border-r bg-card">
           <SidebarContent
             pathname={pathname}
@@ -266,51 +257,149 @@ export default function DashboardLayout({
             onSelectEquipo={setEquipoActivo}
             user={user}
             theme={theme}
+            collapsed={collapsed}
             onLogout={handleLogout}
+            onToggleCollapse={toggleSidebar}
           />
         </div>
       </div>
 
-      {/* Main content */}
-      <div className="lg:pl-72">
+      {/* Main column */}
+      <div className={cn('transition-[padding] duration-200 ease-out', contentPad)}>
         {/* Mobile header */}
         <div
-          className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b px-4 shadow-sm lg:hidden"
+          className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-x-3 border-b px-4 shadow-sm lg:hidden"
           style={{ backgroundColor: theme.colorPrimario }}
         >
           <button
             type="button"
-            className="-m-2.5 p-2.5"
-            style={{ color: 'rgba(255,255,255,0.8)' }}
+            className="-m-2 p-2"
+            style={{ color: 'rgba(255,255,255,0.85)' }}
             onClick={handleOpenSidebar}
+            aria-label="Abrir menú"
           >
-            <Menu className="h-6 w-6" />
+            <Menu className="h-5 w-5" />
           </button>
 
-          <div className="flex flex-1 items-center gap-3">
-            <ClubAvatar
-              logoUrl={theme.logoUrl}
-              clubName={user?.organizacion?.nombre}
-              size="sm"
-            />
+          <div className="flex flex-1 items-center gap-2.5 min-w-0">
+            <ClubAvatar logoUrl={theme.logoUrl} clubName={user?.organizacion?.nombre} size="sm" />
             <span className="font-semibold text-sm truncate text-white">
               {user?.organizacion?.nombre || 'Kabin-e'}
             </span>
           </div>
 
-          <button className="relative p-2" style={{ color: 'rgba(255,255,255,0.8)' }}>
+          <Link
+            href="/alertas"
+            className="relative p-2"
+            style={{ color: 'rgba(255,255,255,0.85)' }}
+            aria-label="Notificaciones"
+          >
             <Bell className="h-5 w-5" />
-          </button>
+          </Link>
+          <Link
+            href="/configuracion"
+            className="p-2"
+            style={{ color: 'rgba(255,255,255,0.85)' }}
+            aria-label="Configuración"
+          >
+            <Settings className="h-5 w-5" />
+          </Link>
         </div>
 
-        <main className="py-6 pb-24 lg:pb-6 px-4 sm:px-6 lg:px-8">
-          {children}
-        </main>
+        {/* Desktop top bar — user + config + collapse */}
+        <div className="hidden lg:sticky lg:top-0 lg:z-30 lg:flex h-12 items-center gap-3 border-b bg-card/95 backdrop-blur px-4">
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            title={collapsed ? 'Mostrar menú' : 'Ocultar menú'}
+            aria-label={collapsed ? 'Expandir barra lateral' : 'Colapsar barra lateral'}
+          >
+            {collapsed ? <PanelLeftOpen className="h-4.5 w-4.5 h-[18px] w-[18px]" /> : <PanelLeftClose className="h-4.5 w-4.5 h-[18px] w-[18px]" />}
+          </button>
+
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-muted-foreground truncate">
+              {equipoActivo?.nombre}
+              {equipoActivo?.categoria ? ` · ${equipoActivo.categoria}` : ''}
+            </p>
+          </div>
+
+          <Link
+            href="/alertas"
+            className="relative p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            title="Notificaciones"
+            aria-label="Notificaciones"
+          >
+            <Bell className="h-4 w-4" />
+          </Link>
+
+          {user && (
+            <div className="flex items-center gap-2 pl-2 border-l">
+              <Avatar
+                src={user.avatar_url}
+                fallback={user.nombre?.charAt(0)?.toUpperCase()}
+                size="sm"
+              />
+              <div className="min-w-0 max-w-[160px]">
+                <p className="text-sm font-medium truncate leading-tight">
+                  {user.nombre} {user.apellidos}
+                </p>
+                <p className="text-[10px] text-muted-foreground truncate capitalize leading-tight">
+                  {user.rol?.replace('_', ' ')}
+                </p>
+              </div>
+              <Link
+                href="/configuracion"
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title="Configuración"
+                aria-label="Configuración"
+              >
+                <Settings className="h-4 w-4" />
+              </Link>
+            </div>
+          )}
+        </div>
+
+        <main className="py-6 pb-24 lg:pb-6 px-4 sm:px-6 lg:px-8">{children}</main>
       </div>
       <MobileBottomNav />
       <InstallPrompt />
       <Toaster />
     </div>
+  )
+}
+
+// ─── Nav link ─────────────────────────────────────────────────────────────────
+
+function NavLink({
+  item,
+  pathname,
+  collapsed,
+  onClose,
+}: {
+  item: NavItem
+  pathname: string
+  collapsed: boolean
+  onClose?: () => void
+}) {
+  const active = isNavActive(item, pathname)
+  return (
+    <Link
+      href={item.href}
+      onClick={onClose}
+      title={collapsed ? item.name : undefined}
+      className={cn(
+        'group flex items-center gap-x-3 rounded-lg text-sm font-medium transition-all',
+        collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2',
+        active
+          ? 'bg-[hsl(var(--club-primary)/0.1)] text-[hsl(var(--club-primary))] border-l-[3px] border-[hsl(var(--club-primary))]'
+          : 'text-muted-foreground hover:bg-muted hover:text-foreground border-l-[3px] border-transparent'
+      )}
+    >
+      <item.icon className="h-5 w-5 shrink-0" />
+      {!collapsed && <span className="truncate">{item.name}</span>}
+    </Link>
   )
 }
 
@@ -323,11 +412,18 @@ const SidebarContent = memo(function SidebarContent({
   onSelectEquipo,
   user,
   theme,
+  collapsed,
   onClose,
   onLogout,
+  onToggleCollapse,
 }: SidebarProps) {
   const [equipoDropdownOpen, setEquipoDropdownOpen] = useState(false)
+  const [saludOpen, setSaludOpen] = useState(() => isSaludPath(pathname))
   const dropdownRef = useRef<HTMLLIElement>(null)
+
+  useEffect(() => {
+    if (isSaludPath(pathname)) setSaludOpen(true)
+  }, [pathname])
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -340,27 +436,25 @@ const SidebarContent = memo(function SidebarContent({
   }, [])
 
   return (
-    <div className="flex grow flex-col gap-y-5 overflow-y-auto pb-4 scrollbar-thin">
-      {/* Club header with escudo - corporate colors */}
+    <div className="flex grow flex-col gap-y-4 overflow-y-auto pb-4 scrollbar-thin">
+      {/* Club header */}
       <div
-        className="flex shrink-0 items-center justify-between px-5 py-4 -mx-0 rounded-b-xl shadow-sm"
+        className={cn('flex shrink-0 items-center justify-between shadow-sm', collapsed ? 'px-2 py-3' : 'px-5 py-4')}
         style={{ backgroundColor: theme.colorPrimario }}
       >
-        <Link href="/" className="flex items-center gap-3 group">
-          <ClubAvatar
-            logoUrl={theme.logoUrl}
-            clubName={user?.organizacion?.nombre}
-            size="md"
-          />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-white truncate group-hover:opacity-80 transition-opacity">
-              {user?.organizacion?.nombre || 'Kabin-e'}
-            </p>
-            <p className="text-[10px] text-white/60 uppercase tracking-wider flex items-center gap-1">
-              <Image src="/logo-icon.png" alt="Kabin-e" width={14} height={14} className="h-3.5 w-3.5" />
-              Kabin-e
-            </p>
-          </div>
+        <Link href="/" className={cn('flex items-center gap-3 group min-w-0', collapsed && 'justify-center w-full')}>
+          <ClubAvatar logoUrl={theme.logoUrl} clubName={user?.organizacion?.nombre} size={collapsed ? 'sm' : 'md'} />
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-white truncate group-hover:opacity-80 transition-opacity">
+                {user?.organizacion?.nombre || 'Kabin-e'}
+              </p>
+              <p className="text-[10px] text-white/60 uppercase tracking-wider flex items-center gap-1">
+                <Image src="/logo-icon.png" alt="Kabin-e" width={14} height={14} className="h-3.5 w-3.5" />
+                Kabin-e
+              </p>
+            </div>
+          )}
         </Link>
         {onClose && (
           <button onClick={onClose} className="lg:hidden p-1 rounded-md hover:bg-white/10">
@@ -369,145 +463,156 @@ const SidebarContent = memo(function SidebarContent({
         )}
       </div>
 
-      {/* User info card */}
-      {user && (
-        <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/50 mx-5">
-          <Avatar
-            src={user.avatar_url}
-            fallback={user.nombre?.charAt(0)?.toUpperCase()}
-            size="sm"
-          />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">
-              {user.nombre} {user.apellidos}
-            </p>
-            <p className="text-xs text-muted-foreground truncate capitalize">
-              {user.rol?.replace('_', ' ')}
-            </p>
-          </div>
+      {!collapsed && onToggleCollapse && (
+        <div className="px-5 -mt-1 hidden lg:block">
           <button
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            title="Notificaciones"
+            type="button"
+            onClick={onToggleCollapse}
+            className="w-full flex items-center justify-center gap-2 px-2 py-1.5 rounded-lg text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
-            <Bell className="h-4 w-4" />
+            <PanelLeftClose className="h-3.5 w-3.5" />
+            Ocultar menú
           </button>
         </div>
       )}
 
-      {/* Club Admin link — only for directiva */}
+      {/* Club Admin */}
       {user && ['presidente', 'director_deportivo', 'secretario', 'admin'].includes(user.rol) && (
-        <div className="px-5 mb-2 mt-1">
+        <div className={cn(collapsed ? 'px-2' : 'px-5')}>
           <Link
             href="/gestion"
             onClick={onClose}
-            className={`
-              flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all
-              ${pathname.startsWith('/gestion')
+            title={collapsed ? 'Gestión del Club' : undefined}
+            className={cn(
+              'flex items-center rounded-xl text-sm font-semibold transition-all',
+              collapsed ? 'justify-center p-2.5' : 'gap-2 px-3 py-2.5',
+              pathname.startsWith('/gestion')
                 ? 'bg-amber-100 border border-amber-300 text-amber-900'
-                : 'bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 text-amber-900 hover:from-amber-100 hover:to-orange-100'
-              }
-            `}
+                : 'bg-amber-50 border border-amber-200 text-amber-900 hover:bg-amber-100'
+            )}
           >
-            <Crown className="h-4 w-4" />
-            Gestion del Club
+            <Crown className="h-4 w-4 shrink-0" />
+            {!collapsed && 'Gestión del Club'}
           </Link>
         </div>
       )}
 
-      {/* Main navigation */}
-      <nav className="flex flex-1 flex-col px-5">
+      <nav className={cn('flex flex-1 flex-col', collapsed ? 'px-2' : 'px-5')}>
         <ul role="list" className="flex flex-1 flex-col gap-y-5">
           <li>
-            <ul role="list" className="-mx-2 space-y-0.5">
-              {navigation.map((item) => {
-                const isActive = pathname === item.href ||
-                  (item.href !== '/' && pathname.startsWith(item.href))
-                return (
-                  <li key={item.name}>
-                    <Link
-                      href={item.href}
-                      onClick={onClose}
-                      className={`
-                        group flex gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-all
-                        ${isActive
-                          ? 'bg-[hsl(var(--club-primary)/0.1)] text-[hsl(var(--club-primary))] border-l-[3px] border-[hsl(var(--club-primary))] ml-0 pl-2.5'
-                          : 'text-muted-foreground hover:bg-muted hover:text-foreground border-l-[3px] border-transparent'
-                        }
-                      `}
-                    >
-                      <item.icon className="h-5 w-5 shrink-0" />
-                      {item.name}
-                    </Link>
-                  </li>
-                )
-              })}
+            <ul role="list" className="space-y-0.5">
+              {navigation.map((item) => (
+                <li key={item.name}>
+                  <NavLink item={item} pathname={pathname} collapsed={collapsed} onClose={onClose} />
+                </li>
+              ))}
             </ul>
           </li>
 
-          {/* Secondary navigation */}
+          {/* Salud group */}
           <li>
-            <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-3">
-              Herramientas
-            </div>
-            <ul role="list" className="-mx-2 space-y-0.5">
-              {secondaryNavigation.map((item) => {
-                const isActive = pathname === item.href ||
-                  (item.href !== '/' && pathname.startsWith(item.href))
-                return (
+            {!collapsed && (
+              <button
+                type="button"
+                onClick={() => setSaludOpen((v) => !v)}
+                className="w-full flex items-center justify-between px-3 mb-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+              >
+                <span>Salud</span>
+                <ChevronRight className={cn('h-3.5 w-3.5 transition-transform', saludOpen && 'rotate-90')} />
+              </button>
+            )}
+            {collapsed && (
+              <div className="text-center text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                Salud
+              </div>
+            )}
+            {(collapsed || saludOpen) && (
+              <ul role="list" className="space-y-0.5">
+                {saludNavigation.map((item) => (
                   <li key={item.name}>
-                    <Link
-                      href={item.href}
-                      onClick={onClose}
-                      className={`
-                        group flex gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-all
-                        ${isActive
-                          ? 'bg-[hsl(var(--club-primary)/0.1)] text-[hsl(var(--club-primary))] border-l-[3px] border-[hsl(var(--club-primary))] ml-0 pl-2.5'
-                          : 'text-muted-foreground hover:bg-muted hover:text-foreground border-l-[3px] border-transparent'
-                        }
-                      `}
-                    >
-                      <item.icon className="h-5 w-5 shrink-0" />
-                      {item.name}
-                    </Link>
+                    <NavLink item={item} pathname={pathname} collapsed={collapsed} onClose={onClose} />
                   </li>
-                )
-              })}
+                ))}
+              </ul>
+            )}
+          </li>
+
+          {/* Herramientas */}
+          <li>
+            {!collapsed && (
+              <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-3">
+                Herramientas
+              </div>
+            )}
+            {collapsed && (
+              <div className="text-center text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                Tools
+              </div>
+            )}
+            <ul role="list" className="space-y-0.5">
+              {toolsNavigation.map((item) => (
+                <li key={item.name}>
+                  <NavLink item={item} pathname={pathname} collapsed={collapsed} onClose={onClose} />
+                </li>
+              ))}
             </ul>
           </li>
 
           {/* Team selector */}
           <li className="mt-auto" ref={dropdownRef}>
-            <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-3">
-              Equipo
-            </div>
+            {!collapsed && (
+              <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-3">
+                Equipo
+              </div>
+            )}
             <div className="relative">
               <button
                 onClick={() => setEquipoDropdownOpen(!equipoDropdownOpen)}
-                className="flex w-full items-center gap-x-3 rounded-lg bg-muted/70 p-2.5 text-sm font-medium hover:bg-muted transition-colors"
+                title={collapsed ? equipoActivo?.nombre : undefined}
+                className={cn(
+                  'flex w-full items-center rounded-lg bg-muted/70 text-sm font-medium hover:bg-muted transition-colors',
+                  collapsed ? 'justify-center p-2' : 'gap-x-3 p-2.5'
+                )}
               >
                 <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white"
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white shrink-0"
                   style={{ backgroundColor: theme.colorPrimario }}
                 >
                   {equipoActivo
-                    ? equipoActivo.nombre.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
+                    ? equipoActivo.nombre
+                        .split(' ')
+                        .map((w: string) => w[0])
+                        .join('')
+                        .toUpperCase()
+                        .slice(0, 2)
                     : '??'}
                 </div>
-                <div className="flex-1 text-left min-w-0">
-                  <span className="block truncate text-sm">
-                    {equipoActivo?.nombre || 'Seleccionar equipo'}
-                  </span>
-                  {equipoActivo?.categoria && (
-                    <span className="block text-[10px] text-muted-foreground truncate">
-                      {equipoActivo.categoria} - {equipoActivo.temporada || 'Sin temporada'}
-                    </span>
-                  )}
-                </div>
-                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${equipoDropdownOpen ? 'rotate-180' : ''}`} />
+                {!collapsed && (
+                  <>
+                    <div className="flex-1 text-left min-w-0">
+                      <span className="block truncate text-sm">
+                        {equipoActivo?.nombre || 'Seleccionar equipo'}
+                      </span>
+                      {equipoActivo?.categoria && (
+                        <span className="block text-[10px] text-muted-foreground truncate">
+                          {equipoActivo.categoria} - {equipoActivo.temporada || 'Sin temporada'}
+                        </span>
+                      )}
+                    </div>
+                    <ChevronDown
+                      className={cn('h-4 w-4 text-muted-foreground transition-transform', equipoDropdownOpen && 'rotate-180')}
+                    />
+                  </>
+                )}
               </button>
 
               {equipoDropdownOpen && (
-                <div className="absolute bottom-full left-0 right-0 mb-1 bg-popover border rounded-lg shadow-lg overflow-hidden z-50">
+                <div
+                  className={cn(
+                    'absolute bottom-full mb-1 bg-popover border rounded-lg shadow-lg overflow-hidden z-50',
+                    collapsed ? 'left-0 w-56' : 'left-0 right-0'
+                  )}
+                >
                   {equipos.length === 0 ? (
                     <div className="px-3 py-3 text-sm text-muted-foreground text-center">
                       No hay equipos disponibles
@@ -527,7 +632,12 @@ const SidebarContent = memo(function SidebarContent({
                               className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold text-white"
                               style={{ backgroundColor: theme.colorPrimario }}
                             >
-                              {equipo.nombre.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)}
+                              {equipo.nombre
+                                .split(' ')
+                                .map((w: string) => w[0])
+                                .join('')
+                                .toUpperCase()
+                                .slice(0, 2)}
                             </div>
                             <div className="flex-1 text-left min-w-0">
                               <span className="block truncate">{equipo.nombre}</span>
@@ -535,9 +645,7 @@ const SidebarContent = memo(function SidebarContent({
                                 <span className="text-[10px] text-muted-foreground">{equipo.categoria}</span>
                               )}
                             </div>
-                            {equipoActivo?.id === equipo.id && (
-                              <Check className="h-4 w-4 text-primary" />
-                            )}
+                            {equipoActivo?.id === equipo.id && <Check className="h-4 w-4 text-primary" />}
                           </button>
                         </li>
                       ))}
@@ -548,14 +656,17 @@ const SidebarContent = memo(function SidebarContent({
             </div>
           </li>
 
-          {/* Logout */}
-          <li className="-mx-2">
+          <li>
             <button
               onClick={onLogout}
-              className="group flex w-full gap-x-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+              title={collapsed ? 'Cerrar sesión' : undefined}
+              className={cn(
+                'group flex w-full items-center rounded-lg text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors',
+                collapsed ? 'justify-center px-2 py-2' : 'gap-x-3 px-3 py-2'
+              )}
             >
               <LogOut className="h-5 w-5 shrink-0" />
-              Cerrar sesión
+              {!collapsed && 'Cerrar sesión'}
             </button>
           </li>
         </ul>

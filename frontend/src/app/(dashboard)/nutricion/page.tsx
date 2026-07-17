@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PageHeader } from '@/components/ui/page-header'
+import { SaludTabs } from '@/components/salud/SaludTabs'
 import { toast } from 'sonner'
 import { nutricionApi } from '@/lib/api/nutricion'
 import { apiKey, apiFetcher } from '@/lib/swr'
@@ -81,10 +82,13 @@ export default function NutricionPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Nutrición"
-        description="Gestión de planes nutricionales, plantillas y composición corporal"
-      />
+      <div className="space-y-3">
+        <PageHeader
+          title="Nutrición"
+          description="Gestión de planes nutricionales, plantillas y composición corporal"
+        />
+        <SaludTabs />
+      </div>
 
       {/* Tabs */}
       <div className="flex bg-gray-100 rounded-lg p-1 gap-1">

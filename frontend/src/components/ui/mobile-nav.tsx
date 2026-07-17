@@ -12,9 +12,13 @@ import {
   Shield,
   BarChart3,
   Settings,
-  Bot,
   HeartPulse,
   Trophy,
+  CalendarDays,
+  PenTool,
+  ScanSearch,
+  Activity,
+  UtensilsCrossed,
   X,
 } from 'lucide-react'
 
@@ -26,11 +30,15 @@ const mainTabs = [
 ]
 
 const moreTabs = [
+  { name: 'Microciclos', href: '/microciclos', icon: CalendarDays },
   { name: 'Rivales', href: '/rivales', icon: Shield },
   { name: 'Competición', href: '/competicion', icon: Trophy },
-  { name: 'Estadísticas', href: '/estadisticas', icon: BarChart3 },
   { name: 'Enfermería', href: '/enfermeria', icon: HeartPulse },
-  { name: 'AI Asistente', href: '/ai', icon: Bot },
+  { name: 'RPE', href: '/rpe', icon: Activity },
+  { name: 'Nutrición', href: '/nutricion', icon: UtensilsCrossed },
+  { name: 'Video', href: '/video-analisis', icon: ScanSearch },
+  { name: 'Pizarra', href: '/pizarra-tactica', icon: PenTool },
+  { name: 'Estadísticas', href: '/estadisticas', icon: BarChart3 },
   { name: 'Configuración', href: '/configuracion', icon: Settings },
 ]
 
@@ -43,7 +51,6 @@ export function MobileBottomNav() {
 
   return (
     <>
-      {/* More menu overlay */}
       {moreOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="fixed inset-0 bg-black/40" onClick={() => setMoreOpen(false)} />
@@ -54,7 +61,7 @@ export function MobileBottomNav() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="grid grid-cols-3 gap-2 p-3">
+            <div className="grid grid-cols-3 gap-2 p-3 max-h-[50vh] overflow-y-auto">
               {moreTabs.map((tab) => (
                 <Link
                   key={tab.href}
@@ -75,7 +82,6 @@ export function MobileBottomNav() {
         </div>
       )}
 
-      {/* Bottom nav bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-30 lg:hidden bg-card border-t safe-bottom">
         <div className="flex items-center justify-around min-h-[52px]">
           {mainTabs.map((tab) => (
@@ -83,9 +89,7 @@ export function MobileBottomNav() {
               key={tab.href}
               href={tab.href}
               className={`flex flex-col items-center justify-center gap-0.5 px-3 py-2 min-w-[64px] min-h-[48px] transition-colors ${
-                isActive(tab.href)
-                  ? 'text-primary'
-                  : 'text-muted-foreground'
+                isActive(tab.href) ? 'text-primary' : 'text-muted-foreground'
               }`}
             >
               <tab.icon className={`h-5 w-5 ${isActive(tab.href) ? 'stroke-[2.5]' : ''}`} />
