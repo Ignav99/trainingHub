@@ -3,17 +3,20 @@ TrainingHub Pro - Wellness Router
 Endpoints for wellness registration and aggregates (separate from RPE).
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Query, status
 from typing import Optional
 from uuid import UUID
 from datetime import date, timedelta
+import logging
 
 from app.models.rpe import WellnessCreate, WellnessResponse, WellnessBulkItem
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
+from app.services.load_calculation_service import recalculate_player_load
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def _wellness_total(row: dict) -> int:
@@ -21,9 +24,22 @@ def _wellness_total(row: dict) -> int:
     return sum(row.get(f, 0) or 0 for f in ("sueno", "fatiga", "dolor", "estres", "humor"))
 
 
+def _recalc_jugador(jugador_id: str):
+    try:
+        supabase = get_supabase()
+        jug = supabase.table("jugadores").select("equipo_id").eq(
+            "id", jugador_id
+        ).single().execute()
+        if jug.data:
+            recalculate_player_load(UUID(jugador_id), UUID(jug.data["equipo_id"]))
+    except Exception as e:
+        logger.error("Error in wellness auto-recalc for %s: %s", jugador_id, e)
+
+
 @router.post("", response_model=WellnessResponse, status_code=status.HTTP_201_CREATED)
 async def create_wellness(
     data: WellnessCreate,
+    bg: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
 ):
     """Create a wellness-only record (tipo='wellness', rpe=null)."""
@@ -51,6 +67,7 @@ async def create_wellness(
 
     created = response.data[0]
     created["total"] = _wellness_total(created)
+    bg.add_task(_recalc_jugador, str(data.jugador_id))
     return WellnessResponse(**created)
 
 
@@ -230,6 +247,7 @@ async def get_team_wellness_alerts(
 async def update_wellness(
     wellness_id: UUID,
     data: WellnessCreate,
+    bg: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
 ):
     """Update an existing wellness record."""
@@ -237,7 +255,7 @@ async def update_wellness(
     wid = str(wellness_id)
 
     # Verify record exists and is a wellness record
-    existing = supabase.table("registros_rpe").select("id, tipo").eq("id", wid).single().execute()
+    existing = supabase.table("registros_rpe").select("id, tipo, jugador_id").eq("id", wid).single().execute()
     if not existing.data:
         raise HTTPException(status_code=404, detail="Registro no encontrado")
     if existing.data.get("tipo") != "wellness":
@@ -259,12 +277,15 @@ async def update_wellness(
 
     updated = response.data
     updated["total"] = _wellness_total(updated)
+    if existing.data.get("jugador_id"):
+        bg.add_task(_recalc_jugador, existing.data["jugador_id"])
     return updated
 
 
 @router.delete("/{wellness_id}", status_code=status.HTTP_200_OK)
 async def delete_wellness(
     wellness_id: UUID,
+    bg: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
 ):
     """Delete a wellness record."""
@@ -272,13 +293,16 @@ async def delete_wellness(
     wid = str(wellness_id)
 
     # Verify record exists
-    existing = supabase.table("registros_rpe").select("id, tipo").eq("id", wid).single().execute()
+    existing = supabase.table("registros_rpe").select("id, tipo, jugador_id").eq("id", wid).single().execute()
     if not existing.data:
         raise HTTPException(status_code=404, detail="Registro no encontrado")
     if existing.data.get("tipo") != "wellness":
         raise HTTPException(status_code=400, detail="Solo se pueden eliminar registros de wellness")
 
+    jugador_id = existing.data.get("jugador_id")
     supabase.table("registros_rpe").delete().eq("id", wid).execute()
+    if jugador_id:
+        bg.add_task(_recalc_jugador, jugador_id)
     return {"message": "Registro eliminado"}
 
 

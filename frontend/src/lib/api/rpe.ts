@@ -29,14 +29,16 @@ export const rpeApi = {
   create: (data: CreateRPEData) =>
     api.post<RPERegistro>('/rpe', data),
 
-  listBySesion: (sesionId: string) =>
-    api.get<RPERegistro[]>(`/rpe/sesion/${sesionId}`),
-
   listByJugador: (jugadorId: string, params?: { tipo?: string; limit?: number }) =>
     api.get<{ data: RPERegistro[] }>(`/rpe/jugador/${jugadorId}`, { params }),
 
   getResumen: (equipoId: string, params?: { fecha_desde?: string; fecha_hasta?: string }) =>
-    api.get<RPEResumenEquipo>(`/rpe/resumen/${equipoId}`, { params }),
+    api.get<RPEResumenEquipo>('/rpe/resumen', { params: { equipo_id: equipoId, ...params } }),
+
+  listBySesion: (sesionId: string, params?: { page?: number; limit?: number }) =>
+    api.get<{ data: RPERegistro[]; total?: number }>('/rpe', {
+      params: { sesion_id: sesionId, page: params?.page || 1, limit: params?.limit || 100 },
+    }),
 
   update: (id: string, data: UpdateRPEData) =>
     api.put<RPERegistro>(`/rpe/${id}`, data),

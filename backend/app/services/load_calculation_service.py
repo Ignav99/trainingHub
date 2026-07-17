@@ -572,8 +572,9 @@ def recalculate_player_load(jugador_id: UUID, equipo_id: UUID) -> dict:
     for d in all_dates:
         sesion_load = session_loads.get(d, 0.0)
         gk_load = gk_loads.get(d, 0.0)
-        # For GK: use max of session load (with GK factor from _gather) or dedicated GK training
-        total_session = sesion_load + gk_load if es_portero else sesion_load
+        # For GK: take the higher of outfield/session estimate vs dedicated GK training
+        # (never sum — that double-counts the same training day)
+        total_session = max(sesion_load, gk_load) if es_portero else sesion_load
         daily_loads[d] = {
             "sesion": total_session,
             "partido": match_loads.get(d, 0.0),
