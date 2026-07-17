@@ -399,8 +399,8 @@ async def create_sesion(
     """Crea una nueva sesión."""
     supabase = get_supabase()
 
-    # Preparar datos
-    sesion_data = sesion.model_dump(exclude_unset=True)
+    # Preparar datos — nunca insertar tareas anidadas en la fila de sesión
+    sesion_data = sesion.model_dump(exclude_unset=True, exclude={"tareas"})
     sesion_data["creado_por"] = auth.user_id
 
     # Usar equipo por defecto si no se proporciona
@@ -420,9 +420,17 @@ async def create_sesion(
     else:
         sesion_data["equipo_id"] = str(sesion_data["equipo_id"])
 
-    # Convertir fecha a string
+    # Convertir UUIDs / fecha
     if sesion_data.get("fecha"):
         sesion_data["fecha"] = sesion_data["fecha"].isoformat()
+    if sesion_data.get("microciclo_id"):
+        sesion_data["microciclo_id"] = str(sesion_data["microciclo_id"])
+    if sesion_data.get("plan_partido_id"):
+        sesion_data["plan_partido_id"] = str(sesion_data["plan_partido_id"])
+    # Enums → value
+    for key in ("match_day", "intensidad_objetivo"):
+        if sesion_data.get(key) is not None and hasattr(sesion_data[key], "value"):
+            sesion_data[key] = sesion_data[key].value
 
     # Insertar
     response = supabase.table("sesiones").insert(sesion_data).execute()
@@ -574,13 +582,25 @@ async def remove_tarea_from_sesion(
     tarea_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
 ):
-    """Elimina una tarea de la sesión."""
+    """Elimina una tarea de la sesión y recalcula duracion_total."""
     supabase = get_supabase()
 
     supabase.table("sesion_tareas").delete().match({
         "sesion_id": str(sesion_id),
         "tarea_id": str(tarea_id)
     }).execute()
+
+    # Recalcular duración
+    remaining = supabase.table("sesion_tareas").select(
+        "duracion_override, tareas(duracion_total)"
+    ).eq("sesion_id", str(sesion_id)).execute()
+    duracion_total = sum(
+        t.get("duracion_override") or (t.get("tareas") or {}).get("duracion_total", 0) or 0
+        for t in (remaining.data or [])
+    )
+    supabase.table("sesiones").update({
+        "duracion_total": duracion_total
+    }).eq("id", str(sesion_id)).execute()
 
     return None
 
