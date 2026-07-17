@@ -2,23 +2,15 @@
 
 ## Last updated: 2026-07-17
 
-## Active: Sesiones rediseño (sin restricciones de rol)
+## Active: Plan workflow sesiones + datización (diseño)
 
-Branch: `cursor/sesiones-redisenio-ae84`
+Usuario cambió rumbo tras #166:
+- Create = **convocatoria primero**, sin IA al crear.
+- IA solo en diseño: biblioteca, redactar, boceto desde library.
+- Todo datizado pero simple (sesiones + tareas); variantes plantilla→hijo.
+- Mantener convocatoria/margen actual; reordenar pestañas control.
 
-### Decisiones
-- Sin restricciones por rol: todos ven y editan todo (isEditable=true; sin gates de permiso en UI de fases).
-- Flujo detalle: Contexto → Diseño → Convocatoria → Campo → Cierre.
-- Create: Config → (IA) → Tareas → Convocatoria opcional; land en `/sesiones/{id}`.
-- Migración **062** pendiente de aplicar manualmente en Supabase.
+Plan completo: `.cursor/memory/sesiones-workflow-datizacion-plan.md`
 
-### Archivos clave
-- `backend/database/migrations/062_sesiones_redisenio.sql`
-- `frontend/src/components/sesiones/SesionPhaseNav.tsx`
-- `frontend/src/components/sesiones/SesionCierrePanel.tsx`
-- `frontend/src/app/(dashboard)/sesiones/[id]/page.tsx`
-- `frontend/src/app/(dashboard)/sesiones/nueva/page.tsx`
-
-### Next
-- Usuario aplica 062 en Supabase SQL Editor.
-- PR merge → Render via auto-merge.
+## Prev: PR #166 sesiones 5 fases (sin roles) — base a iterar
+Migración 062 pendiente en Supabase si no aplicada.
