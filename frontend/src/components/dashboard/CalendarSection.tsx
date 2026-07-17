@@ -5,7 +5,6 @@ import Image from 'next/image'
 import Link from 'next/link'
 import {
   Plus,
-  Bot,
   Calendar,
   CalendarDays,
   ChevronLeft,
@@ -572,11 +571,7 @@ export function CalendarSection({
                         >
                           <button className="flex items-center gap-2 w-full px-3 py-2.5 text-xs row-hover text-left" onClick={() => { setAddMenuDay(null); onNavigate(`/sesiones/nueva?fecha=${date}`) }}>
                             <ClipboardList className="h-4 w-4 text-blue-600" />
-                            <span>Entreno (manual)</span>
-                          </button>
-                          <button className="flex items-center gap-2 w-full px-3 py-2.5 text-xs row-hover text-left" onClick={() => { setAddMenuDay(null); onNavigate(`/sesiones/nueva-ai?fecha=${date}`) }}>
-                            <Bot className="h-4 w-4 text-purple-600" />
-                            <span>Entreno con IA</span>
+                            <span>Nueva sesión</span>
                           </button>
                           <div className="border-t my-1" />
                           <button className="flex items-center gap-2 w-full px-3 py-2.5 text-xs row-hover text-left" onClick={() => { setAddMenuDay(null); onNavigate(`/partidos/nuevo?fecha=${date}`) }}>
@@ -865,17 +860,7 @@ export function CalendarSection({
                             }}
                           >
                             <ClipboardList className="h-3.5 w-3.5 text-blue-600" />
-                            <span>Entreno (manual)</span>
-                          </button>
-                          <button
-                            className="flex items-center gap-2 w-full px-3 py-2 text-xs row-hover text-left"
-                            onClick={() => {
-                              setAddMenuDay(null)
-                              onNavigate(`/sesiones/nueva-ai?fecha=${date}`)
-                            }}
-                          >
-                            <Bot className="h-3.5 w-3.5 text-purple-600" />
-                            <span>Entreno con IA</span>
+                            <span>Nueva sesión</span>
                           </button>
                           <div className="border-t my-1" />
                           <button
