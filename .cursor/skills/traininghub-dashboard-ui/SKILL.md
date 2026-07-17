@@ -42,6 +42,7 @@ Also load `frontend-design` and `web-design-guidelines` when doing a visual pass
 
 ```
 [ PageHeader + primary CTA ]
+[ SaludTabs: Enfermería | RPE | Nutrición ]
 [ KPI strip: counts by availability ]
 [ Tabs: Ahora | Histórico ]
 [ Ahora → 3 columns: Fuera | Individual | Grupo adaptado ]
@@ -52,6 +53,23 @@ Also load `frontend-design` and `web-design-guidelines` when doing a visual pass
 - Card = one player + their **primary open** medical case.
 - Click card → `/enfermeria/[id]`.
 - Empty column: short empty hint, not a huge illustration.
+
+### Microciclos library
+
+```
+[ PageHeader + Nuevo ]
+[ Atmosphere strip with counts ]
+[ Filter chips: estado / tipo + search ]
+[ Featured “semana actual” card ]
+[ Library grid of week cards ]
+```
+
+### Shell navigation
+
+- Desktop sidebar is **collapsible** (`useSidebarStore`).
+- Config lives next to the user in the top bar, not in Herramientas.
+- Salud groups Enfermería / RPE / Nutrición; Herramientas keeps Video, Pizarra, Estadísticas.
+- Alertas is not a sidebar tab — use the Bell affordance.
 
 ### Histórico
 

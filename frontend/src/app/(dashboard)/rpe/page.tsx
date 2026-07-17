@@ -29,6 +29,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PageHeader } from '@/components/ui/page-header'
+import { SaludTabs } from '@/components/salud/SaludTabs'
 import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
 import { ManualRPEDialog } from '@/components/rpe/ManualRPEDialog'
 import { WellnessDialog } from '@/components/rpe/WellnessDialog'
@@ -178,26 +179,28 @@ export default function RPEPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <PageHeader
-        title="RPE / Wellness"
-        description="Control de carga y bienestar de los jugadores"
-        actions={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRecalculate}
-            disabled={recalculating}
-          >
-            {recalculating ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4 mr-2" />
-            )}
-            Recalcular
-          </Button>
-        }
-      />
+      <div className="space-y-3">
+        <PageHeader
+          title="RPE / Wellness"
+          description="Control de carga y bienestar de los jugadores"
+          actions={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRecalculate}
+              disabled={recalculating}
+            >
+              {recalculating ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Recalcular
+            </Button>
+          }
+        />
+        <SaludTabs />
+      </div>
 
       {/* 5 Action Buttons */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">

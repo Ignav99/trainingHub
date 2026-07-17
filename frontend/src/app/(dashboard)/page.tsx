@@ -30,7 +30,6 @@ import { apiKey } from '@/lib/swr'
 import type { Sesion, Microciclo, Partido, Descanso, PaginatedResponse } from '@/types'
 
 import { NextMatchBanner } from '@/components/dashboard/NextMatchBanner'
-import { QuickStats } from '@/components/dashboard/QuickStats'
 import { CalendarSection } from '@/components/dashboard/CalendarSection'
 import { DayDetailPanel } from '@/components/dashboard/DayDetailPanel'
 import type { CalendarViewMode } from '@/lib/calendar/types'
@@ -463,21 +462,6 @@ export default function DashboardPage() {
   })()
 
   const proximoPartido = resumen?.proximo_partido
-  const ultimoPartido = useMemo(() => {
-    const played = partidosTemporada.filter(
-      (p) => p.resultado != null || p.goles_favor != null
-    )
-    if (played.length === 0) {
-      // fallback: most recent past match
-      const today = toLocalDateStr(new Date())
-      return (
-        [...partidosTemporada]
-          .filter((p) => p.fecha.slice(0, 10) <= today)
-          .sort((a, b) => b.fecha.localeCompare(a.fecha))[0] || null
-      )
-    }
-    return [...played].sort((a, b) => b.fecha.localeCompare(a.fecha))[0] || null
-  }, [partidosTemporada])
 
   return (
     <div className="space-y-6" style={{ backgroundImage: FIELD_PATTERN }}>
@@ -494,14 +478,7 @@ export default function DashboardPage() {
         onShowDisponibilidad={() => setShowDisponibilidad(true)}
       />
 
-      {/* Acceso rápido a Informe / Plan de partido */}
-      <QuickStats
-        loading={loading || seasonLoading}
-        ultimoPartido={ultimoPartido}
-        proximoPartido={proximoPartido}
-      />
-
-      {/* Nuevo microciclo — debajo de disponibilidad, encima del calendario */}
+      {/* Nuevo microciclo — encima del calendario */}
       <div className="flex justify-end">
         <Button
           variant="outline"

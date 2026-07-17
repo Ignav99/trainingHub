@@ -36,6 +36,7 @@ import { apiKey } from '@/lib/swr'
 import type { DisponibilidadOperativa, RegistroMedico, TipoRegistroMedico } from '@/types'
 import { resolveDisponibilidad } from '@/lib/jugadorTipo'
 import { EnfermeriaBoard, EnfermeriaHistorico, type PlayerCaseCard } from '@/components/enfermeria/EnfermeriaBoard'
+import { SaludTabs } from '@/components/salud/SaludTabs'
 import { cn } from '@/lib/utils'
 
 const TIPOS: { value: TipoRegistroMedico; label: string }[] = [
@@ -344,16 +345,19 @@ export default function EnfermeriaPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Enfermería"
-        description={`${kpis.fuera + kpis.individual + kpis.grupo} en seguimiento · ${kpis.disponibles} disponibles`}
-        actions={
-          <Button onClick={() => setShowNuevo(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nuevo registro
-          </Button>
-        }
-      />
+      <div className="space-y-3">
+        <PageHeader
+          title="Enfermería"
+          description={`${kpis.fuera + kpis.individual + kpis.grupo} en seguimiento · ${kpis.disponibles} disponibles`}
+          actions={
+            <Button onClick={() => setShowNuevo(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nuevo registro
+            </Button>
+          }
+        />
+        <SaludTabs />
+      </div>
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
