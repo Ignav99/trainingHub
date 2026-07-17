@@ -40,8 +40,12 @@ export interface CreatePruebaMedicaData {
 }
 
 export const medicoApi = {
-  list: (equipoId: string, params?: { jugador_id?: string; tipo?: string; estado?: string }) =>
-    api.get<RegistroMedico[]>('/medico', { params: { equipo_id: equipoId, ...params } }),
+  list: async (equipoId: string, params?: { jugador_id?: string; tipo?: string; estado?: string }) => {
+    const res = await api.get<RegistroMedico[] | { data: RegistroMedico[]; total?: number }>('/medico', {
+      params: { equipo_id: equipoId, ...params },
+    })
+    return Array.isArray(res) ? res : (res?.data || [])
+  },
 
   get: (id: string) =>
     api.get<RegistroMedico>(`/medico/${id}`),

@@ -52,6 +52,7 @@ import { formatDate } from '@/lib/utils'
 import {
   isConvocableAmistoso,
   isConvocableOficial,
+  isOperativamenteConvocable,
   isPlantilla,
   resolveTipoJugador,
   TIPO_JUGADOR_LABELS,
@@ -369,7 +370,7 @@ export function MatchDetailPanel({
   const crossTeamJugadores = useMemo(
     () =>
       sortJugadoresByPosition(
-        jugadores.filter((j) => j.equipo_id !== equipoActivo?.id && isPlantilla(j) && j.estado === 'activo')
+        jugadores.filter((j) => j.equipo_id !== equipoActivo?.id && isPlantilla(j) && isOperativamenteConvocable(j))
       ),
     [jugadores, equipoActivo?.id] // eslint-disable-line react-hooks/exhaustive-deps
   )
@@ -1691,10 +1692,10 @@ function PlayerSelectRow({
   const isSelected = !!selected[jugador.id]
   const info = selected[jugador.id]
   const posColor = getPositionColor(jugador.posicion_principal)
-  const isDisabled = !!jugador.estado && jugador.estado !== 'activo'
+  const isDisabled = !isOperativamenteConvocable(jugador)
 
   return (
-    <div className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${isDisabled ? 'opacity-50' : ''} ${isSelected ? 'bg-primary/5 border border-primary/20' : 'hover:bg-muted/50'}`} title={isDisabled ? `No disponible: ${jugador.estado}` : undefined}>
+    <div className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${isDisabled ? 'opacity-50' : ''} ${isSelected ? 'bg-primary/5 border border-primary/20' : 'hover:bg-muted/50'}`} title={isDisabled ? `No disponible: ${jugador.disponibilidad || jugador.estado}` : undefined}>
       <button
         onClick={() => onToggle(jugador)}
         disabled={isDisabled}

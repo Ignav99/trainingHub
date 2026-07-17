@@ -254,15 +254,20 @@ async def create_rpe(
             detail="RPE es obligatorio para registros de tipo sesión o manual"
         )
 
-    # Check player is active before allowing RPE
-    jugador_check = supabase.table("jugadores").select("estado").eq(
+    # Check player disponibilidad operativa before allowing RPE
+    jugador_check = supabase.table("jugadores").select("estado, disponibilidad").eq(
         "id", data["jugador_id"]
     ).single().execute()
-    if jugador_check.data and jugador_check.data.get("estado") not in ("activo", None):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"No se puede registrar RPE: jugador está {jugador_check.data['estado']}"
+    if jugador_check.data:
+        estado = jugador_check.data.get("estado")
+        disp = jugador_check.data.get("disponibilidad") or (
+            "pleno" if estado in ("activo", None) else "fuera"
         )
+        if estado in ("sancionado", "viaje", "permiso", "seleccion", "baja") or disp == "fuera":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"No se puede registrar RPE: jugador no disponible ({estado}/{disp})"
+            )
 
     # Calcular carga de sesión (RPE * duración)
     if data.get("rpe") and data.get("duracion_percibida"):
@@ -310,20 +315,22 @@ async def create_rpe_batch(
     """Crea múltiples registros RPE (ej: post-sesión para todo el equipo)."""
     supabase = get_supabase()
 
-    # Check all players are active before allowing RPE
+    # Check all players are operatively available before allowing RPE
     jugador_ids = list({str(r.jugador_id) for r in registros})
-    jugadores_check = supabase.table("jugadores").select("id, estado").in_(
+    jugadores_check = supabase.table("jugadores").select("id, estado, disponibilidad").in_(
         "id", jugador_ids
     ).execute()
-    no_activos = [
-        j for j in (jugadores_check.data or [])
-        if j.get("estado") not in ("activo", None)
-    ]
-    if no_activos:
-        nombres = ", ".join(j["id"] for j in no_activos)
+    no_disponibles = []
+    for j in (jugadores_check.data or []):
+        estado = j.get("estado")
+        disp = j.get("disponibilidad") or ("pleno" if estado in ("activo", None) else "fuera")
+        if estado in ("sancionado", "viaje", "permiso", "seleccion", "baja") or disp == "fuera":
+            no_disponibles.append(j)
+    if no_disponibles:
+        nombres = ", ".join(j["id"] for j in no_disponibles)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"No se puede registrar RPE para jugadores no activos: {nombres}"
+            detail=f"No se puede registrar RPE para jugadores no disponibles: {nombres}"
         )
 
     items = []

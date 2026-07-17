@@ -118,14 +118,15 @@ export default function RPEPage() {
   const { data: jugadoresData } = useSWR<{ data: Jugador[]; total: number }>(
     apiKey('/jugadores', {
       equipo_id: equipoActivo?.id,
-      estado: 'activo',
     }, ['equipo_id'])
   )
 
-  // Plantilla + juveniles/pruebas con tracking; excluir invitados mínimos
+  // Plantilla + juveniles/pruebas con tracking; excluir invitados y fuera
   const jugadores = (jugadoresData?.data || []).filter((j) => {
     const tipo = j.tipo_jugador || (j.es_invitado ? 'invitado' : 'plantilla')
-    return tipo !== 'invitado'
+    if (tipo === 'invitado') return false
+    const disp = j.disponibilidad || (j.estado === 'activo' ? 'pleno' : 'fuera')
+    return disp !== 'fuera' && !['sancionado', 'viaje', 'permiso', 'seleccion', 'baja'].includes(j.estado)
   })
   const wellnessAggregates = wellnessData?.data || []
   const wellnessMap = new Map(wellnessAggregates.map((w) => [w.jugador_id, w]))
