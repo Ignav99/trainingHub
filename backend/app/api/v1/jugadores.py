@@ -348,23 +348,29 @@ async def update_estado_jugador(
 
     data = {"estado": estado}
 
-    if estado == "lesionado":
-        data["fecha_lesion"] = date.today().isoformat()
-        data["fecha_vuelta_estimada"] = fecha_vuelta.isoformat() if fecha_vuelta else None
-        data["motivo_baja"] = motivo
-
-    elif estado == "en_recuperacion":
-        data["fecha_vuelta_estimada"] = fecha_vuelta.isoformat() if fecha_vuelta else None
-        data["motivo_baja"] = motivo
-
-    elif estado == "sancionado":
-        data["motivo_baja"] = motivo
-        data["fecha_vuelta_estimada"] = fecha_vuelta.isoformat() if fecha_vuelta else None
-
-    elif estado == "activo":
+    # Mapear disponibilidad operativa coherente con el estado manual
+    if estado == "activo":
+        data["disponibilidad"] = "pleno"
         data["fecha_lesion"] = None
         data["fecha_vuelta_estimada"] = None
         data["motivo_baja"] = None
+    elif estado == "lesionado":
+        data["disponibilidad"] = "fuera"
+        data["fecha_lesion"] = date.today().isoformat()
+        data["fecha_vuelta_estimada"] = fecha_vuelta.isoformat() if fecha_vuelta else None
+        data["motivo_baja"] = motivo
+    elif estado == "en_recuperacion":
+        data["disponibilidad"] = "individual"
+        data["fecha_vuelta_estimada"] = fecha_vuelta.isoformat() if fecha_vuelta else None
+        data["motivo_baja"] = motivo
+    elif estado == "enfermo":
+        data["disponibilidad"] = "fuera"
+        data["motivo_baja"] = motivo
+        data["fecha_vuelta_estimada"] = fecha_vuelta.isoformat() if fecha_vuelta else None
+    elif estado in ("sancionado", "viaje", "permiso", "seleccion", "baja"):
+        data["disponibilidad"] = "fuera"
+        data["motivo_baja"] = motivo
+        data["fecha_vuelta_estimada"] = fecha_vuelta.isoformat() if fecha_vuelta else None
 
     supabase.table("jugadores").update(data).eq("id", str(jugador_id)).execute()
     response = supabase.table("jugadores").select("*").eq("id", str(jugador_id)).single().execute()

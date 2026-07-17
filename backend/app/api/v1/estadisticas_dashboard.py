@@ -329,7 +329,7 @@ async def estadisticas_dashboard(
 
     for r in medico_all:
         estado = r.get("estado", "")
-        if estado == "activa":
+        if estado == "activo":
             activos += 1
         elif estado == "en_recuperacion":
             en_recuperacion += 1

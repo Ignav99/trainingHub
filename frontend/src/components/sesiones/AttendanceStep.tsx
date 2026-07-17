@@ -5,7 +5,7 @@ import { Users, ChevronRight, SkipForward, Check, X, UserPlus, ChevronDown } fro
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { jugadoresApi, Jugador } from '@/lib/api/jugadores'
-import { isPlantilla, resolveTipoJugador, TIPO_JUGADOR_LABELS } from '@/lib/jugadorTipo'
+import { isPlantilla, resolveTipoJugador, TIPO_JUGADOR_LABELS, suggestAttendanceFromDisponibilidad, resolveDisponibilidad, DISPONIBILIDAD_LABELS } from '@/lib/jugadorTipo'
 
 export type MotivoAusencia = 'lesion' | 'enfermedad' | 'sancion' | 'permiso' | 'seleccion' | 'viaje' | 'otro'
 
@@ -52,7 +52,7 @@ function mapEstadoToMotivo(estado: string): MotivoAusencia {
   const map: Record<string, MotivoAusencia> = {
     lesionado: 'lesion',
     en_recuperacion: 'lesion',
-    enfermedad: 'enfermedad',
+    enfermo: 'enfermedad',
     sancionado: 'sancion',
     permiso: 'permiso',
     seleccion: 'seleccion',
@@ -78,12 +78,12 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip }: AttendanceStepPr
         setInvitadosDisponibles(invitados)
         const initial: Record<string, PlayerAttendance> = {}
         plantilla.forEach((j) => {
-          const isInactive = ['lesionado', 'en_recuperacion', 'enfermedad', 'sancionado', 'viaje', 'permiso', 'seleccion', 'baja'].includes(j.estado)
+          const suggestion = suggestAttendanceFromDisponibilidad(j)
           initial[j.id] = {
             jugador_id: j.id,
             jugador: j,
-            presente: !isInactive,
-            motivo_ausencia: isInactive ? mapEstadoToMotivo(j.estado) : undefined,
+            presente: suggestion.presente,
+            motivo_ausencia: suggestion.motivo_ausencia,
           }
         })
         setAttendance(initial)
@@ -219,7 +219,14 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip }: AttendanceStepPr
                       <p className="text-sm font-medium truncate">
                         {j.dorsal ? `${j.dorsal}. ` : ''}{j.apodo || `${j.nombre} ${j.apellidos}`}
                       </p>
-                      <p className="text-xs text-muted-foreground">{j.posicion_principal}</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                        <span>{j.posicion_principal}</span>
+                        {resolveDisponibilidad(j) !== 'pleno' && (
+                          <span className="text-[10px] font-medium text-amber-700">
+                            · {DISPONIBILIDAD_LABELS[resolveDisponibilidad(j)]}
+                          </span>
+                        )}
+                      </p>
                     </div>
 
                     {/* Motivo selector (only when absent) */}

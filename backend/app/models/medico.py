@@ -25,6 +25,48 @@ class EstadoRegistroMedico(str, Enum):
     CRONICO = "cronico"
 
 
+class DisponibilidadOperativa(str, Enum):
+    """Espectro de disponibilidad para entrenos / convocatorias."""
+    FUERA = "fuera"
+    INDIVIDUAL = "individual"
+    GRUPO_ADAPTADO = "grupo_adaptado"
+    PLENO = "pleno"
+
+
+class SeveridadLesion(str, Enum):
+    LEVE = "leve"
+    MODERADA = "moderada"
+    GRAVE = "grave"
+
+
+class LadoCorporal(str, Enum):
+    IZQUIERDO = "izquierdo"
+    DERECHO = "derecho"
+    BILATERAL = "bilateral"
+    NO_APLICA = "no_aplica"
+
+
+class FaseRTP(str, Enum):
+    FASE_1_CONTROL_DOLOR = "fase_1_control_dolor"
+    FASE_2_MOVILIDAD = "fase_2_movilidad"
+    FASE_3_FUERZA_BASE = "fase_3_fuerza_base"
+    FASE_4_FUERZA_FUNCIONAL = "fase_4_fuerza_funcional"
+    FASE_5_CARRERA_LINEAL = "fase_5_carrera_lineal"
+    FASE_6_CAMBIOS_DIRECCION = "fase_6_cambios_direccion"
+    FASE_7_ENTRENAMIENTO_EQUIPO = "fase_7_entrenamiento_equipo"
+    FASE_8_COMPETICION = "fase_8_competicion"
+
+
+class TipoPruebaMedica(str, Enum):
+    IMAGEN = "imagen"
+    RECONOCIMIENTO = "reconocimiento"
+    ISOKINETICO = "isokinetico"
+    GPS_CAMPO = "gps_campo"
+    LABORATORIO = "laboratorio"
+    FUNCIONAL = "funcional"
+    OTRO = "otro"
+
+
 class AccionMedica(str, Enum):
     VER = "ver"
     CREAR = "crear"
@@ -55,6 +97,14 @@ class RegistroMedicoCreate(BaseModel):
     estado: Optional[EstadoRegistroMedico] = None
     solo_medico: bool = True
     registro_padre_id: Optional[UUID] = None
+    severidad: Optional[SeveridadLesion] = None
+    zona_corporal: Optional[str] = Field(None, max_length=100)
+    lado: Optional[LadoCorporal] = None
+    mecanismo: Optional[str] = Field(None, max_length=255)
+    es_relesion: bool = False
+    registro_origen_id: Optional[UUID] = None
+    disponibilidad: Optional[DisponibilidadOperativa] = None
+    fase_rtp: Optional[FaseRTP] = None
 
 
 class RegistroMedicoUpdate(BaseModel):
@@ -75,6 +125,14 @@ class RegistroMedicoUpdate(BaseModel):
     estado: Optional[EstadoRegistroMedico] = None
     solo_medico: Optional[bool] = None
     registro_padre_id: Optional[UUID] = None
+    severidad: Optional[SeveridadLesion] = None
+    zona_corporal: Optional[str] = Field(None, max_length=100)
+    lado: Optional[LadoCorporal] = None
+    mecanismo: Optional[str] = Field(None, max_length=255)
+    es_relesion: Optional[bool] = None
+    registro_origen_id: Optional[UUID] = None
+    disponibilidad: Optional[DisponibilidadOperativa] = None
+    fase_rtp: Optional[FaseRTP] = None
 
 
 class RegistroMedicoResponse(BaseModel):
@@ -101,6 +159,14 @@ class RegistroMedicoResponse(BaseModel):
     creado_por: UUID
     solo_medico: bool = True
     registro_padre_id: Optional[UUID] = None
+    severidad: Optional[SeveridadLesion] = None
+    zona_corporal: Optional[str] = None
+    lado: Optional[LadoCorporal] = None
+    mecanismo: Optional[str] = None
+    es_relesion: bool = False
+    registro_origen_id: Optional[UUID] = None
+    disponibilidad: Optional[DisponibilidadOperativa] = None
+    fase_rtp: Optional[FaseRTP] = None
     created_at: datetime
     updated_at: datetime
 
@@ -119,12 +185,61 @@ class RegistroMedicoSummary(BaseModel):
     fecha_alta: Optional[date] = None
     dias_baja_estimados: Optional[int] = None
     estado: EstadoRegistroMedico = EstadoRegistroMedico.ACTIVO
+    disponibilidad: Optional[DisponibilidadOperativa] = None
+    fase_rtp: Optional[FaseRTP] = None
+    severidad: Optional[SeveridadLesion] = None
+    zona_corporal: Optional[str] = None
     created_at: datetime
 
 
 class RegistroMedicoListResponse(BaseModel):
     data: List[RegistroMedicoResponse]
     total: int
+
+
+class MarkFitRequest(BaseModel):
+    fecha_alta: Optional[date] = None
+    dias_baja_reales: Optional[int] = None
+
+
+class PruebaMedicaCreate(BaseModel):
+    tipo: TipoPruebaMedica = TipoPruebaMedica.OTRO
+    titulo: str = Field(..., min_length=1, max_length=255)
+    fecha: date
+    resultado: Optional[str] = None
+    apto: Optional[bool] = None
+    documento_url: Optional[str] = None
+    notas: Optional[str] = None
+
+
+class PruebaMedicaUpdate(BaseModel):
+    tipo: Optional[TipoPruebaMedica] = None
+    titulo: Optional[str] = Field(None, max_length=255)
+    fecha: Optional[date] = None
+    resultado: Optional[str] = None
+    apto: Optional[bool] = None
+    documento_url: Optional[str] = None
+    notas: Optional[str] = None
+
+
+class PruebaMedicaResponse(BaseModel):
+    id: UUID
+    registro_medico_id: UUID
+    jugador_id: UUID
+    equipo_id: UUID
+    tipo: TipoPruebaMedica
+    titulo: str
+    fecha: date
+    resultado: Optional[str] = None
+    apto: Optional[bool] = None
+    documento_url: Optional[str] = None
+    notas: Optional[str] = None
+    creado_por: Optional[UUID] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 # ============ Access Log ============

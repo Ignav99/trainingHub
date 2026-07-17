@@ -34,6 +34,7 @@ import { medicoApi, CreateRegistroMedicoData } from '@/lib/api/medico'
 import { Jugador } from '@/lib/api/jugadores'
 import { apiKey } from '@/lib/swr'
 import type { RegistroMedico, TipoRegistroMedico, EstadoRegistroMedico } from '@/types'
+import { DISPONIBILIDAD_COLORS, DISPONIBILIDAD_LABELS, resolveDisponibilidad } from '@/lib/jugadorTipo'
 
 const TIPOS: { value: TipoRegistroMedico; label: string }[] = [
   { value: 'lesion', label: 'Lesión' },
@@ -109,10 +110,13 @@ export default function EnfermeriaPage() {
   // Files to upload after creation
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
 
-  // Stats based on jugador estado (source of truth)
-  const disponibles = jugadores.filter((j) => j.estado === 'activo').length
-  const enRecuperacion = jugadores.filter((j) => j.estado === 'en_recuperacion').length
-  const lesionados = jugadores.filter((j) => j.estado === 'lesionado').length
+  // Stats basados en disponibilidad operativa
+  const disponibles = jugadores.filter((j) => resolveDisponibilidad(j) === 'pleno').length
+  const enRecuperacion = jugadores.filter((j) => {
+    const d = resolveDisponibilidad(j)
+    return d === 'individual' || d === 'grupo_adaptado' || j.estado === 'en_recuperacion'
+  }).length
+  const lesionados = jugadores.filter((j) => resolveDisponibilidad(j) === 'fuera' && (j.estado === 'lesionado' || j.estado === 'enfermo')).length
 
   const jugadoresMap = new Map(jugadores.map((j) => [j.id, j]))
 
@@ -164,6 +168,12 @@ export default function EnfermeriaPage() {
         fecha_inicio: nuevoForm.fecha_inicio || new Date().toISOString().slice(0, 10),
         dias_baja_estimados: esHistorico ? undefined : nuevoForm.dias_baja_estimados,
         registro_padre_id: nuevoForm.registro_padre_id,
+        severidad: nuevoForm.severidad,
+        zona_corporal: nuevoForm.zona_corporal,
+        lado: nuevoForm.lado,
+        disponibilidad: nuevoForm.disponibilidad,
+        es_relesion: !!nuevoForm.registro_padre_id,
+        registro_origen_id: nuevoForm.registro_padre_id,
       }
 
       // Historical records
@@ -357,6 +367,7 @@ export default function EnfermeriaPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jugador</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Título</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Disponib.</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Días</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
               </tr>
@@ -369,6 +380,7 @@ export default function EnfermeriaPage() {
                 const dias = registro.estado === 'alta' && registro.dias_baja_reales
                   ? registro.dias_baja_reales
                   : daysSince(registro.fecha_inicio)
+                const disp = (registro.disponibilidad || (jugador ? resolveDisponibilidad(jugador) : 'pleno')) as keyof typeof DISPONIBILIDAD_LABELS
 
                 return (
                   <tr
@@ -393,6 +405,14 @@ export default function EnfermeriaPage() {
                     </td>
                     <td className="px-6 py-4">
                       <p className="text-sm">{registro.titulo}</p>
+                      {registro.zona_corporal && (
+                        <p className="text-[11px] text-muted-foreground">{registro.zona_corporal}{registro.lado ? ` · ${registro.lado}` : ''}</p>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border ${DISPONIBILIDAD_COLORS[disp] || DISPONIBILIDAD_COLORS.pleno}`}>
+                        {DISPONIBILIDAD_LABELS[disp] || disp}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm text-muted-foreground">{dias} días</span>
@@ -502,6 +522,60 @@ export default function EnfermeriaPage() {
                 placeholder="Ej: Rotura fibrilar gemelo derecho"
               />
             </div>
+
+            {!esHistorico && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Severidad</label>
+                  <select
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    value={nuevoForm.severidad || ''}
+                    onChange={(e) => setNuevoForm({ ...nuevoForm, severidad: e.target.value || undefined })}
+                  >
+                    <option value="">Sin especificar</option>
+                    <option value="leve">Leve</option>
+                    <option value="moderada">Moderada</option>
+                    <option value="grave">Grave</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Disponibilidad</label>
+                  <select
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    value={nuevoForm.disponibilidad || ''}
+                    onChange={(e) => setNuevoForm({ ...nuevoForm, disponibilidad: e.target.value || undefined })}
+                  >
+                    <option value="">Auto (según tipo)</option>
+                    <option value="fuera">Fuera (no entrena / no convoca)</option>
+                    <option value="individual">Individual / margen</option>
+                    <option value="grupo_adaptado">Grupo adaptado</option>
+                    <option value="pleno">Pleno</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Zona corporal</label>
+                  <Input
+                    value={nuevoForm.zona_corporal || ''}
+                    onChange={(e) => setNuevoForm({ ...nuevoForm, zona_corporal: e.target.value || undefined })}
+                    placeholder="Ej: isquios, tobillo…"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Lado</label>
+                  <select
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    value={nuevoForm.lado || ''}
+                    onChange={(e) => setNuevoForm({ ...nuevoForm, lado: e.target.value || undefined })}
+                  >
+                    <option value="">—</option>
+                    <option value="izquierdo">Izquierdo</option>
+                    <option value="derecho">Derecho</option>
+                    <option value="bilateral">Bilateral</option>
+                    <option value="no_aplica">No aplica</option>
+                  </select>
+                </div>
+              </div>
+            )}
 
             {/* Diagnóstico fisioterapéutico */}
             <div>

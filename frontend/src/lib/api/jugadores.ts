@@ -20,6 +20,7 @@ export interface Jugador {
   nivel_fisico: number
   nivel_mental: number
   estado: 'activo' | 'lesionado' | 'en_recuperacion' | 'enfermo' | 'sancionado' | 'viaje' | 'permiso' | 'seleccion' | 'baja' | 'invitado'
+  disponibilidad?: 'fuera' | 'individual' | 'grupo_adaptado' | 'pleno'
   fecha_lesion?: string
   fecha_vuelta_estimada?: string
   motivo_baja?: string

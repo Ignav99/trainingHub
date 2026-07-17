@@ -242,6 +242,32 @@ async def delete_rendimiento_nota(
     )
 
 
+from app.services.medical_availability_service import can_convocar
+
+
+def _assert_jugador_convocable(supabase, jugador_id: str):
+    jug = (
+        supabase.table("jugadores")
+        .select("id, nombre, apellidos, estado, disponibilidad, es_convocable")
+        .eq("id", jugador_id)
+        .single()
+        .execute()
+    )
+    if not jug.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Jugador no encontrado")
+    if not can_convocar(jug.data, permitir_grupo_adaptado=True):
+        disp = jug.data.get("disponibilidad") or "?"
+        estado = jug.data.get("estado") or "?"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Jugador no convocable (estado={estado}, disponibilidad={disp}). "
+                "Debe estar en pleno o grupo adaptado."
+            ),
+        )
+    return jug.data
+
+
 @router.post("", response_model=ConvocatoriaResponse, status_code=status.HTTP_201_CREATED)
 async def create_convocatoria(
     convocatoria: ConvocatoriaCreate,
@@ -253,6 +279,7 @@ async def create_convocatoria(
     data = convocatoria.model_dump(mode="json")
     data["partido_id"] = str(data["partido_id"])
     data["jugador_id"] = str(data["jugador_id"])
+    _assert_jugador_convocable(supabase, data["jugador_id"])
 
     response = supabase.table("convocatorias").insert(data).execute()
 
@@ -274,7 +301,7 @@ async def create_convocatorias_batch(
     supabase = get_supabase()
 
     if not convocatorias:
-        return {"created": 0, "skipped": 0, "data": []}
+        return {"created": 0, "skipped": 0, "rejected": 0, "data": []}
 
     partido_id = str(convocatorias[0].partido_id)
 
@@ -286,6 +313,7 @@ async def create_convocatorias_batch(
 
     items = []
     skipped = 0
+    rejected = 0
     for c in convocatorias:
         data = c.model_dump(mode="json")
         data["partido_id"] = str(data["partido_id"])
@@ -293,14 +321,24 @@ async def create_convocatorias_batch(
         if data["jugador_id"] in existing_ids:
             skipped += 1
             continue
+        try:
+            _assert_jugador_convocable(supabase, data["jugador_id"])
+        except HTTPException:
+            rejected += 1
+            continue
         items.append(data)
 
     if not items:
-        return {"created": 0, "skipped": skipped, "data": []}
+        return {"created": 0, "skipped": skipped, "rejected": rejected, "data": []}
 
     response = supabase.table("convocatorias").insert(items).execute()
 
-    return {"created": len(response.data), "skipped": skipped, "data": response.data}
+    return {
+        "created": len(response.data),
+        "skipped": skipped,
+        "rejected": rejected,
+        "data": response.data,
+    }
 
 
 @router.put("/batch-update")

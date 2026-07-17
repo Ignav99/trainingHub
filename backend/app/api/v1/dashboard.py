@@ -183,7 +183,7 @@ async def dashboard_plantilla(
     supabase = get_supabase()
 
     response = supabase.table("jugadores").select(
-        "id, nombre, apellidos, dorsal, posicion_principal, estado, "
+        "id, nombre, apellidos, dorsal, posicion_principal, estado, disponibilidad, "
         "fecha_lesion, fecha_vuelta_estimada, es_convocable, foto_url, "
         "nivel_tecnico, nivel_tactico, nivel_fisico, nivel_mental"
     ).eq("equipo_id", str(equipo_id)).eq(
@@ -201,9 +201,16 @@ async def dashboard_plantilla(
             por_estado[est] = []
         por_estado[est].append(j)
 
-    disponibles = len(por_estado.get("activo", []))
-    lesionados = por_estado.get("lesionado", [])
-    en_recuperacion = por_estado.get("en_recuperacion", [])
+    def _disp(j):
+        return j.get("disponibilidad") or (
+            "pleno" if j.get("estado") == "activo"
+            else "individual" if j.get("estado") == "en_recuperacion"
+            else "fuera"
+        )
+
+    disponibles = sum(1 for j in jugadores if _disp(j) == "pleno")
+    lesionados = [j for j in jugadores if _disp(j) == "fuera" and j.get("estado") in ("lesionado", "enfermo", "baja")]
+    en_recuperacion = [j for j in jugadores if _disp(j) in ("individual", "grupo_adaptado") or j.get("estado") == "en_recuperacion"]
     sancionados = por_estado.get("sancionado", [])
 
     return {
@@ -214,6 +221,12 @@ async def dashboard_plantilla(
         "sancionados": len(sancionados),
         "no_disponibles": total - disponibles,
         "por_estado": {k: len(v) for k, v in por_estado.items()},
+        "por_disponibilidad": {
+            "pleno": sum(1 for j in jugadores if _disp(j) == "pleno"),
+            "grupo_adaptado": sum(1 for j in jugadores if _disp(j) == "grupo_adaptado"),
+            "individual": sum(1 for j in jugadores if _disp(j) == "individual"),
+            "fuera": sum(1 for j in jugadores if _disp(j) == "fuera"),
+        },
         "jugadores_lesionados": lesionados,
         "jugadores_en_recuperacion": en_recuperacion,
         "jugadores_sancionados": sancionados,

@@ -2366,7 +2366,7 @@ export default function SesionDetailPage() {
                                         Invitado
                                       </Badge>
                                     )}
-                                    <PlayerStatusBadges estado={jugador.estado} />
+                                    <PlayerStatusBadges estado={jugador.estado} disponibilidad={jugador.disponibilidad} />
                                   </p>
                                   {/* Carga / wellness / tarjetas badges */}
                                   {(() => {

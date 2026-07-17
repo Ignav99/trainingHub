@@ -1,9 +1,11 @@
 'use client'
 
-import type { NivelCarga } from '@/types'
+import type { DisponibilidadOperativa, NivelCarga } from '@/types'
+import { DISPONIBILIDAD_COLORS, DISPONIBILIDAD_LABELS, resolveDisponibilidad } from '@/lib/jugadorTipo'
 
 interface PlayerStatusBadgesProps {
   estado: string
+  disponibilidad?: DisponibilidadOperativa | null
   nivelCarga?: NivelCarga | null
   sancionado?: boolean
   tarjetasAmarillas?: number
@@ -12,8 +14,9 @@ interface PlayerStatusBadgesProps {
 }
 
 const ESTADO_BADGES: Record<string, { label: string; className: string } | undefined> = {
-  lesionado: { label: 'Lesion', className: 'bg-red-100 text-red-700 border-red-200' },
-  sancionado: { label: 'Sancion', className: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+  lesionado: { label: 'Lesión', className: 'bg-red-100 text-red-700 border-red-200' },
+  en_recuperacion: { label: 'Recuperación', className: 'bg-amber-100 text-amber-700 border-amber-200' },
+  sancionado: { label: 'Sanción', className: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
   enfermo: { label: 'Enfermo', className: 'bg-orange-100 text-orange-700 border-orange-200' },
 }
 
@@ -24,10 +27,17 @@ const NIVEL_COLORS: Record<string, { bg: string; text: string; label: string } |
   bajo: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Bajo' },
 }
 
-export function PlayerStatusBadges({ estado, nivelCarga, sancionado, tarjetasAmarillas, tarjetasRojas, className = '' }: PlayerStatusBadgesProps) {
+export function PlayerStatusBadges({
+  estado,
+  disponibilidad,
+  nivelCarga,
+  sancionado,
+  tarjetasAmarillas,
+  tarjetasRojas,
+  className = '',
+}: PlayerStatusBadgesProps) {
   const badges: JSX.Element[] = []
 
-  // Estado-based badges
   const estadoBadge = ESTADO_BADGES[estado]
   if (estadoBadge) {
     badges.push(
@@ -40,19 +50,30 @@ export function PlayerStatusBadges({ estado, nivelCarga, sancionado, tarjetasAma
     )
   }
 
-  // Explicit sancion badge (from sanciones system, independent of estado)
+  const disp = resolveDisponibilidad({ estado: estado as any, disponibilidad: disponibilidad ?? undefined })
+  if (disp !== 'pleno') {
+    badges.push(
+      <span
+        key="disp"
+        className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium border ${DISPONIBILIDAD_COLORS[disp]}`}
+        title="Disponibilidad operativa"
+      >
+        {DISPONIBILIDAD_LABELS[disp]}
+      </span>
+    )
+  }
+
   if (sancionado && estado !== 'sancionado') {
     badges.push(
       <span
         key="sancion"
         className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium border bg-yellow-100 text-yellow-700 border-yellow-200"
       >
-        Sancion
+        Sanción
       </span>
     )
   }
 
-  // Tarjetas amarillas
   if (tarjetasAmarillas && tarjetasAmarillas > 0) {
     badges.push(
       <span
@@ -67,7 +88,6 @@ export function PlayerStatusBadges({ estado, nivelCarga, sancionado, tarjetasAma
     )
   }
 
-  // Tarjetas rojas
   if (tarjetasRojas && tarjetasRojas > 0) {
     badges.push(
       <span
@@ -82,7 +102,6 @@ export function PlayerStatusBadges({ estado, nivelCarga, sancionado, tarjetasAma
     )
   }
 
-  // Nivel carga badge (always show, with label)
   if (nivelCarga) {
     const nivelInfo = NIVEL_COLORS[nivelCarga]
     if (nivelInfo) {

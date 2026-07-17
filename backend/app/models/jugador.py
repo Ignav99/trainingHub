@@ -27,7 +27,14 @@ class EstadoJugador(str, Enum):
     PERMISO = "permiso"
     SELECCION = "seleccion"
     BAJA = "baja"
+    INVITADO = "invitado"
 
+
+class DisponibilidadOperativa(str, Enum):
+    FUERA = "fuera"
+    INDIVIDUAL = "individual"
+    GRUPO_ADAPTADO = "grupo_adaptado"
+    PLENO = "pleno"
 
 class TipoJugador(str, Enum):
     """Vínculo del futbolista con el equipo."""
@@ -105,6 +112,7 @@ class JugadorBase(BaseModel):
 
     # Estado
     estado: EstadoJugador = Field(default=EstadoJugador.ACTIVO)
+    disponibilidad: DisponibilidadOperativa = Field(default=DisponibilidadOperativa.PLENO)
     fecha_lesion: Optional[date] = None
     fecha_vuelta_estimada: Optional[date] = None
     motivo_baja: Optional[str] = None
@@ -158,6 +166,7 @@ class JugadorUpdate(BaseModel):
     nivel_mental: Optional[int] = Field(None, ge=1, le=10)
 
     estado: Optional[EstadoJugador] = None
+    disponibilidad: Optional[DisponibilidadOperativa] = None
     fecha_lesion: Optional[date] = None
     fecha_vuelta_estimada: Optional[date] = None
     motivo_baja: Optional[str] = None
