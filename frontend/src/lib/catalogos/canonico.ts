@@ -5,6 +5,15 @@
  * No inventar códigos paralelos en páginas. Importar desde aquí.
  */
 
+/** Competición vs pretemporada vs transición — hereda del microciclo cuando existe. */
+export const CONTEXTOS_PERIODO = [
+  { codigo: 'competicion', nombre: 'Competición', usa: 'match_day' as const },
+  { codigo: 'pretemporada', nombre: 'Pretemporada', usa: 'dia_carga' as const },
+  { codigo: 'transicion', nombre: 'Transición', usa: 'dia_carga' as const },
+] as const
+
+export type ContextoPeriodoCodigo = (typeof CONTEXTOS_PERIODO)[number]['codigo']
+
 export const MATCH_DAYS = [
   { codigo: 'MD+1', nombre: 'Recuperación', carga: 'muy_baja', nivel_cognitivo_max: 1 },
   { codigo: 'MD+2', nombre: 'Regeneración', carga: 'baja', nivel_cognitivo_max: 1 },
@@ -16,6 +25,18 @@ export const MATCH_DAYS = [
 ] as const
 
 export type MatchDayCodigo = (typeof MATCH_DAYS)[number]['codigo']
+
+/** Día de carga en bloque (pretemporada / transición) — no hay MD de partido. */
+export const DIAS_CARGA = [
+  { codigo: 'PT-R', nombre: 'Regeneración', nivel_cognitivo_max: 1 },
+  { codigo: 'PT-A', nombre: 'Adaptación', nivel_cognitivo_max: 2 },
+  { codigo: 'PT-V', nombre: 'Volumen', nivel_cognitivo_max: 2 },
+  { codigo: 'PT-I', nombre: 'Intensidad', nivel_cognitivo_max: 3 },
+  { codigo: 'PT-E', nombre: 'Específico / modelo', nivel_cognitivo_max: 3 },
+  { codigo: 'PT-F', nombre: 'Amistoso / simulación', nivel_cognitivo_max: 3 },
+] as const
+
+export type DiaCargaCodigo = (typeof DIAS_CARGA)[number]['codigo']
 
 export const FASES_JUEGO = [
   { codigo: 'ataque_organizado', nombre: 'Ataque organizado' },
@@ -188,6 +209,31 @@ export const MD_CATEGORIA_MATRIX: Record<
   'MD-2': { preferidas: ['EVO', 'JDP', 'MOV', 'PRV'], evitar: ['SSG', 'PCO'] },
   'MD-1': { preferidas: ['RND', 'ABP', 'ACO'], evitar: ['SSG', 'AVD', 'PCO', 'GYM'] },
   MD: { preferidas: [], evitar: ['GYM', 'PRV'] },
+}
+
+/** Preferidas / evitar por día de carga (pretemporada). */
+export const PT_CATEGORIA_MATRIX: Record<
+  DiaCargaCodigo,
+  { preferidas: string[]; evitar: string[] }
+> = {
+  'PT-R': { preferidas: ['RCF', 'MOV', 'RND'], evitar: ['SSG', 'AVD', 'PCO', 'GYM'] },
+  'PT-A': { preferidas: ['RND', 'ACO', 'POS', 'MOV'], evitar: ['SSG', 'AVD'] },
+  'PT-V': { preferidas: ['JDP', 'POS', 'PCO', 'GYM', 'ACO'], evitar: [] },
+  'PT-I': { preferidas: ['SSG', 'AVD', 'EVO', 'GYM'], evitar: ['ACO'] },
+  'PT-E': { preferidas: ['JDP', 'AVD', 'ABP', 'POR', 'POS'], evitar: ['GYM'] },
+  'PT-F': { preferidas: [], evitar: ['GYM', 'PRV'] },
+}
+
+export function resolveContextoFromMicrociclo(plan?: {
+  fase_temporada?: string | null
+  tipo_microciclo?: string | null
+} | null): ContextoPeriodoCodigo {
+  if (!plan) return 'competicion'
+  if (plan.fase_temporada === 'pretemporada' || plan.tipo_microciclo === 'pretemporada') {
+    return 'pretemporada'
+  }
+  if (plan.fase_temporada === 'transicion') return 'transicion'
+  return 'competicion'
 }
 
 /** Aliases legacy → canónico (migración de datos / inputs sucios). */

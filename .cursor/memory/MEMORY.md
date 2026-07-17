@@ -2,11 +2,11 @@
 
 ## Last updated: 2026-07-17
 
-## Active: Catálogo canónico de variables + matar IA create
+## Active: Catálogo canónico + pretemporada
 
 Branch: `cursor/catalogo-variables-ae84`
 
-- Fuente de verdad: `.cursor/memory/catalogo-variables-canonico.md`
-- Decisiones: convocatoria primero; MD en create; tipo_sesion enum; contenidos nivel 1; variantes grafo; sin IA al crear sesión.
-- Hecho: eliminados CTAs “Nueva con IA”; `/sesiones/nueva-ai` redirige a `/sesiones/nueva`.
-- Next: implementar workflow create + catálogos v2 + datización según documento.
+- Catálogo: `.cursor/memory/catalogo-variables-canonico.md` + `frontend/src/lib/catalogos/canonico.ts`
+- Pretemporada: `contexto_periodo` + `dia_carga` (PT-R/A/V/I/E/F); MD solo en competición; hereda del microciclo.
+- Sin IA al crear sesión (CTAs muertos).
+- Next: implementar create + wire catálogo (incl. pretemporada).
