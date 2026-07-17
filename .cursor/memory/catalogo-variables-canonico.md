@@ -27,7 +27,21 @@ Cada variable debe responder al menos a una de: **filtrar**, **recomendar**, **o
 
 Hoy hay drift entre UI, catálogos HTTP y DB. **Una sola cadena de códigos en toda la app.**
 
-### 1.1 Match Day (`match_day`) — 7 valores
+### 1.0 Contexto de periodo (`contexto_periodo`) — NUEVO
+
+El MD competitivo **no aplica** igual en pretemporada ni en transición. Ya existe en microciclo (`fase_temporada` / `tipo_microciclo`); la sesión debe **heredarlo** y poder filtrarse.
+
+| Código | Cuándo | Qué marca el “día de carga” |
+|--------|--------|------------------------------|
+| `competicion` | Liga/copa semanal | `match_day` (MD±) **obligatorio** |
+| `pretemporada` | Bloques sin rival oficial (o amistoso opcional) | `dia_carga` (§1.1b), `match_day` **opcional/null** |
+| `transicion` | Post-temporada / puente | Igual que pretemporada (día de carga) |
+
+**Herencia automática:** si la sesión se crea desde un microciclo con `fase_temporada=pretemporada` o `tipo_microciclo=pretemporada` → `contexto_periodo=pretemporada` sin preguntar. Si el usuario crea sesión suelta, elige contexto (default `competicion`).
+
+Sala del Lunes ya cambia el morfociclo a **días de calendario** en pretemporada; esto alinea la sesión con ese modo.
+
+### 1.1 Match Day (`match_day`) — 7 valores (solo competición)
 
 | Código | Nombre | Carga relativa | Uso típico |
 |--------|--------|----------------|------------|
@@ -37,7 +51,27 @@ Hoy hay drift entre UI, catálogos HTTP y DB. **Una sola cadena de códigos en t
 | `MD-3` | Resistencia / Potencia | Alta–media | Posesión, PCO, carga acumulada |
 | `MD-2` | Velocidad / Específico | Media | Evoluciones, velocidad, ABP ligero |
 | `MD-1` | Activación | Baja–media | Rondos, ABP, activación |
-| `MD` | Partido | Competición | No es sesión de campo habitual |
+| `MD` | Partido | Competición | Día de partido oficial |
+
+En pretemporada/transición: **no forzar MD**. UI oculta chips MD y muestra §1.1b.  
+(Compat: sesiones viejas de pretemporada con un MD inventado se migran a `dia_carga` aproximado.)
+
+### 1.1b Día de carga en bloque (`dia_carga`) — NUEVO (pretemporada / transición)
+
+Sustituto del MD cuando no hay partido ancla. Filtrable y usable por el recomendador.
+
+| Código | Nombre | Intención | Categorías preferidas (guía) |
+|--------|--------|-----------|------------------------------|
+| `PT-R` | Regeneración | Recuperar, movilidad, bajo impacto | RCF, MOV, RND |
+| `PT-A` | Adaptación | Reentrada, volumen controlado, técnica | RND, ACO, POS, MOV |
+| `PT-V` | Volumen | Mucho trabajo, densidad media | JDP, POS, PCO, GYM |
+| `PT-I` | Intensidad | Calidad, SSG, duelos, potencia | SSG, AVD, GYM, EVO |
+| `PT-E` | Específico / modelo | Principios de juego, ABP, estructura | JDP, AVD, ABP, POR |
+| `PT-F` | Amistoso / simulación | Partido o interno (como “MD” de bloque) | — (evitar GYM/PRV pesado) |
+
+Opcional en sesión de pretemporada: `semana_bloque` (1..N) y/o `doble_sesion` bool (mañana/tarde) — útiles pero no bloquean datización.
+
+**Tareas:** `match_days_recomendados` se complementa con `dias_carga_recomendados[]` (mismos códigos PT-*). En competición se usa MD; en pretemporada PT.
 
 ### 1.2 Fase de juego (`fase_juego`) — 6 valores
 
@@ -88,7 +122,9 @@ Alineado a momentos del modelo de juego (no inventar `transicion_ofensiva`):
 | `hora` | time | opcional | no | Logística |
 | `lugar` | text/cat corta | chips: Campo 1, Campo 2, Gimnasio, Sala… (org) | sí | Empieza free + sugerencias |
 | `equipo_id` | uuid | — | sí | Contexto |
-| `match_day` | enum | §1.1 | **sí** | Chip en convocatoria |
+| `contexto_periodo` | enum **NUEVO** | §1.0 | **sí** | Hereda del microciclo |
+| `match_day` | enum | §1.1 | **sí** (si competición) | Chip; **null** en pretemporada |
+| `dia_carga` | enum **NUEVO** | §1.1b | **sí** (si pre/transición) | Chip PT-* |
 | `tipo_sesion` | enum **NUEVO** | ver §2.2 | **sí** | Eje maestro de filtrado |
 | `objetivo_principal` | text corto | 1 frase | búsqueda | Obligatorio para “sesión completa” |
 | `contenido_principal_id` | FK contenidos | nivel 1 del catálogo | **sí** | 1 contenido ancla |
@@ -109,6 +145,8 @@ Alineado a momentos del modelo de juego (no inventar `transicion_ofensiva`):
 | `recuperacion` | MD+1/+2 | RCF/MOV, intensidad baja |
 | `porteros` | Específica GK (campo o integrada) | POR / TEC_PORTERO |
 | `partido` | MD o amistoso controlado | mínimo diseño de tareas |
+
+En **pretemporada**, `tipo_sesion` brilla más (física, mixta, abp, porteros…) porque no hay MD que “explique” la sesión. El par `tipo_sesion` + `dia_carga` + `contenido_principal` es la datización clave del bloque.
 
 ### 2.3 Secundario (opcional, visible)
 
@@ -315,7 +353,9 @@ Unificar a §1.2:
 
 ---
 
-## 5. Matriz MD × categoría (recomendación)
+## 5. Matrices de recomendación
+
+### 5.1 Competición — MD × categoría
 
 Fuente: `match_day_config` (ya en DB). Catálogo HTTP debe devolver **los 7 MD**.
 
@@ -330,6 +370,25 @@ Fuente: `match_day_config` (ya en DB). Catálogo HTTP debe devolver **los 7 MD**
 | MD | — | GYM, PRV |
 
 Nivel cognitivo máx. por MD: +1/+2 → 1; −1/−2 → 2; −3/−4/MD → 3.
+
+### 5.2 Pretemporada — `dia_carga` × categoría
+
+| Día | Preferidas | Evitar | Cog. máx |
+|-----|------------|--------|----------|
+| PT-R | RCF, MOV, RND | SSG, AVD, PCO, GYM | 1 |
+| PT-A | RND, ACO, POS, MOV | SSG, AVD | 2 |
+| PT-V | JDP, POS, PCO, GYM, ACO | — | 2 |
+| PT-I | SSG, AVD, EVO, GYM | ACO suave | 3 |
+| PT-E | JDP, AVD, ABP, POR, POS | GYM pesado | 3 |
+| PT-F | (partido) | GYM, PRV | 3 |
+
+### 5.3 Reglas de herencia / UX
+
+1. Microciclo pretemporada → sesiones nuevas: `contexto_periodo=pretemporada`, UI de **día de carga**, sin exigir MD.  
+2. Microciclo competición → `contexto_periodo=competicion`, chips MD.  
+3. Amistoso en pretemporada (`modo_partido=amistoso_*` en plan_ct): sesión del día puede ser `dia_carga=PT-F` (+ rival opcional).  
+4. Boceto IA: usa la matriz §5.1 o §5.2 según `contexto_periodo`.  
+5. Lista de sesiones: filtro por contexto + MD **o** día de carga.
 
 ---
 
@@ -393,7 +452,7 @@ Datos: script de remap de fases/tags/principios → contenidos.
 
 ## 10. Criterio “sesión/tarea datizada”
 
-**Sesión datizada:** título real + MD + tipo_sesion + objetivo + (contenido **o** tipo recuperación/partido) + intensidad.  
+**Sesión datizada:** título real + `contexto_periodo` + (`match_day` **o** `dia_carga`) + tipo_sesion + objetivo + (contenido **o** tipo recuperación/partido) + intensidad.  
 **Tarea datizada:** título + categoría + (fase **o** gym) + ≥1 contenido principal + jugadores + duración + densidad + MD recomendados (o `todos`).
 
 Badge en listas; no bloquea guardar borrador.
