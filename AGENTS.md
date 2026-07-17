@@ -27,6 +27,15 @@ Render services (`traininghub-frontend-eu`, `traininghub-api-eu`) have **`autoDe
 - Commit and push before finishing the turn
 - One feature per branch / PR when possible
 
+## UI / UX skills
+
+When redesigning dashboard UI, load skills from `.cursor/skills/`:
+
+- `traininghub-dashboard-ui` — club-ops boards (enfermería, plantilla, etc.)
+- `frontend-design` — distinctive visual direction
+- `web-design-guidelines` — accessibility / interface audit
+- `react-best-practices` / `composition-patterns` — React structure
+
 ## What “done” means
 
 A task is not done until:
