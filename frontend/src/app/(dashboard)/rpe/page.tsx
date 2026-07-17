@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import useSWR, { mutate } from 'swr'
 import {
   Activity,
@@ -29,8 +29,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 import { SaludTabs } from '@/components/salud/SaludTabs'
-import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
 import { ManualRPEDialog } from '@/components/rpe/ManualRPEDialog'
 import { WellnessDialog } from '@/components/rpe/WellnessDialog'
 import dynamic from 'next/dynamic'
@@ -53,7 +53,6 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from 'recharts'
-import { useEffect } from 'react'
 
 function getNivelColor(nivel: NivelCarga): string {
   switch (nivel) {
@@ -202,15 +201,15 @@ export default function RPEPage() {
         <SaludTabs />
       </div>
 
-      {/* 5 Action Buttons */}
+      {/* Actions */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <Button
           variant="outline"
           className="h-auto py-3 flex flex-col items-center gap-1.5"
           onClick={() => setShowManualRPE(true)}
         >
-          <Activity className="h-5 w-5 text-blue-600" />
-          <span className="text-xs font-medium">Registrar RPE Manual</span>
+          <Activity className="h-5 w-5 text-sky-600" />
+          <span className="text-xs font-medium">Registrar RPE</span>
         </Button>
         <Button
           variant="outline"
@@ -225,16 +224,16 @@ export default function RPEPage() {
           className="h-auto py-3 flex flex-col items-center gap-1.5"
           onClick={() => { setLoadChartPlayer(undefined); setShowLoadChart(true) }}
         >
-          <TrendingUp className="h-5 w-5 text-blue-500" />
-          <span className="text-xs font-medium">Grafica de Carga</span>
+          <TrendingUp className="h-5 w-5 text-sky-500" />
+          <span className="text-xs font-medium">Gráfica de carga</span>
         </Button>
         <Button
           variant="outline"
           className="h-auto py-3 flex flex-col items-center gap-1.5"
           onClick={() => setShowChart(true)}
         >
-          <BarChart3 className="h-5 w-5 text-violet-600" />
-          <span className="text-xs font-medium">Grafica Wellness</span>
+          <BarChart3 className="h-5 w-5 text-teal-700" />
+          <span className="text-xs font-medium">Gráfica wellness</span>
         </Button>
         <Button
           variant="outline"
@@ -246,42 +245,58 @@ export default function RPEPage() {
         </Button>
       </div>
 
-      {/* Summary cards */}
+      {/* KPI strip */}
       <div className="animate-fade-in">
         {loading ? (
-          <div className="grid grid-cols-3 gap-4">
-            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Card>
-              <CardContent className="p-4 text-center">
-                <Heart className="h-5 w-5 mx-auto mb-1 text-rose-500" />
-                <p className={`text-2xl font-bold ${getWellnessColor(teamWellnessAvg)}`}>
-                  {teamWellnessAvg != null ? teamWellnessAvg : '-'}
-                  {teamWellnessAvg != null && <span className="text-sm font-normal text-muted-foreground">/25</span>}
-                </p>
-                <p className="text-xs text-muted-foreground">Wellness Equipo</p>
-              </CardContent>
-            </Card>
-            <Card className={totalAlertas > 0 ? 'border-red-300' : ''}>
-              <CardContent className="p-4 text-center">
-                <AlertTriangle className={`h-5 w-5 mx-auto mb-1 ${totalAlertas > 0 ? 'text-red-500' : 'text-muted-foreground'}`} />
-                <p className={`text-2xl font-bold ${totalAlertas > 0 ? 'text-red-600' : ''}`}>
-                  {totalAlertas}
-                </p>
-                <p className="text-xs text-muted-foreground">Alertas activas</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 text-center">
-                <TrendingUp className="h-5 w-5 mx-auto mb-1 text-primary" />
-                <p className="text-2xl font-bold">
-                  {latestWellnessDate || '-'}
-                </p>
-                <p className="text-xs text-muted-foreground">Ultima actualizacion</p>
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="rounded-2xl border bg-rose-50/80 ring-1 ring-rose-100 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-medium text-muted-foreground">Wellness equipo</p>
+                <Heart className="h-4 w-4 text-rose-500" />
+              </div>
+              <p className={`text-3xl font-bold tabular-nums mt-1 tracking-tight ${getWellnessColor(teamWellnessAvg)}`}>
+                {teamWellnessAvg != null ? teamWellnessAvg : '—'}
+                {teamWellnessAvg != null && <span className="text-sm font-normal text-muted-foreground">/25</span>}
+              </p>
+            </div>
+            <div className={`rounded-2xl border p-4 ring-1 ${totalAlertas > 0 ? 'bg-red-50 ring-red-100' : 'bg-card ring-border'}`}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-medium text-muted-foreground">Alertas</p>
+                <AlertTriangle className={`h-4 w-4 ${totalAlertas > 0 ? 'text-red-500' : 'text-muted-foreground'}`} />
+              </div>
+              <p className={`text-3xl font-bold tabular-nums mt-1 tracking-tight ${totalAlertas > 0 ? 'text-red-700' : ''}`}>
+                {totalAlertas}
+              </p>
+            </div>
+            <div className="rounded-2xl border bg-amber-50/80 ring-1 ring-amber-100 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-medium text-muted-foreground">En riesgo</p>
+                <TrendingUp className="h-4 w-4 text-amber-600" />
+              </div>
+              <p className="text-3xl font-bold tabular-nums mt-1 tracking-tight text-amber-800">
+                {resumen?.jugadores_riesgo ?? data.filter((d) => d.nivel_carga === 'alto' || d.nivel_carga === 'critico').length}
+              </p>
+            </div>
+            <div className="rounded-2xl border bg-sky-50/80 ring-1 ring-sky-100 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-medium text-muted-foreground">Carga media (EWMA)</p>
+                <Activity className="h-4 w-4 text-sky-600" />
+              </div>
+              <p className="text-3xl font-bold tabular-nums mt-1 tracking-tight text-sky-800">
+                {resumen?.carga_media != null
+                  ? Math.round(resumen.carga_media)
+                  : data.length
+                    ? Math.round(data.reduce((s, d) => s + (d.carga_aguda || 0), 0) / data.length)
+                    : '—'}
+              </p>
+              {latestWellnessDate && (
+                <p className="text-[11px] text-muted-foreground mt-1">Última wellness {latestWellnessDate}</p>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -290,19 +305,27 @@ export default function RPEPage() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">Jugadores</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Carga = EWMA aguda · ACWR = aguda/crónica · Wellness = sueño+fatiga+dolor+estrés+humor (/25)
+          </p>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="space-y-2">
               {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-12 w-full rounded" />)}
             </div>
-          ) : data.length === 0 ? (
-            <div className="text-center py-8">
-              <Activity className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">
-                Sin datos de carga. Pulsa "Recalcular" para generar datos desde sesiones y partidos.
-              </p>
-            </div>
+          ) : data.length === 0 || data.every((d) => !d.carga_aguda && !d.ratio_acwr) ? (
+            <EmptyState
+              icon={<Activity className="h-12 w-12" />}
+              title="Sin datos de carga"
+              description="Pulsa Recalcular para generar la carga desde sesiones, partidos y RPE manual."
+              action={
+                <Button onClick={handleRecalculate} disabled={recalculating}>
+                  {recalculating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                  Recalcular
+                </Button>
+              }
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -310,12 +333,12 @@ export default function RPEPage() {
                   <tr className="border-b text-left">
                     <th className="pb-2 font-medium w-8">#</th>
                     <th className="pb-2 font-medium">Jugador</th>
-                    <th className="pb-2 font-medium text-center">Carga 7d</th>
+                    <th className="pb-2 font-medium text-center">EWMA aguda</th>
                     <th className="pb-2 font-medium text-center">ACWR</th>
                     <th className="pb-2 font-medium text-center">Nivel</th>
-                    <th className="pb-2 font-medium text-center">Media Gral</th>
-                    <th className="pb-2 font-medium text-center">Ult. 7d</th>
-                    <th className="pb-2 font-medium text-center">Ultimo</th>
+                    <th className="pb-2 font-medium text-center">Wellness</th>
+                    <th className="pb-2 font-medium text-center">Últ. 7d</th>
+                    <th className="pb-2 font-medium text-center">Último</th>
                     <th className="pb-2 font-medium text-center w-8"></th>
                   </tr>
                 </thead>
@@ -324,9 +347,8 @@ export default function RPEPage() {
                     const w = wellnessMap.get(item.jugador_id)
                     const isExpanded = expandedRow === item.jugador_id
                     return (
-                      <>
+                      <Fragment key={item.jugador_id}>
                         <tr
-                          key={item.jugador_id}
                           className={`border-b last:border-0 row-hover cursor-pointer ${getRowHighlight(item.nivel_carga)} ${w?.wellness_alerta ? 'bg-red-50/40' : ''}`}
                           onClick={() => setExpandedRow(isExpanded ? null : item.jugador_id)}
                         >
@@ -398,12 +420,12 @@ export default function RPEPage() {
                                   <span className="font-bold">{item.carga_aguda.toFixed(0)}</span>
                                 </div>
                                 <div>
-                                  <span className="text-muted-foreground">Cronica (EWMA): </span>
+                                  <span className="text-muted-foreground">Crónica (EWMA): </span>
                                   <span className="font-bold">{item.carga_cronica.toFixed(0)}</span>
                                 </div>
                                 {item.monotonia != null && (
                                   <div>
-                                    <span className="text-muted-foreground">Monotonia: </span>
+                                    <span className="text-muted-foreground">Monotonía: </span>
                                     <span className={`font-bold ${item.monotonia > 2 ? 'text-orange-600' : ''}`}>{item.monotonia.toFixed(1)}</span>
                                   </div>
                                 )}
@@ -416,11 +438,11 @@ export default function RPEPage() {
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  className="text-xs text-blue-600 h-6 px-2"
+                                  className="text-xs text-sky-700 h-6 px-2"
                                   onClick={(e) => { e.stopPropagation(); setLoadChartPlayer(item.jugador_id); setShowLoadChart(true) }}
                                 >
                                   <TrendingUp className="h-3 w-3 mr-1" />
-                                  Ver grafica
+                                  Ver gráfica
                                 </Button>
                               </div>
                               <ExpandedRPERow jugadorId={item.jugador_id} />
@@ -428,7 +450,7 @@ export default function RPEPage() {
                             </td>
                           </tr>
                         )}
-                      </>
+                      </Fragment>
                     )
                   })}
                 </tbody>

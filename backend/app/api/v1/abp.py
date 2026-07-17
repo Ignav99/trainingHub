@@ -77,6 +77,47 @@ async def create_jugada(
     return response.data[0]
 
 
+# ============ PDF Playbook (ANTES de /{jugada_id} — si no, "playbook-pdf" se parsea como UUID) ============
+
+@router.get("/playbook-pdf")
+async def get_playbook_pdf(
+    equipo_id: UUID = Query(...),
+    tipo: Optional[str] = None,
+    lado: Optional[str] = None,
+    auth: AuthContext = Depends(require_permission(Permission.EXPORT_DATA)),
+):
+    from app.services.pdf_service import generate_abp_playbook_pdf
+
+    supabase = get_supabase()
+    query = supabase.table("abp_jugadas").select("*").eq(
+        "equipo_id", str(equipo_id)
+    )
+    if tipo:
+        query = query.eq("tipo", tipo)
+    if lado:
+        query = query.eq("lado", lado)
+
+    query = query.order("tipo").order("orden")
+    response = query.execute()
+    jugadas = response.data or []
+
+    if not jugadas:
+        raise HTTPException(status_code=404, detail="No hay jugadas ABP para exportar")
+
+    # Get team name
+    team_resp = supabase.table("equipos").select("nombre").eq(
+        "id", str(equipo_id)
+    ).execute()
+    equipo_nombre = team_resp.data[0]["nombre"] if team_resp.data else "Equipo"
+
+    pdf_bytes = await generate_abp_playbook_pdf(jugadas, equipo_nombre)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="playbook_abp_{equipo_nombre}.pdf"'},
+    )
+
+
 @router.get("/{jugada_id}")
 async def get_jugada(
     jugada_id: UUID,
@@ -441,46 +482,7 @@ async def save_partido_plan(
     return {"plan": plan, "jugadas": jugadas}
 
 
-# ============ PDF Export ============
-
-@router.get("/playbook-pdf")
-async def get_playbook_pdf(
-    equipo_id: UUID = Query(...),
-    tipo: Optional[str] = None,
-    lado: Optional[str] = None,
-    auth: AuthContext = Depends(require_permission(Permission.EXPORT_DATA)),
-):
-    from app.services.pdf_service import generate_abp_playbook_pdf
-
-    supabase = get_supabase()
-    query = supabase.table("abp_jugadas").select("*").eq(
-        "equipo_id", str(equipo_id)
-    )
-    if tipo:
-        query = query.eq("tipo", tipo)
-    if lado:
-        query = query.eq("lado", lado)
-
-    query = query.order("tipo").order("orden")
-    response = query.execute()
-    jugadas = response.data or []
-
-    if not jugadas:
-        raise HTTPException(status_code=404, detail="No hay jugadas ABP para exportar")
-
-    # Get team name
-    team_resp = supabase.table("equipos").select("nombre").eq(
-        "id", str(equipo_id)
-    ).execute()
-    equipo_nombre = team_resp.data[0]["nombre"] if team_resp.data else "Equipo"
-
-    pdf_bytes = await generate_abp_playbook_pdf(jugadas, equipo_nombre)
-    return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="playbook_abp_{equipo_nombre}.pdf"'},
-    )
-
+# ============ PDF Export (partido) ============
 
 @router.get("/partido/{partido_id}/pdf")
 async def get_partido_abp_pdf(

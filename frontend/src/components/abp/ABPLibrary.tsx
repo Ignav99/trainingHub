@@ -11,9 +11,10 @@ interface ABPLibraryProps {
   onSelect: (jugada: ABPJugada) => void
   onDuplicate?: (id: string) => void
   onDelete?: (id: string) => void
+  onCreate?: () => void
 }
 
-export default function ABPLibrary({ jugadas, loading, onSelect, onDuplicate, onDelete }: ABPLibraryProps) {
+export default function ABPLibrary({ jugadas, loading, onSelect, onDuplicate, onDelete, onCreate }: ABPLibraryProps) {
   const [tipo, setTipo] = useState<TipoABP | ''>('')
   const [lado, setLado] = useState<LadoABP | ''>('')
   const [subtipo, setSubtipo] = useState<SubtipoABP | ''>('')
@@ -48,11 +49,22 @@ export default function ABPLibrary({ jugadas, loading, onSelect, onDuplicate, on
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
-          <p className="text-lg font-medium">No hay jugadas</p>
-          <p className="text-sm mt-1">
-            {jugadas.length > 0 ? 'Prueba a cambiar los filtros' : 'Crea tu primera jugada de balon parado'}
+        <div className="text-center py-16 rounded-2xl border border-dashed bg-orange-50/30">
+          <p className="text-lg font-medium text-foreground">No hay jugadas</p>
+          <p className="text-sm mt-1 text-muted-foreground">
+            {jugadas.length > 0
+              ? 'Prueba a cambiar los filtros'
+              : 'Crea tu primera jugada de balón parado'}
           </p>
+          {jugadas.length === 0 && onCreate && (
+            <button
+              type="button"
+              onClick={onCreate}
+              className="mt-4 inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium bg-orange-600 text-white hover:bg-orange-700"
+            >
+              Nueva jugada
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">

@@ -424,37 +424,37 @@ export function PreMatchTab({ partido, onMutate }: PreMatchTabProps) {
             {/* Section 3: ABP */}
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <span className="w-6 h-6 rounded-full bg-purple-600 text-white text-xs font-bold flex items-center justify-center">3</span>
-                <h3 className="font-bold text-sm">Acciones a Balon Parado</h3>
-                <Badge className="bg-purple-100 text-purple-800 text-[10px]">ABP</Badge>
+                <span className="w-6 h-6 rounded-full bg-orange-600 text-white text-xs font-bold flex items-center justify-center">3</span>
+                <h3 className="font-bold text-sm">Acciones a Balón Parado</h3>
+                <Badge className="bg-orange-100 text-orange-800 text-[10px]">ABP</Badge>
               </div>
 
               {/* ABP Prepared Plan summary (read-only) */}
               {partido.id && (
-                <div className="mb-4 p-3 bg-blue-50/50 border border-blue-100 rounded-xl">
+                <div className="mb-4 p-3 bg-orange-50/50 border border-orange-100 rounded-xl">
                   <ABPPlanSummary partidoId={partido.id} />
                 </div>
               )}
 
               {/* ABP Match Plan - visual play cards (quick-assign) */}
               {partido.id && partido.equipo_id && (
-                <div className="mb-4 p-3 bg-orange-50/50 border border-orange-100 rounded-xl">
+                <div className="mb-4 p-3 bg-amber-50/40 border border-amber-100 rounded-xl">
                   <ABPMatchPlan partidoId={partido.id} equipoId={partido.equipo_id} />
                 </div>
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <TacticCard
-                  title="Como atacan corners"
+                  title="Cómo atacan corners"
                   value={prePartido.abp.atacan_corners.observaciones}
                   onChange={(v) => setPrePartido((p) => ({ ...p, abp: { ...p.abp, atacan_corners: { observaciones: v } } }))}
-                  color="purple"
+                  color="orange"
                 />
                 <TacticCard
-                  title="Como defienden corners"
+                  title="Cómo defienden corners"
                   value={prePartido.abp.defienden_corners.observaciones}
                   onChange={(v) => setPrePartido((p) => ({ ...p, abp: { ...p.abp, defienden_corners: { observaciones: v } } }))}
-                  color="purple"
+                  color="orange"
                 />
               </div>
             </div>
@@ -621,11 +621,21 @@ function TacticCard({
   title: string
   value: string
   onChange: (v: string) => void
-  color: 'emerald' | 'red' | 'purple'
+  color: 'emerald' | 'red' | 'purple' | 'orange'
   icon?: React.ReactNode
 }) {
-  const bgMap = { emerald: 'bg-emerald-900/30 border-emerald-700/30', red: 'bg-red-900/30 border-red-700/30', purple: 'bg-purple-900/30 border-purple-700/30' }
-  const pitchBg = { emerald: 'bg-emerald-800', red: 'bg-red-900/50', purple: 'bg-purple-900/50' }
+  const bgMap = {
+    emerald: 'bg-emerald-50 border-emerald-200',
+    red: 'bg-red-50 border-red-200',
+    purple: 'bg-violet-50 border-violet-200',
+    orange: 'bg-orange-50 border-orange-200',
+  }
+  const pitchBg = {
+    emerald: 'bg-emerald-700',
+    red: 'bg-red-800',
+    purple: 'bg-violet-800',
+    orange: 'bg-orange-700',
+  }
 
   return (
     <Card className={`border ${bgMap[color]}`}>
