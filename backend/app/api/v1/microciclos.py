@@ -273,29 +273,43 @@ async def get_microciclo_completo(
         alertas = [AlertaResponse(**a) for a in alertas_resp.data] if alertas_resp.data else []
 
         # 8. Reflexión del partido anterior (mejora → recordatorio Sala del Lunes)
+        # Soft-fail: la columna reflexion_entrenador llega con migración 060; sin ella
+        # el microciclo debe seguir cargando.
         reflexion_partido_anterior = None
-        prev_partido = supabase.table("partidos").select(
-            "id, fecha, rival_id, rivales(nombre, nombre_corto, escudo_url)"
-        ).eq("equipo_id", equipo_id).lt(
-            "fecha", fecha_inicio
-        ).order("fecha", desc=True).limit(1).execute()
-        if prev_partido.data:
-            pp = prev_partido.data[0]
-            stats_prev = supabase.table("estadisticas_partido").select(
-                "reflexion_entrenador"
-            ).eq("partido_id", pp["id"]).limit(1).execute()
-            texto = ""
-            if stats_prev.data:
-                texto = (stats_prev.data[0].get("reflexion_entrenador") or "").strip()
-            if texto:
-                rival_join = pp.get("rivales") or {}
-                reflexion_partido_anterior = {
-                    "partido_id": pp["id"],
-                    "fecha": pp.get("fecha"),
-                    "rival_nombre": rival_join.get("nombre_corto") or rival_join.get("nombre") or "Rival",
-                    "rival_escudo_url": rival_join.get("escudo_url"),
-                    "texto": texto,
-                }
+        try:
+            prev_partido = supabase.table("partidos").select(
+                "id, fecha, rival_id, rivales(nombre, nombre_corto, escudo_url)"
+            ).eq("equipo_id", equipo_id).lt(
+                "fecha", fecha_inicio
+            ).order("fecha", desc=True).limit(1).execute()
+            if prev_partido.data:
+                pp = prev_partido.data[0]
+                texto = ""
+                try:
+                    stats_prev = supabase.table("estadisticas_partido").select(
+                        "reflexion_entrenador"
+                    ).eq("partido_id", pp["id"]).limit(1).execute()
+                    if stats_prev.data:
+                        texto = (stats_prev.data[0].get("reflexion_entrenador") or "").strip()
+                except Exception as col_err:
+                    logger.warning(
+                        "reflexion_entrenador no disponible (¿migración 060 pendiente?): %s",
+                        col_err,
+                    )
+                if texto:
+                    rival_join = pp.get("rivales") or {}
+                    reflexion_partido_anterior = {
+                        "partido_id": pp["id"],
+                        "fecha": pp.get("fecha"),
+                        "rival_nombre": rival_join.get("nombre_corto") or rival_join.get("nombre") or "Rival",
+                        "rival_escudo_url": rival_join.get("escudo_url"),
+                        "texto": texto,
+                    }
+        except Exception as reflexion_err:
+            logger.warning(
+                "No se pudo cargar reflexión del partido anterior: %s",
+                reflexion_err,
+            )
 
         return {
             "microciclo": micro,
