@@ -38,35 +38,50 @@ import type { Microciclo, PaginatedResponse } from '@/types'
 
 type FilterKey = 'todos' | 'en_curso' | 'planificado' | 'completado' | 'borrador' | 'competicion' | 'pretemporada'
 
-const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: 'todos', label: 'Todos' },
-  { key: 'en_curso', label: 'En curso' },
-  { key: 'planificado', label: 'Planificados' },
-  { key: 'completado', label: 'Completados' },
-  { key: 'competicion', label: 'Competición' },
-  { key: 'pretemporada', label: 'Pretemporada' },
+const FILTERS: { key: FilterKey; label: string; active: string; idle: string }[] = [
+  { key: 'todos', label: 'Todos', active: 'bg-foreground text-background border-foreground', idle: 'bg-card text-muted-foreground border-border hover:bg-muted' },
+  { key: 'en_curso', label: 'En curso', active: 'bg-emerald-600 text-white border-emerald-600', idle: 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100' },
+  { key: 'planificado', label: 'Planificados', active: 'bg-sky-600 text-white border-sky-600', idle: 'bg-sky-50 text-sky-800 border-sky-200 hover:bg-sky-100' },
+  { key: 'completado', label: 'Completados', active: 'bg-indigo-600 text-white border-indigo-600', idle: 'bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100' },
+  { key: 'competicion', label: 'Competición', active: 'bg-teal-700 text-white border-teal-700', idle: 'bg-teal-50 text-teal-800 border-teal-200 hover:bg-teal-100' },
+  { key: 'pretemporada', label: 'Pretemporada', active: 'bg-amber-600 text-white border-amber-600', idle: 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100' },
 ]
 
-const ESTADO_STYLE: Record<string, { badge: string; bar: string; label: string }> = {
+const ESTADO_STYLE: Record<
+  string,
+  { badge: string; bar: string; card: string; border: string; label: string; accent: string }
+> = {
   borrador: {
     badge: 'bg-slate-100 text-slate-700 border-slate-200',
     bar: 'bg-slate-400',
+    card: 'bg-gradient-to-br from-slate-50 via-card to-card',
+    border: 'border-slate-200',
     label: 'Borrador',
+    accent: 'text-slate-600',
   },
   planificado: {
-    badge: 'bg-sky-50 text-sky-800 border-sky-200',
+    badge: 'bg-sky-100 text-sky-900 border-sky-200',
     bar: 'bg-sky-500',
+    card: 'bg-gradient-to-br from-sky-50 via-sky-50/40 to-card',
+    border: 'border-sky-200/80',
     label: 'Planificado',
+    accent: 'text-sky-700',
   },
   en_curso: {
-    badge: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+    badge: 'bg-emerald-100 text-emerald-900 border-emerald-200',
     bar: 'bg-emerald-500',
+    card: 'bg-gradient-to-br from-emerald-50 via-emerald-50/50 to-card',
+    border: 'border-emerald-300/90',
     label: 'En curso',
+    accent: 'text-emerald-700',
   },
   completado: {
-    badge: 'bg-zinc-100 text-zinc-700 border-zinc-200',
-    bar: 'bg-zinc-400',
+    badge: 'bg-indigo-100 text-indigo-900 border-indigo-200',
+    bar: 'bg-indigo-500',
+    card: 'bg-gradient-to-br from-indigo-50 via-indigo-50/40 to-card',
+    border: 'border-indigo-200/80',
     label: 'Completado',
+    accent: 'text-indigo-700',
   },
 }
 
@@ -105,40 +120,54 @@ function MicrocicloCard({ m, featured = false }: { m: Microciclo; featured?: boo
     <Link
       href={`/microciclos/${m.id}`}
       className={cn(
-        'group relative block overflow-hidden rounded-2xl border bg-card transition-all duration-200',
-        'hover:-translate-y-0.5 hover:shadow-md hover:border-foreground/15',
+        'group relative block overflow-hidden rounded-2xl border transition-all duration-200',
+        'hover:-translate-y-0.5 hover:shadow-md',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         'motion-reduce:transition-none motion-reduce:hover:translate-y-0',
-        featured && 'border-emerald-300/80 bg-gradient-to-br from-emerald-50/80 via-card to-card'
+        estado.card,
+        estado.border,
+        featured && 'ring-1 ring-emerald-400/40 shadow-sm'
       )}
     >
-      <span className={cn('absolute left-0 top-0 bottom-0 w-1', estado.bar)} aria-hidden />
-      <div className={cn('p-4 sm:p-5', featured && 'sm:p-6')}>
+      <span className={cn('absolute left-0 top-0 bottom-0 w-1.5', estado.bar)} aria-hidden />
+      <div
+        className={cn(
+          'absolute inset-x-0 top-0 h-16 opacity-60 pointer-events-none',
+          m.estado === 'en_curso' && 'bg-gradient-to-b from-emerald-200/40 to-transparent',
+          m.estado === 'planificado' && 'bg-gradient-to-b from-sky-200/35 to-transparent',
+          m.estado === 'completado' && 'bg-gradient-to-b from-indigo-200/35 to-transparent',
+          m.estado === 'borrador' && 'bg-gradient-to-b from-slate-200/30 to-transparent'
+        )}
+        aria-hidden
+      />
+      <div className={cn('relative p-4 sm:p-5', featured && 'sm:p-6')}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1.5 mb-2">
-              <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border', estado.badge)}>
+              <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border', estado.badge)}>
                 {m.estado === 'en_curso' ? (
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 ) : m.estado === 'planificado' ? (
                   <Clock className="h-3 w-3" />
-                ) : (
+                ) : m.estado === 'completado' ? (
                   <CheckCircle2 className="h-3 w-3" />
+                ) : (
+                  <Clock className="h-3 w-3" />
                 )}
                 {estado.label}
               </span>
               <span
                 className={cn(
-                  'inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium border',
+                  'inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold border',
                   pre
-                    ? 'border-amber-200 text-amber-800 bg-amber-50'
-                    : 'border-slate-200 text-slate-700 bg-slate-50'
+                    ? 'border-amber-300 text-amber-900 bg-amber-100'
+                    : 'border-teal-300 text-teal-900 bg-teal-100'
                 )}
               >
                 {pre ? 'Pretemporada' : 'Competición'}
               </span>
               {featured && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-600 text-white">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-600 text-white">
                   <Sparkles className="h-3 w-3" />
                   Actual
                 </span>
@@ -146,7 +175,7 @@ function MicrocicloCard({ m, featured = false }: { m: Microciclo; featured?: boo
             </div>
 
             <div className="flex items-baseline gap-2 flex-wrap">
-              <p className={cn('font-bold tracking-tight tabular-nums', featured ? 'text-2xl sm:text-3xl' : 'text-lg')}>
+              <p className={cn('font-bold tracking-tight tabular-nums', featured ? 'text-2xl sm:text-3xl' : 'text-lg', estado.accent)}>
                 {formatRange(m.fecha_inicio, m.fecha_fin)}
               </p>
               <span className="text-xs text-muted-foreground tabular-nums">
@@ -155,15 +184,15 @@ function MicrocicloCard({ m, featured = false }: { m: Microciclo; featured?: boo
             </div>
 
             {m.objetivo_principal && (
-              <p className={cn('mt-2 text-muted-foreground line-clamp-2', featured ? 'text-sm' : 'text-xs')}>
-                <Target className="inline h-3.5 w-3.5 mr-1 -mt-0.5 text-emerald-700" />
+              <p className={cn('mt-2 text-foreground/75 line-clamp-2', featured ? 'text-sm' : 'text-xs')}>
+                <Target className={cn('inline h-3.5 w-3.5 mr-1 -mt-0.5', estado.accent)} />
                 {m.objetivo_principal}
               </p>
             )}
 
             {m.partidos && (
-              <p className="mt-2.5 inline-flex items-center gap-1.5 text-xs text-amber-800">
-                <Swords className="h-3.5 w-3.5" />
+              <p className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-amber-900 bg-amber-50 border border-amber-200/80 rounded-md px-2 py-1">
+                <Swords className="h-3.5 w-3.5 text-amber-700" />
                 <span>
                   {m.partidos.localia === 'local' ? 'vs' : '@'}{' '}
                   <span className="font-semibold">{rival || 'Rival'}</span>
@@ -171,7 +200,7 @@ function MicrocicloCard({ m, featured = false }: { m: Microciclo; featured?: boo
               </p>
             )}
           </div>
-          <ChevronRight className="h-5 w-5 text-muted-foreground/40 group-hover:text-foreground shrink-0 mt-1 transition-colors" />
+          <ChevronRight className={cn('h-5 w-5 shrink-0 mt-1 transition-colors opacity-50 group-hover:opacity-100', estado.accent)} />
         </div>
       </div>
     </Link>
@@ -306,32 +335,26 @@ export default function MicrociclosListPage() {
       />
 
       {/* Atmosphere strip */}
-      <div
-        className="relative overflow-hidden rounded-2xl border px-5 py-4"
-        style={{
-          background:
-            'linear-gradient(135deg, hsl(var(--club-primary) / 0.08) 0%, hsl(var(--background)) 45%, hsl(142 40% 96%) 100%)',
-        }}
-      >
+      <div className="relative overflow-hidden rounded-2xl border border-emerald-200/60 bg-gradient-to-r from-emerald-50 via-sky-50/70 to-indigo-50 px-5 py-4">
         <div className="relative z-[1] flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Biblioteca semanal</p>
-            <p className="text-sm mt-1 text-muted-foreground max-w-xl">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-800/70">Biblioteca semanal</p>
+            <p className="text-sm mt-1 text-slate-600 max-w-xl">
               Filtra por estado o tipo, abre el microciclo en curso y navega el histórico como una biblioteca de semanas.
             </p>
           </div>
-          <div className="flex gap-4 tabular-nums text-sm">
-            <div>
+          <div className="flex gap-3 tabular-nums text-sm">
+            <div className="rounded-xl bg-emerald-100/80 border border-emerald-200 px-3 py-2 min-w-[4.5rem]">
               <p className="text-2xl font-bold leading-none text-emerald-700">{counts.en_curso}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">en curso</p>
+              <p className="text-[11px] text-emerald-800/70 mt-0.5">en curso</p>
             </div>
-            <div>
-              <p className="text-2xl font-bold leading-none">{counts.planificado}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">planificados</p>
+            <div className="rounded-xl bg-sky-100/80 border border-sky-200 px-3 py-2 min-w-[4.5rem]">
+              <p className="text-2xl font-bold leading-none text-sky-700">{counts.planificado}</p>
+              <p className="text-[11px] text-sky-800/70 mt-0.5">planificados</p>
             </div>
-            <div>
-              <p className="text-2xl font-bold leading-none">{counts.completado}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">completados</p>
+            <div className="rounded-xl bg-indigo-100/80 border border-indigo-200 px-3 py-2 min-w-[4.5rem]">
+              <p className="text-2xl font-bold leading-none text-indigo-700">{counts.completado}</p>
+              <p className="text-[11px] text-indigo-800/70 mt-0.5">completados</p>
             </div>
           </div>
         </div>
@@ -346,15 +369,13 @@ export default function MicrociclosListPage() {
               type="button"
               onClick={() => setFilter(f.key)}
               className={cn(
-                'shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors',
-                filter === f.key
-                  ? 'bg-foreground text-background border-foreground'
-                  : 'bg-card text-muted-foreground hover:text-foreground hover:bg-muted'
+                'shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
+                filter === f.key ? f.active : f.idle
               )}
             >
               {f.label}
               {f.key !== 'todos' && counts[f.key] > 0 && (
-                <span className="ml-1.5 tabular-nums opacity-70">{counts[f.key]}</span>
+                <span className="ml-1.5 tabular-nums opacity-80">{counts[f.key]}</span>
               )}
             </button>
           ))}
