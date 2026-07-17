@@ -2990,7 +2990,7 @@ export default function SesionDetailPage() {
           <Link href="/sesiones"><ArrowLeft className="h-4 w-4 mr-2" />Volver a sesiones</Link>
         </Button>
         <Button asChild>
-          <Link href="/sesiones/nueva-ai"><Sparkles className="h-4 w-4 mr-2" />Nueva sesion con IA</Link>
+          <Link href="/sesiones/nueva"><Plus className="h-4 w-4 mr-2" />Nueva sesión</Link>
         </Button>
       </div>
 

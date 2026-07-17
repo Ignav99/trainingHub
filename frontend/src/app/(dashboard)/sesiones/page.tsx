@@ -16,7 +16,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Search,
-  Sparkles,
   Filter,
   ListChecks,
   Eye,
@@ -205,17 +204,10 @@ export default function SesionesPage() {
             </Link>
             <Link
               href="/sesiones/nueva"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              Manual
-            </Link>
-            <Link
-              href="/sesiones/nueva-ai"
               className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
             >
-              <Sparkles className="h-4 w-4" />
-              Nueva con IA
+              <Plus className="h-4 w-4" />
+              Nueva sesión
             </Link>
           </>
         }
@@ -361,11 +353,11 @@ export default function SesionesPage() {
               </button>
             ) : (
               <Link
-                href="/sesiones/nueva-ai"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg text-sm font-medium hover:from-purple-700 hover:to-blue-700"
+                href="/sesiones/nueva"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90"
               >
-                <Sparkles className="h-4 w-4" />
-                Crear con IA
+                <Plus className="h-4 w-4" />
+                Nueva sesión
               </Link>
             )
           }

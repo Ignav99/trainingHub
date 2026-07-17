@@ -2,7 +2,6 @@
 
 import Image from 'next/image'
 import {
-  Bot,
   Calendar,
   Swords,
   Clock,
@@ -437,19 +436,7 @@ export function DayDetailPanel({
                     }}
                   >
                     <ClipboardList className="h-3.5 w-3.5 mr-1.5" />
-                    Entreno manual
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="text-xs h-9"
-                    onClick={() => {
-                      onClose()
-                      onNavigate(`/sesiones/nueva-ai?fecha=${selectedDay}`)
-                    }}
-                  >
-                    <Bot className="h-3.5 w-3.5 mr-1.5" />
-                    Entreno con IA
+                    Nueva sesión
                   </Button>
                   <Button
                     size="sm"

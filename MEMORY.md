@@ -2,6 +2,6 @@
 
 ## Last updated: 2026-07-17
 
-## Active: Sesiones rediseño (5 fases, sin roles)
+## Active: Catálogo variables sesiones/tareas
 
-Branch `cursor/sesiones-redisenio-ae84`. Detalle con timeline Contexto→Diseño→Convocatoria→Campo→Cierre. Create reordenado; redirect a detalle. Migración 062 pendiente en Supabase.
+Ver `.cursor/memory/catalogo-variables-canonico.md`. Botón Nueva sesión con IA eliminado.

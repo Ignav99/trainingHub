@@ -4,7 +4,6 @@ import { useMemo } from 'react'
 import Image from 'next/image'
 import {
   Plus,
-  Bot,
   Swords,
   Moon,
   ClipboardList,
@@ -381,13 +380,7 @@ export function CalendarWeekView({
                     className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted text-left"
                     onClick={() => { setAddMenuDay(null); onNavigate(`/sesiones/nueva?fecha=${date}`) }}
                   >
-                    <ClipboardList className="h-3.5 w-3.5 text-blue-600" /> Entreno manual
-                  </button>
-                  <button
-                    className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted text-left"
-                    onClick={() => { setAddMenuDay(null); onNavigate(`/sesiones/nueva-ai?fecha=${date}`) }}
-                  >
-                    <Bot className="h-3.5 w-3.5 text-purple-600" /> Entreno IA
+                    <ClipboardList className="h-3.5 w-3.5 text-blue-600" /> Nueva sesión
                   </button>
                   <button
                     className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted text-left"
