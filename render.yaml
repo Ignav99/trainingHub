@@ -57,4 +57,5 @@ services:
         sync: false
       - key: SUPERADMIN_EMAILS
         sync: false
+    # Liveness only — never point this at /ready (DB checks can timeout and kill the service)
     healthCheckPath: /health

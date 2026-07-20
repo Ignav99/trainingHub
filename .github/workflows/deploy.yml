@@ -90,7 +90,7 @@ jobs:
       - name: Verify Render services healthy
         run: |
           FRONTEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://traininghub-frontend-eu.onrender.com/login" || echo "000")
-          BACKEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://traininghub-api-eu.onrender.com/" || echo "000")
+          BACKEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://traininghub-api-eu.onrender.com/health" || echo "000")
           echo "Frontend status: $FRONTEND_STATUS"
           echo "Backend status: $BACKEND_STATUS"
           if [[ "$FRONTEND_STATUS" != "200" || "$BACKEND_STATUS" != "200" ]]; then

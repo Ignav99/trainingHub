@@ -38,10 +38,12 @@ jobs:
             echo "Attempt $i/$MAX_ATTEMPTS"
 
             FRONTEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL/login" || echo "000")
-            BACKEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BACKEND_URL/" || echo "000")
+            BACKEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BACKEND_URL/health" || echo "000")
+            READY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BACKEND_URL/ready" || echo "000")
 
             echo "Frontend: $FRONTEND_STATUS"
-            echo "Backend: $BACKEND_STATUS"
+            echo "Backend /health: $BACKEND_STATUS"
+            echo "Backend /ready: $READY_STATUS"
 
             if [[ "$FRONTEND_STATUS" == "200" ]]; then FRONTEND_OK=1; fi
             if [[ "$BACKEND_STATUS" == "200" ]]; then BACKEND_OK=1; fi
