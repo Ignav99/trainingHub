@@ -955,7 +955,7 @@ export default function SesionDetailPage() {
   const [generatingPdf, setGeneratingPdf] = useState(false)
   const [previewingPdf, setPreviewingPdf] = useState(false)
   const [savingTareas, setSavingTareas] = useState(false)
-  const [phase, setPhase] = useState<SesionPhase>('diseno')
+  const [phase, setPhase] = useState<SesionPhase>('convocatoria')
   const [asistenciaSavedOnce, setAsistenciaSavedOnce] = useState(false)
 
   // Task picker
@@ -1672,13 +1672,23 @@ export default function SesionDetailPage() {
 
   const handlePhaseChange = (next: SesionPhase) => {
     setPhase(next)
-    if (next === 'convocatoria' || next === 'campo' || next === 'cierre') {
+    if (next === 'convocatoria' || next === 'campo' || next === 'cierre' || next === 'diseno') {
       loadJugadores()
       loadAsistencias()
       loadCargaData()
       loadMargen()
     }
   }
+
+  // Abrir en convocatoria: precargar plantilla / asistencia
+  useEffect(() => {
+    if (!sesionId) return
+    loadJugadores()
+    loadAsistencias()
+    loadCargaData()
+    loadMargen()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sesionId])
 
   // Rellenar jugadores sin fila de asistencia según disponibilidad operativa
   useEffect(() => {
@@ -2185,8 +2195,8 @@ export default function SesionDetailPage() {
             </CardContent>
           </Card>
           <div className="flex justify-end">
-            <Button onClick={() => handlePhaseChange('diseno')}>
-              Ir a Diseño
+            <Button onClick={() => handlePhaseChange('convocatoria')}>
+              Ir a Convocatoria
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           </div>
@@ -2371,9 +2381,12 @@ export default function SesionDetailPage() {
             </div>
           )}
 
-          <div className="flex justify-end pt-2">
-            <Button type="button" onClick={() => handlePhaseChange('convocatoria')}>
-              Siguiente: Convocatoria
+          <div className="flex justify-between pt-2">
+            <Button type="button" variant="outline" onClick={() => handlePhaseChange('convocatoria')}>
+              Volver a Convocatoria
+            </Button>
+            <Button type="button" onClick={() => handlePhaseChange('campo')}>
+              Siguiente: Campo
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           </div>
@@ -2887,11 +2900,11 @@ export default function SesionDetailPage() {
           </Card>
 
           <div className="flex justify-between pt-2">
-            <Button type="button" variant="outline" onClick={() => handlePhaseChange('diseno')}>
-              Volver a Diseño
+            <Button type="button" variant="outline" onClick={() => handlePhaseChange('contexto')}>
+              Volver a Contexto
             </Button>
-            <Button type="button" onClick={() => handlePhaseChange('campo')}>
-              Siguiente: Campo
+            <Button type="button" onClick={() => handlePhaseChange('diseno')}>
+              Siguiente: Diseño
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           </div>
@@ -2948,8 +2961,8 @@ export default function SesionDetailPage() {
           )}
 
           <div className="flex justify-between pt-2">
-            <Button type="button" variant="outline" onClick={() => handlePhaseChange('convocatoria')}>
-              Volver a Convocatoria
+            <Button type="button" variant="outline" onClick={() => handlePhaseChange('diseno')}>
+              Volver a Diseño
             </Button>
             <Button type="button" onClick={() => handlePhaseChange('cierre')}>
               Siguiente: Cierre
