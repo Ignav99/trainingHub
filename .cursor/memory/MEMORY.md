@@ -1,12 +1,15 @@
 # TrainingHub — Agent Memory
 
-## Last updated: 2026-07-17
+## Last updated: 2026-07-20
 
-## Active: Catálogo canónico + pretemporada
+## Active: Fix API downtime (Render health check)
 
-Branch: `cursor/catalogo-variables-ae84`
+Root cause: Render `healthCheckPath=/health` ran a Supabase query; timeouts (~5s)
+at ~12:00/20:00 UTC caused `server_failed` and took the API down.
 
-- Catálogo: `.cursor/memory/catalogo-variables-canonico.md` + `frontend/src/lib/catalogos/canonico.ts`
-- Pretemporada: `contexto_periodo` + `dia_carga` (PT-R/A/V/I/E/F); MD solo en competición; hereda del microciclo.
-- Sin IA al crear sesión (CTAs muertos).
-- Next: implementar create + wire catálogo (incl. pretemporada).
+Mitigations:
+1. Live: healthCheckPath switched to `/` via Render API (immediate)
+2. Code: `/health` = liveness only; deep checks moved to `/ready`
+3. Auto-merge: only deploy when merge actually happens; serialize + poll health
+
+Branch: `cursor/fix-api-healthcheck-ae84`
