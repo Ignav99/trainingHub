@@ -140,7 +140,7 @@ app.include_router(ws_router, prefix="/v1")
 
 @app.get("/")
 async def root():
-    """Health check endpoint."""
+    """Liveness probe (rápido). No depende de BD."""
     return {
         "status": "healthy",
         "app": settings.APP_NAME,
@@ -150,14 +150,28 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check detallado con verificacion de BD, Redis y Stripe."""
+    """
+    Liveness para Render / balanceadores.
+
+    CRÍTICO: no consultar Supabase ni I/O externo aquí.
+    Render marca el servicio unhealthy si no responde en ~5s
+    (histórico: timeouts periódicos tumbaron la API).
+    """
+    return {
+        "status": "healthy",
+        "version": settings.APP_VERSION,
+    }
+
+
+@app.get("/ready")
+async def readiness_check():
+    """Readiness: dependencias. Para monitores internos — NO usar como healthCheckPath de Render."""
     from fastapi.responses import JSONResponse
     from app.database import get_supabase
 
-    checks = {}
+    checks: dict[str, str] = {}
     healthy = True
 
-    # Database check
     try:
         supabase = get_supabase()
         supabase.table("organizaciones").select("id", count="exact").limit(0).execute()
@@ -166,7 +180,6 @@ async def health_check():
         checks["database"] = f"disconnected: {e}"
         healthy = False
 
-    # Redis check (optional)
     if settings.REDIS_URL:
         try:
             import redis
@@ -178,10 +191,7 @@ async def health_check():
     else:
         checks["redis"] = "not_configured"
 
-    # Stripe check (config only)
     checks["stripe"] = "configured" if settings.STRIPE_SECRET_KEY else "not_configured"
-
-    # Sentry check (config only)
     checks["sentry"] = "configured" if settings.SENTRY_DSN else "not_configured"
 
     result = {
@@ -189,7 +199,6 @@ async def health_check():
         "checks": checks,
         "version": settings.APP_VERSION,
     }
-
     if not healthy:
         return JSONResponse(status_code=503, content=result)
     return result

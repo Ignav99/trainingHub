@@ -78,7 +78,7 @@ class SecurityHeadersMiddleware:
 class RequestLoggingMiddleware:
     """Logs request method, path, status code and duration (pure ASGI)."""
 
-    SKIP_PATHS = {"/", "/health", "/docs", "/redoc", "/openapi.json"}
+    SKIP_PATHS = {"/", "/health", "/ready", "/docs", "/redoc", "/openapi.json"}
 
     def __init__(self, app: ASGIApp):
         self.app = app
@@ -270,7 +270,7 @@ class RateLimitMiddleware:
         return True, remaining
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
-        if scope["type"] != "http" or scope["path"] in ("/", "/health"):
+        if scope["type"] != "http" or scope["path"] in ("/", "/health", "/ready"):
             await self.app(scope, receive, send)
             return
 

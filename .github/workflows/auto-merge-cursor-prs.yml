@@ -1,7 +1,10 @@
 name: Auto-merge Cursor PRs
 
 # Merges cursor/* PRs to main after CI passes so Render deploys automatically.
-# Render has autoDeploy: false — production only updates when main changes.
+# Render has autoDeploy: false — production only updates via deploy hooks.
+#
+# NOTE: merges use GITHUB_TOKEN, so the push to main does NOT re-trigger CI/Deploy
+# workflows. Deploy hooks are fired here after a successful merge.
 
 on:
   workflow_run:
@@ -23,15 +26,19 @@ jobs:
     if: >
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'pull_request'
+    outputs:
+      merged: ${{ steps.merge.outputs.merged }}
 
     steps:
       - name: Merge PR when CI passes
+        id: merge
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
+          echo "merged=false" >> "$GITHUB_OUTPUT"
 
           if [[ ! "$HEAD_BRANCH" =~ ^cursor/ ]]; then
             echo "Branch $HEAD_BRANCH is not cursor/* — skipping auto-merge"
@@ -70,8 +77,24 @@ jobs:
             --delete-branch
 
           echo "Merged PR #$PR_NUM ($HEAD_BRANCH) into main"
+          echo "merged=true" >> "$GITHUB_OUTPUT"
 
-      - name: Deploy to Render (CI already passed on PR)
+  deploy:
+    name: Deploy to Render after merge
+    needs: automerge
+    if: needs.automerge.outputs.merged == 'true'
+    runs-on: ubuntu-latest
+    # Serialize production deploys — avoid deploy storms that take the API down
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      RENDER_SERVICE_BACKEND: ${{ secrets.RENDER_SERVICE_ID_BACKEND || 'srv-d8lbubeq1p3s73c65mmg' }}
+      RENDER_SERVICE_FRONTEND: ${{ secrets.RENDER_SERVICE_ID_FRONTEND || 'srv-d8lbud6gvqtc73aphqi0' }}
+
+    steps:
+      - name: Trigger Render deploy hooks
         run: |
           BACKEND_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}")
           FRONTEND_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}")
@@ -81,3 +104,23 @@ jobs:
             echo "Deploy hook failed"
             exit 1
           fi
+
+      - name: Wait for deploy to start
+        run: sleep 60
+
+      - name: Poll until API is healthy
+        run: |
+          MAX_ATTEMPTS=30
+          SLEEP_SECONDS=20
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 8 \
+              "https://traininghub-api-eu.onrender.com/health" || echo "000")
+            echo "Attempt $i/$MAX_ATTEMPTS health=$CODE"
+            if [[ "$CODE" == "200" ]]; then
+              echo "API healthy"
+              exit 0
+            fi
+            sleep $SLEEP_SECONDS
+          done
+          echo "API did not become healthy after deploy"
+          exit 1

@@ -71,12 +71,21 @@ class TestHealthEndpoints:
         data = response.json()
         assert data["status"] == "healthy"
 
-    def test_health_returns_check_details(self, test_client, mock_supabase):
-        """Health endpoint should return check details."""
-        # Mock successful DB check
-        mock_supabase.table.return_value.select.return_value.limit.return_value.execute.return_value = MagicMock(data=[], count=0)
-
+    def test_health_is_lightweight_liveness(self, test_client):
+        """Health endpoint is liveness-only (no dependency payload)."""
         response = test_client.get("/health")
         data = response.json()
+        assert response.status_code == 200
+        assert data["status"] == "healthy"
+        assert "version" in data
+        assert "checks" not in data
+
+    def test_ready_returns_check_details(self, test_client, mock_supabase):
+        """Ready endpoint should return dependency check details."""
+        mock_supabase.table.return_value.select.return_value.limit.return_value.execute.return_value = MagicMock(data=[], count=0)
+
+        response = test_client.get("/ready")
+        data = response.json()
+        assert response.status_code == 200
         assert "checks" in data
         assert "version" in data
