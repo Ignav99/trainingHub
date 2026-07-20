@@ -10,12 +10,12 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-export type SesionPhase = 'contexto' | 'diseno' | 'convocatoria' | 'campo' | 'cierre'
+export type SesionPhase = 'contexto' | 'convocatoria' | 'diseno' | 'campo' | 'cierre'
 
 const PHASES: { id: SesionPhase; label: string; hint: string; icon: LucideIcon }[] = [
   { id: 'contexto', label: 'Contexto', hint: 'Fecha, MD, objetivo', icon: MapPin },
+  { id: 'convocatoria', label: 'Convocatoria', hint: 'Quién asiste', icon: UserCheck },
   { id: 'diseno', label: 'Diseño', hint: 'Fases y tareas', icon: PenTool },
-  { id: 'convocatoria', label: 'Convocatoria', hint: 'Quién y cómo', icon: UserCheck },
   { id: 'campo', label: 'Campo', hint: 'Día de sesión', icon: Play },
   { id: 'cierre', label: 'Cierre', hint: 'RPE y completar', icon: Flag },
 ]
