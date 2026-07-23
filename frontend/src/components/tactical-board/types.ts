@@ -17,10 +17,27 @@ export {
 // Tactical board specific types
 
 export type BoardTool =
-  | 'select' | 'player' | 'opponent' | 'player_gk'
-  | 'cone' | 'ball' | 'mini_goal' | 'text'
-  | 'arrow_movement' | 'arrow_pass'
+  | 'select' | 'text'
+  // Jugadores
+  | 'player' | 'opponent' | 'player_gk'
+  // Material
+  | 'cone' | 'ball' | 'mini_goal'
+  | 'marker_disc' | 'pole' | 'mannequin' | 'hurdle' | 'ladder' | 'flag' | 'goal_large' | 'ball_cart'
+  // Movimientos
+  | 'arrow_movement' | 'arrow_sprint' | 'arrow_pass' | 'arrow_dribble'
+  | 'arrow_shot' | 'arrow_cross' | 'arrow_pressure' | 'arrow_block'
+  // Zonas
   | 'zone_rect' | 'zone_circle'
+
+/** Tiradores de redimensionado de una zona. */
+export type ResizeHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w'
+
+export const RESIZE_HANDLES: ResizeHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
+
+export const HANDLE_CURSORS: Record<ResizeHandle, string> = {
+  nw: 'nwse-resize', n: 'ns-resize', ne: 'nesw-resize', e: 'ew-resize',
+  se: 'nwse-resize', s: 'ns-resize', sw: 'nesw-resize', w: 'ew-resize',
+}
 
 export type PitchType = 'full' | 'half'
 export type BoardType = 'static' | 'animated'
@@ -48,6 +65,29 @@ export interface DiagramSnapshot {
   elements: any[]
   arrows: any[]
   zones: any[]
+}
+
+/**
+ * Pizarra guardada dentro de una tarea (`tareas.grafico_data`).
+ * Es una extensión retrocompatible de `DiagramData`: los diagramas antiguos
+ * solo traen elements/arrows/zones/pitchType y siguen funcionando.
+ */
+export interface TareaPizarraData {
+  elements: any[]
+  arrows: any[]
+  zones: any[]
+  pitchType?: 'full' | 'half' | 'quarter' | 'custom'
+  tipo?: BoardType
+  frames?: Keyframe[]
+}
+
+export const emptyTareaPizarra: TareaPizarraData = {
+  elements: [],
+  arrows: [],
+  zones: [],
+  pitchType: 'full',
+  tipo: 'static',
+  frames: [],
 }
 
 export const ZONE_COLORS = [

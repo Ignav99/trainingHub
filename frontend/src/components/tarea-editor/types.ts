@@ -1,8 +1,19 @@
 // Tipos para el editor de graficos de tareas
 
-export type ElementType = 'player' | 'player_gk' | 'opponent' | 'cone' | 'ball' | 'mini_goal' | 'zone' | 'text'
+export type ElementType =
+  | 'player' | 'player_gk' | 'opponent' | 'cone' | 'ball' | 'mini_goal' | 'zone' | 'text'
+  // Material de entrenamiento
+  | 'marker_disc' | 'pole' | 'mannequin' | 'hurdle' | 'ladder' | 'flag' | 'goal_large' | 'ball_cart'
 
-export type ArrowType = 'movement' | 'pass' | 'dribble' | 'shot'
+export type ArrowType =
+  | 'movement'   // Carrera sin balon — linea continua
+  | 'sprint'     // Carrera a maxima intensidad — zigzag
+  | 'pass'       // Pase — linea discontinua
+  | 'dribble'    // Conduccion — linea ondulada
+  | 'shot'       // Disparo — trazo grueso, doble punta
+  | 'cross'      // Centro / pase con trayectoria — curva
+  | 'pressure'   // Presion — ondulada con punta rellena
+  | 'block'      // Bloqueo / pantalla — termina en barra
 
 export interface Position {
   x: number
@@ -21,6 +32,8 @@ export interface DiagramElement {
   color?: string // Color personalizado
   size?: number // Tamano (para zonas)
   rotation?: number // Rotacion en grados
+  /** Id de grupo — los elementos del mismo grupo se seleccionan y transforman juntos */
+  groupId?: string
 }
 
 export interface DiagramArrow {
@@ -29,9 +42,13 @@ export interface DiagramArrow {
   from: Position
   to: Position
   curved?: boolean // Flecha curva
+  /** Curvatura -1..1 (desplazamiento perpendicular relativo del punto de control) */
+  curvature?: number
   color?: string
   label?: string // Numero cronologico (ABP)
   comment?: string // Comentario/nota de la flecha
+  /** Id de grupo */
+  groupId?: string
 }
 
 export interface DiagramZone {
@@ -43,6 +60,12 @@ export interface DiagramZone {
   opacity?: number
   label?: string
   shape: 'rectangle' | 'ellipse'
+  /** Rotacion en grados alrededor del centro de la zona */
+  rotation?: number
+  /** Id de grupo */
+  groupId?: string
+  /** Marca esta zona como el espacio de juego usado para calcular m²/jugador */
+  isPlayingArea?: boolean
 }
 
 export interface DiagramData {
@@ -64,9 +87,19 @@ export const TEAM_COLORS = {
 // Tamanos de elementos
 export const ELEMENT_SIZES = {
   player: 24,
+  player_gk: 24,
+  opponent: 24,
   cone: 16,
   ball: 14,
   mini_goal: 40,
+  marker_disc: 14,
+  pole: 10,
+  mannequin: 20,
+  hurdle: 26,
+  ladder: 40,
+  flag: 12,
+  goal_large: 73,
+  ball_cart: 26,
 }
 
 // Crear ID unico

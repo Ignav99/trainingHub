@@ -3,49 +3,9 @@
 import React, { useRef, useCallback, useEffect, useState } from 'react'
 import { Play, Pause, RotateCcw, Repeat } from 'lucide-react'
 import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
-import { DiagramElement, DiagramArrow, DiagramZone, Keyframe } from './types'
+import { getEasing, lerpElements, snapItems, type AnimationState } from './interpolate'
 
-// Easing functions
-function easeLinear(t: number) { return t }
-function easeQuad(t: number) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2 }
-function easeCubic(t: number) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2 }
-
-function getEasing(type: string): (t: number) => number {
-  switch (type) {
-    case 'ease': return easeQuad
-    case 'ease-in-out': return easeCubic
-    default: return easeLinear
-  }
-}
-
-// Interpolate element positions between two keyframes
-function lerpElements(from: DiagramElement[], to: DiagramElement[], t: number): DiagramElement[] {
-  return to.map((toEl) => {
-    const fromEl = from.find((e) => e.id === toEl.id)
-    if (!fromEl) {
-      // Element only in target: fade in
-      return { ...toEl, color: toEl.color }
-    }
-    return {
-      ...toEl,
-      position: {
-        x: fromEl.position.x + (toEl.position.x - fromEl.position.x) * t,
-        y: fromEl.position.y + (toEl.position.y - fromEl.position.y) * t,
-      },
-    }
-  })
-}
-
-// Arrows/zones snap at halfway point
-function snapItems<T>(from: T[], to: T[], t: number): T[] {
-  return t < 0.5 ? from : to
-}
-
-export interface AnimationState {
-  elements: DiagramElement[]
-  arrows: DiagramArrow[]
-  zones: DiagramZone[]
-}
+export type { AnimationState }
 
 interface AnimationPlayerProps {
   onFrame: (state: AnimationState) => void

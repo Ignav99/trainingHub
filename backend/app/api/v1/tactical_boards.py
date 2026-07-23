@@ -51,7 +51,11 @@ async def list_boards(
     supabase = get_supabase()
     q = (
         supabase.table("tactical_boards")
-        .select("id,nombre,descripcion,tipo,pitch_type,thumbnail_data,tags,created_at,updated_at")
+        # elements/arrows/zones se incluyen para poder pintar la miniatura real en la galeria
+        .select(
+            "id,nombre,descripcion,tipo,pitch_type,thumbnail_data,tags,"
+            "elements,arrows,zones,created_at,updated_at"
+        )
         .eq("equipo_id", str(equipo_id))
         .order("updated_at", desc=True)
     )

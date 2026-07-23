@@ -22,6 +22,8 @@ import { toast } from 'sonner'
 import { Tarea, CategoriaTarea } from '@/types'
 import { tareasApi, catalogosApi } from '@/lib/api/tareas'
 import { useEquipoStore } from '@/stores/equipoStore'
+import TacticalBoardMini from '@/components/task-preview/TacticalBoardMini'
+import type { TareaPizarraData } from '@/components/tactical-board/types'
 
 // Badge de categoría
 function CategoryBadge({ codigo, nombre, color }: { codigo: string; nombre: string; color?: string }) {
@@ -85,6 +87,17 @@ function PreviewModal({ tarea, onClose, onCopy }: { tarea: Tarea; onClose: () =>
         </div>
 
         <div className="p-6 space-y-6">
+          {/* Pizarra de la tarea */}
+          {tarea.grafico_data && (
+            <div className="rounded-xl overflow-hidden border border-gray-200 bg-[#2D5016]">
+              <TacticalBoardMini
+                data={tarea.grafico_data as TareaPizarraData}
+                width="100%"
+                animate
+              />
+            </div>
+          )}
+
           {/* Info básica */}
           <div className="flex flex-wrap gap-3">
             {tarea.categoria && (
@@ -177,10 +190,26 @@ function PreviewModal({ tarea, onClose, onCopy }: { tarea: Tarea; onClose: () =>
 // Tarjeta de tarea
 function TareaCard({ tarea, onView, onCopy }: { tarea: Tarea; onView: () => void; onCopy: () => void }) {
   return (
-    <div className="relative bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow">
+    <div className="relative bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
       <IntensityIndicator densidad={tarea.densidad} />
 
-      <div className="pl-2">
+      {/* Pizarra de la tarea — se reproduce en bucle si tiene fases animadas */}
+      <button
+        type="button"
+        onClick={onView}
+        className="block w-full bg-[#2D5016]"
+        style={{ aspectRatio: '1050/680' }}
+        title="Ver tarea"
+      >
+        <TacticalBoardMini
+          data={tarea.grafico_data as TareaPizarraData | undefined}
+          width="100%"
+          height="100%"
+          animate
+        />
+      </button>
+
+      <div className="p-4 pl-3">
         {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-2">
           <h3 className="font-medium text-gray-900 line-clamp-2">{tarea.titulo}</h3>

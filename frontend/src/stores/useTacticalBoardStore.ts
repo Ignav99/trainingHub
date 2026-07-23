@@ -15,11 +15,136 @@ import {
   Position,
 } from '@/components/tactical-board/types'
 import { FORMATIONS } from '@/lib/formations'
+import { metersToUnits } from '@/lib/tacticalMetrics'
 
-type ClipboardItem =
-  | { kind: 'element'; data: DiagramElement }
-  | { kind: 'arrow'; data: DiagramArrow }
-  | { kind: 'zone'; data: DiagramZone }
+/** Transformación aplicable a una selección o a un pegado. */
+export interface SelectionTransform {
+  /** Giro en grados alrededor del centro de la selección */
+  rotate?: number
+  /** Espejo horizontal ('h') o vertical ('v') */
+  flip?: 'h' | 'v'
+  /** Desplazamiento posterior */
+  dx?: number
+  dy?: number
+}
+
+interface BBox { minX: number; minY: number; maxX: number; maxY: number; cx: number; cy: number }
+
+/** Bounding box de un conjunto de elementos/flechas/zonas. */
+function bboxOf(snap: DiagramSnapshot): BBox | null {
+  const xs: number[] = []
+  const ys: number[] = []
+  snap.elements.forEach((el) => { xs.push(el.position.x); ys.push(el.position.y) })
+  snap.arrows.forEach((ar) => { xs.push(ar.from.x, ar.to.x); ys.push(ar.from.y, ar.to.y) })
+  snap.zones.forEach((z) => {
+    xs.push(z.position.x, z.position.x + z.width)
+    ys.push(z.position.y, z.position.y + z.height)
+  })
+  if (xs.length === 0) return null
+  const minX = Math.min(...xs)
+  const maxX = Math.max(...xs)
+  const minY = Math.min(...ys)
+  const maxY = Math.max(...ys)
+  return { minX, minY, maxX, maxY, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 }
+}
+
+interface TransformMatrix { cx: number; cy: number; cos: number; sin: number; sx: number; sy: number; dx: number; dy: number }
+
+function buildMatrix(box: BBox, t: SelectionTransform): TransformMatrix {
+  const rad = ((t.rotate || 0) * Math.PI) / 180
+  return {
+    cx: box.cx,
+    cy: box.cy,
+    cos: Math.cos(rad),
+    sin: Math.sin(rad),
+    sx: t.flip === 'h' ? -1 : 1,
+    sy: t.flip === 'v' ? -1 : 1,
+    dx: t.dx || 0,
+    dy: t.dy || 0,
+  }
+}
+
+/** Espejo primero, giro después, todo alrededor del centro de la selección. */
+function applyMatrix(p: Position, m: TransformMatrix): Position {
+  const x0 = (p.x - m.cx) * m.sx
+  const y0 = (p.y - m.cy) * m.sy
+  return {
+    x: Math.round(m.cx + x0 * m.cos - y0 * m.sin + m.dx),
+    y: Math.round(m.cy + x0 * m.sin + y0 * m.cos + m.dy),
+  }
+}
+
+/** Grados equivalentes que hay que sumar a la rotación propia de un elemento. */
+function rotationDelta(m: TransformMatrix, t: SelectionTransform): number {
+  const flipped = m.sx * m.sy < 0
+  const rot = t.rotate || 0
+  return flipped ? -rot : rot
+}
+
+function transformSnapshot(snap: DiagramSnapshot, t: SelectionTransform): DiagramSnapshot {
+  const box = bboxOf(snap)
+  if (!box) return snap
+  const m = buildMatrix(box, t)
+  const dRot = rotationDelta(m, t)
+  const mirrorH = m.sx < 0
+  const mirrorV = m.sy < 0
+
+  return {
+    elements: snap.elements.map((el) => ({
+      ...el,
+      position: applyMatrix(el.position, m),
+      rotation: el.rotation !== undefined
+        ? ((mirrorH !== mirrorV ? -el.rotation : el.rotation) + dRot + 360) % 360
+        : el.rotation,
+    })),
+    arrows: snap.arrows.map((ar) => ({
+      ...ar,
+      from: applyMatrix(ar.from, m),
+      to: applyMatrix(ar.to, m),
+      // Un espejo invierte el sentido de la curvatura
+      curvature: ar.curvature !== undefined && mirrorH !== mirrorV ? -ar.curvature : ar.curvature,
+    })),
+    zones: snap.zones.map((z) => {
+      // Se transforma el centro y se conserva el tamaño; el giro va en `rotation`
+      const center = applyMatrix({ x: z.position.x + z.width / 2, y: z.position.y + z.height / 2 }, m)
+      const swap = Math.abs(((t.rotate || 0) % 180)) === 90
+      const w = swap ? z.height : z.width
+      const h = swap ? z.width : z.height
+      const extraRot = swap ? 0 : dRot
+      return {
+        ...z,
+        position: { x: Math.round(center.x - w / 2), y: Math.round(center.y - h / 2) },
+        width: w,
+        height: h,
+        rotation: (((mirrorH !== mirrorV ? -(z.rotation || 0) : (z.rotation || 0)) + extraRot) + 360) % 360,
+      }
+    }),
+  }
+}
+
+/** Clona una selección con ids nuevos, manteniendo la estructura de grupos. */
+function cloneSnapshot(snap: DiagramSnapshot): DiagramSnapshot {
+  const groupMap = new Map<string, string>()
+  const remapGroup = (gid?: string) => {
+    if (!gid) return undefined
+    if (!groupMap.has(gid)) groupMap.set(gid, generateId())
+    return groupMap.get(gid)
+  }
+  return {
+    elements: snap.elements.map((el) => ({ ...el, id: generateId(), groupId: remapGroup(el.groupId) })),
+    arrows: snap.arrows.map((ar) => ({ ...ar, id: generateId(), groupId: remapGroup(ar.groupId) })),
+    zones: snap.zones.map((z) => ({ ...z, id: generateId(), groupId: remapGroup(z.groupId), isPlayingArea: false })),
+  }
+}
+
+/** Normaliza anchos/altos negativos tras arrastrar un tirador. */
+function normalizeRect(x: number, y: number, w: number, h: number) {
+  return {
+    position: { x: Math.round(w < 0 ? x + w : x), y: Math.round(h < 0 ? y + h : y) },
+    width: Math.round(Math.abs(w)),
+    height: Math.round(Math.abs(h)),
+  }
+}
 
 interface TacticalBoardState {
   // Board identity
@@ -55,7 +180,7 @@ interface TacticalBoardState {
   historyIndex: number
 
   // Clipboard
-  clipboard: ClipboardItem | null
+  clipboard: DiagramSnapshot | null
 
   // Actions: state setters
   setNombre: (nombre: string) => void
@@ -85,6 +210,8 @@ interface TacticalBoardState {
   updateArrowEndpoint: (id: string, endpoint: 'from' | 'to', pos: Position) => void
   updateArrowLabel: (id: string, label: string) => void
   updateArrowComment: (id: string, comment: string) => void
+  updateArrowType: (id: string, type: DiagramArrow['type']) => void
+  updateArrowCurvature: (id: string, curvature: number) => void
   addZone: (zone: DiagramZone) => void
   updateZoneLabel: (id: string, label: string) => void
   updateZoneColor: (id: string, color: string) => void
@@ -93,15 +220,28 @@ interface TacticalBoardState {
   deleteSelected: () => void
   clearDiagram: () => void
 
+  // Actions: geometría de zonas (metros)
+  resizeZone: (id: string, rect: { x: number; y: number; width: number; height: number }) => void
+  setZoneSizeMeters: (id: string, largoM: number, anchoM: number) => void
+  setZoneRotation: (id: string, rotation: number) => void
+  setZonePlayingArea: (id: string) => void
+
   // Actions: undo/redo
   pushHistory: () => void
   undo: () => void
   redo: () => void
 
-  // Actions: clipboard + nudge
+  // Actions: clipboard + transformaciones + grupos
+  getSelection: () => DiagramSnapshot
   copySelected: () => void
-  pasteClipboard: () => void
+  cutSelected: () => void
+  pasteClipboard: (transform?: SelectionTransform) => void
   duplicateSelected: () => void
+  transformSelection: (transform: SelectionTransform) => void
+  groupSelection: () => void
+  ungroupSelection: () => void
+  /** Amplía una lista de ids para incluir a todos los miembros de sus grupos */
+  expandWithGroups: (ids: string[]) => string[]
   nudgeSelected: (dx: number, dy: number) => void
 
   // Actions: formations
@@ -145,7 +285,7 @@ const initialState = {
   arrowCounter: 1,
   history: [] as DiagramSnapshot[],
   historyIndex: -1,
-  clipboard: null as ClipboardItem | null,
+  clipboard: null as DiagramSnapshot | null,
 }
 
 export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
@@ -158,17 +298,34 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
   setPitchType: (pitchType) => set({ pitchType, isDirty: true }),
   setTags: (tags) => set({ tags, isDirty: true }),
   setActiveTool: (activeTool) => set({ activeTool, selectedElementId: null, selectedElementIds: [] }),
-  setSelectedElementId: (selectedElementId) => set({ selectedElementId, selectedElementIds: [] }),
-  setSelectedElementIds: (ids) => set({
-    selectedElementIds: ids,
-    selectedElementId: ids.length === 1 ? ids[0] : null,
-  }),
-  addToSelection: (id) => set((s) => {
-    const newIds = s.selectedElementIds.includes(id)
-      ? s.selectedElementIds.filter((i) => i !== id)
-      : [...s.selectedElementIds, id]
-    return { selectedElementIds: newIds, selectedElementId: newIds.length === 1 ? newIds[0] : null }
-  }),
+  setSelectedElementId: (selectedElementId) => {
+    if (!selectedElementId) {
+      set({ selectedElementId: null, selectedElementIds: [] })
+      return
+    }
+    // Pinchar un miembro de un grupo selecciona el grupo entero
+    const ids = get().expandWithGroups([selectedElementId])
+    set({
+      selectedElementId: ids.length === 1 ? selectedElementId : null,
+      selectedElementIds: ids.length === 1 ? [] : ids,
+    })
+  },
+  setSelectedElementIds: (ids) => {
+    const expanded = get().expandWithGroups(ids)
+    set({
+      selectedElementIds: expanded,
+      selectedElementId: expanded.length === 1 ? expanded[0] : null,
+    })
+  },
+  addToSelection: (id) => {
+    const s = get()
+    const members = s.expandWithGroups([id])
+    const already = members.every((m) => s.selectedElementIds.includes(m))
+    const newIds = already
+      ? s.selectedElementIds.filter((i) => !members.includes(i))
+      : Array.from(new Set([...s.selectedElementIds, ...members]))
+    set({ selectedElementIds: newIds, selectedElementId: newIds.length === 1 ? newIds[0] : null })
+  },
   selectAll: () => {
     const { elements, arrows, zones } = get()
     const ids = [...elements.map((e) => e.id), ...arrows.map((a) => a.id), ...zones.map((z) => z.id)]
@@ -205,7 +362,11 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
   },
 
   moveSelectedBy: (dx, dy) => {
-    const { selectedElementIds } = get()
+    const state = get()
+    const selectedElementIds = [
+      ...state.selectedElementIds,
+      ...(state.selectedElementId ? [state.selectedElementId] : []),
+    ]
     if (selectedElementIds.length === 0 || (dx === 0 && dy === 0)) return
     set((s) => ({
       elements: s.elements.map((el) =>
@@ -284,6 +445,21 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
     }))
   },
 
+  updateArrowType: (id, type) => {
+    set((s) => ({
+      // Al cambiar de tipo se adopta el color por defecto salvo que se haya personalizado
+      arrows: s.arrows.map((ar) => ar.id === id ? { ...ar, type, color: undefined } : ar),
+      isDirty: true,
+    }))
+  },
+
+  updateArrowCurvature: (id, curvature) => {
+    set((s) => ({
+      arrows: s.arrows.map((ar) => ar.id === id ? { ...ar, curvature } : ar),
+      isDirty: true,
+    }))
+  },
+
   addZone: (zone) => {
     set((s) => ({
       zones: [...s.zones, zone],
@@ -330,6 +506,52 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
       zones: s.zones.filter((z) => !idsToDelete.has(z.id)),
       selectedElementId: null,
       selectedElementIds: [],
+      isDirty: true,
+    }))
+  },
+
+  // Geometría de zonas (los metros salen de aquí)
+  resizeZone: (id, rect) => {
+    const norm = normalizeRect(rect.x, rect.y, rect.width, rect.height)
+    // Mínimo 1 m de lado para que la zona siga siendo agarrable
+    if (norm.width < 10 || norm.height < 10) return
+    set((s) => ({
+      zones: s.zones.map((z) => z.id === id ? { ...z, ...norm } : z),
+      isDirty: true,
+    }))
+  },
+
+  setZoneSizeMeters: (id, largoM, anchoM) => {
+    const width = Math.max(10, Math.round(metersToUnits(largoM)))
+    const height = Math.max(10, Math.round(metersToUnits(anchoM)))
+    set((s) => ({
+      zones: s.zones.map((z) => {
+        if (z.id !== id) return z
+        // Se redimensiona desde el centro para que la zona no "salte"
+        const cx = z.position.x + z.width / 2
+        const cy = z.position.y + z.height / 2
+        return {
+          ...z,
+          width,
+          height,
+          position: { x: Math.round(cx - width / 2), y: Math.round(cy - height / 2) },
+        }
+      }),
+      isDirty: true,
+    }))
+  },
+
+  setZoneRotation: (id, rotation) => {
+    set((s) => ({
+      zones: s.zones.map((z) => z.id === id ? { ...z, rotation } : z),
+      isDirty: true,
+    }))
+  },
+
+  setZonePlayingArea: (id) => {
+    set((s) => ({
+      // Solo una zona puede ser el espacio de juego de referencia
+      zones: s.zones.map((z) => ({ ...z, isPlayingArea: z.id === id ? !z.isPlayingArea : false })),
       isDirty: true,
     }))
   },
@@ -390,84 +612,157 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
     })
   },
 
-  // Clipboard + nudge
-  copySelected: () => {
-    const { selectedElementId, elements, arrows, zones } = get()
-    if (!selectedElementId) return
-    const element = elements.find((e) => e.id === selectedElementId)
-    if (element) { set({ clipboard: { kind: 'element', data: element } }); return }
-    const arrow = arrows.find((a) => a.id === selectedElementId)
-    if (arrow) { set({ clipboard: { kind: 'arrow', data: arrow } }); return }
-    const zone = zones.find((z) => z.id === selectedElementId)
-    if (zone) { set({ clipboard: { kind: 'zone', data: zone } }); return }
+  // Clipboard + transformaciones + grupos
+  expandWithGroups: (ids) => {
+    const { elements, arrows, zones } = get()
+    const idSet = new Set(ids)
+    const all = [
+      ...elements.map((e) => ({ id: e.id, groupId: e.groupId })),
+      ...arrows.map((a) => ({ id: a.id, groupId: a.groupId })),
+      ...zones.map((z) => ({ id: z.id, groupId: z.groupId })),
+    ]
+    const groupIds = new Set(
+      all.filter((it) => idSet.has(it.id) && it.groupId).map((it) => it.groupId as string)
+    )
+    if (groupIds.size === 0) return ids
+    all.forEach((it) => { if (it.groupId && groupIds.has(it.groupId)) idSet.add(it.id) })
+    return Array.from(idSet)
   },
 
-  pasteClipboard: () => {
+  getSelection: () => {
+    const { selectedElementId, selectedElementIds, elements, arrows, zones } = get()
+    const ids = new Set([...selectedElementIds, ...(selectedElementId ? [selectedElementId] : [])])
+    return {
+      elements: elements.filter((el) => ids.has(el.id)),
+      arrows: arrows.filter((ar) => ids.has(ar.id)),
+      zones: zones.filter((z) => ids.has(z.id)),
+    }
+  },
+
+  copySelected: () => {
+    const sel = get().getSelection()
+    if (sel.elements.length === 0 && sel.arrows.length === 0 && sel.zones.length === 0) return
+    set({ clipboard: JSON.parse(JSON.stringify(sel)) })
+  },
+
+  cutSelected: () => {
+    get().copySelected()
+    get().deleteSelected()
+  },
+
+  pasteClipboard: (transform) => {
     const { clipboard } = get()
     if (!clipboard) return
+    const count = clipboard.elements.length + clipboard.arrows.length + clipboard.zones.length
+    if (count === 0) return
     get().pushHistory()
-    const OFFSET = 20
-    if (clipboard.kind === 'element') {
-      const el = clipboard.data
-      const newEl: DiagramElement = { ...el, id: generateId(), position: { x: el.position.x + OFFSET, y: el.position.y + OFFSET } }
-      set((s) => ({ elements: [...s.elements, newEl], selectedElementId: newEl.id, isDirty: true, activeTool: 'select' }))
-    } else if (clipboard.kind === 'arrow') {
-      const ar = clipboard.data
-      const newAr: DiagramArrow = { ...ar, id: generateId(), from: { x: ar.from.x + OFFSET, y: ar.from.y + OFFSET }, to: { x: ar.to.x + OFFSET, y: ar.to.y + OFFSET } }
-      set((s) => ({ arrows: [...s.arrows, newAr], selectedElementId: newAr.id, isDirty: true, activeTool: 'select' }))
-    } else if (clipboard.kind === 'zone') {
-      const z = clipboard.data
-      const newZ: DiagramZone = { ...z, id: generateId(), position: { x: z.position.x + OFFSET, y: z.position.y + OFFSET } }
-      set((s) => ({ zones: [...s.zones, newZ], selectedElementId: newZ.id, isDirty: true, activeTool: 'select' }))
-    }
+
+    const OFFSET = 24
+    // Sin transformación explícita se pega desplazado; con ella se pega en el sitio
+    const t: SelectionTransform = transform
+      ? transform
+      : { dx: OFFSET, dy: OFFSET }
+    const pasted = cloneSnapshot(transformSnapshot(JSON.parse(JSON.stringify(clipboard)), t))
+
+    const newIds = [
+      ...pasted.elements.map((e) => e.id),
+      ...pasted.arrows.map((a) => a.id),
+      ...pasted.zones.map((z) => z.id),
+    ]
+
+    set((s) => ({
+      elements: [...s.elements, ...pasted.elements],
+      arrows: [...s.arrows, ...pasted.arrows],
+      zones: [...s.zones, ...pasted.zones],
+      selectedElementIds: newIds,
+      selectedElementId: newIds.length === 1 ? newIds[0] : null,
+      isDirty: true,
+      activeTool: 'select',
+    }))
   },
 
   duplicateSelected: () => {
-    const { selectedElementId, elements, arrows, zones } = get()
-    if (!selectedElementId) return
+    const sel = get().getSelection()
+    const count = sel.elements.length + sel.arrows.length + sel.zones.length
+    if (count === 0) return
     get().pushHistory()
-    const OFFSET = 20
-    const element = elements.find((e) => e.id === selectedElementId)
-    if (element) {
-      const newEl: DiagramElement = { ...element, id: generateId(), position: { x: element.position.x + OFFSET, y: element.position.y + OFFSET } }
-      set((s) => ({ elements: [...s.elements, newEl], selectedElementId: newEl.id, isDirty: true }))
-      return
-    }
-    const arrow = arrows.find((a) => a.id === selectedElementId)
-    if (arrow) {
-      const newAr: DiagramArrow = { ...arrow, id: generateId(), from: { x: arrow.from.x + OFFSET, y: arrow.from.y + OFFSET }, to: { x: arrow.to.x + OFFSET, y: arrow.to.y + OFFSET } }
-      set((s) => ({ arrows: [...s.arrows, newAr], selectedElementId: newAr.id, isDirty: true }))
-      return
-    }
-    const zone = zones.find((z) => z.id === selectedElementId)
-    if (zone) {
-      const newZ: DiagramZone = { ...zone, id: generateId(), position: { x: zone.position.x + OFFSET, y: zone.position.y + OFFSET } }
-      set((s) => ({ zones: [...s.zones, newZ], selectedElementId: newZ.id, isDirty: true }))
-    }
+    const OFFSET = 24
+    const copy = cloneSnapshot(
+      transformSnapshot(JSON.parse(JSON.stringify(sel)), { dx: OFFSET, dy: OFFSET })
+    )
+    const newIds = [
+      ...copy.elements.map((e) => e.id),
+      ...copy.arrows.map((a) => a.id),
+      ...copy.zones.map((z) => z.id),
+    ]
+    set((s) => ({
+      elements: [...s.elements, ...copy.elements],
+      arrows: [...s.arrows, ...copy.arrows],
+      zones: [...s.zones, ...copy.zones],
+      selectedElementIds: newIds,
+      selectedElementId: newIds.length === 1 ? newIds[0] : null,
+      isDirty: true,
+    }))
+  },
+
+  transformSelection: (transform) => {
+    const sel = get().getSelection()
+    const count = sel.elements.length + sel.arrows.length + sel.zones.length
+    if (count === 0) return
+    get().pushHistory()
+    const transformed = transformSnapshot(JSON.parse(JSON.stringify(sel)), transform)
+
+    const elMap = new Map(transformed.elements.map((e) => [e.id, e]))
+    const arMap = new Map(transformed.arrows.map((a) => [a.id, a]))
+    const znMap = new Map(transformed.zones.map((z) => [z.id, z]))
+
+    set((s) => ({
+      elements: s.elements.map((el) => elMap.get(el.id) || el),
+      arrows: s.arrows.map((ar) => arMap.get(ar.id) || ar),
+      zones: s.zones.map((z) => znMap.get(z.id) || z),
+      isDirty: true,
+    }))
+  },
+
+  groupSelection: () => {
+    const sel = get().getSelection()
+    const ids = new Set([
+      ...sel.elements.map((e) => e.id),
+      ...sel.arrows.map((a) => a.id),
+      ...sel.zones.map((z) => z.id),
+    ])
+    if (ids.size < 2) return
+    get().pushHistory()
+    const groupId = generateId()
+    set((s) => ({
+      elements: s.elements.map((el) => (ids.has(el.id) ? { ...el, groupId } : el)),
+      arrows: s.arrows.map((ar) => (ids.has(ar.id) ? { ...ar, groupId } : ar)),
+      zones: s.zones.map((z) => (ids.has(z.id) ? { ...z, groupId } : z)),
+      isDirty: true,
+    }))
+  },
+
+  ungroupSelection: () => {
+    const sel = get().getSelection()
+    const ids = new Set([
+      ...sel.elements.map((e) => e.id),
+      ...sel.arrows.map((a) => a.id),
+      ...sel.zones.map((z) => z.id),
+    ])
+    if (ids.size === 0) return
+    get().pushHistory()
+    const strip = <T extends { id: string; groupId?: string }>(it: T): T =>
+      ids.has(it.id) ? { ...it, groupId: undefined } : it
+    set((s) => ({
+      elements: s.elements.map(strip),
+      arrows: s.arrows.map(strip),
+      zones: s.zones.map(strip),
+      isDirty: true,
+    }))
   },
 
   nudgeSelected: (dx, dy) => {
-    const { selectedElementId, elements, zones } = get()
-    if (!selectedElementId) return
-    const element = elements.find((e) => e.id === selectedElementId)
-    if (element) {
-      set((s) => ({
-        elements: s.elements.map((el) =>
-          el.id === selectedElementId ? { ...el, position: { x: el.position.x + dx, y: el.position.y + dy } } : el
-        ),
-        isDirty: true,
-      }))
-      return
-    }
-    const zone = zones.find((z) => z.id === selectedElementId)
-    if (zone) {
-      set((s) => ({
-        zones: s.zones.map((z) =>
-          z.id === selectedElementId ? { ...z, position: { x: z.position.x + dx, y: z.position.y + dy } } : z
-        ),
-        isDirty: true,
-      }))
-    }
+    get().moveSelectedBy(dx, dy)
   },
 
   // Formations
