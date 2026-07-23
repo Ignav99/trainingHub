@@ -41,6 +41,13 @@ export interface SesionCreateData {
   orden?: number
   plan_partido_id?: string
   fase_plan?: string
+  // Variables de diseño de sesión (docs/mejoras/variables_sesion.png)
+  espacio_disponible?: string
+  jugadores_campo?: number
+  numero_sesion?: number
+  objetivos?: string[]
+  contenidos_ofensivos?: string[]
+  contenidos_defensivos?: string[]
 }
 
 export interface SesionUpdateData extends Partial<SesionCreateData> {

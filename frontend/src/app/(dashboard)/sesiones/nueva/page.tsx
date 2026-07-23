@@ -17,6 +17,13 @@ import {
 import { sesionesApi, SesionCreateData, recomendadorApi } from '@/lib/api/sesiones'
 import { tareasApi } from '@/lib/api/tareas'
 import { microciclosApi } from '@/lib/api/microciclos'
+import { MultiSelect } from '@/components/ui/multi-select'
+import {
+  OBJETIVOS_TAREA,
+  CONTENIDOS_OFENSIVOS,
+  CONTENIDOS_DEFENSIVOS,
+  FASES_JUEGO,
+} from '@/lib/catalogos/canonico'
 import { planPartidoApi } from '@/lib/api/planPartido'
 import { Tarea, AIRecomendadorOutput, AIFaseRecomendacion, Microciclo, PlanPartido } from '@/types'
 import { useEquipoStore } from '@/stores/equipoStore'
@@ -77,6 +84,13 @@ export default function NuevaSesionPage() {
     notas_pre: '',
     plan_partido_id: planPartidoIdFromQuery || undefined,
     fase_plan: '',
+    // Variables de diseño: con esto se filtran las sesiones y se recomiendan tareas
+    espacio_disponible: 'campo_completo',
+    jugadores_campo: undefined,
+    numero_sesion: undefined,
+    objetivos: [],
+    contenidos_ofensivos: [],
+    contenidos_defensivos: [],
   })
 
   // Tareas seleccionadas
@@ -336,31 +350,59 @@ export default function NuevaSesionPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
             <div className="flex items-center gap-2 text-primary mb-4">
               <Calendar className="h-5 w-5" />
-              <h2 className="text-lg font-semibold">Configuración de la sesión</h2>
+              <h2 className="text-lg font-semibold">Completa la información de tu sesión</h2>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Título *
+              </label>
+              <input
+                type="text"
+                value={formData.titulo}
+                onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                placeholder="Ej: Sesión trabajo salida de balón"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Título *
-                </label>
-                <input
-                  type="text"
-                  value={formData.titulo}
-                  onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                  placeholder="Ej: Sesión trabajo salida de balón"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Fecha *
+                  Día de entrenamiento *
                 </label>
                 <input
                   type="date"
                   value={formData.fecha}
                   onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Microciclo
+                </label>
+                <input
+                  type="text"
+                  readOnly
+                  value={microcicloContexto
+                    ? `${new Date(microcicloContexto.fecha_inicio).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })} – ${new Date(microcicloContexto.fecha_fin).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}`
+                    : '—'}
+                  title="Se toma del microciclo desde el que se crea la sesión"
+                  className="w-full px-4 py-2 border border-gray-200 bg-gray-50 text-gray-600 rounded-lg outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Número de sesión
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={formData.numero_sesion ?? ''}
+                  onChange={(e) => setFormData({ ...formData, numero_sesion: parseInt(e.target.value) || undefined })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                  placeholder="Ej: 70"
                 />
               </div>
             </div>
@@ -451,6 +493,85 @@ export default function NuevaSesionPage() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                   placeholder="Ej: Liga Nacional Juvenil"
                 />
+              </div>
+            </div>
+
+            {/* ¿Qué necesitas trabajar? — variables con las que luego se filtran
+                las sesiones y se recomiendan tareas */}
+            <div className="pt-2 border-t border-gray-100">
+              <h3 className="text-base font-semibold text-primary mb-3">¿Qué necesitas trabajar?</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Espacio disponible</label>
+                  <select
+                    value={formData.espacio_disponible || ''}
+                    onChange={(e) => setFormData({ ...formData, espacio_disponible: e.target.value || undefined })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm"
+                  >
+                    <option value="campo_completo">Campo completo</option>
+                    <option value="medio_campo">Medio campo</option>
+                    <option value="area_doble">Doble área</option>
+                    <option value="area_simple">Un área</option>
+                    <option value="gimnasio">Gimnasio</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Jugadores de campo</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={40}
+                    value={formData.jugadores_campo ?? ''}
+                    onChange={(e) => setFormData({ ...formData, jugadores_campo: parseInt(e.target.value) || undefined })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm"
+                    placeholder={String(jugadoresCount)}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fases de juego</label>
+                  <select
+                    value={formData.fase_juego_principal || ''}
+                    onChange={(e) => setFormData({ ...formData, fase_juego_principal: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm"
+                  >
+                    <option value="">Selecciona...</option>
+                    {FASES_JUEGO.map((f) => (
+                      <option key={f.codigo} value={f.codigo}>{f.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Objetivos</label>
+                  <MultiSelect
+                    options={OBJETIVOS_TAREA}
+                    value={formData.objetivos || []}
+                    onChange={(v) => setFormData({ ...formData, objetivos: v })}
+                    placeholder="Selecciona..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Contenidos ofensivos</label>
+                  <MultiSelect
+                    options={CONTENIDOS_OFENSIVOS}
+                    value={formData.contenidos_ofensivos || []}
+                    onChange={(v) => setFormData({ ...formData, contenidos_ofensivos: v })}
+                    placeholder="Selecciona..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Contenidos defensivos</label>
+                  <MultiSelect
+                    options={CONTENIDOS_DEFENSIVOS}
+                    value={formData.contenidos_defensivos || []}
+                    onChange={(v) => setFormData({ ...formData, contenidos_defensivos: v })}
+                    placeholder="Selecciona..."
+                  />
+                </div>
               </div>
             </div>
 

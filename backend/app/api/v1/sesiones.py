@@ -436,8 +436,26 @@ async def create_sesion(
         if sesion_data.get(key) is not None and hasattr(sesion_data[key], "value"):
             sesion_data[key] = sesion_data[key].value
 
+    # Columnas que aporta la migracion 055; si aun no esta aplicada se crea sin ellas
+    COLUMNAS_055 = (
+        "espacio_disponible", "jugadores_campo", "numero_sesion",
+        "objetivos", "contenidos_ofensivos", "contenidos_defensivos",
+    )
+
     # Insertar
-    response = supabase.table("sesiones").insert(sesion_data).execute()
+    try:
+        response = supabase.table("sesiones").insert(sesion_data).execute()
+    except Exception as e:
+        msg = str(e)
+        if any(col in msg for col in COLUMNAS_055):
+            logger.warning(
+                "Migracion 055 sin aplicar: se crea la sesion sin las variables de diseno"
+            )
+            for col in COLUMNAS_055:
+                sesion_data.pop(col, None)
+            response = supabase.table("sesiones").insert(sesion_data).execute()
+        else:
+            raise
 
     if not response or not response.data:
         raise HTTPException(

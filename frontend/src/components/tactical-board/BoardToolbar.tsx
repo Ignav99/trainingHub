@@ -333,7 +333,7 @@ export default function BoardToolbar({
               ? 'Clic y arrastra para dibujar la zona; después ajusta sus lados en metros desde el panel o arrastrando las esquinas'
               : activeTool === 'text'
                 ? 'Clic en el campo para colocar un texto'
-                : `Clic en el campo para colocar: ${ELEMENT_TOOLS.find((t) => t.type === activeTool)?.label || activeTool}`}
+                : `Colocando ${ELEMENT_TOOLS.find((t) => t.type === activeTool)?.label || activeTool}: pica en el campo tantas veces como necesites · Esc para terminar`}
         </div>
       )}
       {activeTool === 'select' && (

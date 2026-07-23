@@ -92,6 +92,12 @@ export interface SpaceClassification {
   nivelCognitivo: 1 | 2 | 3
   /** Color de acento para la UI */
   color: string
+  /** Capacidad física dominante que estimula este espacio */
+  capacidad: CapacidadInfo
+  /** Demandas del partido que se replican con este área por jugador */
+  demandas: DemandasReplicadas
+  /** La tarea tiene porteros (cambia los umbrales) */
+  conPorteros: boolean
 }
 
 interface Banda {
@@ -183,21 +189,158 @@ const BANDAS: Banda[] = [
  * Clasifica un espacio de juego a partir de su superficie y de los jugadores implicados.
  * Devuelve `null` si no hay datos suficientes.
  */
-export function classifySpace(areaM2: number, jugadores: number): SpaceClassification | null {
+
+// ============ Capacidad condicional dominante ============
+
+/**
+ * Qué capacidad física estimula el espacio.
+ *
+ * Umbrales tomados de la literatura de juegos reducidos (ver `docs/`):
+ * - Por debajo de ~50 m²/jugador no se alcanza distancia de sprint; el estímulo
+ *   es neuromuscular (aceleraciones, desaceleraciones, cambios de dirección).
+ *   El 4v4 es el formato con más ACC/DEC, equivalente a los picos de partido.
+ * - El área por jugador correlaciona positivamente con la carrera de alta
+ *   velocidad y el sprint (r ≈ 0,56–0,71) y negativamente con ACC/DEC
+ *   (r ≈ −0,46) y con la densidad técnica (r ≈ −0,53).
+ * - Para replicar las demandas del partido hace falta más espacio cuanto mayor
+ *   es el umbral de velocidad: distancia total < alta intensidad < sprint.
+ * - Un 11v11 en campo reglamentario son ~320 m²/jugador.
+ *
+ * Guía práctica habitual: fuerza → 2-3 jugadores por equipo en ~50 m²/jugador;
+ * velocidad → equipos amplios en 200-300 m²/jugador; resistencia → pocos
+ * jugadores y espacios amplios.
+ */
+export type CapacidadFisica =
+  | 'fuerza'
+  | 'fuerza_resistencia'
+  | 'resistencia'
+  | 'resistencia_velocidad'
+  | 'velocidad'
+
+export interface CapacidadInfo {
+  codigo: CapacidadFisica
+  nombre: string
+  /** Qué ocurre a nivel condicional en esta franja */
+  detalle: string
+  /** Código de `TIPOS_ESFUERZO` del catálogo canónico */
+  tipoEsfuerzo: string
+  color: string
+}
+
+const CAPACIDADES: { max: number; info: CapacidadInfo }[] = [
+  {
+    max: 50,
+    info: {
+      codigo: 'fuerza',
+      nombre: 'Fuerza',
+      detalle:
+        'Por debajo de 50 m²/jugador no se alcanza distancia de sprint. El estímulo es neuromuscular puro: aceleraciones, desaceleraciones, cambios de dirección, duelos y contactos. Máxima densidad técnica.',
+      tipoEsfuerzo: 'fuerza',
+      color: '#EF4444',
+    },
+  },
+  {
+    max: 120,
+    info: {
+      codigo: 'fuerza_resistencia',
+      nombre: 'Fuerza-resistencia',
+      detalle:
+        'Franja de máxima frecuencia de aceleraciones y desaceleraciones (el 4v4 iguala aquí los picos del partido). Carga neuromuscular alta y sostenida, con carrera de alta velocidad todavía escasa.',
+      tipoEsfuerzo: 'intermitente_alto',
+      color: '#F97316',
+    },
+  },
+  {
+    max: 200,
+    info: {
+      codigo: 'resistencia',
+      nombre: 'Resistencia',
+      detalle:
+        'Se replica la distancia total del partido y empieza a aparecer la carrera de alta intensidad. Trabajo aeróbico-anaeróbico con recorridos largos por acción.',
+      tipoEsfuerzo: 'intermitente_medio',
+      color: '#EAB308',
+    },
+  },
+  {
+    max: 300,
+    info: {
+      codigo: 'resistencia_velocidad',
+      nombre: 'Resistencia-velocidad',
+      detalle:
+        'Se replican las demandas de carrera de alta y muy alta intensidad. Baja la densidad de acciones técnicas y sube el recorrido a alta velocidad.',
+      tipoEsfuerzo: 'mixto',
+      color: '#22C55E',
+    },
+  },
+  {
+    max: Infinity,
+    info: {
+      codigo: 'velocidad',
+      nombre: 'Velocidad',
+      detalle:
+        'Espacio de competición (~320 m²/jugador en 11v11). Es la única franja donde se replica la distancia de sprint; predominan las carreras máximas y los recorridos largos.',
+      tipoEsfuerzo: 'velocidad',
+      color: '#3B82F6',
+    },
+  },
+]
+
+export function capacidadPorEspacio(m2PorJugador: number): CapacidadInfo {
+  const banda = CAPACIDADES.find((c) => m2PorJugador < c.max) || CAPACIDADES[CAPACIDADES.length - 1]
+  return banda.info
+}
+
+/**
+ * Área por jugador necesaria para replicar cada demanda del partido.
+ * Cambia según haya porteros en la tarea (con portero el juego se estira).
+ */
+export const UMBRALES_DEMANDA = {
+  conPorteros: { distancia_total: 187, alta_intensidad: 262, sprint: 316 },
+  sinPorteros: { distancia_total: 115, alta_intensidad: 166, sprint: 295 },
+} as const
+
+export interface DemandasReplicadas {
+  distancia_total: boolean
+  alta_intensidad: boolean
+  sprint: boolean
+}
+
+/** Qué demandas de partido se replican con este espacio. */
+export function demandasReplicadas(m2PorJugador: number, conPorteros: boolean): DemandasReplicadas {
+  const u = conPorteros ? UMBRALES_DEMANDA.conPorteros : UMBRALES_DEMANDA.sinPorteros
+  return {
+    distancia_total: m2PorJugador >= u.distancia_total,
+    alta_intensidad: m2PorJugador >= u.alta_intensidad,
+    sprint: m2PorJugador >= u.sprint,
+  }
+}
+
+export function classifySpace(
+  areaM2: number,
+  jugadores: number,
+  opts: { conPorteros?: boolean } = {},
+): SpaceClassification | null {
   if (!areaM2 || areaM2 <= 0 || !jugadores || jugadores <= 0) return null
   const m2PorJugador = Math.round((areaM2 / jugadores) * 10) / 10
   const banda = BANDAS.find((b) => m2PorJugador < b.max) || BANDAS[BANDAS.length - 1]
+  const conPorteros = !!opts.conPorteros
+  const capacidad = capacidadPorEspacio(m2PorJugador)
   return {
     franja: banda.franja,
     etiqueta: banda.etiqueta,
     m2PorJugador,
     densidad: banda.densidad,
-    tipoEsfuerzo: banda.tipoEsfuerzo,
+    // El tipo de esfuerzo lo manda la capacidad condicional, que sale de los
+    // umbrales de la literatura y es mas fino que la franja de espacio
+    tipoEsfuerzo: capacidad.tipoEsfuerzo,
     categoriasSugeridas: banda.categoriasSugeridas,
     condicionalDominante: banda.condicionalDominante,
     fcEsperada: banda.fcEsperada,
     nivelCognitivo: banda.nivelCognitivo,
     color: banda.color,
+    capacidad,
+    demandas: demandasReplicadas(m2PorJugador, conPorteros),
+    conPorteros,
   }
 }
 
@@ -245,7 +388,7 @@ export function boardSpaceSummary(
     geometria,
     jugadores,
     porteros,
-    clasificacion: classifySpace(geometria.areaM2, jugadores),
+    clasificacion: classifySpace(geometria.areaM2, jugadores, { conPorteros: porteros > 0 }),
   }
 }
 

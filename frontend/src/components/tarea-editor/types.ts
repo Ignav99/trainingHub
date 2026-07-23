@@ -84,22 +84,24 @@ export const TEAM_COLORS = {
   goalkeeper: '#22C55E', // Verde
 }
 
-// Tamanos de elementos
+// Tamanos de elementos, en unidades de campo (10 unidades = 1 metro).
+// Un jugador ocupa ~1,6 m de diametro: a escala real del campo los iconos
+// tienen que ser pequenos, si no tapan el dibujo.
 export const ELEMENT_SIZES = {
-  player: 24,
-  player_gk: 24,
-  opponent: 24,
-  cone: 16,
-  ball: 14,
-  mini_goal: 40,
-  marker_disc: 14,
-  pole: 10,
-  mannequin: 20,
-  hurdle: 26,
-  ladder: 40,
-  flag: 12,
-  goal_large: 73,
-  ball_cart: 26,
+  player: 16,
+  player_gk: 16,
+  opponent: 16,
+  cone: 11,
+  ball: 9,
+  mini_goal: 30,
+  marker_disc: 10,
+  pole: 8,
+  mannequin: 13,
+  hurdle: 18,
+  ladder: 30,
+  flag: 9,
+  goal_large: 73, // porteria reglamentaria: 7,32 m
+  ball_cart: 18,
 }
 
 // Crear ID unico

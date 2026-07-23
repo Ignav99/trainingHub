@@ -368,10 +368,34 @@ export interface ElementSymbolProps {
 }
 
 /**
+ * Los símbolos de material se dibujaron sobre una retícula más grande que la
+ * medida real. Este factor los deja a escala del campo (10 unidades = 1 m).
+ * Jugadores y balón no lo necesitan: ya se dibujan a partir de `ELEMENT_SIZES`.
+ */
+const SYMBOL_SCALE: Partial<Record<ElementType, number>> = {
+  cone: 0.62,
+  marker_disc: 0.58,
+  pole: 0.62,
+  mannequin: 0.6,
+  hurdle: 0.6,
+  flag: 0.6,
+  mini_goal: 0.75,
+  ball_cart: 0.62,
+  // ladder y goal_large ya se dibujan a su medida real
+}
+
+/**
  * Dibuja un elemento centrado en (0,0). El `text` se excluye a propósito:
  * lo gestiona el editor porque tiene edición en línea.
  */
 export function ElementSymbol({ element, selected, uid }: ElementSymbolProps): React.ReactElement | null {
+  const escala = SYMBOL_SCALE[element.type]
+  const symbol = renderSymbol({ element, selected, uid })
+  if (!symbol) return null
+  return escala ? <g transform={`scale(${escala})`}>{symbol}</g> : symbol
+}
+
+function renderSymbol({ element, selected, uid }: ElementSymbolProps): React.ReactElement | null {
   switch (element.type) {
     case 'player':
     case 'opponent':

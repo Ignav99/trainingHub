@@ -9,7 +9,7 @@
  */
 
 import React, { useState } from 'react'
-import { Ruler, ChevronDown, ChevronUp, Wand2 } from 'lucide-react'
+import { Ruler, ChevronDown, ChevronUp, Wand2, Dumbbell, Check, Minus } from 'lucide-react'
 import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
 import {
   boardSpaceSummary,
@@ -41,7 +41,7 @@ export default function GeometryPanel({ numJugadores, onApplyEspacio }: Geometry
   // Si aún no hay jugadores dibujados se usan los de la tarea
   const jugadores = base.jugadores > 0 ? base.jugadores : (numJugadores || 0)
   const clasificacion = base.geometria
-    ? classifySpace(base.geometria.areaM2, jugadores)
+    ? classifySpace(base.geometria.areaM2, jugadores, { conPorteros: base.porteros > 0 })
     : null
   const summary = { ...base, jugadores, clasificacion }
 
@@ -124,6 +124,34 @@ export default function GeometryPanel({ numJugadores, onApplyEspacio }: Geometry
                 </p>
               </div>
 
+              {/* Capacidad condicional dominante */}
+              <div
+                className="rounded-lg px-2 py-1.5"
+                style={{ backgroundColor: `${clasificacion.capacidad.color}14`, border: `1px solid ${clasificacion.capacidad.color}55` }}
+              >
+                <div className="flex items-center gap-1.5">
+                  <Dumbbell className="h-3 w-3" style={{ color: clasificacion.capacidad.color }} />
+                  <span className="text-[11px] font-bold" style={{ color: clasificacion.capacidad.color }}>
+                    {clasificacion.capacidad.nombre}
+                  </span>
+                </div>
+                <p className="text-[10px] text-gray-600 leading-snug mt-1">
+                  {clasificacion.capacidad.detalle}
+                </p>
+              </div>
+
+              {/* Demandas de partido que se replican con este espacio */}
+              <div>
+                <div className="text-[9px] font-medium text-gray-400 uppercase mb-1">
+                  Replica del partido {clasificacion.conPorteros ? '(con portero)' : '(sin portero)'}
+                </div>
+                <div className="space-y-0.5">
+                  <Demanda ok={clasificacion.demandas.distancia_total} label="Distancia total" />
+                  <Demanda ok={clasificacion.demandas.alta_intensidad} label="Alta intensidad" />
+                  <Demanda ok={clasificacion.demandas.sprint} label="Sprint" />
+                </div>
+              </div>
+
               {/* Derivados */}
               <div className="space-y-1">
                 <Row label="Esfuerzo" value={nombreEsfuerzo(clasificacion.tipoEsfuerzo)} />
@@ -160,6 +188,22 @@ function Metric({ label, value, accent }: { label: string; value: string; accent
     <div className="bg-gray-50 rounded-lg px-2 py-1.5">
       <div className="text-[9px] font-medium text-gray-400 uppercase leading-none">{label}</div>
       <div className="text-[13px] font-bold mt-0.5" style={{ color: accent || '#111827' }}>{value}</div>
+    </div>
+  )
+}
+
+/** Una demanda del partido: se replica o no con este espacio. */
+function Demanda({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span
+        className={`flex h-3 w-3 items-center justify-center rounded-full ${
+          ok ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'
+        }`}
+      >
+        {ok ? <Check className="h-2 w-2" /> : <Minus className="h-2 w-2" />}
+      </span>
+      <span className={`text-[10px] ${ok ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>{label}</span>
     </div>
   )
 }

@@ -180,6 +180,14 @@ class SesionCreate(SesionBase):
     microciclo_id: Optional[UUID] = None
     dia_numero: Optional[int] = Field(None, ge=1, le=14)
     orden: Optional[int] = Field(None, ge=0)
+
+    # Variables de diseño de sesión (docs/mejoras/variables_sesion.png)
+    espacio_disponible: Optional[str] = None
+    jugadores_campo: Optional[int] = Field(None, ge=0, le=40)
+    numero_sesion: Optional[int] = None
+    objetivos: Optional[List[str]] = None
+    contenidos_ofensivos: Optional[List[str]] = None
+    contenidos_defensivos: Optional[List[str]] = None
     # Nested tareas are accepted by the API type for docs but MUST NOT be
     # inserted with the session row (breaks FK). Create then addTarea.
     tareas: Optional[List[SesionTareaCreate]] = None
@@ -211,6 +219,14 @@ class SesionUpdate(BaseModel):
     staff_asistentes: Optional[List[dict]] = None
     fase_notas: Optional[dict] = None
 
+    # Variables de diseño de sesión (docs/mejoras/variables_sesion.png)
+    espacio_disponible: Optional[str] = None
+    jugadores_campo: Optional[int] = Field(None, ge=0, le=40)
+    numero_sesion: Optional[int] = None
+    objetivos: Optional[List[str]] = None
+    contenidos_ofensivos: Optional[List[str]] = None
+    contenidos_defensivos: Optional[List[str]] = None
+
 
 class SesionResponse(SesionBase):
     """Schema de respuesta de sesión."""
@@ -231,6 +247,14 @@ class SesionResponse(SesionBase):
     materiales: Optional[List[str]] = None
     staff_asistentes: Optional[List[dict]] = None
     fase_notas: Optional[dict] = None
+
+    # Variables de diseño de sesión (docs/mejoras/variables_sesion.png)
+    espacio_disponible: Optional[str] = None
+    jugadores_campo: Optional[int] = Field(None, ge=0, le=40)
+    numero_sesion: Optional[int] = None
+    objetivos: Optional[List[str]] = None
+    contenidos_ofensivos: Optional[List[str]] = None
+    contenidos_defensivos: Optional[List[str]] = None
 
     created_at: datetime
     updated_at: datetime
