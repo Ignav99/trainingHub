@@ -105,6 +105,7 @@ import {
   TIPOS_EJERCICIO_MARGEN,
 } from '@/types'
 import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
+import TareaCreatorFullscreen, { type TareaCreatorData } from '@/components/tareas/TareaCreatorFullscreen'
 import { cargaApi } from '@/lib/api/carga'
 import { entrenamientosMargenApi } from '@/lib/api/entrenamientosMargen'
 import { medicoApi } from '@/lib/api/medico'
@@ -1020,8 +1021,7 @@ export default function SesionDetailPage() {
 
   // Task creation state (in picker)
   const [pickerTab, setPickerTab] = useState<'biblioteca' | 'crear'>('biblioteca')
-  const [newTaskForm, setNewTaskForm] = useState({ titulo: '', descripcion: '', duracion_total: 10 })
-  const [creatingTask, setCreatingTask] = useState(false)
+  const [creatorOpen, setCreatorOpen] = useState(false)
   const [aiCreatePrompt, setAiCreatePrompt] = useState('')
   const [aiCreating, setAiCreating] = useState(false)
 
@@ -1619,25 +1619,17 @@ export default function SesionDetailPage() {
   }, [taskPickerOpen, taskSearchQuery, taskSearchCategory, pickerTab])
 
   // ============ Task creation from scratch ============
-  const handleCreateTask = async () => {
-    if (!newTaskForm.titulo.trim()) return
-    setCreatingTask(true)
-    try {
-      const updated = await sesionesApi.createTareaInSesion(sesionId, {
-        titulo: newTaskForm.titulo,
-        descripcion: newTaskForm.descripcion || undefined,
-        duracion_total: newTaskForm.duracion_total,
-        fase_sesion: taskPickerFase,
-      })
-      setSesion(updated)
-      setTaskPickerOpen(false)
-      setNewTaskForm({ titulo: '', descripcion: '', duracion_total: 10 })
-    } catch (err: any) {
-      console.error('Error creating task:', err)
-      toast.error(err?.message || 'Error al crear tarea')
-    } finally {
-      setCreatingTask(false)
-    }
+  // La ficha completa llega de "Crea tu ejercicio" (TareaCreatorFullscreen)
+  const handleCreateTask = async (data: TareaCreatorData) => {
+    const updated = await sesionesApi.createTareaInSesion(sesionId, {
+      ...data,
+      fase_sesion: taskPickerFase,
+      descripcion: data.descripcion || undefined,
+      complejidad: data.complejidad || undefined,
+      forma_puntuar: data.forma_puntuar || undefined,
+    })
+    setSesion(updated)
+    setCreatorOpen(false)
   }
 
   const handleAiCreateTask = async () => {
@@ -3100,43 +3092,24 @@ export default function SesionDetailPage() {
             </>
           ) : (
             <div className="flex-1 overflow-y-auto space-y-4">
-              {/* Manual creation form */}
-              <div className="space-y-3">
-                <h4 className="text-sm font-semibold">Crear manualmente</h4>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Titulo *</label>
-                  <Input
-                    value={newTaskForm.titulo}
-                    onChange={(e) => setNewTaskForm(f => ({ ...f, titulo: e.target.value }))}
-                    placeholder="Nombre del ejercicio"
-                  />
+              {/* Creación manual — abre "Crea tu ejercicio" a pantalla completa */}
+              <button
+                onClick={() => { setTaskPickerOpen(false); setCreatorOpen(true) }}
+                className="w-full rounded-xl border-2 border-dashed border-border hover:border-primary hover:bg-primary/5 transition-colors p-6 text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
+                    <Plus className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">Crea tu ejercicio</p>
+                    <p className="text-xs text-muted-foreground">
+                      Dibuja el ejercicio en la pizarra táctica y completa la ficha (tipo, contenidos,
+                      volumen y espacio de trabajo).
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Descripcion</label>
-                  <Textarea
-                    value={newTaskForm.descripcion}
-                    onChange={(e) => setNewTaskForm(f => ({ ...f, descripcion: e.target.value }))}
-                    placeholder="Descripcion del ejercicio..."
-                    rows={2}
-                  />
-                </div>
-                <div className="w-32">
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Duracion (min)</label>
-                  <Input
-                    type="number"
-                    value={newTaskForm.duracion_total}
-                    onChange={(e) => setNewTaskForm(f => ({ ...f, duracion_total: parseInt(e.target.value) || 10 }))}
-                  />
-                </div>
-                <Button
-                  onClick={handleCreateTask}
-                  disabled={creatingTask || !newTaskForm.titulo.trim()}
-                  size="sm"
-                >
-                  {creatingTask ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
-                  Crear tarea
-                </Button>
-              </div>
+              </button>
 
               {/* AI creation */}
               <div className="border-t pt-4 space-y-3">
@@ -3319,6 +3292,16 @@ export default function SesionDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* "Crea tu ejercicio" — creador de tarea a pantalla completa */}
+      <TareaCreatorFullscreen
+        open={creatorOpen}
+        onClose={() => setCreatorOpen(false)}
+        onSubmit={handleCreateTask}
+        onClonar={() => { setCreatorOpen(false); setPickerTab('biblioteca'); setTaskPickerOpen(true) }}
+        numJugadoresDefault={Array.from(asistencias.values()).filter((a) => a.presente).length || 16}
+        faseLabel={FASE_LABELS[taskPickerFase] || taskPickerFase}
+      />
 
     </div>
   )

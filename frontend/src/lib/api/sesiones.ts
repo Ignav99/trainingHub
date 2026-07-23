@@ -256,6 +256,24 @@ export const sesionesApi = {
     errores_comunes?: string
     progresiones?: string
     posicion_entrenador?: string
+    // Ficha completa de "Crea tu ejercicio" (docs/mejoras/crear_tarea.png)
+    categoria_id?: string
+    num_porteros?: number
+    espacio_forma?: string
+    duracion_serie?: number
+    tiempo_descanso?: number
+    complejidad?: string
+    forma_puntuar?: string
+    dificultad?: number
+    exigencia?: number
+    tags?: string[]
+    consignas_ofensivas?: string[]
+    consignas_defensivas?: string[]
+    grafico_data?: unknown
+    m2_por_jugador?: number
+    tipo_esfuerzo?: string
+    fc_esperada_min?: number
+    fc_esperada_max?: number
   }): Promise<Sesion> {
     return api.post<Sesion>(`/sesiones/${sesionId}/tareas/crear`, data)
   },
