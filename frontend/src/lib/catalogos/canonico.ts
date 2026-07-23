@@ -254,3 +254,82 @@ export function normalizeFaseJuego(value: string | null | undefined): FaseJuegoC
   }
   return FASE_JUEGO_ALIASES[value] ?? null
 }
+
+// ============================================================
+// Contenidos y objetivos de tarea
+// Usados por el formulario "Crea tu ejercicio" (ver docs/mejoras/crear_tarea.png).
+// ============================================================
+
+/** Contenidos ofensivos → se guardan en `tareas.consignas_ofensivas`. */
+export const CONTENIDOS_OFENSIVOS = [
+  { codigo: 'pase_circulacion', nombre: 'Pase y circulación' },
+  { codigo: 'tercer_hombre', nombre: 'Tercer hombre' },
+  { codigo: 'pared', nombre: 'Pared' },
+  { codigo: 'descargas', nombre: 'Descargas' },
+  { codigo: 'desdoblamientos', nombre: 'Desdoblamientos' },
+  { codigo: 'desmarques', nombre: 'Desmarques' },
+  { codigo: 'conduccion', nombre: 'Conducción' },
+  { codigo: 'regate', nombre: 'Regate' },
+  { codigo: 'control_orientado', nombre: 'Control orientado' },
+  { codigo: 'cobertura_balon', nombre: 'Cobertura de balón' },
+  { codigo: 'amplitud', nombre: 'Amplitud' },
+  { codigo: 'profundidad', nombre: 'Profundidad' },
+  { codigo: 'cambio_orientacion', nombre: 'Cambio de orientación' },
+  { codigo: 'superioridad', nombre: 'Generar superioridad' },
+  { codigo: 'centro', nombre: 'Centro' },
+  { codigo: 'remate', nombre: 'Remate' },
+  { codigo: 'tiro', nombre: 'Tiro' },
+  { codigo: 'finalizacion', nombre: 'Finalización' },
+] as const
+
+/** Contenidos defensivos → se guardan en `tareas.consignas_defensivas`. */
+export const CONTENIDOS_DEFENSIVOS = [
+  { codigo: 'presion_tras_perdida', nombre: 'Presión tras pérdida' },
+  { codigo: 'acoso', nombre: 'Acoso' },
+  { codigo: 'entrada', nombre: 'Entrada' },
+  { codigo: 'vigilancias', nombre: 'Vigilancias' },
+  { codigo: 'coberturas', nombre: 'Coberturas' },
+  { codigo: 'permutas', nombre: 'Permutas' },
+  { codigo: 'basculacion', nombre: 'Basculación' },
+  { codigo: 'repliegue', nombre: 'Repliegue' },
+  { codigo: 'marcaje', nombre: 'Marcaje' },
+  { codigo: 'anticipacion', nombre: 'Anticipación' },
+  { codigo: 'temporizacion', nombre: 'Temporización' },
+  { codigo: 'achique', nombre: 'Achique de espacios' },
+  { codigo: 'fuera_de_juego', nombre: 'Fuera de juego' },
+  { codigo: 'repliegue_intensivo', nombre: 'Repliegue intensivo' },
+] as const
+
+/** Objetivos de la tarea → se guardan en `tareas.tags`. */
+export const OBJETIVOS_TAREA = [
+  { codigo: 'salida_balon', nombre: 'Salida de balón' },
+  { codigo: 'progresion', nombre: 'Progresión' },
+  { codigo: 'juego_entre_lineas', nombre: 'Juego entre líneas' },
+  { codigo: 'ocupacion_espacios', nombre: 'Ocupación de espacios' },
+  { codigo: 'conservacion', nombre: 'Conservación del balón' },
+  { codigo: 'ataque_espacios', nombre: 'Ataque de espacios' },
+  { codigo: 'juego_banda', nombre: 'Juego por banda' },
+  { codigo: 'juego_interior', nombre: 'Juego interior' },
+  { codigo: 'transicion_rapida', nombre: 'Transición rápida' },
+  { codigo: 'presion_alta', nombre: 'Presión alta' },
+  { codigo: 'repliegue_organizado', nombre: 'Repliegue organizado' },
+  { codigo: 'toma_decision', nombre: 'Toma de decisión' },
+  { codigo: 'velocidad_ejecucion', nombre: 'Velocidad de ejecución' },
+  { codigo: 'finalizacion', nombre: 'Finalización' },
+] as const
+
+/** Escala 1-5 de dificultad y exigencia (los puntitos de la biblioteca). */
+export const ESCALA_1_5 = [
+  { codigo: 1, nombre: 'Muy baja' },
+  { codigo: 2, nombre: 'Baja' },
+  { codigo: 3, nombre: 'Media' },
+  { codigo: 4, nombre: 'Alta' },
+  { codigo: 5, nombre: 'Muy alta' },
+] as const
+
+export const nombreContenidoOfensivo = (codigo: string) =>
+  CONTENIDOS_OFENSIVOS.find((c) => c.codigo === codigo)?.nombre || codigo
+export const nombreContenidoDefensivo = (codigo: string) =>
+  CONTENIDOS_DEFENSIVOS.find((c) => c.codigo === codigo)?.nombre || codigo
+export const nombreObjetivo = (codigo: string) =>
+  OBJETIVOS_TAREA.find((o) => o.codigo === codigo)?.nombre || codigo

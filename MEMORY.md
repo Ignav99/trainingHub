@@ -30,9 +30,30 @@ hace `select("*")`, así que la biblioteca ya recibe `frames` y anima en bucle.
 `interpolate.ts` (interpolación de keyframes, la usan `AnimationPlayer` y
 `TacticalBoardMini`).
 
+## Activo: "Crea tu ejercicio" a pantalla completa
+
+Referencia: `docs/mejoras/crear_tarea.png`. Al crear tarea desde la sesión se abre
+`components/tareas/TareaCreatorFullscreen.tsx` (overlay `fixed inset-0`), no el
+minidiálogo de antes. Tres bloques: información general, enfoque táctico y
+metodológico, volumen de trabajo. El "Espacio de trabajo" (20x30m) se rellena solo
+desde la pizarra vía `onApplyEspacio`.
+
+Mapeo de campos → BD:
+- Tipo → `categoria_id` (el backend resuelve el código "RND" al UUID)
+- Objetivos → `tags` · Contenidos ofensivos/defensivos → `consignas_*`
+- Competitividad → `forma_puntuar` (ya existía; NO se creó columna duplicada)
+- Complejidad / Dificultad / Exigencia → columnas nuevas (migración **054**)
+- En la referencia la tarea se llama como su tipo: el título es opcional y por
+  defecto toma el nombre de la categoría.
+
+**Migración 054 pendiente de aplicar a mano** (`psql $DATABASE_URL -f
+backend/migrations/054_tarea_complejidad_dificultad.sql`). Mientras no esté,
+`crear_tarea_en_sesion` detecta el error y reintenta sin esas 3 columnas.
+
 ### Pendiente / siguiente
 - Validación visual la hace el usuario en Render tras el deploy.
-- Siguiente bloque de la página de sesiones: estructura de tareas (más allá de la pizarra).
+- `/tareas/nueva` sigue con el wizard de 5 pasos: candidato a adoptar el mismo
+  creador a pantalla completa.
 
 ## Catálogo variables sesiones/tareas
 

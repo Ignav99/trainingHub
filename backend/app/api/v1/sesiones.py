@@ -134,6 +134,10 @@ VALID_TAREA_COLUMNS = {
     "nivel_cognitivo", "num_series", "num_porteros", "espacio_forma",
     "tipo_esfuerzo", "ratio_trabajo_descanso", "tags", "grafico_data",
     "categoria_id", "equipo_id", "organizacion_id",
+    # Formulario "Crea tu ejercicio" (docs/mejoras/crear_tarea.png)
+    "complejidad", "forma_puntuar", "dificultad", "exigencia",
+    "duracion_serie", "tiempo_descanso", "m2_por_jugador",
+    "fc_esperada_min", "fc_esperada_max", "grafico_svg",
 }
 
 from app.models import (
@@ -1171,6 +1175,23 @@ class CrearTareaEnSesionRequest(BaseModel):
     consignas_ofensivas: Optional[Any] = None
     consignas_defensivas: Optional[Any] = None
     variantes: Optional[Any] = None
+    # Formulario "Crea tu ejercicio"
+    categoria_id: Optional[str] = None
+    num_porteros: Optional[int] = None
+    espacio_forma: Optional[str] = None
+    duracion_serie: Optional[int] = None
+    tiempo_descanso: Optional[int] = None
+    complejidad: Optional[str] = None
+    forma_puntuar: Optional[str] = None
+    dificultad: Optional[int] = Field(default=None, ge=1, le=5)
+    exigencia: Optional[int] = Field(default=None, ge=1, le=5)
+    tags: Optional[Any] = None
+    grafico_data: Optional[Any] = None
+    grafico_svg: Optional[str] = None
+    m2_por_jugador: Optional[Union[int, float]] = None
+    tipo_esfuerzo: Optional[str] = None
+    fc_esperada_min: Optional[int] = None
+    fc_esperada_max: Optional[int] = None
 
 
 class AICrearTareaRequest(BaseModel):
@@ -1203,12 +1224,49 @@ async def crear_tarea_en_sesion(
     tarea_data["equipo_id"] = sesion.data.get("equipo_id")
     tarea_data["organizacion_id"] = str(auth.organizacion_id)
 
+    # El formulario manda el codigo de categoria (ej. "RND"); la BD espera el UUID
+    cat_raw = tarea_data.get("categoria_id")
+    if cat_raw:
+        try:
+            UUID(str(cat_raw))
+        except (ValueError, AttributeError, TypeError):
+            cat_resp = supabase.table("categorias_tarea").select("id").eq(
+                "codigo", str(cat_raw)
+            ).maybe_single().execute()
+            if cat_resp and cat_resp.data:
+                tarea_data["categoria_id"] = cat_resp.data["id"]
+            else:
+                tarea_data.pop("categoria_id", None)
+
+    # m2/jugador se deriva del espacio, igual que en el CRUD de tareas
+    if tarea_data.get("espacio_largo") and tarea_data.get("espacio_ancho"):
+        jugadores = tarea_data.get("num_jugadores_min") or 0
+        if jugadores > 0:
+            area = tarea_data["espacio_largo"] * tarea_data["espacio_ancho"]
+            tarea_data["m2_por_jugador"] = round(area / jugadores, 1)
+
+    # Columnas que aporta la migracion 054; si aun no esta aplicada, se reintenta sin ellas
+    COLUMNAS_054 = ("complejidad", "dificultad", "exigencia")
+
     # Insert tarea
     try:
         insert_resp = supabase.table("tareas").insert(tarea_data).execute()
     except Exception as e:
-        logger.error(f"Error inserting tarea in session: {e}")
-        raise HTTPException(status_code=400, detail=f"Error al crear tarea: {str(e)}")
+        msg = str(e)
+        if any(col in msg for col in COLUMNAS_054):
+            logger.warning(
+                "Migracion 054 sin aplicar: se crea la tarea sin %s", ", ".join(COLUMNAS_054)
+            )
+            for col in COLUMNAS_054:
+                tarea_data.pop(col, None)
+            try:
+                insert_resp = supabase.table("tareas").insert(tarea_data).execute()
+            except Exception as e2:
+                logger.error(f"Error inserting tarea in session (reintento): {e2}")
+                raise HTTPException(status_code=400, detail=f"Error al crear tarea: {str(e2)}")
+        else:
+            logger.error(f"Error inserting tarea in session: {e}")
+            raise HTTPException(status_code=400, detail=f"Error al crear tarea: {str(e)}")
     if not insert_resp.data:
         raise HTTPException(status_code=500, detail="Error al crear tarea")
 

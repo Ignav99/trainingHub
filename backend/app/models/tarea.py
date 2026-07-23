@@ -131,6 +131,10 @@ class TareaBase(BaseModel):
     reglas_tacticas: List[str] = Field(default_factory=list)
     reglas_psicologicas: List[str] = Field(default_factory=list)
     forma_puntuar: Optional[str] = None
+    # Formulario "Crea tu ejercicio" (docs/mejoras/crear_tarea.png)
+    complejidad: Optional[str] = None
+    dificultad: Optional[int] = Field(None, ge=1, le=5)
+    exigencia: Optional[int] = Field(None, ge=1, le=5)
     
     # Contenido táctico
     fase_juego: Optional[FaseJuego] = None
@@ -249,6 +253,10 @@ class TareaUpdate(BaseModel):
     reglas_tacticas: Optional[List[str]] = None
     reglas_psicologicas: Optional[List[str]] = None
     forma_puntuar: Optional[str] = None
+    # Formulario "Crea tu ejercicio" (docs/mejoras/crear_tarea.png)
+    complejidad: Optional[str] = None
+    dificultad: Optional[int] = Field(None, ge=1, le=5)
+    exigencia: Optional[int] = Field(None, ge=1, le=5)
 
     fase_juego: Optional[FaseJuego] = None
     principio_tactico: Optional[str] = None

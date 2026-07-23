@@ -143,6 +143,12 @@ export interface Tarea {
   reglas_tacticas: string[]
   reglas_psicologicas: string[]
   forma_puntuar?: string
+  /** Regla que aumenta la exigencia cognitiva — formulario "Crea tu ejercicio" */
+  complejidad?: string
+  /** Escala 1-5 */
+  dificultad?: number
+  /** Escala 1-5 */
+  exigencia?: number
   
   // Contenido táctico
   fase_juego?: FaseJuego
