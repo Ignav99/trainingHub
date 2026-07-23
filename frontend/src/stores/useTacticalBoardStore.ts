@@ -337,6 +337,11 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
   markClean: () => set({ isDirty: false }),
 
   // Diagram mutations
+  /**
+   * Anade un elemento. La herramienta activa NO se resetea: asi se pueden
+   * sembrar 4-5 jugadores seguidos sin volver a picar el icono (Esc o
+   * "Seleccionar" para salir del modo colocacion).
+   */
   addElement: (el) => {
     const state = get()
     const counter = { ...state.playerCounter }
@@ -347,8 +352,6 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
       elements: [...s.elements, el],
       playerCounter: counter,
       isDirty: true,
-      activeTool: 'select',
-      selectedElementId: el.id,
     }))
   },
 

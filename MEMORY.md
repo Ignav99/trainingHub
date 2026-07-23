@@ -50,6 +50,27 @@ Mapeo de campos → BD:
 backend/migrations/054_tarea_complejidad_dificultad.sql`). Mientras no esté,
 `crear_tarea_en_sesion` detecta el error y reintenta sin esas 3 columnas.
 
+### Escala de la pizarra
+`ELEMENT_SIZES` está en unidades de campo (10 u = 1 m): jugador 16 (1,6 m), balón 9.
+Los símbolos de material se dibujaron sobre una retícula mayor y se corrigen con
+`SYMBOL_SCALE` en `BoardSymbols.tsx`. Las herramientas de colocación son **sticky**:
+`addElement` ya no resetea `activeTool`, se sale con Esc.
+
+### Capacidad física por espacio (m²/jugador)
+En `tacticalMetrics.ts`, con umbrales de la literatura de juegos reducidos:
+<50 fuerza (sin sprint posible) · <120 fuerza-resistencia (pico ACC/DEC, 4v4) ·
+<200 resistencia · <300 resistencia-velocidad · ≥300 velocidad (~320 = 11v11).
+`UMBRALES_DEMANDA` distingue con/sin porteros (TD 187/115, alta int. 262/166,
+sprint 316/295) y el panel marca qué demandas de partido replica el espacio.
+
+### Variables de diseño de sesión
+`docs/mejoras/variables_sesion.png`. Bloque "¿Qué necesitas trabajar?" en
+`sesiones/nueva`: espacio disponible, jugadores de campo, fases de juego,
+objetivos, contenidos ofensivos y defensivos. Comparten catálogo con las tareas,
+así que sesión y tarea se filtran con el mismo vocabulario.
+**Migración 055 pendiente de aplicar.** El create de sesión reintenta sin esas
+columnas si aún no está.
+
 ### Pendiente / siguiente
 - Validación visual la hace el usuario en Render tras el deploy.
 - `/tareas/nueva` sigue con el wizard de 5 pasos: candidato a adoptar el mismo

@@ -171,10 +171,12 @@ export default function TacticalBoardEditor({
         return
       }
       if (e.key === 'Escape') {
+        // Sale del modo colocacion y limpia lo que estuviera a medias
         setSelectedElementId(null)
         setArrowStart(null)
         setZoneDragStart(null)
         setZoneDragCurrent(null)
+        setActiveTool('select')
         return
       }
       if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) {
@@ -324,6 +326,7 @@ export default function TacticalBoardEditor({
         label: 'Texto',
         color: '#FFFFFF',
       })
+      setActiveTool('select')
       setSelectedElementId(newTextId)
       setEditingTextId(newTextId)
       setEditingTextValue('Texto')
