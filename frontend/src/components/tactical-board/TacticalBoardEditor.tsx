@@ -557,6 +557,9 @@ export default function TacticalBoardEditor({
 
   const handleElementMouseDown = useCallback((e: React.MouseEvent, elementId: string) => {
     if (isPlaying) return
+    // Herramienta de colocacion: el clic pasa al campo para poder colocar
+    // tambien encima de lo que ya hay dibujado
+    if (activeTool !== 'select' && !activeTool.startsWith('arrow_')) return
     e.stopPropagation()
     elementInteractionRef.current = true
     setTimeout(() => { elementInteractionRef.current = false }, 0)
@@ -584,18 +587,14 @@ export default function TacticalBoardEditor({
       return
     }
 
-    if (activeTool === 'select') {
-      if (e.shiftKey) {
-        addToSelection(elementId)
-      } else if (!allSelectedIds.has(elementId)) {
-        setSelectedElementIds([elementId])
-      }
-      setIsDragging(true)
-      lastDragPosRef.current = getSvgPosition(e)
-    } else {
-      setSelectedElementId(elementId)
+    if (e.shiftKey) {
+      addToSelection(elementId)
+    } else if (!allSelectedIds.has(elementId)) {
+      setSelectedElementIds([elementId])
     }
-  }, [activeTool, setSelectedElementId, setSelectedElementIds, addToSelection, isPlaying, elements, arrowStart, arrowCounter, pushHistory, addArrow, getSvgPosition, allSelectedIds])
+    setIsDragging(true)
+    lastDragPosRef.current = getSvgPosition(e)
+  }, [activeTool, setSelectedElementIds, addToSelection, isPlaying, elements, arrowStart, arrowCounter, pushHistory, addArrow, getSvgPosition, allSelectedIds])
 
   const handleZoneMouseDown = useCallback((e: React.MouseEvent, zoneId: string) => {
     if (isPlaying) return
@@ -709,9 +708,9 @@ export default function TacticalBoardEditor({
 
     const commonProps = {
       key: id,
-      style: { cursor: isPlaying ? 'default' : 'move' } as React.CSSProperties,
+      style: { cursor: isPlaying ? 'default' : activeTool === 'select' ? 'move' : 'inherit' } as React.CSSProperties,
       onMouseDown: (e: React.MouseEvent) => handleElementMouseDown(e, id),
-      onClick: (e: React.MouseEvent) => e.stopPropagation(),
+      onClick: (e: React.MouseEvent) => { if (activeTool === 'select') e.stopPropagation() },
     }
 
     // El texto se gestiona aparte porque tiene edición en línea
@@ -797,7 +796,7 @@ export default function TacticalBoardEditor({
         key={arrow.id}
         arrow={arrow}
         selected={isSelected}
-        interactive={!isPlaying}
+        interactive={!isPlaying && activeTool === 'select'}
         onSelect={(e) => {
           e.stopPropagation()
           if (isPlaying) return
@@ -821,8 +820,17 @@ export default function TacticalBoardEditor({
       <g key={id}
         transform={rotation ? `rotate(${rotation}, ${cx}, ${cy})` : undefined}
         onMouseDown={(e) => handleZoneMouseDown(e, id)}
-        onClick={(e) => { e.stopPropagation(); if (!isPlaying) { elementInteractionRef.current = true; setTimeout(() => { elementInteractionRef.current = false }, 0) } }}
-        style={{ cursor: isPlaying ? 'default' : (activeTool === 'select' ? 'move' : 'pointer') }}
+        onClick={(e) => {
+          if (isPlaying) return
+          // Con una herramienta de colocacion activa el clic tiene que llegar al
+          // campo: si no, no se puede crear nada dentro de una zona
+          if (activeTool !== 'select') return
+          e.stopPropagation()
+          elementInteractionRef.current = true
+          setTimeout(() => { elementInteractionRef.current = false }, 0)
+        }}
+        // Al colocar se hereda el crosshair del campo: la zona no es un obstaculo
+        style={{ cursor: isPlaying ? 'default' : activeTool === 'select' ? 'move' : 'inherit' }}
       >
         {shape === 'ellipse' ? (
           <ellipse
