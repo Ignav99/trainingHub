@@ -5,6 +5,7 @@ import {
   Trash2, RotateCcw, MousePointer, Square, Circle as CircleIcon,
   Undo2, Redo2, Type, Copy, ClipboardPaste, Group, Ungroup,
   RotateCw, RotateCcw as RotateLeft, FlipHorizontal, FlipVertical, Download,
+  ChevronUp, ChevronDown,
 } from 'lucide-react'
 import { BoardTool, ZONE_COLORS } from './types'
 import { FORMATIONS } from '@/lib/formations'
@@ -85,17 +86,16 @@ function ArrowPreview({ type }: { type: ArrowType }) {
 interface BoardToolbarProps {
   arrowStart: boolean
   onLoadFormation: (name: string, team: 'home' | 'away') => void
-  /** Muestra el selector de campo dentro de la toolbar (modo embebido, sin barra superior) */
-  showPitchSelector?: boolean
   onExport?: () => void
 }
 
 export default function BoardToolbar({
   arrowStart,
   onLoadFormation,
-  showPitchSelector = false,
   onExport,
 }: BoardToolbarProps) {
+  // Barra plegable: al dibujar interesa tener todo el alto para el campo
+  const [colapsada, setColapsada] = React.useState(false)
   const activeTool = useTacticalBoardStore((s) => s.activeTool)
   const selectedElementId = useTacticalBoardStore((s) => s.selectedElementId)
   const selectedElementIds = useTacticalBoardStore((s) => s.selectedElementIds)
@@ -174,12 +174,46 @@ export default function BoardToolbar({
 
         <div className="flex-1" />
 
-        <span className="text-[10px] text-gray-400 whitespace-nowrap">
+        {/* Tipo de campo — decide la tarea, por eso esta siempre a la vista */}
+        <div className="flex items-center rounded-lg border border-gray-200 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setPitchType('full')}
+            className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${
+              pitchType === 'full' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'
+            }`}
+            title="Campo completo"
+          >
+            Campo completo
+          </button>
+          <button
+            type="button"
+            onClick={() => setPitchType('half')}
+            className={`px-2.5 py-1.5 text-xs font-medium transition-colors border-l border-gray-200 ${
+              pitchType === 'half' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'
+            }`}
+            title="Medio campo"
+          >
+            Medio campo
+          </button>
+        </div>
+
+        <span className="text-[10px] text-gray-400 whitespace-nowrap hidden xl:inline">
           {elements.length} elem · {arrows.length} mov · {zones.length} zonas
         </span>
+
+        <button
+          type="button"
+          onClick={() => setColapsada((v) => !v)}
+          className="p-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200"
+          title={colapsada ? 'Mostrar herramientas' : 'Ocultar herramientas y ganar espacio'}
+        >
+          {colapsada ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+        </button>
       </div>
 
       {/* Fila 2 — movimientos, zonas y acciones */}
+      {!colapsada && (
       <div className="flex flex-wrap items-center gap-1">
         {/* Movimientos */}
         {ARROW_TYPE_ORDER.map((type) => (
@@ -288,18 +322,6 @@ export default function BoardToolbar({
           {FORMATIONS.map((f) => <option key={f.name} value={f.name}>{f.name}</option>)}
         </select>
 
-        {showPitchSelector && (
-          <select
-            value={pitchType}
-            onChange={(e) => setPitchType(e.target.value as 'full' | 'half')}
-            className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white"
-            title="El tipo de campo depende de la tarea"
-          >
-            <option value="full">Campo completo</option>
-            <option value="half">Medio campo</option>
-          </select>
-        )}
-
         <div className="flex-1" />
 
         {/* Historial y borrado */}
@@ -321,9 +343,10 @@ export default function BoardToolbar({
           <RotateCcw className="h-4 w-4" />
         </ActionButton>
       </div>
+      )}
 
       {/* Ayuda contextual */}
-      {activeTool !== 'select' && (
+      {!colapsada && activeTool !== 'select' && (
         <div className="text-[11px] text-gray-500">
           {activeTool.startsWith('arrow_')
             ? arrowStart
@@ -336,7 +359,7 @@ export default function BoardToolbar({
                 : `Colocando ${ELEMENT_TOOLS.find((t) => t.type === activeTool)?.label || activeTool}: pica en el campo tantas veces como necesites · Esc para terminar`}
         </div>
       )}
-      {activeTool === 'select' && (
+      {!colapsada && activeTool === 'select' && (
         <div className="text-[11px] text-gray-400">
           Arrastra sobre el campo para englobar varios elementos · Ctrl+C/V copiar y pegar · Ctrl+Shift+V pegar invertido · Ctrl+G agrupar · [ ] girar · H invertir
         </div>

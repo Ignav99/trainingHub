@@ -24,7 +24,11 @@ interface TareaPizarraEditorProps {
   /** Vuelca espacio, densidad y tipo de esfuerzo calculados sobre el formulario de la tarea */
   onApplyEspacio?: (patch: TareaEspacioPatch) => void
   onClose?: () => void
-  /** Altura del lienzo (por defecto ocupa el alto disponible) */
+  /**
+   * Altura total del bloque (cabecera + barra + campo). Acotarla es lo que
+   * hace que el campo entre entero sin scroll; usa '100%' dentro de un padre
+   * que ya tenga altura definida.
+   */
   height?: number | string
 }
 
@@ -34,7 +38,7 @@ export default function TareaPizarraEditor({
   numJugadores,
   onApplyEspacio,
   onClose,
-  height = 560,
+  height = 620,
 }: TareaPizarraEditorProps) {
   const loadBoard = useTacticalBoardStore((s) => s.loadBoard)
   const reset = useTacticalBoardStore((s) => s.reset)
@@ -104,9 +108,14 @@ export default function TareaPizarraEditor({
   }
 
   return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+    // La altura va en el contenedor externo y todo el interior es flex column:
+    // asi el lienzo recibe una altura acotada y el campo entra entero sin scroll
+    <div
+      className="border border-gray-200 rounded-xl overflow-hidden bg-white flex flex-col min-h-0"
+      style={{ height }}
+    >
       {/* Cabecera compacta */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 bg-gray-50">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 bg-gray-50 flex-shrink-0">
         <span className="text-sm font-semibold text-gray-800 flex-1">Pizarra de la tarea</span>
 
         <button
@@ -137,7 +146,7 @@ export default function TareaPizarraEditor({
         )}
       </div>
 
-      <div style={{ height }} className="flex flex-col">
+      <div className="flex-1 min-h-0 flex flex-col">
         <TacticalBoardEditor
           embedded
           numJugadores={numJugadores}
