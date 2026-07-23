@@ -57,7 +57,6 @@ export default function TacticalBoardEditor({
 
   const setNombre = useTacticalBoardStore((s) => s.setNombre)
   const setTipo = useTacticalBoardStore((s) => s.setTipo)
-  const setPitchType = useTacticalBoardStore((s) => s.setPitchType)
   const setSelectedElementId = useTacticalBoardStore((s) => s.setSelectedElementId)
   const setSelectedElementIds = useTacticalBoardStore((s) => s.setSelectedElementIds)
   const addToSelection = useTacticalBoardStore((s) => s.addToSelection)
@@ -1026,15 +1025,6 @@ export default function TacticalBoardEditor({
             className="flex-1 text-lg font-bold text-gray-900 bg-transparent border-none outline-none placeholder-gray-300"
           />
           <div className="flex items-center gap-2 flex-shrink-0">
-            <select
-              value={pitchType}
-              onChange={(e) => setPitchType(e.target.value as 'full' | 'half')}
-              className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white"
-            >
-              <option value="full">Campo Completo</option>
-              <option value="half">Medio Campo</option>
-            </select>
-
             {/* Mode toggle */}
             <button
               onClick={() => setTipo(isAnimated ? 'static' : 'animated')}
@@ -1073,7 +1063,6 @@ export default function TacticalBoardEditor({
       <BoardToolbar
         arrowStart={!!arrowStart}
         onLoadFormation={handleLoadFormation}
-        showPitchSelector={embedded}
         onExport={() => setShowExport(true)}
       />
 

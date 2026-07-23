@@ -36,10 +36,13 @@ export default function GeometryPanel({ numJugadores, onApplyEspacio }: Geometry
   const elements = useTacticalBoardStore((s) => s.elements)
   const [open, setOpen] = useState(true)
   const [applied, setApplied] = useState(false)
+  // El entrenador puede fijar los jugadores a mano: no siempre estan todos dibujados
+  const [jugadoresManual, setJugadoresManual] = useState<number | null>(null)
 
   const base = boardSpaceSummary(zones, elements)
-  // Si aún no hay jugadores dibujados se usan los de la tarea
-  const jugadores = base.jugadores > 0 ? base.jugadores : (numJugadores || 0)
+  // Prioridad: lo que fije el entrenador > los monigotes dibujados > los de la tarea
+  const jugadoresAuto = base.jugadores > 0 ? base.jugadores : (numJugadores || 0)
+  const jugadores = jugadoresManual !== null ? jugadoresManual : jugadoresAuto
   const clasificacion = base.geometria
     ? classifySpace(base.geometria.areaM2, jugadores, { conPorteros: base.porteros > 0 })
     : null
@@ -63,6 +66,7 @@ export default function GeometryPanel({ numJugadores, onApplyEspacio }: Geometry
   const geo = base.geometria
   const handleApply = () => {
     const patch = summaryToTareaPatch(summary)
+    if (patch && jugadores > 0) patch.m2_por_jugador = clasificacion?.m2PorJugador
     if (patch && onApplyEspacio) {
       onApplyEspacio(patch)
       setApplied(true)
@@ -88,7 +92,31 @@ export default function GeometryPanel({ numJugadores, onApplyEspacio }: Geometry
           {/* Métricas base */}
           <div className="grid grid-cols-2 gap-2">
             <Metric label="Superficie" value={`${geo.areaM2} m²`} />
-            <Metric label="Jugadores" value={jugadores > 0 ? String(jugadores) : '—'} />
+            <div className="bg-gray-50 rounded-lg px-2 py-1.5">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[9px] font-medium text-gray-400 uppercase leading-none">Jugadores</span>
+                {jugadoresManual !== null && (
+                  <button
+                    onClick={() => setJugadoresManual(null)}
+                    className="text-[8px] text-blue-600 hover:underline leading-none"
+                    title={`Volver al recuento de la pizarra (${jugadoresAuto})`}
+                  >
+                    auto
+                  </button>
+                )}
+              </div>
+              <input
+                type="number"
+                min={1}
+                max={40}
+                value={jugadores || ''}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value)
+                  setJugadoresManual(Number.isNaN(v) ? null : Math.max(1, Math.min(40, v)))
+                }}
+                className="mt-0.5 w-full bg-transparent text-[13px] font-bold text-gray-900 outline-none border-b border-transparent focus:border-blue-400"
+              />
+            </div>
             <Metric label="Forma" value={geo.forma === 'circular' ? 'Circular' : geo.forma === 'cuadrado' ? 'Cuadrado' : 'Rectangular'} />
             <Metric
               label="m² / jugador"
