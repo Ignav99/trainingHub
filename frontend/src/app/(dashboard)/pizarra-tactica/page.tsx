@@ -8,6 +8,7 @@ import { apiKey, apiFetcher } from '@/lib/swr'
 import { tacticalBoardApi, TacticalBoard } from '@/lib/api/tacticalBoards'
 import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
 import TacticalBoardEditor from '@/components/tactical-board/TacticalBoardEditor'
+import TacticalBoardMini from '@/components/task-preview/TacticalBoardMini'
 
 export default function PizarraTacticaPage() {
   const equipoActivo = useEquipoStore((s) => s.equipoActivo)
@@ -196,9 +197,24 @@ export default function PizarraTacticaPage() {
               className="group relative bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
               onClick={() => handleSelect(board)}
             >
-              {/* Thumbnail / placeholder */}
+              {/* Miniatura real de la pizarra */}
               <div className="h-36 bg-gradient-to-br from-green-700 to-green-900 flex items-center justify-center">
-                <PenTool className="h-10 w-10 text-white/30" />
+                {(board.elements?.length || board.arrows?.length || board.zones?.length) ? (
+                  <TacticalBoardMini
+                    data={{
+                      elements: board.elements || [],
+                      arrows: board.arrows || [],
+                      zones: board.zones || [],
+                      pitchType: board.pitch_type,
+                      tipo: board.tipo,
+                    }}
+                    width="100%"
+                    height="100%"
+                    showPlayBadge={false}
+                  />
+                ) : (
+                  <PenTool className="h-10 w-10 text-white/30" />
+                )}
               </div>
 
               {/* Info */}

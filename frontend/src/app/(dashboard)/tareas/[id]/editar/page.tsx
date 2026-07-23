@@ -23,7 +23,9 @@ import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { tareasApi, TareaUpdateData } from '@/lib/api/tareas'
 import { apiKey } from '@/lib/swr'
 import { Tarea } from '@/types'
-import { TareaGraphicEditor, DiagramData, emptyDiagramData } from '@/components/tarea-editor'
+import TareaPizarraEditor from '@/components/tactical-board/TareaPizarraEditor'
+import { emptyTareaPizarra, type TareaPizarraData } from '@/components/tactical-board/types'
+import type { TareaEspacioPatch } from '@/lib/tacticalMetrics'
 
 const FASES_JUEGO = [
   { value: 'ataque_organizado', label: 'Ataque Organizado' },
@@ -52,7 +54,7 @@ export default function EditarTareaPage() {
   const [formPopulated, setFormPopulated] = useState(false)
 
   // Grafico de la tarea
-  const [graficoData, setGraficoData] = useState<DiagramData>(emptyDiagramData)
+  const [graficoData, setGraficoData] = useState<TareaPizarraData>(emptyTareaPizarra)
 
   // Form data
   const [formData, setFormData] = useState<TareaUpdateData>({
@@ -178,7 +180,7 @@ export default function EditarTareaPage() {
       // Incluir grafico_data en la actualizacion
       const dataToUpdate = {
         ...formData,
-        grafico_data: graficoData.elements.length > 0 || graficoData.arrows.length > 0
+        grafico_data: graficoData.elements.length > 0 || graficoData.arrows.length > 0 || graficoData.zones.length > 0
           ? graficoData
           : undefined,
       }
@@ -190,6 +192,11 @@ export default function EditarTareaPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  /** Vuelca sobre la ficha el espacio medido en la pizarra y lo que se deriva de él */
+  const handleApplyEspacio = (patch: TareaEspacioPatch) => {
+    setFormData((prev) => ({ ...prev, ...patch }))
   }
 
   const addToArray = (field: keyof TareaUpdateData, value: string, setter: (v: string) => void) => {
@@ -912,13 +919,15 @@ export default function EditarTareaPage() {
             </div>
 
             <p className="text-sm text-gray-500 mb-4">
-              Dibuja el grafico de la tarea colocando jugadores, conos, balones y flechas de movimiento.
-              Este paso es opcional - el grafico se puede generar automaticamente al exportar.
+              Dibuja la tarea con jugadores, material, zonas y movimientos. Mide el espacio en metros
+              arrastrando las esquinas de la zona o escribiendo sus lados, y vuelca el resultado sobre la ficha.
             </p>
 
-            <TareaGraphicEditor
+            <TareaPizarraEditor
               value={graficoData}
               onChange={setGraficoData}
+              numJugadores={formData.num_jugadores_min}
+              onApplyEspacio={handleApplyEspacio}
             />
           </div>
         )}

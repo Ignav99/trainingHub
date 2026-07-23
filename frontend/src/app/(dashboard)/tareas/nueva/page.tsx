@@ -17,8 +17,9 @@ import {
   X
 } from 'lucide-react'
 import { tareasApi, catalogosApi, TareaCreateData } from '@/lib/api/tareas'
-import TareaGraphicEditor from '@/components/tarea-editor/TareaGraphicEditor'
-import { DiagramData, emptyDiagramData } from '@/components/tarea-editor/types'
+import TareaPizarraEditor from '@/components/tactical-board/TareaPizarraEditor'
+import type { TareaEspacioPatch } from '@/lib/tacticalMetrics'
+import { emptyTareaPizarra, type TareaPizarraData } from '@/components/tactical-board/types'
 import { TipoContraccion, ZonaCuerpo, ObjetivoGym, SeriesRepeticiones } from '@/types'
 
 const FASES_JUEGO = [
@@ -112,7 +113,7 @@ export default function NuevaTareaPage() {
   })
 
   // Graphic editor data
-  const [graficoData, setGraficoData] = useState<DiagramData>(emptyDiagramData)
+  const [graficoData, setGraficoData] = useState<TareaPizarraData>(emptyTareaPizarra)
 
   // Inputs temporales para arrays
   const [newReglaTecnica, setNewReglaTecnica] = useState('')
@@ -195,7 +196,9 @@ export default function NuevaTareaPage() {
       const dataToSend: TareaCreateData = {
         ...formData,
         categoria_id: formData.categoria_id, // El backend resolvera esto
-        ...(graficoData.elements.length > 0 ? { grafico_data: graficoData } : {}),
+        ...(graficoData.elements.length > 0 || graficoData.zones.length > 0 || graficoData.arrows.length > 0
+          ? { grafico_data: graficoData }
+          : {}),
       }
 
       await tareasApi.create(dataToSend)
@@ -205,6 +208,11 @@ export default function NuevaTareaPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  /** Vuelca sobre la ficha el espacio medido en la pizarra y lo que se deriva de él */
+  const handleApplyEspacio = (patch: TareaEspacioPatch) => {
+    setFormData((prev) => ({ ...prev, ...patch }))
   }
 
   const addToArray = (field: keyof TareaCreateData, value: string, setter: (v: string) => void) => {
@@ -954,12 +962,14 @@ export default function NuevaTareaPage() {
               <h2 className="text-lg font-semibold">Pizarra Tactica</h2>
             </div>
             <p className="text-sm text-gray-500">
-              Opcional: dibuja el esquema de la tarea. Puedes saltarlo y guardar directamente.
+              Opcional: dibuja el esquema de la tarea. Al medir una zona en metros puedes volcar
+              el espacio, la densidad y el tipo de esfuerzo sobre la ficha con un clic.
             </p>
-            <TareaGraphicEditor
+            <TareaPizarraEditor
               value={graficoData}
               onChange={setGraficoData}
-              readOnly={false}
+              numJugadores={formData.num_jugadores_min}
+              onApplyEspacio={handleApplyEspacio}
             />
           </div>
         )}

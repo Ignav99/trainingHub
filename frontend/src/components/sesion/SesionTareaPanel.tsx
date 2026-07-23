@@ -124,25 +124,30 @@ export default function SesionTareaPanel({
       id: null,
       nombre: 'Tarea',
       descripcion: '',
-      tipo: 'static',
+      tipo: grafico?.tipo || 'static',
       pitch_type: grafico?.pitchType || 'full',
       elements: grafico?.elements || [],
       arrows: grafico?.arrows || [],
       zones: grafico?.zones || [],
-      frames: [],
+      frames: grafico?.frames || [],
     })
     setBoardEditing(true)
   }, [])
 
   const handleBoardSave = useCallback(async () => {
     const s = useTacticalBoardStore.getState()
+    // El frame activo debe reflejar lo que hay ahora en el lienzo antes de guardar
+    if (s.tipo === 'animated') s.saveCurrentToKeyframe()
+    const frames = useTacticalBoardStore.getState().keyframes
     const newForm = {
       ...formRef.current,
       grafico_data: {
         pitchType: s.pitchType,
+        tipo: s.tipo,
         elements: s.elements,
         arrows: s.arrows,
         zones: s.zones,
+        ...(s.tipo === 'animated' && frames.length > 0 ? { frames } : {}),
       },
     }
     setForm(newForm)
@@ -304,6 +309,7 @@ export default function SesionTareaPanel({
               data={form.grafico_data as any}
               width="100%"
               height="100%"
+              animate
             />
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
               <span className="text-white text-xs font-medium flex items-center gap-1 bg-black/40 px-2 py-1 rounded">

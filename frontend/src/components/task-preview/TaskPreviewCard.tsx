@@ -3,7 +3,7 @@
 import React, { useState } from 'react'
 import { Clock, Users, Maximize2, Brain, ChevronDown, ChevronUp, Pencil, MessageCircle, Target, AlertTriangle, Package } from 'lucide-react'
 import TacticalBoardMini from './TacticalBoardMini'
-import type { DiagramData } from '../tarea-editor/types'
+import type { TareaPizarraData } from '@/components/tactical-board/types'
 
 const FASE_ACCENT: Record<string, { bar: string; badge: string; label: string }> = {
   calentamiento:  { bar: 'bg-green-500',  badge: 'bg-green-100 text-green-800',  label: 'Calentamiento' },
@@ -34,7 +34,7 @@ export interface TaskPreviewCardProps {
   duracion?: number
   categoria?: string
   fase_sesion?: string
-  grafico_data?: DiagramData | null
+  grafico_data?: TareaPizarraData | null
   num_jugadores?: string
   estructura_equipos?: string
   espacio?: string
@@ -114,6 +114,7 @@ export default function TaskPreviewCard({
             width="100%"
             height="100%"
             className="w-full h-full"
+            animate
           />
         </div>
 

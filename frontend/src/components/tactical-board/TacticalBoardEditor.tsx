@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useCallback, useEffect } from 'react'
+import React, { useState, useRef, useCallback, useEffect, useId } from 'react'
 import { Save, X, Download, Film, Image as ImageIcon } from 'lucide-react'
 import ABPPitch from '@/components/abp/ABPPitch'
 import {
@@ -8,18 +8,38 @@ import {
   Position, TEAM_COLORS, ELEMENT_SIZES, generateId,
 } from '@/components/tarea-editor/types'
 import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
+import { zoneGeometry, type TareaEspacioPatch } from '@/lib/tacticalMetrics'
 import BoardToolbar from './BoardToolbar'
 import KeyframeTimeline from './KeyframeTimeline'
 import AnimationPlayer, { AnimationState } from './AnimationPlayer'
 import ExportDialog from './ExportDialog'
 import ElementEditPanel from './ElementEditPanel'
+import GeometryPanel from './GeometryPanel'
+import BoardArrow from './BoardArrow'
+import { BoardDefs, ElementSymbol, ELEMENT_TOOLS, ROTATABLE_ELEMENTS } from './BoardSymbols'
+import { RESIZE_HANDLES, HANDLE_CURSORS, type ResizeHandle } from './types'
 
 interface TacticalBoardEditorProps {
   onSave: () => void
   onCancel: () => void
+  /** Modo embebido: la barra superior la aporta el contenedor (p. ej. el editor de tarea) */
+  embedded?: boolean
+  /** Jugadores de la tarea, para el cálculo de m²/jugador cuando no hay monigotes en la pizarra */
+  numJugadores?: number
+  /** Vuelca el espacio calculado en la pizarra sobre los campos de la tarea */
+  onApplyEspacio?: (patch: TareaEspacioPatch) => void
 }
 
-export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardEditorProps) {
+/** Tipos de herramienta que colocan un elemento en el campo. */
+const PLACEMENT_TYPES = new Set<string>(ELEMENT_TOOLS.map((t) => t.type))
+
+export default function TacticalBoardEditor({
+  onSave,
+  onCancel,
+  embedded = false,
+  numJugadores,
+  onApplyEspacio,
+}: TacticalBoardEditorProps) {
   const nombre = useTacticalBoardStore((s) => s.nombre)
   const tipo = useTacticalBoardStore((s) => s.tipo)
   const pitchType = useTacticalBoardStore((s) => s.pitchType)
@@ -50,17 +70,23 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
   const updateArrowEndpoint = useTacticalBoardStore((s) => s.updateArrowEndpoint)
   const addZone = useTacticalBoardStore((s) => s.addZone)
   const updateZonePosition = useTacticalBoardStore((s) => s.updateZonePosition)
+  const resizeZone = useTacticalBoardStore((s) => s.resizeZone)
   const deleteSelected = useTacticalBoardStore((s) => s.deleteSelected)
   const pushHistory = useTacticalBoardStore((s) => s.pushHistory)
   const undo = useTacticalBoardStore((s) => s.undo)
   const redo = useTacticalBoardStore((s) => s.redo)
   const copySelected = useTacticalBoardStore((s) => s.copySelected)
+  const cutSelected = useTacticalBoardStore((s) => s.cutSelected)
   const pasteClipboard = useTacticalBoardStore((s) => s.pasteClipboard)
   const duplicateSelected = useTacticalBoardStore((s) => s.duplicateSelected)
-  const nudgeSelected = useTacticalBoardStore((s) => s.nudgeSelected)
+  const transformSelection = useTacticalBoardStore((s) => s.transformSelection)
+  const groupSelection = useTacticalBoardStore((s) => s.groupSelection)
+  const ungroupSelection = useTacticalBoardStore((s) => s.ungroupSelection)
   const setActiveTool = useTacticalBoardStore((s) => s.setActiveTool)
   const loadFormation = useTacticalBoardStore((s) => s.loadFormation)
   const updateElementLabel = useTacticalBoardStore((s) => s.updateElementLabel)
+
+  const uid = useId().replace(/:/g, '')
 
   // Local interaction state
   const [isDragging, setIsDragging] = useState(false)
@@ -70,11 +96,13 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
   const [showExport, setShowExport] = useState(false)
   // Arrow endpoint dragging
   const [draggingEndpoint, setDraggingEndpoint] = useState<{ arrowId: string; endpoint: 'from' | 'to' } | null>(null)
-  // Mini-goal rotation dragging
+  // Element rotation dragging
   const [isRotating, setIsRotating] = useState(false)
   // Zone dragging
   const [draggingZoneId, setDraggingZoneId] = useState<string | null>(null)
   const [zoneDragOffset, setZoneDragOffset] = useState<Position>({ x: 0, y: 0 })
+  // Zone resizing (tiradores)
+  const resizeRef = useRef<{ zoneId: string; handle: ResizeHandle; orig: { x: number; y: number; width: number; height: number } } | null>(null)
   // Marquee (rubber-band) selection
   const [marqueeStart, setMarqueeStart] = useState<Position | null>(null)
   const [marqueeEnd, setMarqueeEnd] = useState<Position | null>(null)
@@ -83,8 +111,6 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
   const marqueeEndRef = useRef<Position | null>(null)
   // Multi-drag
   const lastDragPosRef = useRef<Position | null>(null)
-  // Copy/paste clipboard
-  const clipboardRef = useRef<{ elements: DiagramElement[]; arrows: DiagramArrow[]; zones: DiagramZone[] } | null>(null)
   // Prevents click-to-deselect firing right after marquee finishes
   const didMarqueeRef = useRef(false)
 
@@ -125,12 +151,19 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
   const renderArrows = isPlaying && animState ? animState.arrows : arrows
   const renderZones = isPlaying && animState ? animState.zones : zones
 
+  const allSelectedIds = React.useMemo(
+    () => new Set([...selectedElementIds, ...(selectedElementId ? [selectedElementId] : [])]),
+    [selectedElementIds, selectedElementId],
+  )
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isPlaying) return
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
+      const mod = e.ctrlKey || e.metaKey
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault()
@@ -144,85 +177,85 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
         setZoneDragCurrent(null)
         return
       }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+      if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) {
         e.preventDefault()
         undo()
         return
       }
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'Z' || e.key === 'y')) {
+      if (mod && (e.key === 'Z' || e.key.toLowerCase() === 'y')) {
         e.preventDefault()
         redo()
         return
       }
-      // Select all
-      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+      if (mod && e.key.toLowerCase() === 'a') {
         e.preventDefault()
         selectAll()
         return
       }
-      // Copy (multi-selection support)
-      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+      if (mod && e.key.toLowerCase() === 'c') {
         e.preventDefault()
-        const state = useTacticalBoardStore.getState()
-        const ids = new Set([...state.selectedElementIds, ...(state.selectedElementId ? [state.selectedElementId] : [])])
-        if (ids.size === 0) return
-        clipboardRef.current = {
-          elements: state.elements.filter((el) => ids.has(el.id)),
-          arrows: state.arrows.filter((ar) => ids.has(ar.id)),
-          zones: state.zones.filter((z) => ids.has(z.id)),
-        }
+        copySelected()
         return
       }
-      // Paste (multi-selection support)
-      if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+      if (mod && e.key.toLowerCase() === 'x') {
         e.preventDefault()
-        const cb = clipboardRef.current
-        if (!cb || (cb.elements.length === 0 && cb.arrows.length === 0 && cb.zones.length === 0)) return
-        pushHistory()
-        const offset = 20
-        const newIds: string[] = []
-        cb.elements.forEach((el) => {
-          const newId = generateId()
-          newIds.push(newId)
-          addElement({ ...el, id: newId, position: { x: el.position.x + offset, y: el.position.y + offset } })
-        })
-        cb.arrows.forEach((ar) => {
-          const newId = generateId()
-          newIds.push(newId)
-          addArrow({ ...ar, id: newId, from: { x: ar.from.x + offset, y: ar.from.y + offset }, to: { x: ar.to.x + offset, y: ar.to.y + offset } })
-        })
-        cb.zones.forEach((z) => {
-          const newId = generateId()
-          newIds.push(newId)
-          addZone({ ...z, id: newId, position: { x: z.position.x + offset, y: z.position.y + offset } })
-        })
-        setSelectedElementIds(newIds)
+        cutSelected()
         return
       }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+      if (mod && e.key.toLowerCase() === 'v') {
+        e.preventDefault()
+        // Ctrl+Shift+V pega la figura invertida (espejo horizontal)
+        pasteClipboard(e.shiftKey ? { flip: 'h', dx: 24, dy: 24 } : undefined)
+        return
+      }
+      if (mod && e.key.toLowerCase() === 'd') {
         e.preventDefault()
         duplicateSelected()
         return
       }
+      // Agrupar / desagrupar
+      if (mod && e.key.toLowerCase() === 'g') {
+        e.preventDefault()
+        if (e.shiftKey) ungroupSelection()
+        else groupSelection()
+        return
+      }
+      // Girar la selección
+      if (!mod && (e.key === '[' || e.key === ']')) {
+        e.preventDefault()
+        transformSelection({ rotate: e.key === '[' ? -15 : 15 })
+        return
+      }
+      // Invertir la selección
+      if (!mod && e.key.toLowerCase() === 'h' && allSelectedIds.size > 0) {
+        e.preventDefault()
+        transformSelection({ flip: e.shiftKey ? 'v' : 'h' })
+        return
+      }
       if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        if (selectedElementId) {
+        if (allSelectedIds.size > 0) {
           e.preventDefault()
           const step = e.shiftKey ? 10 : 1
-          if (e.key === 'ArrowUp') nudgeSelected(0, -step)
-          else if (e.key === 'ArrowDown') nudgeSelected(0, step)
-          else if (e.key === 'ArrowLeft') nudgeSelected(-step, 0)
-          else nudgeSelected(step, 0)
+          if (e.key === 'ArrowUp') moveSelectedBy(0, -step)
+          else if (e.key === 'ArrowDown') moveSelectedBy(0, step)
+          else if (e.key === 'ArrowLeft') moveSelectedBy(-step, 0)
+          else moveSelectedBy(step, 0)
           return
         }
       }
-      if (e.key === 'v' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (e.key === 'v' && !mod && !e.altKey) {
         setActiveTool('select')
         return
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [deleteSelected, undo, redo, setSelectedElementId, isPlaying, selectAll, pushHistory, addElement, addArrow, addZone, setSelectedElementIds, duplicateSelected, nudgeSelected, setActiveTool, selectedElementId])
+  }, [
+    deleteSelected, undo, redo, setSelectedElementId, isPlaying, selectAll,
+    copySelected, cutSelected, pasteClipboard, duplicateSelected,
+    transformSelection, groupSelection, ungroupSelection,
+    moveSelectedBy, setActiveTool, allSelectedIds,
+  ])
 
   // SVG coordinate conversion
   const getSvgPosition = useCallback((e: React.MouseEvent): Position => {
@@ -255,13 +288,12 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
         setArrowStart(pos)
       } else {
         pushHistory()
-        const arrowType: ArrowType = activeTool === 'arrow_pass' ? 'pass' : 'movement'
+        const arrowType = activeTool.replace('arrow_', '') as ArrowType
         const newArrow: DiagramArrow = {
           id: generateId(),
           type: arrowType,
           from: arrowStart,
           to: pos,
-          color: arrowType === 'pass' ? '#FFFFFF' : '#FFFF00',
           label: String(arrowCounter),
         }
         addArrow(newArrow)
@@ -302,10 +334,13 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
       return
     }
 
+    if (!PLACEMENT_TYPES.has(activeTool)) return
+
     pushHistory()
     const elementType = activeTool as ElementType
+    const meta = ELEMENT_TOOLS.find((t) => t.type === elementType)
     let label = ''
-    let color = TEAM_COLORS.team1
+    let color = meta?.defaultColor
 
     if (elementType === 'player') {
       label = String(playerCounter.team1)
@@ -316,10 +351,6 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
     } else if (elementType === 'player_gk') {
       label = 'GK'
       color = TEAM_COLORS.goalkeeper
-    } else if (elementType === 'cone') {
-      color = '#FF6B00'
-    } else if (elementType === 'ball') {
-      color = '#FFFFFF'
     }
 
     addElement({
@@ -353,6 +384,20 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isPlaying) return
 
+    // Zone resize (tiradores)
+    if (resizeRef.current) {
+      const pos = getSvgPosition(e)
+      if (pos.x === 0 && pos.y === 0) return
+      const { zoneId, handle, orig } = resizeRef.current
+      let { x, y, width, height } = orig
+      if (handle.includes('n')) { height = orig.y + orig.height - pos.y; y = pos.y }
+      if (handle.includes('s')) { height = pos.y - orig.y }
+      if (handle.includes('w')) { width = orig.x + orig.width - pos.x; x = pos.x }
+      if (handle.includes('e')) { width = pos.x - orig.x }
+      resizeZone(zoneId, { x, y, width, height })
+      return
+    }
+
     // Arrow endpoint dragging
     if (draggingEndpoint) {
       const pos = getSvgPosition(e)
@@ -361,9 +406,9 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
       return
     }
 
-    // Mini-goal rotation
+    // Element rotation
     if (isRotating && selectedElementId) {
-      const el = elements.find((e) => e.id === selectedElementId)
+      const el = elements.find((it) => it.id === selectedElementId)
       if (el) {
         const pos = getSvgPosition(e)
         const angle = Math.atan2(pos.y - el.position.y, pos.x - el.position.x) * (180 / Math.PI)
@@ -394,7 +439,7 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
     }
 
     // Multi-element drag (delta-based)
-    if (isDragging && selectedElementIds.length > 1 && lastDragPosRef.current) {
+    if (isDragging && allSelectedIds.size > 1 && lastDragPosRef.current) {
       const pos = getSvgPosition(e)
       if (pos.x === 0 && pos.y === 0) return
       const dx = pos.x - lastDragPosRef.current.x
@@ -409,10 +454,17 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
     const pos = getSvgPosition(e)
     if (pos.x === 0 && pos.y === 0) return
     updateElementPosition(selectedElementId, pos.x, pos.y)
-  }, [isDragging, selectedElementId, selectedElementIds, getSvgPosition, zoneDragStart, activeTool, updateElementPosition, isPlaying, draggingEndpoint, updateArrowEndpoint, isRotating, elements, updateElementRotation, draggingZoneId, zoneDragOffset, updateZonePosition, moveSelectedBy])
+  }, [isDragging, selectedElementId, allSelectedIds, getSvgPosition, zoneDragStart, activeTool, updateElementPosition, isPlaying, draggingEndpoint, updateArrowEndpoint, isRotating, elements, updateElementRotation, draggingZoneId, zoneDragOffset, updateZonePosition, moveSelectedBy, resizeZone])
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     if (isPlaying) return
+
+    if (resizeRef.current) {
+      resizeRef.current = null
+      elementInteractionRef.current = true
+      setTimeout(() => { elementInteractionRef.current = false }, 0)
+      return
+    }
 
     if (draggingEndpoint) {
       setDraggingEndpoint(null)
@@ -440,7 +492,7 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
 
       if (w > 5 && h > 5) {
         pushHistory()
-        addZone({
+        const newZone: DiagramZone = {
           id: generateId(),
           position: { x, y },
           width: w,
@@ -448,7 +500,11 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
           color: zoneColor,
           opacity: 0.3,
           shape: activeTool === 'zone_circle' ? 'ellipse' : 'rectangle',
-        })
+          // La primera zona que se dibuja pasa a ser el espacio de juego de referencia
+          isPlayingArea: zones.length === 0,
+        }
+        addZone(newZone)
+        setSelectedElementId(newZone.id)
       }
       setZoneDragStart(null)
       setZoneDragCurrent(null)
@@ -468,18 +524,19 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
       const maxY = Math.max(start.y, end.y)
 
       if (maxX - minX > 5 && maxY - minY > 5) {
+        const inside = (x: number, y: number) => x >= minX && x <= maxX && y >= minY && y <= maxY
         const selectedIds: string[] = []
         elements.forEach((el) => {
-          if (el.position.x >= minX && el.position.x <= maxX && el.position.y >= minY && el.position.y <= maxY) {
-            selectedIds.push(el.id)
-          }
+          if (inside(el.position.x, el.position.y)) selectedIds.push(el.id)
+        })
+        // Una flecha entra en la selección si sus dos extremos están dentro
+        arrows.forEach((ar) => {
+          if (inside(ar.from.x, ar.from.y) && inside(ar.to.x, ar.to.y)) selectedIds.push(ar.id)
         })
         zones.forEach((z) => {
           const cx = z.position.x + z.width / 2
           const cy = z.position.y + z.height / 2
-          if (cx >= minX && cx <= maxX && cy >= minY && cy <= maxY) {
-            selectedIds.push(z.id)
-          }
+          if (inside(cx, cy)) selectedIds.push(z.id)
         })
         if (selectedIds.length > 0) {
           setSelectedElementIds(selectedIds)
@@ -494,7 +551,7 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
 
     setIsDragging(false)
     lastDragPosRef.current = null
-  }, [zoneDragStart, zoneDragCurrent, activeTool, getSvgPosition, zoneColor, pushHistory, addZone, isPlaying, draggingEndpoint, isRotating, draggingZoneId, elements, zones, setSelectedElementIds])
+  }, [zoneDragStart, zoneDragCurrent, activeTool, getSvgPosition, zoneColor, pushHistory, addZone, isPlaying, draggingEndpoint, isRotating, draggingZoneId, elements, arrows, zones, setSelectedElementIds, setSelectedElementId])
 
   const handleElementMouseDown = useCallback((e: React.MouseEvent, elementId: string) => {
     if (isPlaying) return
@@ -504,23 +561,21 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
 
     // Arrow tool: use player position as arrow start/end point
     if (activeTool.startsWith('arrow_')) {
-      const el = elements.find((el) => el.id === elementId)
+      const el = elements.find((it) => it.id === elementId)
       if (el) {
         const pos = el.position
         if (!arrowStart) {
           setArrowStart(pos)
         } else {
           pushHistory()
-          const arrowType: ArrowType = activeTool === 'arrow_pass' ? 'pass' : 'movement'
-          const newArrow: DiagramArrow = {
+          const arrowType = activeTool.replace('arrow_', '') as ArrowType
+          addArrow({
             id: generateId(),
             type: arrowType,
             from: arrowStart,
             to: pos,
-            color: arrowType === 'pass' ? '#FFFFFF' : '#FFFF00',
             label: String(arrowCounter),
-          }
-          addArrow(newArrow)
+          })
           setArrowStart(null)
         }
       }
@@ -530,7 +585,7 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
     if (activeTool === 'select') {
       if (e.shiftKey) {
         addToSelection(elementId)
-      } else if (!useTacticalBoardStore.getState().selectedElementIds.includes(elementId)) {
+      } else if (!allSelectedIds.has(elementId)) {
         setSelectedElementIds([elementId])
       }
       setIsDragging(true)
@@ -538,7 +593,7 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
     } else {
       setSelectedElementId(elementId)
     }
-  }, [activeTool, setSelectedElementId, setSelectedElementIds, addToSelection, isPlaying, elements, arrowStart, arrowCounter, pushHistory, addArrow, getSvgPosition])
+  }, [activeTool, setSelectedElementId, setSelectedElementIds, addToSelection, isPlaying, elements, arrowStart, arrowCounter, pushHistory, addArrow, getSvgPosition, allSelectedIds])
 
   const handleZoneMouseDown = useCallback((e: React.MouseEvent, zoneId: string) => {
     if (isPlaying) return
@@ -546,17 +601,40 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
     e.stopPropagation()
     elementInteractionRef.current = true
     setTimeout(() => { elementInteractionRef.current = false }, 0)
-    setSelectedElementId(zoneId)
+
+    if (e.shiftKey) {
+      addToSelection(zoneId)
+      return
+    }
+    if (!allSelectedIds.has(zoneId)) setSelectedElementIds([zoneId])
 
     // Start zone drag
     const zone = zones.find((z) => z.id === zoneId)
     if (zone) {
       const pos = getSvgPosition(e)
       pushHistory()
-      setDraggingZoneId(zoneId)
-      setZoneDragOffset({ x: pos.x - zone.position.x, y: pos.y - zone.position.y })
+      if (useTacticalBoardStore.getState().selectedElementIds.length > 1) {
+        // Zona dentro de una selección múltiple: se arrastra todo el conjunto
+        setIsDragging(true)
+        lastDragPosRef.current = pos
+      } else {
+        setDraggingZoneId(zoneId)
+        setZoneDragOffset({ x: pos.x - zone.position.x, y: pos.y - zone.position.y })
+      }
     }
-  }, [activeTool, setSelectedElementId, isPlaying, zones, getSvgPosition, pushHistory])
+  }, [activeTool, setSelectedElementIds, addToSelection, isPlaying, zones, getSvgPosition, pushHistory, allSelectedIds])
+
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent, zone: DiagramZone, handle: ResizeHandle) => {
+    e.stopPropagation()
+    elementInteractionRef.current = true
+    setTimeout(() => { elementInteractionRef.current = false }, 0)
+    pushHistory()
+    resizeRef.current = {
+      zoneId: zone.id,
+      handle,
+      orig: { x: zone.position.x, y: zone.position.y, width: zone.width, height: zone.height },
+    }
+  }, [pushHistory])
 
   const handleLoadFormation = useCallback((name: string, team: 'home' | 'away') => {
     loadFormation(name, team)
@@ -606,12 +684,26 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
     setEditingTextId(null)
   }, [])
 
+  const resetInteractions = useCallback(() => {
+    setIsDragging(false)
+    setZoneDragStart(null)
+    setZoneDragCurrent(null)
+    setDraggingEndpoint(null)
+    setIsRotating(false)
+    setDraggingZoneId(null)
+    resizeRef.current = null
+    marqueeStartRef.current = null
+    marqueeEndRef.current = null
+    setMarqueeStart(null)
+    setMarqueeEnd(null)
+    lastDragPosRef.current = null
+  }, [])
+
   // ============ Renderers ============
 
   const renderElement = (element: DiagramElement) => {
     const { id, type, position, color, label, rotation } = element
-    const isSelected = !isPlaying && (selectedElementId === id || selectedElementIds.includes(id))
-    const size = ELEMENT_SIZES[type as keyof typeof ELEMENT_SIZES] || 24
+    const isSelected = !isPlaying && allSelectedIds.has(id)
 
     const commonProps = {
       key: id,
@@ -620,216 +712,223 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
       onClick: (e: React.MouseEvent) => e.stopPropagation(),
     }
 
-    switch (type) {
-      case 'player':
-      case 'opponent':
-      case 'player_gk':
-        return (
-          <g {...commonProps} transform={`translate(${position.x}, ${position.y})`}>
-            <circle cx="2" cy="2" r={size / 2} fill="rgba(0,0,0,0.3)" />
-            <circle cx="0" cy="0" r={size / 2} fill={color} stroke={isSelected ? '#FFFF00' : '#FFFFFF'} strokeWidth={isSelected ? 3 : 2} />
-            <text x="0" y="1" textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize="10" fontWeight="bold" fontFamily="Arial">
-              {label || ''}
+    // El texto se gestiona aparte porque tiene edición en línea
+    if (type === 'text') {
+      const fontSize = element.size || 13
+      const currentLabel = editingTextId === id ? editingTextValue : (label || 'Texto')
+      const textWidth = Math.max(80, currentLabel.length * fontSize * 0.6 + 24)
+      const isEditing = editingTextId === id
+      return (
+        <g
+          {...commonProps}
+          transform={`translate(${position.x}, ${position.y})`}
+          onDoubleClick={(e) => { e.stopPropagation(); startEditingText(element) }}
+          style={{ cursor: isPlaying ? 'default' : isEditing ? 'text' : 'move' }}
+        >
+          {isSelected && !isEditing && (
+            <rect x={-textWidth / 2 - 4} y={-fontSize / 2 - 4} width={textWidth + 8} height={fontSize + 8} fill="none" stroke="#FFE600" strokeWidth="1.5" strokeDasharray="4,2" rx="3" />
+          )}
+          {isEditing ? (
+            <foreignObject x={-textWidth / 2 - 4} y={-fontSize / 2 - 6} width={textWidth + 8} height={fontSize + 12}>
+              <input
+                ref={inlineInputRef}
+                value={editingTextValue}
+                onChange={(e) => setEditingTextValue(e.target.value)}
+                onBlur={commitTextEdit}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); commitTextEdit() }
+                  if (e.key === 'Escape') { e.preventDefault(); cancelTextEdit() }
+                  e.stopPropagation()
+                }}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  background: 'rgba(0,0,0,0.75)',
+                  color: color || '#FFFFFF',
+                  border: '1.5px solid #FFE600',
+                  borderRadius: '3px',
+                  fontSize: `${fontSize}px`,
+                  fontWeight: 'bold',
+                  fontFamily: 'Arial',
+                  textAlign: 'center',
+                  outline: 'none',
+                  padding: '0 4px',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </foreignObject>
+          ) : (
+            <text x="0" y="1" textAnchor="middle" dominantBaseline="middle" fill={color || '#FFFFFF'} fontSize={fontSize} fontWeight="bold" fontFamily="Arial">
+              {label || 'Texto'}
             </text>
-          </g>
-        )
-      case 'cone':
-        return (
-          <g {...commonProps} transform={`translate(${position.x}, ${position.y})`}>
-            <polygon points="0,-10 8,8 -8,8" fill={color} stroke={isSelected ? '#FFFF00' : '#000000'} strokeWidth={isSelected ? 2 : 1} />
-          </g>
-        )
-      case 'ball':
-        return (
-          <g {...commonProps} transform={`translate(${position.x}, ${position.y})`}>
-            {/* Realistic football with pentagon pattern */}
-            <circle cx="0" cy="0" r={size / 2 + 1} fill="#FFFFFF" stroke={isSelected ? '#FFFF00' : '#333333'} strokeWidth={isSelected ? 2.5 : 1.5} />
-            {/* Center pentagon */}
-            <polygon points="0,-4 3.8,-1.2 2.4,3.2 -2.4,3.2 -3.8,-1.2" fill="#1a1a1a" />
-            {/* Top pentagon */}
-            <polygon points="0,-7 1.8,-5.5 1.1,-3.8 -1.1,-3.8 -1.8,-5.5" fill="#1a1a1a" transform="translate(0, 0.5)" />
-            {/* Bottom-left */}
-            <polygon points="-5,-1 -3.5,-2.2 -2.2,-0.8 -2.8,1.2 -4.5,1.2" fill="#1a1a1a" />
-            {/* Bottom-right */}
-            <polygon points="5,-1 3.5,-2.2 2.2,-0.8 2.8,1.2 4.5,1.2" fill="#1a1a1a" />
-            {/* Bottom */}
-            <polygon points="0,7 -1.8,5.5 -1.1,4.2 1.1,4.2 1.8,5.5" fill="#1a1a1a" transform="translate(0, -0.5)" />
-            {/* Seam lines */}
-            <circle cx="0" cy="0" r={size / 2} fill="none" stroke="#cccccc" strokeWidth="0.3" />
-          </g>
-        )
-      case 'text': {
-        const fontSize = element.size || 13
-        const currentLabel = editingTextId === id ? editingTextValue : (label || 'Texto')
-        const textWidth = Math.max(80, currentLabel.length * fontSize * 0.6 + 24)
-        const isEditing = editingTextId === id
-        return (
-          <g
-            {...commonProps}
-            transform={`translate(${position.x}, ${position.y})`}
-            onDoubleClick={(e) => { e.stopPropagation(); startEditingText(element) }}
-            style={{ cursor: isPlaying ? 'default' : isEditing ? 'text' : 'move' }}
-          >
-            {isSelected && !isEditing && (
-              <rect x={-textWidth / 2 - 4} y={-fontSize / 2 - 4} width={textWidth + 8} height={fontSize + 8} fill="none" stroke="#FFFF00" strokeWidth="1.5" strokeDasharray="4,2" rx="3" />
-            )}
-            {isEditing ? (
-              <foreignObject x={-textWidth / 2 - 4} y={-fontSize / 2 - 6} width={textWidth + 8} height={fontSize + 12}>
-                <input
-                  ref={inlineInputRef}
-                  value={editingTextValue}
-                  onChange={(e) => setEditingTextValue(e.target.value)}
-                  onBlur={commitTextEdit}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); commitTextEdit() }
-                    if (e.key === 'Escape') { e.preventDefault(); cancelTextEdit() }
-                    e.stopPropagation()
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    background: 'rgba(0,0,0,0.75)',
-                    color: color || '#FFFFFF',
-                    border: '1.5px solid #FFFF00',
-                    borderRadius: '3px',
-                    fontSize: `${fontSize}px`,
-                    fontWeight: 'bold',
-                    fontFamily: 'Arial',
-                    textAlign: 'center',
-                    outline: 'none',
-                    padding: '0 4px',
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </foreignObject>
-            ) : (
-              <text x="0" y="1" textAnchor="middle" dominantBaseline="middle" fill={color || '#FFFFFF'} fontSize={fontSize} fontWeight="bold" fontFamily="Arial">
-                {label || 'Texto'}
-              </text>
-            )}
-          </g>
-        )
-      }
-      case 'mini_goal': {
-        const rot = rotation || 0
-        return (
-          <g {...commonProps} transform={`translate(${position.x}, ${position.y})`}>
-            <g transform={`rotate(${rot})`}>
-              {/* Goal frame */}
-              <rect x="-20" y="-12" width="40" height="24" fill="rgba(255,255,255,0.1)" stroke={isSelected ? '#FFFF00' : '#FFFFFF'} strokeWidth={isSelected ? 3 : 2} rx="2" />
-              {/* Net pattern */}
-              <line x1="-20" y1="-4" x2="20" y2="-4" stroke="#FFFFFF" strokeWidth="0.5" opacity="0.4" />
-              <line x1="-20" y1="4" x2="20" y2="4" stroke="#FFFFFF" strokeWidth="0.5" opacity="0.4" />
-              <line x1="-10" y1="-12" x2="-10" y2="12" stroke="#FFFFFF" strokeWidth="0.5" opacity="0.4" />
-              <line x1="0" y1="-12" x2="0" y2="12" stroke="#FFFFFF" strokeWidth="0.5" opacity="0.4" />
-              <line x1="10" y1="-12" x2="10" y2="12" stroke="#FFFFFF" strokeWidth="0.5" opacity="0.4" />
-            </g>
-            {/* Rotation handle (visible when selected) */}
-            {isSelected && !isPlaying && (
-              <g
-                onMouseDown={(e) => handleRotationMouseDown(e, id)}
-                style={{ cursor: 'grab' }}
-              >
-                <line x1="0" y1="-16" x2="0" y2="-28" stroke="#FFFF00" strokeWidth="1.5" strokeDasharray="3,2" />
-                <circle cx="0" cy="-30" r="5" fill="#FFFF00" stroke="#000" strokeWidth="1" opacity="0.9" />
-                <text x="0" y="-29" textAnchor="middle" dominantBaseline="middle" fontSize="6" fill="#000" fontFamily="Arial">↻</text>
-              </g>
-            )}
-          </g>
-        )
-      }
-      default:
-        return null
+          )}
+        </g>
+      )
     }
-  }
 
-  const renderArrow = (arrow: DiagramArrow) => {
-    const { id, from, to, type, color } = arrow
-    const isSelected = !isPlaying && (selectedElementId === id || selectedElementIds.includes(id))
-    const angle = Math.atan2(to.y - from.y, to.x - from.x)
-    const arrowSize = 10
-    const tipX = to.x - arrowSize * Math.cos(angle)
-    const tipY = to.y - arrowSize * Math.sin(angle)
-    const midX = (from.x + to.x) / 2
-    const midY = (from.y + to.y) / 2
+    const rotatable = ROTATABLE_ELEMENTS.includes(type)
+    const size = element.size || ELEMENT_SIZES[type as keyof typeof ELEMENT_SIZES] || 24
 
     return (
-      <g key={id} onClick={(e) => { e.stopPropagation(); if (!isPlaying) { elementInteractionRef.current = true; setTimeout(() => { elementInteractionRef.current = false }, 0); setSelectedElementId(id) } }} style={{ cursor: isPlaying ? 'default' : 'pointer' }}>
-        <line x1={from.x} y1={from.y} x2={tipX} y2={tipY}
-          stroke={color || '#FFFFFF'} strokeWidth={isSelected ? 4 : 2.5}
-          strokeDasharray={type === 'pass' ? '8,4' : 'none'}
-        />
-        <polygon
-          points={`${to.x},${to.y} ${to.x - arrowSize * Math.cos(angle - Math.PI / 6)},${to.y - arrowSize * Math.sin(angle - Math.PI / 6)} ${to.x - arrowSize * Math.cos(angle + Math.PI / 6)},${to.y - arrowSize * Math.sin(angle + Math.PI / 6)}`}
-          fill={color || '#FFFFFF'}
-        />
-        {arrow.label && (
-          <>
-            <circle cx={midX} cy={midY} r="10" fill="rgba(0,0,0,0.7)" />
-            <text x={midX} y={midY + 1} textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize="9" fontWeight="bold" fontFamily="Arial">
-              {arrow.label}
-            </text>
-          </>
-        )}
-        {/* Drag handles for endpoints when selected */}
-        {isSelected && !isPlaying && (
-          <>
-            <circle
-              cx={from.x} cy={from.y} r="7"
-              fill="#FFFF00" stroke="#000" strokeWidth="1.5" opacity="0.85"
-              style={{ cursor: 'grab' }}
-              onMouseDown={(e) => handleEndpointMouseDown(e, id, 'from')}
-            />
-            <circle
-              cx={to.x} cy={to.y} r="7"
-              fill="#FFFF00" stroke="#000" strokeWidth="1.5" opacity="0.85"
-              style={{ cursor: 'grab' }}
-              onMouseDown={(e) => handleEndpointMouseDown(e, id, 'to')}
-            />
-          </>
+      <g {...commonProps} transform={`translate(${position.x}, ${position.y})`}>
+        <g transform={rotatable && rotation ? `rotate(${rotation})` : undefined}>
+          <ElementSymbol element={element} selected={isSelected} uid={uid} />
+        </g>
+        {/* Tirador de giro */}
+        {rotatable && isSelected && !isPlaying && (
+          <g onMouseDown={(e) => handleRotationMouseDown(e, id)} style={{ cursor: 'grab' }}>
+            <line x1="0" y1={-size / 2 - 4} x2="0" y2={-size / 2 - 18} stroke="#FFE600" strokeWidth="1.5" strokeDasharray="3,2" />
+            <circle cx="0" cy={-size / 2 - 22} r="5.5" fill="#FFE600" stroke="#000" strokeWidth="1" opacity="0.95" />
+            <text x="0" y={-size / 2 - 21} textAnchor="middle" dominantBaseline="middle" fontSize="7" fill="#000" fontFamily="Arial">↻</text>
+          </g>
         )}
       </g>
     )
   }
 
+  const renderArrow = (arrow: DiagramArrow) => {
+    const isSelected = !isPlaying && allSelectedIds.has(arrow.id)
+    return (
+      <BoardArrow
+        key={arrow.id}
+        arrow={arrow}
+        selected={isSelected}
+        interactive={!isPlaying}
+        onSelect={(e) => {
+          e.stopPropagation()
+          if (isPlaying) return
+          elementInteractionRef.current = true
+          setTimeout(() => { elementInteractionRef.current = false }, 0)
+          setSelectedElementId(arrow.id)
+        }}
+        onEndpointMouseDown={(e, endpoint) => handleEndpointMouseDown(e, arrow.id, endpoint)}
+      />
+    )
+  }
+
   const renderZone = (zone: DiagramZone) => {
-    const { id, position, width, height, color, opacity, shape, label } = zone
-    const isSelected = !isPlaying && (selectedElementId === id || selectedElementIds.includes(id))
+    const { id, position, width, height, color, opacity, shape, label, rotation } = zone
+    const isSelected = !isPlaying && allSelectedIds.has(id)
+    const geo = zoneGeometry(zone)
+    const cx = position.x + width / 2
+    const cy = position.y + height / 2
 
     return (
       <g key={id}
+        transform={rotation ? `rotate(${rotation}, ${cx}, ${cy})` : undefined}
         onMouseDown={(e) => handleZoneMouseDown(e, id)}
-        onClick={(e) => { e.stopPropagation(); if (!isPlaying) { elementInteractionRef.current = true; setTimeout(() => { elementInteractionRef.current = false }, 0); setSelectedElementId(id) } }}
+        onClick={(e) => { e.stopPropagation(); if (!isPlaying) { elementInteractionRef.current = true; setTimeout(() => { elementInteractionRef.current = false }, 0) } }}
         style={{ cursor: isPlaying ? 'default' : (activeTool === 'select' ? 'move' : 'pointer') }}
       >
         {shape === 'ellipse' ? (
           <ellipse
-            cx={position.x + width / 2} cy={position.y + height / 2}
+            cx={cx} cy={cy}
             rx={width / 2} ry={height / 2}
             fill={color} opacity={opacity || 0.3}
-            stroke={isSelected ? '#FFFF00' : 'none'} strokeWidth={isSelected ? 2 : 0}
-            strokeDasharray={isSelected ? '6,3' : 'none'}
+            stroke={isSelected ? '#FFE600' : zone.isPlayingArea ? '#FFFFFF' : 'none'}
+            strokeWidth={isSelected ? 2 : zone.isPlayingArea ? 1.5 : 0}
+            strokeDasharray={isSelected ? '6,3' : undefined}
           />
         ) : (
           <rect
             x={position.x} y={position.y} width={width} height={height}
             fill={color} opacity={opacity || 0.3}
-            stroke={isSelected ? '#FFFF00' : 'none'} strokeWidth={isSelected ? 2 : 0}
-            strokeDasharray={isSelected ? '6,3' : 'none'}
+            stroke={isSelected ? '#FFE600' : zone.isPlayingArea ? '#FFFFFF' : 'none'}
+            strokeWidth={isSelected ? 2 : zone.isPlayingArea ? 1.5 : 0}
+            strokeDasharray={isSelected ? '6,3' : undefined}
           />
         )}
         {label && (
           <text
-            x={position.x + width / 2} y={position.y + height / 2}
+            x={cx} y={cy}
             textAnchor="middle" dominantBaseline="middle"
             fill="#FFFFFF" fontSize="11" fontWeight="bold" fontFamily="Arial"
             opacity="0.9"
+            style={{ pointerEvents: 'none' }}
           >
             {label}
           </text>
         )}
+        {/* Cota en metros: siempre visible en el espacio de juego, y al seleccionar cualquier zona */}
+        {!isPlaying && (isSelected || zone.isPlayingArea) && (
+          <MeasureBadge
+            x={cx}
+            y={position.y - 8}
+            text={`${geo.anchoX} × ${geo.altoY} m · ${geo.areaM2} m²`}
+            highlight={!!zone.isPlayingArea}
+          />
+        )}
+      </g>
+    )
+  }
+
+  /** Tiradores de redimensionado de la zona seleccionada (solo si hay una única zona). */
+  const renderZoneHandles = () => {
+    if (isPlaying || activeTool !== 'select') return null
+    const selectedZones = zones.filter((z) => allSelectedIds.has(z.id))
+    if (selectedZones.length !== 1) return null
+    const zone = selectedZones[0]
+    // Si además hay otros elementos seleccionados, no se redimensiona: se mueve el conjunto
+    if (allSelectedIds.size > 1) return null
+
+    const { x, y } = zone.position
+    const { width: w, height: h } = zone
+    const pos: Record<ResizeHandle, [number, number]> = {
+      nw: [x, y], n: [x + w / 2, y], ne: [x + w, y],
+      e: [x + w, y + h / 2], se: [x + w, y + h], s: [x + w / 2, y + h],
+      sw: [x, y + h], w: [x, y + h / 2],
+    }
+    const cx = x + w / 2
+    const cy = y + h / 2
+
+    return (
+      <g transform={zone.rotation ? `rotate(${zone.rotation}, ${cx}, ${cy})` : undefined}>
+        {RESIZE_HANDLES.map((handle) => {
+          const [hx, hy] = pos[handle]
+          return (
+            <rect
+              key={handle}
+              x={hx - 4.5} y={hy - 4.5} width={9} height={9} rx={1.5}
+              fill="#FFFFFF" stroke="#1F2937" strokeWidth="1.4"
+              style={{ cursor: HANDLE_CURSORS[handle] }}
+              onMouseDown={(e) => handleResizeMouseDown(e, zone, handle)}
+              onClick={(e) => e.stopPropagation()}
+            />
+          )
+        })}
+      </g>
+    )
+  }
+
+  /** Recuadro de la selección múltiple (para ver qué se va a girar/invertir/agrupar). */
+  const renderSelectionBox = () => {
+    if (isPlaying || allSelectedIds.size < 2) return null
+    const xs: number[] = []
+    const ys: number[] = []
+    elements.forEach((el) => { if (allSelectedIds.has(el.id)) { xs.push(el.position.x); ys.push(el.position.y) } })
+    arrows.forEach((ar) => { if (allSelectedIds.has(ar.id)) { xs.push(ar.from.x, ar.to.x); ys.push(ar.from.y, ar.to.y) } })
+    zones.forEach((z) => {
+      if (allSelectedIds.has(z.id)) {
+        xs.push(z.position.x, z.position.x + z.width)
+        ys.push(z.position.y, z.position.y + z.height)
+      }
+    })
+    if (xs.length === 0) return null
+    const pad = 14
+    const minX = Math.min(...xs) - pad
+    const maxX = Math.max(...xs) + pad
+    const minY = Math.min(...ys) - pad
+    const maxY = Math.max(...ys) + pad
+
+    return (
+      <g pointerEvents="none">
+        <rect
+          x={minX} y={minY} width={maxX - minX} height={maxY - minY}
+          fill="none" stroke="#38BDF8" strokeWidth="1.4" strokeDasharray="7,4" rx="4"
+        />
+        <MeasureBadge x={(minX + maxX) / 2} y={minY - 6} text={`${allSelectedIds.size} elementos`} />
       </g>
     )
   }
@@ -840,118 +939,143 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
     const y = Math.min(zoneDragStart.y, zoneDragCurrent.y)
     const w = Math.abs(zoneDragCurrent.x - zoneDragStart.x)
     const h = Math.abs(zoneDragCurrent.y - zoneDragStart.y)
+    const geo = zoneGeometry({ width: w, height: h, shape: activeTool === 'zone_circle' ? 'ellipse' : 'rectangle' })
 
-    if (activeTool === 'zone_circle') {
-      return <ellipse cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2} fill={zoneColor} opacity={0.3} stroke="#FFFF00" strokeWidth="1" strokeDasharray="4,2" />
-    }
-    return <rect x={x} y={y} width={w} height={h} fill={zoneColor} opacity={0.3} stroke="#FFFF00" strokeWidth="1" strokeDasharray="4,2" />
+    return (
+      <g pointerEvents="none">
+        {activeTool === 'zone_circle' ? (
+          <ellipse cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2} fill={zoneColor} opacity={0.3} stroke="#FFE600" strokeWidth="1" strokeDasharray="4,2" />
+        ) : (
+          <rect x={x} y={y} width={w} height={h} fill={zoneColor} opacity={0.3} stroke="#FFE600" strokeWidth="1" strokeDasharray="4,2" />
+        )}
+        {w > 4 && h > 4 && (
+          <MeasureBadge x={x + w / 2} y={y - 8} text={`${geo.anchoX} × ${geo.altoY} m · ${geo.areaM2} m²`} highlight />
+        )}
+      </g>
+    )
   }
+
+  const boardCanvas = (
+    <div
+      className="flex-1 min-h-0 bg-green-900 overflow-hidden relative"
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={resetInteractions}
+      onClick={() => containerRef.current?.focus()}
+    >
+      <ABPPitch
+        type={pitchType}
+        orientation={isHorizontal ? 'horizontal' : 'vertical'}
+        className="w-full h-full"
+        onClick={handlePitchClick}
+        onMouseDown={handlePitchMouseDown}
+      >
+        <BoardDefs uid={uid} />
+        <g ref={gRef}>
+          {renderZones.map(renderZone)}
+          {!isPlaying && renderZoneDragPreview()}
+          {renderArrows.map(renderArrow)}
+          {!isPlaying && arrowStart && (
+            <circle cx={arrowStart.x} cy={arrowStart.y} r="6" fill="#FFE600" stroke="#000" strokeWidth="1" opacity="0.85" />
+          )}
+          {renderElements.map(renderElement)}
+          {renderSelectionBox()}
+          {renderZoneHandles()}
+          {/* Marquee selection rectangle */}
+          {!isPlaying && marqueeStart && marqueeEnd && (
+            <rect
+              x={Math.min(marqueeStart.x, marqueeEnd.x)}
+              y={Math.min(marqueeStart.y, marqueeEnd.y)}
+              width={Math.abs(marqueeEnd.x - marqueeStart.x)}
+              height={Math.abs(marqueeEnd.y - marqueeStart.y)}
+              fill="rgba(59,130,246,0.10)"
+              stroke="#3B82F6"
+              strokeWidth="1"
+              strokeDasharray="4,2"
+              pointerEvents="none"
+            />
+          )}
+        </g>
+      </ABPPitch>
+
+      {/* Panel de propiedades del elemento seleccionado */}
+      {!isPlaying && <ElementEditPanel />}
+
+      {/* Métricas del espacio (metros, m²/jugador, condicionalidad) */}
+      {!isPlaying && (
+        <GeometryPanel numJugadores={numJugadores} onApplyEspacio={onApplyEspacio} />
+      )}
+    </div>
+  )
 
   return (
     <div ref={containerRef} tabIndex={0} className="flex flex-col h-full outline-none">
       {/* Top bar */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b border-gray-200 bg-white flex-shrink-0">
-        <button onClick={onCancel} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
-          <X className="h-5 w-5" />
-        </button>
-        <input
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          placeholder="Nombre de la pizarra..."
-          className="flex-1 text-lg font-bold text-gray-900 bg-transparent border-none outline-none placeholder-gray-300"
-        />
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <select
-            value={pitchType}
-            onChange={(e) => setPitchType(e.target.value as 'full' | 'half')}
-            className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white"
-          >
-            <option value="full">Campo Completo</option>
-            <option value="half">Medio Campo</option>
-          </select>
-
-          {/* Mode toggle */}
-          <button
-            onClick={() => setTipo(isAnimated ? 'static' : 'animated')}
-            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-              isAnimated
-                ? 'bg-purple-50 border-purple-300 text-purple-700'
-                : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            {isAnimated ? <Film className="h-3.5 w-3.5" /> : <ImageIcon className="h-3.5 w-3.5" />}
-            {isAnimated ? 'Animada' : 'Estatica'}
+      {!embedded && (
+        <div className="flex items-center gap-3 px-4 py-2 border-b border-gray-200 bg-white flex-shrink-0">
+          <button onClick={onCancel} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+            <X className="h-5 w-5" />
           </button>
+          <input
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Nombre de la pizarra..."
+            className="flex-1 text-lg font-bold text-gray-900 bg-transparent border-none outline-none placeholder-gray-300"
+          />
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <select
+              value={pitchType}
+              onChange={(e) => setPitchType(e.target.value as 'full' | 'half')}
+              className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white"
+            >
+              <option value="full">Campo Completo</option>
+              <option value="half">Medio Campo</option>
+            </select>
 
-          {/* Export */}
-          <button
-            onClick={() => setShowExport(true)}
-            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
-            title="Exportar"
-          >
-            <Download className="h-4 w-4" />
-          </button>
+            {/* Mode toggle */}
+            <button
+              onClick={() => setTipo(isAnimated ? 'static' : 'animated')}
+              className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                isAnimated
+                  ? 'bg-purple-50 border-purple-300 text-purple-700'
+                  : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              {isAnimated ? <Film className="h-3.5 w-3.5" /> : <ImageIcon className="h-3.5 w-3.5" />}
+              {isAnimated ? 'Animada' : 'Estatica'}
+            </button>
 
-          <button
-            onClick={onSave}
-            disabled={!nombre.trim() || saving}
-            className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            <Save className="h-4 w-4" />
-            {saving ? 'Guardando...' : 'Guardar'}
-          </button>
+            {/* Export */}
+            <button
+              onClick={() => setShowExport(true)}
+              className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+              title="Exportar"
+            >
+              <Download className="h-4 w-4" />
+            </button>
+
+            <button
+              onClick={onSave}
+              disabled={!nombre.trim() || saving}
+              className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              <Save className="h-4 w-4" />
+              {saving ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Toolbar */}
       <BoardToolbar
         arrowStart={!!arrowStart}
         onLoadFormation={handleLoadFormation}
+        showPitchSelector={embedded}
+        onExport={() => setShowExport(true)}
       />
 
       {/* Pitch */}
-      <div
-        className="flex-1 min-h-0 bg-green-900 overflow-hidden relative"
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={() => { setIsDragging(false); setZoneDragStart(null); setZoneDragCurrent(null); setDraggingEndpoint(null); setIsRotating(false); setDraggingZoneId(null); marqueeStartRef.current = null; marqueeEndRef.current = null; setMarqueeStart(null); setMarqueeEnd(null); lastDragPosRef.current = null }}
-        onClick={() => containerRef.current?.focus()}
-      >
-        <ABPPitch
-          type={pitchType}
-          orientation={isHorizontal ? 'horizontal' : 'vertical'}
-          className="w-full h-full"
-          onClick={handlePitchClick}
-          onMouseDown={handlePitchMouseDown}
-        >
-          <g ref={gRef}>
-            {renderZones.map(renderZone)}
-            {!isPlaying && renderZoneDragPreview()}
-            {renderArrows.map(renderArrow)}
-            {!isPlaying && arrowStart && (
-              <circle cx={arrowStart.x} cy={arrowStart.y} r="6" fill="#FFFF00" stroke="#000" strokeWidth="1" opacity="0.8" />
-            )}
-            {renderElements.map(renderElement)}
-            {/* Marquee selection rectangle */}
-            {!isPlaying && marqueeStart && marqueeEnd && (
-              <rect
-                x={Math.min(marqueeStart.x, marqueeEnd.x)}
-                y={Math.min(marqueeStart.y, marqueeEnd.y)}
-                width={Math.abs(marqueeEnd.x - marqueeStart.x)}
-                height={Math.abs(marqueeEnd.y - marqueeStart.y)}
-                fill="rgba(59,130,246,0.08)"
-                stroke="#3B82F6"
-                strokeWidth="1"
-                strokeDasharray="4,2"
-                pointerEvents="none"
-              />
-            )}
-          </g>
-        </ABPPitch>
-
-        {/* Edit panel (floating, absolute positioned) */}
-        {!isPlaying && <ElementEditPanel />}
-      </div>
+      {boardCanvas}
 
       {/* Animation controls (only in animated mode) */}
       {isAnimated && (
@@ -966,10 +1090,31 @@ export default function TacticalBoardEditor({ onSave, onCancel }: TacticalBoardE
         <ExportDialog
           svgRef={svgRef}
           isAnimated={isAnimated}
-          boardName={nombre}
+          boardName={nombre || 'pizarra'}
           onClose={() => setShowExport(false)}
         />
       )}
     </div>
+  )
+}
+
+/** Etiqueta de cota sobre el campo (fondo oscuro para que se lea sobre el césped). */
+function MeasureBadge({ x, y, text, highlight = false }: { x: number; y: number; text: string; highlight?: boolean }) {
+  const width = text.length * 5.6 + 12
+  return (
+    <g pointerEvents="none">
+      <rect
+        x={x - width / 2} y={y - 13} width={width} height={16} rx={3}
+        fill={highlight ? 'rgba(250,204,21,0.92)' : 'rgba(17,24,39,0.82)'}
+      />
+      <text
+        x={x} y={y - 5}
+        textAnchor="middle" dominantBaseline="middle"
+        fill={highlight ? '#111827' : '#FFFFFF'}
+        fontSize="9.5" fontWeight="bold" fontFamily="Arial"
+      >
+        {text}
+      </text>
+    </g>
   )
 }

@@ -27,12 +27,15 @@ import {
   Heart,
   Download,
   Sparkles,
+  Pencil,
 } from 'lucide-react'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { tareasApi } from '@/lib/api/tareas'
 import { apiKey } from '@/lib/swr'
 import { Tarea } from '@/types'
-import { TareaGraphicEditor } from '@/components/tarea-editor'
+import TareaPizarraEditor from '@/components/tactical-board/TareaPizarraEditor'
+import TacticalBoardMini from '@/components/task-preview/TacticalBoardMini'
+import type { TareaPizarraData } from '@/components/tactical-board/types'
 
 // Helpers para formatear valores
 const formatFaseJuego = (fase?: string) => {
@@ -75,6 +78,7 @@ export default function TareaDetailPage() {
   const [generatingPdf, setGeneratingPdf] = useState(false)
   const [generatingDiagram, setGeneratingDiagram] = useState(false)
   const [savingDiagram, setSavingDiagram] = useState(false)
+  const [boardEditing, setBoardEditing] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
   const handleGenerateDiagram = useCallback(async () => {
@@ -283,12 +287,27 @@ export default function TareaDetailPage() {
         {/* Left column - Main info */}
         <div className="lg:col-span-2 space-y-6">
           {/* Diagram */}
-          {tarea.grafico_data && (tarea.grafico_data as any).elements?.length > 0 ? (
+          {tarea.grafico_data && (
+            ((tarea.grafico_data as any).elements?.length > 0)
+            || ((tarea.grafico_data as any).zones?.length > 0)
+            || ((tarea.grafico_data as any).arrows?.length > 0)
+          ) ? (
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900">Pizarra Tactica</h2>
                 <div className="flex items-center gap-2">
                   {savingDiagram && <span className="text-xs text-gray-400">Guardando...</span>}
+                  <button
+                    onClick={() => setBoardEditing((v) => !v)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                      boardEditing
+                        ? 'bg-blue-50 border-blue-300 text-blue-700'
+                        : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    {boardEditing ? 'Cerrar editor' : 'Editar pizarra'}
+                  </button>
                   <button
                     onClick={handleGenerateDiagram}
                     disabled={generatingDiagram}
@@ -299,10 +318,28 @@ export default function TareaDetailPage() {
                   </button>
                 </div>
               </div>
-              <TareaGraphicEditor
-                value={tarea.grafico_data as any}
-                onChange={handleDiagramChange}
-              />
+
+              {/* Imagen de la pizarra — se reproduce en bucle si la tarea tiene fases */}
+              <div className="rounded-xl overflow-hidden border border-gray-200 bg-[#2D5016]">
+                <TacticalBoardMini
+                  data={tarea.grafico_data as TareaPizarraData}
+                  width="100%"
+                  animate
+                />
+              </div>
+
+              {/* Pizarra interactiva */}
+              {boardEditing && (
+                <div className="mt-4">
+                  <TareaPizarraEditor
+                    value={tarea.grafico_data as TareaPizarraData}
+                    onChange={handleDiagramChange}
+                    numJugadores={tarea.num_jugadores_min}
+                    height={520}
+                    onClose={() => setBoardEditing(false)}
+                  />
+                </div>
+              )}
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-dashed border-gray-300 p-6 text-center">
