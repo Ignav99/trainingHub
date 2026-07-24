@@ -203,20 +203,6 @@ export default function SesionTareaPanel({
     }
   }, [onSaveEdit])
 
-  const handleBoardChange = useCallback(async (data: any) => {
-    const newForm = { ...formRef.current, grafico_data: data }
-    setForm(newForm)
-    dirtyRef.current = false
-    setSaving(true)
-    try {
-      await onSaveEdit(newForm)
-    } catch {
-      // handled in onSaveEdit
-    } finally {
-      setSaving(false)
-    }
-  }, [onSaveEdit])
-
   const handleAiSubmit = async () => {
     if (!aiInstruction.trim()) return
     setAiProcessing(true)
