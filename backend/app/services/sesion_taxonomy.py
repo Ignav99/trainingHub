@@ -92,6 +92,13 @@ def normalize_sesion_row(row: Dict[str, Any]) -> Dict[str, Any]:
         data["contenidos_tecnicos_of"] = []
     if data.get("contenidos_tecnicos_def") is None:
         data["contenidos_tecnicos_def"] = []
+    # Numeric/Decimal → float para Pydantic
+    for key in ("carga_sesion",):
+        if data.get(key) is not None:
+            try:
+                data[key] = float(data[key])
+            except (TypeError, ValueError):
+                data[key] = None
     return data
 
 
