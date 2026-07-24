@@ -1,6 +1,6 @@
 'use client'
 
-import React, { memo, useEffect, useId, useRef, useState } from 'react'
+import React, { memo, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Play } from 'lucide-react'
 import ABPPitch from '@/components/abp/ABPPitch'
 import type { DiagramElement, DiagramArrow, DiagramZone } from '../tarea-editor/types'
@@ -18,6 +18,11 @@ interface TacticalBoardMiniProps {
   animate?: boolean
   /** Muestra el distintivo de "tiene animación" */
   showPlayBadge?: boolean
+  /**
+   * Si true (default), arranca el bucle al montar.
+   * Si false, solo anima cuando entra en viewport (IntersectionObserver).
+   */
+  autoplay?: boolean
 }
 
 // Normalize element position: seed data uses {x, y} directly, frontend uses {position: {x, y}}
@@ -95,6 +100,13 @@ export function boardHasAnimation(data?: TareaPizarraData | null): boolean {
   return !!usableFrames(data)
 }
 
+/** Firma estable de frames para deps del efecto (evita reiniciar el bucle cada render). */
+function framesSignature(data?: TareaPizarraData | null): string {
+  const frames = data?.frames
+  if (!Array.isArray(frames) || frames.length < 2) return ''
+  return `${frames.length}:${frames.map((f) => f.id || f.orden || 0).join(',')}:${frames.map((f) => f.duration_ms || 0).join(',')}`
+}
+
 function TacticalBoardMiniInner({
   data,
   width = '100%',
@@ -102,20 +114,26 @@ function TacticalBoardMiniInner({
   className = '',
   animate = false,
   showPlayBadge = true,
+  autoplay = true,
 }: TacticalBoardMiniProps) {
   const uid = useId().replace(/:/g, '')
   const containerRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number>(0)
   const startRef = useRef(0)
+  const runningRef = useRef(false)
+  const framesRef = useRef<Keyframe[] | null>(null)
   const [frameData, setFrameData] = useState<{ elements: any[]; arrows: any[]; zones: any[] } | null>(null)
 
-  const frames = usableFrames(data)
+  const framesSig = framesSignature(data)
+  const frames = useMemo(() => usableFrames(data), [data, framesSig])
+  framesRef.current = frames
+
   const canAnimate = animate && !!frames
 
   // Vista estática: top-level (o frame 0). Vista animada: interpolación.
-  const staticData = staticBoardSnapshot(data)
+  const staticData = useMemo(() => staticBoardSnapshot(data), [data, framesSig])
 
-  // Bucle de animación: solo mientras la tarjeta está a la vista
+  // Bucle de animación — autoplay al montar; pausa solo si sale del viewport
   useEffect(() => {
     if (!canAnimate || !frames) {
       setFrameData(null)
@@ -128,46 +146,56 @@ function TacticalBoardMiniInner({
       return
     }
 
-    const node = containerRef.current
-    if (!node) return
-
-    const total = Math.max(600, totalDuration(frames))
-    let running = false
-
     const tick = () => {
-      const t = ((performance.now() - startRef.current) % total) / total
-      setFrameData(sampleAnimation(frames, t))
+      const current = framesRef.current
+      if (!current || current.length < 2) {
+        runningRef.current = false
+        return
+      }
+      const tot = Math.max(600, totalDuration(current))
+      const t = ((performance.now() - startRef.current) % tot) / tot
+      setFrameData(sampleAnimation(current, t))
       rafRef.current = requestAnimationFrame(tick)
     }
 
     const start = () => {
-      if (running) return
-      running = true
+      if (runningRef.current) return
+      runningRef.current = true
       startRef.current = performance.now()
       rafRef.current = requestAnimationFrame(tick)
     }
     const stop = () => {
-      running = false
+      runningRef.current = false
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       rafRef.current = 0
     }
 
-    if (typeof IntersectionObserver === 'undefined') {
+    // Autoplay inmediato (lo que el staff necesita ver en sesión)
+    if (autoplay) {
       start()
-      return stop
     }
 
-    const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) start(); else stop() },
-      { threshold: 0.15 },
-    )
-    observer.observe(node)
+    const node = containerRef.current
+    let observer: IntersectionObserver | null = null
+    if (node && typeof IntersectionObserver !== 'undefined') {
+      observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) start()
+          else stop()
+        },
+        { threshold: 0.05, rootMargin: '40px' },
+      )
+      observer.observe(node)
+    } else if (!autoplay) {
+      start()
+    }
 
     return () => {
-      observer.disconnect()
+      observer?.disconnect()
       stop()
     }
-  }, [canAnimate, frames])
+    // framesSig estabiliza el contenido; no usar `frames` (nueva ref cada vez)
+  }, [canAnimate, framesSig, autoplay])
 
   const source = canAnimate ? (frameData || staticData || data) : (staticData || data)
   const elements = (Array.isArray(source?.elements) ? source!.elements : []).map(normalizeElement).filter(Boolean) as DiagramElement[]
@@ -178,7 +206,8 @@ function TacticalBoardMiniInner({
   const pitchType = ((data?.pitchType === 'half' ? 'half' : 'full') as 'half' | 'full')
   const orientation = pitchType === 'full' ? 'horizontal' : 'vertical'
 
-  if (isEmpty) {
+  // Siempre montar el contenedor con ref para que el efecto pueda autoplay
+  if (isEmpty && !canAnimate) {
     return (
       <div
         className={`relative bg-[#2D5016] rounded-lg flex items-center justify-center ${className}`}
@@ -195,65 +224,73 @@ function TacticalBoardMiniInner({
       style={{ width, height: height || '100%' }}
       className={`relative rounded-lg overflow-hidden ${className}`}
     >
-      <ABPPitch type={pitchType} orientation={orientation} className="w-full h-full">
-        <BoardDefs uid={uid} />
-        {/* Zonas al fondo */}
-        {zones.map((zone) => {
-          const cx = zone.position.x + zone.width / 2
-          const cy = zone.position.y + zone.height / 2
-          const common = {
-            fill: zone.color,
-            opacity: zone.opacity || 0.3,
-          }
-          return (
-            <g key={zone.id} transform={zone.rotation ? `rotate(${zone.rotation}, ${cx}, ${cy})` : undefined}>
-              {zone.shape === 'ellipse' ? (
-                <ellipse cx={cx} cy={cy} rx={zone.width / 2} ry={zone.height / 2} {...common} />
-              ) : (
-                <rect x={zone.position.x} y={zone.position.y} width={zone.width} height={zone.height} rx={3} {...common} />
-              )}
-              {zone.label && (
-                <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize="11" fontWeight="bold" fontFamily="Arial" opacity="0.9">
-                  {zone.label}
-                </text>
-              )}
-            </g>
-          )
-        })}
-        {/* Movimientos */}
-        {arrows.map((arrow) => <BoardArrow key={arrow.id} arrow={arrow} />)}
-        {/* Elementos encima */}
-        {elements.map((element) => {
-          if (element.type === 'text') {
+      {isEmpty ? (
+        <div className="absolute inset-0 bg-[#2D5016] flex items-center justify-center">
+          <span className="text-white/40 text-[10px] font-medium">Sin diagrama</span>
+        </div>
+      ) : (
+        <ABPPitch type={pitchType} orientation={orientation} className="w-full h-full">
+          <BoardDefs uid={uid} />
+          {zones.map((zone) => {
+            const cx = zone.position.x + zone.width / 2
+            const cy = zone.position.y + zone.height / 2
+            const common = {
+              fill: zone.color,
+              opacity: zone.opacity || 0.3,
+            }
             return (
-              <text
-                key={element.id}
-                x={element.position.x} y={element.position.y}
-                textAnchor="middle" dominantBaseline="middle"
-                fill={element.color || '#FFFFFF'}
-                fontSize={element.size || 13} fontWeight="bold" fontFamily="Arial"
-              >
-                {element.label || ''}
-              </text>
+              <g key={zone.id} transform={zone.rotation ? `rotate(${zone.rotation}, ${cx}, ${cy})` : undefined}>
+                {zone.shape === 'ellipse' ? (
+                  <ellipse cx={cx} cy={cy} rx={zone.width / 2} ry={zone.height / 2} {...common} />
+                ) : (
+                  <rect x={zone.position.x} y={zone.position.y} width={zone.width} height={zone.height} rx={3} {...common} />
+                )}
+                {zone.label && (
+                  <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize="11" fontWeight="bold" fontFamily="Arial" opacity="0.9">
+                    {zone.label}
+                  </text>
+                )}
+              </g>
             )
-          }
-          const rotatable = ROTATABLE_ELEMENTS.includes(element.type)
-          return (
-            <g
-              key={element.id}
-              transform={`translate(${element.position.x}, ${element.position.y})${rotatable && element.rotation ? ` rotate(${element.rotation})` : ''}`}
-            >
-              <ElementSymbol element={element} uid={uid} />
-            </g>
-          )
-        })}
-      </ABPPitch>
+          })}
+          {arrows.map((arrow) => <BoardArrow key={arrow.id} arrow={arrow} />)}
+          {elements.map((element) => {
+            if (element.type === 'text') {
+              return (
+                <text
+                  key={element.id}
+                  x={element.position.x} y={element.position.y}
+                  textAnchor="middle" dominantBaseline="middle"
+                  fill={element.color || '#FFFFFF'}
+                  fontSize={element.size || 13} fontWeight="bold" fontFamily="Arial"
+                >
+                  {element.label || ''}
+                </text>
+              )
+            }
+            const rotatable = ROTATABLE_ELEMENTS.includes(element.type)
+            return (
+              <g
+                key={element.id}
+                transform={`translate(${element.position.x}, ${element.position.y})${rotatable && element.rotation ? ` rotate(${element.rotation})` : ''}`}
+              >
+                <ElementSymbol element={element} uid={uid} />
+              </g>
+            )
+          })}
+        </ABPPitch>
+      )}
 
-      {/* Distintivo de animación cuando no se está reproduciendo */}
       {showPlayBadge && frames && !frameData && (
         <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1 bg-black/60 text-white text-[10px] font-medium px-1.5 py-0.5 rounded">
           <Play className="h-2.5 w-2.5 fill-current" />
           {frames.length} fases
+        </div>
+      )}
+      {canAnimate && frameData && (
+        <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1 bg-emerald-600/80 text-white text-[10px] font-medium px-1.5 py-0.5 rounded">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+          En bucle
         </div>
       )}
     </div>
@@ -267,6 +304,7 @@ const TacticalBoardMini = memo(TacticalBoardMiniInner, (prev, next) => (
   && prev.className === next.className
   && prev.animate === next.animate
   && prev.showPlayBadge === next.showPlayBadge
+  && prev.autoplay === next.autoplay
 ))
 
 TacticalBoardMini.displayName = 'TacticalBoardMini'
