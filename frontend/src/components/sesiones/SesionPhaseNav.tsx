@@ -2,22 +2,33 @@
 
 import { cn } from '@/lib/utils'
 import {
-  MapPin,
+  ClipboardList,
   PenTool,
-  UserCheck,
-  Play,
   Flag,
   type LucideIcon,
 } from 'lucide-react'
 
-export type SesionPhase = 'contexto' | 'convocatoria' | 'diseno' | 'campo' | 'cierre'
+/** Wizard 3 pasos: Definir → Diseño → Cierre */
+export type SesionPhase = 'definir' | 'diseno' | 'cierre'
+
+/** Alias legacy para migrar pantallas que aún usaban 5 fases */
+export type SesionPhaseLegacy =
+  | SesionPhase
+  | 'contexto'
+  | 'convocatoria'
+  | 'campo'
+
+export function normalizeSesionPhase(phase: SesionPhaseLegacy | string): SesionPhase {
+  if (phase === 'contexto') return 'definir'
+  if (phase === 'convocatoria' || phase === 'campo') return 'diseno'
+  if (phase === 'definir' || phase === 'diseno' || phase === 'cierre') return phase
+  return 'definir'
+}
 
 const PHASES: { id: SesionPhase; label: string; hint: string; icon: LucideIcon }[] = [
-  { id: 'contexto', label: 'Contexto', hint: 'Fecha, MD, objetivo', icon: MapPin },
-  { id: 'convocatoria', label: 'Convocatoria', hint: 'Quién asiste', icon: UserCheck },
-  { id: 'diseno', label: 'Diseño', hint: 'Fases y tareas', icon: PenTool },
-  { id: 'campo', label: 'Campo', hint: 'Día de sesión', icon: Play },
-  { id: 'cierre', label: 'Cierre', hint: 'RPE y completar', icon: Flag },
+  { id: 'definir', label: 'Definir', hint: 'Fases, ABP, objetivo', icon: ClipboardList },
+  { id: 'diseno', label: 'Diseño', hint: 'Convocatoria y tareas', icon: PenTool },
+  { id: 'cierre', label: 'Cierre', hint: 'PDF, link y planificar', icon: Flag },
 ]
 
 export function SesionPhaseNav({

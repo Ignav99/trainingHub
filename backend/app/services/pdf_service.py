@@ -1328,3 +1328,71 @@ async def generate_abp_partido_pdf(
             return html_content.encode("utf-8")
 
     return await asyncio.to_thread(_render)
+
+
+async def generate_sesion_pdf_reducido(
+    sesion_data: dict,
+    tareas_sesion: list,
+    organizacion: dict,
+    *,
+    lugar: Optional[str] = None,
+    microciclo_nombre: Optional[str] = None,
+    asistencia_roster: Optional[list] = None,
+) -> bytes:
+    """PDF reducido de 1 página (vestuario): escudo, MD, rival, objetivo/keywords, lista corta."""
+    env = _get_jinja_env_v2()
+    template = env.get_template("sesion_pdf_reducido.html")
+
+    color_primario = organizacion.get("color_primario", "#1a365d")
+    equipo = sesion_data.get("equipos", {}) or {}
+    logo_url = organizacion.get("logo_url") or ""
+    if logo_url:
+        logo_url = _url_to_data_uri(logo_url)
+
+    tareas_corta = []
+    duracion_total = 0
+    for i, ts in enumerate(tareas_sesion or [], start=1):
+        tarea = ts.get("tareas") or ts.get("tarea") or {}
+        if not isinstance(tarea, dict):
+            tarea = {}
+        cat = tarea.get("categorias_tarea") or tarea.get("categoria") or {}
+        cat_code = ""
+        if isinstance(cat, dict):
+            cat_code = cat.get("codigo") or cat.get("nombre_corto") or cat.get("nombre") or ""
+        dur = ts.get("duracion_override") or tarea.get("duracion_total") or 0
+        duracion_total += int(dur or 0)
+        tareas_corta.append({
+            "orden": ts.get("orden") or i,
+            "titulo": tarea.get("titulo") or "Tarea",
+            "categoria": cat_code,
+            "duracion": dur,
+        })
+
+    keywords = sesion_data.get("keywords") or []
+    intensidad = (
+        sesion_data.get("intensidad_calculada")
+        or sesion_data.get("intensidad_objetivo")
+        or ""
+    )
+
+    def _render() -> bytes:
+        from weasyprint import HTML
+        html_content = template.render(
+            sesion=sesion_data,
+            org_nombre=organizacion.get("nombre", ""),
+            equipo_nombre=equipo.get("nombre", ""),
+            logo_url=logo_url,
+            color_primario=color_primario,
+            match_day=sesion_data.get("match_day"),
+            rival=sesion_data.get("rival"),
+            lugar=lugar or sesion_data.get("lugar"),
+            keywords=keywords,
+            tareas_corta=tareas_corta,
+            duracion_total=duracion_total or sesion_data.get("duracion_total") or 0,
+            intensidad=intensidad,
+            microciclo_nombre=microciclo_nombre,
+            asistencia_roster=asistencia_roster or [],
+        )
+        return HTML(string=html_content, base_url=str(TEMPLATES_DIR)).write_pdf()
+
+    return await asyncio.to_thread(_render)

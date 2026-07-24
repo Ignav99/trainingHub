@@ -79,6 +79,8 @@ import { SesionTareaPanel } from '@/components/sesion'
 import GKTrainingSection from '@/components/portero/GKTrainingSection'
 import { SesionPhaseNav, type SesionPhase } from '@/components/sesiones/SesionPhaseNav'
 import { SesionCierrePanel } from '@/components/sesiones/SesionCierrePanel'
+import { SesionDefinirForm } from '@/components/sesiones/SesionDefinirForm'
+import { SesionMaterialPanel } from '@/components/sesiones/SesionMaterialPanel'
 import { sesionesApi, SesionUpdateData } from '@/lib/api/sesiones'
 import { tareasApi } from '@/lib/api/tareas'
 import { jugadoresApi } from '@/lib/api/jugadores'
@@ -956,7 +958,8 @@ export default function SesionDetailPage() {
   const [generatingPdf, setGeneratingPdf] = useState(false)
   const [previewingPdf, setPreviewingPdf] = useState(false)
   const [savingTareas, setSavingTareas] = useState(false)
-  const [phase, setPhase] = useState<SesionPhase>('convocatoria')
+  const [phase, setPhase] = useState<SesionPhase>('definir')
+  const [disenoTab, setDisenoTab] = useState<'convocatoria' | 'tareas'>('convocatoria')
   const [asistenciaSavedOnce, setAsistenciaSavedOnce] = useState(false)
 
   // Task picker
@@ -1273,10 +1276,10 @@ export default function SesionDetailPage() {
   }
 
   // ============ PDF ============
-  const handlePreviewPdf = async () => {
+  const handlePreviewPdf = async (variant: 'reducido' | 'extendido' = 'extendido') => {
     setPreviewingPdf(true)
     try {
-      await sesionesApi.previewPdf(sesionId)
+      await sesionesApi.previewPdf(sesionId, variant)
     } catch (err) {
       toast.error('Error al generar vista previa del PDF')
     } finally {
@@ -1284,10 +1287,10 @@ export default function SesionDetailPage() {
     }
   }
 
-  const handleGeneratePdf = async () => {
+  const handleGeneratePdf = async (variant: 'reducido' | 'extendido' = 'extendido') => {
     setGeneratingPdf(true)
     try {
-      await sesionesApi.generatePdf(sesionId)
+      await sesionesApi.generatePdf(sesionId, variant)
       toast.success('PDF descargado')
     } catch (err) {
       toast.error('Error al descargar PDF')
@@ -1664,11 +1667,16 @@ export default function SesionDetailPage() {
 
   const handlePhaseChange = (next: SesionPhase) => {
     setPhase(next)
-    if (next === 'convocatoria' || next === 'campo' || next === 'cierre' || next === 'diseno') {
+    if (next === 'diseno') {
+      setDisenoTab('convocatoria')
       loadJugadores()
       loadAsistencias()
       loadCargaData()
       loadMargen()
+    }
+    if (next === 'cierre') {
+      loadJugadores()
+      loadAsistencias()
     }
   }
 
@@ -2043,10 +2051,10 @@ export default function SesionDetailPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={handlePreviewPdf} disabled={previewingPdf} title="Vista previa PDF">
+          <Button variant="outline" size="icon" onClick={() => handlePreviewPdf()} disabled={previewingPdf} title="Vista previa PDF">
             {previewingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
           </Button>
-          <Button variant="outline" size="icon" onClick={handleGeneratePdf} disabled={generatingPdf} title="Descargar PDF">
+          <Button variant="outline" size="icon" onClick={() => handleGeneratePdf()} disabled={generatingPdf} title="Descargar PDF">
             {generatingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           </Button>
           <Button variant="outline" size="icon" onClick={handleDelete} disabled={deleting} className="text-destructive hover:bg-destructive/10" title="Eliminar">
@@ -2061,11 +2069,9 @@ export default function SesionDetailPage() {
           value={phase}
           onChange={handlePhaseChange}
           done={{
-            contexto: !!(sesion.objetivo_principal && sesion.fecha && sesion.match_day),
-            diseno: allTareas.length > 0,
-            convocatoria: asistenciaSavedOnce,
-            campo: Array.from(asistencias.values()).some((a) => a.presente),
-            cierre: sesion.estado === 'completada',
+            definir: !!(sesion.objetivo_principal && sesion.fecha && (sesion.fases_juego?.length || sesion.match_day)),
+            diseno: allTareas.length > 0 && asistenciaSavedOnce,
+            cierre: sesion.estado === 'planificada' || sesion.estado === 'completada',
           }}
         />
         <div className="flex items-center gap-3">
@@ -2093,102 +2099,43 @@ export default function SesionDetailPage() {
         )}
       </div>
 
-      {/* ==================== FASE: CONTEXTO ==================== */}
-      {phase === 'contexto' && (
+      {/* ==================== FASE: DEFINIR ==================== */}
+      {phase === 'definir' && (
         <div className="space-y-4 animate-fade-in">
-          <Card>
-            <CardContent className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Objetivo principal</label>
-                  <Textarea
-                    value={sesion.objetivo_principal || ''}
-                    onChange={(e) => updateField('objetivo_principal', e.target.value)}
-                    placeholder="Ej: Mejorar salida de balón bajo presión"
-                    rows={2}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Intensidad</label>
-                  <select
-                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                    value={sesion.intensidad_objetivo || ''}
-                    onChange={(e) => updateField('intensidad_objetivo', e.target.value || null)}
-                  >
-                    <option value="">Sin definir</option>
-                    {INTENSIDADES.map((i) => (
-                      <option key={i} value={i}>{i.charAt(0).toUpperCase() + i.slice(1).replace('_', ' ')}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Lugar</label>
-                  <Input
-                    value={sesion.lugar || ''}
-                    onChange={(e) => updateField('lugar', e.target.value || null)}
-                    placeholder="Campo, instalación…"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Rival</label>
-                  <Input
-                    value={sesion.rival || ''}
-                    onChange={(e) => updateField('rival', e.target.value || null)}
-                    placeholder="Nombre del rival"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Competición</label>
-                  <Input
-                    value={sesion.competicion || ''}
-                    onChange={(e) => updateField('competicion', e.target.value || null)}
-                    placeholder="Liga, Copa…"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Notas pre-sesión</label>
-                  <Textarea
-                    value={sesion.notas_pre || ''}
-                    onChange={(e) => updateField('notas_pre', e.target.value || null)}
-                    placeholder="Notas para antes de la sesión"
-                    rows={2}
-                  />
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <label className="text-xs font-medium text-muted-foreground mb-2 block">Materiales</label>
-                <div className="flex flex-wrap gap-2">
-                  {(sesion.materiales || []).map((mat, idx) => (
-                    <Badge key={idx} variant="secondary" className="gap-1">
-                      {mat}
-                      <button
-                        onClick={() => {
-                          const newMats = (sesion.materiales || []).filter((_, i) => i !== idx)
-                          updateField('materiales', newMats)
-                        }}
-                        className="ml-1 hover:text-destructive"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                  {MATERIALES_SUGERIDOS.filter((m) => !(sesion.materiales || []).includes(m)).map((mat) => (
-                    <button
-                      key={mat}
-                      onClick={() => updateField('materiales', [...(sesion.materiales || []), mat])}
-                      className="px-2 py-1 text-xs border border-dashed rounded-full text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
-                    >
-                      + {mat}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <SesionDefinirForm
+            value={{
+              titulo: sesion.titulo || '',
+              fecha: sesion.fecha || '',
+              hora: sesion.hora || '',
+              lugar: sesion.lugar || '',
+              match_day: sesion.match_day || 'MD-3',
+              dia_carga: sesion.dia_carga || '',
+              contexto_periodo: sesion.contexto_periodo || (sesion.es_pretemporada ? 'pretemporada' : 'competicion'),
+              es_pretemporada: !!sesion.es_pretemporada,
+              rival: sesion.rival || '',
+              competicion: sesion.competicion || '',
+              partido_id: sesion.partido_id || null,
+              fases_juego: sesion.fases_juego || (sesion.fase_juego_principal ? [sesion.fase_juego_principal] : []),
+              subfases: sesion.subfases || [],
+              abp_config: sesion.abp_config || null,
+              contenidos_tecnicos_of: sesion.contenidos_tecnicos_of || sesion.contenidos_ofensivos || [],
+              contenidos_tecnicos_def: sesion.contenidos_tecnicos_def || sesion.contenidos_defensivos || [],
+              objetivo_principal: sesion.objetivo_principal || '',
+              keywords: sesion.keywords || [],
+              objetivo_fisico: sesion.objetivo_fisico || '',
+              objetivo_psicologico: sesion.objetivo_psicologico || '',
+            }}
+            rivalLocked={!!sesion.partido_id && !sesion.es_pretemporada}
+            onChange={(patch) => {
+              const keys = Object.keys(patch) as (keyof typeof patch)[]
+              for (const k of keys) {
+                updateField(k as any, (patch as any)[k])
+              }
+            }}
+          />
           <div className="flex justify-end">
-            <Button onClick={() => handlePhaseChange('convocatoria')}>
-              Ir a Convocatoria
+            <Button onClick={() => handlePhaseChange('diseno')}>
+              Ir a Diseño
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           </div>
@@ -2197,6 +2144,25 @@ export default function SesionDetailPage() {
 
       {/* ==================== FASE: DISENO ==================== */}
       {phase === 'diseno' && (
+        <div className="space-y-4">
+          <div className="flex gap-1 rounded-xl border bg-muted/40 p-1 w-fit">
+            <button
+              type="button"
+              onClick={() => setDisenoTab('convocatoria')}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${disenoTab === 'convocatoria' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+            >
+              Convocatoria
+            </button>
+            <button
+              type="button"
+              onClick={() => setDisenoTab('tareas')}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${disenoTab === 'tareas' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+            >
+              Tareas + material
+            </button>
+          </div>
+          {disenoTab === 'tareas' && (
+
         <div className="space-y-4 animate-fade-in">
           {/* Fases de sesion */}
           <div className="space-y-4">
@@ -2373,20 +2339,28 @@ export default function SesionDetailPage() {
             </div>
           )}
 
+          <SesionMaterialPanel
+            value={sesion.materiales || []}
+            derivedFromTareas={(sesion.tareas || []).flatMap((st) => st.tarea?.material || [])}
+            onChange={(mats) => updateField('materiales', mats)}
+          />
+
           <div className="flex justify-between pt-2">
-            <Button type="button" variant="outline" onClick={() => handlePhaseChange('convocatoria')}>
+            <Button type="button" variant="outline" onClick={() => setDisenoTab('convocatoria')}>
               Volver a Convocatoria
             </Button>
-            <Button type="button" onClick={() => handlePhaseChange('campo')}>
-              Siguiente: Campo
+            <Button type="button" onClick={() => handlePhaseChange('cierre')}>
+              Siguiente: Cierre
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           </div>
         </div>
+          )}
+        </div>
       )}
 
-      {/* ==================== FASE: CONVOCATORIA ==================== */}
-      {phase === 'convocatoria' && (
+      {/* ==================== DISENO > CONVOCATORIA ==================== */}
+      {phase === 'diseno' && disenoTab === 'convocatoria' && (
         <div className="space-y-4 animate-fade-in">
           <Card>
             <CardHeader>
@@ -2892,19 +2866,19 @@ export default function SesionDetailPage() {
           </Card>
 
           <div className="flex justify-between pt-2">
-            <Button type="button" variant="outline" onClick={() => handlePhaseChange('contexto')}>
-              Volver a Contexto
+            <Button type="button" variant="outline" onClick={() => handlePhaseChange('definir')}>
+              Volver a Definir
             </Button>
-            <Button type="button" onClick={() => handlePhaseChange('diseno')}>
-              Siguiente: Diseño
+            <Button type="button" onClick={() => setDisenoTab('tareas')}>
+              Siguiente: Tareas
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           </div>
         </div>
       )}
 
-      {/* ==================== FASE: CAMPO ==================== */}
-      {phase === 'campo' && (
+      {/* ==================== CAMPO eliminado (rediseño) — bloque oculto ==================== */}
+      {false && (
         <div className="space-y-6 animate-fade-in">
           <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
             <h3 className="font-semibold text-slate-900">Modo campo</h3>
@@ -2918,22 +2892,22 @@ export default function SesionDetailPage() {
                   Abrir pizarra
                 </Link>
               </Button>
-              <Button variant="outline" onClick={handlePreviewPdf} disabled={previewingPdf}>
+              <Button variant="outline" onClick={() => handlePreviewPdf()} disabled={previewingPdf}>
                 {previewingPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Eye className="h-4 w-4 mr-2" />}
                 Vista previa PDF
               </Button>
-              <Button variant="outline" onClick={handleGeneratePdf} disabled={generatingPdf}>
+              <Button variant="outline" onClick={() => handleGeneratePdf()} disabled={generatingPdf}>
                 {generatingPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
                 Descargar PDF
               </Button>
             </div>
           </div>
 
-          {(sesion.tareas || []).length > 0 && (
+          {(sesion?.tareas || []).length > 0 && (
             <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
               <h3 className="font-semibold text-slate-900">Secuencia en pista</h3>
               <ol className="space-y-2">
-                {(sesion.tareas || [])
+                {(sesion?.tareas || [])
                   .slice()
                   .sort((a, b) => (a.orden || 0) - (b.orden || 0))
                   .map((st, idx) => (
@@ -2969,18 +2943,27 @@ export default function SesionDetailPage() {
         <SesionCierrePanel
           sesionId={sesionId}
           estado={sesion.estado}
-          notasPost={sesion.notas_post || ''}
           checklist={{
             hasObjetivo: !!sesion.objetivo_principal,
             hasTareas: (sesion.tareas || []).length > 0,
             asistenciaSaved: asistenciaSavedOnce || asistenciasLoaded,
             presentes: Array.from(asistencias.values()).filter((a) => a.presente).length,
-            hasNotasPost: !!(sesion.notas_post && sesion.notas_post.trim()),
+            isPlanificada: sesion.estado === 'planificada',
             isCompletada: sesion.estado === 'completada',
           }}
-          onNotasPostChange={(v) => updateField('notas_post', v)}
-          onCompletar={async () => {
-            await handleUpdateEstado('completada')
+          tareas={sesion.tareas || []}
+          cargaSesion={sesion.carga_sesion}
+          intensidadCalculada={sesion.intensidad_calculada || sesion.intensidad_objetivo}
+          shareToken={sesion.share_token}
+          shareUrl={sesion.share_token ? `${typeof window !== 'undefined' ? window.location.origin : ''}/share/sesiones/${sesion.share_token}` : null}
+          onCerrarPlanificacion={async () => {
+            const updated = await sesionesApi.cerrarPlanificacion(sesionId)
+            setSesion(updated)
+            mutate(`/api/v1/sesiones/${sesionId}`)
+          }}
+          onEnableShare={async () => {
+            const updated = await sesionesApi.enableShare(sesionId)
+            setSesion(updated)
           }}
           onPreviewPdf={handlePreviewPdf}
           onDownloadPdf={handleGeneratePdf}

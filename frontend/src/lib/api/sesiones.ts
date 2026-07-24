@@ -48,6 +48,19 @@ export interface SesionCreateData {
   objetivos?: string[]
   contenidos_ofensivos?: string[]
   contenidos_defensivos?: string[]
+  // Taxonomía rediseño
+  fases_juego?: string[]
+  subfases?: { fase: string; subfase: string; opcion?: string | null }[]
+  abp_config?: { activo: boolean; lado?: string | null; tipos?: string[] } | null
+  contenidos_tecnicos_of?: string[]
+  contenidos_tecnicos_def?: string[]
+  keywords?: string[]
+  objetivo_fisico?: string
+  objetivo_psicologico?: string
+  contexto_periodo?: string
+  dia_carga?: string
+  partido_id?: string
+  es_pretemporada?: boolean
 }
 
 export interface SesionUpdateData extends Partial<SesionCreateData> {
@@ -125,20 +138,40 @@ export const sesionesApi = {
     return api.put<Sesion>(`/sesiones/${sesionId}/tareas-batch`, { tareas })
   },
 
-  async generatePdf(id: string): Promise<void> {
-    const blob = await api.getBlob(`/sesiones/${id}/pdf`, { timeout: 120000 })
+  async generatePdf(id: string, variant: 'reducido' | 'extendido' = 'extendido'): Promise<void> {
+    const blob = await api.getBlob(`/sesiones/${id}/pdf?variant=${variant}`, { timeout: 120000 })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `sesion_${id}.pdf`
+    a.download = `sesion_${id}_${variant}.pdf`
     a.click()
     URL.revokeObjectURL(url)
   },
 
-  async previewPdf(id: string): Promise<void> {
-    const blob = await api.getBlob(`/sesiones/${id}/pdf?preview=true`, { timeout: 120000 })
+  async previewPdf(id: string, variant: 'reducido' | 'extendido' = 'extendido'): Promise<void> {
+    const blob = await api.getBlob(`/sesiones/${id}/pdf?preview=true&variant=${variant}`, { timeout: 120000 })
     const url = URL.createObjectURL(blob)
     window.open(url, '_blank')
+  },
+
+  async cerrarPlanificacion(id: string): Promise<Sesion> {
+    return api.post<Sesion>(`/sesiones/${id}/cerrar-planificacion`)
+  },
+
+  async enableShare(id: string): Promise<Sesion> {
+    return api.post<Sesion>(`/sesiones/${id}/share`)
+  },
+
+  async getByShareToken(token: string): Promise<{
+    sesion: Sesion
+    tareas: { orden: number; duracion: number; carga_calculada?: number; titulo?: string; categoria?: unknown; notas?: string }[]
+    rpe_por_tarea: { tarea_id?: string; rpe_medio: number; n: number }[]
+  }> {
+    return api.get(`/sesiones/share/${token}`)
+  },
+
+  async completarVencidas(): Promise<{ completadas: number; sesiones: string[] }> {
+    return api.post('/sesiones/completar-vencidas')
   },
 
   // Asistencia

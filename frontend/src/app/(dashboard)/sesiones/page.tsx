@@ -28,6 +28,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { apiKey } from '@/lib/swr'
 import { Sesion, MatchDay, PaginatedResponse } from '@/types'
 import { sesionesApi } from '@/lib/api/sesiones'
+import { FASES_JUEGO, MATERIALES } from '@/lib/catalogos/canonico'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -82,6 +83,13 @@ export default function SesionesPage() {
   const [estadoFilter, setEstadoFilter] = useState('')
   const [fechaDesde, setFechaDesde] = useState('')
   const [fechaHasta, setFechaHasta] = useState('')
+  const [keywordFilter, setKeywordFilter] = useState('')
+  const [faseJuegoFilter, setFaseJuegoFilter] = useState('')
+  const [abpFilter, setAbpFilter] = useState('')
+  const [materialFilter, setMaterialFilter] = useState('')
+  const [rivalFilter, setRivalFilter] = useState('')
+  const [objFisicoFilter, setObjFisicoFilter] = useState('')
+  const [objPsicoFilter, setObjPsicoFilter] = useState('')
   const [showFilters, setShowFilters] = useState(false)
 
   // Menú de acciones
@@ -97,6 +105,13 @@ export default function SesionesPage() {
       fecha_desde: fechaDesde || undefined,
       fecha_hasta: fechaHasta || undefined,
       busqueda: searchTerm || undefined,
+      keyword: keywordFilter || undefined,
+      fase_juego: faseJuegoFilter || undefined,
+      abp: abpFilter === '1' ? true : abpFilter === '0' ? false : undefined,
+      material: materialFilter || undefined,
+      rival: rivalFilter || undefined,
+      objetivo_fisico: objFisicoFilter || undefined,
+      objetivo_psicologico: objPsicoFilter || undefined,
     })
   )
 
@@ -113,6 +128,11 @@ export default function SesionesPage() {
       return () => document.removeEventListener('click', handleClickOutside)
     }
   }, [activeMenu])
+
+  // Auto-completar planificadas vencidas (fecha < hoy)
+  useEffect(() => {
+    sesionesApi.completarVencidas?.().catch(() => {})
+  }, [])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -149,12 +169,19 @@ export default function SesionesPage() {
     setEstadoFilter('')
     setFechaDesde('')
     setFechaHasta('')
+    setKeywordFilter('')
+    setFaseJuegoFilter('')
+    setAbpFilter('')
+    setMaterialFilter('')
+    setRivalFilter('')
+    setObjFisicoFilter('')
+    setObjPsicoFilter('')
     setBusqueda('')
     setSearchTerm('')
     setPage(1)
   }
 
-  const hasActiveFilters = matchDayFilter || estadoFilter || fechaDesde || fechaHasta
+  const hasActiveFilters = matchDayFilter || estadoFilter || fechaDesde || fechaHasta || keywordFilter || faseJuegoFilter || abpFilter || materialFilter || rivalFilter || objFisicoFilter || objPsicoFilter
 
   const formatDate = (dateStr: string) => {
     try {
@@ -302,6 +329,87 @@ export default function SesionesPage() {
                   type="date"
                   value={fechaHasta}
                   onChange={(e) => { setFechaHasta(e.target.value); setPage(1) }}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Keyword</label>
+                <input
+                  type="text"
+                  value={keywordFilter}
+                  onChange={(e) => { setKeywordFilter(e.target.value); setPage(1) }}
+                  placeholder="presion, abp…"
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Fase de juego</label>
+                <select
+                  value={faseJuegoFilter}
+                  onChange={(e) => { setFaseJuegoFilter(e.target.value); setPage(1) }}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+                >
+                  <option value="">Todas</option>
+                  {FASES_JUEGO.slice(0, 4).map((f) => (
+                    <option key={f.codigo} value={f.codigo}>{f.nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">ABP</label>
+                <select
+                  value={abpFilter}
+                  onChange={(e) => { setAbpFilter(e.target.value); setPage(1) }}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+                >
+                  <option value="">Todas</option>
+                  <option value="1">Con ABP</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Material</label>
+                <select
+                  value={materialFilter}
+                  onChange={(e) => { setMaterialFilter(e.target.value); setPage(1) }}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+                >
+                  <option value="">Todos</option>
+                  {MATERIALES.map((m) => (
+                    <option key={m.codigo} value={m.codigo}>{m.nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Rival</label>
+                <input
+                  type="text"
+                  value={rivalFilter}
+                  onChange={(e) => { setRivalFilter(e.target.value); setPage(1) }}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Obj. físico</label>
+                <input
+                  type="text"
+                  value={objFisicoFilter}
+                  onChange={(e) => { setObjFisicoFilter(e.target.value); setPage(1) }}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Obj. psicológico</label>
+                <input
+                  type="text"
+                  value={objPsicoFilter}
+                  onChange={(e) => { setObjPsicoFilter(e.target.value); setPage(1) }}
                   className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                 />
               </div>

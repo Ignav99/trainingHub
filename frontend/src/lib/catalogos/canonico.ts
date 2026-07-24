@@ -49,6 +49,50 @@ export const FASES_JUEGO = [
 
 export type FaseJuegoCodigo = (typeof FASES_JUEGO)[number]['codigo']
 
+/** Subfases tipadas (solo ataque/defensa organizada en v1). */
+export const SUBFASES_ATAQUE = [
+  {
+    codigo: 'creacion',
+    nombre: 'Creación',
+    opciones: [
+      { codigo: 'inicios_saque_puerta', nombre: 'Inicios / saque de puerta' },
+      { codigo: 'reinicios', nombre: 'Reinicios' },
+      { codigo: 'general', nombre: 'General' },
+    ],
+  },
+  { codigo: 'progresion', nombre: 'Progresión', opciones: [] as { codigo: string; nombre: string }[] },
+  { codigo: 'finalizacion', nombre: 'Finalización', opciones: [] as { codigo: string; nombre: string }[] },
+] as const
+
+export const SUBFASES_DEFENSA = [
+  {
+    codigo: 'bloque_alto',
+    nombre: 'Bloque alto',
+    opciones: [
+      { codigo: 'presion_saque_meta', nombre: 'Presión saque de meta' },
+      { codigo: 'bloque_alto', nombre: 'Bloque alto' },
+    ],
+  },
+  { codigo: 'bloque_medio', nombre: 'Bloque medio', opciones: [] as { codigo: string; nombre: string }[] },
+  { codigo: 'bloque_bajo', nombre: 'Bloque bajo', opciones: [] as { codigo: string; nombre: string }[] },
+] as const
+
+export const TIPOS_ABP = [
+  { codigo: 'corner', nombre: 'Corner' },
+  { codigo: 'semi_corner', nombre: 'Semi-corner' },
+  { codigo: 'falta_lateral', nombre: 'Falta lateral' },
+  { codigo: 'falta_frontal', nombre: 'Falta frontal' },
+  { codigo: 'falta_lejana', nombre: 'Falta lejana' },
+  { codigo: 'penalti', nombre: 'Penalti' },
+  { codigo: 'saque_banda', nombre: 'Saque de banda' },
+  { codigo: 'saque_puerta', nombre: 'Saque de puerta' },
+] as const
+
+export const LADOS_ABP = [
+  { codigo: 'ofensivo', nombre: 'Ofensivo' },
+  { codigo: 'defensivo', nombre: 'Defensivo' },
+] as const
+
 export const FASES_SESION = [
   { codigo: 'activacion', nombre: 'Activación' },
   { codigo: 'desarrollo_1', nombre: 'Desarrollo 1' },

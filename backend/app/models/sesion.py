@@ -51,6 +51,49 @@ class Intensidad(str, Enum):
     MUY_BAJA = "muy_baja"
 
 
+class ContextoPeriodo(str, Enum):
+    COMPETICION = "competicion"
+    PRETEMPORADA = "pretemporada"
+    TRANSICION = "transicion"
+
+
+class SubfaseAtaque(str, Enum):
+    CREACION = "creacion"
+    PROGRESION = "progresion"
+    FINALIZACION = "finalizacion"
+
+
+class OpcionCreacionAtaque(str, Enum):
+    INICIOS_SAQUE_PUERTA = "inicios_saque_puerta"
+    REINICIOS = "reinicios"
+    GENERAL = "general"
+
+
+class SubfaseDefensa(str, Enum):
+    BLOQUE_ALTO = "bloque_alto"
+    BLOQUE_MEDIO = "bloque_medio"
+    BLOQUE_BAJO = "bloque_bajo"
+
+
+class OpcionBloqueAlto(str, Enum):
+    PRESION_SAQUE_META = "presion_saque_meta"
+    BLOQUE_ALTO = "bloque_alto"
+
+
+class SesionSubfaseItem(BaseModel):
+    """Entrada de subfase tipada en la sesión."""
+    fase: str  # ataque_organizado | defensa_organizada | …
+    subfase: str
+    opcion: Optional[str] = None
+
+
+class AbpConfig(BaseModel):
+    """Configuración ABP opcional de la sesión."""
+    activo: bool = False
+    lado: Optional[str] = None  # ofensivo | defensivo
+    tipos: List[str] = Field(default_factory=list)
+
+
 # ============ Schemas de Sesión-Tarea (relación) ============
 
 class GrupoFormacion(BaseModel):
@@ -84,10 +127,12 @@ class SesionTareaBase(BaseModel):
     """Schema base para tarea dentro de sesión."""
     tarea_id: UUID
     orden: int = Field(..., ge=1)
-    fase_sesion: FaseSesion
-    duracion_override: Optional[int] = None  # Si se modifica la duración
+    # Opcional en el nuevo diseño libre; default DB-compatible
+    fase_sesion: Optional[FaseSesion] = FaseSesion.DESARROLLO_1
+    duracion_override: Optional[int] = None
     notas: Optional[str] = None
     responsable: Optional[str] = None
+    carga_calculada: Optional[float] = None
 
 
 class SesionTareaCreate(SesionTareaBase):
@@ -173,6 +218,23 @@ class SesionBase(BaseModel):
     staff_asistentes: Optional[List[dict]] = None
     fase_notas: Optional[dict] = None
 
+    # Taxonomía rediseño
+    fases_juego: Optional[List[str]] = None
+    subfases: Optional[List[SesionSubfaseItem]] = None
+    abp_config: Optional[AbpConfig] = None
+    contenidos_tecnicos_of: Optional[List[str]] = None
+    contenidos_tecnicos_def: Optional[List[str]] = None
+    keywords: Optional[List[str]] = None
+    objetivo_fisico: Optional[str] = None
+    objetivo_psicologico: Optional[str] = None
+    contexto_periodo: Optional[ContextoPeriodo] = ContextoPeriodo.COMPETICION
+    dia_carga: Optional[str] = None
+    partido_id: Optional[UUID] = None
+    es_pretemporada: Optional[bool] = False
+    carga_sesion: Optional[float] = None
+    intensidad_calculada: Optional[str] = None
+    share_token: Optional[str] = None
+
 
 class SesionCreate(SesionBase):
     """Schema para crear sesión."""
@@ -227,6 +289,23 @@ class SesionUpdate(BaseModel):
     contenidos_ofensivos: Optional[List[str]] = None
     contenidos_defensivos: Optional[List[str]] = None
 
+    # Taxonomía rediseño
+    fases_juego: Optional[List[str]] = None
+    subfases: Optional[List[SesionSubfaseItem]] = None
+    abp_config: Optional[AbpConfig] = None
+    contenidos_tecnicos_of: Optional[List[str]] = None
+    contenidos_tecnicos_def: Optional[List[str]] = None
+    keywords: Optional[List[str]] = None
+    objetivo_fisico: Optional[str] = None
+    objetivo_psicologico: Optional[str] = None
+    contexto_periodo: Optional[ContextoPeriodo] = None
+    dia_carga: Optional[str] = None
+    partido_id: Optional[UUID] = None
+    es_pretemporada: Optional[bool] = None
+    carga_sesion: Optional[float] = None
+    intensidad_calculada: Optional[str] = None
+    share_token: Optional[str] = None
+
 
 class SesionResponse(SesionBase):
     """Schema de respuesta de sesión."""
@@ -255,6 +334,23 @@ class SesionResponse(SesionBase):
     objetivos: Optional[List[str]] = None
     contenidos_ofensivos: Optional[List[str]] = None
     contenidos_defensivos: Optional[List[str]] = None
+
+    # Taxonomía (heredada de Base + echo explícito para response)
+    fases_juego: Optional[List[str]] = None
+    subfases: Optional[List[SesionSubfaseItem]] = None
+    abp_config: Optional[AbpConfig] = None
+    contenidos_tecnicos_of: Optional[List[str]] = None
+    contenidos_tecnicos_def: Optional[List[str]] = None
+    keywords: Optional[List[str]] = None
+    objetivo_fisico: Optional[str] = None
+    objetivo_psicologico: Optional[str] = None
+    contexto_periodo: Optional[ContextoPeriodo] = None
+    dia_carga: Optional[str] = None
+    partido_id: Optional[UUID] = None
+    es_pretemporada: Optional[bool] = None
+    carga_sesion: Optional[float] = None
+    intensidad_calculada: Optional[str] = None
+    share_token: Optional[str] = None
 
     created_at: datetime
     updated_at: datetime
@@ -297,6 +393,14 @@ class SesionFiltros(BaseModel):
     fecha_hasta: Optional[date] = None
     estado: Optional[EstadoSesion] = None
     busqueda: Optional[str] = None
+    keyword: Optional[str] = None
+    fase_juego: Optional[str] = None
+    abp: Optional[bool] = None
+    material: Optional[str] = None
+    objetivo_fisico: Optional[str] = None
+    objetivo_psicologico: Optional[str] = None
+    rival: Optional[str] = None
+    contexto_periodo: Optional[ContextoPeriodo] = None
 
 
 # ============ Schemas para Reordenar Sesiones (DnD) ============

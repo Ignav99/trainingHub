@@ -245,6 +245,18 @@ export interface FormacionEquipos {
 }
 
 // Sesión-Tarea (relación)
+export interface SesionSubfaseItem {
+  fase: string
+  subfase: string
+  opcion?: string | null
+}
+
+export interface SesionAbpConfig {
+  activo: boolean
+  lado?: string | null
+  tipos?: string[]
+}
+
 export interface SesionTarea {
   id: string
   sesion_id: string
@@ -254,6 +266,7 @@ export interface SesionTarea {
   duracion_override?: number
   notas?: string
   responsable?: string
+  carga_calculada?: number
   created_at: string
   // Relación
   tarea?: Tarea
@@ -294,11 +307,38 @@ export interface Sesion {
   microciclo_id?: string
   plan_partido_id?: string
   fase_plan?: string
+  dia_numero?: number
+  orden?: number
 
   // Personalizacion
   materiales?: string[]
   staff_asistentes?: StaffAsistente[]
   fase_notas?: Record<string, string>
+
+  // Taxonomía rediseño
+  fases_juego?: string[]
+  subfases?: SesionSubfaseItem[]
+  abp_config?: SesionAbpConfig | null
+  contenidos_tecnicos_of?: string[]
+  contenidos_tecnicos_def?: string[]
+  keywords?: string[]
+  objetivo_fisico?: string
+  objetivo_psicologico?: string
+  contexto_periodo?: 'competicion' | 'pretemporada' | 'transicion'
+  dia_carga?: string
+  partido_id?: string
+  es_pretemporada?: boolean
+  carga_sesion?: number
+  intensidad_calculada?: string
+  share_token?: string
+
+  // Variables de diseño legacy
+  espacio_disponible?: string
+  jugadores_campo?: number
+  numero_sesion?: number
+  objetivos?: string[]
+  contenidos_ofensivos?: string[]
+  contenidos_defensivos?: string[]
 
   created_at: string
   updated_at: string
@@ -411,6 +451,14 @@ export interface SesionFiltros {
   fecha_hasta?: string
   estado?: EstadoSesion
   busqueda?: string
+  keyword?: string
+  fase_juego?: string
+  abp?: boolean
+  material?: string
+  objetivo_fisico?: string
+  objetivo_psicologico?: string
+  rival?: string
+  contexto_periodo?: string
 }
 
 // Input para recomendador
