@@ -15,6 +15,15 @@ from datetime import date
 from math import ceil
 import io
 
+from app.services.keywords import synthesize_keywords
+from app.services.sesion_carga import aggregate_sesion_carga, carga_from_sesion_tarea
+from app.services.sesion_taxonomy import (
+    prepare_sesion_write_payload,
+    normalize_sesion_row,
+    new_share_token,
+    TAXONOMY_COLUMNS,
+)
+
 logger = logging.getLogger(__name__)
 
 # Valid fase_juego values (DB check constraint)
@@ -173,7 +182,54 @@ from app.services.notification_service import notify_sesion_created
 from app.services.load_calculation_service import recalculate_player_load
 from app.config import get_settings
 
+
 router = APIRouter()
+
+
+def _recalc_sesion_carga(supabase, sesion_id: str) -> dict:
+    """Recalcula duración, carga por tarea y agregados de sesión."""
+    tareas = supabase.table("sesion_tareas").select(
+        "id, duracion_override, tareas(duracion_total, densidad, num_jugadores_min, num_jugadores_max, categorias_tarea(codigo, nombre_corto))"
+    ).eq("sesion_id", sesion_id).execute()
+
+    rows = []
+    for st in (tareas.data or []):
+        tarea = st.pop("tareas", None) or {}
+        cat = tarea.pop("categorias_tarea", None) if isinstance(tarea, dict) else None
+        if isinstance(tarea, dict):
+            tarea["categoria"] = cat
+            tarea["categorias_tarea"] = cat
+        st["tarea"] = tarea
+        st["tareas"] = tarea
+        carga = carga_from_sesion_tarea(st)
+        st["carga_calculada"] = carga
+        rows.append(st)
+        try:
+            supabase.table("sesion_tareas").update({
+                "carga_calculada": carga
+            }).eq("id", st["id"]).execute()
+        except Exception:
+            pass  # columna puede no existir aún
+
+    carga_sesion, intensidad, duracion_total = aggregate_sesion_carga(rows)
+    update = {
+        "duracion_total": duracion_total,
+        "carga_sesion": carga_sesion,
+        "intensidad_calculada": intensidad,
+        "intensidad_objetivo": intensidad,
+    }
+    try:
+        supabase.table("sesiones").update(update).eq("id", sesion_id).execute()
+    except Exception as e:
+        # Soft-drop taxonomy cols si migración 063 no aplicada
+        msg = str(e)
+        soft = {k: v for k, v in update.items() if k == "duracion_total" or k not in msg}
+        if "carga_sesion" in msg or "intensidad_calculada" in msg:
+            soft = {"duracion_total": duracion_total}
+        supabase.table("sesiones").update(soft).eq("id", sesion_id).execute()
+    return update
+
+
 
 
 @router.get("", response_model=SesionListResponse)
@@ -186,6 +242,14 @@ async def list_sesiones(
     fecha_hasta: Optional[date] = None,
     estado: Optional[EstadoSesion] = None,
     busqueda: Optional[str] = None,
+    keyword: Optional[str] = None,
+    fase_juego: Optional[str] = None,
+    abp: Optional[bool] = None,
+    material: Optional[str] = None,
+    objetivo_fisico: Optional[str] = None,
+    objetivo_psicologico: Optional[str] = None,
+    rival: Optional[str] = None,
+    contexto_periodo: Optional[str] = None,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
     """Lista sesiones con filtros."""
@@ -229,6 +293,30 @@ async def list_sesiones(
     if busqueda:
         query = query.or_(f"titulo.ilike.%{busqueda}%,objetivo_principal.ilike.%{busqueda}%")
 
+    if keyword:
+        query = query.contains("keywords", [keyword])
+
+    if fase_juego:
+        query = query.contains("fases_juego", [fase_juego])
+
+    if material:
+        query = query.contains("materiales", [material])
+
+    if objetivo_fisico:
+        query = query.ilike("objetivo_fisico", f"%{objetivo_fisico}%")
+
+    if objetivo_psicologico:
+        query = query.ilike("objetivo_psicologico", f"%{objetivo_psicologico}%")
+
+    if rival:
+        query = query.ilike("rival", f"%{rival}%")
+
+    if contexto_periodo:
+        query = query.eq("contexto_periodo", contexto_periodo)
+
+    if abp is True:
+        query = query.not_.is_("abp_config", "null")
+
     # Ordenar por fecha descendente
     query = query.order("fecha", desc=True)
 
@@ -245,7 +333,7 @@ async def list_sesiones(
     sesiones = []
     for s in response.data:
         s["equipo"] = s.pop("equipos", None)
-        sesiones.append(SesionResponse(**s))
+        sesiones.append(SesionResponse(**normalize_sesion_row(s)))
 
     return SesionListResponse(
         data=sesiones,
@@ -357,6 +445,119 @@ async def get_asistencia_historico(
     )
 
 
+
+# Rutas estáticas ANTES de /{sesion_id} para no capturar "share"/"completar-vencidas"
+
+@router.post("/completar-vencidas")
+async def completar_sesiones_vencidas(
+    auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
+):
+    """
+    Marca como completadas las sesiones planificadas con fecha < hoy
+    y aplica recálculo de carga a jugadores presentes.
+    Pensado para cron / scheduler.
+    """
+    from datetime import date as date_cls
+
+    supabase = get_supabase()
+    hoy = date_cls.today().isoformat()
+
+    equipos = supabase.table("equipos").select("id").eq(
+        "organizacion_id", auth.organizacion_id
+    ).execute()
+    equipo_ids = [e["id"] for e in (equipos.data or [])]
+    if not equipo_ids:
+        return {"completadas": 0, "sesiones": []}
+
+    response = supabase.table("sesiones").select(
+        "id, equipo_id, fecha, estado"
+    ).eq("estado", EstadoSesion.PLANIFICADA.value).lt(
+        "fecha", hoy
+    ).in_("equipo_id", equipo_ids).execute()
+
+    completadas = []
+    for s in (response.data or []):
+        sid = s["id"]
+        supabase.table("sesiones").update({
+            "estado": EstadoSesion.COMPLETADA.value
+        }).eq("id", sid).execute()
+        try:
+            asist = supabase.table("asistencias_sesion").select(
+                "jugador_id, presente"
+            ).eq("sesion_id", sid).eq("presente", True).execute()
+            for a in (asist.data or []):
+                try:
+                    recalculate_player_load(a["jugador_id"], UUID(s["equipo_id"]))
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning("Error aplicando cargas al completar %s: %s", sid, e)
+        completadas.append(sid)
+
+    return {"completadas": len(completadas), "sesiones": completadas}
+
+
+@router.get("/share/{token}")
+async def get_sesion_by_share_token(token: str):
+    """Vista pública de solo lectura por share_token (resumen + tareas + RPE)."""
+    supabase = get_supabase()
+    response = supabase.table("sesiones").select(
+        "id, titulo, fecha, match_day, rival, competicion, hora, lugar, "
+        "objetivo_principal, keywords, fases_juego, subfases, abp_config, "
+        "objetivo_fisico, objetivo_psicologico, carga_sesion, intensidad_calculada, "
+        "duracion_total, estado, materiales, share_token, equipo_id"
+    ).eq("share_token", token).maybe_single().execute()
+
+    if not response or not response.data:
+        raise HTTPException(status_code=404, detail="Enlace no válido")
+
+    sesion = normalize_sesion_row(response.data)
+    tareas_response = supabase.table("sesion_tareas").select(
+        "orden, fase_sesion, duracion_override, carga_calculada, notas, "
+        "tareas(titulo, duracion_total, densidad, categorias_tarea(codigo, nombre))"
+    ).eq("sesion_id", sesion["id"]).order("orden").execute()
+
+    tareas = []
+    for st in (tareas_response.data or []):
+        t = st.pop("tareas", {}) or {}
+        cat = t.pop("categorias_tarea", None) if isinstance(t, dict) else None
+        tareas.append({
+            "orden": st.get("orden"),
+            "duracion": st.get("duracion_override") or (t.get("duracion_total") if t else 0),
+            "carga_calculada": st.get("carga_calculada"),
+            "titulo": t.get("titulo") if t else None,
+            "categoria": cat,
+            "notas": st.get("notas"),
+        })
+
+    # RPE agregado por tarea si existe tabla rpe_sesion / similar — best effort
+    rpe_por_tarea = []
+    try:
+        rpe_resp = supabase.table("rpe").select(
+            "tarea_id, valor, jugador_id"
+        ).eq("sesion_id", sesion["id"]).execute()
+        # Aggregate mean by tarea if present
+        buckets: dict = {}
+        for r in (rpe_resp.data or []):
+            tid = r.get("tarea_id") or "_sesion"
+            buckets.setdefault(tid, []).append(r.get("valor") or 0)
+        for tid, vals in buckets.items():
+            if vals:
+                rpe_por_tarea.append({
+                    "tarea_id": tid if tid != "_sesion" else None,
+                    "rpe_medio": round(sum(vals) / len(vals), 1),
+                    "n": len(vals),
+                })
+    except Exception:
+        pass
+
+    return {
+        "sesion": sesion,
+        "tareas": tareas,
+        "rpe_por_tarea": rpe_por_tarea,
+    }
+
+
 @router.get("/{sesion_id}", response_model=SesionResponse)
 async def get_sesion(
     sesion_id: UUID,
@@ -392,7 +593,7 @@ async def get_sesion(
         st["tarea"] = tarea_data
         sesion_data["tareas"].append(SesionTareaResponse(**st))
 
-    return SesionResponse(**sesion_data)
+    return SesionResponse(**normalize_sesion_row(sesion_data))
 
 
 @router.post("", response_model=SesionResponse, status_code=status.HTTP_201_CREATED)
@@ -404,7 +605,10 @@ async def create_sesion(
     supabase = get_supabase()
 
     # Preparar datos — nunca insertar tareas anidadas en la fila de sesión
-    sesion_data = sesion.model_dump(exclude_unset=True, exclude={"tareas"})
+    sesion_data = prepare_sesion_write_payload(
+        sesion.model_dump(exclude_unset=True, exclude={"tareas"}),
+        synthesize=True,
+    )
     sesion_data["creado_por"] = auth.user_id
 
     # Usar equipo por defecto si no se proporciona
@@ -440,7 +644,7 @@ async def create_sesion(
     COLUMNAS_055 = (
         "espacio_disponible", "jugadores_campo", "numero_sesion",
         "objetivos", "contenidos_ofensivos", "contenidos_defensivos",
-    )
+    ) + TAXONOMY_COLUMNS
 
     # Insertar
     try:
@@ -474,7 +678,7 @@ async def create_sesion(
         creado_por=auth.user_id,
     )
 
-    return SesionResponse(**created)
+    return SesionResponse(**normalize_sesion_row(created))
 
 
 @router.put("/{sesion_id}", response_model=SesionResponse)
@@ -497,8 +701,10 @@ async def update_sesion(
             detail="Sesión no encontrada"
         )
 
-    # Preparar datos
-    update_data = sesion.model_dump(exclude_unset=True)
+    update_data = prepare_sesion_write_payload(
+        sesion.model_dump(exclude_unset=True),
+        synthesize=True,
+    )
 
     if not update_data:
         raise HTTPException(
@@ -506,18 +712,26 @@ async def update_sesion(
             detail="No hay datos para actualizar"
         )
 
-    # Convertir fecha si existe
-    if update_data.get("fecha"):
-        update_data["fecha"] = update_data["fecha"].isoformat()
-
-    # Actualizar
-    response = supabase.table("sesiones").update(update_data).eq(
-        "id", str(sesion_id)
-    ).execute()
+    try:
+        response = supabase.table("sesiones").update(update_data).eq(
+            "id", str(sesion_id)
+        ).execute()
+    except Exception as e:
+        msg = str(e)
+        dropped = False
+        for col in TAXONOMY_COLUMNS:
+            if col in msg and col in update_data:
+                update_data.pop(col, None)
+                dropped = True
+        if not dropped:
+            raise
+        response = supabase.table("sesiones").update(update_data).eq(
+            "id", str(sesion_id)
+        ).execute()
 
     log_update(auth.user_id, "sesion", str(sesion_id), datos_nuevos=update_data)
 
-    return SesionResponse(**response.data[0])
+    return SesionResponse(**normalize_sesion_row(response.data[0]))
 
 
 @router.delete("/{sesion_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -567,34 +781,19 @@ async def add_tarea_to_sesion(
             detail="Sesión no encontrada"
         )
 
-    # Añadir tarea
+    fase = tarea_data.fase_sesion.value if tarea_data.fase_sesion else "desarrollo_1"
     data = {
         "sesion_id": str(sesion_id),
         "tarea_id": str(tarea_data.tarea_id),
         "orden": tarea_data.orden,
-        "fase_sesion": tarea_data.fase_sesion.value,
+        "fase_sesion": fase,
         "duracion_override": tarea_data.duracion_override,
         "notas": tarea_data.notas,
         "responsable": tarea_data.responsable,
     }
 
     supabase.table("sesion_tareas").insert(data).execute()
-
-    # Recalcular duración total
-    tareas = supabase.table("sesion_tareas").select(
-        "duracion_override, tareas(duracion_total)"
-    ).eq("sesion_id", str(sesion_id)).execute()
-
-    duracion_total = sum(
-        t.get("duracion_override") or t.get("tareas", {}).get("duracion_total", 0)
-        for t in tareas.data
-    )
-
-    supabase.table("sesiones").update({
-        "duracion_total": duracion_total
-    }).eq("id", str(sesion_id)).execute()
-
-    # Devolver sesión actualizada
+    _recalc_sesion_carga(supabase, str(sesion_id))
     return await get_sesion(sesion_id, auth)
 
 
@@ -612,18 +811,7 @@ async def remove_tarea_from_sesion(
         "tarea_id": str(tarea_id)
     }).execute()
 
-    # Recalcular duración
-    remaining = supabase.table("sesion_tareas").select(
-        "duracion_override, tareas(duracion_total)"
-    ).eq("sesion_id", str(sesion_id)).execute()
-    duracion_total = sum(
-        t.get("duracion_override") or (t.get("tareas") or {}).get("duracion_total", 0) or 0
-        for t in (remaining.data or [])
-    )
-    supabase.table("sesiones").update({
-        "duracion_total": duracion_total
-    }).eq("id", str(sesion_id)).execute()
-
+    _recalc_sesion_carga(supabase, str(sesion_id))
     return None
 
 
@@ -648,6 +836,7 @@ async def update_sesion_tarea(
         "id", str(sesion_tarea_id)
     ).eq("sesion_id", str(sesion_id)).execute()
 
+    _recalc_sesion_carga(supabase, str(sesion_id))
     return await get_sesion(sesion_id, auth)
 
 
@@ -685,7 +874,7 @@ async def batch_update_tareas(
             "sesion_id": str(sesion_id),
             "tarea_id": str(tarea.tarea_id),
             "orden": tarea.orden,
-            "fase_sesion": tarea.fase_sesion.value,
+            "fase_sesion": (tarea.fase_sesion.value if tarea.fase_sesion else "desarrollo_1"),
             "duracion_override": tarea.duracion_override,
             "notas": tarea.notas,
             "responsable": tarea.responsable,
@@ -696,19 +885,7 @@ async def batch_update_tareas(
             data["formacion_equipos"] = saved_formacion
         supabase.table("sesion_tareas").insert(data).execute()
 
-    # Recalculate duration
-    tareas = supabase.table("sesion_tareas").select(
-        "duracion_override, tareas(duracion_total)"
-    ).eq("sesion_id", str(sesion_id)).execute()
-
-    duracion_total = sum(
-        t.get("duracion_override") or t.get("tareas", {}).get("duracion_total", 0)
-        for t in tareas.data
-    )
-
-    supabase.table("sesiones").update({
-        "duracion_total": duracion_total
-    }).eq("id", str(sesion_id)).execute()
+    _recalc_sesion_carga(supabase, str(sesion_id))
 
     log_update(auth.user_id, "sesion", str(sesion_id), datos_nuevos={"tareas_batch": len(batch.tareas)})
 
@@ -1507,9 +1684,10 @@ async def delete_formacion_tarea(
 async def generate_pdf(
     sesion_id: UUID,
     preview: bool = Query(False, description="If true, return inline for browser preview"),
+    variant: str = Query("extendido", description="reducido | extendido"),
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
-    """Genera el PDF de la sesión, lo sube a Storage y lo devuelve."""
+    """Genera el PDF de la sesión (reducido 1 pág o extendido), lo sube a Storage y lo devuelve."""
     supabase = get_supabase()
     sid = str(sesion_id)
 
@@ -1791,17 +1969,26 @@ async def generate_pdf(
     except Exception:
         pass  # Non-critical: PDF generates without margen section
 
-    # Generar PDF con el servicio v2
+    # Generar PDF (reducido vestuario / extendido detalle)
     try:
-        pdf_bytes = await generate_sesion_pdf_v2(
-            sesion, tareas, organizacion, jugadores_map,
-            microciclo_nombre=microciclo_nombre,
-            lugar=lugar,
-            asistencia_roster=asistencia_roster,
-            portero_tareas=portero_tareas_data,
-            abp_jugadas=abp_jugadas,
-            margen_entrenamientos=margen_enriched,
-        )
+        from app.services.pdf_service import generate_sesion_pdf_reducido
+        if (variant or "extendido").lower() == "reducido":
+            pdf_bytes = await generate_sesion_pdf_reducido(
+                sesion, tareas, organizacion,
+                lugar=lugar,
+                microciclo_nombre=microciclo_nombre,
+                asistencia_roster=asistencia_roster,
+            )
+        else:
+            pdf_bytes = await generate_sesion_pdf_v2(
+                sesion, tareas, organizacion, jugadores_map,
+                microciclo_nombre=microciclo_nombre,
+                lugar=lugar,
+                asistencia_roster=asistencia_roster,
+                portero_tareas=portero_tareas_data,
+                abp_jugadas=abp_jugadas,
+                margen_entrenamientos=margen_enriched,
+            )
     except Exception as e:
         import logging
         logging.getLogger("traininghub.pdf").error("Error generando PDF: %s", str(e))
@@ -1837,6 +2024,74 @@ async def generate_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": disposition}
     )
+
+
+
+# ============ Cierre planificación / auto-completar / share ============
+
+
+@router.post("/{sesion_id}/cerrar-planificacion", response_model=SesionResponse)
+async def cerrar_planificacion(
+    sesion_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
+):
+    """Cierra la planificación: estado → planificada (+ share_token si falta)."""
+    supabase = get_supabase()
+    existing = supabase.table("sesiones").select("*").eq(
+        "id", str(sesion_id)
+    ).maybe_single().execute()
+    if not existing or not existing.data:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada")
+
+    sesion = existing.data
+    if sesion.get("estado") == EstadoSesion.COMPLETADA.value:
+        raise HTTPException(status_code=400, detail="La sesión ya está completada")
+
+    _recalc_sesion_carga(supabase, str(sesion_id))
+
+    update = {"estado": EstadoSesion.PLANIFICADA.value}
+    if not sesion.get("share_token"):
+        update["share_token"] = new_share_token()
+
+    try:
+        supabase.table("sesiones").update(update).eq("id", str(sesion_id)).execute()
+    except Exception as e:
+        if "share_token" in str(e):
+            update.pop("share_token", None)
+            supabase.table("sesiones").update(update).eq("id", str(sesion_id)).execute()
+        else:
+            raise
+
+    log_update(auth.user_id, "sesion", str(sesion_id), datos_nuevos={"estado": "planificada"})
+    return await get_sesion(sesion_id, auth)
+
+
+
+@router.post("/{sesion_id}/share", response_model=SesionResponse)
+async def enable_share(
+    sesion_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
+):
+    """Genera o regenera share_token para vista compartible."""
+    supabase = get_supabase()
+    existing = supabase.table("sesiones").select("id").eq(
+        "id", str(sesion_id)
+    ).maybe_single().execute()
+    if not existing or not existing.data:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada")
+
+    token = new_share_token()
+    try:
+        supabase.table("sesiones").update({"share_token": token}).eq(
+            "id", str(sesion_id)
+        ).execute()
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se pudo crear share_token (¿migración 063 aplicada?): {e}",
+        )
+    return await get_sesion(sesion_id, auth)
+
 
 
 # ============ Jugadores Invitados ============

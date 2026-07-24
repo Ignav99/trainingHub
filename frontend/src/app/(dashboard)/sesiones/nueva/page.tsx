@@ -28,6 +28,7 @@ import { planPartidoApi } from '@/lib/api/planPartido'
 import { Tarea, AIRecomendadorOutput, AIFaseRecomendacion, Microciclo, PlanPartido } from '@/types'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { AttendanceStep, PlayerAttendance } from '@/components/sesiones/AttendanceStep'
+import { SesionDefinirForm } from '@/components/sesiones/SesionDefinirForm'
 import { jugadoresApi } from '@/lib/api/jugadores'
 
 const MATCH_DAYS = [
@@ -91,6 +92,16 @@ export default function NuevaSesionPage() {
     objetivos: [],
     contenidos_ofensivos: [],
     contenidos_defensivos: [],
+    fases_juego: [],
+    subfases: [],
+    abp_config: null,
+    contenidos_tecnicos_of: [],
+    contenidos_tecnicos_def: [],
+    keywords: [],
+    objetivo_fisico: '',
+    objetivo_psicologico: '',
+    contexto_periodo: 'competicion',
+    es_pretemporada: false,
   })
 
   // Tareas seleccionadas
@@ -347,117 +358,23 @@ export default function NuevaSesionPage() {
 
       {/* Paso 0: Configuración */}
       {step === 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
-            <div className="flex items-center gap-2 text-primary mb-4">
-              <Calendar className="h-5 w-5" />
-              <h2 className="text-lg font-semibold">Completa la información de tu sesión</h2>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Título *
-              </label>
-              <input
-                type="text"
-                value={formData.titulo}
-                onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                placeholder="Ej: Sesión trabajo salida de balón"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Día de entrenamiento *
-                </label>
-                <input
-                  type="date"
-                  value={formData.fecha}
-                  onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Microciclo
-                </label>
-                <input
-                  type="text"
-                  readOnly
-                  value={microcicloContexto
-                    ? `${new Date(microcicloContexto.fecha_inicio).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })} – ${new Date(microcicloContexto.fecha_fin).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}`
-                    : '—'}
-                  title="Se toma del microciclo desde el que se crea la sesión"
-                  className="w-full px-4 py-2 border border-gray-200 bg-gray-50 text-gray-600 rounded-lg outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Número de sesión
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  value={formData.numero_sesion ?? ''}
-                  onChange={(e) => setFormData({ ...formData, numero_sesion: parseInt(e.target.value) || undefined })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                  placeholder="Ej: 70"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Match Day *
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {MATCH_DAYS.map((md) => (
-                  <button
-                    key={md.value}
-                    type="button"
-                    onClick={() => setFormData({ ...formData, match_day: md.value })}
-                    className={`p-3 rounded-lg border text-left transition-colors ${
-                      formData.match_day === md.value
-                        ? 'border-primary bg-primary/5'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold mb-1 ${md.color}`}>
-                      {md.value}
-                    </span>
-                    <p className="text-xs text-gray-500">
-                      {md.label.split(' - ')[1]}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {planContexto && (
-              <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg space-y-3">
-                <div className="flex items-center gap-2 text-sm font-medium text-amber-900">
-                  <Zap className="h-4 w-4" />
-                  Contexto del plan de partido
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-amber-800 mb-1">Sistema</label>
-                    <p className="text-sm font-medium">{planContexto.sistema_juego}</p>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-amber-800 mb-1">Estilo</label>
-                    <p className="text-sm font-medium">{planContexto.estilo_previsto || '—'}</p>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs text-amber-800 mb-1">Fase del plan a trabajar</label>
+        <div className="space-y-4">
+          {(microcicloContexto || planContexto) && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm space-y-2">
+              {microcicloContexto && (
+                <p className="text-amber-900">
+                  Microciclo: {new Date(microcicloContexto.fecha_inicio).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })} – {new Date(microcicloContexto.fecha_fin).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                </p>
+              )}
+              {planContexto && (
+                <div className="space-y-2">
+                  <p className="font-medium text-amber-900">Plan de partido · {planContexto.sistema_juego}</p>
                   <select
                     className="w-full rounded-md border bg-background px-3 py-2 text-sm"
                     value={formData.fase_plan || ''}
                     onChange={(e) => setFormData({ ...formData, fase_plan: e.target.value || undefined })}
                   >
-                    <option value="">General</option>
+                    <option value="">Fase del plan: general</option>
                     <option value="ataque_organizado">Ataque organizado</option>
                     <option value="defensa_organizada">Defensa organizada</option>
                     <option value="transicion_ofensiva">Transición ofensiva</option>
@@ -466,140 +383,56 @@ export default function NuevaSesionPage() {
                     <option value="abp_defensivo">ABP defensivo</option>
                   </select>
                 </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Rival (próximo partido)
-                </label>
-                <input
-                  type="text"
-                  value={formData.rival || ''}
-                  onChange={(e) => setFormData({ ...formData, rival: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                  placeholder="Ej: Real Madrid C"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Competición
-                </label>
-                <input
-                  type="text"
-                  value={formData.competicion || ''}
-                  onChange={(e) => setFormData({ ...formData, competicion: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                  placeholder="Ej: Liga Nacional Juvenil"
-                />
-              </div>
+              )}
             </div>
-
-            {/* ¿Qué necesitas trabajar? — variables con las que luego se filtran
-                las sesiones y se recomiendan tareas */}
-            <div className="pt-2 border-t border-gray-100">
-              <h3 className="text-base font-semibold text-primary mb-3">¿Qué necesitas trabajar?</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Espacio disponible</label>
-                  <select
-                    value={formData.espacio_disponible || ''}
-                    onChange={(e) => setFormData({ ...formData, espacio_disponible: e.target.value || undefined })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm"
-                  >
-                    <option value="campo_completo">Campo completo</option>
-                    <option value="medio_campo">Medio campo</option>
-                    <option value="area_doble">Doble área</option>
-                    <option value="area_simple">Un área</option>
-                    <option value="gimnasio">Gimnasio</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Jugadores de campo</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={40}
-                    value={formData.jugadores_campo ?? ''}
-                    onChange={(e) => setFormData({ ...formData, jugadores_campo: parseInt(e.target.value) || undefined })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm"
-                    placeholder={String(jugadoresCount)}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Fases de juego</label>
-                  <select
-                    value={formData.fase_juego_principal || ''}
-                    onChange={(e) => setFormData({ ...formData, fase_juego_principal: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm"
-                  >
-                    <option value="">Selecciona...</option>
-                    {FASES_JUEGO.map((f) => (
-                      <option key={f.codigo} value={f.codigo}>{f.nombre}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Objetivos</label>
-                  <MultiSelect
-                    options={OBJETIVOS_TAREA}
-                    value={formData.objetivos || []}
-                    onChange={(v) => setFormData({ ...formData, objetivos: v })}
-                    placeholder="Selecciona..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Contenidos ofensivos</label>
-                  <MultiSelect
-                    options={CONTENIDOS_OFENSIVOS}
-                    value={formData.contenidos_ofensivos || []}
-                    onChange={(v) => setFormData({ ...formData, contenidos_ofensivos: v })}
-                    placeholder="Selecciona..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Contenidos defensivos</label>
-                  <MultiSelect
-                    options={CONTENIDOS_DEFENSIVOS}
-                    value={formData.contenidos_defensivos || []}
-                    onChange={(v) => setFormData({ ...formData, contenidos_defensivos: v })}
-                    placeholder="Selecciona..."
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Objetivo principal de la sesión
-              </label>
-              <input
-                type="text"
-                value={formData.objetivo_principal || ''}
-                onChange={(e) => setFormData({ ...formData, objetivo_principal: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                placeholder="Ej: Mejorar salida de balón desde portero con presión rival"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Notas previas
-              </label>
-              <textarea
-                value={formData.notas_pre || ''}
-                onChange={(e) => setFormData({ ...formData, notas_pre: e.target.value })}
-                rows={3}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none"
-                placeholder="Aspectos a tener en cuenta, jugadores lesionados, etc."
-              />
-            </div>
+          )}
+          <SesionDefinirForm
+            value={{
+              titulo: formData.titulo,
+              fecha: formData.fecha,
+              hora: formData.hora,
+              lugar: formData.lugar,
+              match_day: formData.match_day,
+              dia_carga: formData.dia_carga,
+              contexto_periodo: formData.contexto_periodo || 'competicion',
+              es_pretemporada: !!formData.es_pretemporada,
+              rival: formData.rival,
+              competicion: formData.competicion,
+              partido_id: formData.partido_id || null,
+              fases_juego: formData.fases_juego || [],
+              subfases: formData.subfases || [],
+              abp_config: formData.abp_config || null,
+              contenidos_tecnicos_of: formData.contenidos_tecnicos_of || [],
+              contenidos_tecnicos_def: formData.contenidos_tecnicos_def || [],
+              objetivo_principal: formData.objetivo_principal || '',
+              keywords: formData.keywords || [],
+              objetivo_fisico: formData.objetivo_fisico,
+              objetivo_psicologico: formData.objetivo_psicologico,
+            }}
+            rivalLocked={!!formData.partido_id && !formData.es_pretemporada}
+            onChange={(patch) => {
+              setFormData((prev) => {
+                const { partido_id, ...rest } = patch
+                const next: SesionCreateData = {
+                  ...prev,
+                  ...rest,
+                  ...(partido_id !== undefined
+                    ? { partido_id: partido_id || undefined }
+                    : {}),
+                }
+                if (patch.fases_juego?.length) {
+                  next.fase_juego_principal = patch.fases_juego[0]
+                }
+                if (patch.contenidos_tecnicos_of) {
+                  next.contenidos_ofensivos = patch.contenidos_tecnicos_of
+                }
+                if (patch.contenidos_tecnicos_def) {
+                  next.contenidos_defensivos = patch.contenidos_tecnicos_def
+                }
+                return next
+              })
+            }}
+          />
         </div>
       )}
 

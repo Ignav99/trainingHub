@@ -1,0 +1,99 @@
+"""Helpers de serialización / taxonomía para sesiones."""
+
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional
+from uuid import uuid4
+
+from app.services.keywords import synthesize_keywords
+
+
+TAXONOMY_COLUMNS = (
+    "fases_juego",
+    "subfases",
+    "abp_config",
+    "contenidos_tecnicos_of",
+    "contenidos_tecnicos_def",
+    "keywords",
+    "objetivo_fisico",
+    "objetivo_psicologico",
+    "contexto_periodo",
+    "dia_carga",
+    "partido_id",
+    "es_pretemporada",
+    "carga_sesion",
+    "intensidad_calculada",
+    "share_token",
+)
+
+
+def _dump_item(obj: Any) -> Any:
+    if obj is None:
+        return None
+    if hasattr(obj, "model_dump"):
+        return obj.model_dump(mode="json")
+    if isinstance(obj, list):
+        return [_dump_item(x) for x in obj]
+    if hasattr(obj, "value"):
+        return obj.value
+    return obj
+
+
+def prepare_sesion_write_payload(data: Dict[str, Any], *, synthesize: bool = True) -> Dict[str, Any]:
+    """Normaliza payload para insert/update en Supabase."""
+    out = dict(data)
+
+    for key in ("fecha",):
+        if out.get(key) is not None and hasattr(out[key], "isoformat"):
+            out[key] = out[key].isoformat()
+
+    for key in ("equipo_id", "microciclo_id", "plan_partido_id", "partido_id"):
+        if out.get(key) is not None:
+            out[key] = str(out[key])
+
+    for key in ("match_day", "intensidad_objetivo", "estado", "contexto_periodo"):
+        if out.get(key) is not None and hasattr(out[key], "value"):
+            out[key] = out[key].value
+
+    if "subfases" in out and out["subfases"] is not None:
+        out["subfases"] = _dump_item(out["subfases"])
+
+    if "abp_config" in out and out["abp_config"] is not None:
+        out["abp_config"] = _dump_item(out["abp_config"])
+
+    if synthesize:
+        keywords = out.get("keywords")
+        objetivo = out.get("objetivo_principal")
+        # Regenerar si no hay keywords explícitas o si se actualiza el objetivo
+        if keywords is None and objetivo:
+            out["keywords"] = synthesize_keywords(objetivo)
+        elif keywords is not None and objetivo and "objetivo_principal" in data:
+            # Merge: mantener manuales + sintetizados
+            out["keywords"] = synthesize_keywords(objetivo, keywords)
+
+    # ABP activo → asegurar abp_config
+    abp = out.get("abp_config")
+    if isinstance(abp, dict) and abp.get("activo") and not abp.get("tipos"):
+        abp["tipos"] = abp.get("tipos") or []
+
+    return out
+
+
+def normalize_sesion_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Asegura tipos legibles por Pydantic SesionResponse."""
+    data = dict(row)
+    if data.get("subfases") is None:
+        data["subfases"] = []
+    if data.get("fases_juego") is None:
+        data["fases_juego"] = []
+    if data.get("keywords") is None:
+        data["keywords"] = []
+    if data.get("contenidos_tecnicos_of") is None:
+        data["contenidos_tecnicos_of"] = []
+    if data.get("contenidos_tecnicos_def") is None:
+        data["contenidos_tecnicos_def"] = []
+    return data
+
+
+def new_share_token() -> str:
+    return uuid4().hex
