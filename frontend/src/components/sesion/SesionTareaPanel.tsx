@@ -11,22 +11,16 @@ import {
   Wand2,
   Send,
   Loader2,
-  Clock,
-  UserCircle,
-  Maximize2,
-  Target,
-  LayoutGrid,
   Pencil,
 } from 'lucide-react'
-import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { TacticalBoardMini } from '@/components/task-preview'
+import { TacticalBoardMini, boardHasAnimation } from '@/components/task-preview'
 import TacticalBoardEditor from '@/components/tactical-board/TacticalBoardEditor'
 import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
 import type { SesionTarea } from '@/types'
-
+import { cn } from '@/lib/utils'
 // ---- Types ----
 export interface SesionTareaPanelProps {
   st: SesionTarea
@@ -65,6 +59,28 @@ const NIVEL_COG_LABELS: Record<number, string> = {
   2: 'Cog: Medio',
   3: 'Cog: Alto',
 }
+
+function MetaField({
+  label,
+  children,
+  className,
+}: {
+  label: string
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cn('min-w-0', className)}>
+      <label className="block text-[11px] font-medium text-muted-foreground mb-1">
+        {label}
+      </label>
+      {children}
+    </div>
+  )
+}
+
+const metaInputClass =
+  'h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
 
 // ---- Component ----
 export default function SesionTareaPanel({
@@ -215,9 +231,9 @@ export default function SesionTareaPanel({
   }
 
   return (
-    <div className="border-b last:border-b-0 bg-background hover:bg-muted/10 transition-colors">
+    <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
       {/* ── Top: order controls + title row ── */}
-      <div className="flex items-center gap-2 px-4 pt-3 pb-1">
+      <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b bg-muted/20">
         <div className="flex flex-col items-center gap-0.5 shrink-0">
           <button
             onClick={onMoveUp}
@@ -296,405 +312,400 @@ export default function SesionTareaPanel({
         </div>
       </div>
 
-      {/* ── Main body: tactical board + text fields ── */}
-      <div className="flex gap-4 px-4 py-3">
-        {/* LEFT: Tactical board */}
-        <div className="shrink-0 w-[320px]">
-          {/* Always show mini preview — click opens fullscreen modal */}
-          <div
-            className="w-full h-[220px] rounded-lg overflow-hidden border border-border/40 cursor-pointer relative group"
-            onClick={handleOpenBoard}
-          >
-            <TacticalBoardMini
-              data={form.grafico_data as any}
-              width="100%"
-              height="100%"
-              animate
-            />
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-              <span className="text-white text-xs font-medium flex items-center gap-1 bg-black/40 px-2 py-1 rounded">
-                <Pencil className="h-3 w-3" /> Editar pizarra
-              </span>
-            </div>
-          </div>
+      {/* ── Pizarra: inicial + animación ── */}
+      <div className="px-4 pt-2 pb-3">
+        {(() => {
+          const grafico = form.grafico_data as any
+          const hasAnim = boardHasAnimation(grafico)
+          return (
+            <div className={cn('grid gap-3', hasAnim ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1')}>
+              <button
+                type="button"
+                onClick={handleOpenBoard}
+                className="group relative overflow-hidden rounded-xl border bg-[#1a3a0a] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <div className="absolute top-2 left-2 z-10 rounded-md bg-black/55 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                  Inicial
+                </div>
+                <div className="relative w-full" style={{ paddingBottom: hasAnim ? '62%' : '52%' }}>
+                  <div className="absolute inset-0">
+                    <TacticalBoardMini
+                      data={grafico}
+                      width="100%"
+                      height="100%"
+                      animate={false}
+                      showPlayBadge={false}
+                    />
+                  </div>
+                </div>
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-opacity group-hover:bg-black/25 group-hover:opacity-100">
+                  <span className="inline-flex items-center gap-1 rounded-md bg-black/50 px-2.5 py-1 text-xs font-medium text-white">
+                    <Pencil className="h-3 w-3" /> Editar pizarra
+                  </span>
+                </div>
+              </button>
 
-          {/* Fullscreen tactical board editor — igual que en herramientas/pizarra-tactica */}
-          {boardEditing && (
-            <div className="fixed inset-0 z-50 bg-white flex flex-col">
-              <TacticalBoardEditor
-                onSave={handleBoardSave}
-                onCancel={() => { setBoardEditing(false); useTacticalBoardStore.getState().reset() }}
-              />
+              {hasAnim && (
+                <button
+                  type="button"
+                  onClick={handleOpenBoard}
+                  className="group relative overflow-hidden rounded-xl border bg-[#1a3a0a] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <div className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-md bg-black/55 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                    <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+                    Animación
+                  </div>
+                  <div className="relative w-full" style={{ paddingBottom: '62%' }}>
+                    <div className="absolute inset-0">
+                      <TacticalBoardMini
+                        data={grafico}
+                        width="100%"
+                        height="100%"
+                        animate
+                        showPlayBadge={false}
+                      />
+                    </div>
+                  </div>
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-opacity group-hover:bg-black/25 group-hover:opacity-100">
+                    <span className="inline-flex items-center gap-1 rounded-md bg-black/50 px-2.5 py-1 text-xs font-medium text-white">
+                      <Pencil className="h-3 w-3" /> Editar pizarra
+                    </span>
+                  </div>
+                </button>
+              )}
             </div>
-          )}
+          )
+        })()}
 
-          {/* Spaces + series under board — stat chips */}
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            {/* Dimensions chip */}
-            <div className="flex flex-col bg-muted/40 border border-border/60 rounded-lg px-3 py-2">
-              <div className="flex items-center gap-1 mb-1">
-                <Maximize2 className="h-3 w-3 text-muted-foreground" />
-                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Espacio</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  className="w-10 bg-transparent font-bold text-base text-foreground text-center focus:outline-none focus:text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  value={form.espacio_largo || ''}
-                  onChange={e => updateForm('espacio_largo', parseInt(e.target.value) || 0)}
-                  onBlur={handleBlurSave}
-                  placeholder="0"
-                />
-                <span className="text-muted-foreground text-sm font-medium">×</span>
-                <input
-                  type="number"
-                  className="w-10 bg-transparent font-bold text-base text-foreground text-center focus:outline-none focus:text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  value={form.espacio_ancho || ''}
-                  onChange={e => updateForm('espacio_ancho', parseInt(e.target.value) || 0)}
-                  onBlur={handleBlurSave}
-                  placeholder="0"
-                />
-                <span className="text-muted-foreground text-xs font-semibold">m</span>
-              </div>
-            </div>
-            {/* Series chip */}
-            <div className="flex flex-col bg-muted/40 border border-border/60 rounded-lg px-3 py-2">
-              <div className="flex items-center gap-1 mb-1">
-                <LayoutGrid className="h-3 w-3 text-muted-foreground" />
-                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Series</span>
-              </div>
-              <input
-                type="number"
-                min={1}
-                className="w-12 bg-transparent font-bold text-base text-foreground text-center focus:outline-none focus:text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                value={form.num_series || 1}
-                onChange={e => updateForm('num_series', parseInt(e.target.value) || 1)}
-                onBlur={handleBlurSave}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* RIGHT: Text fields */}
-        <div className="flex-1 min-w-0 space-y-3">
-          {/* Description */}
-          <div>
-            <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5 block">
-              Descripción
-            </label>
-            <Textarea
-              className="resize-none text-sm min-h-[80px]"
-              value={form.descripcion}
-              onChange={e => updateForm('descripcion', e.target.value)}
-              onBlur={handleBlurSave}
-              placeholder="Descripción de la tarea..."
+        {boardEditing && (
+          <div className="fixed inset-0 z-50 bg-white flex flex-col">
+            <TacticalBoardEditor
+              onSave={handleBoardSave}
+              onCancel={() => { setBoardEditing(false); useTacticalBoardStore.getState().reset() }}
             />
           </div>
-
-          {/* Rules — 2 columns */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5 block">
-                Reglas técnicas
-              </label>
-              <Textarea
-                className="resize-none text-xs min-h-[72px]"
-                value={form.reglas_tecnicas}
-                onChange={e => updateForm('reglas_tecnicas', e.target.value)}
-                onBlur={handleBlurSave}
-                placeholder="Una regla por línea..."
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5 block">
-                Reglas tácticas
-              </label>
-              <Textarea
-                className="resize-none text-xs min-h-[72px]"
-                value={form.reglas_tacticas}
-                onChange={e => updateForm('reglas_tacticas', e.target.value)}
-                onBlur={handleBlurSave}
-                placeholder="Una regla por línea..."
-              />
-            </div>
-          </div>
-
-          {/* Consignas — 2 columns */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[10px] font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wide mb-0.5 block">
-                Consignas ofensivas
-              </label>
-              <Textarea
-                className="resize-none text-xs min-h-[60px] border-amber-200 dark:border-amber-900/50 focus:border-amber-400"
-                value={form.consignas_ofensivas}
-                onChange={e => updateForm('consignas_ofensivas', e.target.value)}
-                onBlur={handleBlurSave}
-                placeholder="Una consigna por línea..."
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-0.5 block">
-                Consignas defensivas
-              </label>
-              <Textarea
-                className="resize-none text-xs min-h-[60px] border-blue-200 dark:border-blue-900/50 focus:border-blue-400"
-                value={form.consignas_defensivas}
-                onChange={e => updateForm('consignas_defensivas', e.target.value)}
-                onBlur={handleBlurSave}
-                placeholder="Una consigna por línea..."
-              />
-            </div>
-          </div>
-
-          {/* "Más detalles" toggle */}
-          <button
-            onClick={() => setDetailsOpen(o => !o)}
-            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {detailsOpen
-              ? <ChevDown className="h-3 w-3" />
-              : <ChevronRight className="h-3 w-3" />}
-            {detailsOpen ? 'Menos detalles' : 'Más detalles'}
-            <span className="text-[10px] opacity-50">(variantes, errores, táctica...)</span>
-          </button>
-
-          {detailsOpen && (
-            <div className="space-y-3 border-t pt-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5 block">
-                    Variantes
-                  </label>
-                  <Textarea
-                    className="resize-none text-xs min-h-[60px]"
-                    value={form.variantes}
-                    onChange={e => updateForm('variantes', e.target.value)}
-                    onBlur={handleBlurSave}
-                    placeholder="Una variante por línea..."
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5 block">
-                    Progresiones
-                  </label>
-                  <Textarea
-                    className="resize-none text-xs min-h-[60px]"
-                    value={form.progresiones}
-                    onChange={e => updateForm('progresiones', e.target.value)}
-                    onBlur={handleBlurSave}
-                    placeholder="Una progresión por línea..."
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] font-medium text-red-600 dark:text-red-400 uppercase tracking-wide mb-0.5 block">
-                    Errores comunes
-                  </label>
-                  <Textarea
-                    className="resize-none text-xs min-h-[60px]"
-                    value={form.errores_comunes}
-                    onChange={e => updateForm('errores_comunes', e.target.value)}
-                    onBlur={handleBlurSave}
-                    placeholder="Un error por línea..."
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5 block">
-                    Posición entrenador
-                  </label>
-                  <Input
-                    className="text-xs"
-                    value={form.posicion_entrenador}
-                    onChange={e => updateForm('posicion_entrenador', e.target.value)}
-                    onBlur={handleBlurSave}
-                    placeholder="Ej: Lateral derecho..."
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5 block">
-                    Fase de juego
-                  </label>
-                  <select
-                    className="w-full rounded-md border bg-background px-2 py-1.5 text-xs"
-                    value={form.fase_juego}
-                    onChange={e => { updateForm('fase_juego', e.target.value) }}
-                    onBlur={handleBlurSave}
-                  >
-                    <option value="">Sin definir</option>
-                    <option value="ataque_organizado">Ataque org.</option>
-                    <option value="defensa_organizada">Defensa org.</option>
-                    <option value="transicion_ataque_defensa">Trans. A→D</option>
-                    <option value="transicion_defensa_ataque">Trans. D→A</option>
-                    <option value="balon_parado_ofensivo">BP ofensivo</option>
-                    <option value="balon_parado_defensivo">BP defensivo</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5 block">
-                    Densidad
-                  </label>
-                  <select
-                    className="w-full rounded-md border bg-background px-2 py-1.5 text-xs"
-                    value={form.densidad}
-                    onChange={e => { updateForm('densidad', e.target.value) }}
-                    onBlur={handleBlurSave}
-                  >
-                    <option value="">Sin definir</option>
-                    <option value="alta">Alta</option>
-                    <option value="media">Media</option>
-                    <option value="baja">Baja</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5 block">
-                    Nivel cognitivo
-                  </label>
-                  <select
-                    className="w-full rounded-md border bg-background px-2 py-1.5 text-xs"
-                    value={form.nivel_cognitivo}
-                    onChange={e => { updateForm('nivel_cognitivo', e.target.value) }}
-                    onBlur={handleBlurSave}
-                  >
-                    <option value="">Sin definir</option>
-                    <option value="1">1 - Bajo</option>
-                    <option value="2">2 - Medio</option>
-                    <option value="3">3 - Alto</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5 block">
-                  Principio táctico
-                </label>
-                <Input
-                  className="text-xs"
-                  value={form.principio_tactico}
-                  onChange={e => updateForm('principio_tactico', e.target.value)}
-                  onBlur={handleBlurSave}
-                  placeholder="Ej: Salida de balón..."
-                />
-              </div>
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
-      {/* ── Footer bar ── */}
-      <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-muted/20 border-t">
-        {/* Duration chip */}
-        <div className="flex flex-col bg-background border border-border rounded-lg px-3 py-2 min-w-[64px]">
-          <div className="flex items-center gap-1 mb-0.5">
-            <Clock className="h-3 w-3 text-muted-foreground" />
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Tiempo</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <input
+      {/* ── Volumen (estilo crear tarea) ── */}
+      <div className="px-4 pb-3">
+        <h3 className="text-sm font-semibold text-foreground mb-2">Volumen de trabajo</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <MetaField label="Series">
+            <Input
+              type="number"
+              min={1}
+              className={metaInputClass}
+              value={form.num_series || 1}
+              onChange={e => updateForm('num_series', parseInt(e.target.value) || 1)}
+              onBlur={handleBlurSave}
+            />
+          </MetaField>
+          <MetaField label="Tiempo (min)">
+            <Input
               type="number"
               min={1}
               max={120}
-              className="w-12 font-bold text-lg text-foreground bg-transparent text-center focus:outline-none focus:text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              className={metaInputClass}
               value={st.duracion_override || tarea?.duracion_total || 0}
               onChange={e => onDurationChange(parseInt(e.target.value) || 0)}
               onBlur={onDurationCommit}
             />
-            <span className="text-xs text-muted-foreground font-semibold">min</span>
-          </div>
-        </div>
-
-        {/* Players chip */}
-        <div className="flex flex-col bg-background border border-border rounded-lg px-3 py-2 min-w-[80px]">
-          <div className="flex items-center gap-1 mb-0.5">
-            <Users className="h-3 w-3 text-muted-foreground" />
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Jugadores</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <input
-              type="number"
-              className="w-10 font-bold text-lg text-foreground bg-transparent text-center focus:outline-none focus:text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-              value={form.num_jugadores_min || ''}
-              onChange={e => updateForm('num_jugadores_min', parseInt(e.target.value) || 0)}
+          </MetaField>
+          <MetaField label="Espacio">
+            <Input
+              className={metaInputClass}
+              value={
+                form.espacio_largo || form.espacio_ancho
+                  ? `${form.espacio_largo || 0}x${form.espacio_ancho || 0}m`
+                  : ''
+              }
+              onChange={e => {
+                const raw = e.target.value
+                const m = raw.match(/(\d+(?:[.,]\d+)?)\s*[xX×]\s*(\d+(?:[.,]\d+)?)/)
+                if (m) {
+                  setForm(f => ({
+                    ...f,
+                    espacio_largo: parseFloat(m[1].replace(',', '.')),
+                    espacio_ancho: parseFloat(m[2].replace(',', '.')),
+                  }))
+                  dirtyRef.current = true
+                } else if (!raw.trim()) {
+                  setForm(f => ({ ...f, espacio_largo: 0, espacio_ancho: 0 }))
+                  dirtyRef.current = true
+                }
+              }}
               onBlur={handleBlurSave}
-              placeholder="—"
+              placeholder="20x30m"
             />
-            <span className="text-muted-foreground text-sm">–</span>
-            <input
-              type="number"
-              className="w-10 font-bold text-lg text-foreground bg-transparent text-center focus:outline-none focus:text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-              value={form.num_jugadores_max || ''}
-              onChange={e => updateForm('num_jugadores_max', parseInt(e.target.value) || 0)}
+          </MetaField>
+          <MetaField label="Jugadores">
+            <div className="flex items-center gap-1">
+              <Input
+                type="number"
+                className={cn(metaInputClass, 'text-center')}
+                value={form.num_jugadores_min || ''}
+                onChange={e => updateForm('num_jugadores_min', parseInt(e.target.value) || 0)}
+                onBlur={handleBlurSave}
+                placeholder="min"
+              />
+              <span className="text-muted-foreground text-xs shrink-0">–</span>
+              <Input
+                type="number"
+                className={cn(metaInputClass, 'text-center')}
+                value={form.num_jugadores_max || ''}
+                onChange={e => updateForm('num_jugadores_max', parseInt(e.target.value) || 0)}
+                onBlur={handleBlurSave}
+                placeholder="max"
+              />
+            </div>
+          </MetaField>
+          <MetaField label="Estructura">
+            <Input
+              className={metaInputClass}
+              value={form.estructura_equipos}
+              onChange={e => updateForm('estructura_equipos', e.target.value)}
               onBlur={handleBlurSave}
-              placeholder="—"
+              placeholder="4v4+2"
             />
-          </div>
+          </MetaField>
+          <MetaField label="Responsable">
+            <Input
+              list={`staff-panel-${st.id}`}
+              className={metaInputClass}
+              placeholder="CT…"
+              value={st.responsable || ''}
+              onChange={e => onResponsableChange(e.target.value)}
+              onBlur={onResponsableBlur}
+            />
+            <datalist id={`staff-panel-${st.id}`}>
+              {staffOptions.map(name => <option key={name} value={name} />)}
+            </datalist>
+          </MetaField>
         </div>
+      </div>
 
-        {/* Estructura chip */}
-        <div className="flex flex-col bg-background border border-border rounded-lg px-3 py-2 min-w-[72px]">
-          <div className="flex items-center gap-1 mb-0.5">
-            <Target className="h-3 w-3 text-muted-foreground" />
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Estructura</span>
-          </div>
-          <input
-            className="w-20 font-bold text-base text-foreground bg-transparent focus:outline-none focus:text-primary"
-            value={form.estructura_equipos}
-            onChange={e => updateForm('estructura_equipos', e.target.value)}
+      {/* ── Contenido táctico ── */}
+      <div className="px-4 pb-3 space-y-3 border-t pt-3">
+        <div>
+          <label className="text-[11px] font-medium text-muted-foreground mb-1 block">
+            Descripción
+          </label>
+          <Textarea
+            className="resize-none text-sm min-h-[72px]"
+            value={form.descripcion}
+            onChange={e => updateForm('descripcion', e.target.value)}
             onBlur={handleBlurSave}
-            placeholder="4v4+2"
+            placeholder="Descripción de la tarea..."
           />
         </div>
 
-        {/* Responsable */}
-        <div className="flex items-center gap-1">
-          <UserCircle className="h-3.5 w-3.5" />
-          <input
-            list={`staff-panel-${st.id}`}
-            className="w-20 bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none"
-            placeholder="CT..."
-            value={st.responsable || ''}
-            onChange={e => onResponsableChange(e.target.value)}
-            onBlur={onResponsableBlur}
-          />
-          <datalist id={`staff-panel-${st.id}`}>
-            {staffOptions.map(name => <option key={name} value={name} />)}
-          </datalist>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="text-[11px] font-medium text-muted-foreground mb-1 block">
+              Reglas técnicas
+            </label>
+            <Textarea
+              className="resize-none text-xs min-h-[64px]"
+              value={form.reglas_tecnicas}
+              onChange={e => updateForm('reglas_tecnicas', e.target.value)}
+              onBlur={handleBlurSave}
+              placeholder="Una regla por línea..."
+            />
+          </div>
+          <div>
+            <label className="text-[11px] font-medium text-muted-foreground mb-1 block">
+              Reglas tácticas
+            </label>
+            <Textarea
+              className="resize-none text-xs min-h-[64px]"
+              value={form.reglas_tacticas}
+              onChange={e => updateForm('reglas_tacticas', e.target.value)}
+              onBlur={handleBlurSave}
+              placeholder="Una regla por línea..."
+            />
+          </div>
         </div>
 
-        {/* Notas inline */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="text-[11px] font-medium text-amber-700 mb-1 block">
+              Consignas ofensivas
+            </label>
+            <Textarea
+              className="resize-none text-xs min-h-[56px] border-amber-200/80 focus:border-amber-400"
+              value={form.consignas_ofensivas}
+              onChange={e => updateForm('consignas_ofensivas', e.target.value)}
+              onBlur={handleBlurSave}
+              placeholder="Una consigna por línea..."
+            />
+          </div>
+          <div>
+            <label className="text-[11px] font-medium text-sky-700 mb-1 block">
+              Consignas defensivas
+            </label>
+            <Textarea
+              className="resize-none text-xs min-h-[56px] border-sky-200/80 focus:border-sky-400"
+              value={form.consignas_defensivas}
+              onChange={e => updateForm('consignas_defensivas', e.target.value)}
+              onBlur={handleBlurSave}
+              placeholder="Una consigna por línea..."
+            />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setDetailsOpen(o => !o)}
+          className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {detailsOpen
+            ? <ChevDown className="h-3 w-3" />
+            : <ChevronRight className="h-3 w-3" />}
+          {detailsOpen ? 'Menos detalles' : 'Más detalles'}
+          <span className="text-[10px] opacity-50">(variantes, errores, táctica…)</span>
+        </button>
+
+        {detailsOpen && (
+          <div className="space-y-3 border-t pt-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Variantes</label>
+                <Textarea
+                  className="resize-none text-xs min-h-[56px]"
+                  value={form.variantes}
+                  onChange={e => updateForm('variantes', e.target.value)}
+                  onBlur={handleBlurSave}
+                  placeholder="Una variante por línea..."
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Progresiones</label>
+                <Textarea
+                  className="resize-none text-xs min-h-[56px]"
+                  value={form.progresiones}
+                  onChange={e => updateForm('progresiones', e.target.value)}
+                  onBlur={handleBlurSave}
+                  placeholder="Una progresión por línea..."
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-medium text-red-600 mb-1 block">Errores comunes</label>
+                <Textarea
+                  className="resize-none text-xs min-h-[56px]"
+                  value={form.errores_comunes}
+                  onChange={e => updateForm('errores_comunes', e.target.value)}
+                  onBlur={handleBlurSave}
+                  placeholder="Un error por línea..."
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Posición entrenador</label>
+                <Input
+                  className="h-9 text-sm"
+                  value={form.posicion_entrenador}
+                  onChange={e => updateForm('posicion_entrenador', e.target.value)}
+                  onBlur={handleBlurSave}
+                  placeholder="Ej: Lateral derecho..."
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Fase de juego</label>
+                <select
+                  className="h-9 w-full rounded-md border bg-background px-2.5 text-sm"
+                  value={form.fase_juego}
+                  onChange={e => { updateForm('fase_juego', e.target.value) }}
+                  onBlur={handleBlurSave}
+                >
+                  <option value="">Sin definir</option>
+                  <option value="ataque_organizado">Ataque org.</option>
+                  <option value="defensa_organizada">Defensa org.</option>
+                  <option value="transicion_ataque_defensa">Trans. A→D</option>
+                  <option value="transicion_defensa_ataque">Trans. D→A</option>
+                  <option value="balon_parado_ofensivo">BP ofensivo</option>
+                  <option value="balon_parado_defensivo">BP defensivo</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Densidad</label>
+                <select
+                  className="h-9 w-full rounded-md border bg-background px-2.5 text-sm"
+                  value={form.densidad}
+                  onChange={e => { updateForm('densidad', e.target.value) }}
+                  onBlur={handleBlurSave}
+                >
+                  <option value="">Sin definir</option>
+                  <option value="alta">Alta</option>
+                  <option value="media">Media</option>
+                  <option value="baja">Baja</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Nivel cognitivo</label>
+                <select
+                  className="h-9 w-full rounded-md border bg-background px-2.5 text-sm"
+                  value={form.nivel_cognitivo}
+                  onChange={e => { updateForm('nivel_cognitivo', e.target.value) }}
+                  onBlur={handleBlurSave}
+                >
+                  <option value="">Sin definir</option>
+                  <option value="1">1 - Bajo</option>
+                  <option value="2">2 - Medio</option>
+                  <option value="3">3 - Alto</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Principio táctico</label>
+              <Input
+                className="h-9 text-sm"
+                value={form.principio_tactico}
+                onChange={e => updateForm('principio_tactico', e.target.value)}
+                onBlur={handleBlurSave}
+                placeholder="Ej: Salida de balón..."
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Notas + IA ── */}
+      <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-t bg-muted/15">
         <input
-          className="flex-1 min-w-[120px] italic bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none text-muted-foreground"
-          placeholder="Notas de sesión..."
+          className="flex-1 min-w-[160px] h-9 rounded-md border border-input bg-background px-2.5 text-sm italic text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          placeholder="Notas de sesión…"
           value={st.notas || ''}
           onChange={e => onNotasChange(e.target.value)}
           onBlur={onNotasBlur}
         />
-
-        {/* AI bar */}
-        <div className="flex items-center gap-1 ml-auto">
+        <div className="flex items-center gap-1.5 ml-auto">
           <Wand2 className="h-3.5 w-3.5 text-primary shrink-0" />
           <input
-            className="bg-background border rounded px-2 py-1 w-36 focus:outline-none focus:ring-1 focus:ring-primary"
-            placeholder="Instrucción IA..."
+            className="h-9 w-40 rounded-md border border-input bg-background px-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            placeholder="Instrucción IA…"
             value={aiInstruction}
             onChange={e => setAiInstruction(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') handleAiSubmit() }}
             disabled={aiProcessing}
           />
           <button
+            type="button"
             onClick={handleAiSubmit}
             disabled={aiProcessing || !aiInstruction.trim()}
-            className="p-1.5 rounded bg-primary text-primary-foreground disabled:opacity-40 hover:bg-primary/90 transition-colors"
+            className="h-9 w-9 inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground disabled:opacity-40 hover:bg-primary/90 transition-colors"
             title="Editar con IA"
           >
             {aiProcessing
-              ? <Loader2 className="h-3 w-3 animate-spin" />
-              : <Send className="h-3 w-3" />}
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : <Send className="h-3.5 w-3.5" />}
           </button>
         </div>
       </div>
     </div>
   )
 }
+

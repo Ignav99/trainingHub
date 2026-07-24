@@ -61,6 +61,40 @@ function usableFrames(data?: TareaPizarraData | null): Keyframe[] | null {
   }))
 }
 
+function boardHasContent(source?: { elements?: any[]; arrows?: any[]; zones?: any[] } | null): boolean {
+  if (!source) return false
+  return (source.elements?.length || 0) + (source.arrows?.length || 0) + (source.zones?.length || 0) > 0
+}
+
+/** Snapshot estático: top-level, o frame 0 si el top-level está vacío. */
+export function staticBoardSnapshot(data?: TareaPizarraData | null): TareaPizarraData | null {
+  if (!data) return null
+  if (boardHasContent(data)) {
+    return {
+      pitchType: data.pitchType,
+      tipo: data.tipo || 'static',
+      elements: data.elements || [],
+      arrows: data.arrows || [],
+      zones: data.zones || [],
+    }
+  }
+  const f0 = Array.isArray(data.frames) && data.frames.length > 0 ? data.frames[0] : null
+  if (f0) {
+    return {
+      pitchType: data.pitchType,
+      tipo: 'static',
+      elements: f0.elements || [],
+      arrows: f0.arrows || [],
+      zones: f0.zones || [],
+    }
+  }
+  return data
+}
+
+export function boardHasAnimation(data?: TareaPizarraData | null): boolean {
+  return !!usableFrames(data)
+}
+
 function TacticalBoardMiniInner({
   data,
   width = '100%',
@@ -77,6 +111,9 @@ function TacticalBoardMiniInner({
 
   const frames = usableFrames(data)
   const canAnimate = animate && !!frames
+
+  // Vista estática: top-level (o frame 0). Vista animada: interpolación.
+  const staticData = staticBoardSnapshot(data)
 
   // Bucle de animación: solo mientras la tarjeta está a la vista
   useEffect(() => {
@@ -132,7 +169,7 @@ function TacticalBoardMiniInner({
     }
   }, [canAnimate, frames])
 
-  const source = frameData || data
+  const source = canAnimate ? (frameData || staticData || data) : (staticData || data)
   const elements = (Array.isArray(source?.elements) ? source!.elements : []).map(normalizeElement).filter(Boolean) as DiagramElement[]
   const arrows = (Array.isArray(source?.arrows) ? source!.arrows : []).map(normalizeArrow).filter(Boolean) as DiagramArrow[]
   const zones = (Array.isArray(source?.zones) ? source!.zones : []).map(normalizeZone).filter(Boolean) as DiagramZone[]
