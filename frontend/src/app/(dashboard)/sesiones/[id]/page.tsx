@@ -959,7 +959,6 @@ export default function SesionDetailPage() {
   const [previewingPdf, setPreviewingPdf] = useState(false)
   const [savingTareas, setSavingTareas] = useState(false)
   const [phase, setPhase] = useState<SesionPhase>('definir')
-  const [disenoTab, setDisenoTab] = useState<'convocatoria' | 'tareas'>('convocatoria')
   const [asistenciaSavedOnce, setAsistenciaSavedOnce] = useState(false)
 
   // Task picker
@@ -1394,19 +1393,21 @@ export default function SesionDetailPage() {
       const batch = newTareas.map((t, i) => ({
         tarea_id: t.tarea_id,
         orden: i + 1,
-        fase_sesion: t.fase_sesion,
-        duracion_override: t.duracion_override,
-        notas: t.notas,
-        responsable: t.responsable,
+        fase_sesion: t.fase_sesion || 'desarrollo_1',
+        duracion_override: t.duracion_override ?? undefined,
+        notas: t.notas || undefined,
+        responsable: t.responsable || undefined,
       }))
       const updated = await sesionesApi.batchUpdateTareas(sesionId, batch)
       setSesion(updated)
     } catch (err: any) {
       console.error('Error saving tareas:', err)
-      const msg: string = err?.message || ''
-      if (msg.includes('permiso') || msg.includes('plan') || msg.includes('suscripci')) {
-        toast.error(msg)
-      }
+      toast.error(err?.message || 'No se pudieron guardar las tareas')
+      // Recargar desde servidor para no dejar estado fantasma
+      try {
+        const fresh = await sesionesApi.get(sesionId)
+        setSesion(fresh)
+      } catch {}
     } finally {
       setSavingTareas(false)
     }
@@ -1667,16 +1668,11 @@ export default function SesionDetailPage() {
 
   const handlePhaseChange = (next: SesionPhase) => {
     setPhase(next)
-    if (next === 'diseno') {
-      setDisenoTab('convocatoria')
+    if (next === 'convocatoria' || next === 'diseno' || next === 'cierre') {
       loadJugadores()
       loadAsistencias()
       loadCargaData()
       loadMargen()
-    }
-    if (next === 'cierre') {
-      loadJugadores()
-      loadAsistencias()
     }
   }
 
@@ -2070,7 +2066,8 @@ export default function SesionDetailPage() {
           onChange={handlePhaseChange}
           done={{
             definir: !!(sesion.objetivo_principal && sesion.fecha && (sesion.fases_juego?.length || sesion.match_day)),
-            diseno: allTareas.length > 0 && asistenciaSavedOnce,
+            convocatoria: asistenciaSavedOnce,
+            diseno: allTareas.length > 0,
             cierre: sesion.estado === 'planificada' || sesion.estado === 'completada',
           }}
         />
@@ -2134,35 +2131,16 @@ export default function SesionDetailPage() {
             }}
           />
           <div className="flex justify-end">
-            <Button onClick={() => handlePhaseChange('diseno')}>
-              Ir a Diseño
+            <Button onClick={() => handlePhaseChange('convocatoria')}>
+              Ir a Convocatoria
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           </div>
         </div>
       )}
 
-      {/* ==================== FASE: DISENO ==================== */}
+      {/* ==================== FASE: DISENO (tareas + material) ==================== */}
       {phase === 'diseno' && (
-        <div className="space-y-4">
-          <div className="flex gap-1 rounded-xl border bg-muted/40 p-1 w-fit">
-            <button
-              type="button"
-              onClick={() => setDisenoTab('convocatoria')}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${disenoTab === 'convocatoria' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
-            >
-              Convocatoria
-            </button>
-            <button
-              type="button"
-              onClick={() => setDisenoTab('tareas')}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${disenoTab === 'tareas' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
-            >
-              Tareas + material
-            </button>
-          </div>
-          {disenoTab === 'tareas' && (
-
         <div className="space-y-4 animate-fade-in">
           {/* Fases de sesion */}
           <div className="space-y-4">
@@ -2346,7 +2324,7 @@ export default function SesionDetailPage() {
           />
 
           <div className="flex justify-between pt-2">
-            <Button type="button" variant="outline" onClick={() => setDisenoTab('convocatoria')}>
+            <Button type="button" variant="outline" onClick={() => handlePhaseChange('convocatoria')}>
               Volver a Convocatoria
             </Button>
             <Button type="button" onClick={() => handlePhaseChange('cierre')}>
@@ -2355,12 +2333,10 @@ export default function SesionDetailPage() {
             </Button>
           </div>
         </div>
-          )}
-        </div>
       )}
 
-      {/* ==================== DISENO > CONVOCATORIA ==================== */}
-      {phase === 'diseno' && disenoTab === 'convocatoria' && (
+      {/* ==================== FASE: CONVOCATORIA ==================== */}
+      {phase === 'convocatoria' && (
         <div className="space-y-4 animate-fade-in">
           <Card>
             <CardHeader>
@@ -2869,8 +2845,8 @@ export default function SesionDetailPage() {
             <Button type="button" variant="outline" onClick={() => handlePhaseChange('definir')}>
               Volver a Definir
             </Button>
-            <Button type="button" onClick={() => setDisenoTab('tareas')}>
-              Siguiente: Tareas
+            <Button type="button" onClick={() => handlePhaseChange('diseno')}>
+              Siguiente: Diseño
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           </div>
@@ -2943,14 +2919,6 @@ export default function SesionDetailPage() {
         <SesionCierrePanel
           sesionId={sesionId}
           estado={sesion.estado}
-          checklist={{
-            hasObjetivo: !!sesion.objetivo_principal,
-            hasTareas: (sesion.tareas || []).length > 0,
-            asistenciaSaved: asistenciaSavedOnce || asistenciasLoaded,
-            presentes: Array.from(asistencias.values()).filter((a) => a.presente).length,
-            isPlanificada: sesion.estado === 'planificada',
-            isCompletada: sesion.estado === 'completada',
-          }}
           tareas={sesion.tareas || []}
           cargaSesion={sesion.carga_sesion}
           intensidadCalculada={sesion.intensidad_calculada || sesion.intensidad_objetivo}

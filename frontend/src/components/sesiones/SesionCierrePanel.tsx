@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import {
   CheckCircle2,
-  Circle,
   FileText,
   Loader2,
   Download,
@@ -14,22 +13,11 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 import type { EstadoSesion, SesionTarea } from '@/types'
-
-type Checklist = {
-  hasObjetivo: boolean
-  hasTareas: boolean
-  asistenciaSaved: boolean
-  presentes: number
-  isPlanificada: boolean
-  isCompletada: boolean
-}
 
 export function SesionCierrePanel({
   sesionId,
   estado,
-  checklist,
   tareas = [],
   cargaSesion,
   intensidadCalculada,
@@ -44,7 +32,15 @@ export function SesionCierrePanel({
 }: {
   sesionId: string
   estado: EstadoSesion
-  checklist: Checklist
+  /** @deprecated checklist visual eliminado; se mantiene opcional por compat */
+  checklist?: {
+    hasObjetivo?: boolean
+    hasTareas?: boolean
+    asistenciaSaved?: boolean
+    presentes?: number
+    isPlanificada?: boolean
+    isCompletada?: boolean
+  }
   tareas?: SesionTarea[]
   cargaSesion?: number | null
   intensidadCalculada?: string | null
@@ -60,29 +56,11 @@ export function SesionCierrePanel({
   const [closing, setClosing] = useState(false)
   const [sharing, setSharing] = useState(false)
 
-  const items = [
-    { ok: checklist.hasObjetivo, label: 'Objetivo / keywords definidos' },
-    { ok: checklist.hasTareas, label: 'Al menos una tarea en el diseño' },
-    {
-      ok: checklist.asistenciaSaved && checklist.presentes > 0,
-      label: checklist.presentes > 0
-        ? `Convocatoria con ${checklist.presentes} presentes`
-        : 'Convocatoria guardada con presentes',
-    },
-  ]
-
-  const ready =
-    checklist.hasObjetivo &&
-    checklist.hasTareas &&
-    checklist.asistenciaSaved &&
-    checklist.presentes > 0
+  const isCompletada = estado === 'completada'
+  const isPlanificada = estado === 'planificada'
 
   const handleCerrar = async () => {
-    if (checklist.isCompletada || checklist.isPlanificada) return
-    if (!ready) {
-      toast.error('Completa objetivo, tareas y convocatoria antes de cerrar planificación')
-      return
-    }
+    if (isCompletada || isPlanificada) return
     setClosing(true)
     try {
       await onCerrarPlanificacion()
@@ -118,46 +96,20 @@ export function SesionCierrePanel({
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="rounded-2xl border bg-gradient-to-br from-emerald-50/80 via-card to-sky-50/40 p-5 sm:p-6">
-        <h2 className="text-lg font-semibold tracking-tight">Cierre de planificación</h2>
-        <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-          Resume la sesión, exporta PDF, comparte el enlace y cierra como planificada.
-          Si la fecha ya pasó, el sistema la marcará completada y aplicará cargas.
-        </p>
-
-        <ul className="mt-5 space-y-2.5">
-          {items.map((item) => (
-            <li key={item.label} className="flex items-start gap-2.5 text-sm">
-              {item.ok ? (
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
-              ) : (
-                <Circle className="h-4 w-4 mt-0.5 shrink-0 text-amber-500" />
-              )}
-              <span className={cn(item.ok ? 'text-muted-foreground' : 'text-foreground')}>
-                {item.label}
-              </span>
-            </li>
-          ))}
-        </ul>
-
-        <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
-          <span className="rounded-lg bg-muted px-2.5 py-1 tabular-nums">
-            Carga {cargaSesion != null ? cargaSesion : '—'}
-          </span>
-          <span className="rounded-lg bg-muted px-2.5 py-1">
-            Intensidad {intensidadCalculada || '—'}
-          </span>
-          <span className="rounded-lg bg-muted px-2.5 py-1">
-            Estado {estado}
-          </span>
-        </div>
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <span className="rounded-lg bg-muted px-2.5 py-1 tabular-nums">
+          Carga {cargaSesion != null ? cargaSesion : '—'}
+        </span>
+        <span className="rounded-lg bg-muted px-2.5 py-1">
+          Intensidad {intensidadCalculada || '—'}
+        </span>
+        <span className="rounded-lg bg-muted px-2.5 py-1 capitalize">
+          {estado}
+        </span>
       </div>
 
       <div className="rounded-2xl border bg-card p-5 space-y-3">
-        <h3 className="text-sm font-semibold">RPE / carga por tarea</h3>
-        <p className="text-xs text-muted-foreground">
-          Resumen automático desde la densidad y duración de cada tarea (lectura).
-        </p>
+        <h3 className="text-sm font-semibold">Carga por tarea</h3>
         <ul className="divide-y">
           {tareas.length === 0 && (
             <li className="py-3 text-sm text-muted-foreground">Sin tareas</li>
@@ -232,12 +184,12 @@ export function SesionCierrePanel({
       </div>
 
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1">
-        {checklist.isCompletada || estado === 'completada' ? (
+        {isCompletada ? (
           <div className="inline-flex items-center gap-2 rounded-xl bg-emerald-100 text-emerald-900 border border-emerald-200 px-4 py-2.5 text-sm font-semibold">
             <CheckCircle2 className="h-4 w-4" />
-            Sesión completada (por fecha)
+            Sesión completada
           </div>
-        ) : checklist.isPlanificada || estado === 'planificada' ? (
+        ) : isPlanificada ? (
           <div className="inline-flex items-center gap-2 rounded-xl bg-sky-100 text-sky-900 border border-sky-200 px-4 py-2.5 text-sm font-semibold">
             <CheckCircle2 className="h-4 w-4" />
             Planificación cerrada
@@ -246,17 +198,12 @@ export function SesionCierrePanel({
           <Button
             size="lg"
             onClick={handleCerrar}
-            disabled={closing || !ready}
+            disabled={closing}
             className="bg-emerald-600 hover:bg-emerald-700 text-white"
           >
             {closing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Flag className="h-4 w-4 mr-2" />}
             Cerrar planificación
           </Button>
-        )}
-        {!ready && estado === 'borrador' && (
-          <p className="text-xs text-muted-foreground">
-            Falta objetivo, tareas o convocatoria con presentes.
-          </p>
         )}
         <p className="text-[11px] text-muted-foreground sm:ml-auto tabular-nums">
           Sesión {sesionId.slice(0, 8)}…

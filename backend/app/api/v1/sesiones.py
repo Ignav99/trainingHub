@@ -187,47 +187,82 @@ router = APIRouter()
 
 
 def _recalc_sesion_carga(supabase, sesion_id: str) -> dict:
-    """Recalcula duración, carga por tarea y agregados de sesión."""
-    tareas = supabase.table("sesion_tareas").select(
-        "id, duracion_override, tareas(duracion_total, densidad, num_jugadores_min, num_jugadores_max, categorias_tarea(codigo, nombre_corto))"
-    ).eq("sesion_id", sesion_id).execute()
+    """Recalcula duración, carga por tarea y agregados de sesión.
 
-    rows = []
-    for st in (tareas.data or []):
-        tarea = st.pop("tareas", None) or {}
-        cat = tarea.pop("categorias_tarea", None) if isinstance(tarea, dict) else None
-        if isinstance(tarea, dict):
-            tarea["categoria"] = cat
-            tarea["categorias_tarea"] = cat
-        st["tarea"] = tarea
-        st["tareas"] = tarea
-        carga = carga_from_sesion_tarea(st)
-        st["carga_calculada"] = carga
-        rows.append(st)
-        try:
-            supabase.table("sesion_tareas").update({
-                "carga_calculada": carga
-            }).eq("id", st["id"]).execute()
-        except Exception:
-            pass  # columna puede no existir aún
-
-    carga_sesion, intensidad, duracion_total = aggregate_sesion_carga(rows)
-    update = {
-        "duracion_total": duracion_total,
-        "carga_sesion": carga_sesion,
-        "intensidad_calculada": intensidad,
-        "intensidad_objetivo": intensidad,
-    }
+    Nunca lanza: un fallo aquí no debe impedir guardar tareas.
+    """
     try:
-        supabase.table("sesiones").update(update).eq("id", sesion_id).execute()
+        try:
+            tareas = supabase.table("sesion_tareas").select(
+                "id, duracion_override, tareas(duracion_total, densidad, num_jugadores_min, num_jugadores_max, categorias_tarea(codigo, nombre_corto))"
+            ).eq("sesion_id", sesion_id).execute()
+        except Exception:
+            # Fallback sin join de categoría (compat / schema parcial)
+            tareas = supabase.table("sesion_tareas").select(
+                "id, duracion_override, tareas(duracion_total, densidad, num_jugadores_min, num_jugadores_max)"
+            ).eq("sesion_id", sesion_id).execute()
+
+        rows = []
+        for st in (tareas.data or []):
+            tarea = st.get("tareas") or {}
+            if not isinstance(tarea, dict):
+                tarea = {}
+            else:
+                tarea = dict(tarea)
+            cat = tarea.pop("categorias_tarea", None)
+            if cat:
+                tarea["categoria"] = cat
+                tarea["categorias_tarea"] = cat
+            row = {
+                "id": st.get("id"),
+                "duracion_override": st.get("duracion_override"),
+                "tarea": tarea,
+                "tareas": tarea,
+            }
+            carga = carga_from_sesion_tarea(row)
+            row["carga_calculada"] = carga
+            rows.append(row)
+            if st.get("id"):
+                try:
+                    supabase.table("sesion_tareas").update({
+                        "carga_calculada": carga
+                    }).eq("id", st["id"]).execute()
+                except Exception:
+                    pass  # columna puede no existir aún
+
+        carga_sesion, intensidad, duracion_total = aggregate_sesion_carga(rows)
+
+        # 1) siempre intentar duración
+        try:
+            supabase.table("sesiones").update({
+                "duracion_total": duracion_total
+            }).eq("id", sesion_id).execute()
+        except Exception as e:
+            logger.warning("No se pudo actualizar duracion_total: %s", e)
+
+        # 2) columnas 063 (opcionales hasta migración)
+        try:
+            supabase.table("sesiones").update({
+                "carga_sesion": carga_sesion,
+                "intensidad_calculada": intensidad,
+                "intensidad_objetivo": intensidad,
+            }).eq("id", sesion_id).execute()
+        except Exception:
+            try:
+                supabase.table("sesiones").update({
+                    "intensidad_objetivo": intensidad,
+                }).eq("id", sesion_id).execute()
+            except Exception:
+                pass
+
+        return {
+            "duracion_total": duracion_total,
+            "carga_sesion": carga_sesion,
+            "intensidad_calculada": intensidad,
+        }
     except Exception as e:
-        # Soft-drop taxonomy cols si migración 063 no aplicada
-        msg = str(e)
-        soft = {k: v for k, v in update.items() if k == "duracion_total" or k not in msg}
-        if "carga_sesion" in msg or "intensidad_calculada" in msg:
-            soft = {"duracion_total": duracion_total}
-        supabase.table("sesiones").update(soft).eq("id", sesion_id).execute()
-    return update
+        logger.warning("recalc carga sesión %s falló (no bloquea): %s", sesion_id, e)
+        return {}
 
 
 
@@ -591,7 +626,17 @@ async def get_sesion(
         if tarea_data:
             tarea_data["categoria"] = tarea_data.pop("categorias_tarea", None)
         st["tarea"] = tarea_data
-        sesion_data["tareas"].append(SesionTareaResponse(**st))
+        if not st.get("fase_sesion"):
+            st["fase_sesion"] = "desarrollo_1"
+        if st.get("carga_calculada") is not None:
+            try:
+                st["carga_calculada"] = float(st["carga_calculada"])
+            except (TypeError, ValueError):
+                st["carga_calculada"] = None
+        try:
+            sesion_data["tareas"].append(SesionTareaResponse(**st))
+        except Exception as e:
+            logger.warning("SesionTareaResponse skip %s: %s", st.get("id"), e)
 
     return SesionResponse(**normalize_sesion_row(sesion_data))
 
