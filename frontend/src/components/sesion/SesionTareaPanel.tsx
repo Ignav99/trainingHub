@@ -348,6 +348,7 @@ export default function SesionTareaPanel({
                         width="100%"
                         height="100%"
                         animate
+                        autoplay
                         showPlayBadge={false}
                       />
                     </div>
