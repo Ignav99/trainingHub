@@ -101,6 +101,7 @@ import {
 } from '@/types'
 import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
 import TareaCreatorFullscreen, { type TareaCreatorData } from '@/components/tareas/TareaCreatorFullscreen'
+import { madreToCreatorPrefill } from '@/lib/tareaVariante'
 import { cargaApi } from '@/lib/api/carga'
 import { entrenamientosMargenApi } from '@/lib/api/entrenamientosMargen'
 import { suggestAttendanceFromDisponibilidad } from '@/lib/jugadorTipo'
@@ -1006,6 +1007,7 @@ export default function SesionDetailPage() {
 
   // Task creation state
   const [creatorOpen, setCreatorOpen] = useState(false)
+  const [creatorFromMother, setCreatorFromMother] = useState<Tarea | null>(null)
   const [aiCreating, setAiCreating] = useState(false)
 
   // Phase management — track explicitly added/removed fases
@@ -2618,7 +2620,15 @@ export default function SesionDetailPage() {
         onOpenChange={setTaskPickerOpen}
         faseLabel={FASE_LABELS[taskPickerFase] || taskPickerFase}
         onAdd={(tarea) => handleAddTarea(tarea, taskPickerFase)}
-        onCreateManual={() => setCreatorOpen(true)}
+        onCreateManual={() => {
+          setCreatorFromMother(null)
+          setCreatorOpen(true)
+        }}
+        onCreateVariante={(madre) => {
+          setTaskPickerOpen(false)
+          setCreatorFromMother(madre)
+          setCreatorOpen(true)
+        }}
         onAiCreate={handleAiCreateTask}
         aiCreating={aiCreating}
       />
@@ -2771,11 +2781,25 @@ export default function SesionDetailPage() {
       {/* "Crea tu ejercicio" — creador de tarea a pantalla completa */}
       <TareaCreatorFullscreen
         open={creatorOpen}
-        onClose={() => setCreatorOpen(false)}
-        onSubmit={handleCreateTask}
-        onClonar={() => { setCreatorOpen(false); setTaskPickerOpen(true) }}
+        onClose={() => {
+          setCreatorOpen(false)
+          setCreatorFromMother(null)
+        }}
+        onSubmit={async (data) => {
+          await handleCreateTask(data)
+          setCreatorFromMother(null)
+        }}
+        onClonar={() => {
+          setCreatorOpen(false)
+          setCreatorFromMother(null)
+          setTaskPickerOpen(true)
+        }}
         numJugadoresDefault={Array.from(asistencias.values()).filter((a) => a.presente).length || 16}
         faseLabel={FASE_LABELS[taskPickerFase] || taskPickerFase}
+        initialFromMother={
+          creatorFromMother ? madreToCreatorPrefill(creatorFromMother) : undefined
+        }
+        title={creatorFromMother ? 'Crear variante' : undefined}
       />
 
     </div>
