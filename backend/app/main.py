@@ -128,7 +128,17 @@ async def global_exception_handler(request: Request, exc: Exception):
     # Asegurar CORS también en 500 (el browser bloquea si faltan estas cabeceras)
     origin = request.headers.get("origin")
     headers = {}
-    allowed = settings.cors_origins_list
+    allowed = set(settings.cors_origins_list or [])
+    if getattr(settings, "FRONTEND_URL", None):
+        allowed.add(settings.FRONTEND_URL.rstrip("/"))
+    # Orígenes conocidos de Render (por si CORS_ORIGINS en el servicio está incompleto)
+    allowed.update(
+        {
+            "https://traininghub-frontend-eu.onrender.com",
+            "https://traininghub-frontend.onrender.com",
+            "http://localhost:3000",
+        }
+    )
     if origin and (origin in allowed or "*" in allowed):
         headers["Access-Control-Allow-Origin"] = origin
         headers["Access-Control-Allow-Credentials"] = "true"

@@ -119,7 +119,6 @@ export function TaskPickerDialog({
           nivel_cognitivo: nivelCognitivo ? Number(nivelCognitivo) : undefined,
           jugadores_min: jugadoresMin ? Number(jugadoresMin) : undefined,
           biblioteca: true,
-          solo_madres: soloMadres ? true : undefined,
           limit: 60,
         })
         if (cancelled) return

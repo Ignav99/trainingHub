@@ -356,110 +356,130 @@ async def list_tareas(
     if solo_plantillas:
         query = query.eq("es_plantilla", True)
 
-    # Madre = sin origen. Si la migración 067 no está aplicada, el execute fallará
-    # y reintentamos sin este filtro (ver abajo).
-    applied_solo_madres = False
-    if solo_madres:
-        query = query.is_("tarea_origen_id", "null")
-        applied_solo_madres = True
-
+    # Madre = sin origen. NUNCA filtrar con PostgREST `.is_(tarea_origen_id)`:
+    # si la mig 067 no está en el schema cache, ese filtro tumba el listado entero
+    # (los null del JSON de respuesta son defaults Pydantic, no prueban que exista
+    # la columna). Filtramos madres en Python tras el fetch.
+    #
+    # tarea_origen_id (listar variantes de una madre) sí usa eq; si falla, reintentamos.
+    applied_origen_eq = False
     if tarea_origen_id:
         query = query.eq("tarea_origen_id", str(tarea_origen_id))
-    
+        applied_origen_eq = True
+
     if equipo_id:
         query = query.eq("equipo_id", str(equipo_id))
-    
+
+    # Búsqueda: empezar SOLO con columnas legacy (siempre existen). Así no 500
+    # si desarrollo/reglas aún no están en PostgREST.
     if busqueda:
-        # Preferir columnas nuevas (desarrollo/reglas); fallback abajo si no existen
         query = query.or_(
-            f"titulo.ilike.%{busqueda}%,descripcion.ilike.%{busqueda}%,desarrollo.ilike.%{busqueda}%,reglas.ilike.%{busqueda}%"
+            f"titulo.ilike.%{busqueda}%,descripcion.ilike.%{busqueda}%"
         )
-    
+
     # Ordenación
     query = query.order(orden, desc=(direccion == "desc"))
-    
-    # Paginación
+
+    # Paginación — si pedimos solo madres, over-fetch un poco para compensar
+    # variantes filtradas en cliente (hasta que la mig 067 esté segura en prod).
     offset = (page - 1) * limit
-    query = query.range(offset, offset + limit - 1)
-    
-    # Ejecutar (con reintento si faltan columnas de la mig 067)
+    fetch_limit = limit
+    if solo_madres and not tarea_origen_id:
+        fetch_limit = min(limit * 3, 100)
+    query = query.range(offset, offset + fetch_limit - 1)
+
+    def _rebuild_list_query(*, include_origen_eq: bool):
+        q = supabase.table("tareas").select(
+            "*, categorias_tarea(*), usuarios!creado_por(nombre, apellidos), equipos(nombre)",
+            count="exact",
+        )
+        if biblioteca and current_user:
+            q = q.eq("organizacion_id", current_user.organizacion_id)
+        elif current_user:
+            q = q.eq("organizacion_id", current_user.organizacion_id)
+        else:
+            q = q.eq("es_publica", True)
+        if categoria:
+            cat = (
+                supabase.table("categorias_tarea")
+                .select("id")
+                .eq("codigo", categoria)
+                .maybe_single()
+                .execute()
+            )
+            if cat and cat.data:
+                q = q.eq("categoria_id", cat.data["id"])
+        if fase_juego:
+            q = q.eq("fase_juego", fase_juego.value)
+        if modalidad:
+            q = q.eq("modalidad", modalidad.value)
+        if principio_tactico:
+            q = q.ilike("principio_tactico", f"%{principio_tactico}%")
+        if jugadores_min:
+            q = q.gte("num_jugadores_min", jugadores_min)
+        if jugadores_max:
+            q = q.lte("num_jugadores_max", jugadores_max)
+        if duracion_min:
+            q = q.gte("duracion_total", duracion_min)
+        if duracion_max:
+            q = q.lte("duracion_total", duracion_max)
+        if nivel_cognitivo:
+            q = q.eq("nivel_cognitivo", nivel_cognitivo.value)
+        if densidad:
+            q = q.eq("densidad", densidad)
+        if match_day:
+            q = q.contains("match_days_recomendados", [match_day])
+        if tipo_esfuerzo:
+            q = q.ilike("tipo_esfuerzo", f"%{tipo_esfuerzo}%")
+        if es_complementaria is not None:
+            q = q.eq("es_complementaria", es_complementaria)
+        if zona_cuerpo:
+            q = q.eq("zona_cuerpo", zona_cuerpo.value)
+        if objetivo_gym:
+            q = q.eq("objetivo_gym", objetivo_gym.value)
+        if solo_plantillas:
+            q = q.eq("es_plantilla", True)
+        if include_origen_eq and tarea_origen_id:
+            q = q.eq("tarea_origen_id", str(tarea_origen_id))
+        if equipo_id:
+            q = q.eq("equipo_id", str(equipo_id))
+        if busqueda:
+            q = q.or_(f"titulo.ilike.%{busqueda}%,descripcion.ilike.%{busqueda}%")
+        q = q.order(orden, desc=(direccion == "desc"))
+        q = q.range(offset, offset + fetch_limit - 1)
+        return q
+
     try:
         response = query.execute()
     except Exception as first_err:
         err_txt = str(first_err).lower()
+        # Si falla por columna mig 067 (p.ej. eq tarea_origen_id), reintentar sin ella
         needs_retry = (
-            "tarea_origen_id" in err_txt
+            applied_origen_eq
+            or "tarea_origen_id" in err_txt
             or "desarrollo" in err_txt
             or "reglas" in err_txt
             or "anotaciones" in err_txt
             or "tipo_variante" in err_txt
             or "42703" in err_txt
+            or "schema cache" in err_txt
         )
         if not needs_retry:
             logger.error(f"list_tareas failed: {first_err}")
-            raise HTTPException(status_code=500, detail=f"Error listando tareas: {first_err}") from first_err
+            raise HTTPException(
+                status_code=500, detail=f"Error listando tareas: {first_err}"
+            ) from first_err
 
         logger.warning(
-            "list_tareas: columnas de familia/desarrollo no disponibles, reintentando sin ellas. %s",
+            "list_tareas: reintento sin filtros de mig 067. %s",
             first_err,
         )
-        # Reconstruir query sin filtros de mig 067
-        query = supabase.table("tareas").select(
-            "*, categorias_tarea(*), usuarios!creado_por(nombre, apellidos), equipos(nombre)",
-            count="exact",
-        )
-        if biblioteca and current_user:
-            query = query.eq("organizacion_id", current_user.organizacion_id)
-        elif current_user:
-            query = query.eq("organizacion_id", current_user.organizacion_id)
-        else:
-            query = query.eq("es_publica", True)
-        if categoria:
-            cat = supabase.table("categorias_tarea").select("id").eq("codigo", categoria).maybe_single().execute()
-            if cat and cat.data:
-                query = query.eq("categoria_id", cat.data["id"])
-        if fase_juego:
-            query = query.eq("fase_juego", fase_juego.value)
-        if modalidad:
-            query = query.eq("modalidad", modalidad.value)
-        if principio_tactico:
-            query = query.ilike("principio_tactico", f"%{principio_tactico}%")
-        if jugadores_min:
-            query = query.gte("num_jugadores_min", jugadores_min)
-        if jugadores_max:
-            query = query.lte("num_jugadores_max", jugadores_max)
-        if duracion_min:
-            query = query.gte("duracion_total", duracion_min)
-        if duracion_max:
-            query = query.lte("duracion_total", duracion_max)
-        if nivel_cognitivo:
-            query = query.eq("nivel_cognitivo", nivel_cognitivo.value)
-        if densidad:
-            query = query.eq("densidad", densidad)
-        if match_day:
-            query = query.contains("match_days_recomendados", [match_day])
-        if tipo_esfuerzo:
-            query = query.ilike("tipo_esfuerzo", f"%{tipo_esfuerzo}%")
-        if es_complementaria is not None:
-            query = query.eq("es_complementaria", es_complementaria)
-        if zona_cuerpo:
-            query = query.eq("zona_cuerpo", zona_cuerpo.value)
-        if objetivo_gym:
-            query = query.eq("objetivo_gym", objetivo_gym.value)
-        if solo_plantillas:
-            query = query.eq("es_plantilla", True)
-        if equipo_id:
-            query = query.eq("equipo_id", str(equipo_id))
-        if busqueda:
-            query = query.or_(f"titulo.ilike.%{busqueda}%,descripcion.ilike.%{busqueda}%")
-        query = query.order(orden, desc=(direccion == "desc"))
-        query = query.range(offset, offset + limit - 1)
-        response = query.execute()
-        applied_solo_madres = False
-    
+        response = _rebuild_list_query(include_origen_eq=False).execute()
+        applied_origen_eq = False
+
     total = response.count or 0
     pages = ceil(total / limit) if total > 0 else 1
-    
+
     # Enriquecer con nombre del creador y equipo
     tareas_data = []
     for t in response.data or []:
@@ -477,8 +497,8 @@ async def list_tareas(
         if cat_data and isinstance(cat_data, dict):
             t["categoria"] = cat_data
 
-        # Si filtramos madres en cliente (fallback sin columna), saltar hijas
-        if solo_madres and not applied_solo_madres and t.get("tarea_origen_id"):
+        # Madre = sin tarea_origen_id (si la columna no existe en la fila, pasa el filtro)
+        if solo_madres and t.get("tarea_origen_id"):
             continue
 
         try:
@@ -488,9 +508,13 @@ async def list_tareas(
             logger.warning("list_tareas: skip row %s — %s", t.get("id"), row_err)
             continue
 
-    # Si hicimos filtro cliente de madres, ajustar total aproximado
-    if solo_madres and not applied_solo_madres:
-        total = len(tareas_data)
+        if len(tareas_data) >= limit:
+            break
+
+    if solo_madres:
+        # Total aproximado tras filtro cliente
+        total = max(total, len(tareas_data)) if tareas_data else len(tareas_data)
+        pages = ceil(total / limit) if total > 0 else 1
 
     return TareaListResponse(
         data=tareas_data,
@@ -598,8 +622,19 @@ async def create_tarea(
     from app.services.task_load_metrics import apply_auto_load
     tarea_data = apply_auto_load(tarea_data)
     
-    # Insertar
-    response = supabase.table("tareas").insert(tarea_data).execute()
+    # Insertar (si mig 067 no está aplicada, quitar columnas nuevas y reintentar)
+    mig_067_cols = ("desarrollo", "reglas", "anotaciones", "tarea_origen_id", "tipo_variante")
+    try:
+        response = supabase.table("tareas").insert(tarea_data).execute()
+    except Exception as insert_err:
+        err_txt = str(insert_err).lower()
+        if any(c in err_txt for c in mig_067_cols) or "42703" in err_txt or "schema cache" in err_txt:
+            logger.warning("create_tarea: mig 067 ausente, insertando sin columnas nuevas. %s", insert_err)
+            for c in mig_067_cols:
+                tarea_data.pop(c, None)
+            response = supabase.table("tareas").insert(tarea_data).execute()
+        else:
+            raise
     
     if not response.data:
         raise HTTPException(
@@ -873,7 +908,28 @@ async def crear_variante(
     if nueva.get("desarrollo") and not nueva.get("descripcion"):
         nueva["descripcion"] = nueva["desarrollo"]
 
-    response = supabase.table("tareas").insert(nueva).execute()
+    response = None
+    try:
+        response = supabase.table("tareas").insert(nueva).execute()
+    except Exception as insert_err:
+        err_txt = str(insert_err).lower()
+        if (
+            "tarea_origen_id" in err_txt
+            or "tipo_variante" in err_txt
+            or "desarrollo" in err_txt
+            or "42703" in err_txt
+            or "schema cache" in err_txt
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=(
+                    "No se pueden crear variantes: falta aplicar la migración 067 "
+                    "(columnas desarrollo/reglas/tarea_origen_id) en Supabase y "
+                    "NOTIFY pgrst, 'reload schema'."
+                ),
+            ) from insert_err
+        raise
+
     if not response.data:
         raise HTTPException(status_code=500, detail="No se pudo crear la variante")
 
@@ -894,13 +950,22 @@ async def list_variantes(
 ):
     """Lista las variantes hijas de una tarea madre."""
     supabase = get_supabase()
-    response = (
-        supabase.table("tareas")
-        .select("*, categorias_tarea(*), usuarios!creado_por(nombre, apellidos), equipos(nombre)", count="exact")
-        .eq("tarea_origen_id", str(tarea_id))
-        .order("created_at", desc=False)
-        .execute()
-    )
+    try:
+        response = (
+            supabase.table("tareas")
+            .select(
+                "*, categorias_tarea(*), usuarios!creado_por(nombre, apellidos), equipos(nombre)",
+                count="exact",
+            )
+            .eq("tarea_origen_id", str(tarea_id))
+            .order("created_at", desc=False)
+            .execute()
+        )
+    except Exception as list_err:
+        err_txt = str(list_err).lower()
+        if "tarea_origen_id" in err_txt or "42703" in err_txt or "schema cache" in err_txt:
+            return TareaListResponse(data=[], total=0, page=1, limit=1, pages=1)
+        raise
     tareas_data = []
     for t in (response.data or []):
         t.pop("usuarios", None)

@@ -1,6 +1,14 @@
 -- ============================================================================
 -- MIGRACIÓN 067: Desarrollo / reglas / anotaciones + familia madre→variantes
 -- ============================================================================
+-- VERIFICAR DESPUÉS DE APLICAR (debe devolver 5 filas):
+--   SELECT column_name FROM information_schema.columns
+--   WHERE table_schema = 'public' AND table_name = 'tareas'
+--     AND column_name IN ('desarrollo','reglas','anotaciones','tarea_origen_id','tipo_variante')
+--   ORDER BY column_name;
+-- Luego OBLIGATORIO:
+--   NOTIFY pgrst, 'reload schema';
+-- ============================================================================
 -- Contenido narrativo simplificado:
 --   desarrollo  = qué se hace en la tarea
 --   reglas      = reglas / condicionantes / variantes de juego
