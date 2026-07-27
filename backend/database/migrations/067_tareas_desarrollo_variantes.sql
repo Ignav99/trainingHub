@@ -79,3 +79,7 @@ UPDATE tareas
 SET tipo_variante = 'original'
 WHERE tarea_origen_id IS NULL
   AND (tipo_variante IS NULL OR tipo_variante = '');
+
+-- Importante: refrescar el schema cache de PostgREST (si no, la API falla 500
+-- al filtrar por columnas nuevas como tarea_origen_id).
+NOTIFY pgrst, 'reload schema';

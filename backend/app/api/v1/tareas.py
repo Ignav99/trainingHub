@@ -369,7 +369,6 @@ async def list_tareas(
     if equipo_id:
         query = query.eq("equipo_id", str(equipo_id))
     
-    use_extended_search = bool(busqueda)
     if busqueda:
         # Preferir columnas nuevas (desarrollo/reglas); fallback abajo si no existen
         query = query.or_(
@@ -457,7 +456,6 @@ async def list_tareas(
         query = query.range(offset, offset + limit - 1)
         response = query.execute()
         applied_solo_madres = False
-        use_extended_search = False
     
     total = response.count or 0
     pages = ceil(total / limit) if total > 0 else 1
