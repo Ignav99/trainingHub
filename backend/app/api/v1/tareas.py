@@ -356,8 +356,12 @@ async def list_tareas(
     if solo_plantillas:
         query = query.eq("es_plantilla", True)
 
+    # Madre = sin origen. Si la migración 067 no está aplicada, el execute fallará
+    # y reintentamos sin este filtro (ver abajo).
+    applied_solo_madres = False
     if solo_madres:
         query = query.is_("tarea_origen_id", "null")
+        applied_solo_madres = True
 
     if tarea_origen_id:
         query = query.eq("tarea_origen_id", str(tarea_origen_id))
@@ -365,7 +369,9 @@ async def list_tareas(
     if equipo_id:
         query = query.eq("equipo_id", str(equipo_id))
     
+    use_extended_search = bool(busqueda)
     if busqueda:
+        # Preferir columnas nuevas (desarrollo/reglas); fallback abajo si no existen
         query = query.or_(
             f"titulo.ilike.%{busqueda}%,descripcion.ilike.%{busqueda}%,desarrollo.ilike.%{busqueda}%,reglas.ilike.%{busqueda}%"
         )
@@ -377,18 +383,92 @@ async def list_tareas(
     offset = (page - 1) * limit
     query = query.range(offset, offset + limit - 1)
     
-    # Ejecutar
-    response = query.execute()
+    # Ejecutar (con reintento si faltan columnas de la mig 067)
+    try:
+        response = query.execute()
+    except Exception as first_err:
+        err_txt = str(first_err).lower()
+        needs_retry = (
+            "tarea_origen_id" in err_txt
+            or "desarrollo" in err_txt
+            or "reglas" in err_txt
+            or "anotaciones" in err_txt
+            or "tipo_variante" in err_txt
+            or "42703" in err_txt
+        )
+        if not needs_retry:
+            logger.error(f"list_tareas failed: {first_err}")
+            raise HTTPException(status_code=500, detail=f"Error listando tareas: {first_err}") from first_err
+
+        logger.warning(
+            "list_tareas: columnas de familia/desarrollo no disponibles, reintentando sin ellas. %s",
+            first_err,
+        )
+        # Reconstruir query sin filtros de mig 067
+        query = supabase.table("tareas").select(
+            "*, categorias_tarea(*), usuarios!creado_por(nombre, apellidos), equipos(nombre)",
+            count="exact",
+        )
+        if biblioteca and current_user:
+            query = query.eq("organizacion_id", current_user.organizacion_id)
+        elif current_user:
+            query = query.eq("organizacion_id", current_user.organizacion_id)
+        else:
+            query = query.eq("es_publica", True)
+        if categoria:
+            cat = supabase.table("categorias_tarea").select("id").eq("codigo", categoria).maybe_single().execute()
+            if cat and cat.data:
+                query = query.eq("categoria_id", cat.data["id"])
+        if fase_juego:
+            query = query.eq("fase_juego", fase_juego.value)
+        if modalidad:
+            query = query.eq("modalidad", modalidad.value)
+        if principio_tactico:
+            query = query.ilike("principio_tactico", f"%{principio_tactico}%")
+        if jugadores_min:
+            query = query.gte("num_jugadores_min", jugadores_min)
+        if jugadores_max:
+            query = query.lte("num_jugadores_max", jugadores_max)
+        if duracion_min:
+            query = query.gte("duracion_total", duracion_min)
+        if duracion_max:
+            query = query.lte("duracion_total", duracion_max)
+        if nivel_cognitivo:
+            query = query.eq("nivel_cognitivo", nivel_cognitivo.value)
+        if densidad:
+            query = query.eq("densidad", densidad)
+        if match_day:
+            query = query.contains("match_days_recomendados", [match_day])
+        if tipo_esfuerzo:
+            query = query.ilike("tipo_esfuerzo", f"%{tipo_esfuerzo}%")
+        if es_complementaria is not None:
+            query = query.eq("es_complementaria", es_complementaria)
+        if zona_cuerpo:
+            query = query.eq("zona_cuerpo", zona_cuerpo.value)
+        if objetivo_gym:
+            query = query.eq("objetivo_gym", objetivo_gym.value)
+        if solo_plantillas:
+            query = query.eq("es_plantilla", True)
+        if equipo_id:
+            query = query.eq("equipo_id", str(equipo_id))
+        if busqueda:
+            query = query.or_(f"titulo.ilike.%{busqueda}%,descripcion.ilike.%{busqueda}%")
+        query = query.order(orden, desc=(direccion == "desc"))
+        query = query.range(offset, offset + limit - 1)
+        response = query.execute()
+        applied_solo_madres = False
+        use_extended_search = False
     
     total = response.count or 0
     pages = ceil(total / limit) if total > 0 else 1
     
     # Enriquecer con nombre del creador y equipo
     tareas_data = []
-    for t in response.data:
+    for t in response.data or []:
         # Extraer y flatten datos del JOIN
         usuario_data = t.pop("usuarios", None)
         equipo_data = t.pop("equipos", None)
+        cat_data = t.pop("categorias_tarea", None)
 
         if usuario_data:
             nombre = usuario_data.get("nombre", "")
@@ -396,8 +476,23 @@ async def list_tareas(
             t["creador_nombre"] = f"{nombre} {apellidos}".strip() if nombre else None
         if equipo_data:
             t["equipo_nombre"] = equipo_data.get("nombre")
+        if cat_data and isinstance(cat_data, dict):
+            t["categoria"] = cat_data
 
-        tareas_data.append(TareaResponse(**t))
+        # Si filtramos madres en cliente (fallback sin columna), saltar hijas
+        if solo_madres and not applied_solo_madres and t.get("tarea_origen_id"):
+            continue
+
+        try:
+            tareas_data.append(TareaResponse(**t))
+        except Exception as row_err:
+            # No tumbar el listado entero por una fila inválida (p.ej. título corto)
+            logger.warning("list_tareas: skip row %s — %s", t.get("id"), row_err)
+            continue
+
+    # Si hicimos filtro cliente de madres, ajustar total aproximado
+    if solo_madres and not applied_solo_madres:
+        total = len(tareas_data)
 
     return TareaListResponse(
         data=tareas_data,

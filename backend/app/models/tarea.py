@@ -109,7 +109,7 @@ class CoachingPoint(BaseModel):
 
 class TareaBase(BaseModel):
     """Schema base de tarea - campos comunes."""
-    titulo: str = Field(..., min_length=5, max_length=255)
+    titulo: str = Field(..., min_length=1, max_length=255)
     codigo: Optional[str] = Field(None, max_length=50)
     
     # Tiempo

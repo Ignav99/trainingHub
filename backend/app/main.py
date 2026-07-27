@@ -124,9 +124,22 @@ async def global_exception_handler(request: Request, exc: Exception):
     if settings.SENTRY_DSN:
         import sentry_sdk
         sentry_sdk.capture_exception(exc)
+
+    # Asegurar CORS también en 500 (el browser bloquea si faltan estas cabeceras)
+    origin = request.headers.get("origin")
+    headers = {}
+    allowed = settings.cors_origins_list
+    if origin and (origin in allowed or "*" in allowed):
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+        headers["Access-Control-Allow-Methods"] = "*"
+        headers["Access-Control-Allow-Headers"] = "*"
+        headers["Vary"] = "Origin"
+
     return JSONResponse(
         status_code=500,
         content={"detail": "Error interno del servidor. Revisa los logs."},
+        headers=headers,
     )
 
 
