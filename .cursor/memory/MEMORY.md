@@ -1,19 +1,29 @@
 # TrainingHub — agent memory
 
-## Branch: `cursor/microciclos-tareas-ux-ae84` (2026-07-27)
+## Branch: `cursor/fix-tareas-solo-madres-ae84` (2026-07-27)
 
-### Latest — desarrollo / reglas / madre→variantes
-- Contenido: **desarrollo** + **reglas** + **anotaciones** (opcional) en creador y `/tareas/nueva`
-- Familia: `tarea_origen_id` + `tipo_variante`; API `POST/GET /tareas/{id}/variantes`
-- Biblioteca: filtro «Solo tareas madre»; acción «Crear variante»
-- Migración **067**
+### Root cause (prod 500 en `/tareas?solo_madres=true`)
+- La mig **067 no está aplicada** (o PostgREST no la ve) en la DB de `traininghub-api-eu`.
+- Los `tarea_origen_id: null` del JSON eran **defaults Pydantic**, no prueba de columna.
+- Prueba: `?busqueda=fut` también 500 (usa `desarrollo`/`reglas` en el `or_`).
+- `tipo_variante` sigue `null` en todas las tareas → el backfill de 067 no corrió.
 
-### Prev
-- ABP picker grande (#191)
-- Margen/porteros/subfases (#190)
-- SIATE / desplegables (#189)
+### Fix en este PR
+- **Nunca** usar PostgREST `.is_(tarea_origen_id)` en listado; filtrar madres en Python.
+- Búsqueda solo sobre `titulo`/`descripcion` (legacy) para no 500 sin mig.
+- Soft-skip filas inválidas; create reintenta sin cols 067; variantes → 503 claro.
+- TS: quitar `soloMadres` roto en `TaskPickerDialog`.
+- FE default `soloMadres=false`.
+- CORS en 500 incluye orígenes Render conocidos.
 
-### Key files
-- `backend/database/migrations/067_tareas_desarrollo_variantes.sql`
-- `frontend/src/components/tareas/TareaCreatorFullscreen.tsx`
-- `backend/app/api/v1/tareas.py` (crear_variante)
+### SQL verificación (Supabase SQL editor del proyecto correcto)
+```sql
+SELECT column_name FROM information_schema.columns
+WHERE table_schema = 'public' AND table_name = 'tareas'
+  AND column_name IN ('desarrollo','reglas','anotaciones','tarea_origen_id','tipo_variante');
+NOTIFY pgrst, 'reload schema';
+```
+
+### Prod URLs
+- API: https://traininghub-api-eu.onrender.com
+- FE: https://traininghub-frontend-eu.onrender.com

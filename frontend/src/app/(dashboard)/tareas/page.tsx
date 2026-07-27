@@ -69,7 +69,7 @@ export default function TareasPage() {
   const [orientacionFisica, setOrientacionFisica] = useState('')
   const [jugadoresMin, setJugadoresMin] = useState('')
   const [jugadoresMax, setJugadoresMax] = useState('')
-  const [soloMadres, setSoloMadres] = useState(true)
+  const [soloMadres, setSoloMadres] = useState(false)
   const [sortBy, setSortBy] = useState('created_at:desc')
 
   const [aiSearchMode, setAiSearchMode] = useState(false)

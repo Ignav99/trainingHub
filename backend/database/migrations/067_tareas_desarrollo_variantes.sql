@@ -1,6 +1,14 @@
 -- ============================================================================
 -- MIGRACIÓN 067: Desarrollo / reglas / anotaciones + familia madre→variantes
 -- ============================================================================
+-- VERIFICAR DESPUÉS DE APLICAR (debe devolver 5 filas):
+--   SELECT column_name FROM information_schema.columns
+--   WHERE table_schema = 'public' AND table_name = 'tareas'
+--     AND column_name IN ('desarrollo','reglas','anotaciones','tarea_origen_id','tipo_variante')
+--   ORDER BY column_name;
+-- Luego OBLIGATORIO:
+--   NOTIFY pgrst, 'reload schema';
+-- ============================================================================
 -- Contenido narrativo simplificado:
 --   desarrollo  = qué se hace en la tarea
 --   reglas      = reglas / condicionantes / variantes de juego
@@ -79,3 +87,7 @@ UPDATE tareas
 SET tipo_variante = 'original'
 WHERE tarea_origen_id IS NULL
   AND (tipo_variante IS NULL OR tipo_variante = '');
+
+-- Importante: refrescar el schema cache de PostgREST (si no, la API falla 500
+-- al filtrar por columnas nuevas como tarea_origen_id).
+NOTIFY pgrst, 'reload schema';
