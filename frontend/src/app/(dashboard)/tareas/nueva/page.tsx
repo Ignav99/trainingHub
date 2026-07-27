@@ -1,21 +1,21 @@
 'use client'
 
 /**
- * Nueva tarea — una sola página con scroll (mismo patrón que el creador en sesión).
- * Densidad y nivel cognitivo: automáticos al guardar.
+ * Nueva tarea — misma UX que el creador en sesión:
+ * scroll único, tipología en desplegable, complejidad SIATE, carga desde pizarra.
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Save, Loader2, LayoutGrid, Pencil, Plus, Info, Check, X } from 'lucide-react'
+import { ArrowLeft, Save, Loader2, LayoutGrid, Pencil, Plus, Check, X } from 'lucide-react'
 import { tareasApi } from '@/lib/api/tareas'
 import TareaPizarraEditor from '@/components/tactical-board/TareaPizarraEditor'
 import TacticalBoardMini from '@/components/task-preview/TacticalBoardMini'
 import { emptyTareaPizarra, type TareaPizarraData } from '@/components/tactical-board/types'
 import {
   applyAutoLoadToTarea,
-  computeTaskLoadMetrics,
+  patchFromPizarraData,
   type TareaEspacioPatch,
 } from '@/lib/tacticalMetrics'
 import {
@@ -25,13 +25,21 @@ import {
   OBJETIVOS_TACTICOS,
   OBJETIVOS_TECNICOS,
   ORIENTACIONES_FISICAS,
-  ESCALA_1_5,
 } from '@/lib/catalogos/canonico'
+import {
+  computeComplejidadScore,
+  complejidadToLabel,
+  GRADO_OPOSICION,
+  EJECUTANTES_SIMULTANEOS,
+} from '@/lib/complejidadSiate'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Button, Input, Textarea } from '@/components/ui'
 import { PageHeader } from '@/components/ui/page-header'
 import { cn } from '@/lib/utils'
 import { useEquipoStore } from '@/stores/equipoStore'
+
+const selectClass =
+  'h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring'
 
 export default function NuevaTareaPage() {
   const router = useRouter()
@@ -40,6 +48,8 @@ export default function NuevaTareaPage() {
   const [error, setError] = useState<string | null>(null)
   const [boardOpen, setBoardOpen] = useState(false)
   const [etiquetaDraft, setEtiquetaDraft] = useState('')
+  const [complejidadGo, setComplejidadGo] = useState<number | undefined>()
+  const [complejidadPes, setComplejidadPes] = useState<number | undefined>()
 
   const [form, setForm] = useState({
     titulo: '',
@@ -48,8 +58,6 @@ export default function NuevaTareaPage() {
     num_jugadores_min: 10,
     num_porteros: 0,
     descripcion: '',
-    complejidad: '',
-    forma_puntuar: '',
     fase_juego: '',
     objetivos_tacticos: [] as string[],
     objetivos_tecnicos: [] as string[],
@@ -61,7 +69,6 @@ export default function NuevaTareaPage() {
     espacio_largo: undefined as number | undefined,
     espacio_ancho: undefined as number | undefined,
     espacio_forma: 'rectangular',
-    dificultad: 3,
     grafico_data: emptyTareaPizarra as TareaPizarraData,
   })
 
@@ -76,19 +83,46 @@ export default function NuevaTareaPage() {
   const hasBoard =
     (form.grafico_data.elements?.length || 0) +
       (form.grafico_data.arrows?.length || 0) +
-      (form.grafico_data.zones?.length || 0) >
+      (form.grafico_data.zones?.length || 0) +
+      (form.grafico_data.frames?.length || 0) >
     0
 
-  const liveLoad = useMemo(
+  const fromBoard = useMemo(
+    () => patchFromPizarraData(form.grafico_data, form.num_jugadores_min),
+    [form.grafico_data, form.num_jugadores_min]
+  )
+
+  const boardLoadSig = useMemo(() => {
+    const c = fromBoard.clasificacion
+    const p = fromBoard.patch
+    if (!p || !c) return ''
+    return [p.espacio_largo, p.espacio_ancho, c.m2PorJugador, c.densidad, c.nivelCognitivo, c.tipoEsfuerzo].join('|')
+  }, [fromBoard])
+
+  useEffect(() => {
+    if (!boardLoadSig || !fromBoard.patch) return
+    const patch = fromBoard.patch
+    const summary = fromBoard.summary
+    setForm((f) => {
+      const next = { ...f, ...patch }
+      if (summary && summary.jugadores > 0) {
+        next.num_jugadores_min = summary.jugadores + (summary.porteros || 0)
+        next.num_porteros = summary.porteros || 0
+      }
+      return next
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardLoadSig])
+
+  const complejidad = useMemo(
     () =>
-      computeTaskLoadMetrics({
-        espacio_largo: form.espacio_largo,
-        espacio_ancho: form.espacio_ancho,
-        espacio_forma: form.espacio_forma,
-        num_jugadores: form.num_jugadores_min,
-        num_porteros: form.num_porteros,
+      computeComplejidadScore({
+        modalidad: form.modalidad,
+        clasificacion: fromBoard.clasificacion,
+        go: complejidadGo,
+        pes: complejidadPes,
       }),
-    [form.espacio_largo, form.espacio_ancho, form.espacio_forma, form.num_jugadores_min, form.num_porteros]
+    [form.modalidad, fromBoard.clasificacion, complejidadGo, complejidadPes]
   )
 
   const handleApplyEspacio = (patch: TareaEspacioPatch) => {
@@ -119,31 +153,31 @@ export default function NuevaTareaPage() {
     setSaving(true)
     setError(null)
     try {
+      const base = fromBoard.patch ? { ...form, ...fromBoard.patch } : form
       const payload = applyAutoLoadToTarea({
         titulo: tituloFinal,
-        categoria_id: form.categoria_id,
-        modalidad: form.modalidad,
-        num_jugadores_min: form.num_jugadores_min,
-        num_porteros: form.num_porteros,
-        descripcion: form.descripcion || undefined,
-        complejidad: form.complejidad || undefined,
-        forma_puntuar: form.forma_puntuar || undefined,
-        fase_juego: form.fase_juego || undefined,
-        objetivos_tacticos: form.objetivos_tacticos,
-        objetivos_tecnicos: form.objetivos_tecnicos,
-        orientaciones_fisicas: form.orientaciones_fisicas,
-        etiquetas_fisicas: form.etiquetas_fisicas,
-        tags: form.objetivos_tacticos,
-        consignas_ofensivas: form.objetivos_tecnicos,
-        num_series: form.num_series,
-        duracion_serie: form.duracion_serie,
+        categoria_id: base.categoria_id,
+        modalidad: base.modalidad,
+        num_jugadores_min: base.num_jugadores_min,
+        num_porteros: base.num_porteros,
+        descripcion: base.descripcion || undefined,
+        fase_juego: base.fase_juego || undefined,
+        objetivos_tacticos: base.objetivos_tacticos,
+        objetivos_tecnicos: base.objetivos_tecnicos,
+        orientaciones_fisicas: base.orientaciones_fisicas,
+        etiquetas_fisicas: base.etiquetas_fisicas,
+        tags: base.objetivos_tacticos,
+        consignas_ofensivas: base.objetivos_tecnicos,
+        num_series: base.num_series,
+        duracion_serie: base.duracion_serie,
         duracion_total,
-        tiempo_descanso: form.tiempo_descanso,
-        espacio_largo: form.espacio_largo,
-        espacio_ancho: form.espacio_ancho,
-        espacio_forma: form.espacio_forma,
-        dificultad: form.dificultad,
-        grafico_data: hasBoard ? form.grafico_data : undefined,
+        tiempo_descanso: base.tiempo_descanso,
+        espacio_largo: base.espacio_largo,
+        espacio_ancho: base.espacio_ancho,
+        espacio_forma: base.espacio_forma,
+        complejidad: complejidadToLabel(complejidad),
+        dificultad: complejidad.dificultad,
+        grafico_data: hasBoard ? base.grafico_data : undefined,
         equipo_id: equipoActivo?.id,
       })
       const created = await tareasApi.create(payload as any)
@@ -155,11 +189,13 @@ export default function NuevaTareaPage() {
     }
   }
 
+  const load = fromBoard.clasificacion
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-16 animate-fade-in">
       <PageHeader
         title="Nueva tarea"
-        description="Una sola página: tipología, metodología, objetivos y orientación física. Carga automática al guardar."
+        description="Tipología, metodología, objetivos y carga desde la pizarra."
         actions={
           <div className="flex gap-2">
             <Button variant="outline" asChild>
@@ -176,7 +212,6 @@ export default function NuevaTareaPage() {
         }
       />
 
-      {/* Pizarra */}
       {hasBoard ? (
         <div className="relative rounded-xl overflow-hidden border bg-[#2D5016] group">
           <TacticalBoardMini data={form.grafico_data} width="100%" animate />
@@ -202,7 +237,7 @@ export default function NuevaTareaPage() {
       )}
 
       <section className="space-y-4 rounded-2xl border bg-card p-5">
-        <h2 className="text-sm font-semibold text-primary">Tipo de tarea y metodología</h2>
+        <h2 className="text-sm font-semibold text-primary">Tipo y metodología</h2>
         <Field label="Título">
           <Input
             value={form.titulo}
@@ -210,44 +245,28 @@ export default function NuevaTareaPage() {
             placeholder={nombreCategoria || 'Nombre del ejercicio'}
           />
         </Field>
-        <Field label="Tipo de tarea" required>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-            {CATEGORIAS_TAREA.map((c) => (
-              <button
-                key={c.codigo}
-                type="button"
-                title={c.descripcion}
-                onClick={() => set('categoria_id', c.codigo)}
-                className={cn(
-                  'rounded-lg border px-3 py-2 text-left text-sm',
-                  form.categoria_id === c.codigo
-                    ? 'border-primary bg-primary/5 text-primary font-medium'
-                    : 'hover:bg-muted'
-                )}
-              >
-                {c.nombre}
-              </button>
-            ))}
-          </div>
-        </Field>
-        <Field label="Metodología" required>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-            {METODOLOGIAS_TAREA.map((m) => (
-              <button
-                key={m.codigo}
-                type="button"
-                onClick={() => set('modalidad', m.codigo)}
-                className={cn(
-                  'rounded-lg border px-3 py-2.5 text-left',
-                  form.modalidad === m.codigo ? 'border-primary bg-primary/5 text-primary' : 'hover:bg-muted'
-                )}
-              >
-                <span className="text-sm font-medium block">{m.nombre}</span>
-                <span className="text-[11px] text-muted-foreground">{m.descripcion}</span>
-              </button>
-            ))}
-          </div>
-        </Field>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Tipo de tarea *">
+            <select className={selectClass} value={form.categoria_id} onChange={(e) => set('categoria_id', e.target.value)}>
+              <option value="">Seleccionar tipo…</option>
+              {CATEGORIAS_TAREA.map((c) => (
+                <option key={c.codigo} value={c.codigo}>
+                  {c.nombre}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Metodología *">
+            <select className={selectClass} value={form.modalidad} onChange={(e) => set('modalidad', e.target.value)}>
+              <option value="">Seleccionar…</option>
+              {METODOLOGIAS_TAREA.map((m) => (
+                <option key={m.codigo} value={m.codigo}>
+                  {m.nombre}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Field label="Jugadores">
             <Input
@@ -266,11 +285,7 @@ export default function NuevaTareaPage() {
             />
           </Field>
           <Field label="Fase de juego">
-            <select
-              className="h-10 w-full rounded-md border px-3 text-sm bg-background"
-              value={form.fase_juego}
-              onChange={(e) => set('fase_juego', e.target.value)}
-            >
+            <select className={selectClass} value={form.fase_juego} onChange={(e) => set('fase_juego', e.target.value)}>
               <option value="">—</option>
               {FASES_JUEGO.map((f) => (
                 <option key={f.codigo} value={f.codigo}>
@@ -281,17 +296,12 @@ export default function NuevaTareaPage() {
           </Field>
         </div>
         <Field label="Descripción">
-          <Textarea
-            value={form.descripcion}
-            onChange={(e) => set('descripcion', e.target.value)}
-            rows={4}
-            placeholder="Organización, reglas…"
-          />
+          <Textarea value={form.descripcion} onChange={(e) => set('descripcion', e.target.value)} rows={3} />
         </Field>
       </section>
 
       <section className="space-y-4 rounded-2xl border bg-card p-5">
-        <h2 className="text-sm font-semibold text-primary">Objetivos tácticos y técnicos</h2>
+        <h2 className="text-sm font-semibold text-primary">Objetivos</h2>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Field label="Objetivos tácticos">
             <MultiSelect
@@ -310,12 +320,55 @@ export default function NuevaTareaPage() {
             />
           </Field>
         </div>
+      </section>
+
+      <section className="space-y-4 rounded-2xl border bg-card p-5">
+        <h2 className="text-sm font-semibold text-primary">Complejidad (SIATE)</h2>
+        <div className="rounded-xl border bg-muted/30 p-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Carga de la tarea</p>
+            <p className="text-2xl font-bold tabular-nums">
+              {complejidad.total}
+              <span className="text-sm font-medium text-muted-foreground"> / 30</span>
+            </p>
+            <p className="text-sm">{complejidad.etiqueta}</p>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {complejidad.factores.map((f) => (
+              <span key={f.key} className="rounded-md border bg-background px-2 py-1 text-[11px] text-muted-foreground">
+                {f.nombre.split(' ')[0]} {f.valor}
+              </span>
+            ))}
+          </div>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Complejidad">
-            <Input value={form.complejidad} onChange={(e) => set('complejidad', e.target.value)} />
+          <Field label="Grado de oposición">
+            <select
+              className={selectClass}
+              value={complejidadGo ?? ''}
+              onChange={(e) => setComplejidadGo(e.target.value ? parseInt(e.target.value) : undefined)}
+            >
+              <option value="">Auto (metodología)</option>
+              {GRADO_OPOSICION.map((g) => (
+                <option key={g.codigo} value={g.codigo}>
+                  {g.codigo} · {g.nombre}
+                </option>
+              ))}
+            </select>
           </Field>
-          <Field label="Cómo se puntúa">
-            <Input value={form.forma_puntuar} onChange={(e) => set('forma_puntuar', e.target.value)} />
+          <Field label="Ejecutantes simultáneos">
+            <select
+              className={selectClass}
+              value={complejidadPes ?? ''}
+              onChange={(e) => setComplejidadPes(e.target.value ? parseInt(e.target.value) : undefined)}
+            >
+              <option value="">Auto (61–80%)</option>
+              {EJECUTANTES_SIMULTANEOS.map((g) => (
+                <option key={g.codigo} value={g.codigo}>
+                  {g.codigo} · {g.nombre}
+                </option>
+              ))}
+            </select>
           </Field>
         </div>
       </section>
@@ -361,8 +414,8 @@ export default function NuevaTareaPage() {
                 addEtiqueta()
               }
             }}
-            placeholder="Añadir etiqueta (PF)"
-            className="h-9 w-48"
+            placeholder="Etiqueta PF"
+            className="h-9 w-40"
           />
           <Button type="button" variant="outline" size="sm" onClick={addEtiqueta}>
             <Plus className="h-3.5 w-3.5" />
@@ -371,8 +424,8 @@ export default function NuevaTareaPage() {
       </section>
 
       <section className="space-y-4 rounded-2xl border bg-card p-5">
-        <h2 className="text-sm font-semibold text-primary">Volumen</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+        <h2 className="text-sm font-semibold text-primary">Volumen y carga</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           <Field label="Series">
             <Input
               type="number"
@@ -397,55 +450,23 @@ export default function NuevaTareaPage() {
               onChange={(e) => set('tiempo_descanso', parseInt(e.target.value) || 0)}
             />
           </Field>
-          <Field label="Espacio">
-            <Input
-              value={
-                form.espacio_largo && form.espacio_ancho
-                  ? `${form.espacio_largo}x${form.espacio_ancho}m`
-                  : ''
-              }
-              onChange={(e) => {
-                const m = e.target.value.match(/(\d+(?:[.,]\d+)?)\s*[xX×]\s*(\d+(?:[.,]\d+)?)/)
-                if (m) {
-                  setForm((f) => ({
-                    ...f,
-                    espacio_largo: parseFloat(m[1].replace(',', '.')),
-                    espacio_ancho: parseFloat(m[2].replace(',', '.')),
-                  }))
-                }
-              }}
-              placeholder="20x30m"
-            />
-          </Field>
-          <Field label="Dificultad">
-            <select
-              className="h-10 w-full rounded-md border px-3 text-sm bg-background"
-              value={form.dificultad}
-              onChange={(e) => set('dificultad', parseInt(e.target.value))}
-            >
-              {ESCALA_1_5.map((e) => (
-                <option key={e.codigo} value={e.codigo}>
-                  {e.codigo} · {e.nombre}
-                </option>
-              ))}
-            </select>
-          </Field>
         </div>
         <div className="rounded-xl border bg-muted/30 p-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-            Carga automática (no editable) · total {duracion_total} min
+            Desde la pizarra · total {duracion_total} min
           </p>
-          {liveLoad ? (
+          {load ? (
             <div className="flex flex-wrap gap-2 text-xs">
-              <span className="rounded-full border bg-background px-2.5 py-1">{liveLoad.m2_por_jugador} m²/j</span>
-              <span className="rounded-full border bg-background px-2.5 py-1">Densidad {liveLoad.densidad}</span>
               <span className="rounded-full border bg-background px-2.5 py-1">
-                Cognitivo {liveLoad.nivel_cognitivo}
+                {form.espacio_largo}×{form.espacio_ancho} m
               </span>
-              <span className="rounded-full border bg-background px-2.5 py-1">{liveLoad.capacidad.nombre}</span>
+              <span className="rounded-full border bg-background px-2.5 py-1">{load.m2PorJugador} m²/j</span>
+              <span className="rounded-full border bg-background px-2.5 py-1">Densidad {load.densidad}</span>
+              <span className="rounded-full border bg-background px-2.5 py-1">Cognitivo {load.nivelCognitivo}</span>
+              <span className="rounded-full border bg-background px-2.5 py-1">{load.capacidad.nombre}</span>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Define espacio y jugadores para calcular la carga.</p>
+            <p className="text-sm text-muted-foreground">Dibuja una zona en la pizarra para calcular la carga.</p>
           )}
         </div>
       </section>
@@ -489,22 +510,10 @@ export default function NuevaTareaPage() {
   )
 }
 
-function Field({
-  label,
-  required,
-  children,
-}: {
-  label: string
-  required?: boolean
-  children: React.ReactNode
-}) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="flex items-center gap-1 text-xs font-medium mb-1">
-        {label}
-        {required && <span className="text-destructive">*</span>}
-        <Info className="h-3 w-3 text-muted-foreground opacity-0" />
-      </label>
+      <label className="text-xs font-medium mb-1 block">{label}</label>
       {children}
     </div>
   )

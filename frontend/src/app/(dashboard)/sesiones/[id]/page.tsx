@@ -1607,7 +1607,6 @@ export default function SesionDetailPage() {
       fase_sesion: taskPickerFase,
       descripcion: data.descripcion || undefined,
       complejidad: data.complejidad || undefined,
-      forma_puntuar: data.forma_puntuar || undefined,
     })
     setSesion(updated)
     setCreatorOpen(false)

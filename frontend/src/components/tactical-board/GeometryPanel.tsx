@@ -8,7 +8,7 @@
  * física dominante. Con un clic vuelca todo eso sobre la tarea.
  */
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Ruler, ChevronDown, ChevronUp, Wand2, Dumbbell, Check, Minus } from 'lucide-react'
 import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
 import {
@@ -73,6 +73,25 @@ export default function GeometryPanel({ numJugadores, onApplyEspacio }: Geometry
       setTimeout(() => setApplied(false), 2200)
     }
   }
+
+  // Auto-aplicar al formulario: la carga de la tarea queda siempre linkeada a la pizarra
+  useEffect(() => {
+    if (!clasificacion || !onApplyEspacio || !base.geometria) return
+    const patch = summaryToTareaPatch(summary)
+    if (!patch) return
+    patch.m2_por_jugador = clasificacion.m2PorJugador
+    onApplyEspacio(patch)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    base.geometria?.areaM2,
+    base.geometria?.largo,
+    base.geometria?.ancho,
+    jugadores,
+    clasificacion?.m2PorJugador,
+    clasificacion?.densidad,
+    clasificacion?.tipoEsfuerzo,
+    clasificacion?.nivelCognitivo,
+  ])
 
   return (
     <div className="absolute bottom-2 left-2 z-40 w-[248px] bg-white/95 backdrop-blur rounded-xl shadow-lg border border-gray-200 overflow-hidden">
@@ -200,7 +219,7 @@ export default function GeometryPanel({ numJugadores, onApplyEspacio }: Geometry
                   }`}
                 >
                   <Wand2 className="h-3.5 w-3.5" />
-                  {applied ? 'Aplicado a la tarea' : 'Aplicar a la tarea'}
+                  {applied ? 'Sincronizado con la tarea' : 'Sincronizar con la tarea'}
                 </button>
               )}
             </>

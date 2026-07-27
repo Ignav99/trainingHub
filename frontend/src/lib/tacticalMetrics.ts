@@ -124,7 +124,7 @@ const BANDAS: Banda[] = [
     etiqueta: 'Muy reducido',
     densidad: 'alta',
     tipoEsfuerzo: 'intermitente_alto',
-    categoriasSugeridas: ['RND', 'JDP'],
+    categoriasSugeridas: ['RND', 'JDP', 'EVO'],
     condicionalDominante:
       'Acciones muy cortas y encadenadas: alta frecuencia de aceleraciones, desaceleraciones y cambios de dirección. Carga neuromuscular alta, distancia a alta velocidad casi nula.',
     fcEsperada: [160, 185],
@@ -424,6 +424,34 @@ export function summaryToTareaPatch(summary: BoardSpaceSummary): TareaEspacioPat
     patch.nivel_cognitivo = summary.clasificacion.nivelCognitivo
   }
   return patch
+}
+
+/**
+ * Deriva el patch de carga directamente desde `grafico_data` de la tarea.
+ * Es el mismo pipeline que GeometryPanel → summaryToTareaPatch.
+ */
+export function patchFromPizarraData(
+  data: { zones?: any[]; elements?: any[]; frames?: any[] } | null | undefined,
+  numJugadoresFallback = 0,
+): { patch: TareaEspacioPatch | null; summary: BoardSpaceSummary | null; clasificacion: SpaceClassification | null } {
+  if (!data) return { patch: null, summary: null, clasificacion: null }
+
+  // Preferir frame 0 si el top-level está vacío (pizarras solo-animación)
+  let zones = Array.isArray(data.zones) ? data.zones : []
+  let elements = Array.isArray(data.elements) ? data.elements : []
+  if (zones.length === 0 && Array.isArray(data.frames) && data.frames[0]) {
+    zones = data.frames[0].zones || []
+    elements = data.frames[0].elements || elements
+  }
+
+  const base = boardSpaceSummary(zones as any, elements as any)
+  const jugadores =
+    base.jugadores > 0 ? base.jugadores : numJugadoresFallback > 0 ? numJugadoresFallback : 0
+  const clasificacion = base.geometria
+    ? classifySpace(base.geometria.areaM2, jugadores, { conPorteros: base.porteros > 0 })
+    : null
+  const summary: BoardSpaceSummary = { ...base, jugadores, clasificacion }
+  return { patch: summaryToTareaPatch(summary), summary, clasificacion }
 }
 
 /**
