@@ -1,24 +1,19 @@
 # TrainingHub — agent memory
 
-## Branch: `cursor/tareas-filtros-variantes-ae84` (2026-07-27)
+## Branch: `cursor/tareas-filtros-variantes-ae84` (2026-07-28)
 
-### Pulido filtros + familia madre→variantes
-Filtros de biblioteca/picker **solo** variables del creador canónico:
-- Familia (madres / todas / variantes + tipo)
-- Tipo de tarea, metodología, fase, **subfase**
-- Objetivo táctico / técnico, orientación condicional
-- Jugadores min/max
-- **Eliminados** densidad y cognitivo (derivados de pizarra)
+### UX variantes (intuitivo)
+Dónde crear / ver variantes:
 
-Componentes nuevos:
-- `TareaFiltersBar.tsx` — barra compartida biblioteca + picker
-- `CrearVarianteDialog.tsx` — elige tipo (progresión/regresión/…)
-- `TareaFamiliaPanel.tsx` — detalle: madre, hijas, crear variante
+1. **Biblioteca** (`/tareas`)
+   - En cada card madre: botón «Tiene N variantes creadas» → ficha `?tab=variantes`
+   - Botón «Crear variante» visible (no solo menú ⋯)
+2. **Ficha** (`/tareas/[id]`)
+   - Pestañas **Resumen | Variantes**
+   - Header «Variantes (N)»
+   - Teaser en resumen que lleva a la pestaña
+3. **Sesión** (picker al añadir tarea)
+   - «Crear variante de esta tarea» → abre `TareaCreatorFullscreen` prefilled (`initialFromMother`)
+   - Editas desarrollo/reglas/tipo y se añade a la sesión
 
-Gestión familia:
-1. Biblioteca por defecto: **solo madres** (reutilizables)
-2. «Crear variante» → diálogo de tipo → copia pizarra/tipología → editar
-3. Ficha detalle muestra panel familia (enlace madre / lista variantes)
-4. API enriquece `num_variantes`; badge «Madre · N» en cards
-
-Backend list: `objetivo_tactico|tecnico`, `orientacion_fisica`, `solo_variantes`, `tipo_variante` + conteo hijas.
+Helpers: `lib/tareaVariante.ts` (`madreToCreatorPrefill`)
