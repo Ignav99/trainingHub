@@ -2,7 +2,7 @@
 
 import { Clock, Users, Play } from 'lucide-react'
 import { TacticalBoardMini, boardHasAnimation } from '@/components/task-preview'
-import { MODALIDADES_TAREA, FASES_JUEGO } from '@/lib/catalogos/canonico'
+import { METODOLOGIAS_TAREA, FASES_JUEGO } from '@/lib/catalogos/canonico'
 import { cn } from '@/lib/utils'
 import type { Tarea } from '@/types'
 
@@ -17,9 +17,9 @@ function faseLabel(codigo?: string) {
   return FASES_JUEGO.find((f) => f.codigo === codigo)?.nombre || codigo.replace(/_/g, ' ')
 }
 
-function modalidadLabel(codigo?: string) {
+function metodologiaLabel(codigo?: string) {
   if (!codigo) return null
-  return MODALIDADES_TAREA.find((m) => m.codigo === codigo)?.nombre || codigo
+  return METODOLOGIAS_TAREA.find((m) => m.codigo === codigo)?.nombre || codigo
 }
 
 export interface TaskLibraryCardProps {
@@ -44,7 +44,7 @@ export function TaskLibraryCard({
   const hasAnim = boardHasAnimation(tarea.grafico_data as any)
   const density = tarea.densidad ? DENSITY[tarea.densidad] : null
   const fase = faseLabel(tarea.fase_juego)
-  const modalidad = modalidadLabel(tarea.modalidad)
+  const metodologia = metodologiaLabel(tarea.modalidad)
 
   return (
     <article
@@ -127,9 +127,9 @@ export function TaskLibraryCard({
               {density.label}
             </span>
           )}
-          {modalidad && (
+          {metodologia && (
             <span className="rounded-md bg-sky-50 px-1.5 py-0.5 font-medium text-sky-800">
-              {modalidad}
+              {metodologia}
             </span>
           )}
           {fase && (

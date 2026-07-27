@@ -480,11 +480,10 @@ async def create_tarea(
         tarea_data["categoria_id"] = cat_response.data["id"]
     if tarea_data.get("equipo_id"):
         tarea_data["equipo_id"] = str(tarea_data["equipo_id"])
-    
-    # Calcular m² por jugador
-    if tarea_data.get("espacio_largo") and tarea_data.get("espacio_ancho"):
-        area = tarea_data["espacio_largo"] * tarea_data["espacio_ancho"]
-        tarea_data["m2_por_jugador"] = round(area / tarea_data["num_jugadores_min"], 1)
+
+    # Densidad + nivel cognitivo: cálculo canónico único (mismos parámetros siempre)
+    from app.services.task_load_metrics import apply_auto_load
+    tarea_data = apply_auto_load(tarea_data)
     
     # Insertar
     response = supabase.table("tareas").insert(tarea_data).execute()
@@ -561,13 +560,20 @@ async def update_tarea(
                 )
             update_data["categoria_id"] = cat_response.data["id"]
     
-    # Recalcular m² si cambian las dimensiones
-    espacio_largo = update_data.get("espacio_largo", existing.data.get("espacio_largo"))
-    espacio_ancho = update_data.get("espacio_ancho", existing.data.get("espacio_ancho"))
-    jugadores = update_data.get("num_jugadores_min", existing.data.get("num_jugadores_min"))
-    
-    if espacio_largo and espacio_ancho and jugadores:
-        update_data["m2_por_jugador"] = round((espacio_largo * espacio_ancho) / jugadores, 1)
+    # Recalcular densidad + cognitivo con la misma fórmula canónica
+    from app.services.task_load_metrics import apply_auto_load
+    merged = {**existing.data, **update_data}
+    loaded = apply_auto_load(merged)
+    for key in (
+        "m2_por_jugador",
+        "densidad",
+        "nivel_cognitivo",
+        "tipo_esfuerzo",
+        "fc_esperada_min",
+        "fc_esperada_max",
+    ):
+        if key in loaded and loaded[key] is not None:
+            update_data[key] = loaded[key]
     
     # Actualizar
     response = supabase.table("tareas").update(update_data).eq("id", str(tarea_id)).execute()

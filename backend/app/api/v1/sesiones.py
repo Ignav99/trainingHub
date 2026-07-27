@@ -114,6 +114,8 @@ def _sanitize_tarea_constraints(tarea_data: dict) -> dict:
         "reglas_tecnicas", "reglas_tacticas", "reglas_psicologicas",
         "consignas_ofensivas", "consignas_defensivas", "errores_comunes",
         "tags", "variantes", "progresiones", "regresiones", "material",
+        "objetivos_tacticos", "objetivos_tecnicos",
+        "orientaciones_fisicas", "etiquetas_fisicas",
     ]
     for field in list_fields:
         val = tarea_data.get(field)
@@ -130,6 +132,15 @@ def _sanitize_tarea_constraints(tarea_data: dict) -> dict:
         else:
             tarea_data[field] = []
 
+    # Densidad + cognitivo: siempre la misma fórmula canónica
+    try:
+        from app.services.task_load_metrics import apply_auto_load
+        loaded = apply_auto_load(tarea_data)
+        tarea_data.clear()
+        tarea_data.update(loaded)
+    except Exception:
+        pass
+
     return tarea_data
 
 
@@ -143,10 +154,11 @@ VALID_TAREA_COLUMNS = {
     "nivel_cognitivo", "num_series", "num_porteros", "espacio_forma",
     "tipo_esfuerzo", "ratio_trabajo_descanso", "tags", "grafico_data",
     "categoria_id", "equipo_id", "organizacion_id",
-    # Formulario "Crea tu ejercicio" (docs/mejoras/crear_tarea.png)
     "complejidad", "forma_puntuar", "dificultad", "exigencia",
     "duracion_serie", "tiempo_descanso", "m2_por_jugador",
     "fc_esperada_min", "fc_esperada_max", "grafico_svg",
+    "modalidad", "objetivos_tacticos", "objetivos_tecnicos",
+    "orientaciones_fisicas", "etiquetas_fisicas",
 }
 
 from app.models import (

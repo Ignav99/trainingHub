@@ -170,40 +170,106 @@ export const NIVELES_COGNITIVOS = [
 ] as const
 
 export const CATEGORIAS_TAREA = [
-  // Tipología principal (campo)
-  { codigo: 'LUD', nombre: 'Juegos lúdicos', grupo: 'campo' },
-  { codigo: 'CIR', nombre: 'Circuitos físicos', grupo: 'campo' },
-  { codigo: 'RND', nombre: 'Rondos', grupo: 'campo' },
-  { codigo: 'RDP', nombre: 'Ruedas de pase', grupo: 'campo' },
-  { codigo: 'POS', nombre: 'Posesiones', grupo: 'campo' },
-  { codigo: 'JDP', nombre: 'Juegos de posición', grupo: 'campo' },
-  { codigo: 'FIN', nombre: 'Finalizaciones', grupo: 'campo' },
-  { codigo: 'SSG', nombre: 'Partido reducido', grupo: 'campo' },
-  { codigo: 'PCO', nombre: 'Partido condicionado', grupo: 'campo' },
-  { codigo: 'PRT', nombre: 'Partido', grupo: 'campo' },
-  { codigo: 'EST', nombre: 'Estiramientos', grupo: 'complementario' },
-  { codigo: 'ACT', nombre: 'Activaciones', grupo: 'complementario' },
-  // Legado / especializadas (siguen válidas)
-  { codigo: 'EVO', nombre: 'Evoluciones', grupo: 'campo' },
-  { codigo: 'AVD', nombre: 'Ataque vs defensa', grupo: 'campo' },
-  { codigo: 'ACO', nombre: 'Acciones combinadas', grupo: 'campo' },
-  { codigo: 'ABP', nombre: 'Balón parado', grupo: 'campo' },
-  { codigo: 'POR', nombre: 'Portero', grupo: 'campo' },
-  { codigo: 'GYM', nombre: 'Fuerza / gym', grupo: 'complementario' },
-  { codigo: 'PRV', nombre: 'Prevención', grupo: 'complementario' },
-  { codigo: 'MOV', nombre: 'Movilidad', grupo: 'complementario' },
-  { codigo: 'RCF', nombre: 'Recuperación física', grupo: 'complementario' },
+  { codigo: 'LUD', nombre: 'Juegos lúdicos', grupo: 'campo', descripcion: 'Dinámicas lúdicas de activación y cohesión, alejadas del modelo de juego.' },
+  { codigo: 'CIR', nombre: 'Circuitos físicos', grupo: 'campo', descripcion: 'Secuencia de estaciones o postas con estímulo condicional (fuerza, agilidad, etc.).' },
+  { codigo: 'RND', nombre: 'Rondos', grupo: 'campo', descripcion: 'Mantenimiento en espacio reducido: conservar el balón vs presión inmediata.' },
+  { codigo: 'RDP', nombre: 'Ruedas de pase', grupo: 'campo', descripcion: 'Circuitos de pase y combinaciones técnicas con patrones predefinidos.' },
+  { codigo: 'POS', nombre: 'Posesiones', grupo: 'campo', descripcion: 'Mantenimiento en espacio compartido: objetivo prioritario conservar la posesión.' },
+  { codigo: 'JDP', nombre: 'Juegos de posición', grupo: 'campo', descripcion: 'Tareas posicionales con roles y ocupación racional del espacio (modelo de juego).' },
+  { codigo: 'FIN', nombre: 'Finalizaciones', grupo: 'campo', descripcion: 'Ejercicios orientados al remate y a la definición en zona de finalización.' },
+  { codigo: 'SSG', nombre: 'Partido reducido', grupo: 'campo', descripcion: 'Juego reducido (SSG) con oposición real y espacio acotado.' },
+  { codigo: 'PCO', nombre: 'Partido condicionado', grupo: 'campo', descripcion: 'Partido con reglas o condicionantes que orientan el comportamiento táctico.' },
+  { codigo: 'PRT', nombre: 'Partido', grupo: 'campo', descripcion: 'Partido completo o simulación competitiva sin condicionantes artificiales.' },
+  { codigo: 'EST', nombre: 'Estiramientos', grupo: 'complementario', descripcion: 'Movilidad y vuelta a la calma (estiramientos).' },
+  { codigo: 'ACT', nombre: 'Activaciones', grupo: 'complementario', descripcion: 'Activación neuromuscular y preparación previa a la sesión o al partido.' },
 ] as const
 
-/** Enfoque metodológico de la tarea (independiente del tipo). */
-export const MODALIDADES_TAREA = [
-  { codigo: 'analitica', nombre: 'Analítica', descripcion: 'Desglose técnico aislado' },
-  { codigo: 'global', nombre: 'Global', descripcion: 'Situaciones de juego con contexto' },
-  { codigo: 'competitiva', nombre: 'Competitiva', descripcion: 'Confrontación y marcador' },
-  { codigo: 'general', nombre: 'General', descripcion: 'Sin fútbol (movilidad, gym, etc.)' },
+export type CategoriaTareaCodigo = (typeof CATEGORIAS_TAREA)[number]['codigo']
+
+/**
+ * Metodología de la tarea (cómo se enseña / se estructura el estímulo).
+ * Referencia: método analítico vs global/integrado vs competitivo (Poveda, Matas).
+ */
+export const METODOLOGIAS_TAREA = [
+  {
+    codigo: 'analitica',
+    nombre: 'Analítica',
+    descripcion: 'Repetición del gesto técnico o físico aislado, con oposición nula o muy reducida.',
+  },
+  {
+    codigo: 'global',
+    nombre: 'Global',
+    descripcion: 'Situación de juego con contexto: percepción, decisión y ejecución juntas.',
+  },
+  {
+    codigo: 'competitiva',
+    nombre: 'Competitiva',
+    descripcion: 'Confrontación con marcador u objetivo contrapuesto (ganar / no perder).',
+  },
+  {
+    codigo: 'general',
+    nombre: 'General',
+    descripcion: 'Sin fútbol: movilidad, fuerza, prevención u otros estímulos no específicos del juego.',
+  },
 ] as const
 
-export type ModalidadTareaCodigo = (typeof MODALIDADES_TAREA)[number]['codigo']
+/** Alias estable: modalidad = metodología de la tarea. */
+export const MODALIDADES_TAREA = METODOLOGIAS_TAREA
+export type ModalidadTareaCodigo = (typeof METODOLOGIAS_TAREA)[number]['codigo']
+export type MetodologiaTareaCodigo = ModalidadTareaCodigo
+
+/** Orientación condicional (preparación física) — no confundir con tipología de tarea. */
+export const ORIENTACIONES_FISICAS = [
+  { codigo: 'activacion', nombre: 'Activación' },
+  { codigo: 'fuerza', nombre: 'Fuerza' },
+  { codigo: 'resistencia', nombre: 'Resistencia' },
+  { codigo: 'velocidad', nombre: 'Velocidad' },
+] as const
+
+export type OrientacionFisicaCodigo = (typeof ORIENTACIONES_FISICAS)[number]['codigo']
+
+/** Objetivos tácticos de la tarea (principios / intenciones de juego). */
+export const OBJETIVOS_TACTICOS = [
+  { codigo: 'salida_balon', nombre: 'Salida de balón' },
+  { codigo: 'progresion', nombre: 'Progresión' },
+  { codigo: 'juego_entre_lineas', nombre: 'Juego entre líneas' },
+  { codigo: 'ocupacion_espacios', nombre: 'Ocupación de espacios' },
+  { codigo: 'conservacion', nombre: 'Conservación del balón' },
+  { codigo: 'ataque_espacios', nombre: 'Ataque de espacios' },
+  { codigo: 'juego_banda', nombre: 'Juego por banda' },
+  { codigo: 'juego_interior', nombre: 'Juego interior' },
+  { codigo: 'transicion_ofensiva', nombre: 'Transición ofensiva' },
+  { codigo: 'transicion_defensiva', nombre: 'Transición defensiva' },
+  { codigo: 'presion_alta', nombre: 'Presión alta' },
+  { codigo: 'bloque_medio', nombre: 'Bloque medio' },
+  { codigo: 'bloque_bajo', nombre: 'Bloque bajo' },
+  { codigo: 'repliegue_organizado', nombre: 'Repliegue organizado' },
+  { codigo: 'superioridad_numerica', nombre: 'Crear superioridad numérica' },
+  { codigo: 'finalizacion', nombre: 'Finalización' },
+] as const
+
+/** Objetivos técnicos (gestos / acciones con balón y sin balón). */
+export const OBJETIVOS_TECNICOS = [
+  { codigo: 'pase_circulacion', nombre: 'Pase y circulación' },
+  { codigo: 'control_orientado', nombre: 'Control orientado' },
+  { codigo: 'conduccion', nombre: 'Conducción' },
+  { codigo: 'regate', nombre: 'Regate' },
+  { codigo: 'pared', nombre: 'Pared' },
+  { codigo: 'tercer_hombre', nombre: 'Tercer hombre' },
+  { codigo: 'desmarques', nombre: 'Desmarques' },
+  { codigo: 'desdoblamientos', nombre: 'Desdoblamientos' },
+  { codigo: 'centro', nombre: 'Centro' },
+  { codigo: 'remate', nombre: 'Remate' },
+  { codigo: 'tiro', nombre: 'Tiro' },
+  { codigo: 'entrada', nombre: 'Entrada' },
+  { codigo: 'acoso', nombre: 'Acoso' },
+  { codigo: 'marcaje', nombre: 'Marcaje' },
+  { codigo: 'cobertura', nombre: 'Cobertura' },
+  { codigo: 'anticipacion', nombre: 'Anticipación' },
+] as const
+
+/** @deprecated Usar OBJETIVOS_TACTICOS */
+export const OBJETIVOS_TAREA = OBJETIVOS_TACTICOS
 
 export const MATERIALES = [
   { codigo: 'balones', nombre: 'Balones' },
@@ -363,24 +429,6 @@ export const CONTENIDOS_DEFENSIVOS = [
   { codigo: 'repliegue_intensivo', nombre: 'Repliegue intensivo' },
 ] as const
 
-/** Objetivos de la tarea → se guardan en `tareas.tags`. */
-export const OBJETIVOS_TAREA = [
-  { codigo: 'salida_balon', nombre: 'Salida de balón' },
-  { codigo: 'progresion', nombre: 'Progresión' },
-  { codigo: 'juego_entre_lineas', nombre: 'Juego entre líneas' },
-  { codigo: 'ocupacion_espacios', nombre: 'Ocupación de espacios' },
-  { codigo: 'conservacion', nombre: 'Conservación del balón' },
-  { codigo: 'ataque_espacios', nombre: 'Ataque de espacios' },
-  { codigo: 'juego_banda', nombre: 'Juego por banda' },
-  { codigo: 'juego_interior', nombre: 'Juego interior' },
-  { codigo: 'transicion_rapida', nombre: 'Transición rápida' },
-  { codigo: 'presion_alta', nombre: 'Presión alta' },
-  { codigo: 'repliegue_organizado', nombre: 'Repliegue organizado' },
-  { codigo: 'toma_decision', nombre: 'Toma de decisión' },
-  { codigo: 'velocidad_ejecucion', nombre: 'Velocidad de ejecución' },
-  { codigo: 'finalizacion', nombre: 'Finalización' },
-] as const
-
 /** Escala 1-5 de dificultad y exigencia (los puntitos de la biblioteca). */
 export const ESCALA_1_5 = [
   { codigo: 1, nombre: 'Muy baja' },
@@ -395,4 +443,14 @@ export const nombreContenidoOfensivo = (codigo: string) =>
 export const nombreContenidoDefensivo = (codigo: string) =>
   CONTENIDOS_DEFENSIVOS.find((c) => c.codigo === codigo)?.nombre || codigo
 export const nombreObjetivo = (codigo: string) =>
-  OBJETIVOS_TAREA.find((o) => o.codigo === codigo)?.nombre || codigo
+  OBJETIVOS_TACTICOS.find((o) => o.codigo === codigo)?.nombre ||
+  OBJETIVOS_TECNICOS.find((o) => o.codigo === codigo)?.nombre ||
+  codigo
+export const nombreObjetivoTactico = (codigo: string) =>
+  OBJETIVOS_TACTICOS.find((o) => o.codigo === codigo)?.nombre || codigo
+export const nombreObjetivoTecnico = (codigo: string) =>
+  OBJETIVOS_TECNICOS.find((o) => o.codigo === codigo)?.nombre || codigo
+export const nombreMetodologia = (codigo: string) =>
+  METODOLOGIAS_TAREA.find((m) => m.codigo === codigo)?.nombre || codigo
+export const nombreOrientacionFisica = (codigo: string) =>
+  ORIENTACIONES_FISICAS.find((o) => o.codigo === codigo)?.nombre || codigo

@@ -618,32 +618,24 @@ export default function SesionTareaPanel({
                 </select>
               </div>
               <div>
-                <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Densidad</label>
-                <select
-                  className="h-9 w-full rounded-md border bg-background px-2.5 text-sm"
-                  value={form.densidad}
-                  onChange={e => { updateForm('densidad', e.target.value) }}
-                  onBlur={handleBlurSave}
-                >
-                  <option value="">Sin definir</option>
-                  <option value="alta">Alta</option>
-                  <option value="media">Media</option>
-                  <option value="baja">Baja</option>
-                </select>
+                <label className="text-[11px] font-medium text-muted-foreground mb-1 block">
+                  Densidad <span className="text-[10px] font-normal">(auto)</span>
+                </label>
+                <div className="h-9 w-full rounded-md border bg-muted/40 px-2.5 text-sm flex items-center text-muted-foreground">
+                  {form.densidad || '—'}
+                </div>
               </div>
               <div>
-                <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Nivel cognitivo</label>
-                <select
-                  className="h-9 w-full rounded-md border bg-background px-2.5 text-sm"
-                  value={form.nivel_cognitivo}
-                  onChange={e => { updateForm('nivel_cognitivo', e.target.value) }}
-                  onBlur={handleBlurSave}
-                >
-                  <option value="">Sin definir</option>
-                  <option value="1">1 - Bajo</option>
-                  <option value="2">2 - Medio</option>
-                  <option value="3">3 - Alto</option>
-                </select>
+                <label className="text-[11px] font-medium text-muted-foreground mb-1 block">
+                  Nivel cognitivo <span className="text-[10px] font-normal">(auto)</span>
+                </label>
+                <div className="h-9 w-full rounded-md border bg-muted/40 px-2.5 text-sm flex items-center text-muted-foreground">
+                  {form.nivel_cognitivo
+                    ? ({ 1: '1 · Bajo', 2: '2 · Medio', 3: '3 · Alto' } as Record<number, string>)[
+                        Number(form.nivel_cognitivo)
+                      ] || form.nivel_cognitivo
+                    : '—'}
+                </div>
               </div>
             </div>
             <div>

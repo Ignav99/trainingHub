@@ -158,6 +158,10 @@ export interface Tarea {
   intencion_tactica?: string
   /** analitica | global | competitiva | general */
   modalidad?: string
+  objetivos_tacticos?: string[]
+  objetivos_tecnicos?: string[]
+  orientaciones_fisicas?: string[]
+  etiquetas_fisicas?: string[]
   
   // Carga física
   tipo_esfuerzo?: string
