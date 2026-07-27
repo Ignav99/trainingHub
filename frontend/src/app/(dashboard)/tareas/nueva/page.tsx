@@ -58,6 +58,9 @@ export default function NuevaTareaPage() {
     num_jugadores_min: 10,
     num_porteros: 0,
     descripcion: '',
+    desarrollo: '',
+    reglas: '',
+    anotaciones: '',
     fase_juego: '',
     principio_tactico: '' as string,
     subprincipio_tactico: '' as string,
@@ -162,7 +165,11 @@ export default function NuevaTareaPage() {
         modalidad: base.modalidad,
         num_jugadores_min: base.num_jugadores_min,
         num_porteros: base.num_porteros,
-        descripcion: base.descripcion || undefined,
+        descripcion: (base.desarrollo || base.descripcion) || undefined,
+        desarrollo: (base.desarrollo || base.descripcion) || undefined,
+        reglas: base.reglas || undefined,
+        anotaciones: base.anotaciones || undefined,
+        tipo_variante: 'original',
         fase_juego: base.fase_juego || undefined,
         principio_tactico: base.principio_tactico || undefined,
         subprincipio_tactico: base.subprincipio_tactico || undefined,
@@ -304,8 +311,29 @@ export default function NuevaTareaPage() {
             }))
           }
         />
-        <Field label="Descripción">
-          <Textarea value={form.descripcion} onChange={(e) => set('descripcion', e.target.value)} rows={3} />
+        <Field label="Desarrollo">
+          <Textarea
+            value={form.desarrollo}
+            onChange={(e) => set('desarrollo', e.target.value)}
+            placeholder="Qué se hace en la tarea…"
+            rows={4}
+          />
+        </Field>
+        <Field label="Variantes / reglas">
+          <Textarea
+            value={form.reglas}
+            onChange={(e) => set('reglas', e.target.value)}
+            placeholder="Reglas, condicionantes, puntuación…"
+            rows={3}
+          />
+        </Field>
+        <Field label="Anotaciones (opcional)">
+          <Textarea
+            value={form.anotaciones}
+            onChange={(e) => set('anotaciones', e.target.value)}
+            placeholder="Errores comunes, tips…"
+            rows={2}
+          />
         </Field>
       </section>
 

@@ -28,6 +28,7 @@ import {
   OBJETIVOS_TACTICOS,
   OBJETIVOS_TECNICOS,
   ORIENTACIONES_FISICAS,
+  TIPOS_VARIANTE,
 } from '@/lib/catalogos/canonico'
 import { FaseSubfasePicker } from '@/components/tareas/FaseSubfasePicker'
 import {
@@ -45,6 +46,9 @@ export interface TareaCreatorData {
   num_jugadores_min: number
   num_porteros: number
   descripcion?: string
+  desarrollo?: string
+  reglas?: string
+  anotaciones?: string
   complejidad?: string
   fase_juego?: string
   principio_tactico?: string
@@ -73,6 +77,8 @@ export interface TareaCreatorData {
   fc_esperada_max?: number
   nivel_cognitivo?: number
   es_complementaria?: boolean
+  tarea_origen_id?: string
+  tipo_variante?: string
   grafico_data?: TareaPizarraData
 }
 
@@ -90,6 +96,8 @@ interface TareaCreatorFullscreenProps {
   /** Fuerza un tipo inicial (ej. TAM / POR). */
   defaultCategoria?: string
   title?: string
+  /** Prefill desde tarea madre al crear una variante */
+  initialFromMother?: Partial<TareaCreatorData> & { madre_titulo?: string }
 }
 
 function categoriasForVariant(variant: CreatorVariant) {
@@ -106,6 +114,9 @@ const emptyForm = (jugadores: number, defaultCategoria?: string, variant?: Creat
   num_jugadores_min: jugadores,
   num_porteros: variant === 'portero' ? 1 : 0,
   descripcion: '',
+  desarrollo: '',
+  reglas: '',
+  anotaciones: '',
   complejidad: '',
   fase_juego: undefined,
   principio_tactico: undefined,
@@ -124,6 +135,7 @@ const emptyForm = (jugadores: number, defaultCategoria?: string, variant?: Creat
   complejidad_go: undefined,
   complejidad_pes: undefined,
   es_complementaria: variant === 'margen',
+  tipo_variante: 'original',
   grafico_data: emptyTareaPizarra,
 })
 
@@ -140,6 +152,7 @@ export default function TareaCreatorFullscreen({
   variant = 'campo',
   defaultCategoria,
   title,
+  initialFromMother,
 }: TareaCreatorFullscreenProps) {
   const categorias = useMemo(() => categoriasForVariant(variant), [variant])
   const [form, setForm] = useState<TareaCreatorData>(() =>
@@ -149,15 +162,32 @@ export default function TareaCreatorFullscreen({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [etiquetaDraft, setEtiquetaDraft] = useState('')
+  const isVariante = !!form.tarea_origen_id
 
   useEffect(() => {
     if (open) {
-      setForm(emptyForm(numJugadoresDefault, defaultCategoria, variant))
+      const base = emptyForm(numJugadoresDefault, defaultCategoria, variant)
+      if (initialFromMother) {
+        const { madre_titulo: _mt, ...rest } = initialFromMother
+        setForm({
+          ...base,
+          ...rest,
+          titulo: rest.titulo || (initialFromMother.madre_titulo
+            ? `${initialFromMother.madre_titulo} · Variante`
+            : base.titulo),
+          desarrollo: rest.desarrollo || rest.descripcion || '',
+          reglas: rest.reglas || '',
+          anotaciones: rest.anotaciones || '',
+          tipo_variante: rest.tipo_variante || 'adaptacion',
+        })
+      } else {
+        setForm(base)
+      }
       setError(null)
       setBoardOpen(false)
       setEtiquetaDraft('')
     }
-  }, [open, numJugadoresDefault, defaultCategoria, variant])
+  }, [open, numJugadoresDefault, defaultCategoria, variant, initialFromMother])
 
   const set = useCallback(<K extends keyof TareaCreatorData>(key: K, value: TareaCreatorData[K]) => {
     setForm((f) => ({ ...f, [key]: value }))
@@ -229,11 +259,13 @@ export default function TareaCreatorFullscreen({
   const tituloFinal = form.titulo.trim() || nombreCategoria
   const headerTitle =
     title ||
-    (variant === 'margen'
-      ? 'Crear trabajo al margen'
-      : variant === 'portero'
-        ? 'Crear ejercicio de portero'
-        : 'Crea tu ejercicio')
+    (isVariante
+      ? 'Crear variante'
+      : variant === 'margen'
+        ? 'Crear trabajo al margen'
+        : variant === 'portero'
+          ? 'Crear ejercicio de portero'
+          : 'Crea tu ejercicio')
   const canSave = tituloFinal.length >= 3 && !!form.categoria_id && !!form.modalidad
   const showFaseJuego = variant === 'campo' || variant === 'portero' || variant === 'all'
 
@@ -267,9 +299,15 @@ export default function TareaCreatorFullscreen({
       const withBoard = fromBoard.patch
         ? { ...form, ...fromBoard.patch }
         : form
+      const desarrollo = (withBoard.desarrollo || withBoard.descripcion || '').trim()
       const withLoad = applyAutoLoadToTarea({
         ...withBoard,
         titulo: tituloFinal,
+        desarrollo: desarrollo || undefined,
+        descripcion: desarrollo || undefined,
+        reglas: withBoard.reglas?.trim() || undefined,
+        anotaciones: withBoard.anotaciones?.trim() || undefined,
+        tipo_variante: withBoard.tipo_variante || (withBoard.tarea_origen_id ? 'adaptacion' : 'original'),
         espacio_forma: withBoard.espacio_forma || 'rectangular',
         complejidad: complejidadToLabel(complejidad),
         dificultad: complejidad.dificultad,
@@ -433,12 +471,53 @@ export default function TareaCreatorFullscreen({
             />
           )}
 
-          <Field label="Descripción">
+          {isVariante && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-2.5 space-y-2">
+              <p className="text-xs text-amber-900">
+                Variante de <span className="font-semibold">{initialFromMother?.madre_titulo || 'tarea madre'}</span>
+                — la pizarra y la tipología ya vienen copiadas; ajusta reglas u objetivos.
+              </p>
+              <Field label="Tipo de variante">
+                <select
+                  className={selectClass}
+                  value={form.tipo_variante || 'adaptacion'}
+                  onChange={(e) => set('tipo_variante', e.target.value)}
+                >
+                  {TIPOS_VARIANTE.filter((t) => t.codigo !== 'original').map((t) => (
+                    <option key={t.codigo} value={t.codigo}>
+                      {t.nombre}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+          )}
+
+          <Field label="Desarrollo" hint="Qué se hace en la tarea: organización, roles, cómo arranca y acaba.">
             <Textarea
-              value={form.descripcion || ''}
-              onChange={(e) => set('descripcion', e.target.value)}
-              placeholder="Cómo se organiza la tarea, reglas básicas…"
+              value={form.desarrollo || ''}
+              onChange={(e) => set('desarrollo', e.target.value)}
+              placeholder="Ej: 4vs4+3 en espacio reducido. El comodín juega con el poseedor. Cambio cada 2 min…"
+              rows={4}
+            />
+          </Field>
+          <Field
+            label="Variantes / reglas"
+            hint="Reglas, condicionantes y puntuación de esta versión."
+          >
+            <Textarea
+              value={form.reglas || ''}
+              onChange={(e) => set('reglas', e.target.value)}
+              placeholder="Ej: Máximo 2 toques. Gol en portería pequeña vale doble. Si recuperan, contraataque a 5 s…"
               rows={3}
+            />
+          </Field>
+          <Field label="Anotaciones (opcional)" hint="Errores comunes, tips de coaching, matices.">
+            <Textarea
+              value={form.anotaciones || ''}
+              onChange={(e) => set('anotaciones', e.target.value)}
+              placeholder="Ej: Evitar que el comodín se quede estático. Corregir orientación corporal al recibir…"
+              rows={2}
             />
           </Field>
         </section>

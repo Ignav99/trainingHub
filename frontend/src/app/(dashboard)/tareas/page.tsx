@@ -69,6 +69,7 @@ export default function TareasPage() {
   const [orientacionFisica, setOrientacionFisica] = useState('')
   const [jugadoresMin, setJugadoresMin] = useState('')
   const [jugadoresMax, setJugadoresMax] = useState('')
+  const [soloMadres, setSoloMadres] = useState(true)
   const [sortBy, setSortBy] = useState('created_at:desc')
 
   const [aiSearchMode, setAiSearchMode] = useState(false)
@@ -98,6 +99,7 @@ export default function TareasPage() {
       jugadores_max: jugadoresMax ? parseInt(jugadoresMax) : undefined,
       busqueda: busquedaActiva || undefined,
       biblioteca: tab === 'biblioteca' ? true : undefined,
+      solo_madres: soloMadres ? true : undefined,
     })
   )
 
@@ -197,6 +199,23 @@ export default function TareasPage() {
       invalidateTareas()
     } catch (err) {
       console.error('Error duplicating tarea:', err)
+    }
+    setActiveMenu(null)
+  }
+
+  const handleCreateVariante = async (tarea: Tarea, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      const madreId = tarea.tarea_origen_id || tarea.id
+      const variante = await tareasApi.createVariante(madreId, {
+        tipo_variante: 'adaptacion',
+        titulo: `${tarea.titulo} · Variante`,
+      })
+      invalidateTareas()
+      router.push(`/tareas/${variante.id}/editar`)
+    } catch (err) {
+      console.error('Error creating variante:', err)
+      alert('No se pudo crear la variante')
     }
     setActiveMenu(null)
   }
@@ -373,6 +392,17 @@ export default function TareasPage() {
       {!aiSearchMode && (
         <div className="rounded-2xl border bg-card p-3 space-y-2">
           <div className="flex flex-wrap gap-2 items-center">
+            <select
+              className={selectClass}
+              value={soloMadres ? 'madres' : 'todas'}
+              onChange={(e) => {
+                setSoloMadres(e.target.value === 'madres')
+                setPage(1)
+              }}
+            >
+              <option value="madres">Solo tareas madre</option>
+              <option value="todas">Madres + variantes</option>
+            </select>
             <select
               className={selectClass}
               value={categoria}
@@ -684,6 +714,14 @@ export default function TareasPage() {
                         </button>
                       ) : (
                         <>
+                          <button
+                            type="button"
+                            onClick={(e) => handleCreateVariante(tarea, e)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-left"
+                          >
+                            <Sparkles className="h-3.5 w-3.5" />
+                            Crear variante
+                          </button>
                           <button
                             type="button"
                             onClick={(e) => handleDuplicate(tarea, e)}

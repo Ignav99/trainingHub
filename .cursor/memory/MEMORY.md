@@ -2,20 +2,18 @@
 
 ## Branch: `cursor/microciclos-tareas-ux-ae84` (2026-07-27)
 
-### Latest — subfases + margen + porteros
-- **Subfases** al elegir ataque/defensa organizada (`FaseSubfasePicker`) en creador, nueva, editar. Persistencia: `principio_tactico` / `subprincipio_tactico`.
-- **Convocatoria**: pestañas Asistencia | Trabajo al margen → `MargenPanel` con TaskPicker + TareaCreator (`variant=margen`, cat TAM).
-- **Porteros**: `GKTrainingSection` usa TaskPickerDialog + creator POR (misma calidad biblioteca).
-- Catálogo: TAM, POR, GYM, PRV, MOV, RCF + helpers `CATEGORIAS_CAMPO|MARGEN|PORTERO`.
-- Migración **066** TAM/POR sync.
+### Latest — desarrollo / reglas / madre→variantes
+- Contenido: **desarrollo** + **reglas** + **anotaciones** (opcional) en creador y `/tareas/nueva`
+- Familia: `tarea_origen_id` + `tipo_variante`; API `POST/GET /tareas/{id}/variantes`
+- Biblioteca: filtro «Solo tareas madre»; acción «Crear variante»
+- Migración **067**
 
 ### Prev
-- PR #189: desplegables, EVO, SIATE, carga pizarra
-- PR #188: tipología, scroll, objetivos, auto-carga
+- ABP picker grande (#191)
+- Margen/porteros/subfases (#190)
+- SIATE / desplegables (#189)
 
 ### Key files
-- `frontend/src/components/tareas/FaseSubfasePicker.tsx`
-- `frontend/src/components/margen/MargenPanel.tsx`
-- `frontend/src/components/portero/GKTrainingSection.tsx`
-- `frontend/src/lib/catalogos/canonico.ts`
-- `backend/database/migrations/066_tareas_margen_portero.sql`
+- `backend/database/migrations/067_tareas_desarrollo_variantes.sql`
+- `frontend/src/components/tareas/TareaCreatorFullscreen.tsx`
+- `backend/app/api/v1/tareas.py` (crear_variante)

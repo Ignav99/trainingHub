@@ -280,6 +280,9 @@ export const sesionesApi = {
   async createTareaInSesion(sesionId: string, data: {
     titulo: string
     descripcion?: string
+    desarrollo?: string
+    reglas?: string
+    anotaciones?: string
     duracion_total?: number
     fase_sesion: string
     num_jugadores_min?: number
@@ -289,15 +292,21 @@ export const sesionesApi = {
     espacio_ancho?: number
     fase_juego?: string
     principio_tactico?: string
+    subprincipio_tactico?: string
     densidad?: string
     nivel_cognitivo?: number
     num_series?: number
     material?: string[]
-    errores_comunes?: string
-    progresiones?: string
+    errores_comunes?: string | string[]
+    progresiones?: string | string[]
     posicion_entrenador?: string
-    // Ficha completa de "Crea tu ejercicio" (docs/mejoras/crear_tarea.png)
+    // Ficha completa de "Crea tu ejercicio"
     categoria_id?: string
+    modalidad?: string
+    objetivos_tacticos?: string[]
+    objetivos_tecnicos?: string[]
+    orientaciones_fisicas?: string[]
+    etiquetas_fisicas?: string[]
     num_porteros?: number
     espacio_forma?: string
     duracion_serie?: number
@@ -314,6 +323,9 @@ export const sesionesApi = {
     tipo_esfuerzo?: string
     fc_esperada_min?: number
     fc_esperada_max?: number
+    tarea_origen_id?: string
+    tipo_variante?: string
+    es_publica?: boolean
   }): Promise<Sesion> {
     return api.post<Sesion>(`/sesiones/${sesionId}/tareas/crear`, data)
   },

@@ -21,6 +21,7 @@ from app.models import (
     TareaResponse,
     TareaListResponse,
     TareaFiltros,
+    CrearVarianteRequest,
     FaseJuego,
     NivelCognitivo,
     ModalidadTarea,
@@ -257,6 +258,9 @@ async def list_tareas(
     es_complementaria: Optional[bool] = None,
     zona_cuerpo: Optional[ZonaCuerpo] = None,
     objetivo_gym: Optional[ObjetivoGym] = None,
+    # Familia madre → variantes
+    solo_madres: bool = False,
+    tarea_origen_id: Optional[UUID] = None,
     # Modo biblioteca: muestra TODAS las tareas públicas de TODOS los usuarios
     biblioteca: bool = False,
     # Ordenación
@@ -351,12 +355,20 @@ async def list_tareas(
 
     if solo_plantillas:
         query = query.eq("es_plantilla", True)
+
+    if solo_madres:
+        query = query.is_("tarea_origen_id", "null")
+
+    if tarea_origen_id:
+        query = query.eq("tarea_origen_id", str(tarea_origen_id))
     
     if equipo_id:
         query = query.eq("equipo_id", str(equipo_id))
     
     if busqueda:
-        query = query.or_(f"titulo.ilike.%{busqueda}%,descripcion.ilike.%{busqueda}%")
+        query = query.or_(
+            f"titulo.ilike.%{busqueda}%,descripcion.ilike.%{busqueda}%,desarrollo.ilike.%{busqueda}%,reglas.ilike.%{busqueda}%"
+        )
     
     # Ordenación
     query = query.order(orden, desc=(direccion == "desc"))
@@ -459,6 +471,14 @@ async def create_tarea(
     # Por defecto, las tareas son públicas para aparecer en la biblioteca compartida
     if "es_publica" not in tarea_data:
         tarea_data["es_publica"] = True
+
+    # Sync narrativo desarrollo ↔ descripcion
+    if tarea_data.get("desarrollo") and not tarea_data.get("descripcion"):
+        tarea_data["descripcion"] = tarea_data["desarrollo"]
+    elif tarea_data.get("descripcion") and not tarea_data.get("desarrollo"):
+        tarea_data["desarrollo"] = tarea_data["descripcion"]
+    if not tarea_data.get("tipo_variante") and not tarea_data.get("tarea_origen_id"):
+        tarea_data["tipo_variante"] = "original"
 
     # Resolve categoria_id: accept UUID or codigo string
     cat_id_raw = tarea_data["categoria_id"]
@@ -686,6 +706,121 @@ async def duplicar_tarea(
         )
 
     return TareaResponse(**tarea_completa.data)
+
+
+@router.post("/{tarea_id}/variantes", response_model=TareaResponse, status_code=status.HTTP_201_CREATED)
+async def crear_variante(
+    tarea_id: UUID,
+    body: CrearVarianteRequest,
+    auth: AuthContext = Depends(require_permission(Permission.TASK_CREATE)),
+):
+    """
+    Crea una variante a partir de una tarea madre.
+
+    Copia pizarra, tipología, espacio y objetivos; permite override de
+    desarrollo / reglas / anotaciones y objetivos. La hija apunta a la madre
+    vía tarea_origen_id.
+    """
+    supabase = get_supabase()
+
+    original = supabase.table("tareas").select("*").eq("id", str(tarea_id)).maybe_single().execute()
+    if not original or not original.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tarea no encontrada")
+
+    madre = original.data
+    # Si se pide variante de una variante, enganchar a la madre raíz
+    origen_id = madre.get("tarea_origen_id") or madre.get("id")
+    if madre.get("tarea_origen_id"):
+        root = supabase.table("tareas").select("id, titulo").eq(
+            "id", madre["tarea_origen_id"]
+        ).maybe_single().execute()
+        if root and root.data:
+            origen_id = root.data["id"]
+
+    tipo_labels = {
+        "progresion": "Progresión",
+        "regresion": "Regresión",
+        "adaptacion": "Adaptación",
+        "contexto": "Contexto",
+        "reglas": "Reglas",
+    }
+    label = tipo_labels.get(body.tipo_variante, "Variante")
+
+    nueva = madre.copy()
+    for k in ("id", "created_at", "updated_at", "embedding", "num_usos", "valoracion_media"):
+        nueva.pop(k, None)
+
+    nueva["creado_por"] = str(getattr(auth, "user_id", None) or auth.user.id)
+    nueva["organizacion_id"] = str(
+        getattr(auth, "organizacion_id", None) or auth.user.organizacion_id
+    )
+    nueva["tarea_origen_id"] = str(origen_id)
+    nueva["tipo_variante"] = body.tipo_variante
+    nueva["titulo"] = body.titulo or f"{madre.get('titulo', 'Tarea')} · {label}"
+    nueva["es_plantilla"] = True
+    nueva["es_publica"] = True if body.es_publica is None else body.es_publica
+    nueva["num_usos"] = 0
+    nueva["valoracion_media"] = None
+
+    if body.desarrollo is not None:
+        nueva["desarrollo"] = body.desarrollo
+        nueva["descripcion"] = body.desarrollo
+    if body.reglas is not None:
+        nueva["reglas"] = body.reglas
+    if body.anotaciones is not None:
+        nueva["anotaciones"] = body.anotaciones
+    if body.objetivos_tacticos is not None:
+        nueva["objetivos_tacticos"] = body.objetivos_tacticos
+    if body.objetivos_tecnicos is not None:
+        nueva["objetivos_tecnicos"] = body.objetivos_tecnicos
+
+    # Sync narrativo por defecto
+    if not nueva.get("desarrollo") and nueva.get("descripcion"):
+        nueva["desarrollo"] = nueva["descripcion"]
+    if nueva.get("desarrollo") and not nueva.get("descripcion"):
+        nueva["descripcion"] = nueva["desarrollo"]
+
+    response = supabase.table("tareas").insert(nueva).execute()
+    if not response.data:
+        raise HTTPException(status_code=500, detail="No se pudo crear la variante")
+
+    tarea_completa = supabase.table("tareas").select(
+        "*, categorias_tarea(*)"
+    ).eq("id", response.data[0]["id"]).maybe_single().execute()
+
+    if not tarea_completa or not tarea_completa.data:
+        raise HTTPException(status_code=500, detail="Variante creada pero no se pudo recuperar")
+
+    return TareaResponse(**tarea_completa.data)
+
+
+@router.get("/{tarea_id}/variantes", response_model=TareaListResponse)
+async def list_variantes(
+    tarea_id: UUID,
+    current_user=Depends(get_optional_user),
+):
+    """Lista las variantes hijas de una tarea madre."""
+    supabase = get_supabase()
+    response = (
+        supabase.table("tareas")
+        .select("*, categorias_tarea(*), usuarios!creado_por(nombre, apellidos), equipos(nombre)", count="exact")
+        .eq("tarea_origen_id", str(tarea_id))
+        .order("created_at", desc=False)
+        .execute()
+    )
+    tareas_data = []
+    for t in (response.data or []):
+        t.pop("usuarios", None)
+        t.pop("equipos", None)
+        cat = t.pop("categorias_tarea", None)
+        if cat:
+            t["categoria"] = cat
+        try:
+            tareas_data.append(TareaResponse(**t))
+        except Exception:
+            continue
+    total = response.count or len(tareas_data)
+    return TareaListResponse(data=tareas_data, total=total, page=1, limit=max(total, 1), pages=1)
 
 
 # ============ Task Design Chat ============

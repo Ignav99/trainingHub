@@ -1462,7 +1462,19 @@ export default function SesionDetailPage() {
     const updated = await sesionesApi.createTareaInSesion(sesionId, {
       ...data,
       fase_sesion: taskPickerFase,
-      descripcion: data.descripcion || undefined,
+      desarrollo: data.desarrollo || data.descripcion || undefined,
+      descripcion: data.desarrollo || data.descripcion || undefined,
+      reglas: data.reglas || undefined,
+      anotaciones: data.anotaciones || undefined,
+      tipo_variante: data.tipo_variante || 'original',
+      tarea_origen_id: data.tarea_origen_id || undefined,
+      modalidad: data.modalidad,
+      objetivos_tacticos: data.objetivos_tacticos,
+      objetivos_tecnicos: data.objetivos_tecnicos,
+      orientaciones_fisicas: data.orientaciones_fisicas,
+      etiquetas_fisicas: data.etiquetas_fisicas,
+      principio_tactico: data.principio_tactico,
+      subprincipio_tactico: data.subprincipio_tactico,
       complejidad: data.complejidad || undefined,
     })
     setSesion(updated)

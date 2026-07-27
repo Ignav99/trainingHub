@@ -2,7 +2,7 @@
 
 import { Clock, Users, Play } from 'lucide-react'
 import { TacticalBoardMini, boardHasAnimation } from '@/components/task-preview'
-import { METODOLOGIAS_TAREA, FASES_JUEGO } from '@/lib/catalogos/canonico'
+import { METODOLOGIAS_TAREA, FASES_JUEGO, nombreTipoVariante } from '@/lib/catalogos/canonico'
 import { cn } from '@/lib/utils'
 import type { Tarea } from '@/types'
 
@@ -80,6 +80,15 @@ export function TaskLibraryCard({
             {tarea.categoria.nombre_corto || tarea.categoria.nombre || tarea.categoria.codigo}
           </span>
         )}
+        {tarea.tarea_origen_id ? (
+          <span className="absolute top-2 right-2 rounded-md bg-violet-600/90 px-2 py-0.5 text-[10px] font-semibold text-white">
+            {nombreTipoVariante(tarea.tipo_variante)}
+          </span>
+        ) : (tarea.num_variantes ?? 0) > 0 ? (
+          <span className="absolute top-2 right-2 rounded-md bg-sky-600/90 px-2 py-0.5 text-[10px] font-semibold text-white">
+            Madre · {tarea.num_variantes}
+          </span>
+        ) : null}
       </div>
 
       <div className={cn('space-y-2', compact ? 'p-3' : 'p-4')}>
@@ -101,8 +110,10 @@ export function TaskLibraryCard({
           )}
         </div>
 
-        {tarea.descripcion && !compact && (
-          <p className="text-sm text-muted-foreground line-clamp-2">{tarea.descripcion}</p>
+        {(tarea.desarrollo || tarea.descripcion) && !compact && (
+          <p className="text-sm text-muted-foreground line-clamp-2">
+            {tarea.desarrollo || tarea.descripcion}
+          </p>
         )}
 
         <div className="flex flex-wrap items-center gap-1.5 text-[11px]">

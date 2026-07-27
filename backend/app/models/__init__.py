@@ -19,6 +19,7 @@ from app.models.tarea import (
     TareaResponse,
     TareaListResponse,
     TareaFiltros,
+    CrearVarianteRequest,
 )
 
 from app.models.sesion import (
@@ -438,7 +439,7 @@ __all__ = [
     "TipoContraccion", "ZonaCuerpo", "ObjetivoGym",
     "CategoriaTareaBase", "CategoriaTareaResponse",
     "TareaBase", "TareaCreate", "TareaUpdate", "TareaResponse",
-    "TareaListResponse", "TareaFiltros",
+    "TareaListResponse", "TareaFiltros", "CrearVarianteRequest",
     # Sesion
     "MatchDay", "FaseSesion", "EstadoSesion", "Intensidad",
     "GrupoFormacion", "EspacioFormacion", "FormacionEquipos", "FormacionEquiposUpdate",

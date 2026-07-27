@@ -38,6 +38,9 @@ export interface TareaCreateData {
   espacio_ancho?: number
   espacio_forma?: string
   descripcion?: string
+  desarrollo?: string
+  reglas?: string
+  anotaciones?: string
   como_inicia?: string
   como_finaliza?: string
   fase_juego?: string
@@ -57,8 +60,11 @@ export interface TareaCreateData {
   consignas_defensivas?: string[]
   errores_comunes?: string[]
   es_plantilla?: boolean
+  es_publica?: boolean
   tags?: string[]
   equipo_id?: string
+  tarea_origen_id?: string
+  tipo_variante?: string
   // Objetivos
   objetivo_fisico?: string
   objetivo_psicologico?: string
@@ -80,6 +86,16 @@ export interface TareaCreateData {
   objetivo_gym?: ObjetivoGym
   series_repeticiones?: SeriesRepeticiones
   protocolo_progresion?: string
+  complejidad?: string
+  dificultad?: number
+  exigencia?: number
+  forma_puntuar?: string
+  duracion_serie?: number
+  tiempo_descanso?: number
+  num_series?: number
+  m2_por_jugador?: number
+  fc_esperada_min?: number
+  fc_esperada_max?: number
 }
 
 export interface TareaUpdateData extends Partial<TareaCreateData> {}
@@ -99,6 +115,8 @@ interface ListTareasParams {
   duracion_max?: number
   nivel_cognitivo?: number
   solo_plantillas?: boolean
+  solo_madres?: boolean
+  tarea_origen_id?: string
   equipo_id?: string
   busqueda?: string
   biblioteca?: boolean  // Modo biblioteca del club: muestra TODAS las tareas de la org
@@ -135,6 +153,26 @@ export const tareasApi = {
     return api.post<Tarea>(`/tareas/${id}/duplicar`, null, {
       params: nuevoTitulo ? { nuevo_titulo: nuevoTitulo } : undefined
     })
+  },
+
+  async createVariante(
+    madreId: string,
+    data: {
+      tipo_variante?: string
+      titulo?: string
+      desarrollo?: string
+      reglas?: string
+      anotaciones?: string
+      objetivos_tacticos?: string[]
+      objetivos_tecnicos?: string[]
+      es_publica?: boolean
+    } = {}
+  ): Promise<Tarea> {
+    return api.post<Tarea>(`/tareas/${madreId}/variantes`, data)
+  },
+
+  async listVariantes(madreId: string): Promise<PaginatedResponse<Tarea>> {
+    return api.get<PaginatedResponse<Tarea>>(`/tareas/${madreId}/variantes`)
   },
 
   async createFromAI(tareaNueva: AITareaNueva): Promise<Tarea> {

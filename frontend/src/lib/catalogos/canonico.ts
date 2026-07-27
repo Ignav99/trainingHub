@@ -156,12 +156,18 @@ export const ESPACIO_FORMA = [
 ] as const
 
 export const TIPOS_VARIANTE = [
-  { codigo: 'original', nombre: 'Original' },
-  { codigo: 'progresion', nombre: 'Progresión' },
-  { codigo: 'regresion', nombre: 'Regresión' },
-  { codigo: 'adaptacion', nombre: 'Adaptación' },
-  { codigo: 'contexto', nombre: 'Contexto / sesión' },
+  { codigo: 'original', nombre: 'Original (madre)', descripcion: 'Tarea base de la familia.' },
+  { codigo: 'progresion', nombre: 'Progresión', descripcion: 'Más exigente o compleja que la madre.' },
+  { codigo: 'regresion', nombre: 'Regresión', descripcion: 'Más sencilla / accesible que la madre.' },
+  { codigo: 'adaptacion', nombre: 'Adaptación', descripcion: 'Ajuste a contexto (jugadores, espacio, grupo).' },
+  { codigo: 'reglas', nombre: 'Cambio de reglas', descripcion: 'Misma estructura, otras reglas o puntuación.' },
+  { codigo: 'contexto', nombre: 'Contexto / sesión', descripcion: 'Variante puntual para una sesión concreta.' },
 ] as const
+
+export type TipoVarianteCodigo = (typeof TIPOS_VARIANTE)[number]['codigo']
+
+export const nombreTipoVariante = (codigo?: string | null) =>
+  TIPOS_VARIANTE.find((t) => t.codigo === codigo)?.nombre || codigo || 'Original'
 
 export const NIVELES_COGNITIVOS = [
   { codigo: 1, nombre: 'Bajo' },
