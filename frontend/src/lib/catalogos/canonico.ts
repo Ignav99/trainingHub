@@ -176,6 +176,7 @@ export const CATEGORIAS_TAREA = [
   { codigo: 'RDP', nombre: 'Ruedas de pase', grupo: 'campo', descripcion: 'Circuitos de pase y combinaciones técnicas con patrones predefinidos.' },
   { codigo: 'POS', nombre: 'Posesiones', grupo: 'campo', descripcion: 'Mantenimiento en espacio compartido: objetivo prioritario conservar la posesión.' },
   { codigo: 'JDP', nombre: 'Juegos de posición', grupo: 'campo', descripcion: 'Tareas posicionales con roles y ocupación racional del espacio (modelo de juego).' },
+  { codigo: 'EVO', nombre: 'Evoluciones', grupo: 'campo', descripcion: 'Secuencias técnicas encadenadas con progresión de dificultad.' },
   { codigo: 'FIN', nombre: 'Finalizaciones', grupo: 'campo', descripcion: 'Ejercicios orientados al remate y a la definición en zona de finalización.' },
   { codigo: 'SSG', nombre: 'Partido reducido', grupo: 'campo', descripcion: 'Juego reducido (SSG) con oposición real y espacio acotado.' },
   { codigo: 'PCO', nombre: 'Partido condicionado', grupo: 'campo', descripcion: 'Partido con reglas o condicionantes que orientan el comportamiento táctico.' },
