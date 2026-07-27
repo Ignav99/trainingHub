@@ -1,29 +1,24 @@
 # TrainingHub — agent memory
 
-## Branch: `cursor/fix-tareas-solo-madres-ae84` (2026-07-27)
+## Branch: `cursor/tareas-filtros-variantes-ae84` (2026-07-27)
 
-### Root cause (prod 500 en `/tareas?solo_madres=true`)
-- La mig **067 no está aplicada** (o PostgREST no la ve) en la DB de `traininghub-api-eu`.
-- Los `tarea_origen_id: null` del JSON eran **defaults Pydantic**, no prueba de columna.
-- Prueba: `?busqueda=fut` también 500 (usa `desarrollo`/`reglas` en el `or_`).
-- `tipo_variante` sigue `null` en todas las tareas → el backfill de 067 no corrió.
+### Pulido filtros + familia madre→variantes
+Filtros de biblioteca/picker **solo** variables del creador canónico:
+- Familia (madres / todas / variantes + tipo)
+- Tipo de tarea, metodología, fase, **subfase**
+- Objetivo táctico / técnico, orientación condicional
+- Jugadores min/max
+- **Eliminados** densidad y cognitivo (derivados de pizarra)
 
-### Fix en este PR
-- **Nunca** usar PostgREST `.is_(tarea_origen_id)` en listado; filtrar madres en Python.
-- Búsqueda solo sobre `titulo`/`descripcion` (legacy) para no 500 sin mig.
-- Soft-skip filas inválidas; create reintenta sin cols 067; variantes → 503 claro.
-- TS: quitar `soloMadres` roto en `TaskPickerDialog`.
-- FE default `soloMadres=false`.
-- CORS en 500 incluye orígenes Render conocidos.
+Componentes nuevos:
+- `TareaFiltersBar.tsx` — barra compartida biblioteca + picker
+- `CrearVarianteDialog.tsx` — elige tipo (progresión/regresión/…)
+- `TareaFamiliaPanel.tsx` — detalle: madre, hijas, crear variante
 
-### SQL verificación (Supabase SQL editor del proyecto correcto)
-```sql
-SELECT column_name FROM information_schema.columns
-WHERE table_schema = 'public' AND table_name = 'tareas'
-  AND column_name IN ('desarrollo','reglas','anotaciones','tarea_origen_id','tipo_variante');
-NOTIFY pgrst, 'reload schema';
-```
+Gestión familia:
+1. Biblioteca por defecto: **solo madres** (reutilizables)
+2. «Crear variante» → diálogo de tipo → copia pizarra/tipología → editar
+3. Ficha detalle muestra panel familia (enlace madre / lista variantes)
+4. API enriquece `num_variantes`; badge «Madre · N» en cards
 
-### Prod URLs
-- API: https://traininghub-api-eu.onrender.com
-- FE: https://traininghub-frontend-eu.onrender.com
+Backend list: `objetivo_tactico|tecnico`, `orientacion_fisica`, `solo_variantes`, `tipo_variante` + conteo hijas.

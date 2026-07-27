@@ -11,7 +11,6 @@ import {
   Library,
   FolderOpen,
   Bot,
-  X,
   Sparkles,
   ArrowLeft,
   Copy,
@@ -27,16 +26,14 @@ import { ListPageSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { TaskLibraryCard } from '@/components/tareas/TaskLibraryCard'
+import { CrearVarianteDialog } from '@/components/tareas/CrearVarianteDialog'
 import {
-  CATEGORIAS_TAREA,
-  METODOLOGIAS_TAREA,
-  FASES_JUEGO,
-  DENSIDADES,
-  NIVELES_COGNITIVOS,
-  OBJETIVOS_TACTICOS,
-  OBJETIVOS_TECNICOS,
-  ORIENTACIONES_FISICAS,
-} from '@/lib/catalogos/canonico'
+  TareaFiltersBar,
+  EMPTY_TAREA_FILTERS,
+  tareaFiltersToApiParams,
+  tareaFiltersActive,
+  type TareaFilterValues,
+} from '@/components/tareas/TareaFiltersBar'
 import { cn } from '@/lib/utils'
 
 const SORT_OPTIONS = [
@@ -59,17 +56,7 @@ export default function TareasPage() {
 
   const [busqueda, setBusqueda] = useState('')
   const [busquedaActiva, setBusquedaActiva] = useState('')
-  const [categoria, setCategoria] = useState('')
-  const [modalidad, setModalidad] = useState('')
-  const [faseFilter, setFaseFilter] = useState('')
-  const [densidadFilter, setDensidadFilter] = useState('')
-  const [nivelCognitivo, setNivelCognitivo] = useState('')
-  const [contenidoOf, setContenidoOf] = useState('')
-  const [contenidoDef, setContenidoDef] = useState('')
-  const [orientacionFisica, setOrientacionFisica] = useState('')
-  const [jugadoresMin, setJugadoresMin] = useState('')
-  const [jugadoresMax, setJugadoresMax] = useState('')
-  const [soloMadres, setSoloMadres] = useState(false)
+  const [filters, setFilters] = useState<TareaFilterValues>({ ...EMPTY_TAREA_FILTERS })
   const [sortBy, setSortBy] = useState('created_at:desc')
 
   const [aiSearchMode, setAiSearchMode] = useState(false)
@@ -81,8 +68,10 @@ export default function TareasPage() {
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
   const [copying, setCopying] = useState<string | null>(null)
   const [batchGenerating, setBatchGenerating] = useState(false)
+  const [varianteMadre, setVarianteMadre] = useState<Tarea | null>(null)
 
   const [orden, direccion] = sortBy.split(':')
+  const apiFilters = tareaFiltersToApiParams(filters)
 
   const { data: tareasRes, error: tareasError, isLoading } = useSWR<PaginatedResponse<Tarea>>(
     apiKey('/tareas', {
@@ -90,42 +79,13 @@ export default function TareasPage() {
       limit,
       orden,
       direccion,
-      categoria: categoria || undefined,
-      modalidad: modalidad || undefined,
-      fase_juego: faseFilter || undefined,
-      densidad: densidadFilter || undefined,
-      nivel_cognitivo: nivelCognitivo ? Number(nivelCognitivo) : undefined,
-      jugadores_min: jugadoresMin ? parseInt(jugadoresMin) : undefined,
-      jugadores_max: jugadoresMax ? parseInt(jugadoresMax) : undefined,
       busqueda: busquedaActiva || undefined,
       biblioteca: tab === 'biblioteca' ? true : undefined,
-      solo_madres: soloMadres ? true : undefined,
+      ...apiFilters,
     })
   )
 
-  const tareasRaw = tareasRes?.data || []
-  const tareas = (() => {
-    let list = tareasRaw
-    if (contenidoOf) {
-      list = list.filter((t) =>
-        (t.objetivos_tacticos || t.tags || []).some(
-          (c) => c === contenidoOf || c.toLowerCase().includes(contenidoOf.replace(/_/g, ' '))
-        )
-      )
-    }
-    if (contenidoDef) {
-      list = list.filter((t) =>
-        (t.objetivos_tecnicos || t.consignas_ofensivas || []).some(
-          (c) => c === contenidoDef || c.toLowerCase().includes(contenidoDef.replace(/_/g, ' '))
-        )
-      )
-    }
-    if (orientacionFisica) {
-      list = list.filter((t) => (t.orientaciones_fisicas || []).includes(orientacionFisica))
-    }
-    return list
-  })()
-
+  const tareas = tareasRes?.data || []
   const totalPages = tareasRes?.pages || 1
   const total = tareasRes?.total || 0
   const error = tareasError ? 'Error al cargar las tareas' : null
@@ -137,6 +97,20 @@ export default function TareasPage() {
       return () => document.removeEventListener('click', handleClickOutside)
     }
   }, [activeMenu])
+
+  const patchFilters = (patch: Partial<TareaFilterValues>) => {
+    setFilters((prev) => ({ ...prev, ...patch }))
+    setPage(1)
+  }
+
+  const clearFilters = useCallback(() => {
+    setBusqueda('')
+    setBusquedaActiva('')
+    setFilters({ ...EMPTY_TAREA_FILTERS })
+    setPage(1)
+  }, [])
+
+  const hasActiveFilters = !!(busquedaActiva || tareaFiltersActive(filters))
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -176,7 +150,9 @@ export default function TareasPage() {
   }
 
   const invalidateTareas = () => {
-    mutate((key: string) => typeof key === 'string' && key.includes('/tareas'), undefined, { revalidate: true })
+    mutate((key: string) => typeof key === 'string' && key.includes('/tareas'), undefined, {
+      revalidate: true,
+    })
   }
 
   const handleBatchGenerateDiagrams = async () => {
@@ -184,7 +160,11 @@ export default function TareasPage() {
     try {
       const result = await tareasApi.batchGenerateDiagrams()
       invalidateTareas()
-      alert(`Diagramas generados: ${result.generated}/${result.total}${result.failed ? ` (${result.failed} fallidos)` : ''}`)
+      alert(
+        `Diagramas generados: ${result.generated}/${result.total}${
+          result.failed ? ` (${result.failed} fallidos)` : ''
+        }`
+      )
     } catch (e: any) {
       alert(`Error: ${e.message || 'Error al generar diagramas'}`)
     } finally {
@@ -199,23 +179,6 @@ export default function TareasPage() {
       invalidateTareas()
     } catch (err) {
       console.error('Error duplicating tarea:', err)
-    }
-    setActiveMenu(null)
-  }
-
-  const handleCreateVariante = async (tarea: Tarea, e: React.MouseEvent) => {
-    e.stopPropagation()
-    try {
-      const madreId = tarea.tarea_origen_id || tarea.id
-      const variante = await tareasApi.createVariante(madreId, {
-        tipo_variante: 'adaptacion',
-        titulo: `${tarea.titulo} · Variante`,
-      })
-      invalidateTareas()
-      router.push(`/tareas/${variante.id}/editar`)
-    } catch (err) {
-      console.error('Error creating variante:', err)
-      alert('No se pudo crear la variante')
     }
     setActiveMenu(null)
   }
@@ -246,35 +209,16 @@ export default function TareasPage() {
     setActiveMenu(null)
   }
 
-  const clearFilters = useCallback(() => {
-    setBusqueda('')
-    setBusquedaActiva('')
-    setCategoria('')
-    setModalidad('')
-    setFaseFilter('')
-    setDensidadFilter('')
-    setNivelCognitivo('')
-    setContenidoOf('')
-    setContenidoDef('')
-    setOrientacionFisica('')
-    setJugadoresMin('')
-    setJugadoresMax('')
-    setPage(1)
-  }, [])
-
-  const hasActiveFilters = !!(
-    categoria ||
-    modalidad ||
-    faseFilter ||
-    densidadFilter ||
-    nivelCognitivo ||
-    contenidoOf ||
-    contenidoDef ||
-    orientacionFisica ||
-    jugadoresMin ||
-    jugadoresMax ||
-    busquedaActiva
-  )
+  const confirmCreateVariante = async (opts: {
+    tipo_variante: string
+    titulo?: string
+  }) => {
+    if (!varianteMadre) return
+    const madreId = varianteMadre.tarea_origen_id || varianteMadre.id
+    const variante = await tareasApi.createVariante(madreId, opts)
+    invalidateTareas()
+    router.push(`/tareas/${variante.id}/editar`)
+  }
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -388,165 +332,14 @@ export default function TareasPage() {
         </div>
       )}
 
-      {/* Filtros arriba en desplegables */}
+      {/* Filtros canónicos (alineados con el creador de tareas) */}
       {!aiSearchMode && (
-        <div className="rounded-2xl border bg-card p-3 space-y-2">
-          <div className="flex flex-wrap gap-2 items-center">
-            <select
-              className={selectClass}
-              value={soloMadres ? 'madres' : 'todas'}
-              onChange={(e) => {
-                setSoloMadres(e.target.value === 'madres')
-                setPage(1)
-              }}
-            >
-              <option value="madres">Solo tareas madre</option>
-              <option value="todas">Madres + variantes</option>
-            </select>
-            <select
-              className={selectClass}
-              value={categoria}
-              onChange={(e) => {
-                setCategoria(e.target.value)
-                setPage(1)
-              }}
-            >
-              <option value="">Tipo de tarea</option>
-              {CATEGORIAS_TAREA.map((c) => (
-                <option key={c.codigo} value={c.codigo}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
-            <select
-              className={selectClass}
-              value={modalidad}
-              onChange={(e) => {
-                setModalidad(e.target.value)
-                setPage(1)
-              }}
-            >
-              <option value="">Metodología</option>
-              {METODOLOGIAS_TAREA.map((m) => (
-                <option key={m.codigo} value={m.codigo}>
-                  {m.nombre}
-                </option>
-              ))}
-            </select>
-            <select
-              className={selectClass}
-              value={faseFilter}
-              onChange={(e) => {
-                setFaseFilter(e.target.value)
-                setPage(1)
-              }}
-            >
-              <option value="">Fase de juego</option>
-              {FASES_JUEGO.map((f) => (
-                <option key={f.codigo} value={f.codigo}>
-                  {f.nombre}
-                </option>
-              ))}
-            </select>
-            <select
-              className={selectClass}
-              value={densidadFilter}
-              onChange={(e) => {
-                setDensidadFilter(e.target.value)
-                setPage(1)
-              }}
-            >
-              <option value="">Densidad</option>
-              {DENSIDADES.map((d) => (
-                <option key={d.codigo} value={d.codigo}>
-                  {d.nombre}
-                </option>
-              ))}
-            </select>
-            <select
-              className={selectClass}
-              value={nivelCognitivo}
-              onChange={(e) => {
-                setNivelCognitivo(e.target.value)
-                setPage(1)
-              }}
-            >
-              <option value="">Cognitivo</option>
-              {NIVELES_COGNITIVOS.map((n) => (
-                <option key={n.codigo} value={String(n.codigo)}>
-                  {n.nombre}
-                </option>
-              ))}
-            </select>
-            <select
-              className={selectClass}
-              value={contenidoOf}
-              onChange={(e) => {
-                setContenidoOf(e.target.value)
-                setPage(1)
-              }}
-            >
-              <option value="">Objetivo táctico</option>
-              {OBJETIVOS_TACTICOS.map((c) => (
-                <option key={c.codigo} value={c.codigo}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
-            <select
-              className={selectClass}
-              value={contenidoDef}
-              onChange={(e) => {
-                setContenidoDef(e.target.value)
-                setPage(1)
-              }}
-            >
-              <option value="">Objetivo técnico</option>
-              {OBJETIVOS_TECNICOS.map((c) => (
-                <option key={c.codigo} value={c.codigo}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
-            <select
-              className={selectClass}
-              value={orientacionFisica}
-              onChange={(e) => {
-                setOrientacionFisica(e.target.value)
-                setPage(1)
-              }}
-            >
-              <option value="">Orientación física</option>
-              {ORIENTACIONES_FISICAS.map((o) => (
-                <option key={o.codigo} value={o.codigo}>
-                  {o.nombre}
-                </option>
-              ))}
-            </select>
-            <input
-              type="number"
-              min={1}
-              max={30}
-              placeholder="Jug. mín"
-              value={jugadoresMin}
-              onChange={(e) => {
-                setJugadoresMin(e.target.value)
-                setPage(1)
-              }}
-              className="h-9 w-20 rounded-lg border border-border bg-background px-2 text-sm"
-            />
-            <input
-              type="number"
-              min={1}
-              max={30}
-              placeholder="Jug. máx"
-              value={jugadoresMax}
-              onChange={(e) => {
-                setJugadoresMax(e.target.value)
-                setPage(1)
-              }}
-              className="h-9 w-20 rounded-lg border border-border bg-background px-2 text-sm"
-            />
+        <TareaFiltersBar
+          value={filters}
+          onChange={patchFilters}
+          onClear={clearFilters}
+          showFamilia
+          sortSlot={
             <select
               className={cn(selectClass, 'ml-auto')}
               value={sortBy}
@@ -561,18 +354,8 @@ export default function TareasPage() {
                 </option>
               ))}
             </select>
-            {hasActiveFilters && (
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="inline-flex items-center gap-1 h-9 px-3 text-sm text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-3.5 w-3.5" />
-                Limpiar
-              </button>
-            )}
-          </div>
-        </div>
+          }
+        />
       )}
 
       {/* Content */}
@@ -716,7 +499,11 @@ export default function TareasPage() {
                         <>
                           <button
                             type="button"
-                            onClick={(e) => handleCreateVariante(tarea, e)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setVarianteMadre(tarea)
+                              setActiveMenu(null)
+                            }}
                             className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-left"
                           >
                             <Sparkles className="h-3.5 w-3.5" />
@@ -774,6 +561,15 @@ export default function TareasPage() {
           )}
         </>
       )}
+
+      <CrearVarianteDialog
+        open={!!varianteMadre}
+        onOpenChange={(open) => {
+          if (!open) setVarianteMadre(null)
+        }}
+        madre={varianteMadre}
+        onConfirm={confirmCreateVariante}
+      />
     </div>
   )
 }

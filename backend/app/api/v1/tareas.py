@@ -238,15 +238,19 @@ async def list_tareas(
     # Paginación
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    # Filtros
+    # Filtros canónicos (alineados con el creador)
     categoria: Optional[str] = None,
     fase_juego: Optional[FaseJuego] = None,
     modalidad: Optional[ModalidadTarea] = None,
-    principio_tactico: Optional[str] = None,
+    principio_tactico: Optional[str] = None,  # subfase
+    objetivo_tactico: Optional[str] = None,
+    objetivo_tecnico: Optional[str] = None,
+    orientacion_fisica: Optional[str] = None,
     jugadores_min: Optional[int] = Query(None, ge=1),
     jugadores_max: Optional[int] = Query(None, ge=1),
     duracion_min: Optional[int] = Query(None, ge=1),
     duracion_max: Optional[int] = Query(None, ge=1),
+    # Legacy / derivados (aceptados; no se exponen en FE canónico)
     nivel_cognitivo: Optional[NivelCognitivo] = None,
     densidad: Optional[str] = Query(None, pattern="^(alta|media|baja)$"),
     match_day: Optional[str] = Query(None, pattern="^MD[-+]?[0-4]?$"),
@@ -260,6 +264,8 @@ async def list_tareas(
     objetivo_gym: Optional[ObjetivoGym] = None,
     # Familia madre → variantes
     solo_madres: bool = False,
+    solo_variantes: bool = False,
+    tipo_variante: Optional[str] = None,
     tarea_origen_id: Optional[UUID] = None,
     # Modo biblioteca: muestra TODAS las tareas públicas de TODOS los usuarios
     biblioteca: bool = False,
@@ -317,7 +323,8 @@ async def list_tareas(
         query = query.eq("modalidad", modalidad.value)
     
     if principio_tactico:
-        query = query.ilike("principio_tactico", f"%{principio_tactico}%")
+        # Subfase tipada (codigo exacto del catálogo canónico)
+        query = query.eq("principio_tactico", principio_tactico)
     
     if jugadores_min:
         query = query.gte("num_jugadores_min", jugadores_min)
@@ -338,7 +345,6 @@ async def list_tareas(
         query = query.eq("densidad", densidad)
 
     if match_day:
-        # match_days_recomendados es un array JSONB, buscamos si contiene el valor
         query = query.contains("match_days_recomendados", [match_day])
 
     if tipo_esfuerzo:
@@ -356,12 +362,22 @@ async def list_tareas(
     if solo_plantillas:
         query = query.eq("es_plantilla", True)
 
-    # Madre = sin origen. NUNCA filtrar con PostgREST `.is_(tarea_origen_id)`:
-    # si la mig 067 no está en el schema cache, ese filtro tumba el listado entero
-    # (los null del JSON de respuesta son defaults Pydantic, no prueban que exista
-    # la columna). Filtramos madres en Python tras el fetch.
-    #
-    # tarea_origen_id (listar variantes de una madre) sí usa eq; si falla, reintentamos.
+    # Arrays / tipo_variante: se aplican abajo; si PostgREST falla, filtramos en Python.
+    applied_canon_filters = False
+    if objetivo_tactico:
+        query = query.contains("objetivos_tacticos", [objetivo_tactico])
+        applied_canon_filters = True
+    if objetivo_tecnico:
+        query = query.contains("objetivos_tecnicos", [objetivo_tecnico])
+        applied_canon_filters = True
+    if orientacion_fisica:
+        query = query.contains("orientaciones_fisicas", [orientacion_fisica])
+        applied_canon_filters = True
+    if tipo_variante:
+        query = query.eq("tipo_variante", tipo_variante)
+        applied_canon_filters = True
+
+    # Madre/variante: filtrar en Python (nunca .is_ en PostgREST por mig 067).
     applied_origen_eq = False
     if tarea_origen_id:
         query = query.eq("tarea_origen_id", str(tarea_origen_id))
@@ -370,25 +386,21 @@ async def list_tareas(
     if equipo_id:
         query = query.eq("equipo_id", str(equipo_id))
 
-    # Búsqueda: empezar SOLO con columnas legacy (siempre existen). Así no 500
-    # si desarrollo/reglas aún no están en PostgREST.
     if busqueda:
         query = query.or_(
             f"titulo.ilike.%{busqueda}%,descripcion.ilike.%{busqueda}%"
         )
 
-    # Ordenación
     query = query.order(orden, desc=(direccion == "desc"))
 
-    # Paginación — si pedimos solo madres, over-fetch un poco para compensar
-    # variantes filtradas en cliente (hasta que la mig 067 esté segura en prod).
     offset = (page - 1) * limit
     fetch_limit = limit
-    if solo_madres and not tarea_origen_id:
-        fetch_limit = min(limit * 3, 100)
+    needs_client_family = (solo_madres or solo_variantes) and not tarea_origen_id
+    if needs_client_family or applied_canon_filters:
+        fetch_limit = min(limit * 4, 100)
     query = query.range(offset, offset + fetch_limit - 1)
 
-    def _rebuild_list_query(*, include_origen_eq: bool):
+    def _rebuild_list_query(*, include_origen_eq: bool, include_canon: bool):
         q = supabase.table("tareas").select(
             "*, categorias_tarea(*), usuarios!creado_por(nombre, apellidos), equipos(nombre)",
             count="exact",
@@ -414,7 +426,7 @@ async def list_tareas(
         if modalidad:
             q = q.eq("modalidad", modalidad.value)
         if principio_tactico:
-            q = q.ilike("principio_tactico", f"%{principio_tactico}%")
+            q = q.eq("principio_tactico", principio_tactico)
         if jugadores_min:
             q = q.gte("num_jugadores_min", jugadores_min)
         if jugadores_max:
@@ -439,6 +451,15 @@ async def list_tareas(
             q = q.eq("objetivo_gym", objetivo_gym.value)
         if solo_plantillas:
             q = q.eq("es_plantilla", True)
+        if include_canon:
+            if objetivo_tactico:
+                q = q.contains("objetivos_tacticos", [objetivo_tactico])
+            if objetivo_tecnico:
+                q = q.contains("objetivos_tecnicos", [objetivo_tecnico])
+            if orientacion_fisica:
+                q = q.contains("orientaciones_fisicas", [orientacion_fisica])
+            if tipo_variante:
+                q = q.eq("tipo_variante", tipo_variante)
         if include_origen_eq and tarea_origen_id:
             q = q.eq("tarea_origen_id", str(tarea_origen_id))
         if equipo_id:
@@ -453,14 +474,17 @@ async def list_tareas(
         response = query.execute()
     except Exception as first_err:
         err_txt = str(first_err).lower()
-        # Si falla por columna mig 067 (p.ej. eq tarea_origen_id), reintentar sin ella
         needs_retry = (
             applied_origen_eq
+            or applied_canon_filters
             or "tarea_origen_id" in err_txt
             or "desarrollo" in err_txt
             or "reglas" in err_txt
             or "anotaciones" in err_txt
             or "tipo_variante" in err_txt
+            or "objetivos_tacticos" in err_txt
+            or "objetivos_tecnicos" in err_txt
+            or "orientaciones_fisicas" in err_txt
             or "42703" in err_txt
             or "schema cache" in err_txt
         )
@@ -471,19 +495,29 @@ async def list_tareas(
             ) from first_err
 
         logger.warning(
-            "list_tareas: reintento sin filtros de mig 067. %s",
+            "list_tareas: reintento sin filtros canónicos/mig. %s",
             first_err,
         )
-        response = _rebuild_list_query(include_origen_eq=False).execute()
-        applied_origen_eq = False
+        # Primero sin arrays/tipo; si sigue fallando por origen, sin origen
+        try:
+            response = _rebuild_list_query(
+                include_origen_eq=applied_origen_eq, include_canon=False
+            ).execute()
+            applied_canon_filters = False
+        except Exception as second_err:
+            logger.warning("list_tareas: segundo reintento sin origen. %s", second_err)
+            response = _rebuild_list_query(
+                include_origen_eq=False, include_canon=False
+            ).execute()
+            applied_origen_eq = False
+            applied_canon_filters = False
 
     total = response.count or 0
     pages = ceil(total / limit) if total > 0 else 1
 
     # Enriquecer con nombre del creador y equipo
-    tareas_data = []
+    rows = []
     for t in response.data or []:
-        # Extraer y flatten datos del JOIN
         usuario_data = t.pop("usuarios", None)
         equipo_data = t.pop("equipos", None)
         cat_data = t.pop("categorias_tarea", None)
@@ -497,23 +531,60 @@ async def list_tareas(
         if cat_data and isinstance(cat_data, dict):
             t["categoria"] = cat_data
 
-        # Madre = sin tarea_origen_id (si la columna no existe en la fila, pasa el filtro)
-        if solo_madres and t.get("tarea_origen_id"):
+        origen = t.get("tarea_origen_id")
+        if solo_madres and origen:
             continue
+        if solo_variantes and not origen:
+            continue
+        if tipo_variante and not applied_canon_filters:
+            if (t.get("tipo_variante") or "") != tipo_variante:
+                continue
+        if objetivo_tactico and not applied_canon_filters:
+            if objetivo_tactico not in (t.get("objetivos_tacticos") or []):
+                continue
+        if objetivo_tecnico and not applied_canon_filters:
+            if objetivo_tecnico not in (t.get("objetivos_tecnicos") or []):
+                continue
+        if orientacion_fisica and not applied_canon_filters:
+            if orientacion_fisica not in (t.get("orientaciones_fisicas") or []):
+                continue
 
+        rows.append(t)
+        if len(rows) >= limit:
+            break
+
+    # Contar variantes hijas para madres de esta página
+    madre_ids = [str(r["id"]) for r in rows if not r.get("tarea_origen_id") and r.get("id")]
+    variant_counts: dict = {}
+    if madre_ids:
+        try:
+            kids = (
+                supabase.table("tareas")
+                .select("tarea_origen_id")
+                .in_("tarea_origen_id", madre_ids)
+                .execute()
+            )
+            for kid in kids.data or []:
+                oid = kid.get("tarea_origen_id")
+                if oid:
+                    variant_counts[str(oid)] = variant_counts.get(str(oid), 0) + 1
+        except Exception as count_err:
+            logger.debug("list_tareas: no se pudo contar variantes: %s", count_err)
+
+    tareas_data = []
+    for t in rows:
+        if not t.get("tarea_origen_id"):
+            t["num_variantes"] = variant_counts.get(str(t.get("id")), 0)
         try:
             tareas_data.append(TareaResponse(**t))
         except Exception as row_err:
-            # No tumbar el listado entero por una fila inválida (p.ej. título corto)
             logger.warning("list_tareas: skip row %s — %s", t.get("id"), row_err)
             continue
 
-        if len(tareas_data) >= limit:
-            break
-
-    if solo_madres:
-        # Total aproximado tras filtro cliente
-        total = max(total, len(tareas_data)) if tareas_data else len(tareas_data)
+    if solo_madres or solo_variantes or (not applied_canon_filters and (
+        objetivo_tactico or objetivo_tecnico or orientacion_fisica or tipo_variante
+    )):
+        total = max(len(tareas_data), total if not needs_client_family else len(tareas_data))
         pages = ceil(total / limit) if total > 0 else 1
 
     return TareaListResponse(
@@ -564,7 +635,31 @@ async def get_tarea(
                 detail="Esta tarea no es pública"
             )
 
-    return TareaResponse(**response.data)
+    data = response.data
+    # Enriquecer familia
+    try:
+        if data.get("tarea_origen_id"):
+            madre = (
+                supabase.table("tareas")
+                .select("id, titulo")
+                .eq("id", data["tarea_origen_id"])
+                .maybe_single()
+                .execute()
+            )
+            if madre and madre.data:
+                data["madre_titulo"] = madre.data.get("titulo")
+        else:
+            kids = (
+                supabase.table("tareas")
+                .select("id", count="exact")
+                .eq("tarea_origen_id", str(data["id"]))
+                .execute()
+            )
+            data["num_variantes"] = kids.count or 0
+    except Exception:
+        pass
+
+    return TareaResponse(**data)
 
 
 @router.post("", response_model=TareaResponse, status_code=status.HTTP_201_CREATED)
