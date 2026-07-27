@@ -390,24 +390,26 @@ class TareaListResponse(BaseModel):
 # ============ Schemas para Filtros ============
 
 class TareaFiltros(BaseModel):
-    """Filtros para buscar tareas."""
-    categoria: Optional[str] = None  # código de categoría
+    """Filtros canónicos para buscar tareas (alineados con el creador)."""
+    categoria: Optional[str] = None  # código de tipología
     fase_juego: Optional[FaseJuego] = None
     modalidad: Optional[ModalidadTarea] = None
-    principio_tactico: Optional[str] = None
+    principio_tactico: Optional[str] = None  # subfase
+    objetivo_tactico: Optional[str] = None
+    objetivo_tecnico: Optional[str] = None
+    orientacion_fisica: Optional[str] = None
     jugadores_min: Optional[int] = None
     jugadores_max: Optional[int] = None
     duracion_min: Optional[int] = None
     duracion_max: Optional[int] = None
-    nivel_cognitivo: Optional[NivelCognitivo] = None
-    tags: Optional[List[str]] = None
     solo_plantillas: bool = False
     solo_publicas: bool = False
     solo_madres: bool = False
+    solo_variantes: bool = False
+    tipo_variante: Optional[str] = None
     tarea_origen_id: Optional[UUID] = None
     equipo_id: Optional[UUID] = None
-    busqueda: Optional[str] = None  # búsqueda en título/descripción
-    # Filtros de preparación física
+    busqueda: Optional[str] = None
     es_complementaria: Optional[bool] = None
     zona_cuerpo: Optional[ZonaCuerpo] = None
     objetivo_gym: Optional[ObjetivoGym] = None

@@ -2,15 +2,17 @@
 
 import { Clock, Users, Play } from 'lucide-react'
 import { TacticalBoardMini, boardHasAnimation } from '@/components/task-preview'
-import { METODOLOGIAS_TAREA, FASES_JUEGO, nombreTipoVariante } from '@/lib/catalogos/canonico'
+import {
+  METODOLOGIAS_TAREA,
+  FASES_JUEGO,
+  nombreTipoVariante,
+  nombreSubfase,
+  nombreObjetivoTactico,
+  nombreObjetivoTecnico,
+  nombreOrientacionFisica,
+} from '@/lib/catalogos/canonico'
 import { cn } from '@/lib/utils'
 import type { Tarea } from '@/types'
-
-const DENSITY: Record<string, { bg: string; text: string; label: string }> = {
-  alta: { bg: 'bg-red-100', text: 'text-red-700', label: 'Alta' },
-  media: { bg: 'bg-amber-100', text: 'text-amber-700', label: 'Media' },
-  baja: { bg: 'bg-green-100', text: 'text-green-700', label: 'Baja' },
-}
 
 function faseLabel(codigo?: string) {
   if (!codigo) return null
@@ -42,9 +44,12 @@ export function TaskLibraryCard({
   className,
 }: TaskLibraryCardProps) {
   const hasAnim = boardHasAnimation(tarea.grafico_data as any)
-  const density = tarea.densidad ? DENSITY[tarea.densidad] : null
   const fase = faseLabel(tarea.fase_juego)
   const metodologia = metodologiaLabel(tarea.modalidad)
+  const subfase = nombreSubfase(tarea.fase_juego, tarea.principio_tactico)
+  const orientacion = (tarea.orientaciones_fisicas || [])[0]
+  const objTac = (tarea.objetivos_tacticos || [])[0]
+  const objTec = (tarea.objetivos_tecnicos || [])[0]
 
   return (
     <article
@@ -56,7 +61,6 @@ export function TaskLibraryCard({
       )}
       onClick={onClick}
     >
-      {/* Pizarra grande — elemento principal */}
       <div
         className={cn('relative w-full bg-[#1a3a0a]', compact ? 'aspect-[16/10]' : 'aspect-[16/9]')}
       >
@@ -93,7 +97,12 @@ export function TaskLibraryCard({
 
       <div className={cn('space-y-2', compact ? 'p-3' : 'p-4')}>
         <div className="flex items-start justify-between gap-2">
-          <h3 className={cn('font-semibold text-foreground leading-snug', compact ? 'text-sm line-clamp-2' : 'text-base line-clamp-2')}>
+          <h3
+            className={cn(
+              'font-semibold text-foreground leading-snug',
+              compact ? 'text-sm line-clamp-2' : 'text-base line-clamp-2'
+            )}
+          >
             {tarea.titulo}
           </h3>
           {onSelect && (
@@ -133,11 +142,6 @@ export function TaskLibraryCard({
               {tarea.estructura_equipos}
             </span>
           )}
-          {density && (
-            <span className={cn('rounded-md px-1.5 py-0.5 font-medium', density.bg, density.text)}>
-              {density.label}
-            </span>
-          )}
           {metodologia && (
             <span className="rounded-md bg-sky-50 px-1.5 py-0.5 font-medium text-sky-800">
               {metodologia}
@@ -146,27 +150,34 @@ export function TaskLibraryCard({
           {fase && (
             <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 font-medium text-emerald-800 line-clamp-1">
               {fase}
+              {subfase ? ` · ${subfase}` : ''}
+            </span>
+          )}
+          {orientacion && (
+            <span className="rounded-md bg-amber-50 px-1.5 py-0.5 font-medium text-amber-800">
+              {nombreOrientacionFisica(orientacion)}
             </span>
           )}
         </div>
 
-        {!compact && (tarea.principio_tactico || (tarea.consignas_ofensivas?.length ?? 0) > 0 || (tarea.consignas_defensivas?.length ?? 0) > 0) && (
+        {!compact && (objTac || objTec) && (
           <div className="pt-1 border-t border-border/60 space-y-1">
-            {tarea.principio_tactico && (
+            {objTac && (
               <p className="text-xs text-muted-foreground line-clamp-1">
-                <span className="font-medium text-foreground/80">Principio:</span> {tarea.principio_tactico}
+                <span className="font-medium text-foreground/80">Táctico:</span>{' '}
+                {nombreObjetivoTactico(objTac)}
+                {(tarea.objetivos_tacticos?.length || 0) > 1
+                  ? ` +${(tarea.objetivos_tacticos!.length - 1)}`
+                  : ''}
               </p>
             )}
-            {(tarea.consignas_ofensivas?.length ?? 0) > 0 && (
+            {objTec && (
               <p className="text-xs text-muted-foreground line-clamp-1">
-                <span className="font-medium text-foreground/80">Of.:</span>{' '}
-                {tarea.consignas_ofensivas!.slice(0, 3).join(' · ')}
-              </p>
-            )}
-            {(tarea.consignas_defensivas?.length ?? 0) > 0 && (
-              <p className="text-xs text-muted-foreground line-clamp-1">
-                <span className="font-medium text-foreground/80">Def.:</span>{' '}
-                {tarea.consignas_defensivas!.slice(0, 3).join(' · ')}
+                <span className="font-medium text-foreground/80">Técnico:</span>{' '}
+                {nombreObjetivoTecnico(objTec)}
+                {(tarea.objetivos_tecnicos?.length || 0) > 1
+                  ? ` +${(tarea.objetivos_tecnicos!.length - 1)}`
+                  : ''}
               </p>
             )}
           </div>

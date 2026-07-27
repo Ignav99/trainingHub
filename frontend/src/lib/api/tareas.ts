@@ -109,6 +109,9 @@ interface ListTareasParams {
   fase_juego?: string
   modalidad?: string
   principio_tactico?: string
+  objetivo_tactico?: string
+  objetivo_tecnico?: string
+  orientacion_fisica?: string
   jugadores_min?: number
   jugadores_max?: number
   duracion_min?: number
@@ -116,12 +119,13 @@ interface ListTareasParams {
   nivel_cognitivo?: number
   solo_plantillas?: boolean
   solo_madres?: boolean
+  solo_variantes?: boolean
+  tipo_variante?: string
   tarea_origen_id?: string
   equipo_id?: string
   busqueda?: string
-  biblioteca?: boolean  // Modo biblioteca del club: muestra TODAS las tareas de la org
+  biblioteca?: boolean
   densidad?: string
-  // Filtros de preparación física
   es_complementaria?: boolean
   zona_cuerpo?: string
   objetivo_gym?: string

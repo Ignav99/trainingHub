@@ -451,14 +451,19 @@ export interface PaginatedResponse<T> {
 export interface TareaFiltros {
   categoria?: string
   fase_juego?: FaseJuego
+  modalidad?: string
   principio_tactico?: string
+  objetivo_tactico?: string
+  objetivo_tecnico?: string
+  orientacion_fisica?: string
   jugadores_min?: number
   jugadores_max?: number
   duracion_min?: number
   duracion_max?: number
-  nivel_cognitivo?: NivelCognitivo
-  tags?: string[]
   solo_plantillas?: boolean
+  solo_madres?: boolean
+  solo_variantes?: boolean
+  tipo_variante?: string
   equipo_id?: string
   busqueda?: string
 }

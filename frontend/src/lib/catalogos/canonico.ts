@@ -489,3 +489,24 @@ export const nombreMetodologia = (codigo: string) =>
   METODOLOGIAS_TAREA.find((m) => m.codigo === codigo)?.nombre || codigo
 export const nombreOrientacionFisica = (codigo: string) =>
   ORIENTACIONES_FISICAS.find((o) => o.codigo === codigo)?.nombre || codigo
+
+/** Nombre legible de subfase (principio_tactico) según fase. */
+export const nombreSubfase = (fase?: string | null, codigo?: string | null) => {
+  if (!codigo) return ''
+  const catalog = subfasesForFase(fase)
+  const hit = catalog?.find((s) => s.codigo === codigo)
+  return hit?.nombre || codigo.replace(/_/g, ' ')
+}
+
+/** Nombre legible de opción de subfase (subprincipio_tactico). */
+export const nombreOpcionSubfase = (
+  fase?: string | null,
+  subfase?: string | null,
+  opcion?: string | null
+) => {
+  if (!opcion) return ''
+  const catalog = subfasesForFase(fase)
+  const sf = catalog?.find((s) => s.codigo === subfase)
+  const hit = sf?.opciones?.find((o) => o.codigo === opcion)
+  return hit?.nombre || opcion.replace(/_/g, ' ')
+}
