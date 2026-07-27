@@ -34,6 +34,14 @@ class NivelCognitivo(int, Enum):
     ALTO = 3
 
 
+class ModalidadTarea(str, Enum):
+    """Enfoque metodológico de la tarea."""
+    ANALITICA = "analitica"
+    GLOBAL = "global"
+    COMPETITIVA = "competitiva"
+    GENERAL = "general"
+
+
 class TipoContraccion(str, Enum):
     """Tipos de contracción muscular."""
     CONCENTRICA = "concentrica"
@@ -142,6 +150,7 @@ class TareaBase(BaseModel):
     subprincipio_tactico: Optional[str] = None
     accion_tecnica: Optional[str] = None
     intencion_tactica: Optional[str] = None
+    modalidad: Optional[ModalidadTarea] = None
     
     # Carga física
     tipo_esfuerzo: Optional[str] = None
@@ -263,6 +272,7 @@ class TareaUpdate(BaseModel):
     subprincipio_tactico: Optional[str] = None
     accion_tecnica: Optional[str] = None
     intencion_tactica: Optional[str] = None
+    modalidad: Optional[ModalidadTarea] = None
 
     tipo_esfuerzo: Optional[str] = None
     ratio_trabajo_descanso: Optional[str] = None
@@ -355,6 +365,7 @@ class TareaFiltros(BaseModel):
     """Filtros para buscar tareas."""
     categoria: Optional[str] = None  # código de categoría
     fase_juego: Optional[FaseJuego] = None
+    modalidad: Optional[ModalidadTarea] = None
     principio_tactico: Optional[str] = None
     jugadores_min: Optional[int] = None
     jugadores_max: Optional[int] = None

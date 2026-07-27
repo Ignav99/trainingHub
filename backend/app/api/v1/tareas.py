@@ -23,6 +23,7 @@ from app.models import (
     TareaFiltros,
     FaseJuego,
     NivelCognitivo,
+    ModalidadTarea,
     ZonaCuerpo,
     ObjetivoGym,
     AITareaNueva,
@@ -239,6 +240,7 @@ async def list_tareas(
     # Filtros
     categoria: Optional[str] = None,
     fase_juego: Optional[FaseJuego] = None,
+    modalidad: Optional[ModalidadTarea] = None,
     principio_tactico: Optional[str] = None,
     jugadores_min: Optional[int] = Query(None, ge=1),
     jugadores_max: Optional[int] = Query(None, ge=1),
@@ -306,6 +308,9 @@ async def list_tareas(
     
     if fase_juego:
         query = query.eq("fase_juego", fase_juego.value)
+
+    if modalidad:
+        query = query.eq("modalidad", modalidad.value)
     
     if principio_tactico:
         query = query.ilike("principio_tactico", f"%{principio_tactico}%")

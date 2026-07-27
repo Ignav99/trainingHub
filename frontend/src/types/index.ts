@@ -156,6 +156,8 @@ export interface Tarea {
   subprincipio_tactico?: string
   accion_tecnica?: string
   intencion_tactica?: string
+  /** analitica | global | competitiva | general */
+  modalidad?: string
   
   // Carga física
   tipo_esfuerzo?: string

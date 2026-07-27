@@ -170,14 +170,23 @@ export const NIVELES_COGNITIVOS = [
 ] as const
 
 export const CATEGORIAS_TAREA = [
-  { codigo: 'RND', nombre: 'Rondo', grupo: 'campo' },
-  { codigo: 'JDP', nombre: 'Juego de posición', grupo: 'campo' },
-  { codigo: 'POS', nombre: 'Posesión', grupo: 'campo' },
+  // Tipología principal (campo)
+  { codigo: 'LUD', nombre: 'Juegos lúdicos', grupo: 'campo' },
+  { codigo: 'CIR', nombre: 'Circuitos físicos', grupo: 'campo' },
+  { codigo: 'RND', nombre: 'Rondos', grupo: 'campo' },
+  { codigo: 'RDP', nombre: 'Ruedas de pase', grupo: 'campo' },
+  { codigo: 'POS', nombre: 'Posesiones', grupo: 'campo' },
+  { codigo: 'JDP', nombre: 'Juegos de posición', grupo: 'campo' },
+  { codigo: 'FIN', nombre: 'Finalizaciones', grupo: 'campo' },
+  { codigo: 'SSG', nombre: 'Partido reducido', grupo: 'campo' },
+  { codigo: 'PCO', nombre: 'Partido condicionado', grupo: 'campo' },
+  { codigo: 'PRT', nombre: 'Partido', grupo: 'campo' },
+  { codigo: 'EST', nombre: 'Estiramientos', grupo: 'complementario' },
+  { codigo: 'ACT', nombre: 'Activaciones', grupo: 'complementario' },
+  // Legado / especializadas (siguen válidas)
   { codigo: 'EVO', nombre: 'Evoluciones', grupo: 'campo' },
   { codigo: 'AVD', nombre: 'Ataque vs defensa', grupo: 'campo' },
-  { codigo: 'PCO', nombre: 'Partido condicionado', grupo: 'campo' },
   { codigo: 'ACO', nombre: 'Acciones combinadas', grupo: 'campo' },
-  { codigo: 'SSG', nombre: 'Fútbol reducido', grupo: 'campo' },
   { codigo: 'ABP', nombre: 'Balón parado', grupo: 'campo' },
   { codigo: 'POR', nombre: 'Portero', grupo: 'campo' },
   { codigo: 'GYM', nombre: 'Fuerza / gym', grupo: 'complementario' },
@@ -185,6 +194,16 @@ export const CATEGORIAS_TAREA = [
   { codigo: 'MOV', nombre: 'Movilidad', grupo: 'complementario' },
   { codigo: 'RCF', nombre: 'Recuperación física', grupo: 'complementario' },
 ] as const
+
+/** Enfoque metodológico de la tarea (independiente del tipo). */
+export const MODALIDADES_TAREA = [
+  { codigo: 'analitica', nombre: 'Analítica', descripcion: 'Desglose técnico aislado' },
+  { codigo: 'global', nombre: 'Global', descripcion: 'Situaciones de juego con contexto' },
+  { codigo: 'competitiva', nombre: 'Competitiva', descripcion: 'Confrontación y marcador' },
+  { codigo: 'general', nombre: 'General', descripcion: 'Sin fútbol (movilidad, gym, etc.)' },
+] as const
+
+export type ModalidadTareaCodigo = (typeof MODALIDADES_TAREA)[number]['codigo']
 
 export const MATERIALES = [
   { codigo: 'balones', nombre: 'Balones' },
