@@ -20,13 +20,16 @@ import {
   type TareaEspacioPatch,
 } from '@/lib/tacticalMetrics'
 import {
+  CATEGORIAS_CAMPO,
+  CATEGORIAS_MARGEN,
+  CATEGORIAS_PORTERO,
   CATEGORIAS_TAREA,
   METODOLOGIAS_TAREA,
-  FASES_JUEGO,
   OBJETIVOS_TACTICOS,
   OBJETIVOS_TECNICOS,
   ORIENTACIONES_FISICAS,
 } from '@/lib/catalogos/canonico'
+import { FaseSubfasePicker } from '@/components/tareas/FaseSubfasePicker'
 import {
   computeComplejidadScore,
   complejidadToLabel,
@@ -44,6 +47,8 @@ export interface TareaCreatorData {
   descripcion?: string
   complejidad?: string
   fase_juego?: string
+  principio_tactico?: string
+  subprincipio_tactico?: string
   objetivos_tacticos: string[]
   objetivos_tecnicos: string[]
   orientaciones_fisicas: string[]
@@ -67,8 +72,11 @@ export interface TareaCreatorData {
   fc_esperada_min?: number
   fc_esperada_max?: number
   nivel_cognitivo?: number
+  es_complementaria?: boolean
   grafico_data?: TareaPizarraData
 }
+
+type CreatorVariant = 'campo' | 'margen' | 'portero' | 'all'
 
 interface TareaCreatorFullscreenProps {
   open: boolean
@@ -77,17 +85,31 @@ interface TareaCreatorFullscreenProps {
   onClonar?: () => void
   numJugadoresDefault?: number
   faseLabel?: string
+  /** Filtra tipos disponibles. Default: campo. */
+  variant?: CreatorVariant
+  /** Fuerza un tipo inicial (ej. TAM / POR). */
+  defaultCategoria?: string
+  title?: string
 }
 
-const emptyForm = (jugadores: number): TareaCreatorData => ({
+function categoriasForVariant(variant: CreatorVariant) {
+  if (variant === 'margen') return CATEGORIAS_MARGEN
+  if (variant === 'portero') return CATEGORIAS_PORTERO
+  if (variant === 'all') return CATEGORIAS_TAREA
+  return CATEGORIAS_CAMPO
+}
+
+const emptyForm = (jugadores: number, defaultCategoria?: string, variant?: CreatorVariant): TareaCreatorData => ({
   titulo: '',
-  categoria_id: undefined,
-  modalidad: undefined,
+  categoria_id: defaultCategoria,
+  modalidad: variant === 'margen' ? 'general' : undefined,
   num_jugadores_min: jugadores,
-  num_porteros: 0,
+  num_porteros: variant === 'portero' ? 1 : 0,
   descripcion: '',
   complejidad: '',
   fase_juego: undefined,
+  principio_tactico: undefined,
+  subprincipio_tactico: undefined,
   objetivos_tacticos: [],
   objetivos_tecnicos: [],
   orientaciones_fisicas: [],
@@ -101,6 +123,7 @@ const emptyForm = (jugadores: number): TareaCreatorData => ({
   dificultad: 3,
   complejidad_go: undefined,
   complejidad_pes: undefined,
+  es_complementaria: variant === 'margen',
   grafico_data: emptyTareaPizarra,
 })
 
@@ -114,8 +137,14 @@ export default function TareaCreatorFullscreen({
   onClonar,
   numJugadoresDefault = 16,
   faseLabel,
+  variant = 'campo',
+  defaultCategoria,
+  title,
 }: TareaCreatorFullscreenProps) {
-  const [form, setForm] = useState<TareaCreatorData>(() => emptyForm(numJugadoresDefault))
+  const categorias = useMemo(() => categoriasForVariant(variant), [variant])
+  const [form, setForm] = useState<TareaCreatorData>(() =>
+    emptyForm(numJugadoresDefault, defaultCategoria, variant)
+  )
   const [boardOpen, setBoardOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -123,12 +152,12 @@ export default function TareaCreatorFullscreen({
 
   useEffect(() => {
     if (open) {
-      setForm(emptyForm(numJugadoresDefault))
+      setForm(emptyForm(numJugadoresDefault, defaultCategoria, variant))
       setError(null)
       setBoardOpen(false)
       setEtiquetaDraft('')
     }
-  }, [open, numJugadoresDefault])
+  }, [open, numJugadoresDefault, defaultCategoria, variant])
 
   const set = useCallback(<K extends keyof TareaCreatorData>(key: K, value: TareaCreatorData[K]) => {
     setForm((f) => ({ ...f, [key]: value }))
@@ -196,9 +225,17 @@ export default function TareaCreatorFullscreen({
     return !!g && ((g.elements?.length || 0) + (g.arrows?.length || 0) + (g.zones?.length || 0) + (g.frames?.length || 0)) > 0
   }, [form.grafico_data])
 
-  const nombreCategoria = CATEGORIAS_TAREA.find((c) => c.codigo === form.categoria_id)?.nombre || ''
+  const nombreCategoria = categorias.find((c) => c.codigo === form.categoria_id)?.nombre || ''
   const tituloFinal = form.titulo.trim() || nombreCategoria
+  const headerTitle =
+    title ||
+    (variant === 'margen'
+      ? 'Crear trabajo al margen'
+      : variant === 'portero'
+        ? 'Crear ejercicio de portero'
+        : 'Crea tu ejercicio')
   const canSave = tituloFinal.length >= 3 && !!form.categoria_id && !!form.modalidad
+  const showFaseJuego = variant === 'campo' || variant === 'portero' || variant === 'all'
 
   const toggleOrientacion = (codigo: string) => {
     setForm((f) => {
@@ -265,7 +302,7 @@ export default function TareaCreatorFullscreen({
             <X className="h-5 w-5" />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold truncate">Crea tu ejercicio</h1>
+            <h1 className="text-lg font-bold truncate">{headerTitle}</h1>
             {faseLabel && (
               <p className="text-xs text-muted-foreground truncate">Se añadirá a {faseLabel}</p>
             )}
@@ -326,7 +363,7 @@ export default function TareaCreatorFullscreen({
                 onChange={(e) => set('categoria_id', e.target.value || undefined)}
               >
                 <option value="">Seleccionar tipo…</option>
-                {CATEGORIAS_TAREA.map((c) => (
+                {categorias.map((c) => (
                   <option key={c.codigo} value={c.codigo}>
                     {c.nombre}
                   </option>
@@ -349,7 +386,7 @@ export default function TareaCreatorFullscreen({
             </Field>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className={cn('grid gap-4', showFaseJuego ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2')}>
             <Field label="Jugadores" hint="Se sincroniza con monigotes de la pizarra si los hay.">
               <select
                 className={selectClass}
@@ -376,21 +413,25 @@ export default function TareaCreatorFullscreen({
                 ))}
               </select>
             </Field>
-            <Field label="Fase de juego">
-              <select
-                className={selectClass}
-                value={form.fase_juego || ''}
-                onChange={(e) => set('fase_juego', e.target.value || undefined)}
-              >
-                <option value="">—</option>
-                {FASES_JUEGO.map((f) => (
-                  <option key={f.codigo} value={f.codigo}>
-                    {f.nombre}
-                  </option>
-                ))}
-              </select>
-            </Field>
           </div>
+
+          {showFaseJuego && (
+            <FaseSubfasePicker
+              value={{
+                fase_juego: form.fase_juego,
+                principio_tactico: form.principio_tactico,
+                subprincipio_tactico: form.subprincipio_tactico,
+              }}
+              onChange={(patch) =>
+                setForm((f) => ({
+                  ...f,
+                  fase_juego: patch.fase_juego,
+                  principio_tactico: patch.principio_tactico,
+                  subprincipio_tactico: patch.subprincipio_tactico,
+                }))
+              }
+            />
+          )}
 
           <Field label="Descripción">
             <Textarea

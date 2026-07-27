@@ -26,15 +26,7 @@ import { Tarea } from '@/types'
 import TareaPizarraEditor from '@/components/tactical-board/TareaPizarraEditor'
 import { emptyTareaPizarra, type TareaPizarraData } from '@/components/tactical-board/types'
 import type { TareaEspacioPatch } from '@/lib/tacticalMetrics'
-
-const FASES_JUEGO = [
-  { value: 'ataque_organizado', label: 'Ataque Organizado' },
-  { value: 'defensa_organizada', label: 'Defensa Organizada' },
-  { value: 'transicion_ataque_defensa', label: 'Transicion Ataque-Defensa' },
-  { value: 'transicion_defensa_ataque', label: 'Transicion Defensa-Ataque' },
-  { value: 'balon_parado_ofensivo', label: 'Balon Parado Ofensivo' },
-  { value: 'balon_parado_defensivo', label: 'Balon Parado Defensivo' },
-]
+import { FaseSubfasePicker } from '@/components/tareas/FaseSubfasePicker'
 
 const DENSIDADES = [
   { value: 'alta', label: 'Alta' },
@@ -496,39 +488,21 @@ export default function EditarTareaPage() {
               <h2 className="text-lg font-semibold">Contenido tactico</h2>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Fase de juego
-              </label>
-              <select
-                value={formData.fase_juego || ''}
-                onChange={(e) => setFormData({ ...formData, fase_juego: e.target.value || undefined })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
-              >
-                <option value="">Seleccionar...</option>
-                {FASES_JUEGO.map((fase) => (
-                  <option key={fase.value} value={fase.value}>{fase.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {formData.fase_juego && principios.length > 0 && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Principio tactico
-                </label>
-                <select
-                  value={formData.principio_tactico || ''}
-                  onChange={(e) => setFormData({ ...formData, principio_tactico: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
-                >
-                  <option value="">Seleccionar...</option>
-                  {principios.map((p) => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-              </div>
-            )}
+            <FaseSubfasePicker
+              value={{
+                fase_juego: formData.fase_juego,
+                principio_tactico: formData.principio_tactico || undefined,
+                subprincipio_tactico: formData.subprincipio_tactico || undefined,
+              }}
+              onChange={(patch) =>
+                setFormData({
+                  ...formData,
+                  fase_juego: patch.fase_juego,
+                  principio_tactico: patch.principio_tactico || '',
+                  subprincipio_tactico: patch.subprincipio_tactico || '',
+                })
+              }
+            />
 
             {/* Objetivos */}
             <div className="pt-4 border-t border-gray-200">

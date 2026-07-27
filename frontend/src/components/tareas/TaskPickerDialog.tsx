@@ -45,6 +45,12 @@ export interface TaskPickerDialogProps {
   onCreateManual?: () => void
   onAiCreate?: (prompt: string) => void | Promise<void>
   aiCreating?: boolean
+  /** Restrict available category options (and default filter). */
+  allowedCategorias?: string[]
+  defaultCategoria?: string
+  /** Hide methodology / fase filters (useful for margen/portero). */
+  compactFilters?: boolean
+  description?: string
 }
 
 const selectClass =
@@ -58,10 +64,20 @@ export function TaskPickerDialog({
   onCreateManual,
   onAiCreate,
   aiCreating = false,
+  allowedCategorias,
+  defaultCategoria = '',
+  compactFilters = false,
+  description,
 }: TaskPickerDialogProps) {
+  const categoriasOpts = useMemo(() => {
+    if (!allowedCategorias?.length) return CATEGORIAS_TAREA
+    const set = new Set(allowedCategorias)
+    return CATEGORIAS_TAREA.filter((c) => set.has(c.codigo))
+  }, [allowedCategorias])
+
   const [tab, setTab] = useState<'biblioteca' | 'crear'>('biblioteca')
   const [query, setQuery] = useState('')
-  const [categoria, setCategoria] = useState('')
+  const [categoria, setCategoria] = useState(defaultCategoria)
   const [modalidad, setModalidad] = useState('')
   const [faseJuego, setFaseJuego] = useState('')
   const [densidad, setDensidad] = useState('')
@@ -85,7 +101,8 @@ export function TaskPickerDialog({
     if (!open) return
     setTab('biblioteca')
     setSelectedId(null)
-  }, [open])
+    setCategoria(defaultCategoria || '')
+  }, [open, defaultCategoria])
 
   useEffect(() => {
     if (!open || tab !== 'biblioteca') return
@@ -102,10 +119,20 @@ export function TaskPickerDialog({
           nivel_cognitivo: nivelCognitivo ? Number(nivelCognitivo) : undefined,
           jugadores_min: jugadoresMin ? Number(jugadoresMin) : undefined,
           biblioteca: true,
-          limit: 40,
+          limit: 60,
         })
         if (cancelled) return
         let data = res.data || []
+        if (!categoria && allowedCategorias?.length) {
+          const allow = new Set(allowedCategorias)
+          data = data.filter((t) => {
+            const code =
+              (t as any).categoria_codigo ||
+              (t as any).categorias_tarea?.codigo ||
+              ''
+            return allow.has(code)
+          })
+        }
         if (contenidoOf) {
           data = data.filter((t) =>
             (t.objetivos_tacticos || t.tags || []).some(
@@ -154,7 +181,7 @@ export function TaskPickerDialog({
   }
 
   const clearFilters = () => {
-    setCategoria('')
+    setCategoria(defaultCategoria || '')
     setModalidad('')
     setFaseJuego('')
     setDensidad('')
@@ -175,7 +202,8 @@ export function TaskPickerDialog({
         <DialogHeader className="px-5 pt-5 pb-3 border-b shrink-0">
           <DialogTitle>Añadir tarea a {faseLabel}</DialogTitle>
           <DialogDescription>
-            Explora la biblioteca con detalle: pizarra, descripción y filtros. Elige la que encaje.
+            {description ||
+              'Explora la biblioteca con detalle: pizarra, descripción y filtros. Elige la que encaje.'}
           </DialogDescription>
           <div className="flex gap-1 pt-2">
             <button
@@ -216,66 +244,70 @@ export function TaskPickerDialog({
               </div>
               <div className="flex flex-wrap gap-2 items-center">
                 <select className={selectClass} value={categoria} onChange={(e) => setCategoria(e.target.value)}>
-                  <option value="">Tipo</option>
-                  {CATEGORIAS_TAREA.map((c) => (
+                  <option value="">{categoriasOpts.length === 1 ? categoriasOpts[0].nombre : 'Tipo'}</option>
+                  {categoriasOpts.map((c) => (
                     <option key={c.codigo} value={c.codigo}>{c.nombre}</option>
                   ))}
                 </select>
-                <select className={selectClass} value={modalidad} onChange={(e) => setModalidad(e.target.value)}>
-                  <option value="">Metodología</option>
-                  {METODOLOGIAS_TAREA.map((m) => (
-                    <option key={m.codigo} value={m.codigo}>{m.nombre}</option>
-                  ))}
-                </select>
-                <select className={selectClass} value={faseJuego} onChange={(e) => setFaseJuego(e.target.value)}>
-                  <option value="">Fase de juego</option>
-                  {FASES_JUEGO.map((f) => (
-                    <option key={f.codigo} value={f.codigo}>{f.nombre}</option>
-                  ))}
-                </select>
-                <select className={selectClass} value={densidad} onChange={(e) => setDensidad(e.target.value)}>
-                  <option value="">Densidad</option>
-                  {DENSIDADES.map((d) => (
-                    <option key={d.codigo} value={d.codigo}>{d.nombre}</option>
-                  ))}
-                </select>
-                <select className={selectClass} value={nivelCognitivo} onChange={(e) => setNivelCognitivo(e.target.value)}>
-                  <option value="">Cognitivo</option>
-                  {NIVELES_COGNITIVOS.map((n) => (
-                    <option key={n.codigo} value={String(n.codigo)}>{n.nombre}</option>
-                  ))}
-                </select>
-                <select className={selectClass} value={contenidoOf} onChange={(e) => setContenidoOf(e.target.value)}>
-                  <option value="">Objetivo táctico</option>
-                  {OBJETIVOS_TACTICOS.map((c) => (
-                    <option key={c.codigo} value={c.codigo}>{c.nombre}</option>
-                  ))}
-                </select>
-                <select className={selectClass} value={contenidoDef} onChange={(e) => setContenidoDef(e.target.value)}>
-                  <option value="">Objetivo técnico</option>
-                  {OBJETIVOS_TECNICOS.map((c) => (
-                    <option key={c.codigo} value={c.codigo}>{c.nombre}</option>
-                  ))}
-                </select>
-                <select
-                  className={selectClass}
-                  value={orientacionFisica}
-                  onChange={(e) => setOrientacionFisica(e.target.value)}
-                >
-                  <option value="">Orientación física</option>
-                  {ORIENTACIONES_FISICAS.map((o) => (
-                    <option key={o.codigo} value={o.codigo}>{o.nombre}</option>
-                  ))}
-                </select>
-                <Input
-                  type="number"
-                  min={1}
-                  max={30}
-                  placeholder="Jug. mín"
-                  className="h-9 w-24"
-                  value={jugadoresMin}
-                  onChange={(e) => setJugadoresMin(e.target.value)}
-                />
+                {!compactFilters && (
+                  <>
+                    <select className={selectClass} value={modalidad} onChange={(e) => setModalidad(e.target.value)}>
+                      <option value="">Metodología</option>
+                      {METODOLOGIAS_TAREA.map((m) => (
+                        <option key={m.codigo} value={m.codigo}>{m.nombre}</option>
+                      ))}
+                    </select>
+                    <select className={selectClass} value={faseJuego} onChange={(e) => setFaseJuego(e.target.value)}>
+                      <option value="">Fase de juego</option>
+                      {FASES_JUEGO.map((f) => (
+                        <option key={f.codigo} value={f.codigo}>{f.nombre}</option>
+                      ))}
+                    </select>
+                    <select className={selectClass} value={densidad} onChange={(e) => setDensidad(e.target.value)}>
+                      <option value="">Densidad</option>
+                      {DENSIDADES.map((d) => (
+                        <option key={d.codigo} value={d.codigo}>{d.nombre}</option>
+                      ))}
+                    </select>
+                    <select className={selectClass} value={nivelCognitivo} onChange={(e) => setNivelCognitivo(e.target.value)}>
+                      <option value="">Cognitivo</option>
+                      {NIVELES_COGNITIVOS.map((n) => (
+                        <option key={n.codigo} value={String(n.codigo)}>{n.nombre}</option>
+                      ))}
+                    </select>
+                    <select className={selectClass} value={contenidoOf} onChange={(e) => setContenidoOf(e.target.value)}>
+                      <option value="">Objetivo táctico</option>
+                      {OBJETIVOS_TACTICOS.map((c) => (
+                        <option key={c.codigo} value={c.codigo}>{c.nombre}</option>
+                      ))}
+                    </select>
+                    <select className={selectClass} value={contenidoDef} onChange={(e) => setContenidoDef(e.target.value)}>
+                      <option value="">Objetivo técnico</option>
+                      {OBJETIVOS_TECNICOS.map((c) => (
+                        <option key={c.codigo} value={c.codigo}>{c.nombre}</option>
+                      ))}
+                    </select>
+                    <select
+                      className={selectClass}
+                      value={orientacionFisica}
+                      onChange={(e) => setOrientacionFisica(e.target.value)}
+                    >
+                      <option value="">Orientación física</option>
+                      {ORIENTACIONES_FISICAS.map((o) => (
+                        <option key={o.codigo} value={o.codigo}>{o.nombre}</option>
+                      ))}
+                    </select>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={30}
+                      placeholder="Jug. mín"
+                      className="h-9 w-24"
+                      value={jugadoresMin}
+                      onChange={(e) => setJugadoresMin(e.target.value)}
+                    />
+                  </>
+                )}
                 {hasFilters && (
                   <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
                     <X className="h-3.5 w-3.5 mr-1" />

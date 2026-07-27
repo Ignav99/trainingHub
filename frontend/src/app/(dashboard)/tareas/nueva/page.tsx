@@ -19,13 +19,13 @@ import {
   type TareaEspacioPatch,
 } from '@/lib/tacticalMetrics'
 import {
-  CATEGORIAS_TAREA,
+  CATEGORIAS_CAMPO,
   METODOLOGIAS_TAREA,
-  FASES_JUEGO,
   OBJETIVOS_TACTICOS,
   OBJETIVOS_TECNICOS,
   ORIENTACIONES_FISICAS,
 } from '@/lib/catalogos/canonico'
+import { FaseSubfasePicker } from '@/components/tareas/FaseSubfasePicker'
 import {
   computeComplejidadScore,
   complejidadToLabel,
@@ -59,6 +59,8 @@ export default function NuevaTareaPage() {
     num_porteros: 0,
     descripcion: '',
     fase_juego: '',
+    principio_tactico: '' as string,
+    subprincipio_tactico: '' as string,
     objetivos_tacticos: [] as string[],
     objetivos_tecnicos: [] as string[],
     orientaciones_fisicas: [] as string[],
@@ -76,7 +78,7 @@ export default function NuevaTareaPage() {
     setForm((f) => ({ ...f, [key]: value }))
 
   const duracion_total = Math.max(1, form.num_series * form.duracion_serie)
-  const nombreCategoria = CATEGORIAS_TAREA.find((c) => c.codigo === form.categoria_id)?.nombre || ''
+  const nombreCategoria = CATEGORIAS_CAMPO.find((c) => c.codigo === form.categoria_id)?.nombre || ''
   const tituloFinal = form.titulo.trim() || nombreCategoria
   const canSave = tituloFinal.length >= 3 && !!form.categoria_id && !!form.modalidad
 
@@ -162,6 +164,8 @@ export default function NuevaTareaPage() {
         num_porteros: base.num_porteros,
         descripcion: base.descripcion || undefined,
         fase_juego: base.fase_juego || undefined,
+        principio_tactico: base.principio_tactico || undefined,
+        subprincipio_tactico: base.subprincipio_tactico || undefined,
         objetivos_tacticos: base.objetivos_tacticos,
         objetivos_tecnicos: base.objetivos_tecnicos,
         orientaciones_fisicas: base.orientaciones_fisicas,
@@ -249,7 +253,7 @@ export default function NuevaTareaPage() {
           <Field label="Tipo de tarea *">
             <select className={selectClass} value={form.categoria_id} onChange={(e) => set('categoria_id', e.target.value)}>
               <option value="">Seleccionar tipo…</option>
-              {CATEGORIAS_TAREA.map((c) => (
+              {CATEGORIAS_CAMPO.map((c) => (
                 <option key={c.codigo} value={c.codigo}>
                   {c.nombre}
                 </option>
@@ -267,7 +271,7 @@ export default function NuevaTareaPage() {
             </select>
           </Field>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Jugadores">
             <Input
               type="number"
@@ -284,17 +288,22 @@ export default function NuevaTareaPage() {
               onChange={(e) => set('num_porteros', parseInt(e.target.value) || 0)}
             />
           </Field>
-          <Field label="Fase de juego">
-            <select className={selectClass} value={form.fase_juego} onChange={(e) => set('fase_juego', e.target.value)}>
-              <option value="">—</option>
-              {FASES_JUEGO.map((f) => (
-                <option key={f.codigo} value={f.codigo}>
-                  {f.nombre}
-                </option>
-              ))}
-            </select>
-          </Field>
         </div>
+        <FaseSubfasePicker
+          value={{
+            fase_juego: form.fase_juego || undefined,
+            principio_tactico: form.principio_tactico || undefined,
+            subprincipio_tactico: form.subprincipio_tactico || undefined,
+          }}
+          onChange={(patch) =>
+            setForm((f) => ({
+              ...f,
+              fase_juego: patch.fase_juego || '',
+              principio_tactico: patch.principio_tactico || '',
+              subprincipio_tactico: patch.subprincipio_tactico || '',
+            }))
+          }
+        />
         <Field label="Descripción">
           <Textarea value={form.descripcion} onChange={(e) => set('descripcion', e.target.value)} rows={3} />
         </Field>
