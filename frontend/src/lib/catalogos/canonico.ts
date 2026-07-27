@@ -170,6 +170,7 @@ export const NIVELES_COGNITIVOS = [
 ] as const
 
 export const CATEGORIAS_TAREA = [
+  // Campo
   { codigo: 'LUD', nombre: 'Juegos lúdicos', grupo: 'campo', descripcion: 'Dinámicas lúdicas de activación y cohesión, alejadas del modelo de juego.' },
   { codigo: 'CIR', nombre: 'Circuitos físicos', grupo: 'campo', descripcion: 'Secuencia de estaciones o postas con estímulo condicional (fuerza, agilidad, etc.).' },
   { codigo: 'RND', nombre: 'Rondos', grupo: 'campo', descripcion: 'Mantenimiento en espacio reducido: conservar el balón vs presión inmediata.' },
@@ -181,11 +182,38 @@ export const CATEGORIAS_TAREA = [
   { codigo: 'SSG', nombre: 'Partido reducido', grupo: 'campo', descripcion: 'Juego reducido (SSG) con oposición real y espacio acotado.' },
   { codigo: 'PCO', nombre: 'Partido condicionado', grupo: 'campo', descripcion: 'Partido con reglas o condicionantes que orientan el comportamiento táctico.' },
   { codigo: 'PRT', nombre: 'Partido', grupo: 'campo', descripcion: 'Partido completo o simulación competitiva sin condicionantes artificiales.' },
+  // Porteros
+  { codigo: 'POR', nombre: 'Porteros', grupo: 'portero', descripcion: 'Ejercicios específicos de portero: técnica, táctica y juego.' },
+  // Trabajo al margen / PF complementaria
+  { codigo: 'TAM', nombre: 'Trabajo al margen', grupo: 'margen', descripcion: 'Trabajo individual al margen de la sesión (RTP, readaptación, PF personalizada).' },
+  { codigo: 'GYM', nombre: 'Fuerza / Gimnasio', grupo: 'margen', descripcion: 'Fuerza y potencia en gimnasio.' },
+  { codigo: 'PRV', nombre: 'Prevención', grupo: 'margen', descripcion: 'Protocolos de prevención de lesiones.' },
+  { codigo: 'MOV', nombre: 'Movilidad', grupo: 'margen', descripcion: 'Movilidad articular, flexibilidad y foam rolling.' },
+  { codigo: 'RCF', nombre: 'Recuperación física', grupo: 'margen', descripcion: 'Protocolos de recuperación activa y post-esfuerzo.' },
   { codigo: 'EST', nombre: 'Estiramientos', grupo: 'complementario', descripcion: 'Movilidad y vuelta a la calma (estiramientos).' },
   { codigo: 'ACT', nombre: 'Activaciones', grupo: 'complementario', descripcion: 'Activación neuromuscular y preparación previa a la sesión o al partido.' },
 ] as const
 
 export type CategoriaTareaCodigo = (typeof CATEGORIAS_TAREA)[number]['codigo']
+export type CategoriaGrupo = (typeof CATEGORIAS_TAREA)[number]['grupo']
+
+/** Tipos de campo (diseño de sesión). */
+export const CATEGORIAS_CAMPO = CATEGORIAS_TAREA.filter((c) => c.grupo === 'campo')
+/** Tipos para trabajo al margen / PF. */
+export const CATEGORIAS_MARGEN = CATEGORIAS_TAREA.filter(
+  (c) => c.grupo === 'margen' || c.grupo === 'complementario'
+)
+/** Tipos de porteros. */
+export const CATEGORIAS_PORTERO = CATEGORIAS_TAREA.filter((c) => c.grupo === 'portero')
+
+export const subfasesForFase = (fase?: string | null) => {
+  if (fase === 'ataque_organizado') return SUBFASES_ATAQUE
+  if (fase === 'defensa_organizada') return SUBFASES_DEFENSA
+  return null
+}
+
+export const nombreCategoriaTarea = (codigo: string) =>
+  CATEGORIAS_TAREA.find((c) => c.codigo === codigo)?.nombre || codigo
 
 /**
  * Metodología de la tarea (cómo se enseña / se estructura el estímulo).

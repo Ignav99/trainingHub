@@ -2,18 +2,20 @@
 
 ## Branch: `cursor/microciclos-tareas-ux-ae84` (2026-07-27)
 
-### Latest (diseño tareas v2)
-- **Una página + scroll** en creador y `/tareas/nueva` (no wizard por pasos).
-- Tipología fija (12): LUD, CIR, RND, RDP, POS, JDP, FIN, SSG, PCO, PRT, EST, ACT.
-- Metodología: analítica | global | competitiva | general (nombres de literatura).
-- Objetivos tácticos / técnicos separados; orientación física: activación, fuerza, resistencia, velocidad + etiquetas PF.
-- **Densidad + nivel cognitivo automáticos** vía `computeTaskLoadMetrics` / `apply_auto_load` (mismas bandas m²/jugador FE+BE). No editables en UI.
-- Migraciones: **064** (modalidad+tipos), **065** (objetivos_* + orientaciones_fisicas).
+### Latest — subfases + margen + porteros
+- **Subfases** al elegir ataque/defensa organizada (`FaseSubfasePicker`) en creador, nueva, editar. Persistencia: `principio_tactico` / `subprincipio_tactico`.
+- **Convocatoria**: pestañas Asistencia | Trabajo al margen → `MargenPanel` con TaskPicker + TareaCreator (`variant=margen`, cat TAM).
+- **Porteros**: `GKTrainingSection` usa TaskPickerDialog + creator POR (misma calidad biblioteca).
+- Catálogo: TAM, POR, GYM, PRV, MOV, RCF + helpers `CATEGORIAS_CAMPO|MARGEN|PORTERO`.
+- Migración **066** TAM/POR sync.
+
+### Prev
+- PR #189: desplegables, EVO, SIATE, carga pizarra
+- PR #188: tipología, scroll, objetivos, auto-carga
 
 ### Key files
+- `frontend/src/components/tareas/FaseSubfasePicker.tsx`
+- `frontend/src/components/margen/MargenPanel.tsx`
+- `frontend/src/components/portero/GKTrainingSection.tsx`
 - `frontend/src/lib/catalogos/canonico.ts`
-- `frontend/src/lib/tacticalMetrics.ts` (`computeTaskLoadMetrics`, `applyAutoLoadToTarea`)
-- `frontend/src/components/tareas/TareaCreatorFullscreen.tsx`
-- `frontend/src/app/(dashboard)/tareas/nueva/page.tsx`
-- `backend/app/services/task_load_metrics.py`
-- `backend/database/migrations/065_tareas_objetivos_orientacion.sql`
+- `backend/database/migrations/066_tareas_margen_portero.sql`
