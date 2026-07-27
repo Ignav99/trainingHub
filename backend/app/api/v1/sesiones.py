@@ -146,7 +146,8 @@ def _sanitize_tarea_constraints(tarea_data: dict) -> dict:
 
 # Valid columns in the 'tareas' table — used to filter AI/user input before DB insert
 VALID_TAREA_COLUMNS = {
-    "titulo", "descripcion", "duracion_total", "num_jugadores_min", "num_jugadores_max",
+    "titulo", "descripcion", "desarrollo", "reglas", "anotaciones",
+    "duracion_total", "num_jugadores_min", "num_jugadores_max",
     "espacio_largo", "espacio_ancho", "reglas_tecnicas", "reglas_tacticas",
     "consignas_ofensivas", "consignas_defensivas", "errores_comunes",
     "variantes", "progresiones", "estructura_equipos", "material",
@@ -159,6 +160,7 @@ VALID_TAREA_COLUMNS = {
     "fc_esperada_min", "fc_esperada_max", "grafico_svg",
     "modalidad", "objetivos_tacticos", "objetivos_tecnicos",
     "orientaciones_fisicas", "etiquetas_fisicas",
+    "tarea_origen_id", "tipo_variante", "es_publica", "es_plantilla",
 }
 
 from app.models import (
@@ -1407,6 +1409,9 @@ async def ai_edit_tarea(
 class CrearTareaEnSesionRequest(BaseModel):
     titulo: str = Field(..., min_length=3, max_length=255)
     descripcion: Optional[str] = None
+    desarrollo: Optional[str] = None
+    reglas: Optional[str] = None
+    anotaciones: Optional[str] = None
     duracion_total: int = Field(default=10, ge=1)
     fase_sesion: str = Field(default="desarrollo_1")
     num_jugadores_min: int = Field(default=1, ge=0)
@@ -1416,6 +1421,7 @@ class CrearTareaEnSesionRequest(BaseModel):
     espacio_ancho: Optional[Union[int, float]] = None
     fase_juego: Optional[str] = None
     principio_tactico: Optional[str] = None
+    subprincipio_tactico: Optional[str] = None
     densidad: Optional[str] = None
     nivel_cognitivo: Optional[int] = None
     num_series: Optional[int] = None
@@ -1429,6 +1435,11 @@ class CrearTareaEnSesionRequest(BaseModel):
     variantes: Optional[Any] = None
     # Formulario "Crea tu ejercicio"
     categoria_id: Optional[str] = None
+    modalidad: Optional[str] = None
+    objetivos_tacticos: Optional[Any] = None
+    objetivos_tecnicos: Optional[Any] = None
+    orientaciones_fisicas: Optional[Any] = None
+    etiquetas_fisicas: Optional[Any] = None
     num_porteros: Optional[int] = None
     espacio_forma: Optional[str] = None
     duracion_serie: Optional[int] = None
@@ -1444,6 +1455,9 @@ class CrearTareaEnSesionRequest(BaseModel):
     tipo_esfuerzo: Optional[str] = None
     fc_esperada_min: Optional[int] = None
     fc_esperada_max: Optional[int] = None
+    tarea_origen_id: Optional[str] = None
+    tipo_variante: Optional[str] = None
+    es_publica: Optional[bool] = True
 
 
 class AICrearTareaRequest(BaseModel):
@@ -1471,7 +1485,16 @@ async def crear_tarea_en_sesion(
     tarea_data = request.model_dump(exclude_none=True, exclude={"fase_sesion"})
     tarea_data = {k: v for k, v in tarea_data.items() if k in VALID_TAREA_COLUMNS}
     _sanitize_tarea_constraints(tarea_data)
+    # Sync narrativo: desarrollo ↔ descripcion
+    if tarea_data.get("desarrollo") and not tarea_data.get("descripcion"):
+        tarea_data["descripcion"] = tarea_data["desarrollo"]
+    elif tarea_data.get("descripcion") and not tarea_data.get("desarrollo"):
+        tarea_data["desarrollo"] = tarea_data["descripcion"]
+    if not tarea_data.get("tipo_variante") and not tarea_data.get("tarea_origen_id"):
+        tarea_data["tipo_variante"] = "original"
     tarea_data["es_plantilla"] = False
+    if "es_publica" not in tarea_data:
+        tarea_data["es_publica"] = True
     tarea_data["creado_por"] = str(auth.user_id)
     tarea_data["equipo_id"] = sesion.data.get("equipo_id")
     tarea_data["organizacion_id"] = str(auth.organizacion_id)

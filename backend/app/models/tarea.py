@@ -131,10 +131,13 @@ class TareaBase(BaseModel):
     
     # Descripción
     descripcion: Optional[str] = None
+    desarrollo: Optional[str] = None
+    reglas: Optional[str] = None
+    anotaciones: Optional[str] = None
     como_inicia: Optional[str] = None
     como_finaliza: Optional[str] = None
     
-    # Reglas de provocación
+    # Reglas de provocación (legacy arrays; preferir `reglas` texto)
     reglas_tecnicas: List[str] = Field(default_factory=list)
     reglas_tacticas: List[str] = Field(default_factory=list)
     reglas_psicologicas: List[str] = Field(default_factory=list)
@@ -143,6 +146,13 @@ class TareaBase(BaseModel):
     complejidad: Optional[str] = None
     dificultad: Optional[int] = Field(None, ge=1, le=5)
     exigencia: Optional[int] = Field(None, ge=1, le=5)
+    
+    # Familia madre → variantes
+    tarea_origen_id: Optional[UUID] = None
+    tipo_variante: Optional[str] = Field(
+        None,
+        description="original | progresion | regresion | adaptacion | contexto | reglas",
+    )
     
     # Contenido táctico
     fase_juego: Optional[FaseJuego] = None
@@ -261,6 +271,9 @@ class TareaUpdate(BaseModel):
     estructura_equipos: Optional[str] = None
 
     descripcion: Optional[str] = None
+    desarrollo: Optional[str] = None
+    reglas: Optional[str] = None
+    anotaciones: Optional[str] = None
     como_inicia: Optional[str] = None
     como_finaliza: Optional[str] = None
 
@@ -272,6 +285,9 @@ class TareaUpdate(BaseModel):
     complejidad: Optional[str] = None
     dificultad: Optional[int] = Field(None, ge=1, le=5)
     exigencia: Optional[int] = Field(None, ge=1, le=5)
+
+    tarea_origen_id: Optional[UUID] = None
+    tipo_variante: Optional[str] = None
 
     fase_juego: Optional[FaseJuego] = None
     principio_tactico: Optional[str] = None
@@ -346,6 +362,8 @@ class TareaResponse(TareaBase):
     # Campos enriquecidos (vienen del JOIN, no de la tabla)
     creador_nombre: Optional[str] = None
     equipo_nombre: Optional[str] = None
+    num_variantes: Optional[int] = None
+    madre_titulo: Optional[str] = None
 
     @computed_field
     @property
@@ -385,9 +403,26 @@ class TareaFiltros(BaseModel):
     tags: Optional[List[str]] = None
     solo_plantillas: bool = False
     solo_publicas: bool = False
+    solo_madres: bool = False
+    tarea_origen_id: Optional[UUID] = None
     equipo_id: Optional[UUID] = None
     busqueda: Optional[str] = None  # búsqueda en título/descripción
     # Filtros de preparación física
     es_complementaria: Optional[bool] = None
     zona_cuerpo: Optional[ZonaCuerpo] = None
     objetivo_gym: Optional[ObjetivoGym] = None
+
+
+class CrearVarianteRequest(BaseModel):
+    """Crear una variante a partir de una tarea madre."""
+    tipo_variante: str = Field(
+        default="adaptacion",
+        pattern="^(progresion|regresion|adaptacion|contexto|reglas)$",
+    )
+    titulo: Optional[str] = Field(None, min_length=3, max_length=255)
+    desarrollo: Optional[str] = None
+    reglas: Optional[str] = None
+    anotaciones: Optional[str] = None
+    objetivos_tacticos: Optional[List[str]] = None
+    objetivos_tecnicos: Optional[List[str]] = None
+    es_publica: Optional[bool] = True

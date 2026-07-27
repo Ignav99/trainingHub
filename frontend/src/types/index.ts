@@ -135,10 +135,16 @@ export interface Tarea {
   
   // Descripción
   descripcion?: string
+  /** Qué se hace en la tarea (organización literal) */
+  desarrollo?: string
+  /** Reglas, condicionantes y variantes de juego de esta versión */
+  reglas?: string
+  /** Tips / errores comunes (opcional) */
+  anotaciones?: string
   como_inicia?: string
   como_finaliza?: string
   
-  // Reglas
+  // Reglas (legacy arrays)
   reglas_tecnicas: string[]
   reglas_tacticas: string[]
   reglas_psicologicas: string[]
@@ -149,6 +155,13 @@ export interface Tarea {
   dificultad?: number
   /** Escala 1-5 */
   exigencia?: number
+
+  /** Familia: apunta a la tarea madre (null = es madre) */
+  tarea_origen_id?: string
+  /** original | progresion | regresion | adaptacion | contexto | reglas */
+  tipo_variante?: string
+  num_variantes?: number
+  madre_titulo?: string
   
   // Contenido táctico
   fase_juego?: FaseJuego
