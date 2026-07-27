@@ -548,44 +548,92 @@ async def completar_sesiones_vencidas(
 
 @router.get("/share/{token}")
 async def get_sesion_by_share_token(token: str):
-    """Vista pública de solo lectura por share_token (resumen + tareas + RPE)."""
+    """Vista pública de solo lectura por share_token (contexto + tareas + RPE)."""
     supabase = get_supabase()
     response = supabase.table("sesiones").select(
         "id, titulo, fecha, match_day, rival, competicion, hora, lugar, "
         "objetivo_principal, keywords, fases_juego, subfases, abp_config, "
+        "contenidos_tecnicos_of, contenidos_tecnicos_def, "
         "objetivo_fisico, objetivo_psicologico, carga_sesion, intensidad_calculada, "
-        "duracion_total, estado, materiales, share_token, equipo_id"
+        "duracion_total, estado, materiales, share_token, equipo_id, "
+        "equipos(nombre, categoria)"
     ).eq("share_token", token).maybe_single().execute()
 
     if not response or not response.data:
         raise HTTPException(status_code=404, detail="Enlace no válido")
 
     sesion = normalize_sesion_row(response.data)
+    equipo = sesion.pop("equipos", None) or {}
+    sesion["equipo_nombre"] = equipo.get("nombre") if isinstance(equipo, dict) else None
+
+    # Normalizar ABP lados
+    abp = sesion.get("abp_config")
+    if isinstance(abp, dict):
+        lados = abp.get("lados") or []
+        if not lados and abp.get("lado"):
+            lados = [abp["lado"]]
+        abp["lados"] = lados
+        sesion["abp_config"] = abp
+
     tareas_response = supabase.table("sesion_tareas").select(
         "orden, fase_sesion, duracion_override, carga_calculada, notas, "
-        "tareas(titulo, duracion_total, densidad, categorias_tarea(codigo, nombre))"
+        "tareas(id, titulo, duracion_total, densidad, desarrollo, descripcion, "
+        "reglas, objetivos_tacticos, objetivos_tecnicos, fase_juego, "
+        "principio_tactico, modalidad, grafico_data, "
+        "categorias_tarea(codigo, nombre))"
     ).eq("sesion_id", sesion["id"]).order("orden").execute()
 
     tareas = []
     for st in (tareas_response.data or []):
         t = st.pop("tareas", {}) or {}
         cat = t.pop("categorias_tarea", None) if isinstance(t, dict) else None
+        desc = (t.get("desarrollo") or t.get("descripcion") or "") if t else ""
+        if isinstance(desc, str) and len(desc) > 220:
+            desc = desc[:217].rsplit(" ", 1)[0] + "…"
+        # No enviamos grafico_data completo (pesado): solo flag
+        has_board = bool(t.get("grafico_data")) if t else False
         tareas.append({
             "orden": st.get("orden"),
+            "fase_sesion": st.get("fase_sesion"),
             "duracion": st.get("duracion_override") or (t.get("duracion_total") if t else 0),
             "carga_calculada": st.get("carga_calculada"),
             "titulo": t.get("titulo") if t else None,
+            "descripcion": desc,
             "categoria": cat,
             "notas": st.get("notas"),
+            "fase_juego": t.get("fase_juego") if t else None,
+            "modalidad": t.get("modalidad") if t else None,
+            "objetivos_tacticos": t.get("objetivos_tacticos") if t else [],
+            "objetivos_tecnicos": t.get("objetivos_tecnicos") if t else [],
+            "has_board": has_board,
+            "tarea_id": t.get("id") if t else None,
         })
 
-    # RPE agregado por tarea si existe tabla rpe_sesion / similar — best effort
+    # Convocatoria pública (nombres + tipos, sin datos médicos)
+    asistencia = []
+    try:
+        roster = supabase.table("asistencias_sesion").select(
+            "presente, tipo_participacion, motivo_ausencia, jugadores(nombre, apellidos, dorsal)"
+        ).eq("sesion_id", sesion["id"]).execute()
+        for a in roster.data or []:
+            j = a.get("jugadores") or {}
+            tipos = a.get("tipo_participacion") or (["sesion"] if a.get("presente") else [])
+            asistencia.append({
+                "nombre": j.get("nombre"),
+                "apellidos": j.get("apellidos"),
+                "dorsal": j.get("dorsal"),
+                "presente": bool(a.get("presente")),
+                "tipos": tipos if a.get("presente") else [],
+                "motivo_ausencia": a.get("motivo_ausencia") if not a.get("presente") else None,
+            })
+    except Exception:
+        pass
+
     rpe_por_tarea = []
     try:
         rpe_resp = supabase.table("rpe").select(
             "tarea_id, valor, jugador_id"
         ).eq("sesion_id", sesion["id"]).execute()
-        # Aggregate mean by tarea if present
         buckets: dict = {}
         for r in (rpe_resp.data or []):
             tid = r.get("tarea_id") or "_sesion"
@@ -603,6 +651,7 @@ async def get_sesion_by_share_token(token: str):
     return {
         "sesion": sesion,
         "tareas": tareas,
+        "asistencia": asistencia,
         "rpe_por_tarea": rpe_por_tarea,
     }
 
@@ -2077,9 +2126,12 @@ async def generate_pdf(
             detail=f"Error generando PDF: {str(e)}"
         )
 
-    # Subir a Storage
+    # Subir a Storage (ruta distinta por variante para no pisar el otro PDF)
     settings = get_settings()
-    storage_path = f"sesiones/{auth.organizacion_id}/{sesion_id}.pdf"
+    variant_key = (variant or "extendido").lower()
+    if variant_key not in ("reducido", "extendido"):
+        variant_key = "extendido"
+    storage_path = f"sesiones/{auth.organizacion_id}/{sesion_id}_{variant_key}.pdf"
 
     try:
         pdf_url = upload_file(
@@ -2089,16 +2141,19 @@ async def generate_pdf(
             content_type="application/pdf",
         )
 
-        # Guardar URL en la sesión
-        supabase.table("sesiones").update({
-            "pdf_url": pdf_url
-        }).eq("id", str(sesion_id)).execute()
+        # Guardar URL del extendido como pdf_url principal; reducido en campo aparte si existe
+        update_payload = {}
+        if variant_key == "extendido":
+            update_payload["pdf_url"] = pdf_url
+        if update_payload:
+            supabase.table("sesiones").update(update_payload).eq("id", str(sesion_id)).execute()
     except Exception:
         # Si falla el upload, devolvemos el PDF de todas formas
         pass
 
     # Devolver PDF como streaming response
-    disposition = "inline" if preview else f'attachment; filename="sesion_{sesion_id}.pdf"'
+    filename = f"sesion_{sesion_id}_{variant_key}.pdf"
+    disposition = "inline" if preview else f'attachment; filename="{filename}"'
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",

@@ -144,7 +144,12 @@ export function SesionDefinirForm({
     })
   }
 
-  const abp = value.abp_config || { activo: false, lado: null, tipos: [] }
+  const abp = value.abp_config || { activo: false, lado: null, lados: [], tipos: [] }
+  const abpLados: string[] = (() => {
+    if (abp.lados && abp.lados.length) return abp.lados
+    if (abp.lado) return [abp.lado]
+    return []
+  })()
 
   return (
     <div className={cn('space-y-6', className)}>
@@ -332,36 +337,63 @@ export function SesionDefinirForm({
         </div>
         {abp.activo && (
           <>
-            <div className="flex flex-wrap gap-1.5">
-              {LADOS_ABP.map((l) => (
-                <ChipToggle
-                  key={l.codigo}
-                  active={abp.lado === l.codigo}
-                  label={l.nombre}
-                  onClick={() => onChange({ abp_config: { ...abp, lado: l.codigo } })}
-                />
-              ))}
+            <div>
+              <p className="text-xs text-muted-foreground mb-1.5">
+                Lado (puedes marcar los dos)
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {LADOS_ABP.map((l) => {
+                  const on = abpLados.includes(l.codigo)
+                  return (
+                    <ChipToggle
+                      key={l.codigo}
+                      active={on}
+                      label={l.nombre}
+                      onClick={() => {
+                        const next = on
+                          ? abpLados.filter((x) => x !== l.codigo)
+                          : [...abpLados, l.codigo]
+                        onChange({
+                          abp_config: {
+                            ...abp,
+                            lados: next,
+                            lado: next[0] || null,
+                            tipos: abp.tipos || [],
+                          },
+                        })
+                      }}
+                    />
+                  )
+                })}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {TIPOS_ABP.map((t) => {
-                const tipos = abp.tipos || []
-                const on = tipos.includes(t.codigo)
-                return (
-                  <ChipToggle
-                    key={t.codigo}
-                    active={on}
-                    label={t.nombre}
-                    onClick={() =>
-                      onChange({
-                        abp_config: {
-                          ...abp,
-                          tipos: on ? tipos.filter((x) => x !== t.codigo) : [...tipos, t.codigo],
-                        },
-                      })
-                    }
-                  />
-                )
-              })}
+            <div>
+              <p className="text-xs text-muted-foreground mb-1.5">Tipos de balón parado</p>
+              <div className="flex flex-wrap gap-1.5">
+                {TIPOS_ABP.map((t) => {
+                  const tipos = abp.tipos || []
+                  const on = tipos.includes(t.codigo)
+                  return (
+                    <ChipToggle
+                      key={t.codigo}
+                      active={on}
+                      label={t.nombre}
+                      onClick={() =>
+                        onChange({
+                          abp_config: {
+                            ...abp,
+                            lados: abpLados,
+                            lado: abpLados[0] || abp.lado || null,
+                            tipos: on
+                              ? tipos.filter((x) => x !== t.codigo)
+                              : [...tipos, t.codigo],
+                          },
+                        })
+                      }
+                    />
+                  )
+                })}
+              </div>
             </div>
           </>
         )}

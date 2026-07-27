@@ -71,10 +71,24 @@ def prepare_sesion_write_payload(data: Dict[str, Any], *, synthesize: bool = Tru
             # Merge: mantener manuales + sintetizados
             out["keywords"] = synthesize_keywords(objetivo, keywords)
 
-    # ABP activo → asegurar abp_config
+    # ABP activo → asegurar abp_config + normalizar lados
     abp = out.get("abp_config")
-    if isinstance(abp, dict) and abp.get("activo") and not abp.get("tipos"):
+    if isinstance(abp, dict) and abp.get("activo"):
         abp["tipos"] = abp.get("tipos") or []
+        lados = abp.get("lados") or []
+        if not lados and abp.get("lado") in ("ofensivo", "defensivo"):
+            lados = [abp["lado"]]
+        lados = [x for x in lados if x in ("ofensivo", "defensivo")]
+        # unique preserve order
+        seen = set()
+        lados_u = []
+        for x in lados:
+            if x not in seen:
+                seen.add(x)
+                lados_u.append(x)
+        abp["lados"] = lados_u
+        abp["lado"] = lados_u[0] if lados_u else abp.get("lado")
+        out["abp_config"] = abp
 
     return out
 

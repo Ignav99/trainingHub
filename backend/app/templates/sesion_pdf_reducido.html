@@ -4,70 +4,173 @@
   <meta charset="utf-8" />
   <title>{{ sesion.titulo }} — Vestuario</title>
   <style>
-    @page { size: A4 portrait; margin: 14mm; }
+    @page { size: A4 portrait; margin: 8mm 9mm; }
     * { box-sizing: border-box; }
     body {
       font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
       color: #111;
-      font-size: 11px;
-      line-height: 1.35;
+      font-size: 9px;
+      line-height: 1.25;
+      margin: 0;
     }
     .header {
       display: flex;
       align-items: center;
-      gap: 14px;
-      border-bottom: 3px solid {{ color_primario }};
-      padding-bottom: 10px;
-      margin-bottom: 14px;
+      gap: 10px;
+      border-bottom: 2.5px solid {{ color_primario }};
+      padding-bottom: 6px;
+      margin-bottom: 8px;
     }
-    .logo { height: 48px; width: auto; max-width: 80px; object-fit: contain; }
-    .brand { flex: 1; }
-    .brand h1 { margin: 0; font-size: 18px; color: {{ color_primario }}; }
-    .brand .meta { color: #555; margin-top: 2px; }
+    .logo { height: 42px; width: auto; max-width: 70px; object-fit: contain; }
+    .brand { flex: 1; min-width: 0; }
+    .brand h1 { margin: 0; font-size: 15px; color: {{ color_primario }}; line-height: 1.15; }
+    .brand .meta { color: #555; margin-top: 1px; font-size: 9px; }
     .badge {
       background: {{ color_primario }};
       color: #fff;
-      padding: 6px 10px;
-      border-radius: 6px;
+      padding: 5px 8px;
+      border-radius: 5px;
       font-weight: 700;
-      font-size: 13px;
+      font-size: 11px;
+      white-space: nowrap;
     }
-    .grid {
+    .ctx {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px 18px;
-      margin-bottom: 12px;
+      grid-template-columns: 1.2fr 1fr 1fr 0.8fr;
+      gap: 4px 10px;
+      margin-bottom: 7px;
     }
-    .label { color: #666; font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em; }
-    .value { font-weight: 600; margin-top: 1px; }
+    .label { color: #666; font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.03em; }
+    .value { font-weight: 600; margin-top: 0; font-size: 9px; }
     .objetivo {
       background: #f5f7fa;
-      border-left: 4px solid {{ color_primario }};
-      padding: 8px 10px;
-      margin: 10px 0 14px;
+      border-left: 3px solid {{ color_primario }};
+      padding: 5px 8px;
+      margin: 0 0 7px;
     }
-    .keywords { margin-top: 6px; }
+    .objetivo .value { font-size: 9.5px; }
+    .keywords { margin-top: 3px; }
     .kw {
       display: inline-block;
       background: #e8eef5;
       color: #234;
-      padding: 2px 7px;
+      padding: 1px 5px;
       border-radius: 999px;
-      font-size: 9px;
-      margin: 2px 3px 0 0;
+      font-size: 7.5px;
+      margin: 1px 2px 0 0;
     }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid #e5e7eb; }
-    th { font-size: 9px; text-transform: uppercase; color: #666; }
+    .section-title {
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #444;
+      font-weight: 700;
+      margin: 6px 0 4px;
+      border-bottom: 1px solid #e5e7eb;
+      padding-bottom: 2px;
+    }
+    /* Convocatoria */
+    .roster {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr;
+      gap: 5px;
+      margin-bottom: 7px;
+    }
+    .roster-group {
+      border: 1px solid #e5e7eb;
+      border-radius: 5px;
+      padding: 4px 5px;
+      min-height: 28px;
+    }
+    .roster-h {
+      font-size: 7.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 3px;
+      padding: 1px 4px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+    .h-sesion { background: #dbeafe; color: #1e40af; }
+    .h-fisio { background: #f3e8ff; color: #6b21a8; }
+    .h-margen { background: #fef3c7; color: #92400e; }
+    .h-ausente { background: #fee2e2; color: #991b1b; }
+    .player {
+      font-size: 7.5px;
+      padding: 1px 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .dorsal { font-weight: 700; color: #555; margin-right: 2px; }
+    .chip {
+      display: inline-block;
+      font-size: 6.5px;
+      font-weight: 700;
+      padding: 0 3px;
+      border-radius: 2px;
+      margin-left: 2px;
+      vertical-align: middle;
+    }
+    .chip-fisio { background: #e9d5ff; color: #6b21a8; }
+    .chip-margen { background: #fde68a; color: #92400e; }
+    .chip-sesion { background: #bfdbfe; color: #1e40af; }
+    .motivo { color: #b91c1c; font-size: 6.5px; margin-left: 2px; }
+
+    /* Tareas grid */
+    .tasks {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px 7px;
+    }
+    .task {
+      border: 1px solid #e5e7eb;
+      border-radius: 5px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: row;
+      min-height: 58px;
+      page-break-inside: avoid;
+    }
+    .task-board {
+      width: 72px;
+      min-width: 72px;
+      background: #1a3a0a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .task-board svg { width: 70px; height: 48px; }
+    .task-board .empty { color: #9ca3af; font-size: 7px; padding: 4px; text-align: center; }
+    .task-body { flex: 1; padding: 4px 5px; min-width: 0; }
+    .task-top { display: flex; justify-content: space-between; gap: 4px; align-items: baseline; }
+    .task-orden { font-weight: 700; color: {{ color_primario }}; font-size: 8px; }
+    .task-min { color: #666; font-size: 7.5px; white-space: nowrap; }
+    .task-title { font-weight: 700; font-size: 8.5px; line-height: 1.15; margin: 1px 0; }
+    .task-desc {
+      color: #444;
+      font-size: 7.5px;
+      line-height: 1.2;
+      max-height: 2.4em;
+      overflow: hidden;
+    }
+    .task-cat {
+      display: inline-block;
+      background: #f1f5f9;
+      color: #334155;
+      font-size: 6.5px;
+      font-weight: 600;
+      padding: 0 3px;
+      border-radius: 2px;
+      margin-top: 2px;
+    }
     .footer {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      font-size: 9px;
+      margin-top: 6px;
+      font-size: 7px;
       color: #888;
       border-top: 1px solid #ddd;
-      padding-top: 6px;
+      padding-top: 3px;
+      text-align: center;
     }
   </style>
 </head>
@@ -78,12 +181,15 @@
     {% endif %}
     <div class="brand">
       <h1>{{ org_nombre or "TrainingHub" }}</h1>
-      <div class="meta">{{ equipo_nombre }}{% if rival %} · vs {{ rival }}{% endif %}</div>
+      <div class="meta">
+        {{ equipo_nombre }}{% if rival %} · vs {{ rival }}{% endif %}
+        {% if microciclo_nombre %} · {{ microciclo_nombre }}{% endif %}
+      </div>
     </div>
     <div class="badge">{{ match_day or "—" }}</div>
   </div>
 
-  <div class="grid">
+  <div class="ctx">
     <div>
       <div class="label">Sesión</div>
       <div class="value">{{ sesion.titulo }}</div>
@@ -97,14 +203,29 @@
       <div class="value">{{ lugar or sesion.lugar or "—" }}</div>
     </div>
     <div>
-      <div class="label">Duración / carga</div>
-      <div class="value">{{ duracion_total or 0 }} min · {{ intensidad or "—" }}</div>
+      <div class="label">Duración</div>
+      <div class="value">{{ duracion_total or 0 }}′ · {{ intensidad or "—" }}</div>
     </div>
   </div>
 
   <div class="objetivo">
-    <div class="label">Objetivo principal</div>
+    <div class="label">Objetivo / contexto</div>
     <div class="value">{{ sesion.objetivo_principal or "—" }}</div>
+    {% if objetivo_fisico or objetivo_psicologico %}
+    <div style="margin-top:2px;font-size:8px;color:#444">
+      {% if objetivo_fisico %}<strong>Físico:</strong> {{ objetivo_fisico }}{% endif %}
+      {% if objetivo_fisico and objetivo_psicologico %} · {% endif %}
+      {% if objetivo_psicologico %}<strong>Psico:</strong> {{ objetivo_psicologico }}{% endif %}
+    </div>
+    {% endif %}
+    {% if contenidos_of or contenidos_def or abp_label %}
+    <div style="margin-top:2px;font-size:7.5px;color:#555">
+      {% if contenidos_of %}<strong>Téc. of:</strong> {{ contenidos_of }}{% endif %}
+      {% if contenidos_of and contenidos_def %} · {% endif %}
+      {% if contenidos_def %}<strong>Téc. def:</strong> {{ contenidos_def }}{% endif %}
+      {% if abp_label %}{% if contenidos_of or contenidos_def %} · {% endif %}<strong>ABP:</strong> {{ abp_label }}{% endif %}
+    </div>
+    {% endif %}
     {% if keywords %}
     <div class="keywords">
       {% for k in keywords %}
@@ -114,32 +235,97 @@
     {% endif %}
   </div>
 
-  <div class="label" style="margin-bottom:6px">Tareas</div>
-  <table>
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Tarea</th>
-        <th>Cat.</th>
-        <th>Min</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for t in tareas_corta %}
-      <tr>
-        <td>{{ t.orden }}</td>
-        <td>{{ t.titulo }}</td>
-        <td>{{ t.categoria or "—" }}</td>
-        <td>{{ t.duracion }}</td>
-      </tr>
+  <div class="section-title">Convocatoria</div>
+  {% if asistencia_roster %}
+  <div class="roster">
+    <div class="roster-group">
+      <div class="roster-h h-sesion">Sesión ({{ g_sesion|length }})</div>
+      {% for p in g_sesion %}
+      <div class="player">
+        <span class="dorsal">{% if p.dorsal %}#{{ p.dorsal }}{% endif %}</span>
+        {{ p.nombre }} {{ (p.apellidos or '')[:1] }}.
+        {% if 'fisio' in p.tipos %}<span class="chip chip-fisio">FISIO</span>{% endif %}
+        {% if 'margen' in p.tipos %}<span class="chip chip-margen">MARGEN</span>{% endif %}
+      </div>
       {% else %}
-      <tr><td colspan="4">Sin tareas</td></tr>
+      <div class="player" style="color:#999">—</div>
       {% endfor %}
-    </tbody>
-  </table>
+    </div>
+    <div class="roster-group">
+      <div class="roster-h h-fisio">Fisio ({{ g_fisio|length }})</div>
+      {% for p in g_fisio %}
+      <div class="player">
+        <span class="dorsal">{% if p.dorsal %}#{{ p.dorsal }}{% endif %}</span>
+        {{ p.nombre }} {{ (p.apellidos or '')[:1] }}.
+        {% if 'sesion' in p.tipos %}<span class="chip chip-sesion">SES</span>{% endif %}
+        {% if 'margen' in p.tipos %}<span class="chip chip-margen">MARGEN</span>{% endif %}
+      </div>
+      {% else %}
+      <div class="player" style="color:#999">—</div>
+      {% endfor %}
+    </div>
+    <div class="roster-group">
+      <div class="roster-h h-margen">Margen ({{ g_margen|length }})</div>
+      {% for p in g_margen %}
+      <div class="player">
+        <span class="dorsal">{% if p.dorsal %}#{{ p.dorsal }}{% endif %}</span>
+        {{ p.nombre }} {{ (p.apellidos or '')[:1] }}.
+        {% if 'sesion' in p.tipos %}<span class="chip chip-sesion">SES</span>{% endif %}
+        {% if 'fisio' in p.tipos %}<span class="chip chip-fisio">FISIO</span>{% endif %}
+      </div>
+      {% else %}
+      <div class="player" style="color:#999">—</div>
+      {% endfor %}
+    </div>
+    <div class="roster-group">
+      <div class="roster-h h-ausente">Ausentes ({{ g_ausentes|length }})</div>
+      {% for p in g_ausentes %}
+      <div class="player">
+        <span class="dorsal">{% if p.dorsal %}#{{ p.dorsal }}{% endif %}</span>
+        {{ p.nombre }} {{ (p.apellidos or '')[:1] }}.
+        <span class="motivo">{{ p.tipo_display|replace('Ausente — ','') }}</span>
+      </div>
+      {% else %}
+      <div class="player" style="color:#999">—</div>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <div style="color:#999;margin-bottom:6px">Sin convocatoria registrada</div>
+  {% endif %}
+
+  <div class="section-title">Ejercicios ({{ tareas_corta|length }})</div>
+  <div class="tasks">
+    {% for t in tareas_corta %}
+    <div class="task">
+      <div class="task-board">
+        {% if t.svg_thumbnail %}
+          {{ t.svg_thumbnail|safe }}
+        {% else %}
+          <span class="empty">Sin<br/>pizarra</span>
+        {% endif %}
+      </div>
+      <div class="task-body">
+        <div class="task-top">
+          <span class="task-orden">{{ t.orden }}.</span>
+          <span class="task-min">{{ t.duracion }}′</span>
+        </div>
+        <div class="task-title">{{ t.titulo }}</div>
+        {% if t.descripcion %}
+        <div class="task-desc">{{ t.descripcion }}</div>
+        {% endif %}
+        {% if t.categoria %}
+        <span class="task-cat">{{ t.categoria }}</span>
+        {% endif %}
+      </div>
+    </div>
+    {% else %}
+    <div style="color:#999">Sin tareas</div>
+    {% endfor %}
+  </div>
 
   <div class="footer">
-    PDF reducido · {{ org_nombre }} · {{ sesion.fecha }}
+    PDF reducido · 1 folio A4 · {{ org_nombre }} · {{ sesion.fecha }}
   </div>
 </body>
 </html>
