@@ -42,6 +42,10 @@ export interface TareaCreateData {
   como_finaliza?: string
   fase_juego?: string
   modalidad?: string
+  objetivos_tacticos?: string[]
+  objetivos_tecnicos?: string[]
+  orientaciones_fisicas?: string[]
+  etiquetas_fisicas?: string[]
   principio_tactico?: string
   subprincipio_tactico?: string
   nivel_cognitivo?: number

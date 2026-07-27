@@ -26,12 +26,13 @@ import { TaskLibraryCard } from '@/components/tareas/TaskLibraryCard'
 import { tareasApi } from '@/lib/api/tareas'
 import {
   CATEGORIAS_TAREA,
-  MODALIDADES_TAREA,
+  METODOLOGIAS_TAREA,
   FASES_JUEGO,
   DENSIDADES,
   NIVELES_COGNITIVOS,
-  CONTENIDOS_OFENSIVOS,
-  CONTENIDOS_DEFENSIVOS,
+  OBJETIVOS_TACTICOS,
+  OBJETIVOS_TECNICOS,
+  ORIENTACIONES_FISICAS,
 } from '@/lib/catalogos/canonico'
 import { cn } from '@/lib/utils'
 import type { Tarea } from '@/types'
@@ -67,6 +68,7 @@ export function TaskPickerDialog({
   const [nivelCognitivo, setNivelCognitivo] = useState('')
   const [contenidoOf, setContenidoOf] = useState('')
   const [contenidoDef, setContenidoDef] = useState('')
+  const [orientacionFisica, setOrientacionFisica] = useState('')
   const [jugadoresMin, setJugadoresMin] = useState('')
   const [results, setResults] = useState<Tarea[]>([])
   const [loading, setLoading] = useState(false)
@@ -104,20 +106,22 @@ export function TaskPickerDialog({
         })
         if (cancelled) return
         let data = res.data || []
-        // Aspectos técnicos: filtro client-side (arrays JSONB)
         if (contenidoOf) {
           data = data.filter((t) =>
-            (t.consignas_ofensivas || []).some(
+            (t.objetivos_tacticos || t.tags || []).some(
               (c) => c === contenidoOf || c.toLowerCase().includes(contenidoOf.replace(/_/g, ' '))
             )
           )
         }
         if (contenidoDef) {
           data = data.filter((t) =>
-            (t.consignas_defensivas || []).some(
+            (t.objetivos_tecnicos || t.consignas_ofensivas || []).some(
               (c) => c === contenidoDef || c.toLowerCase().includes(contenidoDef.replace(/_/g, ' '))
             )
           )
+        }
+        if (orientacionFisica) {
+          data = data.filter((t) => (t.orientaciones_fisicas || []).includes(orientacionFisica))
         }
         setResults(data)
         if (data.length && !data.find((t) => t.id === selectedId)) {
@@ -137,7 +141,7 @@ export function TaskPickerDialog({
       clearTimeout(t)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, tab, query, categoria, modalidad, faseJuego, densidad, nivelCognitivo, jugadoresMin, contenidoOf, contenidoDef])
+  }, [open, tab, query, categoria, modalidad, faseJuego, densidad, nivelCognitivo, jugadoresMin, contenidoOf, contenidoDef, orientacionFisica])
 
   const handleAdd = async (tarea: Tarea) => {
     setAdding(true)
@@ -157,12 +161,13 @@ export function TaskPickerDialog({
     setNivelCognitivo('')
     setContenidoOf('')
     setContenidoDef('')
+    setOrientacionFisica('')
     setJugadoresMin('')
     setQuery('')
   }
 
   const hasFilters =
-    !!(categoria || modalidad || faseJuego || densidad || nivelCognitivo || contenidoOf || contenidoDef || jugadoresMin || query)
+    !!(categoria || modalidad || faseJuego || densidad || nivelCognitivo || contenidoOf || contenidoDef || orientacionFisica || jugadoresMin || query)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -217,8 +222,8 @@ export function TaskPickerDialog({
                   ))}
                 </select>
                 <select className={selectClass} value={modalidad} onChange={(e) => setModalidad(e.target.value)}>
-                  <option value="">Modalidad</option>
-                  {MODALIDADES_TAREA.map((m) => (
+                  <option value="">Metodología</option>
+                  {METODOLOGIAS_TAREA.map((m) => (
                     <option key={m.codigo} value={m.codigo}>{m.nombre}</option>
                   ))}
                 </select>
@@ -241,15 +246,25 @@ export function TaskPickerDialog({
                   ))}
                 </select>
                 <select className={selectClass} value={contenidoOf} onChange={(e) => setContenidoOf(e.target.value)}>
-                  <option value="">Aspecto ofensivo</option>
-                  {CONTENIDOS_OFENSIVOS.map((c) => (
+                  <option value="">Objetivo táctico</option>
+                  {OBJETIVOS_TACTICOS.map((c) => (
                     <option key={c.codigo} value={c.codigo}>{c.nombre}</option>
                   ))}
                 </select>
                 <select className={selectClass} value={contenidoDef} onChange={(e) => setContenidoDef(e.target.value)}>
-                  <option value="">Aspecto defensivo</option>
-                  {CONTENIDOS_DEFENSIVOS.map((c) => (
+                  <option value="">Objetivo técnico</option>
+                  {OBJETIVOS_TECNICOS.map((c) => (
                     <option key={c.codigo} value={c.codigo}>{c.nombre}</option>
+                  ))}
+                </select>
+                <select
+                  className={selectClass}
+                  value={orientacionFisica}
+                  onChange={(e) => setOrientacionFisica(e.target.value)}
+                >
+                  <option value="">Orientación física</option>
+                  {ORIENTACIONES_FISICAS.map((o) => (
+                    <option key={o.codigo} value={o.codigo}>{o.nombre}</option>
                   ))}
                 </select>
                 <Input
@@ -328,7 +343,7 @@ export function TaskPickerDialog({
                           )}
                           {selected.modalidad && (
                             <Badge variant="secondary">
-                              {MODALIDADES_TAREA.find((m) => m.codigo === selected.modalidad)?.nombre || selected.modalidad}
+                              {METODOLOGIAS_TAREA.find((m) => m.codigo === selected.modalidad)?.nombre || selected.modalidad}
                             </Badge>
                           )}
                         </div>

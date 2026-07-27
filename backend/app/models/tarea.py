@@ -151,6 +151,10 @@ class TareaBase(BaseModel):
     accion_tecnica: Optional[str] = None
     intencion_tactica: Optional[str] = None
     modalidad: Optional[ModalidadTarea] = None
+    objetivos_tacticos: List[str] = Field(default_factory=list)
+    objetivos_tecnicos: List[str] = Field(default_factory=list)
+    orientaciones_fisicas: List[str] = Field(default_factory=list)
+    etiquetas_fisicas: List[str] = Field(default_factory=list)
     
     # Carga física
     tipo_esfuerzo: Optional[str] = None
@@ -207,6 +211,8 @@ class TareaBase(BaseModel):
             "consignas_ofensivas", "consignas_defensivas", "errores_comunes",
             "tags", "variantes", "progresiones", "regresiones", "material",
             "grupo_muscular", "equipamiento",
+            "objetivos_tacticos", "objetivos_tecnicos",
+            "orientaciones_fisicas", "etiquetas_fisicas",
         ]
         for field in list_fields:
             val = data.get(field)
@@ -273,6 +279,10 @@ class TareaUpdate(BaseModel):
     accion_tecnica: Optional[str] = None
     intencion_tactica: Optional[str] = None
     modalidad: Optional[ModalidadTarea] = None
+    objetivos_tacticos: Optional[List[str]] = None
+    objetivos_tecnicos: Optional[List[str]] = None
+    orientaciones_fisicas: Optional[List[str]] = None
+    etiquetas_fisicas: Optional[List[str]] = None
 
     tipo_esfuerzo: Optional[str] = None
     ratio_trabajo_descanso: Optional[str] = None

@@ -392,7 +392,7 @@ export function boardSpaceSummary(
   }
 }
 
-/** Campos de `Tarea` que se pueden autocompletar desde la pizarra. */
+/** Campos de `Tarea` que se pueden autocompletar desde la pizarra / espacio. */
 export interface TareaEspacioPatch {
   espacio_largo: number
   espacio_ancho: number
@@ -402,6 +402,8 @@ export interface TareaEspacioPatch {
   tipo_esfuerzo?: string
   fc_esperada_min?: number
   fc_esperada_max?: number
+  /** Siempre derivado con la misma fórmula que la densidad (bandas m²/jugador). */
+  nivel_cognitivo?: 1 | 2 | 3
 }
 
 /** Convierte el resumen de la pizarra en el patch aplicable a la tarea. */
@@ -419,6 +421,83 @@ export function summaryToTareaPatch(summary: BoardSpaceSummary): TareaEspacioPat
     patch.tipo_esfuerzo = summary.clasificacion.tipoEsfuerzo
     patch.fc_esperada_min = summary.clasificacion.fcEsperada[0]
     patch.fc_esperada_max = summary.clasificacion.fcEsperada[1]
+    patch.nivel_cognitivo = summary.clasificacion.nivelCognitivo
   }
   return patch
+}
+
+/**
+ * Cálculo ÚNICO y estable de densidad + nivel cognitivo + esfuerzo.
+ * Misma fórmula siempre: área (m²) / jugadores de campo → bandas BANDAS / CAPACIDADES.
+ *
+ * Usar al finalizar/guardar cualquier tarea. No inventar modificadores por tipología.
+ */
+export interface TaskLoadInput {
+  espacio_largo?: number | null
+  espacio_ancho?: number | null
+  espacio_forma?: string | null
+  num_jugadores: number
+  num_porteros?: number
+}
+
+export interface TaskLoadResult {
+  m2_por_jugador: number
+  densidad: 'alta' | 'media' | 'baja'
+  nivel_cognitivo: 1 | 2 | 3
+  tipo_esfuerzo: string
+  fc_esperada_min: number
+  fc_esperada_max: number
+  franja: FranjaEspacial
+  capacidad: CapacidadInfo
+}
+
+export function computeTaskLoadMetrics(input: TaskLoadInput): TaskLoadResult | null {
+  const largo = Number(input.espacio_largo) || 0
+  const ancho = Number(input.espacio_ancho) || 0
+  const jugadoresCampo = Math.max(0, (Number(input.num_jugadores) || 0) - (Number(input.num_porteros) || 0))
+  const jugadores = jugadoresCampo > 0 ? jugadoresCampo : Number(input.num_jugadores) || 0
+  if (largo <= 0 || ancho <= 0 || jugadores <= 0) return null
+
+  const forma = input.espacio_forma || 'rectangular'
+  const areaM2 =
+    forma === 'circular'
+      ? Math.round((Math.PI * largo * ancho) / 4)
+      : Math.round(largo * ancho)
+
+  const clasificacion = classifySpace(areaM2, jugadores, {
+    conPorteros: (Number(input.num_porteros) || 0) > 0,
+  })
+  if (!clasificacion) return null
+
+  return {
+    m2_por_jugador: clasificacion.m2PorJugador,
+    densidad: clasificacion.densidad,
+    nivel_cognitivo: clasificacion.nivelCognitivo,
+    tipo_esfuerzo: clasificacion.tipoEsfuerzo,
+    fc_esperada_min: clasificacion.fcEsperada[0],
+    fc_esperada_max: clasificacion.fcEsperada[1],
+    franja: clasificacion.franja,
+    capacidad: clasificacion.capacidad,
+  }
+}
+
+/** Aplica el cálculo automático sobre un objeto de tarea (mutación controlada). */
+export function applyAutoLoadToTarea<T extends Record<string, any>>(tarea: T): T {
+  const metrics = computeTaskLoadMetrics({
+    espacio_largo: tarea.espacio_largo,
+    espacio_ancho: tarea.espacio_ancho,
+    espacio_forma: tarea.espacio_forma,
+    num_jugadores: tarea.num_jugadores_min ?? tarea.num_jugadores ?? 0,
+    num_porteros: tarea.num_porteros,
+  })
+  if (!metrics) return tarea
+  return {
+    ...tarea,
+    m2_por_jugador: metrics.m2_por_jugador,
+    densidad: metrics.densidad,
+    nivel_cognitivo: metrics.nivel_cognitivo,
+    tipo_esfuerzo: metrics.tipo_esfuerzo,
+    fc_esperada_min: metrics.fc_esperada_min,
+    fc_esperada_max: metrics.fc_esperada_max,
+  }
 }
