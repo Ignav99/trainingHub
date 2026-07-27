@@ -7,26 +7,18 @@ import useSWR, { mutate } from 'swr'
 import {
   Plus,
   Search,
-  Clock,
-  Users,
-  MoreHorizontal,
-  Copy,
-  Trash2,
-  ChevronLeft,
-  ChevronRight,
   Loader2,
-  Eye,
   Library,
-  BookCopy,
-  User2,
   FolderOpen,
   Bot,
-  ChevronUp,
-  ChevronDown,
-  SlidersHorizontal,
   X,
   Sparkles,
   ArrowLeft,
+  Copy,
+  Trash2,
+  MoreHorizontal,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import { Tarea, PaginatedResponse } from '@/types'
 import { tareasApi, SemanticSearchResult } from '@/lib/api/tareas'
@@ -34,36 +26,17 @@ import { apiKey } from '@/lib/swr'
 import { ListPageSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
-import { TacticalBoardMini } from '@/components/task-preview'
-
-// ── Color maps ──────────────────────────────────────────────
-const CATEGORY_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  RND: { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500' },
-  JDP: { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' },
-  POS: { bg: 'bg-violet-50', text: 'text-violet-700', dot: 'bg-violet-500' },
-  EVO: { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' },
-  AVD: { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' },
-  PCO: { bg: 'bg-pink-50', text: 'text-pink-700', dot: 'bg-pink-500' },
-  ACO: { bg: 'bg-gray-50', text: 'text-gray-700', dot: 'bg-gray-500' },
-  SSG: { bg: 'bg-teal-50', text: 'text-teal-700', dot: 'bg-teal-500' },
-  ABP: { bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500' },
-  POR: { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500' },
-}
-
-const DENSITY_CONFIG: Record<string, { bg: string; text: string; label: string }> = {
-  alta:  { bg: 'bg-red-100', text: 'text-red-700', label: 'Alta' },
-  media: { bg: 'bg-amber-100', text: 'text-amber-700', label: 'Media' },
-  baja:  { bg: 'bg-green-100', text: 'text-green-700', label: 'Baja' },
-}
-
-const FASE_LABELS: Record<string, string> = {
-  ataque_organizado: 'Ataque Organizado',
-  defensa_organizada: 'Defensa Organizada',
-  transicion_defensa_ataque: 'Transición D→A',
-  transicion_ataque_defensa: 'Transición A→D',
-  balon_parado_ofensivo: 'ABP Ofensivo',
-  balon_parado_defensivo: 'ABP Defensivo',
-}
+import { TaskLibraryCard } from '@/components/tareas/TaskLibraryCard'
+import {
+  CATEGORIAS_TAREA,
+  MODALIDADES_TAREA,
+  FASES_JUEGO,
+  DENSIDADES,
+  NIVELES_COGNITIVOS,
+  CONTENIDOS_OFENSIVOS,
+  CONTENIDOS_DEFENSIVOS,
+} from '@/lib/catalogos/canonico'
+import { cn } from '@/lib/utils'
 
 const SORT_OPTIONS = [
   { value: 'created_at:desc', label: 'Más recientes' },
@@ -74,139 +47,51 @@ const SORT_OPTIONS = [
   { value: 'duracion_total:asc', label: 'Menor duración' },
 ]
 
-// ── Reusable Components ─────────────────────────────────────
-
-function CategoryBadge({ codigo, nombre }: { codigo: string; nombre: string }) {
-  const c = CATEGORY_COLORS[codigo] || { bg: 'bg-gray-50', text: 'text-gray-700', dot: 'bg-gray-500' }
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${c.bg} ${c.text}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
-      {nombre || codigo}
-    </span>
-  )
-}
-
-function CognitiveLevel({ level }: { level?: number }) {
-  if (!level) return null
-  return (
-    <div className="flex gap-0.5" title={`Nivel cognitivo: ${level}/3`}>
-      {[1, 2, 3].map((i) => (
-        <div key={i} className={`w-1.5 h-1.5 rounded-full ${i <= level ? 'bg-primary' : 'bg-gray-200'}`} />
-      ))}
-    </div>
-  )
-}
-
-function DensityPill({ densidad }: { densidad?: string }) {
-  if (!densidad) return <span className="text-gray-400">-</span>
-  const c = DENSITY_CONFIG[densidad]
-  if (!c) return <span className="text-gray-400">-</span>
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${c.bg} ${c.text}`}>
-      {c.label}
-    </span>
-  )
-}
-
-function SortableHeader({
-  label,
-  field,
-  currentSort,
-  onSort,
-  className = '',
-}: {
-  label: string
-  field: string
-  currentSort: string
-  onSort: (field: string) => void
-  className?: string
-}) {
-  const [currentField, currentDir] = currentSort.split(':')
-  const isActive = currentField === field
-  return (
-    <th
-      className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer select-none hover:text-gray-700 transition-colors ${className}`}
-      onClick={() => onSort(field)}
-    >
-      <span className="inline-flex items-center gap-1">
-        {label}
-        {isActive ? (
-          currentDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
-        ) : (
-          <ChevronUp className="h-3 w-3 opacity-0 group-hover:opacity-30" />
-        )}
-      </span>
-    </th>
-  )
-}
-
-function RelevanceBadge({ pct }: { pct: number }) {
-  const color = pct >= 80
-    ? 'bg-emerald-100 text-emerald-700'
-    : pct >= 50
-    ? 'bg-amber-100 text-amber-700'
-    : 'bg-gray-100 text-gray-500'
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold tabular-nums ${color}`}>
-      {pct}%
-    </span>
-  )
-}
-
-// ── Main Page ───────────────────────────────────────────────
+const selectClass =
+  'h-9 rounded-lg border border-border bg-background px-2.5 text-sm min-w-[9rem]'
 
 export default function TareasPage() {
   const router = useRouter()
-
-  // Pagination
   const [page, setPage] = useState(1)
-  const limit = 20
-
-  // Tabs
+  const limit = 12
   const [tab, setTab] = useState<'mis_tareas' | 'biblioteca'>('mis_tareas')
 
-  // Filters
-  const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [busqueda, setBusqueda] = useState('')
   const [busquedaActiva, setBusquedaActiva] = useState('')
-  const [selectedCategorias, setSelectedCategorias] = useState<string[]>([])
+  const [categoria, setCategoria] = useState('')
+  const [modalidad, setModalidad] = useState('')
   const [faseFilter, setFaseFilter] = useState('')
   const [densidadFilter, setDensidadFilter] = useState('')
+  const [nivelCognitivo, setNivelCognitivo] = useState('')
+  const [contenidoOf, setContenidoOf] = useState('')
+  const [contenidoDef, setContenidoDef] = useState('')
   const [jugadoresMin, setJugadoresMin] = useState('')
   const [jugadoresMax, setJugadoresMax] = useState('')
   const [sortBy, setSortBy] = useState('created_at:desc')
 
-  // AI search mode
   const [aiSearchMode, setAiSearchMode] = useState(false)
   const [aiQuery, setAiQuery] = useState('')
   const [aiResults, setAiResults] = useState<SemanticSearchResult[]>([])
   const [aiSearching, setAiSearching] = useState(false)
   const [aiMetodo, setAiMetodo] = useState('')
 
-  // Action menu
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
   const [copying, setCopying] = useState<string | null>(null)
   const [batchGenerating, setBatchGenerating] = useState(false)
 
   const [orden, direccion] = sortBy.split(':')
 
-  // SWR: Categories
-  const { data: categoriasRes } = useSWR<{ data: Array<{ codigo: string; nombre: string; color: string }> }>(
-    apiKey('/catalogos/categorias-tarea')
-  )
-  const categorias = categoriasRes?.data || []
-
-  // SWR: Tareas
   const { data: tareasRes, error: tareasError, isLoading } = useSWR<PaginatedResponse<Tarea>>(
     apiKey('/tareas', {
       page,
       limit,
       orden,
       direccion,
-      categoria: selectedCategorias.length === 1 ? selectedCategorias[0] : undefined,
-      categorias: selectedCategorias.length > 1 ? selectedCategorias.join(',') : undefined,
+      categoria: categoria || undefined,
+      modalidad: modalidad || undefined,
       fase_juego: faseFilter || undefined,
       densidad: densidadFilter || undefined,
+      nivel_cognitivo: nivelCognitivo ? Number(nivelCognitivo) : undefined,
       jugadores_min: jugadoresMin ? parseInt(jugadoresMin) : undefined,
       jugadores_max: jugadoresMax ? parseInt(jugadoresMax) : undefined,
       busqueda: busquedaActiva || undefined,
@@ -214,12 +99,30 @@ export default function TareasPage() {
     })
   )
 
-  const tareas = tareasRes?.data || []
+  const tareasRaw = tareasRes?.data || []
+  const tareas = (() => {
+    let list = tareasRaw
+    if (contenidoOf) {
+      list = list.filter((t) =>
+        (t.consignas_ofensivas || []).some(
+          (c) => c === contenidoOf || c.toLowerCase().includes(contenidoOf.replace(/_/g, ' '))
+        )
+      )
+    }
+    if (contenidoDef) {
+      list = list.filter((t) =>
+        (t.consignas_defensivas || []).some(
+          (c) => c === contenidoDef || c.toLowerCase().includes(contenidoDef.replace(/_/g, ' '))
+        )
+      )
+    }
+    return list
+  })()
+
   const totalPages = tareasRes?.pages || 1
   const total = tareasRes?.total || 0
   const error = tareasError ? 'Error al cargar las tareas' : null
 
-  // Close menu on outside click
   useEffect(() => {
     const handleClickOutside = () => setActiveMenu(null)
     if (activeMenu) {
@@ -264,17 +167,6 @@ export default function TareasPage() {
     setTab(newTab)
     setPage(1)
   }
-
-  const handleSort = useCallback((field: string) => {
-    setSortBy(prev => {
-      const [currentField, currentDir] = prev.split(':')
-      if (currentField === field) {
-        return `${field}:${currentDir === 'asc' ? 'desc' : 'asc'}`
-      }
-      return `${field}:asc`
-    })
-    setPage(1)
-  }, [])
 
   const invalidateTareas = () => {
     mutate((key: string) => typeof key === 'string' && key.includes('/tareas'), undefined, { revalidate: true })
@@ -330,144 +222,36 @@ export default function TareasPage() {
     setActiveMenu(null)
   }
 
-  const toggleCategoria = (codigo: string) => {
-    setSelectedCategorias(prev =>
-      prev.includes(codigo) ? prev.filter(c => c !== codigo) : [...prev, codigo]
-    )
-    setPage(1)
-  }
-
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     setBusqueda('')
     setBusquedaActiva('')
-    setSelectedCategorias([])
+    setCategoria('')
+    setModalidad('')
     setFaseFilter('')
     setDensidadFilter('')
+    setNivelCognitivo('')
+    setContenidoOf('')
+    setContenidoDef('')
     setJugadoresMin('')
     setJugadoresMax('')
     setPage(1)
-  }
+  }, [])
 
-  const hasActiveFilters = selectedCategorias.length > 0 || faseFilter || densidadFilter || jugadoresMin || jugadoresMax
-
-  // ── Filter sidebar content (shared between desktop sidebar and mobile drawer) ──
-  const filterContent = (
-    <div className="space-y-6">
-      {/* Category checkboxes */}
-      <div>
-        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Categoría</h4>
-        <div className="space-y-1.5">
-          {categorias.map((cat) => {
-            const c = CATEGORY_COLORS[cat.codigo] || { dot: 'bg-gray-500' }
-            const checked = selectedCategorias.includes(cat.codigo)
-            return (
-              <label key={cat.codigo} className="flex items-center gap-2 cursor-pointer group py-1">
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => toggleCategoria(cat.codigo)}
-                  className="rounded border-gray-300 text-primary focus:ring-primary h-3.5 w-3.5"
-                />
-                <span className={`w-2 h-2 rounded-full ${c.dot}`} />
-                <span className="text-sm text-gray-700 group-hover:text-gray-900">{cat.nombre}</span>
-              </label>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Phase */}
-      <div>
-        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Fase de juego</h4>
-        <select
-          value={faseFilter}
-          onChange={(e) => { setFaseFilter(e.target.value); setPage(1) }}
-          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-        >
-          <option value="">Todas</option>
-          {Object.entries(FASE_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>{label}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Density toggles */}
-      <div>
-        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Densidad</h4>
-        <div className="flex gap-1.5">
-          {(['alta', 'media', 'baja'] as const).map((d) => {
-            const active = densidadFilter === d
-            const c = DENSITY_CONFIG[d]
-            return (
-              <button
-                key={d}
-                onClick={() => { setDensidadFilter(active ? '' : d); setPage(1) }}
-                className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  active ? `${c.bg} ${c.text} ring-1 ring-current` : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
-                }`}
-              >
-                {c.label}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Player range */}
-      <div>
-        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Jugadores</h4>
-        <div className="flex gap-2">
-          <input
-            type="number"
-            min={1}
-            max={30}
-            value={jugadoresMin}
-            onChange={(e) => { setJugadoresMin(e.target.value); setPage(1) }}
-            placeholder="Mín"
-            className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-          />
-          <span className="text-gray-400 self-center">–</span>
-          <input
-            type="number"
-            min={1}
-            max={30}
-            value={jugadoresMax}
-            onChange={(e) => { setJugadoresMax(e.target.value); setPage(1) }}
-            placeholder="Máx"
-            className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-          />
-        </div>
-      </div>
-
-      {/* Sort */}
-      <div>
-        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Ordenar</h4>
-        <select
-          value={sortBy}
-          onChange={(e) => { setSortBy(e.target.value); setPage(1) }}
-          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-        >
-          {SORT_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Clear filters */}
-      {hasActiveFilters && (
-        <button
-          onClick={clearFilters}
-          className="w-full px-3 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-        >
-          Limpiar filtros
-        </button>
-      )}
-    </div>
+  const hasActiveFilters = !!(
+    categoria ||
+    modalidad ||
+    faseFilter ||
+    densidadFilter ||
+    nivelCognitivo ||
+    contenidoOf ||
+    contenidoDef ||
+    jugadoresMin ||
+    jugadoresMax ||
+    busquedaActiva
   )
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
+    <div className="space-y-5 animate-fade-in">
       <PageHeader
         title="Biblioteca de Tareas"
         description={`${total} tareas ${tab === 'biblioteca' ? 'en la biblioteca del club' : 'en tu colección'}`}
@@ -476,21 +260,21 @@ export default function TareasPage() {
             <button
               onClick={handleBatchGenerateDiagrams}
               disabled={batchGenerating}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-border rounded-lg text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50"
             >
               {batchGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               {batchGenerating ? 'Generando...' : 'Auto-diagramas'}
             </button>
             <Link
               href="/tareas/nueva"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors"
             >
               <Plus className="h-4 w-4" />
               Nueva Tarea
             </Link>
             <Link
               href="/tareas/nueva-ai"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
             >
               <Bot className="h-4 w-4" />
               Crear con IA
@@ -499,107 +283,75 @@ export default function TareasPage() {
         }
       />
 
-      {/* Pill tabs */}
-      <div className="flex items-center gap-2">
-        <div className="inline-flex bg-gray-100 rounded-lg p-0.5">
-          <button
-            onClick={() => handleTabChange('mis_tareas')}
-            className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-              tab === 'mis_tareas'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <FolderOpen className="h-3.5 w-3.5" />
-            Mis tareas
-          </button>
-          <button
-            onClick={() => handleTabChange('biblioteca')}
-            className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-              tab === 'biblioteca'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <Library className="h-3.5 w-3.5" />
-            Biblioteca del Club
-          </button>
-        </div>
-
-        {/* Mobile filter toggle */}
+      {/* Tabs */}
+      <div className="inline-flex bg-muted rounded-lg p-0.5">
         <button
-          onClick={() => setShowMobileFilters(true)}
-          className={`lg:hidden inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-sm transition-colors ml-auto ${
-            hasActiveFilters
-              ? 'border-primary bg-primary/5 text-primary'
-              : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-          }`}
+          onClick={() => handleTabChange('mis_tareas')}
+          className={cn(
+            'inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all',
+            tab === 'mis_tareas' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+          )}
         >
-          <SlidersHorizontal className="h-3.5 w-3.5" />
-          Filtros
-          {hasActiveFilters && <span className="w-1.5 h-1.5 bg-primary rounded-full" />}
+          <FolderOpen className="h-3.5 w-3.5" />
+          Mis tareas
+        </button>
+        <button
+          onClick={() => handleTabChange('biblioteca')}
+          className={cn(
+            'inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all',
+            tab === 'biblioteca' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <Library className="h-3.5 w-3.5" />
+          Biblioteca del Club
         </button>
       </div>
 
-      {/* Search bar */}
+      {/* Search */}
       <form onSubmit={handleSearch} className="flex gap-2">
         <button
           type="button"
           onClick={() => {
-            if (aiSearchMode) {
-              exitAiMode()
-            } else {
+            if (aiSearchMode) exitAiMode()
+            else {
               setAiSearchMode(true)
-              setBusquedaActiva('')
-              setBusqueda('')
+              setAiQuery('')
             }
           }}
-          className={`flex items-center gap-1.5 px-3 py-2.5 rounded-lg border text-sm font-medium transition-all shrink-0 ${
+          className={cn(
+            'inline-flex items-center justify-center h-10 w-10 rounded-lg border shrink-0 transition-colors',
             aiSearchMode
-              ? 'bg-violet-50 border-violet-300 text-violet-700'
-              : 'bg-white border-gray-200 text-gray-500 hover:border-violet-300 hover:text-violet-600'
-          }`}
-          title={aiSearchMode ? 'Volver a búsqueda normal' : 'Búsqueda con IA'}
+              ? 'border-violet-400 bg-violet-50 text-violet-700'
+              : 'border-border text-muted-foreground hover:bg-muted'
+          )}
+          title={aiSearchMode ? 'Vista normal' : 'Búsqueda IA'}
         >
           <Sparkles className="h-4 w-4" />
-          {aiSearchMode ? 'IA' : ''}
         </button>
-        <div className="flex-1 relative">
-          {aiSearchMode ? (
-            <Sparkles className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-violet-400" />
-          ) : (
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          )}
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
-            type="text"
             value={aiSearchMode ? aiQuery : busqueda}
-            onChange={(e) => aiSearchMode ? setAiQuery(e.target.value) : setBusqueda(e.target.value)}
-            placeholder={aiSearchMode ? 'Describe lo que buscas... ej: "rondos de conservación con transiciones"' : 'Buscar por título, descripción...'}
-            className={`w-full pl-10 pr-4 py-2.5 border rounded-lg focus:ring-2 focus:border-transparent outline-none text-sm ${
+            onChange={(e) => (aiSearchMode ? setAiQuery(e.target.value) : setBusqueda(e.target.value))}
+            placeholder={
               aiSearchMode
-                ? 'border-violet-200 focus:ring-violet-500 bg-violet-50/30'
-                : 'border-gray-200 focus:ring-primary bg-white'
-            }`}
+                ? 'Describe la tarea que necesitas…'
+                : 'Buscar por título o descripción…'
+            }
+            className="w-full h-10 pl-9 pr-3 rounded-lg border border-border bg-background text-sm outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
         <button
           type="submit"
-          disabled={aiSearchMode && aiSearching}
-          className={`px-5 py-2.5 text-white rounded-lg transition-colors text-sm font-medium disabled:opacity-50 ${
-            aiSearchMode ? 'bg-violet-600 hover:bg-violet-700' : 'bg-primary hover:bg-primary/90'
-          }`}
+          className="h-10 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90"
         >
-          {aiSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Buscar'}
+          Buscar
         </button>
       </form>
 
-      {/* AI mode banner */}
       {aiSearchMode && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-violet-50 border border-violet-200 rounded-lg text-sm">
-          <Sparkles className="h-4 w-4 text-violet-500 shrink-0" />
-          <span className="text-violet-700">
-            Búsqueda semántica con IA — describe lo que necesitas en lenguaje natural
-          </span>
+        <div className="flex items-center gap-2 text-sm rounded-lg border border-violet-200 bg-violet-50 px-3 py-2">
+          <span className="text-violet-700">Búsqueda semántica con IA</span>
           <button
             onClick={exitAiMode}
             className="ml-auto inline-flex items-center gap-1 text-violet-600 hover:text-violet-800 text-xs font-medium"
@@ -610,474 +362,358 @@ export default function TareasPage() {
         </div>
       )}
 
-      {/* Mobile filter drawer overlay */}
-      {showMobileFilters && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="fixed inset-0 bg-black/40" onClick={() => setShowMobileFilters(false)} />
-          <div className="fixed inset-y-0 right-0 w-80 max-w-[85vw] bg-white shadow-xl overflow-y-auto">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="font-semibold text-gray-900">Filtros</h3>
-              <button onClick={() => setShowMobileFilters(false)} className="p-1 rounded-md hover:bg-gray-100">
-                <X className="h-5 w-5 text-gray-500" />
+      {/* Filtros arriba en desplegables */}
+      {!aiSearchMode && (
+        <div className="rounded-2xl border bg-card p-3 space-y-2">
+          <div className="flex flex-wrap gap-2 items-center">
+            <select
+              className={selectClass}
+              value={categoria}
+              onChange={(e) => {
+                setCategoria(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">Tipo de tarea</option>
+              {CATEGORIAS_TAREA.map((c) => (
+                <option key={c.codigo} value={c.codigo}>
+                  {c.nombre}
+                </option>
+              ))}
+            </select>
+            <select
+              className={selectClass}
+              value={modalidad}
+              onChange={(e) => {
+                setModalidad(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">Modalidad</option>
+              {MODALIDADES_TAREA.map((m) => (
+                <option key={m.codigo} value={m.codigo}>
+                  {m.nombre}
+                </option>
+              ))}
+            </select>
+            <select
+              className={selectClass}
+              value={faseFilter}
+              onChange={(e) => {
+                setFaseFilter(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">Fase de juego</option>
+              {FASES_JUEGO.map((f) => (
+                <option key={f.codigo} value={f.codigo}>
+                  {f.nombre}
+                </option>
+              ))}
+            </select>
+            <select
+              className={selectClass}
+              value={densidadFilter}
+              onChange={(e) => {
+                setDensidadFilter(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">Densidad</option>
+              {DENSIDADES.map((d) => (
+                <option key={d.codigo} value={d.codigo}>
+                  {d.nombre}
+                </option>
+              ))}
+            </select>
+            <select
+              className={selectClass}
+              value={nivelCognitivo}
+              onChange={(e) => {
+                setNivelCognitivo(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">Cognitivo</option>
+              {NIVELES_COGNITIVOS.map((n) => (
+                <option key={n.codigo} value={String(n.codigo)}>
+                  {n.nombre}
+                </option>
+              ))}
+            </select>
+            <select
+              className={selectClass}
+              value={contenidoOf}
+              onChange={(e) => {
+                setContenidoOf(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">Aspecto ofensivo</option>
+              {CONTENIDOS_OFENSIVOS.map((c) => (
+                <option key={c.codigo} value={c.codigo}>
+                  {c.nombre}
+                </option>
+              ))}
+            </select>
+            <select
+              className={selectClass}
+              value={contenidoDef}
+              onChange={(e) => {
+                setContenidoDef(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">Aspecto defensivo</option>
+              {CONTENIDOS_DEFENSIVOS.map((c) => (
+                <option key={c.codigo} value={c.codigo}>
+                  {c.nombre}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              min={1}
+              max={30}
+              placeholder="Jug. mín"
+              value={jugadoresMin}
+              onChange={(e) => {
+                setJugadoresMin(e.target.value)
+                setPage(1)
+              }}
+              className="h-9 w-20 rounded-lg border border-border bg-background px-2 text-sm"
+            />
+            <input
+              type="number"
+              min={1}
+              max={30}
+              placeholder="Jug. máx"
+              value={jugadoresMax}
+              onChange={(e) => {
+                setJugadoresMax(e.target.value)
+                setPage(1)
+              }}
+              className="h-9 w-20 rounded-lg border border-border bg-background px-2 text-sm"
+            />
+            <select
+              className={cn(selectClass, 'ml-auto')}
+              value={sortBy}
+              onChange={(e) => {
+                setSortBy(e.target.value)
+                setPage(1)
+              }}
+            >
+              {SORT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="inline-flex items-center gap-1 h-9 px-3 text-sm text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+                Limpiar
               </button>
-            </div>
-            <div className="p-4">
-              {filterContent}
-            </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* Main content: sidebar filters + table */}
-      <div className="flex gap-6">
-        {/* Desktop sidebar filters — hidden in AI mode */}
-        {!aiSearchMode && (
-          <aside className="hidden lg:block w-56 shrink-0">
-            <div className="sticky top-24 bg-white rounded-xl border border-gray-200 p-4">
-              {filterContent}
-            </div>
-          </aside>
-        )}
-
-        {/* Table / content area */}
-        <div className="flex-1 min-w-0">
-          {/* AI Search Results */}
-          {aiSearchMode ? (
-            aiSearching ? (
-              <div className="flex items-center justify-center py-20">
-                <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
-                <span className="ml-3 text-gray-500">Buscando con IA...</span>
-              </div>
-            ) : aiResults.length > 0 ? (
-              <>
-                <div className="text-sm text-gray-500 mb-3">
-                  {aiResults.length} resultado{aiResults.length !== 1 ? 's' : ''} encontrado{aiResults.length !== 1 ? 's' : ''}
-                  {aiMetodo === 'keyword' && <span className="text-amber-600 ml-1">(búsqueda por texto)</span>}
-                </div>
-                {/* Desktop Table */}
-                <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden animate-fade-in">
-                  <table className="min-w-full divide-y divide-gray-100">
-                    <thead className="bg-violet-50/50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-20">Relevancia</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Categoría</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Título</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Duración</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Jugadores</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-20">Densidad</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">Fase</th>
-                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">Usos</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {aiResults.map((r) => (
-                        <tr
-                          key={r.id}
-                          onClick={() => router.push(`/tareas/${r.id}`)}
-                          className="hover:bg-gray-50/80 cursor-pointer transition-colors group"
-                        >
-                          <td className="px-4 py-3">
-                            <RelevanceBadge pct={r.relevance_pct} />
-                          </td>
-                          <td className="px-4 py-3">
-                            {r.categoria_codigo && (
-                              <CategoryBadge codigo={r.categoria_codigo} nombre={r.categoria_nombre || r.categoria_codigo} />
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <p className="text-sm font-medium text-gray-900 group-hover:text-primary transition-colors line-clamp-1">
-                              {r.titulo}
-                            </p>
-                            {r.principio_tactico && (
-                              <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{r.principio_tactico}</p>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-600">
-                            {r.duracion_total && (
-                              <span className="inline-flex items-center gap-1">
-                                <Clock className="h-3.5 w-3.5 text-gray-400" />
-                                {r.duracion_total}′
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-600">
-                            {r.num_jugadores_min && (
-                              <span className="inline-flex items-center gap-1">
-                                <Users className="h-3.5 w-3.5 text-gray-400" />
-                                {r.num_jugadores_min}
-                                {r.num_jugadores_max && r.num_jugadores_max !== r.num_jugadores_min ? `-${r.num_jugadores_max}` : ''}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <DensityPill densidad={r.densidad} />
-                          </td>
-                          <td className="px-4 py-3">
-                            {r.fase_juego ? (
-                              <span className="text-xs text-gray-500 line-clamp-1">
-                                {FASE_LABELS[r.fase_juego] || r.fase_juego.replace(/_/g, ' ')}
-                              </span>
-                            ) : (
-                              <span className="text-gray-300">-</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-center text-sm text-gray-500">
-                            {r.num_usos || 0}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                {/* Mobile Cards */}
-                <div className="md:hidden space-y-3 animate-fade-in">
-                  {aiResults.map((r) => (
-                    <div
-                      key={r.id}
-                      onClick={() => router.push(`/tareas/${r.id}`)}
-                      className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:border-violet-300 transition-colors active:bg-gray-50"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <RelevanceBadge pct={r.relevance_pct} />
-                          {r.categoria_codigo && (
-                            <CategoryBadge codigo={r.categoria_codigo} nombre={r.categoria_nombre || r.categoria_codigo} />
-                          )}
-                        </div>
-                        <DensityPill densidad={r.densidad} />
-                      </div>
-                      <h3 className="font-medium text-gray-900 text-sm mb-2 line-clamp-2">{r.titulo}</h3>
-                      <div className="flex items-center gap-4 text-xs text-gray-500">
-                        {r.duracion_total && (
-                          <span className="inline-flex items-center gap-1">
-                            <Clock className="h-3 w-3" />{r.duracion_total}′
-                          </span>
-                        )}
-                        {r.num_jugadores_min && (
-                          <span className="inline-flex items-center gap-1">
-                            <Users className="h-3 w-3" />
-                            {r.num_jugadores_min}{r.num_jugadores_max && r.num_jugadores_max !== r.num_jugadores_min ? `-${r.num_jugadores_max}` : ''} jug.
-                          </span>
-                        )}
-                        {r.fase_juego && (
-                          <span className="text-gray-400 capitalize truncate">
-                            {FASE_LABELS[r.fase_juego] || r.fase_juego.replace(/_/g, ' ')}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : aiQuery ? (
-              <div className="text-center py-16">
-                <Sparkles className="h-12 w-12 text-violet-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-1">Sin resultados</h3>
-                <p className="text-sm text-gray-500">No se encontraron tareas para &ldquo;{aiQuery}&rdquo;</p>
-              </div>
-            ) : (
-              <div className="text-center py-16">
-                <Sparkles className="h-12 w-12 text-violet-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-1">Búsqueda semántica con IA</h3>
-                <p className="text-sm text-gray-500">Describe lo que necesitas en lenguaje natural y pulsa Buscar</p>
-              </div>
-            )
-          ) : isLoading ? (
-            <ListPageSkeleton />
-          ) : error ? (
-            <div className="text-center py-12">
-              <p className="text-red-600 mb-4">{error}</p>
-              <button
-                onClick={() => invalidateTareas()}
-                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
-              >
-                Reintentar
-              </button>
-            </div>
-          ) : tareas.length === 0 ? (
-            <EmptyState
-              icon={tab === 'biblioteca' ? <Library className="h-12 w-12" /> : <Search className="h-12 w-12" />}
-              title={tab === 'biblioteca' ? 'Biblioteca vacía' : 'No hay tareas'}
-              description={
-                hasActiveFilters
-                  ? 'No se encontraron tareas con los filtros aplicados'
-                  : tab === 'biblioteca'
-                  ? 'Las tareas creadas por cualquier miembro del club aparecerán aquí'
-                  : 'Comienza creando tu primera tarea de entrenamiento'
-              }
-              action={
-                hasActiveFilters ? (
-                  <button onClick={clearFilters} className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">
-                    Limpiar filtros
-                  </button>
-                ) : tab === 'mis_tareas' ? (
-                  <Link
-                    href="/tareas/nueva"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Crear tarea
-                  </Link>
-                ) : undefined
-              }
-            />
-          ) : (
-            <>
-              {/* ── Desktop Table ── */}
-              <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden animate-fade-in">
-                <table className="min-w-full divide-y divide-gray-100">
-                  <thead className="bg-gray-50/80">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-20">Diagrama</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Categoría</th>
-                      <SortableHeader label="Título" field="titulo" currentSort={sortBy} onSort={handleSort} />
-                      <SortableHeader label="Duración" field="duracion_total" currentSort={sortBy} onSort={handleSort} className="w-24" />
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Jugadores</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-20">Densidad</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">Fase</th>
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">Cogn.</th>
-                      <SortableHeader label="Usos" field="num_usos" currentSort={sortBy} onSort={handleSort} className="w-16 text-center" />
-                      <th className="px-4 py-3 w-12" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {tareas.map((tarea) => (
-                      <tr
-                        key={tarea.id}
-                        onClick={() => router.push(`/tareas/${tarea.id}`)}
-                        className="hover:bg-gray-50/80 cursor-pointer transition-colors group"
-                      >
-                        {/* Diagram thumbnail */}
-                        <td className="px-4 py-2">
-                          <div className="w-16 h-11 rounded overflow-hidden border border-gray-100 bg-[#2D5016]">
-                            <TacticalBoardMini
-                              data={tarea.grafico_data as any}
-                              width="100%"
-                              height="100%"
-                            />
-                          </div>
-                        </td>
-
-                        {/* Category */}
-                        <td className="px-4 py-3">
-                          <CategoryBadge
-                            codigo={tarea.categoria?.codigo || ''}
-                            nombre={tarea.categoria?.nombre_corto || tarea.categoria?.nombre || ''}
-                          />
-                        </td>
-
-                        {/* Title */}
-                        <td className="px-4 py-3">
-                          <p className="text-sm font-medium text-gray-900 group-hover:text-primary transition-colors line-clamp-1">
-                            {tarea.titulo}
-                          </p>
-                          {tarea.fase_juego && tarea.principio_tactico && (
-                            <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{tarea.principio_tactico}</p>
-                          )}
-                        </td>
-
-                        {/* Duration */}
-                        <td className="px-4 py-3 text-sm text-gray-600">
-                          <span className="inline-flex items-center gap-1">
-                            <Clock className="h-3.5 w-3.5 text-gray-400" />
-                            {tarea.duracion_total}′
-                          </span>
-                        </td>
-
-                        {/* Players */}
-                        <td className="px-4 py-3 text-sm text-gray-600">
-                          <span className="inline-flex items-center gap-1">
-                            <Users className="h-3.5 w-3.5 text-gray-400" />
-                            {tarea.num_jugadores_min}
-                            {tarea.num_jugadores_max && tarea.num_jugadores_max !== tarea.num_jugadores_min
-                              ? `-${tarea.num_jugadores_max}`
-                              : ''}
-                          </span>
-                        </td>
-
-                        {/* Density */}
-                        <td className="px-4 py-3">
-                          <DensityPill densidad={tarea.densidad} />
-                        </td>
-
-                        {/* Phase */}
-                        <td className="px-4 py-3">
-                          {tarea.fase_juego ? (
-                            <span className="text-xs text-gray-500 line-clamp-1">
-                              {FASE_LABELS[tarea.fase_juego] || tarea.fase_juego.replace(/_/g, ' ')}
-                            </span>
-                          ) : (
-                            <span className="text-gray-300">-</span>
-                          )}
-                        </td>
-
-                        {/* Cognitive */}
-                        <td className="px-4 py-3 text-center">
-                          <div className="flex justify-center">
-                            <CognitiveLevel level={tarea.nivel_cognitivo} />
-                          </div>
-                        </td>
-
-                        {/* Uses */}
-                        <td className="px-4 py-3 text-center text-sm text-gray-500">
-                          {tarea.num_usos || 0}
-                        </td>
-
-                        {/* Actions */}
-                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                          <div className="relative">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setActiveMenu(activeMenu === tarea.id ? null : tarea.id)
-                              }}
-                              className="p-1 text-gray-400 hover:text-gray-600 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </button>
-
-                            {activeMenu === tarea.id && (
-                              <div className="absolute right-0 top-8 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
-                                <Link
-                                  href={`/tareas/${tarea.id}`}
-                                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <Eye className="h-4 w-4" />
-                                  Ver detalle
-                                </Link>
-                                <button
-                                  onClick={(e) => handleDuplicate(tarea, e)}
-                                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
-                                >
-                                  <Copy className="h-4 w-4" />
-                                  Duplicar
-                                </button>
-                                {tab === 'biblioteca' && (
-                                  <button
-                                    onClick={(e) => handleCopyToMyTeam(tarea, e)}
-                                    className="flex items-center gap-2 px-4 py-2 text-sm text-primary hover:bg-primary/5 w-full"
-                                    disabled={copying === tarea.id}
-                                  >
-                                    {copying === tarea.id ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <BookCopy className="h-4 w-4" />
-                                    )}
-                                    Copiar a mi equipo
-                                  </button>
-                                )}
-                                <button
-                                  onClick={(e) => handleDelete(tarea.id, e)}
-                                  className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  Eliminar
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* ── Mobile Cards ── */}
-              <div className="md:hidden space-y-3 animate-fade-in">
-                {tareas.map((tarea) => (
-                  <div
-                    key={tarea.id}
-                    onClick={() => router.push(`/tareas/${tarea.id}`)}
-                    className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:border-primary/30 transition-colors active:bg-gray-50"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <CategoryBadge
-                        codigo={tarea.categoria?.codigo || ''}
-                        nombre={tarea.categoria?.nombre_corto || tarea.categoria?.nombre || ''}
-                      />
-                      <div className="flex items-center gap-2">
-                        <DensityPill densidad={tarea.densidad} />
-                        <CognitiveLevel level={tarea.nivel_cognitivo} />
-                      </div>
-                    </div>
-
-                    <h3 className="font-medium text-gray-900 text-sm mb-2 line-clamp-2">{tarea.titulo}</h3>
-
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span className="inline-flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {tarea.duracion_total}′
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <Users className="h-3 w-3" />
-                        {tarea.num_jugadores_min}
-                        {tarea.num_jugadores_max && tarea.num_jugadores_max !== tarea.num_jugadores_min
-                          ? `-${tarea.num_jugadores_max}`
-                          : ''} jug.
-                      </span>
-                      {tarea.fase_juego && (
-                        <span className="text-gray-400 capitalize truncate">
-                          {FASE_LABELS[tarea.fase_juego] || tarea.fase_juego.replace(/_/g, ' ')}
-                        </span>
-                      )}
-                      {tarea.num_usos > 0 && (
-                        <span className="ml-auto">{tarea.num_usos}x</span>
-                      )}
-                    </div>
-
-                    {(tarea.creador_nombre || tarea.equipo_nombre) && (
-                      <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-3 text-[11px] text-gray-400">
-                        {tarea.creador_nombre && (
-                          <span className="flex items-center gap-1">
-                            <User2 className="h-3 w-3" />
-                            {tarea.creador_nombre}
-                          </span>
-                        )}
-                        {tarea.equipo_nombre && (
-                          <span className="flex items-center gap-1">
-                            <Users className="h-3 w-3" />
-                            {tarea.equipo_nombre}
-                          </span>
-                        )}
-                      </div>
+      {/* Content */}
+      {aiSearchMode ? (
+        aiSearching ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
+            <span className="ml-3 text-muted-foreground">Buscando con IA…</span>
+          </div>
+        ) : aiResults.length > 0 ? (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              {aiResults.length} resultado{aiResults.length !== 1 ? 's' : ''}
+              {aiMetodo === 'keyword' && <span className="text-amber-600 ml-1">(búsqueda por texto)</span>}
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {aiResults.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => router.push(`/tareas/${r.id}`)}
+                  className="text-left rounded-2xl border bg-card p-4 hover:border-primary/40 transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-xs font-semibold text-violet-700">{r.relevance_pct}%</span>
+                    {r.categoria_nombre && (
+                      <span className="text-[11px] rounded-md bg-muted px-1.5 py-0.5">{r.categoria_nombre}</span>
                     )}
                   </div>
-                ))}
-              </div>
-
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-4 py-3">
-                  <div className="text-sm text-gray-500">
-                    {((page - 1) * limit) + 1}–{Math.min(page * limit, total)} de {total}
+                  <h3 className="font-semibold text-sm line-clamp-2">{r.titulo}</h3>
+                  {r.descripcion && (
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{r.descripcion}</p>
+                  )}
+                  <div className="flex gap-3 mt-2 text-xs text-muted-foreground">
+                    {r.duracion_total != null && <span>{r.duracion_total}′</span>}
+                    {r.num_jugadores_min != null && (
+                      <span>
+                        {r.num_jugadores_min}
+                        {r.num_jugadores_max && r.num_jugadores_max !== r.num_jugadores_min
+                          ? `-${r.num_jugadores_max}`
+                          : ''}{' '}
+                        jug.
+                      </span>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setPage(page - 1)}
-                      disabled={page === 1}
-                      className="p-2 border border-gray-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </button>
-                    <span className="text-sm text-gray-700">
-                      {page} / {totalPages}
-                    </span>
-                    <button
-                      onClick={() => setPage(page + 1)}
-                      disabled={page === totalPages}
-                      className="p-2 border border-gray-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : aiQuery ? (
+          <EmptyState
+            icon={<Sparkles className="h-12 w-12" />}
+            title="Sin resultados"
+            description={`No se encontraron tareas para “${aiQuery}”`}
+          />
+        ) : (
+          <EmptyState
+            icon={<Sparkles className="h-12 w-12" />}
+            title="Búsqueda semántica con IA"
+            description="Describe lo que necesitas en lenguaje natural y pulsa Buscar"
+          />
+        )
+      ) : isLoading ? (
+        <ListPageSkeleton />
+      ) : error ? (
+        <div className="text-center py-12">
+          <p className="text-destructive mb-4">{error}</p>
+          <button
+            onClick={() => invalidateTareas()}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+          >
+            Reintentar
+          </button>
         </div>
-      </div>
+      ) : tareas.length === 0 ? (
+        <EmptyState
+          icon={tab === 'biblioteca' ? <Library className="h-12 w-12" /> : <Search className="h-12 w-12" />}
+          title={tab === 'biblioteca' ? 'Biblioteca vacía' : 'No hay tareas'}
+          description={
+            hasActiveFilters
+              ? 'No se encontraron tareas con los filtros aplicados'
+              : tab === 'biblioteca'
+                ? 'Las tareas creadas por cualquier miembro del club aparecerán aquí'
+                : 'Comienza creando tu primera tarea de entrenamiento'
+          }
+          action={
+            hasActiveFilters ? (
+              <button
+                onClick={clearFilters}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-muted text-foreground rounded-lg text-sm font-medium hover:bg-muted/80"
+              >
+                Limpiar filtros
+              </button>
+            ) : tab === 'mis_tareas' ? (
+              <Link
+                href="/tareas/nueva"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90"
+              >
+                <Plus className="h-4 w-4" />
+                Crear tarea
+              </Link>
+            ) : undefined
+          }
+        />
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {tareas.map((tarea) => (
+              <div key={tarea.id} className="relative group">
+                <TaskLibraryCard
+                  tarea={tarea}
+                  onClick={() => router.push(`/tareas/${tarea.id}`)}
+                />
+                <div className="absolute top-3 right-3 z-10">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setActiveMenu(activeMenu === tarea.id ? null : tarea.id)
+                    }}
+                    className="rounded-md bg-black/50 p-1.5 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </button>
+                  {activeMenu === tarea.id && (
+                    <div className="absolute right-0 mt-1 w-44 rounded-lg border bg-card shadow-lg py-1">
+                      {tab === 'biblioteca' ? (
+                        <button
+                          type="button"
+                          onClick={(e) => handleCopyToMyTeam(tarea, e)}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-left"
+                        >
+                          {copying === tarea.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Copy className="h-3.5 w-3.5" />
+                          )}
+                          Copiar a mis tareas
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={(e) => handleDuplicate(tarea, e)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-left"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            Duplicar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => handleDelete(tarea.id, e)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-destructive text-left"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Eliminar
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+                className="inline-flex items-center gap-1 h-9 px-3 rounded-lg border text-sm disabled:opacity-40"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Anterior
+              </button>
+              <span className="text-sm text-muted-foreground tabular-nums px-2">
+                {page} / {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => p + 1)}
+                className="inline-flex items-center gap-1 h-9 px-3 rounded-lg border text-sm disabled:opacity-40"
+              >
+                Siguiente
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }

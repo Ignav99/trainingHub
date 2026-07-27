@@ -21,6 +21,7 @@ import TareaPizarraEditor from '@/components/tactical-board/TareaPizarraEditor'
 import type { TareaEspacioPatch } from '@/lib/tacticalMetrics'
 import { emptyTareaPizarra, type TareaPizarraData } from '@/components/tactical-board/types'
 import { TipoContraccion, ZonaCuerpo, ObjetivoGym, SeriesRepeticiones } from '@/types'
+import { MODALIDADES_TAREA } from '@/lib/catalogos/canonico'
 
 const FASES_JUEGO = [
   { value: 'ataque_organizado', label: 'Ataque Organizado' },
@@ -36,7 +37,7 @@ const DENSIDADES = [
 ]
 
 // Categorias complementarias (preparacion fisica)
-const GYM_CATEGORY_CODES = ['GYM', 'PRV', 'MOV', 'RCF']
+const GYM_CATEGORY_CODES = ['GYM', 'PRV', 'MOV', 'RCF', 'EST', 'ACT', 'CIR']
 
 const ZONAS_CUERPO: { value: ZonaCuerpo; label: string }[] = [
   { value: 'tren_inferior', label: 'Tren Inferior' },
@@ -100,6 +101,7 @@ export default function NuevaTareaPage() {
     como_inicia: '',
     como_finaliza: '',
     fase_juego: undefined,
+    modalidad: undefined,
     principio_tactico: '',
     nivel_cognitivo: 2,
     densidad: 'media',
@@ -372,6 +374,29 @@ export default function NuevaTareaPage() {
                   </div>
                 </div>
               )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Modalidad
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {MODALIDADES_TAREA.map((m) => (
+                  <button
+                    key={m.codigo}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, modalidad: m.codigo })}
+                    className={`p-3 rounded-lg border text-left transition-colors ${
+                      formData.modalidad === m.codigo
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <span className="text-sm font-medium block">{m.nombre}</span>
+                    <span className="text-[11px] text-muted-foreground">{m.descripcion}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

@@ -21,6 +21,7 @@ import { emptyTareaPizarra, type TareaPizarraData } from '@/components/tactical-
 import type { TareaEspacioPatch } from '@/lib/tacticalMetrics'
 import {
   CATEGORIAS_TAREA,
+  MODALIDADES_TAREA,
   FASES_JUEGO,
   CONTENIDOS_OFENSIVOS,
   CONTENIDOS_DEFENSIVOS,
@@ -37,6 +38,7 @@ export interface TareaCreatorData {
   complejidad?: string
   forma_puntuar?: string
   fase_juego?: string
+  modalidad?: string
   tags: string[]
   consignas_ofensivas: string[]
   consignas_defensivas: string[]
@@ -78,6 +80,7 @@ const emptyForm = (jugadores: number): TareaCreatorData => ({
   complejidad: '',
   forma_puntuar: '',
   fase_juego: undefined,
+  modalidad: undefined,
   tags: [],
   consignas_ofensivas: [],
   consignas_defensivas: [],
@@ -294,13 +297,21 @@ export default function TareaCreatorFullscreen({
         {/* ---- Enfoque táctico y metodológico ---- */}
         <section className="space-y-4">
           <h2 className="text-sm font-semibold text-primary">Enfoque táctico y metodológico</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
             <Field label="Fase de juego">
               <NativeSelect
                 value={form.fase_juego || ''}
                 onChange={(v) => set('fase_juego', v || undefined)}
                 placeholder="Fase de juego"
                 options={FASES_JUEGO.map((f) => ({ codigo: f.codigo, nombre: f.nombre }))}
+              />
+            </Field>
+            <Field label="Modalidad">
+              <NativeSelect
+                value={form.modalidad || ''}
+                onChange={(v) => set('modalidad', v || undefined)}
+                placeholder="Modalidad"
+                options={MODALIDADES_TAREA.map((m) => ({ codigo: m.codigo, nombre: m.nombre }))}
               />
             </Field>
             <Field label="Objetivos">

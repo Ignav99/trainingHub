@@ -7,6 +7,7 @@ from app.models.tarea import (
     FaseJuego,
     Densidad,
     NivelCognitivo,
+    ModalidadTarea,
     TipoContraccion,
     ZonaCuerpo,
     ObjetivoGym,
@@ -433,7 +434,7 @@ from app.models.plan_partido import (
 
 __all__ = [
     # Tarea
-    "FaseJuego", "Densidad", "NivelCognitivo",
+    "FaseJuego", "Densidad", "NivelCognitivo", "ModalidadTarea",
     "TipoContraccion", "ZonaCuerpo", "ObjetivoGym",
     "CategoriaTareaBase", "CategoriaTareaResponse",
     "TareaBase", "TareaCreate", "TareaUpdate", "TareaResponse",

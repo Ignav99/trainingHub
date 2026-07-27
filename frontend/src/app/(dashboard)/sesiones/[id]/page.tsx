@@ -82,7 +82,6 @@ import { SesionCierrePanel } from '@/components/sesiones/SesionCierrePanel'
 import { SesionDefinirForm } from '@/components/sesiones/SesionDefinirForm'
 import { SesionMaterialPanel } from '@/components/sesiones/SesionMaterialPanel'
 import { sesionesApi, SesionUpdateData } from '@/lib/api/sesiones'
-import { tareasApi } from '@/lib/api/tareas'
 import { jugadoresApi } from '@/lib/api/jugadores'
 import {
   Sesion,
@@ -113,6 +112,8 @@ import { entrenamientosMargenApi } from '@/lib/api/entrenamientosMargen'
 import { medicoApi } from '@/lib/api/medico'
 import { suggestAttendanceFromDisponibilidad } from '@/lib/jugadorTipo'
 import type { CargaJugador, RegistroMedico } from '@/types'
+import { MATCH_DAYS as MATCH_DAYS_CATALOG, DIAS_CARGA } from '@/lib/catalogos/canonico'
+import { TaskPickerDialog } from '@/components/tareas/TaskPickerDialog'
 
 const MATCH_DAY_COLORS: Record<string, string> = {
   'MD+1': 'bg-green-100 text-green-800',
@@ -122,6 +123,12 @@ const MATCH_DAY_COLORS: Record<string, string> = {
   'MD-2': 'bg-blue-100 text-blue-800',
   'MD-1': 'bg-purple-100 text-purple-800',
   'MD': 'bg-amber-100 text-amber-800',
+  'PT-R': 'bg-emerald-50 text-emerald-800',
+  'PT-A': 'bg-sky-100 text-sky-800',
+  'PT-V': 'bg-amber-100 text-amber-900',
+  'PT-I': 'bg-orange-100 text-orange-900',
+  'PT-E': 'bg-indigo-100 text-indigo-800',
+  'PT-F': 'bg-rose-100 text-rose-800',
 }
 
 const FASE_LABELS: Record<string, string> = {
@@ -146,7 +153,7 @@ const ESTADO_CONFIG: Record<string, { color: string; label: string }> = {
   cancelada: { color: 'bg-red-100 text-red-700 border-red-200', label: 'Cancelada' },
 }
 
-const MATCH_DAYS = ['MD+1', 'MD+2', 'MD-4', 'MD-3', 'MD-2', 'MD-1', 'MD']
+const MATCH_DAYS = MATCH_DAYS_CATALOG.map((d) => d.codigo)
 const INTENSIDADES = ['alta', 'media', 'baja', 'muy_baja']
 const MATERIALES_SUGERIDOS = ['Petos', 'Conos', 'Vallas', 'Porterias reducidas', 'Balones', 'Picas', 'Escaleras', 'Gomas']
 const MOTIVOS_AUSENCIA: { value: MotivoAusencia; label: string }[] = [
@@ -964,10 +971,6 @@ export default function SesionDetailPage() {
   // Task picker
   const [taskPickerOpen, setTaskPickerOpen] = useState(false)
   const [taskPickerFase, setTaskPickerFase] = useState<FaseSesion>('activacion')
-  const [taskSearchQuery, setTaskSearchQuery] = useState('')
-  const [taskSearchCategory, setTaskSearchCategory] = useState('')
-  const [taskSearchResults, setTaskSearchResults] = useState<Tarea[]>([])
-  const [searchingTasks, setSearchingTasks] = useState(false)
 
   // Asistencia state
   const [jugadores, setJugadores] = useState<Jugador[]>([])
@@ -1019,12 +1022,8 @@ export default function SesionDetailPage() {
     posicion_principal: 'MC',
   })
 
-  // Task editing state (inline — no modal)
-
-  // Task creation state (in picker)
-  const [pickerTab, setPickerTab] = useState<'biblioteca' | 'crear'>('biblioteca')
+  // Task creation state
   const [creatorOpen, setCreatorOpen] = useState(false)
-  const [aiCreatePrompt, setAiCreatePrompt] = useState('')
   const [aiCreating, setAiCreating] = useState(false)
 
   // Phase management — track explicitly added/removed fases
@@ -1600,29 +1599,7 @@ export default function SesionDetailPage() {
     }
   }, [sesion, sesionId])
 
-  // ============ Task picker search ============
-  const searchTasks = async () => {
-    setSearchingTasks(true)
-    try {
-      const res = await tareasApi.list({
-        busqueda: taskSearchQuery || undefined,
-        categoria: taskSearchCategory || undefined,
-        limit: 20,
-        biblioteca: true,
-      })
-      setTaskSearchResults(res.data)
-    } catch (err) {
-      console.error('Error searching tasks:', err)
-    } finally {
-      setSearchingTasks(false)
-    }
-  }
-
-  useEffect(() => {
-    if (taskPickerOpen && pickerTab === 'biblioteca') searchTasks()
-  }, [taskPickerOpen, taskSearchQuery, taskSearchCategory, pickerTab])
-
-  // ============ Task creation from scratch ============
+  // ============ Task picker ============
   // La ficha completa llega de "Crea tu ejercicio" (TareaCreatorFullscreen)
   const handleCreateTask = async (data: TareaCreatorData) => {
     const updated = await sesionesApi.createTareaInSesion(sesionId, {
@@ -1636,17 +1613,16 @@ export default function SesionDetailPage() {
     setCreatorOpen(false)
   }
 
-  const handleAiCreateTask = async () => {
-    if (!aiCreatePrompt.trim()) return
+  const handleAiCreateTask = async (prompt: string) => {
+    if (!prompt.trim()) return
     setAiCreating(true)
     try {
       const updated = await sesionesApi.aiCreateTareaInSesion(sesionId, {
-        prompt: aiCreatePrompt,
+        prompt,
         fase_sesion: taskPickerFase,
       })
       setSesion(updated)
       setTaskPickerOpen(false)
-      setAiCreatePrompt('')
     } catch (err: any) {
       console.error('Error AI creating task:', err)
       toast.error(err?.message || 'Error al generar tarea con IA')
@@ -1988,16 +1964,32 @@ export default function SesionDetailPage() {
                 value={sesion.titulo}
                 onChange={(e) => updateField('titulo', e.target.value)}
               />
-              {/* Match Day selector */}
-              <select
-                className={`text-xs font-bold px-2.5 py-1 rounded border-0 cursor-pointer ${MATCH_DAY_COLORS[sesion.match_day] || 'bg-muted'}`}
-                value={sesion.match_day}
-                onChange={(e) => updateField('match_day', e.target.value)}
-              >
-                {MATCH_DAYS.map((md) => (
-                  <option key={md} value={md}>{md}</option>
-                ))}
-              </select>
+              {/* Match day / Día de carga */}
+              {sesion.es_pretemporada || sesion.contexto_periodo === 'pretemporada' || sesion.contexto_periodo === 'transicion' ? (
+                <select
+                  className={`text-xs font-bold px-2.5 py-1 rounded border-0 cursor-pointer ${MATCH_DAY_COLORS[sesion.dia_carga || ''] || 'bg-amber-50 text-amber-900'}`}
+                  value={sesion.dia_carga || ''}
+                  onChange={(e) => updateField('dia_carga', e.target.value)}
+                  title="Día de carga (pretemporada)"
+                >
+                  <option value="">Día de carga…</option>
+                  {DIAS_CARGA.map((d) => (
+                    <option key={d.codigo} value={d.codigo}>
+                      {d.codigo} — {d.nombre}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <select
+                  className={`text-xs font-bold px-2.5 py-1 rounded border-0 cursor-pointer ${MATCH_DAY_COLORS[sesion.match_day] || 'bg-muted'}`}
+                  value={sesion.match_day}
+                  onChange={(e) => updateField('match_day', e.target.value)}
+                >
+                  {MATCH_DAYS.map((md) => (
+                    <option key={md} value={md}>{md}</option>
+                  ))}
+                </select>
+              )}
               {/* Estado dropdown */}
               <select
                 className={`text-xs font-medium px-2 py-1 rounded border cursor-pointer ${estadoConfig.color}`}
@@ -2189,7 +2181,6 @@ export default function SesionDetailPage() {
                           size="sm"
                           onClick={() => {
                             setTaskPickerFase(fase)
-                            setPickerTab('biblioteca')
                             setTaskPickerOpen(true)
                           }}
                         >
@@ -2950,154 +2941,15 @@ export default function SesionDetailPage() {
         </Button>
       </div>
 
-      {/* ==================== TASK PICKER DIALOG ==================== */}
-      <Dialog open={taskPickerOpen} onOpenChange={setTaskPickerOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Anadir tarea a {FASE_LABELS[taskPickerFase]}</DialogTitle>
-            <DialogDescription>Busca en la biblioteca o crea una tarea nueva.</DialogDescription>
-          </DialogHeader>
-
-          {/* Tab switcher */}
-          <div className="flex gap-1 border-b mb-4">
-            <button
-              className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${pickerTab === 'biblioteca' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-              onClick={() => setPickerTab('biblioteca')}
-            >
-              Biblioteca
-            </button>
-            <button
-              className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${pickerTab === 'crear' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-              onClick={() => setPickerTab('crear')}
-            >
-              Crear nueva
-            </button>
-          </div>
-
-          {pickerTab === 'biblioteca' ? (
-            <>
-              <div className="flex gap-2 mb-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    className="pl-9"
-                    placeholder="Buscar tareas..."
-                    value={taskSearchQuery}
-                    onChange={(e) => setTaskSearchQuery(e.target.value)}
-                  />
-                </div>
-                <select
-                  className="rounded-md border bg-background px-3 py-2 text-sm"
-                  value={taskSearchCategory}
-                  onChange={(e) => setTaskSearchCategory(e.target.value)}
-                >
-                  <option value="">Todas las categorias</option>
-                  <option value="RND">Rondo</option>
-                  <option value="JDP">Juego de Posicion</option>
-                  <option value="POS">Posesion</option>
-                  <option value="EVO">Evoluciones</option>
-                  <option value="AVD">Ataque vs Defensa</option>
-                  <option value="PCO">Partido Condicionado</option>
-                  <option value="ACO">Acc. Combinadas</option>
-                  <option value="SSG">Futbol Reducido</option>
-                  <option value="ABP">Balon Parado</option>
-                </select>
-              </div>
-
-              <div className="flex-1 overflow-y-auto space-y-2 min-h-[200px]">
-                {searchingTasks ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                  </div>
-                ) : taskSearchResults.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No se encontraron tareas
-                  </div>
-                ) : (
-                  taskSearchResults.map((tarea) => (
-                    <button
-                      key={tarea.id}
-                      onClick={() => handleAddTarea(tarea, taskPickerFase)}
-                      className="w-full text-left p-3 rounded-lg border hover:bg-muted/50 hover:border-primary/50 transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-sm">{tarea.titulo}</p>
-                          <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                            {tarea.categoria && (
-                              <Badge variant="outline" className="text-[10px]">{tarea.categoria.nombre}</Badge>
-                            )}
-                            <span>{tarea.duracion_total} min</span>
-                            <span>{tarea.num_jugadores_min}{tarea.num_jugadores_max ? `-${tarea.num_jugadores_max}` : ''} jug.</span>
-                            {tarea.estructura_equipos && (
-                              <Badge variant="outline" className="text-[10px]">{tarea.estructura_equipos}</Badge>
-                            )}
-                          </div>
-                        </div>
-                        <Plus className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 overflow-y-auto space-y-4">
-              {/* Creación manual — abre "Crea tu ejercicio" a pantalla completa */}
-              <button
-                onClick={() => { setTaskPickerOpen(false); setCreatorOpen(true) }}
-                className="w-full rounded-xl border-2 border-dashed border-border hover:border-primary hover:bg-primary/5 transition-colors p-6 text-left"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
-                    <Plus className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold">Crea tu ejercicio</p>
-                    <p className="text-xs text-muted-foreground">
-                      Dibuja el ejercicio en la pizarra táctica y completa la ficha (tipo, contenidos,
-                      volumen y espacio de trabajo).
-                    </p>
-                  </div>
-                </div>
-              </button>
-
-              {/* AI creation */}
-              <div className="border-t pt-4 space-y-3">
-                <h4 className="text-sm font-semibold flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-primary" />
-                  Generar con IA
-                </h4>
-                <p className="text-xs text-muted-foreground">
-                  Describe el ejercicio que quieres y la IA lo generara completo.
-                </p>
-                <div className="flex gap-2">
-                  <Input
-                    value={aiCreatePrompt}
-                    onChange={(e) => setAiCreatePrompt(e.target.value)}
-                    placeholder="Ej: Rondo 4v2 con transiciones, 15 minutos..."
-                    className="flex-1"
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAiCreateTask() } }}
-                  />
-                  <Button
-                    onClick={handleAiCreateTask}
-                    disabled={aiCreating || !aiCreatePrompt.trim()}
-                    size="sm"
-                  >
-                    {aiCreating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
-                    Generar
-                  </Button>
-                </div>
-                {aiCreating && (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Sparkles className="h-3 w-3" /> Generando tarea con IA...
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <TaskPickerDialog
+        open={taskPickerOpen}
+        onOpenChange={setTaskPickerOpen}
+        faseLabel={FASE_LABELS[taskPickerFase] || taskPickerFase}
+        onAdd={(tarea) => handleAddTarea(tarea, taskPickerFase)}
+        onCreateManual={() => setCreatorOpen(true)}
+        onAiCreate={handleAiCreateTask}
+        aiCreating={aiCreating}
+      />
 
       {/* ==================== CROSS-TEAM PLAYER DIALOG ==================== */}
       <Dialog open={crossTeamDialogOpen} onOpenChange={setCrossTeamDialogOpen}>
@@ -3249,7 +3101,7 @@ export default function SesionDetailPage() {
         open={creatorOpen}
         onClose={() => setCreatorOpen(false)}
         onSubmit={handleCreateTask}
-        onClonar={() => { setCreatorOpen(false); setPickerTab('biblioteca'); setTaskPickerOpen(true) }}
+        onClonar={() => { setCreatorOpen(false); setTaskPickerOpen(true) }}
         numJugadoresDefault={Array.from(asistencias.values()).filter((a) => a.presente).length || 16}
         faseLabel={FASE_LABELS[taskPickerFase] || taskPickerFase}
       />

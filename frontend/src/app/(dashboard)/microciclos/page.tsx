@@ -210,8 +210,9 @@ function MicrocicloCard({ m, featured = false }: { m: Microciclo; featured?: boo
 export default function MicrociclosListPage() {
   const { equipoActivo } = useEquipoStore()
   const [page, setPage] = useState(1)
-  const [filter, setFilter] = useState<FilterKey>('todos')
+  const [filter, setFilter] = useState<FilterKey>('en_curso')
   const [query, setQuery] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState({
@@ -275,8 +276,6 @@ export default function MicrociclosListPage() {
   const total = data?.total || 0
   const pages = data?.pages || 1
 
-  const activo = useMemo(() => microciclos.find((m) => m.estado === 'en_curso'), [microciclos])
-
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     return microciclos.filter((m) => {
@@ -304,10 +303,8 @@ export default function MicrociclosListPage() {
     })
   }, [microciclos, filter, query])
 
-  const library = useMemo(
-    () => filtered.filter((m) => !(activo && m.id === activo.id && filter === 'todos' && !query.trim())),
-    [filtered, activo, filter, query]
-  )
+  // Vista habitual: solo el microciclo en curso. El resto se busca con filtros.
+  const library = useMemo(() => filtered, [filtered])
 
   const counts = useMemo(() => {
     return {
@@ -338,9 +335,9 @@ export default function MicrociclosListPage() {
       <div className="relative overflow-hidden rounded-2xl border border-emerald-200/60 bg-gradient-to-r from-emerald-50 via-sky-50/70 to-indigo-50 px-5 py-4">
         <div className="relative z-[1] flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-800/70">Biblioteca semanal</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-800/70">Semana actual</p>
             <p className="text-sm mt-1 text-slate-600 max-w-xl">
-              Filtra por estado o tipo, abre el microciclo en curso y navega el histórico como una biblioteca de semanas.
+              Por defecto solo ves el microciclo en curso. Usa filtros si necesitas buscar otra semana.
             </p>
           </div>
           <div className="flex gap-3 tabular-nums text-sm">
@@ -360,35 +357,67 @@ export default function MicrociclosListPage() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <div className="flex gap-1.5 overflow-x-auto scrollbar-thin pb-0.5">
-          {FILTERS.map((f) => (
-            <button
-              key={f.key}
+      {/* Filters (collapsed by default — normal view is current week only) */}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowFilters((v) => !v)}
+            className={cn(showFilters || filter !== 'en_curso' || query.trim() ? 'border-emerald-400 text-emerald-800' : '')}
+          >
+            <Search className="h-3.5 w-3.5 mr-1.5" />
+            {showFilters || filter !== 'en_curso' || query.trim() ? 'Filtros activos' : 'Buscar otro microciclo'}
+          </Button>
+          {(filter !== 'en_curso' || query.trim()) && (
+            <Button
               type="button"
-              onClick={() => setFilter(f.key)}
-              className={cn(
-                'shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
-                filter === f.key ? f.active : f.idle
-              )}
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setFilter('en_curso')
+                setQuery('')
+                setShowFilters(false)
+              }}
             >
-              {f.label}
-              {f.key !== 'todos' && counts[f.key] > 0 && (
-                <span className="ml-1.5 tabular-nums opacity-80">{counts[f.key]}</span>
-              )}
-            </button>
-          ))}
+              Volver al actual
+            </Button>
+          )}
+          <div className="relative sm:ml-auto w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value)
+                if (e.target.value.trim()) setShowFilters(true)
+              }}
+              placeholder="Buscar rival, objetivo…"
+              className="pl-9"
+              onFocus={() => setShowFilters(true)}
+            />
+          </div>
         </div>
-        <div className="relative sm:ml-auto w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar rival, objetivo…"
-            className="pl-9"
-          />
-        </div>
+        {(showFilters || filter !== 'en_curso') && (
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-thin pb-0.5">
+            {FILTERS.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setFilter(f.key)}
+                className={cn(
+                  'shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
+                  filter === f.key ? f.active : f.idle
+                )}
+              >
+                {f.label}
+                {f.key !== 'todos' && counts[f.key] > 0 && (
+                  <span className="ml-1.5 tabular-nums opacity-80">{counts[f.key]}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {isLoading && (
@@ -426,32 +455,66 @@ export default function MicrociclosListPage() {
 
       {!isLoading && !error && microciclos.length > 0 && (
         <div className="space-y-6">
-          {activo && filter === 'todos' && !query.trim() && (
-            <section className="space-y-2">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-emerald-700 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Semana actual
-              </h2>
-              <MicrocicloCard m={activo} featured />
-            </section>
-          )}
-
           {library.length === 0 ? (
             <div className="rounded-2xl border bg-card py-12 text-center px-4">
-              <p className="text-sm text-muted-foreground">Ningún microciclo coincide con el filtro.</p>
-              <Button variant="outline" size="sm" className="mt-3" onClick={() => { setFilter('todos'); setQuery('') }}>
-                Limpiar filtros
-              </Button>
+              {filter === 'en_curso' && !query.trim() ? (
+                <>
+                  <p className="font-medium">No hay microciclo en curso</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Usa los filtros para buscar planificados, completados o por tipo.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => {
+                      setShowFilters(true)
+                      setFilter('todos')
+                    }}
+                  >
+                    Ver todos los microciclos
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">Ningún microciclo coincide con el filtro.</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => {
+                      setFilter('en_curso')
+                      setQuery('')
+                    }}
+                  >
+                    Volver al actual
+                  </Button>
+                </>
+              )}
             </div>
           ) : (
             <section className="space-y-3">
               <div className="flex items-baseline justify-between gap-2">
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {activo && filter === 'todos' && !query.trim() ? 'Biblioteca' : 'Resultados'}
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  {filter === 'en_curso' && !query.trim() ? (
+                    <>
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Semana actual
+                    </>
+                  ) : (
+                    'Resultados'
+                  )}
                 </h2>
                 <span className="text-[11px] text-muted-foreground tabular-nums">{library.length}</span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              <div
+                className={cn(
+                  'grid gap-3',
+                  filter === 'en_curso' && !query.trim() && library.length === 1
+                    ? 'grid-cols-1 max-w-2xl'
+                    : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
+                )}
+              >
                 {library.map((m) => (
                   <MicrocicloCard key={m.id} m={m} featured={m.estado === 'en_curso'} />
                 ))}

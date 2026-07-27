@@ -41,6 +41,7 @@ export interface TareaCreateData {
   como_inicia?: string
   como_finaliza?: string
   fase_juego?: string
+  modalidad?: string
   principio_tactico?: string
   subprincipio_tactico?: string
   nivel_cognitivo?: number
@@ -86,6 +87,7 @@ interface ListTareasParams {
   direccion?: 'asc' | 'desc'
   categoria?: string
   fase_juego?: string
+  modalidad?: string
   principio_tactico?: string
   jugadores_min?: number
   jugadores_max?: number

@@ -205,7 +205,7 @@ export function SesionDefinirForm({
         </div>
 
         <div className="space-y-1.5">
-          <Label>{isPretemporada ? 'Día de carga' : 'Match day'}</Label>
+          <Label>{isPretemporada ? 'Día de carga (pretemporada)' : 'Match day'}</Label>
           <div className="flex flex-wrap gap-1.5">
             {(isPretemporada ? DIAS_CARGA : MATCH_DAYS).map((d) => (
               <ChipToggle
@@ -215,7 +215,7 @@ export function SesionDefinirForm({
                     ? value.dia_carga === d.codigo
                     : value.match_day === d.codigo
                 }
-                label={d.codigo}
+                label={`${d.codigo} — ${d.nombre}`}
                 onClick={() =>
                   isPretemporada
                     ? onChange({ dia_carga: d.codigo })
@@ -224,6 +224,15 @@ export function SesionDefinirForm({
               />
             ))}
           </div>
+          {isPretemporada && value.dia_carga && (
+            <p className="text-xs text-muted-foreground">
+              Seleccionado:{' '}
+              <span className="font-medium text-foreground">
+                {DIAS_CARGA.find((d) => d.codigo === value.dia_carga)?.codigo} —{' '}
+                {DIAS_CARGA.find((d) => d.codigo === value.dia_carga)?.nombre}
+              </span>
+            </p>
+          )}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
