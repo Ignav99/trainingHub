@@ -1,10 +1,9 @@
 # TrainingHub — agent memory
 
-## Branch: `cursor/pdf-celda-nombre-ae84` (2026-07-28)
+## Branch: `cursor/pdf-snapshot-margenes-ae84` (2026-07-28)
 
-### PDF reducido fixes
-- Sin fondo verde detrás de pizarra (`background: #fff`)
-- Celda: **pizarra IZQ (72%)** + **texto DER (28%)**
-- SVG `xMinYMid meet` pegado a la izquierda
-- Top más compacto + tasks 148mm → 4 en 1 página
-- Descarga: `sesion_YYYY-MM-DD.pdf` (fecha de la sesión)
+### PDF reducido
+- Instantánea real: `grafico_data.preview` (JPEG data URL del SVG del editor)
+- Captura al editar pizarra (`TareaPizarraEditor`) y al ver cards (`TaskLibraryCard`)
+- PDF usa `<img preview>` si existe; fallback SVG Python
+- Márgenes más justos (esp. abajo); tipografía cabecera/conceptos más grande
