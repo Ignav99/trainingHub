@@ -50,7 +50,7 @@ function normalizeAbp(raw: SesionAbpConfig | null | undefined): SesionAbpConfig 
       ...(defensivo.length ? (['defensivo'] as const) : []),
     ],
     lado: ofensivo.length ? 'ofensivo' : defensivo.length ? 'defensivo' : null,
-    tipos: [...new Set([...ofensivo, ...defensivo])],
+    tipos: Array.from(new Set([...ofensivo, ...defensivo])),
   }
 }
 
@@ -150,7 +150,7 @@ export function SesionDefinirForm({
       (k) => !suppressedKwRef.current.has(k),
     )
     // limpiar suppressed que ya no salen del objetivo
-    for (const s of [...suppressedKwRef.current]) {
+    for (const s of Array.from(suppressedKwRef.current)) {
       if (!synthesizeKeywords(objetivo_principal).includes(s)) {
         suppressedKwRef.current.delete(s)
       }
