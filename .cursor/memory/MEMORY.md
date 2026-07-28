@@ -1,16 +1,15 @@
 # TrainingHub — agent memory
 
-## Branch: `cursor/pdf-reducido-layout-ae84` (2026-07-28)
+## Branch: `cursor/pdf-objetivo-pizarra-ae84` (2026-07-28)
 
-### PDF reducido (rediseño)
-- A4 landscape, **1 página** con caja fija + `overflow:hidden`
-- Layout WeasyPrint-safe: **tablas** (no flex fill) — patrón de `tarea_pdf.html`
-- Conceptos: fases, subfases, contenidos of/def, ABP (`sesion_labels.py`)
-- Objetivo: texto del usuario (sin keywords)
-- Convocatoria: columnas de ~5 nombres
-- Ejercicios: grid **2×2**, pizarra grande + título/desc corta (máx. 4)
+### Bug objetivo PDF
+- Causa: `onChange` llamaba `updateField` por cada clave → el autosave de
+  `keywords` **pisaba** el pending de `objetivo_principal` (debounce 800ms).
+- Fix: `useAutoSave` hace merge de pending + `flush()` antes de generar PDF;
+  `updateFields(patch)` guarda todo junto.
 
-### Keywords
-- Solo internas para búsqueda NL
-- Ocultas en UI de diseño de sesión y en share/PDF
-- Siguen generándose al escribir el objetivo
+### Pizarra PDF
+- Usar coords ABP (`render_diagram_for_pdf`): half = portería abajo;
+  full = rotado horizontal como el editor.
+- Snapshot desde frame 0 si top-level vacío.
+- Template 2×2 con SVG a ancho de celda.
