@@ -208,7 +208,7 @@
       table-layout: fixed;
     }
     .task-board {
-      width: 74%;
+      width: 70%;
       height: 75.5mm;
       background: #fff;
       text-align: left;
@@ -232,7 +232,7 @@
       padding-left: 8px;
     }
     .task-info {
-      width: 26%;
+      width: 30%;
       height: 75.5mm;
       vertical-align: top;
       padding: 3px 5px 3px 6px;
@@ -253,24 +253,51 @@
       color: #64748b;
       font-weight: 600;
       font-size: 7px;
-      margin-bottom: 3px;
+      margin-bottom: 2px;
     }
     .task-desc {
-      font-size: 7px;
+      font-size: 6.5px;
       color: #475569;
-      line-height: 1.3;
-      max-height: 48mm;
+      line-height: 1.25;
+      max-height: 18mm;
       overflow: hidden;
+      margin-bottom: 2px;
     }
     .task-cat {
       display: inline-block;
-      margin-top: 3px;
+      margin-top: 1px;
       background: #f1f5f9;
       color: #334155;
       font-size: 6px;
       font-weight: 700;
       padding: 0 3px;
       border-radius: 2px;
+    }
+    .task-teams { margin-top: 3px; }
+    .task-team {
+      margin-bottom: 2px;
+      padding: 1.5px 3px;
+      border-radius: 2px;
+      border-left: 2.5px solid #94a3b8;
+      background: #f8fafc;
+      overflow: hidden;
+    }
+    .task-team-name {
+      font-size: 6.5px;
+      font-weight: 800;
+      color: #0f172a;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .task-team-players {
+      font-size: 5.5px;
+      color: #475569;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .task-empty-cell {
       background: #f8fafc;
@@ -378,6 +405,18 @@
               <div class="task-desc">{{ t.descripcion }}</div>
               {% endif %}
               {% if t.categoria %}<span class="task-cat">{{ t.categoria }}</span>{% endif %}
+              {% if t.equipos %}
+              <div class="task-teams">
+                {% for eq in t.equipos[:4] %}
+                <div class="task-team" style="border-left-color: {{ eq.color }}; background: {{ eq.color }}14;">
+                  <div class="task-team-name">{{ eq.nombre }} · {{ eq.count }}</div>
+                  {% if eq.players %}
+                  <div class="task-team-players">{{ eq.players[:8]|join(' · ') }}{% if eq.players|length > 8 %}…{% endif %}</div>
+                  {% endif %}
+                </div>
+                {% endfor %}
+              </div>
+              {% endif %}
             </td>
           </tr>
         </table>

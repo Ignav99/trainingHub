@@ -6,17 +6,12 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   DndContext,
-  DragOverlay,
   closestCenter,
-  pointerWithin,
-  useDroppable,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
-  type DragStartEvent,
   type DragEndEvent,
-  type CollisionDetection,
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -36,7 +31,6 @@ import {
   AlertCircle,
   CheckCircle,
   AlertTriangle,
-  Sparkles,
   Plus,
   Download,
   Eye,
@@ -54,10 +48,8 @@ import {
   UserX,
   RefreshCw,
   Minus,
-  UserPlus,
   Pencil,
   Copy,
-  ClipboardPaste,
   UserCircle,
   ClipboardList,
 } from 'lucide-react'
@@ -76,6 +68,7 @@ import TareaGraphicEditor from '@/components/tarea-editor/TareaGraphicEditor'
 import { emptyDiagramData } from '@/components/tarea-editor/types'
 import { TacticalBoardMini } from '@/components/task-preview'
 import { SesionTareaPanel } from '@/components/sesion'
+import { FormacionEquiposDialog } from '@/components/sesion/FormacionEquiposDialog'
 import GKTrainingSection from '@/components/portero/GKTrainingSection'
 import { SesionPhaseNav, type SesionPhase } from '@/components/sesiones/SesionPhaseNav'
 import { SesionCierrePanel } from '@/components/sesiones/SesionCierrePanel'
@@ -95,8 +88,6 @@ import {
   MotivoAusencia,
   TipoParticipacion,
   FormacionEquipos,
-  GrupoFormacion,
-  EspacioFormacion,
   EntrenamientoMargen,
 } from '@/types'
 import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
@@ -167,45 +158,6 @@ const POSITION_ORDER: Record<string, number> = {
   EXD: 11, EXI: 12, MP: 13, DC: 14, SD: 15,
 }
 
-const COLORES_EQUIPO = [
-  { color: '#EF4444', nombre: 'Equipo Rojo' },
-  { color: '#3B82F6', nombre: 'Equipo Azul' },
-  { color: '#22C55E', nombre: 'Equipo Verde' },
-  { color: '#F97316', nombre: 'Equipo Naranja' },
-  { color: '#8B5CF6', nombre: 'Equipo Morado' },
-  { color: '#EC4899', nombre: 'Equipo Rosa' },
-  { color: '#FACC15', nombre: 'Equipo Amarillo' },
-  { color: '#1F2937', nombre: 'Equipo Negro' },
-]
-const COLOR_SIN_ASIGNAR = { color: '#6B7280', nombre: 'Sin asignar' }
-
-function getPositionColorClasses(posicion: string): string {
-  if (posicion === 'POR') return 'bg-amber-200/80 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200'
-  if (['DFC', 'LTD', 'LTI', 'CAD', 'CAI'].includes(posicion)) return 'bg-blue-200/80 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200'
-  if (['MCD', 'MC', 'MCO', 'MID', 'MII'].includes(posicion)) return 'bg-green-200/80 text-green-800 dark:bg-green-900/60 dark:text-green-200'
-  if (['EXD', 'EXI', 'MP', 'DC', 'SD'].includes(posicion)) return 'bg-red-200/80 text-red-800 dark:bg-red-900/60 dark:text-red-200'
-  return 'bg-muted/60 text-muted-foreground'
-}
-
-const formacionCollisionDetection: CollisionDetection = (args) => {
-  const pointer = pointerWithin(args)
-  if (pointer.length > 0) return pointer
-  return closestCenter(args)
-}
-
-function cleanEmptyTeams(formacion: FormacionEquipos): FormacionEquipos {
-  return {
-    ...formacion,
-    auto_generado: false,
-    espacios: formacion.espacios.map(esp => ({
-      ...esp,
-      grupos: esp.grupos.filter(g =>
-        (g.tipo !== 'equipo' && g.tipo !== 'sin_asignar') || g.jugador_ids.length > 0
-      ),
-    })),
-  }
-}
-
 // ============ Helper: Debounced auto-save ============
 function useAutoSave(sesionId: string, delay = 800) {
   const timerRef = useRef<NodeJS.Timeout>()
@@ -259,660 +211,6 @@ function useAutoSave(sesionId: string, delay = 800) {
   )
 
   return { save, flush, saving, dirtyRef }
-}
-
-// ============ DnD: Sortable Player Item ============
-function SortablePlayer({ id, jugador, color }: { id: string; jugador: Jugador | undefined; color: string }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1,
-  }
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      className={`flex items-center gap-2 px-2 py-1.5 rounded-md bg-background cursor-grab active:cursor-grabbing hover:border-border transition-colors text-xs ${jugador?.es_invitado ? 'border-2 border-yellow-400' : 'border border-border/50'}`}
-    >
-      <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
-      <span className="font-bold text-muted-foreground w-5 text-center">
-        {jugador?.dorsal || '?'}
-      </span>
-      <span className="truncate flex-1">
-        {jugador ? (jugador.apodo || `${jugador.nombre} ${jugador.apellidos?.charAt(0) || ''}.`) : 'Jugador...'}
-      </span>
-      {jugador?.posicion_principal && (
-        <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${getPositionColorClasses(jugador.posicion_principal)}`}>
-          {jugador.posicion_principal}
-        </span>
-      )}
-    </div>
-  )
-}
-
-// ============ DnD: Droppable Group Container ============
-function DroppableGroup({
-  grupo,
-  jugadoresMap,
-  espacioIdx,
-  grupoIdx,
-  onRemoveGroup,
-  onRenameGroup,
-  onChangeColor,
-}: {
-  grupo: GrupoFormacion
-  jugadoresMap: Map<string, Jugador>
-  espacioIdx: number
-  grupoIdx: number
-  onRemoveGroup?: (espacioIdx: number, grupoIdx: number) => void
-  onRenameGroup?: (espacioIdx: number, grupoIdx: number, name: string) => void
-  onChangeColor?: (espacioIdx: number, grupoIdx: number, color: string) => void
-}) {
-  const [showColorPicker, setShowColorPicker] = useState(false)
-  const isSinAsignar = grupo.tipo === 'sin_asignar'
-  // Use 15% opacity for background color
-  const bgStyle = { backgroundColor: isSinAsignar ? '#6B728015' : `${grupo.color}15` }
-  const borderStyle = {
-    borderColor: isSinAsignar ? '#6B728040' : `${grupo.color}40`,
-    borderStyle: isSinAsignar ? 'dashed' as const : 'solid' as const,
-  }
-  const dotStyle = { backgroundColor: grupo.color }
-
-  const droppableId = `${espacioIdx}-${grupoIdx}`
-  // Create sortable IDs that encode the group they belong to
-  const itemIds = grupo.jugador_ids.map((jid) => `${droppableId}::${jid}`)
-
-  // Make the group itself a drop target so players can be dropped on the container
-  const { setNodeRef: setDroppableRef } = useDroppable({ id: droppableId })
-
-  return (
-    <div
-      ref={setDroppableRef}
-      className={`rounded-lg border p-2 min-w-[140px] flex-1 ${isSinAsignar ? 'bg-muted/30' : ''}`}
-      style={{ ...bgStyle, ...borderStyle }}
-    >
-      <div className="flex items-center gap-1.5 mb-2 px-1">
-        {isSinAsignar ? (
-          <UserPlus className="h-3 w-3 text-muted-foreground shrink-0" />
-        ) : (
-          <button
-            className="w-2.5 h-2.5 rounded-full shrink-0 cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-primary/50 transition-all"
-            style={dotStyle}
-            onClick={() => onChangeColor && setShowColorPicker(!showColorPicker)}
-            title="Cambiar color"
-          />
-        )}
-        {grupo.tipo === 'equipo' && onRenameGroup ? (
-          <input
-            className="text-xs font-semibold truncate bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none w-full min-w-0"
-            value={grupo.nombre}
-            onChange={(e) => onRenameGroup(espacioIdx, grupoIdx, e.target.value)}
-          />
-        ) : (
-          <span className="text-xs font-semibold truncate">{grupo.nombre}</span>
-        )}
-        <span className="text-[10px] text-muted-foreground ml-auto shrink-0">{grupo.jugador_ids.length}</span>
-        {grupo.tipo === 'equipo' && onRemoveGroup && (
-          <button
-            onClick={() => onRemoveGroup(espacioIdx, grupoIdx)}
-            className="p-0.5 rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-colors"
-            title="Eliminar equipo"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        )}
-      </div>
-      {showColorPicker && onChangeColor && (
-        <div className="flex gap-1 mb-2 px-1 flex-wrap">
-          {COLORES_EQUIPO.map((c) => (
-            <button
-              key={c.color}
-              className={`w-4 h-4 rounded-full border-2 transition-all ${grupo.color === c.color ? 'border-foreground scale-125' : 'border-transparent hover:scale-110'}`}
-              style={{ backgroundColor: c.color }}
-              onClick={() => { onChangeColor(espacioIdx, grupoIdx, c.color); setShowColorPicker(false) }}
-              title={c.nombre}
-            />
-          ))}
-        </div>
-      )}
-      <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
-        <div className="space-y-1 min-h-[32px]">
-          {grupo.jugador_ids.map((jid) => (
-            <SortablePlayer
-              key={`${droppableId}::${jid}`}
-              id={`${droppableId}::${jid}`}
-              jugador={jugadoresMap.get(jid)}
-              color={grupo.color}
-            />
-          ))}
-          {isSinAsignar && grupo.jugador_ids.length === 0 && (
-            <div className="text-[10px] text-muted-foreground text-center py-2 italic">
-              Arrastra jugadores aqui
-            </div>
-          )}
-        </div>
-      </SortableContext>
-    </div>
-  )
-}
-
-// ============ Formation Panel for a Task ============
-function FormacionPanel({
-  sesionId,
-  sesionTarea,
-  jugadoresMap,
-  onFormacionChange,
-  onCopy,
-  onPaste,
-  hasCopied,
-  copiedFrom,
-}: {
-  sesionId: string
-  sesionTarea: SesionTarea
-  jugadoresMap: Map<string, Jugador>
-  onFormacionChange: (stId: string, formacion: FormacionEquipos | null) => void
-  onCopy?: () => void
-  onPaste?: () => void
-  hasCopied?: boolean
-  copiedFrom?: string
-}) {
-  const [generating, setGenerating] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
-  const [activeId, setActiveId] = useState<string | null>(null)
-  const saveTimerRef = useRef<NodeJS.Timeout>()
-  const statusTimerRef = useRef<NodeJS.Timeout>()
-
-  const formacion = sesionTarea.formacion_equipos
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor)
-  )
-
-  const handleGenerar = async () => {
-    setGenerating(true)
-    try {
-      const result = await sesionesApi.generarEquiposTarea(sesionId, sesionTarea.id)
-      onFormacionChange(sesionTarea.id, result)
-      setLastSaved(new Date())
-      setSaveStatus('saved')
-      if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
-      statusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 4000)
-    } catch (err: any) {
-      console.error('Error generating formation:', err)
-      setSaveStatus('error')
-    } finally {
-      setGenerating(false)
-    }
-  }
-
-  const handleLimpiar = async () => {
-    try {
-      await sesionesApi.limpiarFormacion(sesionId, sesionTarea.id)
-      onFormacionChange(sesionTarea.id, null)
-      setSaveStatus('idle')
-      setLastSaved(null)
-    } catch (err) {
-      console.error('Error clearing formation:', err)
-    }
-  }
-
-  const debouncedSave = useCallback((newFormacion: FormacionEquipos) => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    setSaveStatus('saving')
-    saveTimerRef.current = setTimeout(async () => {
-      setSaving(true)
-      try {
-        await sesionesApi.guardarFormacion(sesionId, sesionTarea.id, newFormacion)
-        setLastSaved(new Date())
-        setSaveStatus('saved')
-        if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
-        statusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 4000)
-      } catch (err) {
-        console.error('Error saving formation:', err)
-        setSaveStatus('error')
-      } finally {
-        setSaving(false)
-      }
-    }, 500)
-  }, [sesionId, sesionTarea.id])
-
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id as string)
-  }
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    setActiveId(null)
-    const { active, over } = event
-    if (!over || !formacion) return
-
-    const activeIdStr = active.id as string
-    const overIdStr = over.id as string
-
-    // Parse IDs: format is "espacioIdx-grupoIdx::jugadorId"
-    const [activeGroup, activeJugadorId] = activeIdStr.split('::')
-    const [overGroup, overJugadorId] = overIdStr.split('::')
-
-    if (!activeJugadorId) return
-
-    // If dropped on same position, do nothing
-    if (activeIdStr === overIdStr) return
-
-    // Parse group coords
-    const [activeEspIdx, activeGrpIdx] = activeGroup.split('-').map(Number)
-
-    // Determine target group
-    let targetEspIdx: number
-    let targetGrpIdx: number
-    if (overJugadorId) {
-      // Dropped on another player - use that player's group
-      ;[targetEspIdx, targetGrpIdx] = overGroup.split('-').map(Number)
-    } else {
-      // Dropped on a group container directly
-      ;[targetEspIdx, targetGrpIdx] = overGroup.split('-').map(Number)
-    }
-
-    // Build updated formation
-    const rawFormacion: FormacionEquipos = {
-      ...formacion,
-      auto_generado: false,
-      espacios: formacion.espacios.map((espacio, ei) => ({
-        ...espacio,
-        grupos: espacio.grupos.map((grupo, gi) => {
-          let newIds = [...grupo.jugador_ids]
-
-          // Remove from source group
-          if (ei === activeEspIdx && gi === activeGrpIdx) {
-            newIds = newIds.filter((id) => id !== activeJugadorId)
-          }
-
-          // Add to target group
-          if (ei === targetEspIdx && gi === targetGrpIdx) {
-            if (!newIds.includes(activeJugadorId)) {
-              // Insert at the position of the over item
-              if (overJugadorId && overJugadorId !== activeJugadorId) {
-                const overIdx = newIds.indexOf(overJugadorId)
-                if (overIdx >= 0) {
-                  newIds.splice(overIdx, 0, activeJugadorId)
-                } else {
-                  newIds.push(activeJugadorId)
-                }
-              } else {
-                newIds.push(activeJugadorId)
-              }
-            }
-          }
-
-          return { ...grupo, jugador_ids: newIds }
-        }),
-      })),
-    }
-
-    // Clean empty equipo and sin_asignar groups
-    const newFormacion = cleanEmptyTeams(rawFormacion)
-
-    onFormacionChange(sesionTarea.id, newFormacion)
-    debouncedSave(newFormacion)
-  }
-
-  const handleAddEquipo = (espacioIdx: number) => {
-    if (!formacion) return
-    const espacio = formacion.espacios[espacioIdx]
-    if (!espacio) return
-
-    // Find first unused color
-    const usedColors = new Set(espacio.grupos.filter(g => g.tipo === 'equipo').map(g => g.color))
-    const available = COLORES_EQUIPO.find(c => !usedColors.has(c.color))
-    if (!available) return // All colors used
-
-    const newGrupo: GrupoFormacion = {
-      nombre: available.nombre,
-      color: available.color,
-      tipo: 'equipo',
-      jugador_ids: [],
-    }
-
-    // Insert before comodin/portero/sin_asignar groups
-    const insertIdx = espacio.grupos.findIndex(g => g.tipo !== 'equipo')
-    const newGrupos = [...espacio.grupos]
-    if (insertIdx >= 0) {
-      newGrupos.splice(insertIdx, 0, newGrupo)
-    } else {
-      newGrupos.push(newGrupo)
-    }
-
-    const newFormacion: FormacionEquipos = {
-      ...formacion,
-      auto_generado: false,
-      espacios: formacion.espacios.map((esp, ei) =>
-        ei === espacioIdx ? { ...esp, grupos: newGrupos } : esp
-      ),
-    }
-
-    onFormacionChange(sesionTarea.id, newFormacion)
-    debouncedSave(newFormacion)
-  }
-
-  const handleRemoveGroup = (espacioIdx: number, grupoIdx: number) => {
-    if (!formacion) return
-    const espacio = formacion.espacios[espacioIdx]
-    const grupo = espacio?.grupos[grupoIdx]
-    if (!grupo || grupo.tipo !== 'equipo') return
-
-    const displacedPlayers = grupo.jugador_ids
-
-    let newGrupos = espacio.grupos.filter((_, gi) => gi !== grupoIdx)
-
-    // If there are displaced players, move them to sin_asignar
-    if (displacedPlayers.length > 0) {
-      const sinAsignarIdx = newGrupos.findIndex(g => g.tipo === 'sin_asignar')
-      if (sinAsignarIdx >= 0) {
-        // Add to existing sin_asignar group
-        newGrupos = newGrupos.map((g, gi) =>
-          gi === sinAsignarIdx
-            ? { ...g, jugador_ids: [...g.jugador_ids, ...displacedPlayers] }
-            : g
-        )
-      } else {
-        // Create new sin_asignar group
-        newGrupos.push({
-          nombre: COLOR_SIN_ASIGNAR.nombre,
-          color: COLOR_SIN_ASIGNAR.color,
-          tipo: 'sin_asignar',
-          jugador_ids: displacedPlayers,
-        })
-      }
-    }
-
-    const newFormacion: FormacionEquipos = {
-      ...formacion,
-      auto_generado: false,
-      espacios: formacion.espacios.map((esp, ei) =>
-        ei === espacioIdx ? { ...esp, grupos: newGrupos } : esp
-      ),
-    }
-
-    onFormacionChange(sesionTarea.id, newFormacion)
-    debouncedSave(newFormacion)
-  }
-
-  const handleRenameGroup = (espacioIdx: number, grupoIdx: number, newName: string) => {
-    if (!formacion) return
-    const newFormacion: FormacionEquipos = {
-      ...formacion,
-      auto_generado: false,
-      espacios: formacion.espacios.map((esp, ei) =>
-        ei === espacioIdx
-          ? { ...esp, grupos: esp.grupos.map((g, gi) => gi === grupoIdx ? { ...g, nombre: newName } : g) }
-          : esp
-      ),
-    }
-    onFormacionChange(sesionTarea.id, newFormacion)
-    debouncedSave(newFormacion)
-  }
-
-  const handleChangeColor = (espacioIdx: number, grupoIdx: number, newColor: string) => {
-    if (!formacion) return
-    const newFormacion: FormacionEquipos = {
-      ...formacion,
-      auto_generado: false,
-      espacios: formacion.espacios.map((esp, ei) =>
-        ei === espacioIdx
-          ? { ...esp, grupos: esp.grupos.map((g, gi) => gi === grupoIdx ? { ...g, color: newColor } : g) }
-          : esp
-      ),
-    }
-    onFormacionChange(sesionTarea.id, newFormacion)
-    debouncedSave(newFormacion)
-  }
-
-  const handleTogglePorteros = () => {
-    if (!formacion) return
-    // Check if porteros group already exists
-    const hasPorteroGroup = formacion.espacios.some(esp => esp.grupos.some(g => g.tipo === 'portero'))
-
-    // Find all es_portero player IDs from jugadoresMap
-    const porteroIds = new Set<string>()
-    jugadoresMap.forEach((j, id) => {
-      if (j.posicion_principal === 'POR') porteroIds.add(id)
-    })
-
-    if (porteroIds.size === 0) return
-
-    let newFormacion: FormacionEquipos
-    if (!hasPorteroGroup) {
-      // ON: extract porteros from their groups into a new "Porteros" group
-      newFormacion = {
-        ...formacion,
-        auto_generado: false,
-        espacios: formacion.espacios.map(esp => {
-          const porterosInEspacio: string[] = []
-          const newGrupos = esp.grupos.map(g => {
-            const extracted = g.jugador_ids.filter(id => porteroIds.has(id))
-            porterosInEspacio.push(...extracted)
-            return { ...g, jugador_ids: g.jugador_ids.filter(id => !porteroIds.has(id)) }
-          })
-          if (porterosInEspacio.length > 0) {
-            newGrupos.push({
-              nombre: 'Porteros',
-              color: '#F59E0B',
-              tipo: 'portero',
-              jugador_ids: porterosInEspacio,
-            })
-          }
-          return { ...esp, grupos: newGrupos }
-        }),
-      }
-    } else {
-      // OFF: dissolve portero groups, move GKs to sin_asignar
-      newFormacion = {
-        ...formacion,
-        auto_generado: false,
-        espacios: formacion.espacios.map(esp => {
-          const porteroGroup = esp.grupos.find(g => g.tipo === 'portero')
-          if (!porteroGroup) return esp
-          const porIds = porteroGroup.jugador_ids
-          let newGrupos = esp.grupos.filter(g => g.tipo !== 'portero')
-          // Add to sin_asignar
-          const saIdx = newGrupos.findIndex(g => g.tipo === 'sin_asignar')
-          if (saIdx >= 0) {
-            newGrupos = newGrupos.map((g, i) => i === saIdx ? { ...g, jugador_ids: [...g.jugador_ids, ...porIds] } : g)
-          } else {
-            newGrupos.push({ nombre: 'Sin asignar', color: '#6B7280', tipo: 'sin_asignar', jugador_ids: porIds })
-          }
-          return { ...esp, grupos: newGrupos }
-        }),
-      }
-    }
-
-    onFormacionChange(sesionTarea.id, newFormacion)
-    debouncedSave(newFormacion)
-  }
-
-  const hasPorteroGroup = formacion?.espacios.some(esp => esp.grupos.some(g => g.tipo === 'portero')) ?? false
-
-  // Find the active player for the drag overlay
-  const activeJugadorId = activeId?.split('::')[1]
-  const activeJugador = activeJugadorId ? jugadoresMap.get(activeJugadorId) : undefined
-
-  if (!formacion) {
-    return (
-      <div className="flex items-center justify-center py-4 gap-3">
-        <Button size="sm" onClick={handleGenerar} disabled={generating}>
-          {generating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
-          Auto-generar equipos
-        </Button>
-        {hasCopied && onPaste && (
-          <Button size="sm" variant="outline" onClick={onPaste}>
-            <ClipboardPaste className="h-4 w-4 mr-1" /> Pegar de &quot;{copiedFrom}&quot;
-          </Button>
-        )}
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-[10px]">
-            {formacion.estructura_original}
-          </Badge>
-          {formacion.auto_generado && (
-            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-              <Sparkles className="h-3 w-3" /> Auto-generado
-            </span>
-          )}
-          {saveStatus === 'saving' && (
-            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-              <Loader2 className="h-3 w-3 animate-spin" /> Guardando...
-            </span>
-          )}
-          {saveStatus === 'saved' && (
-            <span className="text-[10px] text-green-600 flex items-center gap-1">
-              <CheckCircle className="h-3 w-3" /> Guardado
-            </span>
-          )}
-          {saveStatus === 'error' && (
-            <span className="text-[10px] text-destructive flex items-center gap-1">
-              <AlertCircle className="h-3 w-3" /> Error al guardar
-            </span>
-          )}
-          {lastSaved && saveStatus === 'idle' && (
-            <span className="text-[10px] text-muted-foreground">
-              Guardado {lastSaved.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleGenerar} disabled={generating}>
-            {generating ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
-            Regenerar
-          </Button>
-          <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={handleLimpiar}>
-            <Trash2 className="h-3 w-3 mr-1" /> Limpiar
-          </Button>
-          {onCopy && (
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onCopy}>
-              <Copy className="h-3 w-3 mr-1" /> Copiar
-            </Button>
-          )}
-          {hasCopied && onPaste && (
-            <Button variant="ghost" size="sm" className="h-7 text-xs text-primary" onClick={onPaste}>
-              <ClipboardPaste className="h-3 w-3 mr-1" /> Pegar de &quot;{copiedFrom}&quot;
-            </Button>
-          )}
-          {formacion.espacios.length === 1 ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => handleAddEquipo(0)}
-              disabled={formacion.espacios[0].grupos.filter(g => g.tipo === 'equipo').length >= COLORES_EQUIPO.length}
-            >
-              <Plus className="h-3 w-3 mr-1" /> Equipo
-            </Button>
-          ) : null}
-          <div className="flex items-center gap-1.5 ml-1 border-l pl-2">
-            <span className="text-[10px] text-muted-foreground">POR aparte</span>
-            <Switch
-              checked={hasPorteroGroup}
-              onCheckedChange={handleTogglePorteros}
-              className="scale-75"
-            />
-          </div>
-        </div>
-      </div>
-
-      <DndContext
-        sensors={sensors}
-        collisionDetection={formacionCollisionDetection}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        {formacion.espacios.map((espacio, espacioIdx) => (
-          <div key={espacioIdx}>
-            {formacion.espacios.length > 1 && (
-              <div className="flex items-center gap-2 mb-1.5">
-                <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  {espacio.nombre} ({espacio.estructura})
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-5 text-[10px] px-1.5"
-                  onClick={() => handleAddEquipo(espacioIdx)}
-                  disabled={espacio.grupos.filter(g => g.tipo === 'equipo').length >= COLORES_EQUIPO.length}
-                >
-                  <Plus className="h-2.5 w-2.5 mr-0.5" /> Equipo
-                </Button>
-              </div>
-            )}
-            <div className="flex gap-2 flex-wrap">
-              {espacio.grupos.filter(g => g.tipo !== 'sin_asignar').map((grupo, grupoIdx) => {
-                const realIdx = espacio.grupos.indexOf(grupo)
-                return (
-                  <DroppableGroup
-                    key={`${espacioIdx}-${realIdx}`}
-                    grupo={grupo}
-                    jugadoresMap={jugadoresMap}
-                    espacioIdx={espacioIdx}
-                    grupoIdx={realIdx}
-                    onRemoveGroup={handleRemoveGroup}
-                    onRenameGroup={handleRenameGroup}
-                    onChangeColor={handleChangeColor}
-                  />
-                )
-              })}
-            </div>
-            {/* Sin asignar zone - rendered separately at bottom */}
-            {espacio.grupos.filter(g => g.tipo === 'sin_asignar').map((grupo) => {
-              const realIdx = espacio.grupos.indexOf(grupo)
-              return (
-                <div key={`sin-asignar-${espacioIdx}`} className="mt-2">
-                  <DroppableGroup
-                    grupo={grupo}
-                    jugadoresMap={jugadoresMap}
-                    espacioIdx={espacioIdx}
-                    grupoIdx={realIdx}
-                  />
-                </div>
-              )
-            })}
-          </div>
-        ))}
-
-        <DragOverlay>
-          {activeId && activeJugador ? (
-            <div className={`flex items-center gap-2 px-2 py-1.5 rounded-md bg-background border-2 shadow-lg text-xs ${activeJugador.es_invitado ? 'border-yellow-400' : 'border-primary'}`}>
-              <GripVertical className="h-3 w-3 text-primary shrink-0" />
-              <span className="font-bold w-5 text-center">{activeJugador.dorsal || '?'}</span>
-              <span>{activeJugador.apodo || `${activeJugador.nombre} ${activeJugador.apellidos?.charAt(0) || ''}.`}</span>
-              {activeJugador.posicion_principal && (
-                <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${getPositionColorClasses(activeJugador.posicion_principal)}`}>
-                  {activeJugador.posicion_principal}
-                </span>
-              )}
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
-    </div>
-  )
 }
 
 // ============ Sortable Phase Card Wrapper ============
@@ -1007,7 +305,7 @@ export default function SesionDetailPage() {
   const [convocatoriaTab, setConvocatoriaTab] = useState<'asistencia' | 'margen'>('asistencia')
 
   // Per-task formation panel state
-  const [expandedFormaciones, setExpandedFormaciones] = useState<Set<string>>(new Set())
+  const [formacionDialogStId, setFormacionDialogStId] = useState<string | null>(null)
 
   // Clipboard for copy/paste formations between tasks
   const [copiedFormacion, setCopiedFormacion] = useState<{
@@ -1387,20 +685,24 @@ export default function SesionDetailPage() {
   }, [sesion?.staff_asistentes, allTareas])
 
   // ============ Per-task formation ============
-  const toggleFormacionPanel = (stId: string) => {
-    setExpandedFormaciones((prev) => {
-      const next = new Set(prev)
-      if (next.has(stId)) {
-        next.delete(stId)
-      } else {
-        next.add(stId)
-        // Ensure jugadores + invitados are loaded for the formation panel
-        loadJugadores()
-        loadAsistencias()
-      }
-      return next
-    })
+  const openFormacionDialog = (stId: string) => {
+    loadJugadores()
+    loadAsistencias()
+    setFormacionDialogStId(stId)
   }
+
+  const formacionDialogTarea = useMemo(
+    () => sesion?.tareas?.find((t) => t.id === formacionDialogStId) || null,
+    [sesion?.tareas, formacionDialogStId]
+  )
+
+  const disponiblesIds = useMemo(() => {
+    const ids: string[] = []
+    asistencias.forEach((a, jid) => {
+      if (a.presente && (a.tipo_participacion || []).includes('sesion')) ids.push(jid)
+    })
+    return ids
+  }, [asistencias])
 
   const handleFormacionChange = (stId: string, formacion: FormacionEquipos | null) => {
     setSesion((prev) => {
@@ -2105,7 +1407,7 @@ export default function SesionDetailPage() {
                               index={idx}
                               totalInFase={tareas.length}
                               staffOptions={staffOptions}
-                              isFormacionExpanded={expandedFormaciones.has(st.id)}
+                              isFormacionExpanded={formacionDialogStId === st.id}
                               onMoveUp={() => handleMoveTarea(st, 'up')}
                               onMoveDown={() => handleMoveTarea(st, 'down')}
                               onRemove={() => handleRemoveTarea(st)}
@@ -2115,27 +1417,10 @@ export default function SesionDetailPage() {
                               onResponsableBlur={() => debouncedSaveTareasBatch(allTareas)}
                               onNotasChange={(val) => handleUpdateTareaNotas(st.id, val)}
                               onNotasBlur={() => debouncedSaveTareasBatch(allTareas)}
-                              onToggleFormacion={() => toggleFormacionPanel(st.id)}
+                              onToggleFormacion={() => openFormacionDialog(st.id)}
                               onSaveEdit={(form) => handleInlineSaveEdit(st.id, form)}
                               onAiEdit={(instruction) => handleInlineAiEdit(st.id, instruction)}
                             />
-                            {/* Inline Formation Panel */}
-                            {expandedFormaciones.has(st.id) && (
-                              <div className="px-4 pb-4 pt-0 ml-12 mr-4">
-                                <div className="border rounded-lg p-3 bg-muted/20">
-                                  <FormacionPanel
-                                    sesionId={sesionId}
-                                    sesionTarea={st}
-                                    jugadoresMap={jugadoresMap}
-                                    onFormacionChange={handleFormacionChange}
-                                    onCopy={() => handleCopyFormacion(st)}
-                                    onPaste={() => handlePasteFormacion(st.id)}
-                                    hasCopied={!!copiedFormacion}
-                                    copiedFrom={copiedFormacion?.taskName}
-                                  />
-                                </div>
-                              </div>
-                            )}
                           </div>
                         ))}
                       </div>
@@ -2640,6 +1925,20 @@ export default function SesionDetailPage() {
           <Link href="/sesiones/nueva"><Plus className="h-4 w-4 mr-2" />Nueva sesión</Link>
         </Button>
       </div>
+
+      <FormacionEquiposDialog
+        open={!!formacionDialogStId}
+        onOpenChange={(open) => { if (!open) setFormacionDialogStId(null) }}
+        sesionId={sesionId}
+        sesionTarea={formacionDialogTarea}
+        jugadoresMap={jugadoresMap}
+        disponiblesIds={disponiblesIds}
+        onFormacionChange={handleFormacionChange}
+        onCopy={formacionDialogTarea ? () => handleCopyFormacion(formacionDialogTarea) : undefined}
+        onPaste={formacionDialogStId ? () => handlePasteFormacion(formacionDialogStId) : undefined}
+        hasCopied={!!copiedFormacion}
+        copiedFrom={copiedFormacion?.taskName}
+      />
 
       <TaskPickerDialog
         open={taskPickerOpen}

@@ -585,6 +585,39 @@ async def generate_convocatoria_pdf(
     return await asyncio.to_thread(_render)
 
 
+def _build_equipos_reducido(
+    formacion_equipos: Optional[dict],
+    jugadores_map: Optional[dict] = None,
+) -> list[dict]:
+    """Equipos compactos para el PDF reducido: color, título y dorsales/nombres."""
+    if not formacion_equipos or not isinstance(formacion_equipos, dict):
+        return []
+    out: list[dict] = []
+    for espacio in formacion_equipos.get("espacios") or []:
+        for grupo in espacio.get("grupos") or []:
+            tipo = grupo.get("tipo") or "equipo"
+            if tipo in ("sin_asignar",):
+                continue
+            color = grupo.get("color") or "#64748b"
+            nombre = grupo.get("nombre") or ("Comodín" if tipo == "comodin" else "Equipo")
+            players = []
+            for jid in grupo.get("jugador_ids") or []:
+                j = (jugadores_map or {}).get(str(jid)) or {}
+                dorsal = j.get("dorsal")
+                n = (j.get("nombre") or "").strip()
+                a = (j.get("apellidos") or "").strip()
+                label = f"#{dorsal}" if dorsal not in (None, "") else (f"{n} {a[:1]}.".strip() if n else "?")
+                players.append(label)
+            out.append({
+                "nombre": nombre,
+                "color": color,
+                "tipo": tipo,
+                "players": players,
+                "count": len(players),
+            })
+    return out
+
+
 def _get_peto_info(color: str) -> dict:
     """Get peto CSS class and label for a team color."""
     if color in PETO_MAP:
@@ -1361,6 +1394,7 @@ async def generate_sesion_pdf_reducido(
     lugar: Optional[str] = None,
     microciclo_nombre: Optional[str] = None,
     asistencia_roster: Optional[list] = None,
+    jugadores_map: Optional[dict] = None,
 ) -> bytes:
     """PDF reducido: 1 folio A4 landscape, conceptos, objetivo, convocatoria densa, 2×2 pizarras."""
     env = _get_jinja_env_v2()
@@ -1390,8 +1424,10 @@ async def generate_sesion_pdf_reducido(
         duracion_total += int(dur or 0)
 
         desc = tarea.get("desarrollo") or tarea.get("descripcion") or ""
-        if isinstance(desc, str) and len(desc) > 90:
-            desc = desc[:87].rsplit(" ", 1)[0] + "…"
+        formacion = ts.get("formacion_equipos") if isinstance(ts.get("formacion_equipos"), dict) else None
+        desc_limit = 55 if formacion else 90
+        if isinstance(desc, str) and len(desc) > desc_limit:
+            desc = desc[: desc_limit - 3].rsplit(" ", 1)[0] + "…"
 
         obj_bits = []
         for key in ("objetivos_tacticos", "objetivos_tecnicos"):
@@ -1440,6 +1476,7 @@ async def generate_sesion_pdf_reducido(
             "preview_img": preview_img,
             "svg_thumbnail": svg_thumb,
             "pitch_kind": pitch_kind,
+            "equipos": _build_equipos_reducido(formacion, jugadores_map),
         })
 
     tareas_total = len(todas)
