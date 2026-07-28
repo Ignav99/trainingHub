@@ -147,7 +147,7 @@ export const sesionesApi = {
 
   async generatePdf(
     id: string,
-    variant: 'reducido' | 'extendido' = 'extendido',
+    variant: 'reducido' | 'extendido' = 'reducido',
     opts?: { fecha?: string | null },
   ): Promise<void> {
     const blob = await api.getBlob(`/sesiones/${id}/pdf?variant=${variant}&preview=false`, {
@@ -157,7 +157,8 @@ export const sesionesApi = {
     const a = document.createElement('a')
     a.href = url
     const fecha = String(opts?.fecha || '').slice(0, 10)
-    a.download = fecha ? `sesion_${fecha}.pdf` : `sesion_${id}.pdf`
+    const suffix = variant === 'extendido' ? '_extendido' : ''
+    a.download = fecha ? `sesion_${fecha}${suffix}.pdf` : `sesion_${id}${suffix}.pdf`
     a.rel = 'noopener'
     a.style.display = 'none'
     document.body.appendChild(a)
@@ -168,7 +169,7 @@ export const sesionesApi = {
 
   async previewPdf(
     id: string,
-    variant: 'reducido' | 'extendido' = 'extendido',
+    variant: 'reducido' | 'extendido' = 'reducido',
     opts?: { fecha?: string | null },
   ): Promise<void> {
     const blob = await api.getBlob(`/sesiones/${id}/pdf?preview=true&variant=${variant}`, {
@@ -180,7 +181,8 @@ export const sesionesApi = {
       const a = document.createElement('a')
       a.href = url
       const fecha = String(opts?.fecha || '').slice(0, 10)
-      a.download = fecha ? `sesion_${fecha}.pdf` : `sesion_${id}.pdf`
+      const suffix = variant === 'extendido' ? '_extendido' : ''
+      a.download = fecha ? `sesion_${fecha}${suffix}.pdf` : `sesion_${id}${suffix}.pdf`
       a.click()
     }
     setTimeout(() => URL.revokeObjectURL(url), 60_000)

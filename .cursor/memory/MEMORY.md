@@ -1,9 +1,15 @@
 # TrainingHub — agent memory
 
-## Branch: `cursor/pdf-snapshot-margenes-ae84` (2026-07-28)
+## 2026-07-28 — PDF “todo igual” root cause
 
-### PDF reducido
-- Instantánea real: `grafico_data.preview` (JPEG data URL del SVG del editor)
-- Captura al editar pizarra (`TareaPizarraEditor`) y al ver cards (`TaskLibraryCard`)
-- PDF usa `<img preview>` si existe; fallback SVG Python
-- Márgenes más justos (esp. abajo); tipografía cabecera/conceptos más grande
+**Deploy was real:** Render BE+FE live on `a1ce06c` (PR #201).
+
+**Why user saw no change:** most UI entry points called `variant=extendido` (old multi-page PDF). Only Cierre → “PDF reducido” used the redesigned A4 landscape template.
+
+Fixed on branch `cursor/pdf-listado-reducido-ae84`:
+- Listado menu: PDF reducido + PDF extendido
+- Session header / operativa buttons → reducido
+- API client default → reducido; extendido filename gets `_extendido` suffix
+
+### Caveat still true
+- Board photo needs `grafico_data.preview` (open tarea once in library/editor). Without it PDF falls back to Python SVG.

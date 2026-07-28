@@ -1828,7 +1828,7 @@ async def delete_formacion_tarea(
 async def generate_pdf(
     sesion_id: UUID,
     preview: bool = Query(False, description="If true, return inline for browser preview"),
-    variant: str = Query("extendido", description="reducido | extendido"),
+    variant: str = Query("reducido", description="reducido | extendido"),
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
     """Genera el PDF de la sesión (reducido 1 pág o extendido), lo sube a Storage y lo devuelve."""
@@ -2116,7 +2116,7 @@ async def generate_pdf(
     # Generar PDF (reducido vestuario / extendido detalle)
     try:
         from app.services.pdf_service import generate_sesion_pdf_reducido
-        if (variant or "extendido").lower() == "reducido":
+        if (variant or "reducido").lower() == "reducido":
             pdf_bytes = await generate_sesion_pdf_reducido(
                 sesion, tareas, organizacion,
                 lugar=lugar,
@@ -2167,7 +2167,7 @@ async def generate_pdf(
         pass
 
     # Devolver PDF como streaming response
-    # Nombre: sesion_YYYY-MM-DD.pdf (fecha de la sesión)
+    # Nombre: sesion_YYYY-MM-DD.pdf (reducido) / sesion_YYYY-MM-DD_extendido.pdf
     fecha_raw = sesion.get("fecha")
     if hasattr(fecha_raw, "isoformat"):
         fecha_str = fecha_raw.isoformat()[:10]
@@ -2175,7 +2175,9 @@ async def generate_pdf(
         fecha_str = str(fecha_raw or "")[:10]
     if not fecha_str or fecha_str.lower() in ("none", "null"):
         fecha_str = str(sesion_id)[:8]
-    filename = f"sesion_{fecha_str}.pdf"
+    variant_key = (variant or "reducido").lower()
+    suffix = "_extendido" if variant_key == "extendido" else ""
+    filename = f"sesion_{fecha_str}{suffix}.pdf"
     disposition = "inline" if preview else f'attachment; filename="{filename}"'
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
