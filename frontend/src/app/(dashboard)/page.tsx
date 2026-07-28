@@ -32,6 +32,7 @@ import type { Sesion, Microciclo, Partido, Descanso, PaginatedResponse } from '@
 import { NextMatchBanner } from '@/components/dashboard/NextMatchBanner'
 import { CalendarSection } from '@/components/dashboard/CalendarSection'
 import { DayDetailPanel } from '@/components/dashboard/DayDetailPanel'
+import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import type { CalendarViewMode } from '@/lib/calendar/types'
 import { startOfWeekMonday, addDays, toLocalDateStr } from '@/lib/calendar/types'
 import {
@@ -625,9 +626,7 @@ export default function DashboardPage() {
                   <div className="space-y-2">
                     {plantilla.jugadores_lesionados.map((j: any) => (
                       <div key={j.id} className="flex items-center gap-3 p-2 rounded-lg bg-red-50/50">
-                        <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-xs font-bold text-red-700">
-                          {j.dorsal || '?'}
-                        </div>
+                        <PlayerAvatar player={j} size="sm" preferDorsalFallback />
                         <div className="flex-1">
                           <p className="text-sm font-medium">{j.apodo || `${j.nombre} ${j.apellidos}`}</p>
                           {j.motivo_baja && (
@@ -652,9 +651,7 @@ export default function DashboardPage() {
                   <div className="space-y-2">
                     {plantilla.jugadores_en_recuperacion.map((j: any) => (
                       <div key={j.id} className="flex items-center gap-3 p-2 rounded-lg bg-yellow-50/50">
-                        <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center text-xs font-bold text-yellow-700">
-                          {j.dorsal || '?'}
-                        </div>
+                        <PlayerAvatar player={j} size="sm" preferDorsalFallback />
                         <div className="flex-1">
                           <p className="text-sm font-medium">{j.apodo || `${j.nombre} ${j.apellidos}`}</p>
                           {j.motivo_baja && (
@@ -679,9 +676,7 @@ export default function DashboardPage() {
                   <div className="space-y-2">
                     {plantilla.jugadores_sancionados.map((j: any) => (
                       <div key={j.id} className="flex items-center gap-3 p-2 rounded-lg bg-amber-50/50">
-                        <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-xs font-bold text-amber-700">
-                          {j.dorsal || '?'}
-                        </div>
+                        <PlayerAvatar player={j} size="sm" preferDorsalFallback />
                         <div className="flex-1">
                           <p className="text-sm font-medium">{j.apodo || `${j.nombre} ${j.apellidos}`}</p>
                           {j.motivo_baja && (

@@ -5,6 +5,7 @@ import { Clock, Activity, ChevronRight } from 'lucide-react'
 import type { DisponibilidadOperativa, RegistroMedico } from '@/types'
 import { DISPONIBILIDAD_COLORS, DISPONIBILIDAD_LABELS } from '@/lib/jugadorTipo'
 import { cn } from '@/lib/utils'
+import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 
 /** Campos mínimos del jugador para el tablero (compatible con API y types). */
 export type BoardPlayer = {
@@ -14,6 +15,7 @@ export type BoardPlayer = {
   apodo?: string
   dorsal?: number
   posicion_principal: string
+  foto_url?: string | null
   fecha_vuelta_estimada?: string
 }
 
@@ -93,9 +95,7 @@ export function CaseCard({ item }: { item: PlayerCaseCard }) {
     >
       <span className={cn('absolute left-0 top-0 bottom-0 w-1', accent)} aria-hidden />
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-sm font-bold tabular-nums shrink-0">
-          {jugador.dorsal ?? '—'}
-        </div>
+        <PlayerAvatar player={jugador} size="md" preferDorsalFallback />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
@@ -219,9 +219,7 @@ export function EnfermeriaHistorico({
           return (
             <details key={group.jugador.id} className="group/details open:bg-muted/10">
               <summary className="flex items-center gap-3 px-4 py-3.5 cursor-pointer list-none select-none hover:bg-muted/40 transition-colors [&::-webkit-details-marker]:hidden">
-                <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-xs font-bold tabular-nums shrink-0">
-                  {group.jugador.dorsal ?? '—'}
-                </div>
+                <PlayerAvatar player={group.jugador} size="sm" preferDorsalFallback />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-semibold truncate">{label}</p>

@@ -49,6 +49,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { sesionesApi } from '@/lib/api/sesiones'
+import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import type {
   FormacionEquipos,
   GrupoFormacion,
@@ -179,9 +180,12 @@ function SortablePlayer({
       } ${isDragging ? 'ring-1 ring-primary/30' : ''}`}
     >
       <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
-      <span className="font-bold text-muted-foreground w-5 text-center">
-        {jugador?.dorsal || '?'}
-      </span>
+      <PlayerAvatar
+        player={jugador || {}}
+        size="xs"
+        preferDorsalFallback
+        className="shrink-0"
+      />
       <span className="truncate flex-1">
         {jugador
           ? jugador.apodo || `${jugador.nombre} ${jugador.apellidos?.charAt(0) || ''}.`
@@ -931,9 +935,12 @@ export function FormacionEquiposDialog({
                     style={{ width: 200 }}
                   >
                     <GripVertical className="h-3 w-3 text-primary shrink-0" />
-                    <span className="font-bold w-5 text-center">
-                      {activeJugador.dorsal || '?'}
-                    </span>
+                    <PlayerAvatar
+                      player={activeJugador}
+                      size="xs"
+                      preferDorsalFallback
+                      className="shrink-0"
+                    />
                     <span className="truncate flex-1">
                       {activeJugador.apodo ||
                         `${activeJugador.nombre} ${activeJugador.apellidos?.charAt(0) || ''}.`}

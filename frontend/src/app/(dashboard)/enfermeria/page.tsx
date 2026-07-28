@@ -158,6 +158,7 @@ export default function EnfermeriaPage() {
                 apodo: jugador.apodo,
                 dorsal: jugador.dorsal,
                 posicion_principal: jugador.posicion_principal,
+                foto_url: jugador.foto_url,
                 fecha_vuelta_estimada: jugador.fecha_vuelta_estimada,
               }
             : {
@@ -208,6 +209,7 @@ export default function EnfermeriaPage() {
           apodo: jugador.apodo,
           dorsal: jugador.dorsal,
           posicion_principal: jugador.posicion_principal,
+          foto_url: jugador.foto_url,
           fecha_vuelta_estimada: jugador.fecha_vuelta_estimada,
         },
         registro,

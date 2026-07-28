@@ -20,6 +20,10 @@ const Avatar = React.forwardRef<HTMLDivElement, AvatarProps>(
   ({ className, src, alt, fallback, size = 'md', ...props }, ref) => {
     const [imgError, setImgError] = React.useState(false)
 
+    React.useEffect(() => {
+      setImgError(false)
+    }, [src])
+
     if (src && !imgError) {
       return (
         <div
@@ -68,6 +72,10 @@ interface ClubAvatarProps extends React.HTMLAttributes<HTMLDivElement> {
 const ClubAvatar = React.forwardRef<HTMLDivElement, ClubAvatarProps>(
   ({ className, logoUrl, clubName, size = 'md', ...props }, ref) => {
     const [imgError, setImgError] = React.useState(false)
+
+    React.useEffect(() => {
+      setImgError(false)
+    }, [logoUrl])
 
     if (logoUrl && !imgError) {
       return (

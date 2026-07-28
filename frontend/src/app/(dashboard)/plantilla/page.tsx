@@ -36,6 +36,7 @@ import { CardGridSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
+import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import {
   FICHA_ESTADO_LABELS,
   TIPO_JUGADOR_COLORS,
@@ -45,40 +46,6 @@ import {
   resolveTipoJugador,
 } from '@/lib/jugadorTipo'
 import type { CargaEquipoResponse, CargaJugador, TipoJugador } from '@/types'
-
-// Avatar del jugador
-function PlayerAvatar({ jugador, size = 'md' }: { jugador: Jugador; size?: 'sm' | 'md' | 'lg' }) {
-  const sizeClasses = {
-    sm: 'w-8 h-8 text-xs',
-    md: 'w-12 h-12 text-sm',
-    lg: 'w-16 h-16 text-lg',
-  }
-
-  const initials = `${jugador.nombre[0]}${jugador.apellidos[0]}`.toUpperCase()
-
-  if (jugador.foto_url) {
-    return (
-      <img
-        src={jugador.foto_url}
-        alt={`${jugador.nombre} ${jugador.apellidos}`}
-        className={`${sizeClasses[size]} rounded-full object-cover`}
-      />
-    )
-  }
-
-  // Color based on position zone
-  const pos = POSICIONES[jugador.posicion_principal as keyof typeof POSICIONES]
-  const bgColor = pos?.color || '#6B7280'
-
-  return (
-    <div
-      className={`${sizeClasses[size]} rounded-full flex items-center justify-center text-white font-bold`}
-      style={{ backgroundColor: bgColor }}
-    >
-      {initials}
-    </div>
-  )
-}
 
 // Badge de estado
 function EstadoBadge({ estado }: { estado: string }) {
@@ -173,7 +140,7 @@ function JugadorCard({
       {/* Header */}
       <div className="flex items-start gap-3 mb-3">
         <div className="relative">
-          <PlayerAvatar jugador={jugador} size="lg" />
+          <PlayerAvatar player={jugador} size="lg" />
           {jugador.dorsal && (
             <span className="absolute -bottom-1 -right-1 bg-gray-900 text-white text-xs font-bold px-1.5 py-0.5 rounded">
               {jugador.dorsal}
