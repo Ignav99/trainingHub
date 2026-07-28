@@ -3,7 +3,7 @@ TrainingHub Pro - Modelos de Sesión
 Schemas Pydantic para sesiones de entrenamiento.
 """
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, computed_field, model_validator
 from typing import Optional, List
 from datetime import datetime, date
 from uuid import UUID
@@ -88,10 +88,34 @@ class SesionSubfaseItem(BaseModel):
 
 
 class AbpConfig(BaseModel):
-    """Configuración ABP opcional de la sesión."""
+    """Configuración ABP opcional de la sesión.
+
+    `lados` permite ofensivo y/o defensivo a la vez.
+    `lado` se mantiene por compatibilidad (primer valor de lados).
+    """
     activo: bool = False
-    lado: Optional[str] = None  # ofensivo | defensivo
+    lado: Optional[str] = None  # legacy: ofensivo | defensivo
+    lados: List[str] = Field(default_factory=list)  # ofensivo, defensivo (multi)
     tipos: List[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _sync_lados(self):
+        lados = [x for x in (self.lados or []) if x in ("ofensivo", "defensivo")]
+        if not lados and self.lado in ("ofensivo", "defensivo"):
+            lados = [self.lado]
+        # unique preserve order
+        seen = set()
+        lados_u = []
+        for x in lados:
+            if x not in seen:
+                seen.add(x)
+                lados_u.append(x)
+        self.lados = lados_u
+        if lados_u and not self.lado:
+            self.lado = lados_u[0]
+        elif not lados_u:
+            self.lado = None
+        return self
 
 
 # ============ Schemas de Sesión-Tarea (relación) ============

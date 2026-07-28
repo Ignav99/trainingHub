@@ -778,7 +778,9 @@ async def generate_sesion_pdf_v2(
 
         tarea_enriched = {
             "titulo": tarea.get("titulo", ""),
-            "descripcion": tarea.get("descripcion", ""),
+            "descripcion": tarea.get("desarrollo") or tarea.get("descripcion", ""),
+            "desarrollo": tarea.get("desarrollo") or "",
+            "reglas": tarea.get("reglas") or "",
             "duracion": duracion,
             "categoria": categoria.get("nombre", ""),
             "categoria_codigo": categoria.get("codigo", ""),
@@ -1339,7 +1341,7 @@ async def generate_sesion_pdf_reducido(
     microciclo_nombre: Optional[str] = None,
     asistencia_roster: Optional[list] = None,
 ) -> bytes:
-    """PDF reducido de 1 página (vestuario): escudo, MD, rival, objetivo/keywords, lista corta."""
+    """PDF reducido 1 folio A4: escudo, contexto, convocatoria coloreada, ejercicios+pizarra."""
     env = _get_jinja_env_v2()
     template = env.get_template("sesion_pdf_reducido.html")
 
@@ -1348,6 +1350,8 @@ async def generate_sesion_pdf_reducido(
     logo_url = organizacion.get("logo_url") or ""
     if logo_url:
         logo_url = _url_to_data_uri(logo_url)
+
+    from app.services.svg_renderer import render_diagram_thumbnail
 
     tareas_corta = []
     duracion_total = 0
@@ -1361,11 +1365,39 @@ async def generate_sesion_pdf_reducido(
             cat_code = cat.get("codigo") or cat.get("nombre_corto") or cat.get("nombre") or ""
         dur = ts.get("duracion_override") or tarea.get("duracion_total") or 0
         duracion_total += int(dur or 0)
+
+        desc = (
+            tarea.get("desarrollo")
+            or tarea.get("descripcion")
+            or ""
+        )
+        if isinstance(desc, str) and len(desc) > 110:
+            desc = desc[:107].rsplit(" ", 1)[0] + "…"
+
+        obj_bits = []
+        for key in ("objetivos_tacticos", "objetivos_tecnicos"):
+            vals = tarea.get(key) or []
+            if isinstance(vals, list) and vals:
+                obj_bits.extend([str(v).replace("_", " ") for v in vals[:2]])
+        if obj_bits and not desc:
+            desc = " · ".join(obj_bits[:3])
+        elif obj_bits:
+            desc = f"{desc} · {obj_bits[0]}" if desc else obj_bits[0]
+
+        grafico = tarea.get("grafico_data")
+        svg_thumb = ""
+        try:
+            svg_thumb = render_diagram_thumbnail(grafico, diagram_id=f"r{i}") or ""
+        except Exception:
+            svg_thumb = ""
+
         tareas_corta.append({
             "orden": ts.get("orden") or i,
             "titulo": tarea.get("titulo") or "Tarea",
             "categoria": cat_code,
             "duracion": dur,
+            "descripcion": desc,
+            "svg_thumbnail": svg_thumb,
         })
 
     keywords = sesion_data.get("keywords") or []
@@ -1374,6 +1406,32 @@ async def generate_sesion_pdf_reducido(
         or sesion_data.get("intensidad_objetivo")
         or ""
     )
+
+    roster = asistencia_roster or []
+    g_sesion = [p for p in roster if "sesion" in (p.get("tipos") or [])]
+    g_fisio = [p for p in roster if "fisio" in (p.get("tipos") or [])]
+    g_margen = [p for p in roster if "margen" in (p.get("tipos") or [])]
+    g_ausentes = [p for p in roster if p.get("sort_key") == "ausente"]
+
+    # Contenidos / ABP labels
+    def _join_codes(vals):
+        if not vals:
+            return ""
+        if isinstance(vals, list):
+            return ", ".join(str(v).replace("_", " ") for v in vals[:6])
+        return str(vals)
+
+    abp = sesion_data.get("abp_config") or {}
+    abp_label = ""
+    if isinstance(abp, dict) and abp.get("activo"):
+        lados = abp.get("lados") or ([abp["lado"]] if abp.get("lado") else [])
+        tipos = abp.get("tipos") or []
+        parts = []
+        if lados:
+            parts.append(" + ".join(str(x).title() for x in lados))
+        if tipos:
+            parts.append(", ".join(str(t).replace("_", " ") for t in tipos[:5]))
+        abp_label = " · ".join(parts) if parts else "Activo"
 
     def _render() -> bytes:
         from weasyprint import HTML
@@ -1391,7 +1449,16 @@ async def generate_sesion_pdf_reducido(
             duracion_total=duracion_total or sesion_data.get("duracion_total") or 0,
             intensidad=intensidad,
             microciclo_nombre=microciclo_nombre,
-            asistencia_roster=asistencia_roster or [],
+            asistencia_roster=roster,
+            g_sesion=g_sesion,
+            g_fisio=g_fisio,
+            g_margen=g_margen,
+            g_ausentes=g_ausentes,
+            objetivo_fisico=sesion_data.get("objetivo_fisico") or "",
+            objetivo_psicologico=sesion_data.get("objetivo_psicologico") or "",
+            contenidos_of=_join_codes(sesion_data.get("contenidos_tecnicos_of")),
+            contenidos_def=_join_codes(sesion_data.get("contenidos_tecnicos_def")),
+            abp_label=abp_label,
         )
         return HTML(string=html_content, base_url=str(TEMPLATES_DIR)).write_pdf()
 

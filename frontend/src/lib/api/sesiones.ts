@@ -139,19 +139,35 @@ export const sesionesApi = {
   },
 
   async generatePdf(id: string, variant: 'reducido' | 'extendido' = 'extendido'): Promise<void> {
-    const blob = await api.getBlob(`/sesiones/${id}/pdf?variant=${variant}`, { timeout: 120000 })
+    const blob = await api.getBlob(`/sesiones/${id}/pdf?variant=${variant}&preview=false`, {
+      timeout: 120000,
+    })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
     a.download = `sesion_${id}_${variant}.pdf`
+    a.rel = 'noopener'
+    a.style.display = 'none'
+    document.body.appendChild(a)
     a.click()
-    URL.revokeObjectURL(url)
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 30_000)
   },
 
   async previewPdf(id: string, variant: 'reducido' | 'extendido' = 'extendido'): Promise<void> {
-    const blob = await api.getBlob(`/sesiones/${id}/pdf?preview=true&variant=${variant}`, { timeout: 120000 })
+    const blob = await api.getBlob(`/sesiones/${id}/pdf?preview=true&variant=${variant}`, {
+      timeout: 120000,
+    })
     const url = URL.createObjectURL(blob)
-    window.open(url, '_blank')
+    const win = window.open(url, '_blank', 'noopener,noreferrer')
+    if (!win) {
+      // Popup bloqueado: forzar descarga solo de esta variante
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `sesion_${id}_${variant}.pdf`
+      a.click()
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
   },
 
   async cerrarPlanificacion(id: string): Promise<Sesion> {
@@ -163,8 +179,31 @@ export const sesionesApi = {
   },
 
   async getByShareToken(token: string): Promise<{
-    sesion: Sesion
-    tareas: { orden: number; duracion: number; carga_calculada?: number; titulo?: string; categoria?: unknown; notas?: string }[]
+    sesion: Sesion & { equipo_nombre?: string }
+    tareas: {
+      orden: number
+      duracion: number
+      carga_calculada?: number
+      titulo?: string
+      descripcion?: string
+      categoria?: unknown
+      notas?: string
+      fase_sesion?: string
+      fase_juego?: string
+      modalidad?: string
+      objetivos_tacticos?: string[]
+      objetivos_tecnicos?: string[]
+      has_board?: boolean
+      tarea_id?: string
+    }[]
+    asistencia?: {
+      nombre?: string
+      apellidos?: string
+      dorsal?: number | null
+      presente: boolean
+      tipos: string[]
+      motivo_ausencia?: string | null
+    }[]
     rpe_por_tarea: { tarea_id?: string; rpe_medio: number; n: number }[]
   }> {
     return api.get(`/sesiones/share/${token}`)

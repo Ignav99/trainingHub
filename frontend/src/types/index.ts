@@ -272,7 +272,10 @@ export interface SesionSubfaseItem {
 
 export interface SesionAbpConfig {
   activo: boolean
+  /** @deprecated usar lados — se mantiene por compatibilidad */
   lado?: string | null
+  /** ofensivo y/o defensivo (pueden ir a la vez) */
+  lados?: string[]
   tipos?: string[]
 }
 

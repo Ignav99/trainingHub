@@ -2600,8 +2600,6 @@ export default function SesionDetailPage() {
           }}
           onPreviewPdf={handlePreviewPdf}
           onDownloadPdf={handleGeneratePdf}
-          previewingPdf={previewingPdf}
-          generatingPdf={generatingPdf}
         />
       )}
 
