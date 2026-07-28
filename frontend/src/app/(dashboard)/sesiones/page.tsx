@@ -153,10 +153,10 @@ export default function SesionesPage() {
     setActiveMenu(null)
   }
 
-  const handleGeneratePdf = async (id: string, e: React.MouseEvent) => {
+  const handleGeneratePdf = async (id: string, e: React.MouseEvent, fecha?: string | null) => {
     e.stopPropagation()
     try {
-      await sesionesApi.generatePdf(id)
+      await sesionesApi.generatePdf(id, 'extendido', { fecha })
     } catch (err) {
       console.error('Error generating PDF:', err)
       toast.error('Error al generar el PDF')
@@ -571,7 +571,7 @@ export default function SesionesPage() {
                               Ver detalle
                             </Link>
                             <button
-                              onClick={(e) => handleGeneratePdf(sesion.id, e)}
+                              onClick={(e) => handleGeneratePdf(sesion.id, e, sesion.fecha)}
                               className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
                             >
                               <FileText className="h-4 w-4" />
