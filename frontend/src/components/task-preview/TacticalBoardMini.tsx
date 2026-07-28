@@ -8,6 +8,7 @@ import { BoardDefs, ElementSymbol, ROTATABLE_ELEMENTS } from '@/components/tacti
 import BoardArrow from '@/components/tactical-board/BoardArrow'
 import { sampleAnimation, totalDuration } from '@/components/tactical-board/interpolate'
 import type { Keyframe, TareaPizarraData } from '@/components/tactical-board/types'
+import { captureBoardPreview } from '@/components/tactical-board/utils'
 
 interface TacticalBoardMiniProps {
   data?: TareaPizarraData | null
@@ -23,6 +24,11 @@ interface TacticalBoardMiniProps {
    * Si false, solo anima cuando entra en viewport (IntersectionObserver).
    */
   autoplay?: boolean
+  /**
+   * Si la pizarra aún no tiene `preview`, captura una JPEG del SVG real
+   * y la entrega (para persistir en grafico_data y usarla en el PDF).
+   */
+  onPreviewReady?: (previewDataUrl: string) => void
 }
 
 // Normalize element position: seed data uses {x, y} directly, frontend uses {position: {x, y}}
@@ -81,6 +87,7 @@ export function staticBoardSnapshot(data?: TareaPizarraData | null): TareaPizarr
       elements: data.elements || [],
       arrows: data.arrows || [],
       zones: data.zones || [],
+      ...(data.preview ? { preview: data.preview } : {}),
     }
   }
   const f0 = Array.isArray(data.frames) && data.frames.length > 0 ? data.frames[0] : null
@@ -91,6 +98,7 @@ export function staticBoardSnapshot(data?: TareaPizarraData | null): TareaPizarr
       elements: f0.elements || [],
       arrows: f0.arrows || [],
       zones: f0.zones || [],
+      ...(data.preview ? { preview: data.preview } : {}),
     }
   }
   return data
@@ -115,6 +123,7 @@ function TacticalBoardMiniInner({
   animate = false,
   showPlayBadge = true,
   autoplay = true,
+  onPreviewReady,
 }: TacticalBoardMiniProps) {
   const uid = useId().replace(/:/g, '')
   const containerRef = useRef<HTMLDivElement>(null)
@@ -123,6 +132,7 @@ function TacticalBoardMiniInner({
   const runningRef = useRef(false)
   const framesRef = useRef<Keyframe[] | null>(null)
   const [frameData, setFrameData] = useState<{ elements: any[]; arrows: any[]; zones: any[] } | null>(null)
+  const previewDoneRef = useRef(false)
 
   const framesSig = framesSignature(data)
   const frames = useMemo(() => usableFrames(data), [data, framesSig])
@@ -132,6 +142,27 @@ function TacticalBoardMiniInner({
 
   // Vista estática: top-level (o frame 0). Vista animada: interpolación.
   const staticData = useMemo(() => staticBoardSnapshot(data), [data, framesSig])
+
+  // Captura instantánea real (JPEG) si aún no hay preview guardado
+  useEffect(() => {
+    if (!onPreviewReady || previewDoneRef.current) return
+    if (data?.preview) {
+      previewDoneRef.current = true
+      return
+    }
+    const timer = setTimeout(async () => {
+      const svg = containerRef.current?.querySelector('svg')
+      if (!svg) return
+      try {
+        const preview = await captureBoardPreview(svg as SVGSVGElement)
+        previewDoneRef.current = true
+        onPreviewReady(preview)
+      } catch {
+        /* silent */
+      }
+    }, 450)
+    return () => clearTimeout(timer)
+  }, [data, onPreviewReady, staticData])
 
   // Bucle de animación — autoplay al montar; pausa solo si sale del viewport
   useEffect(() => {

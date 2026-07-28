@@ -1,5 +1,6 @@
 'use client'
 
+import { useCallback, useRef } from 'react'
 import { Clock, Users, Play, GitBranch, Plus } from 'lucide-react'
 import { TacticalBoardMini, boardHasAnimation } from '@/components/task-preview'
 import {
@@ -12,6 +13,7 @@ import {
   nombreOrientacionFisica,
 } from '@/lib/catalogos/canonico'
 import { cn } from '@/lib/utils'
+import { tareasApi } from '@/lib/api/tareas'
 import type { Tarea } from '@/types'
 
 function faseLabel(codigo?: string) {
@@ -64,6 +66,25 @@ export function TaskLibraryCard({
   const esVariante = !!tarea.tarea_origen_id
   const nVar = tarea.num_variantes ?? 0
   const showFamilia = !esVariante && (onViewVariantes || onCreateVariante)
+  const savingPreviewRef = useRef(false)
+
+  const handlePreviewReady = useCallback(
+    (preview: string) => {
+      if (savingPreviewRef.current) return
+      if ((tarea.grafico_data as any)?.preview) return
+      savingPreviewRef.current = true
+      const nextGrafico = { ...(tarea.grafico_data as any || {}), preview }
+      void tareasApi
+        .update(tarea.id, { grafico_data: nextGrafico })
+        .catch(() => {
+          /* silent — no bloquear UI */
+        })
+        .finally(() => {
+          savingPreviewRef.current = false
+        })
+    },
+    [tarea.id, tarea.grafico_data],
+  )
 
   return (
     <article
@@ -86,6 +107,7 @@ export function TaskLibraryCard({
           animate
           autoplay={false}
           showPlayBadge={hasAnim}
+          onPreviewReady={handlePreviewReady}
         />
         {hasAnim && (
           <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-md bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white">

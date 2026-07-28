@@ -9,7 +9,7 @@
       WeasyPrint: TABLE + alturas fijas (flex:1 colapsa).
       Celdas: pizarra IZQUIERDA + texto DERECHA. Sin fondo verde.
     */
-    @page { size: A4 landscape; margin: 3.5mm 4.5mm; }
+    @page { size: A4 landscape; margin: 2.5mm 3.5mm 2mm 3.5mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; }
     body {
@@ -17,8 +17,8 @@
       color: #111;
       font-size: 8px;
       line-height: 1.2;
-      width: 288mm;
-      height: 203mm;
+      width: 290mm;
+      height: 205.5mm;
       overflow: hidden;
     }
 
@@ -27,12 +27,12 @@
       border-collapse: collapse;
       table-layout: fixed;
       border-bottom: 2px solid {{ color_primario }};
-      margin-bottom: 1.5px;
+      margin-bottom: 1px;
     }
-    .hdr td { vertical-align: middle; padding: 0 0 2px; }
-    .logo { height: 22px; width: auto; max-width: 40px; }
+    .hdr td { vertical-align: middle; padding: 0 0 1.5px; }
+    .logo { height: 24px; width: auto; max-width: 42px; }
     .hdr-title {
-      font-size: 12px;
+      font-size: 14px;
       font-weight: 800;
       color: {{ color_primario }};
       line-height: 1.1;
@@ -41,7 +41,7 @@
       text-overflow: ellipsis;
     }
     .hdr-meta {
-      font-size: 7px;
+      font-size: 8px;
       color: #444;
       white-space: nowrap;
       overflow: hidden;
@@ -53,21 +53,21 @@
     .badge {
       background: {{ color_primario }};
       color: #fff;
-      padding: 3px 7px;
+      padding: 4px 8px;
       border-radius: 4px;
       font-weight: 800;
-      font-size: 10px;
+      font-size: 11px;
       white-space: nowrap;
       text-align: center;
     }
 
     .concepts {
-      font-size: 7px;
+      font-size: 8px;
       color: #1e293b;
       background: #f1f5f9;
       border-left: 2.5px solid {{ color_primario }};
-      padding: 1.5px 5px;
-      margin-bottom: 1.5px;
+      padding: 2px 5px;
+      margin-bottom: 1px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -75,7 +75,7 @@
     }
     .concepts strong {
       color: {{ color_primario }};
-      font-size: 6px;
+      font-size: 7px;
       text-transform: uppercase;
       letter-spacing: 0.03em;
       margin-right: 4px;
@@ -85,19 +85,19 @@
       border: 1px solid #e2e8f0;
       border-radius: 2px;
       padding: 2px 5px;
-      margin-bottom: 2px;
-      max-height: 9mm;
+      margin-bottom: 1.5px;
+      max-height: 8mm;
       overflow: hidden;
     }
     .objetivo .lbl {
-      font-size: 6px;
+      font-size: 6.5px;
       font-weight: 800;
       color: {{ color_primario }};
       text-transform: uppercase;
       letter-spacing: 0.04em;
     }
     .objetivo .txt {
-      font-size: 8px;
+      font-size: 9px;
       font-weight: 600;
       color: #111;
       line-height: 1.2;
@@ -106,7 +106,7 @@
       text-overflow: ellipsis;
     }
     .objetivo .extra {
-      font-size: 6.5px;
+      font-size: 7px;
       color: #555;
       white-space: nowrap;
       overflow: hidden;
@@ -186,16 +186,16 @@
     }
     .tasks {
       width: 100%;
-      height: 148mm;
+      height: 155mm;
       border-collapse: collapse;
       table-layout: fixed;
     }
     .tasks > tbody > tr > td,
     .tasks > tr > td {
       width: 50%;
-      height: 74mm;
+      height: 77.5mm;
       vertical-align: top;
-      padding: 1.5px;
+      padding: 1px;
       border: 1px solid #e2e8f0;
       overflow: hidden;
       background: #fff;
@@ -203,26 +203,27 @@
 
     .task-inner {
       width: 100%;
-      height: 71mm;
+      height: 75.5mm;
       border-collapse: collapse;
       table-layout: fixed;
     }
     .task-board {
-      width: 72%;
-      height: 71mm;
-      /* SIN fondo verde — solo el SVG del campo */
+      width: 74%;
+      height: 75.5mm;
       background: #fff;
       text-align: left;
       vertical-align: middle;
       overflow: hidden;
       padding: 0;
     }
+    .task-board img,
     .task-board svg {
       display: block;
       width: 100% !important;
-      height: 71mm !important;
+      height: 75.5mm !important;
       max-width: none !important;
-      /* Pegado a la izquierda */
+      object-fit: contain;
+      object-position: left center;
       margin: 0;
     }
     .task-board .empty {
@@ -231,8 +232,8 @@
       padding-left: 8px;
     }
     .task-info {
-      width: 28%;
-      height: 71mm;
+      width: 26%;
+      height: 75.5mm;
       vertical-align: top;
       padding: 3px 5px 3px 6px;
       background: #fff;
@@ -276,8 +277,8 @@
       color: #94a3b8;
       text-align: center;
       font-size: 8px;
-      height: 71mm;
-      line-height: 71mm;
+      height: 75.5mm;
+      line-height: 75.5mm;
     }
   </style>
 </head>
@@ -360,7 +361,9 @@
         <table class="task-inner">
           <tr>
             <td class="task-board board-{{ t.pitch_kind or 'half' }}">
-              {% if t.svg_thumbnail %}
+              {% if t.preview_img %}
+                <img src="{{ t.preview_img }}" alt="" />
+              {% elif t.svg_thumbnail %}
                 {{ t.svg_thumbnail|safe }}
               {% else %}
                 <span class="empty">Sin pizarra</span>

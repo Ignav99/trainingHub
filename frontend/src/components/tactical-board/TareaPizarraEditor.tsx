@@ -5,14 +5,15 @@
  *
  * Reutiliza el editor completo (`TacticalBoardEditor`) sobre el store global,
  * y sincroniza su contenido con `tareas.grafico_data` mediante value/onChange.
- * El formato guardado es retrocompatible: los diagramas antiguos solo traen
- * elements/arrows/zones/pitchType y se cargan igual.
+ * Además captura una instantánea JPEG (`preview`) del SVG real del editor
+ * para PDF/listados (mismo aspecto que ve el entrenador).
  */
 
 import React, { useEffect, useRef, useState } from 'react'
 import { Film, Image as ImageIcon, X } from 'lucide-react'
 import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
 import TacticalBoardEditor from './TacticalBoardEditor'
+import { captureBoardPreview } from './utils'
 import type { TareaPizarraData } from './types'
 import type { TareaEspacioPatch } from '@/lib/tacticalMetrics'
 
@@ -56,6 +57,10 @@ export default function TareaPizarraEditor({
   const [ready, setReady] = useState(false)
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
+  const rootRef = useRef<HTMLDivElement>(null)
+  const previewRef = useRef<string | undefined>(value?.preview)
+  const previewTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const latestPayloadRef = useRef<TareaPizarraData | null>(null)
 
   // Carga inicial: el valor entrante manda una sola vez (después manda el store)
   useEffect(() => {
@@ -70,30 +75,56 @@ export default function TareaPizarraEditor({
       zones: Array.isArray(value?.zones) ? value!.zones : [],
       frames: Array.isArray(value?.frames) ? value!.frames : [],
     })
+    previewRef.current = value?.preview
     setReady(true)
-    return () => reset()
+    return () => {
+      reset()
+      if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
+    }
     // Solo al montar: el editor es la fuente de verdad mientras está abierto
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Propaga cada cambio al formulario de la tarea
-  useEffect(() => {
-    if (!ready) return
-    // En modo animado, el frame activo refleja lo que hay ahora en el lienzo
-    const frames = tipo === 'animated'
-      ? keyframes.map((kf, i) => (
-        i === activeKeyframeIndex ? { ...kf, elements, arrows, zones } : kf
-      ))
-      : undefined
-
-    onChangeRef.current({
+  const buildPayload = (): TareaPizarraData => {
+    const frames =
+      tipo === 'animated'
+        ? keyframes.map((kf, i) =>
+            i === activeKeyframeIndex ? { ...kf, elements, arrows, zones } : kf,
+          )
+        : undefined
+    return {
       elements,
       arrows,
       zones,
       pitchType,
       tipo,
       ...(frames && frames.length > 0 ? { frames } : {}),
-    })
+      ...(previewRef.current ? { preview: previewRef.current } : {}),
+    }
+  }
+
+  // Propaga cada cambio al formulario de la tarea + captura preview debounced
+  useEffect(() => {
+    if (!ready) return
+    const payload = buildPayload()
+    latestPayloadRef.current = payload
+    onChangeRef.current(payload)
+
+    if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
+    previewTimerRef.current = setTimeout(async () => {
+      const svg = rootRef.current?.querySelector('svg')
+      if (!svg) return
+      try {
+        const preview = await captureBoardPreview(svg as SVGSVGElement)
+        previewRef.current = preview
+        const next = { ...(latestPayloadRef.current || buildPayload()), preview }
+        latestPayloadRef.current = next
+        onChangeRef.current(next)
+      } catch (err) {
+        console.warn('No se pudo capturar preview de pizarra', err)
+      }
+    }, 700)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, elements, arrows, zones, pitchType, tipo, keyframes, activeKeyframeIndex])
 
   const isAnimated = tipo === 'animated'
@@ -111,6 +142,7 @@ export default function TareaPizarraEditor({
     // La altura va en el contenedor externo y todo el interior es flex column:
     // asi el lienzo recibe una altura acotada y el campo entra entero sin scroll
     <div
+      ref={rootRef}
       className="border border-gray-200 rounded-xl overflow-hidden bg-white flex flex-col min-h-0"
       style={{ height }}
     >
@@ -126,9 +158,11 @@ export default function TareaPizarraEditor({
               ? 'bg-purple-50 border-purple-300 text-purple-700'
               : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'
           }`}
-          title={isAnimated
-            ? 'Pizarra animada: se reproduce en bucle en la biblioteca de tareas'
-            : 'Pizarra estática: una sola imagen'}
+          title={
+            isAnimated
+              ? 'Pizarra animada: se reproduce en bucle en la biblioteca de tareas'
+              : 'Pizarra estática: una sola imagen'
+          }
         >
           {isAnimated ? <Film className="h-3.5 w-3.5" /> : <ImageIcon className="h-3.5 w-3.5" />}
           {isAnimated ? 'Animada' : 'Estática'}
