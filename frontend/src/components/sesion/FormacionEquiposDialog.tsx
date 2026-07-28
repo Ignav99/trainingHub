@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   DndContext,
   DragOverlay,
+  MeasuringStrategy,
   closestCenter,
   pointerWithin,
   useDroppable,
@@ -21,6 +22,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { snapCenterToCursor } from '@dnd-kit/modifiers'
 import {
   AlertCircle,
   CheckCircle,
@@ -165,15 +167,16 @@ function SortablePlayer({
     <div
       ref={setNodeRef}
       style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.4 : 1,
+        // Mientras arrastras, el original se queda fijo; el overlay sigue al cursor.
+        transform: isDragging ? undefined : CSS.Transform.toString(transform),
+        transition: isDragging ? undefined : transition,
+        opacity: isDragging ? 0.25 : 1,
       }}
       {...attributes}
       {...listeners}
-      className={`flex items-center gap-2 px-2 py-1.5 rounded-md bg-background cursor-grab active:cursor-grabbing hover:border-border transition-colors text-xs ${
+      className={`flex items-center gap-2 px-2 py-1.5 rounded-md bg-background cursor-grab active:cursor-grabbing hover:border-border transition-colors text-xs touch-none select-none ${
         jugador?.es_invitado ? 'border-2 border-yellow-400' : 'border border-border/50'
-      }`}
+      } ${isDragging ? 'ring-1 ring-primary/30' : ''}`}
     >
       <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
       <span className="font-bold text-muted-foreground w-5 text-center">
@@ -219,17 +222,29 @@ function DroppableGroup({
   const droppableId = `${espacioIdx}-${grupoIdx}`
   const sortedIds = sortIdsByPosition(grupo.jugador_ids, jugadoresMap)
   const itemIds = sortedIds.map((jid) => `${droppableId}::${jid}`)
-  const { setNodeRef: setDroppableRef } = useDroppable({ id: droppableId })
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({ id: droppableId })
 
   return (
     <div
       ref={setDroppableRef}
-      className={`rounded-xl border p-3 min-h-[140px] flex flex-col ${
+      className={`rounded-xl border p-3 min-h-[140px] flex flex-col transition-[box-shadow,border-color,background-color] ${
         compact ? 'min-w-[160px] flex-1' : 'min-h-[220px]'
-      } ${isSinAsignar ? 'bg-muted/30 border-dashed' : ''}`}
+      } ${isSinAsignar ? 'bg-muted/30 border-dashed' : ''} ${
+        isOver ? 'ring-2 ring-primary/60 ring-offset-1 border-primary/50' : ''
+      }`}
       style={{
-        backgroundColor: isSinAsignar ? undefined : `${grupo.color}12`,
-        borderColor: isSinAsignar ? undefined : `${grupo.color}55`,
+        backgroundColor: isOver
+          ? isSinAsignar
+            ? 'rgba(59,130,246,0.08)'
+            : `${grupo.color}28`
+          : isSinAsignar
+            ? undefined
+            : `${grupo.color}12`,
+        borderColor: isOver
+          ? undefined
+          : isSinAsignar
+            ? undefined
+            : `${grupo.color}55`,
       }}
     >
       <div className="flex items-center gap-1.5 mb-2 px-0.5">
@@ -351,7 +366,10 @@ export function FormacionEquiposDialog({
     '4v4'
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(PointerSensor, {
+      // Evita activar al hacer click; el overlay se ancla al centro del cursor.
+      activationConstraint: { distance: 6 },
+    }),
     useSensor(KeyboardSensor)
   )
 
@@ -837,6 +855,9 @@ export function FormacionEquiposDialog({
             <DndContext
               sensors={sensors}
               collisionDetection={formacionCollisionDetection}
+              measuring={{
+                droppable: { strategy: MeasuringStrategy.Always },
+              }}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
             >
@@ -901,18 +922,19 @@ export function FormacionEquiposDialog({
                 )
               })}
 
-              <DragOverlay>
+              <DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]}>
                 {activeId && activeJugador ? (
                   <div
-                    className={`flex items-center gap-2 px-2 py-1.5 rounded-md bg-background border-2 shadow-lg text-xs ${
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded-md bg-background border-2 shadow-xl text-xs cursor-grabbing pointer-events-none ${
                       activeJugador.es_invitado ? 'border-yellow-400' : 'border-primary'
                     }`}
+                    style={{ width: 200 }}
                   >
                     <GripVertical className="h-3 w-3 text-primary shrink-0" />
                     <span className="font-bold w-5 text-center">
                       {activeJugador.dorsal || '?'}
                     </span>
-                    <span>
+                    <span className="truncate flex-1">
                       {activeJugador.apodo ||
                         `${activeJugador.nombre} ${activeJugador.apellidos?.charAt(0) || ''}.`}
                     </span>
