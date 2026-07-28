@@ -182,15 +182,6 @@ export default function ShareSesionPage() {
                   <strong>ABP:</strong> {abpLabel}
                 </p>
               )}
-              {(sesion.keywords || []).length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {sesion.keywords!.map((k) => (
-                    <span key={k} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">
-                      {k}
-                    </span>
-                  ))}
-                </div>
-              )}
             </section>
 
             <section className="rounded-2xl border bg-white p-5 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
