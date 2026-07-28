@@ -272,10 +272,15 @@ export interface SesionSubfaseItem {
 
 export interface SesionAbpConfig {
   activo: boolean
-  /** @deprecated usar lados — se mantiene por compatibilidad */
+  /** Tipos ABP del lado ofensivo (multi) */
+  ofensivo?: string[]
+  /** Tipos ABP del lado defensivo (multi) */
+  defensivo?: string[]
+  /** @deprecated usar ofensivo/defensivo */
   lado?: string | null
-  /** ofensivo y/o defensivo (pueden ir a la vez) */
+  /** @deprecated derivado de ofensivo/defensivo */
   lados?: string[]
+  /** @deprecated unión de tipos; usar ofensivo/defensivo */
   tipos?: string[]
 }
 

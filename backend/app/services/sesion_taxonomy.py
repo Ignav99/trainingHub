@@ -71,23 +71,38 @@ def prepare_sesion_write_payload(data: Dict[str, Any], *, synthesize: bool = Tru
             # Merge: mantener manuales + sintetizados
             out["keywords"] = synthesize_keywords(objetivo, keywords)
 
-    # ABP activo → asegurar abp_config + normalizar lados
+    # ABP → ofensivo/defensivo con tipos independientes (+ legacy sync)
     abp = out.get("abp_config")
-    if isinstance(abp, dict) and abp.get("activo"):
-        abp["tipos"] = abp.get("tipos") or []
-        lados = abp.get("lados") or []
-        if not lados and abp.get("lado") in ("ofensivo", "defensivo"):
-            lados = [abp["lado"]]
-        lados = [x for x in lados if x in ("ofensivo", "defensivo")]
-        # unique preserve order
-        seen = set()
+    if isinstance(abp, dict):
+        ofensivo = [t for t in (abp.get("ofensivo") or []) if isinstance(t, str)]
+        defensivo = [t for t in (abp.get("defensivo") or []) if isinstance(t, str)]
+        if not ofensivo and not defensivo:
+            tipos = [t for t in (abp.get("tipos") or []) if isinstance(t, str)]
+            lados = [x for x in (abp.get("lados") or []) if x in ("ofensivo", "defensivo")]
+            if not lados and abp.get("lado") in ("ofensivo", "defensivo"):
+                lados = [abp["lado"]]
+            if tipos and lados:
+                if "ofensivo" in lados:
+                    ofensivo = list(tipos)
+                if "defensivo" in lados:
+                    defensivo = list(tipos)
         lados_u = []
-        for x in lados:
-            if x not in seen:
-                seen.add(x)
-                lados_u.append(x)
+        if ofensivo:
+            lados_u.append("ofensivo")
+        if defensivo:
+            lados_u.append("defensivo")
+        seen = set()
+        tipos_flat = []
+        for t in ofensivo + defensivo:
+            if t not in seen:
+                seen.add(t)
+                tipos_flat.append(t)
+        abp["ofensivo"] = ofensivo
+        abp["defensivo"] = defensivo
         abp["lados"] = lados_u
-        abp["lado"] = lados_u[0] if lados_u else abp.get("lado")
+        abp["lado"] = lados_u[0] if lados_u else None
+        abp["tipos"] = tipos_flat
+        abp["activo"] = bool(ofensivo or defensivo)
         out["abp_config"] = abp
 
     return out

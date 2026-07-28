@@ -90,31 +90,61 @@ class SesionSubfaseItem(BaseModel):
 class AbpConfig(BaseModel):
     """Configuración ABP opcional de la sesión.
 
-    `lados` permite ofensivo y/o defensivo a la vez.
-    `lado` se mantiene por compatibilidad (primer valor de lados).
+    Ofensivo y defensivo tienen tipos independientes.
+    Campos legacy (`lado`, `lados`, `tipos`) se sincronizan al leer/escribir.
     """
     activo: bool = False
-    lado: Optional[str] = None  # legacy: ofensivo | defensivo
-    lados: List[str] = Field(default_factory=list)  # ofensivo, defensivo (multi)
+    ofensivo: List[str] = Field(default_factory=list)  # tipos ABP ofensivo
+    defensivo: List[str] = Field(default_factory=list)  # tipos ABP defensivo
+    # legacy (compat lectura/escritura)
+    lado: Optional[str] = None
+    lados: List[str] = Field(default_factory=list)
     tipos: List[str] = Field(default_factory=list)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_legacy(cls, data):
+        if not isinstance(data, dict):
+            return data
+        ofensivo = [t for t in (data.get("ofensivo") or []) if isinstance(t, str)]
+        defensivo = [t for t in (data.get("defensivo") or []) if isinstance(t, str)]
+        # Migrar formato antiguo: lados/lado + tipos compartidos
+        if not ofensivo and not defensivo:
+            tipos = [t for t in (data.get("tipos") or []) if isinstance(t, str)]
+            lados = [x for x in (data.get("lados") or []) if x in ("ofensivo", "defensivo")]
+            if not lados and data.get("lado") in ("ofensivo", "defensivo"):
+                lados = [data["lado"]]
+            if tipos and lados:
+                if "ofensivo" in lados:
+                    ofensivo = list(tipos)
+                if "defensivo" in lados:
+                    defensivo = list(tipos)
+        data["ofensivo"] = ofensivo
+        data["defensivo"] = defensivo
+        return data
+
     @model_validator(mode="after")
-    def _sync_lados(self):
-        lados = [x for x in (self.lados or []) if x in ("ofensivo", "defensivo")]
-        if not lados and self.lado in ("ofensivo", "defensivo"):
-            lados = [self.lado]
-        # unique preserve order
-        seen = set()
-        lados_u = []
-        for x in lados:
-            if x not in seen:
-                seen.add(x)
-                lados_u.append(x)
+    def _sync_derived(self):
+        ofensivo = list(self.ofensivo or [])
+        defensivo = list(self.defensivo or [])
+        self.ofensivo = ofensivo
+        self.defensivo = defensivo
+        lados_u: List[str] = []
+        if ofensivo:
+            lados_u.append("ofensivo")
+        if defensivo:
+            lados_u.append("defensivo")
         self.lados = lados_u
-        if lados_u and not self.lado:
-            self.lado = lados_u[0]
-        elif not lados_u:
-            self.lado = None
+        self.lado = lados_u[0] if lados_u else None
+        seen = set()
+        tipos_flat: List[str] = []
+        for t in ofensivo + defensivo:
+            if t not in seen:
+                seen.add(t)
+                tipos_flat.append(t)
+        self.tipos = tipos_flat
+        if ofensivo or defensivo:
+            self.activo = True
         return self
 
 

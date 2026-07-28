@@ -1424,13 +1424,26 @@ async def generate_sesion_pdf_reducido(
     abp = sesion_data.get("abp_config") or {}
     abp_label = ""
     if isinstance(abp, dict) and abp.get("activo"):
-        lados = abp.get("lados") or ([abp["lado"]] if abp.get("lado") else [])
-        tipos = abp.get("tipos") or []
+        ofensivo = abp.get("ofensivo") or []
+        defensivo = abp.get("defensivo") or []
+        # Migrar legacy si hace falta
+        if not ofensivo and not defensivo:
+            tipos = abp.get("tipos") or []
+            lados = abp.get("lados") or ([abp["lado"]] if abp.get("lado") else [])
+            if tipos and lados:
+                if "ofensivo" in lados:
+                    ofensivo = list(tipos)
+                if "defensivo" in lados:
+                    defensivo = list(tipos)
         parts = []
-        if lados:
-            parts.append(" + ".join(str(x).title() for x in lados))
-        if tipos:
-            parts.append(", ".join(str(t).replace("_", " ") for t in tipos[:5]))
+        if ofensivo:
+            parts.append(
+                "Ofensivo: " + ", ".join(str(t).replace("_", " ") for t in ofensivo[:6])
+            )
+        if defensivo:
+            parts.append(
+                "Defensivo: " + ", ".join(str(t).replace("_", " ") for t in defensivo[:6])
+            )
         abp_label = " · ".join(parts) if parts else "Activo"
 
     def _render() -> bytes:

@@ -12,14 +12,51 @@ import {
   SUBFASES_ATAQUE,
   SUBFASES_DEFENSA,
   TIPOS_ABP,
-  LADOS_ABP,
   CONTENIDOS_OFENSIVOS,
   CONTENIDOS_DEFENSIVOS,
   MATCH_DAYS,
   DIAS_CARGA,
   CONTEXTOS_PERIODO,
 } from '@/lib/catalogos/canonico'
+import { MultiSelect } from '@/components/ui/multi-select'
 import type { SesionAbpConfig, SesionSubfaseItem } from '@/types'
+
+/** Normaliza abp_config legacy (lado/lados+tipos) → ofensivo/defensivo. */
+function normalizeAbp(raw: SesionAbpConfig | null | undefined): SesionAbpConfig {
+  const base = raw || { activo: false }
+  let ofensivo = [...(base.ofensivo || [])]
+  let defensivo = [...(base.defensivo || [])]
+  if (!ofensivo.length && !defensivo.length) {
+    const tipos = base.tipos || []
+    const lados =
+      base.lados && base.lados.length
+        ? base.lados
+        : base.lado
+          ? [base.lado]
+          : []
+    if (tipos.length && lados.length) {
+      if (lados.includes('ofensivo')) ofensivo = [...tipos]
+      if (lados.includes('defensivo')) defensivo = [...tipos]
+    }
+  }
+  const activo = ofensivo.length > 0 || defensivo.length > 0
+  return {
+    activo,
+    ofensivo,
+    defensivo,
+    lados: [
+      ...(ofensivo.length ? (['ofensivo'] as const) : []),
+      ...(defensivo.length ? (['defensivo'] as const) : []),
+    ],
+    lado: ofensivo.length ? 'ofensivo' : defensivo.length ? 'defensivo' : null,
+    tipos: [...new Set([...ofensivo, ...defensivo])],
+  }
+}
+
+function buildAbp(ofensivo: string[], defensivo: string[]): SesionAbpConfig | null {
+  const next = normalizeAbp({ activo: false, ofensivo, defensivo })
+  return next.activo ? next : null
+}
 
 export type SesionDefinirValues = {
   titulo: string
@@ -144,12 +181,7 @@ export function SesionDefinirForm({
     })
   }
 
-  const abp = value.abp_config || { activo: false, lado: null, lados: [], tipos: [] }
-  const abpLados: string[] = (() => {
-    if (abp.lados && abp.lados.length) return abp.lados
-    if (abp.lado) return [abp.lado]
-    return []
-  })()
+  const abp = normalizeAbp(value.abp_config)
 
   return (
     <div className={cn('space-y-6', className)}>
@@ -323,80 +355,42 @@ export function SesionDefinirForm({
       </section>
 
       <section className="space-y-3 rounded-2xl border bg-card p-4 sm:p-5">
-        <div className="flex items-center justify-between gap-2">
+        <div>
           <h3 className="text-sm font-semibold">ABP (opcional)</h3>
-          <ChipToggle
-            active={!!abp.activo}
-            label={abp.activo ? 'Activo' : 'Inactivo'}
-            onClick={() =>
-              onChange({
-                abp_config: { ...abp, activo: !abp.activo, tipos: abp.tipos || [] },
-              })
-            }
-          />
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Elige tipos por lado; puedes usar uno, los dos o ninguno.
+          </p>
         </div>
-        {abp.activo && (
-          <>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1.5">
-                Lado (puedes marcar los dos)
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {LADOS_ABP.map((l) => {
-                  const on = abpLados.includes(l.codigo)
-                  return (
-                    <ChipToggle
-                      key={l.codigo}
-                      active={on}
-                      label={l.nombre}
-                      onClick={() => {
-                        const next = on
-                          ? abpLados.filter((x) => x !== l.codigo)
-                          : [...abpLados, l.codigo]
-                        onChange({
-                          abp_config: {
-                            ...abp,
-                            lados: next,
-                            lado: next[0] || null,
-                            tipos: abp.tipos || [],
-                          },
-                        })
-                      }}
-                    />
-                  )
-                })}
-              </div>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1.5">Tipos de balón parado</p>
-              <div className="flex flex-wrap gap-1.5">
-                {TIPOS_ABP.map((t) => {
-                  const tipos = abp.tipos || []
-                  const on = tipos.includes(t.codigo)
-                  return (
-                    <ChipToggle
-                      key={t.codigo}
-                      active={on}
-                      label={t.nombre}
-                      onClick={() =>
-                        onChange({
-                          abp_config: {
-                            ...abp,
-                            lados: abpLados,
-                            lado: abpLados[0] || abp.lado || null,
-                            tipos: on
-                              ? tipos.filter((x) => x !== t.codigo)
-                              : [...tipos, t.codigo],
-                          },
-                        })
-                      }
-                    />
-                  )
-                })}
-              </div>
-            </div>
-          </>
-        )}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Ofensivo</Label>
+            <MultiSelect
+              options={TIPOS_ABP}
+              value={abp.ofensivo || []}
+              onChange={(ofensivo) =>
+                onChange({
+                  abp_config: buildAbp(ofensivo, abp.defensivo || []),
+                })
+              }
+              placeholder="Tipos ofensivos…"
+              maxChips={3}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Defensivo</Label>
+            <MultiSelect
+              options={TIPOS_ABP}
+              value={abp.defensivo || []}
+              onChange={(defensivo) =>
+                onChange({
+                  abp_config: buildAbp(abp.ofensivo || [], defensivo),
+                })
+              }
+              placeholder="Tipos defensivos…"
+              maxChips={3}
+            />
+          </div>
+        </div>
       </section>
 
       <section className="space-y-3 rounded-2xl border bg-card p-4 sm:p-5">

@@ -51,7 +51,14 @@ export interface SesionCreateData {
   // Taxonomía rediseño
   fases_juego?: string[]
   subfases?: { fase: string; subfase: string; opcion?: string | null }[]
-  abp_config?: { activo: boolean; lado?: string | null; tipos?: string[] } | null
+  abp_config?: {
+    activo: boolean
+    ofensivo?: string[]
+    defensivo?: string[]
+    lado?: string | null
+    lados?: string[]
+    tipos?: string[]
+  } | null
   contenidos_tecnicos_of?: string[]
   contenidos_tecnicos_def?: string[]
   keywords?: string[]

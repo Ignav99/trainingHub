@@ -1,19 +1,18 @@
 # TrainingHub — agent memory
 
-## Branch: `cursor/tareas-filtros-variantes-ae84` (2026-07-28)
+## Branch: `cursor/sesion-abp-pdf-ae84` (2026-07-28)
 
-### UX variantes (intuitivo)
-Dónde crear / ver variantes:
+### ABP (separado ofensivo / defensivo)
+- `abp_config.ofensivo: string[]` — tipos ABP ofensivos (multi)
+- `abp_config.defensivo: string[]` — tipos ABP defensivos (multi)
+- `activo` se deriva: true si hay tipos en algún lado
+- Legacy `lado` / `lados` / `tipos` se migran al leer/escribir
+- UI: dos `MultiSelect` compactos (Ofensivo / Defensivo) en SesionDefinirForm
+- PDF/share: etiqueta tipo `Ofensivo: corner, falta · Defensivo: corner`
 
-1. **Biblioteca** (`/tareas`)
-   - En cada card madre: botón «Tiene N variantes creadas» → ficha `?tab=variantes`
-   - Botón «Crear variante» visible (no solo menú ⋯)
-2. **Ficha** (`/tareas/[id]`)
-   - Pestañas **Resumen | Variantes**
-   - Header «Variantes (N)»
-   - Teaser en resumen que lleva a la pestaña
-3. **Sesión** (picker al añadir tarea)
-   - «Crear variante de esta tarea» → abre `TareaCreatorFullscreen` prefilled (`initialFromMother`)
-   - Editas desarrollo/reglas/tipo y se añade a la sesión
-
-Helpers: `lib/tareaVariante.ts` (`madreToCreatorPrefill`)
+### PDF / URL
+- **Reducido** (1 A4): escudo, contexto, objetivos, ABP, convocatoria coloreada
+  (sesión/fisio/margen/ausentes con badges multi-tipo), ejercicios con mini pizarra
+- Botones PDF: loading por acción
+- Storage: `{id}_reducido.pdf` / `{id}_extendido.pdf`
+- **URL share**: pestañas Resumen / Tareas / Convocatoria
