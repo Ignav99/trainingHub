@@ -153,13 +153,15 @@ export const sesionesApi = {
     const blob = await api.getBlob(`/sesiones/${id}/pdf?variant=${variant}&preview=false`, {
       timeout: 120000,
     })
-    const url = URL.createObjectURL(blob)
+    const pdfBlob = blob.type === 'application/pdf'
+      ? blob
+      : new Blob([blob], { type: 'application/pdf' })
+    const url = URL.createObjectURL(pdfBlob)
     const a = document.createElement('a')
     a.href = url
     const fecha = String(opts?.fecha || '').slice(0, 10)
-    const suffix = variant === 'extendido' ? '_extendido' : ''
-    a.download = fecha ? `sesion_${fecha}${suffix}.pdf` : `sesion_${id}${suffix}.pdf`
-    a.rel = 'noopener'
+    const base = fecha ? `sesion_${fecha}` : `sesion_${id}`
+    a.download = `${base}_${variant}.pdf`
     a.style.display = 'none'
     document.body.appendChild(a)
     a.click()
@@ -172,20 +174,32 @@ export const sesionesApi = {
     variant: 'reducido' | 'extendido' = 'reducido',
     opts?: { fecha?: string | null },
   ): Promise<void> {
-    const blob = await api.getBlob(`/sesiones/${id}/pdf?preview=true&variant=${variant}`, {
-      timeout: 120000,
-    })
-    const url = URL.createObjectURL(blob)
-    const win = window.open(url, '_blank', 'noopener,noreferrer')
-    if (!win) {
-      const a = document.createElement('a')
-      a.href = url
-      const fecha = String(opts?.fecha || '').slice(0, 10)
-      const suffix = variant === 'extendido' ? '_extendido' : ''
-      a.download = fecha ? `sesion_${fecha}${suffix}.pdf` : `sesion_${id}${suffix}.pdf`
-      a.click()
+    // Abrir la pestaña de forma síncrona evita el bloqueo de popups tras el await.
+    const win = window.open('about:blank', '_blank')
+    try {
+      const blob = await api.getBlob(`/sesiones/${id}/pdf?preview=true&variant=${variant}`, {
+        timeout: 120000,
+      })
+      const pdfBlob = blob.type === 'application/pdf'
+        ? blob
+        : new Blob([blob], { type: 'application/pdf' })
+      const url = URL.createObjectURL(pdfBlob)
+      if (win && !win.closed) {
+        win.location.href = url
+      } else {
+        const a = document.createElement('a')
+        a.href = url
+        a.target = '_blank'
+        const fecha = String(opts?.fecha || '').slice(0, 10)
+        const base = fecha ? `sesion_${fecha}` : `sesion_${id}`
+        a.download = `${base}_${variant}.pdf`
+        a.click()
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 120_000)
+    } catch (err) {
+      try { win?.close() } catch { /* ignore */ }
+      throw err
     }
-    setTimeout(() => URL.revokeObjectURL(url), 60_000)
   },
 
   async cerrarPlanificacion(id: string): Promise<Sesion> {
@@ -224,7 +238,7 @@ export const sesionesApi = {
     }[]
     rpe_por_tarea: { tarea_id?: string; rpe_medio: number; n: number }[]
   }> {
-    return api.get(`/sesiones/share/${token}`)
+    return api.get(`/sesiones/share/${token}`, { public: true })
   },
 
   async completarVencidas(): Promise<{ completadas: number; sesiones: string[] }> {

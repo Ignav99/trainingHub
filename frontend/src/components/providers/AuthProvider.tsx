@@ -8,23 +8,24 @@ import { SplashScreen } from '@/components/ui/splash-screen'
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  // Skip auth initialization entirely for /local/* routes — no login, no Supabase
-  const isLocalRoute = pathname?.startsWith('/local')
+  // Skip auth initialization entirely for public routes — no login, no Supabase
+  const isPublicRoute =
+    pathname?.startsWith('/local') || pathname?.startsWith('/share')
 
-  const [isReady, setIsReady] = useState(isLocalRoute)
+  const [isReady, setIsReady] = useState(isPublicRoute)
   const initializeAuth = useAuthStore((s) => s.initializeAuth)
   const user = useAuthStore((s) => s.user)
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const setOrganizacion = useClubStore((s) => s.setOrganizacion)
 
   useEffect(() => {
-    if (isLocalRoute) return
+    if (isPublicRoute) return
     const init = async () => {
       await initializeAuth()
       setIsReady(true)
     }
     init()
-  }, [initializeAuth, isLocalRoute])
+  }, [initializeAuth, isPublicRoute])
 
   // Sync organization data to club store when user loads
   useEffect(() => {

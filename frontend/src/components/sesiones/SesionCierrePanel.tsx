@@ -245,10 +245,16 @@ export function SesionCierrePanel({
             <Copy className="h-4 w-4" />
           </Button>
           {shareUrl && (
-            <Button type="button" variant="outline" size="icon" asChild title="Abrir">
-              <a href={shareUrl} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-4 w-4" />
-              </a>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              title="Abrir"
+              onClick={() => {
+                window.open(shareUrl, '_blank', 'noopener,noreferrer')
+              }}
+            >
+              <ExternalLink className="h-4 w-4" />
             </Button>
           )}
         </div>

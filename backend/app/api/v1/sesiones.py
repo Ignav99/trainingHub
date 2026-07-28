@@ -2143,9 +2143,9 @@ async def generate_pdf(
 
     # Subir a Storage (ruta distinta por variante para no pisar el otro PDF)
     settings = get_settings()
-    variant_key = (variant or "extendido").lower()
+    variant_key = (variant or "reducido").lower()
     if variant_key not in ("reducido", "extendido"):
-        variant_key = "extendido"
+        variant_key = "reducido"
     storage_path = f"sesiones/{auth.organizacion_id}/{sesion_id}_{variant_key}.pdf"
 
     try:
@@ -2167,7 +2167,7 @@ async def generate_pdf(
         pass
 
     # Devolver PDF como streaming response
-    # Nombre: sesion_YYYY-MM-DD.pdf (reducido) / sesion_YYYY-MM-DD_extendido.pdf
+    # Nombre: sesion_YYYY-MM-DD_reducido.pdf / sesion_YYYY-MM-DD_extendido.pdf
     fecha_raw = sesion.get("fecha")
     if hasattr(fecha_raw, "isoformat"):
         fecha_str = fecha_raw.isoformat()[:10]
@@ -2175,9 +2175,7 @@ async def generate_pdf(
         fecha_str = str(fecha_raw or "")[:10]
     if not fecha_str or fecha_str.lower() in ("none", "null"):
         fecha_str = str(sesion_id)[:8]
-    variant_key = (variant or "reducido").lower()
-    suffix = "_extendido" if variant_key == "extendido" else ""
-    filename = f"sesion_{fecha_str}{suffix}.pdf"
+    filename = f"sesion_{fecha_str}_{variant_key}.pdf"
     disposition = "inline" if preview else f'attachment; filename="{filename}"'
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
