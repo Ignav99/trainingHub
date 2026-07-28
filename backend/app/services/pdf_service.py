@@ -1341,7 +1341,7 @@ async def generate_sesion_pdf_reducido(
     microciclo_nombre: Optional[str] = None,
     asistencia_roster: Optional[list] = None,
 ) -> bytes:
-    """PDF reducido 1 folio A4 horizontal: cabecera, convocatoria densa, ejercicios+pizarra grande."""
+    """PDF reducido: 1 folio A4 landscape, conceptos, objetivo, convocatoria densa, 2×2 pizarras."""
     env = _get_jinja_env_v2()
     template = env.get_template("sesion_pdf_reducido.html")
 
@@ -1352,8 +1352,10 @@ async def generate_sesion_pdf_reducido(
         logo_url = _url_to_data_uri(logo_url)
 
     from app.services.svg_renderer import render_diagram_thumbnail
+    from app.services.sesion_labels import build_conceptos_line, chunk_list
 
-    tareas_corta = []
+    # —— Tareas (máx. 4 para grid 2×2 en 1 página) ——
+    todas = []
     duracion_total = 0
     for i, ts in enumerate(tareas_sesion or [], start=1):
         tarea = ts.get("tareas") or ts.get("tarea") or {}
@@ -1366,13 +1368,9 @@ async def generate_sesion_pdf_reducido(
         dur = ts.get("duracion_override") or tarea.get("duracion_total") or 0
         duracion_total += int(dur or 0)
 
-        desc = (
-            tarea.get("desarrollo")
-            or tarea.get("descripcion")
-            or ""
-        )
-        if isinstance(desc, str) and len(desc) > 110:
-            desc = desc[:107].rsplit(" ", 1)[0] + "…"
+        desc = tarea.get("desarrollo") or tarea.get("descripcion") or ""
+        if isinstance(desc, str) and len(desc) > 90:
+            desc = desc[:87].rsplit(" ", 1)[0] + "…"
 
         obj_bits = []
         for key in ("objetivos_tacticos", "objetivos_tecnicos"):
@@ -1380,8 +1378,8 @@ async def generate_sesion_pdf_reducido(
             if isinstance(vals, list) and vals:
                 obj_bits.extend([str(v).replace("_", " ") for v in vals[:2]])
         if obj_bits and not desc:
-            desc = " · ".join(obj_bits[:3])
-        elif obj_bits:
+            desc = " · ".join(obj_bits[:2])
+        elif obj_bits and len(desc) < 40:
             desc = f"{desc} · {obj_bits[0]}" if desc else obj_bits[0]
 
         grafico = tarea.get("grafico_data")
@@ -1391,7 +1389,7 @@ async def generate_sesion_pdf_reducido(
         except Exception:
             svg_thumb = ""
 
-        tareas_corta.append({
+        todas.append({
             "orden": ts.get("orden") or i,
             "titulo": tarea.get("titulo") or "Tarea",
             "categoria": cat_code,
@@ -1400,51 +1398,60 @@ async def generate_sesion_pdf_reducido(
             "svg_thumbnail": svg_thumb,
         })
 
-    keywords = sesion_data.get("keywords") or []
+    tareas_total = len(todas)
+    tareas_corta = todas[:4]
+    # Rellenar a 4 celdas (None = vacía)
+    while len(tareas_corta) < 4:
+        tareas_corta.append(None)
+    task_rows = [tareas_corta[0:2], tareas_corta[2:4]]
+
     intensidad = (
         sesion_data.get("intensidad_calculada")
         or sesion_data.get("intensidad_objetivo")
         or ""
     )
 
+    # —— Roster: lista plana sin duplicar, columnas de ~5 ——
     roster = asistencia_roster or []
     g_sesion = [p for p in roster if "sesion" in (p.get("tipos") or [])]
     g_fisio = [p for p in roster if "fisio" in (p.get("tipos") or [])]
     g_margen = [p for p in roster if "margen" in (p.get("tipos") or [])]
     g_ausentes = [p for p in roster if p.get("sort_key") == "ausente"]
 
-    # Contenidos / ABP labels
-    def _join_codes(vals):
-        if not vals:
-            return ""
-        if isinstance(vals, list):
-            return ", ".join(str(v).replace("_", " ") for v in vals[:6])
-        return str(vals)
+    flat_players = []
+    seen_ids = set()
 
-    abp = sesion_data.get("abp_config") or {}
-    abp_label = ""
-    if isinstance(abp, dict) and abp.get("activo"):
-        ofensivo = abp.get("ofensivo") or []
-        defensivo = abp.get("defensivo") or []
-        # Migrar legacy si hace falta
-        if not ofensivo and not defensivo:
-            tipos = abp.get("tipos") or []
-            lados = abp.get("lados") or ([abp["lado"]] if abp.get("lado") else [])
-            if tipos and lados:
-                if "ofensivo" in lados:
-                    ofensivo = list(tipos)
-                if "defensivo" in lados:
-                    defensivo = list(tipos)
-        parts = []
-        if ofensivo:
-            parts.append(
-                "Ofensivo: " + ", ".join(str(t).replace("_", " ") for t in ofensivo[:6])
-            )
-        if defensivo:
-            parts.append(
-                "Defensivo: " + ", ".join(str(t).replace("_", " ") for t in defensivo[:6])
-            )
-        abp_label = " · ".join(parts) if parts else "Activo"
+    def _add(players, grupo: str):
+        for p in players:
+            pid = p.get("jugador_id") or p.get("id") or f"{p.get('nombre')}-{p.get('dorsal')}"
+            if grupo != "sesion" and pid in seen_ids:
+                # fisio/margen ya listados en sesión → no duplicar
+                continue
+            if grupo == "sesion":
+                seen_ids.add(pid)
+            elif grupo in ("fisio", "margen") and "sesion" in (p.get("tipos") or []):
+                continue
+            row = dict(p)
+            row["grupo"] = grupo
+            flat_players.append(row)
+            seen_ids.add(pid)
+
+    _add(g_sesion, "sesion")
+    _add(g_fisio, "fisio")
+    _add(g_margen, "margen")
+    _add(g_ausentes, "ausente")
+
+    # ~5 nombres por columna → altura mínima
+    per_col = 5
+    n = len(flat_players)
+    n_cols = max(1, (n + per_col - 1) // per_col) if n else 0
+    # Limitar columnas razonables (si hay muchos, subir a 6/col)
+    if n_cols > 8:
+        per_col = max(5, (n + 7) // 8)
+        n_cols = max(1, (n + per_col - 1) // per_col)
+    roster_columns = chunk_list(flat_players, per_col) if n else []
+
+    conceptos_line = build_conceptos_line(sesion_data)
 
     def _render() -> bytes:
         from weasyprint import HTML
@@ -1457,21 +1464,20 @@ async def generate_sesion_pdf_reducido(
             match_day=sesion_data.get("match_day"),
             rival=sesion_data.get("rival"),
             lugar=lugar or sesion_data.get("lugar"),
-            keywords=keywords,
-            tareas_corta=tareas_corta,
+            conceptos_line=conceptos_line,
+            tareas_corta=[t for t in tareas_corta if t],
+            tareas_total=tareas_total,
+            task_rows=task_rows,
             duracion_total=duracion_total or sesion_data.get("duracion_total") or 0,
             intensidad=intensidad,
             microciclo_nombre=microciclo_nombre,
-            asistencia_roster=roster,
             g_sesion=g_sesion,
             g_fisio=g_fisio,
             g_margen=g_margen,
             g_ausentes=g_ausentes,
+            roster_columns=roster_columns,
             objetivo_fisico=sesion_data.get("objetivo_fisico") or "",
             objetivo_psicologico=sesion_data.get("objetivo_psicologico") or "",
-            contenidos_of=_join_codes(sesion_data.get("contenidos_tecnicos_of")),
-            contenidos_def=_join_codes(sesion_data.get("contenidos_tecnicos_def")),
-            abp_label=abp_label,
         )
         return HTML(string=html_content, base_url=str(TEMPLATES_DIR)).write_pdf()
 

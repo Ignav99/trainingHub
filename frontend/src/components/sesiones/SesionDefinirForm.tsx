@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { X, Plus } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -19,7 +19,7 @@ import {
   CONTEXTOS_PERIODO,
 } from '@/lib/catalogos/canonico'
 import { MultiSelect } from '@/components/ui/multi-select'
-import { normalizeKeyword, synthesizeKeywords } from '@/lib/keywords'
+import { synthesizeKeywords } from '@/lib/keywords'
 import type { SesionAbpConfig, SesionSubfaseItem } from '@/types'
 
 /** Normaliza abp_config legacy (lado/lados+tipos) → ofensivo/defensivo. */
@@ -118,54 +118,15 @@ export function SesionDefinirForm({
   rivalLocked?: boolean
   className?: string
 }) {
-  const [kwDraft, setKwDraft] = useState('')
   const [ofDraft, setOfDraft] = useState('')
   const [defDraft, setDefDraft] = useState('')
-  /** Últimas keywords auto-extraídas del objetivo (para no pisar las manuales). */
-  const autoKwRef = useRef<string[]>(synthesizeKeywords(value.objetivo_principal || ''))
-  /** Keywords auto que el usuario quitó a mano. */
-  const suppressedKwRef = useRef<Set<string>>(new Set())
 
-  const addManualKeyword = (raw: string) => {
-    const t = normalizeKeyword(raw)
-    if (!t) return
-    suppressedKwRef.current.delete(t)
-    if (value.keywords.includes(t)) {
-      setKwDraft('')
-      return
-    }
-    onChange({ keywords: [...value.keywords, t] })
-    setKwDraft('')
-  }
-
-  const removeKeyword = (k: string) => {
-    if (autoKwRef.current.includes(k)) {
-      suppressedKwRef.current.add(k)
-    }
-    onChange({ keywords: value.keywords.filter((x) => x !== k) })
-  }
-
+  /** Keywords solo internas (búsqueda NL); no se muestran en el diseño. */
   const syncKeywordsFromObjetivo = (objetivo_principal: string) => {
-    const auto = synthesizeKeywords(objetivo_principal).filter(
-      (k) => !suppressedKwRef.current.has(k),
-    )
-    // limpiar suppressed que ya no salen del objetivo
-    for (const s of Array.from(suppressedKwRef.current)) {
-      if (!synthesizeKeywords(objetivo_principal).includes(s)) {
-        suppressedKwRef.current.delete(s)
-      }
-    }
-    const manual = value.keywords.filter((k) => !autoKwRef.current.includes(k))
-    autoKwRef.current = synthesizeKeywords(objetivo_principal)
-    const seen = new Set<string>()
-    const next: string[] = []
-    for (const k of [...auto, ...manual]) {
-      if (!seen.has(k)) {
-        seen.add(k)
-        next.push(k)
-      }
-    }
-    onChange({ objetivo_principal, keywords: next })
+    onChange({
+      objetivo_principal,
+      keywords: synthesizeKeywords(objetivo_principal),
+    })
   }
 
   const isPretemporada =
@@ -513,51 +474,6 @@ export function SesionDefinirForm({
             rows={3}
             placeholder="Qué queremos conseguir hoy…"
           />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Keywords</Label>
-          <p className="text-[11px] text-muted-foreground">
-            Se generan frases desde el objetivo (p.ej. «presión alta»). Puedes añadir o quitar.
-          </p>
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {value.keywords.map((k) => (
-              <span
-                key={k}
-                className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs"
-              >
-                {k}
-                <button
-                  type="button"
-                  onClick={() => removeKeyword(k)}
-                  aria-label={`Quitar ${k}`}
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <Input
-              value={kwDraft}
-              onChange={(e) => setKwDraft(e.target.value)}
-              placeholder="Añadir frase (ej. salida de balón)"
-              className="h-8"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  addManualKeyword(kwDraft)
-                }
-              }}
-            />
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => addManualKeyword(kwDraft)}
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
-          </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
