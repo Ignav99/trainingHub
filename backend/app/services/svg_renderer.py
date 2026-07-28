@@ -297,14 +297,14 @@ def render_abp_diagram_svg(
         )
         return (
             f'<svg width="{width}" height="{height}" viewBox="0 0 {vb_h} {vb_w}" '
-            f'xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" '
+            f'xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMinYMid meet" '
             f'style="display:block;">{rotated}</svg>'
         )
 
     viewbox = config["viewbox"]
     return (
         f'<svg width="{width}" height="{height}" viewBox="{viewbox}" '
-        f'xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" '
+        f'xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMinYMid meet" '
         f'style="display:block;">{inner}</svg>'
     )
 

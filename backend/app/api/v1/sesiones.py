@@ -2167,12 +2167,23 @@ async def generate_pdf(
         pass
 
     # Devolver PDF como streaming response
-    filename = f"sesion_{sesion_id}_{variant_key}.pdf"
+    # Nombre: sesion_YYYY-MM-DD.pdf (fecha de la sesión)
+    fecha_raw = sesion.get("fecha")
+    if hasattr(fecha_raw, "isoformat"):
+        fecha_str = fecha_raw.isoformat()[:10]
+    else:
+        fecha_str = str(fecha_raw or "")[:10]
+    if not fecha_str or fecha_str.lower() in ("none", "null"):
+        fecha_str = str(sesion_id)[:8]
+    filename = f"sesion_{fecha_str}.pdf"
     disposition = "inline" if preview else f'attachment; filename="{filename}"'
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
-        headers={"Content-Disposition": disposition}
+        headers={
+            "Content-Disposition": disposition,
+            "X-PDF-Filename": filename,
+        }
     )
 
 
