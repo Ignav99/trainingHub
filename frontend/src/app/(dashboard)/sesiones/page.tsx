@@ -153,10 +153,15 @@ export default function SesionesPage() {
     setActiveMenu(null)
   }
 
-  const handleGeneratePdf = async (id: string, e: React.MouseEvent, fecha?: string | null) => {
+  const handleGeneratePdf = async (
+    id: string,
+    e: React.MouseEvent,
+    fecha?: string | null,
+    variant: 'reducido' | 'extendido' = 'reducido',
+  ) => {
     e.stopPropagation()
     try {
-      await sesionesApi.generatePdf(id, 'extendido', { fecha })
+      await sesionesApi.generatePdf(id, variant, { fecha })
     } catch (err) {
       console.error('Error generating PDF:', err)
       toast.error('Error al generar el PDF')
@@ -561,7 +566,7 @@ export default function SesionesPage() {
                         </button>
 
                         {activeMenu === sesion.id && (
-                          <div className="absolute right-0 top-8 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                          <div className="absolute right-0 top-8 w-52 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
                             <Link
                               href={`/sesiones/${sesion.id}`}
                               className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
@@ -571,11 +576,18 @@ export default function SesionesPage() {
                               Ver detalle
                             </Link>
                             <button
-                              onClick={(e) => handleGeneratePdf(sesion.id, e, sesion.fecha)}
+                              onClick={(e) => handleGeneratePdf(sesion.id, e, sesion.fecha, 'reducido')}
                               className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
                             >
                               <FileText className="h-4 w-4" />
-                              Generar PDF
+                              PDF reducido
+                            </button>
+                            <button
+                              onClick={(e) => handleGeneratePdf(sesion.id, e, sesion.fecha, 'extendido')}
+                              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
+                            >
+                              <FileText className="h-4 w-4" />
+                              PDF extendido
                             </button>
                             <button
                               onClick={(e) => handleDelete(sesion.id, e)}

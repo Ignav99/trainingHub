@@ -1162,7 +1162,7 @@ export default function SesionDetailPage() {
   }
 
   // ============ PDF ============
-  const handlePreviewPdf = async (variant: 'reducido' | 'extendido' = 'extendido') => {
+  const handlePreviewPdf = async (variant: 'reducido' | 'extendido' = 'reducido') => {
     setPreviewingPdf(true)
     try {
       await flushAutoSave()
@@ -1174,7 +1174,7 @@ export default function SesionDetailPage() {
     }
   }
 
-  const handleGeneratePdf = async (variant: 'reducido' | 'extendido' = 'extendido') => {
+  const handleGeneratePdf = async (variant: 'reducido' | 'extendido' = 'reducido') => {
     setGeneratingPdf(true)
     try {
       await flushAutoSave()
@@ -1940,10 +1940,10 @@ export default function SesionDetailPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => handlePreviewPdf()} disabled={previewingPdf} title="Vista previa PDF">
+          <Button variant="outline" size="icon" onClick={() => handlePreviewPdf('reducido')} disabled={previewingPdf} title="Vista previa PDF reducido">
             {previewingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
           </Button>
-          <Button variant="outline" size="icon" onClick={() => handleGeneratePdf()} disabled={generatingPdf} title="Descargar PDF">
+          <Button variant="outline" size="icon" onClick={() => handleGeneratePdf('reducido')} disabled={generatingPdf} title="Descargar PDF reducido">
             {generatingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           </Button>
           <Button variant="outline" size="icon" onClick={handleDelete} disabled={deleting} className="text-destructive hover:bg-destructive/10" title="Eliminar">
@@ -2561,13 +2561,13 @@ export default function SesionDetailPage() {
                   Abrir pizarra
                 </Link>
               </Button>
-              <Button variant="outline" onClick={() => handlePreviewPdf()} disabled={previewingPdf}>
+              <Button variant="outline" onClick={() => handlePreviewPdf('reducido')} disabled={previewingPdf}>
                 {previewingPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Eye className="h-4 w-4 mr-2" />}
-                Vista previa PDF
+                Vista previa PDF reducido
               </Button>
-              <Button variant="outline" onClick={() => handleGeneratePdf()} disabled={generatingPdf}>
+              <Button variant="outline" onClick={() => handleGeneratePdf('reducido')} disabled={generatingPdf}>
                 {generatingPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
-                Descargar PDF
+                Descargar PDF reducido
               </Button>
             </div>
           </div>
