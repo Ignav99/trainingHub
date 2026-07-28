@@ -1382,15 +1382,33 @@ async def generate_sesion_pdf_reducido(
         elif obj_bits and len(desc) < 40:
             desc = f"{desc} · {obj_bits[0]}" if desc else obj_bits[0]
 
-        grafico = tarea.get("grafico_data")
+        grafico = tarea.get("grafico_data") if isinstance(tarea.get("grafico_data"), dict) else {}
+        # Preferir instantánea real del editor (JPEG data URL)
+        preview_img = ""
+        if isinstance(grafico, dict):
+            raw_preview = grafico.get("preview") or ""
+            if isinstance(raw_preview, str) and raw_preview.startswith("data:image"):
+                preview_img = raw_preview
+        if not preview_img:
+            # Legacy: grafico_url (http o data URI)
+            gu = tarea.get("grafico_url") or ""
+            if isinstance(gu, str) and gu:
+                preview_img = _url_to_data_uri(gu) if gu.startswith("http") else gu
+                if not (isinstance(preview_img, str) and preview_img.startswith("data:image")):
+                    preview_img = ""
+
         svg_thumb = ""
         pitch_kind = "half"
-        try:
-            svg_thumb, pitch_kind = render_diagram_for_pdf(grafico, diagram_id=f"r{i}")
-            pitch_kind = pitch_kind or "half"
-        except Exception:
-            svg_thumb = ""
-            pitch_kind = "half"
+        if isinstance(grafico, dict):
+            pitch_kind = "full" if grafico.get("pitchType") == "full" else "half"
+        # Fallback SVG solo si no hay foto
+        if not preview_img:
+            try:
+                svg_thumb, pitch_kind = render_diagram_for_pdf(grafico or None, diagram_id=f"r{i}")
+                pitch_kind = pitch_kind or "half"
+            except Exception:
+                svg_thumb = ""
+                pitch_kind = "half"
 
         todas.append({
             "orden": ts.get("orden") or i,
@@ -1398,6 +1416,7 @@ async def generate_sesion_pdf_reducido(
             "categoria": cat_code,
             "duracion": dur,
             "descripcion": desc,
+            "preview_img": preview_img,
             "svg_thumbnail": svg_thumb,
             "pitch_kind": pitch_kind,
         })

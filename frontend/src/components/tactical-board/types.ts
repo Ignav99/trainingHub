@@ -79,6 +79,11 @@ export interface TareaPizarraData {
   pitchType?: 'full' | 'half' | 'quarter' | 'custom'
   tipo?: BoardType
   frames?: Keyframe[]
+  /**
+   * Instantánea JPEG (data URL) del SVG real del editor.
+   * Se usa en PDF/listados para no re-dibujar con otro renderer.
+   */
+  preview?: string
 }
 
 export const emptyTareaPizarra: TareaPizarraData = {
