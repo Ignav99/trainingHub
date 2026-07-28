@@ -185,6 +185,8 @@ export default function TareaPizarraEditor({
           embedded
           numJugadores={numJugadores}
           onApplyEspacio={onApplyEspacio}
+          onSave={() => {}}
+          onCancel={() => onClose?.()}
         />
       </div>
     </div>
