@@ -62,14 +62,16 @@ def prepare_sesion_write_payload(data: Dict[str, Any], *, synthesize: bool = Tru
         out["abp_config"] = _dump_item(out["abp_config"])
 
     if synthesize:
+        from app.services.keywords import normalize_keyword_list
+
         keywords = out.get("keywords")
         objetivo = out.get("objetivo_principal")
-        # Regenerar si no hay keywords explícitas o si se actualiza el objetivo
-        if keywords is None and objetivo:
+        # Si el cliente envía keywords, solo normalizar (no re-tokenizar).
+        # Sintetizar solo cuando no hay lista explícita.
+        if keywords is not None:
+            out["keywords"] = normalize_keyword_list(keywords)
+        elif objetivo:
             out["keywords"] = synthesize_keywords(objetivo)
-        elif keywords is not None and objetivo and "objetivo_principal" in data:
-            # Merge: mantener manuales + sintetizados
-            out["keywords"] = synthesize_keywords(objetivo, keywords)
 
     # ABP → ofensivo/defensivo con tipos independientes (+ legacy sync)
     abp = out.get("abp_config")

@@ -1341,7 +1341,7 @@ async def generate_sesion_pdf_reducido(
     microciclo_nombre: Optional[str] = None,
     asistencia_roster: Optional[list] = None,
 ) -> bytes:
-    """PDF reducido 1 folio A4: escudo, contexto, convocatoria coloreada, ejercicios+pizarra."""
+    """PDF reducido 1 folio A4 horizontal: cabecera, convocatoria densa, ejercicios+pizarra grande."""
     env = _get_jinja_env_v2()
     template = env.get_template("sesion_pdf_reducido.html")
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { X, Plus } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -19,6 +19,7 @@ import {
   CONTEXTOS_PERIODO,
 } from '@/lib/catalogos/canonico'
 import { MultiSelect } from '@/components/ui/multi-select'
+import { normalizeKeyword, synthesizeKeywords } from '@/lib/keywords'
 import type { SesionAbpConfig, SesionSubfaseItem } from '@/types'
 
 /** Normaliza abp_config legacy (lado/lados+tipos) → ofensivo/defensivo. */
@@ -81,33 +82,6 @@ export type SesionDefinirValues = {
   objetivo_psicologico?: string
 }
 
-function synthesizeLocalKeywords(objetivo: string, extra: string[] = []): string[] {
-  const stop = new Set([
-    'a', 'al', 'de', 'del', 'la', 'las', 'el', 'los', 'en', 'con', 'para', 'por',
-    'y', 'o', 'un', 'una', 'que', 'se', 'su', 'sus', 'hacer', 'mejorar', 'trabajar',
-    'sesion', 'partido', 'equipo', 'hoy',
-  ])
-  const keep = new Set(['abp', '1v1', '2v1', 'ssg', 'rondo'])
-  const tokens = objetivo
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\w\s\-+/]/g, ' ')
-    .split(/[\s,/|;]+/)
-    .map((t) => t.trim())
-    .filter((t) => t && (keep.has(t) || (t.length >= 3 && !stop.has(t))))
-  const out: string[] = []
-  const seen = new Set<string>()
-  for (const t of [...tokens, ...extra.map((e) => e.toLowerCase().trim()).filter(Boolean)]) {
-    if (!seen.has(t)) {
-      seen.add(t)
-      out.push(t)
-    }
-    if (out.length >= 24) break
-  }
-  return out
-}
-
 function ChipToggle({
   active,
   label,
@@ -147,6 +121,52 @@ export function SesionDefinirForm({
   const [kwDraft, setKwDraft] = useState('')
   const [ofDraft, setOfDraft] = useState('')
   const [defDraft, setDefDraft] = useState('')
+  /** Últimas keywords auto-extraídas del objetivo (para no pisar las manuales). */
+  const autoKwRef = useRef<string[]>(synthesizeKeywords(value.objetivo_principal || ''))
+  /** Keywords auto que el usuario quitó a mano. */
+  const suppressedKwRef = useRef<Set<string>>(new Set())
+
+  const addManualKeyword = (raw: string) => {
+    const t = normalizeKeyword(raw)
+    if (!t) return
+    suppressedKwRef.current.delete(t)
+    if (value.keywords.includes(t)) {
+      setKwDraft('')
+      return
+    }
+    onChange({ keywords: [...value.keywords, t] })
+    setKwDraft('')
+  }
+
+  const removeKeyword = (k: string) => {
+    if (autoKwRef.current.includes(k)) {
+      suppressedKwRef.current.add(k)
+    }
+    onChange({ keywords: value.keywords.filter((x) => x !== k) })
+  }
+
+  const syncKeywordsFromObjetivo = (objetivo_principal: string) => {
+    const auto = synthesizeKeywords(objetivo_principal).filter(
+      (k) => !suppressedKwRef.current.has(k),
+    )
+    // limpiar suppressed que ya no salen del objetivo
+    for (const s of [...suppressedKwRef.current]) {
+      if (!synthesizeKeywords(objetivo_principal).includes(s)) {
+        suppressedKwRef.current.delete(s)
+      }
+    }
+    const manual = value.keywords.filter((k) => !autoKwRef.current.includes(k))
+    autoKwRef.current = synthesizeKeywords(objetivo_principal)
+    const seen = new Set<string>()
+    const next: string[] = []
+    for (const k of [...auto, ...manual]) {
+      if (!seen.has(k)) {
+        seen.add(k)
+        next.push(k)
+      }
+    }
+    onChange({ objetivo_principal, keywords: next })
+  }
 
   const isPretemporada =
     value.es_pretemporada ||
@@ -489,19 +509,16 @@ export function SesionDefinirForm({
           <Label>Objetivo principal</Label>
           <Textarea
             value={value.objetivo_principal}
-            onChange={(e) => {
-              const objetivo_principal = e.target.value
-              onChange({
-                objetivo_principal,
-                keywords: synthesizeLocalKeywords(objetivo_principal, value.keywords),
-              })
-            }}
+            onChange={(e) => syncKeywordsFromObjetivo(e.target.value)}
             rows={3}
             placeholder="Qué queremos conseguir hoy…"
           />
         </div>
         <div className="space-y-1.5">
           <Label>Keywords</Label>
+          <p className="text-[11px] text-muted-foreground">
+            Se generan frases desde el objetivo (p.ej. «presión alta»). Puedes añadir o quitar.
+          </p>
           <div className="flex flex-wrap gap-1.5 mb-2">
             {value.keywords.map((k) => (
               <span
@@ -511,9 +528,7 @@ export function SesionDefinirForm({
                 {k}
                 <button
                   type="button"
-                  onClick={() =>
-                    onChange({ keywords: value.keywords.filter((x) => x !== k) })
-                  }
+                  onClick={() => removeKeyword(k)}
                   aria-label={`Quitar ${k}`}
                 >
                   <X className="h-3 w-3" />
@@ -525,15 +540,12 @@ export function SesionDefinirForm({
             <Input
               value={kwDraft}
               onChange={(e) => setKwDraft(e.target.value)}
-              placeholder="Añadir keyword"
+              placeholder="Añadir frase (ej. salida de balón)"
               className="h-8"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
-                  const t = kwDraft.trim().toLowerCase()
-                  if (!t) return
-                  onChange({ keywords: [...value.keywords, t] })
-                  setKwDraft('')
+                  addManualKeyword(kwDraft)
                 }
               }}
             />
@@ -541,12 +553,7 @@ export function SesionDefinirForm({
               type="button"
               size="sm"
               variant="outline"
-              onClick={() => {
-                const t = kwDraft.trim().toLowerCase()
-                if (!t) return
-                onChange({ keywords: [...value.keywords, t] })
-                setKwDraft('')
-              }}
+              onClick={() => addManualKeyword(kwDraft)}
             >
               <Plus className="h-3.5 w-3.5" />
             </Button>
