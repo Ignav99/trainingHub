@@ -566,13 +566,28 @@ async def get_sesion_by_share_token(token: str):
     equipo = sesion.pop("equipos", None) or {}
     sesion["equipo_nombre"] = equipo.get("nombre") if isinstance(equipo, dict) else None
 
-    # Normalizar ABP lados
+    # Normalizar ABP ofensivo/defensivo (+ legacy)
     abp = sesion.get("abp_config")
     if isinstance(abp, dict):
-        lados = abp.get("lados") or []
-        if not lados and abp.get("lado"):
-            lados = [abp["lado"]]
-        abp["lados"] = lados
+        ofensivo = [t for t in (abp.get("ofensivo") or []) if isinstance(t, str)]
+        defensivo = [t for t in (abp.get("defensivo") or []) if isinstance(t, str)]
+        if not ofensivo and not defensivo:
+            tipos = [t for t in (abp.get("tipos") or []) if isinstance(t, str)]
+            lados = [x for x in (abp.get("lados") or []) if x in ("ofensivo", "defensivo")]
+            if not lados and abp.get("lado") in ("ofensivo", "defensivo"):
+                lados = [abp["lado"]]
+            if tipos and lados:
+                if "ofensivo" in lados:
+                    ofensivo = list(tipos)
+                if "defensivo" in lados:
+                    defensivo = list(tipos)
+        lados_u = ([] if not ofensivo else ["ofensivo"]) + ([] if not defensivo else ["defensivo"])
+        abp["ofensivo"] = ofensivo
+        abp["defensivo"] = defensivo
+        abp["lados"] = lados_u
+        abp["lado"] = lados_u[0] if lados_u else None
+        abp["tipos"] = list(dict.fromkeys([*ofensivo, *defensivo]))
+        abp["activo"] = bool(ofensivo or defensivo)
         sesion["abp_config"] = abp
 
     tareas_response = supabase.table("sesion_tareas").select(

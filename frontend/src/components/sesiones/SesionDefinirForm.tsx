@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { X, Plus } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -12,14 +12,52 @@ import {
   SUBFASES_ATAQUE,
   SUBFASES_DEFENSA,
   TIPOS_ABP,
-  LADOS_ABP,
   CONTENIDOS_OFENSIVOS,
   CONTENIDOS_DEFENSIVOS,
   MATCH_DAYS,
   DIAS_CARGA,
   CONTEXTOS_PERIODO,
 } from '@/lib/catalogos/canonico'
+import { MultiSelect } from '@/components/ui/multi-select'
+import { normalizeKeyword, synthesizeKeywords } from '@/lib/keywords'
 import type { SesionAbpConfig, SesionSubfaseItem } from '@/types'
+
+/** Normaliza abp_config legacy (lado/lados+tipos) → ofensivo/defensivo. */
+function normalizeAbp(raw: SesionAbpConfig | null | undefined): SesionAbpConfig {
+  const base = raw || { activo: false }
+  let ofensivo = [...(base.ofensivo || [])]
+  let defensivo = [...(base.defensivo || [])]
+  if (!ofensivo.length && !defensivo.length) {
+    const tipos = base.tipos || []
+    const lados =
+      base.lados && base.lados.length
+        ? base.lados
+        : base.lado
+          ? [base.lado]
+          : []
+    if (tipos.length && lados.length) {
+      if (lados.includes('ofensivo')) ofensivo = [...tipos]
+      if (lados.includes('defensivo')) defensivo = [...tipos]
+    }
+  }
+  const activo = ofensivo.length > 0 || defensivo.length > 0
+  return {
+    activo,
+    ofensivo,
+    defensivo,
+    lados: [
+      ...(ofensivo.length ? (['ofensivo'] as const) : []),
+      ...(defensivo.length ? (['defensivo'] as const) : []),
+    ],
+    lado: ofensivo.length ? 'ofensivo' : defensivo.length ? 'defensivo' : null,
+    tipos: Array.from(new Set([...ofensivo, ...defensivo])),
+  }
+}
+
+function buildAbp(ofensivo: string[], defensivo: string[]): SesionAbpConfig | null {
+  const next = normalizeAbp({ activo: false, ofensivo, defensivo })
+  return next.activo ? next : null
+}
 
 export type SesionDefinirValues = {
   titulo: string
@@ -42,33 +80,6 @@ export type SesionDefinirValues = {
   keywords: string[]
   objetivo_fisico?: string
   objetivo_psicologico?: string
-}
-
-function synthesizeLocalKeywords(objetivo: string, extra: string[] = []): string[] {
-  const stop = new Set([
-    'a', 'al', 'de', 'del', 'la', 'las', 'el', 'los', 'en', 'con', 'para', 'por',
-    'y', 'o', 'un', 'una', 'que', 'se', 'su', 'sus', 'hacer', 'mejorar', 'trabajar',
-    'sesion', 'partido', 'equipo', 'hoy',
-  ])
-  const keep = new Set(['abp', '1v1', '2v1', 'ssg', 'rondo'])
-  const tokens = objetivo
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\w\s\-+/]/g, ' ')
-    .split(/[\s,/|;]+/)
-    .map((t) => t.trim())
-    .filter((t) => t && (keep.has(t) || (t.length >= 3 && !stop.has(t))))
-  const out: string[] = []
-  const seen = new Set<string>()
-  for (const t of [...tokens, ...extra.map((e) => e.toLowerCase().trim()).filter(Boolean)]) {
-    if (!seen.has(t)) {
-      seen.add(t)
-      out.push(t)
-    }
-    if (out.length >= 24) break
-  }
-  return out
 }
 
 function ChipToggle({
@@ -110,6 +121,52 @@ export function SesionDefinirForm({
   const [kwDraft, setKwDraft] = useState('')
   const [ofDraft, setOfDraft] = useState('')
   const [defDraft, setDefDraft] = useState('')
+  /** Últimas keywords auto-extraídas del objetivo (para no pisar las manuales). */
+  const autoKwRef = useRef<string[]>(synthesizeKeywords(value.objetivo_principal || ''))
+  /** Keywords auto que el usuario quitó a mano. */
+  const suppressedKwRef = useRef<Set<string>>(new Set())
+
+  const addManualKeyword = (raw: string) => {
+    const t = normalizeKeyword(raw)
+    if (!t) return
+    suppressedKwRef.current.delete(t)
+    if (value.keywords.includes(t)) {
+      setKwDraft('')
+      return
+    }
+    onChange({ keywords: [...value.keywords, t] })
+    setKwDraft('')
+  }
+
+  const removeKeyword = (k: string) => {
+    if (autoKwRef.current.includes(k)) {
+      suppressedKwRef.current.add(k)
+    }
+    onChange({ keywords: value.keywords.filter((x) => x !== k) })
+  }
+
+  const syncKeywordsFromObjetivo = (objetivo_principal: string) => {
+    const auto = synthesizeKeywords(objetivo_principal).filter(
+      (k) => !suppressedKwRef.current.has(k),
+    )
+    // limpiar suppressed que ya no salen del objetivo
+    for (const s of Array.from(suppressedKwRef.current)) {
+      if (!synthesizeKeywords(objetivo_principal).includes(s)) {
+        suppressedKwRef.current.delete(s)
+      }
+    }
+    const manual = value.keywords.filter((k) => !autoKwRef.current.includes(k))
+    autoKwRef.current = synthesizeKeywords(objetivo_principal)
+    const seen = new Set<string>()
+    const next: string[] = []
+    for (const k of [...auto, ...manual]) {
+      if (!seen.has(k)) {
+        seen.add(k)
+        next.push(k)
+      }
+    }
+    onChange({ objetivo_principal, keywords: next })
+  }
 
   const isPretemporada =
     value.es_pretemporada ||
@@ -144,12 +201,7 @@ export function SesionDefinirForm({
     })
   }
 
-  const abp = value.abp_config || { activo: false, lado: null, lados: [], tipos: [] }
-  const abpLados: string[] = (() => {
-    if (abp.lados && abp.lados.length) return abp.lados
-    if (abp.lado) return [abp.lado]
-    return []
-  })()
+  const abp = normalizeAbp(value.abp_config)
 
   return (
     <div className={cn('space-y-6', className)}>
@@ -323,80 +375,42 @@ export function SesionDefinirForm({
       </section>
 
       <section className="space-y-3 rounded-2xl border bg-card p-4 sm:p-5">
-        <div className="flex items-center justify-between gap-2">
+        <div>
           <h3 className="text-sm font-semibold">ABP (opcional)</h3>
-          <ChipToggle
-            active={!!abp.activo}
-            label={abp.activo ? 'Activo' : 'Inactivo'}
-            onClick={() =>
-              onChange({
-                abp_config: { ...abp, activo: !abp.activo, tipos: abp.tipos || [] },
-              })
-            }
-          />
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Elige tipos por lado; puedes usar uno, los dos o ninguno.
+          </p>
         </div>
-        {abp.activo && (
-          <>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1.5">
-                Lado (puedes marcar los dos)
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {LADOS_ABP.map((l) => {
-                  const on = abpLados.includes(l.codigo)
-                  return (
-                    <ChipToggle
-                      key={l.codigo}
-                      active={on}
-                      label={l.nombre}
-                      onClick={() => {
-                        const next = on
-                          ? abpLados.filter((x) => x !== l.codigo)
-                          : [...abpLados, l.codigo]
-                        onChange({
-                          abp_config: {
-                            ...abp,
-                            lados: next,
-                            lado: next[0] || null,
-                            tipos: abp.tipos || [],
-                          },
-                        })
-                      }}
-                    />
-                  )
-                })}
-              </div>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1.5">Tipos de balón parado</p>
-              <div className="flex flex-wrap gap-1.5">
-                {TIPOS_ABP.map((t) => {
-                  const tipos = abp.tipos || []
-                  const on = tipos.includes(t.codigo)
-                  return (
-                    <ChipToggle
-                      key={t.codigo}
-                      active={on}
-                      label={t.nombre}
-                      onClick={() =>
-                        onChange({
-                          abp_config: {
-                            ...abp,
-                            lados: abpLados,
-                            lado: abpLados[0] || abp.lado || null,
-                            tipos: on
-                              ? tipos.filter((x) => x !== t.codigo)
-                              : [...tipos, t.codigo],
-                          },
-                        })
-                      }
-                    />
-                  )
-                })}
-              </div>
-            </div>
-          </>
-        )}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Ofensivo</Label>
+            <MultiSelect
+              options={TIPOS_ABP}
+              value={abp.ofensivo || []}
+              onChange={(ofensivo) =>
+                onChange({
+                  abp_config: buildAbp(ofensivo, abp.defensivo || []),
+                })
+              }
+              placeholder="Tipos ofensivos…"
+              maxChips={3}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Defensivo</Label>
+            <MultiSelect
+              options={TIPOS_ABP}
+              value={abp.defensivo || []}
+              onChange={(defensivo) =>
+                onChange({
+                  abp_config: buildAbp(abp.ofensivo || [], defensivo),
+                })
+              }
+              placeholder="Tipos defensivos…"
+              maxChips={3}
+            />
+          </div>
+        </div>
       </section>
 
       <section className="space-y-3 rounded-2xl border bg-card p-4 sm:p-5">
@@ -495,19 +509,16 @@ export function SesionDefinirForm({
           <Label>Objetivo principal</Label>
           <Textarea
             value={value.objetivo_principal}
-            onChange={(e) => {
-              const objetivo_principal = e.target.value
-              onChange({
-                objetivo_principal,
-                keywords: synthesizeLocalKeywords(objetivo_principal, value.keywords),
-              })
-            }}
+            onChange={(e) => syncKeywordsFromObjetivo(e.target.value)}
             rows={3}
             placeholder="Qué queremos conseguir hoy…"
           />
         </div>
         <div className="space-y-1.5">
           <Label>Keywords</Label>
+          <p className="text-[11px] text-muted-foreground">
+            Se generan frases desde el objetivo (p.ej. «presión alta»). Puedes añadir o quitar.
+          </p>
           <div className="flex flex-wrap gap-1.5 mb-2">
             {value.keywords.map((k) => (
               <span
@@ -517,9 +528,7 @@ export function SesionDefinirForm({
                 {k}
                 <button
                   type="button"
-                  onClick={() =>
-                    onChange({ keywords: value.keywords.filter((x) => x !== k) })
-                  }
+                  onClick={() => removeKeyword(k)}
                   aria-label={`Quitar ${k}`}
                 >
                   <X className="h-3 w-3" />
@@ -531,15 +540,12 @@ export function SesionDefinirForm({
             <Input
               value={kwDraft}
               onChange={(e) => setKwDraft(e.target.value)}
-              placeholder="Añadir keyword"
+              placeholder="Añadir frase (ej. salida de balón)"
               className="h-8"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
-                  const t = kwDraft.trim().toLowerCase()
-                  if (!t) return
-                  onChange({ keywords: [...value.keywords, t] })
-                  setKwDraft('')
+                  addManualKeyword(kwDraft)
                 }
               }}
             />
@@ -547,12 +553,7 @@ export function SesionDefinirForm({
               type="button"
               size="sm"
               variant="outline"
-              onClick={() => {
-                const t = kwDraft.trim().toLowerCase()
-                if (!t) return
-                onChange({ keywords: [...value.keywords, t] })
-                setKwDraft('')
-              }}
+              onClick={() => addManualKeyword(kwDraft)}
             >
               <Plus className="h-3.5 w-3.5" />
             </Button>

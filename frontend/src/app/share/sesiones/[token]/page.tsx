@@ -70,18 +70,30 @@ export default function ShareSesionPage() {
 
   const abpLabel = useMemo(() => {
     const abp = sesion?.abp_config
-    if (!abp?.activo) return null
-    const lados = (abp as any).lados?.length
-      ? (abp as any).lados
-      : abp.lado
-        ? [abp.lado]
-        : []
-    const tipos = abp.tipos || []
-    const parts = [
-      ...lados.map((l: string) => l.replace(/_/g, ' ')),
-      ...tipos.map((t) => t.replace(/_/g, ' ')),
-    ]
-    return parts.length ? parts.join(' · ') : 'Activo'
+    if (!abp) return null
+    let ofensivo: string[] = (abp as any).ofensivo || []
+    let defensivo: string[] = (abp as any).defensivo || []
+    if (!ofensivo.length && !defensivo.length) {
+      const tipos = abp.tipos || []
+      const lados = (abp as any).lados?.length
+        ? (abp as any).lados
+        : abp.lado
+          ? [abp.lado]
+          : []
+      if (tipos.length && lados.length) {
+        if (lados.includes('ofensivo')) ofensivo = [...tipos]
+        if (lados.includes('defensivo')) defensivo = [...tipos]
+      }
+    }
+    if (!ofensivo.length && !defensivo.length) {
+      return abp.activo ? 'Activo' : null
+    }
+    const fmt = (codes: string[]) =>
+      codes.map((t) => t.replace(/_/g, ' ')).join(', ')
+    const parts: string[] = []
+    if (ofensivo.length) parts.push(`Ofensivo: ${fmt(ofensivo)}`)
+    if (defensivo.length) parts.push(`Defensivo: ${fmt(defensivo)}`)
+    return parts.join(' · ')
   }, [sesion])
 
   const grupos = useMemo(() => {
