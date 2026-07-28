@@ -284,7 +284,7 @@ export default function SesionTareaPanel({
                   ? 'text-primary hover:bg-primary/10'
                   : 'text-muted-foreground hover:bg-muted'
             }`}
-            title="Equipos"
+            title="Gestionar equipos"
           >
             <Users className="h-4 w-4" />
           </button>

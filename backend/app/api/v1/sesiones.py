@@ -2122,6 +2122,7 @@ async def generate_pdf(
                 lugar=lugar,
                 microciclo_nombre=microciclo_nombre,
                 asistencia_roster=asistencia_roster,
+                jugadores_map=jugadores_map,
             )
         else:
             pdf_bytes = await generate_sesion_pdf_v2(
