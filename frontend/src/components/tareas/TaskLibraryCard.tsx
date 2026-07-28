@@ -1,6 +1,6 @@
 'use client'
 
-import { Clock, Users, Play } from 'lucide-react'
+import { Clock, Users, Play, GitBranch, Plus } from 'lucide-react'
 import { TacticalBoardMini, boardHasAnimation } from '@/components/task-preview'
 import {
   METODOLOGIAS_TAREA,
@@ -24,6 +24,11 @@ function metodologiaLabel(codigo?: string) {
   return METODOLOGIAS_TAREA.find((m) => m.codigo === codigo)?.nombre || codigo
 }
 
+function variantesLabel(n: number) {
+  if (n === 1) return '1 variante creada'
+  return `${n} variantes creadas`
+}
+
 export interface TaskLibraryCardProps {
   tarea: Tarea
   selected?: boolean
@@ -32,6 +37,10 @@ export interface TaskLibraryCardProps {
   selectLabel?: string
   compact?: boolean
   className?: string
+  /** Ver pestaña variantes de la ficha */
+  onViewVariantes?: () => void
+  /** Abrir diálogo crear variante */
+  onCreateVariante?: () => void
 }
 
 export function TaskLibraryCard({
@@ -42,6 +51,8 @@ export function TaskLibraryCard({
   selectLabel = 'Añadir',
   compact = false,
   className,
+  onViewVariantes,
+  onCreateVariante,
 }: TaskLibraryCardProps) {
   const hasAnim = boardHasAnimation(tarea.grafico_data as any)
   const fase = faseLabel(tarea.fase_juego)
@@ -50,6 +61,9 @@ export function TaskLibraryCard({
   const orientacion = (tarea.orientaciones_fisicas || [])[0]
   const objTac = (tarea.objetivos_tacticos || [])[0]
   const objTec = (tarea.objetivos_tecnicos || [])[0]
+  const esVariante = !!tarea.tarea_origen_id
+  const nVar = tarea.num_variantes ?? 0
+  const showFamilia = !esVariante && (onViewVariantes || onCreateVariante)
 
   return (
     <article
@@ -84,13 +98,13 @@ export function TaskLibraryCard({
             {tarea.categoria.nombre_corto || tarea.categoria.nombre || tarea.categoria.codigo}
           </span>
         )}
-        {tarea.tarea_origen_id ? (
+        {esVariante ? (
           <span className="absolute top-2 right-2 rounded-md bg-violet-600/90 px-2 py-0.5 text-[10px] font-semibold text-white">
             {nombreTipoVariante(tarea.tipo_variante)}
           </span>
-        ) : (tarea.num_variantes ?? 0) > 0 ? (
+        ) : nVar > 0 ? (
           <span className="absolute top-2 right-2 rounded-md bg-sky-600/90 px-2 py-0.5 text-[10px] font-semibold text-white">
-            Madre · {tarea.num_variantes}
+            Madre · {nVar}
           </span>
         ) : null}
       </div>
@@ -179,6 +193,37 @@ export function TaskLibraryCard({
                   ? ` +${(tarea.objetivos_tecnicos!.length - 1)}`
                   : ''}
               </p>
+            )}
+          </div>
+        )}
+
+        {showFamilia && (
+          <div
+            className={cn(
+              'border-t border-border/60 flex flex-wrap gap-2',
+              compact ? 'pt-1.5' : 'pt-2'
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {nVar > 0 && onViewVariantes ? (
+              <button
+                type="button"
+                onClick={onViewVariantes}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-xs font-semibold text-sky-800 hover:bg-sky-100"
+              >
+                <GitBranch className="h-3.5 w-3.5" />
+                {compact ? `${nVar} var.` : `Tiene ${variantesLabel(nVar)}`}
+              </button>
+            ) : null}
+            {onCreateVariante && (
+              <button
+                type="button"
+                onClick={onCreateVariante}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {compact ? 'Variante' : 'Crear variante'}
+              </button>
             )}
           </div>
         )}

@@ -468,6 +468,12 @@ export default function TareasPage() {
                 <TaskLibraryCard
                   tarea={tarea}
                   onClick={() => router.push(`/tareas/${tarea.id}`)}
+                  onViewVariantes={
+                    !tarea.tarea_origen_id
+                      ? () => router.push(`/tareas/${tarea.id}?tab=variantes`)
+                      : undefined
+                  }
+                  onCreateVariante={() => setVarianteMadre(tarea)}
                 />
                 <div className="absolute top-3 right-3 z-10">
                   <button
@@ -481,20 +487,36 @@ export default function TareasPage() {
                     <MoreHorizontal className="h-4 w-4" />
                   </button>
                   {activeMenu === tarea.id && (
-                    <div className="absolute right-0 mt-1 w-44 rounded-lg border bg-card shadow-lg py-1">
+                    <div className="absolute right-0 mt-1 w-48 rounded-lg border bg-card shadow-lg py-1">
                       {tab === 'biblioteca' ? (
-                        <button
-                          type="button"
-                          onClick={(e) => handleCopyToMyTeam(tarea, e)}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-left"
-                        >
-                          {copying === tarea.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Copy className="h-3.5 w-3.5" />
+                        <>
+                          {!tarea.tarea_origen_id && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setActiveMenu(null)
+                                router.push(`/tareas/${tarea.id}?tab=variantes`)
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-left"
+                            >
+                              <Sparkles className="h-3.5 w-3.5" />
+                              Ver variantes
+                            </button>
                           )}
-                          Copiar a mis tareas
-                        </button>
+                          <button
+                            type="button"
+                            onClick={(e) => handleCopyToMyTeam(tarea, e)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-left"
+                          >
+                            {copying === tarea.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Copy className="h-3.5 w-3.5" />
+                            )}
+                            Copiar a mis tareas
+                          </button>
+                        </>
                       ) : (
                         <>
                           <button
@@ -509,6 +531,20 @@ export default function TareasPage() {
                             <Sparkles className="h-3.5 w-3.5" />
                             Crear variante
                           </button>
+                          {!tarea.tarea_origen_id && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setActiveMenu(null)
+                                router.push(`/tareas/${tarea.id}?tab=variantes`)
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-left"
+                            >
+                              <Sparkles className="h-3.5 w-3.5" />
+                              Ver variantes
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={(e) => handleDuplicate(tarea, e)}

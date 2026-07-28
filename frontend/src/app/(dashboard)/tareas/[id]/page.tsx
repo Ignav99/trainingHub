@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import useSWR, { mutate } from 'swr'
 import {
@@ -28,6 +28,7 @@ import {
   Download,
   Sparkles,
   Pencil,
+  GitBranch,
 } from 'lucide-react'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { tareasApi } from '@/lib/api/tareas'
@@ -36,7 +37,9 @@ import { Tarea } from '@/types'
 import TareaPizarraEditor from '@/components/tactical-board/TareaPizarraEditor'
 import TacticalBoardMini from '@/components/task-preview/TacticalBoardMini'
 import { TareaFamiliaPanel } from '@/components/tareas/TareaFamiliaPanel'
+import { nombreTipoVariante } from '@/lib/catalogos/canonico'
 import type { TareaPizarraData } from '@/components/tactical-board/types'
+import { cn } from '@/lib/utils'
 
 // Helpers para formatear valores
 const formatFaseJuego = (fase?: string) => {
@@ -72,8 +75,12 @@ const formatNivelCognitivo = (nivel?: number) => {
 export default function TareaDetailPage() {
   const router = useRouter()
   const params = useParams()
+  const searchParams = useSearchParams()
   const tareaId = params.id as string
 
+  const [detailTab, setDetailTab] = useState<'resumen' | 'variantes'>(
+    searchParams.get('tab') === 'variantes' ? 'variantes' : 'resumen'
+  )
   const [deleting, setDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
@@ -81,6 +88,17 @@ export default function TareaDetailPage() {
   const [savingDiagram, setSavingDiagram] = useState(false)
   const [boardEditing, setBoardEditing] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const t = searchParams.get('tab')
+    setDetailTab(t === 'variantes' ? 'variantes' : 'resumen')
+  }, [searchParams])
+
+  const goTab = (tab: 'resumen' | 'variantes') => {
+    setDetailTab(tab)
+    const url = tab === 'variantes' ? `/tareas/${tareaId}?tab=variantes` : `/tareas/${tareaId}`
+    router.replace(url, { scroll: false })
+  }
 
   const handleGenerateDiagram = useCallback(async () => {
     if (!tareaId) return
@@ -213,6 +231,19 @@ export default function TareaDetailPage() {
                   Plantilla
                 </span>
               )}
+              {tarea.tarea_origen_id ? (
+                <span className="px-2 py-1 text-xs font-medium bg-violet-100 text-violet-700 rounded">
+                  {nombreTipoVariante(tarea.tipo_variante)}
+                </span>
+              ) : (tarea.num_variantes ?? 0) > 0 ? (
+                <span className="px-2 py-1 text-xs font-medium bg-sky-100 text-sky-800 rounded">
+                  Madre · {tarea.num_variantes} variantes
+                </span>
+              ) : (
+                <span className="px-2 py-1 text-xs font-medium bg-sky-50 text-sky-700 rounded">
+                  Tarea madre
+                </span>
+              )}
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mt-1">{tarea.titulo}</h1>
             {tarea.codigo && (
@@ -222,7 +253,17 @@ export default function TareaDetailPage() {
         </div>
 
         {/* Action buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <button
+            type="button"
+            onClick={() => goTab('variantes')}
+            className="inline-flex items-center gap-2 px-4 py-2 border border-sky-200 bg-sky-50 text-sky-800 rounded-lg hover:bg-sky-100"
+          >
+            <GitBranch className="h-4 w-4" />
+            {(tarea.num_variantes ?? 0) > 0
+              ? `Variantes (${tarea.num_variantes})`
+              : 'Variantes'}
+          </button>
           <button
             onClick={handleGeneratePdf}
             disabled={generatingPdf}
@@ -254,6 +295,40 @@ export default function TareaDetailPage() {
         </div>
       </div>
 
+      {/* Tabs resumen / variantes */}
+      <div className="inline-flex bg-muted rounded-lg p-0.5 mb-6">
+        <button
+          type="button"
+          onClick={() => goTab('resumen')}
+          className={cn(
+            'px-4 py-1.5 rounded-md text-sm font-medium transition-all',
+            detailTab === 'resumen'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          Resumen
+        </button>
+        <button
+          type="button"
+          onClick={() => goTab('variantes')}
+          className={cn(
+            'inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all',
+            detailTab === 'variantes'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <GitBranch className="h-3.5 w-3.5" />
+          Variantes
+          {(tarea.num_variantes ?? 0) > 0 && (
+            <span className="rounded-full bg-sky-100 text-sky-800 text-[10px] font-semibold px-1.5 py-0.5">
+              {tarea.num_variantes}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* Delete confirmation modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -283,10 +358,38 @@ export default function TareaDetailPage() {
         </div>
       )}
 
+      {detailTab === 'variantes' ? (
+        <TareaFamiliaPanel tarea={tarea} />
+      ) : (
+      <>
       {/* Main content grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column - Main info */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Acceso rápido a variantes */}
+          <button
+            type="button"
+            onClick={() => goTab('variantes')}
+            className="w-full flex items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-left hover:bg-sky-100 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-sky-100 p-2">
+                <GitBranch className="h-4 w-4 text-sky-700" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-sky-900">
+                  {(tarea.num_variantes ?? 0) > 0
+                    ? `Tiene ${tarea.num_variantes} variante${(tarea.num_variantes ?? 0) === 1 ? '' : 's'} creada${(tarea.num_variantes ?? 0) === 1 ? '' : 's'}`
+                    : 'Aún no tiene variantes'}
+                </div>
+                <div className="text-xs text-sky-700">
+                  Abre la pestaña Variantes para verlas o crear una nueva
+                </div>
+              </div>
+            </div>
+            <Sparkles className="h-4 w-4 text-sky-600 shrink-0" />
+          </button>
+
           {/* Diagram */}
           {tarea.grafico_data && (
             ((tarea.grafico_data as any).elements?.length > 0)
@@ -590,10 +693,20 @@ export default function TareaDetailPage() {
             </div>
           </div>
 
-          {/* Familia madre → variantes */}
-          <TareaFamiliaPanel tarea={tarea} />
+          {/* Acceso a familia (detalle en pestaña Variantes) */}
+          <button
+            type="button"
+            onClick={() => goTab('variantes')}
+            className="w-full flex items-center justify-between gap-3 rounded-xl border border-dashed border-sky-300 bg-white px-4 py-3 text-left hover:bg-sky-50 transition-colors"
+          >
+            <span className="text-sm font-medium text-sky-900 inline-flex items-center gap-2">
+              <GitBranch className="h-4 w-4" />
+              Gestionar variantes de esta tarea
+            </span>
+            <span className="text-xs text-sky-700">Ir a pestaña →</span>
+          </button>
 
-          {/* Material / video (legacy text variantes sustituidas por familia) */}
+          {/* Material / video */}
           {((tarea.material && tarea.material.length > 0) || tarea.video_url) && (
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Material y recursos</h2>
@@ -856,6 +969,8 @@ export default function TareaDetailPage() {
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   )
 }

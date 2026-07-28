@@ -9,6 +9,7 @@ import {
   Clock,
   Users,
   Play,
+  GitBranch,
 } from 'lucide-react'
 import {
   Dialog,
@@ -41,6 +42,8 @@ export interface TaskPickerDialogProps {
   onAdd: (tarea: Tarea) => void | Promise<void>
   onCreateManual?: () => void
   onAiCreate?: (prompt: string) => void | Promise<void>
+  /** Crear variante de la tarea seleccionada (abre el editor con prefill). */
+  onCreateVariante?: (madre: Tarea) => void | Promise<void>
   aiCreating?: boolean
   /** Restrict available category options (and default filter). */
   allowedCategorias?: string[]
@@ -57,6 +60,7 @@ export function TaskPickerDialog({
   onAdd,
   onCreateManual,
   onAiCreate,
+  onCreateVariante,
   aiCreating = false,
   allowedCategorias,
   defaultCategoria = '',
@@ -241,6 +245,11 @@ export function TaskPickerDialog({
                         onClick={() => setSelectedId(tarea.id)}
                         onSelect={() => handleAdd(tarea)}
                         selectLabel={adding && selectedId === tarea.id ? '…' : 'Añadir'}
+                        onCreateVariante={
+                          onCreateVariante && !tarea.tarea_origen_id
+                            ? () => onCreateVariante(tarea)
+                            : undefined
+                        }
                       />
                     ))}
                   </div>
@@ -305,14 +314,35 @@ export function TaskPickerDialog({
                           : ''}
                       </span>
                     </div>
-                    <Button
-                      className="w-full"
-                      onClick={() => handleAdd(selected)}
-                      disabled={adding}
-                    >
-                      {adding ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                      Añadir a la sesión
-                    </Button>
+                    {(selected.num_variantes ?? 0) > 0 && (
+                      <p className="text-xs text-sky-700 bg-sky-50 border border-sky-100 rounded-lg px-2.5 py-1.5">
+                        Esta madre tiene {selected.num_variantes} variante
+                        {(selected.num_variantes ?? 0) === 1 ? '' : 's'} creada
+                        {(selected.num_variantes ?? 0) === 1 ? '' : 's'}
+                      </p>
+                    )}
+                    <div className="space-y-2">
+                      <Button
+                        className="w-full"
+                        onClick={() => handleAdd(selected)}
+                        disabled={adding}
+                      >
+                        {adding ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                        Añadir a la sesión
+                      </Button>
+                      {onCreateVariante && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => onCreateVariante(selected)}
+                          disabled={adding}
+                        >
+                          <GitBranch className="h-4 w-4 mr-2" />
+                          Crear variante de esta tarea
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground p-6 text-center">
