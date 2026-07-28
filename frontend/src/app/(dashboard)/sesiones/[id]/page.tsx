@@ -209,33 +209,56 @@ function cleanEmptyTeams(formacion: FormacionEquipos): FormacionEquipos {
 // ============ Helper: Debounced auto-save ============
 function useAutoSave(sesionId: string, delay = 800) {
   const timerRef = useRef<NodeJS.Timeout>()
+  const pendingRef = useRef<SesionUpdateData>({})
   const [saving, setSaving] = useState(false)
   const dirtyRef = useRef(false)
+
+  const flush = useCallback(async () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = undefined
+    }
+    const data = pendingRef.current
+    if (!data || Object.keys(data).length === 0) {
+      dirtyRef.current = false
+      return
+    }
+    pendingRef.current = {}
+    setSaving(true)
+    try {
+      await sesionesApi.update(sesionId, data)
+    } catch (err: any) {
+      console.error('Auto-save failed:', err)
+      const msg: string = err?.message || ''
+      if (msg.includes('permiso') || msg.includes('plan') || msg.includes('suscripci')) {
+        toast.error(msg)
+      }
+      // Re-queue so a later flush can retry
+      pendingRef.current = { ...data, ...pendingRef.current }
+      dirtyRef.current = true
+      throw err
+    } finally {
+      if (Object.keys(pendingRef.current).length === 0) {
+        dirtyRef.current = false
+      }
+      setSaving(false)
+    }
+  }, [sesionId])
 
   const save = useCallback(
     (data: SesionUpdateData) => {
       dirtyRef.current = true
+      // Merge: evita que un patch (keywords) pise otro pendiente (objetivo)
+      pendingRef.current = { ...pendingRef.current, ...data }
       if (timerRef.current) clearTimeout(timerRef.current)
-      timerRef.current = setTimeout(async () => {
-        setSaving(true)
-        try {
-          await sesionesApi.update(sesionId, data)
-        } catch (err: any) {
-          console.error('Auto-save failed:', err)
-          const msg: string = err?.message || ''
-          if (msg.includes('permiso') || msg.includes('plan') || msg.includes('suscripci')) {
-            toast.error(msg)
-          }
-        } finally {
-          dirtyRef.current = false
-          setSaving(false)
-        }
+      timerRef.current = setTimeout(() => {
+        void flush()
       }, delay)
     },
-    [sesionId, delay]
+    [delay, flush]
   )
 
-  return { save, saving, dirtyRef }
+  return { save, flush, saving, dirtyRef }
 }
 
 // ============ DnD: Sortable Player Item ============
@@ -945,7 +968,7 @@ export default function SesionDetailPage() {
   const loading = isLoading && !sesion
   const error = swrError ? (swrError.message || 'Error al cargar la sesion') : null
 
-  const { save: autoSave, saving: autoSaving, dirtyRef } = useAutoSave(sesionId)
+  const { save: autoSave, flush: flushAutoSave, saving: autoSaving, dirtyRef } = useAutoSave(sesionId)
 
   // Sync SWR data to local state (skip if autosave is pending to prevent overwriting edits)
   useEffect(() => {
@@ -1107,6 +1130,12 @@ export default function SesionDetailPage() {
     autoSave({ [field]: value } as SesionUpdateData)
   }
 
+  /** Aplica varios campos en un solo autosave (evita que keywords pise objetivo). */
+  const updateFields = (patch: Record<string, any>) => {
+    setSesion((prev) => prev ? { ...prev, ...patch } : prev)
+    autoSave(patch as SesionUpdateData)
+  }
+
   // ============ Estado ============
   const handleUpdateEstado = async (nuevoEstado: EstadoSesion) => {
     try {
@@ -1136,6 +1165,7 @@ export default function SesionDetailPage() {
   const handlePreviewPdf = async (variant: 'reducido' | 'extendido' = 'extendido') => {
     setPreviewingPdf(true)
     try {
+      await flushAutoSave()
       await sesionesApi.previewPdf(sesionId, variant)
     } catch (err) {
       toast.error('Error al generar vista previa del PDF')
@@ -1147,6 +1177,7 @@ export default function SesionDetailPage() {
   const handleGeneratePdf = async (variant: 'reducido' | 'extendido' = 'extendido') => {
     setGeneratingPdf(true)
     try {
+      await flushAutoSave()
       await sesionesApi.generatePdf(sesionId, variant)
       toast.success('PDF descargado')
     } catch (err) {
@@ -1986,10 +2017,7 @@ export default function SesionDetailPage() {
             }}
             rivalLocked={!!sesion.partido_id && !sesion.es_pretemporada}
             onChange={(patch) => {
-              const keys = Object.keys(patch) as (keyof typeof patch)[]
-              for (const k of keys) {
-                updateField(k as any, (patch as any)[k])
-              }
+              updateFields(patch as Record<string, any>)
             }}
           />
           <div className="flex justify-end">

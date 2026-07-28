@@ -1351,7 +1351,7 @@ async def generate_sesion_pdf_reducido(
     if logo_url:
         logo_url = _url_to_data_uri(logo_url)
 
-    from app.services.svg_renderer import render_diagram_thumbnail
+    from app.services.svg_renderer import render_diagram_for_pdf
     from app.services.sesion_labels import build_conceptos_line, chunk_list
 
     # —— Tareas (máx. 4 para grid 2×2 en 1 página) ——
@@ -1384,10 +1384,13 @@ async def generate_sesion_pdf_reducido(
 
         grafico = tarea.get("grafico_data")
         svg_thumb = ""
+        pitch_kind = "half"
         try:
-            svg_thumb = render_diagram_thumbnail(grafico, diagram_id=f"r{i}") or ""
+            svg_thumb, pitch_kind = render_diagram_for_pdf(grafico, diagram_id=f"r{i}")
+            pitch_kind = pitch_kind or "half"
         except Exception:
             svg_thumb = ""
+            pitch_kind = "half"
 
         todas.append({
             "orden": ts.get("orden") or i,
@@ -1396,6 +1399,7 @@ async def generate_sesion_pdf_reducido(
             "duracion": dur,
             "descripcion": desc,
             "svg_thumbnail": svg_thumb,
+            "pitch_kind": pitch_kind,
         })
 
     tareas_total = len(todas)
@@ -1457,6 +1461,7 @@ async def generate_sesion_pdf_reducido(
         from weasyprint import HTML
         html_content = template.render(
             sesion=sesion_data,
+            objetivo_principal=(sesion_data.get("objetivo_principal") or "").strip(),
             org_nombre=organizacion.get("nombre", ""),
             equipo_nombre=equipo.get("nombre", ""),
             logo_url=logo_url,

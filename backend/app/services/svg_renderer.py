@@ -256,8 +256,14 @@ def render_abp_diagram_svg(
     width: str = "100%",
     height: str = "100%",
     diagram_id: str = "",
+    *,
+    horizontal_full: bool = False,
 ) -> str:
-    """Render a complete ABP diagram with ABP pitch (goal at bottom)."""
+    """Render a complete ABP diagram with ABP pitch (goal at bottom).
+
+    If horizontal_full=True and pitch is full, rotate like the frontend editor
+    (TV view: goals left/right) so it fills a landscape cell.
+    """
     _reset_arrow_counter()
 
     if not diagram_data:
@@ -271,7 +277,8 @@ def render_abp_diagram_svg(
         abp_type = "abp_half"
 
     config = ABP_PITCH_CONFIGS.get(abp_type, ABP_PITCH_CONFIGS["abp_half"])
-    viewbox = config["viewbox"]
+    vb_w = config["width"]
+    vb_h = config["height"]
 
     inner = render_abp_pitch_svg(abp_type)
 
@@ -282,7 +289,101 @@ def render_abp_diagram_svg(
     for element in diagram_data.get("elements", []):
         inner += render_element_svg(element)
 
-    return f'<svg width="{width}" height="{height}" viewBox="{viewbox}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" style="display:block;">{inner}</svg>'
+    # Full field horizontal: same transform as ABPPitch frontend
+    if horizontal_full and abp_type == "abp_full":
+        # Native ABP full is 680×1050 (vertical). Rotate → 1050×680 landscape.
+        rotated = (
+            f'<g transform="translate({vb_h}, 0) rotate(90)">{inner}</g>'
+        )
+        return (
+            f'<svg width="{width}" height="{height}" viewBox="0 0 {vb_h} {vb_w}" '
+            f'xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" '
+            f'style="display:block;">{rotated}</svg>'
+        )
+
+    viewbox = config["viewbox"]
+    return (
+        f'<svg width="{width}" height="{height}" viewBox="{viewbox}" '
+        f'xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" '
+        f'style="display:block;">{inner}</svg>'
+    )
+
+
+def _diagram_has_content(data: Optional[dict]) -> bool:
+    if not data:
+        return False
+    return bool(
+        (data.get("elements") or [])
+        or (data.get("arrows") or [])
+        or (data.get("zones") or [])
+    )
+
+
+def prepare_board_snapshot(grafico_data: Optional[dict]) -> Optional[dict]:
+    """Usa top-level o frame 0 (igual que TacticalBoardMini.staticBoardSnapshot)."""
+    if not grafico_data or not isinstance(grafico_data, dict):
+        return None
+    if _diagram_has_content(grafico_data):
+        return {
+            "pitchType": grafico_data.get("pitchType") or "half",
+            "elements": grafico_data.get("elements") or [],
+            "arrows": grafico_data.get("arrows") or [],
+            "zones": grafico_data.get("zones") or [],
+        }
+    frames = grafico_data.get("frames")
+    if isinstance(frames, list) and frames:
+        f0 = frames[0] or {}
+        return {
+            "pitchType": grafico_data.get("pitchType") or "half",
+            "elements": f0.get("elements") or [],
+            "arrows": f0.get("arrows") or [],
+            "zones": f0.get("zones") or [],
+        }
+    return {
+        "pitchType": grafico_data.get("pitchType") or "half",
+        "elements": [],
+        "arrows": [],
+        "zones": [],
+    }
+
+
+def render_diagram_for_pdf(
+    grafico_data: Optional[dict],
+    diagram_id: str = "",
+) -> tuple:
+    """
+    SVG optimizado para PDF reducido.
+    - Medio campo: vertical (portería abajo), coords ABP 680×525
+    - Campo entero: horizontal (rotado), 1050×680
+    Returns: (svg_string, pitch_kind) where pitch_kind is 'half'|'full'|''
+    """
+    snap = prepare_board_snapshot(grafico_data)
+    if not snap or not _diagram_has_content(snap):
+        # Still show empty pitch of the right type if pitchType known
+        if not snap:
+            return "", ""
+    pitch = (snap or {}).get("pitchType") or "half"
+    is_full = pitch == "full"
+    try:
+        svg = render_abp_diagram_svg(
+            snap or {"pitchType": pitch},
+            width="100%",
+            height="100%",
+            diagram_id=diagram_id,
+            horizontal_full=is_full,
+        )
+    except Exception:
+        return "", ""
+    return svg or "", ("full" if is_full else "half")
+
+
+def render_diagram_thumbnail(
+    grafico_data: Optional[dict],
+    diagram_id: str = "",
+) -> str:
+    """Render a thumbnail using ABP pitch (matches editor coordinates)."""
+    svg, _ = render_diagram_for_pdf(grafico_data, diagram_id=diagram_id)
+    return svg
 
 
 # ============ XML helpers ============
@@ -479,11 +580,3 @@ def render_diagram_svg(
         inner += render_element_svg(element)
 
     return f'<svg width="{width}" height="{height}" viewBox="{viewbox}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" style="display:block;">{inner}</svg>'
-
-
-def render_diagram_thumbnail(
-    grafico_data: Optional[dict],
-    diagram_id: str = "",
-) -> str:
-    """Render a thumbnail (fluid size, fits container)."""
-    return render_diagram_svg(grafico_data, width="100%", height="100%", diagram_id=diagram_id)

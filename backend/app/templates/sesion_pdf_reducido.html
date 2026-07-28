@@ -105,6 +105,8 @@
       font-weight: 600;
       color: #111;
       line-height: 1.25;
+      white-space: pre-wrap;
+      word-wrap: break-word;
     }
     .objetivo .extra {
       font-size: 7px;
@@ -185,13 +187,13 @@
     }
     .tasks {
       width: 100%;
-      height: 138mm;
+      height: 132mm;
       border-collapse: collapse;
       table-layout: fixed;
     }
     .tasks td {
       width: 50%;
-      height: 69mm;
+      height: 66mm;
       vertical-align: top;
       padding: 0;
       border: 1px solid #e2e8f0;
@@ -204,32 +206,42 @@
 
     .task-inner {
       width: 100%;
-      height: 69mm;
+      height: 66mm;
       border-collapse: collapse;
       table-layout: fixed;
     }
     .task-board {
-      height: 52mm;
+      height: 50mm;
       background: #1a3a0a;
       text-align: center;
       vertical-align: middle;
       overflow: hidden;
-      padding: 1px;
+      padding: 1px 2px;
     }
+    /* SVG llena el ancho; altura según orientación (meet = sin cropear) */
     .task-board svg {
       display: block;
       width: 100% !important;
-      height: 50mm !important;
+      height: 48mm !important;
       max-width: none !important;
+      margin: 0 auto;
+    }
+    .task-board.board-half svg {
+      /* Medio campo ABP 680×525 ≈ landscape con portería abajo */
+      height: 48mm !important;
+    }
+    .task-board.board-full svg {
+      /* Campo entero rotado 1050×680 */
+      height: 48mm !important;
     }
     .task-board .empty {
       color: rgba(255,255,255,0.35);
       font-size: 9px;
     }
     .task-info {
-      height: 17mm;
+      height: 16mm;
       vertical-align: top;
-      padding: 3px 5px;
+      padding: 2px 5px;
       background: #fff;
       overflow: hidden;
     }
@@ -301,7 +313,7 @@
   {# —— 3) Objetivo tal como lo escribe el usuario —— #}
   <div class="objetivo">
     <div class="lbl">Objetivo de la sesión</div>
-    <div class="txt">{{ sesion.objetivo_principal or "—" }}</div>
+    <div class="txt">{{ objetivo_principal or sesion.objetivo_principal or "—" }}</div>
     {% if objetivo_fisico or objetivo_psicologico %}
     <div class="extra">
       {% if objetivo_fisico %}<strong>Físico:</strong> {{ objetivo_fisico }}{% endif %}
@@ -352,7 +364,7 @@
         {% if t %}
         <table class="task-inner">
           <tr>
-            <td class="task-board">
+            <td class="task-board board-{{ t.pitch_kind or 'half' }}">
               {% if t.svg_thumbnail %}
                 {{ t.svg_thumbnail|safe }}
               {% else %}
@@ -374,7 +386,7 @@
           </tr>
         </table>
         {% else %}
-        <div class="task-empty-cell" style="height:69mm;line-height:69mm">—</div>
+        <div class="task-empty-cell" style="height:66mm;line-height:66mm">—</div>
         {% endif %}
       </td>
       {% endfor %}
