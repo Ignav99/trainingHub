@@ -6,10 +6,10 @@
   <style>
     /*
       PDF reducido — 1 folio A4 landscape.
-      WeasyPrint: usar TABLE + alturas fijas (flex:1 colapsa).
-      Patrón tomado de tarea_pdf.html del propio repo.
+      WeasyPrint: TABLE + alturas fijas (flex:1 colapsa).
+      Celdas: pizarra IZQUIERDA + texto DERECHA. Sin fondo verde.
     */
-    @page { size: A4 landscape; margin: 4mm 5mm; }
+    @page { size: A4 landscape; margin: 3.5mm 4.5mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; }
     body {
@@ -17,23 +17,22 @@
       color: #111;
       font-size: 8px;
       line-height: 1.2;
-      width: 287mm;
-      height: 202mm;
+      width: 288mm;
+      height: 203mm;
       overflow: hidden;
     }
 
-    /* —— Cabecera meta —— */
     .hdr {
       width: 100%;
       border-collapse: collapse;
       table-layout: fixed;
-      border-bottom: 2.5px solid {{ color_primario }};
-      margin-bottom: 2px;
+      border-bottom: 2px solid {{ color_primario }};
+      margin-bottom: 1.5px;
     }
-    .hdr td { vertical-align: middle; padding: 0 0 3px; }
-    .logo { height: 26px; width: auto; max-width: 44px; }
+    .hdr td { vertical-align: middle; padding: 0 0 2px; }
+    .logo { height: 22px; width: auto; max-width: 40px; }
     .hdr-title {
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 800;
       color: {{ color_primario }};
       line-height: 1.1;
@@ -42,7 +41,7 @@
       text-overflow: ellipsis;
     }
     .hdr-meta {
-      font-size: 7.5px;
+      font-size: 7px;
       color: #444;
       white-space: nowrap;
       overflow: hidden;
@@ -54,69 +53,68 @@
     .badge {
       background: {{ color_primario }};
       color: #fff;
-      padding: 4px 8px;
+      padding: 3px 7px;
       border-radius: 4px;
       font-weight: 800;
-      font-size: 11px;
+      font-size: 10px;
       white-space: nowrap;
       text-align: center;
     }
 
-    /* —— Conceptos tácticos —— */
     .concepts {
-      font-size: 7.5px;
+      font-size: 7px;
       color: #1e293b;
       background: #f1f5f9;
-      border-left: 3px solid {{ color_primario }};
-      padding: 2px 6px;
-      margin-bottom: 2px;
+      border-left: 2.5px solid {{ color_primario }};
+      padding: 1.5px 5px;
+      margin-bottom: 1.5px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      line-height: 1.35;
+      line-height: 1.3;
     }
     .concepts strong {
       color: {{ color_primario }};
-      font-size: 6.5px;
+      font-size: 6px;
       text-transform: uppercase;
       letter-spacing: 0.03em;
       margin-right: 4px;
     }
 
-    /* —— Objetivo (texto del usuario) —— */
     .objetivo {
       border: 1px solid #e2e8f0;
-      border-radius: 3px;
-      padding: 3px 6px;
-      margin-bottom: 3px;
-      max-height: 14mm;
+      border-radius: 2px;
+      padding: 2px 5px;
+      margin-bottom: 2px;
+      max-height: 9mm;
       overflow: hidden;
     }
     .objetivo .lbl {
-      font-size: 6.5px;
+      font-size: 6px;
       font-weight: 800;
       color: {{ color_primario }};
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      margin-bottom: 1px;
     }
     .objetivo .txt {
-      font-size: 9px;
+      font-size: 8px;
       font-weight: 600;
       color: #111;
-      line-height: 1.25;
-      white-space: pre-wrap;
-      word-wrap: break-word;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .objetivo .extra {
-      font-size: 7px;
+      font-size: 6.5px;
       color: #555;
-      margin-top: 1px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    /* —— Convocatoria: pocas filas × muchas columnas —— */
     .roster-lbl {
-      font-size: 6.5px;
+      font-size: 6px;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.04em;
@@ -125,11 +123,11 @@
     }
     .roster-lbl .leg {
       display: inline-block;
-      font-size: 6px;
+      font-size: 5.5px;
       font-weight: 700;
-      padding: 0 4px;
+      padding: 0 3px;
       border-radius: 2px;
-      margin-left: 5px;
+      margin-left: 4px;
       text-transform: none;
       letter-spacing: 0;
     }
@@ -142,31 +140,32 @@
       width: 100%;
       border-collapse: collapse;
       table-layout: fixed;
-      margin-bottom: 3px;
+      margin-bottom: 2px;
+      max-height: 14mm;
+      overflow: hidden;
     }
     .roster td {
       vertical-align: top;
-      padding: 0 3px 0 0;
+      padding: 0 2px 0 0;
       overflow: hidden;
     }
     .player {
-      font-size: 8px;
-      line-height: 1.3;
-      padding: 0.5px 3px;
+      font-size: 7px;
+      line-height: 1.25;
+      padding: 0 2px;
       border-radius: 2px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      margin-bottom: 0.5px;
     }
     .p-sesion { background: #eff6ff; }
     .p-fisio { background: #faf5ff; }
     .p-margen { background: #fffbeb; }
     .p-ausente { background: #fef2f2; color: #7f1d1d; }
-    .dorsal { font-weight: 800; color: #475569; margin-right: 2px; }
+    .dorsal { font-weight: 800; color: #475569; margin-right: 1px; }
     .chip {
       display: inline-block;
-      font-size: 5.5px;
+      font-size: 5px;
       font-weight: 800;
       padding: 0 2px;
       border-radius: 2px;
@@ -174,98 +173,97 @@
     }
     .chip-f { background: #e9d5ff; color: #6b21a8; }
     .chip-m { background: #fde68a; color: #92400e; }
-    .motivo { color: #b91c1c; font-size: 6.5px; }
+    .motivo { color: #b91c1c; font-size: 6px; }
 
-    /* —— Tareas 2×2 (altura fija → 1 página) —— */
+    /* —— Tareas 2×2: pizarra IZQ + texto DER —— */
     .tasks-lbl {
-      font-size: 6.5px;
+      font-size: 6px;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.04em;
       color: #555;
-      margin-bottom: 2px;
+      margin-bottom: 1px;
     }
     .tasks {
       width: 100%;
-      height: 132mm;
+      height: 148mm;
       border-collapse: collapse;
       table-layout: fixed;
     }
-    .tasks td {
+    .tasks > tbody > tr > td,
+    .tasks > tr > td {
       width: 50%;
-      height: 66mm;
+      height: 74mm;
       vertical-align: top;
-      padding: 0;
+      padding: 1.5px;
       border: 1px solid #e2e8f0;
       overflow: hidden;
+      background: #fff;
     }
-    .tasks tr:first-child td { border-top: none; }
-    .tasks tr td:first-child { border-left: none; }
-    .tasks tr td:last-child { border-right: none; }
-    .tasks tr:last-child td { border-bottom: none; }
 
     .task-inner {
       width: 100%;
-      height: 66mm;
+      height: 71mm;
       border-collapse: collapse;
       table-layout: fixed;
     }
     .task-board {
-      height: 50mm;
-      background: #1a3a0a;
-      text-align: center;
+      width: 72%;
+      height: 71mm;
+      /* SIN fondo verde — solo el SVG del campo */
+      background: #fff;
+      text-align: left;
       vertical-align: middle;
       overflow: hidden;
-      padding: 1px 2px;
+      padding: 0;
     }
-    /* SVG llena el ancho; altura según orientación (meet = sin cropear) */
     .task-board svg {
       display: block;
       width: 100% !important;
-      height: 48mm !important;
+      height: 71mm !important;
       max-width: none !important;
-      margin: 0 auto;
-    }
-    .task-board.board-half svg {
-      /* Medio campo ABP 680×525 ≈ landscape con portería abajo */
-      height: 48mm !important;
-    }
-    .task-board.board-full svg {
-      /* Campo entero rotado 1050×680 */
-      height: 48mm !important;
+      /* Pegado a la izquierda */
+      margin: 0;
     }
     .task-board .empty {
-      color: rgba(255,255,255,0.35);
-      font-size: 9px;
+      color: #94a3b8;
+      font-size: 8px;
+      padding-left: 8px;
     }
     .task-info {
-      height: 16mm;
+      width: 28%;
+      height: 71mm;
       vertical-align: top;
-      padding: 2px 5px;
+      padding: 3px 5px 3px 6px;
       background: #fff;
       overflow: hidden;
+      border-left: 1px solid #f1f5f9;
     }
     .task-top {
       font-size: 8.5px;
       font-weight: 800;
       color: #111;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      line-height: 1.2;
+      margin-bottom: 2px;
     }
     .task-top .ord { color: {{ color_primario }}; }
-    .task-top .min { float: right; color: #64748b; font-weight: 600; font-size: 7.5px; }
+    .task-min {
+      display: block;
+      color: #64748b;
+      font-weight: 600;
+      font-size: 7px;
+      margin-bottom: 3px;
+    }
     .task-desc {
       font-size: 7px;
       color: #475569;
-      line-height: 1.25;
-      margin-top: 1px;
-      max-height: 2.5em;
+      line-height: 1.3;
+      max-height: 48mm;
       overflow: hidden;
     }
     .task-cat {
       display: inline-block;
-      margin-top: 1px;
+      margin-top: 3px;
       background: #f1f5f9;
       color: #334155;
       font-size: 6px;
@@ -278,15 +276,16 @@
       color: #94a3b8;
       text-align: center;
       font-size: 8px;
+      height: 71mm;
+      line-height: 71mm;
     }
   </style>
 </head>
 <body>
-  {# —— 1) Datos generales —— #}
   <table class="hdr">
     <tr>
       {% if logo_url %}
-      <td style="width:48px"><img class="logo" src="{{ logo_url }}" alt="" /></td>
+      <td style="width:44px"><img class="logo" src="{{ logo_url }}" alt="" /></td>
       {% endif %}
       <td>
         <div class="hdr-title">{{ sesion.titulo }}</div>
@@ -299,18 +298,16 @@
           <span class="sep">·</span>{{ duracion_total or 0 }}′{% if intensidad %} · {{ intensidad }}{% endif %}
         </div>
       </td>
-      <td style="width:52px"><div class="badge">{{ match_day or "—" }}</div></td>
+      <td style="width:48px"><div class="badge">{{ match_day or "—" }}</div></td>
     </tr>
   </table>
 
-  {# —— 2) Conceptos tácticos (fases, subfases, contenidos, ABP) —— #}
   {% if conceptos_line %}
   <div class="concepts">
     <strong>Conceptos</strong>{{ conceptos_line }}
   </div>
   {% endif %}
 
-  {# —— 3) Objetivo tal como lo escribe el usuario —— #}
   <div class="objetivo">
     <div class="lbl">Objetivo de la sesión</div>
     <div class="txt">{{ objetivo_principal or sesion.objetivo_principal or "—" }}</div>
@@ -323,7 +320,6 @@
     {% endif %}
   </div>
 
-  {# —— 4) Convocatoria en columnas (≈5 nombres/col) —— #}
   <div class="roster-lbl">
     Convocatoria
     <span class="leg leg-s">Sesión {{ g_sesion|length }}</span>
@@ -354,8 +350,7 @@
   </table>
   {% endif %}
 
-  {# —— 5) Ejercicios 2×2 —— #}
-  <div class="tasks-lbl">Ejercicios{% if tareas_total > 4 %} (mostrando 4 de {{ tareas_total }}){% else %} ({{ tareas_corta|length }}){% endif %}</div>
+  <div class="tasks-lbl">Ejercicios{% if tareas_total > 4 %} (4 de {{ tareas_total }}){% else %} ({{ tareas_corta|length }}){% endif %}</div>
   <table class="tasks">
     {% for row in task_rows %}
     <tr>
@@ -371,13 +366,11 @@
                 <span class="empty">Sin pizarra</span>
               {% endif %}
             </td>
-          </tr>
-          <tr>
             <td class="task-info">
               <div class="task-top">
-                <span class="min">{{ t.duracion }}′</span>
                 <span class="ord">{{ t.orden }}.</span> {{ t.titulo }}
               </div>
+              <span class="task-min">{{ t.duracion }}′</span>
               {% if t.descripcion %}
               <div class="task-desc">{{ t.descripcion }}</div>
               {% endif %}
@@ -386,7 +379,7 @@
           </tr>
         </table>
         {% else %}
-        <div class="task-empty-cell" style="height:66mm;line-height:66mm">—</div>
+        <div class="task-empty-cell">—</div>
         {% endif %}
       </td>
       {% endfor %}

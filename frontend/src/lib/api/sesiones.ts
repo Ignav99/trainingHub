@@ -145,14 +145,19 @@ export const sesionesApi = {
     return api.put<Sesion>(`/sesiones/${sesionId}/tareas-batch`, { tareas })
   },
 
-  async generatePdf(id: string, variant: 'reducido' | 'extendido' = 'extendido'): Promise<void> {
+  async generatePdf(
+    id: string,
+    variant: 'reducido' | 'extendido' = 'extendido',
+    opts?: { fecha?: string | null },
+  ): Promise<void> {
     const blob = await api.getBlob(`/sesiones/${id}/pdf?variant=${variant}&preview=false`, {
       timeout: 120000,
     })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `sesion_${id}_${variant}.pdf`
+    const fecha = String(opts?.fecha || '').slice(0, 10)
+    a.download = fecha ? `sesion_${fecha}.pdf` : `sesion_${id}.pdf`
     a.rel = 'noopener'
     a.style.display = 'none'
     document.body.appendChild(a)
@@ -161,17 +166,21 @@ export const sesionesApi = {
     setTimeout(() => URL.revokeObjectURL(url), 30_000)
   },
 
-  async previewPdf(id: string, variant: 'reducido' | 'extendido' = 'extendido'): Promise<void> {
+  async previewPdf(
+    id: string,
+    variant: 'reducido' | 'extendido' = 'extendido',
+    opts?: { fecha?: string | null },
+  ): Promise<void> {
     const blob = await api.getBlob(`/sesiones/${id}/pdf?preview=true&variant=${variant}`, {
       timeout: 120000,
     })
     const url = URL.createObjectURL(blob)
     const win = window.open(url, '_blank', 'noopener,noreferrer')
     if (!win) {
-      // Popup bloqueado: forzar descarga solo de esta variante
       const a = document.createElement('a')
       a.href = url
-      a.download = `sesion_${id}_${variant}.pdf`
+      const fecha = String(opts?.fecha || '').slice(0, 10)
+      a.download = fecha ? `sesion_${fecha}.pdf` : `sesion_${id}.pdf`
       a.click()
     }
     setTimeout(() => URL.revokeObjectURL(url), 60_000)

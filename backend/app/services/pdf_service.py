@@ -1445,13 +1445,12 @@ async def generate_sesion_pdf_reducido(
     _add(g_margen, "margen")
     _add(g_ausentes, "ausente")
 
-    # ~5 nombres por columna → altura mínima
-    per_col = 5
+    # ~4 nombres por columna → convocatoria baja
+    per_col = 4
     n = len(flat_players)
     n_cols = max(1, (n + per_col - 1) // per_col) if n else 0
-    # Limitar columnas razonables (si hay muchos, subir a 6/col)
     if n_cols > 8:
-        per_col = max(5, (n + 7) // 8)
+        per_col = max(4, (n + 7) // 8)
         n_cols = max(1, (n + per_col - 1) // per_col)
     roster_columns = chunk_list(flat_players, per_col) if n else []
 

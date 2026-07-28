@@ -1166,7 +1166,7 @@ export default function SesionDetailPage() {
     setPreviewingPdf(true)
     try {
       await flushAutoSave()
-      await sesionesApi.previewPdf(sesionId, variant)
+      await sesionesApi.previewPdf(sesionId, variant, { fecha: sesion?.fecha })
     } catch (err) {
       toast.error('Error al generar vista previa del PDF')
     } finally {
@@ -1178,7 +1178,7 @@ export default function SesionDetailPage() {
     setGeneratingPdf(true)
     try {
       await flushAutoSave()
-      await sesionesApi.generatePdf(sesionId, variant)
+      await sesionesApi.generatePdf(sesionId, variant, { fecha: sesion?.fecha })
       toast.success('PDF descargado')
     } catch (err) {
       toast.error('Error al descargar PDF')
