@@ -115,9 +115,9 @@ class ApiClient {
     return { signal: controller.signal, clear: () => clearTimeout(timeout) }
   }
 
-  async get<T>(path: string, options?: FetchOptions): Promise<T> {
+  async get<T>(path: string, options?: FetchOptions & { public?: boolean }): Promise<T> {
     const url = this.buildUrl(path, options?.params)
-    const authHeaders = await this.getAuthHeaders()
+    const authHeaders = options?.public ? {} : await this.getAuthHeaders()
     const { signal, clear } = this.createAbortSignal(options?.timeout)
     const response = await fetch(url, {
       method: 'GET',

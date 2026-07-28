@@ -1,15 +1,17 @@
 # TrainingHub — agent memory
 
-## 2026-07-28 — PDF “todo igual” root cause
+## 2026-07-28 — PDF estilo unificado + URL
 
-**Deploy was real:** Render BE+FE live on `a1ce06c` (PR #201).
+Branch: `cursor/pdf-estilo-unificado-ae84`
 
-**Why user saw no change:** most UI entry points called `variant=extendido` (old multi-page PDF). Only Cierre → “PDF reducido” used the redesigned A4 landscape template.
+### User feedback
+- Reducido y extendido tenían estilos distintos (oscuro Barlow vs claro Helvetica)
+- Nombre de archivo debe decir `_reducido` / `_extendido`
+- URL (vista previa PDF / share) no abría
 
-Fixed on branch `cursor/pdf-listado-reducido-ae84`:
-- Listado menu: PDF reducido + PDF extendido
-- Session header / operativa buttons → reducido
-- API client default → reducido; extendido filename gets `_extendido` suffix
-
-### Caveat still true
-- Board photo needs `grafico_data.preview` (open tarea once in library/editor). Without it PDF falls back to Python SVG.
+### Fixes
+1. `sesion_pdf_v2.html` restyled to match reducido (light, Helvetica, primary accent, conceptos bar)
+2. Filename: `sesion_YYYY-MM-DD_reducido.pdf` / `…_extendido.pdf`
+3. PDF preview: open `about:blank` sync then set blob URL (fixes popup + noopener/blob bug)
+4. CSP skipped for `application/pdf` responses
+5. Share: AuthProvider skips `/share`; public API fetch; open via `window.open`

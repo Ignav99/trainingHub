@@ -66,7 +66,19 @@ class SecurityHeadersMiddleware:
         async def send_with_headers(message):
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
-                headers.extend(self.HEADERS)
+                content_type = b""
+                for key, value in headers:
+                    if key.lower() == b"content-type":
+                        content_type = value.lower()
+                        break
+                # CSP estricto rompe la vista inline de PDFs en el navegador.
+                if content_type.startswith(b"application/pdf"):
+                    headers.extend([
+                        (b"x-content-type-options", b"nosniff"),
+                        (b"referrer-policy", b"strict-origin-when-cross-origin"),
+                    ])
+                else:
+                    headers.extend(self.HEADERS)
                 message = {**message, "headers": headers}
             await send(message)
 

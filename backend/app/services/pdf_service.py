@@ -764,7 +764,19 @@ async def generate_sesion_pdf_v2(
         duracion = tarea_sesion.get("duracion_override") or tarea.get("duracion_total", 0)
         duracion_total += duracion
 
-        # Generate SVGs (fluid sizing, controlled by CSS containers)
+        # Preferir instantánea real del editor; SVG como fallback
+        preview_img = ""
+        if isinstance(grafico_data, dict):
+            raw_preview = grafico_data.get("preview") or ""
+            if isinstance(raw_preview, str) and raw_preview.startswith("data:image"):
+                preview_img = raw_preview
+        if not preview_img:
+            gu = tarea.get("grafico_url") or ""
+            if isinstance(gu, str) and gu:
+                preview_img = _url_to_data_uri(gu) if gu.startswith("http") else gu
+                if not (isinstance(preview_img, str) and preview_img.startswith("data:image")):
+                    preview_img = ""
+
         svg_thumb = render_diagram_thumbnail(grafico_data, diagram_id=f"t{len(all_tareas)}")
         svg_large = render_diagram_svg(grafico_data, diagram_id=f"d{len(all_tareas)}")
 
@@ -805,6 +817,7 @@ async def generate_sesion_pdf_v2(
             "posicion_entrenador": tarea.get("posicion_entrenador") or "",
             "notas": tarea_sesion.get("notas", ""),
             "fase_label": FASE_NOMBRES.get(fase_key, ""),
+            "preview_img": preview_img,
             "svg_thumbnail": svg_thumb,
             "svg_large": svg_large,
             "formation_html": formation_html,
@@ -831,6 +844,13 @@ async def generate_sesion_pdf_v2(
 
     # Derive secondary color (slightly lighter/shifted version of primary)
     color_secundario = organizacion.get("color_secundario", color_primario)
+
+    from app.services.sesion_labels import build_conceptos_line
+    conceptos_line = build_conceptos_line(sesion_data)
+
+    logo_url = organizacion.get("logo_url") or ""
+    if logo_url:
+        logo_url = _url_to_data_uri(logo_url)
 
     # Aggregate unique materials from all tasks
     material_sesion = []
@@ -893,7 +913,7 @@ async def generate_sesion_pdf_v2(
             color_primario=color_primario,
             color_secundario=color_secundario,
             org_nombre=organizacion.get("nombre", "TrainingHub Pro"),
-            logo_url=organizacion.get("logo_url", ""),
+            logo_url=logo_url,
             equipo_nombre=equipo.get("nombre", ""),
             equipo_categoria=equipo.get("categoria", ""),
             duracion_total=duracion_total,
@@ -903,6 +923,7 @@ async def generate_sesion_pdf_v2(
             material_sesion=material_sesion,
             asistencia_roster=asistencia_roster or [],
             objetivo_principal=sesion_data.get("objetivo_principal", ""),
+            conceptos_line=conceptos_line,
             fase_juego_principal=sesion_data.get("fase_juego_principal", "").replace("_", " ").title() if sesion_data.get("fase_juego_principal") else "",
             principio_tactico_principal=sesion_data.get("principio_tactico_principal", ""),
             portero_tareas=portero_enriched,
