@@ -69,6 +69,7 @@ export interface JugadorCreate {
 }
 
 export interface JugadorUpdate extends Partial<JugadorCreate> {
+  /** @deprecated Use uploadPhoto / deletePhoto — ignored by PUT /jugadores/{id} */
   foto_url?: string
 }
 
@@ -121,6 +122,17 @@ export const jugadoresApi = {
 
   async update(id: string, data: JugadorUpdate): Promise<Jugador> {
     return api.put<Jugador>(`/jugadores/${id}`, data)
+  },
+
+  async uploadPhoto(id: string, file: File): Promise<Jugador> {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.upload<Jugador>(`/jugadores/${id}/foto`, formData)
+  },
+
+  async deletePhoto(id: string): Promise<Jugador> {
+    await api.delete(`/jugadores/${id}/foto`)
+    return this.get(id)
   },
 
   async delete(id: string): Promise<void> {

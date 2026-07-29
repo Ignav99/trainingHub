@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { jugadoresApi, Jugador, JugadorCreate, JugadorUpdate, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
+import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { useEquipoStore } from '@/stores/equipoStore'
 
 export default function EquipoPage() {
@@ -324,12 +325,7 @@ export default function EquipoPage() {
                     <tr key={jugador.id} className="hover:bg-gray-50">
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-3">
-                          <div
-                            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
-                            style={{ backgroundColor: posicion?.color || '#6B7280' }}
-                          >
-                            {jugador.dorsal || '?'}
-                          </div>
+                          <PlayerAvatar player={jugador} size="md" preferDorsalFallback />
                           <div>
                             <p className="font-medium text-gray-900">
                               {jugador.nombre} {jugador.apellidos}

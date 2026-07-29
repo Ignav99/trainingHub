@@ -29,6 +29,7 @@ import { entrenamientosMargenApi } from '@/lib/api/entrenamientosMargen'
 import { tareasApi } from '@/lib/api/tareas'
 import { CATEGORIAS_MARGEN } from '@/lib/catalogos/canonico'
 import { cn } from '@/lib/utils'
+import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import type {
   EntrenamientoMargen,
   EntrenamientoMargenTareaCreate,
@@ -284,9 +285,7 @@ export default function MargenPanel({
                 )}
               >
                 <div className="flex items-center gap-2">
-                  <span className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold shrink-0">
-                    {jugador.dorsal || '?'}
-                  </span>
+                  <PlayerAvatar player={jugador} size="sm" preferDorsalFallback />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium truncate">
                       {jugador.nombre} {jugador.apellidos}

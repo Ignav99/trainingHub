@@ -91,6 +91,7 @@ import {
   EntrenamientoMargen,
 } from '@/types'
 import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
+import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import TareaCreatorFullscreen, { type TareaCreatorData } from '@/components/tareas/TareaCreatorFullscreen'
 import { madreToCreatorPrefill } from '@/lib/tareaVariante'
 import { cargaApi } from '@/lib/api/carga'
@@ -1650,9 +1651,7 @@ export default function SesionDetailPage() {
                               }`}
                             >
                               <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold">
-                                  {jugador.dorsal || '?'}
-                                </div>
+                                <PlayerAvatar player={jugador} size="sm" preferDorsalFallback />
                                 <div>
                                   <p className="text-sm font-medium flex items-center gap-1.5">
                                     {jugador.nombre} {jugador.apellidos}
@@ -2025,9 +2024,7 @@ export default function SesionDetailPage() {
                       disabled={addingInvitado}
                       className="w-full text-left flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors disabled:opacity-50"
                     >
-                      <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-bold">
-                        {j.dorsal || '?'}
-                      </div>
+                      <PlayerAvatar player={j} size="sm" preferDorsalFallback />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{j.nombre} {j.apellidos}</p>
                         <p className="text-xs text-muted-foreground">{j.posicion_principal}</p>

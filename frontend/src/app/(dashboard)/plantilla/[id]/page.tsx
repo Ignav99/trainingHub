@@ -41,6 +41,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Jugador, JugadorUpdate, jugadoresApi, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
+import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { medicoApi, CreateRegistroMedicoData } from '@/lib/api/medico'
 import { cargaApi } from '@/lib/api/carga'
 import { wellnessApi } from '@/lib/api/wellness'
@@ -189,34 +190,43 @@ export default function JugadorDetailPage() {
     const file = e.target.files?.[0]
     if (!file || !jugador) return
 
+    if (!file.type.match(/^image\/(jpeg|jpg|png|webp)$/i)) {
+      toast.error('Solo se permiten imágenes JPEG, PNG o WebP')
+      e.target.value = ''
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('La foto no puede superar 5MB')
+      e.target.value = ''
+      return
+    }
+
     setUploadingPhoto(true)
     try {
-      const { createClient } = await import('@supabase/supabase-js')
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      )
-
-      const ext = file.name.split('.').pop()
-      const path = `player-photos/${jugador.id}.${ext}`
-
-      const { error: uploadError } = await supabase.storage
-        .from('player-photos')
-        .upload(path, file, { upsert: true })
-
-      if (uploadError) throw uploadError
-
-      const { data: urlData } = supabase.storage
-        .from('player-photos')
-        .getPublicUrl(path)
-
-      if (urlData?.publicUrl) {
-        await jugadoresApi.update(jugador.id, { foto_url: urlData.publicUrl })
-        invalidateJugadores()
-      }
-    } catch (err) {
+      await jugadoresApi.uploadPhoto(jugador.id, file)
+      invalidateJugadores()
+      toast.success('Foto actualizada')
+    } catch (err: any) {
       console.error('Error uploading photo:', err)
-      toast.error('Error al subir la foto')
+      toast.error(err?.message || 'Error al subir la foto')
+    } finally {
+      setUploadingPhoto(false)
+      e.target.value = ''
+    }
+  }
+
+  const handlePhotoDelete = async () => {
+    if (!jugador?.foto_url) return
+    if (!confirm('¿Eliminar la foto del jugador?')) return
+
+    setUploadingPhoto(true)
+    try {
+      await jugadoresApi.deletePhoto(jugador.id)
+      invalidateJugadores()
+      toast.success('Foto eliminada')
+    } catch (err: any) {
+      console.error('Error deleting photo:', err)
+      toast.error(err?.message || 'Error al eliminar la foto')
     } finally {
       setUploadingPhoto(false)
     }
@@ -460,20 +470,7 @@ export default function JugadorDetailPage() {
           {/* Photo card */}
           <div className="bg-white rounded-xl border border-gray-200 p-6 card-hover">
             <div className="relative mx-auto w-40 h-40 mb-4">
-              {jugador.foto_url ? (
-                <img
-                  src={jugador.foto_url}
-                  alt={`${jugador.nombre} ${jugador.apellidos}`}
-                  className="w-full h-full rounded-full object-cover"
-                />
-              ) : (
-                <div
-                  className="w-full h-full rounded-full flex items-center justify-center text-white text-4xl font-bold"
-                  style={{ backgroundColor: pos?.color || '#6B7280' }}
-                >
-                  {jugador.nombre[0]}{jugador.apellidos[0]}
-                </div>
-              )}
+              <PlayerAvatar player={jugador} size="3xl" className="w-full h-full" />
               {jugador.dorsal && (
                 <span className="absolute bottom-2 right-2 bg-gray-900 text-white text-xl font-bold px-3 py-1 rounded-lg">
                   {jugador.dorsal}
@@ -484,23 +481,39 @@ export default function JugadorDetailPage() {
                   <Star className="h-5 w-5 text-white fill-white" />
                 </div>
               )}
-              {isEditing && (
-                <label className="absolute bottom-2 left-2 bg-gray-900/70 text-white rounded-full p-2 cursor-pointer hover:bg-gray-900/90 transition-colors">
-                  {uploadingPhoto ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Camera className="h-5 w-5" />
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handlePhotoUpload}
-                    disabled={uploadingPhoto}
-                  />
-                </label>
+              <label
+                className="absolute bottom-2 left-2 bg-gray-900/70 text-white rounded-full p-2 cursor-pointer hover:bg-gray-900/90 transition-colors"
+                title="Subir o cambiar foto"
+              >
+                {uploadingPhoto ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Camera className="h-5 w-5" />
+                )}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  className="hidden"
+                  onChange={handlePhotoUpload}
+                  disabled={uploadingPhoto}
+                />
+              </label>
+              {jugador.foto_url && (
+                <button
+                  type="button"
+                  onClick={handlePhotoDelete}
+                  disabled={uploadingPhoto}
+                  className="absolute top-0 left-0 bg-red-600/80 text-white rounded-full p-2 hover:bg-red-600 transition-colors disabled:opacity-50"
+                  title="Eliminar foto"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               )}
             </div>
+
+            <p className="text-center text-xs text-gray-500 mb-3">
+              JPEG, PNG o WebP · máx. 5MB
+            </p>
 
             <div className="text-center">
               <h2 className="text-xl font-bold text-gray-900">

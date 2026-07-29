@@ -2,10 +2,11 @@
 TrainingHub Pro - Router de Jugadores
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query, status
+from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File, status
 from typing import Optional, Union
 from uuid import UUID
 from datetime import date, datetime
+import logging
 
 from app.models import (
     JugadorCreate,
@@ -20,6 +21,9 @@ from app.dependencies import require_permission, require_any_permission, AuthCon
 from app.security.permissions import Permission
 from app.services.audit_service import log_create, log_update, log_delete
 from app.services.notification_service import notify_jugador_lesion
+from app.services.player_photo_service import delete_player_photo, upload_player_photo
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -110,6 +114,28 @@ def enrich_jugador(jugador: dict) -> dict:
     if not jugador.get("ficha_estado"):
         jugador["ficha_estado"] = _FICHA_DEFAULTS.get(jugador["tipo_jugador"], "completa")
     return jugador
+
+
+def _get_jugador_in_org(supabase, jugador_id: str, organizacion_id: str) -> dict:
+    """Load player and ensure it belongs to the caller's organization."""
+    try:
+        response = (
+            supabase.table("jugadores")
+            .select("*, equipos!inner(id, organizacion_id)")
+            .eq("id", jugador_id)
+            .single()
+            .execute()
+        )
+    except Exception:
+        raise HTTPException(status_code=404, detail="Jugador no encontrado")
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Jugador no encontrado")
+    equipo = response.data.get("equipos") or {}
+    if isinstance(equipo, list):
+        equipo = equipo[0] if equipo else {}
+    if equipo.get("organizacion_id") != organizacion_id:
+        raise HTTPException(status_code=403, detail="El jugador no pertenece a tu organización")
+    return response.data
 
 
 @router.get("", response_model=JugadorListResponse)
@@ -245,6 +271,8 @@ async def update_jugador(jugador_id: UUID, jugador: JugadorUpdate, auth: AuthCon
     supabase = get_supabase()
 
     data = jugador.model_dump(exclude_unset=True, mode='json')
+    # foto_url solo vía POST/DELETE /jugadores/{id}/foto
+    data.pop("foto_url", None)
     if "equipo_origen_id" in data and data["equipo_origen_id"] is not None:
         data["equipo_origen_id"] = str(data["equipo_origen_id"])
     if "tipo_jugador" in data or "es_invitado" in data or "ficha_estado" in data:
@@ -266,6 +294,81 @@ async def update_jugador(jugador_id: UUID, jugador: JugadorUpdate, auth: AuthCon
 
     log_update(auth.user_id, "jugador", str(jugador_id), datos_nuevos=data)
 
+    return JugadorResponse(**enrich_jugador(response.data))
+
+
+@router.post("/{jugador_id}/foto", response_model=JugadorResponse)
+async def upload_jugador_foto(
+    jugador_id: UUID,
+    file: UploadFile = File(...),
+    auth: AuthContext = Depends(require_permission(Permission.JUGADOR_UPDATE)),
+):
+    """Sube o reemplaza la foto del jugador (JPEG/PNG/WebP, máx. 5MB)."""
+    if not auth.organizacion_id:
+        raise HTTPException(status_code=403, detail="Organización no disponible")
+
+    supabase = get_supabase()
+    jid = str(jugador_id)
+    existing = _get_jugador_in_org(supabase, jid, auth.organizacion_id)
+
+    content = await file.read()
+    try:
+        foto_url, _path = upload_player_photo(
+            supabase,
+            organizacion_id=auth.organizacion_id,
+            jugador_id=jid,
+            content=content,
+            content_type=file.content_type or "",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("Error uploading player photo %s: %s", jid, e)
+        raise HTTPException(status_code=500, detail="Error al subir la foto del jugador")
+
+    supabase.table("jugadores").update({"foto_url": foto_url}).eq("id", jid).execute()
+    response = supabase.table("jugadores").select("*").eq("id", jid).single().execute()
+    log_update(
+        auth.user_id,
+        "jugador",
+        jid,
+        datos_anteriores={"foto_url": existing.get("foto_url")},
+        datos_nuevos={"foto_url": foto_url},
+    )
+    return JugadorResponse(**enrich_jugador(response.data))
+
+
+@router.delete("/{jugador_id}/foto", response_model=JugadorResponse)
+async def delete_jugador_foto(
+    jugador_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.JUGADOR_UPDATE)),
+):
+    """Elimina la foto del jugador (storage + campo foto_url)."""
+    if not auth.organizacion_id:
+        raise HTTPException(status_code=403, detail="Organización no disponible")
+
+    supabase = get_supabase()
+    jid = str(jugador_id)
+    existing = _get_jugador_in_org(supabase, jid, auth.organizacion_id)
+
+    try:
+        delete_player_photo(
+            supabase,
+            organizacion_id=auth.organizacion_id,
+            jugador_id=jid,
+        )
+    except Exception as e:
+        logger.warning("Could not delete player photo files for %s: %s", jid, e)
+
+    supabase.table("jugadores").update({"foto_url": None}).eq("id", jid).execute()
+    response = supabase.table("jugadores").select("*").eq("id", jid).single().execute()
+    log_update(
+        auth.user_id,
+        "jugador",
+        jid,
+        datos_anteriores={"foto_url": existing.get("foto_url")},
+        datos_nuevos={"foto_url": None},
+    )
     return JugadorResponse(**enrich_jugador(response.data))
 
 
@@ -312,6 +415,17 @@ async def delete_jugador(jugador_id: UUID, auth: AuthContext = Depends(require_p
     """Elimina un jugador y sus referencias en otras tablas."""
     supabase = get_supabase()
     jid = str(jugador_id)
+
+    # Best-effort: remove avatar from storage before row delete
+    if auth.organizacion_id:
+        try:
+            delete_player_photo(
+                supabase,
+                organizacion_id=auth.organizacion_id,
+                jugador_id=jid,
+            )
+        except Exception:
+            pass
 
     # Delete from referencing tables first (cascade)
     for table in ("convocatorias", "asistencias_sesion", "registros_rpe", "carga_acumulada_jugador"):

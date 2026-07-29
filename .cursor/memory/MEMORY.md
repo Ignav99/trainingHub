@@ -1,14 +1,21 @@
 # TrainingHub — agent memory
 
-## 2026-07-28 — Equipos modal + PDF reducido
+## 2026-07-29 — Fotos de jugador transversales
 
-Branch: `cursor/sesion-equipos-modal-ae84`
+Branch: `cursor/jugador-foto-transversal-ae84`
 
-### Done
-- `FormacionEquiposDialog`: modal grande con pool convocatoria (izquierda) + cuadrantes de equipos (derecha), drag&drop, orden por posición, auto-generar / draft vacío, sync persistente `formacion_equipos`
-- Botón Users en tarea abre el modal (ya no panel inline)
-- PDF reducido: al lado de cada pizarra muestra equipos con color, título y dorsales/nombres
+### Diseño
+- Columna `jugadores.foto_url` (ya existía)
+- Bucket `player-photos` (migración 068) + path `{org_id}/jugadores/{jugador_id}/avatar.{ext}`
+- Upload/delete solo vía API autenticada: `POST/DELETE /jugadores/{id}/foto`
+- PUT genérico ignora `foto_url` (evita URLs arbitrarias)
+- Validación MIME + magic bytes, máx 5MB, JPEG/PNG/WebP, URL con cache-bust `?v=`
 
-### Notes
-- Datos siguen en `sesion_tareas.formacion_equipos` (sin posiciones XY; orden por `posicion_principal`)
-- Disponibles = asistencia presente con tipo `sesion`
+### Frontend
+- Componente compartido `PlayerAvatar` (foto + iniciales/dorsal + fallback onError)
+- Ficha: cámara siempre disponible + borrar foto (ya no Supabase anon client)
+- Cableado: plantilla, convocatoria/partido, enfermería, sesión asistencia, equipos DnD, margen, dashboard, equipo
+
+### Next
+- Aplicar migración 068 en Supabase prod si el bucket no existe (service también intenta create_bucket)
+- Opcional: resize/crop server-side con Pillow más adelante

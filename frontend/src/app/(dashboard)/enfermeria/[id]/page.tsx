@@ -34,6 +34,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { useAuthStore } from '@/stores/authStore'
 import { medicoApi } from '@/lib/api/medico'
 import { Jugador, POSICIONES } from '@/lib/api/jugadores'
+import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { apiKey } from '@/lib/swr'
 import type { PruebaMedica, RegistroMedico } from '@/types'
 
@@ -448,20 +449,7 @@ export default function EnfermeriaDetailPage() {
                 <div className="text-center">
                   {/* Photo */}
                   <div className="mx-auto w-24 h-24 mb-4">
-                    {jugador.foto_url ? (
-                      <img
-                        src={jugador.foto_url}
-                        alt={jugador.apodo || jugador.nombre}
-                        className="w-full h-full rounded-full object-cover"
-                      />
-                    ) : (
-                      <div
-                        className="w-full h-full rounded-full flex items-center justify-center text-white text-2xl font-bold"
-                        style={{ backgroundColor: pos?.color || '#6B7280' }}
-                      >
-                        {jugador.nombre[0]}{jugador.apellidos[0]}
-                      </div>
-                    )}
+                    <PlayerAvatar player={jugador} size="2xl" className="w-full h-full" />
                   </div>
 
                   <h3 className="text-lg font-bold">

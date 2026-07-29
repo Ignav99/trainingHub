@@ -47,6 +47,7 @@ import { convocatoriasApi, CreateConvocatoriaData } from '@/lib/api/convocatoria
 import { estadisticasPartidoApi, EstadisticaPartidoUpdateData } from '@/lib/api/estadisticasPartido'
 import { partidosApi, rivalesApi } from '@/lib/api/partidos'
 import { jugadoresApi, Jugador, POSICIONES } from '@/lib/api/jugadores'
+import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { FORMATIONS, Formation, FormationSlot } from '@/lib/formations'
 import { formatDate } from '@/lib/utils'
 import {
@@ -912,8 +913,6 @@ export function MatchDetailPanel({
                           {activeFormation.slots.map((slot) => {
                             const convId = slotAssignments[slot.id]
                             const conv = convId ? convocados.find((c) => c.id === convId) : null
-                            const posInfo = POSICIONES[slot.position as keyof typeof POSICIONES]
-                            const bgColor = posInfo?.color || '#9CA3AF'
                             const isSwapActive = swapSource === slot.id
 
                             if (conv) {
@@ -926,12 +925,23 @@ export function MatchDetailPanel({
                                   title={isSwapActive ? 'Click otro jugador para intercambiar' : 'Click para intercambiar'}
                                 >
                                   <div
-                                    className={`w-9 h-9 rounded-full font-bold text-xs flex items-center justify-center shadow-md text-white transition-all ${
-                                      isSwapActive ? 'ring-2 ring-yellow-400 ring-offset-1 scale-110' : ''
+                                    className={`relative transition-all ${
+                                      isSwapActive ? 'ring-2 ring-yellow-400 ring-offset-1 scale-110 rounded-full' : ''
                                     }`}
-                                    style={{ backgroundColor: bgColor }}
                                   >
-                                    {conv.dorsal || getPlayerData(conv)?.dorsal || '?'}
+                                    <PlayerAvatar
+                                      player={{
+                                        ...(getPlayerData(conv) || {}),
+                                        dorsal: conv.dorsal || getPlayerData(conv)?.dorsal,
+                                        posicion_principal:
+                                          conv.posicion_asignada ||
+                                          getPlayerData(conv)?.posicion_principal ||
+                                          slot.position,
+                                      }}
+                                      size="sm"
+                                      preferDorsalFallback
+                                      className="shadow-md ring-2 ring-white/40"
+                                    />
                                   </div>
                                   <span className="block text-[9px] text-white font-medium mt-0.5 max-w-[60px] truncate drop-shadow">
                                     {getPlayerDisplayName(conv)}
@@ -980,9 +990,15 @@ export function MatchDetailPanel({
                             const posColor = getPositionColor(pos)
                             return (
                               <div key={conv.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-muted/50 group">
-                                <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
-                                  {conv.dorsal || player?.dorsal || '?'}
-                                </div>
+                                <PlayerAvatar
+                                  player={{
+                                    ...(player || {}),
+                                    dorsal: conv.dorsal || player?.dorsal,
+                                    posicion_principal: pos || player?.posicion_principal,
+                                  }}
+                                  size="xs"
+                                  preferDorsalFallback
+                                />
                                 <div className="flex-1 min-w-0">
                                   <p className="text-xs font-medium truncate flex items-center gap-1">
                                     {getPlayerDisplayName(conv)}
@@ -1181,9 +1197,15 @@ export function MatchDetailPanel({
                         return (
                           <tr key={conv.id} className="border-b last:border-0 row-hover">
                             <td className="px-4 py-2">
-                              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                                {conv.dorsal || player?.dorsal || '-'}
-                              </div>
+                              <PlayerAvatar
+                                player={{
+                                  ...(player || {}),
+                                  dorsal: conv.dorsal || player?.dorsal,
+                                  posicion_principal: pos || player?.posicion_principal,
+                                }}
+                                size="sm"
+                                preferDorsalFallback
+                              />
                             </td>
                             <td className="px-2 py-2">
                               <p className="font-medium text-sm">{player?.apodo || getPlayerFullName(conv)}</p>
@@ -1511,9 +1533,15 @@ export function MatchDetailPanel({
                     disabled={isAssigned}
                     className={`w-full flex items-center gap-3 p-2 rounded-lg transition-colors text-left ${isAssigned ? 'opacity-40 cursor-not-allowed' : 'hover:bg-primary/5'}`}
                   >
-                    <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-bold shrink-0">
-                      {conv.dorsal || player?.dorsal || '?'}
-                    </div>
+                    <PlayerAvatar
+                      player={{
+                        ...(player || {}),
+                        dorsal: conv.dorsal || player?.dorsal,
+                        posicion_principal: pos || player?.posicion_principal,
+                      }}
+                      size="sm"
+                      preferDorsalFallback
+                    />
                     <div className="flex-1 min-w-0">
                       <span className="text-sm font-medium truncate block">{player?.apodo || getPlayerFullName(conv)}</span>
                     </div>
@@ -1703,9 +1731,7 @@ function PlayerSelectRow({
       >
         {isSelected && <Check className="h-3.5 w-3.5" />}
       </button>
-      <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-bold shrink-0">
-        {jugador.dorsal || '?'}
-      </div>
+      <PlayerAvatar player={jugador} size="sm" preferDorsalFallback />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium truncate">{jugador.apodo || `${jugador.nombre} ${jugador.apellidos}`}</span>
