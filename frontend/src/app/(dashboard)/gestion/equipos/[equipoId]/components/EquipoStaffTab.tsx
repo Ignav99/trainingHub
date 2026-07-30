@@ -1,45 +1,42 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, Plus, X, UserPlus } from 'lucide-react'
+import { Loader2, UserPlus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { clubAdminApi } from '@/lib/api/clubAdmin'
-import type { ClubMiembro, ClubEquipo } from './types'
-import { formatRole, formatDate } from './types'
+import type { EquipoStaffMember } from '../../../components/types'
+import { CLUB_ROLES, formatRole } from '../../../components/types'
 
-export default function StaffTab() {
-  const [miembros, setMiembros] = useState<ClubMiembro[]>([])
-  const [equipos, setEquipos] = useState<ClubEquipo[]>([])
+interface EquipoStaffTabProps {
+  equipoId: string
+}
+
+export default function EquipoStaffTab({ equipoId }: EquipoStaffTabProps) {
+  const [staff, setStaff] = useState<EquipoStaffMember[]>([])
   const [loading, setLoading] = useState(true)
-  const [filterTeam, setFilterTeam] = useState('')
-  const [filterRole, setFilterRole] = useState('')
 
   // Invite form
   const [showInvite, setShowInvite] = useState(false)
   const [invEmail, setInvEmail] = useState('')
   const [invNombre, setInvNombre] = useState('')
   const [invRol, setInvRol] = useState('segundo_entrenador')
-  const [invEquipo, setInvEquipo] = useState('')
   const [inviting, setInviting] = useState(false)
   const [generatedLink, setGeneratedLink] = useState<string | null>(null)
 
-  useEffect(() => { loadData() }, [])
+  // Unlink confirmation
+  const [unlinkTarget, setUnlinkTarget] = useState<EquipoStaffMember | null>(null)
+  const [unlinking, setUnlinking] = useState(false)
 
-  const loadData = async () => {
+  const load = () => {
     setLoading(true)
-    try {
-      const [m, e] = await Promise.all([
-        clubAdminApi.getMiembros(),
-        clubAdminApi.getEquipos(),
-      ])
-      setMiembros(m)
-      setEquipos(e)
-    } catch (err: any) {
-      toast.error(err.message || 'Error')
-    } finally {
-      setLoading(false)
-    }
+    clubAdminApi
+      .getEquipoStaff(equipoId)
+      .then(setStaff)
+      .catch((err: any) => toast.error(err.message || 'Error'))
+      .finally(() => setLoading(false))
   }
+
+  useEffect(() => { load() }, [equipoId])
 
   const handleInvite = async () => {
     if (!invEmail.trim()) return
@@ -48,11 +45,12 @@ export default function StaffTab() {
       const result = await clubAdminApi.inviteStaff({
         email: invEmail.trim(),
         nombre: invNombre.trim() || undefined,
-        equipo_id: invEquipo || undefined,
+        equipo_id: equipoId,
         rol_en_equipo: invRol,
       })
       setGeneratedLink(window.location.origin + result.link)
       toast.success('Invitacion creada')
+      load()
     } catch (err: any) {
       toast.error(err.message || 'Error')
     } finally {
@@ -60,14 +58,20 @@ export default function StaffTab() {
     }
   }
 
-  const filtered = miembros.filter(m => {
-    if (filterTeam) {
-      const hasTeam = m.usuarios_equipos?.some(ue => ue.equipo_id === filterTeam)
-      if (!hasTeam) return false
+  const handleUnlink = async () => {
+    if (!unlinkTarget) return
+    setUnlinking(true)
+    try {
+      await clubAdminApi.unlinkStaffFromEquipo(equipoId, unlinkTarget.usuario_id)
+      toast.success('Staff desvinculado del equipo')
+      setUnlinkTarget(null)
+      load()
+    } catch (err: any) {
+      toast.error(err.message || 'Error')
+    } finally {
+      setUnlinking(false)
     }
-    if (filterRole && m.rol !== filterRole) return false
-    return true
-  })
+  }
 
   if (loading) {
     return (
@@ -80,33 +84,7 @@ export default function StaffTab() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <select
-            value={filterTeam}
-            onChange={(e) => setFilterTeam(e.target.value)}
-            className="border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-          >
-            <option value="">Todos los equipos</option>
-            {equipos.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
-          </select>
-          <select
-            value={filterRole}
-            onChange={(e) => setFilterRole(e.target.value)}
-            className="border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-          >
-            <option value="">Todos los roles</option>
-            <option value="entrenador_principal">Entrenador Principal</option>
-            <option value="segundo_entrenador">2do Entrenador</option>
-            <option value="preparador_fisico">Preparador Fisico</option>
-            <option value="entrenador_porteros">Entr. Porteros</option>
-            <option value="analista">Analista</option>
-            <option value="fisio">Fisioterapeuta</option>
-            <option value="nutricionista">Nutricionista</option>
-            <option value="delegado">Delegado de Campo</option>
-            <option value="delegado_equipo">Delegado de Equipo</option>
-          </select>
-        </div>
+      <div className="flex items-center justify-end">
         <button
           onClick={() => { setShowInvite(true); setGeneratedLink(null) }}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
@@ -137,30 +115,15 @@ export default function StaffTab() {
                   className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <select
-                  value={invRol}
-                  onChange={(e) => setInvRol(e.target.value)}
-                  className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                >
-                  <option value="segundo_entrenador">2do Entrenador</option>
-                  <option value="preparador_fisico">Preparador Fisico</option>
-                  <option value="entrenador_porteros">Entr. Porteros</option>
-                  <option value="analista">Analista</option>
-                  <option value="fisio">Fisioterapeuta</option>
-                  <option value="nutricionista">Nutricionista</option>
-                  <option value="delegado">Delegado de Campo</option>
-                  <option value="delegado_equipo">Delegado de Equipo</option>
-                </select>
-                <select
-                  value={invEquipo}
-                  onChange={(e) => setInvEquipo(e.target.value)}
-                  className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                >
-                  <option value="">Equipo (auto)</option>
-                  {equipos.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
-                </select>
-              </div>
+              <select
+                value={invRol}
+                onChange={(e) => setInvRol(e.target.value)}
+                className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full sm:w-auto"
+              >
+                {CLUB_ROLES.map(r => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </select>
               <div className="flex gap-2 justify-end">
                 <button onClick={() => setShowInvite(false)} className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900">
                   Cancelar
@@ -208,37 +171,73 @@ export default function StaffTab() {
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Nombre</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Email</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-500">Rol</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-500">Equipos</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-500">Alta</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-500">Rol en el equipo</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-500">Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map(m => (
-                <tr key={m.id} className="border-b last:border-0 hover:bg-gray-50">
+              {staff.map(s => (
+                <tr key={s.id} className="border-b last:border-0 hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium text-gray-900">
-                    {m.nombre} {m.apellidos || ''}
-                    {!m.activo && <span className="ml-1.5 text-xs text-red-500">(inactivo)</span>}
+                    {s.usuarios?.nombre} {s.usuarios?.apellidos || ''}
+                    {s.usuarios && !s.usuarios.activo && (
+                      <span className="ml-1.5 text-xs text-red-500">(inactivo)</span>
+                    )}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{m.email}</td>
+                  <td className="px-4 py-3 text-gray-600">{s.usuarios?.email}</td>
                   <td className="px-4 py-3">
                     <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                      {formatRole(m.rol)}
+                      {formatRole(s.rol_en_equipo)}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {m.usuarios_equipos?.map(ue => ue.equipos?.nombre).filter(Boolean).join(', ') || '-'}
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      onClick={() => setUnlinkTarget(s)}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      Quitar del equipo
+                    </button>
                   </td>
-                  <td className="px-4 py-3 text-gray-500 tabular-nums">{formatDate(m.created_at)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        {filtered.length === 0 && (
-          <div className="text-center py-10 text-gray-400 text-sm">No hay miembros con estos filtros</div>
+        {staff.length === 0 && (
+          <div className="text-center py-10 text-gray-400 text-sm">Este equipo aun no tiene staff vinculado</div>
         )}
       </div>
+
+      {/* Unlink confirmation modal */}
+      {unlinkTarget && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full">
+            <h3 className="font-semibold mb-2">
+              ¿Quitar a {unlinkTarget.usuarios?.nombre} de este equipo?
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Su cuenta sigue activa en el club, solo deja de estar vinculado a este equipo.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setUnlinkTarget(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleUnlink}
+                disabled={unlinking}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+              >
+                {unlinking && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {unlinking ? 'Quitando...' : 'Quitar del equipo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

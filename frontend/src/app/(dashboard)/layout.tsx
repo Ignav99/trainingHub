@@ -26,7 +26,6 @@ import {
   Trophy,
   Flag,
   UtensilsCrossed,
-  Crown,
   PenTool,
 } from 'lucide-react'
 import { preload } from 'swr'
@@ -397,7 +396,6 @@ const SidebarContent = memo(function SidebarContent({
   const [equipoDropdownOpen, setEquipoDropdownOpen] = useState(false)
   const [saludOpen, setSaludOpen] = useState(() => isSaludPath(pathname))
   const dropdownRef = useRef<HTMLLIElement>(null)
-  const canManageClub = !!user && ['presidente', 'director_deportivo', 'secretario', 'admin'].includes(user.rol)
 
   useEffect(() => {
     if (isSaludPath(pathname)) setSaludOpen(true)
@@ -647,27 +645,6 @@ const SidebarContent = memo(function SidebarContent({
               )}
             </div>
           </li>
-
-          {/* Gestión del Club — above logout */}
-          {canManageClub && (
-            <li>
-              <Link
-                href="/gestion"
-                onClick={onClose}
-                title={collapsed ? 'Gestión del Club' : undefined}
-                className={cn(
-                  'flex items-center rounded-xl text-sm font-semibold transition-all',
-                  collapsed ? 'justify-center p-2.5' : 'gap-2 px-3 py-2.5',
-                  pathname.startsWith('/gestion')
-                    ? 'bg-amber-100 border border-amber-300 text-amber-900'
-                    : 'bg-amber-50 border border-amber-200 text-amber-900 hover:bg-amber-100'
-                )}
-              >
-                <Crown className="h-4 w-4 shrink-0" />
-                {!collapsed && 'Gestión del Club'}
-              </Link>
-            </li>
-          )}
 
           <li>
             <button

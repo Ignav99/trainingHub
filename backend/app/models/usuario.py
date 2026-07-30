@@ -135,6 +135,13 @@ class EquipoResponse(EquipoBase):
         from_attributes = True
 
 
+class EquipoDetalleResponse(EquipoResponse):
+    """EquipoResponse + contadores de detalle para la vista de un equipo."""
+    num_staff: int = 0
+    num_partidos: int = 0
+    num_lesiones_activas: int = 0
+
+
 class NuevaTemporadaRequest(BaseModel):
     """Crea la siguiente temporada de un equipo existente."""
     temporada: str = Field(..., min_length=2, max_length=20)

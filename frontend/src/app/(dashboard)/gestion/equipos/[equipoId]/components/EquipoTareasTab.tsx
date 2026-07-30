@@ -4,12 +4,15 @@ import { useEffect, useState, useCallback } from 'react'
 import { Loader2, ClipboardList, Search, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { toast } from 'sonner'
 import { clubAdminApi } from '@/lib/api/clubAdmin'
-import type { ClubTarea, ClubEquipo, ClubMiembro, CategoriaTarea } from './types'
-import { formatDate, formatFase, FASES_JUEGO } from './types'
+import type { ClubTarea, ClubMiembro, CategoriaTarea } from '../../../components/types'
+import { formatDate, formatFase, FASES_JUEGO } from '../../../components/types'
 
-export default function TasksTab() {
+interface EquipoTareasTabProps {
+  equipoId: string
+}
+
+export default function EquipoTareasTab({ equipoId }: EquipoTareasTabProps) {
   const [tareas, setTareas] = useState<ClubTarea[]>([])
-  const [equipos, setEquipos] = useState<ClubEquipo[]>([])
   const [miembros, setMiembros] = useState<ClubMiembro[]>([])
   const [categorias, setCategorias] = useState<CategoriaTarea[]>([])
   const [loading, setLoading] = useState(true)
@@ -17,7 +20,6 @@ export default function TasksTab() {
   const [page, setPage] = useState(1)
 
   // Filters
-  const [filterTeam, setFilterTeam] = useState('')
   const [filterCategoria, setFilterCategoria] = useState('')
   const [filterFase, setFilterFase] = useState('')
   const [filterCreador, setFilterCreador] = useState('')
@@ -28,16 +30,14 @@ export default function TasksTab() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   useEffect(() => { loadBaseData() }, [])
-  useEffect(() => { loadTareas() }, [page, filterTeam, filterCategoria, filterFase, filterCreador, search])
+  useEffect(() => { loadTareas() }, [equipoId, page, filterCategoria, filterFase, filterCreador, search])
 
   const loadBaseData = async () => {
     try {
-      const [e, m, c] = await Promise.all([
-        clubAdminApi.getEquipos(),
+      const [m, c] = await Promise.all([
         clubAdminApi.getMiembros(),
         clubAdminApi.getCategorias(),
       ])
-      setEquipos(e)
       setMiembros(m)
       setCategorias(c)
     } catch { /* silent */ }
@@ -49,7 +49,7 @@ export default function TasksTab() {
       const res = await clubAdminApi.getTareas({
         page,
         limit: 50,
-        equipo_id: filterTeam || undefined,
+        equipo_id: equipoId,
         categoria: filterCategoria || undefined,
         fase_juego: filterFase || undefined,
         creado_por: filterCreador || undefined,
@@ -70,7 +70,6 @@ export default function TasksTab() {
   }, [searchInput])
 
   const resetFilters = () => {
-    setFilterTeam('')
     setFilterCategoria('')
     setFilterFase('')
     setFilterCreador('')
@@ -79,14 +78,13 @@ export default function TasksTab() {
     setPage(1)
   }
 
-  const teamName = (id: string) => equipos.find(e => e.id === id)?.nombre || '-'
   const creadorName = (id?: string) => {
     if (!id) return '-'
     const m = miembros.find(u => u.id === id)
     return m ? `${m.nombre} ${m.apellidos || ''}`.trim() : '-'
   }
 
-  const hasFilters = filterTeam || filterCategoria || filterFase || filterCreador || search
+  const hasFilters = filterCategoria || filterFase || filterCreador || search
   const totalPages = Math.ceil(total / 50)
 
   return (
@@ -111,15 +109,6 @@ export default function TasksTab() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
-        <select
-          value={filterTeam}
-          onChange={(e) => { setFilterTeam(e.target.value); setPage(1) }}
-          className="border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-        >
-          <option value="">Todos los equipos</option>
-          {equipos.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
-        </select>
-
         <select
           value={filterCategoria}
           onChange={(e) => { setFilterCategoria(e.target.value); setPage(1) }}
@@ -171,7 +160,6 @@ export default function TasksTab() {
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Titulo</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Categoria</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Fase</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Equipo</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Creador</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Duracion</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Fecha</th>
@@ -210,7 +198,6 @@ export default function TasksTab() {
                       <td className="px-4 py-3 text-gray-600 text-xs capitalize max-w-[140px] truncate">
                         {t.fase_juego ? formatFase(t.fase_juego) : '-'}
                       </td>
-                      <td className="px-4 py-3 text-gray-600 text-xs">{teamName(t.equipo_id)}</td>
                       <td className="px-4 py-3 text-gray-600 text-xs">{creadorName(t.creado_por)}</td>
                       <td className="px-4 py-3 text-gray-600 tabular-nums text-xs">
                         {t.duracion_total ? `${t.duracion_total}'` : '-'}
@@ -219,7 +206,7 @@ export default function TasksTab() {
                     </tr>
                     {expandedId === t.id && (
                       <tr key={`${t.id}-detail`} className="border-b bg-gray-50/50">
-                        <td colSpan={8} className="px-4 py-4">
+                        <td colSpan={7} className="px-4 py-4">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                             {t.descripcion && (
                               <div className="md:col-span-2">

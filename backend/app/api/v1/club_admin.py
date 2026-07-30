@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from app.database import get_supabase
 from app.dependencies import get_current_user
 from app.models import UsuarioResponse
+from app.models.usuario import EquipoDetalleResponse
 from app.services.audit_service import log_action
 
 router = APIRouter()
@@ -354,6 +355,132 @@ async def club_update_equipo(
     )
 
     return result.data[0] if result.data else {"ok": True}
+
+
+@router.get("/equipos/{equipo_id}", response_model=EquipoDetalleResponse)
+async def club_get_equipo_detalle(
+    equipo_id: str,
+    user: UsuarioResponse = Depends(require_club_admin),
+):
+    """Detalle de un equipo de la org con contadores agregados."""
+    supabase = get_supabase()
+    org_id = str(user.organizacion_id)
+
+    team = (
+        supabase.table("equipos")
+        .select("*")
+        .eq("id", equipo_id)
+        .eq("organizacion_id", org_id)
+        .maybe_single()
+        .execute()
+    )
+    if not team or not team.data:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado en tu organizacion")
+    equipo = team.data
+
+    num_staff = (
+        supabase.table("usuarios_equipos")
+        .select("id", count="exact")
+        .eq("equipo_id", equipo_id)
+        .execute()
+    )
+    num_partidos = (
+        supabase.table("partidos")
+        .select("id", count="exact")
+        .eq("equipo_id", equipo_id)
+        .execute()
+    )
+    num_lesiones = (
+        supabase.table("registros_medicos")
+        .select("id", count="exact")
+        .eq("tipo", "lesion")
+        .in_("estado", ["activo", "en_recuperacion"])
+        .eq("equipo_id", equipo_id)
+        .execute()
+    )
+
+    return EquipoDetalleResponse(
+        **equipo,
+        num_staff=num_staff.count or 0,
+        num_partidos=num_partidos.count or 0,
+        num_lesiones_activas=num_lesiones.count or 0,
+    )
+
+
+@router.get("/equipos/{equipo_id}/staff")
+async def club_get_equipo_staff(
+    equipo_id: str,
+    user: UsuarioResponse = Depends(require_club_admin),
+):
+    """Lista el staff vinculado a un equipo especifico de la org."""
+    supabase = get_supabase()
+    org_id = str(user.organizacion_id)
+
+    equipo_check = (
+        supabase.table("equipos")
+        .select("id")
+        .eq("id", equipo_id)
+        .eq("organizacion_id", org_id)
+        .execute()
+    )
+    if not equipo_check.data:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado en tu organizacion")
+
+    result = (
+        supabase.table("usuarios_equipos")
+        .select(
+            "id, usuario_id, equipo_id, rol_en_equipo, created_at, "
+            "usuarios(id, email, nombre, apellidos, rol, activo)"
+        )
+        .eq("equipo_id", equipo_id)
+        .execute()
+    )
+    return result.data or []
+
+
+@router.delete("/equipos/{equipo_id}/staff/{user_id}")
+async def club_unlink_staff_from_equipo(
+    equipo_id: str,
+    user_id: str,
+    user: UsuarioResponse = Depends(require_club_admin),
+):
+    """Desvincula un usuario de un equipo especifico, sin desactivar su cuenta."""
+    supabase = get_supabase()
+    org_id = str(user.organizacion_id)
+
+    equipo_check = (
+        supabase.table("equipos")
+        .select("id")
+        .eq("id", equipo_id)
+        .eq("organizacion_id", org_id)
+        .execute()
+    )
+    if not equipo_check.data:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado en tu organizacion")
+
+    row = (
+        supabase.table("usuarios_equipos")
+        .select("id")
+        .eq("equipo_id", equipo_id)
+        .eq("usuario_id", user_id)
+        .execute()
+    )
+    if not row.data:
+        raise HTTPException(status_code=404, detail="El usuario no pertenece a este equipo")
+
+    supabase.table("usuarios_equipos").delete().eq("id", row.data[0]["id"]).execute()
+
+    log_action(
+        usuario_id=str(user.id),
+        accion="eliminar",
+        entidad_tipo="usuario_equipo",
+        entidad_id=row.data[0]["id"],
+        datos_anteriores={"equipo_id": equipo_id, "usuario_id": user_id},
+        organizacion_id=org_id,
+        severidad="warning",
+    )
+
+    return {"ok": True}
 
 
 # ============ Miembros ============
@@ -787,6 +914,53 @@ async def club_list_sesiones(
         query = query.eq("fase_juego_principal", fase_juego)
     if search:
         query = query.ilike("titulo", f"%{search}%")
+
+    offset = (page - 1) * limit
+    query = query.range(offset, offset + limit - 1)
+    result = query.execute()
+
+    return {"data": result.data or [], "total": result.count or 0}
+
+
+@router.get("/jugadores")
+async def club_list_jugadores(
+    equipo_id: Optional[str] = None,
+    search: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    user: UsuarioResponse = Depends(require_club_admin),
+):
+    """Base de jugadores de todos los equipos del club, con filtros y paginacion."""
+    supabase = get_supabase()
+    org_id = str(user.organizacion_id)
+
+    teams = (
+        supabase.table("equipos")
+        .select("id")
+        .eq("organizacion_id", org_id)
+        .execute()
+    )
+    team_ids = [t["id"] for t in (teams.data or [])]
+    if not team_ids:
+        return {"data": [], "total": 0}
+
+    query = (
+        supabase.table("jugadores")
+        .select(
+            "id, nombre, apellidos, foto_url, dorsal, posicion_principal, "
+            "fecha_nacimiento, nivel_tecnico, nivel_tactico, nivel_fisico, nivel_mental, "
+            "estado, tipo_jugador, equipo_id, equipos(id, nombre, categoria)",
+            count="exact",
+        )
+        .in_("equipo_id", team_ids)
+    )
+
+    if equipo_id:
+        if equipo_id not in team_ids:
+            raise HTTPException(status_code=403, detail="Equipo no pertenece a tu organizacion")
+        query = query.eq("equipo_id", equipo_id)
+    if search:
+        query = query.or_(f"nombre.ilike.%{search}%,apellidos.ilike.%{search}%")
 
     offset = (page - 1) * limit
     query = query.range(offset, offset + limit - 1)

@@ -4,19 +4,21 @@ import { useEffect, useState, useCallback } from 'react'
 import { Loader2, Calendar, Search, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { toast } from 'sonner'
 import { clubAdminApi } from '@/lib/api/clubAdmin'
-import type { ClubSesion, ClubEquipo, ClubMiembro } from './types'
-import { formatDate, formatFase, FASES_JUEGO, MATCH_DAYS, MATCH_DAY_COLORS, ESTADOS_SESION } from './types'
+import type { ClubSesion, ClubMiembro } from '../../../components/types'
+import { formatDate, formatFase, FASES_JUEGO, MATCH_DAYS, MATCH_DAY_COLORS, ESTADOS_SESION } from '../../../components/types'
 
-export default function SessionsTab() {
+interface EquipoSesionesTabProps {
+  equipoId: string
+}
+
+export default function EquipoSesionesTab({ equipoId }: EquipoSesionesTabProps) {
   const [sesiones, setSesiones] = useState<ClubSesion[]>([])
-  const [equipos, setEquipos] = useState<ClubEquipo[]>([])
   const [miembros, setMiembros] = useState<ClubMiembro[]>([])
   const [loading, setLoading] = useState(true)
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
 
   // Filters
-  const [filterTeam, setFilterTeam] = useState('')
   const [filterMatchDay, setFilterMatchDay] = useState('')
   const [filterEstado, setFilterEstado] = useState('')
   const [filterFase, setFilterFase] = useState('')
@@ -27,15 +29,11 @@ export default function SessionsTab() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   useEffect(() => { loadBaseData() }, [])
-  useEffect(() => { loadSesiones() }, [page, filterTeam, filterMatchDay, filterEstado, filterFase, search])
+  useEffect(() => { loadSesiones() }, [equipoId, page, filterMatchDay, filterEstado, filterFase, search])
 
   const loadBaseData = async () => {
     try {
-      const [e, m] = await Promise.all([
-        clubAdminApi.getEquipos(),
-        clubAdminApi.getMiembros(),
-      ])
-      setEquipos(e)
+      const m = await clubAdminApi.getMiembros()
       setMiembros(m)
     } catch { /* silent */ }
   }
@@ -46,7 +44,7 @@ export default function SessionsTab() {
       const res = await clubAdminApi.getSesiones({
         page,
         limit: 50,
-        equipo_id: filterTeam || undefined,
+        equipo_id: equipoId,
         match_day: filterMatchDay || undefined,
         estado: filterEstado || undefined,
         fase_juego: filterFase || undefined,
@@ -67,7 +65,6 @@ export default function SessionsTab() {
   }, [searchInput])
 
   const resetFilters = () => {
-    setFilterTeam('')
     setFilterMatchDay('')
     setFilterEstado('')
     setFilterFase('')
@@ -76,14 +73,13 @@ export default function SessionsTab() {
     setPage(1)
   }
 
-  const teamName = (id: string) => equipos.find(e => e.id === id)?.nombre || '-'
   const creadorName = (id?: string) => {
     if (!id) return '-'
     const m = miembros.find(u => u.id === id)
     return m ? `${m.nombre} ${m.apellidos || ''}`.trim() : '-'
   }
 
-  const hasFilters = filterTeam || filterMatchDay || filterEstado || filterFase || search
+  const hasFilters = filterMatchDay || filterEstado || filterFase || search
   const totalPages = Math.ceil(total / 50)
 
   const estadoColor = (estado?: string) => {
@@ -117,15 +113,6 @@ export default function SessionsTab() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
-        <select
-          value={filterTeam}
-          onChange={(e) => { setFilterTeam(e.target.value); setPage(1) }}
-          className="border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-        >
-          <option value="">Todos los equipos</option>
-          {equipos.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
-        </select>
-
         <select
           value={filterMatchDay}
           onChange={(e) => { setFilterMatchDay(e.target.value); setPage(1) }}
@@ -175,7 +162,6 @@ export default function SessionsTab() {
                 <tr>
                   <th className="text-left px-4 py-3 font-medium text-gray-500 w-8"></th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Titulo</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Equipo</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Fecha</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Match Day</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Estado</th>
@@ -202,7 +188,6 @@ export default function SessionsTab() {
                         <td className="px-4 py-3 font-medium text-gray-900 max-w-[220px] truncate">
                           {s.titulo || 'Sin titulo'}
                         </td>
-                        <td className="px-4 py-3 text-gray-600 text-xs">{teamName(s.equipo_id)}</td>
                         <td className="px-4 py-3 text-gray-500 tabular-nums text-xs">{formatDate(s.fecha)}</td>
                         <td className="px-4 py-3">
                           {s.match_day ? (
@@ -225,7 +210,7 @@ export default function SessionsTab() {
                       </tr>
                       {expandedId === s.id && (
                         <tr key={`${s.id}-detail`} className="border-b bg-gray-50/50">
-                          <td colSpan={8} className="px-4 py-4">
+                          <td colSpan={7} className="px-4 py-4">
                             <div className="flex flex-wrap gap-6 text-sm">
                               {s.objetivo_principal && (
                                 <div>
