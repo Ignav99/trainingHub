@@ -177,8 +177,18 @@ function JugadorCard({
             <PosicionBadge posicion={jugador.posicion_principal} />
             {(amarillas > 0 || rojas > 0) && (
               <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-gray-600">
-                {amarillas > 0 && <span className="inline-block w-2 h-2.5 bg-yellow-400 rounded-[1px]" />}
-                {rojas > 0 && <span className="inline-block w-2 h-2.5 bg-red-500 rounded-[1px]" />}
+                {amarillas > 0 && (
+                  <span
+                    className="inline-block w-2 h-2.5 bg-yellow-400 rounded-[1px]"
+                    title={`${amarillas} amarilla${amarillas !== 1 ? 's' : ''}`}
+                  />
+                )}
+                {rojas > 0 && (
+                  <span
+                    className="inline-block w-2 h-2.5 bg-red-500 rounded-[1px]"
+                    title={`${rojas} roja${rojas !== 1 ? 's' : ''}`}
+                  />
+                )}
               </span>
             )}
           </div>
@@ -237,8 +247,6 @@ function JugadorCard({
         <PlayerStatusBadges
           estado={jugador.estado}
           nivelCarga={cargaData?.nivel_carga}
-          tarjetasAmarillas={0}
-          tarjetasRojas={0}
         />
       )}
 
