@@ -159,6 +159,8 @@ from app.models.convocatoria import (
     ConvocatoriaUpdate,
     ConvocatoriaResponse,
     ConvocatoriaListResponse,
+    JugadorResumenConvocatorias,
+    ResumenEquipoConvocatoriasResponse,
 )
 
 from app.models.estadistica_partido import (
@@ -472,6 +474,7 @@ __all__ = [
     # Convocatoria
     "ConvocatoriaBase", "ConvocatoriaCreate", "ConvocatoriaUpdate",
     "ConvocatoriaResponse", "ConvocatoriaListResponse",
+    "JugadorResumenConvocatorias", "ResumenEquipoConvocatoriasResponse",
     # Estadistica Partido
     "EstadisticaPartidoBase", "EstadisticaPartidoCreate",
     "EstadisticaPartidoUpdate", "EstadisticaPartidoResponse",
