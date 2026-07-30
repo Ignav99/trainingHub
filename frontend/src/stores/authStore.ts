@@ -89,10 +89,26 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      login: async (email: string, password: string) => {
+      login: async (identifier: string, password: string) => {
         set({ isLoading: true })
 
         try {
+          // `identifier` may be a plain username (superadmin/administrador_club/
+          // coordinador_club, no real email) — resolve it to the internal
+          // synthetic email Supabase Auth needs before signing in.
+          let email = identifier
+          if (!identifier.includes('@')) {
+            try {
+              const resolved = await api.post<{ email: string }>('/auth/resolve-username', {
+                username: identifier,
+              })
+              email = resolved.email
+            } catch {
+              set({ isLoading: false })
+              return { success: false, error: 'Credenciales inválidas' }
+            }
+          }
+
           // Use Supabase client for auth (manages session, token refresh, etc.)
           const { data, error } = await getSupabaseClient().auth.signInWithPassword({
             email,

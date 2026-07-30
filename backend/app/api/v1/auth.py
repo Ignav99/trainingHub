@@ -7,14 +7,36 @@ Updated for new licensing and roles system.
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Depends, Request, status
+from pydantic import BaseModel
 
 from app.models import LoginRequest, TokenResponse, UsuarioCreate, UsuarioResponse
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.services.audit_service import log_action, log_login
 from app.services.license_service import LicenseService
+from app.services.username_auth_service import resolve_login_identifier
 
 router = APIRouter()
+
+
+class ResolveUsernameRequest(BaseModel):
+    username: str
+
+
+class ResolveUsernameResponse(BaseModel):
+    email: str
+
+
+@router.post("/resolve-username", response_model=ResolveUsernameResponse)
+async def resolve_username(data: ResolveUsernameRequest):
+    """
+    Traduce un username (superadmin/administrador_club/coordinador_club) al
+    email interno sintetico que necesita Supabase Auth para iniciar sesion.
+    El frontend llama a esto antes de signInWithPassword cuando el usuario
+    escribe un identificador sin '@'.
+    """
+    email = resolve_login_identifier(data.username)
+    return ResolveUsernameResponse(email=email)
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -33,8 +55,12 @@ async def login(credentials: LoginRequest, request: Request):
         _settings = get_settings()
         auth_client = create_client(_settings.SUPABASE_URL, _settings.SUPABASE_SERVICE_ROLE_KEY)
 
+        # `credentials.email` may be a plain username (superadmin/administrador_club/
+        # coordinador_club) rather than a real email — resolve it first.
+        login_email = resolve_login_identifier(credentials.email)
+
         response = auth_client.auth.sign_in_with_password({
-            "email": credentials.email,
+            "email": login_email,
             "password": credentials.password,
         })
 

@@ -55,16 +55,18 @@ export default function LoginPage() {
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                Email
+                Usuario o email
               </label>
               <input
                 id="email"
-                type="email"
+                type="text"
                 required
+                autoCapitalize="none"
+                autoCorrect="off"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                placeholder="tu@email.com"
+                placeholder="tu@email.com o tu usuario"
               />
             </div>
 

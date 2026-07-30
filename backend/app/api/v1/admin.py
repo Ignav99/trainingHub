@@ -12,13 +12,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.database import get_supabase
 from app.config import get_settings
 from app.dependencies import get_current_user
 from app.models import UsuarioResponse
 from app.services.audit_service import log_action
+from app.services.username_auth_service import create_username_account
 
 router = APIRouter()
 
@@ -79,6 +80,10 @@ class AdminOrgCreate(BaseModel):
     nombre: str
     plan_codigo: str = "free_trial"
     dias_trial: int = 14
+    # Cuenta del administrador del club (usuario + contrasena, sin email real).
+    admin_username: Optional[str] = Field(None, min_length=3, max_length=50)
+    admin_password: Optional[str] = Field(None, min_length=8)
+    admin_nombre: Optional[str] = None
 
 
 class AdminTeamCreate(BaseModel):
@@ -212,6 +217,18 @@ async def admin_create_organizacion(
 
     sub_result = supabase.table("suscripciones").insert(sub_data).execute()
 
+    # Crear la cuenta del administrador del club (usuario + contrasena, sin email real)
+    club_admin = None
+    if data.admin_username and data.admin_password:
+        club_admin = create_username_account(
+            username=data.admin_username,
+            password=data.admin_password,
+            nombre=data.admin_nombre or data.admin_username,
+            rol="administrador_club",
+            organizacion_id=org["id"],
+        )
+        supabase.table("organizaciones").update({"owner_id": club_admin["id"]}).eq("id", org["id"]).execute()
+
     log_action(
         usuario_id=str(admin.id),
         accion="crear",
@@ -224,6 +241,7 @@ async def admin_create_organizacion(
     return {
         "organizacion": org,
         "suscripcion": sub_result.data[0] if sub_result.data else None,
+        "administrador_club": club_admin,
     }
 
 

@@ -632,3 +632,26 @@ class TestResolveEquipoId:
         request = self._make_request("POST", {}, b"", b"not json")
         result = asyncio.run(_resolve_equipo_id(request, "equipo_id"))
         assert result is None
+
+
+# ============ Username-based accounts (superadmin / club roles) ============
+
+class TestUsernameAuthService:
+    """Tests for username-based login (no real email required) for
+    superadmin_plataforma / administrador_club / coordinador_club."""
+
+    def test_build_internal_email_lowercases_and_strips(self):
+        from app.services.username_auth_service import build_internal_email, INTERNAL_EMAIL_DOMAIN
+
+        assert build_internal_email("  SuperAdmin  ") == f"superadmin@{INTERNAL_EMAIL_DOMAIN}"
+
+    def test_is_internal_email(self):
+        from app.services.username_auth_service import build_internal_email, is_internal_email
+
+        assert is_internal_email(build_internal_email("coord1")) is True
+        assert is_internal_email("staff@gmail.com") is False
+
+    def test_resolve_login_identifier_passes_through_real_emails(self):
+        from app.services.username_auth_service import resolve_login_identifier
+
+        assert resolve_login_identifier("coach@gmail.com") == "coach@gmail.com"

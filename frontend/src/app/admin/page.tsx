@@ -50,6 +50,9 @@ export default function AdminPage() {
   const [showCreateOrg, setShowCreateOrg] = useState(false)
   const [newOrgName, setNewOrgName] = useState('')
   const [newOrgPlan, setNewOrgPlan] = useState('free_trial')
+  const [newAdminUsername, setNewAdminUsername] = useState('')
+  const [newAdminPassword, setNewAdminPassword] = useState('')
+  const [newAdminNombre, setNewAdminNombre] = useState('')
   const [creatingOrg, setCreatingOrg] = useState(false)
 
   // Confirmation dialog
@@ -115,16 +118,30 @@ export default function AdminPage() {
 
   const handleCreateOrg = async () => {
     if (!newOrgName.trim()) return
+    if (newAdminUsername.trim() && newAdminPassword.length < 8) {
+      toast.error('La contraseña del administrador debe tener al menos 8 caracteres')
+      return
+    }
     setCreatingOrg(true)
     try {
       const result = await api.post<{ organizacion: Org }>('/admin/organizaciones', {
         nombre: newOrgName.trim(),
         plan_codigo: newOrgPlan,
+        admin_username: newAdminUsername.trim() || undefined,
+        admin_password: newAdminUsername.trim() ? newAdminPassword : undefined,
+        admin_nombre: newAdminNombre.trim() || undefined,
       })
       setShowCreateOrg(false)
       setNewOrgName('')
       setNewOrgPlan('free_trial')
-      toast.success('Organizacion creada')
+      setNewAdminUsername('')
+      setNewAdminPassword('')
+      setNewAdminNombre('')
+      toast.success(
+        newAdminUsername.trim()
+          ? `Organizacion creada. Administrador del club: usuario "${newAdminUsername.trim()}"`
+          : 'Organizacion creada'
+      )
       await loadData()
       if (result.organizacion?.id) loadOrgDetail(result.organizacion.id)
     } catch (err: any) {
@@ -311,6 +328,34 @@ export default function AdminPage() {
                 <select value={newOrgPlan} onChange={e => setNewOrgPlan(e.target.value)} className="w-full text-sm px-3 py-2 border rounded-lg bg-white">
                   {planes.map(p => <option key={p.id} value={p.codigo}>{p.nombre}</option>)}
                 </select>
+              </div>
+            </div>
+            <div className="pt-2 border-t border-gray-100">
+              <p className="text-xs font-medium text-gray-600 mb-2">
+                Administrador del club (opcional — usuario y contraseña, sin email real)
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <input
+                  type="text"
+                  placeholder="Usuario (ej: admin_alcobendas)"
+                  value={newAdminUsername}
+                  onChange={e => setNewAdminUsername(e.target.value)}
+                  className="w-full text-sm px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+                <input
+                  type="text"
+                  placeholder="Nombre (opcional)"
+                  value={newAdminNombre}
+                  onChange={e => setNewAdminNombre(e.target.value)}
+                  className="w-full text-sm px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+                <input
+                  type="text"
+                  placeholder="Contraseña (min. 8 caracteres)"
+                  value={newAdminPassword}
+                  onChange={e => setNewAdminPassword(e.target.value)}
+                  className="w-full text-sm px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                />
               </div>
             </div>
             <div className="flex gap-2">

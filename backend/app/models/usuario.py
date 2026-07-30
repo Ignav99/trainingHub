@@ -145,6 +145,7 @@ class EquipoListResponse(BaseModel):
 class UsuarioBase(BaseModel):
     """Schema base de usuario."""
     email: EmailStr
+    username: Optional[str] = Field(None, min_length=3, max_length=50)
     nombre: str = Field(..., min_length=2, max_length=255)
     apellidos: Optional[str] = Field(None, max_length=255)
     rol: RolUsuario = Field(default=RolUsuario.TECNICO_ASISTENTE)
@@ -234,8 +235,9 @@ class UsuarioEquipoResponse(UsuarioEquipoBase):
 # ============ Auth ============
 
 class LoginRequest(BaseModel):
-    """Schema para login."""
-    email: EmailStr
+    """Schema para login. `email` acepta tanto un email real (staff invitado)
+    como un username plano (superadmin/administrador_club/coordinador_club)."""
+    email: str
     password: str
 
 
