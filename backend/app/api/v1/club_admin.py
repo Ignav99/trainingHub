@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from app.database import get_supabase
 from app.dependencies import get_current_user
 from app.models import UsuarioResponse
-from app.models.usuario import EquipoDetalleResponse, UsuarioEquipoResponse
+from app.models.usuario import EquipoDetalleResponse
 from app.services.audit_service import log_action
 
 router = APIRouter()
@@ -405,6 +405,82 @@ async def club_get_equipo_detalle(
         num_partidos=num_partidos.count or 0,
         num_lesiones_activas=num_lesiones.count or 0,
     )
+
+
+@router.get("/equipos/{equipo_id}/staff")
+async def club_get_equipo_staff(
+    equipo_id: str,
+    user: UsuarioResponse = Depends(require_club_admin),
+):
+    """Lista el staff vinculado a un equipo especifico de la org."""
+    supabase = get_supabase()
+    org_id = str(user.organizacion_id)
+
+    equipo_check = (
+        supabase.table("equipos")
+        .select("id")
+        .eq("id", equipo_id)
+        .eq("organizacion_id", org_id)
+        .execute()
+    )
+    if not equipo_check.data:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado en tu organizacion")
+
+    result = (
+        supabase.table("usuarios_equipos")
+        .select(
+            "id, usuario_id, equipo_id, rol_en_equipo, created_at, "
+            "usuarios(id, email, nombre, apellidos, rol, activo)"
+        )
+        .eq("equipo_id", equipo_id)
+        .execute()
+    )
+    return result.data or []
+
+
+@router.delete("/equipos/{equipo_id}/staff/{user_id}")
+async def club_unlink_staff_from_equipo(
+    equipo_id: str,
+    user_id: str,
+    user: UsuarioResponse = Depends(require_club_admin),
+):
+    """Desvincula un usuario de un equipo especifico, sin desactivar su cuenta."""
+    supabase = get_supabase()
+    org_id = str(user.organizacion_id)
+
+    equipo_check = (
+        supabase.table("equipos")
+        .select("id")
+        .eq("id", equipo_id)
+        .eq("organizacion_id", org_id)
+        .execute()
+    )
+    if not equipo_check.data:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado en tu organizacion")
+
+    row = (
+        supabase.table("usuarios_equipos")
+        .select("id")
+        .eq("equipo_id", equipo_id)
+        .eq("usuario_id", user_id)
+        .execute()
+    )
+    if not row.data:
+        raise HTTPException(status_code=404, detail="El usuario no pertenece a este equipo")
+
+    supabase.table("usuarios_equipos").delete().eq("id", row.data[0]["id"]).execute()
+
+    log_action(
+        usuario_id=str(user.id),
+        accion="staff_desvinculado_equipo",
+        entidad_tipo="usuario_equipo",
+        entidad_id=row.data[0]["id"],
+        datos_anteriores={"equipo_id": equipo_id, "usuario_id": user_id},
+        organizacion_id=org_id,
+        severidad="warning",
+    )
+
+    return {"ok": True}
 
 
 # ============ Miembros ============
