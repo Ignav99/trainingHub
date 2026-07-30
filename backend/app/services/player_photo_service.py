@@ -76,9 +76,11 @@ def storage_path_for(organizacion_id: str, jugador_id: str, ext: str) -> str:
 
 def _cache_bust(url: str) -> str:
     ts = int(datetime.now(timezone.utc).timestamp())
-    sep = "&" if "?" in url else "?"
-    # strip previous v=
+    # strip previous v= (and any now-dangling trailing separators) first, so
+    # the separator decision below reflects the actual cleaned base — Supabase's
+    # get_public_url() can return a URL with a bare trailing "?" and no params.
     base = re.sub(r"[?&]v=\d+", "", url).rstrip("?&")
+    sep = "&" if "?" in base else "?"
     return f"{base}{sep}v={ts}"
 
 
