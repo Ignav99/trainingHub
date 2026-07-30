@@ -1,113 +1,17 @@
-export interface ClubDashboard {
-  total_jugadores: number
-  total_staff: number
-  sesiones_mes: number
-  tareas_mes: number
-  partidos_temporada: number
-  lesiones_activas: number
-}
-
-export interface ClubEquipo {
-  id: string
-  nombre: string
-  categoria?: string
-  temporada?: string
-  activo: boolean
-  created_at: string
-  num_jugadores: number
-  num_staff: number
-  total_sesiones: number
-  total_tareas: number
-  num_partidos: number
-}
-
-export interface ClubMiembro {
-  id: string
-  email: string
-  nombre: string
-  apellidos?: string
-  rol: string
-  activo: boolean
-  created_at: string
-  ultimo_acceso?: string
-  usuarios_equipos?: Array<{
-    equipo_id: string
-    rol_en_equipo: string
-    equipos?: { id: string; nombre: string }
-  }>
-}
-
-export interface ClubTarea {
-  id: string
-  titulo: string
-  descripcion?: string
-  fase_juego?: string
-  principio_tactico?: string
-  duracion_total?: number
-  num_jugadores_min?: number
-  num_jugadores_max?: number
-  objetivo_fisico?: string
-  nivel_cognitivo?: number
-  match_days_recomendados?: string[]
-  created_at: string
-  equipo_id: string
-  creado_por?: string
-  grafico_url?: string
-  categorias_tarea?: { codigo: string; nombre: string; color?: string }
-}
-
-export interface ClubSesion {
-  id: string
-  titulo: string
-  fecha: string
-  match_day?: string
-  duracion_total?: number
-  equipo_id: string
-  creado_por?: string
-  estado?: string
-  objetivo_principal?: string
-  fase_juego_principal?: string
-  principio_tactico_principal?: string
-  rival?: string
-  competicion?: string
-}
-
-export interface CategoriaTarea {
-  id: string
-  codigo: string
-  nombre: string
-  nombre_corto?: string
-  color?: string
-  naturaleza?: string
-  orden: number
-}
-
-export interface CoachActivity {
-  id: string
-  nombre: string
-  rol: string
-  sesiones_creadas: number
-  last_login?: string
-}
-
-export interface TeamAnalytics {
-  equipo_id: string
-  equipo_nombre: string
-  sesiones: number
-  tareas: number
-}
-
-export interface AuditEntry {
-  id: string
-  usuario_id: string
-  accion: string
-  entidad_tipo: string
-  entidad_id?: string
-  severidad: string
-  created_at: string
-  datos_nuevos?: Record<string, unknown>
-  datos_anteriores?: Record<string, unknown>
-}
+export type {
+  ClubDashboard,
+  ClubEquipo,
+  ClubMiembro,
+  ClubTarea,
+  ClubSesion,
+  CategoriaTarea,
+  TeamAnalytics,
+  CoachActivity,
+  AuditEntry,
+  EquipoDetalle,
+  EquipoStaffMember,
+  ClubJugador,
+} from '@/lib/api/clubAdmin'
 
 export const CLUB_ROLES = [
   { value: 'administrador_club', label: 'Administrador del Club' },
