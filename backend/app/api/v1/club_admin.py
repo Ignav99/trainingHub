@@ -472,7 +472,7 @@ async def club_unlink_staff_from_equipo(
 
     log_action(
         usuario_id=str(user.id),
-        accion="staff_desvinculado_equipo",
+        accion="eliminar",
         entidad_tipo="usuario_equipo",
         entidad_id=row.data[0]["id"],
         datos_anteriores={"equipo_id": equipo_id, "usuario_id": user_id},
