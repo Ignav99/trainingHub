@@ -36,7 +36,9 @@ import { CardGridSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
+import { FormGuide } from '@/components/player/FormGuide'
 import type { CargaEquipoResponse, CargaJugador } from '@/types'
+import type { JugadorResumenConvocatorias } from '@/lib/api/convocatorias'
 
 // Avatar del jugador
 function PlayerAvatar({ jugador, size = 'md' }: { jugador: Jugador; size?: 'sm' | 'md' | 'lg' }) {
@@ -121,6 +123,7 @@ function JugadorCard({
   onChangeEstado,
   isCrossTeam,
   cargaData,
+  resumen,
 }: {
   jugador: Jugador
   onEdit: () => void
@@ -128,62 +131,54 @@ function JugadorCard({
   onChangeEstado: () => void
   isCrossTeam?: boolean
   cargaData?: CargaJugador
+  resumen?: JugadorResumenConvocatorias
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const router = useRouter()
 
   const pos = POSICIONES[jugador.posicion_principal as keyof typeof POSICIONES]
   const isNoDisponible = jugador.estado !== 'activo'
+  const amarillas = resumen?.amarillas ?? cargaData?.tarjetas_amarillas ?? 0
+  const rojas = resumen?.rojas ?? cargaData?.tarjetas_rojas ?? 0
 
   return (
     <div
-      className={`relative card-interactive rounded-xl p-4 group ${
+      className={`relative card-interactive rounded-xl p-3.5 group border-t-4 ${
         isCrossTeam
           ? 'border-dashed border-gray-400 bg-gray-50/50'
           : jugador.es_invitado
           ? 'border-2 border-amber-400 bg-amber-50/30'
           : isNoDisponible ? 'border-gray-300 bg-gray-50' : 'hover:border-primary/30'
       }`}
+      style={!isCrossTeam && !jugador.es_invitado && !isNoDisponible ? { borderTopColor: pos?.color || '#6B7280' } : undefined}
       onClick={() => router.push(`/plantilla/${jugador.id}`)}
     >
-      {/* Indicador de capitan */}
       {jugador.es_capitan && (
-        <div className="absolute -top-2 -right-2 bg-amber-400 rounded-full p-1">
+        <div className="absolute -top-2 -right-2 bg-amber-400 rounded-full p-1 z-10">
           <Star className="h-4 w-4 text-white fill-white" />
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex items-start gap-3 mb-3">
-        <div className="relative">
-          <PlayerAvatar jugador={jugador} size="lg" />
+      {/* Header compacto */}
+      <div className="flex items-start gap-2.5 mb-2.5">
+        <div className="relative shrink-0">
+          <PlayerAvatar jugador={jugador} size="md" />
           {jugador.dorsal && (
-            <span className="absolute -bottom-1 -right-1 bg-gray-900 text-white text-xs font-bold px-1.5 py-0.5 rounded">
+            <span className="absolute -bottom-1 -right-1 bg-gray-900 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
               {jugador.dorsal}
             </span>
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className={`font-semibold truncate ${isNoDisponible ? 'text-gray-500' : 'text-gray-900'}`}>
+          <h3 className={`font-semibold text-sm truncate ${isNoDisponible ? 'text-gray-500' : 'text-gray-900'}`}>
             {jugador.apodo || `${jugador.nombre} ${jugador.apellidos}`}
           </h3>
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             <PosicionBadge posicion={jugador.posicion_principal} />
-            {pos && <span className="text-xs text-gray-500">{pos.nombre}</span>}
-            {jugador.es_invitado && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 border border-amber-300">
-                Invitado
-              </span>
-            )}
-            <PlayerStatusBadges
-              estado={jugador.estado}
-              nivelCarga={cargaData?.nivel_carga}
-              tarjetasAmarillas={cargaData?.tarjetas_amarillas}
-              tarjetasRojas={cargaData?.tarjetas_rojas}
-            />
-            {isCrossTeam && jugador.equipos && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-dashed border-gray-400 text-gray-600 bg-gray-100">
-                {jugador.equipos.nombre}
+            {(amarillas > 0 || rojas > 0) && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-gray-600">
+                {amarillas > 0 && <span className="inline-block w-2 h-2.5 bg-yellow-400 rounded-[1px]" />}
+                {rojas > 0 && <span className="inline-block w-2 h-2.5 bg-red-500 rounded-[1px]" />}
               </span>
             )}
           </div>
@@ -193,7 +188,7 @@ function JugadorCard({
             onClick={() => setMenuOpen(!menuOpen)}
             className="p-1 text-gray-400 hover:text-gray-600 rounded"
           >
-            <MoreHorizontal className="h-5 w-5" />
+            <MoreHorizontal className="h-4 w-4" />
           </button>
           {menuOpen && (
             <div className="absolute right-0 top-8 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
@@ -230,49 +225,64 @@ function JugadorCard({
         </div>
       </div>
 
-      {/* Estado si no disponible */}
-      {isNoDisponible && (
-        <div className="mb-3">
+      {/* Estado + badges de disponibilidad (solo si no está activo) */}
+      {isNoDisponible ? (
+        <div className="mb-2.5">
           <EstadoBadge estado={jugador.estado} />
           {jugador.motivo_baja && (
-            <p className="text-xs text-gray-500 mt-1">{jugador.motivo_baja}</p>
-          )}
-          {jugador.fecha_vuelta_estimada && (
-            <p className="text-xs text-gray-400 mt-0.5">
-              Vuelta: {new Date(jugador.fecha_vuelta_estimada).toLocaleDateString('es-ES')}
-            </p>
+            <p className="text-[11px] text-gray-500 mt-1 truncate">{jugador.motivo_baja}</p>
           )}
         </div>
+      ) : (
+        <PlayerStatusBadges
+          estado={jugador.estado}
+          nivelCarga={cargaData?.nivel_carga}
+          tarjetasAmarillas={0}
+          tarjetasRojas={0}
+        />
       )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-2 text-center">
-        <div>
-          <div className="text-lg font-bold text-gray-900">{jugador.nivel_tecnico}</div>
-          <div className="text-xs text-gray-500">TEC</div>
+      {/* Resumen de rendimiento */}
+      <div className="flex items-center justify-between py-2 border-t border-gray-100 text-xs">
+        <div className="flex items-center gap-3">
+          <div>
+            <span className="font-semibold text-gray-900">{resumen?.minutos_totales ?? 0}</span>
+            <span className="text-gray-500 ml-1">min</span>
+          </div>
+          {(resumen?.goles ?? 0) > 0 && (
+            <div>
+              <span className="font-semibold text-gray-900">{resumen?.goles}</span>
+              <span className="text-gray-500 ml-1">G</span>
+            </div>
+          )}
+          {(resumen?.asistencias ?? 0) > 0 && (
+            <div>
+              <span className="font-semibold text-gray-900">{resumen?.asistencias}</span>
+              <span className="text-gray-500 ml-1">A</span>
+            </div>
+          )}
         </div>
-        <div>
-          <div className="text-lg font-bold text-gray-900">{jugador.nivel_tactico}</div>
-          <div className="text-xs text-gray-500">TAC</div>
-        </div>
-        <div>
-          <div className="text-lg font-bold text-gray-900">{jugador.nivel_fisico}</div>
-          <div className="text-xs text-gray-500">FIS</div>
-        </div>
-        <div>
-          <div className="text-lg font-bold text-gray-900">{jugador.nivel_mental}</div>
-          <div className="text-xs text-gray-500">MEN</div>
-        </div>
+        <FormGuide racha={resumen?.racha ?? []} />
       </div>
 
-      {/* Footer info */}
-      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500">
-        {jugador.edad && <span>{jugador.edad} años</span>}
-        {jugador.nivel_global && (
-          <span className="font-medium text-primary">
-            Media: {jugador.nivel_global}
-          </span>
-        )}
+      {/* Niveles */}
+      <div className="grid grid-cols-4 gap-1.5 text-center pt-1">
+        <div>
+          <div className="text-sm font-bold text-gray-900">{jugador.nivel_tecnico}</div>
+          <div className="text-[10px] text-gray-500">TEC</div>
+        </div>
+        <div>
+          <div className="text-sm font-bold text-gray-900">{jugador.nivel_tactico}</div>
+          <div className="text-[10px] text-gray-500">TAC</div>
+        </div>
+        <div>
+          <div className="text-sm font-bold text-gray-900">{jugador.nivel_fisico}</div>
+          <div className="text-[10px] text-gray-500">FIS</div>
+        </div>
+        <div>
+          <div className="text-sm font-bold text-gray-900">{jugador.nivel_mental}</div>
+          <div className="text-[10px] text-gray-500">MEN</div>
+        </div>
       </div>
     </div>
   )
