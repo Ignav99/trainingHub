@@ -134,10 +134,17 @@ export default function DashboardLayout({
     if (!isLoading && isAuthenticated && user?.rol === 'superadmin_plataforma') {
       router.replace('/admin')
     }
+    // Club admin/coordinator manage the whole club (all teams, staff, roles,
+    // invites) from /gestion — never the single-team operational dashboard.
+    if (!isLoading && isAuthenticated && (user?.rol === 'administrador_club' || user?.rol === 'coordinador_club')) {
+      router.replace('/gestion')
+    }
   }, [isLoading, isAuthenticated, user, router])
 
+  const isClubOnlyRole = user?.rol === 'superadmin_plataforma' || user?.rol === 'administrador_club' || user?.rol === 'coordinador_club'
+
   useEffect(() => {
-    if (isAuthenticated && user?.rol !== 'superadmin_plataforma') {
+    if (isAuthenticated && !isClubOnlyRole) {
       loadEquipos()
     }
   }, [isAuthenticated, user, loadEquipos])

@@ -27,7 +27,13 @@ export default function LoginPage() {
 
     if (result.success) {
       const loggedInUser = useAuthStore.getState().user
-      window.location.href = loggedInUser?.rol === 'superadmin_plataforma' ? '/admin' : '/'
+      const rol = loggedInUser?.rol
+      window.location.href =
+        rol === 'superadmin_plataforma'
+          ? '/admin'
+          : rol === 'administrador_club' || rol === 'coordinador_club'
+          ? '/gestion'
+          : '/'
     } else {
       setError(result.error || 'Credenciales inválidas. Por favor, inténtalo de nuevo.')
     }
