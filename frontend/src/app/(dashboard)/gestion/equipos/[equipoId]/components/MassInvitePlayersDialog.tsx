@@ -4,19 +4,17 @@ import { useState } from 'react'
 import { Loader2, X, Copy, Check, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { clubAdminApi, type BatchInviteResult } from '@/lib/api/clubAdmin'
-import type { ClubEquipo } from './types'
 
 interface Props {
-  equipos: ClubEquipo[]
+  equipoId: string
   open: boolean
   onClose: () => void
 }
 
 type Step = 'input' | 'preview' | 'result'
 
-export default function MassInviteDialog({ equipos, open, onClose }: Props) {
+export default function MassInvitePlayersDialog({ equipoId, open, onClose }: Props) {
   const [step, setStep] = useState<Step>('input')
-  const [equipoId, setEquipoId] = useState(equipos[0]?.id || '')
   const [rawText, setRawText] = useState('')
   const [parsedNames, setParsedNames] = useState<string[]>([])
   const [sending, setSending] = useState(false)
@@ -98,16 +96,6 @@ export default function MassInviteDialog({ equipos, open, onClose }: Props) {
           {step === 'input' && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Equipo</label>
-                <select
-                  value={equipoId}
-                  onChange={(e) => setEquipoId(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                >
-                  {equipos.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
-                </select>
-              </div>
-              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Nombres de jugadores (uno por linea)
                 </label>
@@ -181,7 +169,7 @@ export default function MassInviteDialog({ equipos, open, onClose }: Props) {
               </button>
               <button
                 onClick={handleParse}
-                disabled={!rawText.trim() || !equipoId}
+                disabled={!rawText.trim()}
                 className="px-4 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
               >
                 Siguiente

@@ -6,6 +6,7 @@ import useSWR from 'swr'
 import { ArrowLeft, LayoutDashboard, Users, UserCog, ClipboardList, Calendar, Loader2 } from 'lucide-react'
 import type { EquipoDetalle } from '@/lib/api/clubAdmin'
 import ResumenTab from './components/ResumenTab'
+import PlantillaTab from './components/PlantillaTab'
 import EquipoStaffTab from './components/EquipoStaffTab'
 import EquipoTareasTab from './components/EquipoTareasTab'
 import EquipoSesionesTab from './components/EquipoSesionesTab'
@@ -87,11 +88,7 @@ export default function EquipoDetallePage() {
 
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
         {activeSubTab === 'resumen' && <ResumenTab equipo={equipo} onUpdated={() => mutate()} />}
-        {activeSubTab === 'plantilla' && (
-          <div className="bg-white rounded-xl border p-10 text-center text-muted-foreground">
-            Próximamente
-          </div>
-        )}
+        {activeSubTab === 'plantilla' && <PlantillaTab equipoId={equipoId} />}
         {activeSubTab === 'staff' && <EquipoStaffTab equipoId={equipoId} />}
         {activeSubTab === 'tareas' && <EquipoTareasTab equipoId={equipoId} />}
         {activeSubTab === 'sesiones' && <EquipoSesionesTab equipoId={equipoId} />}
