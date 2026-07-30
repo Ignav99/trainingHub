@@ -128,10 +128,19 @@ export default function DashboardLayout({
   }, [isLoading, isAuthenticated, router])
 
   useEffect(() => {
-    if (isAuthenticated) {
+    // Platform superadmin has no club — never show it the regular club
+    // dashboard (which would otherwise try to load/display a stale or
+    // arbitrary team). Send it to its own control panel instead.
+    if (!isLoading && isAuthenticated && user?.rol === 'superadmin_plataforma') {
+      router.replace('/admin')
+    }
+  }, [isLoading, isAuthenticated, user, router])
+
+  useEffect(() => {
+    if (isAuthenticated && user?.rol !== 'superadmin_plataforma') {
       loadEquipos()
     }
-  }, [isAuthenticated, loadEquipos])
+  }, [isAuthenticated, user, loadEquipos])
 
   useEffect(() => {
     if (isAuthenticated && !isOnboardingComplete && pathname !== '/onboarding') {

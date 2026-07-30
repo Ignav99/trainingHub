@@ -26,7 +26,8 @@ export default function LoginPage() {
     const result = await login(formData.email, formData.password)
 
     if (result.success) {
-      window.location.href = '/'
+      const loggedInUser = useAuthStore.getState().user
+      window.location.href = loggedInUser?.rol === 'superadmin_plataforma' ? '/admin' : '/'
     } else {
       setError(result.error || 'Credenciales inválidas. Por favor, inténtalo de nuevo.')
     }

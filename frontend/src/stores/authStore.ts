@@ -192,6 +192,13 @@ export const useAuthStore = create<AuthState>()(
           accessToken: null,
           isAuthenticated: false,
         })
+        // Clear other persisted stores keyed to the previous account —
+        // otherwise the next login in this browser (e.g. superadmin, or a
+        // different club's admin) reuses the last selected club/team.
+        if (typeof window !== 'undefined') {
+          window.localStorage.removeItem('equipo-storage')
+          window.localStorage.removeItem('traininghub-club')
+        }
       },
 
       setUser: (user) => set({ user, isAuthenticated: !!user }),
