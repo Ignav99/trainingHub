@@ -11,6 +11,8 @@ from app.models import (
     EquipoUpdate,
     EquipoResponse,
     EquipoListResponse,
+    NuevaTemporadaRequest,
+    NuevaTemporadaResponse,
 )
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
@@ -89,3 +91,80 @@ async def delete_equipo(equipo_id: UUID, auth: AuthContext = Depends(require_per
         "organizacion_id", auth.organizacion_id
     ).execute()
     return None
+
+
+@router.post("/{equipo_id}/nueva-temporada", response_model=NuevaTemporadaResponse, status_code=status.HTTP_201_CREATED)
+async def nueva_temporada(
+    equipo_id: UUID,
+    data: NuevaTemporadaRequest,
+    auth: AuthContext = Depends(require_permission(Permission.CONFIG_TEAM, equipo_id_param="equipo_id")),
+):
+    """
+    Crea la siguiente temporada de un equipo existente.
+
+    No reutiliza el equipo_id: crea un equipo nuevo (mismo club, misma
+    categoria/sistema/config), lo enlaza al anterior via temporada_anterior_id,
+    y reasigna a el (jugadores.equipo_id) solo a los jugadores indicados en
+    jugadores_continuan -- conservando intacto todo su historial (convocatorias,
+    cargas, RPE, fichas medicas), porque nada se borra ni se duplica: solo se
+    mueve el puntero de equipo del jugador que sigue.
+    El equipo anterior queda desactivado (activo=false) pero consultable.
+    """
+    supabase = get_supabase()
+
+    anterior = (
+        supabase.table("equipos")
+        .select("*")
+        .eq("id", str(equipo_id))
+        .eq("organizacion_id", auth.organizacion_id)
+        .maybe_single()
+        .execute()
+    )
+    if not anterior or not anterior.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Equipo no encontrado")
+
+    allowed, msg = LicenseChecker.check_team_limit(auth.organizacion_id)
+    if not allowed:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg)
+
+    old = anterior.data
+
+    nuevo_data = {
+        "organizacion_id": auth.organizacion_id,
+        "nombre": data.nombre or old["nombre"],
+        "categoria": old.get("categoria"),
+        "temporada": data.temporada,
+        "num_jugadores_plantilla": old.get("num_jugadores_plantilla", 22),
+        "sistema_juego": old.get("sistema_juego", "1-4-3-3"),
+        "config": old.get("config") or {},
+        "temporada_anterior_id": str(equipo_id),
+    }
+    nuevo_result = supabase.table("equipos").insert(nuevo_data).execute()
+    if not nuevo_result.data:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error al crear la nueva temporada")
+    nuevo = nuevo_result.data[0]
+
+    jugadores_movidos = 0
+    if data.jugadores_continuan:
+        ids = [str(jid) for jid in data.jugadores_continuan]
+        # Validar que los jugadores pertenecen realmente al equipo anterior
+        # antes de reasignarlos, para no mover jugadores de otro equipo/club.
+        propios = (
+            supabase.table("jugadores")
+            .select("id")
+            .eq("equipo_id", str(equipo_id))
+            .in_("id", ids)
+            .execute()
+        )
+        ids_validos = [j["id"] for j in (propios.data or [])]
+        if ids_validos:
+            supabase.table("jugadores").update({"equipo_id": nuevo["id"]}).in_("id", ids_validos).execute()
+            jugadores_movidos = len(ids_validos)
+
+    supabase.table("equipos").update({"activo": False}).eq("id", str(equipo_id)).execute()
+
+    return NuevaTemporadaResponse(
+        equipo_anterior_id=equipo_id,
+        equipo_nuevo=EquipoResponse(**nuevo),
+        jugadores_movidos=jugadores_movidos,
+    )

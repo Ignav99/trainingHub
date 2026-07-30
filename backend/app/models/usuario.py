@@ -123,6 +123,7 @@ class EquipoResponse(EquipoBase):
     id: UUID
     organizacion_id: UUID
     activo: bool
+    temporada_anterior_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
 
@@ -132,6 +133,19 @@ class EquipoResponse(EquipoBase):
 
     class Config:
         from_attributes = True
+
+
+class NuevaTemporadaRequest(BaseModel):
+    """Crea la siguiente temporada de un equipo existente."""
+    temporada: str = Field(..., min_length=2, max_length=20)
+    nombre: Optional[str] = None
+    jugadores_continuan: List[UUID] = Field(default_factory=list)
+
+
+class NuevaTemporadaResponse(BaseModel):
+    equipo_anterior_id: UUID
+    equipo_nuevo: EquipoResponse
+    jugadores_movidos: int
 
 
 class EquipoListResponse(BaseModel):

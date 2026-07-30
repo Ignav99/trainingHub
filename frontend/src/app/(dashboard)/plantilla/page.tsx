@@ -27,9 +27,11 @@ import {
   UserCog,
   ChevronDown,
   ArrowUpCircle,
+  CalendarPlus,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Jugador, jugadoresApi, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
+import { equiposApi } from '@/lib/api/equipos'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { apiKey } from '@/lib/swr'
 import { CardGridSkeleton } from '@/components/ui/page-skeletons'
@@ -405,6 +407,121 @@ function EstadoModal({
   )
 }
 
+// Modal de nueva temporada
+function NuevaTemporadaModal({
+  equipoNombre,
+  jugadoresPlantilla,
+  onClose,
+  onConfirm,
+}: {
+  equipoNombre: string
+  jugadoresPlantilla: Jugador[]
+  onClose: () => void
+  onConfirm: (temporada: string, jugadoresContinuan: string[]) => Promise<void>
+}) {
+  const [temporada, setTemporada] = useState('')
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(
+    () => new Set(jugadoresPlantilla.map((j) => j.id))
+  )
+  const [saving, setSaving] = useState(false)
+
+  const toggle = (id: string) => {
+    setSeleccionados((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const handleConfirm = async () => {
+    if (!temporada.trim()) return
+    setSaving(true)
+    try {
+      await onConfirm(temporada.trim(), Array.from(seleccionados))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-lg font-semibold mb-1">Nueva temporada de {equipoNombre}</h3>
+        <p className="text-sm text-gray-500 mb-4">
+          Se crea un equipo nuevo para la temporada indicada. Los jugadores que marques como
+          &ldquo;continúan&rdquo; se mueven al equipo nuevo con toda su ficha e historial intactos;
+          el resto se queda en el equipo de esta temporada, que pasa a quedar archivado.
+        </p>
+
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Temporada nueva</label>
+          <input
+            type="text"
+            value={temporada}
+            onChange={(e) => setTemporada(e.target.value)}
+            placeholder="Ej: 2026/2027"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+            autoFocus
+          />
+        </div>
+
+        <div className="mb-2 flex items-center justify-between">
+          <label className="block text-sm font-medium text-gray-700">
+            Jugadores que continúan ({seleccionados.size}/{jugadoresPlantilla.length})
+          </label>
+          <button
+            type="button"
+            onClick={() =>
+              setSeleccionados(
+                seleccionados.size === jugadoresPlantilla.length
+                  ? new Set()
+                  : new Set(jugadoresPlantilla.map((j) => j.id))
+              )
+            }
+            className="text-xs text-primary hover:underline"
+          >
+            {seleccionados.size === jugadoresPlantilla.length ? 'Ninguno' : 'Todos'}
+          </button>
+        </div>
+
+        <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 mb-6">
+          {jugadoresPlantilla.length === 0 && (
+            <p className="text-sm text-gray-500 p-3">Este equipo no tiene jugadores en plantilla.</p>
+          )}
+          {jugadoresPlantilla.map((j) => (
+            <label key={j.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50">
+              <input
+                type="checkbox"
+                checked={seleccionados.has(j.id)}
+                onChange={() => toggle(j.id)}
+                className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <span className="text-sm text-gray-900">
+                {j.apodo || `${j.nombre} ${j.apellidos}`}
+              </span>
+            </label>
+          ))}
+        </div>
+
+        <div className="flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">
+            Cancelar
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={saving || !temporada.trim()}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
+          >
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            Crear nueva temporada
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function PlantillaPage() {
   const router = useRouter()
   const { equipos, equipoActivo, setEquipoActivo, loadEquipos, isLoading: equiposLoading } = useEquipoStore()
@@ -417,6 +534,7 @@ export default function PlantillaPage() {
 
   // Modal estado
   const [estadoModal, setEstadoModal] = useState<Jugador | null>(null)
+  const [showNuevaTemporada, setShowNuevaTemporada] = useState(false)
 
   // Cargar equipos al montar
   useEffect(() => {
@@ -489,6 +607,9 @@ export default function PlantillaPage() {
     [jugadores, tipoTab, busquedaLower]
   )
 
+  // Plantilla oficial completa, independiente de la pestaña activa (para el modal de nueva temporada)
+  const plantillaOficial = useMemo(() => jugadores.filter((j) => isPlantilla(j)), [jugadores])
+
   // Calcular stats derivados de los datos (siempre sobre plantilla oficial)
   const stats = useMemo(() => {
     if (jugadores.length === 0 && !jugadoresResponse) return null
@@ -551,6 +672,22 @@ export default function PlantillaPage() {
       setTipoTab('plantilla')
     } catch (err: any) {
       toast.error(err?.message || 'Error al promover')
+    }
+  }
+
+  const handleNuevaTemporada = async (temporada: string, jugadoresContinuan: string[]) => {
+    if (!equipoActivo) return
+    try {
+      const result = await equiposApi.nuevaTemporada(equipoActivo.id, {
+        temporada,
+        jugadores_continuan: jugadoresContinuan,
+      })
+      setShowNuevaTemporada(false)
+      toast.success(`Temporada ${temporada} creada — ${result.jugadores_movidos} jugador(es) continúan`)
+      await loadEquipos()
+      setEquipoActivo(result.equipo_nuevo)
+    } catch (err: any) {
+      toast.error(err?.message || 'Error al crear la nueva temporada')
     }
   }
 
@@ -631,6 +768,15 @@ export default function PlantillaPage() {
           }
           actions={
             <>
+              <button
+                type="button"
+                onClick={() => setShowNuevaTemporada(true)}
+                disabled={!equipoActivo}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                <CalendarPlus className="h-4 w-4" />
+                Nueva temporada
+              </button>
               <Link
                 href="/plantilla/invitados"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm font-medium text-amber-700 hover:bg-amber-100 transition-colors"
@@ -788,6 +934,15 @@ export default function PlantillaPage() {
           jugador={estadoModal}
           onClose={() => setEstadoModal(null)}
           onSave={handleChangeEstado}
+        />
+      )}
+
+      {showNuevaTemporada && equipoActivo && (
+        <NuevaTemporadaModal
+          equipoNombre={equipoActivo.nombre}
+          jugadoresPlantilla={plantillaOficial}
+          onClose={() => setShowNuevaTemporada(false)}
+          onConfirm={handleNuevaTemporada}
         />
       )}
     </div>

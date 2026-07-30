@@ -26,4 +26,11 @@ export const equiposApi = {
   async delete(id: string): Promise<void> {
     return api.delete(`/equipos/${id}`)
   },
+
+  async nuevaTemporada(
+    id: string,
+    data: { temporada: string; nombre?: string; jugadores_continuan: string[] }
+  ): Promise<{ equipo_anterior_id: string; equipo_nuevo: Equipo; jugadores_movidos: number }> {
+    return api.post(`/equipos/${id}/nueva-temporada`, data)
+  },
 }

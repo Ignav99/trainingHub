@@ -83,6 +83,7 @@ export interface Equipo {
   sistema_juego: string
   config: Record<string, any>
   activo: boolean
+  temporada_anterior_id?: string
   created_at: string
   updated_at: string
 }
