@@ -21,6 +21,7 @@ export default function NuevoJugadorPage() {
   const { equipos, equipoActivo, loadEquipos, isLoading } = useEquipoStore()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [equipoOrigenId, setEquipoOrigenId] = useState('')
 
   // Form state - debe estar antes de cualquier return condicional
   const [formData, setFormData] = useState({
@@ -106,6 +107,7 @@ export default function NuevoJugadorPage() {
     try {
       const jugadorData: JugadorCreate = {
         equipo_id: equipoActivo.id,
+        equipo_origen_id: equipoOrigenId || undefined,
         nombre: formData.nombre,
         apellidos: formData.apellidos,
         fecha_nacimiento: formData.fecha_nacimiento || undefined,
@@ -224,6 +226,31 @@ export default function NuevoJugadorPage() {
               />
             </div>
           </div>
+        </div>
+
+        {/* Categoría de origen */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Equipo / categoría de origen</h2>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Equipo de origen (opcional)
+          </label>
+          <select
+            value={equipoOrigenId}
+            onChange={(e) => setEquipoOrigenId(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+          >
+            <option value="">Ninguno (jugador de este equipo)</option>
+            {equipos
+              .filter((eq) => eq.id !== equipoActivo?.id)
+              .map((eq) => (
+                <option key={eq.id} value={eq.id}>
+                  {eq.nombre} {eq.categoria ? `(${eq.categoria})` : ''}
+                </option>
+              ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            Usalo para jugadores de categorías inferiores (Juvenil A, etc.) que suben a entrenar con este equipo.
+          </p>
         </div>
 
         {/* Posición */}
