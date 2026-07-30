@@ -41,6 +41,7 @@ export default function ResumenTab({ equipo, onUpdated }: ResumenTabProps) {
         nombre: formData.nombre.trim(),
         categoria: formData.categoria || undefined,
         temporada: formData.temporada || undefined,
+        sistema_juego: formData.sistema_juego || undefined,
       })
       toast.success('Equipo actualizado')
       setIsEditing(false)

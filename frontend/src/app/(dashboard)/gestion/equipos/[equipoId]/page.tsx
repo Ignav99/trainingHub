@@ -25,7 +25,21 @@ export default function EquipoDetallePage() {
   const equipoId = String(params.equipoId)
   const [activeSubTab, setActiveSubTab] = useState<SubTabId>('resumen')
 
-  const { data: equipo, isLoading, mutate } = useSWR<EquipoDetalle>(`/club/equipos/${equipoId}`)
+  const { data: equipo, error, isLoading, mutate } = useSWR<EquipoDetalle>(`/club/equipos/${equipoId}`)
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full py-20 gap-4">
+        <p className="text-sm text-muted-foreground">Equipo no encontrado</p>
+        <button
+          onClick={() => router.push('/gestion?tab=equipos')}
+          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" /> Volver a Equipos
+        </button>
+      </div>
+    )
+  }
 
   if (isLoading || !equipo) {
     return (

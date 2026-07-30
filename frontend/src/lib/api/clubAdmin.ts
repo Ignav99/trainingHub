@@ -206,7 +206,7 @@ export const clubAdminApi = {
   createEquipo: (data: { nombre: string; categoria?: string; temporada?: string }) =>
     api.post<ClubEquipo>('/club/equipos', data),
 
-  updateEquipo: (id: string, data: { nombre?: string; categoria?: string; temporada?: string }) =>
+  updateEquipo: (id: string, data: { nombre?: string; categoria?: string; temporada?: string; sistema_juego?: string }) =>
     api.patch<ClubEquipo>(`/club/equipos/${id}`, data),
 
   getEquipoDetalle: (equipoId: string) =>
