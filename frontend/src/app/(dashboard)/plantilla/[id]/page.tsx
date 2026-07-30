@@ -203,7 +203,8 @@ export default function JugadorDetailPage() {
 
     setUploadingPhoto(true)
     try {
-      await jugadoresApi.uploadPhoto(jugador.id, file)
+      const updated = await jugadoresApi.uploadPhoto(jugador.id, file)
+      mutate(`/jugadores/${jugador.id}`, updated, false)
       invalidateJugadores()
       toast.success('Foto actualizada')
     } catch (err: any) {
@@ -221,7 +222,8 @@ export default function JugadorDetailPage() {
 
     setUploadingPhoto(true)
     try {
-      await jugadoresApi.deletePhoto(jugador.id)
+      const updated = await jugadoresApi.deletePhoto(jugador.id)
+      mutate(`/jugadores/${jugador.id}`, updated, false)
       invalidateJugadores()
       toast.success('Foto eliminada')
     } catch (err: any) {

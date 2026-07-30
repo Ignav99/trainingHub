@@ -20,20 +20,34 @@ MAX_BYTES = 5 * 1024 * 1024
 
 
 def _ensure_bucket(supabase) -> None:
+    bucket_options = {
+        "public": True,
+        "file_size_limit": MAX_BYTES,
+        "allowed_mime_types": list(ALLOWED_MIME.keys()),
+    }
     try:
-        supabase.storage.get_bucket(PLAYER_PHOTOS_BUCKET)
+        bucket = supabase.storage.get_bucket(PLAYER_PHOTOS_BUCKET)
     except Exception:
         try:
-            supabase.storage.create_bucket(
-                PLAYER_PHOTOS_BUCKET,
-                options={
-                    "public": True,
-                    "file_size_limit": MAX_BYTES,
-                    "allowed_mime_types": list(ALLOWED_MIME.keys()),
-                },
-            )
+            supabase.storage.create_bucket(PLAYER_PHOTOS_BUCKET, options=bucket_options)
         except Exception as e:
             logger.warning("Could not create player-photos bucket (may exist): %s", e)
+        return
+
+    # Bucket already existed (e.g. from a prior iteration): force it public.
+    # A pre-existing private bucket would silently break photo display even
+    # though upload/DB update succeed, since the service role bypasses RLS.
+    is_public = getattr(bucket, "public", None)
+    if is_public is None and isinstance(bucket, dict):
+        is_public = bucket.get("public")
+    if is_public is not True:
+        try:
+            supabase.storage.update_bucket(PLAYER_PHOTOS_BUCKET, options=bucket_options)
+        except Exception as e:
+            logger.error(
+                "player-photos bucket exists but is not public and could not be updated: %s",
+                e,
+            )
 
 
 def validate_player_photo(content_type: Optional[str], content: bytes) -> str:
