@@ -7,8 +7,6 @@ import {
   LayoutDashboard,
   Trophy,
   Users,
-  ClipboardList,
-  Calendar,
   FileText,
   Loader2,
 } from 'lucide-react'
@@ -16,20 +14,14 @@ import { useAuthStore } from '@/stores/authStore'
 import { isClubAdminRole, isSuperadminRole } from '@/lib/roles'
 import ClubDashboardTab from './components/ClubDashboardTab'
 import TeamsTab from './components/TeamsTab'
-import StaffTab from './components/StaffTab'
-import TasksTab from './components/TasksTab'
-import SessionsTab from './components/SessionsTab'
-import MembersTab from './components/MembersTab'
+import JugadoresClubTab from './components/JugadoresClubTab'
 import AuditTab from './components/AuditTab'
 import MiCuentaTab from './components/MiCuentaTab'
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'equipos', label: 'Equipos', icon: Trophy },
-  { id: 'personal', label: 'Personal', icon: Users },
-  { id: 'tareas', label: 'Tareas', icon: ClipboardList },
-  { id: 'sesiones', label: 'Sesiones', icon: Calendar },
-  { id: 'miembros', label: 'Miembros', icon: Users },
+  { id: 'jugadores', label: 'Jugadores', icon: Users },
   { id: 'auditoria', label: 'Auditoria', icon: FileText },
   { id: 'mi-cuenta', label: 'Mi cuenta', icon: Crown },
 ] as const
@@ -111,10 +103,7 @@ export default function GestionPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {activeTab === 'dashboard' && <ClubDashboardTab />}
         {activeTab === 'equipos' && <TeamsTab />}
-        {activeTab === 'personal' && <StaffTab />}
-        {activeTab === 'tareas' && <TasksTab />}
-        {activeTab === 'sesiones' && <SessionsTab />}
-        {activeTab === 'miembros' && <MembersTab />}
+        {activeTab === 'jugadores' && <JugadoresClubTab />}
         {activeTab === 'auditoria' && <AuditTab />}
         {activeTab === 'mi-cuenta' && <MiCuentaTab />}
       </div>
