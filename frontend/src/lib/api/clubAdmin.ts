@@ -86,20 +86,24 @@ export interface CategoriaTarea {
   orden: number
 }
 
+export interface TeamAnalytics {
+  equipo_id: string
+  equipo_nombre: string
+  sesiones: number
+  tareas: number
+}
+
+export interface CoachActivity {
+  id: string
+  nombre: string
+  rol: string
+  sesiones_creadas: number
+  last_login?: string
+}
+
 export interface ClubAnalytics {
-  per_team: Array<{
-    equipo_id: string
-    equipo_nombre: string
-    sesiones: number
-    tareas: number
-  }>
-  coach_activity: Array<{
-    id: string
-    nombre: string
-    rol: string
-    sesiones_creadas: number
-    last_login?: string
-  }>
+  per_team: TeamAnalytics[]
+  coach_activity: CoachActivity[]
   periodo_meses: number
 }
 
@@ -113,6 +117,69 @@ export interface AuditEntry {
   created_at: string
   datos_nuevos?: Record<string, unknown>
   datos_anteriores?: Record<string, unknown>
+}
+
+// Detalle de equipo — GET /club/equipos/{id} devuelve EquipoDetalleResponse
+// (backend/app/models/usuario.py), que NO es un superset de ClubEquipo: le
+// faltan num_jugadores/total_sesiones/total_tareas y en cambio trae los
+// campos crudos de EquipoBase/EquipoResponse (num_jugadores_plantilla,
+// sistema_juego, config, num_sesiones, num_tareas, etc.).
+export interface EquipoDetalle {
+  id: string
+  organizacion_id: string
+  nombre: string
+  categoria?: string
+  temporada?: string
+  num_jugadores_plantilla: number
+  sistema_juego: string
+  config: Record<string, unknown>
+  activo: boolean
+  temporada_anterior_id?: string
+  created_at: string
+  updated_at: string
+  num_sesiones?: number
+  num_tareas?: number
+  num_staff: number
+  num_partidos: number
+  num_lesiones_activas: number
+}
+
+// Fila de staff de un equipo — GET /club/equipos/{id}/staff devuelve las
+// filas de usuarios_equipos con el usuario anidado bajo la clave `usuarios`
+// (no `usuario`), distinto del shape de ClubMiembro (que es la vista de
+// miembros a nivel organizacion en GET /club/miembros).
+export interface EquipoStaffMember {
+  id: string
+  usuario_id: string
+  equipo_id: string
+  rol_en_equipo: string
+  created_at: string
+  usuarios?: {
+    id: string
+    email: string
+    nombre: string
+    apellidos?: string
+    rol: string
+    activo: boolean
+  }
+}
+
+export interface ClubJugador {
+  id: string
+  nombre: string
+  apellidos: string
+  foto_url?: string
+  dorsal?: number
+  posicion_principal: string
+  fecha_nacimiento?: string
+  nivel_tecnico?: number
+  nivel_tactico?: number
+  nivel_fisico?: number
+  nivel_mental?: number
+  estado: string
+  tipo_jugador: string
+  equipo_id: string
+  equipos?: { id: string; nombre: string; categoria?: string }
 }
 
 export interface BatchInviteResult {
@@ -141,6 +208,19 @@ export const clubAdminApi = {
 
   updateEquipo: (id: string, data: { nombre?: string; categoria?: string; temporada?: string }) =>
     api.patch<ClubEquipo>(`/club/equipos/${id}`, data),
+
+  getEquipoDetalle: (equipoId: string) =>
+    api.get<EquipoDetalle>(`/club/equipos/${equipoId}`),
+
+  getEquipoStaff: (equipoId: string) =>
+    api.get<EquipoStaffMember[]>(`/club/equipos/${equipoId}/staff`),
+
+  unlinkStaffFromEquipo: (equipoId: string, userId: string) =>
+    api.delete(`/club/equipos/${equipoId}/staff/${userId}`),
+
+  // Jugadores (full org roster)
+  getClubJugadores: (params?: { equipo_id?: string; search?: string; page?: number; limit?: number }) =>
+    api.get<{ data: ClubJugador[]; total: number }>('/club/jugadores', { params }),
 
   // Miembros
   getMiembros: () =>
