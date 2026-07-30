@@ -44,6 +44,7 @@ import { InstallPrompt } from '@/components/ui/install-prompt'
 import { registerServiceWorker } from '@/lib/register-sw'
 import { isSaludPath } from '@/components/salud/SaludTabs'
 import { cn } from '@/lib/utils'
+import { isClubAdminRole, isSuperadminRole } from '@/lib/roles'
 import type { Equipo, Usuario } from '@/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -131,17 +132,17 @@ export default function DashboardLayout({
     // Platform superadmin has no club — never show it the regular club
     // dashboard (which would otherwise try to load/display a stale or
     // arbitrary team). Send it to its own control panel instead.
-    if (!isLoading && isAuthenticated && user?.rol === 'superadmin_plataforma') {
+    if (!isLoading && isAuthenticated && isSuperadminRole(user?.rol)) {
       router.replace('/admin')
     }
     // Club admin/coordinator manage the whole club (all teams, staff, roles,
     // invites) from /gestion — never the single-team operational dashboard.
-    if (!isLoading && isAuthenticated && (user?.rol === 'administrador_club' || user?.rol === 'coordinador_club')) {
+    if (!isLoading && isAuthenticated && isClubAdminRole(user?.rol)) {
       router.replace('/gestion')
     }
   }, [isLoading, isAuthenticated, user, router])
 
-  const isClubOnlyRole = user?.rol === 'superadmin_plataforma' || user?.rol === 'administrador_club' || user?.rol === 'coordinador_club'
+  const isClubOnlyRole = isSuperadminRole(user?.rol) || isClubAdminRole(user?.rol)
 
   useEffect(() => {
     if (isAuthenticated && !isClubOnlyRole) {
