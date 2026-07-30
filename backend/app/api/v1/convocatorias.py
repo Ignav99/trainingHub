@@ -18,6 +18,8 @@ from app.models import (
     ConvocatoriaListResponse,
     RendimientoNotaUpsert,
     RendimientoNotaResponse,
+    JugadorResumenConvocatorias,
+    ResumenEquipoConvocatoriasResponse,
 )
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
@@ -145,6 +147,64 @@ async def list_convocatorias_jugador(
     }
 
     return {"data": convocatorias, "estadisticas": stats}
+
+
+@router.get("/equipo/{equipo_id}/resumen", response_model=ResumenEquipoConvocatoriasResponse)
+async def resumen_convocatorias_equipo(
+    equipo_id: UUID,
+    limit_racha: int = Query(5, ge=1, le=10),
+    auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_READ, equipo_id_param="equipo_id")),
+):
+    """Resumen agregado (minutos, goles, tarjetas, racha) de todos los jugadores de un equipo en una sola query."""
+    supabase = get_supabase()
+
+    jugadores_res = supabase.table("jugadores").select("id").eq("equipo_id", str(equipo_id)).execute()
+    jugador_ids = [j["id"] for j in (jugadores_res.data or [])]
+    if not jugador_ids:
+        return ResumenEquipoConvocatoriasResponse(data=[])
+
+    response = supabase.table("convocatorias").select(
+        "jugador_id, titular, minutos_jugados, goles, asistencias, tarjeta_amarilla, tarjeta_roja, created_at, "
+        "partidos(fecha, resultado)"
+    ).in_("jugador_id", jugador_ids).order("created_at", desc=True).execute()
+
+    por_jugador: dict[str, list[dict]] = {}
+    for c in response.data:
+        por_jugador.setdefault(c["jugador_id"], []).append(c)
+
+    def _fecha_sort_key(c: dict) -> tuple:
+        fecha = (c.get("partidos") or {}).get("fecha")
+        return (fecha is not None, fecha or "")
+
+    resumenes = []
+    for jid in jugador_ids:
+        convocatorias = por_jugador.get(jid, [])
+        convocatorias_ordenadas = sorted(convocatorias, key=_fecha_sort_key, reverse=True)
+
+        racha = []
+        for c in convocatorias_ordenadas[:limit_racha]:
+            resultado = (c.get("partidos") or {}).get("resultado")
+            if resultado == "victoria":
+                racha.append("V")
+            elif resultado == "empate":
+                racha.append("E")
+            elif resultado == "derrota":
+                racha.append("D")
+        racha.reverse()  # más reciente al final
+
+        resumenes.append(JugadorResumenConvocatorias(
+            jugador_id=jid,
+            total_convocatorias=len(convocatorias),
+            titularidades=sum(1 for c in convocatorias if c.get("titular")),
+            minutos_totales=sum(c.get("minutos_jugados", 0) or 0 for c in convocatorias),
+            goles=sum(c.get("goles", 0) or 0 for c in convocatorias),
+            asistencias=sum(c.get("asistencias", 0) or 0 for c in convocatorias),
+            amarillas=sum(1 for c in convocatorias if c.get("tarjeta_amarilla")),
+            rojas=sum(1 for c in convocatorias if c.get("tarjeta_roja")),
+            racha=racha,
+        ))
+
+    return ResumenEquipoConvocatoriasResponse(data=resumenes)
 
 
 @router.get("/{convocatoria_id}", response_model=ConvocatoriaResponse)

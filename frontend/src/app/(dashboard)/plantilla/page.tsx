@@ -37,6 +37,8 @@ import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
+import { FormGuide } from '@/components/player/FormGuide'
+import { convocatoriasApi, type JugadorResumenConvocatorias } from '@/lib/api/convocatorias'
 import {
   FICHA_ESTADO_LABELS,
   TIPO_JUGADOR_COLORS,
@@ -97,6 +99,7 @@ function JugadorCard({
   onPromover,
   isCrossTeam,
   cargaData,
+  resumen,
 }: {
   jugador: Jugador
   onEdit: () => void
@@ -105,6 +108,7 @@ function JugadorCard({
   onPromover?: () => void
   isCrossTeam?: boolean
   cargaData?: CargaJugador
+  resumen?: JugadorResumenConvocatorias
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const router = useRouter()
@@ -114,6 +118,8 @@ function JugadorCard({
   const tipo = resolveTipoJugador(jugador)
   const ficha = resolveFichaEstado(jugador)
   const extraPlantilla = !isPlantilla(jugador)
+  const amarillas = resumen?.amarillas ?? cargaData?.tarjetas_amarillas
+  const rojas = resumen?.rojas ?? cargaData?.tarjetas_rojas
 
   return (
     <div
@@ -168,8 +174,8 @@ function JugadorCard({
               estado={jugador.estado}
               disponibilidad={jugador.disponibilidad}
               nivelCarga={cargaData?.nivel_carga}
-              tarjetasAmarillas={cargaData?.tarjetas_amarillas}
-              tarjetasRojas={cargaData?.tarjetas_rojas}
+              tarjetasAmarillas={amarillas}
+              tarjetasRojas={rojas}
             />
             {isCrossTeam && jugador.equipos && (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-dashed border-gray-400 text-gray-600 bg-gray-100">
@@ -243,6 +249,29 @@ function JugadorCard({
           )}
         </div>
       )}
+
+      {/* Resumen de rendimiento */}
+      <div className="flex items-center justify-between py-2 border-t border-gray-100 text-xs">
+        <div className="flex items-center gap-3">
+          <div>
+            <span className="font-semibold text-gray-900">{resumen?.minutos_totales ?? 0}</span>
+            <span className="text-gray-500 ml-1">min</span>
+          </div>
+          {(resumen?.goles ?? 0) > 0 && (
+            <div>
+              <span className="font-semibold text-gray-900">{resumen?.goles}</span>
+              <span className="text-gray-500 ml-1">G</span>
+            </div>
+          )}
+          {(resumen?.asistencias ?? 0) > 0 && (
+            <div>
+              <span className="font-semibold text-gray-900">{resumen?.asistencias}</span>
+              <span className="text-gray-500 ml-1">A</span>
+            </div>
+          )}
+        </div>
+        <FormGuide racha={resumen?.racha ?? []} />
+      </div>
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-2 text-center">
@@ -381,11 +410,8 @@ export default function PlantillaPage() {
   const { equipos, equipoActivo, setEquipoActivo, loadEquipos, isLoading: equiposLoading } = useEquipoStore()
   const [equipoDropdownOpen, setEquipoDropdownOpen] = useState(false)
 
-  // Filtros
+  // Búsqueda instantánea (sin filtros de posición/estado — la plantilla es pequeña, no hace falta)
   const [busqueda, setBusqueda] = useState('')
-  const [busquedaActiva, setBusquedaActiva] = useState('')
-  const [posicionFilter, setPosicionFilter] = useState('')
-  const [estadoFilter, setEstadoFilter] = useState('')
   const [showAllTeams, setShowAllTeams] = useState(false)
   const [tipoTab, setTipoTab] = useState<TipoJugador>('plantilla')
 
@@ -403,9 +429,6 @@ export default function PlantillaPage() {
   const { data: jugadoresResponse, isLoading: loading, error: swrError } = useSWR<{ data: Jugador[]; total: number }>(
     apiKey('/jugadores', {
       equipo_id: equipoId,
-      posicion: posicionFilter || undefined,
-      estado: estadoFilter || undefined,
-      busqueda: busquedaActiva || undefined,
       organizacion_completa: showAllTeams || undefined,
     }, ['equipo_id'])
   )
@@ -424,6 +447,20 @@ export default function PlantillaPage() {
     return map
   }, [cargaResponse])
 
+  // SWR para resumen de convocatorias (minutos, goles, tarjetas, racha)
+  const { data: resumenResponse } = useSWR<{ data: JugadorResumenConvocatorias[] }>(
+    equipoId ? `/convocatorias/equipo/${equipoId}/resumen` : null,
+    () => convocatoriasApi.resumenEquipo(equipoId!)
+  )
+
+  const resumenMap = useMemo(() => {
+    const map: Record<string, JugadorResumenConvocatorias> = {}
+    for (const r of resumenResponse?.data || []) {
+      map[r.jugador_id] = r
+    }
+    return map
+  }, [resumenResponse])
+
   const jugadores = jugadoresResponse?.data || []
   const error = swrError ? 'Error al cargar la plantilla' : null
 
@@ -435,9 +472,21 @@ export default function PlantillaPage() {
     return counts
   }, [jugadores])
 
+  const busquedaLower = busqueda.trim().toLowerCase()
+
   const jugadoresTab = useMemo(
-    () => jugadores.filter((j) => resolveTipoJugador(j) === tipoTab),
-    [jugadores, tipoTab]
+    () =>
+      jugadores
+        .filter((j) => resolveTipoJugador(j) === tipoTab)
+        .filter((j) => !busquedaLower || `${j.nombre} ${j.apellidos} ${j.apodo || ''}`.toLowerCase().includes(busquedaLower))
+        .sort((a, b) => {
+          const zonaA = POSICIONES[a.posicion_principal as keyof typeof POSICIONES]?.zona || ''
+          const zonaB = POSICIONES[b.posicion_principal as keyof typeof POSICIONES]?.zona || ''
+          const ordenZona = ['porteria', 'defensa', 'mediocampo', 'ataque']
+          const diff = ordenZona.indexOf(zonaA) - ordenZona.indexOf(zonaB)
+          return diff !== 0 ? diff : a.apellidos.localeCompare(b.apellidos)
+        }),
+    [jugadores, tipoTab, busquedaLower]
   )
 
   // Calcular stats derivados de los datos (siempre sobre plantilla oficial)
@@ -461,11 +510,6 @@ export default function PlantillaPage() {
       porZona,
     }
   }, [jugadores, jugadoresResponse])
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    setBusquedaActiva(busqueda)
-  }
 
   const invalidateJugadores = () => {
     mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'), undefined, { revalidate: true })
@@ -510,42 +554,12 @@ export default function PlantillaPage() {
     }
   }
 
-  const clearFilters = () => {
-    setBusqueda('')
-    setBusquedaActiva('')
-    setPosicionFilter('')
-    setEstadoFilter('')
-  }
-
-  const hasActiveFilters = posicionFilter || estadoFilter
-
-  const jugadoresPorZona = {
-    porteria: jugadoresTab.filter((j) => POSICIONES[j.posicion_principal as keyof typeof POSICIONES]?.zona === 'porteria'),
-    defensa: jugadoresTab.filter((j) => POSICIONES[j.posicion_principal as keyof typeof POSICIONES]?.zona === 'defensa'),
-    mediocampo: jugadoresTab.filter((j) => POSICIONES[j.posicion_principal as keyof typeof POSICIONES]?.zona === 'mediocampo'),
-    ataque: jugadoresTab.filter((j) => POSICIONES[j.posicion_principal as keyof typeof POSICIONES]?.zona === 'ataque'),
-  }
-
   const TIPO_TABS: { id: TipoJugador; label: string }[] = [
     { id: 'plantilla', label: 'Plantilla' },
     { id: 'juvenil', label: 'Juveniles' },
     { id: 'prueba', label: 'Pruebas' },
     { id: 'invitado', label: 'Invitados' },
   ]
-
-  const zonaLabels = {
-    porteria: 'Porteros',
-    defensa: 'Defensas',
-    mediocampo: 'Mediocampistas',
-    ataque: 'Atacantes',
-  }
-
-  const zonaColors = {
-    porteria: 'border-amber-500',
-    defensa: 'border-blue-500',
-    mediocampo: 'border-green-500',
-    ataque: 'border-red-500',
-  }
 
   // Si no hay equipos cargados, mostrar loading o error
   if (equiposLoading) {
@@ -687,76 +701,28 @@ export default function PlantillaPage() {
         </div>
       )}
 
-      {/* Filtros */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <form onSubmit={handleSearch} className="space-y-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar por nombre..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-              />
-            </div>
-
-            <select
-              value={posicionFilter}
-              onChange={(e) => setPosicionFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
-            >
-              <option value="">Todas las posiciones</option>
-              {Object.entries(POSICIONES).map(([code, pos]) => (
-                <option key={code} value={code}>
-                  {code} - {pos.nombre}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={estadoFilter}
-              onChange={(e) => setEstadoFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
-            >
-              <option value="">Todos los estados</option>
-              {Object.entries(ESTADOS_JUGADOR).map(([value, config]) => (
-                <option key={value} value={value}>
-                  {config.nombre}
-                </option>
-              ))}
-            </select>
-
-            <button
-              type="submit"
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-            >
-              Buscar
-            </button>
-
-            {hasActiveFilters && (
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="px-3 py-2 text-gray-500 hover:text-gray-700"
-              >
-                Limpiar
-              </button>
-            )}
-          </div>
-          {/* Toggle todas las categorías */}
-          <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={() => setShowAllTeams(!showAllTeams)}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${showAllTeams ? 'bg-primary' : 'bg-gray-300'}`}
-            >
-              <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${showAllTeams ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} />
-            </button>
-            <span className="text-sm text-gray-600">Mostrar todas las categorías</span>
-          </div>
-        </form>
+      {/* Búsqueda instantánea + toggle de categorías */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar jugador..."
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowAllTeams(!showAllTeams)}
+          className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+            showAllTeams ? 'bg-primary/10 border-primary/30 text-primary' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          <Users className="h-4 w-4" />
+          Todas las categorías
+        </button>
       </div>
 
       {/* Lista de jugadores */}
@@ -780,14 +746,14 @@ export default function PlantillaPage() {
           icon={<Users className="h-12 w-12" />}
           title={`No hay ${TIPO_JUGADOR_LABELS[tipoTab].toLowerCase()}s`}
           description={
-            hasActiveFilters
-              ? 'No se encontraron jugadores con los filtros aplicados'
+            busquedaLower
+              ? 'No se encontraron jugadores con ese nombre'
               : tipoTab === 'plantilla'
               ? 'Comienza agregando jugadores a tu plantilla'
               : `Añade ${TIPO_JUGADOR_LABELS[tipoTab].toLowerCase()}s desde Alta rápida o Nuevo jugador`
           }
           action={
-            !hasActiveFilters ? (
+            !busquedaLower ? (
               <Link
                 href={tipoTab === 'plantilla' ? '/plantilla/nuevo' : '/plantilla/invitados'}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90"
@@ -799,32 +765,20 @@ export default function PlantillaPage() {
           }
         />
       ) : (
-        <div className="space-y-8 animate-fade-in">
-          {Object.entries(jugadoresPorZona).map(([zona, jugadoresZona]) => {
-            if (jugadoresZona.length === 0) return null
-
-            return (
-              <div key={zona}>
-                <h2 className={`text-lg font-semibold text-gray-900 mb-4 pb-2 border-b-2 ${zonaColors[zona as keyof typeof zonaColors]}`}>
-                  {zonaLabels[zona as keyof typeof zonaLabels]} ({jugadoresZona.length})
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {jugadoresZona.map((jugador) => (
-                    <JugadorCard
-                      key={jugador.id}
-                      jugador={jugador}
-                      onEdit={() => router.push(`/plantilla/${jugador.id}?edit=true`)}
-                      onDelete={() => handleDelete(jugador.id)}
-                      onChangeEstado={() => setEstadoModal(jugador)}
-                      onPromover={!isPlantilla(jugador) ? () => handlePromover(jugador) : undefined}
-                      isCrossTeam={showAllTeams && jugador.equipo_id !== equipoActivo?.id}
-                      cargaData={cargaMap[jugador.id]}
-                    />
-                  ))}
-                </div>
-              </div>
-            )
-          })}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 animate-fade-in">
+          {jugadoresTab.map((jugador) => (
+            <JugadorCard
+              key={jugador.id}
+              jugador={jugador}
+              onEdit={() => router.push(`/plantilla/${jugador.id}?edit=true`)}
+              onDelete={() => handleDelete(jugador.id)}
+              onChangeEstado={() => setEstadoModal(jugador)}
+              onPromover={!isPlantilla(jugador) ? () => handlePromover(jugador) : undefined}
+              isCrossTeam={showAllTeams && jugador.equipo_id !== equipoActivo?.id}
+              cargaData={cargaMap[jugador.id]}
+              resumen={resumenMap[jugador.id]}
+            />
+          ))}
         </div>
       )}
 
