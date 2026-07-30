@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from app.database import get_supabase
 from app.dependencies import get_current_user
 from app.models import UsuarioResponse
+from app.models.usuario import EquipoDetalleResponse, UsuarioEquipoResponse
 from app.services.audit_service import log_action
 
 router = APIRouter()
@@ -354,6 +355,56 @@ async def club_update_equipo(
     )
 
     return result.data[0] if result.data else {"ok": True}
+
+
+@router.get("/equipos/{equipo_id}", response_model=EquipoDetalleResponse)
+async def club_get_equipo_detalle(
+    equipo_id: str,
+    user: UsuarioResponse = Depends(require_club_admin),
+):
+    """Detalle de un equipo de la org con contadores agregados."""
+    supabase = get_supabase()
+    org_id = str(user.organizacion_id)
+
+    team = (
+        supabase.table("equipos")
+        .select("*")
+        .eq("id", equipo_id)
+        .eq("organizacion_id", org_id)
+        .maybe_single()
+        .execute()
+    )
+    if not team or not team.data:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado en tu organizacion")
+    equipo = team.data
+
+    num_staff = (
+        supabase.table("usuarios_equipos")
+        .select("id", count="exact")
+        .eq("equipo_id", equipo_id)
+        .execute()
+    )
+    num_partidos = (
+        supabase.table("partidos")
+        .select("id", count="exact")
+        .eq("equipo_id", equipo_id)
+        .execute()
+    )
+    num_lesiones = (
+        supabase.table("registros_medicos")
+        .select("id", count="exact")
+        .eq("tipo", "lesion")
+        .in_("estado", ["activo", "en_recuperacion"])
+        .eq("equipo_id", equipo_id)
+        .execute()
+    )
+
+    return EquipoDetalleResponse(
+        **equipo,
+        num_staff=num_staff.count or 0,
+        num_partidos=num_partidos.count or 0,
+        num_lesiones_activas=num_lesiones.count or 0,
+    )
 
 
 # ============ Miembros ============
