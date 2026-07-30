@@ -922,6 +922,53 @@ async def club_list_sesiones(
     return {"data": result.data or [], "total": result.count or 0}
 
 
+@router.get("/jugadores")
+async def club_list_jugadores(
+    equipo_id: Optional[str] = None,
+    search: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    user: UsuarioResponse = Depends(require_club_admin),
+):
+    """Base de jugadores de todos los equipos del club, con filtros y paginacion."""
+    supabase = get_supabase()
+    org_id = str(user.organizacion_id)
+
+    teams = (
+        supabase.table("equipos")
+        .select("id")
+        .eq("organizacion_id", org_id)
+        .execute()
+    )
+    team_ids = [t["id"] for t in (teams.data or [])]
+    if not team_ids:
+        return {"data": [], "total": 0}
+
+    query = (
+        supabase.table("jugadores")
+        .select(
+            "id, nombre, apellidos, foto_url, dorsal, posicion_principal, "
+            "fecha_nacimiento, nivel_tecnico, nivel_tactico, nivel_fisico, nivel_mental, "
+            "estado, tipo_jugador, equipo_id, equipos(id, nombre, categoria)",
+            count="exact",
+        )
+        .in_("equipo_id", team_ids)
+    )
+
+    if equipo_id:
+        if equipo_id not in team_ids:
+            raise HTTPException(status_code=403, detail="Equipo no pertenece a tu organizacion")
+        query = query.eq("equipo_id", equipo_id)
+    if search:
+        query = query.or_(f"nombre.ilike.%{search}%,apellidos.ilike.%{search}%")
+
+    offset = (page - 1) * limit
+    query = query.range(offset, offset + limit - 1)
+    result = query.execute()
+
+    return {"data": result.data or [], "total": result.count or 0}
+
+
 # ============ Analytics ============
 
 @router.get("/analytics")
