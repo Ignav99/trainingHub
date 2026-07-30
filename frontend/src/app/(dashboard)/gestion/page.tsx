@@ -20,6 +20,7 @@ import TasksTab from './components/TasksTab'
 import SessionsTab from './components/SessionsTab'
 import MembersTab from './components/MembersTab'
 import AuditTab from './components/AuditTab'
+import MiCuentaTab from './components/MiCuentaTab'
 
 const CLUB_ADMIN_ROLES = [
   'administrador_club', 'coordinador_club',
@@ -34,6 +35,7 @@ const TABS = [
   { id: 'sesiones', label: 'Sesiones', icon: Calendar },
   { id: 'miembros', label: 'Miembros', icon: Users },
   { id: 'auditoria', label: 'Auditoria', icon: FileText },
+  { id: 'mi-cuenta', label: 'Mi cuenta', icon: Crown },
 ] as const
 
 type TabId = typeof TABS[number]['id']
@@ -118,6 +120,7 @@ export default function GestionPage() {
         {activeTab === 'sesiones' && <SessionsTab />}
         {activeTab === 'miembros' && <MembersTab />}
         {activeTab === 'auditoria' && <AuditTab />}
+        {activeTab === 'mi-cuenta' && <MiCuentaTab />}
       </div>
     </div>
   )

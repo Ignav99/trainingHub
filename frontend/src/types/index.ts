@@ -114,6 +114,7 @@ export interface GameModel {
 export interface Usuario {
   id: string
   email: string
+  username?: string
   nombre: string
   apellidos?: string
   avatar_url?: string

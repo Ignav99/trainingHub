@@ -388,7 +388,7 @@ export default function AdminPage() {
                 onToggle={() => loadOrgDetail(org.id)}
                 onReload={() => reloadOrgDetail(org.id)}
                 onReloadData={loadData}
-                onRemoveInvite={(invId) => setOrgDetail(prev => prev ? { ...prev, invitaciones_pendientes: prev.invitaciones_pendientes.filter(i => i.id !== invId) } : prev)}
+                onRemoveInvite={() => {}}
                 onConfirm={requestConfirm}
               />
             ))}

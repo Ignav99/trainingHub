@@ -44,45 +44,21 @@ export interface Limites {
   uso_ai_calls_month: number
 }
 
-export interface OrgMember {
+export interface AdminClubAccount {
   id: string
-  email: string
+  username?: string
   nombre: string
   apellidos?: string
   rol: string
   created_at: string
-  usuarios_equipos?: Array<{
-    equipo_id: string
-    rol_en_equipo: string
-    equipos?: { nombre: string }
-  }>
-}
-
-export interface OrgTeam {
-  id: string
-  nombre: string
-  categoria?: string
-  activo: boolean
-  num_miembros?: number
-}
-
-export interface OrgInvite {
-  id: string
-  email: string
-  nombre?: string
-  rol_en_equipo: string
-  rol_organizacion?: string
-  token: string
-  expira_en: string
 }
 
 export interface OrgDetail {
   organizacion: { id: string; nombre: string }
-  miembros: OrgMember[]
-  equipos: OrgTeam[]
+  num_equipos: number
   suscripcion?: any
-  invitaciones_pendientes: OrgInvite[]
   limites?: Limites
+  administrador_club: AdminClubAccount | null
 }
 
 export interface UserRecord {

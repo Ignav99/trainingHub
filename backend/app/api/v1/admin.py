@@ -19,7 +19,7 @@ from app.config import get_settings
 from app.dependencies import get_current_user
 from app.models import UsuarioResponse
 from app.services.audit_service import log_action
-from app.services.username_auth_service import create_username_account
+from app.services.username_auth_service import create_username_account, update_username_account
 
 router = APIRouter()
 
@@ -84,12 +84,6 @@ class AdminOrgCreate(BaseModel):
     admin_username: Optional[str] = Field(None, min_length=3, max_length=50)
     admin_password: Optional[str] = Field(None, min_length=8)
     admin_nombre: Optional[str] = None
-
-
-class AdminTeamCreate(BaseModel):
-    nombre: str
-    categoria: Optional[str] = None
-    temporada: Optional[str] = None
 
 
 # ============ Endpoints ============
@@ -281,84 +275,19 @@ async def admin_update_organizacion(
     return result.data[0] if result.data else {"ok": True}
 
 
-@router.post("/organizaciones/{org_id}/equipos")
-async def admin_create_equipo(
-    org_id: str,
-    data: AdminTeamCreate,
-    admin: UsuarioResponse = Depends(require_superadmin),
-):
-    """Crea un equipo dentro de una organizacion, verificando limites del plan."""
-    supabase = get_supabase()
-
-    # Verify org exists
-    org = (
-        supabase.table("organizaciones")
-        .select("id")
-        .eq("id", org_id)
-        .single()
-        .execute()
-    )
-    if not org.data:
-        raise HTTPException(status_code=404, detail="Organizacion no encontrada")
-
-    # Check plan limits
-    sub = (
-        supabase.table("suscripciones")
-        .select("*, planes(*)")
-        .eq("organizacion_id", org_id)
-        .execute()
-    )
-    if sub.data:
-        plan_data = sub.data[0].get("planes", {})
-        max_equipos = plan_data.get("max_equipos", 1)
-
-        current_teams = (
-            supabase.table("equipos")
-            .select("id", count="exact")
-            .eq("organizacion_id", org_id)
-            .eq("activo", True)
-            .execute()
-        )
-        if (current_teams.count or 0) >= max_equipos:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Limite de equipos alcanzado ({max_equipos}). Cambia el plan para crear mas.",
-            )
-
-    # Create team
-    team_data = {
-        "organizacion_id": org_id,
-        "nombre": data.nombre,
-        "activo": True,
-    }
-    if data.categoria:
-        team_data["categoria"] = data.categoria
-    if data.temporada:
-        team_data["temporada"] = data.temporada
-
-    result = supabase.table("equipos").insert(team_data).execute()
-    if not result.data:
-        raise HTTPException(status_code=500, detail="Error al crear equipo")
-
-    log_action(
-        usuario_id=str(admin.id),
-        accion="crear",
-        entidad_tipo="equipo",
-        entidad_id=result.data[0]["id"],
-        datos_nuevos=team_data,
-        organizacion_id=org_id,
-        severidad="info",
-    )
-
-    return result.data[0]
-
-
 @router.get("/organizaciones/{org_id}/detalle")
 async def admin_org_detail(
     org_id: str,
     admin: UsuarioResponse = Depends(require_superadmin),
 ):
-    """Detalle de una organizacion: miembros, equipos, suscripcion."""
+    """
+    Detalle de una organizacion para el superadmin: SOLO temas globales
+    (suscripcion, plan, limites de uso agregados, y la cuenta del
+    administrador del club). El listado de staff/miembros/invitaciones y la
+    gestion de equipos son responsabilidad exclusiva del administrador/
+    coordinador del club (panel /gestion) -- el superadmin no debe ver el
+    detalle interno de cada club.
+    """
     supabase = get_supabase()
 
     org = (
@@ -371,17 +300,11 @@ async def admin_org_detail(
     if not org.data:
         raise HTTPException(status_code=404, detail="Organizacion no encontrada")
 
-    members = (
-        supabase.table("usuarios")
-        .select("id, email, nombre, apellidos, rol, created_at, usuarios_equipos(equipo_id, rol_en_equipo, equipos(nombre))")
-        .eq("organizacion_id", org_id)
-        .execute()
-    )
-
-    teams = (
+    teams_count = (
         supabase.table("equipos")
-        .select("id, nombre, categoria, activo, created_at")
+        .select("id", count="exact")
         .eq("organizacion_id", org_id)
+        .eq("activo", True)
         .execute()
     )
 
@@ -392,53 +315,89 @@ async def admin_org_detail(
         .execute()
     )
 
-    invites = (
-        supabase.table("invitaciones")
-        .select("id, email, nombre, rol_en_equipo, rol_organizacion, estado, token, expira_en, created_at")
+    # Cuenta del administrador del club (la unica cuenta que el superadmin
+    # gestiona directamente; el resto del staff lo gestiona el propio club).
+    admin_club = (
+        supabase.table("usuarios")
+        .select("id, username, nombre, apellidos, rol, created_at")
         .eq("organizacion_id", org_id)
-        .eq("estado", "pendiente")
+        .in_("rol", ["administrador_club", "presidente", "admin"])
+        .order("created_at")
+        .limit(1)
+        .maybe_single()
         .execute()
     )
 
-    # Build plan limits and usage info
     suscripcion = sub.data[0] if sub.data else None
     limites = None
     if suscripcion and suscripcion.get("planes"):
         p = suscripcion["planes"]
-        active_teams = [t for t in (teams.data or []) if t.get("activo", True)]
         limites = {
             "max_equipos": p.get("max_equipos", 1),
             "max_usuarios_por_equipo": p.get("max_usuarios_por_equipo", 5),
             "max_jugadores_por_equipo": p.get("max_jugadores_por_equipo", 25),
             "max_storage_mb": p.get("max_storage_mb", 500),
             "max_ai_calls_month": p.get("max_ai_calls_month", 50),
-            "equipos_usados": len(active_teams),
+            "equipos_usados": teams_count.count or 0,
             "uso_storage_mb": suscripcion.get("uso_storage_mb", 0),
             "uso_ai_calls_month": suscripcion.get("uso_ai_calls_month", 0),
         }
 
-    # Count members per team
-    teams_with_members = []
-    for team in (teams.data or []):
-        team_members = (
-            supabase.table("usuarios_equipos")
-            .select("id", count="exact")
-            .eq("equipo_id", team["id"])
-            .execute()
-        )
-        teams_with_members.append({
-            **team,
-            "num_miembros": team_members.count or 0,
-        })
-
     return {
         "organizacion": org.data,
-        "miembros": members.data or [],
-        "equipos": teams_with_members,
+        "num_equipos": teams_count.count or 0,
         "suscripcion": suscripcion,
-        "invitaciones_pendientes": invites.data or [],
         "limites": limites,
+        "administrador_club": admin_club.data if admin_club else None,
     }
+
+
+class AdminClubUpdate(BaseModel):
+    username: Optional[str] = Field(None, min_length=3, max_length=50)
+    password: Optional[str] = Field(None, min_length=8)
+    nombre: Optional[str] = None
+
+
+@router.patch("/organizaciones/{org_id}/administrador")
+async def admin_update_club_admin(
+    org_id: str,
+    data: AdminClubUpdate,
+    admin: UsuarioResponse = Depends(require_superadmin),
+):
+    """El superadmin puede resetear el usuario/contrasena del administrador del club."""
+    supabase = get_supabase()
+
+    admin_club = (
+        supabase.table("usuarios")
+        .select("id")
+        .eq("organizacion_id", org_id)
+        .in_("rol", ["administrador_club", "presidente", "admin"])
+        .order("created_at")
+        .limit(1)
+        .maybe_single()
+        .execute()
+    )
+    if not admin_club or not admin_club.data:
+        raise HTTPException(status_code=404, detail="Esta organizacion no tiene administrador de club")
+
+    updated = update_username_account(
+        user_id=admin_club.data["id"],
+        username=data.username,
+        password=data.password,
+        nombre=data.nombre,
+    )
+
+    log_action(
+        usuario_id=str(admin.id),
+        accion="actualizar",
+        entidad_tipo="administrador_club",
+        entidad_id=admin_club.data["id"],
+        datos_nuevos={"username": data.username, "nombre": data.nombre},
+        organizacion_id=org_id,
+        severidad="warning",
+    )
+
+    return updated
 
 
 @router.patch("/organizaciones/{org_id}/suscripcion")

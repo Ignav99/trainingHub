@@ -110,3 +110,58 @@ def create_username_account(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error al guardar el usuario")
 
     return usuario_db.data[0]
+
+
+def update_username_account(
+    user_id: str,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+    nombre: Optional[str] = None,
+) -> dict:
+    """Updates a username-only account's login (username/password) and/or
+    display name. Returns the updated `usuarios` row.
+    """
+    supabase = get_supabase()
+
+    current = supabase.table("usuarios").select("*").eq("id", user_id).maybe_single().execute()
+    if not current or not current.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+
+    settings = get_settings()
+    auth_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+
+    updates_usuarios: dict = {}
+    auth_updates: dict = {}
+
+    if username:
+        new_username = username.strip().lower()
+        if new_username != current.data.get("username"):
+            existing = (
+                supabase.table("usuarios")
+                .select("id")
+                .eq("username", new_username)
+                .neq("id", user_id)
+                .maybe_single()
+                .execute()
+            )
+            if existing and existing.data:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Ese usuario ya existe")
+            new_email = build_internal_email(new_username)
+            updates_usuarios["username"] = new_username
+            updates_usuarios["email"] = new_email
+            auth_updates["email"] = new_email
+
+    if password:
+        auth_updates["password"] = password
+
+    if nombre:
+        updates_usuarios["nombre"] = nombre
+
+    if auth_updates:
+        auth_client.auth.admin.update_user_by_id(user_id, auth_updates)
+
+    if updates_usuarios:
+        supabase.table("usuarios").update(updates_usuarios).eq("id", user_id).execute()
+
+    result = supabase.table("usuarios").select("*").eq("id", user_id).single().execute()
+    return result.data

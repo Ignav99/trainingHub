@@ -11,10 +11,10 @@ from pydantic import BaseModel
 
 from app.models import LoginRequest, TokenResponse, UsuarioCreate, UsuarioResponse
 from app.database import get_supabase
-from app.dependencies import require_permission, AuthContext
+from app.dependencies import require_permission, get_current_user, AuthContext
 from app.services.audit_service import log_action, log_login
 from app.services.license_service import LicenseService
-from app.services.username_auth_service import resolve_login_identifier
+from app.services.username_auth_service import resolve_login_identifier, update_username_account, is_internal_email
 
 router = APIRouter()
 
@@ -297,3 +297,37 @@ async def get_current_user_info(
     Util para verificar que la autenticacion funciona correctamente.
     """
     return auth.user
+
+
+class MiCuentaUpdate(BaseModel):
+    username: str | None = None
+    password: str | None = None
+    nombre: str | None = None
+
+
+@router.patch("/mi-cuenta", response_model=UsuarioResponse)
+async def actualizar_mi_cuenta(
+    data: MiCuentaUpdate,
+    current_user: UsuarioResponse = Depends(get_current_user),
+):
+    """
+    Autoservicio: el usuario autenticado cambia su propio usuario/contrasena/nombre.
+    Solo tiene sentido para cuentas basadas en username (superadmin_plataforma,
+    administrador_club, coordinador_club) -- el staff con email real sigue
+    gestionando su cuenta via el flujo normal (no expuesto aqui).
+    """
+    if not is_internal_email(current_user.email):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Esta cuenta usa email real; gestiona tus datos desde tu perfil habitual.",
+        )
+    if data.password and len(data.password) < 8:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La contrasena debe tener al menos 8 caracteres")
+
+    updated = update_username_account(
+        user_id=str(current_user.id),
+        username=data.username,
+        password=data.password,
+        nombre=data.nombre,
+    )
+    return UsuarioResponse(**updated)
