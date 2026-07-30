@@ -98,7 +98,7 @@ async def list_convocatorias_jugador(
 async def resumen_convocatorias_equipo(
     equipo_id: UUID,
     limit_racha: int = Query(5, ge=1, le=10),
-    auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_READ)),
+    auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_READ, equipo_id_param="equipo_id")),
 ):
     """Resumen agregado (minutos, goles, tarjetas, racha) de todos los jugadores de un equipo en una sola query."""
     supabase = get_supabase()
@@ -110,18 +110,29 @@ async def resumen_convocatorias_equipo(
 
     response = supabase.table("convocatorias").select(
         "jugador_id, titular, minutos_jugados, goles, asistencias, tarjeta_amarilla, tarjeta_roja, created_at, "
-        "partidos(resultado)"
+        "partidos(fecha, resultado)"
     ).in_("jugador_id", jugador_ids).order("created_at", desc=True).execute()
 
-    por_jugador: dict[str, list] = {}
+    por_jugador: dict[str, list[dict]] = {}
     for c in response.data:
         por_jugador.setdefault(c["jugador_id"], []).append(c)
 
     resumenes = []
     for jid in jugador_ids:
         convocatorias = por_jugador.get(jid, [])
+
+        # Ordenar por fecha real del partido (desc), no por created_at:
+        # las convocatorias pueden cargarse fuera de orden cronológico
+        # (ej: backfill de temporadas pasadas), lo que corrompería la racha.
+        def _fecha_sort_key(c: dict) -> tuple:
+            fecha = (c.get("partidos") or {}).get("fecha")
+            # Sin fecha -> al final (no False antes que True al ordenar desc)
+            return (fecha is not None, fecha or "")
+
+        convocatorias_ordenadas = sorted(convocatorias, key=_fecha_sort_key, reverse=True)
+
         racha = []
-        for c in convocatorias[:limit_racha]:
+        for c in convocatorias_ordenadas[:limit_racha]:
             resultado = (c.get("partidos") or {}).get("resultado")
             if resultado == "victoria":
                 racha.append("V")
