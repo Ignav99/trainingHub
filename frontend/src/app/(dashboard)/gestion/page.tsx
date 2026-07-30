@@ -13,6 +13,7 @@ import {
   Loader2,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
+import { isClubAdminRole, isSuperadminRole } from '@/lib/roles'
 import ClubDashboardTab from './components/ClubDashboardTab'
 import TeamsTab from './components/TeamsTab'
 import StaffTab from './components/StaffTab'
@@ -21,11 +22,6 @@ import SessionsTab from './components/SessionsTab'
 import MembersTab from './components/MembersTab'
 import AuditTab from './components/AuditTab'
 import MiCuentaTab from './components/MiCuentaTab'
-
-const CLUB_ADMIN_ROLES = [
-  'administrador_club', 'coordinador_club',
-  'presidente', 'director_deportivo', 'secretario', 'admin', 'superadmin_plataforma',
-]
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -51,7 +47,7 @@ export default function GestionPage() {
       router.push('/login')
       return
     }
-    if (user && !CLUB_ADMIN_ROLES.includes(user.rol)) {
+    if (user && !isClubAdminRole(user.rol) && !isSuperadminRole(user.rol)) {
       router.push('/')
     }
   }, [isLoading, isAuthenticated, user, router])
@@ -64,7 +60,7 @@ export default function GestionPage() {
     )
   }
 
-  if (!CLUB_ADMIN_ROLES.includes(user.rol)) return null
+  if (!isClubAdminRole(user.rol) && !isSuperadminRole(user.rol)) return null
 
   return (
     <div className="min-h-screen bg-gray-50/50">

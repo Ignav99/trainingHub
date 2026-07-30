@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
+import { isClubAdminRole, isSuperadminRole } from '@/lib/roles'
 
 const STADIUM_BG = 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?w=1920&q=80'
 
@@ -28,12 +29,11 @@ export default function LoginPage() {
     if (result.success) {
       const loggedInUser = useAuthStore.getState().user
       const rol = loggedInUser?.rol
-      window.location.href =
-        rol === 'superadmin_plataforma'
-          ? '/admin'
-          : rol === 'administrador_club' || rol === 'coordinador_club'
-          ? '/gestion'
-          : '/'
+      window.location.href = isSuperadminRole(rol)
+        ? '/admin'
+        : isClubAdminRole(rol)
+        ? '/gestion'
+        : '/'
     } else {
       setError(result.error || 'Credenciales inválidas. Por favor, inténtalo de nuevo.')
     }
