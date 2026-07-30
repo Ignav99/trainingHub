@@ -19,6 +19,8 @@ class RolUsuario(str, Enum):
     TECNICO_ASISTENTE = "tecnico_asistente"
     VISUALIZADOR = "visualizador"
     # Club roles
+    ADMINISTRADOR_CLUB = "administrador_club"
+    COORDINADOR_CLUB = "coordinador_club"
     PRESIDENTE = "presidente"
     DIRECTOR_DEPORTIVO = "director_deportivo"
     SECRETARIO = "secretario"
@@ -29,7 +31,9 @@ class RolUsuario(str, Enum):
     ENTRENADOR_PORTEROS = "entrenador_porteros"
     ANALISTA = "analista"
     FISIO = "fisio"
+    NUTRICIONISTA = "nutricionista"
     DELEGADO = "delegado"
+    DELEGADO_EQUIPO = "delegado_equipo"
     # Player/Tutor
     JUGADOR = "jugador"
     TUTOR = "tutor"
@@ -43,7 +47,9 @@ class RolEnEquipo(str, Enum):
     ENTRENADOR_PORTEROS = "entrenador_porteros"
     ANALISTA = "analista"
     FISIO = "fisio"
+    NUTRICIONISTA = "nutricionista"
     DELEGADO = "delegado"
+    DELEGADO_EQUIPO = "delegado_equipo"
     JUGADOR = "jugador"
 
 

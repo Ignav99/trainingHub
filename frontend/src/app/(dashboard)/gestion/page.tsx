@@ -21,7 +21,10 @@ import SessionsTab from './components/SessionsTab'
 import MembersTab from './components/MembersTab'
 import AuditTab from './components/AuditTab'
 
-const CLUB_ADMIN_ROLES = ['presidente', 'director_deportivo', 'secretario', 'admin']
+const CLUB_ADMIN_ROLES = [
+  'administrador_club', 'coordinador_club',
+  'presidente', 'director_deportivo', 'secretario', 'admin', 'superadmin_plataforma',
+]
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },

@@ -25,7 +25,8 @@ class TestPermissions:
 
         expected_roles = {
             "entrenador_principal", "segundo_entrenador", "preparador_fisico",
-            "entrenador_porteros", "analista", "fisio", "delegado",
+            "entrenador_porteros", "analista", "fisio", "nutricionista",
+            "delegado", "delegado_equipo",
             "jugador", "tutor",
         }
         assert expected_roles == set(DEFAULT_PERMISSIONS.keys())
@@ -324,9 +325,11 @@ class TestExpandedRoles:
         expected = {
             "superadmin_plataforma", "admin",
             "tecnico_principal", "tecnico_asistente", "visualizador",
+            "administrador_club", "coordinador_club",
             "presidente", "director_deportivo", "secretario",
             "entrenador_principal", "segundo_entrenador", "preparador_fisico",
-            "entrenador_porteros", "analista", "fisio", "delegado",
+            "entrenador_porteros", "analista", "fisio", "nutricionista",
+            "delegado", "delegado_equipo",
             "jugador", "tutor",
         }
         actual = {r.value for r in RolUsuario}
@@ -337,7 +340,8 @@ class TestExpandedRoles:
 
         expected = {
             "entrenador_principal", "segundo_entrenador", "preparador_fisico",
-            "entrenador_porteros", "analista", "fisio", "delegado", "jugador",
+            "entrenador_porteros", "analista", "fisio", "nutricionista",
+            "delegado", "delegado_equipo", "jugador",
         }
         actual = {r.value for r in RolEnEquipo}
         assert expected == actual
@@ -551,3 +555,80 @@ class TestEncryptionKeyEnforcement:
             enc_module._ENCRYPTION_KEY = original_key
             if original_env:
                 os.environ["MEDICAL_ENCRYPTION_KEY"] = original_env
+
+
+# ============ equipo_id Resolution Tests (body-scoping security fix) ============
+
+class TestResolveEquipoId:
+    """Tests for _resolve_equipo_id — must scope permission checks to the
+    team actually referenced in the request, not fall back to an arbitrary
+    team the caller happens to belong to."""
+
+    @staticmethod
+    def _make_request(method: str, path_params: dict, query_string: bytes, body: bytes):
+        import asyncio
+        from starlette.requests import Request
+
+        scope = {
+            "type": "http",
+            "method": method,
+            "path": "/",
+            "query_string": query_string,
+            "headers": [],
+            "path_params": path_params,
+        }
+
+        sent = {"done": False}
+
+        async def receive():
+            if sent["done"]:
+                return {"type": "http.disconnect"}
+            sent["done"] = True
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        return Request(scope, receive)
+
+    def test_resolves_from_path_params(self):
+        import asyncio
+        from app.security.dependencies import _resolve_equipo_id
+
+        request = self._make_request("GET", {"equipo_id": "team-a"}, b"", b"")
+        result = asyncio.run(_resolve_equipo_id(request, "equipo_id"))
+        assert result == "team-a"
+
+    def test_resolves_from_query_params(self):
+        import asyncio
+        from app.security.dependencies import _resolve_equipo_id
+
+        request = self._make_request("GET", {}, b"equipo_id=team-b", b"")
+        result = asyncio.run(_resolve_equipo_id(request, "equipo_id"))
+        assert result == "team-b"
+
+    def test_resolves_from_json_body_on_post(self):
+        """Regression test: previously equipo_id in a POST body was never
+        read, so permission checks silently fell back to 'any team the
+        caller belongs to' — letting staff act on teams they don't manage."""
+        import asyncio
+        import json
+        from app.security.dependencies import _resolve_equipo_id
+
+        body = json.dumps({"equipo_id": "team-c", "email": "x@example.com"}).encode()
+        request = self._make_request("POST", {}, b"", body)
+        result = asyncio.run(_resolve_equipo_id(request, "equipo_id"))
+        assert result == "team-c"
+
+    def test_returns_none_when_not_present_anywhere(self):
+        import asyncio
+        from app.security.dependencies import _resolve_equipo_id
+
+        request = self._make_request("POST", {}, b"", b"{}")
+        result = asyncio.run(_resolve_equipo_id(request, "equipo_id"))
+        assert result is None
+
+    def test_ignores_malformed_body(self):
+        import asyncio
+        from app.security.dependencies import _resolve_equipo_id
+
+        request = self._make_request("POST", {}, b"", b"not json")
+        result = asyncio.run(_resolve_equipo_id(request, "equipo_id"))
+        assert result is None

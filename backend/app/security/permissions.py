@@ -207,15 +207,24 @@ _PLAYER_READ_ONLY = {
     Permission.GAME_MODEL_READ,
 }
 
+# CT roles that are NOT the head coach don't get INVITACION_MANAGE — only
+# entrenador_principal (head coach) and club-level roles (administrador_club/
+# coordinador_club) can invite/manage staff.
+_CT_FULL_PERMISSIONS_NO_INVITE = _CT_FULL_PERMISSIONS - {Permission.INVITACION_MANAGE}
+
 DEFAULT_PERMISSIONS: dict[str, set[Permission]] = {
-    # All CT roles get full permissions
+    # Head coach: full permissions including staff invites
     "entrenador_principal": set(_CT_FULL_PERMISSIONS),
-    "segundo_entrenador":   set(_CT_FULL_PERMISSIONS),
-    "preparador_fisico":    set(_CT_FULL_PERMISSIONS),
-    "entrenador_porteros":  set(_CT_FULL_PERMISSIONS),
-    "analista":             set(_CT_FULL_PERMISSIONS),
-    "fisio":                set(_CT_FULL_PERMISSIONS),
-    "delegado":             set(_CT_FULL_PERMISSIONS),
+
+    # Rest of the team staff: full sporting/operational access, no staff invites
+    "segundo_entrenador":   set(_CT_FULL_PERMISSIONS_NO_INVITE),
+    "preparador_fisico":    set(_CT_FULL_PERMISSIONS_NO_INVITE),
+    "entrenador_porteros":  set(_CT_FULL_PERMISSIONS_NO_INVITE),
+    "analista":             set(_CT_FULL_PERMISSIONS_NO_INVITE),
+    "fisio":                set(_CT_FULL_PERMISSIONS_NO_INVITE),
+    "nutricionista":        set(_CT_FULL_PERMISSIONS_NO_INVITE),
+    "delegado":             set(_CT_FULL_PERMISSIONS_NO_INVITE),
+    "delegado_equipo":      set(_CT_FULL_PERMISSIONS_NO_INVITE),
 
     # Players: read-only (+ nutrition read)
     "jugador": set(_PLAYER_READ_ONLY) | {Permission.NUTRITION_READ},
@@ -227,6 +236,22 @@ DEFAULT_PERMISSIONS: dict[str, set[Permission]] = {
 # ============ Club Role Permissions ============
 
 CLUB_ROLE_PERMISSIONS: dict[str, set[Permission]] = {
+    "administrador_club": {
+        Permission.CLUB_VIEW_ALL_TEAMS,
+        Permission.CLUB_EDIT_CROSS_TEAM,
+        Permission.CLUB_MANAGE_BILLING,
+        Permission.CLUB_INVITE_USERS,
+        Permission.CLUB_MANAGE_TEAMS,
+        Permission.CLUB_VIEW_STATS,
+        Permission.CLUB_MANAGE_ORG,
+        Permission.CLUB_VIEW_AUDIT,
+    },
+    "coordinador_club": {
+        Permission.CLUB_VIEW_ALL_TEAMS,
+        Permission.CLUB_INVITE_USERS,
+        Permission.CLUB_MANAGE_TEAMS,
+        Permission.CLUB_VIEW_STATS,
+    },
     "presidente": {
         Permission.CLUB_VIEW_ALL_TEAMS,
         Permission.CLUB_EDIT_CROSS_TEAM,

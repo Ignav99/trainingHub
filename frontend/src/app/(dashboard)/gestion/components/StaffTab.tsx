@@ -96,11 +96,15 @@ export default function StaffTab() {
             className="border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
           >
             <option value="">Todos los roles</option>
-            <option value="tecnico_principal">Entrenador Principal</option>
+            <option value="entrenador_principal">Entrenador Principal</option>
             <option value="segundo_entrenador">2do Entrenador</option>
             <option value="preparador_fisico">Preparador Fisico</option>
+            <option value="entrenador_porteros">Entr. Porteros</option>
             <option value="analista">Analista</option>
-            <option value="delegado">Delegado</option>
+            <option value="fisio">Fisioterapeuta</option>
+            <option value="nutricionista">Nutricionista</option>
+            <option value="delegado">Delegado de Campo</option>
+            <option value="delegado_equipo">Delegado de Equipo</option>
           </select>
         </div>
         <button
@@ -144,7 +148,9 @@ export default function StaffTab() {
                   <option value="entrenador_porteros">Entr. Porteros</option>
                   <option value="analista">Analista</option>
                   <option value="fisio">Fisioterapeuta</option>
-                  <option value="delegado">Delegado</option>
+                  <option value="nutricionista">Nutricionista</option>
+                  <option value="delegado">Delegado de Campo</option>
+                  <option value="delegado_equipo">Delegado de Equipo</option>
                 </select>
                 <select
                   value={invEquipo}

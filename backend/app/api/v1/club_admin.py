@@ -22,7 +22,11 @@ router = APIRouter()
 
 # ============ Dependency ============
 
-CLUB_ADMIN_ROLES = {"presidente", "director_deportivo", "secretario", "admin", "superadmin_plataforma"}
+CLUB_ADMIN_ROLES = {
+    "administrador_club", "coordinador_club",
+    "presidente", "director_deportivo", "secretario",
+    "admin", "superadmin_plataforma",
+}
 
 
 async def require_club_admin(
@@ -398,11 +402,11 @@ async def club_change_member_role(
         raise HTTPException(status_code=400, detail="No puedes cambiar tu propio rol")
 
     valid_roles = {
+        "administrador_club", "coordinador_club",
         "presidente", "director_deportivo", "secretario",
-        "admin", "tecnico_principal", "segundo_entrenador",
-        "preparador_fisico", "fisioterapeuta", "delegado",
+        "admin", "tecnico_principal", "entrenador_principal", "segundo_entrenador",
+        "preparador_fisico", "fisio", "delegado", "delegado_equipo",
         "analista", "entrenador_porteros", "nutricionista",
-        "psicologo", "ojeador", "coordinador",
     }
     if data.rol not in valid_roles:
         raise HTTPException(status_code=400, detail=f"Rol no valido: {data.rol}")

@@ -539,13 +539,15 @@ async def get_roles_equipo():
     """Obtiene todos los roles disponibles en un equipo."""
     return {
         "data": [
-            {"codigo": "entrenador_principal", "nombre": "Entrenador Principal", "descripcion": "Director tecnico del equipo"},
+            {"codigo": "entrenador_principal", "nombre": "Entrenador Principal", "descripcion": "Director tecnico del equipo. Unico rol de equipo que puede invitar staff"},
             {"codigo": "segundo_entrenador", "nombre": "Segundo Entrenador", "descripcion": "Asistente del entrenador principal"},
             {"codigo": "preparador_fisico", "nombre": "Preparador Fisico", "descripcion": "Responsable de la condicion fisica"},
             {"codigo": "entrenador_porteros", "nombre": "Entrenador de Porteros", "descripcion": "Especialista en porteros"},
             {"codigo": "analista", "nombre": "Analista", "descripcion": "Analista tactico y de rivales"},
-            {"codigo": "fisio", "nombre": "Fisio/Medico", "descripcion": "Fisioterapeuta o medico del equipo"},
-            {"codigo": "delegado", "nombre": "Delegado", "descripcion": "Delegado del equipo"},
+            {"codigo": "fisio", "nombre": "Fisioterapeuta", "descripcion": "Fisioterapeuta o rehabilitador del equipo"},
+            {"codigo": "nutricionista", "nombre": "Nutricionista", "descripcion": "Responsable de nutricion del equipo"},
+            {"codigo": "delegado", "nombre": "Delegado de Campo", "descripcion": "Delegado el dia de partido"},
+            {"codigo": "delegado_equipo", "nombre": "Delegado de Equipo", "descripcion": "Delegado administrativo del equipo"},
         ]
     }
 
@@ -555,6 +557,8 @@ async def get_roles_club():
     """Obtiene todos los roles disponibles a nivel de club."""
     return {
         "data": [
+            {"codigo": "administrador_club", "nombre": "Administrador del Club", "descripcion": "Control total del club: equipos, staff, facturacion"},
+            {"codigo": "coordinador_club", "nombre": "Coordinador del Club", "descripcion": "Gestiona equipos y staff de todo el club (sin facturacion ni configuracion de organizacion)"},
             {"codigo": "presidente", "nombre": "Presidente", "descripcion": "Maximo responsable del club"},
             {"codigo": "director_deportivo", "nombre": "Director Deportivo", "descripcion": "Responsable de la gestion deportiva"},
             {"codigo": "secretario", "nombre": "Secretario", "descripcion": "Responsable administrativo"},

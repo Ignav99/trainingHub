@@ -20,7 +20,7 @@ def send_invitation_email(
     frontend_url: str = "http://localhost:3000",
 ) -> bool:
     """Send invitation email to a new user."""
-    invite_url = f"{frontend_url}/invite?token={invite_token}"
+    invite_url = f"{frontend_url}/join?token={invite_token}"
 
     subject = f"Invitacion a {organization_name} en TrainingHub"
     body = f"""

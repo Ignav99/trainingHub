@@ -110,19 +110,22 @@ export interface AuditEntry {
 }
 
 export const CLUB_ROLES = [
+  { value: 'administrador_club', label: 'Administrador del Club' },
+  { value: 'coordinador_club', label: 'Coordinador del Club' },
   { value: 'presidente', label: 'Presidente' },
   { value: 'director_deportivo', label: 'Director Deportivo' },
   { value: 'secretario', label: 'Secretario' },
   { value: 'admin', label: 'Administrador' },
-  { value: 'tecnico_principal', label: 'Entrenador Principal' },
+  { value: 'entrenador_principal', label: 'Entrenador Principal' },
+  { value: 'tecnico_principal', label: 'Entrenador Principal (legacy)' },
   { value: 'segundo_entrenador', label: '2do Entrenador' },
   { value: 'preparador_fisico', label: 'Preparador Fisico' },
   { value: 'entrenador_porteros', label: 'Entr. Porteros' },
   { value: 'analista', label: 'Analista' },
-  { value: 'fisioterapeuta', label: 'Fisioterapeuta' },
-  { value: 'delegado', label: 'Delegado' },
+  { value: 'fisio', label: 'Fisioterapeuta' },
+  { value: 'delegado', label: 'Delegado de Campo' },
+  { value: 'delegado_equipo', label: 'Delegado de Equipo' },
   { value: 'nutricionista', label: 'Nutricionista' },
-  { value: 'coordinador', label: 'Coordinador' },
 ]
 
 export const FASES_JUEGO = [

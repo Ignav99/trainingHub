@@ -666,10 +666,10 @@ async def admin_change_user_role(
         raise HTTPException(status_code=400, detail="Se requiere el campo 'rol'")
 
     valid_roles = {
-        "admin", "tecnico_principal", "segundo_entrenador",
-        "preparador_fisico", "fisioterapeuta", "delegado",
+        "admin", "administrador_club", "coordinador_club",
+        "tecnico_principal", "entrenador_principal", "segundo_entrenador",
+        "preparador_fisico", "fisio", "delegado", "delegado_equipo",
         "analista", "entrenador_porteros", "nutricionista",
-        "psicologo", "ojeador", "coordinador",
     }
     if new_rol not in valid_roles:
         raise HTTPException(status_code=400, detail=f"Rol no valido. Opciones: {', '.join(sorted(valid_roles))}")

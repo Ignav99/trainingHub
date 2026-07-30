@@ -141,8 +141,13 @@ async def get_current_user_from_token(
         )
 
 
-def _resolve_equipo_id(request: Request, equipo_id_param: str) -> Optional[str]:
-    """Extract equipo_id from path params, query params, or body."""
+async def _resolve_equipo_id(request: Request, equipo_id_param: str) -> Optional[str]:
+    """Extract equipo_id from path params, query params, or JSON body.
+
+    Reading the body here does NOT consume it for downstream Pydantic parsing —
+    Starlette caches the raw bytes on the Request the first time they're read,
+    so `await request.json()` here and the route's own body parsing both work.
+    """
     # Path parameters
     path_params = request.path_params
     if equipo_id_param in path_params:
@@ -152,6 +157,18 @@ def _resolve_equipo_id(request: Request, equipo_id_param: str) -> Optional[str]:
     query = request.query_params
     if equipo_id_param in query:
         return query[equipo_id_param]
+
+    # JSON body (e.g. POST /invitaciones with equipo_id in the payload).
+    # Without this, permission checks for body-scoped equipo_id silently fell
+    # back to "any team the user belongs to", letting staff act on teams they
+    # have no role in.
+    if request.method in ("POST", "PUT", "PATCH"):
+        try:
+            body = await request.json()
+            if isinstance(body, dict) and equipo_id_param in body and body[equipo_id_param]:
+                return str(body[equipo_id_param])
+        except Exception:
+            pass
 
     return None
 
@@ -296,7 +313,7 @@ def require_permission(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error)
 
         # 4. Resolve equipo_id
-        equipo_id = _resolve_equipo_id(request, equipo_id_param)
+        equipo_id = await _resolve_equipo_id(request, equipo_id_param)
 
         # 5. Get team role
         rol_en_equipo = None
@@ -440,7 +457,7 @@ def require_any_permission(
                 permissions=set(Permission),
             )
 
-        equipo_id = _resolve_equipo_id(request, equipo_id_param)
+        equipo_id = await _resolve_equipo_id(request, equipo_id_param)
 
         rol_en_equipo = None
         if equipo_id:
