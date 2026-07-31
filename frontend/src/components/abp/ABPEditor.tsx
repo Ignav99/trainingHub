@@ -8,13 +8,14 @@ import {
   Expand, Shrink,
 } from 'lucide-react'
 import ABPPitch from './ABPPitch'
+import ABPFuncionesPanel from './ABPFuncionesPanel'
 import {
   DiagramElement, DiagramArrow, DiagramZone, ElementType, ArrowType,
   Position, TEAM_COLORS, ELEMENT_SIZES, generateId,
 } from '@/components/tarea-editor/types'
 import {
   ABPJugada, ABPFase, TipoABP, LadoABP, SubtipoABP,
-  SistemaMarcaje, ABP_TIPOS, ABP_SUBTIPOS, ABP_ROLES, ABPPlayerRol,
+  SistemaMarcaje, ABP_TIPOS, ABP_SUBTIPOS, ABP_ROLES, ABPPlayerRol, Jugador,
 } from '@/types'
 import { partidosApi } from '@/lib/api/partidos'
 
@@ -33,6 +34,12 @@ interface ABPEditorProps {
   lockLado?: LadoABP
   /** When set, resolves and uses the real kit colors (own + rival) for this match instead of TEAM_COLORS. */
   partidoId?: string
+  /**
+   * Plantilla real, para asignar jugador (dorsal/nombre) y funciones editables
+   * al elemento seleccionado en el tablero. Sin esta prop el editor funciona
+   * exactamente igual que antes (sin picker de jugador ni panel de funciones).
+   */
+  jugadores?: Jugador[]
 }
 
 // Role abbreviations for display on player circles
@@ -70,7 +77,7 @@ function getPitchView(tipo: TipoABP): 'full' | 'half' {
   return tipo === 'falta_lejana' ? 'full' : 'half'
 }
 
-export default function ABPEditor({ jugada, onSave, onCancel, saving, lockLado, partidoId }: ABPEditorProps) {
+export default function ABPEditor({ jugada, onSave, onCancel, saving, lockLado, partidoId, jugadores = [] }: ABPEditorProps) {
   // Real kit colors for the linked partido (own + rival). Falls back to
   // TEAM_COLORS unless BOTH sides have an equipacion loaded.
   const [teamColors, setTeamColors] = useState<{ team1: string; team2: string }>({
@@ -410,6 +417,22 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving, lockLado, 
     } else {
       setElementRoles(prev => ({ ...prev, [elementId]: role }))
     }
+  }
+
+  // Jugador real (dorsal/nombre) asignado al elemento seleccionado.
+  const setElementJugador = (elementId: string, jugadorLabel: string) => {
+    pushHistory()
+    setElements(prev => prev.map(el => (
+      el.id === elementId ? { ...el, jugador: jugadorLabel || undefined } : el
+    )))
+  }
+
+  // Lista editable de funciones del elemento seleccionado.
+  const setElementFunciones = (elementId: string, funciones: DiagramElement['funciones']) => {
+    pushHistory()
+    setElements(prev => prev.map(el => (
+      el.id === elementId ? { ...el, funciones } : el
+    )))
   }
 
   // Save
@@ -833,11 +856,46 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving, lockLado, 
 
       {/* Pitch — fills all remaining space */}
       <div
-        className="flex-1 min-h-0 bg-green-900 overflow-hidden"
+        className="relative flex-1 min-h-0 bg-green-900 overflow-hidden"
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={() => { setIsDragging(false); setZoneDragStart(null); setZoneDragCurrent(null) }}
       >
+        {/* Jugador + funciones editables — solo cuando hay un jugador/rival seleccionado */}
+        {isPlayerType && selectedEl && (
+          <div
+            className="absolute top-2 right-2 w-64 bg-white rounded-xl shadow-lg border border-gray-200 z-40 max-h-[calc(100%-1rem)] overflow-y-auto p-3 space-y-2"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-xs font-semibold text-gray-700">Jugador</p>
+            <select
+              value={jugadores.find(j => `${j.dorsal ? `${j.dorsal}. ` : ''}${j.nombre} ${j.apellidos || ''}`.trim() === selectedEl.jugador)?.id || ''}
+              onChange={e => {
+                const j = jugadores.find(jg => jg.id === e.target.value)
+                setElementJugador(selectedEl.id, j ? `${j.dorsal ? `${j.dorsal}. ` : ''}${j.nombre} ${j.apellidos || ''}`.trim() : '')
+              }}
+              className="w-full px-1.5 py-1 text-[11px] border border-gray-200 rounded bg-white"
+            >
+              <option value="">{jugadores.length ? 'Sin asignar' : 'Sin plantilla disponible'}</option>
+              {jugadores.map(j => (
+                <option key={j.id} value={j.id}>
+                  {j.dorsal ? `${j.dorsal}. ` : ''}{j.nombre} {j.apellidos || ''}
+                </option>
+              ))}
+            </select>
+
+            <ABPFuncionesPanel
+              jugadores={jugadores}
+              elementos={elements}
+              funciones={selectedEl.funciones || []}
+              onChange={(funciones) => setElementFunciones(selectedEl.id, funciones)}
+              fixedJugador={{ jugadorLabel: selectedEl.jugador || selectedEl.label || 'Jugador' }}
+              compact
+            />
+          </div>
+        )}
+
         <ABPPitch
           type={pitchView}
           className="w-full h-full"
