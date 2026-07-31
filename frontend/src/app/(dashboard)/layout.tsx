@@ -156,6 +156,14 @@ export default function DashboardLayout({
   }, [isAuthenticated, isOnboardingComplete, pathname, router])
 
   useEffect(() => {
+    // Club-admin/superadmin manage the whole club from /gestion, not a single
+    // team's operational data — there is no `equipoActivo` to preload for them,
+    // so mark data as ready immediately instead of waiting on team endpoints
+    // that will never resolve.
+    if (isClubOnlyRole) {
+      setDataReady(true)
+      return
+    }
     if (!isAuthenticated || !equipoActivo?.id) return
     const eid = equipoActivo.id
     genRef.current += 1
@@ -217,7 +225,7 @@ export default function DashboardLayout({
       }
     }, 15000)
     return () => clearTimeout(timeout)
-  }, [isAuthenticated, equipoActivo?.id])
+  }, [isAuthenticated, equipoActivo?.id, isClubOnlyRole])
 
   useEffect(() => {
     registerServiceWorker()
@@ -233,7 +241,9 @@ export default function DashboardLayout({
 
   const activeTeam = equipoActivo ?? equipos[0] ?? null
 
-  if (!isAuthenticated || !activeTeam || !dataReady) {
+  // Club-admin/superadmin have no single "active team" (they manage the whole
+  // club) — only gate on team data for the operational, single-team roles.
+  if (!isAuthenticated || !dataReady || (!isClubOnlyRole && !activeTeam)) {
     return <SplashScreen />
   }
 
