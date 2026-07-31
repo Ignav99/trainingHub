@@ -25,6 +25,7 @@ import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ColorPicker } from '@/components/ui/color-picker'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/authStore'
 import { useClubStore } from '@/stores/clubStore'
@@ -32,6 +33,8 @@ import { organizacionApi, type Miembro } from '@/lib/api/organizacion'
 import { equiposApi } from '@/lib/api/equipos'
 import { invitacionesApi, type CreateInvitacionData } from '@/lib/api/invitaciones'
 import { suscripcionesApi } from '@/lib/api/suscripciones'
+import { equipacionesApi, type Equipacion, type EquipacionInput, type TipoEquipacion } from '@/lib/api/equipaciones'
+import { KitEditor } from '@/components/equipaciones/KitEditor'
 import type { Suscripcion, UsageLimits, Invitacion, Equipo } from '@/types'
 
 const ROLES_EQUIPO = [
@@ -79,11 +82,36 @@ export default function ConfiguracionPage() {
   const [copied, setCopied] = useState(false)
   const [revokingId, setRevokingId] = useState<string | null>(null)
 
+  // Club kit/equipacion
+  const [equipacionesClub, setEquipacionesClub] = useState<Equipacion[]>([])
+  const [loadingEquipaciones, setLoadingEquipaciones] = useState(false)
+
   useEffect(() => {
     if (organizacion) {
       setClubName(organizacion.nombre)
     }
   }, [organizacion])
+
+  const loadEquipacionesClub = async () => {
+    setLoadingEquipaciones(true)
+    try {
+      const data = await equipacionesApi.getClub()
+      setEquipacionesClub(data)
+    } catch (err) {
+      console.error('Error loading equipaciones del club:', err)
+    } finally {
+      setLoadingEquipaciones(false)
+    }
+  }
+
+  useEffect(() => {
+    loadEquipacionesClub()
+  }, [])
+
+  const handleSaveEquipacionClub = async (tipo: TipoEquipacion, data: EquipacionInput) => {
+    await equipacionesApi.upsertClub(tipo, data)
+    await loadEquipacionesClub()
+  }
 
   useEffect(() => {
     setLoadingSub(true)
@@ -240,38 +268,8 @@ export default function ConfiguracionPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Color primario</Label>
-                  <div className="flex gap-2">
-                    <input
-                      type="color"
-                      value={colorPrimario}
-                      onChange={(e) => setColorPrimario(e.target.value)}
-                      className="w-10 h-10 rounded border cursor-pointer"
-                    />
-                    <Input
-                      value={colorPrimario}
-                      onChange={(e) => setColorPrimario(e.target.value)}
-                      className="font-mono"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Color secundario</Label>
-                  <div className="flex gap-2">
-                    <input
-                      type="color"
-                      value={colorSecundario}
-                      onChange={(e) => setColorSecundario(e.target.value)}
-                      className="w-10 h-10 rounded border cursor-pointer"
-                    />
-                    <Input
-                      value={colorSecundario}
-                      onChange={(e) => setColorSecundario(e.target.value)}
-                      className="font-mono"
-                    />
-                  </div>
-                </div>
+                <ColorPicker label="Color primario" value={colorPrimario} onChange={setColorPrimario} />
+                <ColorPicker label="Color secundario" value={colorSecundario} onChange={setColorSecundario} />
               </div>
 
               {/* Logo upload */}
@@ -313,6 +311,39 @@ export default function ConfiguracionPage() {
                 )}
                 {savedClub ? 'Guardado' : 'Guardar cambios'}
               </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="card-hover">
+            <CardHeader>
+              <CardTitle className="text-lg">Equipacion del club</CardTitle>
+              <CardDescription>Colores y patron de las camisetas local y visitante</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {loadingEquipaciones ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <h3 className="text-sm font-semibold mb-2">Equipacion local</h3>
+                    <KitEditor
+                      tipo="local"
+                      initial={equipacionesClub.find((e) => e.tipo === 'local')}
+                      onSave={(data) => handleSaveEquipacionClub('local', data)}
+                    />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold mb-2">Equipacion visitante</h3>
+                    <KitEditor
+                      tipo="visitante"
+                      initial={equipacionesClub.find((e) => e.tipo === 'visitante')}
+                      onSave={(data) => handleSaveEquipacionClub('visitante', data)}
+                    />
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
