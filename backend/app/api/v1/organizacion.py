@@ -156,6 +156,8 @@ async def upsert_equipacion_organizacion(
     ).eq("tipo", tipo).execute()
 
     if existing.data:
+        from datetime import datetime, timezone
+        payload["updated_at"] = datetime.now(timezone.utc).isoformat()
         res = supabase.table("equipaciones").update(payload).eq(
             "id", existing.data[0]["id"]
         ).execute()
