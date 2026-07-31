@@ -82,11 +82,14 @@ async def get_latest_informe_rival(
     """Obtiene el último informe enriquecido del rival."""
     supabase = get_supabase()
 
+    # .single() (not .maybe_single()) blows up with a PostgREST 0-row error
+    # when the rival has no informes yet -- this is the same supabase-py
+    # gotcha documented in partidos.py: fragile with 0 rows.
     response = supabase.table("informes_rival").select("*").eq(
         "rival_id", str(rival_id)
-    ).order("created_at", desc=True).limit(1).single().execute()
+    ).order("created_at", desc=True).limit(1).maybe_single().execute()
 
-    if not response.data:
+    if not response or not response.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No hay informes para este rival")
 
     return InformeRivalEnriquecidoResponse(**response.data)
