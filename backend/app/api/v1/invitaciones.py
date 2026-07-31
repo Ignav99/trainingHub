@@ -69,7 +69,10 @@ async def create_invitacion(
             detail="Ya existe una invitacion pendiente para este email.",
         )
 
-    # Check if user is already a member
+    # Check if the user already belongs to the SPECIFIC team being invited to.
+    # A staff member can legitimately belong to several teams at once (each
+    # with its own rol_en_equipo) -- already existing somewhere else in the
+    # org must never block adding them to a different team.
     existing_user = (
         supabase.table("usuarios")
         .select("id")
@@ -78,10 +81,24 @@ async def create_invitacion(
         .execute()
     )
     if existing_user.data:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Este usuario ya pertenece a la organizacion.",
-        )
+        if data.equipo_id:
+            existing_membership = (
+                supabase.table("usuarios_equipos")
+                .select("id")
+                .eq("usuario_id", existing_user.data[0]["id"])
+                .eq("equipo_id", str(data.equipo_id))
+                .execute()
+            )
+            if existing_membership.data:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Este usuario ya pertenece a ese equipo.",
+                )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Este usuario ya pertenece a la organizacion.",
+            )
 
     # Check license limits
     if data.equipo_id:

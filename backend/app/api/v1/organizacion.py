@@ -122,14 +122,33 @@ async def update_organizacion(
 
 @router.get("/miembros")
 async def list_miembros(auth: AuthContext = Depends(require_permission())):
-    """Lista los miembros de la organizacion con sus roles de equipo."""
+    """Lista a los companeros de equipo del usuario (comparten al menos un
+    equipo), no a todo el staff de la organizacion. Solo el club-admin
+    gestiona el staff de todos los equipos, y lo hace desde /club/miembros
+    en el panel de gestion, no desde aqui."""
     from app.database import get_supabase
 
     supabase = get_supabase()
+
+    membresias = supabase.table("usuarios_equipos").select("equipo_id").eq(
+        "usuario_id", auth.user_id
+    ).execute()
+    equipo_ids = [m["equipo_id"] for m in (membresias.data or [])]
+    if not equipo_ids:
+        return []
+
+    companeros = supabase.table("usuarios_equipos").select("usuario_id").in_(
+        "equipo_id", equipo_ids
+    ).execute()
+    usuario_ids = list({c["usuario_id"] for c in (companeros.data or [])})
+    if not usuario_ids:
+        return []
+
     result = (
         supabase.table("usuarios")
         .select("id, email, nombre, apellidos, rol, created_at, usuarios_equipos(equipo_id, rol_en_equipo, equipos(nombre))")
         .eq("organizacion_id", auth.organizacion_id)
+        .in_("id", usuario_ids)
         .execute()
     )
 

@@ -568,8 +568,10 @@ const SidebarContent = memo(function SidebarContent({
           </li>
           )}
 
-          {/* Team selector */}
-          {!isClubOnlyRole && (
+          {/* Team selector -- only worth showing when there's actually
+              something to switch to; a single-team user can never change
+              equipo, so the picker is dead weight taking up sidebar space. */}
+          {!isClubOnlyRole && equipos.length > 1 && (
           <li className="mt-auto" ref={dropdownRef}>
             {!collapsed && (
               <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-3">
@@ -668,7 +670,7 @@ const SidebarContent = memo(function SidebarContent({
           </li>
           )}
 
-          <li className={cn(isClubOnlyRole && 'mt-auto')}>
+          <li className={cn((isClubOnlyRole || equipos.length <= 1) && 'mt-auto')}>
             <button
               onClick={onLogout}
               title={collapsed ? 'Cerrar sesión' : undefined}
