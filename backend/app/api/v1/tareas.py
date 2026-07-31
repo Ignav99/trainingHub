@@ -303,8 +303,20 @@ async def list_tareas(
         # Modo biblioteca del club: TODAS las tareas de la organización (cross-team)
         query = query.eq("organizacion_id", current_user.organizacion_id)
     elif current_user:
-        # Usuario autenticado: tareas de su organización
+        # Usuario autenticado, modo normal (no biblioteca): solo tareas de sus
+        # propios equipos (via usuarios_equipos) + tareas sin equipo (compartidas
+        # a nivel club por diseño). Antes esto solo filtraba por organizacion_id,
+        # mostrando las tareas de TODOS los equipos del club mezcladas.
         query = query.eq("organizacion_id", current_user.organizacion_id)
+        membresias = supabase.table("usuarios_equipos").select("equipo_id").eq(
+            "usuario_id", str(current_user.id)
+        ).execute()
+        equipo_ids = [m["equipo_id"] for m in (membresias.data or [])]
+        if equipo_ids:
+            ids_list = ",".join(equipo_ids)
+            query = query.or_(f"equipo_id.is.null,equipo_id.in.({ids_list})")
+        else:
+            query = query.is_("equipo_id", "null")
     else:
         # Sin autenticación: solo tareas públicas
         query = query.eq("es_publica", True)
