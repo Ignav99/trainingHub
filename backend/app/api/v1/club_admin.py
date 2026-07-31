@@ -623,7 +623,10 @@ async def club_invite_staff(
     if existing and existing.data:
         raise HTTPException(status_code=409, detail=f"Ya existe una invitacion pendiente para {data.email}")
 
-    # Check if already member
+    # Check if already a member of the SPECIFIC team being invited to. A
+    # staff member can legitimately belong to several teams at once (each
+    # with its own rol_en_equipo) -- already existing somewhere else in the
+    # org must never block adding them to a different team.
     existing_user = (
         supabase.table("usuarios")
         .select("id")
@@ -633,7 +636,18 @@ async def club_invite_staff(
         .execute()
     )
     if existing_user and existing_user.data:
-        raise HTTPException(status_code=409, detail=f"{data.email} ya es miembro de tu organizacion")
+        if data.equipo_id:
+            existing_membership = (
+                supabase.table("usuarios_equipos")
+                .select("id")
+                .eq("usuario_id", existing_user.data["id"])
+                .eq("equipo_id", str(data.equipo_id))
+                .execute()
+            )
+            if existing_membership.data:
+                raise HTTPException(status_code=409, detail=f"{data.email} ya pertenece a ese equipo")
+        else:
+            raise HTTPException(status_code=409, detail=f"{data.email} ya es miembro de tu organizacion")
 
     # Get equipo_id
     equipo_id = data.equipo_id
