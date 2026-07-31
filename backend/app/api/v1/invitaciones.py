@@ -142,12 +142,12 @@ async def create_invitacion(
     settings = get_settings()
     token = result.data[0].get("token", "")
     if data.es_invitacion_tutor and data.jugador_id:
-        jugador = supabase.table("jugadores").select("nombre").eq("id", str(data.jugador_id)).single().execute()
+        jugador = supabase.table("jugadores").select("nombre").eq("id", str(data.jugador_id)).maybe_single().execute()
         equipo_name = ""
         if data.equipo_id:
-            eq = supabase.table("equipos").select("nombre").eq("id", str(data.equipo_id)).single().execute()
+            eq = supabase.table("equipos").select("nombre").eq("id", str(data.equipo_id)).maybe_single().execute()
             equipo_name = eq.data.get("nombre", "") if eq.data else ""
-        org = supabase.table("organizaciones").select("nombre").eq("id", auth.organizacion_id).single().execute()
+        org = supabase.table("organizaciones").select("nombre").eq("id", auth.organizacion_id).maybe_single().execute()
         send_tutor_consent_email(
             to_email=data.email,
             player_name=jugador.data.get("nombre", "") if jugador.data else "",
@@ -157,10 +157,10 @@ async def create_invitacion(
             frontend_url=settings.FRONTEND_URL,
         )
     else:
-        org = supabase.table("organizaciones").select("nombre").eq("id", auth.organizacion_id).single().execute()
+        org = supabase.table("organizaciones").select("nombre").eq("id", auth.organizacion_id).maybe_single().execute()
         equipo_name = None
         if data.equipo_id:
-            eq = supabase.table("equipos").select("nombre").eq("id", str(data.equipo_id)).single().execute()
+            eq = supabase.table("equipos").select("nombre").eq("id", str(data.equipo_id)).maybe_single().execute()
             equipo_name = eq.data.get("nombre") if eq.data else None
         send_invitation_email(
             to_email=data.email,
@@ -216,7 +216,7 @@ async def verify_invitacion(token: str):
         .select("*, organizaciones(nombre), equipos(nombre), usuarios!invitaciones_invitado_por_fkey(nombre)")
         .eq("token_hash", token_hash)
         .eq("estado", "pendiente")
-        .single()
+        .maybe_single()
         .execute()
     )
 
@@ -249,7 +249,7 @@ async def verify_invitacion(token: str):
             supabase.table("jugadores")
             .select("nombre, apellidos")
             .eq("id", invite["jugador_id"])
-            .single()
+            .maybe_single()
             .execute()
         )
         if jugador.data:
@@ -269,7 +269,7 @@ async def accept_invitacion(data: InvitacionAcceptRequest, request: Request):
         .select("*")
         .eq("token_hash", token_hash)
         .eq("estado", "pendiente")
-        .single()
+        .maybe_single()
         .execute()
     )
 
@@ -380,7 +380,7 @@ async def accept_invitacion(data: InvitacionAcceptRequest, request: Request):
     )
 
     # Fetch and return complete user
-    user_data = supabase.table("usuarios").select("*, organizaciones(*)").eq("id", user_id).single().execute()
+    user_data = supabase.table("usuarios").select("*, organizaciones(*)").eq("id", user_id).maybe_single().execute()
     ud = user_data.data
     ud["organizacion"] = ud.pop("organizaciones", None)
     return UsuarioResponse(**ud)
@@ -399,7 +399,7 @@ async def resend_invitacion(
         .select("*")
         .eq("id", str(invitacion_id))
         .eq("organizacion_id", auth.organizacion_id)
-        .single()
+        .maybe_single()
         .execute()
     )
 
@@ -427,15 +427,15 @@ async def resend_invitacion(
 
     # Re-send the invitation email
     settings = get_settings()
-    org = supabase.table("organizaciones").select("nombre").eq("id", auth.organizacion_id).single().execute()
+    org = supabase.table("organizaciones").select("nombre").eq("id", auth.organizacion_id).maybe_single().execute()
     org_name = org.data.get("nombre", "") if org.data else ""
     equipo_name = None
     if invite.data.get("equipo_id"):
-        eq = supabase.table("equipos").select("nombre").eq("id", invite.data["equipo_id"]).single().execute()
+        eq = supabase.table("equipos").select("nombre").eq("id", invite.data["equipo_id"]).maybe_single().execute()
         equipo_name = eq.data.get("nombre") if eq.data else None
 
     if invite.data.get("es_invitacion_tutor") and invite.data.get("jugador_id"):
-        jugador = supabase.table("jugadores").select("nombre").eq("id", invite.data["jugador_id"]).single().execute()
+        jugador = supabase.table("jugadores").select("nombre").eq("id", invite.data["jugador_id"]).maybe_single().execute()
         send_tutor_consent_email(
             to_email=invite.data["email"],
             player_name=jugador.data.get("nombre", "") if jugador.data else "",
@@ -471,7 +471,7 @@ async def revoke_invitacion(
         .select("id, estado")
         .eq("id", str(invitacion_id))
         .eq("organizacion_id", auth.organizacion_id)
-        .single()
+        .maybe_single()
         .execute()
     )
 
@@ -523,8 +523,8 @@ async def create_transferencia(
 
     # Send transfer email to target user
     settings = get_settings()
-    target_user = supabase.table("usuarios").select("email").eq("id", str(data.a_usuario_id)).single().execute()
-    equipo = supabase.table("equipos").select("nombre").eq("id", str(data.equipo_id)).single().execute()
+    target_user = supabase.table("usuarios").select("email").eq("id", str(data.a_usuario_id)).maybe_single().execute()
+    equipo = supabase.table("equipos").select("nombre").eq("id", str(data.equipo_id)).maybe_single().execute()
     if target_user.data:
         send_ownership_transfer_email(
             to_email=target_user.data["email"],
@@ -551,7 +551,7 @@ async def accept_transferencia(
         .eq("id", str(transferencia_id))
         .eq("a_usuario_id", auth.user_id)
         .eq("estado", "pendiente")
-        .single()
+        .maybe_single()
         .execute()
     )
 
