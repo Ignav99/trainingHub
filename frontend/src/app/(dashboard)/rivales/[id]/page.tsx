@@ -23,6 +23,7 @@ import {
   Swords,
   Download,
   Target,
+  Shirt,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -40,6 +41,8 @@ import { useEquipoStore } from '@/stores/equipoStore'
 import { MiniFieldPressure } from '@/components/rivales/MiniFieldPressure'
 import { ModeloComparativa } from '@/components/rivales/ModeloComparativa'
 import { InformeRivalEnriquecidoEditor } from '@/components/rivales/InformeRivalEnriquecidoEditor'
+import { KitEditor } from '@/components/equipaciones/KitEditor'
+import { equipacionesApi, type Equipacion, type EquipacionInput, type TipoEquipacion } from '@/lib/api/equipaciones'
 import type { Rival, PreMatchIntel, RivalInforme, AIInformeRival, AIPlanPartido, GameModel, InformeRivalEnriquecido, MapaPresion } from '@/types'
 
 // Dynamic imports for heavy pre-match widgets
@@ -58,7 +61,7 @@ const ABPRivalPlays = dynamic(() => import('@/components/abp/ABPRivalPlays'), { 
 const RivalInformeTab = dynamic(() => import('@/components/rivales/RivalInformeTab').then(m => ({ default: m.RivalInformeTab })), { loading: () => <WidgetSkeleton /> })
 const RivalPlanPartidoTab = dynamic(() => import('@/components/rivales/RivalPlanPartidoTab').then(m => ({ default: m.RivalPlanPartidoTab })), { loading: () => <WidgetSkeleton /> })
 
-type TabId = 'scouting' | 'informe' | 'plan_partido' | 'informes' | 'comparativa' | 'abp' | 'info'
+type TabId = 'scouting' | 'informe' | 'plan_partido' | 'informes' | 'comparativa' | 'abp' | 'equipacion' | 'info'
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'scouting', label: 'Scouting', icon: <Database className="h-3.5 w-3.5" /> },
@@ -67,6 +70,7 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'informes', label: 'Informes AI', icon: <Brain className="h-3.5 w-3.5" /> },
   { id: 'comparativa', label: 'Comparativa', icon: <Swords className="h-3.5 w-3.5" /> },
   { id: 'abp', label: 'ABP', icon: <Flag className="h-3.5 w-3.5" /> },
+  { id: 'equipacion', label: 'Equipacion', icon: <Shirt className="h-3.5 w-3.5" /> },
   { id: 'info', label: 'Info', icon: <Info className="h-3.5 w-3.5" /> },
 ]
 
@@ -106,6 +110,11 @@ export default function RivalDetailPage() {
   )
 
   const informes = informesRes?.data || []
+
+  // SWR for rival kit/equipacion
+  const { data: equipaciones, mutate: mutateEquipaciones } = useSWR<Equipacion[]>(
+    id ? apiKey(`/rivales/${id}/equipaciones`) : null
+  )
 
   // FASE 2 — SWR for game model (for Comparativa tab)
   const { data: gameModelsRes } = useSWR<{ data: GameModel[] }>(
@@ -352,6 +361,14 @@ export default function RivalDetailPage() {
         </Card>
       )}
 
+      {activeTab === 'equipacion' && (
+        <EquipacionTab
+          rivalId={id}
+          equipaciones={equipaciones || []}
+          onSaved={() => mutateEquipaciones()}
+        />
+      )}
+
       {activeTab === 'info' && (
         <InfoTab
           rival={rival}
@@ -361,6 +378,39 @@ export default function RivalDetailPage() {
           onSaveNotas={handleSaveNotas}
         />
       )}
+    </div>
+  )
+}
+
+// ==================== Equipacion Tab ====================
+
+function EquipacionTab({
+  rivalId,
+  equipaciones,
+  onSaved,
+}: {
+  rivalId: string
+  equipaciones: Equipacion[]
+  onSaved: () => void
+}) {
+  const local = equipaciones.find((e) => e.tipo === 'local')
+  const visitante = equipaciones.find((e) => e.tipo === 'visitante')
+
+  const handleSave = async (tipo: TipoEquipacion, data: EquipacionInput) => {
+    await equipacionesApi.upsertRival(rivalId, tipo, data)
+    onSaved()
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-sm font-semibold mb-2">Equipacion local</h3>
+        <KitEditor tipo="local" initial={local} onSave={(data) => handleSave('local', data)} />
+      </div>
+      <div>
+        <h3 className="text-sm font-semibold mb-2">Equipacion visitante</h3>
+        <KitEditor tipo="visitante" initial={visitante} onSave={(data) => handleSave('visitante', data)} />
+      </div>
     </div>
   )
 }
