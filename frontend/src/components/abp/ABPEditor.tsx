@@ -16,6 +16,7 @@ import {
   ABPJugada, ABPFase, TipoABP, LadoABP, SubtipoABP,
   SistemaMarcaje, ABP_TIPOS, ABP_SUBTIPOS, ABP_ROLES, ABPPlayerRol,
 } from '@/types'
+import { partidosApi } from '@/lib/api/partidos'
 
 type Tool =
   | 'select' | 'player' | 'opponent' | 'player_gk'
@@ -30,6 +31,8 @@ interface ABPEditorProps {
   saving?: boolean
   /** When set, locks 'lado' to this value and hides the selector (e.g. a dedicated ABP Ofensiva/Defensiva tab). */
   lockLado?: LadoABP
+  /** When set, resolves and uses the real kit colors (own + rival) for this match instead of TEAM_COLORS. */
+  partidoId?: string
 }
 
 // Role abbreviations for display on player circles
@@ -67,7 +70,34 @@ function getPitchView(tipo: TipoABP): 'full' | 'half' {
   return tipo === 'falta_lejana' ? 'full' : 'half'
 }
 
-export default function ABPEditor({ jugada, onSave, onCancel, saving, lockLado }: ABPEditorProps) {
+export default function ABPEditor({ jugada, onSave, onCancel, saving, lockLado, partidoId }: ABPEditorProps) {
+  // Real kit colors for the linked partido (own + rival). Falls back to
+  // TEAM_COLORS unless BOTH sides have an equipacion loaded.
+  const [teamColors, setTeamColors] = useState<{ team1: string; team2: string }>({
+    team1: TEAM_COLORS.team1,
+    team2: TEAM_COLORS.team2,
+  })
+
+  useEffect(() => {
+    if (!partidoId) {
+      setTeamColors({ team1: TEAM_COLORS.team1, team2: TEAM_COLORS.team2 })
+      return
+    }
+    let cancelled = false
+    partidosApi.getEquipaciones(partidoId).then(({ propia, rival }) => {
+      if (cancelled) return
+      if (propia && rival) {
+        setTeamColors({
+          team1: propia.color_camiseta_principal,
+          team2: rival.color_camiseta_principal,
+        })
+      }
+    }).catch(() => {
+      // Sin equipacion cargada o error de red: mantener TEAM_COLORS de siempre.
+    })
+    return () => { cancelled = true }
+  }, [partidoId])
+
   // Form state
   const [nombre, setNombre] = useState(jugada?.nombre || '')
   const [codigo, setCodigo] = useState(jugada?.codigo || '')
@@ -265,16 +295,16 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving, lockLado }
     pushHistory()
     const elementType = selectedTool as ElementType
     let label = ''
-    let color = TEAM_COLORS.team1
+    let color = teamColors.team1
 
     if (elementType === 'player') {
       label = String(playerCounter.team1)
       setPlayerCounter(prev => ({ ...prev, team1: prev.team1 + 1 }))
-      color = TEAM_COLORS.team1
+      color = teamColors.team1
     } else if (elementType === 'opponent') {
       label = String(playerCounter.team2)
       setPlayerCounter(prev => ({ ...prev, team2: prev.team2 + 1 }))
-      color = TEAM_COLORS.team2
+      color = teamColors.team2
     } else if (elementType === 'player_gk') {
       label = 'GK'
       color = TEAM_COLORS.goalkeeper
@@ -703,8 +733,8 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving, lockLado }
           <Sep />
 
           {/* Players */}
-          <TB id="player" icon={<Circle className="h-4 w-4" />} label="Jugador" color={TEAM_COLORS.team1} />
-          <TB id="opponent" icon={<Circle className="h-4 w-4" />} label="Rival" color={TEAM_COLORS.team2} />
+          <TB id="player" icon={<Circle className="h-4 w-4" />} label="Jugador" color={teamColors.team1} />
+          <TB id="opponent" icon={<Circle className="h-4 w-4" />} label="Rival" color={teamColors.team2} />
           <TB id="player_gk" icon={<Circle className="h-4 w-4" />} label="Portero" color={TEAM_COLORS.goalkeeper} />
 
           <Sep />

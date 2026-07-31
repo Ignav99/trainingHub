@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { apiKey, apiFetcher } from '@/lib/swr'
 import { abpApi } from '@/lib/api/abp'
+import { partidosApi } from '@/lib/api/partidos'
 import {
   Partido, Jugador, ABPJugada, ABPPartidoJugada, ABPAsignacion,
   ABP_TIPOS, ABP_ROLES, LadoABP,
@@ -26,7 +27,24 @@ interface PlanJugada {
   orden: number
 }
 
-function MiniDiagram({ jugada }: { jugada: ABPJugada }) {
+/**
+ * Resuelve el color de camiseta propio para el partido seleccionado
+ * (fallback de los elementos del diagrama que no tienen `color` guardado).
+ * Sin partido seleccionado o sin equipacion completa (propia+rival) cargada,
+ * cae siempre a TEAM_COLORS.team1.
+ */
+function useOwnKitColor(partidoId: string): string {
+  const { data } = useSWR(
+    partidoId ? apiKey(`/partidos/${partidoId}/equipaciones`) : null,
+    () => partidosApi.getEquipaciones(partidoId)
+  )
+  if (data?.propia && data?.rival) {
+    return data.propia.color_camiseta_principal
+  }
+  return TEAM_COLORS.team1
+}
+
+function MiniDiagram({ jugada, ownColor = TEAM_COLORS.team1 }: { jugada: ABPJugada; ownColor?: string }) {
   const fase = jugada.fases?.[0]
   const elements = fase?.diagram?.elements || []
   const arrows = fase?.diagram?.arrows || []
@@ -43,7 +61,7 @@ function MiniDiagram({ jugada }: { jugada: ABPJugada }) {
           if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk') {
             return (
               <g key={el.id} transform={`translate(${el.position.x}, ${el.position.y})`}>
-                <circle r={10} fill={el.color || TEAM_COLORS.team1} stroke="#FFF" strokeWidth="2" />
+                <circle r={10} fill={el.color || ownColor} stroke="#FFF" strokeWidth="2" />
               </g>
             )
           }
@@ -97,6 +115,7 @@ export default function ABPPreparePlan({ onClose }: ABPPreparePlanProps) {
 
   // Selected partido info
   const selectedPartido = partidos.find(p => p.id === selectedPartidoId)
+  const ownColor = useOwnKitColor(selectedPartidoId)
 
   // Load plan when partido changes
   useEffect(() => {
@@ -350,6 +369,7 @@ export default function ABPPreparePlan({ onClose }: ABPPreparePlanProps) {
                 onUpdateAsignacion={updateAsignacion}
                 onAddClick={() => { setPickerFilter('ofensivo'); setShowPicker(true) }}
                 color="blue"
+                ownColor={ownColor}
               />
 
               {/* Defensivas section */}
@@ -362,6 +382,7 @@ export default function ABPPreparePlan({ onClose }: ABPPreparePlanProps) {
                 onUpdateAsignacion={updateAsignacion}
                 onAddClick={() => { setPickerFilter('defensivo'); setShowPicker(true) }}
                 color="red"
+                ownColor={ownColor}
               />
             </>
           )}
@@ -407,7 +428,7 @@ export default function ABPPreparePlan({ onClose }: ABPPreparePlanProps) {
                       onClick={() => handleAddJugada(j)}
                       className="flex items-center gap-2.5 w-full p-2 rounded-lg hover:bg-orange-50 text-left transition-colors"
                     >
-                      {hasElements && <MiniDiagram jugada={j} />}
+                      {hasElements && <MiniDiagram jugada={j} ownColor={ownColor} />}
                       <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold flex-shrink-0 ${
                         j.lado === 'ofensivo' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'
                       }`}>
@@ -446,9 +467,10 @@ interface JugadaSectionProps {
   onUpdateAsignacion: (jugadaId: string, elementId: string, field: 'jugador_ids' | 'rol', value: string[] | string) => void
   onAddClick: () => void
   color: 'blue' | 'red'
+  ownColor: string
 }
 
-function JugadaSection({ title, jugadas, allJugadores, onRemove, onUpdateAsignacion, onAddClick, color }: JugadaSectionProps) {
+function JugadaSection({ title, jugadas, allJugadores, onRemove, onUpdateAsignacion, onAddClick, color, ownColor }: JugadaSectionProps) {
   const borderColor = color === 'blue' ? 'border-blue-200' : 'border-red-200'
   const bgColor = color === 'blue' ? 'bg-blue-50' : 'bg-red-50'
   const textColor = color === 'blue' ? 'text-blue-700' : 'text-red-700'
@@ -480,6 +502,7 @@ function JugadaSection({ title, jugadas, allJugadores, onRemove, onUpdateAsignac
               onRemove={() => onRemove(pj.jugada_id)}
               onUpdateAsignacion={(elementId, field, value) => onUpdateAsignacion(pj.jugada_id, elementId, field, value)}
               color={color}
+              ownColor={ownColor}
             />
           ))}
         </div>
@@ -496,9 +519,10 @@ interface PlanJugadaCardProps {
   onRemove: () => void
   onUpdateAsignacion: (elementId: string, field: 'jugador_ids' | 'rol', value: string[] | string) => void
   color: 'blue' | 'red'
+  ownColor: string
 }
 
-function PlanJugadaCard({ planJugada, jugadores, onRemove, onUpdateAsignacion, color }: PlanJugadaCardProps) {
+function PlanJugadaCard({ planJugada, jugadores, onRemove, onUpdateAsignacion, color, ownColor }: PlanJugadaCardProps) {
   const [expanded, setExpanded] = useState(true)
   const { jugada, asignaciones_override } = planJugada
   const tipoInfo = ABP_TIPOS.find(t => t.value === jugada.tipo)
@@ -519,7 +543,7 @@ function PlanJugadaCard({ planJugada, jugadores, onRemove, onUpdateAsignacion, c
     <div className={`border-2 ${borderColor} rounded-xl overflow-hidden bg-white`}>
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-gray-50" onClick={() => setExpanded(!expanded)}>
-        <MiniDiagram jugada={jugada} />
+        <MiniDiagram jugada={jugada} ownColor={ownColor} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <span className="text-sm font-semibold text-gray-900 truncate">{jugada.nombre}</span>
@@ -566,7 +590,7 @@ function PlanJugadaCard({ planJugada, jugadores, onRemove, onUpdateAsignacion, c
                     if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk') {
                       return (
                         <g key={el.id} transform={`translate(${el.position.x}, ${el.position.y})`}>
-                          <circle r={12} fill={el.color || TEAM_COLORS.team1} stroke="#FFF" strokeWidth="2" />
+                          <circle r={12} fill={el.color || ownColor} stroke="#FFF" strokeWidth="2" />
                           <text x="0" y="1" textAnchor="middle" dominantBaseline="middle" fill="#FFF" fontSize="10" fontWeight="bold" fontFamily="Arial">{el.label}</text>
                         </g>
                       )
@@ -593,7 +617,7 @@ function PlanJugadaCard({ planJugada, jugadores, onRemove, onUpdateAsignacion, c
                         {/* Element badge */}
                         <div
                           className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 mt-0.5"
-                          style={{ backgroundColor: el.color || TEAM_COLORS.team1 }}
+                          style={{ backgroundColor: el.color || ownColor }}
                         >
                           {el.label}
                         </div>

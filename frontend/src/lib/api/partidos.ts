@@ -1,5 +1,11 @@
 import { api } from './client'
 import { Partido, Rival, PaginatedResponse, TipoCompeticion, LocaliaPartido, OnceProbableResponse, TarjetasResumenResponse, PreMatchIntel, RivalInforme, InformeRivalEnriquecido, RivalScoutData, PlanPartidoData } from '@/types'
+import { Equipacion } from './equipaciones'
+
+export interface EquipacionesPartido {
+  propia: Equipacion | null
+  rival: Equipacion | null
+}
 
 // ============ Rivales ============
 
@@ -227,6 +233,10 @@ export const partidosApi = {
 
   async generarInforme(id: string): Promise<{ informe_url: string }> {
     return api.post<{ informe_url: string }>(`/partidos/${id}/informe`)
+  },
+
+  async getEquipaciones(id: string): Promise<EquipacionesPartido> {
+    return api.get<EquipacionesPartido>(`/partidos/${id}/equipaciones`)
   },
 
   async getPreMatchIntel(id: string, forceRefresh?: boolean): Promise<PreMatchIntel> {
