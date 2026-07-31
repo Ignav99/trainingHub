@@ -24,11 +24,28 @@ router = APIRouter()
 
 @router.get("", response_model=EquipoListResponse)
 async def list_equipos(auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_READ))):
-    """Lista equipos de la organizacion del usuario."""
+    """Lista los equipos a los que el usuario esta vinculado (usuarios_equipos).
+
+    Solo el staff de club-admin gestiona todos los equipos de la organizacion,
+    y lo hace desde /club/equipos (panel de gestion), no desde aqui. El staff
+    de un equipo (entrenador, delegado, fisio, etc.) unicamente debe ver los
+    equipos a los que esta realmente asignado.
+    """
     supabase = get_supabase()
+
+    membresias = (
+        supabase.table("usuarios_equipos")
+        .select("equipo_id")
+        .eq("usuario_id", auth.user_id)
+        .execute()
+    )
+    team_ids = [m["equipo_id"] for m in (membresias.data or [])]
+    if not team_ids:
+        return EquipoListResponse(data=[], total=0)
+
     response = supabase.table("equipos").select("*").eq(
         "organizacion_id", auth.organizacion_id
-    ).eq("activo", True).execute()
+    ).eq("activo", True).in_("id", team_ids).execute()
 
     return EquipoListResponse(data=response.data, total=len(response.data))
 
