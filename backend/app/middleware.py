@@ -161,6 +161,13 @@ class CacheControlMiddleware:
         "/v1/exports",
         "/v1/stripe",
         "/v1/onboarding",
+        # Admin/config surfaces where "save then reload to verify" is the
+        # normal workflow (club settings, kit/equipacion editor, club-admin
+        # panel). These previously fell through to the 30s default cache,
+        # so a GET right after a successful PUT/PATCH could serve a stale
+        # cached response and look like the edit was silently lost.
+        "/v1/organizacion",
+        "/v1/club",
     )
 
     def __init__(self, app: ASGIApp):

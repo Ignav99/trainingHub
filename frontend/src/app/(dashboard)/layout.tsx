@@ -135,11 +135,17 @@ export default function DashboardLayout({
       router.replace('/admin')
     }
     // Club admin/coordinator manage the whole club (all teams, staff, roles,
-    // invites) from /gestion — never the single-team operational dashboard.
-    if (!isLoading && isAuthenticated && isClubAdminRole(user?.rol)) {
+    // invites) from /gestion — never the single-team OPERATIONAL dashboard
+    // ("/", the home route with the team calendar/microciclos). Only bounce
+    // them off that specific route: a blanket "redirect unless under
+    // /gestion" used to fire on every mount (including a hard refresh or
+    // direct link to /gestion/equipos/[id], /configuracion, /rivales/[id],
+    // etc.) and stomped whatever route the admin was actually on — including
+    // pages they're explicitly allowed to use (Configuración, Rivales).
+    if (!isLoading && isAuthenticated && isClubAdminRole(user?.rol) && pathname === '/') {
       router.replace('/gestion')
     }
-  }, [isLoading, isAuthenticated, user, router])
+  }, [isLoading, isAuthenticated, user, router, pathname])
 
   const isClubOnlyRole = isSuperadminRole(user?.rol) || isClubAdminRole(user?.rol)
 

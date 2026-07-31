@@ -13,14 +13,20 @@ interface PlantillaTabProps {
 
 export default function PlantillaTab({ equipoId }: PlantillaTabProps) {
   const [jugadores, setJugadores] = useState<ClubJugador[]>([])
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [showInvite, setShowInvite] = useState(false)
 
   const load = () => {
     setLoading(true)
+    // `limit: 200` is the backend's max page size (see /club/jugadores) —
+    // fetching it directly avoids silently truncating rosters bigger than
+    // the old default of 50 while a real "load more" UI isn't built yet.
+    // The header count uses `res.total` (not jugadores.length) so it never
+    // lies even if a roster somehow exceeds this page size.
     clubAdminApi
-      .getClubJugadores({ equipo_id: equipoId })
-      .then((res) => setJugadores(res.data))
+      .getClubJugadores({ equipo_id: equipoId, limit: 200 })
+      .then((res) => { setJugadores(res.data); setTotal(res.total) })
       .catch((err: any) => toast.error(err.message || 'Error'))
       .finally(() => setLoading(false))
   }
@@ -38,7 +44,7 @@ export default function PlantillaTab({ equipoId }: PlantillaTabProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <span className="text-sm text-gray-500">{jugadores.length} jugadores</span>
+        <span className="text-sm text-gray-500">{total} jugadores</span>
         <button
           onClick={() => setShowInvite(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"

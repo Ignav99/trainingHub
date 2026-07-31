@@ -136,7 +136,13 @@ class EquipoResponse(EquipoBase):
 
 
 class EquipoDetalleResponse(EquipoResponse):
-    """EquipoResponse + contadores de detalle para la vista de un equipo."""
+    """EquipoResponse + contadores de detalle para la vista de un equipo.
+
+    Nota: `num_jugadores_plantilla` (heredado de EquipoBase) es la capacidad
+    objetivo configurada para el equipo (5-50, editable), NO el numero real
+    de jugadores dados de alta. Ese conteo real va en `num_jugadores`.
+    """
+    num_jugadores: int = 0
     num_staff: int = 0
     num_partidos: int = 0
     num_lesiones_activas: int = 0

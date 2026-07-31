@@ -54,7 +54,7 @@ export default function ResumenTab({ equipo, onUpdated }: ResumenTabProps) {
   }
 
   const kpiCards = [
-    { label: 'Jugadores', value: equipo.num_jugadores_plantilla, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: 'Jugadores', value: equipo.num_jugadores ?? 0, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
     { label: 'Staff', value: equipo.num_staff, icon: UserCheck, color: 'text-purple-600', bg: 'bg-purple-50' },
     { label: 'Tareas', value: equipo.num_tareas ?? 0, icon: ClipboardList, color: 'text-amber-600', bg: 'bg-amber-50' },
     { label: 'Sesiones', value: equipo.num_sesiones ?? 0, icon: Calendar, color: 'text-green-600', bg: 'bg-green-50' },
