@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import useSWR, { mutate } from 'swr'
 import {
@@ -26,6 +25,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ListPageSkeleton } from '@/components/ui/page-skeletons'
+import { TeamCrest } from '@/components/ui/team-crest'
 import { useEquipoStore } from '@/stores/equipoStore'
 import {
   rfefApi,
@@ -627,7 +627,7 @@ export default function CompeticionPage() {
                           </Badge>
                           <span className="flex-1 text-sm font-medium truncate flex items-center gap-1.5">
                             {p.rival?.escudo_url && (
-                              <Image src={p.rival.escudo_url} alt="" width={16} height={16} className="object-contain shrink-0" unoptimized />
+                              <TeamCrest src={p.rival.escudo_url} name={p.rival?.nombre || 'Rival'} size="sm" />
                             )}
                             {p.rival?.nombre || 'Rival'}
                           </span>

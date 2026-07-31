@@ -1,7 +1,7 @@
-import Image from 'next/image'
 import { BarChart3 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { TeamCrest } from '@/components/ui/team-crest'
 import type { Partido } from '@/types'
 import type { CargaSemanalData } from '@/lib/api/dashboard'
 
@@ -133,7 +133,7 @@ export function ChartSection({ ultimosPartidos, partidos, cargaSemanal, maxRPE, 
                       <td className="py-2">
                         <span className="inline-flex items-center gap-1.5">
                           {p.rival?.escudo_url && (
-                            <Image src={p.rival.escudo_url} alt="" width={16} height={16} className="object-contain" unoptimized />
+                            <TeamCrest src={p.rival.escudo_url} name={p.rival?.nombre || 'Rival'} size="sm" />
                           )}
                           <span className="text-[10px] text-muted-foreground mr-1">
                             {p.localia === 'local' ? 'vs' : '@'}

@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from app.dependencies import require_permission, AuthContext
 from app.services.audit_service import log_action
+from app.models import EquipacionResponse, EquipacionUpsert
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +119,52 @@ async def update_organizacion(
     )
 
     return result.data[0] if result.data else result.data
+
+
+@router.get("/equipaciones", response_model=list[EquipacionResponse])
+async def get_equipaciones_organizacion(auth: AuthContext = Depends(require_permission())):
+    """Lista las equipaciones (local/visitante) del club."""
+    from app.database import get_supabase
+
+    supabase = get_supabase()
+    res = supabase.table("equipaciones").select("*").eq(
+        "organizacion_id", auth.organizacion_id
+    ).execute()
+    return res.data or []
+
+
+@router.put("/equipaciones/{tipo}", response_model=EquipacionResponse)
+async def upsert_equipacion_organizacion(
+    tipo: str,
+    data: EquipacionUpsert,
+    auth: AuthContext = Depends(require_permission()),
+):
+    """Crea o actualiza la equipacion (local/visitante) del club."""
+    from app.database import get_supabase
+
+    if tipo not in ("local", "visitante"):
+        raise HTTPException(status_code=400, detail="Tipo invalido")
+
+    supabase = get_supabase()
+
+    payload = data.model_dump()
+    payload["tipo"] = tipo
+    payload["organizacion_id"] = auth.organizacion_id
+
+    existing = supabase.table("equipaciones").select("id").eq(
+        "organizacion_id", auth.organizacion_id
+    ).eq("tipo", tipo).execute()
+
+    if existing.data:
+        from datetime import datetime, timezone
+        payload["updated_at"] = datetime.now(timezone.utc).isoformat()
+        res = supabase.table("equipaciones").update(payload).eq(
+            "id", existing.data[0]["id"]
+        ).execute()
+    else:
+        res = supabase.table("equipaciones").insert(payload).execute()
+
+    return res.data[0]
 
 
 @router.get("/miembros")

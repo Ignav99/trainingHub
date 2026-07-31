@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import Image from 'next/image'
 import { Settings2 } from 'lucide-react'
 import type { Sesion, Partido, Microciclo } from '@/types'
 import { buildDayIndex, getBucket } from '@/lib/calendar/dayIndex'
@@ -18,6 +17,7 @@ import {
   type SeasonMonth,
 } from '@/lib/calendar/season'
 import { Button } from '@/components/ui/button'
+import { TeamCrest } from '@/components/ui/team-crest'
 
 interface CalendarYearViewProps {
   seasonStartYear: number
@@ -177,13 +177,11 @@ function MonthRow({
                   {day}
                 </span>
                 {hasMatch && partido?.rival?.escudo_url ? (
-                  <Image
+                  <TeamCrest
                     src={partido.rival.escudo_url}
-                    alt=""
-                    width={16}
-                    height={16}
-                    className="object-contain max-h-[50%] w-auto mt-1"
-                    unoptimized
+                    name={partido.rival?.nombre || 'Rival'}
+                    size="sm"
+                    className="max-h-3.5 max-w-3.5 h-auto w-auto"
                   />
                 ) : hasMatch ? (
                   <span className={`text-[9px] leading-none font-black mt-1 ${isLocal ? 'text-amber-900' : 'text-violet-900'}`}>

@@ -20,6 +20,8 @@ from app.models import (
     RivalResponse,
     RivalListResponse,
     RivalInformeResponse,
+    EquipacionResponse,
+    EquipacionUpsert,
 )
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
@@ -775,6 +777,63 @@ async def get_rival_perfil_competicion(
         "last_5_results": last_5_results,
         "head_to_head": head_to_head,
     }
+
+
+@router.get("/{rival_id}/equipaciones", response_model=list[EquipacionResponse])
+async def get_equipaciones_rival(
+    rival_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.RIVAL_READ)),
+):
+    """Lista las equipaciones (local/visitante) de un rival."""
+    supabase = get_supabase()
+    rival = supabase.table("rivales").select("id").eq(
+        "id", str(rival_id)
+    ).eq("organizacion_id", auth.organizacion_id).execute()
+    if not rival.data:
+        raise HTTPException(status_code=404, detail="Rival no encontrado")
+
+    res = supabase.table("equipaciones").select("*").eq(
+        "rival_id", str(rival_id)
+    ).execute()
+    return res.data or []
+
+
+@router.put("/{rival_id}/equipaciones/{tipo}", response_model=EquipacionResponse)
+async def upsert_equipacion_rival(
+    rival_id: UUID,
+    tipo: str,
+    data: EquipacionUpsert,
+    auth: AuthContext = Depends(require_permission(Permission.RIVAL_UPDATE)),
+):
+    """Crea o actualiza la equipacion (local/visitante) de un rival."""
+    if tipo not in ("local", "visitante"):
+        raise HTTPException(status_code=400, detail="Tipo invalido")
+
+    supabase = get_supabase()
+    rival = supabase.table("rivales").select("id").eq(
+        "id", str(rival_id)
+    ).eq("organizacion_id", auth.organizacion_id).execute()
+    if not rival.data:
+        raise HTTPException(status_code=404, detail="Rival no encontrado")
+
+    payload = data.model_dump()
+    payload["tipo"] = tipo
+    payload["rival_id"] = str(rival_id)
+
+    existing = supabase.table("equipaciones").select("id").eq(
+        "rival_id", str(rival_id)
+    ).eq("tipo", tipo).execute()
+
+    if existing.data:
+        from datetime import datetime, timezone
+        payload["updated_at"] = datetime.now(timezone.utc).isoformat()
+        res = supabase.table("equipaciones").update(payload).eq(
+            "id", existing.data[0]["id"]
+        ).execute()
+    else:
+        res = supabase.table("equipaciones").insert(payload).execute()
+
+    return res.data[0]
 
 
 @router.get("/{rival_id}", response_model=RivalResponse)

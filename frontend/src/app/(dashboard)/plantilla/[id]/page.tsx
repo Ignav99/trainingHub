@@ -36,6 +36,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { TeamCrest } from '@/components/ui/team-crest'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -2085,6 +2086,7 @@ interface ConvocatoriaWithJoins extends Convocatoria {
     rivales?: {
       nombre: string
       nombre_corto?: string
+      escudo_url?: string
     }
   }
 }
@@ -2360,7 +2362,14 @@ function PlayerStatsTab({ jugadorId }: { jugadorId: string }) {
                           : '-'}
                       </td>
                       <td className="px-3 py-2.5 text-sm">
-                        {p?.rivales?.nombre_corto || p?.rivales?.nombre || '-'}
+                        {p?.rivales ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <TeamCrest src={p.rivales.escudo_url} name={p.rivales.nombre} size="sm" />
+                            {p.rivales.nombre_corto || p.rivales.nombre}
+                          </span>
+                        ) : (
+                          '-'
+                        )}
                       </td>
                       <td className="px-3 py-2.5 text-center whitespace-nowrap">
                         {resultado ? (

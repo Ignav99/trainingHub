@@ -1,8 +1,8 @@
 'use client'
 
-import Image from 'next/image'
 import { Calendar, ChevronRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { TeamCrest } from '@/components/ui/team-crest'
 import { formatDate } from '@/lib/utils'
 import type { Partido } from '@/types'
 
@@ -35,7 +35,7 @@ export function PartidoCard({ partido, isSelected, isNext, onSelect }: PartidoCa
         <div className="min-w-0 flex-1">
           <p className="font-medium text-sm truncate flex items-center gap-1.5">
             {(partido as any).rival?.escudo_url && (
-              <Image src={(partido as any).rival.escudo_url} alt="" width={16} height={16} className="object-contain shrink-0 inline" unoptimized />
+              <TeamCrest src={(partido as any).rival.escudo_url} name={(partido as any).rival?.nombre || 'Rival'} size="sm" />
             )}
             {partido.localia === 'local' ? 'vs' : '@'}{' '}
             {(partido as any).rival?.nombre || 'Rival'}

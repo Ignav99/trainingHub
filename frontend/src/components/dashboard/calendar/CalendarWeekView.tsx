@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo } from 'react'
-import Image from 'next/image'
 import {
   Plus,
   Swords,
@@ -19,6 +18,7 @@ import {
   Activity,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { TeamCrest } from '@/components/ui/team-crest'
 import type { Sesion, Partido, Microciclo } from '@/types'
 import { buildDayIndex, getBucket } from '@/lib/calendar/dayIndex'
 import {
@@ -218,11 +218,7 @@ export function CalendarWeekView({
                         className="w-full text-left"
                       >
                         <div className="flex items-center gap-1.5">
-                          {p.rival?.escudo_url ? (
-                            <Image src={p.rival.escudo_url} alt="" width={20} height={20} className="object-contain shrink-0" unoptimized />
-                          ) : (
-                            <Swords className="h-4 w-4 text-amber-700 shrink-0" />
-                          )}
+                          <TeamCrest src={p.rival?.escudo_url} name={p.rival?.nombre || 'Rival'} size="sm" />
                           <div className="min-w-0 flex-1">
                             <p className="text-[11px] font-bold truncate">
                               {isLocal ? 'vs' : '@'} {p.rival?.nombre_corto || p.rival?.nombre || 'Rival'}

@@ -1,9 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
-import { CalendarDays, Users, ClipboardList, Target, Share2, Sparkles, Swords, Link2, Pencil, Shield, Lightbulb } from 'lucide-react'
+import { CalendarDays, Users, ClipboardList, Target, Share2, Sparkles, Swords, Link2, Pencil, Lightbulb } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
@@ -17,6 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
+import { TeamCrest } from '@/components/ui/team-crest'
 import { microciclosApi } from '@/lib/api/microciclos'
 import { rivalesApi } from '@/lib/api/partidos'
 import { extractPersistentScout, mergeScoutOnLoad } from '@/lib/rivalScoutSync'
@@ -345,20 +345,7 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
         ) : micro.rivales ? (
           <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
             <div className="flex items-center gap-3 min-w-0">
-              {micro.rivales.escudo_url ? (
-                <Image
-                  src={micro.rivales.escudo_url}
-                  alt={micro.rivales.nombre}
-                  width={32}
-                  height={32}
-                  className="rounded-md object-contain shrink-0"
-                  unoptimized
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-md bg-muted flex items-center justify-center shrink-0">
-                  <Shield className="h-4 w-4 text-muted-foreground" />
-                </div>
-              )}
+              <TeamCrest src={micro.rivales.escudo_url} name={micro.rivales.nombre} size="md" />
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
                   <Swords className="h-3.5 w-3.5 text-amber-600 shrink-0" />

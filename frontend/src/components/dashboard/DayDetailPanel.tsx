@@ -1,6 +1,5 @@
 'use client'
 
-import Image from 'next/image'
 import {
   Calendar,
   Swords,
@@ -21,6 +20,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { TeamCrest } from '@/components/ui/team-crest'
 import type { Sesion, Partido, Microciclo } from '@/types'
 import { isSameDay } from '@/lib/calendar/types'
 
@@ -159,20 +159,7 @@ export function DayDetailPanel({
                           }`}
                         >
                           <div className="flex items-start gap-3">
-                            {p.rival?.escudo_url ? (
-                              <Image
-                                src={p.rival.escudo_url}
-                                alt=""
-                                width={44}
-                                height={44}
-                                className="object-contain shrink-0 rounded-full bg-white border p-0.5"
-                                unoptimized
-                              />
-                            ) : (
-                              <div className="h-11 w-11 rounded-full bg-white border flex items-center justify-center shrink-0">
-                                <Swords className="h-5 w-5 text-muted-foreground" />
-                              </div>
-                            )}
+                            <TeamCrest src={p.rival?.escudo_url} name={p.rival?.nombre || 'Rival'} size="lg" />
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-1.5 mb-1">
                                 <Badge

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import useSWR, { mutate } from 'swr'
 import {
@@ -29,6 +28,7 @@ import {
 import { toast } from 'sonner'
 import { apiKey } from '@/lib/swr'
 import { CardGridSkeleton } from '@/components/ui/page-skeletons'
+import { TeamCrest } from '@/components/ui/team-crest'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { rivalesApi, RivalCreateData } from '@/lib/api/partidos'
@@ -157,13 +157,7 @@ export default function RivalesPage() {
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
                   <Link href={`/rivales/${rival.id}`} className="flex items-start gap-3 flex-1 min-w-0">
-                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                      {rival.escudo_url ? (
-                        <Image src={rival.escudo_url} alt="" width={32} height={32} className="object-contain" unoptimized />
-                      ) : (
-                        <Shield className="h-5 w-5 text-muted-foreground" />
-                      )}
-                    </div>
+                    <TeamCrest src={rival.escudo_url} name={rival.nombre} size="md" />
                     <div>
                       <h3 className="font-semibold">{rival.nombre}</h3>
                       {rival.nombre_corto && (
