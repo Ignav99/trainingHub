@@ -5,7 +5,7 @@ import { Loader2, UserPlus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { clubAdminApi } from '@/lib/api/clubAdmin'
 import type { EquipoStaffMember } from '../../../components/types'
-import { CLUB_ROLES, formatRole } from '../../../components/types'
+import { ROLES_EN_EQUIPO, formatRole } from '../../../components/types'
 
 interface EquipoStaffTabProps {
   equipoId: string
@@ -120,7 +120,7 @@ export default function EquipoStaffTab({ equipoId }: EquipoStaffTabProps) {
                 onChange={(e) => setInvRol(e.target.value)}
                 className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full sm:w-auto"
               >
-                {CLUB_ROLES.map(r => (
+                {ROLES_EN_EQUIPO.map(r => (
                   <option key={r.value} value={r.value}>{r.label}</option>
                 ))}
               </select>

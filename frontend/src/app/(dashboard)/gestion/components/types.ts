@@ -32,6 +32,24 @@ export const CLUB_ROLES = [
   { value: 'nutricionista', label: 'Nutricionista' },
 ]
 
+// Valores permitidos por el CHECK constraint real de usuarios_equipos.rol_en_equipo
+// (ver database: usuarios_equipos_rol_en_equipo_check). CLUB_ROLES mezcla roles de
+// club (administrador_club, presidente, etc.) y un valor legacy invalido
+// (tecnico_principal) que rompen ese constraint -- usar esta lista, no CLUB_ROLES,
+// para cualquier selector de "rol en el equipo" al invitar/asignar staff a un equipo.
+export const ROLES_EN_EQUIPO = [
+  { value: 'entrenador_principal', label: 'Entrenador Principal' },
+  { value: 'segundo_entrenador', label: '2do Entrenador' },
+  { value: 'preparador_fisico', label: 'Preparador Fisico' },
+  { value: 'entrenador_porteros', label: 'Entr. Porteros' },
+  { value: 'analista', label: 'Analista' },
+  { value: 'fisio', label: 'Fisioterapeuta' },
+  { value: 'nutricionista', label: 'Nutricionista' },
+  { value: 'delegado', label: 'Delegado de Campo' },
+  { value: 'delegado_equipo', label: 'Delegado de Equipo' },
+  { value: 'jugador', label: 'Jugador' },
+]
+
 export const FASES_JUEGO = [
   'ataque_organizado',
   'defensa_organizada',
