@@ -438,6 +438,14 @@ from app.models.plan_partido import (
     VistaCompletaMicrociclo,
 )
 
+from app.models.equipacion import (
+    PatronCamiseta,
+    TipoEquipacion,
+    EquipacionBase,
+    EquipacionUpsert,
+    EquipacionResponse,
+)
+
 __all__ = [
     # Tarea
     "FaseJuego", "Densidad", "NivelCognitivo", "ModalidadTarea",
@@ -592,4 +600,7 @@ __all__ = [
     "TipoAlerta", "PrioridadAlerta",
     "AlertaCreate", "AlertaUpdate", "AlertaResponse",
     "VistaCompletaMicrociclo",
+    # Equipaciones
+    "PatronCamiseta", "TipoEquipacion",
+    "EquipacionBase", "EquipacionUpsert", "EquipacionResponse",
 ]
