@@ -312,20 +312,26 @@ async def list_sesiones(
 
     # Filter by team: skip org-wide equipos query when equipo_id is provided
     if equipo_id:
-        # Verify the requested team belongs to the caller's organization
-        owner = supabase.table("equipos").select("id").eq(
-            "id", str(equipo_id)
-        ).eq("organizacion_id", auth.organizacion_id).execute()
-        if not owner.data:
+        # Verify the requesting user actually belongs to the requested team
+        # (not just that it exists in the same org) before filtering by it.
+        membership = supabase.table("usuarios_equipos").select("id").eq(
+            "usuario_id", auth.user_id
+        ).eq("equipo_id", str(equipo_id)).execute()
+        if not membership.data:
             raise HTTPException(status_code=404, detail="Equipo no encontrado")
         query = query.eq("equipo_id", str(equipo_id))
     else:
-        equipos = supabase.table("equipos").select("id").eq(
-            "organizacion_id", auth.organizacion_id
+        # Default to the teams the user actually belongs to -- NOT every team
+        # in the organization, which would leak other teams' sessions to any
+        # staff member (a coach/delegate/physio only sees their own team(s)).
+        membresias = supabase.table("usuarios_equipos").select("equipo_id").eq(
+            "usuario_id", auth.user_id
         ).execute()
-        equipo_ids = [e["id"] for e in equipos.data]
+        equipo_ids = [m["equipo_id"] for m in (membresias.data or [])]
         if equipo_ids:
             query = query.in_("equipo_id", equipo_ids)
+        else:
+            return SesionListResponse(data=[], total=0, page=page, limit=limit, pages=0)
 
     if match_day:
         query = query.eq("match_day", match_day.value)
