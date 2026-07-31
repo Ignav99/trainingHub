@@ -292,6 +292,56 @@ async def delete_partido(
     return None
 
 
+@router.get("/{partido_id}/equipaciones")
+async def get_equipaciones_partido(
+    partido_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """
+    Resuelve la equipacion real (propia y del rival) para un partido.
+    Nunca inventa colores: si no hay equipacion cargada para alguna de las
+    dos partes, devuelve null en esa clave y el frontend decide el fallback
+    visual (TEAM_COLORS genericos).
+    """
+    supabase = get_supabase()
+
+    # partidos no tiene organizacion_id propio; se scopea via equipos!inner
+    # (mismo patron que update_partido/delete_partido en este archivo).
+    partido = supabase.table("partidos").select(
+        "id, rival_id, localia, equipos!inner(organizacion_id)"
+    ).eq("id", str(partido_id)).eq(
+        "equipos.organizacion_id", auth.organizacion_id
+    ).limit(1).execute()
+
+    if not partido.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Partido no encontrado",
+        )
+
+    p = partido.data[0]
+
+    tipo_propio = "visitante" if p.get("localia") == "visitante" else "local"
+    tipo_rival = "visitante" if tipo_propio == "local" else "local"
+
+    propia_res = supabase.table("equipaciones").select("*").eq(
+        "organizacion_id", auth.organizacion_id
+    ).eq("tipo", tipo_propio).execute()
+    propia = propia_res.data[0] if propia_res.data else None
+
+    rival = None
+    if p.get("rival_id"):
+        rival_res = supabase.table("equipaciones").select("*").eq(
+            "rival_id", p["rival_id"]
+        ).eq("tipo", tipo_rival).execute()
+        rival = rival_res.data[0] if rival_res.data else None
+
+    return {
+        "propia": propia,
+        "rival": rival,
+    }
+
+
 @router.post("/{partido_id}/resultado", response_model=PartidoResponse)
 async def registrar_resultado(
     partido_id: UUID,
