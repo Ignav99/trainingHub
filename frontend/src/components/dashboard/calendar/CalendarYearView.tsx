@@ -177,7 +177,12 @@ function MonthRow({
                   {day}
                 </span>
                 {hasMatch && partido?.rival?.escudo_url ? (
-                  <TeamCrest src={partido.rival.escudo_url} name={partido.rival?.nombre || 'Rival'} size="sm" />
+                  <TeamCrest
+                    src={partido.rival.escudo_url}
+                    name={partido.rival?.nombre || 'Rival'}
+                    size="sm"
+                    className="max-h-3.5 max-w-3.5 h-auto w-auto"
+                  />
                 ) : hasMatch ? (
                   <span className={`text-[9px] leading-none font-black mt-1 ${isLocal ? 'text-amber-900' : 'text-violet-900'}`}>
                     {isLocal ? 'C' : 'F'}
