@@ -1,11 +1,11 @@
 'use client'
 
-import Image from 'next/image'
 import Link from 'next/link'
 import { Swords, ChevronRight, Shield, Crosshair, Target } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { TeamCrest } from '@/components/ui/team-crest'
 import type { InformeRivalEnriquecido, Partido } from '@/types'
 
 interface WarRoomRivalResumenProps {
@@ -34,20 +34,7 @@ export function WarRoomRivalResumen({ rivalInfo, partido }: WarRoomRivalResumenP
       <CardContent className="space-y-3 pt-0">
         {/* Match header */}
         <div className="flex items-center gap-3">
-          {partido.rival?.escudo_url ? (
-            <Image
-              src={partido.rival.escudo_url}
-              alt={partido.rival?.nombre || 'Rival'}
-              width={36}
-              height={36}
-              className="object-contain shrink-0"
-              unoptimized
-            />
-          ) : (
-            <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-              <Swords className="h-5 w-5 text-amber-600" />
-            </div>
-          )}
+          <TeamCrest src={partido.rival?.escudo_url} name={partido.rival?.nombre || 'Rival'} size="md" />
           <div className="flex-1 min-w-0">
             <p className="font-bold text-base truncate">
               {partido.localia === 'local' ? 'vs' : '@'} {partido.rival?.nombre || 'Rival'}

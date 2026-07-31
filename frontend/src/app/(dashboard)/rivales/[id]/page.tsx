@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import Image from 'next/image'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
@@ -34,6 +33,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { apiKey } from '@/lib/swr'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
+import { TeamCrest } from '@/components/ui/team-crest'
 import { RFEFCompeticion } from '@/lib/api/rfef'
 import { toast } from 'sonner'
 import { rivalesApi } from '@/lib/api/partidos'
@@ -246,10 +246,8 @@ export default function RivalDetailPage() {
         >
           {uploadingEscudo ? (
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          ) : rival.escudo_url ? (
-            <Image src={rival.escudo_url} alt="" width={48} height={48} className="object-contain" unoptimized />
           ) : (
-            <Shield className="h-8 w-8 text-muted-foreground" />
+            <TeamCrest src={rival.escudo_url} name={rival.nombre} size="lg" />
           )}
           <div className="absolute inset-0 rounded-xl bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
             <Camera className="h-5 w-5 text-white" />

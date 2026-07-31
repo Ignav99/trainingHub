@@ -4,6 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { Swords, Trophy } from 'lucide-react'
 import { ClubAvatar } from '@/components/ui/avatar'
+import { TeamCrest } from '@/components/ui/team-crest'
 import type { DashboardResumen, DashboardPlantilla } from '@/lib/api/dashboard'
 
 interface NextMatchBannerProps {
@@ -61,7 +62,7 @@ export function NextMatchBanner({
               {proximoPartido ? (
                 <>
                   {proximoPartido.rival?.escudo_url ? (
-                    <Image src={proximoPartido.rival.escudo_url} alt="" width={20} height={20} className="object-contain" unoptimized />
+                    <TeamCrest src={proximoPartido.rival.escudo_url} name={proximoPartido.rival?.nombre || 'Rival'} size="sm" />
                   ) : (
                     <Swords className="h-4 w-4" />
                   )}

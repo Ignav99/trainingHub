@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import Image from 'next/image'
 import {
   Users,
   Plus,
@@ -27,6 +26,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { TeamCrest } from '@/components/ui/team-crest'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
@@ -777,7 +777,7 @@ export function MatchDetailPanel({
         <div>
           <h2 className="text-lg font-bold flex items-center gap-2">
             {selectedPartido.rival?.escudo_url && (
-              <Image src={selectedPartido.rival.escudo_url} alt="" width={24} height={24} className="object-contain" unoptimized />
+              <TeamCrest src={selectedPartido.rival.escudo_url} name={(selectedPartido as any).rival?.nombre || 'Rival'} size="sm" />
             )}
             {selectedPartido.localia === 'local' ? 'vs' : '@'}{' '}
             {(selectedPartido as any).rival?.nombre || 'Rival'}
@@ -1075,7 +1075,7 @@ export function MatchDetailPanel({
                       <div className="text-left flex-1">
                         <div className="flex items-center gap-2">
                           {selectedPartido.rival?.escudo_url && (
-                            <Image src={selectedPartido.rival.escudo_url} alt="" width={32} height={32} className="object-contain" unoptimized />
+                            <TeamCrest src={selectedPartido.rival.escudo_url} name={selectedPartido.rival?.nombre || 'Rival'} size="md" />
                           )}
                           <div>
                             <p className="text-lg font-bold">{selectedPartido.rival?.nombre || 'Rival'}</p>

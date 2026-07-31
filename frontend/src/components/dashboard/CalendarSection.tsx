@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useEffect, useState } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import {
   Plus,
@@ -26,6 +25,7 @@ import { CALENDAR_VIEW_LABELS, startOfWeekMonday, addDays, toLocalDateStr } from
 import { formatSeasonLabel } from '@/lib/calendar/season'
 import { exportCalendarPDF } from '@/lib/pdf/exportCalendarPDF'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { TeamCrest } from '@/components/ui/team-crest'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -624,11 +624,7 @@ export function CalendarSection({
                             : 'bg-violet-50 border-violet-200'
                         }`}
                       >
-                        {p.rival?.escudo_url ? (
-                          <Image src={p.rival.escudo_url} alt="" width={20} height={20} className="object-contain shrink-0" unoptimized />
-                        ) : (
-                          <Swords className={`h-4 w-4 shrink-0 ${isLocal ? 'text-amber-600' : 'text-violet-600'}`} />
-                        )}
+                        <TeamCrest src={p.rival?.escudo_url} name={p.rival?.nombre || 'Rival'} size="sm" />
                         <div className="flex-1 min-w-0">
                           <span className={`text-sm font-bold truncate block ${isLocal ? 'text-amber-800' : 'text-violet-800'}`}>
                             {isLocal ? 'vs' : '@'} {p.rival?.nombre_corto || p.rival?.nombre || 'Rival'}
@@ -938,11 +934,7 @@ export function CalendarSection({
                             }`}
                           >
                             <div className="flex items-center gap-1">
-                              {p.rival?.escudo_url ? (
-                                <Image src={p.rival.escudo_url} alt="" width={14} height={14} className="object-contain shrink-0" unoptimized />
-                              ) : (
-                                <Swords className={`h-3 w-3 shrink-0 ${isLocal ? 'text-amber-600' : 'text-violet-600'}`} />
-                              )}
+                              <TeamCrest src={p.rival?.escudo_url} name={p.rival?.nombre || 'Rival'} size="sm" />
                               <span className={`text-[10px] font-bold truncate ${isLocal ? 'text-amber-800' : 'text-violet-800'}`}>
                                 {isLocal ? 'vs' : '@'}{' '}
                                 {p.rival?.nombre_corto || p.rival?.nombre || 'Rival'}
