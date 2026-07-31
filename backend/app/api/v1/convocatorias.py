@@ -108,7 +108,7 @@ async def list_convocatorias_jugador(
     supabase = get_supabase()
 
     response = supabase.table("convocatorias").select(
-        "*, partidos(fecha, localia, competicion, goles_favor, goles_contra, resultado, rivales(nombre, nombre_corto))"
+        "*, partidos(fecha, localia, competicion, goles_favor, goles_contra, resultado, rivales(nombre, nombre_corto, escudo_url))"
     ).eq("jugador_id", str(jugador_id)).order("created_at", desc=True).limit(limit).execute()
 
     # Calcular estadísticas acumuladas
