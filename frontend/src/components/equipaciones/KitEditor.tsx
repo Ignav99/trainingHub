@@ -22,7 +22,7 @@ interface KitEditorProps {
 
 export function KitEditor({ tipo, initial, onSave }: KitEditorProps) {
   const [colorPrincipal, setColorPrincipal] = useState(initial?.color_camiseta_principal || '#1a365d')
-  const [colorSecundario, setColorSecundario] = useState(initial?.color_camiseta_secundario || '#1a365d')
+  const [colorSecundario, setColorSecundario] = useState(initial?.color_camiseta_secundario || '#ffffff')
   const [patron, setPatron] = useState<PatronCamiseta>(initial?.patron_camiseta || 'solido')
   const [colorPantalon, setColorPantalon] = useState(initial?.color_pantalon || '#1a365d')
   const [colorMedias, setColorMedias] = useState(initial?.color_medias || '#1a365d')
@@ -59,8 +59,9 @@ export function KitEditor({ tipo, initial, onSave }: KitEditorProps) {
       </div>
       <div className="flex-1 space-y-4">
         <div>
-          <label className="mb-1 block text-sm font-medium">Patron de camiseta</label>
+          <label htmlFor="patron-camiseta" className="mb-1 block text-sm font-medium">Patron de camiseta</label>
           <select
+            id="patron-camiseta"
             value={patron}
             onChange={(e) => setPatron(e.target.value as PatronCamiseta)}
             className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
