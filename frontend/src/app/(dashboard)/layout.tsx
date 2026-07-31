@@ -406,6 +406,10 @@ const SidebarContent = memo(function SidebarContent({
   const [equipoDropdownOpen, setEquipoDropdownOpen] = useState(false)
   const [saludOpen, setSaludOpen] = useState(() => isSaludPath(pathname))
   const dropdownRef = useRef<HTMLLIElement>(null)
+  // Club-admin/superadmin manage the whole club, not a single team's
+  // operational tools — hide the per-team nav (Microciclos, Sesiones,
+  // Plantilla, etc.), Salud, Herramientas and the team selector entirely.
+  const isClubOnlyRole = isSuperadminRole(user?.rol) || isClubAdminRole(user?.rol)
 
   useEffect(() => {
     if (isSaludPath(pathname)) setSaludOpen(true)
@@ -499,6 +503,7 @@ const SidebarContent = memo(function SidebarContent({
 
       <nav className={cn('flex flex-1 flex-col', collapsed ? 'px-2' : 'px-5')}>
         <ul role="list" className="flex flex-1 flex-col gap-y-5">
+          {!isClubOnlyRole && (
           <li>
             <ul role="list" className="space-y-0.5">
               {navigation.map((item) => (
@@ -508,8 +513,10 @@ const SidebarContent = memo(function SidebarContent({
               ))}
             </ul>
           </li>
+          )}
 
           {/* Salud group */}
+          {!isClubOnlyRole && (
           <li>
             {!collapsed && (
               <button
@@ -536,8 +543,10 @@ const SidebarContent = memo(function SidebarContent({
               </ul>
             )}
           </li>
+          )}
 
           {/* Herramientas */}
+          {!isClubOnlyRole && (
           <li>
             {!collapsed && (
               <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-3">
@@ -557,8 +566,10 @@ const SidebarContent = memo(function SidebarContent({
               ))}
             </ul>
           </li>
+          )}
 
           {/* Team selector */}
+          {!isClubOnlyRole && (
           <li className="mt-auto" ref={dropdownRef}>
             {!collapsed && (
               <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-3">
@@ -655,8 +666,9 @@ const SidebarContent = memo(function SidebarContent({
               )}
             </div>
           </li>
+          )}
 
-          <li>
+          <li className={cn(isClubOnlyRole && 'mt-auto')}>
             <button
               onClick={onLogout}
               title={collapsed ? 'Cerrar sesión' : undefined}
