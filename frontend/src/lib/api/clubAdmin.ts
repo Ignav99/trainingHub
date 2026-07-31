@@ -121,9 +121,13 @@ export interface AuditEntry {
 
 // Detalle de equipo — GET /club/equipos/{id} devuelve EquipoDetalleResponse
 // (backend/app/models/usuario.py), que NO es un superset de ClubEquipo: le
-// faltan num_jugadores/total_sesiones/total_tareas y en cambio trae los
-// campos crudos de EquipoBase/EquipoResponse (num_jugadores_plantilla,
-// sistema_juego, config, num_sesiones, num_tareas, etc.).
+// faltan total_sesiones/total_tareas y en cambio trae los campos crudos de
+// EquipoBase/EquipoResponse (num_jugadores_plantilla, sistema_juego, config,
+// num_sesiones, num_tareas, etc.) mas un `num_jugadores` calculado aparte.
+//
+// OJO: `num_jugadores_plantilla` es la capacidad OBJETIVO configurada para
+// el equipo (editable, 5-50) — no el numero real de jugadores dados de
+// alta. Para mostrar el conteo real usar `num_jugadores`.
 export interface EquipoDetalle {
   id: string
   organizacion_id: string
@@ -131,6 +135,7 @@ export interface EquipoDetalle {
   categoria?: string
   temporada?: string
   num_jugadores_plantilla: number
+  num_jugadores: number
   sistema_juego: string
   config: Record<string, unknown>
   activo: boolean

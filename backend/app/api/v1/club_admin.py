@@ -64,6 +64,7 @@ class UpdateEquipoRequest(BaseModel):
     nombre: Optional[str] = None
     categoria: Optional[str] = None
     temporada: Optional[str] = None
+    sistema_juego: Optional[str] = None
 
 
 class ChangeRolRequest(BaseModel):
@@ -336,6 +337,8 @@ async def club_update_equipo(
         update_fields["categoria"] = data.categoria
     if data.temporada is not None:
         update_fields["temporada"] = data.temporada
+    if data.sistema_juego is not None:
+        update_fields["sistema_juego"] = data.sistema_juego
 
     if not update_fields:
         raise HTTPException(status_code=400, detail="No hay cambios")
@@ -378,6 +381,17 @@ async def club_get_equipo_detalle(
         raise HTTPException(status_code=404, detail="Equipo no encontrado en tu organizacion")
     equipo = team.data
 
+    # Real player headcount — mirrors the filter used by the club-wide
+    # /club/equipos list (es_invitado=False) so both views agree on what
+    # "Jugadores" means. `num_jugadores_plantilla` on `equipo` is a separate,
+    # editable target roster size and must never be used as a live count.
+    num_jugadores = (
+        supabase.table("jugadores")
+        .select("id", count="exact")
+        .eq("equipo_id", equipo_id)
+        .eq("es_invitado", False)
+        .execute()
+    )
     num_staff = (
         supabase.table("usuarios_equipos")
         .select("id", count="exact")
@@ -401,6 +415,7 @@ async def club_get_equipo_detalle(
 
     return EquipoDetalleResponse(
         **equipo,
+        num_jugadores=num_jugadores.count or 0,
         num_staff=num_staff.count or 0,
         num_partidos=num_partidos.count or 0,
         num_lesiones_activas=num_lesiones.count or 0,
