@@ -29,11 +29,32 @@ export interface DiagramElement {
   jugador?: string
   /** Rol táctico (slug, ej. constructor, corredor) */
   rol?: string
+  /**
+   * Funciones editables asignadas a este jugador en esta jugada (ABP).
+   * Lista libre (agregar/quitar), opcionalmente cada una ligada a otro
+   * elemento del diagrama (ej. "bloquea para" el jugador X). Campo
+   * frontend-only: viaja serializado dentro del DiagramData (JSONB), sin
+   * tabla ni migración propia.
+   */
+  funciones?: ABPFuncionAsignada[]
   color?: string // Color personalizado
   size?: number // Tamano (para zonas)
   rotation?: number // Rotacion en grados
   /** Id de grupo — los elementos del mismo grupo se seleccionan y transforman juntos */
   groupId?: string
+}
+
+/** Entrada de función editable asignada a un jugador en una jugada de ABP. */
+export interface ABPFuncionAsignada {
+  id: string
+  /** Id del jugador real (Jugador.id), si se asignó desde la plantilla. */
+  jugadorId?: string
+  /** Etiqueta a mostrar: dorsal + nombre, o texto libre si no hay jugador real. */
+  jugadorLabel: string
+  /** Función en texto libre (no enum fijo): "bloquea", "remata primer palo", etc. */
+  funcion: string
+  /** Id del elemento del diagrama al que se asocia esta función (movimiento/marcador). */
+  elementId?: string
 }
 
 export interface DiagramArrow {

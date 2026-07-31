@@ -7,7 +7,8 @@ import { toast } from 'sonner'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { apiKey, apiFetcher } from '@/lib/swr'
 import { abpApi } from '@/lib/api/abp'
-import { ABPJugada } from '@/types'
+import { jugadoresApi } from '@/lib/api/jugadores'
+import { ABPJugada, Jugador } from '@/types'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -27,6 +28,16 @@ export default function ABPPage() {
   const swrKey = apiKey('/abp', { equipo_id: equipoId }, ['equipo_id'])
   const { data, isLoading } = useSWR<{ data: ABPJugada[] }>(swrKey, apiFetcher)
   const jugadas = data?.data || []
+
+  // Plantilla real, para asignar jugador (dorsal/nombre) + funciones en el editor de ABP.
+  const { data: jugadoresData } = useSWR(
+    equipoId ? ['/jugadores', equipoId] : null,
+    () => jugadoresApi.list({ equipo_id: equipoId })
+  )
+  // El endpoint devuelve el tipo de lib/api/jugadores; ABPEditor espera el de
+  // @/types (misma forma real, solo difieren en el ancho del literal de
+  // posicion_principal) — cast estructural seguro, sin mapeo de campos.
+  const jugadores = (jugadoresData?.data || []) as unknown as Jugador[]
 
   const refreshList = () => mutate(swrKey)
 
@@ -129,6 +140,7 @@ export default function ABPPage() {
             setEditingJugada(null)
           }}
           saving={saving}
+          jugadores={jugadores}
         />
       </div>
     )

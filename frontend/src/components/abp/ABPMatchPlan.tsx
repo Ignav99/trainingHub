@@ -5,6 +5,7 @@ import useSWR from 'swr'
 import { Plus, Trash2, Flag, Download, GripVertical, X, Eye, Loader2 } from 'lucide-react'
 import { apiKey, apiFetcher } from '@/lib/swr'
 import { abpApi } from '@/lib/api/abp'
+import { partidosApi } from '@/lib/api/partidos'
 import { ABPJugada, ABPPartidoJugada, ABP_TIPOS, LadoABP } from '@/types'
 import { TEAM_COLORS, ELEMENT_SIZES } from '@/components/tarea-editor/types'
 import ABPPitch from './ABPPitch'
@@ -14,7 +15,24 @@ interface ABPMatchPlanProps {
   equipoId: string
 }
 
-function MiniDiagram({ jugada }: { jugada: ABPJugada }) {
+/**
+ * Resuelve el color de camiseta propio para un partido (fallback de los
+ * elementos del diagrama que no tienen `color` guardado). Si no hay
+ * equipacion cargada para alguna de las dos partes, usa TEAM_COLORS.team1
+ * de siempre — nunca rompe el render.
+ */
+function useOwnKitColor(partidoId: string): string {
+  const { data } = useSWR(
+    apiKey(`/partidos/${partidoId}/equipaciones`),
+    () => partidosApi.getEquipaciones(partidoId)
+  )
+  if (data?.propia && data?.rival) {
+    return data.propia.color_camiseta_principal
+  }
+  return TEAM_COLORS.team1
+}
+
+function MiniDiagram({ jugada, ownColor }: { jugada: ABPJugada; ownColor: string }) {
   const fase = jugada.fases?.[0]
   const elements = fase?.diagram?.elements || []
   const arrows = fase?.diagram?.arrows || []
@@ -40,7 +58,7 @@ function MiniDiagram({ jugada }: { jugada: ABPJugada }) {
           if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk') {
             return (
               <g key={el.id} transform={`translate(${el.position.x}, ${el.position.y})`}>
-                <circle r={size / 2} fill={el.color || TEAM_COLORS.team1} stroke="#FFF" strokeWidth="2" />
+                <circle r={size / 2} fill={el.color || ownColor} stroke="#FFF" strokeWidth="2" />
               </g>
             )
           }
@@ -54,7 +72,7 @@ function MiniDiagram({ jugada }: { jugada: ABPJugada }) {
   )
 }
 
-function DiagramPreview({ jugada, onClose }: { jugada: ABPJugada; onClose: () => void }) {
+function DiagramPreview({ jugada, onClose, ownColor }: { jugada: ABPJugada; onClose: () => void; ownColor: string }) {
   const fase = jugada.fases?.[0]
   const elements = fase?.diagram?.elements || []
   const arrows = fase?.diagram?.arrows || []
@@ -99,7 +117,7 @@ function DiagramPreview({ jugada, onClose }: { jugada: ABPJugada; onClose: () =>
               if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk') {
                 return (
                   <g key={el.id} transform={`translate(${el.position.x}, ${el.position.y})`}>
-                    <circle r={size / 2} fill={el.color || TEAM_COLORS.team1} stroke="#FFF" strokeWidth="2" />
+                    <circle r={size / 2} fill={el.color || ownColor} stroke="#FFF" strokeWidth="2" />
                     <text x="0" y="1" textAnchor="middle" dominantBaseline="middle" fill="#FFF" fontSize="10" fontWeight="bold" fontFamily="Arial">{el.label}</text>
                   </g>
                 )
@@ -122,6 +140,7 @@ export default function ABPMatchPlan({ partidoId, equipoId }: ABPMatchPlanProps)
   const [pickerFilter, setPickerFilter] = useState<LadoABP | 'todo'>('todo')
   const [loading, setLoading] = useState(false)
   const [previewJugada, setPreviewJugada] = useState<ABPJugada | null>(null)
+  const ownColor = useOwnKitColor(partidoId)
 
   const assignedKey = apiKey(`/abp/partido/${partidoId}`)
   const { data: assignedData, mutate: mutateAssigned } = useSWR<{ data: ABPPartidoJugada[] }>(assignedKey, apiFetcher)
@@ -276,7 +295,7 @@ export default function ABPMatchPlan({ partidoId, equipoId }: ABPMatchPlanProps)
                       disabled={loading}
                       className="flex items-center gap-2.5 w-full p-2 rounded-lg hover:bg-orange-50 text-left transition-colors disabled:opacity-50"
                     >
-                      {hasElements && <MiniDiagram jugada={j} />}
+                      {hasElements && <MiniDiagram jugada={j} ownColor={ownColor} />}
                       <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold flex-shrink-0 ${
                         j.lado === 'ofensivo' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'
                       }`}>
@@ -302,7 +321,7 @@ export default function ABPMatchPlan({ partidoId, equipoId }: ABPMatchPlanProps)
       )}
 
       {/* Diagram preview */}
-      {previewJugada && <DiagramPreview jugada={previewJugada} onClose={() => setPreviewJugada(null)} />}
+      {previewJugada && <DiagramPreview jugada={previewJugada} onClose={() => setPreviewJugada(null)} ownColor={ownColor} />}
     </div>
   )
 
@@ -314,7 +333,7 @@ export default function ABPMatchPlan({ partidoId, equipoId }: ABPMatchPlanProps)
 
     return (
       <div key={ap.id} className="flex items-center gap-2 p-2 bg-white border border-gray-100 rounded-lg group">
-        {hasElements && <MiniDiagram jugada={jugada} />}
+        {hasElements && <MiniDiagram jugada={jugada} ownColor={ownColor} />}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <span className="text-sm font-medium text-gray-800 truncate">{jugada.nombre}</span>
