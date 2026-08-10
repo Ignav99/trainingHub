@@ -29,7 +29,7 @@ pypdf==4.0.1
 
 # Scraping (RFAF)
 requests>=2.31.0
-beautifulsoup4>=4.12.0
+beautifulsoup4>=4.14.3
 apscheduler>=3.10.0
 
 # Encryption (for medical data - GDPR Art. 9)
