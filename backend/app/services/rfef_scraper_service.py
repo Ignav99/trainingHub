@@ -12,10 +12,18 @@ import time
 from datetime import datetime
 from typing import Optional
 
-import requests
 from bs4 import BeautifulSoup
 
+from app.services.rfaf_http_transport import (
+    RFAFUnavailableError,
+    fetch_rfaf_html,
+    reset_rfaf_transport,
+)
+
 logger = logging.getLogger(__name__)
+
+# Re-export for API error handling
+RFAFScraperError = RFAFUnavailableError
 
 # Mapping de desofuscación ntype() — dígitos ofuscados en resultados RFAF
 # dígito_real = NTYPE_MAP[(row_index * 10) + digit_ofuscado]
@@ -124,83 +132,34 @@ def _extract_params_from_url(url: str) -> dict:
 class RFAFScraper:
     """Scraper para la web de la RFAF (Federación Andaluza de Fútbol).
 
-    v2: Uses requests.Session for proper JSESSIONID cookie handling.
+    v3: Shared HTTP transport (serialized requests, browser headers, optional proxy).
     Scores from clasificación page (plain text in <b> tags, no obfuscation).
     """
 
     def __init__(self):
-        self._session = requests.Session()
-        self._session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "text/html,application/xhtml+xml",
-            "Accept-Language": "es-ES,es;q=0.9",
-        })
-        self._warmed_up = False
+        pass
 
-    def _warmup(self):
-        """Obtiene cookie de sesión JSESSIONID haciendo una petición inicial."""
-        if self._warmed_up:
-            return
-        try:
-            self._session.get(LOGIN_URL, timeout=15)
-            self._warmed_up = True
-            logger.info("RFAF session cookie obtained (JSESSIONID)")
-        except Exception as e:
-            logger.warning("Failed to get RFAF session cookie: %s", e)
-
-    def _fetch_page(self, action: str, params: dict, max_retries: int = 3, cod_primaria: str = "1000120") -> BeautifulSoup:
-        """Fetch and parse an RFAF page with retries for empty responses.
-
-        RFAF is unreliable and often returns 0 bytes. Retries with backoff.
-        """
-        self._warmup()
+    def _fetch_page(
+        self,
+        action: str,
+        params: dict,
+        max_retries: int | None = None,
+        cod_primaria: str = "1000120",
+    ) -> BeautifulSoup:
+        """Fetch and parse an RFAF page. Raises RFAFUnavailableError if empty."""
         full_params = {"cod_primaria": cod_primaria, **params}
         url = f"{BASE_URL}/{action}"
-
-        for attempt in range(max_retries):
-            try:
-                response = self._session.get(url, params=full_params, timeout=30)
-                response.raise_for_status()
-
-                content = response.content
-                if len(content) > 0:
-                    html = content.decode(CHARSET, errors="replace")
-                    if len(html) < 100:
-                        logger.warning(
-                            "RFAF page %s returned very small response (%d bytes)",
-                            action, len(html),
-                        )
-                    return BeautifulSoup(html, "html.parser")
-
-                # 0 bytes — retry with backoff
-                wait = (attempt + 1) * 2
-                logger.warning(
-                    "RFAF page %s returned 0 bytes (attempt %d/%d), retrying in %ds...",
-                    action, attempt + 1, max_retries, wait,
-                )
-                time.sleep(wait)
-
-                # Re-warmup: get a fresh session cookie
-                self._warmed_up = False
-                self._warmup()
-
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    wait = (attempt + 1) * 2
-                    logger.warning(
-                        "RFAF page %s error (attempt %d/%d): %s, retrying in %ds...",
-                        action, attempt + 1, max_retries, e, wait,
-                    )
-                    time.sleep(wait)
-                else:
-                    raise
-
-        logger.error("RFAF page %s returned 0 bytes after %d retries", action, max_retries)
-        return BeautifulSoup("", "html.parser")
+        html = fetch_rfaf_html(
+            url,
+            full_params,
+            charset=CHARSET,
+            max_retries=max_retries,
+        )
+        return BeautifulSoup(html, "html.parser")
 
     async def close(self):
-        """Cierra la sesión HTTP."""
-        self._session.close()
+        """No-op: session is shared globally and reused across scrapers."""
+        return None
 
     # ========================================================================
     # Async public methods (wrap sync implementations in a thread)
@@ -672,25 +631,21 @@ class RFAFScraper:
 
     def _scrape_temporadas(self) -> list[dict]:
         """Parse <select name="Sch_Cod_Temporada"> from ConsultaSanciones."""
-        soup = self._fetch_page(
-            "NFG_ConsultaSanciones",
-            {"Rone": "1", "Rone1": "1", "Rone2": "1"},
-            cod_primaria="5002420",
-        )
+        try:
+            soup = self._fetch_page(
+                "NFG_ConsultaSanciones",
+                {"Rone": "1", "Rone1": "1", "Rone2": "1"},
+                cod_primaria="5002420",
+            )
+        except RFAFUnavailableError:
+            logger.warning("Temporadas: RFAF unavailable, using calculated fallback")
+            return self._fallback_temporadas()
+
         options: list[dict] = []
         select = soup.find("select", {"name": "Sch_Cod_Temporada"})
         if not select:
-            # Fallback: últimas 5 temporadas calculadas (actual primero)
-            current = int(default_rfaf_temporada())
-            for code in range(current, max(current - 5, 0), -1):
-                c = str(code)
-                options.append({
-                    "id": c,
-                    "nombre": rfaf_temporada_label(c),
-                    "label": rfaf_temporada_label(c),
-                })
-            logger.warning("Temporadas: select no encontrado, usando fallback %s", options)
-            return options
+            logger.warning("Temporadas: select no encontrado, usando fallback calculado")
+            return self._fallback_temporadas()
 
         for opt in select.find_all("option"):
             val = (opt.get("value") or "").strip()
@@ -710,40 +665,85 @@ class RFAFScraper:
         logger.info("Temporadas RFAF: %d options (default=%s)", len(options), DEFAULT_RFAF_TEMPORADA)
         return options
 
+    @staticmethod
+    def _fallback_temporadas() -> list[dict]:
+        current = int(default_rfaf_temporada())
+        options: list[dict] = []
+        for code in range(current, max(current - 5, 0), -1):
+            c = str(code)
+            options.append({
+                "id": c,
+                "nombre": rfaf_temporada_label(c),
+                "label": rfaf_temporada_label(c),
+            })
+        return options
+
     async def browse_temporadas(self) -> list[dict]:
         return await asyncio.to_thread(self._scrape_temporadas)
 
     def _browse_competiciones(self, codtemporada=DEFAULT_RFAF_TEMPORADA, query: Optional[str] = None):
-        """Lista navegable de competiciones (misma fuente que el catálogo RFAF).
+        """Lista navegable de competiciones (catálogo RFAF).
 
-        Los IDs del select de sanciones coinciden con codcompeticion de VisClasificacion.
+        Primario: NFG_Mov_LstCompeticiones (misma lista pública de la federación).
+        Secundario: select de ConsultaSanciones cuando está disponible.
         """
-        options = self._scrape_sanciones_competiciones(codtemporada)
-        # Enrich with LstCompeticiones links when available (best-effort)
+        options: list[dict] = []
+        seen_ids: set[str] = set()
+
+        # 1) Catálogo principal (LstCompeticiones)
         try:
             soup = self._fetch_page(
                 "NFG_Mov_LstCompeticiones",
                 {"competicion": "1", "rt": "1"},
                 cod_primaria="1000120",
-                max_retries=2,
+                max_retries=3,
             )
-            link_names = {}
             for a in soup.find_all("a", href=True):
                 href = a["href"]
                 m = re.search(r"[Cc]od[Cc]ompeticion=(\d+)", href)
                 if not m:
                     continue
+                cid = m.group(1)
+                if cid in seen_ids:
+                    continue
                 name = a.get_text(" ", strip=True)
-                if name:
-                    link_names[m.group(1)] = name
-            if link_names:
-                for opt in options:
-                    if opt["id"] in link_names and len(link_names[opt["id"]]) > len(opt["nombre"]):
-                        opt["nombre"] = link_names[opt["id"]]
-                logger.info("Browse: enriched %d names from LstCompeticiones", len(link_names))
+                if not name:
+                    continue
+                seen_ids.add(cid)
+                options.append({"id": cid, "nombre": name})
+            if options:
+                logger.info("Browse competiciones: %d from LstCompeticiones", len(options))
+        except RFAFUnavailableError:
+            raise
         except Exception as e:
-            logger.debug("LstCompeticiones enrich skipped: %s", e)
+            logger.warning("LstCompeticiones browse failed: %s", e)
 
+        # 2) Enrich / fallback from sanciones select
+        try:
+            sanc_options = self._scrape_sanciones_competiciones(codtemporada)
+            if sanc_options:
+                by_id = {o["id"]: o for o in options}
+                for opt in sanc_options:
+                    if opt["id"] in by_id:
+                        if len(opt["nombre"]) > len(by_id[opt["id"]]["nombre"]):
+                            by_id[opt["id"]]["nombre"] = opt["nombre"]
+                    else:
+                        by_id[opt["id"]] = opt
+                options = list(by_id.values())
+                logger.info("Browse: merged %d sanciones options", len(sanc_options))
+        except RFAFUnavailableError:
+            if not options:
+                raise
+            logger.warning("Sanciones enrich skipped: RFAF unavailable")
+        except Exception as e:
+            logger.debug("Sanciones enrich skipped: %s", e)
+
+        if not options:
+            raise RFAFUnavailableError(
+                "No se pudo leer el catálogo de competiciones de la RFAF"
+            )
+
+        options.sort(key=lambda o: (o.get("nombre") or "").lower())
         if query:
             q = query.strip().lower()
             options = [o for o in options if q in (o.get("nombre") or "").lower()]
@@ -751,18 +751,17 @@ class RFAFScraper:
 
     def _browse_grupos(self, codtemporada: str, competicion_id: str):
         """Grupos de una competición para el wizard de onboarding."""
-        options = self._scrape_sanciones_grupos(codtemporada, competicion_id)
+        options: list[dict] = []
 
-        # Enrich / validate with LstGruposCompeticion (links to clasificación)
+        # 1) LstGruposCompeticion (misma fuente que el catálogo público)
         try:
             soup = self._fetch_page(
                 "NFG_Mov_LstGruposCompeticion",
                 {"buscar": "1", "codcompeticion": competicion_id, "rt": "1"},
                 cod_primaria="1000120",
-                max_retries=2,
+                max_retries=3,
             )
-            from_page = []
-            seen = set()
+            seen: set[str] = set()
             for a in soup.find_all("a", href=True):
                 href = a["href"]
                 mg = re.search(r"[Cc]od[Gg]rupo=(\d+)", href)
@@ -774,31 +773,43 @@ class RFAFScraper:
                     continue
                 seen.add(gid)
                 name = a.get_text(" ", strip=True) or f"Grupo {gid}"
-                # Prefer VisClasificacion / CmpJornada links
-                if "VisClasificacion" in href or "CmpJornada" in href or "LstGrupos" not in href:
-                    from_page.append({
-                        "id": gid,
-                        "nombre": name,
-                        "codcompeticion": (mc.group(1) if mc else competicion_id),
-                        "url_clasificacion": href if href.startswith("http") else f"{BASE_URL}/{href.lstrip('/')}",
-                    })
-            if from_page:
-                # Merge: prefer page order/names when IDs overlap
+                options.append({
+                    "id": gid,
+                    "nombre": name,
+                    "codcompeticion": (mc.group(1) if mc else competicion_id),
+                    "url_clasificacion": (
+                        href if href.startswith("http") else f"{BASE_URL}/{href.lstrip('/')}"
+                    ),
+                })
+            if options:
+                logger.info("Browse grupos: %d from LstGruposCompeticion", len(options))
+        except RFAFUnavailableError:
+            raise
+        except Exception as e:
+            logger.warning("LstGruposCompeticion browse failed: %s", e)
+
+        # 2) Enrich from sanciones select
+        try:
+            sanc_options = self._scrape_sanciones_grupos(codtemporada, competicion_id)
+            if sanc_options:
                 by_id = {o["id"]: dict(o) for o in options}
-                for g in from_page:
+                for g in sanc_options:
                     if g["id"] in by_id:
                         by_id[g["id"]]["nombre"] = g["nombre"] or by_id[g["id"]]["nombre"]
-                        by_id[g["id"]]["url_clasificacion"] = g.get("url_clasificacion")
                     else:
-                        by_id[g["id"]] = {
-                            "id": g["id"],
-                            "nombre": g["nombre"],
-                            "url_clasificacion": g.get("url_clasificacion"),
-                        }
+                        by_id[g["id"]] = dict(g)
                 options = list(by_id.values())
-                logger.info("Browse grupos: %d from page + sanciones merge", len(options))
+        except RFAFUnavailableError:
+            if not options:
+                raise
+            logger.warning("Sanciones grupos enrich skipped: RFAF unavailable")
         except Exception as e:
-            logger.debug("LstGruposCompeticion enrich skipped: %s", e)
+            logger.debug("Sanciones grupos enrich skipped: %s", e)
+
+        if not options:
+            raise RFAFUnavailableError(
+                f"No se encontraron grupos para la competición {competicion_id}"
+            )
 
         return options
 

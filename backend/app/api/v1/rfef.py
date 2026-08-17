@@ -16,6 +16,7 @@ from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
 from app.services.rfef_scraper_service import (
     RFAFScraper,
+    RFAFScraperError,
     DEFAULT_RFAF_TEMPORADA,
     default_rfaf_temporada,
     rfaf_temporada_label,
@@ -25,6 +26,13 @@ from app.services.rfef_acta_utils import is_acta_complete
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _rfaf_http_error(exc: Exception) -> HTTPException:
+    detail = str(exc)
+    if isinstance(exc, RFAFScraperError):
+        return HTTPException(status_code=502, detail=detail)
+    return HTTPException(status_code=502, detail=f"Error al conectar con la RFAF: {detail}")
 
 
 def _upsert_jornada(supabase, comp_id: str, jornada: dict):
@@ -400,11 +408,27 @@ async def sync_competicion_full(
                 logger.info("Sync-full: saved clasificación (%d equipos)", len(clasificacion))
             else:
                 logger.warning("Sync-full: clasificación returned empty, keeping existing data")
+        except RFAFScraperError as e:
+            logger.error("Sync-full: RFAF unavailable for clasificación: %s", e)
+            errors.append(f"clasificación: {e}")
+            if not (comp.data.get("clasificacion") or []):
+                raise _rfaf_http_error(e)
         except Exception as e:
             logger.error("Sync-full: error in clasificación: %s", e)
             errors.append(f"clasificación: {e}")
 
         await asyncio.sleep(0.3)
+
+        # Sin clasificación nueva ni previa, no tiene sentido scrapear 30 jornadas vacías
+        if not clasificacion and not (comp.data.get("clasificacion") or []):
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "La RFAF no devolvió datos de clasificación. "
+                    "Suele ocurrir cuando bloquea la IP del servidor (Render). "
+                    "Reintenta en unos minutos o configura SCRAPERAPI_KEY en el backend."
+                ),
+            )
 
         # --- Step 2: Calendario (try scraping, fallback to range 1..30) ---
         calendario = []
@@ -1072,6 +1096,41 @@ async def browse_temporadas(
     }
 
 
+@router.get("/health/rfaf")
+async def rfaf_connectivity_health(
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """Diagnóstico: comprueba si el backend puede leer HTML de la RFAF."""
+    from app.services.rfaf_http_transport import fetch_rfaf_bytes, _scraperapi_key, _should_use_curl_cffi
+
+    url = "https://www.rfaf.es/pnfg/NPcd/NFG_Mov_LstCompeticiones"
+    params = {"cod_primaria": "1000120", "competicion": "1", "rt": "1"}
+    started = datetime.utcnow()
+    try:
+        content = fetch_rfaf_bytes(url, params, max_retries=2)
+        elapsed_ms = (datetime.utcnow() - started).total_seconds() * 1000
+        return {
+            "status": "ok",
+            "bytes": len(content),
+            "elapsed_ms": round(elapsed_ms, 1),
+            "transport": {
+                "curl_cffi": _should_use_curl_cffi(),
+                "scraperapi": bool(_scraperapi_key()),
+            },
+        }
+    except RFAFScraperError as e:
+        elapsed_ms = (datetime.utcnow() - started).total_seconds() * 1000
+        return {
+            "status": "error",
+            "detail": str(e),
+            "elapsed_ms": round(elapsed_ms, 1),
+            "transport": {
+                "curl_cffi": _should_use_curl_cffi(),
+                "scraperapi": bool(_scraperapi_key()),
+            },
+        }
+
+
 @router.get("/browse/competiciones")
 async def browse_competiciones(
     temporada: str = Query(DEFAULT_RFAF_TEMPORADA),
@@ -1088,9 +1147,12 @@ async def browse_competiciones(
             "temporada": temporada,
             "temporada_label": rfaf_temporada_label(temporada),
         }
+    except RFAFScraperError as e:
+        logger.error("browse_competiciones RFAF error: %s", e)
+        raise _rfaf_http_error(e)
     except Exception as e:
         logger.error("browse_competiciones error: %s", e)
-        raise HTTPException(status_code=502, detail=f"Error al conectar con la RFAF: {e}")
+        raise _rfaf_http_error(e)
     finally:
         await scraper.close()
 
@@ -1106,9 +1168,12 @@ async def browse_grupos(
     try:
         data = await scraper.browse_grupos(temporada, competicion_id)
         return {"data": data, "total": len(data)}
+    except RFAFScraperError as e:
+        logger.error("browse_grupos RFAF error: %s", e)
+        raise _rfaf_http_error(e)
     except Exception as e:
         logger.error("browse_grupos error: %s", e)
-        raise HTTPException(status_code=502, detail=f"Error al conectar con la RFAF: {e}")
+        raise _rfaf_http_error(e)
     finally:
         await scraper.close()
 
@@ -1125,9 +1190,12 @@ async def browse_equipos(
     try:
         data = await scraper.browse_equipos(codcompeticion, codgrupo, temporada)
         return data
+    except RFAFScraperError as e:
+        logger.error("browse_equipos RFAF error: %s", e)
+        raise _rfaf_http_error(e)
     except Exception as e:
         logger.error("browse_equipos error: %s", e)
-        raise HTTPException(status_code=502, detail=f"Error al conectar con la RFAF: {e}")
+        raise _rfaf_http_error(e)
     finally:
         await scraper.close()
 

@@ -106,6 +106,16 @@ class Settings(BaseSettings):
     # Redis (rate limiting, optional)
     REDIS_URL: str | None = None
 
+    # RFAF scraper — la federación bloquea muchas IPs de datacenter (Render).
+    # Opcional: proxy residencial en España o ScraperAPI (https://www.scraperapi.com).
+    RFAF_HTTP_PROXY: str | None = None
+    RFAF_HTTPS_PROXY: str | None = None
+    SCRAPERAPI_KEY: str | None = None
+    RFAF_USE_CURL_CFFI: bool = True
+    RFAF_MIN_REQUEST_INTERVAL_SEC: float = 0.45
+    RFAF_FETCH_MAX_RETRIES: int = 5
+    RFAF_SESSION_MAX_AGE_SEC: int = 1800
+
     class Config:
         env_file = ".env"
         case_sensitive = True
