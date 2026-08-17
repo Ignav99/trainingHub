@@ -65,6 +65,10 @@ export interface SyncStatusResponse {
   ultima_sync_actas?: string
   ultima_sincronizacion?: string
   message?: string
+  ultima_sync_sanciones?: string
+  sanciones_saved_last?: number
+  sanciones_modo?: string
+  sanciones_jornadas?: number[]
 }
 
 export interface RFEFCompeticion {
@@ -351,11 +355,29 @@ export const rfefApi = {
     return api.put(`/rfef/competiciones/${compId}/sanciones-config`, data)
   },
 
+  async autolinkSanciones(compId: string): Promise<{
+    status: string
+    sancion_competicion_id: string
+    sancion_grupo_id: string
+    consulta_url: string
+    competicion: RFEFCompeticion
+  }> {
+    return api.post(`/rfef/competiciones/${compId}/sanciones-autolink`)
+  },
+
   async syncSanciones(
     compId: string,
-    jornadas?: number[],
-  ): Promise<{ status: string; sanciones_saved: number }> {
-    return api.post(`/rfef/competiciones/${compId}/sync-sanciones`, { jornadas })
+    opts?: { jornadas?: number[]; modo?: 'ultima' | 'todas' },
+  ): Promise<{
+    status: string
+    sanciones_saved: number
+    modo?: string
+    jornadas?: number[]
+  }> {
+    return api.post(`/rfef/competiciones/${compId}/sync-sanciones`, {
+      jornadas: opts?.jornadas,
+      modo: opts?.modo,
+    })
   },
 
   async listSanciones(
