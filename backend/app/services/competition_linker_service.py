@@ -6,10 +6,18 @@ When mi_equipo_nombre is set:
 1. Creates rivales for all teams mi_equipo plays against
 2. Creates/updates partidos for each match involving mi_equipo
 3. Cleans up old auto-created partidos if mi_equipo changed
+4. Removes rivals from previous seasons (not in current opponents)
+5. Auto-downloads escudos from RFAF clasificación / actas
 """
 
 import logging
 from datetime import datetime, date, timedelta
+
+from app.services.rival_escudo_service import (
+    apply_escudo_to_rival,
+    backfill_rival_escudos,
+    build_escudo_lookup,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +54,77 @@ def _is_same_team(mi_equipo: str, team_name: str) -> bool:
         if a in b or b in a:
             return True
     return False
+
+
+def cleanup_outdated_rivals(
+    supabase,
+    organizacion_id: str,
+    equipo_id: str,
+    current_rival_names: set[str],
+) -> int:
+    """Delete rivals from previous seasons that are not current opponents."""
+    current_lower = {n.lower().strip() for n in current_rival_names if n and n.strip()}
+    if not current_lower:
+        return 0
+
+    rivales_res = (
+        supabase.table("rivales")
+        .select("id, nombre, rfef_nombre, scout_manual, plan_partido_manual, notas")
+        .eq("organizacion_id", organizacion_id)
+        .execute()
+    )
+
+    deleted = 0
+    for rival in rivales_res.data or []:
+        names = {(rival.get("nombre") or "").lower()}
+        if rival.get("rfef_nombre"):
+            names.add(rival["rfef_nombre"].lower())
+        if names & current_lower:
+            continue
+
+        # Keep rivals with manual scouting / notes (user work)
+        if rival.get("scout_manual") or rival.get("plan_partido_manual"):
+            continue
+        if (rival.get("notas") or "").strip():
+            continue
+
+        partidos_res = (
+            supabase.table("partidos")
+            .select("id, equipo_id, auto_creado")
+            .eq("rival_id", rival["id"])
+            .execute()
+        )
+        partidos = partidos_res.data or []
+
+        if any(p.get("equipo_id") == equipo_id for p in partidos):
+            continue
+
+        for p in partidos:
+            if p.get("auto_creado"):
+                try:
+                    supabase.table("partidos").delete().eq("id", p["id"]).execute()
+                except Exception:
+                    pass
+
+        remaining = (
+            supabase.table("partidos")
+            .select("id")
+            .eq("rival_id", rival["id"])
+            .execute()
+        )
+        if remaining.data:
+            continue
+
+        try:
+            supabase.table("rivales").delete().eq("id", rival["id"]).execute()
+            deleted += 1
+            logger.info("Removed outdated rival: %s", rival.get("nombre"))
+        except Exception as exc:
+            logger.warning("Could not delete rival %s: %s", rival.get("nombre"), exc)
+
+    if deleted:
+        logger.info("Cleaned up %d rivals from previous seasons", deleted)
+    return deleted
 
 
 def link_competition(supabase, comp: dict) -> dict:
@@ -129,22 +208,26 @@ def link_competition(supabase, comp: dict) -> dict:
         if r.get("rfef_nombre"):
             rival_lookup[r["rfef_nombre"].lower()] = r
 
-    # Build escudo lookup from rfef_actas if available
-    escudo_lookup = {}
+    # Build escudo lookup from clasificación + actas
+    actas_data: list[dict] = []
     try:
         actas_res = supabase.table("rfef_actas").select(
             "local_nombre, visitante_nombre, local_escudo_url, visitante_escudo_url"
         ).eq("competicion_id", comp_id).execute()
-        for acta in actas_res.data or []:
-            if acta.get("local_escudo_url"):
-                escudo_lookup[acta["local_nombre"].lower()] = acta["local_escudo_url"]
-            if acta.get("visitante_escudo_url"):
-                escudo_lookup[acta["visitante_nombre"].lower()] = acta["visitante_escudo_url"]
+        actas_data = actas_res.data or []
     except Exception:
-        pass  # Actas table might not exist yet
+        pass
 
-    # Create missing rivales
+    escudo_lookup = build_escudo_lookup(comp, actas_data)
+
+    # Remove rivals from other seasons before creating new ones
+    rivales_removed = cleanup_outdated_rivals(
+        supabase, organizacion_id, equipo_id, rival_names
+    )
+
+    # Create missing rivales (with escudos from RFAF when available)
     rivales_created = 0
+    escudos_applied = 0
     for name in rival_names:
         name_lower = name.lower()
         if name_lower not in rival_lookup:
@@ -153,26 +236,29 @@ def link_competition(supabase, comp: dict) -> dict:
                 "nombre": name,
                 "rfef_nombre": name,
             }
-            escudo = escudo_lookup.get(name_lower)
-            if escudo:
-                rival_data["escudo_url"] = escudo
-
             new_rival = supabase.table("rivales").insert(rival_data).execute()
             if new_rival.data:
-                rival_lookup[name_lower] = new_rival.data[0]
+                rival_record = new_rival.data[0]
+                rival_lookup[name_lower] = rival_record
                 rivales_created += 1
                 logger.info("Created rival: %s", name)
+
+                escudo = escudo_lookup.get(name_lower)
+                if escudo and apply_escudo_to_rival(
+                    supabase, organizacion_id, rival_record, escudo, download=True
+                ):
+                    escudos_applied += 1
         else:
-            # Update escudo if missing
             existing = rival_lookup[name_lower]
             escudo = escudo_lookup.get(name_lower)
-            if escudo and not existing.get("escudo_url"):
-                try:
-                    supabase.table("rivales").update({"escudo_url": escudo}).eq(
-                        "id", existing["id"]
-                    ).execute()
-                except Exception:
-                    pass
+            if escudo and (
+                not existing.get("escudo_url")
+                or "rfaf.es" in (existing.get("escudo_url") or "")
+            ):
+                if apply_escudo_to_rival(
+                    supabase, organizacion_id, existing, escudo, download=True
+                ):
+                    escudos_applied += 1
 
     # Load existing partidos for this competition
     existing_partidos_res = supabase.table("partidos").select("*").eq(
@@ -292,9 +378,22 @@ def link_competition(supabase, comp: dict) -> dict:
                 partidos_created += 1
 
     logger.info(
-        "Link competition %s: %d rivales created, %d partidos created, %d updated, %d deleted",
-        comp_id, rivales_created, partidos_created, partidos_updated, partidos_deleted,
+        "Link competition %s: %d rivales created, %d removed, %d escudos, "
+        "%d partidos created, %d updated, %d deleted",
+        comp_id,
+        rivales_created,
+        rivales_removed,
+        escudos_applied,
+        partidos_created,
+        partidos_updated,
+        partidos_deleted,
     )
+
+    # Backfill escudos after actas / clasificación updates
+    try:
+        backfill_rival_escudos(supabase, comp)
+    except Exception as exc:
+        logger.debug("Escudo backfill after link skipped: %s", exc)
 
     # Auto-populate pre-match intel for newly created upcoming matches
     if partidos_created > 0:
@@ -316,6 +415,8 @@ def link_competition(supabase, comp: dict) -> dict:
 
     return {
         "rivales_created": rivales_created,
+        "rivales_removed": rivales_removed,
+        "escudos_applied": escudos_applied,
         "partidos_created": partidos_created,
         "partidos_updated": partidos_updated,
     }

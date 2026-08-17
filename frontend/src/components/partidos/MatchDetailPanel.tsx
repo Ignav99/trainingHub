@@ -638,7 +638,10 @@ export function MatchDetailPanel({
     if (rivalesEdit.length === 0) {
       setLoadingRivalesEdit(true)
       try {
-        const res = await rivalesApi.list()
+        const res = await rivalesApi.list({
+          equipo_id: equipoActivo?.id,
+          limit: 100,
+        })
         setRivalesEdit(res.data)
       } catch (err) {
         console.error(err)
