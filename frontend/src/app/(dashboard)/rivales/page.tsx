@@ -32,18 +32,24 @@ import { TeamCrest } from '@/components/ui/team-crest'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { rivalesApi, RivalCreateData } from '@/lib/api/partidos'
+import { useEquipoStore } from '@/stores/equipoStore'
 import type { Rival, PaginatedResponse } from '@/types'
 
 export default function RivalesPage() {
   const [search, setSearch] = useState('')
+  const { equipoActivo } = useEquipoStore()
 
-  // SWR for rivales list
+  // Solo rivales de la temporada / competición del equipo activo
   const { data: rivalesResponse, isLoading: loading } = useSWR<PaginatedResponse<Rival>>(
-    apiKey('/rivales', {
-      busqueda: search || undefined,
-      orden: 'nombre',
-      direccion: 'asc',
-    })
+    equipoActivo?.id
+      ? apiKey('/rivales', {
+          busqueda: search || undefined,
+          equipo_id: equipoActivo.id,
+          orden: 'nombre',
+          direccion: 'asc',
+          limit: 100,
+        })
+      : null
   )
   const rivales = rivalesResponse?.data || []
 
@@ -113,10 +119,18 @@ export default function RivalesPage() {
 
   return (
     <div className="space-y-6">
+      {!equipoActivo?.id ? (
+        <EmptyState
+          icon={Shield}
+          title="Selecciona un equipo"
+          description="Elige tu equipo activo para ver los rivales de esta temporada."
+        />
+      ) : (
+        <>
       {/* Header */}
       <PageHeader
         title="Rivales"
-        description="Equipos rivales de la competicion"
+        description="Rivales de la temporada actual (competición RFAF)"
         actions={
           <Button onClick={() => { setEditingId(null); setForm({ nombre: '', nombre_corto: '', escudo_url: '', estadio: '', ciudad: '', notas: '' }); setShowForm(true) }}>
             <Plus className="h-4 w-4 mr-2" />
@@ -252,6 +266,8 @@ export default function RivalesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </div>
   )
 }

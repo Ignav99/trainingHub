@@ -27,6 +27,7 @@ interface ListRivalesParams {
   page?: number
   limit?: number
   busqueda?: string
+  equipo_id?: string
   orden?: 'nombre' | 'created_at'
   direccion?: 'asc' | 'desc'
   [key: string]: string | number | boolean | undefined

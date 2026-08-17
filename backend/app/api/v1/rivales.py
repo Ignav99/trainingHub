@@ -184,31 +184,123 @@ async def list_rivales(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     busqueda: Optional[str] = None,
+    equipo_id: Optional[UUID] = Query(
+        None,
+        description="Solo rivales de la temporada/competición del equipo activo",
+    ),
     orden: str = Query("nombre", pattern="^(nombre|created_at)$"),
     direccion: str = Query("asc", pattern="^(asc|desc)$"),
     auth: AuthContext = Depends(require_permission(Permission.RIVAL_READ)),
 ):
     """
-    Lista todos los rivales de la organización.
+    Lista rivales de la organización.
+    Con `equipo_id`, solo rivales de la temporada actual (competición RFAF / partidos del equipo).
     """
     supabase = get_supabase()
 
     query = supabase.table("rivales").select("*", count="exact")
-
-    # Filtrar por organización del usuario
     query = query.eq("organizacion_id", auth.organizacion_id)
 
-    # Búsqueda
     if busqueda:
         query = query.or_(f"nombre.ilike.%{busqueda}%,ciudad.ilike.%{busqueda}%")
 
-    # Ordenación
     query = query.order(orden, desc=(direccion == "desc"))
 
-    # Paginación
+    # Temporada actual: filtrar en memoria (nombres desde clasificación + rival_id en partidos)
+    if equipo_id:
+        eq = (
+            supabase.table("equipos")
+            .select("id, organizacion_id")
+            .eq("id", str(equipo_id))
+            .eq("organizacion_id", auth.organizacion_id)
+            .single()
+            .execute()
+        )
+        if not eq.data:
+            raise HTTPException(status_code=404, detail="Equipo no encontrado")
+
+        from app.services.competition_linker_service import (
+            cleanup_outdated_rivals,
+            _is_same_team,
+        )
+
+        allowed_ids: set[str] = set()
+        allowed_names: set[str] = set()
+        opponent_names_for_cleanup: set[str] = set()
+
+        partidos_res = (
+            supabase.table("partidos")
+            .select("rival_id")
+            .eq("equipo_id", str(equipo_id))
+            .execute()
+        )
+        for p in partidos_res.data or []:
+            if p.get("rival_id"):
+                allowed_ids.add(p["rival_id"])
+
+        comps_res = (
+            supabase.table("rfef_competiciones")
+            .select("clasificacion, mi_equipo_nombre, ultima_sincronizacion")
+            .eq("equipo_id", str(equipo_id))
+            .order("ultima_sincronizacion", desc=True)
+            .execute()
+        )
+        for comp in comps_res.data or []:
+            mi = (comp.get("mi_equipo_nombre") or "").strip()
+            for row in comp.get("clasificacion") or []:
+                name = (row.get("equipo") or "").strip()
+                if not name:
+                    continue
+                if mi and _is_same_team(mi, name):
+                    continue
+                allowed_names.add(name.lower())
+                opponent_names_for_cleanup.add(name)
+
+        if opponent_names_for_cleanup:
+            cleanup_outdated_rivals(
+                supabase,
+                auth.organizacion_id,
+                str(equipo_id),
+                opponent_names_for_cleanup,
+            )
+
+        all_res = query.execute()
+        filtered = []
+        for r in all_res.data or []:
+            rid = r.get("id")
+            names = {(r.get("nombre") or "").lower()}
+            if r.get("rfef_nombre"):
+                names.add(r["rfef_nombre"].lower())
+            if rid in allowed_ids or names & allowed_names:
+                filtered.append(r)
+
+        if busqueda:
+            q = busqueda.lower()
+            filtered = [
+                r for r in filtered
+                if q in (r.get("nombre") or "").lower()
+                or q in (r.get("ciudad") or "").lower()
+            ]
+
+        filtered.sort(
+            key=lambda r: r.get(orden) or r.get("nombre") or "",
+            reverse=(direccion == "desc"),
+        )
+        total = len(filtered)
+        offset = (page - 1) * limit
+        page_data = filtered[offset : offset + limit]
+        pages = ceil(total / limit) if total > 0 else 1
+
+        return RivalListResponse(
+            data=[RivalResponse(**r) for r in page_data],
+            total=total,
+            page=page,
+            limit=limit,
+            pages=pages,
+        )
+
     offset = (page - 1) * limit
     query = query.range(offset, offset + limit - 1)
-
     response = query.execute()
 
     total = response.count or 0
