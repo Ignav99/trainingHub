@@ -44,6 +44,7 @@ import {
 } from '@/components/ui/dialog'
 import type { RFEFActa } from '@/types'
 import { MiEquipoTarjetasWidget } from '@/components/pre-match/MiEquipoTarjetasWidget'
+import { CompeticionOnboardingWizard } from '@/components/competicion/CompeticionOnboardingWizard'
 
 export default function CompeticionPage() {
   const { equipoActivo } = useEquipoStore()
@@ -57,6 +58,7 @@ export default function CompeticionPage() {
   const [setupUrl, setSetupUrl] = useState('')
   const [setupName, setSetupName] = useState('')
   const [settingUp, setSettingUp] = useState(false)
+  const [showUrlFallback, setShowUrlFallback] = useState(false)
 
   // Mi equipo selection
   const [selectingEquipo, setSelectingEquipo] = useState(false)
@@ -386,13 +388,52 @@ export default function CompeticionPage() {
 
   // ============ No competition: Setup screen ============
   if (!competicion) {
+    if (!showUrlFallback) {
+      return (
+        <div className="py-8 px-2">
+          {error && (
+            <div className="max-w-2xl mx-auto flex items-start gap-2 text-destructive text-sm bg-destructive/10 p-3 rounded-lg mb-4">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
+          {equipoActivo?.id ? (
+            <CompeticionOnboardingWizard
+              equipoId={equipoActivo.id}
+              onError={(msg) => setError(msg)}
+              onUseUrlFallback={() => setShowUrlFallback(true)}
+              onDone={async (comp) => {
+                setCompeticion(comp)
+                setError(null)
+                mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, {
+                  revalidate: true,
+                })
+                await reloadCompeticion()
+              }}
+            />
+          ) : (
+            <div className="text-center py-16 text-muted-foreground text-sm">
+              Selecciona un equipo para configurar la competición.
+            </div>
+          )}
+        </div>
+      )
+    }
+
     return (
       <div className="max-w-xl mx-auto py-12">
+        <button
+          type="button"
+          onClick={() => setShowUrlFallback(false)}
+          className="text-sm text-muted-foreground hover:text-foreground mb-4"
+        >
+          ← Volver al asistente RFAF
+        </button>
         <div className="text-center mb-8">
           <Trophy className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-          <h1 className="text-2xl font-bold">Competicion</h1>
+          <h1 className="text-2xl font-bold">Importar por URL</h1>
           <p className="text-muted-foreground mt-1">
-            Configura tu competicion para ver clasificacion, jornadas y resultados
+            Modo avanzado: pega la URL de clasificación o jornada de rfaf.es
           </p>
         </div>
 

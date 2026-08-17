@@ -217,6 +217,15 @@ def link_competition(supabase, comp: dict) -> dict:
         fecha = _parse_fecha(match.get("fecha", ""))
         hora = _parse_hora(match.get("hora", ""))
 
+        # Fin de semana sin horario publicado: preferir domingo, sin hora.
+        # El sync de martes actualizará la hora cuando la RFAF la publique.
+        if fecha and not hora and fecha.weekday() == 5:  # sábado → domingo
+            from datetime import timedelta
+            fecha = fecha + timedelta(days=1)
+        if not fecha:
+            # Si solo hay texto de jornada con fecha, _parse_fecha ya falló; dejar null
+            pass
+
         # Determine goals
         is_local = match["localia"] == "local"
         goles_local = match.get("goles_local")

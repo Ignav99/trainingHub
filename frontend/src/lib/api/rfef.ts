@@ -205,6 +205,50 @@ export const rfefApi = {
     return api.post('/rfef/competiciones/setup-from-url', data)
   },
 
+  async browseCompeticiones(params?: {
+    temporada?: string
+    q?: string
+  }): Promise<{ data: { id: string; nombre: string }[]; total: number; temporada: string }> {
+    return api.get('/rfef/browse/competiciones', { params })
+  },
+
+  async browseGrupos(params: {
+    temporada?: string
+    competicion_id: string
+  }): Promise<{ data: { id: string; nombre: string; url_clasificacion?: string }[]; total: number }> {
+    return api.get('/rfef/browse/grupos', { params })
+  },
+
+  async browseEquipos(params: {
+    codcompeticion: string
+    codgrupo: string
+    temporada?: string
+  }): Promise<{
+    equipos: {
+      nombre: string
+      posicion?: number
+      puntos?: number
+      pj?: number
+      escudo_url?: string
+    }[]
+    total: number
+    jornada_actual?: number
+  }> {
+    return api.get('/rfef/browse/equipos', { params })
+  },
+
+  async setupFromBrowse(data: {
+    equipo_id: string
+    codcompeticion: string
+    codgrupo: string
+    temporada?: string
+    nombre: string
+    grupo_nombre?: string
+    mi_equipo_nombre: string
+  }): Promise<RFEFCompeticion> {
+    return api.post('/rfef/competiciones/setup-from-browse', data)
+  },
+
   async syncCompeticion(id: string): Promise<SyncResult> {
     return api.post(`/rfef/competiciones/${id}/sync`)
   },

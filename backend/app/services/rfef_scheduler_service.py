@@ -678,6 +678,20 @@ def start_scheduler():
         replace_existing=True,
     )
 
+    # Martes 17:00 y 21:00 — horarios de jornada (la RFAF suele publicarlos el martes)
+    scheduler.add_job(
+        sync_all_competitions,
+        CronTrigger(day_of_week="tue", hour=17, minute=0, timezone="Europe/Madrid"),
+        id="rfaf_martes_17",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        sync_all_competitions,
+        CronTrigger(day_of_week="tue", hour=21, minute=0, timezone="Europe/Madrid"),
+        id="rfaf_martes_21",
+        replace_existing=True,
+    )
+
     # Viernes 08:00 — Refresh sanciones + pre-match intel
     scheduler.add_job(
         sync_all_competitions,
