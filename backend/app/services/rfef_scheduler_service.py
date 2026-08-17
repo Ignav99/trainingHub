@@ -237,19 +237,8 @@ async def _sync_one(supabase, scraper: RFAFScraper, comp: dict):
         if jornada_num:
             await _sync_recent_actas(supabase, scraper, comp_id, jornada_num)
 
-        # --- Sync sanciones if configured ---
-        sancion_comp = comp.get("sancion_competicion_id")
-        sancion_grupo = comp.get("sancion_grupo_id")
-        if sancion_comp and sancion_grupo:
-            try:
-                sanciones_data = await scraper.scrape_sanciones(
-                    codtemporada, sancion_comp, sancion_grupo, ""
-                )
-                saved = _upsert_sanciones(supabase, comp_id, sanciones_data)
-                if saved > 0:
-                    logger.info("Synced %d sanciones for %s", saved, comp.get("nombre", comp_id))
-            except Exception as e:
-                logger.debug("Error syncing sanciones for %s: %s", comp_id, e)
+        # Sanciones oficiales: NO en cada sync de fin de semana.
+        # El comité publica ~viernes mediodía; jobs dedicados `sync_all_sanciones`.
 
         logger.info("Synced competition %s successfully", comp.get("nombre", comp_id))
 
@@ -624,6 +613,79 @@ async def daily_sync_actas():
         logger.error("Error in daily_sync_actas: %s", e, exc_info=True)
 
 
+async def sync_all_sanciones(modo: str = "ultima"):
+    """Sync sanciones del comité RFAF (ConsultaSanciones).
+
+    El comité suele publicar el viernes a mediodía la jornada anterior.
+    modo=ultima → solo esa jornada; modo=todas → histórico completo (lunes catch-up).
+    """
+    if _scraper_mod._cb_open:
+        if _time.monotonic() < _scraper_mod._cb_open_until:
+            logger.warning("RFEF circuit breaker open — skipping sanciones sync")
+            return
+        _scraper_mod._cb_open = False
+
+    from app.api.v1.rfef import _sync_sanciones_for_comp
+
+    supabase = get_supabase()
+    try:
+        response = (
+            supabase.table("rfef_competiciones")
+            .select(
+                "id, nombre, sancion_competicion_id, sancion_grupo_id, "
+                "rfef_codtemporada, sync_status"
+            )
+            .eq("sync_habilitado", True)
+            .not_.is_("sancion_competicion_id", "null")
+            .not_.is_("sancion_grupo_id", "null")
+            .execute()
+        )
+        comps = response.data or []
+        if not comps:
+            logger.info("No competitions with sanciones configured")
+            return
+
+        scraper = RFAFScraper()
+        try:
+            for comp in comps:
+                try:
+                    result = await _sync_sanciones_for_comp(
+                        supabase, scraper, comp, modo=modo
+                    )
+                    logger.info(
+                        "Sanciones %s (%s): saved=%s jornadas=%s",
+                        comp.get("nombre"),
+                        result.get("modo"),
+                        result.get("sanciones_saved"),
+                        result.get("jornadas"),
+                    )
+                    await asyncio.sleep(1.0)
+                except Exception as e:
+                    logger.error(
+                        "Sanciones sync error for %s: %s",
+                        comp.get("nombre"),
+                        e,
+                    )
+        finally:
+            await scraper.close()
+    except Exception as e:
+        logger.error("sync_all_sanciones failed: %s", e, exc_info=True)
+
+
+async def _friday_sanciones_midday():
+    await sync_all_sanciones(modo="ultima")
+
+
+async def _friday_sanciones_retry():
+    """Reintento por si el comité publica más tarde."""
+    await sync_all_sanciones(modo="ultima")
+
+
+async def _monday_sanciones_full():
+    """Catch-up post-fin-de-semana: refresco completo del histórico."""
+    await sync_all_sanciones(modo="todas")
+
+
 def start_scheduler():
     """Configura y arranca el scheduler de scraping RFAF."""
     # Viernes 20:00 — Pre-jornada
@@ -678,7 +740,7 @@ def start_scheduler():
         replace_existing=True,
     )
 
-    # Martes 17:00 y 21:00 — horarios de jornada (la RFAF suele publicarlos el martes)
+    # Martes 17:00 y 21:00 — horarios de jornada
     scheduler.add_job(
         sync_all_competitions,
         CronTrigger(day_of_week="tue", hour=17, minute=0, timezone="Europe/Madrid"),
@@ -692,11 +754,25 @@ def start_scheduler():
         replace_existing=True,
     )
 
-    # Viernes 08:00 — Refresh sanciones + pre-match intel
+    # Viernes 12:00 y 14:00 — Comité de sanciones (jornada anterior)
     scheduler.add_job(
-        sync_all_competitions,
-        CronTrigger(day_of_week="fri", hour=8, minute=0, timezone="Europe/Madrid"),
-        id="rfaf_viernes_08",
+        _friday_sanciones_midday,
+        CronTrigger(day_of_week="fri", hour=12, minute=0, timezone="Europe/Madrid"),
+        id="rfaf_sanciones_viernes_12",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _friday_sanciones_retry,
+        CronTrigger(day_of_week="fri", hour=14, minute=0, timezone="Europe/Madrid"),
+        id="rfaf_sanciones_viernes_14",
+        replace_existing=True,
+    )
+
+    # Lunes 09:00 — Catch-up completo de sanciones
+    scheduler.add_job(
+        _monday_sanciones_full,
+        CronTrigger(day_of_week="mon", hour=9, minute=0, timezone="Europe/Madrid"),
+        id="rfaf_sanciones_lunes_09",
         replace_existing=True,
     )
 

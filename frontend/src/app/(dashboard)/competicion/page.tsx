@@ -289,12 +289,28 @@ export default function CompeticionPage() {
 
   const sancionesConfigured = !!(competicion?.sancion_competicion_id && competicion?.sancion_grupo_id)
 
+  const refreshSyncStatus = async (compId: string) => {
+    try {
+      const updated = await rfefApi.getSyncStatus(compId)
+      setDataSyncStatus(updated)
+    } catch { /* ok */ }
+  }
+
   const handleOpenSancionesConfig = async () => {
     setShowSancionesConfig(true)
     setLoadingSancionConfig(true)
     try {
       const res = await rfefApi.getSancionesCompeticiones(competicion?.rfef_codtemporada)
       setSancionComps(res.data)
+      if (competicion?.sancion_competicion_id) {
+        setSelectedSancionComp(competicion.sancion_competicion_id)
+        const grupos = await rfefApi.getSancionesGrupos(
+          competicion.rfef_codtemporada || '21',
+          competicion.sancion_competicion_id,
+        )
+        setSancionGrupos(grupos.data)
+        setSelectedSancionGrupo(competicion.sancion_grupo_id || '')
+      }
     } catch { /* ok */ }
     setLoadingSancionConfig(false)
   }
@@ -310,9 +326,40 @@ export default function CompeticionPage() {
     } catch { /* ok */ }
   }
 
+  const handleAutolinkSanciones = async () => {
+    if (!competicion) return
+    setSavingSancionConfig(true)
+    setError(null)
+    try {
+      const result = await rfefApi.autolinkSanciones(competicion.id)
+      setCompeticion(prev => prev ? {
+        ...prev,
+        sancion_competicion_id: result.sancion_competicion_id,
+        sancion_grupo_id: result.sancion_grupo_id,
+      } : null)
+      setShowSancionesConfig(false)
+      setSyncingSanciones(true)
+      const syncRes = await rfefApi.syncSanciones(competicion.id, { modo: 'ultima' })
+      const jLabel = syncRes.jornadas?.length
+        ? ` (jornada ${syncRes.jornadas.join(', ')})`
+        : ''
+      setSyncStatus(
+        `Comité conectado. Última jornada${jLabel}: ${syncRes.sanciones_saved} sanciones`,
+      )
+      await loadSanciones()
+      await refreshSyncStatus(competicion.id)
+    } catch (err: any) {
+      setError(err.message || 'No se pudo conectar al comité de sanciones')
+    } finally {
+      setSavingSancionConfig(false)
+      setSyncingSanciones(false)
+    }
+  }
+
   const handleSaveSancionesConfig = async () => {
     if (!competicion || !selectedSancionComp || !selectedSancionGrupo) return
     setSavingSancionConfig(true)
+    setError(null)
     try {
       const updated = await rfefApi.setSancionesConfig(competicion.id, {
         sancion_competicion_id: selectedSancionComp,
@@ -324,12 +371,13 @@ export default function CompeticionPage() {
         sancion_grupo_id: updated.sancion_grupo_id,
       } : null)
       setShowSancionesConfig(false)
-      // Auto-sync after config
       setSyncingSanciones(true)
-      const syncRes = await rfefApi.syncSanciones(competicion.id)
-      setSyncStatus(`Sanciones configuradas: ${syncRes.sanciones_saved} guardadas`)
-      // Load sanciones
+      const syncRes = await rfefApi.syncSanciones(competicion.id, { modo: 'ultima' })
+      setSyncStatus(
+        `Enlace al comité guardado. ${syncRes.sanciones_saved} sanciones de la última jornada.`,
+      )
       await loadSanciones()
+      await refreshSyncStatus(competicion.id)
     } catch (err: any) {
       setError(err.message || 'Error al configurar sanciones')
     } finally {
@@ -350,13 +398,22 @@ export default function CompeticionPage() {
     setLoadingSanciones(false)
   }
 
-  const handleSyncSanciones = async () => {
+  const handleSyncSanciones = async (modo: 'ultima' | 'todas' = 'ultima') => {
     if (!competicion) return
     setSyncingSanciones(true)
+    setError(null)
     try {
-      const res = await rfefApi.syncSanciones(competicion.id)
-      setSyncStatus(`Sanciones sincronizadas: ${res.sanciones_saved} guardadas`)
+      const res = await rfefApi.syncSanciones(competicion.id, { modo })
+      const jLabel = res.jornadas?.length
+        ? ` (jornadas ${res.jornadas.join(', ')})`
+        : ''
+      setSyncStatus(
+        modo === 'ultima'
+          ? `Comité jornada anterior${jLabel}: ${res.sanciones_saved} sanciones`
+          : `Comité completo${jLabel}: ${res.sanciones_saved} sanciones`,
+      )
       await loadSanciones()
+      await refreshSyncStatus(competicion.id)
     } catch (err: any) {
       setError(err.message || 'Error al sincronizar sanciones')
     } finally {
@@ -571,12 +628,13 @@ export default function CompeticionPage() {
             </button>
             {sancionesConfigured && (
               <button
-                onClick={handleSyncSanciones}
+                onClick={() => handleSyncSanciones('ultima')}
                 disabled={syncingSanciones}
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm hover:bg-muted disabled:opacity-50"
+                title="Sincroniza la jornada anterior del comité (publicada ~viernes)"
               >
                 <Shield className={`h-4 w-4 ${syncingSanciones ? 'animate-spin' : ''}`} />
-                {syncingSanciones ? 'Sanciones...' : 'Sync Sanciones'}
+                {syncingSanciones ? 'Comité...' : 'Sync Comité'}
               </button>
             )}
             <button
@@ -648,6 +706,14 @@ export default function CompeticionPage() {
               {dataSyncStatus.ultima_sync_actas && (
                 <span className="text-muted-foreground ml-2">
                   — Última sync: {new Date(dataSyncStatus.ultima_sync_actas).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
+              {dataSyncStatus.ultima_sync_sanciones && (
+                <span className="text-muted-foreground ml-2">
+                  — Comité: {new Date(dataSyncStatus.ultima_sync_sanciones).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  {dataSyncStatus.sanciones_jornadas?.length
+                    ? ` (J${dataSyncStatus.sanciones_jornadas.join(',')})`
+                    : ''}
                 </span>
               )}
             </span>
@@ -932,18 +998,24 @@ export default function CompeticionPage() {
             )}
           </div>
         </TabsContent>
-        {/* Sanciones tab */}
+        {/* Sanciones tab — Comité oficial (ConsultaSanciones) */}
         {sancionesConfigured && (
           <TabsContent value="sanciones">
             <div className="space-y-4">
-              {/* Controls */}
+              <div className="rounded-xl border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                <p className="font-medium text-foreground mb-1">Comité de Competición (RFAF)</p>
+                <p>
+                  Las sanciones oficiales se publican ~el viernes a mediodía para la jornada anterior.
+                  Hasta entonces no hay datos nuevos del comité. Las tarjetas del partido se obtienen de las actas (pestaña Tarjetas Equipo).
+                </p>
+              </div>
+
               <div className="flex items-center gap-3 flex-wrap">
                 <select
                   value={sancionesJornada ?? ''}
                   onChange={e => {
                     const val = e.target.value ? Number(e.target.value) : undefined
                     setSancionesJornada(val)
-                    // Trigger reload
                     setTimeout(async () => {
                       if (!competicion) return
                       setLoadingSanciones(true)
@@ -962,12 +1034,19 @@ export default function CompeticionPage() {
                   ))}
                 </select>
                 <button
-                  onClick={handleSyncSanciones}
+                  onClick={() => handleSyncSanciones('ultima')}
+                  disabled={syncingSanciones}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${syncingSanciones ? 'animate-spin' : ''}`} />
+                  {syncingSanciones ? 'Sincronizando...' : 'Última jornada'}
+                </button>
+                <button
+                  onClick={() => handleSyncSanciones('todas')}
                   disabled={syncingSanciones}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm hover:bg-muted disabled:opacity-50"
                 >
-                  <RefreshCw className={`h-3.5 w-3.5 ${syncingSanciones ? 'animate-spin' : ''}`} />
-                  {syncingSanciones ? 'Sincronizando...' : 'Sync sanciones'}
+                  Histórico completo
                 </button>
               </div>
 
@@ -976,8 +1055,9 @@ export default function CompeticionPage() {
                   <Spinner size="md" />
                 </div>
               ) : sanciones.length === 0 ? (
-                <div className="bg-card rounded-xl border py-8 text-center text-muted-foreground text-sm">
-                  No hay sanciones{sancionesJornada ? ` para la jornada ${sancionesJornada}` : ''}. Pulsa &quot;Sync sanciones&quot; para importar.
+                <div className="bg-card rounded-xl border py-8 text-center text-muted-foreground text-sm space-y-1">
+                  <p>No hay sanciones{sancionesJornada ? ` para la jornada ${sancionesJornada}` : ''} en el comité.</p>
+                  <p className="text-xs">Si la jornada acaba de terminar, espera al viernes (~mediodía) o pulsa &quot;Última jornada&quot;.</p>
                 </div>
               ) : (
                 <SancionesTable sanciones={sanciones} miEquipo={miEquipo} />
@@ -988,7 +1068,13 @@ export default function CompeticionPage() {
         {/* Mi Equipo Tarjetas tab */}
         {miEquipo && (
           <TabsContent value="mi-equipo-tarjetas">
-            <MiEquipoTarjetasWidget competicionId={competicion.id} />
+            <div className="space-y-3">
+              <div className="rounded-xl border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                Acumulado de tarjetas desde las <span className="text-foreground font-medium">actas</span>.
+                Las sanciones oficiales del comité (suspensiones, multas, texto del artículo) están en la pestaña Sanciones.
+              </div>
+              <MiEquipoTarjetasWidget competicionId={competicion.id} />
+            </div>
           </TabsContent>
         )}
       </Tabs>
@@ -999,97 +1085,162 @@ export default function CompeticionPage() {
         onClose={() => setSelectedActaCod(null)}
       />
 
-      {/* Sanciones config */}
+      {/* Comité de sanciones — setup único */}
       {competicion.mi_equipo_nombre && !selectingEquipo && (
         <div className="bg-card rounded-xl border p-4">
           {sancionesConfigured && !showSancionesConfig ? (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-green-500" />
-                <span className="text-sm font-medium text-green-600">Sanciones configuradas</span>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-green-500" />
+                  <span className="text-sm font-medium text-green-600 dark:text-green-400">
+                    Comité de sanciones conectado
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground pl-6">
+                  Se actualiza solo los viernes (~12:00 y 14:00). Enlace:{' '}
+                  <a
+                    href={`https://www.rfaf.es/pnfg/NPcd/NFG_ConsultaSanciones?cod_primaria=5002420&Sch_Cod_Temporada=${competicion.rfef_codtemporada || '21'}&Sch_Competicion=${competicion.sancion_competicion_id}&Sch_Grupo=${competicion.sancion_grupo_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-foreground"
+                  >
+                    ConsultaSanciones RFAF
+                  </a>
+                  {dataSyncStatus?.ultima_sync_sanciones && (
+                    <> · Última sync {new Date(dataSyncStatus.ultima_sync_sanciones).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</>
+                  )}
+                </p>
               </div>
               <button
                 onClick={handleOpenSancionesConfig}
-                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 shrink-0"
               >
                 <Settings className="h-3 w-3" />
-                Reconfigurar
+                Cambiar enlace
               </button>
             </div>
           ) : showSancionesConfig ? (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 mb-1">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
                 <Shield className="h-4 w-4 text-primary" />
-                <span className="text-sm font-semibold">Configurar Sanciones RFAF</span>
+                <span className="text-sm font-semibold">Enlace al comité (una sola vez)</span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Los IDs de sanciones son diferentes a los de clasificacion. Selecciona la competicion y grupo correctos.
+                Usa la misma competición/grupo de la clasificación. A partir de ahí el programa
+                consulta solo ese enlace y recoge las sanciones por jornada cuando el comité las publica (~viernes).
               </p>
 
-              {loadingSancionConfig ? (
-                <div className="flex justify-center py-4"><Spinner size="sm" /></div>
-              ) : (
-                <>
-                  <div>
-                    <label className="text-xs font-medium mb-1 block">Competicion (sanciones)</label>
-                    <select
-                      value={selectedSancionComp}
-                      onChange={e => handleSancionCompChange(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border bg-background text-sm"
-                    >
-                      <option value="">Seleccionar...</option>
-                      {sancionComps.map(c => (
-                        <option key={c.id} value={c.id}>{c.nombre}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {selectedSancionComp && (
-                    <div>
-                      <label className="text-xs font-medium mb-1 block">Grupo (sanciones)</label>
-                      <select
-                        value={selectedSancionGrupo}
-                        onChange={e => setSelectedSancionGrupo(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border bg-background text-sm"
-                      >
-                        <option value="">Seleccionar...</option>
-                        {sancionGrupos.map(g => (
-                          <option key={g.id} value={g.id}>{g.nombre}</option>
-                        ))}
-                      </select>
-                    </div>
+              {competicion.rfef_codcompeticion && competicion.rfef_codgrupo && (
+                <button
+                  onClick={handleAutolinkSanciones}
+                  disabled={savingSancionConfig || syncingSanciones}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 inline-flex items-center justify-center gap-2"
+                >
+                  {savingSancionConfig || syncingSanciones ? (
+                    <><Spinner size="sm" />Conectando...</>
+                  ) : (
+                    <><Link2 className="h-4 w-4" />Conectar con mi competición</>
                   )}
+                </button>
+              )}
 
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleSaveSancionesConfig}
-                      disabled={!selectedSancionComp || !selectedSancionGrupo || savingSancionConfig}
-                      className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
-                    >
-                      {savingSancionConfig ? (
-                        <><Spinner size="sm" />Guardando...</>
-                      ) : (
-                        'Guardar y sincronizar'
+              <details className="group">
+                <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground list-none flex items-center gap-1">
+                  <Settings className="h-3 w-3" />
+                  Elegir manualmente (avanzado)
+                </summary>
+                <div className="mt-3 space-y-3">
+                  {loadingSancionConfig ? (
+                    <div className="flex justify-center py-4"><Spinner size="sm" /></div>
+                  ) : (
+                    <>
+                      <div>
+                        <label className="text-xs font-medium mb-1 block">Competición (comité)</label>
+                        <select
+                          value={selectedSancionComp}
+                          onChange={e => handleSancionCompChange(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border bg-background text-sm"
+                        >
+                          <option value="">Seleccionar...</option>
+                          {sancionComps.map(c => (
+                            <option key={c.id} value={c.id}>{c.nombre}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {selectedSancionComp && (
+                        <div>
+                          <label className="text-xs font-medium mb-1 block">Grupo</label>
+                          <select
+                            value={selectedSancionGrupo}
+                            onChange={e => setSelectedSancionGrupo(e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg border bg-background text-sm"
+                          >
+                            <option value="">Seleccionar...</option>
+                            {sancionGrupos.map(g => (
+                              <option key={g.id} value={g.id}>{g.nombre}</option>
+                            ))}
+                          </select>
+                        </div>
                       )}
-                    </button>
-                    <button
-                      onClick={() => setShowSancionesConfig(false)}
-                      className="px-3 py-2 rounded-lg border text-sm hover:bg-muted"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </>
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleSaveSancionesConfig}
+                          disabled={!selectedSancionComp || !selectedSancionGrupo || savingSancionConfig}
+                          className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
+                        >
+                          {savingSancionConfig ? (
+                            <><Spinner size="sm" />Guardando...</>
+                          ) : (
+                            'Guardar y sincronizar'
+                          )}
+                        </button>
+                        <button
+                          onClick={() => setShowSancionesConfig(false)}
+                          className="px-3 py-2 rounded-lg border text-sm hover:bg-muted"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </details>
+
+              {!loadingSancionConfig && !competicion.rfef_codcompeticion && (
+                <button
+                  onClick={() => setShowSancionesConfig(false)}
+                  className="px-3 py-2 rounded-lg border text-sm hover:bg-muted"
+                >
+                  Cancelar
+                </button>
               )}
             </div>
           ) : (
-            <button
-              onClick={handleOpenSancionesConfig}
-              className="flex items-center gap-2 text-sm text-primary hover:text-primary/80"
-            >
-              <Shield className="h-4 w-4" />
-              Configurar sanciones RFAF
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={handleAutolinkSanciones}
+                disabled={savingSancionConfig || syncingSanciones || !competicion.rfef_codcompeticion}
+                className="flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80 disabled:opacity-50"
+              >
+                <Shield className="h-4 w-4" />
+                {savingSancionConfig || syncingSanciones
+                  ? 'Conectando comité...'
+                  : 'Conectar comité de sanciones (una vez)'}
+              </button>
+              <p className="text-xs text-muted-foreground pl-6">
+                Actas = tarjetas del partido · Comité = sanciones oficiales (~viernes).{' '}
+                <button
+                  type="button"
+                  onClick={handleOpenSancionesConfig}
+                  className="underline hover:text-foreground"
+                >
+                  Configuración avanzada
+                </button>
+              </p>
+            </div>
           )}
         </div>
       )}

@@ -627,16 +627,14 @@ async def sync_competicion_full(
             logger.warning("Sync-full: error in actas phase: %s", e)
             errors.append(f"actas: {e}")
 
-        # --- Step 9: Sync sanciones if configured ---
+        # --- Step 9: Sync sanciones if configured (histórico en sync-full) ---
         sanciones_saved = 0
-        sancion_comp = comp.data.get("sancion_competicion_id")
-        sancion_grupo = comp.data.get("sancion_grupo_id")
-        if sancion_comp and sancion_grupo:
+        if comp.data.get("sancion_competicion_id") and comp.data.get("sancion_grupo_id"):
             try:
-                sanciones_data = await scraper.scrape_sanciones(
-                    codtemporada, sancion_comp, sancion_grupo, ""
+                sanc_result = await _sync_sanciones_for_comp(
+                    supabase, scraper, comp.data, modo="todas"
                 )
-                sanciones_saved = _upsert_sanciones(supabase, comp_id, sanciones_data)
+                sanciones_saved = sanc_result.get("sanciones_saved", 0)
                 logger.info("Sync-full: saved %d sanciones", sanciones_saved)
             except Exception as e:
                 logger.warning("Sync-full: error in sanciones: %s", e)
@@ -692,6 +690,11 @@ async def get_sync_status(
         "actas_fallidas": sync_status.get("actas_fallidas", []),
         "ultima_sync_actas": sync_status.get("ultima_sync_actas"),
         "ultima_sincronizacion": comp.data.get("ultima_sincronizacion"),
+        # Comité de competición (ConsultaSanciones) — publicación ~viernes mediodía
+        "ultima_sync_sanciones": sync_status.get("ultima_sync_sanciones"),
+        "sanciones_saved_last": sync_status.get("sanciones_saved_last"),
+        "sanciones_modo": sync_status.get("sanciones_modo"),
+        "sanciones_jornadas": sync_status.get("sanciones_jornadas", []),
     }
 
 
@@ -1209,6 +1212,129 @@ def _upsert_sanciones(supabase, comp_id: str, sanciones: list[dict]) -> int:
 
 class SyncSancionesRequest(BaseModel):
     jornadas: Optional[list[int]] = None
+    # ultima = jornada anterior publicada (vie→dom); todas = scrape completo
+    modo: Optional[str] = None  # "ultima" | "todas" | None (legacy = todas if no jornadas)
+
+
+def _resolve_jornada_previa_sanciones(supabase, comp_id: str) -> Optional[int]:
+    """Última jornada con resultados (candidata a comité del viernes)."""
+    try:
+        jornadas = (
+            supabase.table("rfef_jornadas")
+            .select("numero, partidos")
+            .eq("competicion_id", comp_id)
+            .order("numero", desc=True)
+            .limit(40)
+            .execute()
+        )
+        for j in jornadas.data or []:
+            partidos = j.get("partidos") or []
+            if any(p.get("goles_local") is not None for p in partidos):
+                return int(j["numero"])
+        if jornadas.data:
+            return int(jornadas.data[0]["numero"])
+    except Exception as e:
+        logger.debug("resolve jornada previa sanciones: %s", e)
+    return None
+
+
+def _update_sanciones_sync_status(
+    supabase,
+    comp_id: str,
+    *,
+    saved: int,
+    jornadas: Optional[list[int]] = None,
+    modo: str = "todas",
+) -> None:
+    try:
+        row = (
+            supabase.table("rfef_competiciones")
+            .select("sync_status")
+            .eq("id", comp_id)
+            .single()
+            .execute()
+        )
+        status = dict((row.data or {}).get("sync_status") or {})
+        status.update({
+            "ultima_sync_sanciones": datetime.utcnow().isoformat(),
+            "sanciones_saved_last": saved,
+            "sanciones_modo": modo,
+            "sanciones_jornadas": jornadas or [],
+        })
+        supabase.table("rfef_competiciones").update({"sync_status": status}).eq(
+            "id", comp_id
+        ).execute()
+    except Exception as e:
+        logger.warning("Could not update sanciones sync_status: %s", e)
+
+
+async def _sync_sanciones_for_comp(
+    supabase,
+    scraper: RFAFScraper,
+    comp: dict,
+    *,
+    modo: str = "todas",
+    jornadas: Optional[list[int]] = None,
+) -> dict:
+    """Core sanciones sync used by API + scheduler.
+
+    modo:
+      - todas: scrape vacío (todas las jornadas del comité)
+      - ultima: solo la última jornada con resultados (publicación viernes)
+      - jornadas: lista explícita
+    """
+    comp_id = comp["id"]
+    sancion_comp = comp.get("sancion_competicion_id")
+    sancion_grupo = comp.get("sancion_grupo_id")
+    if not sancion_comp or not sancion_grupo:
+        return {"status": "skipped", "sanciones_saved": 0, "reason": "not_configured"}
+
+    codtemporada = comp.get("rfef_codtemporada") or "21"
+    target_jornadas: list[int] = list(jornadas or [])
+
+    if modo == "ultima" and not target_jornadas:
+        prev = _resolve_jornada_previa_sanciones(supabase, comp_id)
+        if prev:
+            target_jornadas = [prev]
+
+    total_saved = 0
+    if target_jornadas:
+        jornada_options = await scraper.scrape_sanciones_jornadas(
+            codtemporada, sancion_comp, sancion_grupo
+        )
+        jornada_map = {j["numero"]: j["id"] for j in jornada_options}
+        for jnum in target_jornadas:
+            jid = jornada_map.get(jnum, str(jnum))
+            sanciones = await scraper.scrape_sanciones(
+                codtemporada, sancion_comp, sancion_grupo, jid
+            )
+            total_saved += _upsert_sanciones(supabase, comp_id, sanciones)
+        effective_modo = "jornadas" if modo != "ultima" else "ultima"
+    else:
+        sanciones = await scraper.scrape_sanciones(
+            codtemporada, sancion_comp, sancion_grupo, ""
+        )
+        total_saved = _upsert_sanciones(supabase, comp_id, sanciones)
+        effective_modo = "todas"
+        target_jornadas = sorted({
+            int(s.get("jornada_numero") or 0)
+            for s in (sanciones or [])
+            if s.get("jornada_numero")
+        })
+
+    _update_sanciones_sync_status(
+        supabase,
+        comp_id,
+        saved=total_saved,
+        jornadas=target_jornadas,
+        modo=effective_modo,
+    )
+    return {
+        "status": "ok",
+        "sanciones_saved": total_saved,
+        "modo": effective_modo,
+        "jornadas": target_jornadas,
+    }
 
 
 @router.post("/competiciones/{competicion_id}/sync-sanciones")
@@ -1217,53 +1343,92 @@ async def sync_sanciones(
     body: SyncSancionesRequest = Body(default=SyncSancionesRequest()),
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
 ):
-    """Scrape and save sanciones. Optionally filter by jornadas."""
+    """Scrape y guarda sanciones del comité RFAF (ConsultaSanciones).
+
+    Por defecto scrapea todas. Con modo=ultima solo la jornada anterior
+    (la que suele publicarse el viernes a mediodía).
+    """
     supabase = get_supabase()
     comp_id = str(competicion_id)
 
     comp = supabase.table("rfef_competiciones").select(
-        "sancion_competicion_id, sancion_grupo_id, rfef_codtemporada"
+        "id, sancion_competicion_id, sancion_grupo_id, rfef_codtemporada, sync_status"
     ).eq("id", comp_id).single().execute()
 
     if not comp.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Competición no encontrada")
 
-    sancion_comp = comp.data.get("sancion_competicion_id")
-    sancion_grupo = comp.data.get("sancion_grupo_id")
-    if not sancion_comp or not sancion_grupo:
+    if not comp.data.get("sancion_competicion_id") or not comp.data.get("sancion_grupo_id"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Sanciones no configuradas. Configura primero el mapeo de sanciones.",
+            detail="Sanciones no configuradas. Vincula primero la página de ConsultaSanciones.",
         )
 
-    codtemporada = comp.data.get("rfef_codtemporada", "21")
+    modo = (body.modo or ("jornadas" if body.jornadas else "todas")).lower()
     scraper = RFAFScraper()
-    total_saved = 0
-
     try:
-        if body.jornadas:
-            # Scrape specific jornadas — need to get jornada IDs first
-            jornada_options = await scraper.scrape_sanciones_jornadas(
-                codtemporada, sancion_comp, sancion_grupo
-            )
-            jornada_map = {j["numero"]: j["id"] for j in jornada_options}
-            for jnum in body.jornadas:
-                jid = jornada_map.get(jnum, "")
-                if jid:
-                    sanciones = await scraper.scrape_sanciones(
-                        codtemporada, sancion_comp, sancion_grupo, jid
-                    )
-                    total_saved += _upsert_sanciones(supabase, comp_id, sanciones)
-        else:
-            # Scrape all jornadas at once (empty jornada param)
-            sanciones = await scraper.scrape_sanciones(
-                codtemporada, sancion_comp, sancion_grupo, ""
-            )
-            total_saved = _upsert_sanciones(supabase, comp_id, sanciones)
+        result = await _sync_sanciones_for_comp(
+            supabase,
+            scraper,
+            comp.data,
+            modo=modo,
+            jornadas=body.jornadas,
+        )
+    except Exception as e:
+        logger.error("sync_sanciones error: %s", e)
+        raise HTTPException(status_code=502, detail=f"Error al conectar con la RFAF: {e}")
     finally:
         await scraper.close()
 
-    return {"status": "ok", "sanciones_saved": total_saved}
+    return result
+
+
+@router.post("/competiciones/{competicion_id}/sanciones-autolink")
+async def sanciones_autolink(
+    competicion_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
+):
+    """Vincula sanciones usando los mismos códigos de clasificación (setup único).
+
+    En RFAF, los IDs de ConsultaSanciones coinciden con codcompeticion/codgrupo.
+    """
+    supabase = get_supabase()
+    comp = (
+        supabase.table("rfef_competiciones")
+        .select("id, rfef_codcompeticion, rfef_codgrupo, sancion_competicion_id, sancion_grupo_id")
+        .eq("id", str(competicion_id))
+        .single()
+        .execute()
+    )
+    if not comp.data:
+        raise HTTPException(status_code=404, detail="Competición no encontrada")
+    cod_c = comp.data.get("rfef_codcompeticion")
+    cod_g = comp.data.get("rfef_codgrupo")
+    if not cod_c or not cod_g:
+        raise HTTPException(
+            status_code=400,
+            detail="La competición no tiene códigos RFAF de clasificación",
+        )
+    updated = (
+        supabase.table("rfef_competiciones")
+        .update({
+            "sancion_competicion_id": cod_c,
+            "sancion_grupo_id": cod_g,
+        })
+        .eq("id", str(competicion_id))
+        .execute()
+    )
+    return {
+        "status": "ok",
+        "sancion_competicion_id": cod_c,
+        "sancion_grupo_id": cod_g,
+        "competicion": (updated.data or [comp.data])[0],
+        "consulta_url": (
+            "https://www.rfaf.es/pnfg/NPcd/NFG_ConsultaSanciones"
+            f"?cod_primaria=5002420&Sch_Cod_Temporada={comp.data.get('rfef_codtemporada') or '21'}"
+            f"&Sch_Competicion={cod_c}&Sch_Grupo={cod_g}"
+        ),
+    }
 
 
 @router.get("/competiciones/{competicion_id}/sanciones")
