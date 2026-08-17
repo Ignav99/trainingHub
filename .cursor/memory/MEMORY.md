@@ -1,21 +1,19 @@
 # TrainingHub — agent memory
 
-## 2026-07-29 — Fotos de jugador transversales
+## 2026-08-17 — RFAF onboarding browse
 
-Branch: `cursor/jugador-foto-transversal-ae84`
+Branch: `cursor/rfaf-onboarding-browse-ae84`
 
-### Diseño
-- Columna `jugadores.foto_url` (ya existía)
-- Bucket `player-photos` (migración 068) + path `{org_id}/jugadores/{jugador_id}/avatar.{ext}`
-- Upload/delete solo vía API autenticada: `POST/DELETE /jugadores/{id}/foto`
-- PUT genérico ignora `foto_url` (evita URLs arbitrarias)
-- Validación MIME + magic bytes, máx 5MB, JPEG/PNG/WebP, URL con cache-bust `?v=`
+### Product
+Wizard Competición: catálogo RFAF → grupo → equipo → sync-full automático.
+URL paste queda como modo avanzado.
 
-### Frontend
-- Componente compartido `PlayerAvatar` (foto + iniciales/dorsal + fallback onError)
-- Ficha: cámara siempre disponible + borrar foto (ya no Supabase anon client)
-- Cableado: plantilla, convocatoria/partido, enfermería, sesión asistencia, equipos DnD, margen, dashboard, equipo
+### Tech
+- `browse_competiciones/grupos/equipos` en scraper + API `/rfef/browse/*`
+- `setup-from-browse` crea comp + mi_equipo + mapeo sanciones
+- Scheduler martes 17:00 y 21:00 (horarios)
+- Linker: sábado sin hora → domingo
 
-### Next
-- Aplicar migración 068 en Supabase prod si el bucket no existe (service también intenta create_bucket)
-- Opcional: resize/crop server-side con Pillow más adelante
+### Nota
+IDs del select de sanciones = codcompeticion/codgrupo de VisClasificacion (verificado en prod).
+Cloud agent IP blocked by RFAF (0 bytes); prod Frankfurt OK.

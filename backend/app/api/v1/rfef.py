@@ -1021,6 +1021,63 @@ async def get_acta(
     return response.data
 
 
+# ============ Browse / Onboarding RFAF ============
+
+@router.get("/browse/competiciones")
+async def browse_competiciones(
+    temporada: str = Query("21"),
+    q: Optional[str] = Query(None, description="Filtro por nombre"),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """Catálogo de competiciones RFAF (como la lista de la federación)."""
+    scraper = RFAFScraper()
+    try:
+        data = await scraper.browse_competiciones(temporada, q)
+        return {"data": data, "total": len(data), "temporada": temporada}
+    except Exception as e:
+        logger.error("browse_competiciones error: %s", e)
+        raise HTTPException(status_code=502, detail=f"Error al conectar con la RFAF: {e}")
+    finally:
+        await scraper.close()
+
+
+@router.get("/browse/grupos")
+async def browse_grupos(
+    temporada: str = Query("21"),
+    competicion_id: str = Query(...),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """Grupos de una competición RFAF."""
+    scraper = RFAFScraper()
+    try:
+        data = await scraper.browse_grupos(temporada, competicion_id)
+        return {"data": data, "total": len(data)}
+    except Exception as e:
+        logger.error("browse_grupos error: %s", e)
+        raise HTTPException(status_code=502, detail=f"Error al conectar con la RFAF: {e}")
+    finally:
+        await scraper.close()
+
+
+@router.get("/browse/equipos")
+async def browse_equipos(
+    codcompeticion: str = Query(...),
+    codgrupo: str = Query(...),
+    temporada: str = Query("21"),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """Equipos del grupo (clasificación en tiempo real) para elegir el tuyo."""
+    scraper = RFAFScraper()
+    try:
+        data = await scraper.browse_equipos(codcompeticion, codgrupo, temporada)
+        return data
+    except Exception as e:
+        logger.error("browse_equipos error: %s", e)
+        raise HTTPException(status_code=502, detail=f"Error al conectar con la RFAF: {e}")
+    finally:
+        await scraper.close()
+
+
 # ============ Sanciones ============
 
 @router.get("/sanciones/competiciones")
@@ -1242,6 +1299,99 @@ class SetupFromUrlRequest(BaseModel):
     nombre: Optional[str] = None
 
 
+class SetupFromBrowseRequest(BaseModel):
+    equipo_id: str
+    codcompeticion: str
+    codgrupo: str
+    temporada: str = "21"
+    nombre: str
+    grupo_nombre: Optional[str] = None
+    mi_equipo_nombre: str
+
+
+@router.post("/competiciones/setup-from-browse", status_code=status.HTTP_201_CREATED)
+async def setup_from_browse(
+    body: SetupFromBrowseRequest,
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_CREATE)),
+):
+    """Onboarding: crea competición desde catálogo RFAF (competición → grupo → equipo).
+
+    Guarda códigos, asigna mi equipo, mapea sanciones al mismo grupo y deja
+    sync_habilitado=true. El cliente debe llamar a sync-full a continuación.
+    """
+    if not body.mi_equipo_nombre.strip():
+        raise HTTPException(status_code=400, detail="Debes seleccionar tu equipo")
+
+    supabase = get_supabase()
+    scraper = RFAFScraper()
+    try:
+        data = await scraper.sync_competicion(
+            body.codcompeticion, body.codgrupo, body.temporada
+        )
+    except Exception as e:
+        logger.error("Error scraping RFAF (browse setup): %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Error al conectar con la RFAF: {str(e)}",
+        )
+    finally:
+        await scraper.close()
+
+    clasificacion = data.get("clasificacion") or []
+    nombres = {(r.get("equipo") or "").strip().lower() for r in clasificacion}
+    if clasificacion and body.mi_equipo_nombre.strip().lower() not in nombres:
+        raise HTTPException(
+            status_code=400,
+            detail="El equipo seleccionado no aparece en la clasificación de este grupo",
+        )
+
+    nombre = body.nombre.strip()
+    if body.grupo_nombre:
+        nombre = f"{nombre} — {body.grupo_nombre.strip()}"
+
+    url_fuente = (
+        f"https://www.rfaf.es/pnfg/NPcd/NFG_VisClasificacion"
+        f"?cod_primaria=1000120&codcompeticion={body.codcompeticion}"
+        f"&codgrupo={body.codgrupo}&codtemporada={body.temporada}"
+    )
+
+    comp_data = {
+        "equipo_id": body.equipo_id,
+        "nombre": nombre,
+        "grupo": body.grupo_nombre,
+        "temporada": body.temporada,
+        "rfef_codcompeticion": body.codcompeticion,
+        "rfef_codgrupo": body.codgrupo,
+        "rfef_codtemporada": body.temporada,
+        "url_fuente": url_fuente,
+        "clasificacion": clasificacion,
+        "calendario": data.get("calendario", []),
+        "goleadores": data.get("goleadores", []),
+        "mi_equipo_nombre": body.mi_equipo_nombre.strip(),
+        # Mismos IDs sirven para el módulo de sanciones oficiales
+        "sancion_competicion_id": body.codcompeticion,
+        "sancion_grupo_id": body.codgrupo,
+        "sync_habilitado": True,
+        "ultima_sincronizacion": datetime.utcnow().isoformat(),
+    }
+
+    response = supabase.table("rfef_competiciones").insert(comp_data).execute()
+    if not response.data:
+        raise HTTPException(status_code=400, detail="Error al crear la competición")
+
+    comp = response.data[0]
+
+    if data.get("jornada_actual"):
+        jornada = data["jornada_actual"]
+        supabase.table("rfef_jornadas").insert({
+            "competicion_id": comp["id"],
+            "numero": jornada["numero"],
+            "partidos": jornada["partidos"],
+        }).execute()
+
+    return comp
+
+
 @router.post("/competiciones/setup-from-url", status_code=status.HTTP_201_CREATED)
 async def setup_from_url(
     body: SetupFromUrlRequest,
@@ -1288,6 +1438,8 @@ async def setup_from_url(
         "clasificacion": data.get("clasificacion", []),
         "calendario": data.get("calendario", []),
         "goleadores": data.get("goleadores", []),
+        "sancion_competicion_id": params["codcompeticion"],
+        "sancion_grupo_id": params["codgrupo"],
         "sync_habilitado": True,
         "ultima_sincronizacion": datetime.utcnow().isoformat(),
     }

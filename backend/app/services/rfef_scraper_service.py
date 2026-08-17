@@ -281,6 +281,23 @@ class RFAFScraper:
     ) -> list[dict]:
         return await asyncio.to_thread(self._scrape_sanciones_grupos, codtemporada, competicion_id)
 
+    async def browse_competiciones(
+        self, codtemporada: str = "21", query: Optional[str] = None,
+    ) -> list[dict]:
+        return await asyncio.to_thread(self._browse_competiciones, codtemporada, query)
+
+    async def browse_grupos(
+        self, codtemporada: str, competicion_id: str,
+    ) -> list[dict]:
+        return await asyncio.to_thread(self._browse_grupos, codtemporada, competicion_id)
+
+    async def browse_equipos(
+        self, codcompeticion: str, codgrupo: str, codtemporada: str = "21",
+    ) -> dict:
+        return await asyncio.to_thread(
+            self._browse_equipos, codcompeticion, codgrupo, codtemporada
+        )
+
     async def scrape_sanciones_jornadas(
         self, codtemporada: str, competicion_id: str, grupo_id: str,
     ) -> list[dict]:
@@ -629,6 +646,117 @@ class RFAFScraper:
 
         logger.info("Sanciones competiciones: %d options", len(options))
         return options
+
+    def _browse_competiciones(self, codtemporada="21", query: Optional[str] = None):
+        """Lista navegable de competiciones (misma fuente que el catálogo RFAF).
+
+        Los IDs del select de sanciones coinciden con codcompeticion de VisClasificacion.
+        """
+        options = self._scrape_sanciones_competiciones(codtemporada)
+        # Enrich with LstCompeticiones links when available (best-effort)
+        try:
+            soup = self._fetch_page(
+                "NFG_Mov_LstCompeticiones",
+                {"competicion": "1", "rt": "1"},
+                cod_primaria="1000120",
+                max_retries=2,
+            )
+            link_names = {}
+            for a in soup.find_all("a", href=True):
+                href = a["href"]
+                m = re.search(r"[Cc]od[Cc]ompeticion=(\d+)", href)
+                if not m:
+                    continue
+                name = a.get_text(" ", strip=True)
+                if name:
+                    link_names[m.group(1)] = name
+            if link_names:
+                for opt in options:
+                    if opt["id"] in link_names and len(link_names[opt["id"]]) > len(opt["nombre"]):
+                        opt["nombre"] = link_names[opt["id"]]
+                logger.info("Browse: enriched %d names from LstCompeticiones", len(link_names))
+        except Exception as e:
+            logger.debug("LstCompeticiones enrich skipped: %s", e)
+
+        if query:
+            q = query.strip().lower()
+            options = [o for o in options if q in (o.get("nombre") or "").lower()]
+        return options
+
+    def _browse_grupos(self, codtemporada: str, competicion_id: str):
+        """Grupos de una competición para el wizard de onboarding."""
+        options = self._scrape_sanciones_grupos(codtemporada, competicion_id)
+
+        # Enrich / validate with LstGruposCompeticion (links to clasificación)
+        try:
+            soup = self._fetch_page(
+                "NFG_Mov_LstGruposCompeticion",
+                {"buscar": "1", "codcompeticion": competicion_id, "rt": "1"},
+                cod_primaria="1000120",
+                max_retries=2,
+            )
+            from_page = []
+            seen = set()
+            for a in soup.find_all("a", href=True):
+                href = a["href"]
+                mg = re.search(r"[Cc]od[Gg]rupo=(\d+)", href)
+                mc = re.search(r"[Cc]od[Cc]ompeticion=(\d+)", href)
+                if not mg:
+                    continue
+                gid = mg.group(1)
+                if gid in seen:
+                    continue
+                seen.add(gid)
+                name = a.get_text(" ", strip=True) or f"Grupo {gid}"
+                # Prefer VisClasificacion / CmpJornada links
+                if "VisClasificacion" in href or "CmpJornada" in href or "LstGrupos" not in href:
+                    from_page.append({
+                        "id": gid,
+                        "nombre": name,
+                        "codcompeticion": (mc.group(1) if mc else competicion_id),
+                        "url_clasificacion": href if href.startswith("http") else f"{BASE_URL}/{href.lstrip('/')}",
+                    })
+            if from_page:
+                # Merge: prefer page order/names when IDs overlap
+                by_id = {o["id"]: dict(o) for o in options}
+                for g in from_page:
+                    if g["id"] in by_id:
+                        by_id[g["id"]]["nombre"] = g["nombre"] or by_id[g["id"]]["nombre"]
+                        by_id[g["id"]]["url_clasificacion"] = g.get("url_clasificacion")
+                    else:
+                        by_id[g["id"]] = {
+                            "id": g["id"],
+                            "nombre": g["nombre"],
+                            "url_clasificacion": g.get("url_clasificacion"),
+                        }
+                options = list(by_id.values())
+                logger.info("Browse grupos: %d from page + sanciones merge", len(options))
+        except Exception as e:
+            logger.debug("LstGruposCompeticion enrich skipped: %s", e)
+
+        return options
+
+    def _browse_equipos(self, codcompeticion: str, codgrupo: str, codtemporada: str = "21"):
+        """Preview instantáneo: equipos del grupo desde la clasificación."""
+        data = self._scrape_clasificacion_full(codcompeticion, codgrupo, codtemporada)
+        clasificacion = data.get("clasificacion") or []
+        equipos = []
+        for row in clasificacion:
+            nombre = (row.get("equipo") or "").strip()
+            if not nombre:
+                continue
+            equipos.append({
+                "nombre": nombre,
+                "posicion": row.get("posicion"),
+                "puntos": row.get("puntos"),
+                "pj": row.get("pj"),
+                "escudo_url": row.get("escudo_url"),
+            })
+        return {
+            "equipos": equipos,
+            "total": len(equipos),
+            "jornada_actual": (data.get("jornada_actual") or {}).get("numero"),
+        }
 
     def _scrape_sanciones_grupos(self, codtemporada, competicion_id):
         """Parse <select name="Sch_Grupo"> options from sanciones page."""
