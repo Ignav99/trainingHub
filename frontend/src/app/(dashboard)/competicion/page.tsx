@@ -12,6 +12,7 @@ import {
   RFEFPartidoJornada,
   RFEFSancion,
   SyncStatusResponse,
+  DEFAULT_RFAF_TEMPORADA,
 } from '@/lib/api/rfef'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Spinner } from '@/components/ui/spinner'
@@ -305,7 +306,7 @@ export default function CompeticionPage() {
       if (competicion?.sancion_competicion_id) {
         setSelectedSancionComp(competicion.sancion_competicion_id)
         const grupos = await rfefApi.getSancionesGrupos(
-          competicion.rfef_codtemporada || '21',
+          competicion.rfef_codtemporada || DEFAULT_RFAF_TEMPORADA,
           competicion.sancion_competicion_id,
         )
         setSancionGrupos(grupos.data)
@@ -321,7 +322,7 @@ export default function CompeticionPage() {
     setSancionGrupos([])
     if (!compId) return
     try {
-      const res = await rfefApi.getSancionesGrupos(competicion?.rfef_codtemporada || '21', compId)
+      const res = await rfefApi.getSancionesGrupos(competicion?.rfef_codtemporada || DEFAULT_RFAF_TEMPORADA, compId)
       setSancionGrupos(res.data)
     } catch { /* ok */ }
   }
@@ -1100,7 +1101,7 @@ export default function CompeticionPage() {
                 <p className="text-xs text-muted-foreground pl-6">
                   Se actualiza solo los viernes (~12:00 y 14:00). Enlace:{' '}
                   <a
-                    href={`https://www.rfaf.es/pnfg/NPcd/NFG_ConsultaSanciones?cod_primaria=5002420&Sch_Cod_Temporada=${competicion.rfef_codtemporada || '21'}&Sch_Competicion=${competicion.sancion_competicion_id}&Sch_Grupo=${competicion.sancion_grupo_id}`}
+                    href={`https://www.rfaf.es/pnfg/NPcd/NFG_ConsultaSanciones?cod_primaria=5002420&Sch_Cod_Temporada=${competicion.rfef_codtemporada || DEFAULT_RFAF_TEMPORADA}&Sch_Competicion=${competicion.sancion_competicion_id}&Sch_Grupo=${competicion.sancion_grupo_id}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="underline hover:text-foreground"

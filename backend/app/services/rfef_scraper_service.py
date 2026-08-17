@@ -31,6 +31,29 @@ LOGIN_URL = "https://www.rfaf.es/pnfg/NLogin"
 RFAF_BASE = "https://www.rfaf.es"
 CHARSET = "iso-8859-15"
 
+# Códigos RFAF: 22 = 2026-2027, 21 = 2025-2026, 20 = 2024-2025, …
+# Fórmula: año_inicio = 2004 + int(código). Temporada nueva desde julio.
+_RFAF_TEMPORADA_EPOCH_YEAR = 2004
+
+
+def default_rfaf_temporada(now: Optional[datetime] = None) -> str:
+    """Código RFAF de la temporada en curso (julio → junio)."""
+    now = now or datetime.now()
+    start_year = now.year if now.month >= 7 else now.year - 1
+    return str(start_year - _RFAF_TEMPORADA_EPOCH_YEAR)
+
+
+def rfaf_temporada_label(code: str) -> str:
+    """Etiqueta legible: '22' → '2026-2027'."""
+    try:
+        y = _RFAF_TEMPORADA_EPOCH_YEAR + int(str(code).strip())
+        return f"{y}-{y + 1}"
+    except (TypeError, ValueError):
+        return f"Temporada {code}"
+
+
+DEFAULT_RFAF_TEMPORADA = default_rfaf_temporada()
+
 # ---------------------------------------------------------------------------
 # Circuit Breaker
 # ---------------------------------------------------------------------------
@@ -187,7 +210,7 @@ class RFAFScraper:
         self,
         codcompeticion: str,
         codgrupo: str,
-        codtemporada: str = "21",
+        codtemporada: str = DEFAULT_RFAF_TEMPORADA,
     ) -> list[dict]:
         """Clasificación standings."""
         data = await asyncio.to_thread(
@@ -199,7 +222,7 @@ class RFAFScraper:
         self,
         codcompeticion: str,
         codgrupo: str,
-        codtemporada: str = "21",
+        codtemporada: str = DEFAULT_RFAF_TEMPORADA,
     ) -> dict:
         """Clasificación + jornada results from clasificación page."""
         return await asyncio.to_thread(
@@ -211,7 +234,7 @@ class RFAFScraper:
         codcompeticion: str,
         codgrupo: str,
         codjornada: str,
-        codtemporada: str = "21",
+        codtemporada: str = DEFAULT_RFAF_TEMPORADA,
     ) -> dict:
         """Scores from clasificación page (plain text, no obfuscation) + cod_acta links."""
         return await asyncio.to_thread(
@@ -223,7 +246,7 @@ class RFAFScraper:
         codcompeticion: str,
         codgrupo: str,
         codjornada: str,
-        codtemporada: str = "21",
+        codtemporada: str = DEFAULT_RFAF_TEMPORADA,
     ) -> dict:
         """Date/time/field from dedicated jornada page."""
         return await asyncio.to_thread(
@@ -235,7 +258,7 @@ class RFAFScraper:
         codcompeticion: str,
         codgrupo: str,
         codjornada: str,
-        codtemporada: str = "21",
+        codtemporada: str = DEFAULT_RFAF_TEMPORADA,
     ) -> dict:
         """Scores from clasificación + date/time/field from jornada page, merged."""
         return await asyncio.to_thread(
@@ -246,7 +269,7 @@ class RFAFScraper:
         self,
         codcompeticion: str,
         codgrupo: str,
-        codtemporada: str = "21",
+        codtemporada: str = DEFAULT_RFAF_TEMPORADA,
     ) -> list[dict]:
         return await asyncio.to_thread(
             self._scrape_calendario, codcompeticion, codgrupo, codtemporada
@@ -256,7 +279,7 @@ class RFAFScraper:
         self,
         codcompeticion: str,
         codgrupo: str,
-        codtemporada: str = "21",
+        codtemporada: str = DEFAULT_RFAF_TEMPORADA,
     ) -> list[dict]:
         return await asyncio.to_thread(
             self._scrape_goleadores, codcompeticion, codgrupo, codtemporada
@@ -272,7 +295,7 @@ class RFAFScraper:
             return await asyncio.to_thread(self._scrape_acta, cod_acta)
 
     async def scrape_sanciones_competiciones(
-        self, codtemporada: str = "21",
+        self, codtemporada: str = DEFAULT_RFAF_TEMPORADA,
     ) -> list[dict]:
         return await asyncio.to_thread(self._scrape_sanciones_competiciones, codtemporada)
 
@@ -282,7 +305,7 @@ class RFAFScraper:
         return await asyncio.to_thread(self._scrape_sanciones_grupos, codtemporada, competicion_id)
 
     async def browse_competiciones(
-        self, codtemporada: str = "21", query: Optional[str] = None,
+        self, codtemporada: str = DEFAULT_RFAF_TEMPORADA, query: Optional[str] = None,
     ) -> list[dict]:
         return await asyncio.to_thread(self._browse_competiciones, codtemporada, query)
 
@@ -292,7 +315,7 @@ class RFAFScraper:
         return await asyncio.to_thread(self._browse_grupos, codtemporada, competicion_id)
 
     async def browse_equipos(
-        self, codcompeticion: str, codgrupo: str, codtemporada: str = "21",
+        self, codcompeticion: str, codgrupo: str, codtemporada: str = DEFAULT_RFAF_TEMPORADA,
     ) -> dict:
         return await asyncio.to_thread(
             self._browse_equipos, codcompeticion, codgrupo, codtemporada
@@ -312,7 +335,7 @@ class RFAFScraper:
         self,
         codcompeticion: str,
         codgrupo: str,
-        codtemporada: str = "21",
+        codtemporada: str = DEFAULT_RFAF_TEMPORADA,
     ) -> dict:
         return await asyncio.to_thread(
             self._sync_competicion, codcompeticion, codgrupo, codtemporada
@@ -322,7 +345,7 @@ class RFAFScraper:
         self,
         codcompeticion: str,
         codgrupo: str,
-        codtemporada: str = "21",
+        codtemporada: str = DEFAULT_RFAF_TEMPORADA,
     ) -> dict:
         return await asyncio.to_thread(
             self._sync_competicion_full, codcompeticion, codgrupo, codtemporada
@@ -337,7 +360,7 @@ class RFAFScraper:
     # Sync implementations
     # ========================================================================
 
-    def _scrape_clasificacion_full(self, codcompeticion, codgrupo, codtemporada="21"):
+    def _scrape_clasificacion_full(self, codcompeticion, codgrupo, codtemporada=DEFAULT_RFAF_TEMPORADA):
         """Classification + jornada results from clasificación page."""
         soup = self._fetch_page("NFG_VisClasificacion", {
             "codgrupo": codgrupo,
@@ -355,7 +378,7 @@ class RFAFScraper:
             "jornada_num": jornada_num,
         }
 
-    def _scrape_jornada_results(self, codcompeticion, codgrupo, codjornada, codtemporada="21"):
+    def _scrape_jornada_results(self, codcompeticion, codgrupo, codjornada, codtemporada=DEFAULT_RFAF_TEMPORADA):
         """Get scores from clasificación page for a specific jornada.
 
         Uses NFG_VisClasificacion?codjornada=N which shows results for jornada N
@@ -374,7 +397,7 @@ class RFAFScraper:
         )
         return {"numero": int(codjornada), "partidos": results}
 
-    def _scrape_jornada(self, codcompeticion, codgrupo, codjornada, codtemporada="21"):
+    def _scrape_jornada(self, codcompeticion, codgrupo, codjornada, codtemporada=DEFAULT_RFAF_TEMPORADA):
         """Get date/time/field from dedicated jornada page (NFG_CmpJornada).
 
         Does NOT extract scores — use clasificación page for reliable scores.
@@ -391,7 +414,7 @@ class RFAFScraper:
         )
         return {"numero": int(codjornada), "partidos": partidos}
 
-    def _scrape_jornada_combined(self, codcompeticion, codgrupo, codjornada, codtemporada="21"):
+    def _scrape_jornada_combined(self, codcompeticion, codgrupo, codjornada, codtemporada=DEFAULT_RFAF_TEMPORADA):
         """Combine reliable scores (from clasificación) + date/time/field (from jornada page)."""
         results = self._scrape_jornada_results(codcompeticion, codgrupo, codjornada, codtemporada)
         time.sleep(0.3)
@@ -399,7 +422,7 @@ class RFAFScraper:
         merged = self._merge_jornada_data(results["partidos"], details["partidos"])
         return {"numero": int(codjornada), "partidos": merged}
 
-    def _scrape_calendario(self, codcompeticion, codgrupo, codtemporada="21"):
+    def _scrape_calendario(self, codcompeticion, codgrupo, codtemporada=DEFAULT_RFAF_TEMPORADA):
         """Scrape del calendario — jornada numbers list."""
         soup = self._fetch_page("NFG_VisCalendario_Vis", {
             "codtemporada": codtemporada,
@@ -442,7 +465,7 @@ class RFAFScraper:
         logger.info("Scraped calendario: %d jornadas", len(jornadas))
         return jornadas
 
-    def _scrape_goleadores(self, codcompeticion, codgrupo, codtemporada="21"):
+    def _scrape_goleadores(self, codcompeticion, codgrupo, codtemporada=DEFAULT_RFAF_TEMPORADA):
         """Scrape del ranking de goleadores."""
         soup = self._fetch_page("NFG_CMP_Goleadores", {
             "codcompeticion": codcompeticion,
@@ -516,7 +539,7 @@ class RFAFScraper:
 
         return result
 
-    def _sync_competicion(self, codcompeticion, codgrupo, codtemporada="21"):
+    def _sync_competicion(self, codcompeticion, codgrupo, codtemporada=DEFAULT_RFAF_TEMPORADA):
         """Quick sync: clasificación + current jornada (with merged details) + goleadores."""
         full_data = self._scrape_clasificacion_full(codcompeticion, codgrupo, codtemporada)
         clasificacion = full_data["clasificacion"]
@@ -556,7 +579,7 @@ class RFAFScraper:
             "sincronizado_en": datetime.utcnow().isoformat(),
         }
 
-    def _sync_competicion_full(self, codcompeticion, codgrupo, codtemporada="21"):
+    def _sync_competicion_full(self, codcompeticion, codgrupo, codtemporada=DEFAULT_RFAF_TEMPORADA):
         """Full sync: clasificación + ALL jornadas + goleadores.
 
         Uses clasificación page for scores (plain text, reliable) and
@@ -623,7 +646,7 @@ class RFAFScraper:
     # Sanciones scraping
     # ========================================================================
 
-    def _scrape_sanciones_competiciones(self, codtemporada="21"):
+    def _scrape_sanciones_competiciones(self, codtemporada=DEFAULT_RFAF_TEMPORADA):
         """Parse <select name="Sch_Competicion"> options from sanciones page."""
         soup = self._fetch_page("NFG_ConsultaSanciones", {
             "Rone": "1",
@@ -647,7 +670,50 @@ class RFAFScraper:
         logger.info("Sanciones competiciones: %d options", len(options))
         return options
 
-    def _browse_competiciones(self, codtemporada="21", query: Optional[str] = None):
+    def _scrape_temporadas(self) -> list[dict]:
+        """Parse <select name="Sch_Cod_Temporada"> from ConsultaSanciones."""
+        soup = self._fetch_page(
+            "NFG_ConsultaSanciones",
+            {"Rone": "1", "Rone1": "1", "Rone2": "1"},
+            cod_primaria="5002420",
+        )
+        options: list[dict] = []
+        select = soup.find("select", {"name": "Sch_Cod_Temporada"})
+        if not select:
+            # Fallback: últimas 5 temporadas calculadas (actual primero)
+            current = int(default_rfaf_temporada())
+            for code in range(current, max(current - 5, 0), -1):
+                c = str(code)
+                options.append({
+                    "id": c,
+                    "nombre": rfaf_temporada_label(c),
+                    "label": rfaf_temporada_label(c),
+                })
+            logger.warning("Temporadas: select no encontrado, usando fallback %s", options)
+            return options
+
+        for opt in select.find_all("option"):
+            val = (opt.get("value") or "").strip()
+            text = opt.get_text(strip=True)
+            if not val or val == "0":
+                continue
+            label = text or rfaf_temporada_label(val)
+            # Prefer our YYYY-YYYY if RFAF text is cryptic / empty-ish
+            if not any(ch.isdigit() for ch in label) or len(label) < 4:
+                label = rfaf_temporada_label(val)
+            elif re.fullmatch(r"\d{2}", label.strip()):
+                label = rfaf_temporada_label(val)
+            options.append({"id": val, "nombre": label, "label": label})
+
+        # Newest first (higher code)
+        options.sort(key=lambda o: int(o["id"]) if str(o["id"]).isdigit() else 0, reverse=True)
+        logger.info("Temporadas RFAF: %d options (default=%s)", len(options), DEFAULT_RFAF_TEMPORADA)
+        return options
+
+    async def browse_temporadas(self) -> list[dict]:
+        return await asyncio.to_thread(self._scrape_temporadas)
+
+    def _browse_competiciones(self, codtemporada=DEFAULT_RFAF_TEMPORADA, query: Optional[str] = None):
         """Lista navegable de competiciones (misma fuente que el catálogo RFAF).
 
         Los IDs del select de sanciones coinciden con codcompeticion de VisClasificacion.
@@ -736,7 +802,7 @@ class RFAFScraper:
 
         return options
 
-    def _browse_equipos(self, codcompeticion: str, codgrupo: str, codtemporada: str = "21"):
+    def _browse_equipos(self, codcompeticion: str, codgrupo: str, codtemporada: str = DEFAULT_RFAF_TEMPORADA):
         """Preview instantáneo: equipos del grupo desde la clasificación."""
         data = self._scrape_clasificacion_full(codcompeticion, codgrupo, codtemporada)
         clasificacion = data.get("clasificacion") or []

@@ -29,6 +29,23 @@ interface RegisterData {
 // Module-level reference for cleanup between hot-reloads in dev
 let _authListenerUnsub: Subscription['unsubscribe'] | null = null
 
+function mapAuthError(message: string): string {
+  const m = message.toLowerCase()
+  if (m.includes('invalid login credentials') || m.includes('invalid credentials')) {
+    return 'Email o contraseña incorrectos.'
+  }
+  if (m.includes('email not confirmed')) {
+    return 'Confirma tu email antes de iniciar sesión.'
+  }
+  if (m.includes('too many requests') || m.includes('rate limit')) {
+    return 'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.'
+  }
+  if (m.includes('user not found')) {
+    return 'No hay ninguna cuenta con ese email.'
+  }
+  return 'No se pudo iniciar sesión. Comprueba tus datos o usa «¿Olvidaste tu contraseña?»'
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
@@ -117,7 +134,7 @@ export const useAuthStore = create<AuthState>()(
 
           if (error) {
             set({ isLoading: false })
-            return { success: false, error: error.message }
+            return { success: false, error: mapAuthError(error.message) }
           }
 
           if (!data.user || !data.session) {
@@ -138,10 +155,20 @@ export const useAuthStore = create<AuthState>()(
             })
 
             return { success: true }
-          } catch {
+          } catch (meError: unknown) {
             await getSupabaseClient().auth.signOut()
             set({ isLoading: false })
-            return { success: false, error: 'Usuario no encontrado en el sistema' }
+            const detail =
+              meError && typeof meError === 'object' && 'message' in meError
+                ? String((meError as { message?: string }).message)
+                : ''
+            if (detail.includes('desactivado')) {
+              return { success: false, error: 'Tu cuenta está desactivada. Contacta al administrador del club.' }
+            }
+            return {
+              success: false,
+              error: 'Tu sesión es válida pero falta el perfil en TrainingHub. Contacta soporte.',
+            }
           }
         } catch (error) {
           set({ isLoading: false })

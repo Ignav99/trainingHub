@@ -14,7 +14,7 @@ import {
   ExternalLink,
   Link2,
 } from 'lucide-react'
-import { rfefApi, type RFEFCompeticion } from '@/lib/api/rfef'
+import { rfefApi, type RFEFCompeticion, DEFAULT_RFAF_TEMPORADA, FALLBACK_RFAF_TEMPORADAS, rfafTemporadaLabel } from '@/lib/api/rfef'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 
@@ -29,10 +29,7 @@ type EquipoPreview = {
   escudo_url?: string
 }
 
-const TEMPORADAS = [
-  { id: '21', label: 'Temporada actual (21)' },
-  { id: '20', label: 'Temporada anterior (20)' },
-]
+type TemporadaOption = { id: string; label: string }
 
 interface Props {
   equipoId: string
@@ -49,7 +46,10 @@ export function CompeticionOnboardingWizard({
   onUseUrlFallback,
 }: Props) {
   const [step, setStep] = useState<Step>('competicion')
-  const [temporada, setTemporada] = useState('21')
+  const [temporada, setTemporada] = useState(DEFAULT_RFAF_TEMPORADA)
+  const [temporadas, setTemporadas] = useState<TemporadaOption[]>(
+    FALLBACK_RFAF_TEMPORADAS.map((t) => ({ id: t.id, label: t.label })),
+  )
   const [query, setQuery] = useState('')
   const [debouncedQ, setDebouncedQ] = useState('')
 
@@ -68,6 +68,19 @@ export function CompeticionOnboardingWizard({
 
   const [importStatus, setImportStatus] = useState<string>('')
   const [importing, setImporting] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    rfefApi.browseTemporadas().then((res) => {
+      if (cancelled || !res.data?.length) return
+      setTemporadas(res.data.map((t) => ({
+        id: t.id,
+        label: t.label || t.nombre || rfafTemporadaLabel(t.id),
+      })))
+      if (res.default) setTemporada(res.default)
+    }).catch(() => { /* fallback list already set */ })
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(query.trim()), 280)
@@ -263,7 +276,7 @@ export function CompeticionOnboardingWizard({
                 onChange={(e) => setTemporada(e.target.value)}
                 className="px-3 py-2.5 rounded-xl border bg-background text-sm"
               >
-                {TEMPORADAS.map((t) => (
+                {temporadas.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.label}
                   </option>

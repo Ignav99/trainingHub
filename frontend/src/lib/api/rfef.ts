@@ -143,6 +143,27 @@ export interface SyncFullResult {
   sincronizado_en: string
 }
 
+/** Código RFAF: 22 = 2026-2027. Nueva temporada desde julio. */
+export function defaultRfafTemporada(now = new Date()): string {
+  const startYear = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1
+  return String(startYear - 2004)
+}
+
+export function rfafTemporadaLabel(code: string): string {
+  const y = 2004 + Number(code)
+  if (!Number.isFinite(y)) return `Temporada ${code}`
+  return `${y}-${y + 1}`
+}
+
+export const DEFAULT_RFAF_TEMPORADA = defaultRfafTemporada()
+
+export const FALLBACK_RFAF_TEMPORADAS = [
+  { id: '22', label: '2026-2027' },
+  { id: '21', label: '2025-2026' },
+  { id: '20', label: '2024-2025' },
+  { id: '19', label: '2023-2024' },
+] as const
+
 export interface LinkResult {
   rivales_created: number
   partidos_created: number
@@ -209,11 +230,27 @@ export const rfefApi = {
     return api.post('/rfef/competiciones/setup-from-url', data)
   },
 
+  async browseTemporadas(): Promise<{
+    data: { id: string; nombre: string; label?: string }[]
+    total: number
+    default: string
+    default_label: string
+  }> {
+    return api.get('/rfef/browse/temporadas')
+  },
+
   async browseCompeticiones(params?: {
     temporada?: string
     q?: string
-  }): Promise<{ data: { id: string; nombre: string }[]; total: number; temporada: string }> {
-    return api.get('/rfef/browse/competiciones', { params })
+  }): Promise<{
+    data: { id: string; nombre: string }[]
+    total: number
+    temporada: string
+    temporada_label?: string
+  }> {
+    return api.get('/rfef/browse/competiciones', {
+      params: { temporada: params?.temporada || DEFAULT_RFAF_TEMPORADA, q: params?.q },
+    })
   },
 
   async browseGrupos(params: {
@@ -328,7 +365,9 @@ export const rfefApi = {
   async getSancionesCompeticiones(
     temporada?: string,
   ): Promise<{ data: { id: string; nombre: string }[] }> {
-    return api.get('/rfef/sanciones/competiciones', { params: { temporada: temporada || '21' } })
+    return api.get('/rfef/sanciones/competiciones', {
+      params: { temporada: temporada || DEFAULT_RFAF_TEMPORADA },
+    })
   },
 
   async getSancionesGrupos(

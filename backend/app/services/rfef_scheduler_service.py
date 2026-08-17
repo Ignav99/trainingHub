@@ -19,7 +19,7 @@ import time as _time
 
 from app.database import get_supabase
 import app.services.rfef_scraper_service as _scraper_mod
-from app.services.rfef_scraper_service import RFAFScraper
+from app.services.rfef_scraper_service import RFAFScraper, DEFAULT_RFAF_TEMPORADA
 from app.services.competition_linker_service import link_competition
 from app.services.pre_match_service import auto_populate_upcoming_matches
 from app.services.load_calculation_service import recalculate_all_teams
@@ -170,7 +170,7 @@ async def _sync_one(supabase, scraper: RFAFScraper, comp: dict):
     comp_id = comp["id"]
     codcompeticion = comp.get("rfef_codcompeticion")
     codgrupo = comp.get("rfef_codgrupo")
-    codtemporada = comp.get("rfef_codtemporada", "21")
+    codtemporada = comp.get("rfef_codtemporada", DEFAULT_RFAF_TEMPORADA)
 
     if not codcompeticion or not codgrupo:
         return
@@ -523,7 +523,7 @@ async def daily_sync_data():
                 comp_name = comp.get("nombre", comp_id)
                 codcompeticion = comp.get("rfef_codcompeticion")
                 codgrupo = comp.get("rfef_codgrupo")
-                codtemporada = comp.get("rfef_codtemporada", "21")
+                codtemporada = comp.get("rfef_codtemporada", DEFAULT_RFAF_TEMPORADA)
 
                 if not codcompeticion or not codgrupo:
                     continue

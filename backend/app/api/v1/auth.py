@@ -296,6 +296,13 @@ async def get_current_user_info(
     Obtiene informacion del usuario actual.
     Util para verificar que la autenticacion funciona correctamente.
     """
+    try:
+        supabase = get_supabase()
+        supabase.table("usuarios").update({
+            "ultimo_acceso": datetime.now(timezone.utc).isoformat(),
+        }).eq("id", str(auth.user.id)).execute()
+    except Exception:
+        pass  # No bloquear login si falla el timestamp
     return auth.user
 
 
