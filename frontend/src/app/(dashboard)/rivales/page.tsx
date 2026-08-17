@@ -121,7 +121,7 @@ export default function RivalesPage() {
     <div className="space-y-6">
       {!equipoActivo?.id ? (
         <EmptyState
-          icon={Shield}
+          icon={<Shield className="h-12 w-12" />}
           title="Selecciona un equipo"
           description="Elige tu equipo activo para ver los rivales de esta temporada."
         />
