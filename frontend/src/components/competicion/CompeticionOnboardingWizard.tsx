@@ -70,6 +70,19 @@ export function CompeticionOnboardingWizard({
   const [importing, setImporting] = useState(false)
 
   useEffect(() => {
+    let cancelled = false
+    rfefApi.browseTemporadas().then((res) => {
+      if (cancelled || !res.data?.length) return
+      setTemporadas(res.data.map((t) => ({
+        id: t.id,
+        label: t.label || t.nombre || rfafTemporadaLabel(t.id),
+      })))
+      if (res.default) setTemporada(res.default)
+    }).catch(() => { /* fallback list already set */ })
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(query.trim()), 280)
     return () => clearTimeout(t)
   }, [query])
