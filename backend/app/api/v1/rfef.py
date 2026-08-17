@@ -14,7 +14,12 @@ from uuid import UUID
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
-from app.services.rfef_scraper_service import RFAFScraper
+from app.services.rfef_scraper_service import (
+    RFAFScraper,
+    DEFAULT_RFAF_TEMPORADA,
+    default_rfaf_temporada,
+    rfaf_temporada_label,
+)
 from app.services.competition_linker_service import link_competition
 from app.services.rfef_acta_utils import is_acta_complete
 
@@ -363,7 +368,7 @@ async def sync_competicion_full(
 
     codcompeticion = comp.data.get("rfef_codcompeticion")
     codgrupo = comp.data.get("rfef_codgrupo")
-    codtemporada = comp.data.get("rfef_codtemporada", "21")
+    codtemporada = comp.data.get("rfef_codtemporada", DEFAULT_RFAF_TEMPORADA)
 
     if not codcompeticion or not codgrupo:
         raise HTTPException(
@@ -1026,9 +1031,50 @@ async def get_acta(
 
 # ============ Browse / Onboarding RFAF ============
 
+@router.get("/browse/temporadas")
+async def browse_temporadas(
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """Temporadas disponibles en RFAF, más reciente primero (22 = 2026-2027)."""
+    scraper = RFAFScraper()
+    try:
+        data = await scraper.browse_temporadas()
+    except Exception as e:
+        logger.error("browse_temporadas error: %s", e)
+        data = []
+    finally:
+        await scraper.close()
+
+    default = default_rfaf_temporada()
+    ids = {d.get("id") for d in data}
+    if default not in ids:
+        data.insert(0, {
+            "id": default,
+            "nombre": rfaf_temporada_label(default),
+            "label": rfaf_temporada_label(default),
+        })
+    if not data:
+        current = int(default)
+        data = [
+            {
+                "id": str(c),
+                "nombre": rfaf_temporada_label(str(c)),
+                "label": rfaf_temporada_label(str(c)),
+            }
+            for c in range(current, max(current - 4, 0), -1)
+        ]
+
+    return {
+        "data": data,
+        "total": len(data),
+        "default": default,
+        "default_label": rfaf_temporada_label(default),
+    }
+
+
 @router.get("/browse/competiciones")
 async def browse_competiciones(
-    temporada: str = Query("21"),
+    temporada: str = Query(DEFAULT_RFAF_TEMPORADA),
     q: Optional[str] = Query(None, description="Filtro por nombre"),
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
@@ -1036,7 +1082,12 @@ async def browse_competiciones(
     scraper = RFAFScraper()
     try:
         data = await scraper.browse_competiciones(temporada, q)
-        return {"data": data, "total": len(data), "temporada": temporada}
+        return {
+            "data": data,
+            "total": len(data),
+            "temporada": temporada,
+            "temporada_label": rfaf_temporada_label(temporada),
+        }
     except Exception as e:
         logger.error("browse_competiciones error: %s", e)
         raise HTTPException(status_code=502, detail=f"Error al conectar con la RFAF: {e}")
@@ -1046,7 +1097,7 @@ async def browse_competiciones(
 
 @router.get("/browse/grupos")
 async def browse_grupos(
-    temporada: str = Query("21"),
+    temporada: str = Query(DEFAULT_RFAF_TEMPORADA),
     competicion_id: str = Query(...),
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
@@ -1066,7 +1117,7 @@ async def browse_grupos(
 async def browse_equipos(
     codcompeticion: str = Query(...),
     codgrupo: str = Query(...),
-    temporada: str = Query("21"),
+    temporada: str = Query(DEFAULT_RFAF_TEMPORADA),
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
     """Equipos del grupo (clasificación en tiempo real) para elegir el tuyo."""
@@ -1085,7 +1136,7 @@ async def browse_equipos(
 
 @router.get("/sanciones/competiciones")
 async def sanciones_competiciones(
-    temporada: str = Query("21"),
+    temporada: str = Query(DEFAULT_RFAF_TEMPORADA),
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
     """Cascade dropdown: competiciones available in sanciones page."""
@@ -1099,7 +1150,7 @@ async def sanciones_competiciones(
 
 @router.get("/sanciones/grupos")
 async def sanciones_grupos(
-    temporada: str = Query("21"),
+    temporada: str = Query(DEFAULT_RFAF_TEMPORADA),
     competicion_id: str = Query(...),
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
@@ -1114,7 +1165,7 @@ async def sanciones_grupos(
 
 @router.get("/sanciones/jornadas")
 async def sanciones_jornadas(
-    temporada: str = Query("21"),
+    temporada: str = Query(DEFAULT_RFAF_TEMPORADA),
     competicion_id: str = Query(...),
     grupo_id: str = Query(...),
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
@@ -1289,7 +1340,7 @@ async def _sync_sanciones_for_comp(
     if not sancion_comp or not sancion_grupo:
         return {"status": "skipped", "sanciones_saved": 0, "reason": "not_configured"}
 
-    codtemporada = comp.get("rfef_codtemporada") or "21"
+    codtemporada = comp.get("rfef_codtemporada") or DEFAULT_RFAF_TEMPORADA
     target_jornadas: list[int] = list(jornadas or [])
 
     if modo == "ultima" and not target_jornadas:
@@ -1425,7 +1476,7 @@ async def sanciones_autolink(
         "competicion": (updated.data or [comp.data])[0],
         "consulta_url": (
             "https://www.rfaf.es/pnfg/NPcd/NFG_ConsultaSanciones"
-            f"?cod_primaria=5002420&Sch_Cod_Temporada={comp.data.get('rfef_codtemporada') or '21'}"
+            f"?cod_primaria=5002420&Sch_Cod_Temporada={comp.data.get('rfef_codtemporada') or DEFAULT_RFAF_TEMPORADA}"
             f"&Sch_Competicion={cod_c}&Sch_Grupo={cod_g}"
         ),
     }
@@ -1468,7 +1519,7 @@ class SetupFromBrowseRequest(BaseModel):
     equipo_id: str
     codcompeticion: str
     codgrupo: str
-    temporada: str = "21"
+    temporada: str = DEFAULT_RFAF_TEMPORADA
     nombre: str
     grupo_nombre: Optional[str] = None
     mi_equipo_nombre: str
@@ -1580,7 +1631,7 @@ async def setup_from_url(
         data = await scraper.sync_competicion(
             params["codcompeticion"],
             params["codgrupo"],
-            params.get("codtemporada", "21"),
+            params.get("codtemporada", DEFAULT_RFAF_TEMPORADA),
         )
     except Exception as e:
         logger.error("Error scraping RFAF: %s", e)
@@ -1598,7 +1649,7 @@ async def setup_from_url(
         "nombre": nombre,
         "rfef_codcompeticion": params["codcompeticion"],
         "rfef_codgrupo": params["codgrupo"],
-        "rfef_codtemporada": params.get("codtemporada", "21"),
+        "rfef_codtemporada": params.get("codtemporada", DEFAULT_RFAF_TEMPORADA),
         "url_fuente": body.url,
         "clasificacion": data.get("clasificacion", []),
         "calendario": data.get("calendario", []),
@@ -1651,7 +1702,7 @@ async def sync_competicion(
 
     codcompeticion = comp.data.get("rfef_codcompeticion")
     codgrupo = comp.data.get("rfef_codgrupo")
-    codtemporada = comp.data.get("rfef_codtemporada", "21")
+    codtemporada = comp.data.get("rfef_codtemporada", DEFAULT_RFAF_TEMPORADA)
 
     if not codcompeticion or not codgrupo:
         raise HTTPException(
