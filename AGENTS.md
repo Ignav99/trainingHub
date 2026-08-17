@@ -36,6 +36,13 @@ When redesigning dashboard UI, load skills from `.cursor/skills/`:
 - `web-design-guidelines` — accessibility / interface audit
 - `react-best-practices` / `composition-patterns` — React structure
 
+## Auth / usuarios (critical)
+
+- **Nunca** cambiar contraseñas de usuarios reales sin que lo pidan explícitamente.
+- Para restaurar acceso: usar **recuperación por email** (`/auth/v1/recover` o flujo «Olvidé mi contraseña»), no reset manual silencioso.
+- No borrar filas de `auth.users` ni `usuarios` sin confirmación explícita del usuario.
+- Tras operaciones de club/equipo, verificar que el usuario sigue con `activo=true` y fila en `usuarios` + `usuarios_equipos`.
+
 ## What “done” means
 
 A task is not done until:
