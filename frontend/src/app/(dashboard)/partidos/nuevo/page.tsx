@@ -47,12 +47,15 @@ export default function NuevoPartidoPage() {
   })
 
   useEffect(() => {
-    loadRivales()
-  }, [])
+    if (equipoActivo?.id) {
+      loadRivales()
+    }
+  }, [equipoActivo?.id])
 
   const loadRivales = async () => {
+    if (!equipoActivo?.id) return
     try {
-      const response = await rivalesApi.list()
+      const response = await rivalesApi.list({ equipo_id: equipoActivo.id, limit: 100 })
       setRivales(response.data)
     } catch (err) {
       console.error('Error loading rivales:', err)

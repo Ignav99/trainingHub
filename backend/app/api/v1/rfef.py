@@ -625,6 +625,13 @@ async def sync_competicion_full(
 
                 logger.info("Sync-full: saved %d actas", actas_saved)
 
+                # Escudos de rivales desde actas / clasificación
+                try:
+                    from app.services.rival_escudo_service import backfill_rival_escudos
+                    backfill_rival_escudos(supabase, comp.data)
+                except Exception as e:
+                    logger.debug("Sync-full escudo backfill: %s", e)
+
                 # Save sync_status
                 try:
                     # Re-check completeness after scraping

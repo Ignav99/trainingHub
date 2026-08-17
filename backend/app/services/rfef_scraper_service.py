@@ -1063,6 +1063,12 @@ class RFAFScraper:
             if not equipo or posicion == 0:
                 continue
 
+            escudo_url = None
+            escudo_img = row.find("img", src=re.compile(r"/pnfg/pimg/Clubes/", re.I))
+            if escudo_img and escudo_img.get("src"):
+                src = escudo_img["src"].strip()
+                escudo_url = src if src.startswith("http") else f"{RFAF_BASE}{src}"
+
             ultimos_5 = _extract_ultimos_5(cells)
 
             if is_detailed and len(texts) >= 15:
@@ -1098,6 +1104,9 @@ class RFAFScraper:
 
             if ultimos_5:
                 equipo_data["ultimos_5"] = ultimos_5
+
+            if escudo_url:
+                equipo_data["escudo_url"] = escudo_url
 
             clasificacion.append(equipo_data)
 
