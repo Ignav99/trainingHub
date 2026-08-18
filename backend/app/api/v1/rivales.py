@@ -315,6 +315,51 @@ async def list_rivales(
     )
 
 
+@router.post("/backfill-escudos")
+async def backfill_escudos(
+    equipo_id: UUID = Query(..., description="Equipo activo con competición RFAF"),
+    force: bool = Query(
+        True,
+        description="Re-descargar y normalizar escudos aunque ya existan",
+    ),
+    auth: AuthContext = Depends(require_permission(Permission.RIVAL_UPDATE)),
+):
+    """
+    Importa escudos de la clasificación RFAF para todos los equipos de la liga.
+    Descarga, recorta fondo blanco y normaliza a 256×256 PNG en bloque.
+    """
+    from app.services.rival_escudo_service import backfill_escudos_for_equipo
+
+    supabase = get_supabase()
+
+    eq = (
+        supabase.table("equipos")
+        .select("id, organizacion_id")
+        .eq("id", str(equipo_id))
+        .eq("organizacion_id", auth.organizacion_id)
+        .single()
+        .execute()
+    )
+    if not eq.data:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+
+    try:
+        stats = backfill_escudos_for_equipo(
+            supabase,
+            str(auth.organizacion_id),
+            str(equipo_id),
+            force=force,
+        )
+    except Exception as exc:
+        logger.exception("Escudo backfill failed for equipo %s", equipo_id)
+        raise HTTPException(status_code=500, detail=f"Error al importar escudos: {exc}")
+
+    if stats.get("error"):
+        raise HTTPException(status_code=400, detail=stats["error"])
+
+    return stats
+
+
 @router.post("/{rival_id}/escudo")
 async def upload_escudo(
     rival_id: UUID,
