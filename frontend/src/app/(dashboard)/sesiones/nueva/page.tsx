@@ -549,108 +549,15 @@ export default function NuevaSesionPage() {
                 Duración total: <span className="font-medium text-gray-900">{calcularDuracionTotal()} min</span>
               </div>
             </div>
-            <p className="text-sm text-gray-500 -mt-2">
-              Opcional al crear: puedes añadir tareas ahora o completarlas en el detalle.
+            <p className="text-sm text-gray-500 -mt-2 mb-4">
+              Opcional al crear: define la estructura y añade tareas en el detalle de la sesión.
             </p>
-
-            <div className="space-y-4">
-              {FASES_SESION.map((fase) => (
-                <div key={fase.value} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <h3 className="font-medium text-gray-900">{fase.label}</h3>
-                      <p className="text-xs text-gray-500">{fase.duration}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowTareaSelector(fase.value)}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-primary border border-primary rounded-lg hover:bg-primary/5"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Añadir tarea
-                    </button>
-                  </div>
-
-                  <div className="space-y-2">
-                    {getTareasByFase(fase.value).map((t, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
-                      >
-                        <GripVertical className="h-4 w-4 text-gray-400 cursor-move" />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900">{t.tarea.titulo}</p>
-                          <p className="text-xs text-gray-500">
-                            {t.tarea.duracion_total} min · {t.tarea.categoria?.nombre || ''}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeTareaFromSesion(tareasEnSesion.indexOf(t))}
-                          className="p-1 text-gray-400 hover:text-red-500"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
-                    {getTareasByFase(fase.value).length === 0 && (
-                      <p className="text-sm text-gray-400 italic py-2">
-                        Sin tareas asignadas
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
+            <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/80 px-6 py-10 text-center">
+              <p className="text-sm text-gray-600">
+                La sesión empieza sin bloques. En el diseño podrás añadir activación, desarrollo,
+                vuelta a la calma, videoanálisis y las tareas que necesites.
+              </p>
             </div>
-
-            {showTareaSelector && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <div className="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
-                  <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-                    <h3 className="font-semibold">Seleccionar tarea para {FASES_SESION.find(f => f.value === showTareaSelector)?.label}</h3>
-                    <button onClick={() => setShowTareaSelector(null)}>
-                      <X className="h-5 w-5" />
-                    </button>
-                  </div>
-                  <div className="p-4 overflow-y-auto max-h-96">
-                    {loadingTareas ? (
-                      <div className="flex justify-center py-8">
-                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                      </div>
-                    ) : tareasDisponibles.length === 0 ? (
-                      <p className="text-center text-gray-500 py-8">
-                        No hay tareas disponibles. Crea algunas primero.
-                      </p>
-                    ) : (
-                      <div className="space-y-2">
-                        {tareasDisponibles.map((tarea) => (
-                          <button
-                            key={tarea.id}
-                            type="button"
-                            onClick={() => addTareaToSesion(tarea, showTareaSelector)}
-                            className="w-full text-left p-3 border border-gray-200 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="font-medium text-gray-900">{tarea.titulo}</p>
-                                <p className="text-xs text-gray-500">
-                                  {tarea.duracion_total} min · {tarea.num_jugadores_min} jugadores
-                                </p>
-                              </div>
-                              {tarea.categoria && (
-                                <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded">
-                                  {tarea.categoria.nombre_corto || tarea.categoria.nombre}
-                                </span>
-                              )}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
         </div>
       )}
 

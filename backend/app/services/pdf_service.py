@@ -755,19 +755,48 @@ async def generate_sesion_pdf_v2(
     color_primario = organizacion.get("color_primario", "#1a365d")
     equipo = sesion_data.get("equipos", {}) or {}
 
-    # Build fases dynamically from actual tareas_sesion data
+    # Build fases from estructura guardada o desde tareas (sin bloques vacíos por defecto)
     fases = {}
+    estructura = sesion_data.get("estructura_fases") or []
+    if isinstance(estructura, list) and estructura:
+        for bloque in sorted(estructura, key=lambda b: b.get("orden", 0)):
+            tipo = bloque.get("tipo")
+            if not tipo or tipo == "videoanalisis":
+                fk = f"bloque_{bloque.get('id', tipo)}"
+                fases[fk] = {
+                    "nombre": bloque.get("label") or "Videoanálisis",
+                    "tareas": [],
+                    "notas": bloque.get("notas") or "",
+                    "duracion_objetivo": bloque.get("duracion_objetivo"),
+                }
+                continue
+            fk = tipo
+            if fk not in fases:
+                fases[fk] = {
+                    "nombre": bloque.get("label") or FASE_NOMBRES.get(fk, fk.replace("_", " ").title()),
+                    "tareas": [],
+                    "duracion_objetivo": bloque.get("duracion_objetivo"),
+                }
     for ts in tareas_sesion:
         fk = ts.get("fase_sesion", "desarrollo_1")
         if fk not in fases:
             fases[fk] = {"nombre": FASE_NOMBRES.get(fk, fk.replace("_", " ").title()), "tareas": []}
-    # Ensure at least the standard phases exist in order
-    for default_fase in ["activacion", "desarrollo_1", "desarrollo_2", "vuelta_calma"]:
-        if default_fase not in fases:
-            fases[default_fase] = {"nombre": FASE_NOMBRES.get(default_fase, default_fase), "tareas": []}
-    # Sort fases in canonical order
-    fase_order = ["activacion", "desarrollo_1", "desarrollo_2", "desarrollo_3", "desarrollo_4", "desarrollo_5", "desarrollo_6", "vuelta_calma"]
-    fases = {k: fases[k] for k in fase_order if k in fases}
+    # Sort fases: orden de estructura_fases si existe; si no, orden canónico
+    if isinstance(estructura, list) and estructura:
+        ordered_keys: list[str] = []
+        for bloque in sorted(estructura, key=lambda b: b.get("orden", 0)):
+            tipo = bloque.get("tipo")
+            if tipo == "videoanalisis":
+                ordered_keys.append(f"bloque_{bloque.get('id', tipo)}")
+            elif tipo:
+                ordered_keys.append(tipo)
+        for fk in fases:
+            if fk not in ordered_keys:
+                ordered_keys.append(fk)
+        fases = {k: fases[k] for k in ordered_keys if k in fases}
+    else:
+        fase_order = ["activacion", "desarrollo_1", "desarrollo_2", "desarrollo_3", "desarrollo_4", "desarrollo_5", "desarrollo_6", "vuelta_calma"]
+        fases = {k: fases[k] for k in fase_order if k in fases}
 
     all_tareas = []
     duracion_total = 0

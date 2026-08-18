@@ -36,6 +36,7 @@ export interface SesionCreateData {
   materiales?: string[]
   staff_asistentes?: { nombre: string; rol: string; presente?: boolean }[]
   fase_notas?: Record<string, string>
+  estructura_fases?: import('@/types').SesionBloque[]
   microciclo_id?: string
   dia_numero?: number
   orden?: number
