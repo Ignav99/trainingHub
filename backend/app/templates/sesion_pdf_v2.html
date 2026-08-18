@@ -645,8 +645,26 @@ body {
         <!-- Left Column: Description, Tactical, Teams -->
         <div class="info-col">
             {% if tarea.descripcion %}
-            <div class="info-col-title">Descripcion</div>
+            <div class="info-col-title">Desarrollo</div>
             <div class="info-text">{{ tarea.descripcion }}</div>
+            {% endif %}
+
+            {% if tarea.reglas %}
+            <div class="info-label">Variantes / reglas</div>
+            <div class="info-text">{{ tarea.reglas }}</div>
+            {% endif %}
+
+            {% if tarea.is_partido_condicionado %}
+            <div class="info-label">11 vs 11</div>
+            {% if tarea.partido_peto %}
+            <div class="info-text"><strong>Con peto:</strong> {{ tarea.partido_peto }}</div>
+            {% endif %}
+            {% if tarea.partido_sin_peto %}
+            <div class="info-text"><strong>Sin peto:</strong> {{ tarea.partido_sin_peto }}</div>
+            {% endif %}
+            {% if tarea.partido_fuera %}
+            <div class="info-text"><strong>Fuera:</strong> {{ tarea.partido_fuera }}</div>
+            {% endif %}
             {% endif %}
 
             {% if tarea.formation_html %}

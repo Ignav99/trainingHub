@@ -1,8 +1,13 @@
-import type { FaseSesion, SesionBloque, SesionTarea } from '@/types'
+import type { FaseSesion, PartidoCondicionadoData, SesionBloque, SesionTarea, TipoBloqueSesion } from '@/types'
 
-export type TipoBloqueSesion = FaseSesion | 'videoanalisis'
+export type { TipoBloqueSesion }
 
-export type AddBloqueKind = 'activacion' | 'desarrollo' | 'vuelta_calma' | 'videoanalisis'
+export type AddBloqueKind =
+  | 'activacion'
+  | 'desarrollo'
+  | 'vuelta_calma'
+  | 'videoanalisis'
+  | 'partido_condicionado'
 
 export const FASE_LABELS: Record<FaseSesion, string> = {
   activacion: 'Activación',
@@ -26,17 +31,41 @@ export const ALL_DESARROLLO_FASES: FaseSesion[] = [
 
 export const ADD_BLOQUE_OPTIONS: { kind: AddBloqueKind; label: string; description: string }[] = [
   { kind: 'activacion', label: 'Activación', description: 'Calentamiento y preparación' },
-  { kind: 'desarrollo', label: 'Desarrollo', description: 'Bloque principal de contenido' },
+  { kind: 'desarrollo', label: 'Desarrollo', description: 'Bloque de tareas (juegos reducidos, posesiones…)' },
+  {
+    kind: 'partido_condicionado',
+    label: 'Partido condicionado',
+    description: '11 vs 11 a campo normal: alineaciones, normas y carga PCO',
+  },
   { kind: 'vuelta_calma', label: 'Vuelta a la calma', description: 'Estiramientos y cierre físico' },
   { kind: 'videoanalisis', label: 'Videoanálisis', description: 'Revisión en sala o campo' },
 ]
 
+export function emptyPartido(duracionMin = 20): PartidoCondicionadoData {
+  return {
+    duracion_min: duracionMin,
+    sistema_peto: '4-3-3',
+    sistema_sin_peto: '4-3-3',
+    equipo_peto: {},
+    equipo_sin_peto: {},
+    fuera: [],
+    objetivo: '',
+    normas: '',
+    pizarra: null,
+    abp_ids: [],
+  }
+}
+
+export function isPartidoCondicionado(bloque: Pick<SesionBloque, 'tipo'>): boolean {
+  return bloque.tipo === 'partido_condicionado'
+}
+
 export function bloqueSupportsTareas(tipo: TipoBloqueSesion): boolean {
-  return tipo !== 'videoanalisis'
+  return tipo !== 'videoanalisis' && tipo !== 'partido_condicionado'
 }
 
 export function faseSesionFromBloque(bloque: SesionBloque): FaseSesion | null {
-  if (bloque.tipo === 'videoanalisis') return null
+  if (bloque.tipo === 'videoanalisis' || bloque.tipo === 'partido_condicionado') return null
   return bloque.tipo as FaseSesion
 }
 
@@ -47,12 +76,15 @@ export function nextDesarrolloTipo(bloques: SesionBloque[]): FaseSesion | null {
   return null
 }
 
+function newBloqueId(): string {
+  return typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `bloque-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
 export function createBloque(kind: AddBloqueKind, bloques: SesionBloque[]): SesionBloque | null {
   const orden = bloques.length
-  const id =
-    typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `bloque-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const id = newBloqueId()
 
   switch (kind) {
     case 'activacion':
@@ -68,13 +100,22 @@ export function createBloque(kind: AddBloqueKind, bloques: SesionBloque[]): Sesi
       return { id, tipo: 'vuelta_calma', label: 'Vuelta a la calma', orden }
     case 'videoanalisis':
       return { id, tipo: 'videoanalisis', label: 'Videoanálisis', orden }
+    case 'partido_condicionado':
+      return {
+        id,
+        tipo: 'partido_condicionado',
+        label: 'Partido condicionado',
+        orden,
+        duracion_objetivo: 20,
+        partido: emptyPartido(20),
+      }
     default:
       return null
   }
 }
 
 export function canRemoveBloque(bloque: SesionBloque, tareas: SesionTarea[]): boolean {
-  if (bloque.tipo === 'videoanalisis') return true
+  if (bloque.tipo === 'videoanalisis' || bloque.tipo === 'partido_condicionado') return true
   return !tareas.some((t) => t.fase_sesion === bloque.tipo)
 }
 
@@ -84,7 +125,13 @@ export function resolveEstructura(
   tareas: SesionTarea[] | undefined
 ): SesionBloque[] {
   if (estructura && estructura.length > 0) {
-    return [...estructura].sort((a, b) => a.orden - b.orden)
+    return [...estructura]
+      .map((b) =>
+        b.tipo === 'partido_condicionado' && !b.partido
+          ? { ...b, partido: emptyPartido(b.duracion_objetivo || 20) }
+          : b
+      )
+      .sort((a, b) => a.orden - b.orden)
   }
   if (!tareas?.length) return []
 
@@ -118,15 +165,15 @@ export function createBloqueForFase(fase: FaseSesion, bloques: SesionBloque[]): 
   if (fase === 'activacion' && bloques.some((b) => b.tipo === 'activacion')) return null
   if (fase === 'vuelta_calma' && bloques.some((b) => b.tipo === 'vuelta_calma')) return null
 
-  const id =
-    typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `bloque-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-
-  return { id, tipo: fase, label: FASE_LABELS[fase], orden: bloques.length }
+  return { id: newBloqueId(), tipo: fase, label: FASE_LABELS[fase], orden: bloques.length }
 }
 
 export function ensureBloqueForFase(bloques: SesionBloque[], fase: FaseSesion): SesionBloque[] {
   const created = createBloqueForFase(fase, bloques)
   return created ? normalizeOrden([...bloques, created]) : bloques
+}
+
+export function duracionBloquePartido(bloque: SesionBloque): number {
+  if (bloque.tipo !== 'partido_condicionado') return 0
+  return bloque.partido?.duracion_min || bloque.duracion_objetivo || 0
 }

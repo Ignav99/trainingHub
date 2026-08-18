@@ -26,17 +26,20 @@ import {
   GripVertical,
   Video,
   Pencil,
+  Shirt,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { SesionTareaPanel } from '@/components/sesion'
-import type { Sesion, SesionBloque, SesionTarea, FaseSesion } from '@/types'
+import { PartidoCondicionadoPanel, SesionTareaPanel } from '@/components/sesion'
+import type { Sesion, SesionBloque, SesionTarea, FaseSesion, Jugador } from '@/types'
 import {
   ADD_BLOQUE_OPTIONS,
   canRemoveBloque,
   createBloque,
+  duracionBloquePartido,
   faseSesionFromBloque,
+  isPartidoCondicionado,
   normalizeOrden,
   resolveEstructura,
   type AddBloqueKind,
@@ -87,6 +90,7 @@ export interface SesionBloquesPanelProps {
   savingTareas?: boolean
   staffOptions: string[]
   formacionDialogStId: string | null
+  jugadores?: Array<Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'apodo' | 'dorsal' | 'posicion_principal'>>
   onOpenTaskPicker: (fase: FaseSesion) => void
   onEstructuraChange: (bloques: SesionBloque[]) => void
   onMoveTarea: (tarea: SesionTarea, direction: 'up' | 'down', bloqueOrder: FaseSesion[]) => void
@@ -107,6 +111,7 @@ export function SesionBloquesPanel({
   savingTareas,
   staffOptions,
   formacionDialogStId,
+  jugadores = [],
   onOpenTaskPicker,
   onEstructuraChange,
   onMoveTarea,
@@ -209,17 +214,22 @@ export function SesionBloquesPanel({
       (s, t) => s + (t.duracion_override || t.tarea?.duracion_total || 0),
       0
     )
-    const displayDuration = bloque.duracion_objetivo ?? (hasTareas ? tareasDuration : null)
+    const partidoMin = isPartidoCondicionado(bloque) ? duracionBloquePartido(bloque) : 0
+    const displayDuration =
+      bloque.duracion_objetivo ?? (hasTareas ? tareasDuration : partidoMin || null)
     const isVideo = bloque.tipo === 'videoanalisis'
+    const isPartido = isPartidoCondicionado(bloque)
     const removable = canRemoveBloque(bloque, tareas)
 
     return (
-      <Card key={bloque.id} className={cn('card-hover', !hasTareas && !bloque.notas && 'border-dashed')}>
-        <div className="flex items-center justify-between gap-2 px-4 py-3 border-b bg-muted/30">
+      <Card key={bloque.id} className={cn('card-hover', !hasTareas && !bloque.notas && !isPartido && 'border-dashed')}>
+        <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-muted/30">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             {dragHandle}
             {isVideo ? (
               <Video className="h-4 w-4 text-violet-600 shrink-0" />
+            ) : isPartido ? (
+              <Shirt className="h-4 w-4 text-amber-700 shrink-0" />
             ) : (
               <CircleDot className={cn('h-4 w-4 shrink-0', hasTareas ? 'text-primary' : 'text-muted-foreground')} />
             )}
@@ -229,28 +239,34 @@ export function SesionBloquesPanel({
               onChange={(e) => updateBloque(bloque.id, { label: e.target.value })}
               aria-label="Nombre del bloque"
             />
-            <div className="flex items-center gap-1 shrink-0">
-              <Input
-                type="number"
-                min={0}
-                max={180}
-                placeholder="min"
-                className="h-7 w-16 text-xs text-center px-1"
-                value={bloque.duracion_objetivo ?? ''}
-                onChange={(e) => {
-                  const v = e.target.value
-                  updateBloque(bloque.id, {
-                    duracion_objetivo: v === '' ? null : Math.max(0, parseInt(v, 10) || 0),
-                  })
-                }}
-              />
-              {displayDuration != null && displayDuration > 0 && (
-                <span className="text-xs text-muted-foreground whitespace-nowrap">min</span>
-              )}
-            </div>
+            {isPartido ? (
+              <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+                {displayDuration || 20} min
+              </span>
+            ) : (
+              <div className="flex items-center gap-1 shrink-0">
+                <Input
+                  type="number"
+                  min={0}
+                  max={180}
+                  placeholder="min"
+                  className="h-7 w-16 text-xs text-center px-1"
+                  value={bloque.duracion_objetivo ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    updateBloque(bloque.id, {
+                      duracion_objetivo: v === '' ? null : Math.max(0, parseInt(v, 10) || 0),
+                    })
+                  }}
+                />
+                {displayDuration != null && displayDuration > 0 && (
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">min</span>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            {fase && (
+            {fase && !isPartido && (
               <Button variant="ghost" size="sm" onClick={() => onOpenTaskPicker(fase)}>
                 <Plus className="h-4 w-4 mr-1" /> Añadir tarea
               </Button>
@@ -268,7 +284,14 @@ export function SesionBloquesPanel({
           </div>
         </div>
 
-        {hasTareas ? (
+        {isPartido ? (
+          <PartidoCondicionadoPanel
+            bloque={bloque}
+            jugadores={jugadores}
+            equipoId={sesion.equipo_id}
+            onChange={(patch) => updateBloque(bloque.id, patch)}
+          />
+        ) : hasTareas ? (
           <div>
             {tareasBloque.map((st, idx) => (
               <div key={st.id}>
@@ -367,8 +390,8 @@ export function SesionBloquesPanel({
           <Pencil className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
           <p className="font-medium text-foreground">Sesión sin bloques todavía</p>
           <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-            Añade activación, desarrollo, vuelta a la calma, videoanálisis u otros bloques según
-            necesites. Cada uno es editable en nombre y duración.
+            Añade activación, desarrollo, partido condicionado (11 vs 11), vuelta a la calma o
+            videoanálisis. El partido reducido sigue siendo una tarea.
           </p>
           <Button className="mt-4" size="sm" onClick={() => setShowAddMenu(true)}>
             <Plus className="h-4 w-4 mr-1" /> Añadir primer bloque
