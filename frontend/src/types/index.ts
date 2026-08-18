@@ -28,6 +28,18 @@ export type RolUsuario =
 export type MatchDay = 'MD+1' | 'MD+2' | 'MD-4' | 'MD-3' | 'MD-2' | 'MD-1' | 'MD'
 export type FaseJuego = 'ataque_organizado' | 'defensa_organizada' | 'transicion_ataque_defensa' | 'transicion_defensa_ataque'
 export type FaseSesion = 'activacion' | 'desarrollo_1' | 'desarrollo_2' | 'desarrollo_3' | 'desarrollo_4' | 'desarrollo_5' | 'desarrollo_6' | 'vuelta_calma'
+
+/** Bloque de sesión definido por el usuario (persistido en sesiones.estructura_fases). */
+export type TipoBloqueSesion = FaseSesion | 'videoanalisis'
+
+export interface SesionBloque {
+  id: string
+  tipo: TipoBloqueSesion
+  label: string
+  duracion_objetivo?: number | null
+  notas?: string
+  orden: number
+}
 export type EstadoSesion = 'borrador' | 'planificada' | 'completada' | 'cancelada'
 export type Densidad = 'alta' | 'media' | 'baja'
 export type Intensidad = 'alta' | 'media' | 'baja' | 'muy_baja'
@@ -364,6 +376,7 @@ export interface Sesion {
   materiales?: string[]
   staff_asistentes?: StaffAsistente[]
   fase_notas?: Record<string, string>
+  estructura_fases?: SesionBloque[]
 
   // Taxonomía rediseño
   fases_juego?: string[]

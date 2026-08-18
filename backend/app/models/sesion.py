@@ -271,6 +271,7 @@ class SesionBase(BaseModel):
     materiales: Optional[List[str]] = None
     staff_asistentes: Optional[List[dict]] = None
     fase_notas: Optional[dict] = None
+    estructura_fases: Optional[List[dict]] = None
 
     # Taxonomía rediseño
     fases_juego: Optional[List[str]] = None
@@ -334,6 +335,7 @@ class SesionUpdate(BaseModel):
     materiales: Optional[List[str]] = None
     staff_asistentes: Optional[List[dict]] = None
     fase_notas: Optional[dict] = None
+    estructura_fases: Optional[List[dict]] = None
 
     # Variables de diseño de sesión (docs/mejoras/variables_sesion.png)
     espacio_disponible: Optional[str] = None
@@ -380,6 +382,7 @@ class SesionResponse(SesionBase):
     materiales: Optional[List[str]] = None
     staff_asistentes: Optional[List[dict]] = None
     fase_notas: Optional[dict] = None
+    estructura_fases: Optional[List[dict]] = None
 
     # Variables de diseño de sesión (docs/mejoras/variables_sesion.png)
     espacio_disponible: Optional[str] = None

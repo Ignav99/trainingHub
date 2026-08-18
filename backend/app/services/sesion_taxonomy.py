@@ -130,6 +130,8 @@ def normalize_sesion_row(row: Dict[str, Any]) -> Dict[str, Any]:
                 data[key] = float(data[key])
             except (TypeError, ValueError):
                 data[key] = None
+    if data.get("estructura_fases") is None:
+        data["estructura_fases"] = []
     return data
 
 

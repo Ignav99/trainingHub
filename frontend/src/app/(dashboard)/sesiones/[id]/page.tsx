@@ -5,22 +5,6 @@ import useSWR, { mutate } from 'swr'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core'
-import {
-  SortableContext,
-  arrayMove,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
-import {
   ArrowLeft,
   Calendar,
   Clock,
@@ -34,7 +18,6 @@ import {
   Plus,
   Download,
   Eye,
-  CircleDot,
   ChevronUp,
   ChevronDown,
   ChevronRight,
@@ -67,18 +50,19 @@ import ABPSessionLink from '@/components/abp/ABPSessionLink'
 import TareaGraphicEditor from '@/components/tarea-editor/TareaGraphicEditor'
 import { emptyDiagramData } from '@/components/tarea-editor/types'
 import { TacticalBoardMini } from '@/components/task-preview'
-import { SesionTareaPanel } from '@/components/sesion'
 import { FormacionEquiposDialog } from '@/components/sesion/FormacionEquiposDialog'
 import GKTrainingSection from '@/components/portero/GKTrainingSection'
 import { SesionPhaseNav, type SesionPhase } from '@/components/sesiones/SesionPhaseNav'
 import { SesionCierrePanel } from '@/components/sesiones/SesionCierrePanel'
 import { SesionDefinirForm } from '@/components/sesiones/SesionDefinirForm'
 import { SesionMaterialPanel } from '@/components/sesiones/SesionMaterialPanel'
+import { SesionBloquesPanel } from '@/components/sesiones/SesionBloquesPanel'
 import { sesionesApi, SesionUpdateData } from '@/lib/api/sesiones'
 import { jugadoresApi } from '@/lib/api/jugadores'
 import {
   Sesion,
   SesionTarea,
+  SesionBloque,
   EstadoSesion,
   FaseSesion,
   Tarea,
@@ -101,6 +85,7 @@ import type { CargaJugador } from '@/types'
 import { MATCH_DAYS as MATCH_DAYS_CATALOG, DIAS_CARGA } from '@/lib/catalogos/canonico'
 import { TaskPickerDialog } from '@/components/tareas/TaskPickerDialog'
 import MargenPanel from '@/components/margen/MargenPanel'
+import { resolveEstructura } from '@/lib/sesionEstructura'
 
 const MATCH_DAY_COLORS: Record<string, string> = {
   'MD+1': 'bg-green-100 text-green-800',
@@ -214,45 +199,6 @@ function useAutoSave(sesionId: string, delay = 800) {
   return { save, flush, saving, dirtyRef }
 }
 
-// ============ Sortable Phase Card Wrapper ============
-function SortablePhaseCard({ fase, isDraggable, children }: {
-  fase: string
-  isDraggable: boolean
-  children: (dragHandle: React.ReactNode | null) => React.ReactNode
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: fase, disabled: !isDraggable })
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
-
-  const dragHandle = isDraggable ? (
-    <button
-      {...attributes}
-      {...listeners}
-      className="p-1 rounded-md text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing"
-      title="Arrastrar para reordenar fase"
-    >
-      <GripVertical className="h-4 w-4" />
-    </button>
-  ) : null
-
-  return (
-    <div ref={setNodeRef} style={style}>
-      {children(dragHandle)}
-    </div>
-  )
-}
-
 // ============ Main Component ============
 export default function SesionDetailPage() {
   const params = useParams()
@@ -331,10 +277,7 @@ export default function SesionDetailPage() {
   const [creatorOpen, setCreatorOpen] = useState(false)
   const [creatorFromMother, setCreatorFromMother] = useState<Tarea | null>(null)
   const [aiCreating, setAiCreating] = useState(false)
-
-  // Phase management — track explicitly added/removed fases
-  const [addedFases, setAddedFases] = useState<Set<FaseSesion>>(new Set())
-  const [removedFases, setRemovedFases] = useState<Set<FaseSesion>>(new Set())
+  const legacyEstructuraMigrated = useRef(false)
 
   // Build jugadores lookup map
   const jugadoresMap = new Map<string, Jugador>()
@@ -496,82 +439,37 @@ export default function SesionDetailPage() {
 
   const allTareas = sesion?.tareas || []
 
-  // Dynamic phases: always activacion + desarrollo_1 + desarrollo_2 + vuelta_calma by default.
-  // User can add desarrollo_3..6 and remove empty non-required phases.
-  const activeFases = useMemo(() => {
-    const defaultFases: FaseSesion[] = ['activacion', 'desarrollo_1', 'desarrollo_2', 'vuelta_calma']
-    const result: FaseSesion[] = []
-    for (const fase of FASE_ORDER) {
-      const hasTasks = (tareasByFase[fase]?.length || 0) > 0
-      const isDefault = defaultFases.includes(fase)
-      const isAdded = addedFases.has(fase)
-      const isRemoved = removedFases.has(fase)
-      if (hasTasks || ((isDefault || isAdded) && !isRemoved)) {
-        result.push(fase)
-      }
-    }
-    return result
-  }, [tareasByFase, addedFases, removedFases])
-
-  // Draggable desarrollo phases for phase reordering
-  const draggableFases = useMemo(
-    () => activeFases.filter(f => f.startsWith('desarrollo_')),
-    [activeFases]
+  const bloquesResueltos = useMemo(
+    () => resolveEstructura(sesion?.estructura_fases, allTareas),
+    [sesion?.estructura_fases, allTareas]
   )
 
-  const phaseSensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor)
+  const faseOrderFromEstructura = useMemo((): FaseSesion[] => {
+    return bloquesResueltos
+      .map((b) => (b.tipo === 'videoanalisis' ? null : (b.tipo as FaseSesion)))
+      .filter((f): f is FaseSesion => f !== null)
+  }, [bloquesResueltos])
+
+  useEffect(() => {
+    if (!sesion || legacyEstructuraMigrated.current) return
+    if (sesion.estructura_fases && sesion.estructura_fases.length > 0) {
+      legacyEstructuraMigrated.current = true
+      return
+    }
+    const derived = resolveEstructura(null, sesion.tareas)
+    if (derived.length > 0) {
+      legacyEstructuraMigrated.current = true
+      updateField('estructura_fases', derived)
+    }
+  }, [sesion?.id, sesion?.estructura_fases, sesion?.tareas])
+
+  const handleEstructuraChange = useCallback(
+    (bloques: SesionBloque[]) => {
+      setSesion((prev) => (prev ? { ...prev, estructura_fases: bloques } : prev))
+      updateField('estructura_fases', bloques)
+    },
+    [updateField]
   )
-
-  const handlePhaseReorder = (event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id || !sesion) return
-
-    const oldIndex = draggableFases.indexOf(active.id as FaseSesion)
-    const newIndex = draggableFases.indexOf(over.id as FaseSesion)
-    if (oldIndex < 0 || newIndex < 0) return
-
-    // The target slot names stay the same (desarrollo_1, desarrollo_2, ...),
-    // we reorder which tasks go into which slot.
-    const reordered = arrayMove(draggableFases, oldIndex, newIndex)
-
-    // Build mapping: reordered[i] had tasks, they move to draggableFases[i] slot
-    const newTareas = allTareas.map(t => {
-      const srcIdx = reordered.indexOf(t.fase_sesion as FaseSesion)
-      if (srcIdx < 0) return t // not a desarrollo task, keep as-is
-      return { ...t, fase_sesion: draggableFases[srcIdx] }
-    })
-
-    // Swap fase_notas to match
-    const oldNotas = { ...(sesion.fase_notas || {}) }
-    const newNotas = { ...oldNotas }
-    for (let i = 0; i < draggableFases.length; i++) {
-      newNotas[draggableFases[i]] = oldNotas[reordered[i]] || ''
-    }
-
-    // Optimistic UI update
-    setSesion(prev => prev ? { ...prev, tareas: newTareas, fase_notas: newNotas } : prev)
-
-    // Persist
-    saveTareasBatch(newTareas)
-    autoSave({ fase_notas: newNotas } as SesionUpdateData)
-  }
-
-  const handleAddFase = () => {
-    // Find the next desarrollo phase not already active
-    const nextFase = ALL_DESARROLLO_FASES.find(f => !activeFases.includes(f))
-    if (nextFase) {
-      setAddedFases(prev => { const next = new Set(prev); next.add(nextFase); return next })
-      setRemovedFases(prev => { const next = new Set(prev); next.delete(nextFase); return next })
-    }
-  }
-
-  const handleRemoveFase = (fase: FaseSesion) => {
-    if ((tareasByFase[fase]?.length || 0) > 0) return // Can't remove phase with tasks
-    setRemovedFases(prev => { const next = new Set(prev); next.add(fase); return next })
-    setAddedFases(prev => { const next = new Set(prev); next.delete(fase); return next })
-  }
 
   const saveBatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -629,7 +527,11 @@ export default function SesionDetailPage() {
     await saveTareasBatch(newAll)
   }
 
-  const handleMoveTarea = async (tareaToMove: SesionTarea, direction: 'up' | 'down') => {
+  const handleMoveTarea = async (
+    tareaToMove: SesionTarea,
+    direction: 'up' | 'down',
+    bloqueOrder: FaseSesion[] = faseOrderFromEstructura
+  ) => {
     const fase = tareaToMove.fase_sesion
     const faseTareas = [...(tareasByFase[fase] || [])]
     const idx = faseTareas.findIndex((t) => t.id === tareaToMove.id)
@@ -639,16 +541,15 @@ export default function SesionDetailPage() {
 
     ;[faseTareas[idx], faseTareas[swapIdx]] = [faseTareas[swapIdx], faseTareas[idx]]
 
-    // Rebuild full list maintaining phase order
     const newAll: SesionTarea[] = []
-    for (const f of activeFases) {
+    for (const f of bloqueOrder) {
       if (f === fase) {
         newAll.push(...faseTareas)
       } else {
         newAll.push(...(tareasByFase[f] || []))
       }
     }
-    setSesion((prev) => prev ? { ...prev, tareas: newAll } : prev)
+    setSesion((prev) => (prev ? { ...prev, tareas: newAll } : prev))
     await saveTareasBatch(newAll)
   }
 
@@ -1113,7 +1014,12 @@ export default function SesionDetailPage() {
   }).length
 
   // ============ Derived ============
-  const completedFases = activeFases.filter((f) => tareasByFase[f]?.length > 0)
+  const completedBloques = bloquesResueltos.filter((b) => {
+    if (b.tipo === 'videoanalisis') {
+      return !!(b.notas?.trim() || (b.duracion_objetivo && b.duracion_objetivo > 0))
+    }
+    return (tareasByFase[b.tipo]?.length || 0) > 0
+  })
   const totalDuration = allTareas.reduce((sum, st) => sum + (st.duracion_override || st.tarea?.duracion_total || 0), 0)
 
   // ============ Render ============
@@ -1263,22 +1169,28 @@ export default function SesionDetailPage() {
           done={{
             definir: !!(sesion.objetivo_principal && sesion.fecha && (sesion.fases_juego?.length || sesion.match_day)),
             convocatoria: asistenciaSavedOnce,
-            diseno: allTareas.length > 0,
+            diseno: bloquesResueltos.length > 0 && (allTareas.length > 0 || completedBloques.length > 0),
             cierre: sesion.estado === 'planificada' || sesion.estado === 'completada',
           }}
         />
         <div className="flex items-center gap-3">
           <div className="flex-1 flex gap-1">
-            {activeFases.map((fase) => (
-              <div
-                key={fase}
-                className={`h-1.5 flex-1 rounded-full transition-colors ${tareasByFase[fase]?.length ? 'bg-primary' : 'bg-muted'}`}
-                title={`${FASE_LABELS[fase]}: ${tareasByFase[fase]?.length ? 'Completa' : 'Vacía'}`}
-              />
-            ))}
+            {bloquesResueltos.map((bloque) => {
+              const filled =
+                bloque.tipo === 'videoanalisis'
+                  ? !!(bloque.notas?.trim() || (bloque.duracion_objetivo && bloque.duracion_objetivo > 0))
+                  : (tareasByFase[bloque.tipo]?.length || 0) > 0
+              return (
+                <div
+                  key={bloque.id}
+                  className={`h-1.5 flex-1 rounded-full transition-colors ${filled ? 'bg-primary' : 'bg-muted'}`}
+                  title={`${bloque.label}: ${filled ? 'Con contenido' : 'Vacío'}`}
+                />
+              )
+            })}
           </div>
           <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
-            {completedFases.length}/{activeFases.length} fases · {totalDuration || sesion.duracion_total || 0} min
+            {completedBloques.length}/{bloquesResueltos.length || 0} bloques · {totalDuration || sesion.duracion_total || 0} min
           </span>
         </div>
         {sesion.microciclo_id && (
@@ -1333,144 +1245,30 @@ export default function SesionDetailPage() {
       )}
 
       {/* ==================== FASE: DISENO (tareas + material) ==================== */}
-      {phase === 'diseno' && (
+      {phase === 'diseno' && sesion && (
         <div className="space-y-4 animate-fade-in">
-          {/* Fases de sesion */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <h2 className="font-semibold">Tareas de la Sesion</h2>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={handleAddFase}
-                  disabled={!ALL_DESARROLLO_FASES.some(f => !activeFases.includes(f))}
-                >
-                  <Plus className="h-3 w-3 mr-1" /> Fase
-                </Button>
-              </div>
-              {savingTareas && (
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Loader2 className="h-3 w-3 animate-spin" /> Guardando tareas...
-                </span>
-              )}
-            </div>
-
-            {(() => {
-              const renderPhaseCard = (fase: FaseSesion, dragHandle: React.ReactNode | null) => {
-                const tareas = tareasByFase[fase] || []
-                const hasTareas = tareas.length > 0
-                const faseDuration = tareas.reduce((s, t) => s + (t.duracion_override || t.tarea?.duracion_total || 0), 0)
-                const isRemovable = !hasTareas && fase !== 'activacion' && fase !== 'desarrollo_1'
-                const faseNota = sesion.fase_notas?.[fase]
-
-                return (
-                  <Card key={fase} className={`card-hover ${!hasTareas ? 'border-dashed' : ''}`}>
-                    <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
-                      <div className="flex items-center gap-2">
-                        {dragHandle}
-                        <CircleDot className={`h-4 w-4 ${hasTareas ? 'text-primary' : 'text-muted-foreground'}`} />
-                        <h3 className="font-medium">{FASE_LABELS[fase]}</h3>
-                        {hasTareas && (
-                          <span className="text-xs text-muted-foreground">{faseDuration} min</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setTaskPickerFase(fase)
-                            setTaskPickerOpen(true)
-                          }}
-                        >
-                          <Plus className="h-4 w-4 mr-1" /> Anadir tarea
-                        </Button>
-                        {isRemovable && (
-                          <button
-                            onClick={() => handleRemoveFase(fase)}
-                            className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                            title="Quitar fase"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {hasTareas ? (
-                      <div>
-                        {tareas.map((st, idx) => (
-                          <div key={st.id}>
-                            <SesionTareaPanel
-                              st={st}
-                              index={idx}
-                              totalInFase={tareas.length}
-                              staffOptions={staffOptions}
-                              isFormacionExpanded={formacionDialogStId === st.id}
-                              onMoveUp={() => handleMoveTarea(st, 'up')}
-                              onMoveDown={() => handleMoveTarea(st, 'down')}
-                              onRemove={() => handleRemoveTarea(st)}
-                              onDurationChange={(val) => handleUpdateTareaDuration(st.id, val)}
-                              onDurationCommit={() => handleCommitTareaDuration(st.id)}
-                              onResponsableChange={(val) => handleUpdateTareaResponsable(st.id, val)}
-                              onResponsableBlur={() => debouncedSaveTareasBatch(allTareas)}
-                              onNotasChange={(val) => handleUpdateTareaNotas(st.id, val)}
-                              onNotasBlur={() => debouncedSaveTareasBatch(allTareas)}
-                              onToggleFormacion={() => openFormacionDialog(st.id)}
-                              onSaveEdit={(form) => handleInlineSaveEdit(st.id, form)}
-                              onAiEdit={(instruction) => handleInlineAiEdit(st.id, instruction)}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="p-6 text-center">
-                        {faseNota ? (
-                          <div className="space-y-2">
-                            <p className="text-sm text-muted-foreground italic">{faseNota}</p>
-                          </div>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">Sin tareas asignadas</p>
-                        )}
-                        <input
-                          className="mt-2 text-sm text-center bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none w-full"
-                          placeholder="Nota para esta fase (ej: Reservado para PF)..."
-                          value={sesion.fase_notas?.[fase] || ''}
-                          onChange={(e) => {
-                            const newNotas = { ...(sesion.fase_notas || {}), [fase]: e.target.value }
-                            updateField('fase_notas', newNotas)
-                          }}
-                        />
-                      </div>
-                    )}
-                  </Card>
-                )
-              }
-
-              return (
-                <>
-                  {/* activacion — fixed, not draggable */}
-                  {activeFases.includes('activacion') && renderPhaseCard('activacion', null)}
-
-                  {/* desarrollo phases — draggable */}
-                  <DndContext sensors={phaseSensors} collisionDetection={closestCenter} onDragEnd={handlePhaseReorder}>
-                    <SortableContext items={draggableFases} strategy={verticalListSortingStrategy}>
-                      {draggableFases.map(fase => (
-                        <SortablePhaseCard key={fase} fase={fase} isDraggable={draggableFases.length > 1}>
-                          {(dragHandle) => renderPhaseCard(fase, dragHandle)}
-                        </SortablePhaseCard>
-                      ))}
-                    </SortableContext>
-                  </DndContext>
-
-                  {/* vuelta_calma — fixed, not draggable */}
-                  {activeFases.includes('vuelta_calma') && renderPhaseCard('vuelta_calma', null)}
-                </>
-              )
-            })()}
-          </div>
+          <SesionBloquesPanel
+            sesion={sesion}
+            savingTareas={savingTareas}
+            staffOptions={staffOptions}
+            formacionDialogStId={formacionDialogStId}
+            onOpenTaskPicker={(fase) => {
+              setTaskPickerFase(fase)
+              setTaskPickerOpen(true)
+            }}
+            onEstructuraChange={handleEstructuraChange}
+            onMoveTarea={handleMoveTarea}
+            onRemoveTarea={handleRemoveTarea}
+            onDurationChange={handleUpdateTareaDuration}
+            onDurationCommit={handleCommitTareaDuration}
+            onResponsableChange={handleUpdateTareaResponsable}
+            onResponsableBlur={() => debouncedSaveTareasBatch(allTareas)}
+            onNotasChange={handleUpdateTareaNotas}
+            onNotasBlur={() => debouncedSaveTareasBatch(allTareas)}
+            onToggleFormacion={openFormacionDialog}
+            onSaveEdit={handleInlineSaveEdit}
+            onAiEdit={handleInlineAiEdit}
+          />
 
           {/* Resumen trabajo al margen (linkeado desde convocatoria) */}
           {margenMap.size > 0 && (

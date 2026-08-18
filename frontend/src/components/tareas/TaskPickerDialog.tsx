@@ -231,8 +231,21 @@ export function TaskPickerDialog({
                     <Loader2 className="h-7 w-7 animate-spin text-primary" />
                   </div>
                 ) : results.length === 0 ? (
-                  <div className="text-center py-16 text-muted-foreground text-sm">
-                    No se encontraron tareas con estos filtros
+                  <div className="text-center py-16 px-4 space-y-4">
+                    <p className="text-muted-foreground text-sm">
+                      No se encontraron tareas con estos filtros
+                    </p>
+                    {onCreateManual && (
+                      <Button variant="outline" onClick={() => { onCreateManual(); onOpenChange(false) }}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Crear tarea nueva
+                      </Button>
+                    )}
+                    {!onCreateManual && (
+                      <p className="text-xs text-muted-foreground">
+                        Prueba otros filtros o crea una tarea desde la pestaña «Crear nueva».
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
