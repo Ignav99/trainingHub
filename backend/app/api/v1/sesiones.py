@@ -21,7 +21,7 @@ from app.services.sesion_taxonomy import (
     prepare_sesion_write_payload,
     normalize_sesion_row,
     new_share_token,
-    TAXONOMY_COLUMNS,
+    retry_sesion_write,
 )
 
 logger = logging.getLogger(__name__)
@@ -757,26 +757,12 @@ async def create_sesion(
     else:
         sesion_data["equipo_id"] = str(sesion_data["equipo_id"])
 
-    # Columnas que aporta la migracion 055; si aun no esta aplicada se crea sin ellas
-    COLUMNAS_055 = (
-        "espacio_disponible", "jugadores_campo", "numero_sesion",
-        "objetivos", "contenidos_ofensivos", "contenidos_defensivos",
-    ) + TAXONOMY_COLUMNS
-
-    # Insertar
-    try:
-        response = supabase.table("sesiones").insert(sesion_data).execute()
-    except Exception as e:
-        msg = str(e)
-        if any(col in msg for col in COLUMNAS_055):
-            logger.warning(
-                "Migracion 055 sin aplicar: se crea la sesion sin las variables de diseno"
-            )
-            for col in COLUMNAS_055:
-                sesion_data.pop(col, None)
-            response = supabase.table("sesiones").insert(sesion_data).execute()
-        else:
-            raise
+    # Insertar — si una columna aún no existe en PostgREST (PGRST204), se omite y se reintenta
+    response = retry_sesion_write(
+        lambda data: supabase.table("sesiones").insert(data).execute(),
+        sesion_data,
+        op="insert",
+    )
 
     if not response or not response.data:
         raise HTTPException(
@@ -829,22 +815,19 @@ async def update_sesion(
             detail="No hay datos para actualizar"
         )
 
-    try:
-        response = supabase.table("sesiones").update(update_data).eq(
+    response = retry_sesion_write(
+        lambda data: supabase.table("sesiones").update(data).eq(
             "id", str(sesion_id)
-        ).execute()
-    except Exception as e:
-        msg = str(e)
-        dropped = False
-        for col in TAXONOMY_COLUMNS:
-            if col in msg and col in update_data:
-                update_data.pop(col, None)
-                dropped = True
-        if not dropped:
-            raise
-        response = supabase.table("sesiones").update(update_data).eq(
-            "id", str(sesion_id)
-        ).execute()
+        ).execute(),
+        update_data,
+        op="update",
+    )
+
+    if not response or not response.data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Error al actualizar sesión"
+        )
 
     log_update(auth.user_id, "sesion", str(sesion_id), datos_nuevos=update_data)
 

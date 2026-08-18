@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+import json
+import logging
+import re
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from uuid import uuid4
 
 from app.services.keywords import synthesize_keywords
+
+logger = logging.getLogger(__name__)
 
 
 TAXONOMY_COLUMNS = (
@@ -26,6 +31,56 @@ TAXONOMY_COLUMNS = (
     "share_token",
 )
 
+# Columnas de migraciones posteriores. Si PostgREST no las tiene en cache,
+# se omiten y se reintenta el insert/update (nunca 500 por PGRST204).
+OPTIONAL_WRITE_COLUMNS = (
+    "espacio_disponible",
+    "jugadores_campo",
+    "numero_sesion",
+    "objetivos",
+    "contenidos_ofensivos",
+    "contenidos_defensivos",
+    "estructura_fases",
+    "materiales",
+    "staff_asistentes",
+    "fase_notas",
+    "duracion_total",
+    "hora",
+    "lugar",
+    "notas_pre",
+    "notas_post",
+    "pdf_url",
+    "microciclo_id",
+    "dia_numero",
+    "orden",
+    "plan_partido_id",
+    "fase_plan",
+    "rival",
+    "competicion",
+    "objetivo_principal",
+    "fase_juego_principal",
+    "principio_tactico_principal",
+    "carga_fisica_objetivo",
+    "intensidad_objetivo",
+) + TAXONOMY_COLUMNS
+
+REQUIRED_WRITE_COLUMNS = frozenset({
+    "titulo",
+    "fecha",
+    "equipo_id",
+    "creado_por",
+    "id",
+    "match_day",
+})
+
+# Si `estructura_fases` no existe aún, se guarda aquí (fase_notas JSONB sí existe).
+ESTRUCTURA_FALLBACK_KEY = "_estructura_fases"
+
+_PGRST_MISSING_COL_RE = re.compile(
+    r"Could not find the '([^']+)' column",
+    re.IGNORECASE,
+)
+
 
 def _dump_item(obj: Any) -> Any:
     if obj is None:
@@ -37,6 +92,97 @@ def _dump_item(obj: Any) -> Any:
     if hasattr(obj, "value"):
         return obj.value
     return obj
+
+
+def drop_unsupported_columns(
+    payload: Dict[str, Any], error_msg: str
+) -> Tuple[Dict[str, Any], List[str]]:
+    """Quita del payload columnas que PostgREST no reconoce (PGRST204)."""
+    out = dict(payload)
+    dropped: List[str] = []
+
+    for col in _PGRST_MISSING_COL_RE.findall(error_msg or ""):
+        if col in REQUIRED_WRITE_COLUMNS:
+            continue
+        if col in out:
+            out.pop(col)
+            dropped.append(col)
+
+    if not dropped:
+        for col in OPTIONAL_WRITE_COLUMNS:
+            if col in REQUIRED_WRITE_COLUMNS:
+                continue
+            if col in out and col in (error_msg or ""):
+                out.pop(col)
+                dropped.append(col)
+
+    return out, dropped
+
+
+def stash_estructura_fases(payload: Dict[str, Any], estructura: Any) -> Dict[str, Any]:
+    """Persiste bloques en fase_notas si la columna estructura_fases no existe."""
+    if not estructura:
+        return payload
+    out = dict(payload)
+    fn = out.get("fase_notas")
+    fn = dict(fn) if isinstance(fn, dict) else {}
+    dumped = _dump_item(estructura)
+    try:
+        fn[ESTRUCTURA_FALLBACK_KEY] = json.dumps(dumped, ensure_ascii=False)
+    except TypeError:
+        fn[ESTRUCTURA_FALLBACK_KEY] = json.dumps(dumped, default=str, ensure_ascii=False)
+    out["fase_notas"] = fn
+    return out
+
+
+def retry_sesion_write(
+    execute_fn: Callable[[Dict[str, Any]], Any],
+    payload: Dict[str, Any],
+    *,
+    op: str = "write",
+) -> Any:
+    """Ejecuta insert/update omitiendo columnas desconocidas hasta que PostgREST acepte."""
+    pending = dict(payload)
+    original_estructura = pending.get("estructura_fases")
+    last_error: Optional[Exception] = None
+
+    for attempt in range(1, 16):
+        try:
+            return execute_fn(pending)
+        except Exception as e:
+            last_error = e
+            new_pending, dropped = drop_unsupported_columns(pending, str(e))
+            if not dropped:
+                raise
+            logger.warning(
+                "Sesion %s attempt %s: omitting unknown columns %s",
+                op,
+                attempt,
+                dropped,
+            )
+            if "estructura_fases" in dropped:
+                new_pending = stash_estructura_fases(new_pending, original_estructura)
+            pending = new_pending
+
+    raise last_error  # pragma: no cover
+
+
+def _read_estructura_fases(data: Dict[str, Any]) -> List[Any]:
+    estructura = data.get("estructura_fases")
+    if isinstance(estructura, list) and estructura:
+        return estructura
+    fn = data.get("fase_notas")
+    raw = fn.get(ESTRUCTURA_FALLBACK_KEY) if isinstance(fn, dict) else None
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, str) and raw.strip():
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return parsed
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return []
+    return list(estructura) if isinstance(estructura, list) else []
 
 
 def prepare_sesion_write_payload(data: Dict[str, Any], *, synthesize: bool = True) -> Dict[str, Any]:
@@ -60,6 +206,9 @@ def prepare_sesion_write_payload(data: Dict[str, Any], *, synthesize: bool = Tru
 
     if "abp_config" in out and out["abp_config"] is not None:
         out["abp_config"] = _dump_item(out["abp_config"])
+
+    if "estructura_fases" in out and out["estructura_fases"] is not None:
+        out["estructura_fases"] = _dump_item(out["estructura_fases"])
 
     if synthesize:
         from app.services.keywords import normalize_keyword_list
@@ -130,8 +279,7 @@ def normalize_sesion_row(row: Dict[str, Any]) -> Dict[str, Any]:
                 data[key] = float(data[key])
             except (TypeError, ValueError):
                 data[key] = None
-    if data.get("estructura_fases") is None:
-        data["estructura_fases"] = []
+    data["estructura_fases"] = _read_estructura_fases(data)
     return data
 
 
