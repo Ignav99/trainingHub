@@ -227,28 +227,29 @@ export default function TareasPage() {
         description={`${total} tareas ${tab === 'biblioteca' ? 'en la biblioteca del club' : 'en tu colección'}`}
         actions={
           <>
-            <button
-              onClick={handleBatchGenerateDiagrams}
-              disabled={batchGenerating}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-border rounded-lg text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50"
-            >
-              {batchGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {batchGenerating ? 'Generando...' : 'Auto-diagramas'}
-            </button>
             <Link
               href="/tareas/nueva"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
             >
               <Plus className="h-4 w-4" />
               Nueva Tarea
             </Link>
             <Link
               href="/tareas/nueva-ai"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-border rounded-lg text-sm font-medium text-foreground hover:bg-muted transition-colors"
             >
               <Bot className="h-4 w-4" />
               Crear con IA
             </Link>
+            <button
+              onClick={handleBatchGenerateDiagrams}
+              disabled={batchGenerating}
+              className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors disabled:opacity-50"
+              title="Genera diagramas con IA para tareas que aun no los tienen"
+            >
+              {batchGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {batchGenerating ? 'Generando...' : 'Auto-diagramas'}
+            </button>
           </>
         }
       />

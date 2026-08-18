@@ -375,11 +375,14 @@ export function TaskPickerDialog({
               </button>
             )}
             {onAiCreate && (
-              <div className="rounded-xl border p-4 space-y-3">
+              <div className="rounded-xl border border-dashed border-muted-foreground/25 bg-muted/20 p-4 space-y-3">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-violet-600" />
-                  <span className="font-semibold text-sm">Crear con IA</span>
+                  <Sparkles className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium text-sm text-muted-foreground">Crear con IA (opcional)</span>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Genera una propuesta inicial. Podras retocarla en la pizarra tactica despues.
+                </p>
                 <textarea
                   className="w-full min-h-[100px] rounded-lg border bg-background p-3 text-sm resize-y"
                   placeholder="Describe la tarea que quieres crear…"
@@ -387,6 +390,7 @@ export function TaskPickerDialog({
                   onChange={(e) => setAiPrompt(e.target.value)}
                 />
                 <Button
+                  variant="outline"
                   disabled={!aiPrompt.trim() || aiCreating}
                   onClick={() => onAiCreate(aiPrompt.trim())}
                 >
