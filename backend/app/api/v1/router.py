@@ -57,6 +57,7 @@ from app.api.v1 import (
     plan_partido,
     rival_informes,
     alertas,
+    escritura,
 )
 
 api_router = APIRouter()
@@ -201,6 +202,12 @@ api_router.include_router(
     ai_chat.router,
     prefix="/ai",
     tags=["AI Chat"]
+)
+
+api_router.include_router(
+    escritura.router,
+    prefix="/escritura",
+    tags=["Escritura"]
 )
 
 api_router.include_router(

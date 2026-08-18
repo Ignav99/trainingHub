@@ -1808,6 +1808,41 @@ class ClaudeService:
             logger.error(f"Claude API error in edit_task_with_ai: {e}")
             raise ClaudeError(f"Error al editar tarea con IA: {str(e)}")
 
+    async def correct_writing(self, texto: str) -> dict:
+        """Corrige ortografía y gramática sin reescribir el estilo del entrenador."""
+        system_prompt = (
+            "Eres un corrector de español para entrenadores de fútbol. "
+            "Corrige SOLO faltas de ortografía, erratas y gramática evidente. "
+            "Puedes acentuar y usar vocabulario técnico de fútbol (posesión, presión, "
+            "transición, microciclo, balón parado, ABP). "
+            "NO cambies el sentido, el tono ni el orden de las ideas. "
+            "NO añadas contenido nuevo ni quites frases. "
+            "Si el texto ya está bien, devuélvelo idéntico. "
+            "Responde ÚNICAMENTE con el texto corregido, sin comillas ni explicaciones."
+        )
+        try:
+            response = await self.client.messages.create(
+                model=self.model,
+                max_tokens=800,
+                temperature=0,
+                system=system_prompt,
+                messages=[{"role": "user", "content": texto}],
+            )
+            out = ""
+            for block in response.content:
+                if getattr(block, "type", None) == "text":
+                    out += block.text
+            return {"texto": out.strip()}
+        except anthropic.APIConnectionError as e:
+            logger.error("Claude connection error in correct_writing: %s", e)
+            raise ClaudeError("Error de conexión con Claude. Inténtalo de nuevo.")
+        except anthropic.RateLimitError as e:
+            logger.error("Claude rate limit in correct_writing: %s", e)
+            raise ClaudeError("Claude está saturado. Espera unos segundos.")
+        except anthropic.APIError as e:
+            logger.error("Claude API error in correct_writing: %s", e)
+            raise ClaudeError(f"Error al corregir texto: {str(e)}")
+
     async def create_task_from_prompt(
         self,
         prompt: str,
