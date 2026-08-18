@@ -7,12 +7,9 @@ import {
   ArrowLeft,
   Save,
   Loader2,
-  Calendar,
   Target,
   Zap,
   Plus,
-  X,
-  GripVertical
 } from 'lucide-react'
 import { sesionesApi, SesionCreateData, recomendadorApi } from '@/lib/api/sesiones'
 import { tareasApi } from '@/lib/api/tareas'
@@ -25,10 +22,23 @@ import {
   FASES_JUEGO,
 } from '@/lib/catalogos/canonico'
 import { planPartidoApi } from '@/lib/api/planPartido'
-import { Tarea, AIRecomendadorOutput, AIFaseRecomendacion, Microciclo, PlanPartido } from '@/types'
+import {
+  Tarea,
+  AIRecomendadorOutput,
+  AIFaseRecomendacion,
+  Microciclo,
+  PlanPartido,
+  SesionBloque,
+  FaseSesion,
+} from '@/types'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { AttendanceStep, PlayerAttendance } from '@/components/sesiones/AttendanceStep'
 import { SesionDefinirForm } from '@/components/sesiones/SesionDefinirForm'
+import { SesionBloquesDraftPanel } from '@/components/sesiones/SesionBloquesDraftPanel'
+import { TaskPickerDialog } from '@/components/tareas/TaskPickerDialog'
+import TareaCreatorFullscreen, { type TareaCreatorData } from '@/components/tareas/TareaCreatorFullscreen'
+import { FASE_LABELS, ensureBloqueForFase } from '@/lib/sesionEstructura'
+import { madreToCreatorPrefill } from '@/lib/tareaVariante'
 import { jugadoresApi } from '@/lib/api/jugadores'
 
 const MATCH_DAYS = [
@@ -104,11 +114,13 @@ export default function NuevaSesionPage() {
     es_pretemporada: false,
   })
 
-  // Tareas seleccionadas
+  // Diseño: bloques y tareas (opcional al crear)
+  const [estructuraFases, setEstructuraFases] = useState<SesionBloque[]>([])
   const [tareasEnSesion, setTareasEnSesion] = useState<TareaEnSesion[]>([])
-  const [tareasDisponibles, setTareasDisponibles] = useState<Tarea[]>([])
-  const [loadingTareas, setLoadingTareas] = useState(false)
-  const [showTareaSelector, setShowTareaSelector] = useState<string | null>(null)
+  const [taskPickerOpen, setTaskPickerOpen] = useState(false)
+  const [taskPickerFase, setTaskPickerFase] = useState<FaseSesion>('activacion')
+  const [creatorOpen, setCreatorOpen] = useState(false)
+  const [creatorFromMother, setCreatorFromMother] = useState<Tarea | null>(null)
 
   // Contexto desde microciclo/plan
   const [microcicloContexto, setMicrocicloContexto] = useState<Microciclo | null>(null)
@@ -121,7 +133,6 @@ export default function NuevaSesionPage() {
   const [jugadoresCount, setJugadoresCount] = useState(16)
 
   useEffect(() => {
-    loadTareas()
     if (equipoActivo?.id) {
       jugadoresApi.list({ equipo_id: equipoActivo.id, estado: 'activo', limit: 100 }).then(r => {
         setJugadoresCount(r.total || 16)
@@ -139,18 +150,6 @@ export default function NuevaSesionPage() {
       }).catch(() => {})
     }
   }, [])
-
-  const loadTareas = async () => {
-    setLoadingTareas(true)
-    try {
-      const response = await tareasApi.list({ limit: 200 })
-      setTareasDisponibles(response.data)
-    } catch (err) {
-      console.error('Error loading tareas:', err)
-    } finally {
-      setLoadingTareas(false)
-    }
-  }
 
   const generateRecommendations = async () => {
     if (!formData.match_day) return
@@ -218,6 +217,7 @@ export default function NuevaSesionPage() {
         equipo_id: formData.equipo_id || equipoActivo?.id || '00000000-0000-0000-0000-000000000000',
         microciclo_id: microcicloIdFromQuery || formData.microciclo_id || undefined,
         plan_partido_id: planPartidoIdFromQuery || formData.plan_partido_id || undefined,
+        estructura_fases: estructuraFases.length > 0 ? estructuraFases : undefined,
       }
 
       const sesion = await sesionesApi.create(dataToSend)
@@ -270,17 +270,29 @@ export default function NuevaSesionPage() {
   }
 
   const addTareaToSesion = (tarea: Tarea, fase: string) => {
-    const orden = tareasEnSesion.filter(t => t.fase === fase).length + 1
-    setTareasEnSesion([...tareasEnSesion, { tarea, fase, orden }])
-    setShowTareaSelector(null)
+    setEstructuraFases((prev) => ensureBloqueForFase(prev, fase as FaseSesion))
+    setTareasEnSesion((prev) => {
+      const orden = prev.filter((t) => t.fase === fase).length + 1
+      return [...prev, { tarea, fase, orden }]
+    })
+    setTaskPickerOpen(false)
   }
 
   const removeTareaFromSesion = (index: number) => {
-    setTareasEnSesion(tareasEnSesion.filter((_, i) => i !== index))
+    setTareasEnSesion((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const getTareasByFase = (fase: string) => {
-    return tareasEnSesion.filter(t => t.fase === fase)
+  const handleCreateTask = async (data: TareaCreatorData) => {
+    const created = await tareasApi.create({
+      ...data,
+      categoria_id: data.categoria_id || 'TAM',
+      modalidad: data.modalidad || 'general',
+      es_publica: true,
+      equipo_id: equipoActivo?.id,
+    } as Parameters<typeof tareasApi.create>[0])
+    addTareaToSesion(created, taskPickerFase)
+    setCreatorOpen(false)
+    setCreatorFromMother(null)
   }
 
   const calcularDuracionTotal = () => {
@@ -550,14 +562,19 @@ export default function NuevaSesionPage() {
               </div>
             </div>
             <p className="text-sm text-gray-500 -mt-2 mb-4">
-              Opcional al crear: define la estructura y añade tareas en el detalle de la sesión.
+              Añade bloques y tareas si quieres. También puedes dejarlo vacío y completarlo después
+              en el detalle de la sesión.
             </p>
-            <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/80 px-6 py-10 text-center">
-              <p className="text-sm text-gray-600">
-                La sesión empieza sin bloques. En el diseño podrás añadir activación, desarrollo,
-                vuelta a la calma, videoanálisis y las tareas que necesites.
-              </p>
-            </div>
+            <SesionBloquesDraftPanel
+              bloques={estructuraFases}
+              onBloquesChange={setEstructuraFases}
+              tareas={tareasEnSesion}
+              onOpenTaskPicker={(fase) => {
+                setTaskPickerFase(fase)
+                setTaskPickerOpen(true)
+              }}
+              onRemoveTarea={removeTareaFromSesion}
+            />
         </div>
       )}
 
@@ -626,6 +643,42 @@ export default function NuevaSesionPage() {
           </div>
         </div>
       )}
+
+      <TaskPickerDialog
+        open={taskPickerOpen}
+        onOpenChange={setTaskPickerOpen}
+        faseLabel={FASE_LABELS[taskPickerFase] || taskPickerFase}
+        onAdd={(tarea) => addTareaToSesion(tarea, taskPickerFase)}
+        onCreateManual={() => {
+          setCreatorFromMother(null)
+          setCreatorOpen(true)
+        }}
+        onCreateVariante={(madre) => {
+          setTaskPickerOpen(false)
+          setCreatorFromMother(madre)
+          setCreatorOpen(true)
+        }}
+      />
+
+      <TareaCreatorFullscreen
+        open={creatorOpen}
+        onClose={() => {
+          setCreatorOpen(false)
+          setCreatorFromMother(null)
+        }}
+        onSubmit={handleCreateTask}
+        onClonar={() => {
+          setCreatorOpen(false)
+          setCreatorFromMother(null)
+          setTaskPickerOpen(true)
+        }}
+        numJugadoresDefault={jugadoresCount}
+        faseLabel={FASE_LABELS[taskPickerFase] || taskPickerFase}
+        initialFromMother={
+          creatorFromMother ? madreToCreatorPrefill(creatorFromMother) : undefined
+        }
+        title={creatorFromMother ? 'Crear variante' : undefined}
+      />
     </div>
   )
 }

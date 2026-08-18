@@ -757,18 +757,6 @@ async def create_sesion(
     else:
         sesion_data["equipo_id"] = str(sesion_data["equipo_id"])
 
-    # Convertir UUIDs / fecha
-    if sesion_data.get("fecha"):
-        sesion_data["fecha"] = sesion_data["fecha"].isoformat()
-    if sesion_data.get("microciclo_id"):
-        sesion_data["microciclo_id"] = str(sesion_data["microciclo_id"])
-    if sesion_data.get("plan_partido_id"):
-        sesion_data["plan_partido_id"] = str(sesion_data["plan_partido_id"])
-    # Enums → value
-    for key in ("match_day", "intensidad_objetivo"):
-        if sesion_data.get(key) is not None and hasattr(sesion_data[key], "value"):
-            sesion_data[key] = sesion_data[key].value
-
     # Columnas que aporta la migracion 055; si aun no esta aplicada se crea sin ellas
     COLUMNAS_055 = (
         "espacio_disponible", "jugadores_campo", "numero_sesion",
