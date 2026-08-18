@@ -5,6 +5,7 @@ import { AuthProvider } from '@/components/providers/AuthProvider'
 import { ThemeProvider } from '@/components/providers/ThemeProvider'
 import { SWRProvider } from '@/components/providers/SWRProvider'
 import CookieConsent from '@/components/legal/CookieConsent'
+import { WritingAssistProvider } from '@/components/providers/WritingAssistProvider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -43,6 +44,7 @@ export default function RootLayout({
           <SWRProvider>
             <ThemeProvider>
               {children}
+              <WritingAssistProvider />
               <CookieConsent />
             </ThemeProvider>
           </SWRProvider>

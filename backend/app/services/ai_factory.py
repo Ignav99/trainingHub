@@ -29,6 +29,7 @@ _METHOD_MODEL_TIERS: dict[str, str] = {
     "task_design_chat": "CLAUDE_MODEL_FAST",
     "edit_task_with_ai": "CLAUDE_MODEL_FAST",
     "generate_session_recommendations": "CLAUDE_MODEL_FAST",
+    "correct_writing": "CLAUDE_MODEL_FAST",
     "chat": "CLAUDE_MODEL",
     "pre_match_chat": "CLAUDE_MODEL",
     "create_task_from_prompt": "CLAUDE_MODEL",

@@ -182,6 +182,37 @@ class OpenAICompatibleService:
         # Hit max iterations
         return "", tools_used, total_input, total_output
 
+    async def correct_writing(self, texto: str) -> dict:
+        """Corrige ortografía y gramática sin reescribir el estilo del entrenador."""
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                temperature=0,
+                max_tokens=800,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Eres un corrector de español para entrenadores de fútbol. "
+                            "Corrige SOLO faltas de ortografía, erratas y gramática evidente. "
+                            "Puedes acentuar y usar vocabulario técnico de fútbol. "
+                            "NO cambies el sentido, el tono ni el orden de las ideas. "
+                            "Si el texto ya está bien, devuélvelo idéntico. "
+                            "Responde ÚNICAMENTE con el texto corregido, sin comillas ni explicaciones."
+                        ),
+                    },
+                    {"role": "user", "content": texto},
+                ],
+            )
+            out = (response.choices[0].message.content or "").strip()
+            return {"texto": out}
+        except Exception as e:
+            raise AIError(
+                f"Error al corregir texto: {str(e)[:200]}",
+                status_code=500,
+                provider=self.provider_name,
+            )
+
     # ============ Chat (general assistant) ============
 
     async def chat(
