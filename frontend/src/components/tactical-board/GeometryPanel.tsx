@@ -48,6 +48,25 @@ export default function GeometryPanel({ numJugadores, onApplyEspacio }: Geometry
     : null
   const summary = { ...base, jugadores, clasificacion }
 
+  // Auto-aplicar al formulario: debe ir ANTES de cualquier return condicional (Rules of Hooks)
+  useEffect(() => {
+    if (!clasificacion || !onApplyEspacio || !base.geometria) return
+    const patch = summaryToTareaPatch(summary)
+    if (!patch) return
+    patch.m2_por_jugador = clasificacion.m2PorJugador
+    onApplyEspacio(patch)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    base.geometria?.areaM2,
+    base.geometria?.largo,
+    base.geometria?.ancho,
+    jugadores,
+    clasificacion?.m2PorJugador,
+    clasificacion?.densidad,
+    clasificacion?.tipoEsfuerzo,
+    clasificacion?.nivelCognitivo,
+  ])
+
   if (!base.geometria) {
     return (
       <div className="absolute bottom-2 left-2 z-40 bg-white/95 backdrop-blur rounded-xl shadow-lg border border-gray-200 px-3 py-2 max-w-[230px]">
@@ -73,25 +92,6 @@ export default function GeometryPanel({ numJugadores, onApplyEspacio }: Geometry
       setTimeout(() => setApplied(false), 2200)
     }
   }
-
-  // Auto-aplicar al formulario: la carga de la tarea queda siempre linkeada a la pizarra
-  useEffect(() => {
-    if (!clasificacion || !onApplyEspacio || !base.geometria) return
-    const patch = summaryToTareaPatch(summary)
-    if (!patch) return
-    patch.m2_por_jugador = clasificacion.m2PorJugador
-    onApplyEspacio(patch)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    base.geometria?.areaM2,
-    base.geometria?.largo,
-    base.geometria?.ancho,
-    jugadores,
-    clasificacion?.m2PorJugador,
-    clasificacion?.densidad,
-    clasificacion?.tipoEsfuerzo,
-    clasificacion?.nivelCognitivo,
-  ])
 
   return (
     <div className="absolute bottom-2 left-2 z-40 w-[248px] bg-white/95 backdrop-blur rounded-xl shadow-lg border border-gray-200 overflow-hidden">
