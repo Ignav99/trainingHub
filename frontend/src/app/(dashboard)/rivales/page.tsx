@@ -31,6 +31,7 @@ import { CardGridSkeleton } from '@/components/ui/page-skeletons'
 import { TeamCrest } from '@/components/ui/team-crest'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
+import { EscudoUploadField } from '@/components/ui/escudo-upload-field'
 import { rivalesApi, RivalCreateData } from '@/lib/api/partidos'
 import { useEquipoStore } from '@/stores/equipoStore'
 import type { Rival, PaginatedResponse } from '@/types'
@@ -65,6 +66,7 @@ export default function RivalesPage() {
     notas: '',
   })
   const [saving, setSaving] = useState(false)
+  const [pendingEscudoFile, setPendingEscudoFile] = useState<File | null>(null)
 
   // Delete
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -74,15 +76,26 @@ export default function RivalesPage() {
     if (!form.nombre.trim()) return
     setSaving(true)
     try {
+      let rivalId = editingId
+      const payload = { ...form }
+      if (pendingEscudoFile) {
+        delete payload.escudo_url
+      }
       if (editingId) {
-        await rivalesApi.update(editingId, form)
+        await rivalesApi.update(editingId, payload)
       } else {
-        await rivalesApi.create(form)
+        const created = await rivalesApi.create(payload)
+        rivalId = created.id
+      }
+      if (pendingEscudoFile && rivalId) {
+        await rivalesApi.uploadEscudo(rivalId, pendingEscudoFile)
       }
       setShowForm(false)
       setEditingId(null)
+      setPendingEscudoFile(null)
       setForm({ nombre: '', nombre_corto: '', escudo_url: '', estadio: '', ciudad: '', notas: '' })
       mutate((key: string) => typeof key === 'string' && key.includes('/rivales'), undefined, { revalidate: true })
+      toast.success(editingId ? 'Rival actualizado' : 'Rival creado')
     } catch (err: any) {
       toast.error(err.message || 'Error')
     } finally {
@@ -92,6 +105,7 @@ export default function RivalesPage() {
 
   const openEdit = (r: Rival) => {
     setEditingId(r.id)
+    setPendingEscudoFile(null)
     setForm({
       nombre: r.nombre,
       nombre_corto: r.nombre_corto || '',
@@ -132,7 +146,7 @@ export default function RivalesPage() {
         title="Rivales"
         description="Rivales de la temporada actual (competición RFAF)"
         actions={
-          <Button onClick={() => { setEditingId(null); setForm({ nombre: '', nombre_corto: '', escudo_url: '', estadio: '', ciudad: '', notas: '' }); setShowForm(true) }}>
+          <Button onClick={() => { setEditingId(null); setPendingEscudoFile(null); setForm({ nombre: '', nombre_corto: '', escudo_url: '', estadio: '', ciudad: '', notas: '' }); setShowForm(true) }}>
             <Plus className="h-4 w-4 mr-2" />
             Nuevo Rival
           </Button>
@@ -207,7 +221,7 @@ export default function RivalesPage() {
       )}
 
       {/* Form dialog */}
-      <Dialog open={showForm} onOpenChange={(open) => { if (!open) { setShowForm(false); setEditingId(null) } }}>
+      <Dialog open={showForm} onOpenChange={(open) => { if (!open) { setShowForm(false); setEditingId(null); setPendingEscudoFile(null) } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{editingId ? 'Editar Rival' : 'Nuevo Rival'}</DialogTitle>
@@ -221,10 +235,16 @@ export default function RivalesPage() {
               <Label>Nombre corto</Label>
               <Input value={form.nombre_corto} onChange={(e) => setForm({ ...form, nombre_corto: e.target.value })} placeholder="Ej: R. Madrid" />
             </div>
-            <div className="space-y-2">
-              <Label>URL del escudo</Label>
-              <Input value={form.escudo_url} onChange={(e) => setForm({ ...form, escudo_url: e.target.value })} placeholder="https://..." />
-            </div>
+            <EscudoUploadField
+              value={pendingEscudoFile ? null : form.escudo_url}
+              name={form.nombre || 'Rival'}
+              disabled={saving}
+              onFileSelect={setPendingEscudoFile}
+              onClear={() => {
+                setPendingEscudoFile(null)
+                setForm({ ...form, escudo_url: '' })
+              }}
+            />
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Ciudad</Label>

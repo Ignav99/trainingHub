@@ -180,8 +180,9 @@ export default function RivalDetailPage() {
     try {
       await rivalesApi.uploadEscudo(id, file)
       mutate((key: string) => typeof key === 'string' && key.includes('/rivales'), undefined, { revalidate: true })
-    } catch (err) {
-      console.error('Error uploading escudo:', err)
+      toast.success('Escudo actualizado')
+    } catch (err: any) {
+      toast.error(err.message || 'Error al subir el escudo')
     } finally {
       setUploadingEscudo(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -255,7 +256,7 @@ export default function RivalDetailPage() {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/png,image/jpeg,image/jpg,image/webp"
             className="hidden"
             onChange={handleEscudoUpload}
           />

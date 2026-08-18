@@ -1,14 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Image from 'next/image'
 import {
   User,
   Building,
   CreditCard,
   Save,
   Loader2,
-  Upload,
   Check,
   Users,
   Copy,
@@ -26,6 +24,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ColorPicker } from '@/components/ui/color-picker'
+import { EscudoUploadField } from '@/components/ui/escudo-upload-field'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/authStore'
 import { useClubStore } from '@/stores/clubStore'
@@ -166,13 +165,12 @@ export default function ConfiguracionPage() {
     }
   }
 
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const handleLogoUpload = async (file: File) => {
     setUploadingLogo(true)
     try {
       const res = await organizacionApi.uploadLogo(file)
       updateTheme({ logoUrl: res.logo_url })
+      toast.success('Escudo del club actualizado')
     } catch (err: any) {
       toast.error(err.message || 'Error al subir logo')
     } finally {
@@ -272,32 +270,12 @@ export default function ConfiguracionPage() {
                 <ColorPicker label="Color secundario" value={colorSecundario} onChange={setColorSecundario} />
               </div>
 
-              {/* Logo upload */}
-              <div className="space-y-2">
-                <Label>Escudo / Logo</Label>
-                <div className="flex items-center gap-4">
-                  {theme.logoUrl ? (
-                    <Image src={theme.logoUrl} alt="Logo" width={64} height={64} className="object-contain rounded-lg border" unoptimized />
-                  ) : (
-                    <div
-                      className="w-16 h-16 rounded-lg flex items-center justify-center text-white font-bold text-xl"
-                      style={{ backgroundColor: colorPrimario }}
-                    >
-                      {clubName?.charAt(0) || '?'}
-                    </div>
-                  )}
-                  <div>
-                    <input type="file" accept="image/*" className="hidden" id="logo-upload" onChange={handleLogoUpload} />
-                    <Button variant="outline" size="sm" asChild disabled={uploadingLogo}>
-                      <label htmlFor="logo-upload" className="cursor-pointer">
-                        {uploadingLogo ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />}
-                        Cambiar logo
-                      </label>
-                    </Button>
-                    <p className="text-[10px] text-muted-foreground mt-1">PNG, JPG, SVG. Max 5MB</p>
-                  </div>
-                </div>
-              </div>
+              <EscudoUploadField
+                value={theme.logoUrl}
+                name={clubName || 'Club'}
+                disabled={uploadingLogo}
+                onFileSelect={handleLogoUpload}
+              />
 
               <Separator />
 
