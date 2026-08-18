@@ -144,35 +144,88 @@ def upload_org_logo(
     return upload_processed_escudo(supabase, path, content, content_type, strict=True)
 
 
+def _guess_content_type(url: str, headers_ct: str | None) -> str:
+    if headers_ct:
+        return headers_ct.split(";")[0].strip()
+    lower = url.lower()
+    if lower.endswith(".jpg") or lower.endswith(".jpeg"):
+        return "image/jpeg"
+    if lower.endswith(".webp"):
+        return "image/webp"
+    return "image/png"
+
+
+def _download_escudo_bytes(url: str) -> tuple[bytes, str] | None:
+    """Download escudo image bytes from RFAF, Supabase, or any public URL."""
+    normalized = normalize_rfaf_escudo_url(url) or url
+    if not normalized:
+        return None
+
+    try:
+        if "rfaf.es" in normalized:
+            from app.services.rfaf_http_transport import fetch_rfaf_bytes
+
+            content = fetch_rfaf_bytes(normalized)
+            if len(content) < 50:
+                return None
+            return content, _guess_content_type(normalized, None)
+
+        with httpx.Client(timeout=20.0, http2=False, follow_redirects=True) as client:
+            response = client.get(normalized, headers={"User-Agent": USER_AGENT})
+            response.raise_for_status()
+            content = response.content
+            if len(content) < 50:
+                return None
+            ct = _guess_content_type(normalized, response.headers.get("content-type"))
+            return content, ct
+    except Exception as exc:
+        logger.warning("Could not download escudo %s: %s", normalized, exc)
+        return None
+
+
+def _rival_matches_name(rival: dict, team_name: str) -> bool:
+    team_lower = team_name.lower().strip()
+    for key in ("nombre", "rfef_nombre"):
+        val = (rival.get(key) or "").strip()
+        if not val:
+            continue
+        val_lower = val.lower()
+        if val_lower == team_lower or _is_same_team(val, team_name):
+            return True
+    return False
+
+
+def _find_rival_for_team(rivals: list[dict], team_name: str) -> dict | None:
+    for rival in rivals:
+        if _rival_matches_name(rival, team_name):
+            return rival
+    return None
+
+
 def persist_escudo_from_rfaf(
     supabase,
     organizacion_id: str,
     rival_id: str,
     rfaf_url: str,
+    *,
+    force_reprocess: bool = False,
 ) -> str | None:
-    """Download RFAF escudo, process, and store in Supabase `logos` bucket."""
-    url = normalize_rfaf_escudo_url(rfaf_url)
+    """Download escudo, process, and store in Supabase `logos` bucket."""
+    url = normalize_rfaf_escudo_url(rfaf_url) or rfaf_url
     if not url:
         return None
 
-    if "supabase.co/storage" in url or url.startswith("data:"):
+    if not force_reprocess and (
+        "supabase.co/storage" in url or url.startswith("data:")
+    ):
         return url
 
-    try:
-        with httpx.Client(timeout=12.0, http2=False, follow_redirects=True) as client:
-            response = client.get(url, headers={"User-Agent": USER_AGENT})
-            response.raise_for_status()
-            content = response.content
-            if len(content) < 50:
-                logger.warning("Escudo too small (%d bytes) for rival %s", len(content), rival_id)
-                return url
+    downloaded = _download_escudo_bytes(url)
+    if not downloaded:
+        return url if url.startswith("http") else None
 
-            content_type = (response.headers.get("content-type") or "image/png").split(";")[0]
-    except Exception as exc:
-        logger.warning("Could not download escudo %s: %s", url, exc)
-        return url
+    content, content_type = downloaded
 
-    # Skip SVG — Pillow cannot normalize vector crests
     if "svg" in content_type.lower() or url.lower().endswith(".svg"):
         storage_path = f"rivales/{organizacion_id}/{rival_id}/escudo.svg"
         try:
@@ -205,6 +258,7 @@ def apply_escudo_to_rival(
     escudo_url: str,
     *,
     download: bool = True,
+    force_reprocess: bool = False,
 ) -> bool:
     """Set rival escudo (download from RFAF when possible). Returns True if updated."""
     if not escudo_url:
@@ -213,7 +267,11 @@ def apply_escudo_to_rival(
     final_url = escudo_url
     if download:
         stored = persist_escudo_from_rfaf(
-            supabase, organizacion_id, rival["id"], escudo_url
+            supabase,
+            organizacion_id,
+            rival["id"],
+            escudo_url,
+            force_reprocess=force_reprocess,
         )
         if stored:
             final_url = stored
@@ -232,27 +290,50 @@ def apply_escudo_to_rival(
         return False
 
 
-def backfill_rival_escudos(supabase, comp: dict) -> int:
-    """Refresh escudos for rivals in this competition from clasificación + actas."""
+def _needs_escudo_refresh(rival: dict, force: bool) -> bool:
+    if force:
+        return True
+    url = rival.get("escudo_url") or ""
+    if not url:
+        return True
+    if "rfaf.es" in url:
+        return True
+    if "supabase.co/storage" in url and "/escudo.png" not in url:
+        return True
+    return False
+
+
+def backfill_rival_escudos(
+    supabase,
+    comp: dict,
+    *,
+    force: bool = False,
+    create_missing: bool = True,
+) -> dict:
+    """
+    Import/reprocess escudos from clasificación + actas for all league teams.
+    Returns stats dict with updated, created, skipped, failed counts.
+    """
     comp_id = comp["id"]
+    equipo_id = comp.get("equipo_id")
     organizacion_id = comp.get("organizacion_id")
     mi_equipo = (comp.get("mi_equipo_nombre") or "").strip()
 
-    if not organizacion_id:
+    if not organizacion_id and equipo_id:
         eq = (
             supabase.table("equipos")
             .select("organizacion_id")
-            .eq("id", comp["equipo_id"])
+            .eq("id", equipo_id)
             .single()
             .execute()
         )
         organizacion_id = (eq.data or {}).get("organizacion_id")
     if not organizacion_id:
-        return 0
+        return {"updated": 0, "created": 0, "skipped": 0, "failed": 0, "error": "no org"}
 
     fresh = (
         supabase.table("rfef_competiciones")
-        .select("clasificacion, mi_equipo_nombre")
+        .select("clasificacion, mi_equipo_nombre, equipo_id")
         .eq("id", comp_id)
         .single()
         .execute()
@@ -261,6 +342,8 @@ def backfill_rival_escudos(supabase, comp: dict) -> int:
         comp = {**comp, **fresh.data}
         if not mi_equipo:
             mi_equipo = (comp.get("mi_equipo_nombre") or "").strip()
+        if not equipo_id:
+            equipo_id = comp.get("equipo_id")
 
     actas_res = (
         supabase.table("rfef_actas")
@@ -276,25 +359,136 @@ def backfill_rival_escudos(supabase, comp: dict) -> int:
         .eq("organizacion_id", organizacion_id)
         .execute()
     )
+    rivals: list[dict] = list(rivales_res.data or [])
 
-    updated = 0
-    for rival in rivales_res.data or []:
+    stats = {"updated": 0, "created": 0, "skipped": 0, "failed": 0, "total_teams": 0}
+    processed_rival_ids: set[str] = set()
+
+    clasificacion = comp.get("clasificacion") or []
+    teams_processed: set[str] = set()
+
+    for row in clasificacion:
+        team_name = (row.get("equipo") or "").strip()
+        if not team_name or team_name.lower() in teams_processed:
+            continue
+        if mi_equipo and _is_same_team(mi_equipo, team_name):
+            continue
+
+        teams_processed.add(team_name.lower())
+        stats["total_teams"] += 1
+
+        escudo = (
+            escudo_lookup.get(team_name.lower())
+            or normalize_rfaf_escudo_url(row.get("escudo_url"))
+        )
+        if not escudo:
+            stats["skipped"] += 1
+            continue
+
+        rival = _find_rival_for_team(rivals, team_name)
+        if not rival and create_missing:
+            inserted = supabase.table("rivales").insert({
+                "organizacion_id": organizacion_id,
+                "nombre": team_name,
+                "rfef_nombre": team_name,
+            }).execute()
+            if inserted.data:
+                rival = inserted.data[0]
+                rivals.append(rival)
+                stats["created"] += 1
+            else:
+                stats["failed"] += 1
+                continue
+        elif not rival:
+            stats["skipped"] += 1
+            continue
+
+        if not _needs_escudo_refresh(rival, force) and rival.get("escudo_url"):
+            stats["skipped"] += 1
+            continue
+
+        source = escudo or rival.get("escudo_url")
+        if not source:
+            stats["skipped"] += 1
+            continue
+
+        if apply_escudo_to_rival(
+            supabase,
+            organizacion_id,
+            rival,
+            source,
+            download=True,
+            force_reprocess=force,
+        ):
+            stats["updated"] += 1
+            processed_rival_ids.add(rival["id"])
+        elif not rival.get("escudo_url"):
+            stats["failed"] += 1
+        else:
+            stats["skipped"] += 1
+
+    # Also refresh existing rivals with fuzzy lookup (e.g. name variants)
+    for rival in rivals:
+        if rival["id"] in processed_rival_ids:
+            continue
         if mi_equipo and _is_same_team(mi_equipo, rival.get("nombre") or ""):
+            continue
+        if not _needs_escudo_refresh(rival, force):
             continue
 
         name_lower = (rival.get("nombre") or "").lower()
         rfef_lower = (rival.get("rfef_nombre") or "").lower()
         escudo = escudo_lookup.get(name_lower) or escudo_lookup.get(rfef_lower)
-        if not escudo:
+        source = escudo or rival.get("escudo_url")
+        if not source:
             continue
 
-        needs_update = not rival.get("escudo_url") or "rfaf.es" in (rival.get("escudo_url") or "")
-        if not needs_update:
-            continue
+        if apply_escudo_to_rival(
+            supabase,
+            organizacion_id,
+            rival,
+            source,
+            download=True,
+            force_reprocess=force,
+        ):
+            stats["updated"] += 1
 
-        if apply_escudo_to_rival(supabase, organizacion_id, rival, escudo, download=True):
-            updated += 1
+    if stats["updated"] or stats["created"]:
+        logger.info(
+            "Escudo backfill comp=%s: %d updated, %d created, %d skipped, %d failed",
+            comp_id,
+            stats["updated"],
+            stats["created"],
+            stats["skipped"],
+            stats["failed"],
+        )
+    return stats
 
-    if updated:
-        logger.info("Backfilled escudos for %d rivals (comp=%s)", updated, comp_id)
-    return updated
+
+def backfill_escudos_for_equipo(
+    supabase,
+    organizacion_id: str,
+    equipo_id: str,
+    *,
+    force: bool = True,
+) -> dict:
+    """Run escudo backfill for the active RFEF competition of an equipo."""
+    comps_res = (
+        supabase.table("rfef_competiciones")
+        .select("*")
+        .eq("equipo_id", equipo_id)
+        .order("ultima_sincronizacion", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if not comps_res.data:
+        return {
+            "updated": 0,
+            "created": 0,
+            "skipped": 0,
+            "failed": 0,
+            "error": "No hay competición RFAF vinculada a este equipo",
+        }
+
+    comp = {**comps_res.data[0], "organizacion_id": organizacion_id}
+    return backfill_rival_escudos(supabase, comp, force=force, create_missing=True)

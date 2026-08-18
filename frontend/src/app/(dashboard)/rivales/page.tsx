@@ -12,6 +12,7 @@ import {
   Loader2,
   MapPin,
   Building,
+  Download,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -71,6 +72,25 @@ export default function RivalesPage() {
   // Delete
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [backfilling, setBackfilling] = useState(false)
+
+  const handleBackfillEscudos = async () => {
+    if (!equipoActivo?.id) return
+    setBackfilling(true)
+    try {
+      const stats = await rivalesApi.backfillEscudos(equipoActivo.id, true)
+      mutate((key: string) => typeof key === 'string' && key.includes('/rivales'), undefined, { revalidate: true })
+      toast.success(
+        `Escudos importados: ${stats.updated} actualizados` +
+          (stats.created ? `, ${stats.created} rivales nuevos` : '') +
+          (stats.failed ? ` (${stats.failed} fallidos)` : ''),
+      )
+    } catch (err: any) {
+      toast.error(err.message || 'Error al importar escudos')
+    } finally {
+      setBackfilling(false)
+    }
+  }
 
   const handleSave = async () => {
     if (!form.nombre.trim()) return
@@ -146,10 +166,24 @@ export default function RivalesPage() {
         title="Rivales"
         description="Rivales de la temporada actual (competición RFAF)"
         actions={
-          <Button onClick={() => { setEditingId(null); setPendingEscudoFile(null); setForm({ nombre: '', nombre_corto: '', escudo_url: '', estadio: '', ciudad: '', notas: '' }); setShowForm(true) }}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nuevo Rival
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={handleBackfillEscudos}
+              disabled={backfilling || !equipoActivo?.id}
+            >
+              {backfilling ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
+              Importar escudos RFAF
+            </Button>
+            <Button onClick={() => { setEditingId(null); setPendingEscudoFile(null); setForm({ nombre: '', nombre_corto: '', escudo_url: '', estadio: '', ciudad: '', notas: '' }); setShowForm(true) }}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nuevo Rival
+            </Button>
+          </div>
         }
       />
 

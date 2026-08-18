@@ -60,6 +60,16 @@ export const rivalesApi = {
     return api.upload<{ escudo_url: string }>(`/rivales/${rivalId}/escudo`, formData)
   },
 
+  async backfillEscudos(
+    equipoId: string,
+    force = true,
+  ): Promise<{ updated: number; created: number; skipped: number; failed: number; total_teams: number }> {
+    return api.post(`/rivales/backfill-escudos`, null, {
+      params: { equipo_id: equipoId, force: String(force) },
+      timeout: 180000,
+    })
+  },
+
   async getOnceProbable(rivalId: string, competicionId?: string): Promise<OnceProbableResponse> {
     const params: Record<string, string> = {}
     if (competicionId) params.competicion_id = competicionId
