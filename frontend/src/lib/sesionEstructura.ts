@@ -111,3 +111,22 @@ export function resolveEstructura(
 export function normalizeOrden(bloques: SesionBloque[]): SesionBloque[] {
   return bloques.map((b, i) => ({ ...b, orden: i }))
 }
+
+/** Crea un bloque concreto si aún no existe (p. ej. al añadir tarea desde IA o biblioteca). */
+export function createBloqueForFase(fase: FaseSesion, bloques: SesionBloque[]): SesionBloque | null {
+  if (bloques.some((b) => b.tipo === fase)) return null
+  if (fase === 'activacion' && bloques.some((b) => b.tipo === 'activacion')) return null
+  if (fase === 'vuelta_calma' && bloques.some((b) => b.tipo === 'vuelta_calma')) return null
+
+  const id =
+    typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `bloque-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+  return { id, tipo: fase, label: FASE_LABELS[fase], orden: bloques.length }
+}
+
+export function ensureBloqueForFase(bloques: SesionBloque[], fase: FaseSesion): SesionBloque[] {
+  const created = createBloqueForFase(fase, bloques)
+  return created ? normalizeOrden([...bloques, created]) : bloques
+}
