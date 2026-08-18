@@ -214,7 +214,7 @@ export default function NuevaSesionPage() {
     try {
       const dataToSend = {
         ...formData,
-        equipo_id: formData.equipo_id || equipoActivo?.id || '00000000-0000-0000-0000-000000000000',
+        equipo_id: formData.equipo_id || equipoActivo?.id || undefined,
         microciclo_id: microcicloIdFromQuery || formData.microciclo_id || undefined,
         plan_partido_id: planPartidoIdFromQuery || formData.plan_partido_id || undefined,
         estructura_fases: estructuraFases.length > 0 ? estructuraFases : undefined,
@@ -242,13 +242,19 @@ export default function NuevaSesionPage() {
         }
       }
 
-      // Añadir tareas a la sesión
+      // Añadir tareas a la sesión (no bloquear si alguna falla: la sesión ya existe)
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
       for (const t of tareasEnSesion) {
-        await sesionesApi.addTarea(sesion.id, {
-          tarea_id: t.tarea.id,
-          orden: t.orden,
-          fase_sesion: t.fase,
-        })
+        if (!t.tarea?.id || !uuidRe.test(t.tarea.id)) continue
+        try {
+          await sesionesApi.addTarea(sesion.id, {
+            tarea_id: t.tarea.id,
+            orden: t.orden,
+            fase_sesion: t.fase,
+          })
+        } catch (err) {
+          console.warn('addTarea failed', t.tarea.id, err)
+        }
       }
 
       router.push(`/sesiones/${sesion.id}`)
