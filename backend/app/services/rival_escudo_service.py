@@ -1,20 +1,28 @@
 """
 Download and persist RFAF team escudos for rivals.
-Falls back to hotlinked RFAF URL if download fails.
+Manual uploads share the same processing pipeline (white-bg removal + 256px PNG).
 """
 
 from __future__ import annotations
 
 import logging
+import re
+from datetime import datetime, timezone
 
 import httpx
 
+from app.services.escudo_image_service import process_escudo_bytes, process_escudo_bytes_safe
+
 logger = logging.getLogger(__name__)
 
+LOGOS_BUCKET = "logos"
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 )
+
+# Legacy extensions that may exist from older uploads
+_ESCUDO_EXTENSIONS = ("png", "jpg", "jpeg", "webp", "svg")
 
 
 def _is_same_team(mi_equipo: str, team_name: str) -> bool:
@@ -61,18 +69,92 @@ def build_escudo_lookup(comp: dict, actas: list[dict] | None = None) -> dict[str
     return lookup
 
 
+def _cache_bust(url: str) -> str:
+    ts = int(datetime.now(timezone.utc).timestamp())
+    base = re.sub(r"[?&]v=\d+", "", url).rstrip("?&")
+    sep = "&" if "?" in base else "?"
+    return f"{base}{sep}v={ts}"
+
+
+def _remove_legacy_escudo_paths(supabase, storage_path: str) -> None:
+    """Remove previous escudo.* variants for the same entity folder."""
+    parts = storage_path.rsplit("/", 1)
+    if len(parts) != 2:
+        return
+    folder, _ = parts
+    paths = [f"{folder}/escudo.{ext}" for ext in _ESCUDO_EXTENSIONS]
+    try:
+        supabase.storage.from_(LOGOS_BUCKET).remove(paths)
+    except Exception:
+        pass
+
+
+def upload_processed_escudo(
+    supabase,
+    storage_path: str,
+    content: bytes,
+    content_type: str | None,
+    *,
+    strict: bool = True,
+) -> str:
+    """
+    Process image, upload PNG to logos bucket, return cache-busted public URL.
+    storage_path should end with escudo.png (e.g. rivales/{org}/{id}/escudo.png).
+    """
+    if strict:
+        processed = process_escudo_bytes(content, content_type)
+        out_type = "image/png"
+    else:
+        processed, out_type = process_escudo_bytes_safe(content, content_type)
+
+    if not storage_path.endswith(".png"):
+        storage_path = storage_path.rsplit(".", 1)[0] + ".png"
+
+    _remove_legacy_escudo_paths(supabase, storage_path)
+
+    supabase.storage.from_(LOGOS_BUCKET).upload(
+        storage_path,
+        processed,
+        file_options={"content-type": out_type, "upsert": "true"},
+    )
+    public_url = supabase.storage.from_(LOGOS_BUCKET).get_public_url(storage_path)
+    return _cache_bust(public_url)
+
+
+def upload_rival_escudo(
+    supabase,
+    organizacion_id: str,
+    rival_id: str,
+    content: bytes,
+    content_type: str | None,
+) -> str:
+    """Process and store a rival escudo; updates nothing in DB."""
+    path = f"rivales/{organizacion_id}/{rival_id}/escudo.png"
+    return upload_processed_escudo(supabase, path, content, content_type, strict=True)
+
+
+def upload_org_logo(
+    supabase,
+    organizacion_id: str,
+    content: bytes,
+    content_type: str | None,
+) -> str:
+    """Process and store organization logo/escudo."""
+    path = f"organizaciones/{organizacion_id}/logo.png"
+    return upload_processed_escudo(supabase, path, content, content_type, strict=True)
+
+
 def persist_escudo_from_rfaf(
     supabase,
     organizacion_id: str,
     rival_id: str,
     rfaf_url: str,
 ) -> str | None:
-    """Download RFAF escudo to Supabase `logos` bucket. Returns stored URL."""
+    """Download RFAF escudo, process, and store in Supabase `logos` bucket."""
     url = normalize_rfaf_escudo_url(rfaf_url)
     if not url:
         return None
 
-    # Already on our storage
     if "supabase.co/storage" in url or url.startswith("data:"):
         return url
 
@@ -90,27 +172,27 @@ def persist_escudo_from_rfaf(
         logger.warning("Could not download escudo %s: %s", url, exc)
         return url
 
-    ext = "png"
-    if "jpeg" in content_type or "jpg" in content_type:
-        ext = "jpg"
-    elif "webp" in content_type:
-        ext = "webp"
-    elif "svg" in content_type:
-        ext = "svg"
-
-    storage_path = f"rivales/{organizacion_id}/{rival_id}/escudo.{ext}"
-    try:
+    # Skip SVG — Pillow cannot normalize vector crests
+    if "svg" in content_type.lower() or url.lower().endswith(".svg"):
+        storage_path = f"rivales/{organizacion_id}/{rival_id}/escudo.svg"
         try:
-            supabase.storage.from_("logos").remove([storage_path])
-        except Exception:
-            pass
+            _remove_legacy_escudo_paths(supabase, storage_path)
+            supabase.storage.from_(LOGOS_BUCKET).upload(
+                storage_path,
+                content,
+                file_options={"content-type": "image/svg+xml", "upsert": "true"},
+            )
+            return _cache_bust(
+                supabase.storage.from_(LOGOS_BUCKET).get_public_url(storage_path)
+            )
+        except Exception as exc:
+            logger.warning("Could not store SVG escudo for rival %s: %s", rival_id, exc)
+            return url
 
-        supabase.storage.from_("logos").upload(
-            storage_path,
-            content,
-            file_options={"content-type": content_type, "upsert": "true"},
+    try:
+        return upload_rival_escudo(
+            supabase, organizacion_id, rival_id, content, content_type
         )
-        return supabase.storage.from_("logos").get_public_url(storage_path)
     except Exception as exc:
         logger.warning("Could not store escudo for rival %s: %s", rival_id, exc)
         return url
@@ -168,7 +250,6 @@ def backfill_rival_escudos(supabase, comp: dict) -> int:
     if not organizacion_id:
         return 0
 
-    # Fresh clasificación from DB
     fresh = (
         supabase.table("rfef_competiciones")
         .select("clasificacion, mi_equipo_nombre")
@@ -207,7 +288,6 @@ def backfill_rival_escudos(supabase, comp: dict) -> int:
         if not escudo:
             continue
 
-        # Always try to upgrade hotlinked RFAF URLs to stored copies
         needs_update = not rival.get("escudo_url") or "rfaf.es" in (rival.get("escudo_url") or "")
         if not needs_update:
             continue

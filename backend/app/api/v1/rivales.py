@@ -321,17 +321,19 @@ async def upload_escudo(
     file: UploadFile = File(...),
     auth: AuthContext = Depends(require_permission(Permission.RIVAL_UPDATE)),
 ):
-    """Upload or update rival badge/escudo. Accepts PNG, JPG, SVG, WebP. Max 2MB."""
-    if not file.content_type or not file.content_type.startswith(("image/", "application/svg")):
-        raise HTTPException(status_code=400, detail="Solo se permiten imagenes (PNG, JPG, SVG, WebP)")
+    """
+    Upload or update rival escudo manually.
+    Accepts PNG, JPG, WebP. Max 5MB.
+    White background is removed automatically; output is normalized to 256×256 PNG.
+    """
+    from app.services.rival_escudo_service import upload_rival_escudo
 
     content = await file.read()
-    if len(content) > 2 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="El archivo no puede superar 2MB")
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="El archivo no puede superar 5MB")
 
     supabase = get_supabase()
 
-    # Verify rival exists and belongs to org
     existing = supabase.table("rivales").select("id").eq(
         "id", str(rival_id)
     ).eq("organizacion_id", auth.organizacion_id).single().execute()
@@ -339,24 +341,18 @@ async def upload_escudo(
     if not existing.data:
         raise HTTPException(status_code=404, detail="Rival no encontrado")
 
-    extension = file.filename.rsplit(".", 1)[-1] if file.filename and "." in file.filename else "png"
-    storage_path = f"rivales/{auth.organizacion_id}/{rival_id}/escudo.{extension}"
-
     try:
-        try:
-            supabase.storage.from_("logos").remove([storage_path])
-        except Exception:
-            pass
-
-        supabase.storage.from_("logos").upload(
-            storage_path,
+        escudo_url = upload_rival_escudo(
+            supabase,
+            str(auth.organizacion_id),
+            str(rival_id),
             content,
-            file_options={"content-type": file.content_type, "upsert": "true"},
+            file.content_type,
         )
-
-        escudo_url = supabase.storage.from_("logos").get_public_url(storage_path)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Error uploading escudo: {e}")
+        logger.error("Error uploading escudo: %s", e)
         raise HTTPException(status_code=500, detail="Error al subir el escudo")
 
     supabase.table("rivales").update({

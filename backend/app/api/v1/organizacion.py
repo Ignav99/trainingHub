@@ -208,15 +208,13 @@ async def upload_logo(
     auth: AuthContext = Depends(require_permission()),
 ):
     """
-    Sube o actualiza el logo/escudo de la organizacion.
-    Acepta PNG, JPG, SVG, WebP. Max 5MB.
+    Sube o actualiza el logo/escudo del club.
+    Acepta PNG, JPG, WebP. Max 5MB.
+    Recorta fondo blanco y normaliza a 256×256 PNG automáticamente.
     """
     from app.database import get_supabase
     from datetime import datetime, timezone
-
-    # Validate file
-    if not file.content_type or not file.content_type.startswith(("image/", "application/svg")):
-        raise HTTPException(status_code=400, detail="Solo se permiten imagenes (PNG, JPG, SVG, WebP)")
+    from app.services.rival_escudo_service import upload_org_logo
 
     content = await file.read()
     if len(content) > 5 * 1024 * 1024:
@@ -224,31 +222,19 @@ async def upload_logo(
 
     supabase = get_supabase()
 
-    # Upload to Supabase Storage
-    extension = file.filename.rsplit(".", 1)[-1] if file.filename and "." in file.filename else "png"
-    storage_path = f"organizaciones/{auth.organizacion_id}/logo.{extension}"
-
     try:
-        # Try to remove existing logo first
-        try:
-            supabase.storage.from_("logos").remove([storage_path])
-        except Exception:
-            pass
-
-        supabase.storage.from_("logos").upload(
-            storage_path,
+        logo_url = upload_org_logo(
+            supabase,
+            str(auth.organizacion_id),
             content,
-            file_options={"content-type": file.content_type, "upsert": "true"},
+            file.content_type,
         )
-
-        # Get public URL
-        logo_url = supabase.storage.from_("logos").get_public_url(storage_path)
-
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Error uploading logo: {e}")
+        logger.error("Error uploading logo: %s", e)
         raise HTTPException(status_code=500, detail="Error al subir el logo")
 
-    # Update organization record
     supabase.table("organizaciones").update({
         "logo_url": logo_url,
         "updated_at": datetime.now(timezone.utc).isoformat(),

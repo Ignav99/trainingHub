@@ -23,7 +23,7 @@ export function TeamCrest({ src, name, size = 'md', className }: TeamCrestProps)
         alt={name}
         width={px}
         height={px}
-        className={['rounded-md object-contain bg-white/80 border', className].filter(Boolean).join(' ')}
+        className={['rounded-md object-contain', className].filter(Boolean).join(' ')}
         unoptimized
       />
     )
