@@ -244,7 +244,32 @@ def _recalc_sesion_carga(supabase, sesion_id: str) -> dict:
                 except Exception:
                     pass  # columna puede no existir aún
 
-        carga_sesion, intensidad, duracion_total = aggregate_sesion_carga(rows)
+        estructura = []
+        try:
+            try:
+                ses_row = (
+                    supabase.table("sesiones")
+                    .select("estructura_fases, fase_notas")
+                    .eq("id", sesion_id)
+                    .maybe_single()
+                    .execute()
+                )
+            except Exception:
+                ses_row = (
+                    supabase.table("sesiones")
+                    .select("fase_notas")
+                    .eq("id", sesion_id)
+                    .maybe_single()
+                    .execute()
+                )
+            if ses_row and ses_row.data:
+                estructura = normalize_sesion_row(ses_row.data).get("estructura_fases") or []
+                if not isinstance(estructura, list):
+                    estructura = []
+        except Exception:
+            estructura = []
+
+        carga_sesion, intensidad, duracion_total = aggregate_sesion_carga(rows, estructura)
 
         # 1) siempre intentar duración
         try:
@@ -831,6 +856,18 @@ async def update_sesion(
 
     log_update(auth.user_id, "sesion", str(sesion_id), datos_nuevos=update_data)
 
+    if "estructura_fases" in update_data:
+        _recalc_sesion_carga(supabase, str(sesion_id))
+        refreshed = (
+            supabase.table("sesiones")
+            .select("*")
+            .eq("id", str(sesion_id))
+            .maybe_single()
+            .execute()
+        )
+        if refreshed and refreshed.data:
+            return SesionResponse(**normalize_sesion_row(refreshed.data))
+
     return SesionResponse(**normalize_sesion_row(response.data[0]))
 
 
@@ -1209,7 +1246,12 @@ class DuplicarYEditarTareaRequest(BaseModel):
     model_config = {"extra": "ignore"}
     titulo: Optional[str] = None
     descripcion: Optional[str] = None
+    desarrollo: Optional[str] = None
+    reglas: Optional[str] = None
+    anotaciones: Optional[str] = None
     duracion_total: Optional[int] = None
+    duracion_serie: Optional[int] = None
+    tiempo_descanso: Optional[int] = None
     num_jugadores_min: Optional[int] = None
     num_jugadores_max: Optional[int] = None
     espacio_largo: Optional[Union[int, float]] = None
@@ -1230,6 +1272,9 @@ class DuplicarYEditarTareaRequest(BaseModel):
     principio_tactico: Optional[str] = None
     subprincipio_tactico: Optional[str] = None
     grafico_data: Optional[dict] = None
+    objetivos_tacticos: Optional[list] = None
+    objetivos_tecnicos: Optional[list] = None
+    modalidad: Optional[str] = None
 
 
 @router.post("/{sesion_id}/tareas/{sesion_tarea_id}/duplicar-y-editar")
@@ -1275,12 +1320,15 @@ async def duplicar_y_editar_tarea(
     else:
         # --- DUPLICATE from template ---
         campos_copiables = [
-            "descripcion", "duracion_total", "num_jugadores_min", "num_jugadores_max",
+            "descripcion", "desarrollo", "reglas", "anotaciones",
+            "duracion_total", "duracion_serie", "tiempo_descanso",
+            "num_jugadores_min", "num_jugadores_max",
             "espacio_largo", "espacio_ancho", "reglas_tecnicas", "reglas_tacticas",
             "consignas_ofensivas", "consignas_defensivas", "errores_comunes",
             "variantes", "progresiones", "estructura_equipos", "material",
             "fase_juego", "principio_tactico", "subprincipio_tactico", "densidad",
             "nivel_cognitivo", "num_series", "grafico_data",
+            "objetivos_tacticos", "objetivos_tecnicos", "modalidad",
             "categoria_id", "equipo_id", "organizacion_id",
         ]
 

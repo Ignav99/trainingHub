@@ -1,5 +1,5 @@
 """
-Cálculo de carga de sesión a partir de tareas vinculadas.
+Cálculo de carga de sesión a partir de tareas vinculadas y bloques de partido.
 """
 
 from __future__ import annotations
@@ -75,6 +75,33 @@ def carga_from_sesion_tarea(st: Dict[str, Any]) -> float:
     )
 
 
+def _count_alineados(equipo: Any) -> int:
+    if not isinstance(equipo, dict):
+        return 0
+    return sum(1 for v in equipo.values() if v)
+
+
+def carga_from_partido_bloque(bloque: Dict[str, Any]) -> Tuple[float, int]:
+    """Carga y minutos de un bloque partido_condicionado (11 vs 11, PCO)."""
+    if not isinstance(bloque, dict) or bloque.get("tipo") != "partido_condicionado":
+        return 0.0, 0
+    partido = bloque.get("partido") or {}
+    if not isinstance(partido, dict):
+        partido = {}
+    dur = partido.get("duracion_min") or bloque.get("duracion_objetivo") or 0
+    dur = int(dur or 0)
+    n_peto = _count_alineados(partido.get("equipo_peto"))
+    n_sin = _count_alineados(partido.get("equipo_sin_peto"))
+    njug = n_peto + n_sin or 22
+    carga = carga_tarea(
+        duracion_min=dur,
+        densidad="alta",
+        categoria_codigo="PCO",
+        num_jugadores=njug,
+    )
+    return carga, dur
+
+
 def intensidad_from_carga(carga_total: float, duracion_total: int) -> str:
     """Mapea carga agregada a intensidad_calculada."""
     if duracion_total <= 0:
@@ -91,9 +118,12 @@ def intensidad_from_carga(carga_total: float, duracion_total: int) -> str:
 
 def aggregate_sesion_carga(
     sesion_tareas: List[Dict[str, Any]],
+    estructura_fases: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[float, str, int]:
     """
     Returns (carga_sesion, intensidad_calculada, duracion_total_min).
+
+    Incluye bloques de partido condicionado (no son tareas).
     """
     total_carga = 0.0
     total_dur = 0
@@ -104,5 +134,14 @@ def aggregate_sesion_carga(
         dur = int(st.get("duracion_override") or tarea.get("duracion_total") or 0)
         total_dur += dur
         total_carga += carga_from_sesion_tarea(st)
+
+    for bloque in estructura_fases or []:
+        if not isinstance(bloque, dict):
+            continue
+        carga_p, dur_p = carga_from_partido_bloque(bloque)
+        if dur_p:
+            total_dur += dur_p
+            total_carga += carga_p
+
     intensidad = intensidad_from_carga(total_carga, total_dur)
     return round(total_carga, 2), intensidad, total_dur

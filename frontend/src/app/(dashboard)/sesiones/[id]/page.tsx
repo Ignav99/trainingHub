@@ -85,7 +85,7 @@ import type { CargaJugador } from '@/types'
 import { MATCH_DAYS as MATCH_DAYS_CATALOG, DIAS_CARGA } from '@/lib/catalogos/canonico'
 import { TaskPickerDialog } from '@/components/tareas/TaskPickerDialog'
 import MargenPanel from '@/components/margen/MargenPanel'
-import { resolveEstructura } from '@/lib/sesionEstructura'
+import { duracionBloquePartido, faseSesionFromBloque, isPartidoCondicionado, resolveEstructura } from '@/lib/sesionEstructura'
 
 const MATCH_DAY_COLORS: Record<string, string> = {
   'MD+1': 'bg-green-100 text-green-800',
@@ -446,7 +446,7 @@ export default function SesionDetailPage() {
 
   const faseOrderFromEstructura = useMemo((): FaseSesion[] => {
     return bloquesResueltos
-      .map((b) => (b.tipo === 'videoanalisis' ? null : (b.tipo as FaseSesion)))
+      .map((b) => faseSesionFromBloque(b))
       .filter((f): f is FaseSesion => f !== null)
   }, [bloquesResueltos])
 
@@ -1018,9 +1018,20 @@ export default function SesionDetailPage() {
     if (b.tipo === 'videoanalisis') {
       return !!(b.notas?.trim() || (b.duracion_objetivo && b.duracion_objetivo > 0))
     }
+    if (isPartidoCondicionado(b)) {
+      const p = b.partido
+      return !!(
+        p?.objetivo?.trim() ||
+        p?.normas?.trim() ||
+        duracionBloquePartido(b) > 0 ||
+        Object.keys(p?.equipo_peto || {}).length > 0
+      )
+    }
     return (tareasByFase[b.tipo]?.length || 0) > 0
   })
-  const totalDuration = allTareas.reduce((sum, st) => sum + (st.duracion_override || st.tarea?.duracion_total || 0), 0)
+  const totalDuration =
+    allTareas.reduce((sum, st) => sum + (st.duracion_override || st.tarea?.duracion_total || 0), 0) +
+    bloquesResueltos.reduce((sum, b) => sum + duracionBloquePartido(b), 0)
 
   // ============ Render ============
   if (loading) {
@@ -1179,7 +1190,13 @@ export default function SesionDetailPage() {
               const filled =
                 bloque.tipo === 'videoanalisis'
                   ? !!(bloque.notas?.trim() || (bloque.duracion_objetivo && bloque.duracion_objetivo > 0))
-                  : (tareasByFase[bloque.tipo]?.length || 0) > 0
+                  : isPartidoCondicionado(bloque)
+                    ? !!(
+                        bloque.partido?.objetivo?.trim() ||
+                        duracionBloquePartido(bloque) > 0 ||
+                        Object.keys(bloque.partido?.equipo_peto || {}).length > 0
+                      )
+                    : (tareasByFase[bloque.tipo]?.length || 0) > 0
               return (
                 <div
                   key={bloque.id}
@@ -1252,6 +1269,12 @@ export default function SesionDetailPage() {
             savingTareas={savingTareas}
             staffOptions={staffOptions}
             formacionDialogStId={formacionDialogStId}
+            jugadores={jugadores.filter((j) => {
+              const a = asistencias.get(j.id)
+              if (!(a?.presente ?? true)) return false
+              const tipos = a?.tipo_participacion || ['sesion']
+              return tipos.includes('sesion')
+            })}
             onOpenTaskPicker={(fase) => {
               setTaskPickerFase(fase)
               setTaskPickerOpen(true)

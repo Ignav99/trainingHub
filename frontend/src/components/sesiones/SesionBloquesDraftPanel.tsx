@@ -27,6 +27,7 @@ import {
   Pencil,
   Clock,
   Trash2,
+  Shirt,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -35,7 +36,9 @@ import type { Tarea, SesionBloque, FaseSesion } from '@/types'
 import {
   ADD_BLOQUE_OPTIONS,
   createBloque,
+  emptyPartido,
   faseSesionFromBloque,
+  isPartidoCondicionado,
   normalizeOrden,
   type AddBloqueKind,
 } from '@/lib/sesionEstructura'
@@ -88,7 +91,7 @@ function SortableBloqueWrapper({
 }
 
 function canRemoveDraftBloque(bloque: SesionBloque, tareas: DraftTareaItem[]): boolean {
-  if (bloque.tipo === 'videoanalisis') return true
+  if (bloque.tipo === 'videoanalisis' || bloque.tipo === 'partido_condicionado') return true
   return !tareas.some((t) => t.fase === bloque.tipo)
 }
 
@@ -194,15 +197,18 @@ export function SesionBloquesDraftPanel({
     )
     const displayDuration = bloque.duracion_objetivo ?? (hasTareas ? tareasDuration : null)
     const isVideo = bloque.tipo === 'videoanalisis'
+    const isPartido = isPartidoCondicionado(bloque)
     const removable = canRemoveDraftBloque(bloque, tareas)
 
     return (
-      <Card key={bloque.id} className={cn('card-hover', !hasTareas && !bloque.notas && 'border-dashed')}>
+      <Card key={bloque.id} className={cn('card-hover', !hasTareas && !bloque.notas && !isPartido && 'border-dashed')}>
         <div className="flex items-center justify-between gap-2 px-4 py-3 border-b bg-muted/30">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             {dragHandle}
             {isVideo ? (
               <Video className="h-4 w-4 text-violet-600 shrink-0" />
+            ) : isPartido ? (
+              <Shirt className="h-4 w-4 text-amber-700 shrink-0" />
             ) : (
               <CircleDot className={cn('h-4 w-4 shrink-0', hasTareas ? 'text-primary' : 'text-muted-foreground')} />
             )}
@@ -222,8 +228,17 @@ export function SesionBloquesDraftPanel({
                 value={bloque.duracion_objetivo ?? ''}
                 onChange={(e) => {
                   const v = e.target.value
+                  const mins = v === '' ? null : Math.max(0, parseInt(v, 10) || 0)
                   updateBloque(bloque.id, {
-                    duracion_objetivo: v === '' ? null : Math.max(0, parseInt(v, 10) || 0),
+                    duracion_objetivo: mins,
+                    ...(isPartido
+                      ? {
+                          partido: {
+                            ...(bloque.partido || emptyPartido(mins || 20)),
+                            duracion_min: mins || 20,
+                          },
+                        }
+                      : {}),
                   })
                 }}
               />
@@ -233,7 +248,7 @@ export function SesionBloquesDraftPanel({
             </div>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            {fase && (
+            {fase && !isPartido && (
               <Button variant="ghost" size="sm" onClick={() => onOpenTaskPicker(fase)}>
                 <Plus className="h-4 w-4 mr-1" /> Añadir tarea
               </Button>
@@ -275,6 +290,39 @@ export function SesionBloquesDraftPanel({
                 </button>
               </div>
             ))}
+          </div>
+        ) : isPartido ? (
+          <div className="p-4 space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Partido 11 vs 11 a campo normal. Las alineaciones (con peto / sin peto), la pizarra y
+              las jugadas ABP se completan al abrir la sesión.
+            </p>
+            <textarea
+              className="w-full text-sm rounded-lg border border-border bg-background px-3 py-2 min-h-[64px] resize-y focus:outline-none focus:ring-2 focus:ring-primary/30"
+              placeholder="Objetivo del partido (qué se trabaja)…"
+              value={bloque.partido?.objetivo || ''}
+              onChange={(e) =>
+                updateBloque(bloque.id, {
+                  partido: {
+                    ...(bloque.partido || emptyPartido(bloque.duracion_objetivo || 20)),
+                    objetivo: e.target.value,
+                  },
+                })
+              }
+            />
+            <textarea
+              className="w-full text-sm rounded-lg border border-border bg-background px-3 py-2 min-h-[56px] resize-y focus:outline-none focus:ring-2 focus:ring-primary/30"
+              placeholder="Normas o condicionantes (opcional)…"
+              value={bloque.partido?.normas || ''}
+              onChange={(e) =>
+                updateBloque(bloque.id, {
+                  partido: {
+                    ...(bloque.partido || emptyPartido(bloque.duracion_objetivo || 20)),
+                    normas: e.target.value,
+                  },
+                })
+              }
+            />
           </div>
         ) : (
           <div className="p-4 space-y-2">
@@ -332,8 +380,8 @@ export function SesionBloquesDraftPanel({
           <Pencil className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
           <p className="font-medium text-foreground">Empieza añadiendo bloques</p>
           <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-            Añade activación, desarrollo, vuelta a la calma o videoanálisis. En cada bloque podrás
-            asignar tareas de la biblioteca o crear ejercicios nuevos.
+            Añade activación, desarrollo, partido condicionado (11 vs 11), vuelta a la calma o
+            videoanálisis. En cada bloque de tareas podrás elegir de la biblioteca o crear ejercicios.
           </p>
           <Button className="mt-4" size="sm" onClick={() => setShowAddMenu(true)}>
             <Plus className="h-4 w-4 mr-1" /> Añadir primer bloque

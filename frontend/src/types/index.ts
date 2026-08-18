@@ -30,7 +30,24 @@ export type FaseJuego = 'ataque_organizado' | 'defensa_organizada' | 'transicion
 export type FaseSesion = 'activacion' | 'desarrollo_1' | 'desarrollo_2' | 'desarrollo_3' | 'desarrollo_4' | 'desarrollo_5' | 'desarrollo_6' | 'vuelta_calma'
 
 /** Bloque de sesión definido por el usuario (persistido en sesiones.estructura_fases). */
-export type TipoBloqueSesion = FaseSesion | 'videoanalisis'
+export type TipoBloqueSesion = FaseSesion | 'videoanalisis' | 'partido_condicionado'
+
+/** Partido 11 vs 11 a campo normal: parte de la sesión, no una tarea. */
+export interface PartidoCondicionadoData {
+  duracion_min: number
+  sistema_peto: string
+  sistema_sin_peto: string
+  /** slotKey → jugador_id (equipo con peto) */
+  equipo_peto: Record<string, string>
+  /** slotKey → jugador_id (equipo sin peto) */
+  equipo_sin_peto: Record<string, string>
+  /** Jugadores de la convocatoria que quedan fuera del 11 vs 11 */
+  fuera: string[]
+  objetivo?: string
+  normas?: string
+  pizarra?: Record<string, unknown> | null
+  abp_ids?: string[]
+}
 
 export interface SesionBloque {
   id: string
@@ -39,6 +56,7 @@ export interface SesionBloque {
   duracion_objetivo?: number | null
   notas?: string
   orden: number
+  partido?: PartidoCondicionadoData
 }
 export type EstadoSesion = 'borrador' | 'planificada' | 'completada' | 'cancelada'
 export type Densidad = 'alta' | 'media' | 'baja'

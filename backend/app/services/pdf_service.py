@@ -761,13 +761,17 @@ async def generate_sesion_pdf_v2(
     if isinstance(estructura, list) and estructura:
         for bloque in sorted(estructura, key=lambda b: b.get("orden", 0)):
             tipo = bloque.get("tipo")
-            if not tipo or tipo == "videoanalisis":
+            if not tipo or tipo in ("videoanalisis", "partido_condicionado"):
                 fk = f"bloque_{bloque.get('id', tipo)}"
+                partido = bloque.get("partido") if tipo == "partido_condicionado" else None
                 fases[fk] = {
-                    "nombre": bloque.get("label") or "Videoanálisis",
+                    "nombre": bloque.get("label") or (
+                        "Partido condicionado" if tipo == "partido_condicionado" else "Videoanálisis"
+                    ),
                     "tareas": [],
                     "notas": bloque.get("notas") or "",
                     "duracion_objetivo": bloque.get("duracion_objetivo"),
+                    "partido": partido if isinstance(partido, dict) else None,
                 }
                 continue
             fk = tipo
@@ -786,7 +790,7 @@ async def generate_sesion_pdf_v2(
         ordered_keys: list[str] = []
         for bloque in sorted(estructura, key=lambda b: b.get("orden", 0)):
             tipo = bloque.get("tipo")
-            if tipo == "videoanalisis":
+            if tipo in ("videoanalisis", "partido_condicionado"):
                 ordered_keys.append(f"bloque_{bloque.get('id', tipo)}")
             elif tipo:
                 ordered_keys.append(tipo)
@@ -894,12 +898,81 @@ async def generate_sesion_pdf_v2(
         if fase_key in fases:
             fases[fase_key]["tareas"].append(tarea_enriched)
 
-    # Build all_tareas in canonical phase order:
-    # activacion → desarrollo_1 → desarrollo_2 → ... → vuelta_calma
+    def _ids_to_names(ids_or_map) -> str:
+        ids: list = []
+        if isinstance(ids_or_map, dict):
+            ids = [v for v in ids_or_map.values() if v]
+        elif isinstance(ids_or_map, list):
+            ids = [v for v in ids_or_map if v]
+        names = []
+        for jid in ids:
+            j = (jugadores_map or {}).get(str(jid)) or {}
+            n = j.get("nombre", "")
+            a = j.get("apellidos", "")
+            dorsal = j.get("dorsal", "")
+            label = f"{n} {a[:1]}.".strip() if a else n or str(jid)[:6]
+            if dorsal:
+                label = f"#{dorsal} {label}"
+            names.append(label)
+        return " · ".join(names)
+
+    for fk, fase in list(fases.items()):
+        partido = fase.get("partido")
+        if not isinstance(partido, dict):
+            continue
+        dur = int(partido.get("duracion_min") or fase.get("duracion_objetivo") or 0)
+        duracion_total += dur
+        grafico_p = partido.get("pizarra") if isinstance(partido.get("pizarra"), dict) else None
+        svg_large_p = render_diagram_svg(grafico_p, diagram_id=f"pco{fk}") if grafico_p else ""
+        svg_thumb_p = render_diagram_thumbnail(grafico_p, diagram_id=f"pcot{fk}") if grafico_p else ""
+        fase["tareas"].append({
+            "titulo": fase.get("nombre") or "Partido condicionado",
+            "descripcion": partido.get("objetivo") or "",
+            "desarrollo": partido.get("objetivo") or "",
+            "reglas": partido.get("normas") or "",
+            "duracion": dur,
+            "categoria": "Partido condicionado",
+            "categoria_codigo": "PCO",
+            "num_jugadores_min": 22,
+            "num_jugadores_max": 22,
+            "num_series": 1,
+            "espacio_largo": None,
+            "espacio_ancho": None,
+            "nivel_cognitivo": None,
+            "densidad": "alta",
+            "fase_juego": "",
+            "principio_tactico": "",
+            "subprincipio_tactico": "",
+            "reglas_tecnicas": [],
+            "reglas_tacticas": [],
+            "consignas_ofensivas": [],
+            "consignas_defensivas": [],
+            "errores_comunes": [],
+            "variantes": [],
+            "progresiones": [],
+            "material": [],
+            "posicion_entrenador": "",
+            "notas": fase.get("notas") or "",
+            "fase_label": fase.get("nombre") or "Partido condicionado",
+            "preview_img": "",
+            "svg_thumbnail": svg_thumb_p,
+            "svg_large": svg_large_p,
+            "formation_html": "",
+            "petos_html": "",
+            "badge_class": "pco",
+            "is_activacion": False,
+            "is_vuelta_calma": False,
+            "is_partido_condicionado": True,
+            "partido_peto": _ids_to_names(partido.get("equipo_peto")),
+            "partido_sin_peto": _ids_to_names(partido.get("equipo_sin_peto")),
+            "partido_fuera": _ids_to_names(partido.get("fuera")),
+            "objetivo_tactico": partido.get("objetivo") or "",
+            "has_diagram": bool(grafico_p),
+        })
+
     all_tareas = []
-    for fase_key in fase_order:
-        if fase_key in fases:
-            all_tareas.extend(fases[fase_key]["tareas"])
+    for fase_key, fase in fases.items():
+        all_tareas.extend(fase.get("tareas") or [])
 
     # Cover page: only desarrollo tasks (exclude activacion + vuelta_calma)
     cover_tareas = [t for t in all_tareas if not t["is_activacion"] and not t["is_vuelta_calma"]]
