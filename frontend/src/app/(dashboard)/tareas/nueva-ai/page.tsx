@@ -268,7 +268,7 @@ export default function NuevaTareaAIPage() {
       }
 
       const created = await tareasApi.createFromAI(aiTarea)
-      router.push(`/tareas/${created.id}`)
+      router.push(`/tareas/${created.id}?pizarra=1`)
     } catch (err: any) {
       console.error('Error saving task:', err)
       const detail = err.response?.data?.detail || err.detail || err.message || 'Error desconocido'
@@ -505,7 +505,10 @@ export default function NuevaTareaAIPage() {
               {proposal.grafico_data && (proposal.grafico_data as any).elements?.length > 0 && (
                 <Card>
                   <CardContent className="p-4">
-                    <h3 className="text-xs font-medium text-muted-foreground uppercase mb-2">Diagrama tactico</h3>
+                    <h3 className="text-xs font-medium text-muted-foreground uppercase mb-1">Boceto IA (opcional)</h3>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Al guardar podras retocarlo en la pizarra tactica manual.
+                    </p>
                     <TareaGraphicEditor
                       value={proposal.grafico_data as any}
                       readOnly={true}

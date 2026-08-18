@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import useSWR, { mutate } from 'swr'
 import {
@@ -221,11 +221,36 @@ export default function MicrociclosListPage() {
     fase: 'competicion' as 'pretemporada' | 'competicion',
   })
 
+  const listParams = useMemo(() => {
+    if (!equipoActivo?.id) return null
+    const params: Record<string, string | number> = {
+      equipo_id: equipoActivo.id,
+      limit: 24,
+      page,
+    }
+    if (
+      filter === 'en_curso' ||
+      filter === 'planificado' ||
+      filter === 'completado' ||
+      filter === 'borrador'
+    ) {
+      params.estado = filter
+    }
+    return params
+  }, [equipoActivo?.id, filter, page])
+
   const { data, isLoading, error } = useSWR<PaginatedResponse<Microciclo>>(
-    equipoActivo?.id
-      ? apiKey('/microciclos', { equipo_id: equipoActivo.id, limit: 24, page })
-      : null
+    listParams ? apiKey('/microciclos', listParams) : null
   )
+
+  const handleFilterChange = (key: FilterKey) => {
+    setFilter(key)
+    setShowFilters(true)
+  }
+
+  useEffect(() => {
+    setPage(1)
+  }, [filter, query])
 
   const handleCreate = async () => {
     if (!equipoActivo?.id || !form.fecha_inicio || !form.fecha_fin) return
@@ -378,6 +403,7 @@ export default function MicrociclosListPage() {
               onClick={() => {
                 setFilter('en_curso')
                 setQuery('')
+                setPage(1)
                 setShowFilters(false)
               }}
             >
@@ -398,13 +424,13 @@ export default function MicrociclosListPage() {
             />
           </div>
         </div>
-        {(showFilters || filter !== 'en_curso') && (
+        {(showFilters || filter !== 'en_curso' || query.trim()) && (
           <div className="flex gap-1.5 overflow-x-auto scrollbar-thin pb-0.5">
             {FILTERS.map((f) => (
               <button
                 key={f.key}
                 type="button"
-                onClick={() => setFilter(f.key)}
+                onClick={() => handleFilterChange(f.key)}
                 className={cn(
                   'shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
                   filter === f.key ? f.active : f.idle

@@ -38,8 +38,14 @@ import TareaPizarraEditor from '@/components/tactical-board/TareaPizarraEditor'
 import TacticalBoardMini from '@/components/task-preview/TacticalBoardMini'
 import { TareaFamiliaPanel } from '@/components/tareas/TareaFamiliaPanel'
 import { nombreTipoVariante } from '@/lib/catalogos/canonico'
-import type { TareaPizarraData } from '@/components/tactical-board/types'
+import { emptyTareaPizarra, type TareaPizarraData } from '@/components/tactical-board/types'
 import { cn } from '@/lib/utils'
+
+function hasTareaDiagram(data: unknown): boolean {
+  if (!data || typeof data !== 'object') return false
+  const g = data as TareaPizarraData
+  return (g.elements?.length ?? 0) > 0 || (g.zones?.length ?? 0) > 0 || (g.arrows?.length ?? 0) > 0
+}
 
 // Helpers para formatear valores
 const formatFaseJuego = (fase?: string) => {
@@ -94,6 +100,12 @@ export default function TareaDetailPage() {
     setDetailTab(t === 'variantes' ? 'variantes' : 'resumen')
   }, [searchParams])
 
+  useEffect(() => {
+    if (searchParams.get('pizarra') === '1' || searchParams.get('editar') === 'pizarra') {
+      setBoardEditing(true)
+    }
+  }, [searchParams])
+
   const goTab = (tab: 'resumen' | 'variantes') => {
     setDetailTab(tab)
     const url = tab === 'variantes' ? `/tareas/${tareaId}?tab=variantes` : `/tareas/${tareaId}`
@@ -105,7 +117,8 @@ export default function TareaDetailPage() {
     setGeneratingDiagram(true)
     try {
       await tareasApi.generateDiagram(tareaId)
-      mutate(apiKey(`/tareas/${tareaId}`))
+      await mutate(apiKey(`/tareas/${tareaId}`))
+      setBoardEditing(true)
     } catch (e: any) {
       setActionError(e.message || 'Error al generar diagrama')
     } finally {
@@ -391,11 +404,7 @@ export default function TareaDetailPage() {
           </button>
 
           {/* Diagram */}
-          {tarea.grafico_data && (
-            ((tarea.grafico_data as any).elements?.length > 0)
-            || ((tarea.grafico_data as any).zones?.length > 0)
-            || ((tarea.grafico_data as any).arrows?.length > 0)
-          ) ? (
+          {hasTareaDiagram(tarea.grafico_data) ? (
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900">Pizarra Tactica</h2>
@@ -406,7 +415,7 @@ export default function TareaDetailPage() {
                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-colors ${
                       boardEditing
                         ? 'bg-blue-50 border-blue-300 text-blue-700'
-                        : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                        : 'bg-primary text-primary-foreground border-primary hover:bg-primary/90'
                     }`}
                   >
                     <Pencil className="h-3.5 w-3.5" />
@@ -415,10 +424,11 @@ export default function TareaDetailPage() {
                   <button
                     onClick={handleGenerateDiagram}
                     disabled={generatingDiagram}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-600 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 text-muted-foreground disabled:opacity-50"
+                    title="Genera un boceto inicial con IA; puedes retocarlo en la pizarra"
                   >
                     {generatingDiagram ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                    Re-generar
+                    Boceto IA
                   </button>
                 </div>
               </div>
@@ -446,19 +456,51 @@ export default function TareaDetailPage() {
               )}
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-dashed border-gray-300 p-6 text-center">
-              <div className="text-gray-400 mb-3">
-                <Sparkles className="h-8 w-8 mx-auto" />
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Pizarra Tactica</h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Dibuja el ejercicio manualmente. La IA solo puede sugerir un boceto previo.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {savingDiagram && <span className="text-xs text-gray-400">Guardando...</span>}
+                  <button
+                    onClick={() => setBoardEditing(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Abrir pizarra tactica
+                  </button>
+                  <button
+                    onClick={handleGenerateDiagram}
+                    disabled={generatingDiagram}
+                    className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-muted-foreground hover:bg-gray-50 transition-colors disabled:opacity-50"
+                    title="Opcional: genera un boceto inicial para retocar en la pizarra"
+                  >
+                    {generatingDiagram ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                    {generatingDiagram ? 'Generando boceto...' : 'Boceto con IA (opcional)'}
+                  </button>
+                </div>
               </div>
-              <p className="text-sm text-gray-500 mb-3">Esta tarea no tiene diagrama tactico</p>
-              <button
-                onClick={handleGenerateDiagram}
-                disabled={generatingDiagram}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-              >
-                {generatingDiagram ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {generatingDiagram ? 'Generando...' : 'Generar diagrama con IA'}
-              </button>
+
+              {boardEditing && (
+                <TareaPizarraEditor
+                  value={(tarea.grafico_data as TareaPizarraData) || emptyTareaPizarra}
+                  onChange={handleDiagramChange}
+                  numJugadores={tarea.num_jugadores_min}
+                  height={520}
+                  onClose={() => setBoardEditing(false)}
+                />
+              )}
+
+              {!boardEditing && (
+                <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50/80 p-8 text-center">
+                  <Pencil className="h-8 w-8 mx-auto text-gray-400 mb-3" />
+                  <p className="text-sm text-gray-500">Sin diagrama todavia. Abre la pizarra para disenar la tarea.</p>
+                </div>
+              )}
             </div>
           )}
 
