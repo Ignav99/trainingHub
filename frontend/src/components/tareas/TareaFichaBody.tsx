@@ -54,6 +54,8 @@ export interface TareaFichaBodyProps {
   onAddEtiqueta: () => void
   /** Oculta desarrollo / reglas / anotaciones (p. ej. ya van al lado de la pizarra). */
   hideNarrativa?: boolean
+  /** Oculta solo desarrollo y reglas; deja anotaciones (resumen de sesión). */
+  hideDesarrolloReglas?: boolean
   /** Oculta series / min / descanso (p. ej. ya van en la cabecera de sesión). */
   hideVolumen?: boolean
   /** Oculta el título (p. ej. ya va en la cabecera de sesión). */
@@ -74,6 +76,7 @@ export default function TareaFichaBody({
   onEtiquetaDraft,
   onAddEtiqueta,
   hideNarrativa = false,
+  hideDesarrolloReglas = false,
   hideVolumen = false,
   hideTitulo = false,
 }: TareaFichaBodyProps) {
@@ -211,7 +214,7 @@ export default function TareaFichaBody({
           </div>
         )}
 
-        {!hideNarrativa && (
+        {!hideNarrativa && !hideDesarrolloReglas && (
           <>
             <Field label="Desarrollo" hint="Qué se hace en la tarea: organización, roles, cómo arranca y acaba.">
               <Textarea
@@ -233,17 +236,19 @@ export default function TareaFichaBody({
                 disabled={readOnly}
               />
             </Field>
-            <Field label="Anotaciones (opcional)" hint="Errores comunes, tips de coaching, matices.">
-              <Textarea
-                value={form.anotaciones || ''}
-                onChange={(e) => onChange('anotaciones', e.target.value)}
-                placeholder="Ej: Evitar que el comodín se quede estático. Corregir orientación corporal al recibir…"
-                rows={2}
-                readOnly={readOnly}
-                disabled={readOnly}
-              />
-            </Field>
           </>
+        )}
+        {!hideNarrativa && (
+          <Field label="Anotaciones (opcional)" hint="Errores comunes, tips de coaching, matices.">
+            <Textarea
+              value={form.anotaciones || ''}
+              onChange={(e) => onChange('anotaciones', e.target.value)}
+              placeholder="Ej: Evitar que el comodín se quede estático. Corregir orientación corporal al recibir…"
+              rows={2}
+              readOnly={readOnly}
+              disabled={readOnly}
+            />
+          </Field>
         )}
       </section>
 

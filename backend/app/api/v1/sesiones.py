@@ -1303,6 +1303,7 @@ async def sugerir_equipos(
 
 
 _SKIP_TAREA_COPY = {"es_plantilla", "es_publica", "creado_por"}
+_PROTECTED_FORK_FIELDS = {"es_plantilla", "es_publica", "creado_por", "tarea_origen_id"}
 
 
 def _copy_tarea_columns(original: dict) -> dict:
@@ -1312,6 +1313,71 @@ def _copy_tarea_columns(original: dict) -> dict:
         for k in VALID_TAREA_COLUMNS
         if k not in _SKIP_TAREA_COPY and original.get(k) is not None
     }
+
+
+def _is_madre(tarea: dict) -> bool:
+    return not tarea.get("tarea_origen_id")
+
+
+def _should_fork_tarea(tarea: dict) -> bool:
+    """Never mutate a mother or a shared library variant from a session."""
+    if _is_madre(tarea):
+        return True
+    return bool(tarea.get("es_plantilla", True))
+
+
+def _strip_editada_prefix(titulo: str | None) -> str:
+    base = titulo or "Sin titulo"
+    while base.startswith("(Editada) "):
+        base = base[len("(Editada) "):]
+    return base
+
+
+def _build_session_variant_row(original: dict, cambios: dict, user_id: str) -> dict:
+    """New library variant linked to the mother, owned by this session copy."""
+    nueva = _copy_tarea_columns(original)
+    nueva["titulo"] = _strip_editada_prefix(original.get("titulo"))
+    nueva["creado_por"] = user_id
+    nueva.update(cambios)
+    nueva["es_plantilla"] = False
+    nueva["tarea_origen_id"] = original.get("tarea_origen_id") or original["id"]
+    tipo = original.get("tipo_variante") or "original"
+    nueva["tipo_variante"] = "adaptacion" if tipo == "original" else tipo
+    return {
+        k: v
+        for k, v in nueva.items()
+        if k in VALID_TAREA_COLUMNS | {"titulo", "es_plantilla", "creado_por"}
+    }
+
+
+def _persist_cambios_en_sesion_tarea(
+    supabase,
+    sesion_tarea_id: str,
+    original_tarea: dict,
+    old_tarea_id: str,
+    cambios: dict,
+    user_id: str,
+) -> bool:
+    """Update in place or fork a variant. Returns True if a new variant was created."""
+    cambios_safe = {k: v for k, v in cambios.items() if k not in _PROTECTED_FORK_FIELDS}
+    _resolve_categoria_codigo(supabase, cambios_safe)
+    if not _should_fork_tarea(original_tarea):
+        if cambios_safe:
+            _update_tarea_with_schema_fallback(supabase, old_tarea_id, cambios_safe)
+        return False
+
+    nueva = _build_session_variant_row(original_tarea, cambios_safe, user_id)
+    _resolve_categoria_codigo(supabase, nueva)
+    _sanitize_tarea_constraints(nueva)
+    _sync_tarea_narrative(nueva)
+    insert_response = _insert_tarea_with_schema_fallback(supabase, nueva)
+    if not insert_response.data:
+        raise HTTPException(status_code=500, detail="Error al duplicar tarea")
+    new_tarea_id = insert_response.data[0]["id"]
+    supabase.table("sesion_tareas").update(
+        {"tarea_id": new_tarea_id}
+    ).eq("id", str(sesion_tarea_id)).execute()
+    return True
 
 
 def _resolve_categoria_codigo(supabase, tarea_data: dict) -> dict:
@@ -1391,10 +1457,9 @@ async def duplicar_y_editar_tarea(
     cambios: DuplicarYEditarTareaRequest,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
 ):
-    """Duplica una tarea de la biblioteca, aplica cambios, y la reemplaza en la sesion."""
+    """Edita la tarea en sesión: si es madre, crea una variante y deja la madre intacta."""
     supabase = get_supabase()
 
-    # 1. Fetch the sesion_tarea to get the current tarea_id
     st_response = supabase.table("sesion_tareas").select(
         "*, tareas(*)"
     ).eq("id", str(sesion_tarea_id)).eq("sesion_id", str(sesion_id)).maybe_single().execute()
@@ -1408,57 +1473,27 @@ async def duplicar_y_editar_tarea(
     if not original_tarea:
         raise HTTPException(status_code=404, detail="Tarea original no encontrada")
 
-    # 2. Check if the task is already a non-template (session-specific copy)
-    #    If so, update in place instead of duplicating again.
-    is_template = original_tarea.get("es_plantilla", True)
-
     cambios_dict = cambios.model_dump(exclude_none=True)
     cambios_filtered = {k: v for k, v in cambios_dict.items() if k in VALID_TAREA_COLUMNS | {"titulo"}}
     _resolve_categoria_codigo(supabase, cambios_filtered)
     _sanitize_tarea_constraints(cambios_filtered)
     _sync_tarea_narrative(cambios_filtered)
 
-    if not is_template:
-        # --- UPDATE IN PLACE (no duplication) ---
-        if cambios_filtered:
-            try:
-                _update_tarea_with_schema_fallback(supabase, old_tarea_id, cambios_filtered)
-            except Exception as e:
-                logger.error(f"Error updating tarea in place: {e}")
-                raise HTTPException(status_code=400, detail=f"Error al guardar cambios: {str(e)}")
-    else:
-        # --- DUPLICATE from template ---
-        nueva_tarea = _copy_tarea_columns(original_tarea)
+    try:
+        _persist_cambios_en_sesion_tarea(
+            supabase,
+            str(sesion_tarea_id),
+            original_tarea,
+            old_tarea_id,
+            cambios_filtered,
+            str(auth.user_id),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error saving tarea from session: {e}")
+        raise HTTPException(status_code=400, detail=f"Error al guardar cambios: {str(e)}")
 
-        titulo_base = original_tarea.get("titulo", "Sin titulo")
-        while titulo_base.startswith("(Editada) "):
-            titulo_base = titulo_base[len("(Editada) "):]
-        nueva_tarea["titulo"] = titulo_base
-        nueva_tarea["es_plantilla"] = False
-        nueva_tarea["creado_por"] = str(auth.user_id)
-
-        nueva_tarea.update(cambios_filtered)
-        nueva_tarea = {k: v for k, v in nueva_tarea.items() if k in VALID_TAREA_COLUMNS | {"titulo", "es_plantilla", "creado_por"}}
-        _resolve_categoria_codigo(supabase, nueva_tarea)
-        _sanitize_tarea_constraints(nueva_tarea)
-        _sync_tarea_narrative(nueva_tarea)
-
-        try:
-            insert_response = _insert_tarea_with_schema_fallback(supabase, nueva_tarea)
-        except Exception as e:
-            logger.error(f"Error inserting duplicated tarea: {e}")
-            raise HTTPException(status_code=400, detail=f"Error al duplicar tarea: {str(e)}")
-        if not insert_response.data:
-            raise HTTPException(status_code=500, detail="Error al duplicar tarea")
-
-        new_tarea_id = insert_response.data[0]["id"]
-
-        # Point sesion_tarea to the new copy
-        supabase.table("sesion_tareas").update(
-            {"tarea_id": new_tarea_id}
-        ).eq("id", str(sesion_tarea_id)).execute()
-
-    # 7. Return the updated sesion_tarea with new tarea data
     updated = supabase.table("sesion_tareas").select(
         "*, tareas(*)"
     ).eq("id", str(sesion_tarea_id)).maybe_single().execute()
@@ -1521,53 +1556,25 @@ async def ai_edit_tarea(
     if not cambios_ia:
         raise HTTPException(status_code=400, detail="La IA no genero cambios")
 
-    # 3. Duplicate the tarea and apply AI changes (same logic as duplicar-y-editar)
-    nueva_tarea = _copy_tarea_columns(tarea_actual)
+    cambios_filtered = {k: v for k, v in cambios_ia.items() if k in VALID_TAREA_COLUMNS | {"titulo"}}
+    _sanitize_tarea_constraints(cambios_filtered)
+    _sync_tarea_narrative(cambios_filtered)
 
-    # Strip accumulated "(Editada) " prefixes from title
-    titulo_base = tarea_actual.get("titulo", "Sin titulo")
-    while titulo_base.startswith("(Editada) "):
-        titulo_base = titulo_base[len("(Editada) "):]
-    nueva_tarea["titulo"] = titulo_base
-    nueva_tarea["es_plantilla"] = False
-    nueva_tarea["creado_por"] = str(auth.user_id)
-
-    # Apply AI changes (only valid DB columns)
-    for k, v in cambios_ia.items():
-        if k in VALID_TAREA_COLUMNS | {"titulo"}:
-            nueva_tarea[k] = v
-
-    # 4. Insert duplicated tarea (ensure only valid columns + sanitize constraints)
-    nueva_tarea = {k: v for k, v in nueva_tarea.items() if k in VALID_TAREA_COLUMNS | {"titulo", "es_plantilla", "creado_por"}}
-    _sanitize_tarea_constraints(nueva_tarea)
-    _sync_tarea_narrative(nueva_tarea)
     try:
-        insert_response = _insert_tarea_with_schema_fallback(supabase, nueva_tarea)
+        _persist_cambios_en_sesion_tarea(
+            supabase,
+            str(sesion_tarea_id),
+            tarea_actual,
+            old_tarea_id,
+            cambios_filtered,
+            str(auth.user_id),
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error inserting AI-edited tarea: {e}")
         raise HTTPException(status_code=400, detail=f"Error al crear tarea editada: {str(e)}")
-    if not insert_response.data:
-        raise HTTPException(status_code=500, detail="Error al crear tarea editada")
 
-    new_tarea_id = insert_response.data[0]["id"]
-
-    # 5. Update sesion_tareas
-    supabase.table("sesion_tareas").update(
-        {"tarea_id": new_tarea_id}
-    ).eq("id", str(sesion_tarea_id)).execute()
-
-    # 6. Delete orphan tarea if it's non-template and unreferenced
-    if old_tarea_id:
-        try:
-            old = supabase.table("tareas").select("es_plantilla").eq("id", old_tarea_id).maybe_single().execute()
-            if old.data and not old.data.get("es_plantilla", True):
-                refs = supabase.table("sesion_tareas").select("id").eq("tarea_id", old_tarea_id).execute()
-                if not refs.data:
-                    supabase.table("tareas").delete().eq("id", old_tarea_id).execute()
-        except Exception:
-            pass
-
-    # 7. Return updated data
     updated = supabase.table("sesion_tareas").select(
         "*, tareas(*)"
     ).eq("id", str(sesion_tarea_id)).maybe_single().execute()
@@ -1660,7 +1667,7 @@ async def crear_tarea_en_sesion(
     _sync_tarea_narrative(tarea_data)
     if not tarea_data.get("tipo_variante") and not tarea_data.get("tarea_origen_id"):
         tarea_data["tipo_variante"] = "original"
-    tarea_data["es_plantilla"] = False
+    tarea_data["es_plantilla"] = True
     if "es_publica" not in tarea_data:
         tarea_data["es_publica"] = True
     tarea_data["creado_por"] = str(auth.user_id)
@@ -1754,8 +1761,10 @@ async def ai_crear_tarea_en_sesion(
     _sanitize_tarea_constraints(tarea_data)
     _sync_tarea_narrative(tarea_data)
 
-    # Insert tarea
-    tarea_data["es_plantilla"] = False
+    # Insert as a new mother in the library; later session edits fork a variant.
+    tarea_data["es_plantilla"] = True
+    if not tarea_data.get("tarea_origen_id"):
+        tarea_data["tipo_variante"] = tarea_data.get("tipo_variante") or "original"
     tarea_data["creado_por"] = str(auth.user_id)
     tarea_data["equipo_id"] = sesion.data.get("equipo_id")
     tarea_data["organizacion_id"] = str(auth.organizacion_id)

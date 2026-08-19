@@ -649,18 +649,25 @@ export default function SesionDetailPage() {
       return
     }
     try {
+      const wasMadre = !realSt.tarea?.tarea_origen_id
       const result = await sesionesApi.duplicarYEditarTarea(sesionId, realSt.id, form)
+      const updated = result.tareas || result.tarea
       setSesion((prev) => {
         if (!prev) return prev
         return {
           ...prev,
           tareas: prev.tareas?.map((t) =>
             t.id === realSt.id
-              ? { ...t, tarea_id: result.tarea_id, tarea: result.tareas || result.tarea }
+              ? { ...t, tarea_id: result.tarea_id, tarea: updated }
               : t
           ),
         }
       })
+      if (wasMadre && updated?.tarea_origen_id) {
+        toast.success('Variante creada en la biblioteca. La madre no se ha tocado.')
+      } else {
+        toast.success('Cambios guardados')
+      }
     } catch (err: any) {
       toast.error(err?.message || 'Error al guardar cambios')
       throw err
@@ -687,7 +694,13 @@ export default function SesionDetailPage() {
           ),
         }
       })
-      toast.success('Tarea editada con IA')
+      const updated = result.tareas || result.tarea
+      const wasMadre = !realSt.tarea?.tarea_origen_id
+      if (wasMadre && updated?.tarea_origen_id) {
+        toast.success('Variante creada con IA. La madre no se ha tocado.')
+      } else {
+        toast.success('Tarea editada con IA')
+      }
     } catch (err: any) {
       toast.error(err?.message || 'Error al editar con IA')
       throw err

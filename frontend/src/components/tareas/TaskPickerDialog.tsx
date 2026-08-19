@@ -219,7 +219,7 @@ export function TaskPickerDialog({
                 onClear={hasFilters ? clearFilters : undefined}
                 categorias={categoriasOpts}
                 compact={compactFilters}
-                showFamilia={!compactFilters}
+                showFamilia={false}
                 className="border-0 bg-transparent p-0 rounded-none"
               />
             </div>
