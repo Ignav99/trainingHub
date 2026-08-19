@@ -354,6 +354,7 @@ export const sesionesApi = {
     descripcion?: string
     desarrollo?: string
     reglas?: string
+    variantes?: string[]
     anotaciones?: string
     duracion_total?: number
     fase_sesion: string

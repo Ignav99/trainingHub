@@ -33,6 +33,7 @@ from app.models import (
 from app.database import get_supabase
 from app.dependencies import get_optional_user, require_permission, AuthContext
 from app.security.permissions import Permission
+from app.services.tarea_narrative import hydrate_tarea_narrative, sync_reglas_variantes
 
 # Mapeo de códigos cortos de IA a valores de BD para fase_juego
 FASE_JUEGO_MAP = {
@@ -74,6 +75,10 @@ def _generate_tarea_embedding(tarea_data: dict, tarea_id: str):
             supabase.table("tareas").update({"embedding": emb}).eq("id", tarea_id).execute()
     except Exception as e:
         logger.warning(f"Failed to generate tarea embedding: {e}")
+
+
+def _tarea_response(data: dict) -> TareaResponse:
+    return TareaResponse(**(hydrate_tarea_narrative(data) or data))
 
 
 # ============ Semantic Search (registered BEFORE /{tarea_id}) ============
@@ -671,6 +676,7 @@ async def get_tarea(
     except Exception:
         pass
 
+    data = hydrate_tarea_narrative(data) or data
     return TareaResponse(**data)
 
 
@@ -728,6 +734,7 @@ async def create_tarea(
     # Densidad + nivel cognitivo: cálculo canónico único (mismos parámetros siempre)
     from app.services.task_load_metrics import apply_auto_load
     tarea_data = apply_auto_load(tarea_data)
+    tarea_data.update(sync_reglas_variantes(tarea_data))
     
     # Insertar (si mig 067 no está aplicada, quitar columnas nuevas y reintentar)
     mig_067_cols = ("desarrollo", "reglas", "anotaciones", "tarea_origen_id", "tipo_variante")
@@ -763,7 +770,7 @@ async def create_tarea(
     # Generate embedding asynchronously (non-fatal)
     _generate_tarea_embedding(tarea_data, response.data[0]["id"])
 
-    return TareaResponse(**tarea_completa.data)
+    return _tarea_response(tarea_completa.data)
 
 
 @router.put("/{tarea_id}", response_model=TareaResponse)
@@ -796,6 +803,8 @@ async def update_tarea(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No hay datos para actualizar"
         )
+
+    update_data.update(sync_reglas_variantes(update_data))
     
     # Resolve categoria_id: accept UUID or codigo string
     if update_data.get("categoria_id"):
@@ -847,7 +856,7 @@ async def update_tarea(
     # Re-generate embedding with updated data
     _generate_tarea_embedding(tarea_completa.data, str(tarea_id))
 
-    return TareaResponse(**tarea_completa.data)
+    return _tarea_response(tarea_completa.data)
 
 
 @router.delete("/{tarea_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -940,7 +949,7 @@ async def duplicar_tarea(
             detail="Tarea duplicada pero no se pudo recuperar"
         )
 
-    return TareaResponse(**tarea_completa.data)
+    return _tarea_response(tarea_completa.data)
 
 
 @router.post("/{tarea_id}/variantes", response_model=TareaResponse, status_code=status.HTTP_201_CREATED)
@@ -1014,6 +1023,7 @@ async def crear_variante(
         nueva["desarrollo"] = nueva["descripcion"]
     if nueva.get("desarrollo") and not nueva.get("descripcion"):
         nueva["descripcion"] = nueva["desarrollo"]
+    nueva.update(sync_reglas_variantes(nueva))
 
     response = None
     try:
@@ -1047,7 +1057,7 @@ async def crear_variante(
     if not tarea_completa or not tarea_completa.data:
         raise HTTPException(status_code=500, detail="Variante creada pero no se pudo recuperar")
 
-    return TareaResponse(**tarea_completa.data)
+    return _tarea_response(tarea_completa.data)
 
 
 @router.get("/{tarea_id}/variantes", response_model=TareaListResponse)
@@ -1309,7 +1319,7 @@ async def create_tarea_from_ai(
     # Generate embedding asynchronously (non-fatal)
     _generate_tarea_embedding(tarea_data, response.data[0]["id"])
 
-    return TareaResponse(**tarea_completa.data)
+    return _tarea_response(tarea_completa.data)
 
 
 @router.get("/{tarea_id}/pdf")

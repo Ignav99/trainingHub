@@ -1,6 +1,10 @@
 # TrainingHub Pro — Memory
 
-## Last updated: 2026-07-23
+## Last updated: 2026-08-19
+
+## Current: ficha de tarea en sesión
+Pizarra media a la izquierda (animación solo si hay frames). Desarrollo, variantes/reglas y equipos a la derecha.
+Las variantes del creador (`reglas` texto / `variantes` JSONB) se hidratan y dual-escriben para que salgan en el editor de sesión.
 
 ## Active: Pizarra táctica pro (tareas)
 
