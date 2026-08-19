@@ -70,6 +70,10 @@ function categoriaCodigo(tarea: Partial<Tarea> | null | undefined): string | und
   return id
 }
 
+export function isTareaMadre(tarea?: { tarea_origen_id?: string | null } | null): boolean {
+  return !tarea?.tarea_origen_id
+}
+
 export function emptyTareaForm(
   jugadores: number,
   defaultCategoria?: string,

@@ -224,7 +224,7 @@ export default function TareasPage() {
     <div className="space-y-5 animate-fade-in">
       <PageHeader
         title="Biblioteca de Tareas"
-        description={`${total} tareas ${tab === 'biblioteca' ? 'en la biblioteca del club' : 'en tu colección'}`}
+        description={`${total} tareas madre ${tab === 'biblioteca' ? 'en la biblioteca del club' : 'en tu colección'}. Entra en una para ver sus variantes.`}
         actions={
           <>
             <Link
@@ -339,7 +339,7 @@ export default function TareasPage() {
           value={filters}
           onChange={patchFilters}
           onClear={clearFilters}
-          showFamilia
+          showFamilia={false}
           sortSlot={
             <select
               className={cn(selectClass, 'ml-auto')}
