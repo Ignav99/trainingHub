@@ -24,6 +24,7 @@ interface FaseSubfasePickerProps {
   className?: string
   /** Si true, solo muestra el bloque de subfases (fase ya fijada fuera). */
   hideFaseSelect?: boolean
+  disabled?: boolean
 }
 
 export function FaseSubfasePicker({
@@ -31,6 +32,7 @@ export function FaseSubfasePicker({
   onChange,
   className,
   hideFaseSelect = false,
+  disabled = false,
 }: FaseSubfasePickerProps) {
   const catalog = subfasesForFase(value.fase_juego)
   const faseNombre =
@@ -70,6 +72,7 @@ export function FaseSubfasePicker({
             className={selectClass}
             value={value.fase_juego || ''}
             onChange={(e) => setFase(e.target.value)}
+            disabled={disabled}
           >
             <option value="">—</option>
             {FASES_JUEGO.map((f) => (
@@ -93,12 +96,14 @@ export function FaseSubfasePicker({
                 <button
                   key={sf.codigo}
                   type="button"
+                  disabled={disabled}
                   onClick={() => toggleSubfase(sf.codigo)}
                   className={cn(
                     'rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
                     active
                       ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-border bg-background hover:border-primary/50 hover:bg-primary/5'
+                      : 'border-border bg-background hover:border-primary/50 hover:bg-primary/5',
+                    disabled && 'opacity-80 cursor-default hover:border-border hover:bg-background'
                   )}
                 >
                   {sf.nombre}
@@ -121,12 +126,14 @@ export function FaseSubfasePicker({
                     <button
                       key={op.codigo}
                       type="button"
+                      disabled={disabled}
                       onClick={() => setOpcion(sf.codigo, op.codigo)}
                       className={cn(
                         'rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors',
                         active
                           ? 'border-primary/60 bg-primary/15 text-primary'
-                          : 'border-border bg-background hover:bg-muted'
+                          : 'border-border bg-background hover:bg-muted',
+                        disabled && 'cursor-default hover:bg-background'
                       )}
                     >
                       {op.nombre}

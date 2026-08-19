@@ -111,14 +111,16 @@ export function MultiSelect({
               className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary text-[11px] px-2 py-0.5"
             >
               {nombreDe(codigo)}
-              <button
-                type="button"
-                onClick={() => toggle(codigo)}
-                className="hover:text-primary/70"
-                aria-label={`Quitar ${nombreDe(codigo)}`}
-              >
-                <X className="h-2.5 w-2.5" />
-              </button>
+              {!disabled && (
+                <button
+                  type="button"
+                  onClick={() => toggle(codigo)}
+                  className="hover:text-primary/70"
+                  aria-label={`Quitar ${nombreDe(codigo)}`}
+                >
+                  <X className="h-2.5 w-2.5" />
+                </button>
+              )}
             </span>
           ))}
           {resto > 0 && (
