@@ -18,6 +18,7 @@ import io
 from app.services.keywords import synthesize_keywords
 from app.services.sesion_carga import aggregate_sesion_carga, carga_from_sesion_tarea
 from app.services.tarea_narrative import hydrate_tarea_narrative, sync_reglas_variantes
+from app.services.tarea_write import retry_tarea_write
 from app.services.sesion_taxonomy import (
     prepare_sesion_write_payload,
     normalize_sesion_row,
@@ -164,9 +165,6 @@ VALID_TAREA_COLUMNS = {
     "tarea_origen_id", "tipo_variante", "es_publica", "es_plantilla",
 }
 
-MIG_054_TAREA_COLS = ("complejidad", "dificultad", "exigencia")
-MIG_067_TAREA_COLS = ("desarrollo", "reglas", "anotaciones", "tarea_origen_id", "tipo_variante")
-
 
 def _sync_tarea_narrative(tarea_data: dict) -> dict:
     """Alinea desarrollo/descripcion y reglas/variantes antes de escribir."""
@@ -185,41 +183,20 @@ def _hydrate_sesion_tarea_row(row: dict) -> dict:
     return row
 
 
-def _drop_missing_tarea_cols(tarea_data: dict, err: Exception) -> Optional[dict]:
-    msg = str(err).lower()
-    retry = dict(tarea_data)
-    drop: list[str] = []
-    if any(c in msg for c in MIG_054_TAREA_COLS):
-        drop.extend(MIG_054_TAREA_COLS)
-    if any(c in msg for c in MIG_067_TAREA_COLS) or "42703" in msg or "schema cache" in msg:
-        drop.extend(MIG_067_TAREA_COLS)
-    if not drop:
-        return None
-    for c in drop:
-        retry.pop(c, None)
-    return retry
-
-
 def _insert_tarea_with_schema_fallback(supabase, tarea_data: dict):
-    try:
-        return supabase.table("tareas").insert(tarea_data).execute()
-    except Exception as e:
-        retry = _drop_missing_tarea_cols(tarea_data, e)
-        if retry is None:
-            raise
-        logger.warning("insert tarea: reintento sin columnas nuevas (%s)", e)
-        return supabase.table("tareas").insert(retry).execute()
+    return retry_tarea_write(
+        lambda payload: supabase.table("tareas").insert(payload).execute(),
+        tarea_data,
+        op="insert",
+    )
 
 
 def _update_tarea_with_schema_fallback(supabase, tarea_id: str, cambios: dict):
-    try:
-        return supabase.table("tareas").update(cambios).eq("id", tarea_id).execute()
-    except Exception as e:
-        retry = _drop_missing_tarea_cols(cambios, e)
-        if retry is None or not retry:
-            raise
-        logger.warning("update tarea: reintento sin columnas nuevas (%s)", e)
-        return supabase.table("tareas").update(retry).eq("id", tarea_id).execute()
+    return retry_tarea_write(
+        lambda payload: supabase.table("tareas").update(payload).eq("id", tarea_id).execute(),
+        cambios,
+        op="update",
+    )
 
 
 from app.models import (
