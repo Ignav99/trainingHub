@@ -34,6 +34,11 @@ from app.database import get_supabase
 from app.dependencies import get_optional_user, require_permission, AuthContext
 from app.security.permissions import Permission
 from app.services.tarea_narrative import hydrate_tarea_narrative, sync_reglas_variantes
+from app.services.tarea_write import (
+    note_origen_query_error,
+    origen_column_available,
+    retry_tarea_write,
+)
 
 # Mapeo de códigos cortos de IA a valores de BD para fase_juego
 FASE_JUEGO_MAP = {
@@ -396,7 +401,7 @@ async def list_tareas(
 
     # Madre/variante: filtrar en Python (nunca .is_ en PostgREST por mig 067).
     applied_origen_eq = False
-    if tarea_origen_id:
+    if tarea_origen_id and origen_column_available():
         query = query.eq("tarea_origen_id", str(tarea_origen_id))
         applied_origen_eq = True
 
@@ -477,7 +482,7 @@ async def list_tareas(
                 q = q.contains("orientaciones_fisicas", [orientacion_fisica])
             if tipo_variante:
                 q = q.eq("tipo_variante", tipo_variante)
-        if include_origen_eq and tarea_origen_id:
+        if include_origen_eq and tarea_origen_id and origen_column_available():
             q = q.eq("tarea_origen_id", str(tarea_origen_id))
         if equipo_id:
             q = q.eq("equipo_id", str(equipo_id))
@@ -515,6 +520,7 @@ async def list_tareas(
             "list_tareas: reintento sin filtros canónicos/mig. %s",
             first_err,
         )
+        note_origen_query_error(first_err)
         # Primero sin arrays/tipo; si sigue fallando por origen, sin origen
         try:
             response = _rebuild_list_query(
@@ -573,7 +579,7 @@ async def list_tareas(
     # Contar variantes hijas para madres de esta página
     madre_ids = [str(r["id"]) for r in rows if not r.get("tarea_origen_id") and r.get("id")]
     variant_counts: dict = {}
-    if madre_ids:
+    if madre_ids and origen_column_available():
         try:
             kids = (
                 supabase.table("tareas")
@@ -586,6 +592,7 @@ async def list_tareas(
                 if oid:
                     variant_counts[str(oid)] = variant_counts.get(str(oid), 0) + 1
         except Exception as count_err:
+            note_origen_query_error(count_err)
             logger.debug("list_tareas: no se pudo contar variantes: %s", count_err)
 
     tareas_data = []
@@ -665,7 +672,7 @@ async def get_tarea(
             )
             if madre and madre.data:
                 data["madre_titulo"] = madre.data.get("titulo")
-        else:
+        elif origen_column_available():
             kids = (
                 supabase.table("tareas")
                 .select("id", count="exact")
@@ -673,8 +680,8 @@ async def get_tarea(
                 .execute()
             )
             data["num_variantes"] = kids.count or 0
-    except Exception:
-        pass
+    except Exception as fam_err:
+        note_origen_query_error(fam_err)
 
     data = hydrate_tarea_narrative(data) or data
     return TareaResponse(**data)
@@ -735,20 +742,19 @@ async def create_tarea(
     from app.services.task_load_metrics import apply_auto_load
     tarea_data = apply_auto_load(tarea_data)
     tarea_data.update(sync_reglas_variantes(tarea_data))
-    
-    # Insertar (si mig 067 no está aplicada, quitar columnas nuevas y reintentar)
-    mig_067_cols = ("desarrollo", "reglas", "anotaciones", "tarea_origen_id", "tipo_variante")
+
     try:
-        response = supabase.table("tareas").insert(tarea_data).execute()
+        response = retry_tarea_write(
+            lambda payload: supabase.table("tareas").insert(payload).execute(),
+            tarea_data,
+            op="insert",
+        )
     except Exception as insert_err:
-        err_txt = str(insert_err).lower()
-        if any(c in err_txt for c in mig_067_cols) or "42703" in err_txt or "schema cache" in err_txt:
-            logger.warning("create_tarea: mig 067 ausente, insertando sin columnas nuevas. %s", insert_err)
-            for c in mig_067_cols:
-                tarea_data.pop(c, None)
-            response = supabase.table("tareas").insert(tarea_data).execute()
-        else:
-            raise
+        logger.error("create_tarea failed: %s", insert_err)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se pudo guardar la tarea. Revisa los campos e inténtalo de nuevo.",
+        ) from insert_err
     
     if not response.data:
         raise HTTPException(
@@ -838,9 +844,24 @@ async def update_tarea(
     ):
         if key in loaded and loaded[key] is not None:
             update_data[key] = loaded[key]
-    
-    # Actualizar
-    response = supabase.table("tareas").update(update_data).eq("id", str(tarea_id)).execute()
+
+    if update_data.get("desarrollo") and not update_data.get("descripcion"):
+        update_data["descripcion"] = update_data["desarrollo"]
+    elif update_data.get("descripcion") and not update_data.get("desarrollo"):
+        update_data["desarrollo"] = update_data["descripcion"]
+
+    try:
+        retry_tarea_write(
+            lambda payload: supabase.table("tareas").update(payload).eq("id", str(tarea_id)).execute(),
+            update_data,
+            op="update",
+        )
+    except Exception as update_err:
+        logger.error("update_tarea failed: %s", update_err)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se pudo guardar la tarea. Revisa los campos e inténtalo de nuevo.",
+        ) from update_err
 
     # Obtener con relaciones
     tarea_completa = supabase.table("tareas").select(
@@ -936,7 +957,18 @@ async def duplicar_tarea(
     nueva_tarea["titulo"] = nuevo_titulo or f"{original.data['titulo']} (copia)"
 
     # Insertar
-    response = supabase.table("tareas").insert(nueva_tarea).execute()
+    try:
+        response = retry_tarea_write(
+            lambda payload: supabase.table("tareas").insert(payload).execute(),
+            nueva_tarea,
+            op="insert",
+        )
+    except Exception as dup_err:
+        logger.error("duplicar_tarea failed: %s", dup_err)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se pudo duplicar la tarea.",
+        ) from dup_err
 
     # Obtener con relaciones
     tarea_completa = supabase.table("tareas").select(
@@ -1027,25 +1059,17 @@ async def crear_variante(
 
     response = None
     try:
-        response = supabase.table("tareas").insert(nueva).execute()
+        response = retry_tarea_write(
+            lambda payload: supabase.table("tareas").insert(payload).execute(),
+            nueva,
+            op="insert",
+        )
     except Exception as insert_err:
-        err_txt = str(insert_err).lower()
-        if (
-            "tarea_origen_id" in err_txt
-            or "tipo_variante" in err_txt
-            or "desarrollo" in err_txt
-            or "42703" in err_txt
-            or "schema cache" in err_txt
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=(
-                    "No se pueden crear variantes: falta aplicar la migración 067 "
-                    "(columnas desarrollo/reglas/tarea_origen_id) en Supabase y "
-                    "NOTIFY pgrst, 'reload schema'."
-                ),
-            ) from insert_err
-        raise
+        logger.error("crear_variante failed: %s", insert_err)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se pudo crear la variante. Inténtalo de nuevo.",
+        ) from insert_err
 
     if not response.data:
         raise HTTPException(status_code=500, detail="No se pudo crear la variante")
@@ -1066,6 +1090,8 @@ async def list_variantes(
     current_user=Depends(get_optional_user),
 ):
     """Lista las variantes hijas de una tarea madre."""
+    if not origen_column_available():
+        return TareaListResponse(data=[], total=0, page=1, limit=1, pages=1)
     supabase = get_supabase()
     try:
         response = (
@@ -1081,6 +1107,7 @@ async def list_variantes(
     except Exception as list_err:
         err_txt = str(list_err).lower()
         if "tarea_origen_id" in err_txt or "42703" in err_txt or "schema cache" in err_txt:
+            note_origen_query_error(list_err)
             return TareaListResponse(data=[], total=0, page=1, limit=1, pages=1)
         raise
     tareas_data = []
@@ -1291,13 +1318,17 @@ async def create_tarea_from_ai(
 
     # Insertar
     try:
-        response = supabase.table("tareas").insert(tarea_data).execute()
+        response = retry_tarea_write(
+            lambda payload: supabase.table("tareas").insert(payload).execute(),
+            tarea_data,
+            op="insert",
+        )
     except Exception as e:
         logger.error(f"Error inserting AI tarea: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Error al crear tarea desde IA: {str(e)}"
-        )
+            detail="No se pudo crear la tarea desde IA. Inténtalo de nuevo.",
+        ) from e
 
     if not response.data:
         raise HTTPException(
