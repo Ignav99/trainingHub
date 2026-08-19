@@ -1302,6 +1302,36 @@ async def sugerir_equipos(
 # ============ Per-Task Formation Endpoints ============
 
 
+_SKIP_TAREA_COPY = {"es_plantilla", "es_publica", "creado_por"}
+
+
+def _copy_tarea_columns(original: dict) -> dict:
+    """Copia la ficha completa del creador al duplicar en sesión."""
+    return {
+        k: original[k]
+        for k in VALID_TAREA_COLUMNS
+        if k not in _SKIP_TAREA_COPY and original.get(k) is not None
+    }
+
+
+def _resolve_categoria_codigo(supabase, tarea_data: dict) -> dict:
+    """El formulario manda el código de categoría (ej. RND); la BD espera UUID."""
+    cat_raw = tarea_data.get("categoria_id")
+    if not cat_raw:
+        return tarea_data
+    try:
+        UUID(str(cat_raw))
+    except (ValueError, AttributeError, TypeError):
+        cat_resp = supabase.table("categorias_tarea").select("id").eq(
+            "codigo", str(cat_raw)
+        ).maybe_single().execute()
+        if cat_resp and cat_resp.data:
+            tarea_data["categoria_id"] = cat_resp.data["id"]
+        else:
+            tarea_data.pop("categoria_id", None)
+    return tarea_data
+
+
 class DuplicarYEditarTareaRequest(BaseModel):
     model_config = {"extra": "ignore"}
     titulo: Optional[str] = None
@@ -1314,8 +1344,10 @@ class DuplicarYEditarTareaRequest(BaseModel):
     tiempo_descanso: Optional[int] = None
     num_jugadores_min: Optional[int] = None
     num_jugadores_max: Optional[int] = None
+    num_porteros: Optional[int] = None
     espacio_largo: Optional[Union[int, float]] = None
     espacio_ancho: Optional[Union[int, float]] = None
+    espacio_forma: Optional[str] = None
     reglas_tecnicas: Optional[Any] = None  # JSONB — accepts str or list
     reglas_tacticas: Optional[Any] = None
     consignas_ofensivas: Optional[Any] = None
@@ -1332,9 +1364,24 @@ class DuplicarYEditarTareaRequest(BaseModel):
     principio_tactico: Optional[str] = None
     subprincipio_tactico: Optional[str] = None
     grafico_data: Optional[dict] = None
-    objetivos_tacticos: Optional[list] = None
-    objetivos_tecnicos: Optional[list] = None
+    grafico_svg: Optional[str] = None
+    objetivos_tacticos: Optional[Any] = None
+    objetivos_tecnicos: Optional[Any] = None
+    orientaciones_fisicas: Optional[Any] = None
+    etiquetas_fisicas: Optional[Any] = None
     modalidad: Optional[str] = None
+    categoria_id: Optional[str] = None
+    tipo_variante: Optional[str] = None
+    tarea_origen_id: Optional[str] = None
+    complejidad: Optional[str] = None
+    forma_puntuar: Optional[str] = None
+    dificultad: Optional[int] = Field(default=None, ge=1, le=5)
+    exigencia: Optional[int] = Field(default=None, ge=1, le=5)
+    tags: Optional[Any] = None
+    m2_por_jugador: Optional[Union[int, float]] = None
+    tipo_esfuerzo: Optional[str] = None
+    fc_esperada_min: Optional[int] = None
+    fc_esperada_max: Optional[int] = None
 
 
 @router.post("/{sesion_id}/tareas/{sesion_tarea_id}/duplicar-y-editar")
@@ -1367,6 +1414,7 @@ async def duplicar_y_editar_tarea(
 
     cambios_dict = cambios.model_dump(exclude_none=True)
     cambios_filtered = {k: v for k, v in cambios_dict.items() if k in VALID_TAREA_COLUMNS | {"titulo"}}
+    _resolve_categoria_codigo(supabase, cambios_filtered)
     _sanitize_tarea_constraints(cambios_filtered)
     _sync_tarea_narrative(cambios_filtered)
 
@@ -1380,23 +1428,7 @@ async def duplicar_y_editar_tarea(
                 raise HTTPException(status_code=400, detail=f"Error al guardar cambios: {str(e)}")
     else:
         # --- DUPLICATE from template ---
-        campos_copiables = [
-            "descripcion", "desarrollo", "reglas", "anotaciones",
-            "duracion_total", "duracion_serie", "tiempo_descanso",
-            "num_jugadores_min", "num_jugadores_max",
-            "espacio_largo", "espacio_ancho", "reglas_tecnicas", "reglas_tacticas",
-            "consignas_ofensivas", "consignas_defensivas", "errores_comunes",
-            "variantes", "progresiones", "estructura_equipos", "material",
-            "fase_juego", "principio_tactico", "subprincipio_tactico", "densidad",
-            "nivel_cognitivo", "num_series", "grafico_data",
-            "objetivos_tacticos", "objetivos_tecnicos", "modalidad",
-            "categoria_id", "equipo_id", "organizacion_id",
-        ]
-
-        nueva_tarea = {}
-        for campo in campos_copiables:
-            if campo in original_tarea and original_tarea[campo] is not None:
-                nueva_tarea[campo] = original_tarea[campo]
+        nueva_tarea = _copy_tarea_columns(original_tarea)
 
         titulo_base = original_tarea.get("titulo", "Sin titulo")
         while titulo_base.startswith("(Editada) "):
@@ -1407,6 +1439,7 @@ async def duplicar_y_editar_tarea(
 
         nueva_tarea.update(cambios_filtered)
         nueva_tarea = {k: v for k, v in nueva_tarea.items() if k in VALID_TAREA_COLUMNS | {"titulo", "es_plantilla", "creado_por"}}
+        _resolve_categoria_codigo(supabase, nueva_tarea)
         _sanitize_tarea_constraints(nueva_tarea)
         _sync_tarea_narrative(nueva_tarea)
 
@@ -1489,21 +1522,7 @@ async def ai_edit_tarea(
         raise HTTPException(status_code=400, detail="La IA no genero cambios")
 
     # 3. Duplicate the tarea and apply AI changes (same logic as duplicar-y-editar)
-    campos_copiables = [
-        "descripcion", "desarrollo", "reglas", "anotaciones",
-        "duracion_total", "num_jugadores_min", "num_jugadores_max",
-        "espacio_largo", "espacio_ancho", "reglas_tecnicas", "reglas_tacticas",
-        "consignas_ofensivas", "consignas_defensivas", "errores_comunes",
-        "variantes", "progresiones", "estructura_equipos", "material",
-        "fase_juego", "principio_tactico", "subprincipio_tactico", "densidad",
-        "nivel_cognitivo", "num_series", "grafico_data",
-        "categoria_id", "equipo_id", "organizacion_id",
-    ]
-
-    nueva_tarea = {}
-    for campo in campos_copiables:
-        if campo in tarea_actual and tarea_actual[campo] is not None:
-            nueva_tarea[campo] = tarea_actual[campo]
+    nueva_tarea = _copy_tarea_columns(tarea_actual)
 
     # Strip accumulated "(Editada) " prefixes from title
     titulo_base = tarea_actual.get("titulo", "Sin titulo")
@@ -1648,19 +1667,7 @@ async def crear_tarea_en_sesion(
     tarea_data["equipo_id"] = sesion.data.get("equipo_id")
     tarea_data["organizacion_id"] = str(auth.organizacion_id)
 
-    # El formulario manda el codigo de categoria (ej. "RND"); la BD espera el UUID
-    cat_raw = tarea_data.get("categoria_id")
-    if cat_raw:
-        try:
-            UUID(str(cat_raw))
-        except (ValueError, AttributeError, TypeError):
-            cat_resp = supabase.table("categorias_tarea").select("id").eq(
-                "codigo", str(cat_raw)
-            ).maybe_single().execute()
-            if cat_resp and cat_resp.data:
-                tarea_data["categoria_id"] = cat_resp.data["id"]
-            else:
-                tarea_data.pop("categoria_id", None)
+    _resolve_categoria_codigo(supabase, tarea_data)
 
     # m2/jugador se deriva del espacio, igual que en el CRUD de tareas
     if tarea_data.get("espacio_largo") and tarea_data.get("espacio_ancho"):

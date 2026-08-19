@@ -1,10 +1,12 @@
-# TrainingHub — Session Audit Memory
+# TrainingHub — Memory
 
-## Audit completed (2026-07-17)
-Structured audit of SESSION create/edit workflows. No code changes.
+## Last updated
+2026-08-19 — Ficha de tarea unificada: creador = biblioteca = sesión
 
-Key findings:
-- Two create paths: `/sesiones/nueva` (manual + optional `?mode=assisted` AI recommender) and `/sesiones/nueva-ai` (chat design).
-- Detail page uses 5 phases: contexto | diseno | convocatoria | campo | cierre.
-- Permissions: CT staff get full SESSION_*; jugador/tutor get SESSION_READ only.
-- Mode=assisted exists in code but no UI link found from list page (only Manual + Nueva con IA).
+## Recent work
+- Branch `cursor/tarea-ficha-paridad-ae84`:
+  - La ficha de «Crea tu ejercicio» es la fuente de verdad (`TareaFichaBody` + `tareaToCreatorData`).
+  - Biblioteca y sesión muestran y persisten los mismos campos del creador.
+
+## Deploy chain
+cursor/* PR → CI → auto-merge main → Deploy → Render

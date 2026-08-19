@@ -253,7 +253,7 @@ class TareaCreate(TareaBase):
 
 class TareaUpdate(BaseModel):
     """Schema para actualizar tarea - todos los campos opcionales."""
-    titulo: Optional[str] = Field(None, min_length=5, max_length=255)
+    titulo: Optional[str] = Field(None, min_length=3, max_length=255)
     categoria_id: Optional[str] = None  # UUID or codigo — resolved in endpoint
 
     duracion_total: Optional[int] = Field(None, gt=0)
@@ -301,6 +301,7 @@ class TareaUpdate(BaseModel):
     etiquetas_fisicas: Optional[List[str]] = None
 
     tipo_esfuerzo: Optional[str] = None
+    m2_por_jugador: Optional[float] = None
     ratio_trabajo_descanso: Optional[str] = None
     densidad: Optional[Densidad] = None
     fc_esperada_min: Optional[int] = None
