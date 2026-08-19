@@ -18,6 +18,7 @@ import { toast } from 'sonner'
 import { partidosApi, rivalesApi } from '@/lib/api/partidos'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { Rival } from '@/types'
+import { revalidateKeysContaining } from '@/lib/swrCache'
 
 type Localia = 'local' | 'visitante' | 'neutral'
 type Competicion = 'liga' | 'copa' | 'amistoso' | 'torneo' | 'otro'
@@ -98,6 +99,7 @@ export default function NuevoPartidoPage() {
         jornada: formData.jornada ? parseInt(formData.jornada) : undefined
       })
 
+      revalidateKeysContaining('/partidos', '/dashboard', '/calendario')
       router.push('/partidos')
     } catch (err) {
       console.error('Error creating partido:', err)

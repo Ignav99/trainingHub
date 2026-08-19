@@ -126,6 +126,13 @@ function clamp15(n: number): 1 | 2 | 3 | 4 | 5 {
   return Math.max(1, Math.min(5, Math.round(n))) as 1 | 2 | 3 | 4 | 5
 }
 
+export function clampSiateFactor(n: unknown): number | undefined {
+  if (n == null || n === '') return undefined
+  const v = typeof n === 'number' ? n : Number(n)
+  if (!Number.isFinite(v)) return undefined
+  return clamp15(v)
+}
+
 export function computeComplejidadScore(input: ComplejidadInput): ComplejidadScore {
   const c = input.clasificacion
   const go = input.go != null ? clamp15(input.go) : metodologiaToGoDefault(input.modalidad)

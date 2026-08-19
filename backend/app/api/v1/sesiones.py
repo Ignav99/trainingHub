@@ -163,6 +163,7 @@ VALID_TAREA_COLUMNS = {
     "modalidad", "objetivos_tacticos", "objetivos_tecnicos",
     "orientaciones_fisicas", "etiquetas_fisicas",
     "tarea_origen_id", "tipo_variante", "es_publica", "es_plantilla",
+    "complejidad_go", "complejidad_pes",
 }
 
 
@@ -1420,6 +1421,8 @@ class DuplicarYEditarTareaRequest(BaseModel):
     forma_puntuar: Optional[str] = None
     dificultad: Optional[int] = Field(default=None, ge=1, le=5)
     exigencia: Optional[int] = Field(default=None, ge=1, le=5)
+    complejidad_go: Optional[int] = Field(default=None, ge=1, le=5)
+    complejidad_pes: Optional[int] = Field(default=None, ge=1, le=5)
     tags: Optional[Any] = None
     m2_por_jugador: Optional[Union[int, float]] = None
     tipo_esfuerzo: Optional[str] = None

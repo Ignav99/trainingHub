@@ -84,6 +84,8 @@ export interface TareaPizarraData {
    * Se usa en PDF/listados para no re-dibujar con otro renderer.
    */
   preview?: string
+  /** SIATE persistido junto a la pizarra (funciona aunque falten columnas GO/PES). */
+  siate?: { go?: number; pes?: number }
 }
 
 export const emptyTareaPizarra: TareaPizarraData = {

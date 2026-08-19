@@ -151,19 +151,19 @@ export default function DashboardPage() {
 
   const { data: calSesRes, isLoading: seasonSesLoading } = useSWR<PaginatedResponse<Sesion>>(
     seasonSesKey,
-    { keepPreviousData: true, revalidateOnFocus: false, dedupingInterval: 60_000 }
+    { keepPreviousData: true, revalidateOnFocus: true, revalidateOnMount: true, dedupingInterval: 4_000 }
   )
   const { data: calParRes, isLoading: seasonParLoading } = useSWR<PaginatedResponse<Partido>>(
     seasonParKey,
-    { keepPreviousData: true, revalidateOnFocus: false, dedupingInterval: 60_000 }
+    { keepPreviousData: true, revalidateOnFocus: true, revalidateOnMount: true, dedupingInterval: 4_000 }
   )
   const { data: calMicroRes, isLoading: seasonMicroLoading } = useSWR<PaginatedResponse<Microciclo>>(
     seasonMicroKey,
-    { keepPreviousData: true, revalidateOnFocus: false, dedupingInterval: 60_000 }
+    { keepPreviousData: true, revalidateOnFocus: true, revalidateOnMount: true, dedupingInterval: 4_000 }
   )
   const { data: descansosRes, mutate: mutateDescansos, isLoading: seasonDescLoading } = useSWR<{
     data: Descanso[]
-  }>(seasonDescKey, { keepPreviousData: true, revalidateOnFocus: false, dedupingInterval: 60_000 })
+  }>(seasonDescKey, { keepPreviousData: true, revalidateOnFocus: true, revalidateOnMount: true, dedupingInterval: 4_000 })
 
   const seasonLoading =
     (seasonSesLoading || seasonParLoading || seasonMicroLoading || seasonDescLoading) &&

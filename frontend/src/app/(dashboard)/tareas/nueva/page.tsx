@@ -1,11 +1,11 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { mutate } from 'swr'
 import { tareasApi, TareaCreateData } from '@/lib/api/tareas'
 import TareaCreatorFullscreen from '@/components/tareas/TareaCreatorFullscreen'
 import { payloadFromCreatorForm, type TareaCreatorData } from '@/lib/tareaFicha'
 import { useEquipoStore } from '@/stores/equipoStore'
+import { revalidateKeysContaining } from '@/lib/swrCache'
 
 export default function NuevaTareaPage() {
   const router = useRouter()
@@ -16,8 +16,8 @@ export default function NuevaTareaPage() {
       ...payloadFromCreatorForm(data),
       equipo_id: equipoActivo?.id,
     } as TareaCreateData)
-    mutate((key: string) => typeof key === 'string' && key.includes('/tareas'), undefined, { revalidate: true })
     router.push(`/tareas/${created.id}`)
+    revalidateKeysContaining('/tareas')
   }
 
   return (

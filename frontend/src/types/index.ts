@@ -208,6 +208,10 @@ export interface Tarea {
   dificultad?: number
   /** Escala 1-5 */
   exigencia?: number
+  /** SIATE GO 1–5 (también en grafico_data.siate.go) */
+  complejidad_go?: number
+  /** SIATE PES 1–5 (también en grafico_data.siate.pes) */
+  complejidad_pes?: number
 
   /** Familia: apunta a la tarea madre (null = es madre) */
   tarea_origen_id?: string

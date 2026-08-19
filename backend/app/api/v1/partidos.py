@@ -3,7 +3,7 @@ TrainingHub Pro - Router de Partidos
 CRUD para partidos y calendario competitivo.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Query, status
 from fastapi.responses import StreamingResponse
 from typing import Optional
 from uuid import UUID
@@ -155,6 +155,7 @@ async def get_partido(
 @router.post("", response_model=PartidoResponse, status_code=status.HTTP_201_CREATED)
 async def create_partido(
     partido: PartidoCreate,
+    background_tasks: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_CREATE)),
 ):
     """
@@ -190,18 +191,23 @@ async def create_partido(
             detail="Error al crear partido"
         )
 
-    # Obtener con relación
-    partido_completo = supabase.table("partidos").select(
-        "*, rivales(*)"
-    ).eq("id", response.data[0]["id"]).single().execute()
-
-    rival_data = partido_completo.data.pop("rivales", None)
-    result = PartidoResponse(**partido_completo.data)
+    row = {**partido_data, **(response.data[0] or {})}
+    if not row.get("id") or not row.get("created_at"):
+        fetched = (
+            supabase.table("partidos")
+            .select("*")
+            .eq("id", str(response.data[0]["id"]))
+            .limit(1)
+            .execute()
+        )
+        if fetched.data:
+            row = {**row, **fetched.data[0]}
+    rival_data = row.pop("rivales", None)
+    result = PartidoResponse(**row)
     if rival_data:
         result.rival = RivalResponse(**rival_data)
 
-    log_create(auth.user_id, "partido", str(result.id))
-
+    background_tasks.add_task(log_create, auth.user_id, "partido", str(result.id))
     return result
 
 

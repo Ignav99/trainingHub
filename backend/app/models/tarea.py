@@ -146,6 +146,8 @@ class TareaBase(BaseModel):
     complejidad: Optional[str] = None
     dificultad: Optional[int] = Field(None, ge=1, le=5)
     exigencia: Optional[int] = Field(None, ge=1, le=5)
+    complejidad_go: Optional[int] = Field(None, ge=1, le=5, description="SIATE GO 1–5")
+    complejidad_pes: Optional[int] = Field(None, ge=1, le=5, description="SIATE PES 1–5")
     
     # Familia madre → variantes
     tarea_origen_id: Optional[UUID] = None
@@ -285,6 +287,8 @@ class TareaUpdate(BaseModel):
     complejidad: Optional[str] = None
     dificultad: Optional[int] = Field(None, ge=1, le=5)
     exigencia: Optional[int] = Field(None, ge=1, le=5)
+    complejidad_go: Optional[int] = Field(None, ge=1, le=5)
+    complejidad_pes: Optional[int] = Field(None, ge=1, le=5)
 
     tarea_origen_id: Optional[UUID] = None
     tipo_variante: Optional[str] = None

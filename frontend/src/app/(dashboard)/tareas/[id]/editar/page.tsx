@@ -6,6 +6,7 @@ import useSWR, { mutate } from 'swr'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { tareasApi, TareaUpdateData } from '@/lib/api/tareas'
 import { apiKey } from '@/lib/swr'
+import { revalidateKeysContaining } from '@/lib/swrCache'
 import { Tarea } from '@/types'
 import TareaCreatorFullscreen from '@/components/tareas/TareaCreatorFullscreen'
 import { payloadFromCreatorForm, tareaToCreatorData } from '@/lib/tareaFicha'
@@ -15,10 +16,9 @@ export default function EditarTareaPage() {
   const router = useRouter()
   const params = useParams()
   const tareaId = params.id as string
+  const detailKey = tareaId ? apiKey(`/tareas/${tareaId}`) : null
 
-  const { data: tarea, isLoading, error } = useSWR<Tarea>(
-    tareaId ? apiKey(`/tareas/${tareaId}`) : null
-  )
+  const { data: tarea, isLoading, error } = useSWR<Tarea>(detailKey)
 
   const initial = useMemo(
     () => (tarea ? { ...tareaToCreatorData(tarea, 'all'), madre_titulo: tarea.madre_titulo } : null),
@@ -26,10 +26,12 @@ export default function EditarTareaPage() {
   )
 
   const handleSubmit = async (data: TareaCreatorData) => {
-    await tareasApi.update(tareaId, payloadFromCreatorForm(data) as TareaUpdateData)
-    mutate(apiKey(`/tareas/${tareaId}`))
-    mutate((key: string) => typeof key === 'string' && key.includes('/tareas'), undefined, { revalidate: true })
+    const updated = await tareasApi.update(tareaId, payloadFromCreatorForm(data) as TareaUpdateData)
+    if (detailKey) {
+      void mutate(detailKey, updated, { revalidate: false })
+    }
     router.push(`/tareas/${tareaId}`)
+    revalidateKeysContaining('/tareas')
   }
 
   if (isLoading) {

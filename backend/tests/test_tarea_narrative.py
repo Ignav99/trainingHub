@@ -39,6 +39,12 @@ class TestHydrateNarrative:
         t = hydrate_tarea_narrative({"descripcion": "4vs4+3 en medio campo"})
         assert t["desarrollo"] == "4vs4+3 en medio campo"
 
+    def test_hydrates_go_from_grafico_siate(self):
+        t = hydrate_tarea_narrative({"grafico_data": {"siate": {"go": 5, "pes": 2}}})
+        assert t["complejidad_go"] == 5
+        assert t["complejidad_pes"] == 2
+
+
 
 class TestReglasAsText:
     def test_empty(self):
