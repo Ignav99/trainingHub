@@ -17,6 +17,7 @@ import io
 
 from app.services.keywords import synthesize_keywords
 from app.services.sesion_carga import aggregate_sesion_carga, carga_from_sesion_tarea
+from app.services.tarea_narrative import hydrate_tarea_narrative, sync_reglas_variantes
 from app.services.sesion_taxonomy import (
     prepare_sesion_write_payload,
     normalize_sesion_row,
@@ -162,6 +163,64 @@ VALID_TAREA_COLUMNS = {
     "orientaciones_fisicas", "etiquetas_fisicas",
     "tarea_origen_id", "tipo_variante", "es_publica", "es_plantilla",
 }
+
+MIG_054_TAREA_COLS = ("complejidad", "dificultad", "exigencia")
+MIG_067_TAREA_COLS = ("desarrollo", "reglas", "anotaciones", "tarea_origen_id", "tipo_variante")
+
+
+def _sync_tarea_narrative(tarea_data: dict) -> dict:
+    """Alinea desarrollo/descripcion y reglas/variantes antes de escribir."""
+    if tarea_data.get("desarrollo") and not tarea_data.get("descripcion"):
+        tarea_data["descripcion"] = tarea_data["desarrollo"]
+    elif tarea_data.get("descripcion") and not tarea_data.get("desarrollo"):
+        tarea_data["desarrollo"] = tarea_data["descripcion"]
+    tarea_data.update(sync_reglas_variantes(tarea_data))
+    return tarea_data
+
+
+def _hydrate_sesion_tarea_row(row: dict) -> dict:
+    nested = row.get("tareas")
+    if isinstance(nested, dict):
+        row["tareas"] = hydrate_tarea_narrative(nested)
+    return row
+
+
+def _drop_missing_tarea_cols(tarea_data: dict, err: Exception) -> Optional[dict]:
+    msg = str(err).lower()
+    retry = dict(tarea_data)
+    drop: list[str] = []
+    if any(c in msg for c in MIG_054_TAREA_COLS):
+        drop.extend(MIG_054_TAREA_COLS)
+    if any(c in msg for c in MIG_067_TAREA_COLS) or "42703" in msg or "schema cache" in msg:
+        drop.extend(MIG_067_TAREA_COLS)
+    if not drop:
+        return None
+    for c in drop:
+        retry.pop(c, None)
+    return retry
+
+
+def _insert_tarea_with_schema_fallback(supabase, tarea_data: dict):
+    try:
+        return supabase.table("tareas").insert(tarea_data).execute()
+    except Exception as e:
+        retry = _drop_missing_tarea_cols(tarea_data, e)
+        if retry is None:
+            raise
+        logger.warning("insert tarea: reintento sin columnas nuevas (%s)", e)
+        return supabase.table("tareas").insert(retry).execute()
+
+
+def _update_tarea_with_schema_fallback(supabase, tarea_id: str, cambios: dict):
+    try:
+        return supabase.table("tareas").update(cambios).eq("id", tarea_id).execute()
+    except Exception as e:
+        retry = _drop_missing_tarea_cols(cambios, e)
+        if retry is None or not retry:
+            raise
+        logger.warning("update tarea: reintento sin columnas nuevas (%s)", e)
+        return supabase.table("tareas").update(retry).eq("id", tarea_id).execute()
+
 
 from app.models import (
     SesionCreate,
@@ -733,6 +792,7 @@ async def get_sesion(
     for st in tareas_response.data:
         tarea_data = st.pop("tareas", {})
         if tarea_data:
+            tarea_data = hydrate_tarea_narrative(tarea_data) or tarea_data
             tarea_data["categoria"] = tarea_data.pop("categorias_tarea", None)
         st["tarea"] = tarea_data
         if not st.get("fase_sesion"):
@@ -1308,12 +1368,13 @@ async def duplicar_y_editar_tarea(
     cambios_dict = cambios.model_dump(exclude_none=True)
     cambios_filtered = {k: v for k, v in cambios_dict.items() if k in VALID_TAREA_COLUMNS | {"titulo"}}
     _sanitize_tarea_constraints(cambios_filtered)
+    _sync_tarea_narrative(cambios_filtered)
 
     if not is_template:
         # --- UPDATE IN PLACE (no duplication) ---
         if cambios_filtered:
             try:
-                supabase.table("tareas").update(cambios_filtered).eq("id", old_tarea_id).execute()
+                _update_tarea_with_schema_fallback(supabase, old_tarea_id, cambios_filtered)
             except Exception as e:
                 logger.error(f"Error updating tarea in place: {e}")
                 raise HTTPException(status_code=400, detail=f"Error al guardar cambios: {str(e)}")
@@ -1347,9 +1408,10 @@ async def duplicar_y_editar_tarea(
         nueva_tarea.update(cambios_filtered)
         nueva_tarea = {k: v for k, v in nueva_tarea.items() if k in VALID_TAREA_COLUMNS | {"titulo", "es_plantilla", "creado_por"}}
         _sanitize_tarea_constraints(nueva_tarea)
+        _sync_tarea_narrative(nueva_tarea)
 
         try:
-            insert_response = supabase.table("tareas").insert(nueva_tarea).execute()
+            insert_response = _insert_tarea_with_schema_fallback(supabase, nueva_tarea)
         except Exception as e:
             logger.error(f"Error inserting duplicated tarea: {e}")
             raise HTTPException(status_code=400, detail=f"Error al duplicar tarea: {str(e)}")
@@ -1371,7 +1433,7 @@ async def duplicar_y_editar_tarea(
     if not updated or not updated.data:
         raise HTTPException(status_code=500, detail="Error al obtener tarea actualizada")
 
-    return updated.data
+    return _hydrate_sesion_tarea_row(updated.data)
 
 
 class AIEditTareaRequest(BaseModel):
@@ -1428,7 +1490,8 @@ async def ai_edit_tarea(
 
     # 3. Duplicate the tarea and apply AI changes (same logic as duplicar-y-editar)
     campos_copiables = [
-        "descripcion", "duracion_total", "num_jugadores_min", "num_jugadores_max",
+        "descripcion", "desarrollo", "reglas", "anotaciones",
+        "duracion_total", "num_jugadores_min", "num_jugadores_max",
         "espacio_largo", "espacio_ancho", "reglas_tecnicas", "reglas_tacticas",
         "consignas_ofensivas", "consignas_defensivas", "errores_comunes",
         "variantes", "progresiones", "estructura_equipos", "material",
@@ -1458,8 +1521,9 @@ async def ai_edit_tarea(
     # 4. Insert duplicated tarea (ensure only valid columns + sanitize constraints)
     nueva_tarea = {k: v for k, v in nueva_tarea.items() if k in VALID_TAREA_COLUMNS | {"titulo", "es_plantilla", "creado_por"}}
     _sanitize_tarea_constraints(nueva_tarea)
+    _sync_tarea_narrative(nueva_tarea)
     try:
-        insert_response = supabase.table("tareas").insert(nueva_tarea).execute()
+        insert_response = _insert_tarea_with_schema_fallback(supabase, nueva_tarea)
     except Exception as e:
         logger.error(f"Error inserting AI-edited tarea: {e}")
         raise HTTPException(status_code=400, detail=f"Error al crear tarea editada: {str(e)}")
@@ -1492,7 +1556,7 @@ async def ai_edit_tarea(
     if not updated or not updated.data:
         raise HTTPException(status_code=500, detail="Error al obtener tarea actualizada")
 
-    return updated.data
+    return _hydrate_sesion_tarea_row(updated.data)
 
 
 class CrearTareaEnSesionRequest(BaseModel):
@@ -1574,11 +1638,7 @@ async def crear_tarea_en_sesion(
     tarea_data = request.model_dump(exclude_none=True, exclude={"fase_sesion"})
     tarea_data = {k: v for k, v in tarea_data.items() if k in VALID_TAREA_COLUMNS}
     _sanitize_tarea_constraints(tarea_data)
-    # Sync narrativo: desarrollo ↔ descripcion
-    if tarea_data.get("desarrollo") and not tarea_data.get("descripcion"):
-        tarea_data["descripcion"] = tarea_data["desarrollo"]
-    elif tarea_data.get("descripcion") and not tarea_data.get("desarrollo"):
-        tarea_data["desarrollo"] = tarea_data["descripcion"]
+    _sync_tarea_narrative(tarea_data)
     if not tarea_data.get("tipo_variante") and not tarea_data.get("tarea_origen_id"):
         tarea_data["tipo_variante"] = "original"
     tarea_data["es_plantilla"] = False
@@ -1609,28 +1669,11 @@ async def crear_tarea_en_sesion(
             area = tarea_data["espacio_largo"] * tarea_data["espacio_ancho"]
             tarea_data["m2_por_jugador"] = round(area / jugadores, 1)
 
-    # Columnas que aporta la migracion 054; si aun no esta aplicada, se reintenta sin ellas
-    COLUMNAS_054 = ("complejidad", "dificultad", "exigencia")
-
-    # Insert tarea
     try:
-        insert_resp = supabase.table("tareas").insert(tarea_data).execute()
+        insert_resp = _insert_tarea_with_schema_fallback(supabase, tarea_data)
     except Exception as e:
-        msg = str(e)
-        if any(col in msg for col in COLUMNAS_054):
-            logger.warning(
-                "Migracion 054 sin aplicar: se crea la tarea sin %s", ", ".join(COLUMNAS_054)
-            )
-            for col in COLUMNAS_054:
-                tarea_data.pop(col, None)
-            try:
-                insert_resp = supabase.table("tareas").insert(tarea_data).execute()
-            except Exception as e2:
-                logger.error(f"Error inserting tarea in session (reintento): {e2}")
-                raise HTTPException(status_code=400, detail=f"Error al crear tarea: {str(e2)}")
-        else:
-            logger.error(f"Error inserting tarea in session: {e}")
-            raise HTTPException(status_code=400, detail=f"Error al crear tarea: {str(e)}")
+        logger.error(f"Error inserting tarea in session: {e}")
+        raise HTTPException(status_code=400, detail=f"Error al crear tarea: {str(e)}")
     if not insert_resp.data:
         raise HTTPException(status_code=500, detail="Error al crear tarea")
 
@@ -1702,6 +1745,7 @@ async def ai_crear_tarea_en_sesion(
     # Filter to only valid DB columns (AI may return fields that don't exist in DB)
     tarea_data = {k: v for k, v in tarea_data.items() if k in VALID_TAREA_COLUMNS}
     _sanitize_tarea_constraints(tarea_data)
+    _sync_tarea_narrative(tarea_data)
 
     # Insert tarea
     tarea_data["es_plantilla"] = False
@@ -1710,7 +1754,7 @@ async def ai_crear_tarea_en_sesion(
     tarea_data["organizacion_id"] = str(auth.organizacion_id)
 
     try:
-        insert_resp = supabase.table("tareas").insert(tarea_data).execute()
+        insert_resp = _insert_tarea_with_schema_fallback(supabase, tarea_data)
     except Exception as e:
         logger.error(f"Error inserting AI tarea in session: {e}")
         raise HTTPException(status_code=400, detail=f"Error al crear tarea: {str(e)}")

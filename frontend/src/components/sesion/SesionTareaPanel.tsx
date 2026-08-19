@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useMemo } from 'react'
 import {
   ChevronUp,
   ChevronDown,
@@ -19,8 +19,9 @@ import { Badge } from '@/components/ui/badge'
 import { TacticalBoardMini, boardHasAnimation } from '@/components/task-preview'
 import TacticalBoardEditor from '@/components/tactical-board/TacticalBoardEditor'
 import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
-import type { SesionTarea } from '@/types'
+import type { FormacionEquipos, SesionTarea } from '@/types'
 import { cn } from '@/lib/utils'
+import { desarrolloFromTarea, reglasFromTarea, variantesFromReglas } from '@/lib/tareaNarrative'
 
 export interface SesionTareaPanelProps {
   st: SesionTarea
@@ -82,6 +83,23 @@ function MetaField({
 const metaInputClass =
   'h-7 w-full rounded-md border border-input bg-background px-2 text-xs tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
 
+function gruposResumen(formacion?: FormacionEquipos | null) {
+  if (!formacion?.espacios?.length) return []
+  const out: { nombre: string; color: string; n: number; tipo: string }[] = []
+  for (const espacio of formacion.espacios) {
+    for (const g of espacio.grupos || []) {
+      if (g.tipo === 'sin_asignar') continue
+      out.push({
+        nombre: g.nombre,
+        color: g.color,
+        n: g.jugador_ids?.length || 0,
+        tipo: g.tipo,
+      })
+    }
+  }
+  return out
+}
+
 export default function SesionTareaPanel({
   st,
   index,
@@ -102,12 +120,14 @@ export default function SesionTareaPanel({
   onAiEdit,
 }: SesionTareaPanelProps) {
   const tarea = st.tarea
+  const desarrolloInit = desarrolloFromTarea(tarea)
+  const reglasInit = reglasFromTarea(tarea)
 
   const [form, setForm] = useState<Record<string, any>>(() => ({
     titulo: tarea?.titulo || '',
-    desarrollo: tarea?.desarrollo || tarea?.descripcion || '',
-    descripcion: tarea?.desarrollo || tarea?.descripcion || '',
-    reglas: tarea?.reglas || '',
+    desarrollo: desarrolloInit,
+    descripcion: desarrolloInit,
+    reglas: reglasInit,
     anotaciones: tarea?.anotaciones || '',
     duracion_total: tarea?.duracion_total || 0,
     duracion_serie: tarea?.duracion_serie || tarea?.duracion_total || 8,
@@ -226,6 +246,7 @@ export default function SesionTareaPanel({
   const grafico = form.grafico_data as any
   const hasAnim = boardHasAnimation(grafico)
   const totalMin = st.duracion_override || form.duracion_total || tarea?.duracion_total || 0
+  const equipos = useMemo(() => gruposResumen(st.formacion_equipos), [st.formacion_equipos])
 
   return (
     <div className="border-b last:border-b-0 bg-card">
@@ -260,7 +281,7 @@ export default function SesionTareaPanel({
             onBlur={handleBlurSave}
             placeholder="Nombre de la tarea"
           />
-          <div className="flex flex-wrap gap-1 mt-0.5">
+          <div className="flex flex-wrap items-center gap-1 mt-0.5">
             {tarea?.categoria && (
               <Badge variant="outline" className="text-[9px] h-3.5 px-1">
                 {tarea.categoria.nombre}
@@ -280,20 +301,38 @@ export default function SesionTareaPanel({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleOpenBoard}
-          className="relative hidden sm:block w-[72px] h-[44px] shrink-0 overflow-hidden rounded-md border bg-[#1a3a0a]"
-          title="Editar pizarra"
-        >
-          <TacticalBoardMini
-            data={grafico}
-            width="100%"
-            height="100%"
-            animate={false}
-            showPlayBadge={false}
-          />
-        </button>
+        <div className="hidden sm:grid grid-cols-3 gap-1.5 w-[220px] shrink-0">
+          <MetaField label="Series">
+            <Input
+              type="number"
+              min={1}
+              className={metaInputClass}
+              value={form.num_series || 1}
+              onChange={(e) => syncVolume({ num_series: parseInt(e.target.value) || 1 })}
+              onBlur={handleBlurSave}
+            />
+          </MetaField>
+          <MetaField label="Min / serie">
+            <Input
+              type="number"
+              min={1}
+              className={metaInputClass}
+              value={form.duracion_serie || 1}
+              onChange={(e) => syncVolume({ duracion_serie: parseInt(e.target.value) || 1 })}
+              onBlur={handleBlurSave}
+            />
+          </MetaField>
+          <MetaField label="Descanso">
+            <Input
+              type="number"
+              min={0}
+              className={metaInputClass}
+              value={form.tiempo_descanso ?? 0}
+              onChange={(e) => updateForm('tiempo_descanso', parseInt(e.target.value) || 0)}
+              onBlur={handleBlurSave}
+            />
+          </MetaField>
+        </div>
 
         <div className="flex items-center gap-0.5 shrink-0">
           <button
@@ -322,7 +361,7 @@ export default function SesionTareaPanel({
       </div>
 
       <div className="px-3 pb-2 space-y-2">
-        <div className="grid grid-cols-3 gap-2 max-w-sm">
+        <div className="grid grid-cols-3 gap-2 sm:hidden">
           <MetaField label="Series">
             <Input
               type="number"
@@ -343,7 +382,7 @@ export default function SesionTareaPanel({
               onBlur={handleBlurSave}
             />
           </MetaField>
-          <MetaField label="Descanso (min)">
+          <MetaField label="Descanso">
             <Input
               type="number"
               min={0}
@@ -355,32 +394,96 @@ export default function SesionTareaPanel({
           </MetaField>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <div>
-            <label className="text-[10px] font-medium text-muted-foreground mb-0.5 block">Desarrollo</label>
-            <Textarea
-              className="resize-none text-xs min-h-[52px] py-1.5"
-              value={form.desarrollo}
-              onChange={(e) => {
-                const v = e.target.value
-                setForm((f) => ({ ...f, desarrollo: v, descripcion: v }))
-                dirtyRef.current = true
-              }}
-              onBlur={handleBlurSave}
-              placeholder="Qué se hace: organización, roles, cómo arranca…"
-            />
-          </div>
-          <div>
-            <label className="text-[10px] font-medium text-muted-foreground mb-0.5 block">
-              Variantes / reglas
-            </label>
-            <Textarea
-              className="resize-none text-xs min-h-[52px] py-1.5"
-              value={form.reglas}
-              onChange={(e) => updateForm('reglas', e.target.value)}
-              onBlur={handleBlurSave}
-              placeholder="Condicionantes y puntuación de esta versión…"
-            />
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(260px,42%)_1fr] gap-3 items-start">
+          <button
+            type="button"
+            onClick={handleOpenBoard}
+            className="group relative overflow-hidden rounded-lg border bg-[#1a3a0a] text-left w-full"
+          >
+            <div className="absolute top-1.5 left-1.5 z-10 rounded-md bg-black/55 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white">
+              {hasAnim ? 'Animación' : 'Pizarra'}
+            </div>
+            <div className="relative w-full" style={{ paddingBottom: '58%' }}>
+              <div className="absolute inset-0">
+                <TacticalBoardMini
+                  data={grafico}
+                  width="100%"
+                  height="100%"
+                  animate={hasAnim}
+                  autoplay={hasAnim}
+                  showPlayBadge={hasAnim}
+                />
+              </div>
+            </div>
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:bg-black/25">
+              <span className="inline-flex items-center gap-1 rounded-md bg-black/50 px-2 py-0.5 text-[11px] text-white">
+                <Pencil className="h-3 w-3" /> Editar
+              </span>
+            </div>
+          </button>
+
+          <div className="min-w-0 space-y-2">
+            <div>
+              <label className="text-[10px] font-medium text-muted-foreground mb-0.5 block">Desarrollo</label>
+              <Textarea
+                className="resize-none text-xs min-h-[88px] py-1.5"
+                value={form.desarrollo}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setForm((f) => ({ ...f, desarrollo: v, descripcion: v }))
+                  dirtyRef.current = true
+                }}
+                onBlur={handleBlurSave}
+                placeholder="Qué se hace: organización, roles, cómo arranca…"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-muted-foreground mb-0.5 block">
+                Variantes / reglas
+              </label>
+              <Textarea
+                className="resize-none text-xs min-h-[72px] py-1.5"
+                value={form.reglas}
+                onChange={(e) => updateForm('reglas', e.target.value)}
+                onBlur={handleBlurSave}
+                placeholder="Condicionantes y puntuación de esta versión…"
+              />
+            </div>
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-0.5">
+                <label className="text-[10px] font-medium text-muted-foreground">Equipos</label>
+                <button
+                  type="button"
+                  onClick={onToggleFormacion}
+                  className="text-[10px] font-medium text-primary hover:underline"
+                >
+                  {equipos.length ? 'Editar equipos' : 'Hacer equipos'}
+                </button>
+              </div>
+              {equipos.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {equipos.map((g, i) => (
+                    <button
+                      key={`${g.nombre}-${i}`}
+                      type="button"
+                      onClick={onToggleFormacion}
+                      className="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] hover:bg-muted"
+                    >
+                      <span
+                        className="h-2 w-2 rounded-full shrink-0"
+                        style={{ backgroundColor: g.color }}
+                      />
+                      <span className="truncate max-w-[9rem]">{g.nombre}</span>
+                      <span className="tabular-nums text-muted-foreground">{g.n}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">
+                  Aún no hay equipos en esta tarea.
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
@@ -406,34 +509,6 @@ export default function SesionTareaPanel({
                 onBlur={handleBlurSave}
                 placeholder="Errores comunes, tips de coaching…"
               />
-            </div>
-
-            <div className={cn('grid gap-2', hasAnim ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 max-w-md')}>
-              <button
-                type="button"
-                onClick={handleOpenBoard}
-                className="group relative overflow-hidden rounded-lg border bg-[#1a3a0a] text-left"
-              >
-                <div className="absolute top-1.5 left-1.5 z-10 rounded-md bg-black/55 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white">
-                  Pizarra
-                </div>
-                <div className="relative w-full" style={{ paddingBottom: '48%' }}>
-                  <div className="absolute inset-0">
-                    <TacticalBoardMini
-                      data={grafico}
-                      width="100%"
-                      height="100%"
-                      animate={false}
-                      showPlayBadge={false}
-                    />
-                  </div>
-                </div>
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:bg-black/25">
-                  <span className="inline-flex items-center gap-1 rounded-md bg-black/50 px-2 py-0.5 text-[11px] text-white">
-                    <Pencil className="h-3 w-3" /> Editar
-                  </span>
-                </div>
-              </button>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -615,11 +690,13 @@ export default function SesionTareaPanel({
 
 function payloadFromForm(form: Record<string, any>): Record<string, any> {
   const desarrollo = (form.desarrollo || form.descripcion || '').trim()
+  const reglas = (form.reglas || '').trim()
   return {
     titulo: form.titulo,
     desarrollo: desarrollo || undefined,
     descripcion: desarrollo || undefined,
-    reglas: (form.reglas || '').trim() || undefined,
+    reglas,
+    variantes: variantesFromReglas(reglas),
     anotaciones: (form.anotaciones || '').trim() || undefined,
     num_series: form.num_series,
     duracion_serie: form.duracion_serie,

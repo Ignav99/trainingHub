@@ -3,6 +3,7 @@
 import type { Tarea } from '@/types'
 import type { TareaCreatorData } from '@/components/tareas/TareaCreatorFullscreen'
 import type { TareaPizarraData } from '@/components/tactical-board/types'
+import { reglasFromTarea } from '@/lib/tareaNarrative'
 
 export function madreToCreatorPrefill(
   madre: Tarea,
@@ -33,7 +34,7 @@ export function madreToCreatorPrefill(
     num_porteros: madre.num_porteros ?? 0,
     desarrollo: madre.desarrollo || madre.descripcion || '',
     descripcion: madre.desarrollo || madre.descripcion || '',
-    reglas: madre.reglas || '',
+    reglas: reglasFromTarea(madre),
     anotaciones: madre.anotaciones || '',
     fase_juego: madre.fase_juego,
     principio_tactico: madre.principio_tactico,

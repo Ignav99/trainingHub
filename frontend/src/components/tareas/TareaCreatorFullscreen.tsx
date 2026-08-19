@@ -38,6 +38,7 @@ import {
   EJECUTANTES_SIMULTANEOS,
 } from '@/lib/complejidadSiate'
 import { cn } from '@/lib/utils'
+import { reglasFromTarea, variantesFromReglas } from '@/lib/tareaNarrative'
 
 export interface TareaCreatorData {
   titulo: string
@@ -48,6 +49,7 @@ export interface TareaCreatorData {
   descripcion?: string
   desarrollo?: string
   reglas?: string
+  variantes?: string[]
   anotaciones?: string
   complejidad?: string
   fase_juego?: string
@@ -176,7 +178,7 @@ export default function TareaCreatorFullscreen({
             ? `${initialFromMother.madre_titulo} · Variante`
             : base.titulo),
           desarrollo: rest.desarrollo || rest.descripcion || '',
-          reglas: rest.reglas || '',
+          reglas: reglasFromTarea(rest),
           anotaciones: rest.anotaciones || '',
           tipo_variante: rest.tipo_variante || 'adaptacion',
         })
@@ -306,6 +308,7 @@ export default function TareaCreatorFullscreen({
         desarrollo: desarrollo || undefined,
         descripcion: desarrollo || undefined,
         reglas: withBoard.reglas?.trim() || undefined,
+        variantes: variantesFromReglas(withBoard.reglas),
         anotaciones: withBoard.anotaciones?.trim() || undefined,
         tipo_variante: withBoard.tipo_variante || (withBoard.tarea_origen_id ? 'adaptacion' : 'original'),
         espacio_forma: withBoard.espacio_forma || 'rectangular',

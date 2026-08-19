@@ -78,6 +78,7 @@ import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import TareaCreatorFullscreen, { type TareaCreatorData } from '@/components/tareas/TareaCreatorFullscreen'
 import { madreToCreatorPrefill } from '@/lib/tareaVariante'
+import { variantesFromReglas } from '@/lib/tareaNarrative'
 import { cargaApi } from '@/lib/api/carga'
 import { entrenamientosMargenApi } from '@/lib/api/entrenamientosMargen'
 import { suggestAttendanceFromDisponibilidad } from '@/lib/jugadorTipo'
@@ -702,6 +703,7 @@ export default function SesionDetailPage() {
       desarrollo: data.desarrollo || data.descripcion || undefined,
       descripcion: data.desarrollo || data.descripcion || undefined,
       reglas: data.reglas || undefined,
+      variantes: variantesFromReglas(data.reglas),
       anotaciones: data.anotaciones || undefined,
       tipo_variante: data.tipo_variante || 'original',
       tarea_origen_id: data.tarea_origen_id || undefined,
