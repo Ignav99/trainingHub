@@ -3,10 +3,10 @@ TrainingHub Pro - Router de Tareas
 CRUD completo para tareas de entrenamiento.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Any, Optional, List
 from uuid import UUID
 from math import ceil
 import asyncio
@@ -39,6 +39,7 @@ from app.services.tarea_write import (
     origen_column_available,
     retry_tarea_write,
 )
+from app.services.tarea_siate import preserve_siate_on_grafico_patch
 
 # Mapeo de códigos cortos de IA a valores de BD para fase_juego
 FASE_JUEGO_MAP = {
@@ -69,9 +70,14 @@ DENSIDAD_MAP = {
 router = APIRouter()
 
 
+from app.config import get_settings
+
+
 def _generate_tarea_embedding(tarea_data: dict, tarea_id: str):
     """Generate and store embedding for a tarea. Non-fatal on failure."""
     try:
+        if not get_settings().GEMINI_API_KEY:
+            return
         from app.services.embedding_service import build_tarea_embedding_text, generate_embedding
         text = build_tarea_embedding_text(tarea_data)
         if text.strip():
@@ -80,6 +86,43 @@ def _generate_tarea_embedding(tarea_data: dict, tarea_id: str):
             supabase.table("tareas").update({"embedding": emb}).eq("id", tarea_id).execute()
     except Exception as e:
         logger.warning(f"Failed to generate tarea embedding: {e}")
+
+
+def _schedule_tarea_embedding(background_tasks: BackgroundTasks, tarea_data: dict, tarea_id: str) -> None:
+    if get_settings().GEMINI_API_KEY:
+        background_tasks.add_task(_generate_tarea_embedding, tarea_data, str(tarea_id))
+
+
+def _written_tarea_row(response: Any, fallback: dict) -> dict:
+    data = getattr(response, "data", None)
+    written: dict = {}
+    if isinstance(data, list) and data:
+        written = data[0] or {}
+    elif isinstance(data, dict):
+        written = data
+    return {**fallback, **written}
+
+
+def _tarea_row_after_write(supabase, response, fallback: dict, tarea_id: str | None = None) -> dict:
+    """Usa la fila del INSERT/UPDATE. Solo hace GET extra si faltan campos mínimos."""
+    row = _written_tarea_row(response, fallback)
+    tid = str(row.get("id") or tarea_id or "")
+    if tid and row.get("created_at") and row.get("titulo"):
+        return row
+    if not tid:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Tarea guardada pero no se pudo recuperar",
+        )
+    fetched = supabase.table("tareas").select("*").eq("id", tid).maybe_single().execute()
+    if fetched and fetched.data:
+        return fetched.data
+    if row.get("id"):
+        return row
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Tarea guardada pero no se pudo recuperar",
+    )
 
 
 def _tarea_response(data: dict) -> TareaResponse:
@@ -690,6 +733,7 @@ async def get_tarea(
 @router.post("", response_model=TareaResponse, status_code=status.HTTP_201_CREATED)
 async def create_tarea(
     tarea: TareaCreate,
+    background_tasks: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.TASK_CREATE)),
 ):
     """
@@ -761,28 +805,17 @@ async def create_tarea(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Error al crear tarea"
         )
-    
-    # Obtener con relaciones
-    tarea_completa = supabase.table("tareas").select(
-        "*, categorias_tarea(*)"
-    ).eq("id", response.data[0]["id"]).maybe_single().execute()
 
-    if not tarea_completa or not tarea_completa.data:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Tarea creada pero no se pudo recuperar"
-        )
-
-    # Generate embedding asynchronously (non-fatal)
-    _generate_tarea_embedding(tarea_data, response.data[0]["id"])
-
-    return _tarea_response(tarea_completa.data)
+    row = _tarea_row_after_write(supabase, response, tarea_data)
+    _schedule_tarea_embedding(background_tasks, tarea_data, str(row["id"]))
+    return _tarea_response(row)
 
 
 @router.put("/{tarea_id}", response_model=TareaResponse)
 async def update_tarea(
     tarea_id: UUID,
     tarea: TareaUpdate,
+    background_tasks: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.TASK_UPDATE)),
 ):
     """
@@ -850,8 +883,10 @@ async def update_tarea(
     elif update_data.get("descripcion") and not update_data.get("desarrollo"):
         update_data["desarrollo"] = update_data["descripcion"]
 
+    update_data = preserve_siate_on_grafico_patch(existing.data, update_data)
+
     try:
-        retry_tarea_write(
+        response = retry_tarea_write(
             lambda payload: supabase.table("tareas").update(payload).eq("id", str(tarea_id)).execute(),
             update_data,
             op="update",
@@ -863,21 +898,11 @@ async def update_tarea(
             detail="No se pudo guardar la tarea. Revisa los campos e inténtalo de nuevo.",
         ) from update_err
 
-    # Obtener con relaciones
-    tarea_completa = supabase.table("tareas").select(
-        "*, categorias_tarea(*)"
-    ).eq("id", str(tarea_id)).maybe_single().execute()
-
-    if not tarea_completa or not tarea_completa.data:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Tarea actualizada pero no se pudo recuperar"
-        )
-
-    # Re-generate embedding with updated data
-    _generate_tarea_embedding(tarea_completa.data, str(tarea_id))
-
-    return _tarea_response(tarea_completa.data)
+    row = _tarea_row_after_write(
+        supabase, response, {**existing.data, **update_data}, str(tarea_id)
+    )
+    _schedule_tarea_embedding(background_tasks, row, str(tarea_id))
+    return _tarea_response(row)
 
 
 @router.delete("/{tarea_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -970,18 +995,13 @@ async def duplicar_tarea(
             detail="No se pudo duplicar la tarea.",
         ) from dup_err
 
-    # Obtener con relaciones
-    tarea_completa = supabase.table("tareas").select(
-        "*, categorias_tarea(*)"
-    ).eq("id", response.data[0]["id"]).maybe_single().execute()
-
-    if not tarea_completa or not tarea_completa.data:
+    if not response.data:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Tarea duplicada pero no se pudo recuperar"
+            detail="Tarea duplicada pero no se pudo recuperar",
         )
 
-    return _tarea_response(tarea_completa.data)
+    return _tarea_response(_tarea_row_after_write(supabase, response, nueva_tarea))
 
 
 @router.post("/{tarea_id}/variantes", response_model=TareaResponse, status_code=status.HTTP_201_CREATED)
@@ -1074,14 +1094,7 @@ async def crear_variante(
     if not response.data:
         raise HTTPException(status_code=500, detail="No se pudo crear la variante")
 
-    tarea_completa = supabase.table("tareas").select(
-        "*, categorias_tarea(*)"
-    ).eq("id", response.data[0]["id"]).maybe_single().execute()
-
-    if not tarea_completa or not tarea_completa.data:
-        raise HTTPException(status_code=500, detail="Variante creada pero no se pudo recuperar")
-
-    return _tarea_response(tarea_completa.data)
+    return _tarea_response(_tarea_row_after_write(supabase, response, nueva))
 
 
 @router.get("/{tarea_id}/variantes", response_model=TareaListResponse)
@@ -1193,6 +1206,7 @@ async def task_design_chat(
 @router.post("/from-ai", response_model=TareaResponse, status_code=status.HTTP_201_CREATED)
 async def create_tarea_from_ai(
     tarea_ai: AITareaNueva,
+    background_tasks: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.TASK_CREATE, Permission.AI_USE)),
 ):
     """
@@ -1336,21 +1350,9 @@ async def create_tarea_from_ai(
             detail="Error al crear tarea desde IA"
         )
 
-    # Obtener con relaciones
-    tarea_completa = supabase.table("tareas").select(
-        "*, categorias_tarea(*)"
-    ).eq("id", response.data[0]["id"]).maybe_single().execute()
-
-    if not tarea_completa or not tarea_completa.data:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Tarea creada desde IA pero no se pudo recuperar"
-        )
-
-    # Generate embedding asynchronously (non-fatal)
-    _generate_tarea_embedding(tarea_data, response.data[0]["id"])
-
-    return _tarea_response(tarea_completa.data)
+    row = _tarea_row_after_write(supabase, response, tarea_data)
+    _schedule_tarea_embedding(background_tasks, tarea_data, str(row["id"]))
+    return _tarea_response(row)
 
 
 @router.get("/{tarea_id}/pdf")

@@ -5,6 +5,7 @@ import type { TareaPizarraData } from '@/components/tactical-board/types'
 import { emptyTareaPizarra } from '@/components/tactical-board/types'
 import { applyAutoLoadToTarea } from '@/lib/tacticalMetrics'
 import { desarrolloFromTarea, reglasFromTarea, variantesFromReglas } from '@/lib/tareaNarrative'
+import { clampSiateFactor } from '@/lib/complejidadSiate'
 
 export type TareaFichaVariant = 'campo' | 'margen' | 'portero' | 'all'
 
@@ -58,6 +59,37 @@ const asList = (val: unknown): string[] => {
     return val.split('\n').map((s) => s.trim()).filter(Boolean)
   }
   return []
+}
+
+export function stashSiateInGraficoData(
+  grafico: TareaPizarraData | Record<string, unknown> | undefined | null,
+  go?: number | null,
+  pes?: number | null,
+): TareaPizarraData {
+  const base: TareaPizarraData = {
+    ...emptyTareaPizarra,
+    ...(grafico && typeof grafico === 'object' ? grafico : {}),
+  }
+  const siate: { go?: number; pes?: number } = { ...(base.siate || {}) }
+  const goN = clampSiateFactor(go)
+  const pesN = clampSiateFactor(pes)
+  if (goN != null) siate.go = goN
+  else delete siate.go
+  if (pesN != null) siate.pes = pesN
+  else delete siate.pes
+  if (siate.go != null || siate.pes != null) {
+    return { ...base, siate }
+  }
+  const next = { ...base }
+  delete next.siate
+  return next
+}
+
+export function readSiateFromTarea(tarea?: Partial<Tarea> | null): { go?: number; pes?: number } {
+  const stash = (tarea?.grafico_data as TareaPizarraData | undefined)?.siate
+  const go = clampSiateFactor(tarea?.complejidad_go ?? stash?.go)
+  const pes = clampSiateFactor(tarea?.complejidad_pes ?? stash?.pes)
+  return { go, pes }
 }
 
 function categoriaCodigo(tarea: Partial<Tarea> | null | undefined): string | undefined {
@@ -120,6 +152,7 @@ export function tareaToCreatorData(
   const base = emptyTareaForm(tarea?.num_jugadores_min || 16, undefined, variant)
   if (!tarea) return base
   const desarrollo = desarrolloFromTarea(tarea)
+  const siate = readSiateFromTarea(tarea)
   return {
     ...base,
     titulo: tarea.titulo || '',
@@ -147,6 +180,8 @@ export function tareaToCreatorData(
     espacio_ancho: tarea.espacio_ancho,
     espacio_forma: tarea.espacio_forma,
     dificultad: tarea.dificultad,
+    complejidad_go: siate.go,
+    complejidad_pes: siate.pes,
     densidad: tarea.densidad,
     tipo_esfuerzo: tarea.tipo_esfuerzo,
     m2_por_jugador: tarea.m2_por_jugador,
@@ -198,6 +233,8 @@ export function payloadFromCreatorForm(form: TareaCreatorData): Record<string, u
     etiquetas_fisicas: loaded.etiquetas_fisicas,
     complejidad: loaded.complejidad || undefined,
     dificultad: loaded.dificultad,
+    complejidad_go: loaded.complejidad_go ?? null,
+    complejidad_pes: loaded.complejidad_pes ?? null,
     densidad: loaded.densidad,
     nivel_cognitivo: loaded.nivel_cognitivo,
     tipo_esfuerzo: loaded.tipo_esfuerzo,
@@ -205,6 +242,6 @@ export function payloadFromCreatorForm(form: TareaCreatorData): Record<string, u
     fc_esperada_min: loaded.fc_esperada_min,
     fc_esperada_max: loaded.fc_esperada_max,
     tipo_variante: loaded.tipo_variante || (loaded.tarea_origen_id ? 'adaptacion' : 'original'),
-    grafico_data: loaded.grafico_data,
+    grafico_data: stashSiateInGraficoData(loaded.grafico_data, loaded.complejidad_go, loaded.complejidad_pes),
   }
 }

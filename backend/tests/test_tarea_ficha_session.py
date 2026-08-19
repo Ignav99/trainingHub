@@ -18,6 +18,8 @@ class TestDuplicarYEditarTareaRequest:
             etiquetas_fisicas=["RSA"],
             complejidad="Alta",
             dificultad=4,
+            complejidad_go=4,
+            complejidad_pes=2,
             objetivos_tacticos=["amplitud"],
             objetivos_tecnicos=["pase"],
             tipo_variante="original",
@@ -36,6 +38,8 @@ class TestDuplicarYEditarTareaRequest:
         assert dumped["objetivos_tacticos"] == ["amplitud"]
         assert dumped["m2_por_jugador"] == 80
         assert dumped["tipo_esfuerzo"] == "fuerza-resistencia"
+        assert dumped["complejidad_go"] == 4
+        assert dumped["complejidad_pes"] == 2
 
 
 class TestCopyTareaColumns:

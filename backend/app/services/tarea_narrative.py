@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from app.services.tarea_siate import hydrate_siate
+
 
 def _list_to_text(val: Any) -> str:
     if val is None:
@@ -70,4 +72,4 @@ def hydrate_tarea_narrative(tarea: Optional[Dict[str, Any]]) -> Optional[Dict[st
         filled = desarrollo_as_text(out)
         if filled:
             out["desarrollo"] = filled
-    return out
+    return hydrate_siate(out)

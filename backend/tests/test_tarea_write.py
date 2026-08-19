@@ -79,3 +79,25 @@ class TestRetryTareaWrite:
             assert False, "should have raised"
         except RuntimeError as e:
             assert "disk full" in str(e)
+
+    def test_keeps_siate_stash_when_go_column_missing(self):
+        calls = []
+
+        def execute(data):
+            calls.append(dict(data))
+            if "complejidad_go" in data:
+                raise Exception(
+                    "Could not find the 'complejidad_go' column of 'tareas' in the schema cache"
+                )
+            return {"ok": True, "data": [data]}
+
+        result = retry_tarea_write(
+            execute,
+            {"titulo": "Rondo", "descripcion": "4vs4", "complejidad_go": 4},
+            op="update",
+        )
+        assert result["ok"] is True
+        assert calls[0]["grafico_data"]["siate"]["go"] == 4
+        assert "complejidad_go" not in calls[1]
+        assert "complejidad_pes" not in calls[1]
+        assert calls[1]["grafico_data"]["siate"]["go"] == 4

@@ -89,6 +89,8 @@ export interface TareaCreateData {
   complejidad?: string
   dificultad?: number
   exigencia?: number
+  complejidad_go?: number | null
+  complejidad_pes?: number | null
   forma_puntuar?: string
   duracion_serie?: number
   tiempo_descanso?: number

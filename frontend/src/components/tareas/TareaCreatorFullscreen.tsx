@@ -21,6 +21,7 @@ import { computeComplejidadScore, complejidadToLabel } from '@/lib/complejidadSi
 import { reglasFromTarea, variantesFromReglas } from '@/lib/tareaNarrative'
 import {
   emptyTareaForm,
+  stashSiateInGraficoData,
   type TareaCreatorData,
   type TareaFichaVariant,
 } from '@/lib/tareaFicha'
@@ -206,7 +207,9 @@ export default function TareaCreatorFullscreen({
         tags: form.objetivos_tacticos,
         consignas_ofensivas: form.objetivos_tecnicos,
         consignas_defensivas: [],
-        grafico_data: hasBoard ? form.grafico_data : undefined,
+        complejidad_go: form.complejidad_go,
+        complejidad_pes: form.complejidad_pes,
+        grafico_data: stashSiateInGraficoData(form.grafico_data, form.complejidad_go, form.complejidad_pes),
       })
       await onSubmit(withLoad)
     } catch (e: any) {

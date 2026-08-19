@@ -6,6 +6,8 @@ import logging
 import re
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from app.services.tarea_siate import merge_siate_into_grafico
+
 logger = logging.getLogger(__name__)
 
 _PGRST_MISSING_COL_RE = re.compile(
@@ -33,6 +35,8 @@ OPTIONAL_TAREA_WRITE_COLS = (
     "fc_esperada_min",
     "fc_esperada_max",
     "subprincipio_tactico",
+    "complejidad_go",
+    "complejidad_pes",
 )
 
 # Columnas que se añadieron juntas: si falta una, se omiten todas del grupo.
@@ -40,6 +44,7 @@ OPTIONAL_TAREA_COL_GROUPS = (
     ("desarrollo", "reglas", "anotaciones", "tarea_origen_id", "tipo_variante"),
     ("objetivos_tacticos", "objetivos_tecnicos", "orientaciones_fisicas", "etiquetas_fisicas"),
     ("complejidad", "dificultad", "exigencia"),
+    ("complejidad_go", "complejidad_pes"),
 )
 
 REQUIRED_TAREA_WRITE_COLS = frozenset({
@@ -119,7 +124,7 @@ def retry_tarea_write(
     op: str = "write",
 ) -> Any:
     """Insert/update omitiendo columnas desconocidas hasta que PostgREST acepte."""
-    pending = dict(payload)
+    pending = merge_siate_into_grafico(dict(payload))
     last_error: Optional[Exception] = None
 
     for _attempt in range(1, 16):
