@@ -17,7 +17,7 @@
       gap: 14px;
       padding-bottom: 10px;
       border-bottom: 3px solid {{ color }};
-      margin-bottom: 16px;
+      margin-bottom: 10px;
     }
     .mast img { width: 42px; height: 42px; object-fit: contain; }
     .mast-mark {
@@ -32,14 +32,28 @@
     }
     .mast h1 { font-size: 18px; font-weight: 700; margin-top: 1px; }
     .meta { font-size: 10px; color: #555; margin-top: 2px; }
-    .strip {
-      display: flex; gap: 8px; margin-bottom: 16px;
+    .cover {
+      display: flex; gap: 16px; margin-bottom: 14px;
+      font-size: 10px; color: #444;
     }
-    .kpi {
-      flex: 1; border: 1px solid #e5e7eb; padding: 8px 10px;
-    }
+    .cover span { margin-right: 12px; }
+    .cover b { color: #111; }
+    .strip { display: flex; gap: 8px; margin-bottom: 14px; }
+    .kpi { flex: 1; border: 1px solid #e5e7eb; padding: 8px 10px; }
     .kpi .n { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
     .kpi .l { font-size: 8px; text-transform: uppercase; letter-spacing: 0.08em; color: #666; }
+    .racha { font-variant-numeric: tabular-nums; letter-spacing: 0.14em; font-weight: 700; }
+    .notas {
+      margin-top: 12px; padding: 8px 10px; background: #f7f7f8;
+      font-size: 10px; color: #333;
+    }
+    .notas .l { font-size: 8px; text-transform: uppercase; letter-spacing: 0.08em; color: #666; margin-bottom: 4px; }
+    .lectura {
+      border-left: 3px solid {{ color }};
+      padding: 6px 10px;
+      margin-bottom: 14px;
+      font-size: 11px;
+    }
     h2 {
       font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em;
       color: {{ color }}; border-bottom: 1px solid #e5e7eb;
@@ -50,11 +64,7 @@
     th { font-size: 8px; text-transform: uppercase; letter-spacing: 0.06em; color: #666; }
     td.num { text-align: right; font-variant-numeric: tabular-nums; }
     .muted { color: #666; }
-    .foot {
-      position: running(footer);
-      font-size: 8px; color: #888;
-    }
-    @page { @bottom-center { content: "Kabin-e · {{ generado }} · {{ ambito_label }}"; font-size: 8px; color: #888; } }
+    @page { @bottom-center { content: "Kabin-e · {{ generado }} · {{ ambito_label }} · {{ profundidad_label }}"; font-size: 8px; color: #888; } }
   </style>
 </head>
 <body>
@@ -65,7 +75,7 @@
       <div class="mast-mark">{{ (organizacion.nombre or 'K')[0] }}</div>
     {% endif %}
     <div>
-      <div class="kicker">Dossier · {{ ambito_label }}</div>
+      <div class="kicker">Dossier · Para {{ audiencia_label }}</div>
       <h1>{{ titulo }}</h1>
       <div class="meta">
         {{ organizacion.nombre or '' }}
@@ -76,16 +86,44 @@
     </div>
   </header>
 
-  {% if tipo in ['temporada', 'plantilla'] %}
+  <div class="cover">
+    <span><b>Ámbito</b> {{ ambito_label }}</span>
+    <span><b>Profundidad</b> {{ profundidad_label }}</span>
+    <span><b>Periodo</b> {{ periodo }}</span>
+  </div>
+
+  {% if 'narrativa' in secciones and narrativa %}
+  <div class="lectura">{{ narrativa }}</div>
+  {% endif %}
+
+  {% if 'resumen' in secciones %}
   <div class="strip">
     <div class="kpi"><div class="n">{{ resumen.pj }}</div><div class="l">Partidos</div></div>
     <div class="kpi"><div class="n">{{ resumen.pg }}-{{ resumen.pe }}-{{ resumen.pp }}</div><div class="l">V-E-D</div></div>
     <div class="kpi"><div class="n">{{ resumen.gf }}-{{ resumen.gc }}</div><div class="l">GF-GC</div></div>
     <div class="kpi"><div class="n">{% if resumen.dg > 0 %}+{% endif %}{{ resumen.dg }}</div><div class="l">Dif.</div></div>
+    {% if resumen.pts is defined %}
+    <div class="kpi"><div class="n">{{ resumen.pts }}</div><div class="l">Pts</div></div>
+    {% endif %}
+  </div>
+  {% if racha %}
+  <p class="meta" style="margin-bottom:12px">Forma reciente · <span class="racha">{{ racha | join(' ') }}</span></p>
+  {% endif %}
+  {% if profundidad_label != 'Breve' and local and visitante %}
+  <div class="strip">
+    <div class="kpi">
+      <div class="n">{{ local.pg }}-{{ local.pe }}-{{ local.pp }}</div>
+      <div class="l">Local · {{ local.pj }} PJ</div>
+    </div>
+    <div class="kpi">
+      <div class="n">{{ visitante.pg }}-{{ visitante.pe }}-{{ visitante.pp }}</div>
+      <div class="l">Visitante · {{ visitante.pj }} PJ</div>
+    </div>
   </div>
   {% endif %}
+  {% endif %}
 
-  {% if tipo == 'temporada' %}
+  {% if 'resultados' in secciones %}
     <h2>Resultados</h2>
     <table>
       <thead><tr><th>Fecha</th><th>Rival</th><th>Loc.</th><th>Marcador</th><th>R</th></tr></thead>
@@ -104,30 +142,12 @@
         {% endif %}
       </tbody>
     </table>
-    <h2>Plantilla</h2>
-    <table>
-      <thead><tr><th>#</th><th>Jugador</th><th>Pos.</th><th class="num">PJ</th><th class="num">Min</th><th class="num">G</th><th class="num">A</th><th class="num">TA</th></tr></thead>
-      <tbody>
-        {% for j in plantilla %}
-        <tr>
-          <td class="num">{{ j.dorsal or '—' }}</td>
-          <td>{{ j.nombre }}</td>
-          <td class="muted">{{ j.posicion }}</td>
-          <td class="num">{{ j.pj }}</td>
-          <td class="num">{{ j.minutos }}</td>
-          <td class="num">{{ j.goles }}</td>
-          <td class="num">{{ j.asistencias }}</td>
-          <td class="num">{{ j.amarillas }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
   {% endif %}
 
-  {% if tipo == 'plantilla' %}
+  {% if 'plantilla' in secciones %}
     <h2>Minutos y aportación</h2>
     <table>
-      <thead><tr><th>#</th><th>Jugador</th><th>Pos.</th><th class="num">PJ</th><th class="num">Tit.</th><th class="num">Min</th><th class="num">G</th><th class="num">A</th><th class="num">TA</th><th class="num">TR</th></tr></thead>
+      <thead><tr><th>#</th><th>Jugador</th><th>Pos.</th><th class="num">PJ</th><th class="num">Tit.</th><th class="num">Min</th><th class="num">G</th><th class="num">A</th>{% if 'disciplina' in secciones %}<th class="num">TA</th><th class="num">TR</th>{% endif %}</tr></thead>
       <tbody>
         {% for j in plantilla %}
         <tr>
@@ -139,15 +159,35 @@
           <td class="num">{{ j.minutos }}</td>
           <td class="num">{{ j.goles }}</td>
           <td class="num">{{ j.asistencias }}</td>
+          {% if 'disciplina' in secciones %}
+          <td class="num">{{ j.amarillas }}</td>
+          <td class="num">{{ j.rojas }}</td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% elif 'disciplina' in secciones %}
+    <h2>Disciplina</h2>
+    <table>
+      <thead><tr><th>#</th><th>Jugador</th><th class="num">TA</th><th class="num">TR</th></tr></thead>
+      <tbody>
+        {% for j in plantilla %}
+        {% if j.amarillas or j.rojas %}
+        <tr>
+          <td class="num">{{ j.dorsal or '—' }}</td>
+          <td>{{ j.nombre }}</td>
           <td class="num">{{ j.amarillas }}</td>
           <td class="num">{{ j.rojas }}</td>
         </tr>
+        {% endif %}
         {% endfor %}
       </tbody>
     </table>
   {% endif %}
 
-  {% if tipo == 'jugador' and jugador %}
+  {% if 'jugador' in secciones and jugador %}
+    <h2>Ficha</h2>
     <div class="strip">
       <div class="kpi"><div class="n">{{ jugador.stats.pj }}</div><div class="l">Partidos</div></div>
       <div class="kpi"><div class="n">{{ jugador.stats.minutos }}</div><div class="l">Minutos</div></div>
@@ -159,7 +199,6 @@
       {% if jugador.dorsal %} · {{ jugador.dorsal }}{% endif %}
       {% if jugador.posicion %} · {{ jugador.posicion }}{% endif %}
     </p>
-    <h2>Partidos del ámbito</h2>
     <table>
       <thead><tr><th>Fecha</th><th>Rival</th><th>Min</th><th>G</th><th>A</th><th>Tit.</th><th>R</th></tr></thead>
       <tbody>
@@ -181,7 +220,8 @@
     </table>
   {% endif %}
 
-  {% if tipo == 'microciclo' and microciclo %}
+  {% if 'microciclo' in secciones and microciclo %}
+    <h2>Semana de entrenamiento</h2>
     <p class="meta" style="margin-bottom:10px">
       {{ microciclo.rango }}
       {% if microciclo.rival %} · Rival: {{ microciclo.rival }}{% endif %}
@@ -190,7 +230,6 @@
     {% if microciclo.objetivo_tactico %}<p><strong>Táctico:</strong> {{ microciclo.objetivo_tactico }}</p>{% endif %}
     {% if microciclo.objetivo_fisico %}<p><strong>Físico:</strong> {{ microciclo.objetivo_fisico }}</p>{% endif %}
     {% if microciclo.notas %}<p class="muted" style="margin-top:6px">{{ microciclo.notas }}</p>{% endif %}
-    <h2>Sesiones de la semana</h2>
     <table>
       <thead><tr><th>Fecha</th><th>MD</th><th>Sesión</th><th>Min</th><th>Objetivo</th></tr></thead>
       <tbody>
@@ -208,6 +247,17 @@
         {% endif %}
       </tbody>
     </table>
+  {% endif %}
+
+  {% if notas %}
+    <div class="notas">
+      <div class="l">Notas del cuerpo técnico</div>
+      {{ notas }}
+    </div>
+  {% endif %}
+
+  {% if prompt %}
+    <p class="muted" style="margin-top:16px;font-size:8px">Pedido: {{ prompt }}</p>
   {% endif %}
 </body>
 </html>

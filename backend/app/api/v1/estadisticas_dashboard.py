@@ -27,6 +27,34 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+_QUERY_TIMEOUT_S = 12.0
+
+
+class _EmptyResp:
+    data: list = []
+
+    def __init__(self):
+        self.data = []
+
+
+def _safe_query(label: str, fn):
+    try:
+        return fn()
+    except Exception:
+        logger.exception("estadisticas_dashboard query failed: %s", label)
+        return _EmptyResp()
+
+
+async def _timed_query(label: str, fn, timeout: float = _QUERY_TIMEOUT_S):
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(_safe_query, label, fn),
+            timeout=timeout,
+        )
+    except asyncio.TimeoutError:
+        logger.error("estadisticas_dashboard timeout: %s", label)
+        return _EmptyResp()
+
 
 @router.get("/dashboard")
 async def estadisticas_dashboard(
@@ -47,67 +75,50 @@ async def estadisticas_dashboard(
     eid = str(equipo_id)
     ambito_n = normalize_ambito(ambito)
 
-    # ── 6 parallel queries ──────────────────────────────────────
+    # Sin inner joins a partidos: ese embed colgaba PostgREST. Primero partidos
+    # (tienen competición) y luego stats/convocatorias por partido_id.
     (
         partidos_resp,
-        stats_resp,
-        convocatorias_resp,
         jugadores_resp,
         medico_resp,
         sesiones_resp,
     ) = await asyncio.gather(
-        # 1. All played matches with rival info
-        asyncio.to_thread(
+        _timed_query(
+            "partidos",
             lambda: supabase.table("partidos")
             .select("id, fecha, jornada, localia, competicion, goles_favor, goles_contra, resultado, rivales(nombre, nombre_corto, escudo_url)")
             .eq("equipo_id", eid)
             .not_.is_("goles_favor", "null")
             .order("fecha")
-            .execute()
+            .execute(),
         ),
-        # 2. All match statistics
-        asyncio.to_thread(
-            lambda: supabase.table("estadisticas_partido")
-            .select("*, partidos!inner(equipo_id, competicion, fecha)")
-            .eq("partidos.equipo_id", eid)
-            .execute()
-        ),
-        # 3. All convocatorias with player info
-        asyncio.to_thread(
-            lambda: supabase.table("convocatorias")
-            .select("*, jugadores(nombre, apellidos, dorsal, posicion_principal, foto_url), partidos!inner(equipo_id, fecha, competicion)")
-            .eq("partidos.equipo_id", eid)
-            .execute()
-        ),
-        # 4. All players (non-invitados)
-        asyncio.to_thread(
+        _timed_query(
+            "jugadores",
             lambda: supabase.table("jugadores")
             .select("id, nombre, apellidos, dorsal, posicion_principal, foto_url, estado")
             .eq("equipo_id", eid)
             .eq("es_invitado", False)
             .order("apellidos")
-            .execute()
+            .execute(),
         ),
-        # 5. Medical records
-        asyncio.to_thread(
+        _timed_query(
+            "medico",
             lambda: supabase.table("registros_medicos")
             .select("id, jugador_id, tipo, titulo, estado, fecha_inicio, fecha_fin, fecha_alta, dias_baja_estimados, jugadores(nombre, apellidos)")
             .eq("equipo_id", eid)
             .order("fecha_inicio", desc=True)
-            .execute()
+            .execute(),
         ),
-        # 6. Training sessions
-        asyncio.to_thread(
+        _timed_query(
+            "sesiones",
             lambda: supabase.table("sesiones")
             .select("id, fecha, match_day, estado, duracion_total, carga_fisica_objetivo, fase_juego_principal")
             .eq("equipo_id", eid)
-            .execute()
+            .execute(),
         ),
     )
 
     partidos = partidos_resp.data or []
-    stats_all = stats_resp.data or []
-    convocatorias_all = convocatorias_resp.data or []
     jugadores_all = jugadores_resp.data or []
     medico_all = medico_resp.data or []
     sesiones_all = sesiones_resp.data or []
@@ -133,10 +144,35 @@ async def estadisticas_dashboard(
     n_oficiales = sum(1 for p in partidos_jugados if es_oficial(p.get("competicion")))
     n_amistosos = sum(1 for p in partidos_jugados if es_amistoso(p.get("competicion")))
     partidos = filtrar_por_ambito(partidos_jugados, ambito_n)
-    partido_ids = {p["id"] for p in partidos}
+    partido_ids = [p["id"] for p in partidos]
+    partido_id_set = set(partido_ids)
 
-    stats_all = [s for s in stats_all if s.get("partido_id") in partido_ids]
-    convocatorias_all = [c for c in convocatorias_all if c.get("partido_id") in partido_ids]
+    stats_all: list = []
+    convocatorias_all: list = []
+    if partido_ids:
+        chunk = partido_ids[:120]
+        stats_resp, convocatorias_resp = await asyncio.gather(
+            _timed_query(
+                "estadisticas_partido",
+                lambda: supabase.table("estadisticas_partido")
+                .select("*")
+                .in_("partido_id", chunk)
+                .execute(),
+            ),
+            _timed_query(
+                "convocatorias",
+                lambda: supabase.table("convocatorias")
+                .select("*, jugadores(nombre, apellidos, dorsal, posicion_principal, foto_url)")
+                .in_("partido_id", chunk)
+                .execute(),
+            ),
+        )
+        stats_all = [
+            s for s in (stats_resp.data or []) if s.get("partido_id") in partido_id_set
+        ]
+        convocatorias_all = [
+            c for c in (convocatorias_resp.data or []) if c.get("partido_id") in partido_id_set
+        ]
     sesiones_all = [s for s in sesiones_all if _en_rango(s.get("fecha"))]
 
     # ── Build partido lookup ───────────────────────────────────
