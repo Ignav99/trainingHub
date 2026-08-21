@@ -46,8 +46,12 @@ export function PartidoCard({ partido, isSelected, isNext, onSelect }: PartidoCa
               {formatDate(partido.fecha)}
             </span>
             {partido.competicion && (
-              <Badge variant="outline" className="text-[9px]">
-                {partido.competicion}
+              <Badge
+                variant="outline"
+                className={`text-[9px] ${partido.competicion === 'amistoso' ? 'text-muted-foreground' : ''}`}
+                title={partido.competicion === 'amistoso' ? 'No cuenta para estadísticas de competición' : undefined}
+              >
+                {partido.competicion === 'amistoso' ? 'Amistoso' : partido.competicion}
               </Badge>
             )}
           </div>

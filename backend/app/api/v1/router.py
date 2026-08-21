@@ -58,6 +58,7 @@ from app.api.v1 import (
     rival_informes,
     alertas,
     escritura,
+    informes,
 )
 
 api_router = APIRouter()
@@ -184,6 +185,12 @@ api_router.include_router(
     estadisticas_dashboard.router,
     prefix="/estadisticas",
     tags=["Estadisticas Dashboard"]
+)
+
+api_router.include_router(
+    informes.router,
+    prefix="/informes",
+    tags=["Informes"]
 )
 
 api_router.include_router(

@@ -23,6 +23,7 @@ from app.models import (
 )
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
+from app.services.partido_ambito import AMBITO_COMPETICION, filtrar_por_ambito, normalize_ambito
 from app.security.permissions import Permission
 from app.services.load_calculation_service import recalculate_player_load
 
@@ -102,10 +103,16 @@ async def list_convocatorias_partido(
 async def list_convocatorias_jugador(
     jugador_id: UUID,
     limit: int = Query(20, ge=1, le=100),
+    ambito: str = Query(AMBITO_COMPETICION),
     auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_READ)),
 ):
-    """Historial de convocatorias de un jugador con estadísticas acumuladas."""
+    """Historial de convocatorias de un jugador con estadísticas acumuladas.
+
+    El listado incluye todos los partidos (para consultar amistosos).
+    Las estadísticas agregadas respetan el ámbito (competición por defecto).
+    """
     supabase = get_supabase()
+    ambito_n = normalize_ambito(ambito)
 
     response = supabase.table("convocatorias").select(
         "*, partidos(fecha, localia, competicion, goles_favor, goles_contra, resultado, rivales(nombre, nombre_corto, escudo_url))"
@@ -113,14 +120,15 @@ async def list_convocatorias_jugador(
 
     # Calcular estadísticas acumuladas
     convocatorias = response.data or []
+    para_stats = filtrar_por_ambito(convocatorias, ambito_n)
     medias = [
         float(c["rendimiento_media"])
-        for c in convocatorias
+        for c in para_stats
         if c.get("rendimiento_media") is not None and (c.get("minutos_jugados") or 0) > 0
     ]
     minutos_con_nota = sum(
         (c.get("minutos_jugados") or 0)
-        for c in convocatorias
+        for c in para_stats
         if c.get("rendimiento_media") is not None and (c.get("minutos_jugados") or 0) > 0
     )
     rendimiento_ponderado = None
@@ -128,22 +136,23 @@ async def list_convocatorias_jugador(
         rendimiento_ponderado = round(
             sum(
                 float(c["rendimiento_media"]) * (c.get("minutos_jugados") or 0)
-                for c in convocatorias
+                for c in para_stats
                 if c.get("rendimiento_media") is not None and (c.get("minutos_jugados") or 0) > 0
             ) / minutos_con_nota,
             2,
         )
     stats = {
-        "total_convocatorias": len(convocatorias),
-        "titularidades": sum(1 for c in convocatorias if c.get("titular")),
-        "minutos_totales": sum(c.get("minutos_jugados", 0) for c in convocatorias),
-        "goles": sum(c.get("goles", 0) for c in convocatorias),
-        "asistencias": sum(c.get("asistencias", 0) for c in convocatorias),
-        "amarillas": sum(1 for c in convocatorias if c.get("tarjeta_amarilla")),
-        "rojas": sum(1 for c in convocatorias if c.get("tarjeta_roja")),
+        "total_convocatorias": len(para_stats),
+        "titularidades": sum(1 for c in para_stats if c.get("titular")),
+        "minutos_totales": sum(c.get("minutos_jugados", 0) for c in para_stats),
+        "goles": sum(c.get("goles", 0) for c in para_stats),
+        "asistencias": sum(c.get("asistencias", 0) for c in para_stats),
+        "amarillas": sum(1 for c in para_stats if c.get("tarjeta_amarilla")),
+        "rojas": sum(1 for c in para_stats if c.get("tarjeta_roja")),
         "rendimiento_medio": round(sum(medias) / len(medias), 2) if medias else None,
         "rendimiento_ponderado_minutos": rendimiento_ponderado,
         "partidos_con_nota": len(medias),
+        "ambito": ambito_n,
     }
 
     return {"data": convocatorias, "estadisticas": stats}
@@ -153,10 +162,12 @@ async def list_convocatorias_jugador(
 async def resumen_convocatorias_equipo(
     equipo_id: UUID,
     limit_racha: int = Query(5, ge=1, le=10),
+    ambito: str = Query(AMBITO_COMPETICION),
     auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_READ, equipo_id_param="equipo_id")),
 ):
     """Resumen agregado (minutos, goles, tarjetas, racha) de todos los jugadores de un equipo en una sola query."""
     supabase = get_supabase()
+    ambito_n = normalize_ambito(ambito)
 
     jugadores_res = supabase.table("jugadores").select("id").eq("equipo_id", str(equipo_id)).execute()
     jugador_ids = [j["id"] for j in (jugadores_res.data or [])]
@@ -165,7 +176,7 @@ async def resumen_convocatorias_equipo(
 
     response = supabase.table("convocatorias").select(
         "jugador_id, titular, minutos_jugados, goles, asistencias, tarjeta_amarilla, tarjeta_roja, created_at, "
-        "partidos(fecha, resultado)"
+        "partidos(fecha, resultado, competicion)"
     ).in_("jugador_id", jugador_ids).order("created_at", desc=True).execute()
 
     por_jugador: dict[str, list[dict]] = {}
@@ -178,7 +189,7 @@ async def resumen_convocatorias_equipo(
 
     resumenes = []
     for jid in jugador_ids:
-        convocatorias = por_jugador.get(jid, [])
+        convocatorias = filtrar_por_ambito(por_jugador.get(jid, []), ambito_n)
         convocatorias_ordenadas = sorted(convocatorias, key=_fecha_sort_key, reverse=True)
 
         racha = []

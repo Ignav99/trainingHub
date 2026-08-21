@@ -43,6 +43,7 @@ import { formatDate } from '@/lib/utils'
 import type { VistaCompletaMicrociclo, Partido, PaginatedResponse, Jugador, Rival } from '@/types'
 
 import { SalaLunes } from '@/components/microciclos/SalaLunes'
+import { ExportarInformeButton } from '@/components/informes/ExportarInformeButton'
 
 // ============ Constants ============
 const ESTADO_COLORS: Record<string, string> = {
@@ -259,6 +260,7 @@ export default function MicrocicloDetallePage() {
           </div>
 
           <div className="flex gap-2 shrink-0">
+            <ExportarInformeButton tipo="microciclo" microcicloId={id} label="Exportar semana" />
             <Button variant="outline" size="sm" onClick={openEdit}>
               <Edit3 className="h-4 w-4 mr-1" /> Editar
             </Button>

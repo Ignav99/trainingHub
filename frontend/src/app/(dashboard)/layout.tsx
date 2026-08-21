@@ -27,6 +27,7 @@ import {
   Flag,
   UtensilsCrossed,
   PenTool,
+  FileStack,
 } from 'lucide-react'
 import { preload } from 'swr'
 import { apiFetcher } from '@/lib/swr'
@@ -96,6 +97,7 @@ const toolsNavigation: NavItem[] = [
   { name: 'Video Análisis', href: '/video-analisis', icon: ScanSearch },
   { name: 'Pizarra Táctica', href: '/pizarra-tactica', icon: PenTool },
   { name: 'Estadísticas', href: '/estadisticas', icon: BarChart3 },
+  { name: 'Informes', href: '/informes', icon: FileStack },
 ]
 
 function isNavActive(item: NavItem, pathname: string) {
@@ -213,7 +215,7 @@ export default function DashboardLayout({
         apiKey('/nutricion/planes', { equipo_id: eid, fecha: hoy }),
         apiKey('/nutricion/composicion', { equipo_id: eid }),
         apiKey('/nutricion/suplementos', { equipo_id: eid, activo: true }),
-        apiKey('/estadisticas/dashboard', { equipo_id: eid }),
+        apiKey('/estadisticas/dashboard', { equipo_id: eid, ambito: 'competicion' }),
         apiKey('/dashboard/carga-semanal', { equipo_id: eid, semanas: 12 }),
         apiKey('/abp', { equipo_id: eid }),
         apiKey('/tactical-boards', { equipo_id: eid }),

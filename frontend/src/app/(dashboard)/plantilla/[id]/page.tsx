@@ -33,6 +33,8 @@ import {
 import { toast } from 'sonner'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
+import { ExportarInformeButton } from '@/components/informes/ExportarInformeButton'
+import { AmbitoToggle } from '@/components/estadisticas/AmbitoToggle'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -49,6 +51,7 @@ import { wellnessApi } from '@/lib/api/wellness'
 import { convocatoriasApi } from '@/lib/api/convocatorias'
 import { nutricionApi } from '@/lib/api/nutricion'
 import { entrenamientosMargenApi } from '@/lib/api/entrenamientosMargen'
+import { AMBITO_COMPETICION, enAmbito, esAmistoso, type PartidoAmbito } from '@/lib/partidoAmbito'
 import { apiKey, apiFetcher } from '@/lib/swr'
 import type { RegistroMedico, CargaDiaria, CargaJugador, WellnessEntry, Convocatoria, ConvocatoriasJugadorStats, TipoRegistroMedico, NutricionOverview, SuplementacionJugador, ComposicionCorporal, EntrenamientoMargenHistory } from '@/types'
 import { FASES_RECUPERACION } from '@/types'
@@ -385,6 +388,7 @@ export default function JugadorDetailPage() {
             </>
           ) : (
             <>
+              <ExportarInformeButton tipo="jugador" jugadorId={jugador.id} label="Exportar ficha" />
               <button
                 onClick={() => setIsEditing(true)}
                 className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
@@ -2101,12 +2105,13 @@ function PlayerStatsTab({ jugadorId }: { jugadorId: string }) {
   const [convocatorias, setConvocatorias] = useState<ConvocatoriaWithJoins[]>([])
   const [stats, setStats] = useState<ConvocatoriasJugadorStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [ambito, setAmbito] = useState<PartidoAmbito>(AMBITO_COMPETICION)
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true)
       try {
-        const res = await convocatoriasApi.listByJugador(jugadorId, { limit: 100 })
+        const res = await convocatoriasApi.listByJugador(jugadorId, { limit: 100, ambito })
         setConvocatorias(res.data)
         setStats(res.estadisticas)
       } catch {
@@ -2116,7 +2121,7 @@ function PlayerStatsTab({ jugadorId }: { jugadorId: string }) {
       }
     }
     fetchData()
-  }, [jugadorId])
+  }, [jugadorId, ambito])
 
   if (loading) {
     return (
@@ -2149,8 +2154,10 @@ function PlayerStatsTab({ jugadorId }: { jugadorId: string }) {
       ? ((stats.goles + stats.asistencias) * 90) / stats.minutos_totales
       : null
 
+  const convocatoriasAmbito = convocatorias.filter((c) => enAmbito(c.partidos?.competicion, ambito))
+
   // Chart data — reversed so oldest first (left to right)
-  const chartData = [...convocatorias].reverse().map((c) => {
+  const chartData = [...convocatoriasAmbito].reverse().map((c) => {
     const rival = c.partidos?.rivales?.nombre_corto || c.partidos?.rivales?.nombre || '?'
     const resultado = c.partidos?.resultado || null
     return {
@@ -2166,6 +2173,15 @@ function PlayerStatsTab({ jugadorId }: { jugadorId: string }) {
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs text-muted-foreground">
+          Las cifras siguen el ámbito. El historial lista todos los partidos, incluidos amistosos.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <AmbitoToggle value={ambito} onChange={setAmbito} />
+          <ExportarInformeButton tipo="jugador" jugadorId={jugadorId} ambito={ambito} label="Exportar" />
+        </div>
+      </div>
       {/* KPI Row 1 */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card>
@@ -2366,6 +2382,11 @@ function PlayerStatsTab({ jugadorId }: { jugadorId: string }) {
                           <span className="inline-flex items-center gap-1.5">
                             <TeamCrest src={p.rivales.escudo_url} name={p.rivales.nombre} size="sm" />
                             {p.rivales.nombre_corto || p.rivales.nombre}
+                            {esAmistoso(p.competicion) ? (
+                              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                                Amistoso
+                              </span>
+                            ) : null}
                           </span>
                         ) : (
                           '-'
