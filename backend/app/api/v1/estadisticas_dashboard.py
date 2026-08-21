@@ -6,7 +6,7 @@ Endpoint único que devuelve todas las métricas de la temporada.
 import asyncio
 import logging
 from collections import defaultdict
-from datetime import date as date_type
+from datetime import date
 from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from uuid import UUID
@@ -63,8 +63,8 @@ async def estadisticas_dashboard(
         AMBITO_COMPETICION,
         description="competicion (default) | amistosos | todos",
     ),
-    fecha_desde: Optional[date_type] = Query(None),
-    fecha_hasta: Optional[date_type] = Query(None),
+    fecha_desde: Optional[date] = Query(None),
+    fecha_hasta: Optional[date] = Query(None),
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
     """

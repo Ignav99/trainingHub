@@ -1,3 +1,4 @@
+from ast import ImportFrom, parse, walk
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,6 +15,17 @@ def test_dashboard_no_inner_join():
     assert "partidos!inner" not in src
     assert "_timed_query" in src
     assert 'in_("partido_id"' in src
+
+
+def test_dashboard_date_is_imported_unaliased():
+    src = (ROOT / "app" / "api" / "v1" / "estadisticas_dashboard.py").read_text(encoding="utf-8")
+    aliases = {}
+    for node in walk(parse(src)):
+        if isinstance(node, ImportFrom) and node.module == "datetime":
+            for alias in node.names:
+                aliases[alias.name] = alias.asname or alias.name
+    assert aliases.get("date") == "date"
+    assert "hoy = date.today()" in src
 
 
 def test_dossier_template_chrome():
