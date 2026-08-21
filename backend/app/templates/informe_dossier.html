@@ -48,6 +48,9 @@
       font-size: 10px; color: #333;
     }
     .notas .l { font-size: 8px; text-transform: uppercase; letter-spacing: 0.08em; color: #666; margin-bottom: 4px; }
+    .ses-block { margin-top: 14px; page-break-inside: avoid; }
+    .ses-block h3 { font-size: 12px; font-weight: 700; margin: 0 0 4px; color: #111; }
+    .tarea-detalle { font-size: 9px; color: #444; padding: 2px 6px 8px; }
     .lectura {
       border-left: 3px solid {{ color }};
       padding: 6px 10px;
@@ -225,13 +228,15 @@
     <p class="meta" style="margin-bottom:10px">
       {{ microciclo.rango }}
       {% if microciclo.rival %} · Rival: {{ microciclo.rival }}{% endif %}
+      {% if microciclo.n_sesiones is defined %} · {{ microciclo.n_sesiones }} sesiones{% endif %}
+      {% if microciclo.n_tareas %} · {{ microciclo.n_tareas }} tareas{% endif %}
     </p>
     {% if microciclo.objetivo %}<p><strong>Objetivo:</strong> {{ microciclo.objetivo }}</p>{% endif %}
     {% if microciclo.objetivo_tactico %}<p><strong>Táctico:</strong> {{ microciclo.objetivo_tactico }}</p>{% endif %}
     {% if microciclo.objetivo_fisico %}<p><strong>Físico:</strong> {{ microciclo.objetivo_fisico }}</p>{% endif %}
     {% if microciclo.notas %}<p class="muted" style="margin-top:6px">{{ microciclo.notas }}</p>{% endif %}
     <table>
-      <thead><tr><th>Fecha</th><th>MD</th><th>Sesión</th><th>Min</th><th>Objetivo</th></tr></thead>
+      <thead><tr><th>Fecha</th><th>MD</th><th>Sesión</th><th class="num">Min</th><th class="num">Tareas</th><th>Objetivo</th></tr></thead>
       <tbody>
         {% for s in microciclo.sesiones %}
         <tr>
@@ -239,14 +244,54 @@
           <td>{{ s.md }}</td>
           <td>{{ s.titulo }}</td>
           <td class="num">{{ s.min }}</td>
+          <td class="num">{{ s.n_tareas or 0 }}</td>
           <td>{{ s.objetivo }}</td>
         </tr>
         {% endfor %}
         {% if not microciclo.sesiones %}
-        <tr><td colspan="5" class="muted">Sin sesiones en este microciclo.</td></tr>
+        <tr><td colspan="6" class="muted">Sin sesiones en este microciclo.</td></tr>
         {% endif %}
       </tbody>
     </table>
+
+    {% if microciclo.detalle %}
+      {% for s in microciclo.sesiones %}
+      <div class="ses-block">
+        <h3>{{ s.md or 'MD' }} · {{ s.titulo }} · {{ s.fecha }}</h3>
+        <p class="meta" style="margin-bottom:6px">
+          {% if s.min %}{{ s.min }} min{% endif %}
+          {% if s.carga %} · Carga {{ s.carga }}{% endif %}
+          {% if s.fase_juego %} · {{ s.fase_juego }}{% endif %}
+          {% if s.lugar %} · {{ s.lugar }}{% endif %}
+        </p>
+        {% if s.objetivo %}<p><strong>Objetivo:</strong> {{ s.objetivo }}</p>{% endif %}
+        {% if s.notas %}<p class="muted">{{ s.notas }}</p>{% endif %}
+        <table>
+          <thead><tr><th>#</th><th>Bloque</th><th>Tarea</th><th>Cat.</th><th class="num">Min</th></tr></thead>
+          <tbody>
+            {% for t in s.tareas %}
+            <tr>
+              <td class="num">{{ t.orden }}</td>
+              <td class="muted">{{ t.fase }}</td>
+              <td>{{ t.titulo }}</td>
+              <td class="muted">{{ t.categoria }}</td>
+              <td class="num">{{ t.min }}</td>
+            </tr>
+            {% if microciclo.extendido and t.detalle %}
+            <tr>
+              <td></td>
+              <td colspan="4" class="tarea-detalle">{{ t.detalle }}</td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+            {% if not s.tareas %}
+            <tr><td colspan="5" class="muted">Sin tareas en esta sesión.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      {% endfor %}
+    {% endif %}
   {% endif %}
 
   {% if notas %}

@@ -45,8 +45,8 @@ const PROF_LABEL: Record<InformeProfundidad, string> = {
 
 const PROF_HINT: Record<InformeProfundidad, string> = {
   breve: 'Una hoja. Cifras y lectura corta.',
-  estandar: 'Tablas del periodo y lectura.',
-  extendido: 'Histórico, local/visitante y lectura larga.',
+  estandar: 'Tablas del periodo. En microciclo, sesiones y listado de tareas.',
+  extendido: 'En microciclo: cada sesión con todas las tareas y el desarrollo. En temporada, el histórico.',
 }
 
 const LIMITE_FILAS: Record<InformeProfundidad, number> = {
@@ -111,6 +111,9 @@ export default function InformesPage() {
       const next = { ...prev, ...partial }
       if (partial.asunto && partial.asunto !== prev.asunto && !partial.secciones) {
         next.secciones = [...DEFAULT_SECCIONES[partial.asunto]]
+        if (partial.asunto === 'microciclo' && !partial.profundidad) {
+          next.profundidad = 'extendido'
+        }
       }
       return next
     })
@@ -493,6 +496,13 @@ export default function InformesPage() {
                 <li key={id}>{SECCION_LABEL[id]}</li>
               ))}
               {spec.notas?.trim() ? <li>Notas del CT</li> : null}
+              {spec.asunto === 'microciclo' && spec.profundidad !== 'breve' ? (
+                <li>
+                  {spec.profundidad === 'extendido'
+                    ? 'Cada sesión con todas las tareas y el desarrollo'
+                    : 'Cada sesión con el listado de tareas'}
+                </li>
+              ) : null}
             </ol>
           </div>
           {spec.asunto === 'jugador' && !spec.jugador_id ? (

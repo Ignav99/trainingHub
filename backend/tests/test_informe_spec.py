@@ -66,3 +66,16 @@ def test_narrativa_direccion_con_racha():
     assert "4 partidos" in text
     assert "pts" in text
     assert "V-E-D-V" in text
+
+
+def test_microciclo_sin_breve_es_extendido():
+    spec = parse_informe_prompt("informe de microciclo para metodología")
+    assert spec.asunto == "microciclo"
+    assert spec.profundidad == "extendido"
+    assert spec.audiencia == "metodologia"
+
+
+def test_microciclo_resumen_sigue_breve():
+    spec = parse_informe_prompt("resumen de microciclo")
+    assert spec.asunto == "microciclo"
+    assert spec.profundidad == "breve"

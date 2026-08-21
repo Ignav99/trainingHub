@@ -37,3 +37,13 @@ def test_dossier_template_chrome():
     assert "racha" in html
     assert "notas" in html
     assert "local" in html
+    assert "s.tareas" in html
+    assert "microciclo.extendido" in html
+    assert "tarea-detalle" in html
+
+
+def test_informe_carga_sesion_tareas():
+    src = (ROOT / "app" / "services" / "informe_service.py").read_text(encoding="utf-8")
+    assert "sesion_tareas" in src
+    assert "_tareas_por_sesion" in src
+    assert "FASE_SESION_LABEL" in src

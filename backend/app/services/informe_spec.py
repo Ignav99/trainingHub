@@ -194,6 +194,9 @@ def parse_informe_prompt(
         spec.asunto = "resultados"
     elif any(w in folded for w in ("temporada", "estadistica", "dashboard")):
         spec.asunto = "temporada"
+    if spec.asunto == "microciclo" and spec.profundidad == "estandar":
+        if not any(w in folded for w in ("breve", "resumen", "corto", "una hoja", "flash")):
+            spec.profundidad = "extendido"
 
     m_n = re.search(
         r"ultim[oa]s?\s+(\d{1,2})(?:\s+partidos|\s+oficiales|\s+encuentros)?",

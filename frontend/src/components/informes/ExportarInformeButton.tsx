@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { FileDown, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { informesApi, type InformeTipo } from '@/lib/api/informes'
+import { informesApi, type InformeProfundidad, type InformeTipo } from '@/lib/api/informes'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { AMBITO_COMPETICION, type PartidoAmbito } from '@/lib/partidoAmbito'
 import { cn } from '@/lib/utils'
@@ -16,6 +16,7 @@ export function ExportarInformeButton({
   microcicloId,
   fechaDesde,
   fechaHasta,
+  profundidad,
   label = 'Exportar PDF',
   variant = 'outline',
   size = 'sm',
@@ -27,6 +28,7 @@ export function ExportarInformeButton({
   microcicloId?: string
   fechaDesde?: string
   fechaHasta?: string
+  profundidad?: InformeProfundidad
   label?: string
   variant?: 'outline' | 'default' | 'ghost'
   size?: 'sm' | 'default'
@@ -50,6 +52,7 @@ export function ExportarInformeButton({
         microciclo_id: microcicloId,
         fecha_desde: fechaDesde,
         fecha_hasta: fechaHasta,
+        profundidad: profundidad || (tipo === 'microciclo' ? 'extendido' : 'estandar'),
       })
     } catch (err: any) {
       toast.error(err?.message || 'No se pudo generar el informe')

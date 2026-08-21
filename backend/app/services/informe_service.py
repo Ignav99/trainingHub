@@ -47,6 +47,107 @@ def _nombre_jugador(j: dict) -> str:
     return f"{j.get('nombre', '')} {j.get('apellidos', '')}".strip() or "—"
 
 
+FASE_SESION_LABEL = {
+    "activacion": "Activación",
+    "desarrollo_1": "Desarrollo 1",
+    "desarrollo_2": "Desarrollo 2",
+    "desarrollo_3": "Desarrollo 3",
+    "desarrollo_4": "Desarrollo 4",
+    "desarrollo_5": "Desarrollo 5",
+    "desarrollo_6": "Desarrollo 6",
+    "vuelta_calma": "Vuelta a calma",
+}
+
+
+def _clip(text: Any, n: int) -> str:
+    raw = " ".join(str(text or "").split())
+    if len(raw) <= n:
+        return raw
+    return raw[: n - 1].rsplit(" ", 1)[0] + "…"
+
+
+def _tareas_por_sesion(supabase, sesion_ids: list[str], profundidad: str) -> dict[str, list[dict]]:
+    """Tareas de cada sesión. Fallo suave: el dossier no se cae si el embed falla."""
+    if not sesion_ids or profundidad == "breve":
+        return {}
+    rows: list[dict] = []
+    select_full = (
+        "sesion_id, orden, fase_sesion, duracion_override, notas, "
+        "tareas(id, titulo, duracion_total, densidad, desarrollo, descripcion, "
+        "reglas, objetivos_tacticos, objetivos_tecnicos, fase_juego, "
+        "principio_tactico, modalidad, categorias_tarea(codigo, nombre))"
+    )
+    select_plain = (
+        "sesion_id, orden, fase_sesion, duracion_override, notas, "
+        "tareas(id, titulo, duracion_total, desarrollo, descripcion)"
+    )
+    try:
+        resp = (
+            supabase.table("sesion_tareas")
+            .select(select_full)
+            .in_("sesion_id", sesion_ids[:40])
+            .order("orden")
+            .execute()
+        )
+        rows = resp.data or []
+    except Exception:
+        logger.exception("informe sesion_tareas embed failed, retrying plain")
+        try:
+            resp = (
+                supabase.table("sesion_tareas")
+                .select(select_plain)
+                .in_("sesion_id", sesion_ids[:40])
+                .order("orden")
+                .execute()
+            )
+            rows = resp.data or []
+        except Exception:
+            logger.exception("informe sesion_tareas query failed")
+            return {}
+
+    by_sesion: dict[str, list[dict]] = {}
+    extendido = profundidad == "extendido"
+    for st in rows:
+        sid = str(st.get("sesion_id") or "")
+        if not sid:
+            continue
+        t = st.get("tareas") or {}
+        if not isinstance(t, dict):
+            t = {}
+        cat = t.get("categorias_tarea") or {}
+        if not isinstance(cat, dict):
+            cat = {}
+        desc = t.get("desarrollo") or t.get("descripcion") or ""
+        obj = []
+        for key in ("objetivos_tacticos", "objetivos_tecnicos"):
+            vals = t.get(key) or []
+            if isinstance(vals, list):
+                obj.extend(str(v).replace("_", " ") for v in vals[:3])
+        if t.get("principio_tactico"):
+            obj.append(str(t.get("principio_tactico")).replace("_", " "))
+        notas = st.get("notas") or ""
+        detalle = ""
+        if extendido:
+            bits = [_clip(desc, 280)]
+            if obj:
+                bits.append("Objetivos: " + " · ".join(obj[:4]))
+            if notas:
+                bits.append(str(notas))
+            detalle = " ".join(b for b in bits if b)
+        fase_key = st.get("fase_sesion") or ""
+        by_sesion.setdefault(sid, []).append({
+            "orden": st.get("orden") or 0,
+            "fase": FASE_SESION_LABEL.get(fase_key, fase_key.replace("_", " ").title() if fase_key else "—"),
+            "titulo": t.get("titulo") or "Tarea",
+            "categoria": cat.get("codigo") or cat.get("nombre") or "",
+            "min": st.get("duracion_override") or t.get("duracion_total") or "",
+            "detalle": detalle,
+        })
+    for sid, items in by_sesion.items():
+        items.sort(key=lambda x: x.get("orden") or 0)
+    return by_sesion
+
+
 async def generate_informe_pdf(
     *,
     equipo_id: str,
@@ -328,14 +429,51 @@ def _build_context(
         micro = mc.data or {}
         if not micro.get("id"):
             raise ValueError("Microciclo no encontrado")
-        ses = (
-            supabase.table("sesiones")
-            .select("titulo, fecha, match_day, duracion_total, objetivo_principal, estado, dia_numero, orden")
-            .eq("microciclo_id", microciclo_id)
-            .execute()
+        try:
+            ses = (
+                supabase.table("sesiones")
+                .select(
+                    "id, titulo, fecha, match_day, duracion_total, objetivo_principal, estado, "
+                    "dia_numero, orden, carga_fisica_objetivo, fase_juego_principal, lugar, notas_pre"
+                )
+                .eq("microciclo_id", microciclo_id)
+                .execute()
+            )
+        except Exception:
+            logger.exception("informe sesiones select amplio failed")
+            ses = (
+                supabase.table("sesiones")
+                .select("id, titulo, fecha, match_day, duracion_total, objetivo_principal, estado, dia_numero, orden")
+                .eq("microciclo_id", microciclo_id)
+                .execute()
+            )
+        sesiones = sorted(
+            ses.data or [],
+            key=lambda s: (s.get("dia_numero") or 0, s.get("orden") or 0, str(s.get("fecha") or "")),
         )
-        sesiones = sorted(ses.data or [], key=lambda s: (s.get("dia_numero") or 0, s.get("orden") or 0))
+        sesion_ids = [str(s["id"]) for s in sesiones if s.get("id")]
+        tareas_map = _tareas_por_sesion(supabase, sesion_ids, spec.profundidad)
         rival = micro.get("rivales") or {}
+        ses_rows = []
+        n_tareas = 0
+        for s in sesiones:
+            sid = str(s.get("id") or "")
+            tareas = tareas_map.get(sid) or []
+            n_tareas += len(tareas)
+            ses_rows.append({
+                "fecha": _fmt_fecha(s.get("fecha")),
+                "titulo": s.get("titulo") or "Sesión",
+                "md": s.get("match_day") or "",
+                "min": s.get("duracion_total") or "",
+                "objetivo": s.get("objetivo_principal") or "",
+                "estado": s.get("estado") or "",
+                "carga": s.get("carga_fisica_objetivo") or "",
+                "fase_juego": (s.get("fase_juego_principal") or "").replace("_", " "),
+                "lugar": s.get("lugar") or "",
+                "notas": s.get("notas_pre") or "",
+                "tareas": tareas,
+                "n_tareas": len(tareas),
+            })
         micro_ctx = {
             "rango": f"{_fmt_fecha(micro.get('fecha_inicio'))} – {_fmt_fecha(micro.get('fecha_fin'))}",
             "objetivo": micro.get("objetivo_principal") or "",
@@ -343,17 +481,11 @@ def _build_context(
             "objetivo_fisico": micro.get("objetivo_fisico") or "",
             "notas": micro.get("notas") or "",
             "rival": rival.get("nombre_corto") or rival.get("nombre") or "",
-            "sesiones": [
-                {
-                    "fecha": _fmt_fecha(s.get("fecha")),
-                    "titulo": s.get("titulo") or "Sesión",
-                    "md": s.get("match_day") or "",
-                    "min": s.get("duracion_total") or "",
-                    "objetivo": s.get("objetivo_principal") or "",
-                    "estado": s.get("estado") or "",
-                }
-                for s in sesiones
-            ],
+            "n_sesiones": len(ses_rows),
+            "n_tareas": n_tareas,
+            "detalle": spec.profundidad != "breve",
+            "extendido": spec.profundidad == "extendido",
+            "sesiones": ses_rows,
         }
 
     periodo = "Temporada"
@@ -384,6 +516,7 @@ def _build_context(
         "ambito_label": ambito_label,
         "audiencia_label": AUDIENCIAS.get(spec.audiencia, spec.audiencia),
         "profundidad_label": PROFUNIDADES.get(spec.profundidad, spec.profundidad),
+        "profundidad": spec.profundidad,
         "periodo": periodo,
         "generado": datetime.now().strftime("%d/%m/%Y %H:%M"),
         "secciones": spec.secciones,
