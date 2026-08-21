@@ -8,6 +8,14 @@ from datetime import date, datetime
 from typing import Any, Optional
 
 from app.database import get_supabase
+from app.services.informe_boards import (
+    as_list,
+    board_assets,
+    bloques_de_tareas,
+    clip,
+    md_chrome,
+    weekday,
+)
 from app.services.informe_spec import (
     AUDIENCIAS,
     PROFUNIDADES,
@@ -59,51 +67,46 @@ FASE_SESION_LABEL = {
 }
 
 
-def _clip(text: Any, n: int) -> str:
-    raw = " ".join(str(text or "").split())
-    if len(raw) <= n:
-        return raw
-    return raw[: n - 1].rsplit(" ", 1)[0] + "…"
-
-
 def _tareas_por_sesion(supabase, sesion_ids: list[str], profundidad: str) -> dict[str, list[dict]]:
-    """Tareas de cada sesión. Fallo suave: el dossier no se cae si el embed falla."""
+    """Tareas + pizarra de cada sesión. Fallo suave: el dossier no se cae si el embed falla."""
     if not sesion_ids or profundidad == "breve":
         return {}
     rows: list[dict] = []
+    select_boards = (
+        "sesion_id, orden, fase_sesion, duracion_override, notas, "
+        "tareas(id, titulo, duracion_total, densidad, desarrollo, descripcion, "
+        "reglas, consignas_ofensivas, consignas_defensivas, "
+        "objetivos_tacticos, objetivos_tecnicos, fase_juego, "
+        "principio_tactico, modalidad, grafico_data, grafico_url, "
+        "espacio_largo, espacio_ancho, categorias_tarea(codigo, nombre))"
+    )
     select_full = (
         "sesion_id, orden, fase_sesion, duracion_override, notas, "
         "tareas(id, titulo, duracion_total, densidad, desarrollo, descripcion, "
         "reglas, objetivos_tacticos, objetivos_tecnicos, fase_juego, "
-        "principio_tactico, modalidad, categorias_tarea(codigo, nombre))"
+        "principio_tactico, modalidad, grafico_data, "
+        "categorias_tarea(codigo, nombre))"
     )
     select_plain = (
         "sesion_id, orden, fase_sesion, duracion_override, notas, "
-        "tareas(id, titulo, duracion_total, desarrollo, descripcion)"
+        "tareas(id, titulo, duracion_total, desarrollo, descripcion, grafico_data)"
     )
-    try:
-        resp = (
-            supabase.table("sesion_tareas")
-            .select(select_full)
-            .in_("sesion_id", sesion_ids[:40])
-            .order("orden")
-            .execute()
-        )
-        rows = resp.data or []
-    except Exception:
-        logger.exception("informe sesion_tareas embed failed, retrying plain")
+    for select in (select_boards, select_full, select_plain):
         try:
             resp = (
                 supabase.table("sesion_tareas")
-                .select(select_plain)
+                .select(select)
                 .in_("sesion_id", sesion_ids[:40])
                 .order("orden")
                 .execute()
             )
             rows = resp.data or []
+            break
         except Exception:
-            logger.exception("informe sesion_tareas query failed")
-            return {}
+            logger.exception("informe sesion_tareas embed failed, retrying simpler select")
+            rows = []
+    if not rows:
+        return {}
 
     by_sesion: dict[str, list[dict]] = {}
     extendido = profundidad == "extendido"
@@ -118,30 +121,53 @@ def _tareas_por_sesion(supabase, sesion_ids: list[str], profundidad: str) -> dic
         if not isinstance(cat, dict):
             cat = {}
         desc = t.get("desarrollo") or t.get("descripcion") or ""
-        obj = []
+        obj: list[str] = []
         for key in ("objetivos_tacticos", "objetivos_tecnicos"):
-            vals = t.get(key) or []
-            if isinstance(vals, list):
-                obj.extend(str(v).replace("_", " ") for v in vals[:3])
+            obj.extend(as_list(t.get(key), 3))
         if t.get("principio_tactico"):
             obj.append(str(t.get("principio_tactico")).replace("_", " "))
-        notas = st.get("notas") or ""
+        obj = obj[:4]
+        consignas_of = as_list(t.get("consignas_ofensivas"), 3)
+        consignas_df = as_list(t.get("consignas_defensivas"), 3)
+        notas = str(st.get("notas") or "").strip()
+        fase_key = st.get("fase_sesion") or ""
+        orden = st.get("orden") or 0
+        preview_img, svg_thumb = board_assets(t, diagram_id=f"s{sid[:8]}t{orden}")
+        espacio = ""
+        if t.get("espacio_largo") and t.get("espacio_ancho"):
+            try:
+                espacio = f"{int(t['espacio_largo'])}×{int(t['espacio_ancho'])} m"
+            except (TypeError, ValueError):
+                espacio = ""
         detalle = ""
         if extendido:
-            bits = [_clip(desc, 280)]
+            bits = [clip(desc, 280)]
             if obj:
                 bits.append("Objetivos: " + " · ".join(obj[:4]))
             if notas:
-                bits.append(str(notas))
+                bits.append(notas)
             detalle = " ".join(b for b in bits if b)
-        fase_key = st.get("fase_sesion") or ""
         by_sesion.setdefault(sid, []).append({
-            "orden": st.get("orden") or 0,
-            "fase": FASE_SESION_LABEL.get(fase_key, fase_key.replace("_", " ").title() if fase_key else "—"),
+            "orden": orden,
+            "fase": FASE_SESION_LABEL.get(
+                fase_key,
+                fase_key.replace("_", " ").title() if fase_key else "—",
+            ),
             "titulo": t.get("titulo") or "Tarea",
-            "categoria": cat.get("codigo") or cat.get("nombre") or "",
+            "categoria": (cat.get("codigo") or cat.get("nombre") or "").upper(),
             "min": st.get("duracion_override") or t.get("duracion_total") or "",
             "detalle": detalle,
+            "resumen": clip(desc, 320 if extendido else 160),
+            "objetivos": obj,
+            "consignas_of": consignas_of,
+            "consignas_df": consignas_df,
+            "notas": notas,
+            "densidad": t.get("densidad") or "",
+            "modalidad": (t.get("modalidad") or "").replace("_", " "),
+            "espacio": espacio,
+            "preview_img": preview_img,
+            "svg_thumbnail": svg_thumb,
+            "has_board": bool(preview_img or svg_thumb),
         })
     for sid, items in by_sesion.items():
         items.sort(key=lambda x: x.get("orden") or 0)
@@ -456,23 +482,34 @@ def _build_context(
         rival = micro.get("rivales") or {}
         ses_rows = []
         n_tareas = 0
+        n_boards = 0
         for s in sesiones:
             sid = str(s.get("id") or "")
             tareas = tareas_map.get(sid) or []
             n_tareas += len(tareas)
+            n_boards += sum(1 for t in tareas if t.get("has_board"))
+            chrome = md_chrome(s.get("match_day"))
             ses_rows.append({
                 "fecha": _fmt_fecha(s.get("fecha")),
+                "weekday": weekday(s.get("fecha")),
                 "titulo": s.get("titulo") or "Sesión",
-                "md": s.get("match_day") or "",
+                "md": s.get("match_day") or "MD",
+                "md_bar": chrome["bar"],
+                "md_ink": chrome["ink"],
+                "md_wash": chrome["wash"],
+                "md_label": chrome["label"],
+                "md_carga": chrome["carga"],
                 "min": s.get("duracion_total") or "",
                 "objetivo": s.get("objetivo_principal") or "",
                 "estado": s.get("estado") or "",
-                "carga": s.get("carga_fisica_objetivo") or "",
+                "carga": s.get("carga_fisica_objetivo") or chrome["carga"],
                 "fase_juego": (s.get("fase_juego_principal") or "").replace("_", " "),
                 "lugar": s.get("lugar") or "",
                 "notas": s.get("notas_pre") or "",
                 "tareas": tareas,
+                "bloques": bloques_de_tareas(tareas),
                 "n_tareas": len(tareas),
+                "n_boards": sum(1 for t in tareas if t.get("has_board")),
             })
         micro_ctx = {
             "rango": f"{_fmt_fecha(micro.get('fecha_inicio'))} – {_fmt_fecha(micro.get('fecha_fin'))}",
@@ -483,8 +520,10 @@ def _build_context(
             "rival": rival.get("nombre_corto") or rival.get("nombre") or "",
             "n_sesiones": len(ses_rows),
             "n_tareas": n_tareas,
+            "n_boards": n_boards,
             "detalle": spec.profundidad != "breve",
             "extendido": spec.profundidad == "extendido",
+            "con_pizarras": spec.profundidad != "breve",
             "sesiones": ses_rows,
         }
 
