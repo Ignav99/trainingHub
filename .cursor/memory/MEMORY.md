@@ -1,12 +1,10 @@
 # TrainingHub — estado actual
 
 ## En curso
-Gabinete de informes + amistosos fuera de estadísticas de competición.
-Rama `cursor/informes-amistosos-ae84`.
+Dossier de microciclo con pizarras reales y sesiones diferenciadas por MD.
+Rama `cursor/informes-pizarra-dossier-ae84`.
 
-- Ámbito por defecto: solo competición (liga/copa/torneo). Filtro competición / amistosos / conjunta.
-- Informes PDF WeasyPrint con cromado único (escudo + temporada).
+Firma visual: barra de color MD (como SessionCard) + thumbnail de pizarra por tarea.
 
 ## Hecho reciente
-PR #247 — escritura asistida + etiquetas técnicas.
-PR #246 — SIATE GO/PES + guardado rápido.
+PR #251 — microciclo extendido (tablas; insuficiente).

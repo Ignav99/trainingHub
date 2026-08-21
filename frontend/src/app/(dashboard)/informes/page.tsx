@@ -44,9 +44,9 @@ const PROF_LABEL: Record<InformeProfundidad, string> = {
 }
 
 const PROF_HINT: Record<InformeProfundidad, string> = {
-  breve: 'Una hoja. Cifras y lectura corta.',
-  estandar: 'Tablas del periodo. En microciclo, sesiones y listado de tareas.',
-  extendido: 'En microciclo: cada sesión con todas las tareas y el desarrollo. En temporada, el histórico.',
+  breve: 'Una hoja. Cifras y lectura corta. En microciclo, el mapa de la semana.',
+  estandar: 'Cada sesión con su color MD, pizarra y ficha de cada tarea.',
+  extendido: 'Dossier de vestuario: sesiones diferenciadas, pizarra, consignas y objetivos de cada ejercicio.',
 }
 
 const LIMITE_FILAS: Record<InformeProfundidad, number> = {
@@ -499,8 +499,8 @@ export default function InformesPage() {
               {spec.asunto === 'microciclo' && spec.profundidad !== 'breve' ? (
                 <li>
                   {spec.profundidad === 'extendido'
-                    ? 'Cada sesión con todas las tareas y el desarrollo'
-                    : 'Cada sesión con el listado de tareas'}
+                    ? 'Cada sesión diferenciada, con pizarra, consignas y objetivos de cada tarea'
+                    : 'Cada sesión con pizarra y ficha de cada tarea'}
                 </li>
               ) : null}
             </ol>

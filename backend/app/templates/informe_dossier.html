@@ -3,132 +3,241 @@
 <head>
   <meta charset="UTF-8">
   <style>
-    @page { size: A4; margin: 16mm 14mm 18mm 14mm; }
+    /*
+      Dossier de vestuario — WeasyPrint: TABLE (flex colapsa).
+      Firma: barra MD de color + pizarra por tarea.
+    */
+    @page { size: A4; margin: 10mm 9mm 14mm 9mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-      color: #1a1a2e;
-      font-size: 11px;
-      line-height: 1.45;
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      color: #0B1220;
+      font-size: 10px;
+      line-height: 1.35;
+      background: #fff;
     }
-    .mast {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      padding-bottom: 10px;
-      border-bottom: 3px solid {{ color }};
-      margin-bottom: 10px;
-    }
-    .mast img { width: 42px; height: 42px; object-fit: contain; }
+    .mast { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+    .mast td { vertical-align: middle; padding: 0 0 8px; border-bottom: 3px solid {{ color }}; }
+    .mast img { width: 40px; height: 40px; object-fit: contain; }
     .mast-mark {
-      width: 42px; height: 42px; border-radius: 8px;
+      width: 40px; height: 40px;
       background: {{ color }}; color: #fff;
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 700; font-size: 18px;
+      font-weight: 800; font-size: 16px; text-align: center; line-height: 40px;
     }
     .kicker {
-      font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase;
-      color: {{ color }}; font-weight: 700;
+      font-size: 8px; letter-spacing: 0.18em; text-transform: uppercase;
+      color: {{ color }}; font-weight: 800;
     }
-    .mast h1 { font-size: 18px; font-weight: 700; margin-top: 1px; }
-    .meta { font-size: 10px; color: #555; margin-top: 2px; }
-    .cover {
-      display: flex; gap: 16px; margin-bottom: 14px;
-      font-size: 10px; color: #444;
+    .mast h1 { font-size: 17px; font-weight: 800; margin-top: 1px; letter-spacing: -0.02em; }
+    .meta { font-size: 9px; color: #475569; margin-top: 1px; }
+    .cover { width: 100%; border-collapse: collapse; margin: 8px 0 10px; }
+    .cover td { font-size: 9px; color: #475569; padding: 0 12px 0 0; }
+    .cover b { color: #0B1220; }
+    .kpis { width: 100%; border-collapse: collapse; margin-bottom: 12px; table-layout: fixed; }
+    .kpis td {
+      border: 1px solid #E2E8F0; padding: 7px 9px; background: #F8FAFC;
+      vertical-align: top;
     }
-    .cover span { margin-right: 12px; }
-    .cover b { color: #111; }
-    .strip { display: flex; gap: 8px; margin-bottom: 14px; }
-    .kpi { flex: 1; border: 1px solid #e5e7eb; padding: 8px 10px; }
-    .kpi .n { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
-    .kpi .l { font-size: 8px; text-transform: uppercase; letter-spacing: 0.08em; color: #666; }
-    .racha { font-variant-numeric: tabular-nums; letter-spacing: 0.14em; font-weight: 700; }
+    .kpis .n { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; color: #0B1220; }
+    .kpis .l { font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.1em; color: #64748B; font-weight: 700; }
+    .racha { font-variant-numeric: tabular-nums; letter-spacing: 0.14em; font-weight: 800; color: {{ color }}; }
     .notas {
-      margin-top: 12px; padding: 8px 10px; background: #f7f7f8;
-      font-size: 10px; color: #333;
+      margin-top: 12px; padding: 8px 10px; background: #F1F5F9;
+      border-left: 3px solid {{ color }}; font-size: 10px; color: #1E293B;
     }
-    .notas .l { font-size: 8px; text-transform: uppercase; letter-spacing: 0.08em; color: #666; margin-bottom: 4px; }
-    .ses-block { margin-top: 14px; page-break-inside: avoid; }
-    .ses-block h3 { font-size: 12px; font-weight: 700; margin: 0 0 4px; color: #111; }
-    .tarea-detalle { font-size: 9px; color: #444; padding: 2px 6px 8px; }
+    .notas .l { font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.1em; color: #64748B; font-weight: 700; margin-bottom: 4px; }
     .lectura {
-      border-left: 3px solid {{ color }};
-      padding: 6px 10px;
-      margin-bottom: 14px;
-      font-size: 11px;
+      border-left: 4px solid {{ color }};
+      padding: 7px 11px; margin-bottom: 12px;
+      font-size: 11px; background: #F8FAFC;
     }
     h2 {
-      font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em;
-      color: {{ color }}; border-bottom: 1px solid #e5e7eb;
-      padding-bottom: 4px; margin: 16px 0 8px;
+      font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em;
+      color: {{ color }}; border-bottom: 2px solid {{ color }};
+      padding-bottom: 3px; margin: 16px 0 8px; font-weight: 800;
     }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid #eee; font-size: 10px; }
-    th { font-size: 8px; text-transform: uppercase; letter-spacing: 0.06em; color: #666; }
+    table.data { width: 100%; border-collapse: collapse; }
+    table.data th, table.data td { text-align: left; padding: 4px 6px; border-bottom: 1px solid #E2E8F0; font-size: 9.5px; }
+    table.data th { font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.08em; color: #64748B; font-weight: 800; }
     td.num { text-align: right; font-variant-numeric: tabular-nums; }
-    .muted { color: #666; }
+    .muted { color: #64748B; }
+
+    /* —— Semana / microciclo —— */
+    .week-hero { width: 100%; border-collapse: collapse; margin: 4px 0 10px; }
+    .week-hero td { vertical-align: middle; padding: 10px 12px; background: #0B1220; color: #F8FAFC; }
+    .week-hero .wh-k { font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase; color: #94A3B8; font-weight: 700; }
+    .week-hero .wh-t { font-size: 15px; font-weight: 800; margin-top: 2px; }
+    .week-hero .wh-vs { font-size: 18px; font-weight: 800; text-align: right; color: #FDE68A; }
+    .week-hero .wh-sub { font-size: 9px; color: #94A3B8; text-align: right; margin-top: 2px; }
+
+    .obj-grid { width: 100%; border-collapse: collapse; margin-bottom: 10px; table-layout: fixed; }
+    .obj-grid td { vertical-align: top; padding: 7px 9px; border: 1px solid #E2E8F0; }
+    .obj-grid .ol {
+      font-size: 7px; text-transform: uppercase; letter-spacing: 0.12em;
+      font-weight: 800; color: {{ color }}; margin-bottom: 3px;
+    }
+    .obj-grid .ot { font-size: 10px; font-weight: 600; color: #0B1220; }
+
+    .week-strip { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 12px; }
+    .week-strip td {
+      text-align: center; padding: 6px 3px 7px;
+      border: 1px solid #E2E8F0; vertical-align: top;
+    }
+    .week-strip .md { font-size: 11px; font-weight: 800; letter-spacing: 0.02em; }
+    .week-strip .wd { font-size: 8px; text-transform: capitalize; color: #475569; margin-top: 1px; }
+    .week-strip .nt { font-size: 8px; color: #64748B; margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+    .ses-sheet { margin-top: 8px; page-break-before: always; }
+    .ses-sheet.first { page-break-before: auto; margin-top: 4px; }
+    .ses-banner { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+    .ses-md {
+      width: 26mm; text-align: center; color: #fff; vertical-align: middle; padding: 8px 4px;
+    }
+    .ses-md-code { font-size: 16px; font-weight: 800; letter-spacing: 0.02em; line-height: 1.1; }
+    .ses-md-lab { font-size: 7px; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.9; margin-top: 2px; font-weight: 700; }
+    .ses-head { vertical-align: middle; padding: 7px 10px; }
+    .ses-kicker { font-size: 8px; text-transform: capitalize; font-weight: 700; letter-spacing: 0.04em; color: #475569; }
+    .ses-title { font-size: 14px; font-weight: 800; letter-spacing: -0.02em; margin-top: 1px; }
+    .ses-meta { font-size: 9px; color: #334155; margin-top: 3px; }
+    .ses-obj {
+      font-size: 10px; padding: 5px 9px; margin-bottom: 8px;
+      border-left: 3px solid #94A3B8; background: #F8FAFC;
+    }
+    .ses-obj strong { font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.1em; color: #64748B; }
+
+    .fase-lbl {
+      font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em;
+      color: #fff; background: #0B1220; padding: 3px 8px; margin: 8px 0 4px;
+    }
+
+    .task-card {
+      width: 100%; border-collapse: collapse; table-layout: fixed;
+      margin-bottom: 6px; border: 1px solid #E2E8F0;
+      page-break-inside: avoid;
+    }
+    .task-board {
+      width: 52%; height: 44mm; background: #14532D;
+      vertical-align: middle; overflow: hidden; padding: 0;
+    }
+    .task-board img,
+    .task-board svg {
+      display: block;
+      width: 100% !important;
+      height: 44mm !important;
+      max-width: none !important;
+      object-fit: contain;
+      object-position: center;
+    }
+    .board-empty {
+      height: 44mm; line-height: 44mm; text-align: center;
+      color: rgba(255,255,255,0.65);
+      font-size: 8px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700;
+      background: #166534;
+    }
+    .task-sum { width: 48%; vertical-align: top; padding: 6px 8px 7px; background: #fff; }
+    .task-ord {
+      display: inline-block; background: #0B1220; color: #fff;
+      font-size: 8px; font-weight: 800; padding: 1px 5px; margin-right: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+    .task-cat {
+      display: inline-block; background: #FEF3C7; color: #92400E;
+      font-size: 7.5px; font-weight: 800; letter-spacing: 0.06em;
+      padding: 1px 5px; text-transform: uppercase;
+    }
+    .task-min {
+      display: inline-block; float: right;
+      font-size: 11px; font-weight: 800; color: {{ color }};
+      font-variant-numeric: tabular-nums;
+    }
+    .task-title { font-size: 11px; font-weight: 800; color: #0B1220; margin: 4px 0 3px; line-height: 1.2; }
+    .task-resumen { font-size: 8.5px; color: #334155; line-height: 1.3; margin-bottom: 4px; }
+    .cons { font-size: 8px; color: #1E293B; margin-top: 2px; line-height: 1.3; }
+    .cons .cl {
+      font-size: 6.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;
+      color: #64748B; margin-right: 3px;
+    }
+    .cons.of .cl { color: #B45309; }
+    .cons.df .cl { color: #1D4ED8; }
+    .chips { margin-top: 4px; }
+    .chip {
+      display: inline-block; font-size: 7px; font-weight: 700;
+      background: #F1F5F9; color: #334155; padding: 1px 5px; margin: 0 3px 2px 0;
+    }
+    .md-cell { font-weight: 800; }
+
     @page { @bottom-center { content: "Kabin-e · {{ generado }} · {{ ambito_label }} · {{ profundidad_label }}"; font-size: 8px; color: #888; } }
   </style>
 </head>
 <body>
-  <header class="mast">
-    {% if organizacion.logo_url %}
-      <img src="{{ organizacion.logo_url }}" alt="">
-    {% else %}
-      <div class="mast-mark">{{ (organizacion.nombre or 'K')[0] }}</div>
-    {% endif %}
-    <div>
-      <div class="kicker">Dossier · Para {{ audiencia_label }}</div>
-      <h1>{{ titulo }}</h1>
-      <div class="meta">
-        {{ organizacion.nombre or '' }}
-        {% if equipo.nombre %} · {{ equipo.nombre }}{% endif %}
-        {% if equipo.temporada %} · {{ equipo.temporada }}{% endif %}
-        · {{ periodo }}
-      </div>
-    </div>
-  </header>
+  <table class="mast">
+    <tr>
+      <td style="width:48px">
+        {% if organizacion.logo_url %}
+          <img src="{{ organizacion.logo_url }}" alt="">
+        {% else %}
+          <div class="mast-mark">{{ (organizacion.nombre or 'K')[0] }}</div>
+        {% endif %}
+      </td>
+      <td>
+        <div class="kicker">Dossier · Para {{ audiencia_label }}</div>
+        <h1>{{ titulo }}</h1>
+        <div class="meta">
+          {{ organizacion.nombre or '' }}
+          {% if equipo.nombre %} · {{ equipo.nombre }}{% endif %}
+          {% if equipo.temporada %} · {{ equipo.temporada }}{% endif %}
+          · {{ periodo }}
+        </div>
+      </td>
+    </tr>
+  </table>
 
-  <div class="cover">
-    <span><b>Ámbito</b> {{ ambito_label }}</span>
-    <span><b>Profundidad</b> {{ profundidad_label }}</span>
-    <span><b>Periodo</b> {{ periodo }}</span>
-  </div>
+  <table class="cover">
+    <tr>
+      <td><b>Ámbito</b> {{ ambito_label }}</td>
+      <td><b>Profundidad</b> {{ profundidad_label }}</td>
+      <td><b>Periodo</b> {{ periodo }}</td>
+    </tr>
+  </table>
 
   {% if 'narrativa' in secciones and narrativa %}
   <div class="lectura">{{ narrativa }}</div>
   {% endif %}
 
   {% if 'resumen' in secciones %}
-  <div class="strip">
-    <div class="kpi"><div class="n">{{ resumen.pj }}</div><div class="l">Partidos</div></div>
-    <div class="kpi"><div class="n">{{ resumen.pg }}-{{ resumen.pe }}-{{ resumen.pp }}</div><div class="l">V-E-D</div></div>
-    <div class="kpi"><div class="n">{{ resumen.gf }}-{{ resumen.gc }}</div><div class="l">GF-GC</div></div>
-    <div class="kpi"><div class="n">{% if resumen.dg > 0 %}+{% endif %}{{ resumen.dg }}</div><div class="l">Dif.</div></div>
-    {% if resumen.pts is defined %}
-    <div class="kpi"><div class="n">{{ resumen.pts }}</div><div class="l">Pts</div></div>
-    {% endif %}
-  </div>
+  <table class="kpis">
+    <tr>
+      <td><div class="n">{{ resumen.pj }}</div><div class="l">Partidos</div></td>
+      <td><div class="n">{{ resumen.pg }}-{{ resumen.pe }}-{{ resumen.pp }}</div><div class="l">V-E-D</div></td>
+      <td><div class="n">{{ resumen.gf }}-{{ resumen.gc }}</div><div class="l">GF-GC</div></td>
+      <td><div class="n">{% if resumen.dg > 0 %}+{% endif %}{{ resumen.dg }}</div><div class="l">Dif.</div></td>
+      {% if resumen.pts is defined %}
+      <td><div class="n">{{ resumen.pts }}</div><div class="l">Pts</div></td>
+      {% endif %}
+    </tr>
+  </table>
   {% if racha %}
   <p class="meta" style="margin-bottom:12px">Forma reciente · <span class="racha">{{ racha | join(' ') }}</span></p>
   {% endif %}
   {% if profundidad_label != 'Breve' and local and visitante %}
-  <div class="strip">
-    <div class="kpi">
-      <div class="n">{{ local.pg }}-{{ local.pe }}-{{ local.pp }}</div>
-      <div class="l">Local · {{ local.pj }} PJ</div>
-    </div>
-    <div class="kpi">
-      <div class="n">{{ visitante.pg }}-{{ visitante.pe }}-{{ visitante.pp }}</div>
-      <div class="l">Visitante · {{ visitante.pj }} PJ</div>
-    </div>
-  </div>
+  <table class="kpis">
+    <tr>
+      <td>
+        <div class="n">{{ local.pg }}-{{ local.pe }}-{{ local.pp }}</div>
+        <div class="l">Local · {{ local.pj }} PJ</div>
+      </td>
+      <td>
+        <div class="n">{{ visitante.pg }}-{{ visitante.pe }}-{{ visitante.pp }}</div>
+        <div class="l">Visitante · {{ visitante.pj }} PJ</div>
+      </td>
+    </tr>
+  </table>
   {% endif %}
   {% endif %}
 
   {% if 'resultados' in secciones %}
     <h2>Resultados</h2>
-    <table>
+    <table class="data">
       <thead><tr><th>Fecha</th><th>Rival</th><th>Loc.</th><th>Marcador</th><th>R</th></tr></thead>
       <tbody>
         {% for p in evolucion %}
@@ -149,7 +258,7 @@
 
   {% if 'plantilla' in secciones %}
     <h2>Minutos y aportación</h2>
-    <table>
+    <table class="data">
       <thead><tr><th>#</th><th>Jugador</th><th>Pos.</th><th class="num">PJ</th><th class="num">Tit.</th><th class="num">Min</th><th class="num">G</th><th class="num">A</th>{% if 'disciplina' in secciones %}<th class="num">TA</th><th class="num">TR</th>{% endif %}</tr></thead>
       <tbody>
         {% for j in plantilla %}
@@ -172,7 +281,7 @@
     </table>
   {% elif 'disciplina' in secciones %}
     <h2>Disciplina</h2>
-    <table>
+    <table class="data">
       <thead><tr><th>#</th><th>Jugador</th><th class="num">TA</th><th class="num">TR</th></tr></thead>
       <tbody>
         {% for j in plantilla %}
@@ -191,18 +300,20 @@
 
   {% if 'jugador' in secciones and jugador %}
     <h2>Ficha</h2>
-    <div class="strip">
-      <div class="kpi"><div class="n">{{ jugador.stats.pj }}</div><div class="l">Partidos</div></div>
-      <div class="kpi"><div class="n">{{ jugador.stats.minutos }}</div><div class="l">Minutos</div></div>
-      <div class="kpi"><div class="n">{{ jugador.stats.goles }}</div><div class="l">Goles</div></div>
-      <div class="kpi"><div class="n">{{ jugador.stats.asistencias }}</div><div class="l">Asistencias</div></div>
-    </div>
+    <table class="kpis">
+      <tr>
+        <td><div class="n">{{ jugador.stats.pj }}</div><div class="l">Partidos</div></td>
+        <td><div class="n">{{ jugador.stats.minutos }}</div><div class="l">Minutos</div></td>
+        <td><div class="n">{{ jugador.stats.goles }}</div><div class="l">Goles</div></td>
+        <td><div class="n">{{ jugador.stats.asistencias }}</div><div class="l">Asistencias</div></td>
+      </tr>
+    </table>
     <p class="meta" style="margin-bottom:10px">
       {{ jugador.nombre }}
       {% if jugador.dorsal %} · {{ jugador.dorsal }}{% endif %}
       {% if jugador.posicion %} · {{ jugador.posicion }}{% endif %}
     </p>
-    <table>
+    <table class="data">
       <thead><tr><th>Fecha</th><th>Rival</th><th>Min</th><th>G</th><th>A</th><th>Tit.</th><th>R</th></tr></thead>
       <tbody>
         {% for h in jugador.historial %}
@@ -224,71 +335,183 @@
   {% endif %}
 
   {% if 'microciclo' in secciones and microciclo %}
-    <h2>Semana de entrenamiento</h2>
-    <p class="meta" style="margin-bottom:10px">
-      {{ microciclo.rango }}
-      {% if microciclo.rival %} · Rival: {{ microciclo.rival }}{% endif %}
-      {% if microciclo.n_sesiones is defined %} · {{ microciclo.n_sesiones }} sesiones{% endif %}
-      {% if microciclo.n_tareas %} · {{ microciclo.n_tareas }} tareas{% endif %}
-    </p>
-    {% if microciclo.objetivo %}<p><strong>Objetivo:</strong> {{ microciclo.objetivo }}</p>{% endif %}
-    {% if microciclo.objetivo_tactico %}<p><strong>Táctico:</strong> {{ microciclo.objetivo_tactico }}</p>{% endif %}
-    {% if microciclo.objetivo_fisico %}<p><strong>Físico:</strong> {{ microciclo.objetivo_fisico }}</p>{% endif %}
-    {% if microciclo.notas %}<p class="muted" style="margin-top:6px">{{ microciclo.notas }}</p>{% endif %}
-    <table>
-      <thead><tr><th>Fecha</th><th>MD</th><th>Sesión</th><th class="num">Min</th><th class="num">Tareas</th><th>Objetivo</th></tr></thead>
+    <table class="week-hero">
+      <tr>
+        <td>
+          <div class="wh-k">Semana de entrenamiento</div>
+          <div class="wh-t">{{ microciclo.rango }}</div>
+        </td>
+        <td style="width:42%">
+          {% if microciclo.rival %}
+          <div class="wh-vs">vs {{ microciclo.rival }}</div>
+          {% endif %}
+          <div class="wh-sub">
+            {{ microciclo.n_sesiones or 0 }} sesiones
+            · {{ microciclo.n_tareas or 0 }} tareas
+            {% if microciclo.n_boards %} · {{ microciclo.n_boards }} pizarras{% endif %}
+          </div>
+        </td>
+      </tr>
+    </table>
+
+    {% if microciclo.objetivo or microciclo.objetivo_tactico or microciclo.objetivo_fisico %}
+    <table class="obj-grid">
+      <tr>
+        <td>
+          <div class="ol">Objetivo de semana</div>
+          <div class="ot">{{ microciclo.objetivo or '—' }}</div>
+        </td>
+        <td>
+          <div class="ol">Táctico</div>
+          <div class="ot">{{ microciclo.objetivo_tactico or '—' }}</div>
+        </td>
+        <td>
+          <div class="ol">Físico</div>
+          <div class="ot">{{ microciclo.objetivo_fisico or '—' }}</div>
+        </td>
+      </tr>
+    </table>
+    {% endif %}
+    {% if microciclo.notas %}<p class="muted" style="margin-bottom:8px">{{ microciclo.notas }}</p>{% endif %}
+
+    {% if microciclo.sesiones %}
+    <table class="week-strip">
+      <tr>
+        {% for s in microciclo.sesiones %}
+        <td style="border-top: 5px solid {{ s.md_bar }}; background: {{ s.md_wash }};">
+          <div class="md" style="color: {{ s.md_ink }}">{{ s.md }}</div>
+          <div class="wd">{{ s.weekday or s.fecha }}</div>
+          <div class="nt">{{ s.min or '—' }}′ · {{ s.n_tareas or 0 }} ej.</div>
+        </td>
+        {% endfor %}
+      </tr>
+    </table>
+    {% endif %}
+
+    {% if not microciclo.detalle %}
+    <table class="data">
+      <thead><tr><th>Fecha</th><th>MD</th><th>Sesión</th><th class="num">Min</th><th>Objetivo</th></tr></thead>
       <tbody>
         {% for s in microciclo.sesiones %}
         <tr>
           <td>{{ s.fecha }}</td>
-          <td>{{ s.md }}</td>
+          <td class="md-cell" style="color: {{ s.md_ink }}">{{ s.md }}</td>
           <td>{{ s.titulo }}</td>
           <td class="num">{{ s.min }}</td>
-          <td class="num">{{ s.n_tareas or 0 }}</td>
           <td>{{ s.objetivo }}</td>
         </tr>
         {% endfor %}
         {% if not microciclo.sesiones %}
-        <tr><td colspan="6" class="muted">Sin sesiones en este microciclo.</td></tr>
+        <tr><td colspan="5" class="muted">Sin sesiones en este microciclo.</td></tr>
         {% endif %}
       </tbody>
     </table>
+    {% endif %}
 
     {% if microciclo.detalle %}
       {% for s in microciclo.sesiones %}
-      <div class="ses-block">
-        <h3>{{ s.md or 'MD' }} · {{ s.titulo }} · {{ s.fecha }}</h3>
-        <p class="meta" style="margin-bottom:6px">
-          {% if s.min %}{{ s.min }} min{% endif %}
-          {% if s.carga %} · Carga {{ s.carga }}{% endif %}
-          {% if s.fase_juego %} · {{ s.fase_juego }}{% endif %}
-          {% if s.lugar %} · {{ s.lugar }}{% endif %}
-        </p>
-        {% if s.objetivo %}<p><strong>Objetivo:</strong> {{ s.objetivo }}</p>{% endif %}
-        {% if s.notas %}<p class="muted">{{ s.notas }}</p>{% endif %}
-        <table>
-          <thead><tr><th>#</th><th>Bloque</th><th>Tarea</th><th>Cat.</th><th class="num">Min</th></tr></thead>
-          <tbody>
-            {% for t in s.tareas %}
-            <tr>
-              <td class="num">{{ t.orden }}</td>
-              <td class="muted">{{ t.fase }}</td>
-              <td>{{ t.titulo }}</td>
-              <td class="muted">{{ t.categoria }}</td>
-              <td class="num">{{ t.min }}</td>
-            </tr>
-            {% if microciclo.extendido and t.detalle %}
-            <tr>
-              <td></td>
-              <td colspan="4" class="tarea-detalle">{{ t.detalle }}</td>
-            </tr>
-            {% endif %}
-            {% endfor %}
-            {% if not s.tareas %}
-            <tr><td colspan="5" class="muted">Sin tareas en esta sesión.</td></tr>
-            {% endif %}
-          </tbody>
+      <div class="ses-sheet{% if loop.first %} first{% endif %}">
+        <table class="ses-banner">
+          <tr>
+            <td class="ses-md" style="background: {{ s.md_bar }};">
+              <div class="ses-md-code">{{ s.md }}</div>
+              <div class="ses-md-lab">{{ s.md_label }}</div>
+            </td>
+            <td class="ses-head" style="background: {{ s.md_wash }}; border-bottom: 4px solid {{ s.md_bar }};">
+              <div class="ses-kicker">{{ s.weekday }} · {{ s.fecha }}</div>
+              <div class="ses-title" style="color: {{ s.md_ink }}">{{ s.titulo }}</div>
+              <div class="ses-meta">
+                {% if s.min %}<strong>{{ s.min }}′</strong>{% endif %}
+                {% if s.carga %} · Carga {{ s.carga }}{% endif %}
+                {% if s.md_carga and not s.carga %} · {{ s.md_carga }}{% endif %}
+                {% if s.fase_juego %} · {{ s.fase_juego }}{% endif %}
+                {% if s.lugar %} · {{ s.lugar }}{% endif %}
+                · {{ s.n_tareas or 0 }} tareas
+              </div>
+            </td>
+          </tr>
         </table>
+        {% if s.objetivo %}
+        <div class="ses-obj" style="border-left-color: {{ s.md_bar }};"><strong>Objetivo</strong> {{ s.objetivo }}</div>
+        {% endif %}
+        {% if s.notas %}<p class="muted" style="margin-bottom:6px">{{ s.notas }}</p>{% endif %}
+
+        {% if s.bloques %}
+          {% for b in s.bloques %}
+          <div class="fase-lbl" style="background: {{ s.md_ink }};">{{ b.fase }}</div>
+          {% for t in b.tareas %}
+          <table class="task-card">
+            <tr>
+              <td class="task-board">
+                {% if t.preview_img %}
+                  <img src="{{ t.preview_img }}" alt="">
+                {% elif t.svg_thumbnail %}
+                  {{ t.svg_thumbnail|safe }}
+                {% else %}
+                  <div class="board-empty">Sin pizarra</div>
+                {% endif %}
+              </td>
+              <td class="task-sum">
+                <div>
+                  <span class="task-ord">{{ '%02d' % (t.orden or loop.index) }}</span>
+                  {% if t.categoria %}<span class="task-cat">{{ t.categoria }}</span>{% endif %}
+                  {% if t.min %}<span class="task-min">{{ t.min }}′</span>{% endif %}
+                </div>
+                <div class="task-title">{{ t.titulo }}</div>
+                {% if t.resumen %}<div class="task-resumen">{{ t.resumen }}</div>{% endif %}
+                {% if t.consignas_of %}
+                <div class="cons of"><span class="cl">Ofensivo</span>{{ t.consignas_of | join(' · ') }}</div>
+                {% endif %}
+                {% if t.consignas_df %}
+                <div class="cons df"><span class="cl">Defensivo</span>{{ t.consignas_df | join(' · ') }}</div>
+                {% endif %}
+                {% if microciclo.extendido and t.detalle and not t.resumen %}
+                <div class="task-resumen">{{ t.detalle }}</div>
+                {% endif %}
+                {% if t.objetivos or t.espacio or t.densidad or t.modalidad %}
+                <div class="chips">
+                  {% if t.espacio %}<span class="chip">{{ t.espacio }}</span>{% endif %}
+                  {% if t.densidad %}<span class="chip">Densidad {{ t.densidad }}</span>{% endif %}
+                  {% if t.modalidad %}<span class="chip">{{ t.modalidad }}</span>{% endif %}
+                  {% for o in t.objetivos %}
+                  <span class="chip">{{ o }}</span>
+                  {% endfor %}
+                </div>
+                {% endif %}
+                {% if t.notas %}<div class="cons"><span class="cl">Nota</span>{{ t.notas }}</div>{% endif %}
+              </td>
+            </tr>
+          </table>
+          {% endfor %}
+          {% endfor %}
+        {% elif s.tareas %}
+          {% for t in s.tareas %}
+          <table class="task-card">
+            <tr>
+              <td class="task-board">
+                {% if t.preview_img %}
+                  <img src="{{ t.preview_img }}" alt="">
+                {% elif t.svg_thumbnail %}
+                  {{ t.svg_thumbnail|safe }}
+                {% else %}
+                  <div class="board-empty">Sin pizarra</div>
+                {% endif %}
+              </td>
+              <td class="task-sum">
+                <div>
+                  <span class="task-ord">{{ '%02d' % (t.orden or loop.index) }}</span>
+                  {% if t.categoria %}<span class="task-cat">{{ t.categoria }}</span>{% endif %}
+                  {% if t.min %}<span class="task-min">{{ t.min }}′</span>{% endif %}
+                </div>
+                <div class="task-title">{{ t.titulo }}</div>
+                {% if t.resumen %}<div class="task-resumen">{{ t.resumen }}</div>{% endif %}
+              </td>
+            </tr>
+          </table>
+          {% endfor %}
+        {% else %}
+          <p class="muted">Sin tareas en esta sesión.</p>
+        {% endif %}
       </div>
       {% endfor %}
     {% endif %}
