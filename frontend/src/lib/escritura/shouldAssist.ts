@@ -32,7 +32,7 @@ const SKIP_PATHS = [
 ]
 
 const SKIP_HINT =
-  /password|passwd|contraseña|email|correo|username|usuario|otp|token|search|buscar|filtro|query|búsqueda|busqueda|csrf/
+  /password|passwd|contraseña|email|correo|username|usuario|otp|token|search|buscar|filtro|query|búsqueda|busqueda|csrf|chip libre/
 
 export function isAssistRoute(pathname: string): boolean {
   return !SKIP_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))

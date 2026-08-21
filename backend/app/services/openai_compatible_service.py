@@ -22,6 +22,7 @@ from app.services.ai_prompts import (
     PRE_MATCH_REPORT_PROMPT,
     PRE_MATCH_TOOLS,
     TOOLS,
+    CORRECT_WRITING_PROMPT,
 )
 from app.services.ai_tools import claude_tools_to_openai
 from app.services.ai_tool_executor import execute_tool
@@ -192,14 +193,7 @@ class OpenAICompatibleService:
                 messages=[
                     {
                         "role": "system",
-                        "content": (
-                            "Eres un corrector de español para entrenadores de fútbol. "
-                            "Corrige SOLO faltas de ortografía, erratas y gramática evidente. "
-                            "Puedes acentuar y usar vocabulario técnico de fútbol. "
-                            "NO cambies el sentido, el tono ni el orden de las ideas. "
-                            "Si el texto ya está bien, devuélvelo idéntico. "
-                            "Responde ÚNICAMENTE con el texto corregido, sin comillas ni explicaciones."
-                        ),
+                        "content": CORRECT_WRITING_PROMPT,
                     },
                     {"role": "user", "content": texto},
                 ],

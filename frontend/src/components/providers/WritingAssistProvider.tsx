@@ -1,16 +1,18 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { flushSync } from 'react-dom'
 import { usePathname } from 'next/navigation'
 import { correctLocal, shouldCorrectText, similarityRatio } from '@/lib/escritura/correctLocal'
 import { isAssistField, isAssistRoute } from '@/lib/escritura/shouldAssist'
 import { setNativeValue } from '@/lib/escritura/applyToField'
 import { escrituraApi } from '@/lib/api/escritura'
 
-const IDLE_MS = 2500
-const AI_MIN_CHARS = 50
-const AI_MIN_RATIO = 0.84
+const IDLE_MS = 1000
+const AI_MIN_CHARS = 18
+const AI_MIN_RATIO = 0.78
 const UNDO_GUARD_MS = 10000
+const AI_WAIT_MS = 4000
 
 function hasSession(): boolean {
   try {
@@ -23,23 +25,48 @@ function hasSession(): boolean {
   }
 }
 
+function looksLikeCommit(el: Element): boolean {
+  if (el instanceof HTMLButtonElement && el.type === 'submit') return true
+  if (el.getAttribute('type') === 'submit') return true
+  const text = `${el.textContent || ''} ${el.getAttribute('aria-label') || ''}`
+  return /guardar|save|enviar|confirmar|publicar|crear sesión|crear sesion/i.test(text)
+}
+
 type FieldState = {
   timer: ReturnType<typeof setTimeout> | null
   lastRaw: string
   lastApplied: string
   lastAi: string
   undoUntil: number
+  aiPromise: Promise<string | null> | null
+}
+
+function commitToField(
+  el: HTMLInputElement | HTMLTextAreaElement,
+  next: string,
+  keepFocus: boolean,
+) {
+  const run = () => setNativeValue(el, next, { keepFocus })
+  if (!keepFocus) {
+    try {
+      flushSync(run)
+    } catch {
+      run()
+    }
+    return
+  }
+  run()
 }
 
 function showHint(el: HTMLElement) {
   const rect = el.getBoundingClientRect()
   const hint = document.createElement('div')
-  hint.textContent = 'Ortografía'
+  hint.textContent = 'Escritura'
   hint.setAttribute('role', 'status')
   hint.style.cssText = [
     'position:fixed',
     `top:${Math.max(8, rect.top - 22)}px`,
-    `left:${Math.min(window.innerWidth - 88, Math.max(8, rect.right - 80))}px`,
+    `left:${Math.min(window.innerWidth - 96, Math.max(8, rect.right - 88))}px`,
     'z-index:80',
     'font-size:10px',
     'font-weight:600',
@@ -70,7 +97,7 @@ export function WritingAssistProvider() {
   const enabled = isAssistRoute(pathname)
   const stateRef = useRef(new WeakMap<HTMLElement, FieldState>())
   const composingRef = useRef(false)
-  const aiLockRef = useRef(false)
+  const reenteringRef = useRef(false)
 
   useEffect(() => {
     if (!enabled) return
@@ -79,18 +106,41 @@ export function WritingAssistProvider() {
       const map = stateRef.current
       let s = map.get(el)
       if (!s) {
-        s = { timer: null, lastRaw: '', lastApplied: '', lastAi: '', undoUntil: 0 }
+        s = {
+          timer: null,
+          lastRaw: '',
+          lastApplied: '',
+          lastAi: '',
+          undoUntil: 0,
+          aiPromise: null,
+        }
         map.set(el, s)
       }
       return s
     }
 
-    const applyIfNeeded = async (el: HTMLInputElement | HTMLTextAreaElement) => {
+    const runAi = async (text: string): Promise<string | null> => {
+      try {
+        const res = await escrituraApi.corregir(text)
+        if (res.cambiado && res.texto && res.texto !== text) {
+          const ratio = similarityRatio(text, res.texto)
+          if (ratio >= AI_MIN_RATIO) return res.texto
+        }
+      } catch {
+        // El motor local ya cubre erratas; la IA es opcional.
+      }
+      return null
+    }
+
+    const applyIfNeeded = async (
+      el: HTMLInputElement | HTMLTextAreaElement,
+      opts?: { fromBlur?: boolean; localOnly?: boolean },
+    ) => {
       if (composingRef.current) return
       if (!isAssistField(el)) return
-      if (document.activeElement !== el) return
+      if (!opts?.fromBlur && document.activeElement !== el) return
 
-      const raw = el.value
+      let raw = el.value
       if (!shouldCorrectText(raw)) return
 
       const st = stateFor(el)
@@ -99,39 +149,49 @@ export function WritingAssistProvider() {
       const local = correctLocal(raw)
       let next = local.text
 
+      // En blur / salir del campo: aplica lo local YA, para que Guardar no se lleve el texto crudo.
+      if (opts?.fromBlur && next !== raw && el.value === raw) {
+        st.lastRaw = raw
+        st.lastApplied = next
+        st.undoUntil = Date.now() + UNDO_GUARD_MS
+        commitToField(el, next, false)
+        showHint(el)
+        raw = next
+      }
+
       const canAi =
+        !opts?.localOnly &&
         next.trim().length >= AI_MIN_CHARS &&
         next.includes(' ') &&
-        !aiLockRef.current &&
         st.lastAi !== next &&
         hasSession()
 
       if (canAi) {
-        aiLockRef.current = true
-        try {
-          const res = await escrituraApi.corregir(next)
-          st.lastAi = next
-          if (document.activeElement !== el) return
-          if (el.value !== raw && el.value !== next) return
-          if (res.cambiado && res.texto && res.texto !== next) {
-            const ratio = similarityRatio(next, res.texto)
-            if (ratio >= AI_MIN_RATIO) next = res.texto
+        if (!st.aiPromise) {
+          const source = next
+          st.aiPromise = runAi(source).finally(() => {
+            st.aiPromise = null
+          })
+        }
+        const ai = await st.aiPromise
+        st.lastAi = next
+        if (ai) {
+          const current = el.value
+          if (current === raw || current === next) {
+            next = ai
+          } else {
+            return
           }
-        } catch {
-          // El motor local ya cubre erratas; la IA es opcional.
-        } finally {
-          aiLockRef.current = false
         }
       }
 
-      if (next === raw) return
-      if (document.activeElement !== el) return
-      if (el.value !== raw) return
+      if (next === el.value) return
+      if (!opts?.fromBlur && el.value !== raw && el.value !== next) return
 
       st.lastRaw = raw
       st.lastApplied = next
       st.undoUntil = Date.now() + UNDO_GUARD_MS
-      setNativeValue(el, next)
+      commitToField(el, next, !opts?.fromBlur)
       showHint(el)
     }
 
@@ -156,6 +216,43 @@ export function WritingAssistProvider() {
         clearTimeout(st.timer)
         st.timer = null
       }
+      void applyIfNeeded(e.target, { fromBlur: true })
+    }
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (reenteringRef.current) return
+      const active = document.activeElement
+      if (!isAssistField(active)) return
+      const dest = e.target as Node | null
+      if (!dest || active === dest || active.contains(dest)) return
+
+      const st = stateFor(active)
+      if (st.timer) {
+        clearTimeout(st.timer)
+        st.timer = null
+      }
+      void applyIfNeeded(active, { fromBlur: true, localOnly: true })
+
+      const btn = (e.target as HTMLElement | null)?.closest?.('button, [type=submit], [role=button]')
+      if (!btn || !looksLikeCommit(btn)) return
+      if (!shouldCorrectText(active.value)) return
+      if (active.value.trim().length < AI_MIN_CHARS || !active.value.includes(' ')) return
+
+      e.preventDefault()
+      e.stopPropagation()
+      const target = btn as HTMLElement
+      void (async () => {
+        const wait = new Promise<void>((resolve) => {
+          window.setTimeout(resolve, AI_WAIT_MS)
+        })
+        await Promise.race([applyIfNeeded(active, { fromBlur: true }), wait])
+        reenteringRef.current = true
+        try {
+          target.click()
+        } finally {
+          reenteringRef.current = false
+        }
+      })()
     }
 
     const onCompositionStart = () => {
@@ -168,12 +265,14 @@ export function WritingAssistProvider() {
 
     document.addEventListener('input', onInput, true)
     document.addEventListener('blur', onBlur, true)
+    document.addEventListener('pointerdown', onPointerDown, true)
     document.addEventListener('compositionstart', onCompositionStart, true)
     document.addEventListener('compositionend', onCompositionEnd, true)
 
     return () => {
       document.removeEventListener('input', onInput, true)
       document.removeEventListener('blur', onBlur, true)
+      document.removeEventListener('pointerdown', onPointerDown, true)
       document.removeEventListener('compositionstart', onCompositionStart, true)
       document.removeEventListener('compositionend', onCompositionEnd, true)
     }

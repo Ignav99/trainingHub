@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import {
   Users,
   Plus,
@@ -199,6 +199,7 @@ export function MatchDetailPanel({
   // Team stats local state (for post-partido tab)
   const [teamStats, setTeamStats] = useState<Record<string, number>>({})
   const [reflexionEntrenador, setReflexionEntrenador] = useState('')
+  const reflexionRef = useRef<HTMLTextAreaElement>(null)
   const [playerStats, setPlayerStats] = useState<Record<string, { minutos_jugados: number; goles: number; asistencias: number; tarjeta_amarilla: boolean; tarjeta_roja: boolean }>>({})
   /** Media colaborativa + mi nota por convocatoria */
   const [rendimientoByConv, setRendimientoByConv] = useState<Record<string, { media: number | null; num: number; miNota: number | null }>>({})
@@ -680,8 +681,12 @@ export function MatchDetailPanel({
     setSavingInforme(true)
     try {
       // 1. Save team stats + goal details + foul maps + reflexión
+      const liveReflexion = reflexionRef.current?.value ?? reflexionEntrenador
+      if (liveReflexion !== reflexionEntrenador) {
+        setReflexionEntrenador(liveReflexion)
+      }
       const statsPayload: EstadisticaPartidoUpdateData = {
-        reflexion_entrenador: reflexionEntrenador,
+        reflexion_entrenador: liveReflexion,
         goles_detalle_favor: golesDetalleFavor,
         goles_detalle_contra: golesDetalleContra,
         faltas_mapa_cometidas: faltasMapaCometidas,
@@ -1339,6 +1344,7 @@ export function MatchDetailPanel({
             </CardHeader>
             <CardContent>
               <Textarea
+                ref={reflexionRef}
                 value={reflexionEntrenador}
                 onChange={(e) => setReflexionEntrenador(e.target.value)}
                 placeholder="Ej.: Fallamos en las segundas jugadas tras córner en contra. Trabajar ABP defensivo y reacción tras pérdida esta semana…"

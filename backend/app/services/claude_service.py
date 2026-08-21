@@ -1809,23 +1809,15 @@ class ClaudeService:
             raise ClaudeError(f"Error al editar tarea con IA: {str(e)}")
 
     async def correct_writing(self, texto: str) -> dict:
-        """Corrige ortografía y gramática sin reescribir el estilo del entrenador."""
-        system_prompt = (
-            "Eres un corrector de español para entrenadores de fútbol. "
-            "Corrige SOLO faltas de ortografía, erratas y gramática evidente. "
-            "Puedes acentuar y usar vocabulario técnico de fútbol (posesión, presión, "
-            "transición, microciclo, balón parado, ABP). "
-            "NO cambies el sentido, el tono ni el orden de las ideas. "
-            "NO añadas contenido nuevo ni quites frases. "
-            "Si el texto ya está bien, devuélvelo idéntico. "
-            "Responde ÚNICAMENTE con el texto corregido, sin comillas ni explicaciones."
-        )
+        """Corrige y pule notas de entrenador (ortografía, gramática, léxico de fútbol)."""
+        from app.services.ai_prompts import CORRECT_WRITING_PROMPT
+
         try:
             response = await self.client.messages.create(
                 model=self.model,
                 max_tokens=800,
                 temperature=0,
-                system=system_prompt,
+                system=CORRECT_WRITING_PROMPT,
                 messages=[{"role": "user", "content": texto}],
             )
             out = ""

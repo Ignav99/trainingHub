@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { X, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
@@ -57,6 +57,23 @@ function normalizeAbp(raw: SesionAbpConfig | null | undefined): SesionAbpConfig 
 function buildAbp(ofensivo: string[], defensivo: string[]): SesionAbpConfig | null {
   const next = normalizeAbp({ activo: false, ofensivo, defensivo })
   return next.activo ? next : null
+}
+
+type CatalogChip = { codigo: string; nombre: string }
+
+function resolveCustomTag(raw: string, catalog: readonly CatalogChip[]): string {
+  const t = raw.trim()
+  if (!t) return ''
+  const lower = t.toLowerCase()
+  const hit = catalog.find(
+    (c) => c.codigo.toLowerCase() === lower || c.nombre.toLowerCase() === lower
+  )
+  return hit?.codigo ?? t
+}
+
+function extrasNotInCatalog(selected: string[], catalog: readonly CatalogChip[]): string[] {
+  const codes = new Set(catalog.map((c) => c.codigo))
+  return selected.filter((s) => !codes.has(s))
 }
 
 export type SesionDefinirValues = {
@@ -375,11 +392,16 @@ export function SesionDefinirForm({
       </section>
 
       <section className="space-y-3 rounded-2xl border bg-card p-4 sm:p-5">
-        <h3 className="text-sm font-semibold">Contenidos técnicos</h3>
+        <div>
+          <h3 className="text-sm font-semibold">Etiquetas técnicas</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Catálogo y etiquetas libres. Se guardan al añadirlas.
+          </p>
+        </div>
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground">Ofensivos</Label>
           <div className="flex flex-wrap gap-1.5">
-            {CONTENIDOS_OFENSIVOS.slice(0, 12).map((c) => {
+            {CONTENIDOS_OFENSIVOS.map((c) => {
               const on = value.contenidos_tecnicos_of.includes(c.codigo)
               return (
                 <ChipToggle
@@ -396,33 +418,59 @@ export function SesionDefinirForm({
                 />
               )
             })}
+            {extrasNotInCatalog(value.contenidos_tecnicos_of, CONTENIDOS_OFENSIVOS).map((code) => (
+              <ChipToggle
+                key={`extra-of-${code}`}
+                active
+                label={`${code} ×`}
+                onClick={() =>
+                  onChange({
+                    contenidos_tecnicos_of: value.contenidos_tecnicos_of.filter((x) => x !== code),
+                  })
+                }
+              />
+            ))}
           </div>
           <div className="flex gap-2">
             <Input
               value={ofDraft}
               onChange={(e) => setOfDraft(e.target.value)}
-              placeholder="Chip libre ofensivo"
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return
+                e.preventDefault()
+                const t = resolveCustomTag(ofDraft, CONTENIDOS_OFENSIVOS)
+                if (!t) return
+                if (!value.contenidos_tecnicos_of.includes(t)) {
+                  onChange({ contenidos_tecnicos_of: [...value.contenidos_tecnicos_of, t] })
+                }
+                setOfDraft('')
+              }}
+              placeholder="Etiqueta técnica ofensiva"
               className="h-8"
+              data-writing-assist="off"
             />
             <Button
               type="button"
               size="sm"
               variant="outline"
               onClick={() => {
-                const t = ofDraft.trim()
+                const t = resolveCustomTag(ofDraft, CONTENIDOS_OFENSIVOS)
                 if (!t) return
-                onChange({ contenidos_tecnicos_of: [...value.contenidos_tecnicos_of, t] })
+                if (!value.contenidos_tecnicos_of.includes(t)) {
+                  onChange({ contenidos_tecnicos_of: [...value.contenidos_tecnicos_of, t] })
+                }
                 setOfDraft('')
               }}
             >
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Añadir
             </Button>
           </div>
         </div>
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground">Defensivos</Label>
           <div className="flex flex-wrap gap-1.5">
-            {CONTENIDOS_DEFENSIVOS.slice(0, 12).map((c) => {
+            {CONTENIDOS_DEFENSIVOS.map((c) => {
               const on = value.contenidos_tecnicos_def.includes(c.codigo)
               return (
                 <ChipToggle
@@ -439,26 +487,52 @@ export function SesionDefinirForm({
                 />
               )
             })}
+            {extrasNotInCatalog(value.contenidos_tecnicos_def, CONTENIDOS_DEFENSIVOS).map((code) => (
+              <ChipToggle
+                key={`extra-def-${code}`}
+                active
+                label={`${code} ×`}
+                onClick={() =>
+                  onChange({
+                    contenidos_tecnicos_def: value.contenidos_tecnicos_def.filter((x) => x !== code),
+                  })
+                }
+              />
+            ))}
           </div>
           <div className="flex gap-2">
             <Input
               value={defDraft}
               onChange={(e) => setDefDraft(e.target.value)}
-              placeholder="Chip libre defensivo"
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return
+                e.preventDefault()
+                const t = resolveCustomTag(defDraft, CONTENIDOS_DEFENSIVOS)
+                if (!t) return
+                if (!value.contenidos_tecnicos_def.includes(t)) {
+                  onChange({ contenidos_tecnicos_def: [...value.contenidos_tecnicos_def, t] })
+                }
+                setDefDraft('')
+              }}
+              placeholder="Etiqueta técnica defensiva"
               className="h-8"
+              data-writing-assist="off"
             />
             <Button
               type="button"
               size="sm"
               variant="outline"
               onClick={() => {
-                const t = defDraft.trim()
+                const t = resolveCustomTag(defDraft, CONTENIDOS_DEFENSIVOS)
                 if (!t) return
-                onChange({ contenidos_tecnicos_def: [...value.contenidos_tecnicos_def, t] })
+                if (!value.contenidos_tecnicos_def.includes(t)) {
+                  onChange({ contenidos_tecnicos_def: [...value.contenidos_tecnicos_def, t] })
+                }
                 setDefDraft('')
               }}
             >
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Añadir
             </Button>
           </div>
         </div>

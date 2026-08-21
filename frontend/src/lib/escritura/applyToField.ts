@@ -1,6 +1,7 @@
 export function setNativeValue(
   el: HTMLInputElement | HTMLTextAreaElement,
-  value: string
+  value: string,
+  opts?: { keepFocus?: boolean },
 ): void {
   const old = el.value
   if (old === value) return
@@ -8,11 +9,12 @@ export function setNativeValue(
   const start = el.selectionStart
   const end = el.selectionEnd
   const atEnd = end === old.length
+  const keepFocus = opts?.keepFocus !== false && document.activeElement === el
 
   let applied = false
-  if (typeof el.select === 'function') {
+  // insertText requiere foco; en blur (p. ej. Guardar) no lo uses: robaría el clic.
+  if (keepFocus && typeof el.select === 'function') {
     try {
-      el.focus()
       el.select()
       applied = document.execCommand('insertText', false, value)
     } catch {
@@ -28,11 +30,15 @@ export function setNativeValue(
     const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set
     if (setter) setter.call(el, value)
     else el.value = value
-    el.dispatchEvent(new Event('input', { bubbles: true }))
+    const ev = typeof InputEvent === 'function'
+      ? new InputEvent('input', { bubbles: true, inputType: 'insertReplacementText', data: value })
+      : new Event('input', { bubbles: true })
+    el.dispatchEvent(ev)
     el.dispatchEvent(new Event('change', { bubbles: true }))
   }
 
   try {
+    if (!keepFocus) return
     if (atEnd) {
       const pos = value.length
       el.setSelectionRange(pos, pos)
