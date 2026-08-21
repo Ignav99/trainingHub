@@ -1,13 +1,9 @@
 # TrainingHub — estado actual
 
 ## En curso
-Composer de informes (NL + profundidad + secciones) y arreglo de Estadísticas colgadas.
-Rama `cursor/informes-composer-ae84`.
+Informe de microciclo extendido con sesiones y todas las tareas.
+Rama `cursor/informes-microciclo-extendido-ae84`.
 
 ## Hecho reciente
-PR #248 — gabinete v1 + amistosos fuera de competición.
-
-## Decisiones
-- Dashboard de estadísticas: sin `partidos!inner`; timeout 12s por query; stats/convocatorias por `partido_id`.
-- Informes: spec (asunto, audiencia, profundidad, bloques, N últimos, notas) + parser ES + Claude opcional.
-- PDF sigue WeasyPrint + Jinja2. Amistosos fuera de competición salvo que se pidan.
+PR #250 — fix NameError `date` en estadísticas (merge).
+PR #249 — composer de informes.
