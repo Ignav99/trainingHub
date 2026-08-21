@@ -4,6 +4,7 @@ from app.services.sesion_taxonomy import (
     ESTRUCTURA_FALLBACK_KEY,
     drop_unsupported_columns,
     normalize_sesion_row,
+    prepare_sesion_write_payload,
     retry_sesion_write,
     stash_estructura_fases,
 )
@@ -96,3 +97,83 @@ class TestRetryWrite:
             assert False, "should have raised"
         except RuntimeError as e:
             assert "disk full" in str(e)
+
+
+class TestContenidosTecnicosSync:
+    def test_mirrors_tecnicos_to_legacy_jsonb(self):
+        out = prepare_sesion_write_payload(
+            {
+                "titulo": "MD-3 presion",
+                "fecha": "2026-08-21",
+                "contenidos_tecnicos_of": ["pase_circulacion", "Presión alta"],
+                "contenidos_tecnicos_def": ["acoso"],
+            },
+            synthesize=False,
+        )
+        assert out["contenidos_tecnicos_of"] == ["pase_circulacion", "Presión alta"]
+        assert out["contenidos_ofensivos"] == ["pase_circulacion", "Presión alta"]
+        assert out["contenidos_tecnicos_def"] == ["acoso"]
+        assert out["contenidos_defensivos"] == ["acoso"]
+
+    def test_mirrors_legacy_to_tecnicos(self):
+        out = prepare_sesion_write_payload(
+            {
+                "titulo": "MD-3 presion",
+                "fecha": "2026-08-21",
+                "contenidos_ofensivos": ["tercer_hombre"],
+            },
+            synthesize=False,
+        )
+        assert out["contenidos_tecnicos_of"] == ["tercer_hombre"]
+        assert out["contenidos_ofensivos"] == ["tercer_hombre"]
+
+    def test_strips_blank_tags(self):
+        out = prepare_sesion_write_payload(
+            {
+                "titulo": "MD-3 presion",
+                "fecha": "2026-08-21",
+                "contenidos_tecnicos_of": ["  pared  ", "", "  "],
+            },
+            synthesize=False,
+        )
+        assert out["contenidos_tecnicos_of"] == ["pared"]
+        assert out["contenidos_ofensivos"] == ["pared"]
+
+    def test_normalize_hydrates_from_legacy_when_text_array_empty(self):
+        row = normalize_sesion_row(
+            {
+                "contenidos_tecnicos_of": [],
+                "contenidos_ofensivos": ["desmarques"],
+                "contenidos_tecnicos_def": None,
+                "contenidos_defensivos": ["repliegue"],
+            }
+        )
+        assert row["contenidos_tecnicos_of"] == ["desmarques"]
+        assert row["contenidos_tecnicos_def"] == ["repliegue"]
+
+    def test_retry_keeps_legacy_when_text_array_unknown(self):
+        calls = []
+        err = (
+            "{'code': 'PGRST204', 'details': None, 'hint': None, "
+            "\"message\": \"Could not find the 'contenidos_tecnicos_of' column of 'sesiones' in the schema cache\"}"
+        )
+
+        def execute(data):
+            calls.append(dict(data))
+            if "contenidos_tecnicos_of" in data:
+                raise Exception(err)
+            return {"ok": True, "data": [data]}
+
+        payload = prepare_sesion_write_payload(
+            {
+                "titulo": "MD-3 presion",
+                "fecha": "2026-08-21",
+                "equipo_id": "e1",
+                "contenidos_tecnicos_of": ["Presión alta"],
+            },
+            synthesize=False,
+        )
+        result = retry_sesion_write(execute, payload, op="update")
+        assert result["ok"] is True
+        assert "contenidos_tecnicos_of" not in calls[-1]
+        assert calls[-1]["contenidos_ofensivos"] == ["Presión alta"]

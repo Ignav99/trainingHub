@@ -271,6 +271,7 @@ export default function TareaFichaBody({
               onChange={(v) => onChange('objetivos_tecnicos', v)}
               placeholder="Objetivos técnicos"
               disabled={readOnly}
+              allowCustom
             />
           </Field>
         </div>

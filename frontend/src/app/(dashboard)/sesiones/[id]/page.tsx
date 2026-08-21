@@ -1264,7 +1264,14 @@ export default function SesionDetailPage() {
             }}
             rivalLocked={!!sesion.partido_id && !sesion.es_pretemporada}
             onChange={(patch) => {
-              updateFields(patch as Record<string, any>)
+              const next: Record<string, any> = { ...patch }
+              if ('contenidos_tecnicos_of' in patch) {
+                next.contenidos_ofensivos = patch.contenidos_tecnicos_of
+              }
+              if ('contenidos_tecnicos_def' in patch) {
+                next.contenidos_defensivos = patch.contenidos_tecnicos_def
+              }
+              updateFields(next)
             }}
           />
           <div className="flex justify-end">

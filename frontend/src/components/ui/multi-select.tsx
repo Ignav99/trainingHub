@@ -23,6 +23,8 @@ interface MultiSelectProps {
   /** Máximo de chips visibles antes de resumir */
   maxChips?: number
   disabled?: boolean
+  /** Permite escribir una etiqueta que no está en el catálogo. */
+  allowCustom?: boolean
 }
 
 export function MultiSelect({
@@ -33,8 +35,10 @@ export function MultiSelect({
   className,
   maxChips = 6,
   disabled = false,
+  allowCustom = false,
 }: MultiSelectProps) {
   const [open, setOpen] = React.useState(false)
+  const [draft, setDraft] = React.useState('')
   const containerRef = React.useRef<HTMLDivElement>(null)
 
   React.useEffect(() => {
@@ -53,6 +57,18 @@ export function MultiSelect({
 
   const toggle = (codigo: string) => {
     onChange(value.includes(codigo) ? value.filter((v) => v !== codigo) : [...value, codigo])
+  }
+
+  const addCustom = () => {
+    const t = draft.trim()
+    if (!t) return
+    const lower = t.toLowerCase()
+    const match = options.find(
+      (o) => o.codigo.toLowerCase() === lower || o.nombre.toLowerCase() === lower
+    )
+    const next = match?.codigo ?? t
+    if (!value.includes(next)) onChange([...value, next])
+    setDraft('')
   }
 
   const nombreDe = (codigo: string) => options.find((o) => o.codigo === codigo)?.nombre || codigo
@@ -100,6 +116,30 @@ export function MultiSelect({
               </button>
             )
           })}
+        </div>
+      )}
+
+      {allowCustom && !disabled && (
+        <div className="mt-1.5 flex gap-1">
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter') return
+              e.preventDefault()
+              addCustom()
+            }}
+            placeholder="Etiqueta propia…"
+            className="h-8 flex-1 rounded-md border border-input bg-background px-2 text-sm"
+            data-writing-assist="off"
+          />
+          <button
+            type="button"
+            onClick={addCustom}
+            className="h-8 rounded-md border px-2 text-xs font-medium hover:bg-accent"
+          >
+            Añadir
+          </button>
         </div>
       )}
 

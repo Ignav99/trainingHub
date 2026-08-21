@@ -185,6 +185,41 @@ def _read_estructura_fases(data: Dict[str, Any]) -> List[Any]:
     return list(estructura) if isinstance(estructura, list) else []
 
 
+def _as_str_list(val: Any) -> Optional[List[str]]:
+    if val is None:
+        return None
+    if isinstance(val, list):
+        return [str(x).strip() for x in val if str(x).strip()]
+    if isinstance(val, str) and val.strip():
+        return [val.strip()]
+    return []
+
+
+def _sync_contenidos_tecnicos(out: Dict[str, Any]) -> None:
+    """Espeja contenidos_tecnicos_* ↔ contenidos_ofensivos/defensivos.
+
+    Producción puede tener solo las columnas JSONB legacy (055) o las TEXT[]
+    nuevas (063). Escribir ambas evita perder chips libres por PGRST204.
+    """
+    of = _as_str_list(out["contenidos_tecnicos_of"]) if "contenidos_tecnicos_of" in out else None
+    of_legacy = _as_str_list(out["contenidos_ofensivos"]) if "contenidos_ofensivos" in out else None
+    if of is not None:
+        out["contenidos_tecnicos_of"] = of
+        out["contenidos_ofensivos"] = of
+    elif of_legacy is not None:
+        out["contenidos_tecnicos_of"] = of_legacy
+        out["contenidos_ofensivos"] = of_legacy
+
+    de = _as_str_list(out["contenidos_tecnicos_def"]) if "contenidos_tecnicos_def" in out else None
+    de_legacy = _as_str_list(out["contenidos_defensivos"]) if "contenidos_defensivos" in out else None
+    if de is not None:
+        out["contenidos_tecnicos_def"] = de
+        out["contenidos_defensivos"] = de
+    elif de_legacy is not None:
+        out["contenidos_tecnicos_def"] = de_legacy
+        out["contenidos_defensivos"] = de_legacy
+
+
 def prepare_sesion_write_payload(data: Dict[str, Any], *, synthesize: bool = True) -> Dict[str, Any]:
     """Normaliza payload para insert/update en Supabase."""
     out = dict(data)
@@ -221,6 +256,8 @@ def prepare_sesion_write_payload(data: Dict[str, Any], *, synthesize: bool = Tru
             out["keywords"] = normalize_keyword_list(keywords)
         elif objetivo:
             out["keywords"] = synthesize_keywords(objetivo)
+
+    _sync_contenidos_tecnicos(out)
 
     # ABP → ofensivo/defensivo con tipos independientes (+ legacy sync)
     abp = out.get("abp_config")
@@ -272,6 +309,11 @@ def normalize_sesion_row(row: Dict[str, Any]) -> Dict[str, Any]:
         data["contenidos_tecnicos_of"] = []
     if data.get("contenidos_tecnicos_def") is None:
         data["contenidos_tecnicos_def"] = []
+    # Legacy JSONB (055) si aún no hay TEXT[] (063)
+    if not data.get("contenidos_tecnicos_of") and data.get("contenidos_ofensivos"):
+        data["contenidos_tecnicos_of"] = _as_str_list(data.get("contenidos_ofensivos")) or []
+    if not data.get("contenidos_tecnicos_def") and data.get("contenidos_defensivos"):
+        data["contenidos_tecnicos_def"] = _as_str_list(data.get("contenidos_defensivos")) or []
     # Numeric/Decimal → float para Pydantic
     for key in ("carga_sesion",):
         if data.get(key) is not None:

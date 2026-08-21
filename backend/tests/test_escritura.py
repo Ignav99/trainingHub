@@ -13,7 +13,23 @@ def test_accepts_light_spelling_fix():
     assert is_conservative_correction(original, fixed) is True
 
 
+def test_accepts_grammar_and_accent_fix():
+    original = "El equipo presiono mal y no recupero el balon tras perdida."
+    fixed = "El equipo presionó mal y no recuperó el balón tras pérdida."
+    assert is_conservative_correction(original, fixed) is True
+
+
+def test_min_ratio_still_blocks_full_rewrite():
+    original = "Presion alta tras perdida."
+    rewritten = (
+        "Vamos a defender más arriba, cerrar el interior, orientar la salida "
+        "rival a banda y atacar el espacio a la espalda de la línea."
+    )
+    assert is_conservative_correction(original, rewritten) is False
+
+
 def test_clean_strips_fences_and_quotes():
     original = "hola"
     assert _clean_ai_text('```\nPresión alta\n```', original) == 'Presión alta'
     assert _clean_ai_text('"Presión alta"', original) == 'Presión alta'
+

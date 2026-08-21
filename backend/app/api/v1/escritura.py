@@ -9,8 +9,8 @@ from difflib import SequenceMatcher
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from app.dependencies import AuthContext, require_permission
-from app.security.permissions import Permission
+from app.dependencies import get_current_user
+from app.models import UsuarioResponse
 from app.services.ai_errors import AIError
 from app.services.ai_factory import call_ai_with_fallback
 
@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _MAX_CHARS = 4000
-_MIN_CHARS = 40
-_MIN_RATIO = 0.84
+_MIN_CHARS = 12
+_MIN_RATIO = 0.78
 
 
 class EscrituraRequest(BaseModel):
@@ -59,9 +59,9 @@ def is_conservative_correction(original: str, candidate: str, min_ratio: float =
 @router.post("/corregir", response_model=EscrituraResponse)
 async def corregir_escritura(
     body: EscrituraRequest,
-    auth: AuthContext = Depends(require_permission(Permission.AI_USE)),
+    current_user: UsuarioResponse = Depends(get_current_user),
 ):
-    """Corrige ortografía/gramática de un texto de entrenador. Conservador."""
+    """Pule notas de entrenador: ortografía, gramática y léxico de fútbol. Conservador."""
     texto = body.texto.strip()
     if len(texto) < _MIN_CHARS:
         return EscrituraResponse(texto=body.texto, cambiado=False)

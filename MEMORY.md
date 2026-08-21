@@ -1,12 +1,11 @@
 # TrainingHub — estado actual
 
 ## En curso
-Guardado rápido + persistencia SIATE (GO/PES). Rama `cursor/tarea-save-fast-ae84`.
+Escritura asistida + etiquetas técnicas de sesión. Rama `cursor/escritura-etiquetas-ae84`.
 
-El grado de oposición no se persistía: el formulario tenía `complejidad_go` pero el payload solo mandaba la etiqueta `complejidad`. Al recargar, el select volvía a Auto.
+Dos fallos:
+1. La reflexión del partido (y el resto de campos de redacción) solo aplicaba el diccionario local, o se perdía al pulsar Guardar porque el blur cancelaba el timer. Ahora: pule gramática/léxico vía IA, aplica en blur con flushSync, y al pulsar Guardar espera la corrección. Autenticación: cualquier usuario logueado (no exige permiso AI_USE).
+2. Añadir etiqueta técnica en diseño de sesión no se veía (solo 12 chips del catálogo) y no persistía si PostgREST no tenía TEXT[] `contenidos_tecnicos_*`. Dual-write a JSONB `contenidos_ofensivos/defensivos` + UI de chips libres + Enter/Añadir.
 
-Fix: guardar GO/PES en `grafico_data.siate` (columna JSONB que ya existe) y en `complejidad_go` / `complejidad_pes` (opcionales). Si PostgREST no tiene esas columnas, el retry las omite y el stash en `grafico_data` sigue.
-
-Velocidad: embeddings Gemini en BackgroundTasks (antes bloqueaban 1–14s). Create/update de tarea y partido no hacen GET extra si el INSERT/UPDATE ya devuelve la fila. El frontend no espera el revalidate amplio de SWR; el dashboard deja de cachear partidos 60s.
-
-SQL opcional (idempotente) en `supabase/migrations/20260819140000_tareas_siate_go_pes.sql`.
+## Hecho reciente
+PR #246 — SIATE GO/PES + guardado rápido. En producción.

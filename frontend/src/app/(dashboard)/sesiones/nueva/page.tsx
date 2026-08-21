@@ -441,10 +441,10 @@ export default function NuevaSesionPage() {
                 if (patch.fases_juego?.length) {
                   next.fase_juego_principal = patch.fases_juego[0]
                 }
-                if (patch.contenidos_tecnicos_of) {
+                if ('contenidos_tecnicos_of' in patch) {
                   next.contenidos_ofensivos = patch.contenidos_tecnicos_of
                 }
-                if (patch.contenidos_tecnicos_def) {
+                if ('contenidos_tecnicos_def' in patch) {
                   next.contenidos_defensivos = patch.contenidos_tecnicos_def
                 }
                 return next
