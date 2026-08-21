@@ -3,22 +3,31 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import date, datetime
 from typing import Any, Optional
 
 from app.database import get_supabase
-from app.services.partido_ambito import (
-    AMBITO_LABELS,
-    filtrar_por_ambito,
-    normalize_ambito,
+from app.services.informe_spec import (
+    AUDIENCIAS,
+    PROFUNIDADES,
+    InformeSpec,
+    limite_filas,
+    narrativa_periodo,
+    redactar_lectura_ai,
+    spec_from_tipo,
 )
+from app.services.partido_ambito import AMBITO_LABELS, filtrar_por_ambito
 from app.services.pdf_service import _get_jinja_env, _url_to_data_uri
+
+logger = logging.getLogger(__name__)
 
 TIPOS_INFORME = {
     "temporada": "Estadísticas de temporada",
     "plantilla": "Informe de plantilla",
     "jugador": "Ficha extendida de jugador",
     "microciclo": "Informe de microciclo",
+    "resultados": "Resultados",
 }
 
 
@@ -40,30 +49,36 @@ def _nombre_jugador(j: dict) -> str:
 
 async def generate_informe_pdf(
     *,
-    tipo: str,
     equipo_id: str,
     organizacion_id: str,
+    spec: Optional[InformeSpec] = None,
+    tipo: str = "temporada",
     ambito: str = "competicion",
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
     jugador_id: Optional[str] = None,
     microciclo_id: Optional[str] = None,
+    profundidad: str = "estandar",
 ) -> tuple[bytes, str]:
-    tipo = (tipo or "temporada").strip().lower()
-    if tipo not in TIPOS_INFORME:
-        raise ValueError("Plantilla de informe no válida")
-    ambito_n = normalize_ambito(ambito)
-    ctx = await asyncio.to_thread(
-        _build_context,
-        tipo,
-        equipo_id,
-        organizacion_id,
-        ambito_n,
-        fecha_desde,
-        fecha_hasta,
-        jugador_id,
-        microciclo_id,
-    )
+    if spec is None:
+        spec = spec_from_tipo(
+            tipo,
+            ambito=ambito,
+            fecha_desde=fecha_desde,
+            fecha_hasta=fecha_hasta,
+            jugador_id=jugador_id,
+            microciclo_id=microciclo_id,
+            profundidad=profundidad,
+        )
+    spec = spec.normalized()
+    ctx = await asyncio.to_thread(_build_context, equipo_id, organizacion_id, spec)
+    if "narrativa" in spec.secciones and (spec.prompt or spec.profundidad == "extendido"):
+        try:
+            lectura = await asyncio.wait_for(redactar_lectura_ai(spec, ctx), timeout=10)
+            if lectura:
+                ctx["narrativa"] = lectura
+        except Exception:
+            pass
 
     def _render() -> bytes:
         env = _get_jinja_env()
@@ -73,20 +88,22 @@ async def generate_informe_pdf(
 
     pdf = await asyncio.to_thread(_render)
     stamp = datetime.now().strftime("%Y%m%d")
-    filename = f"informe_{tipo}_{stamp}.pdf"
+    filename = f"informe_{spec.asunto}_{spec.profundidad}_{stamp}.pdf"
     return pdf, filename
 
 
 def _build_context(
-    tipo: str,
     equipo_id: str,
     organizacion_id: str,
-    ambito: str,
-    fecha_desde: Optional[date],
-    fecha_hasta: Optional[date],
-    jugador_id: Optional[str],
-    microciclo_id: Optional[str],
+    spec: InformeSpec,
 ) -> dict[str, Any]:
+    tipo = spec.asunto
+    ambito = spec.ambito
+    fecha_desde = spec.fecha_desde
+    fecha_hasta = spec.fecha_hasta
+    jugador_id = spec.jugador_id
+    microciclo_id = spec.microciclo_id
+    limite = limite_filas(spec.profundidad)
     supabase = get_supabase()
     org = (
         supabase.table("organizaciones")
@@ -132,24 +149,27 @@ def _build_context(
 
     partidos_rango = [p for p in partidos_all if _en_rango(p)]
     partidos = filtrar_por_ambito(partidos_rango, ambito)
+    if spec.ultimos_n:
+        partidos = partidos[-spec.ultimos_n :]
 
-    conv_q = (
-        supabase.table("convocatorias")
-        .select(
-            "jugador_id, titular, minutos_jugados, goles, asistencias, tarjeta_amarilla, tarjeta_roja, "
-            "partidos!inner(equipo_id, fecha, competicion, resultado, rivales(nombre, nombre_corto))"
-        )
-        .eq("partidos.equipo_id", equipo_id)
-        .execute()
-    )
-    convs_raw = conv_q.data or []
-    convs = []
-    for c in convs_raw:
-        p = c.get("partidos") or {}
-        if not _en_rango({"fecha": p.get("fecha")}):
-            continue
-        convs.append(c)
-    convs = filtrar_por_ambito(convs, ambito)
+    convs: list[dict] = []
+    partido_ids = [p.get("id") for p in partidos if p.get("id")]
+    if partido_ids:
+        try:
+            conv_q = (
+                supabase.table("convocatorias")
+                .select(
+                    "jugador_id, partido_id, titular, minutos_jugados, goles, asistencias, "
+                    "tarjeta_amarilla, tarjeta_roja, "
+                    "partidos(fecha, competicion, resultado, rivales(nombre, nombre_corto))"
+                )
+                .in_("partido_id", partido_ids[:120])
+                .execute()
+            )
+            convs = conv_q.data or []
+        except Exception:
+            logger.exception("informe convocatorias query failed")
+            convs = []
 
     jug_q = (
         supabase.table("jugadores")
@@ -193,7 +213,7 @@ def _build_context(
             b["amarillas"] += 1
         if c.get("tarjeta_roja"):
             b["rojas"] += 1
-    if tipo == "plantilla":
+    if tipo in ("plantilla", "temporada") or "plantilla" in spec.secciones:
         player_rows = []
         for j in jugadores:
             b = buckets.get(j["id"]) or {
@@ -212,12 +232,30 @@ def _build_context(
         player_rows = sorted(player_rows, key=lambda x: (-x["minutos"], x["nombre"]))
     else:
         player_rows = sorted(buckets.values(), key=lambda x: (-x["minutos"], x["nombre"]))
+    player_rows = player_rows[:limite]
 
     pg = sum(1 for p in partidos if p.get("resultado") == "victoria")
     pe = sum(1 for p in partidos if p.get("resultado") == "empate")
     pp = sum(1 for p in partidos if p.get("resultado") == "derrota")
     gf = sum(p.get("goles_favor") or 0 for p in partidos)
     gc = sum(p.get("goles_contra") or 0 for p in partidos)
+
+    def _split_localia(kind: str) -> dict[str, int]:
+        subset = [p for p in partidos if p.get("localia") == kind]
+        return {
+            "pj": len(subset),
+            "pg": sum(1 for p in subset if p.get("resultado") == "victoria"),
+            "pe": sum(1 for p in subset if p.get("resultado") == "empate"),
+            "pp": sum(1 for p in subset if p.get("resultado") == "derrota"),
+            "gf": sum(p.get("goles_favor") or 0 for p in subset),
+            "gc": sum(p.get("goles_contra") or 0 for p in subset),
+        }
+
+    local = _split_localia("local")
+    visitante = _split_localia("visitante")
+    racha: list[str] = []
+    for p in partidos[-5:]:
+        racha.append({"victoria": "V", "empate": "E", "derrota": "D"}.get(p.get("resultado") or "", "·"))
 
     evolucion = []
     for p in partidos:
@@ -232,7 +270,7 @@ def _build_context(
         })
 
     jugador_ctx = None
-    if tipo == "jugador" and jugador_id:
+    if ("jugador" in spec.secciones or tipo == "jugador") and jugador_id:
         jrow = by_id.get(jugador_id)
         if not jrow:
             jr = (
@@ -272,11 +310,11 @@ def _build_context(
             "posicion": (jrow or {}).get("posicion_principal") or "",
             "estado": (jrow or {}).get("estado") or "",
             "stats": stats,
-            "historial": historial,
+            "historial": historial[:limite],
         }
 
     micro_ctx = None
-    if tipo == "microciclo" and microciclo_id:
+    if ("microciclo" in spec.secciones or tipo == "microciclo") and microciclo_id:
         mc = (
             supabase.table("microciclos")
             .select(
@@ -319,29 +357,52 @@ def _build_context(
         }
 
     periodo = "Temporada"
-    if fecha_desde or fecha_hasta:
+    if spec.ultimos_n:
+        periodo = f"Últimos {spec.ultimos_n} partidos"
+    elif fecha_desde or fecha_hasta:
         periodo = f"{_fmt_fecha(fecha_desde) if fecha_desde else 'Inicio'} – {_fmt_fecha(fecha_hasta) if fecha_hasta else 'hoy'}"
 
+    resumen = {
+        "pj": len(partidos),
+        "pg": pg,
+        "pe": pe,
+        "pp": pp,
+        "gf": gf,
+        "gc": gc,
+        "dg": gf - gc,
+        "pts": pg * 3 + pe,
+    }
+    ambito_label = AMBITO_LABELS.get(ambito, ambito)
     color = organizacion.get("color_primario") or "#1a365d"
+    titulo = spec.titulo or TIPOS_INFORME.get(tipo, "Informe")
     return {
         "tipo": tipo,
-        "titulo": TIPOS_INFORME[tipo],
+        "titulo": titulo,
         "organizacion": organizacion,
         "equipo": equipo,
         "color": color,
-        "ambito_label": AMBITO_LABELS.get(ambito, ambito),
+        "ambito_label": ambito_label,
+        "audiencia_label": AUDIENCIAS.get(spec.audiencia, spec.audiencia),
+        "profundidad_label": PROFUNIDADES.get(spec.profundidad, spec.profundidad),
         "periodo": periodo,
         "generado": datetime.now().strftime("%d/%m/%Y %H:%M"),
-        "resumen": {
-            "pj": len(partidos),
-            "pg": pg,
-            "pe": pe,
-            "pp": pp,
-            "gf": gf,
-            "gc": gc,
-            "dg": gf - gc,
-        },
-        "evolucion": evolucion,
+        "secciones": spec.secciones,
+        "resumen": resumen,
+        "local": local,
+        "visitante": visitante,
+        "racha": racha,
+        "narrativa": narrativa_periodo(
+            resumen,
+            ambito_label,
+            spec.profundidad,
+            spec.audiencia,
+            racha=racha,
+            local=local,
+            visitante=visitante,
+        ),
+        "prompt": spec.prompt or "",
+        "notas": spec.notas or "",
+        "evolucion": evolucion[:limite] if spec.profundidad == "breve" else evolucion,
         "plantilla": player_rows,
         "jugador": jugador_ctx,
         "microciclo": micro_ctx,

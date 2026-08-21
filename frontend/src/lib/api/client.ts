@@ -316,6 +316,30 @@ class ApiClient {
     return response.blob()
   }
 
+  async postBlob(path: string, data?: unknown, options?: FetchOptions): Promise<Blob> {
+    const url = this.buildUrl(path, options?.params)
+    const authHeaders = await this.getAuthHeaders()
+    const { signal, clear } = this.createAbortSignal(options?.timeout ?? 120000)
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders,
+        ...options?.headers,
+      },
+      body: data ? JSON.stringify(data) : undefined,
+      signal,
+    })
+    clear()
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(extractErrorMessage(error, response.status))
+    }
+
+    return response.blob()
+  }
+
   async delete(path: string, options?: FetchOptions): Promise<void> {
     const url = this.buildUrl(path, options?.params)
     const authHeaders = await this.getAuthHeaders()

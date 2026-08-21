@@ -29,11 +29,16 @@ export default function EstadisticasPage() {
   const { equipoActivo } = useEquipoStore()
   const [ambito, setAmbito] = useState<PartidoAmbito>(AMBITO_COMPETICION)
 
-  const { data: dashboard, isLoading } = useSWR<EstadisticasDashboardResponse>(
+  const { data: dashboard, error, mutate, isLoading } = useSWR<EstadisticasDashboardResponse>(
     apiKey('/estadisticas/dashboard', {
       equipo_id: equipoActivo?.id,
       ambito,
-    }, ['equipo_id'])
+    }, ['equipo_id']),
+    {
+      errorRetryCount: 1,
+      errorRetryInterval: 2000,
+      shouldRetryOnError: true,
+    }
   )
 
   const { data: cargaSemanal } = useSWR<CargaSemanalData>(
@@ -122,8 +127,25 @@ export default function EstadisticasPage() {
           </TabsTrigger>
         </TabsList>
 
-        {isLoading || !dashboard ? (
-          <div className="mt-6">
+        {error && !dashboard ? (
+          <div className="mt-6 rounded-xl border bg-card p-6 text-center">
+            <p className="text-sm font-medium">No se pudieron cargar las estadísticas</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {error instanceof Error ? error.message : 'Error de red o del servidor'}
+            </p>
+            <button
+              type="button"
+              onClick={() => mutate()}
+              className="mt-3 inline-flex items-center rounded-md border px-3 py-1.5 text-sm hover:bg-muted"
+            >
+              Reintentar
+            </button>
+          </div>
+        ) : !dashboard ? (
+          <div className="mt-6 space-y-2">
+            <p className="text-xs text-muted-foreground">
+              {isLoading ? 'Cargando estadísticas…' : 'Sin datos'}
+            </p>
             <TabSkeleton />
           </div>
         ) : (
