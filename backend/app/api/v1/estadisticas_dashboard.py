@@ -6,14 +6,22 @@ Endpoint único que devuelve todas las métricas de la temporada.
 import asyncio
 import logging
 from collections import defaultdict
-from datetime import date
-
+from datetime import date as date_type
+from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from uuid import UUID
 
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
+from app.services.partido_ambito import (
+    AMBITO_COMPETICION,
+    AMBITO_LABELS,
+    es_amistoso,
+    es_oficial,
+    filtrar_por_ambito,
+    normalize_ambito,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,14 +31,21 @@ router = APIRouter()
 @router.get("/dashboard")
 async def estadisticas_dashboard(
     equipo_id: UUID = Query(...),
+    ambito: str = Query(
+        AMBITO_COMPETICION,
+        description="competicion (default) | amistosos | todos",
+    ),
+    fecha_desde: Optional[date_type] = Query(None),
+    fecha_hasta: Optional[date_type] = Query(None),
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
     """
     Dashboard agregado de estadísticas de la temporada.
-    Ejecuta queries en paralelo y devuelve todo consolidado.
+    Por defecto excluye amistosos: no cuentan para resultados ni medias.
     """
     supabase = get_supabase()
     eid = str(equipo_id)
+    ambito_n = normalize_ambito(ambito)
 
     # ── 6 parallel queries ──────────────────────────────────────
     (
@@ -53,14 +68,14 @@ async def estadisticas_dashboard(
         # 2. All match statistics
         asyncio.to_thread(
             lambda: supabase.table("estadisticas_partido")
-            .select("*, partidos!inner(equipo_id)")
+            .select("*, partidos!inner(equipo_id, competicion, fecha)")
             .eq("partidos.equipo_id", eid)
             .execute()
         ),
         # 3. All convocatorias with player info
         asyncio.to_thread(
             lambda: supabase.table("convocatorias")
-            .select("*, jugadores(nombre, apellidos, dorsal, posicion_principal, foto_url), partidos!inner(equipo_id, fecha)")
+            .select("*, jugadores(nombre, apellidos, dorsal, posicion_principal, foto_url), partidos!inner(equipo_id, fecha, competicion)")
             .eq("partidos.equipo_id", eid)
             .execute()
         ),
@@ -96,6 +111,33 @@ async def estadisticas_dashboard(
     jugadores_all = jugadores_resp.data or []
     medico_all = medico_resp.data or []
     sesiones_all = sesiones_resp.data or []
+
+    def _fecha_iso(val) -> Optional[str]:
+        if val is None:
+            return None
+        if hasattr(val, "isoformat"):
+            return val.isoformat()[:10]
+        return str(val)[:10]
+
+    def _en_rango(fecha_val) -> bool:
+        iso = _fecha_iso(fecha_val)
+        if not iso:
+            return True
+        if fecha_desde and iso < fecha_desde.isoformat():
+            return False
+        if fecha_hasta and iso > fecha_hasta.isoformat():
+            return False
+        return True
+
+    partidos_jugados = [p for p in partidos if _en_rango(p.get("fecha"))]
+    n_oficiales = sum(1 for p in partidos_jugados if es_oficial(p.get("competicion")))
+    n_amistosos = sum(1 for p in partidos_jugados if es_amistoso(p.get("competicion")))
+    partidos = filtrar_por_ambito(partidos_jugados, ambito_n)
+    partido_ids = {p["id"] for p in partidos}
+
+    stats_all = [s for s in stats_all if s.get("partido_id") in partido_ids]
+    convocatorias_all = [c for c in convocatorias_all if c.get("partido_id") in partido_ids]
+    sesiones_all = [s for s in sesiones_all if _en_rango(s.get("fecha"))]
 
     # ── Build partido lookup ───────────────────────────────────
     partido_map = {p["id"]: p for p in partidos}
@@ -425,6 +467,10 @@ async def estadisticas_dashboard(
     }
 
     return {
+        "ambito": ambito_n,
+        "ambito_label": AMBITO_LABELS.get(ambito_n, ambito_n),
+        "partidos_oficiales": n_oficiales,
+        "partidos_amistosos": n_amistosos,
         "equipo": equipo_data,
         "estadisticas_acumuladas": acumulados,
         "goles": goles_data,

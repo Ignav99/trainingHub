@@ -37,11 +37,11 @@ export const convocatoriasApi = {
   listByPartido: (partidoId: string) =>
     api.get<{ data: Convocatoria[]; total: number }>(`/convocatorias/partido/${partidoId}`),
 
-  listByJugador: (jugadorId: string, params?: { limit?: number }) =>
+  listByJugador: (jugadorId: string, params?: { limit?: number; ambito?: string }) =>
     api.get<{ data: Convocatoria[]; estadisticas: ConvocatoriasJugadorStats }>(`/convocatorias/jugador/${jugadorId}`, { params }),
 
-  resumenEquipo: (equipoId: string) =>
-    api.get<{ data: JugadorResumenConvocatorias[] }>(`/convocatorias/equipo/${equipoId}/resumen`),
+  resumenEquipo: (equipoId: string, params?: { ambito?: string }) =>
+    api.get<{ data: JugadorResumenConvocatorias[] }>(`/convocatorias/equipo/${equipoId}/resumen`, { params }),
 
   create: (data: CreateConvocatoriaData) =>
     api.post<Convocatoria>('/convocatorias', data),

@@ -862,6 +862,7 @@ export interface ConvocatoriasJugadorStats {
   rendimiento_medio?: number | null
   rendimiento_ponderado_minutos?: number | null
   partidos_con_nota?: number
+  ambito?: string
 }
 
 export interface RendimientoNotaResponse {

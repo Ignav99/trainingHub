@@ -150,6 +150,10 @@ export interface SesionesData {
 }
 
 export interface EstadisticasDashboardResponse {
+  ambito?: string
+  ambito_label?: string
+  partidos_oficiales?: number
+  partidos_amistosos?: number
   equipo: EquipoStats
   estadisticas_acumuladas: EstadisticasAcumuladas
   goles: GolesData
@@ -163,8 +167,8 @@ export interface EstadisticasDashboardResponse {
 // ── API client ───────────────────────────────────────────────
 
 export const estadisticasDashboardApi = {
-  get: (equipoId: string) =>
+  get: (equipoId: string, params?: { ambito?: string; fecha_desde?: string; fecha_hasta?: string }) =>
     api.get<EstadisticasDashboardResponse>('/estadisticas/dashboard', {
-      params: { equipo_id: equipoId },
+      params: { equipo_id: equipoId, ...params },
     }),
 }

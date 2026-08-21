@@ -12,7 +12,7 @@ export function FormGuide({ racha }: { racha: ('V' | 'E' | 'D')[] }) {
   }
 
   return (
-    <div className="flex items-center gap-1" title="Racha de los últimos partidos">
+    <div className="flex items-center gap-1" title="Racha de competición (sin amistosos)">
       {racha.map((r, i) => {
         const config = RESULTADO_CONFIG[r]
         return (

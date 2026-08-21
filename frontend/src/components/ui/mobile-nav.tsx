@@ -19,6 +19,7 @@ import {
   ScanSearch,
   Activity,
   UtensilsCrossed,
+  FileStack,
   X,
 } from 'lucide-react'
 
@@ -39,6 +40,7 @@ const moreTabs = [
   { name: 'Video', href: '/video-analisis', icon: ScanSearch },
   { name: 'Pizarra', href: '/pizarra-tactica', icon: PenTool },
   { name: 'Estadísticas', href: '/estadisticas', icon: BarChart3 },
+  { name: 'Informes', href: '/informes', icon: FileStack },
   { name: 'Configuración', href: '/configuracion', icon: Settings },
 ]
 

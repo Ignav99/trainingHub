@@ -40,6 +40,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { FormGuide } from '@/components/player/FormGuide'
+import { ExportarInformeButton } from '@/components/informes/ExportarInformeButton'
 import { convocatoriasApi, type JugadorResumenConvocatorias } from '@/lib/api/convocatorias'
 import {
   FICHA_ESTADO_LABELS,
@@ -768,6 +769,7 @@ export default function PlantillaPage() {
           }
           actions={
             <>
+              <ExportarInformeButton tipo="plantilla" label="Exportar plantilla" />
               <button
                 type="button"
                 onClick={() => setShowNuevaTemporada(true)}

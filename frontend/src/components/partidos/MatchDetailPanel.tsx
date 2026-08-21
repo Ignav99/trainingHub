@@ -795,6 +795,11 @@ export function MatchDetailPanel({
             {selectedPartido.competicion && ` · ${selectedPartido.competicion}`}
             {selectedPartido.jornada && ` · J${selectedPartido.jornada}`}
           </p>
+          {esAmistoso && (
+            <p className="text-xs text-muted-foreground mt-1">
+              No cuenta para resultados ni estadísticas de competición. Sí se pueden consultar minutos y lo ocurrido.
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <Button variant="outline" size="icon" onClick={handleOpenEdit}>
