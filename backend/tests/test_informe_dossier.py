@@ -43,7 +43,7 @@ def test_dossier_template_chrome():
     assert "microciclo.extendido" in html
     assert "task-board" in html
     assert "preview_img" in html
-    assert "svg_thumbnail" in html
+    assert "svg_thumbnail|safe" not in html
     assert "ses-banner" in html
     assert "board-empty" in html
     assert "md_bar" in html
@@ -68,6 +68,8 @@ def test_informe_carga_sesion_tareas():
     assert "board_assets" in src
     assert "consignas_ofensivas" in src
     assert "_grafico_de_tarea" in src
+    assert "_foto_pizarra" in src
+    assert "_preview_de_tarea" in src
     assert "_sesion_tareas_rows" in src
     assert "_get_jinja_env_v2" in src
     assert "detalle_sesiones" in src
@@ -77,7 +79,8 @@ def test_informe_carga_sesion_tareas():
     assert "extract_preview" in boards
     assert "board_assets" in boards
     assert "MATCH_DAY_CHROME" in boards
-    assert "render_diagram_thumbnail" in boards
+    assert "rasterize_board" in boards
+    assert "_svg_to_jpeg" in boards
 
 
 def test_md_chrome_and_boards():
@@ -117,9 +120,10 @@ def test_md_chrome_and_boards():
         }},
         "t1",
     )
-    assert img == ""
-    assert svg and "<svg" in svg
-    assert "9" in svg
+    assert svg == ""
+    cairosvg = pytest.importorskip("cairosvg")
+    assert img.startswith("data:image/jpeg")
+    assert len(img) > 800
 
     bloques = bloques_de_tareas([
         {"fase": "Activación", "orden": 1},
