@@ -45,8 +45,8 @@ const PROF_LABEL: Record<InformeProfundidad, string> = {
 
 const PROF_HINT: Record<InformeProfundidad, string> = {
   breve: 'Sala del lunes: mensaje, objetivos y mapa de la semana.',
-  estandar: 'Briefing de sala lunes + cada sesión con la foto de la pizarra.',
-  extendido: 'Plantilla completa: mensaje, objetivos, rival, morfociclo y foto de cada tarea.',
+  estandar: 'Sala del lunes + foto de cada pizarra, asistencia y cargas.',
+  extendido: 'Dossier global: pizarras, plantilla por sesión, ausencias, margen, RPE y lesiones.',
 }
 
 const LIMITE_FILAS: Record<InformeProfundidad, number> = {
@@ -499,8 +499,8 @@ export default function InformesPage() {
               {spec.asunto === 'microciclo' && spec.profundidad !== 'breve' ? (
                 <li>
                   {spec.profundidad === 'extendido'
-                    ? 'Sala del lunes sintetizada + foto de cada pizarra'
-                    : 'Sala del lunes + foto de cada pizarra'}
+                    ? 'Sala del lunes + pizarras, plantilla, cargas, margen y lesiones'
+                    : 'Sala del lunes + pizarras, asistencia y cargas'}
                 </li>
               ) : null}
             </ol>

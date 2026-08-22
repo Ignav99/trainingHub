@@ -1,10 +1,10 @@
 # TrainingHub — estado actual
 
 ## En curso
-Dossier de microciclo con pizarras reales y sesiones diferenciadas por MD.
-Rama `cursor/informes-pizarra-dossier-ae84`.
+Rama `cursor/informe-fotos-asistencia-ae84`.
+El PDF `microciclo (4)` del escritorio es un download viejo: hay que regenerar el informe.
 
-Firma visual: barra de color MD (como SessionCard) + thumbnail de pizarra por tarea.
+Causa de pizarras vacías: el dossier pedía grafico_data en lote + Jinja autoescape + CSS 48mm/object-fit distinto al PDF de sesión.
+Ahora: embed por sesión como `sesiones.py`, JPEG one-by-one si falta, `_get_jinja_env_v2`, CSS 75.5mm del PDF reducido, `render_diagram_thumbnail` si hay dibujo.
 
-## Hecho reciente
-PR #251 — microciclo extendido (tablas; insuficiente).
+Detalle global por sesión: asistencia (sesión/fisio/margen/ausente+motivo), RPE/carga, trabajo al margen, lesiones operativas (sin diagnóstico).
