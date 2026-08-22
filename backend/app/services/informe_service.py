@@ -16,6 +16,7 @@ from app.services.informe_boards import (
     md_chrome,
     weekday,
 )
+from app.services.informe_semana import sintetizar_sala_lunes
 from app.services.informe_spec import (
     AUDIENCIAS,
     PROFUNIDADES,
@@ -67,31 +68,62 @@ FASE_SESION_LABEL = {
 }
 
 
+def _unwrap_tarea(raw: Any) -> dict:
+    if isinstance(raw, list) and raw:
+        raw = raw[0]
+    return raw if isinstance(raw, dict) else {}
+
+
+def _graficos_por_tarea(supabase, tarea_ids: list[str]) -> dict[str, dict]:
+    """Carga grafico_data en lotes (el embed de toda la semana pierde las fotos)."""
+    out: dict[str, dict] = {}
+    ids = [str(i) for i in tarea_ids if i]
+    for i in range(0, len(ids), 6):
+        chunk = ids[i : i + 6]
+        rows: list[dict] = []
+        for select in (
+            "id, grafico_data, grafico_url, grafico_svg",
+            "id, grafico_data, grafico_url",
+            "id, grafico_data",
+        ):
+            try:
+                resp = supabase.table("tareas").select(select).in_("id", chunk).execute()
+                rows = resp.data or []
+                break
+            except Exception:
+                logger.exception("informe tareas grafico batch failed, retrying simpler")
+                rows = []
+        for row in rows:
+            tid = str(row.get("id") or "")
+            if tid:
+                out[tid] = row
+    return out
+
+
 def _tareas_por_sesion(supabase, sesion_ids: list[str], profundidad: str) -> dict[str, list[dict]]:
-    """Tareas + pizarra de cada sesión. Fallo suave: el dossier no se cae si el embed falla."""
+    """Tareas + foto de pizarra. El gráfico se pide aparte para no perder el JPEG."""
     if not sesion_ids or profundidad == "breve":
         return {}
     rows: list[dict] = []
-    select_boards = (
+    select_meta = (
         "sesion_id, orden, fase_sesion, duracion_override, notas, "
         "tareas(id, titulo, duracion_total, densidad, desarrollo, descripcion, "
         "reglas, consignas_ofensivas, consignas_defensivas, "
         "objetivos_tacticos, objetivos_tecnicos, fase_juego, "
-        "principio_tactico, modalidad, grafico_data, grafico_url, "
+        "principio_tactico, modalidad, grafico_url, "
         "espacio_largo, espacio_ancho, categorias_tarea(codigo, nombre))"
     )
     select_full = (
         "sesion_id, orden, fase_sesion, duracion_override, notas, "
         "tareas(id, titulo, duracion_total, densidad, desarrollo, descripcion, "
         "reglas, objetivos_tacticos, objetivos_tecnicos, fase_juego, "
-        "principio_tactico, modalidad, grafico_data, "
-        "categorias_tarea(codigo, nombre))"
+        "principio_tactico, modalidad, categorias_tarea(codigo, nombre))"
     )
     select_plain = (
         "sesion_id, orden, fase_sesion, duracion_override, notas, "
-        "tareas(id, titulo, duracion_total, desarrollo, descripcion, grafico_data)"
+        "tareas(id, titulo, duracion_total, desarrollo, descripcion)"
     )
-    for select in (select_boards, select_full, select_plain):
+    for select in (select_meta, select_full, select_plain):
         try:
             resp = (
                 supabase.table("sesion_tareas")
@@ -108,15 +140,28 @@ def _tareas_por_sesion(supabase, sesion_ids: list[str], profundidad: str) -> dic
     if not rows:
         return {}
 
-    by_sesion: dict[str, list[dict]] = {}
-    extendido = profundidad == "extendido"
+    tarea_ids = []
+    parsed_rows: list[tuple[str, dict, dict]] = []
     for st in rows:
         sid = str(st.get("sesion_id") or "")
         if not sid:
             continue
-        t = st.get("tareas") or {}
-        if not isinstance(t, dict):
-            t = {}
+        t = _unwrap_tarea(st.get("tareas"))
+        if t.get("id"):
+            tarea_ids.append(str(t["id"]))
+        parsed_rows.append((sid, st, t))
+    graficos = _graficos_por_tarea(supabase, tarea_ids)
+
+    by_sesion: dict[str, list[dict]] = {}
+    extendido = profundidad == "extendido"
+    for sid, st, t in parsed_rows:
+        g = graficos.get(str(t.get("id") or "")) or {}
+        if g.get("grafico_data") is not None:
+            t = {**t, "grafico_data": g.get("grafico_data")}
+        if g.get("grafico_url") and not t.get("grafico_url"):
+            t["grafico_url"] = g.get("grafico_url")
+        if g.get("grafico_svg"):
+            t["grafico_svg"] = g.get("grafico_svg")
         cat = t.get("categorias_tarea") or {}
         if not isinstance(cat, dict):
             cat = {}
@@ -174,6 +219,88 @@ def _tareas_por_sesion(supabase, sesion_ids: list[str], profundidad: str) -> dic
     return by_sesion
 
 
+def _plantilla_semana(supabase, equipo_id: str) -> Optional[dict]:
+    try:
+        resp = (
+            supabase.table("jugadores")
+            .select(
+                "id, nombre, apellidos, dorsal, estado, disponibilidad, motivo_baja"
+            )
+            .eq("equipo_id", equipo_id)
+            .eq("es_invitado", False)
+            .execute()
+        )
+        jugadores = resp.data or []
+    except Exception:
+        logger.exception("informe plantilla semana failed")
+        return None
+
+    def _disp(j: dict) -> str:
+        return j.get("disponibilidad") or (
+            "pleno" if j.get("estado") == "activo"
+            else "individual" if j.get("estado") == "en_recuperacion"
+            else "fuera"
+        )
+
+    lesionados = [
+        j for j in jugadores
+        if _disp(j) == "fuera" and j.get("estado") in ("lesionado", "enfermo", "baja")
+    ]
+    return {
+        "disponibles": sum(1 for j in jugadores if _disp(j) == "pleno"),
+        "lesionados": len(lesionados),
+        "en_recuperacion": sum(1 for j in jugadores if _disp(j) == "individual"),
+        "por_disponibilidad": {
+            "pleno": sum(1 for j in jugadores if _disp(j) == "pleno"),
+            "grupo_adaptado": sum(1 for j in jugadores if _disp(j) == "grupo_adaptado"),
+            "individual": sum(1 for j in jugadores if _disp(j) == "individual"),
+            "fuera": sum(1 for j in jugadores if _disp(j) == "fuera"),
+        },
+        "jugadores_lesionados": lesionados,
+    }
+
+
+def _reflexion_anterior(supabase, equipo_id: str, fecha_inicio: Any) -> Optional[dict]:
+    iso = str(fecha_inicio or "")[:10]
+    if not iso:
+        return None
+    try:
+        prev = (
+            supabase.table("partidos")
+            .select("id, fecha, rivales(nombre, nombre_corto)")
+            .eq("equipo_id", equipo_id)
+            .lt("fecha", iso)
+            .order("fecha", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if not prev.data:
+            return None
+        pp = prev.data[0]
+        stats = (
+            supabase.table("estadisticas_partido")
+            .select("reflexion_entrenador")
+            .eq("partido_id", pp["id"])
+            .limit(1)
+            .execute()
+        )
+        texto = ""
+        if stats.data:
+            texto = (stats.data[0].get("reflexion_entrenador") or "").strip()
+        if not texto:
+            return None
+        rival_join = pp.get("rivales") or {}
+        return {
+            "partido_id": pp["id"],
+            "fecha": pp.get("fecha"),
+            "rival_nombre": rival_join.get("nombre_corto") or rival_join.get("nombre") or "Rival",
+            "texto": texto,
+        }
+    except Exception:
+        logger.exception("informe reflexion anterior failed")
+        return None
+
+
 async def generate_informe_pdf(
     *,
     equipo_id: str,
@@ -199,7 +326,7 @@ async def generate_informe_pdf(
         )
     spec = spec.normalized()
     ctx = await asyncio.to_thread(_build_context, equipo_id, organizacion_id, spec)
-    if "narrativa" in spec.secciones and (spec.prompt or spec.profundidad == "extendido"):
+    if spec.asunto != "microciclo" and "narrativa" in spec.secciones and (spec.prompt or spec.profundidad == "extendido"):
         try:
             lectura = await asyncio.wait_for(redactar_lectura_ai(spec, ctx), timeout=10)
             if lectura:
@@ -442,16 +569,30 @@ def _build_context(
 
     micro_ctx = None
     if ("microciclo" in spec.secciones or tipo == "microciclo") and microciclo_id:
-        mc = (
-            supabase.table("microciclos")
-            .select(
-                "id, fecha_inicio, fecha_fin, objetivo_principal, objetivo_tactico, objetivo_fisico, "
-                "notas, rivales(nombre, nombre_corto)"
+        try:
+            mc = (
+                supabase.table("microciclos")
+                .select(
+                    "id, fecha_inicio, fecha_fin, objetivo_principal, objetivo_tactico, objetivo_fisico, "
+                    "notas, plan_ct, rival_id, partido_id, equipo_id, "
+                    "rivales(nombre, nombre_corto)"
+                )
+                .eq("id", microciclo_id)
+                .maybe_single()
+                .execute()
             )
-            .eq("id", microciclo_id)
-            .maybe_single()
-            .execute()
-        )
+        except Exception:
+            logger.exception("informe microciclo select con plan_ct failed")
+            mc = (
+                supabase.table("microciclos")
+                .select(
+                    "id, fecha_inicio, fecha_fin, objetivo_principal, objetivo_tactico, objetivo_fisico, "
+                    "notas, rivales(nombre, nombre_corto)"
+                )
+                .eq("id", microciclo_id)
+                .maybe_single()
+                .execute()
+            )
         micro = mc.data or {}
         if not micro.get("id"):
             raise ValueError("Microciclo no encontrado")
@@ -511,6 +652,24 @@ def _build_context(
                 "n_tareas": len(tareas),
                 "n_boards": sum(1 for t in tareas if t.get("has_board")),
             })
+        plantilla_semana = _plantilla_semana(supabase, equipo_id)
+        reflexion = _reflexion_anterior(
+            supabase, equipo_id, micro.get("fecha_inicio")
+        )
+        sala = sintetizar_sala_lunes(
+            micro={
+                "rango": f"{_fmt_fecha(micro.get('fecha_inicio'))} – {_fmt_fecha(micro.get('fecha_fin'))}",
+                "objetivo": micro.get("objetivo_principal") or "",
+                "objetivo_tactico": micro.get("objetivo_tactico") or "",
+                "objetivo_fisico": micro.get("objetivo_fisico") or "",
+                "notas": micro.get("notas") or "",
+                "rival": rival.get("nombre_corto") or rival.get("nombre") or "",
+            },
+            plan_ct=micro.get("plan_ct") if isinstance(micro.get("plan_ct"), dict) else {},
+            sesiones=ses_rows,
+            reflexion=reflexion,
+            plantilla=plantilla_semana,
+        )
         micro_ctx = {
             "rango": f"{_fmt_fecha(micro.get('fecha_inicio'))} – {_fmt_fecha(micro.get('fecha_fin'))}",
             "objetivo": micro.get("objetivo_principal") or "",
@@ -525,6 +684,7 @@ def _build_context(
             "extendido": spec.profundidad == "extendido",
             "con_pizarras": spec.profundidad != "breve",
             "sesiones": ses_rows,
+            "sala": sala,
         }
 
     periodo = "Temporada"
@@ -546,6 +706,21 @@ def _build_context(
     ambito_label = AMBITO_LABELS.get(ambito, ambito)
     color = organizacion.get("color_primario") or "#1a365d"
     titulo = spec.titulo or TIPOS_INFORME.get(tipo, "Informe")
+    if tipo == "microciclo" and not spec.titulo:
+        titulo = "Sala del lunes"
+    if tipo == "microciclo" and micro_ctx:
+        periodo = micro_ctx.get("rango") or periodo
+    narrativa = narrativa_periodo(
+        resumen,
+        ambito_label,
+        spec.profundidad,
+        spec.audiencia,
+        racha=racha,
+        local=local,
+        visitante=visitante,
+    )
+    if tipo == "microciclo" and micro_ctx and (micro_ctx.get("sala") or {}).get("mensaje"):
+        narrativa = micro_ctx["sala"]["mensaje"]
     return {
         "tipo": tipo,
         "titulo": titulo,
@@ -563,15 +738,7 @@ def _build_context(
         "local": local,
         "visitante": visitante,
         "racha": racha,
-        "narrativa": narrativa_periodo(
-            resumen,
-            ambito_label,
-            spec.profundidad,
-            spec.audiencia,
-            racha=racha,
-            local=local,
-            visitante=visitante,
-        ),
+        "narrativa": narrativa,
         "prompt": spec.prompt or "",
         "notas": spec.notas or "",
         "evolucion": evolucion[:limite] if spec.profundidad == "breve" else evolucion,
