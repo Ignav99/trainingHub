@@ -1,10 +1,9 @@
 # TrainingHub — estado actual
 
 ## En curso
-Dossier de microciclo con pizarras: cada sesión con cromado MD y ficha+tablero de cada tarea.
-Rama `cursor/informes-pizarra-dossier-ae84`.
+Informe de microciclo: fotos reales de pizarra + plantilla Sala del lunes.
+Rama `cursor/informes-pizarra-fotos-ae84`.
 
 ## Hecho reciente
-PR #251 — informe microciclo extendido (texto; el usuario pidió pizarras y diseño).
-PR #250 — fix NameError `date` en estadísticas.
-PR #249 — composer de informes.
+PR #252 — dossier con cromado MD (el usuario veía campo verde, no la foto).
+PR #251 — microciclo extendido (tablas).

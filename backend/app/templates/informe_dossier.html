@@ -116,24 +116,45 @@
       page-break-inside: avoid;
     }
     .task-board {
-      width: 52%; height: 44mm; background: #14532D;
+      width: 52%; height: 48mm; background: #F8FAFC;
       vertical-align: middle; overflow: hidden; padding: 0;
     }
     .task-board img,
     .task-board svg {
       display: block;
       width: 100% !important;
-      height: 44mm !important;
+      height: 48mm !important;
       max-width: none !important;
       object-fit: contain;
       object-position: center;
+      background: #fff;
     }
     .board-empty {
-      height: 44mm; line-height: 44mm; text-align: center;
-      color: rgba(255,255,255,0.65);
+      height: 48mm; line-height: 48mm; text-align: center;
+      color: #94A3B8;
       font-size: 8px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700;
-      background: #166534;
+      background: #F1F5F9;
     }
+    .sec-k {
+      font-size: 8px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+      color: #fff; background: #0B1220; padding: 3px 8px; margin: 12px 0 6px;
+    }
+    .mensaje {
+      font-size: 11px; line-height: 1.45; color: #0B1220;
+      background: #FFFBEB; border-left: 4px solid #D97706; padding: 8px 10px; margin-bottom: 10px;
+    }
+    .chip-row { margin: 0 0 8px; }
+    .obj-chip {
+      display: inline-block; background: #0B1220; color: #fff;
+      font-size: 8px; font-weight: 700; padding: 2px 7px; margin: 0 4px 4px 0;
+    }
+    .two { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 8px; }
+    .two td { vertical-align: top; padding: 6px 8px; border: 1px solid #E2E8F0; }
+    .two .ol {
+      font-size: 7px; text-transform: uppercase; letter-spacing: 0.1em;
+      font-weight: 800; color: {{ color }}; margin-bottom: 3px;
+    }
+    .list-dot { font-size: 9px; color: #1E293B; margin-bottom: 2px; }
     .task-sum { width: 48%; vertical-align: top; padding: 6px 8px 7px; background: #fff; }
     .task-ord {
       display: inline-block; background: #0B1220; color: #fff;
@@ -200,7 +221,7 @@
     </tr>
   </table>
 
-  {% if 'narrativa' in secciones and narrativa %}
+  {% if 'narrativa' in secciones and narrativa and tipo != 'microciclo' %}
   <div class="lectura">{{ narrativa }}</div>
   {% endif %}
 
@@ -338,7 +359,7 @@
     <table class="week-hero">
       <tr>
         <td>
-          <div class="wh-k">Semana de entrenamiento</div>
+          <div class="wh-k">Sala del lunes</div>
           <div class="wh-t">{{ microciclo.rango }}</div>
         </td>
         <td style="width:42%">
@@ -346,15 +367,136 @@
           <div class="wh-vs">vs {{ microciclo.rival }}</div>
           {% endif %}
           <div class="wh-sub">
+            {% if microciclo.sala and microciclo.sala.tipo %}{{ microciclo.sala.tipo }} · {% endif %}
             {{ microciclo.n_sesiones or 0 }} sesiones
             · {{ microciclo.n_tareas or 0 }} tareas
-            {% if microciclo.n_boards %} · {{ microciclo.n_boards }} pizarras{% endif %}
           </div>
         </td>
       </tr>
     </table>
 
-    {% if microciclo.objetivo or microciclo.objetivo_tactico or microciclo.objetivo_fisico %}
+    {% set sala = microciclo.sala %}
+    {% if sala %}
+      {% if sala.mensaje %}
+      <div class="sec-k">01 · Mensaje de la semana</div>
+      <div class="mensaje">{{ sala.mensaje }}</div>
+      {% endif %}
+
+      <div class="sec-k">02 · Objetivos</div>
+      {% if sala.objetivos %}
+      <div class="chip-row">
+        {% for o in sala.objetivos %}<span class="obj-chip">{{ o }}</span>{% endfor %}
+      </div>
+      {% endif %}
+      <table class="obj-grid">
+        <tr>
+          <td>
+            <div class="ol">Táctico</div>
+            <div class="ot">{{ sala.tactico or microciclo.objetivo_tactico or '—' }}</div>
+          </td>
+          <td>
+            <div class="ol">Físico</div>
+            <div class="ot">{{ sala.fisico or microciclo.objetivo_fisico or '—' }}</div>
+          </td>
+          <td>
+            <div class="ol">Tipo / modo</div>
+            <div class="ot">{{ sala.tipo or '—' }}{% if sala.modo %} · {{ sala.modo }}{% endif %}</div>
+          </td>
+        </tr>
+      </table>
+
+      {% if sala.olfato or sala.observaciones or sala.reflexion %}
+      <div class="sec-k">03 · Lectura del grupo</div>
+      <table class="two">
+        <tr>
+          <td>
+            <div class="ol">Olfato del CT</div>
+            {{ sala.olfato or '—' }}
+          </td>
+          <td>
+            <div class="ol">Observaciones</div>
+            {{ sala.observaciones or '—' }}
+          </td>
+        </tr>
+      </table>
+      {% if sala.reflexion %}
+      <div class="ses-obj" style="border-left-color:#D97706;margin-bottom:8px">
+        <strong>Del partido anterior vs {{ sala.reflexion.rival }}</strong>
+        {{ sala.reflexion.texto }}
+      </div>
+      {% endif %}
+      {% endif %}
+
+      {% if sala.rival and (sala.rival.sistema or sala.rival.fortalezas or sala.rival.plan or sala.once) %}
+      <div class="sec-k">04 · Rival y partido</div>
+      <table class="two">
+        <tr>
+          <td>
+            <div class="ol">Informe rival{% if sala.rival.nombre %} · {{ sala.rival.nombre }}{% endif %}</div>
+            {% if sala.rival.sistema %}<div class="list-dot"><b>Sistema</b> {{ sala.rival.sistema }}</div>{% endif %}
+            {% if sala.rival.estilo %}<div class="list-dot">{{ sala.rival.estilo }}</div>{% endif %}
+            {% for f in sala.rival.fortalezas %}<div class="list-dot">+ {{ f }}</div>{% endfor %}
+            {% for d in sala.rival.debilidades %}<div class="list-dot">– {{ d }}</div>{% endfor %}
+          </td>
+          <td>
+            <div class="ol">Plan de partido</div>
+            {% if sala.rival.plan %}
+              {% if sala.rival.plan.ataque %}<div class="list-dot"><b>Ataque</b> {{ sala.rival.plan.ataque }}</div>{% endif %}
+              {% if sala.rival.plan.defensa %}<div class="list-dot"><b>Defensa</b> {{ sala.rival.plan.defensa }}</div>{% endif %}
+              {% if sala.rival.plan.transicion_of %}<div class="list-dot"><b>T. ofensiva</b> {{ sala.rival.plan.transicion_of }}</div>{% endif %}
+              {% if sala.rival.plan.transicion_df %}<div class="list-dot"><b>T. defensiva</b> {{ sala.rival.plan.transicion_df }}</div>{% endif %}
+              {% if sala.rival.plan.abp_of %}<div class="list-dot"><b>ABP of.</b> {{ sala.rival.plan.abp_of }}</div>{% endif %}
+              {% if sala.rival.plan.abp_df %}<div class="list-dot"><b>ABP def.</b> {{ sala.rival.plan.abp_df }}</div>{% endif %}
+              {% for f in sala.rival.plan.fases %}<div class="list-dot">{{ f }}</div>{% endfor %}
+            {% elif sala.once %}
+              {% if sala.once.sistema %}<div class="list-dot"><b>Once</b> {{ sala.once.sistema }}</div>{% endif %}
+              {% if sala.once.notas %}<div class="list-dot">{{ sala.once.notas }}</div>{% endif %}
+            {% else %}
+              <div class="muted">Sin plan de partido redactado.</div>
+            {% endif %}
+          </td>
+        </tr>
+      </table>
+      {% if sala.once and sala.rival.plan %}
+      <p class="meta" style="margin-bottom:8px">
+        {% if sala.once.sistema %}<b>Once probable</b> {{ sala.once.sistema }}{% endif %}
+        {% if sala.once.notas %} · {{ sala.once.notas }}{% endif %}
+      </p>
+      {% endif %}
+      {% endif %}
+
+      {% if sala.dias %}
+      <div class="sec-k">05 · Morfociclo</div>
+      <table class="data">
+        <thead><tr><th>MD</th><th>Foco</th><th>Objetivo del día</th><th>Táctico</th></tr></thead>
+        <tbody>
+          {% for d in sala.dias %}
+          <tr>
+            <td class="md-cell" style="color: {{ d.ink }}">{{ d.md }}</td>
+            <td class="muted">{{ d.label }}</td>
+            <td>{{ d.objetivo or ('Descanso' if d.descanso else '—') }}</td>
+            <td>{{ d.tactico or d.notas or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+
+      {% if sala.plantilla %}
+      <div class="sec-k">06 · Disponibilidad</div>
+      <table class="kpis">
+        <tr>
+          <td><div class="n">{{ sala.plantilla.pleno }}</div><div class="l">Pleno</div></td>
+          <td><div class="n">{{ sala.plantilla.adaptado }}</div><div class="l">Adaptado</div></td>
+          <td><div class="n">{{ sala.plantilla.individual }}</div><div class="l">Individual</div></td>
+          <td><div class="n">{{ sala.plantilla.fuera }}</div><div class="l">Fuera</div></td>
+        </tr>
+      </table>
+      {% if sala.plantilla.lesionados %}
+      <p class="meta" style="margin-bottom:8px">Fuera: {{ sala.plantilla.lesionados | join(' · ') }}</p>
+      {% endif %}
+      {% endif %}
+    {% elif microciclo.objetivo or microciclo.objetivo_tactico or microciclo.objetivo_fisico %}
     <table class="obj-grid">
       <tr>
         <td>
@@ -372,7 +514,8 @@
       </tr>
     </table>
     {% endif %}
-    {% if microciclo.notas %}<p class="muted" style="margin-bottom:8px">{{ microciclo.notas }}</p>{% endif %}
+
+    <div class="sec-k">07 · Sesiones de la semana</div>
 
     {% if microciclo.sesiones %}
     <table class="week-strip">

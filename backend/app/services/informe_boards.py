@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
+import base64
+import json
 import logging
 import re
 from datetime import datetime
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
-
-# Preview JPEG del editor; por encima se usa SVG para no hinchar el PDF.
-PREVIEW_MAX_CHARS = 900_000
 
 WEEKDAYS_ES = (
     "lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo",
@@ -29,6 +28,8 @@ MATCH_DAY_CHROME = {
 MATCH_DAY_FALLBACK = {
     "bar": "#334155", "ink": "#0F172A", "wash": "#F1F5F9", "label": "Sesión", "carga": "",
 }
+
+_PREVIEW_KEYS = ("preview", "imagen", "thumbnail", "snapshot", "foto")
 
 
 def clip(text: Any, n: int) -> str:
@@ -66,38 +67,125 @@ def weekday(val: Any) -> str:
         return ""
 
 
-def board_assets(tarea: dict, diagram_id: str) -> tuple[str, str]:
-    """Instantánea del editor o SVG de la pizarra. Fallo suave."""
-    preview_img = ""
-    grafico = tarea.get("grafico_data")
-    if isinstance(grafico, dict):
-        raw = grafico.get("preview") or ""
-        if isinstance(raw, str) and raw.startswith("data:image") and len(raw) <= PREVIEW_MAX_CHARS:
-            preview_img = raw
-    if not preview_img:
-        gu = tarea.get("grafico_url") or ""
-        if isinstance(gu, str) and gu.startswith("data:image") and len(gu) <= PREVIEW_MAX_CHARS:
-            preview_img = gu
-        elif isinstance(gu, str) and gu.startswith("http"):
-            try:
-                from app.services.pdf_service import _url_to_data_uri
-                converted = _url_to_data_uri(gu)
-            except Exception:
-                converted = ""
-            if (
-                isinstance(converted, str)
-                and converted.startswith("data:image")
-                and len(converted) <= PREVIEW_MAX_CHARS
-            ):
-                preview_img = converted
-    svg_thumb = ""
-    if not preview_img and isinstance(grafico, dict):
+def parse_grafico(raw: Any) -> dict:
+    """grafico_data puede llegar como dict, JSON string o lista de 1."""
+    if raw is None:
+        return {}
+    if isinstance(raw, list) and raw:
+        raw = raw[0]
+    if isinstance(raw, str):
+        stripped = raw.strip()
+        if not stripped:
+            return {}
         try:
-            from app.services.svg_renderer import render_diagram_thumbnail
-            svg_thumb = render_diagram_thumbnail(grafico, diagram_id=diagram_id) or ""
+            raw = json.loads(stripped)
+        except json.JSONDecodeError:
+            return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _as_data_uri(raw: Any) -> str:
+    if not isinstance(raw, str):
+        return ""
+    val = raw.strip()
+    if not val:
+        return ""
+    if val.startswith("data:image"):
+        return val
+    if val.startswith("http://") or val.startswith("https://"):
+        try:
+            from app.services.pdf_service import _url_to_data_uri
+            converted = _url_to_data_uri(val)
         except Exception:
-            logger.exception("informe pizarra svg failed %s", diagram_id)
-    return preview_img, svg_thumb
+            return ""
+        return converted if isinstance(converted, str) and converted.startswith("data:image") else ""
+    # JPEG/PNG en base64 crudo (sin prefijo data:)
+    if len(val) > 80 and re.fullmatch(r"[A-Za-z0-9+/=\s]+", val[:200] or ""):
+        compact = "".join(val.split())
+        if compact.startswith("/9j/"):
+            return "data:image/jpeg;base64," + compact
+        if compact.startswith("iVBOR"):
+            return "data:image/png;base64," + compact
+    return ""
+
+
+def _shrink_data_uri(uri: str) -> str:
+    """Si la instantánea es enorme, baja a JPEG compacto para WeasyPrint."""
+    if not uri.startswith("data:image") or len(uri) < 1_200_000:
+        return uri
+    try:
+        from io import BytesIO
+        from PIL import Image
+        _header, b64 = uri.split(",", 1)
+        im = Image.open(BytesIO(base64.b64decode(b64)))
+        im.thumbnail((1400, 900))
+        if im.mode not in ("RGB", "L"):
+            im = im.convert("RGB")
+        buf = BytesIO()
+        im.save(buf, format="JPEG", quality=74, optimize=True)
+        return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+    except Exception:
+        return uri
+
+
+def extract_preview(grafico: dict, grafico_url: Any = None, grafico_svg: Any = None) -> str:
+    """Foto real de la pizarra. No se descarta por tamaño."""
+    for key in _PREVIEW_KEYS:
+        uri = _as_data_uri(grafico.get(key))
+        if uri:
+            return _shrink_data_uri(uri)
+    frames = grafico.get("frames")
+    if isinstance(frames, list):
+        for fr in frames:
+            if not isinstance(fr, dict):
+                continue
+            for key in _PREVIEW_KEYS:
+                uri = _as_data_uri(fr.get(key))
+                if uri:
+                    return _shrink_data_uri(uri)
+    uri = _as_data_uri(grafico_url)
+    if uri:
+        return _shrink_data_uri(uri)
+    if isinstance(grafico_svg, str) and grafico_svg.strip().startswith("<svg"):
+        return ""
+    return ""
+
+
+def board_assets(tarea: dict, diagram_id: str) -> tuple[str, str]:
+    """Instantánea JPEG del editor, o SVG solo si hay contenido (nunca un campo vacío)."""
+    grafico = parse_grafico(tarea.get("grafico_data"))
+    preview_img = extract_preview(
+        grafico,
+        tarea.get("grafico_url"),
+        tarea.get("grafico_svg"),
+    )
+    if preview_img:
+        return preview_img, ""
+
+    svg_thumb = ""
+    raw_svg = tarea.get("grafico_svg")
+    if isinstance(raw_svg, str) and "<svg" in raw_svg:
+        svg_thumb = raw_svg
+        return "", svg_thumb
+
+    if not grafico:
+        return "", ""
+    try:
+        from app.services.svg_renderer import prepare_board_snapshot, render_diagram_svg
+        snap = prepare_board_snapshot(grafico)
+        has_content = bool(
+            snap
+            and (
+                (snap.get("elements") or [])
+                or (snap.get("arrows") or [])
+                or (snap.get("zones") or [])
+            )
+        )
+        if has_content:
+            svg_thumb = render_diagram_svg(snap, diagram_id=diagram_id) or ""
+    except Exception:
+        logger.exception("informe pizarra svg failed %s", diagram_id)
+    return "", svg_thumb
 
 
 def bloques_de_tareas(tareas: list[dict]) -> list[dict]:
