@@ -27,8 +27,9 @@ pypdf==4.0.1
 
 # HTTP Client (managed by supabase)
 
-# Image processing (escudos / logos)
+# Image processing (escudos / logos / foto de pizarra)
 Pillow>=10.0.0
+cairosvg>=2.7.0
 
 requests>=2.31.0
 curl_cffi>=0.7.0

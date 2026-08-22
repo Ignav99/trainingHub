@@ -151,8 +151,62 @@ def extract_preview(grafico: dict, grafico_url: Any = None, grafico_svg: Any = N
     return ""
 
 
+def _svg_to_jpeg(svg: str, width: int = 1050, height: int = 680) -> str:
+    """Pasa el SVG a foto JPEG. WeasyPrint no pinta SVG de pizarra (césped mal)."""
+    if not svg or "<svg" not in svg:
+        return ""
+    fixed = (
+        svg.replace('width="100%"', f'width="{width}"', 1)
+        .replace('height="100%"', f'height="{height}"', 1)
+    )
+    try:
+        import cairosvg
+        png = cairosvg.svg2png(
+            bytestring=fixed.encode("utf-8"),
+            output_width=width,
+            output_height=height,
+        )
+    except Exception:
+        logger.exception("informe pizarra raster cairosvg failed")
+        return ""
+    try:
+        from io import BytesIO
+        from PIL import Image
+        im = Image.open(BytesIO(png))
+        if im.mode not in ("RGB", "L"):
+            im = im.convert("RGB")
+        buf = BytesIO()
+        im.save(buf, format="JPEG", quality=78, optimize=True)
+        return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+    except Exception:
+        logger.exception("informe pizarra raster jpeg failed")
+        return ""
+
+
+def rasterize_board(grafico: dict, diagram_id: str) -> str:
+    """Foto JPEG del dibujo. Nunca se incrusta SVG en el PDF."""
+    if not grafico:
+        return ""
+    try:
+        from app.services.svg_renderer import (
+            _diagram_has_content,
+            prepare_board_snapshot,
+            render_diagram_thumbnail,
+        )
+        snap = prepare_board_snapshot(grafico)
+        if not snap or not _diagram_has_content(snap):
+            return ""
+        svg = render_diagram_thumbnail(grafico, diagram_id=diagram_id) or ""
+        pitch = (snap.get("pitchType") or "half")
+        width, height = (1050, 680) if pitch == "full" else (680, 525)
+        return _svg_to_jpeg(svg, width=width, height=height)
+    except Exception:
+        logger.exception("informe pizarra raster failed %s", diagram_id)
+        return ""
+
+
 def board_assets(tarea: dict, diagram_id: str) -> tuple[str, str]:
-    """Misma foto que el PDF de sesión: JPEG del editor, o SVG ABP si hay dibujo."""
+    """Solo foto JPEG/PNG. El segundo valor queda vacío: nada de SVG en el PDF."""
     grafico = parse_grafico(tarea.get("grafico_data"))
     preview_img = extract_preview(
         grafico,
@@ -164,23 +218,10 @@ def board_assets(tarea: dict, diagram_id: str) -> tuple[str, str]:
 
     raw_svg = tarea.get("grafico_svg")
     if isinstance(raw_svg, str) and "<svg" in raw_svg:
-        return "", raw_svg
+        photo = _svg_to_jpeg(raw_svg)
+        return photo, ""
 
-    if not grafico:
-        return "", ""
-    try:
-        from app.services.svg_renderer import (
-            _diagram_has_content,
-            prepare_board_snapshot,
-            render_diagram_thumbnail,
-        )
-        snap = prepare_board_snapshot(grafico)
-        if snap and _diagram_has_content(snap):
-            svg_thumb = render_diagram_thumbnail(grafico, diagram_id=diagram_id) or ""
-            return "", svg_thumb
-    except Exception:
-        logger.exception("informe pizarra svg failed %s", diagram_id)
-    return "", ""
+    return rasterize_board(grafico, diagram_id), ""
 
 
 def bloques_de_tareas(tareas: list[dict]) -> list[dict]:
