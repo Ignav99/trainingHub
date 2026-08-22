@@ -700,8 +700,6 @@
               <td class="task-board">
                 {% if t.preview_img %}
                   <img src="{{ t.preview_img }}" alt="" width="520" height="336" />
-                {% elif t.svg_thumbnail %}
-                  {{ t.svg_thumbnail|safe }}
                 {% else %}
                   <div class="board-empty">Sin pizarra</div>
                 {% endif %}
@@ -746,8 +744,6 @@
               <td class="task-board">
                 {% if t.preview_img %}
                   <img src="{{ t.preview_img }}" alt="" width="520" height="336" />
-                {% elif t.svg_thumbnail %}
-                  {{ t.svg_thumbnail|safe }}
                 {% else %}
                   <div class="board-empty">Sin pizarra</div>
                 {% endif %}

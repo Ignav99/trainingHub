@@ -13,6 +13,7 @@ from app.services.informe_boards import (
     board_assets,
     bloques_de_tareas,
     clip,
+    extract_preview,
     md_chrome,
     parse_grafico,
     weekday,
@@ -99,6 +100,71 @@ def _grafico_de_tarea(supabase, tid: str) -> dict:
     return {}
 
 
+def _preview_de_tarea(supabase, tid: str) -> str:
+    """Solo el JPEG guardado (sin el JSON grande de elementos)."""
+    if not tid:
+        return ""
+    for select in (
+        "preview:grafico_data->>preview",
+        "preview:grafico_data->preview",
+    ):
+        try:
+            resp = (
+                supabase.table("tareas")
+                .select(select)
+                .eq("id", tid)
+                .maybe_single()
+                .execute()
+            )
+            raw = (resp.data or {}).get("preview")
+            if isinstance(raw, str) and raw.strip():
+                from app.services.informe_boards import _as_data_uri
+                return _as_data_uri(raw)
+        except Exception:
+            logger.exception("informe preview json-path failed %s", tid)
+    return ""
+
+
+def _persist_preview(supabase, tid: str, grafico: dict, jpeg: str) -> None:
+    if not tid or not jpeg or not grafico:
+        return
+    try:
+        supabase.table("tareas").update(
+            {"grafico_data": {**grafico, "preview": jpeg}}
+        ).eq("id", tid).execute()
+    except Exception:
+        logger.exception("informe persist preview failed %s", tid)
+
+
+def _foto_pizarra(supabase, t: dict, diagram_id: str) -> str:
+    """Foto JPEG/PNG. Nunca SVG: WeasyPrint coloca el césped mal."""
+    grafico = parse_grafico(t.get("grafico_data"))
+    photo = extract_preview(grafico, t.get("grafico_url"), t.get("grafico_svg"))
+    if photo:
+        return photo
+    tid = str(t.get("id") or "")
+    if tid:
+        photo = _preview_de_tarea(supabase, tid)
+        if photo:
+            return photo
+        if not grafico:
+            extra = _grafico_de_tarea(supabase, tid)
+            if extra.get("grafico_data") is not None:
+                t = {**t, "grafico_data": extra.get("grafico_data")}
+                grafico = parse_grafico(t.get("grafico_data"))
+            if extra.get("grafico_url") and not t.get("grafico_url"):
+                t["grafico_url"] = extra.get("grafico_url")
+            if extra.get("grafico_svg"):
+                t["grafico_svg"] = extra.get("grafico_svg")
+            photo = extract_preview(grafico, t.get("grafico_url"), t.get("grafico_svg"))
+            if photo:
+                return photo
+    photo, _ = board_assets({**t, "grafico_data": grafico}, diagram_id)
+    if photo and tid and grafico and not extract_preview(grafico):
+        _persist_preview(supabase, tid, grafico, photo)
+    return photo
+
+
 def _sesion_tareas_rows(supabase, sid: str) -> list[dict]:
     """Mismo embed que el PDF de sesión (grafico_data via tareas(*))."""
     selects = (
@@ -140,7 +206,8 @@ def _tareas_por_sesion(supabase, sesion_ids: list[str], profundidad: str) -> dic
         rows = _sesion_tareas_rows(supabase, sid)
         for st in rows:
             t = _unwrap_tarea(st.get("tareas"))
-            if not parse_grafico(t.get("grafico_data")) and t.get("id"):
+            grafico = parse_grafico(t.get("grafico_data"))
+            if t.get("id") and not extract_preview(grafico, t.get("grafico_url"), t.get("grafico_svg")):
                 g = _grafico_de_tarea(supabase, str(t["id"]))
                 if g.get("grafico_data") is not None:
                     t = {**t, "grafico_data": g.get("grafico_data")}
@@ -163,7 +230,8 @@ def _tareas_por_sesion(supabase, sesion_ids: list[str], profundidad: str) -> dic
             notas = str(st.get("notas") or "").strip()
             fase_key = st.get("fase_sesion") or ""
             orden = st.get("orden") or 0
-            preview_img, svg_thumb = board_assets(t, diagram_id=f"s{sid[:8]}t{orden}")
+            preview_img = _foto_pizarra(supabase, t, diagram_id=f"s{sid[:8]}t{orden}")
+            svg_thumb = ""
             espacio = ""
             if t.get("espacio_largo") and t.get("espacio_ancho"):
                 try:
