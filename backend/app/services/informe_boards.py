@@ -152,7 +152,7 @@ def extract_preview(grafico: dict, grafico_url: Any = None, grafico_svg: Any = N
 
 
 def board_assets(tarea: dict, diagram_id: str) -> tuple[str, str]:
-    """Instantánea JPEG del editor, o SVG solo si hay contenido (nunca un campo vacío)."""
+    """Misma foto que el PDF de sesión: JPEG del editor, o SVG ABP si hay dibujo."""
     grafico = parse_grafico(tarea.get("grafico_data"))
     preview_img = extract_preview(
         grafico,
@@ -162,30 +162,25 @@ def board_assets(tarea: dict, diagram_id: str) -> tuple[str, str]:
     if preview_img:
         return preview_img, ""
 
-    svg_thumb = ""
     raw_svg = tarea.get("grafico_svg")
     if isinstance(raw_svg, str) and "<svg" in raw_svg:
-        svg_thumb = raw_svg
-        return "", svg_thumb
+        return "", raw_svg
 
     if not grafico:
         return "", ""
     try:
-        from app.services.svg_renderer import prepare_board_snapshot, render_diagram_svg
-        snap = prepare_board_snapshot(grafico)
-        has_content = bool(
-            snap
-            and (
-                (snap.get("elements") or [])
-                or (snap.get("arrows") or [])
-                or (snap.get("zones") or [])
-            )
+        from app.services.svg_renderer import (
+            _diagram_has_content,
+            prepare_board_snapshot,
+            render_diagram_thumbnail,
         )
-        if has_content:
-            svg_thumb = render_diagram_svg(snap, diagram_id=diagram_id) or ""
+        snap = prepare_board_snapshot(grafico)
+        if snap and _diagram_has_content(snap):
+            svg_thumb = render_diagram_thumbnail(grafico, diagram_id=diagram_id) or ""
+            return "", svg_thumb
     except Exception:
         logger.exception("informe pizarra svg failed %s", diagram_id)
-    return "", svg_thumb
+    return "", ""
 
 
 def bloques_de_tareas(tareas: list[dict]) -> list[dict]:

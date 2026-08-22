@@ -116,25 +116,41 @@
       page-break-inside: avoid;
     }
     .task-board {
-      width: 52%; height: 48mm; background: #F8FAFC;
+      width: 70%; height: 75.5mm; background: #fff;
       vertical-align: middle; overflow: hidden; padding: 0;
     }
     .task-board img,
     .task-board svg {
       display: block;
       width: 100% !important;
-      height: 48mm !important;
+      height: 75.5mm !important;
       max-width: none !important;
       object-fit: contain;
-      object-position: center;
+      object-position: left center;
       background: #fff;
+      margin: 0;
     }
     .board-empty {
-      height: 48mm; line-height: 48mm; text-align: center;
+      height: 75.5mm; line-height: 75.5mm; text-align: center;
       color: #94A3B8;
       font-size: 8px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700;
       background: #F1F5F9;
     }
+    .ses-kpis { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 0 0 8px; }
+    .ses-kpis td {
+      text-align: center; padding: 5px 4px; border: 1px solid #E2E8F0;
+      background: #F8FAFC; vertical-align: top;
+    }
+    .ses-kpis .n { font-size: 13px; font-weight: 800; }
+    .ses-kpis .l { font-size: 7px; text-transform: uppercase; letter-spacing: 0.08em; color: #64748B; font-weight: 700; }
+    .rol-s { color: #15803D; font-weight: 700; }
+    .rol-f { color: #1D4ED8; font-weight: 700; }
+    .rol-m { color: #B45309; font-weight: 700; }
+    .rol-a { color: #B91C1C; font-weight: 700; }
+    .margen-card { width: 100%; border-collapse: collapse; margin-bottom: 5px; border: 1px solid #FDE68A; }
+    .margen-card td { padding: 5px 7px; vertical-align: top; background: #FFFBEB; }
+    .margen-name { font-weight: 800; font-size: 10px; }
+    .margen-ex { font-size: 8.5px; color: #334155; margin-top: 2px; }
     .sec-k {
       font-size: 8px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
       color: #fff; background: #0B1220; padding: 3px 8px; margin: 12px 0 6px;
@@ -155,7 +171,7 @@
       font-weight: 800; color: {{ color }}; margin-bottom: 3px;
     }
     .list-dot { font-size: 9px; color: #1E293B; margin-bottom: 2px; }
-    .task-sum { width: 48%; vertical-align: top; padding: 6px 8px 7px; background: #fff; }
+    .task-sum { width: 30%; vertical-align: top; padding: 6px 8px 7px; background: #fff; }
     .task-ord {
       display: inline-block; background: #0B1220; color: #fff;
       font-size: 8px; font-weight: 800; padding: 1px 5px; margin-right: 4px;
@@ -370,6 +386,8 @@
             {% if microciclo.sala and microciclo.sala.tipo %}{{ microciclo.sala.tipo }} · {% endif %}
             {{ microciclo.n_sesiones or 0 }} sesiones
             · {{ microciclo.n_tareas or 0 }} tareas
+            {% if microciclo.n_presentes %} · {{ microciclo.n_presentes }} presencias{% endif %}
+            {% if microciclo.rpe_medio %} · RPE {{ microciclo.rpe_medio }}{% endif %}
           </div>
         </td>
       </tr>
@@ -515,7 +533,33 @@
     </table>
     {% endif %}
 
-    <div class="sec-k">07 · Sesiones de la semana</div>
+    {% if microciclo.lesiones %}
+    <div class="sec-k">07 · Informe de lesiones</div>
+    <table class="data">
+      <thead>
+        <tr>
+          <th>#</th><th>Jugador</th><th>Tipo</th><th>Cuadro</th>
+          <th>Estado</th><th>Disponibilidad</th><th>RTP</th><th>Zona</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for l in microciclo.lesiones %}
+        <tr>
+          <td class="num">{% if l.dorsal %}{{ l.dorsal }}{% else %}—{% endif %}</td>
+          <td>{{ l.nombre_completo }}</td>
+          <td>{{ l.tipo }}</td>
+          <td>{{ l.titulo }}</td>
+          <td>{{ l.estado }}</td>
+          <td>{{ l.disponibilidad }}</td>
+          <td>{{ l.rtp or '—' }}</td>
+          <td>{{ l.zona or l.severidad or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <div class="sec-k">{% if microciclo.lesiones %}08{% else %}07{% endif %} · Sesiones de la semana</div>
 
     {% if microciclo.sesiones %}
     <table class="week-strip">
@@ -524,7 +568,7 @@
         <td style="border-top: 5px solid {{ s.md_bar }}; background: {{ s.md_wash }};">
           <div class="md" style="color: {{ s.md_ink }}">{{ s.md }}</div>
           <div class="wd">{{ s.weekday or s.fecha }}</div>
-          <div class="nt">{{ s.min or '—' }}′ · {{ s.n_tareas or 0 }} ej.</div>
+          <div class="nt">{{ s.min or '—' }}′ · {{ s.n_tareas or 0 }} ej.{% if s.n_sesion %} · {{ s.n_sesion }} en sesión{% endif %}</div>
         </td>
         {% endfor %}
       </tr>
@@ -579,6 +623,74 @@
         {% endif %}
         {% if s.notas %}<p class="muted" style="margin-bottom:6px">{{ s.notas }}</p>{% endif %}
 
+        {% if s.asistencia or s.n_rpe or s.rpe_medio or s.carga %}
+        <table class="ses-kpis">
+          <tr>
+            <td><div class="n">{{ s.n_sesion or 0 }}</div><div class="l">En sesión</div></td>
+            <td><div class="n">{{ s.n_fisio or 0 }}</div><div class="l">Fisio</div></td>
+            <td><div class="n">{{ s.n_margen or 0 }}</div><div class="l">Al margen</div></td>
+            <td><div class="n">{{ s.n_ausente or 0 }}</div><div class="l">Ausentes</div></td>
+            <td><div class="n">{% if s.rpe_medio %}{{ s.rpe_medio }}{% else %}—{% endif %}</div><div class="l">RPE medio</div></td>
+            <td><div class="n">{% if s.carga_total %}{{ s.carga_total }}{% elif s.carga %}{{ s.carga }}{% else %}—{% endif %}</div><div class="l">Carga</div></td>
+            <td><div class="n">{% if s.min %}{{ s.min }}′{% else %}—{% endif %}</div><div class="l">Minutos</div></td>
+          </tr>
+        </table>
+        {% endif %}
+
+        {% if s.asistencia %}
+        <div class="fase-lbl" style="background: {{ s.md_ink }};">Plantilla de la sesión</div>
+        <table class="data">
+          <thead>
+            <tr>
+              <th>#</th><th>Jugador</th><th>Rol</th><th>Motivo / notas</th>
+              <th class="num">RPE</th><th class="num">Carga</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in s.asistencia %}
+            <tr>
+              <td class="num">{% if p.dorsal %}{{ p.dorsal }}{% else %}—{% endif %}</td>
+              <td>{{ p.nombre_completo }}{% if p.posicion %} <span class="muted">{{ p.posicion }}</span>{% endif %}</td>
+              <td class="rol-{{ p.grupo[:1] if p.grupo else 's' }}">{{ p.rol }}</td>
+              <td>{% if p.grupo == 'ausente' %}{{ p.motivo }}{% endif %}{% if p.notas %}{% if p.motivo %} · {% endif %}{{ p.notas }}{% endif %}{% if p.grupo != 'ausente' and not p.notas %}—{% endif %}</td>
+              <td class="num">{% if p.rpe %}{{ p.rpe }}{% else %}—{% endif %}</td>
+              <td class="num">{% if p.carga %}{{ p.carga }}{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+
+        {% if s.margen %}
+        <div class="fase-lbl" style="background: {{ s.md_ink }};">Trabajo al margen</div>
+        {% for m in s.margen %}
+        <table class="margen-card">
+          <tr>
+            <td>
+              <div class="margen-name">{% if m.dorsal %}#{{ m.dorsal }} {% endif %}{{ m.nombre_completo }}</div>
+              {% if m.objetivo %}<div class="list-dot"><b>Objetivo</b> {{ m.objetivo }}</div>{% endif %}
+              {% if m.fase %}<div class="list-dot"><b>Fase</b> {{ m.fase }}</div>{% endif %}
+              {% if m.duracion or m.rpe_post %}
+              <div class="list-dot">
+                {% if m.duracion %}{{ m.duracion }}′{% endif %}
+                {% if m.rpe_post %} · RPE post {{ m.rpe_post }}{% endif %}
+              </div>
+              {% endif %}
+              {% for ex in m.tareas %}
+              <div class="margen-ex">
+                {{ ex.titulo }}{% if ex.tipo %} · {{ ex.tipo }}{% endif %}
+                {% if ex.series or ex.reps %} · {{ ex.series or '—' }}×{{ ex.reps or '—' }}{% endif %}
+                {% if ex.carga %} · carga {{ ex.carga }}{% endif %}
+                {% if ex.notas %} · {{ ex.notas }}{% endif %}
+              </div>
+              {% endfor %}
+              {% if m.notas %}<div class="muted">{{ m.notas }}</div>{% endif %}
+            </td>
+          </tr>
+        </table>
+        {% endfor %}
+        {% endif %}
+
         {% if s.bloques %}
           {% for b in s.bloques %}
           <div class="fase-lbl" style="background: {{ s.md_ink }};">{{ b.fase }}</div>
@@ -587,7 +699,7 @@
             <tr>
               <td class="task-board">
                 {% if t.preview_img %}
-                  <img src="{{ t.preview_img }}" alt="">
+                  <img src="{{ t.preview_img }}" alt="" width="520" height="336" />
                 {% elif t.svg_thumbnail %}
                   {{ t.svg_thumbnail|safe }}
                 {% else %}
@@ -633,7 +745,7 @@
             <tr>
               <td class="task-board">
                 {% if t.preview_img %}
-                  <img src="{{ t.preview_img }}" alt="">
+                  <img src="{{ t.preview_img }}" alt="" width="520" height="336" />
                 {% elif t.svg_thumbnail %}
                   {{ t.svg_thumbnail|safe }}
                 {% else %}

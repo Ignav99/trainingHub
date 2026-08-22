@@ -1,6 +1,8 @@
 from ast import ImportFrom, parse, walk
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -49,6 +51,11 @@ def test_dossier_template_chrome():
     assert "Sala del lunes" in html
     assert "Mensaje de la semana" in html
     assert "sala.mensaje" in html
+    assert "s.asistencia" in html
+    assert "Trabajo al margen" in html
+    assert "Informe de lesiones" in html
+    assert "Plantilla de la sesión" in html
+    assert "75.5mm" in html
     assert "PREVIEW_MAX_CHARS" not in (ROOT / "app" / "services" / "informe_boards.py").read_text(encoding="utf-8")
 
 
@@ -60,13 +67,17 @@ def test_informe_carga_sesion_tareas():
     assert "grafico_data" in src
     assert "board_assets" in src
     assert "consignas_ofensivas" in src
-    assert "_graficos_por_tarea" in src
+    assert "_grafico_de_tarea" in src
+    assert "_sesion_tareas_rows" in src
+    assert "_get_jinja_env_v2" in src
+    assert "detalle_sesiones" in src
+    assert "asistencias_sesion" in (ROOT / "app" / "services" / "informe_sesion_detalle.py").read_text(encoding="utf-8")
     assert "sintetizar_sala_lunes" in src
     boards = (ROOT / "app" / "services" / "informe_boards.py").read_text(encoding="utf-8")
     assert "extract_preview" in boards
     assert "board_assets" in boards
     assert "MATCH_DAY_CHROME" in boards
-    assert "render_diagram_svg" in boards
+    assert "render_diagram_thumbnail" in boards
 
 
 def test_md_chrome_and_boards():
@@ -98,6 +109,17 @@ def test_md_chrome_and_boards():
     img, svg = board_assets({"grafico_data": {"pitchType": "full"}}, "x")
     assert img == ""
     assert svg == ""
+
+    img, svg = board_assets(
+        {"grafico_data": {
+            "pitchType": "full",
+            "elements": [{"type": "player", "x": 200, "y": 180, "label": "9"}],
+        }},
+        "t1",
+    )
+    assert img == ""
+    assert svg and "<svg" in svg
+    assert "9" in svg
 
     bloques = bloques_de_tareas([
         {"fase": "Activación", "orden": 1},
@@ -145,3 +167,137 @@ def test_sintetizar_sala_lunes_plantilla():
     assert sala["rival"]["plan"]["ataque"]
     assert sala["reflexion"]["rival"] == "Utrera"
     assert any(d["md"] == "MD-3" for d in sala["dias"])
+
+
+def test_normalizar_asistencia_y_rpe():
+    from app.services.informe_sesion_detalle import (
+        agregar_rpe,
+        fusionar_rpe,
+        normalizar_asistencia,
+        resumen_asistencia,
+    )
+
+    sesion = normalizar_asistencia({
+        "presente": True,
+        "tipo_participacion": ["sesion"],
+        "jugadores": {"nombre": "Juan", "apellidos": "Pérez", "dorsal": 10, "posicion_principal": "medio"},
+        "jugador_id": "j1",
+    })
+    assert sesion["grupo"] == "sesion"
+    assert sesion["rol"] == "Sesión"
+    assert sesion["nombre_completo"] == "Juan Pérez"
+
+    ausente = normalizar_asistencia({
+        "presente": False,
+        "motivo_ausencia": "lesion",
+        "jugadores": {"nombre": "Luis", "apellidos": "García", "dorsal": 4},
+    })
+    assert ausente["grupo"] == "ausente"
+    assert "Lesión" in ausente["rol"]
+
+    margen = normalizar_asistencia({
+        "presente": True,
+        "tipo_participacion": ["margen", "fisio"],
+        "jugadores": {"nombre": "Alex", "apellidos": "Ruiz", "dorsal": 7},
+    })
+    assert margen["grupo"] == "fisio"
+    assert "Margen" in margen["rol"]
+    assert "Fisio" in margen["rol"]
+
+    filas = [sesion, ausente, margen]
+    counts = resumen_asistencia(filas)
+    assert counts["n_sesion"] == 1
+    assert counts["n_ausente"] == 1
+    assert counts["n_margen"] == 1
+    assert counts["n_fisio"] == 1
+
+    fusionar_rpe(filas, [{"jugador_id": "j1", "rpe": 7, "carga": 420}])
+    assert sesion["rpe"] == 7
+    assert sesion["carga"] == 420
+    agg = agregar_rpe([{"rpe": 6, "carga": 300}, {"rpe": 8, "carga": 400}])
+    assert agg["rpe_medio"] == 7.0
+    assert agg["carga_total"] == 700
+
+
+def test_dossier_weasyprint_incrusta_jpeg():
+    """WeasyPrint debe pintar el JPEG de pizarra con el CSS del dossier (como el PDF de sesión)."""
+    weasy = pytest.importorskip("weasyprint")
+    from app.services.pdf_service import _get_jinja_env_v2
+
+    pixel = (
+        "data:image/jpeg;base64,"
+        "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8U"
+        "HRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgN"
+        "DRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIy"
+        "MjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAU"
+        "EAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAA"
+        "AAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAGf/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/a"
+        "AAgBAQABPwB//9k="
+    )
+    env = _get_jinja_env_v2()
+    html = env.get_template("informe_dossier.html").render(
+        tipo="microciclo",
+        titulo="Sala del lunes",
+        color="#1a365d",
+        organizacion={"nombre": "Kabin", "logo_url": ""},
+        equipo={"nombre": "Primera", "categoria": "", "temporada": "26/27"},
+        ambito_label="Competición",
+        audiencia_label="Cuerpo técnico",
+        profundidad_label="Extendido",
+        profundidad="extendido",
+        periodo="18/08 – 24/08",
+        generado="22/08/2026 12:00",
+        secciones=["microciclo"],
+        resumen={"pj": 0, "pg": 0, "pe": 0, "pp": 0, "gf": 0, "gc": 0, "dg": 0, "pts": 0},
+        local={"pj": 0, "pg": 0, "pe": 0, "pp": 0, "gf": 0, "gc": 0},
+        visitante={"pj": 0, "pg": 0, "pe": 0, "pp": 0, "gf": 0, "gc": 0},
+        racha=[],
+        narrativa="",
+        prompt="",
+        notas="",
+        evolucion=[],
+        plantilla=[],
+        jugador=None,
+        microciclo={
+            "rango": "18/08 – 24/08",
+            "objetivo": "Presión",
+            "detalle": True,
+            "extendido": True,
+            "n_sesiones": 1,
+            "n_tareas": 1,
+            "n_boards": 1,
+            "lesiones": [],
+            "sala": None,
+            "sesiones": [{
+                "fecha": "18/08/2026",
+                "weekday": "lunes",
+                "titulo": "MD+1",
+                "md": "MD+1",
+                "md_bar": "#22C55E",
+                "md_ink": "#15803D",
+                "md_wash": "#ECFDF5",
+                "md_label": "Recuperación",
+                "min": 70,
+                "carga": "Baja",
+                "n_tareas": 1,
+                "asistencia": [],
+                "margen": [],
+                "bloques": [{
+                    "fase": "Desarrollo 1",
+                    "tareas": [{
+                        "orden": 1,
+                        "titulo": "Rondo 4v2",
+                        "preview_img": pixel,
+                        "svg_thumbnail": "",
+                        "categoria": "POS",
+                        "min": 12,
+                        "resumen": "Tercer hombre",
+                    }],
+                }],
+            }],
+        },
+    )
+    assert pixel in html
+    pdf = weasy.HTML(string=html).write_pdf()
+    assert pdf.startswith(b"%PDF")
+    assert b"/Image" in pdf or b"/XObject" in pdf
