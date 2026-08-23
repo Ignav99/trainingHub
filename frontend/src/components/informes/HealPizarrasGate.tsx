@@ -8,6 +8,18 @@ import type { TareaPizarraData } from '@/components/tactical-board/types'
 
 type Board = { id: string; grafico_data: TareaPizarraData }
 
+function asPizarra(raw: Record<string, unknown> | undefined): TareaPizarraData {
+  const g = raw || {}
+  return {
+    elements: Array.isArray(g.elements) ? g.elements : [],
+    arrows: Array.isArray(g.arrows) ? g.arrows : [],
+    zones: Array.isArray(g.zones) ? g.zones : [],
+    pitchType: g.pitchType === 'half' ? 'half' : 'full',
+    tipo: g.tipo === 'animated' ? 'animated' : 'static',
+    frames: Array.isArray(g.frames) ? (g.frames as TareaPizarraData['frames']) : undefined,
+  }
+}
+
 /**
  * Recaptura la foto real del editor (ABPPitch) y pisa el JPEG inventado
  * del informe 6 antes de generar el PDF.
@@ -52,7 +64,7 @@ export function useHealPizarras() {
     if (!microcicloId) return 0
     const list: Board[] = (await informesApi.pizarrasSemana(microcicloId)).map((row) => ({
       id: row.id,
-      grafico_data: row.grafico_data as TareaPizarraData,
+      grafico_data: asPizarra(row.grafico_data),
     }))
     if (!list.length) return 0
     savedRef.current = 0
