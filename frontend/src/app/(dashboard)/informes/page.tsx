@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { AmbitoToggle } from '@/components/estadisticas/AmbitoToggle'
+import { useHealPizarras } from '@/components/informes/HealPizarrasGate'
 import {
   DEFAULT_SECCIONES,
   INFORME_PLANTILLAS,
@@ -81,6 +82,7 @@ export default function InformesPage() {
   const [spec, setSpec] = useState<InformeSpec>(emptySpec)
   const [busy, setBusy] = useState(false)
   const [interpreting, setInterpreting] = useState(false)
+  const { heal, gate } = useHealPizarras()
 
   const { data: jugadoresRes } = useSWR<PaginatedResponse<Jugador>>(
     (spec.asunto === 'jugador' || prompt.length > 8) && equipoActivo?.id
@@ -166,6 +168,9 @@ export default function InformesPage() {
     }
     setBusy(true)
     try {
+      if (spec.asunto === 'microciclo' && spec.microciclo_id) {
+        await heal(spec.microciclo_id)
+      }
       await informesApi.generate({
         ...spec,
         equipo_id: equipoActivo.id,
@@ -187,6 +192,7 @@ export default function InformesPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {gate}
       <PageHeader
         title="Informes"
         description="Dossier del club: dices qué hay que enviar — en lenguaje natural o con los controles — y sale un PDF con el escudo. Los amistosos no entran en competición salvo que lo pidas."

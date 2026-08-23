@@ -14,7 +14,11 @@ from pydantic import BaseModel, Field
 
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
-from app.services.informe_service import TIPOS_INFORME, generate_informe_pdf
+from app.services.informe_service import (
+    TIPOS_INFORME,
+    generate_informe_pdf,
+    listar_pizarras_microciclo,
+)
 from app.services.informe_spec import (
     InformeSpec,
     catalogo,
@@ -104,6 +108,17 @@ async def interpretar_informe(
     except Exception:
         pass
     return {"spec": spec.model_dump(mode="json"), "fuente": "pedido"}
+
+
+@router.get("/microciclo/{microciclo_id}/pizarras")
+async def pizarras_microciclo(
+    microciclo_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """Elementos de cada pizarra (sin JPEG) para recapturar la foto del editor."""
+    del auth
+    data = listar_pizarras_microciclo(get_supabase(), str(microciclo_id))
+    return {"data": data}
 
 
 @router.post("/pdf")

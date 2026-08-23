@@ -1,11 +1,11 @@
 # TrainingHub — estado actual
 
 ## En curso
-Rama `cursor/informe-fotos-asistencia-ae84` (PR #254).
-El verde mal puesto era SVG de césped incrustado en WeasyPrint. El dossier ahora solo mete JPEG/PNG.
+Rama `cursor/informe-foto-editor-ae84`.
 
-Pipeline de pizarra:
-1. `grafico_data.preview` (captura del editor)
-2. `grafico_data->>preview` tarea a tarea si el embed no trae la foto
-3. Raster JPEG con cairosvg del dibujo (nunca SVG en el HTML)
-4. Si no hay foto, celda gris «Sin pizarra»
+El informe 6 (`microciclo (6).pdf`) muestra la pizarra mal: JPEG 1050×680 inventado por cairosvg (jugadores al lado contrario) y CSS que estiraba/dejaba el césped flotando en blanco.
+
+Arreglo:
+- El PDF descarta esa foto (tamaño 1050×680 / 680×525 o césped `#2d7a2d`) y la borra de `grafico_data`.
+- Al generar el microciclo, el front recaptura el SVG real del editor y guarda `preview`.
+- La celda ya no fuerza 520×336; `object-fit: contain` sobre césped `#2D5016`.

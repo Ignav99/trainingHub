@@ -56,7 +56,11 @@ def test_dossier_template_chrome():
     assert "Informe de lesiones" in html
     assert "Plantilla de la sesión" in html
     assert "75.5mm" in html
+    assert 'width="520"' not in html
+    assert "2D5016" in html
     assert "PREVIEW_MAX_CHARS" not in (ROOT / "app" / "services" / "informe_boards.py").read_text(encoding="utf-8")
+    assert "is_poisoned_preview" in (ROOT / "app" / "services" / "informe_boards.py").read_text(encoding="utf-8")
+    assert "listar_pizarras_microciclo" in (ROOT / "app" / "services" / "informe_service.py").read_text(encoding="utf-8")
 
 
 def test_informe_carga_sesion_tareas():
@@ -65,11 +69,11 @@ def test_informe_carga_sesion_tareas():
     assert "_tareas_por_sesion" in src
     assert "FASE_SESION_LABEL" in src
     assert "grafico_data" in src
-    assert "board_assets" in src
     assert "consignas_ofensivas" in src
-    assert "_grafico_de_tarea" in src
     assert "_foto_pizarra" in src
     assert "_preview_de_tarea" in src
+    assert "_persist_preview" not in src
+    assert "rasterize_board" not in src
     assert "_sesion_tareas_rows" in src
     assert "_get_jinja_env_v2" in src
     assert "detalle_sesiones" in src
@@ -79,8 +83,9 @@ def test_informe_carga_sesion_tareas():
     assert "extract_preview" in boards
     assert "board_assets" in boards
     assert "MATCH_DAY_CHROME" in boards
-    assert "rasterize_board" in boards
-    assert "_svg_to_jpeg" in boards
+    assert "extract_preview" in boards
+    src_boards = boards
+    assert "Solo la captura del editor" in src_boards or "Nunca se redibuja" in src_boards
 
 
 def test_md_chrome_and_boards():
@@ -120,10 +125,36 @@ def test_md_chrome_and_boards():
         }},
         "t1",
     )
+    assert img == ""
     assert svg == ""
-    cairosvg = pytest.importorskip("cairosvg")
-    assert img.startswith("data:image/jpeg")
-    assert len(img) > 800
+
+    from app.services.informe_boards import is_poisoned_preview
+    from io import BytesIO
+    from PIL import Image
+    import base64
+
+    def _jpeg(size, color):
+        im = Image.new("RGB", size, color)
+        buf = BytesIO()
+        im.save(buf, format="JPEG", quality=80)
+        return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+
+    poisoned = _jpeg((1050, 680), (45, 80, 22))
+    assert is_poisoned_preview(poisoned)
+    img, svg = board_assets({"grafico_data": {"preview": poisoned}}, "x")
+    assert img == ""
+    assert svg == ""
+
+    editor = _jpeg((1080, 699), (45, 80, 22))
+    assert not is_poisoned_preview(editor)
+    img, svg = board_assets({"grafico_data": {"preview": editor}}, "x")
+    assert img.startswith("data:image")
+
+    raster_path = Path("/tmp/raster-wrong.jpg")
+    if raster_path.exists():
+        raw = raster_path.read_bytes()
+        uri = "data:image/jpeg;base64," + base64.b64encode(raw).decode("ascii")
+        assert is_poisoned_preview(uri)
 
     bloques = bloques_de_tareas([
         {"fase": "Activación", "orden": 1},

@@ -116,19 +116,20 @@
       page-break-inside: avoid;
     }
     .task-board {
-      width: 70%; height: 75.5mm; background: #fff;
+      width: 70%; height: 75.5mm; background: #2D5016;
       vertical-align: middle; overflow: hidden; padding: 0;
+      text-align: center;
     }
     .task-board img,
     .task-board svg {
       display: block;
-      width: 100% !important;
-      height: 75.5mm !important;
-      max-width: none !important;
+      max-width: 100%;
+      max-height: 75.5mm;
+      width: auto;
+      height: auto;
       object-fit: contain;
-      object-position: left center;
-      background: #fff;
-      margin: 0;
+      object-position: center;
+      margin: 0 auto;
     }
     .board-empty {
       height: 75.5mm; line-height: 75.5mm; text-align: center;
@@ -699,7 +700,7 @@
             <tr>
               <td class="task-board">
                 {% if t.preview_img %}
-                  <img src="{{ t.preview_img }}" alt="" width="520" height="336" />
+                  <img src="{{ t.preview_img }}" alt="" />
                 {% else %}
                   <div class="board-empty">Sin pizarra</div>
                 {% endif %}
@@ -743,7 +744,7 @@
             <tr>
               <td class="task-board">
                 {% if t.preview_img %}
-                  <img src="{{ t.preview_img }}" alt="" width="520" height="336" />
+                  <img src="{{ t.preview_img }}" alt="" />
                 {% else %}
                   <div class="board-empty">Sin pizarra</div>
                 {% endif %}
