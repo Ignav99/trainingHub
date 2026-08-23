@@ -10,13 +10,15 @@ from typing import Any, Optional
 from app.database import get_supabase
 from app.services.informe_boards import (
     as_list,
-    board_assets,
     bloques_de_tareas,
     clip,
     extract_preview,
+    is_poisoned_preview,
     md_chrome,
     parse_grafico,
     weekday,
+    _PREVIEW_KEYS,
+    _first_preview_uri,
 )
 from app.services.informe_semana import sintetizar_sala_lunes
 from app.services.informe_sesion_detalle import (
@@ -81,32 +83,14 @@ def _unwrap_tarea(raw: Any) -> dict:
     return raw if isinstance(raw, dict) else {}
 
 
-def _grafico_de_tarea(supabase, tid: str) -> dict:
-    """Una tarea cada vez: el lote semanal pierde el JPEG de la pizarra."""
-    if not tid:
-        return {}
-    for select in ("id, grafico_data, grafico_url, grafico_svg", "id, grafico_data"):
-        try:
-            resp = (
-                supabase.table("tareas")
-                .select(select)
-                .eq("id", tid)
-                .maybe_single()
-                .execute()
-            )
-            return resp.data or {}
-        except Exception:
-            logger.exception("informe tarea grafico one-by-one failed %s", tid)
-    return {}
-
-
 def _preview_de_tarea(supabase, tid: str) -> str:
-    """Solo el JPEG guardado (sin el JSON grande de elementos)."""
+    """Solo la captura del editor: grafico_url o preview. Sin grafico_data completo."""
     if not tid:
         return ""
     for select in (
-        "preview:grafico_data->>preview",
-        "preview:grafico_data->preview",
+        "grafico_url, preview:grafico_data->>preview",
+        "grafico_url, preview:grafico_data->preview",
+        "grafico_url",
     ):
         try:
             resp = (
@@ -116,70 +100,69 @@ def _preview_de_tarea(supabase, tid: str) -> str:
                 .maybe_single()
                 .execute()
             )
-            raw = (resp.data or {}).get("preview")
-            if isinstance(raw, str) and raw.strip():
-                from app.services.informe_boards import _as_data_uri
-                return _as_data_uri(raw)
+            row = resp.data or {}
+            photo = extract_preview({"preview": row.get("preview")}, row.get("grafico_url"))
+            if photo:
+                return photo
         except Exception:
             logger.exception("informe preview json-path failed %s", tid)
     return ""
 
 
-def _persist_preview(supabase, tid: str, grafico: dict, jpeg: str) -> None:
-    if not tid or not jpeg or not grafico:
+def _purge_preview_inventada(supabase, tid: str, grafico: dict, grafico_url: Any) -> None:
+    """Quita el JPEG inventado para que el editor vuelva a capturar la foto real."""
+    if not tid:
         return
+    cleaned = {k: v for k, v in grafico.items() if k not in _PREVIEW_KEYS}
+    frames = cleaned.get("frames")
+    if isinstance(frames, list):
+        cleaned["frames"] = [
+            {k: v for k, v in fr.items() if k not in _PREVIEW_KEYS} if isinstance(fr, dict) else fr
+            for fr in frames
+        ]
+    payload: dict[str, Any] = {"grafico_data": cleaned}
+    if isinstance(grafico_url, str) and grafico_url.startswith("data:image"):
+        payload["grafico_url"] = None
     try:
-        supabase.table("tareas").update(
-            {"grafico_data": {**grafico, "preview": jpeg}}
-        ).eq("id", tid).execute()
+        supabase.table("tareas").update(payload).eq("id", tid).execute()
     except Exception:
-        logger.exception("informe persist preview failed %s", tid)
+        logger.exception("informe purge preview inventada failed %s", tid)
 
 
 def _foto_pizarra(supabase, t: dict, diagram_id: str) -> str:
-    """Foto JPEG/PNG. Nunca SVG: WeasyPrint coloca el césped mal."""
+    """Captura real del editor. No se redibuja ni se sirve el JPEG inventado."""
     grafico = parse_grafico(t.get("grafico_data"))
-    photo = extract_preview(grafico, t.get("grafico_url"), t.get("grafico_svg"))
+    if t.get("preview") and not grafico.get("preview"):
+        grafico = {**grafico, "preview": t.get("preview")}
+    raw = _first_preview_uri(grafico, t.get("grafico_url"))
+    if raw and is_poisoned_preview(raw):
+        _purge_preview_inventada(supabase, str(t.get("id") or ""), grafico, t.get("grafico_url"))
+        return ""
+    photo = extract_preview(grafico, t.get("grafico_url"))
     if photo:
         return photo
     tid = str(t.get("id") or "")
-    if tid:
-        photo = _preview_de_tarea(supabase, tid)
-        if photo:
-            return photo
-        if not grafico:
-            extra = _grafico_de_tarea(supabase, tid)
-            if extra.get("grafico_data") is not None:
-                t = {**t, "grafico_data": extra.get("grafico_data")}
-                grafico = parse_grafico(t.get("grafico_data"))
-            if extra.get("grafico_url") and not t.get("grafico_url"):
-                t["grafico_url"] = extra.get("grafico_url")
-            if extra.get("grafico_svg"):
-                t["grafico_svg"] = extra.get("grafico_svg")
-            photo = extract_preview(grafico, t.get("grafico_url"), t.get("grafico_svg"))
-            if photo:
-                return photo
-    photo, _ = board_assets({**t, "grafico_data": grafico}, diagram_id)
-    if photo and tid and grafico and not extract_preview(grafico):
-        _persist_preview(supabase, tid, grafico, photo)
-    return photo
+    return _preview_de_tarea(supabase, tid) if tid else ""
 
 
 def _sesion_tareas_rows(supabase, sid: str) -> list[dict]:
     """Mismo embed que el PDF de sesión (grafico_data via tareas(*))."""
     selects = (
         "sesion_id, orden, fase_sesion, duracion_override, notas, "
-        "tareas(*, categorias_tarea(codigo, nombre))",
+        "tareas(id, titulo, duracion_total, densidad, desarrollo, descripcion, "
+        "reglas, consignas_ofensivas, consignas_defensivas, "
+        "objetivos_tacticos, objetivos_tecnicos, fase_juego, "
+        "principio_tactico, modalidad, grafico_url, "
+        "preview:grafico_data->>preview, "
+        "espacio_largo, espacio_ancho, categorias_tarea(codigo, nombre))",
         "sesion_id, orden, fase_sesion, duracion_override, notas, "
         "tareas(id, titulo, duracion_total, densidad, desarrollo, descripcion, "
         "reglas, consignas_ofensivas, consignas_defensivas, "
         "objetivos_tacticos, objetivos_tecnicos, fase_juego, "
-        "principio_tactico, modalidad, grafico_data, grafico_url, "
+        "principio_tactico, modalidad, grafico_url, "
         "espacio_largo, espacio_ancho, categorias_tarea(codigo, nombre))",
         "sesion_id, orden, fase_sesion, duracion_override, notas, "
-        "tareas(id, titulo, duracion_total, desarrollo, descripcion, grafico_data)",
-        "sesion_id, orden, fase_sesion, duracion_override, notas, "
-        "tareas(id, titulo, duracion_total, desarrollo, descripcion)",
+        "tareas(id, titulo, duracion_total, desarrollo, descripcion, grafico_url)",
     )
     for select in selects:
         try:
@@ -206,15 +189,6 @@ def _tareas_por_sesion(supabase, sesion_ids: list[str], profundidad: str) -> dic
         rows = _sesion_tareas_rows(supabase, sid)
         for st in rows:
             t = _unwrap_tarea(st.get("tareas"))
-            grafico = parse_grafico(t.get("grafico_data"))
-            if t.get("id") and not extract_preview(grafico, t.get("grafico_url"), t.get("grafico_svg")):
-                g = _grafico_de_tarea(supabase, str(t["id"]))
-                if g.get("grafico_data") is not None:
-                    t = {**t, "grafico_data": g.get("grafico_data")}
-                if g.get("grafico_url") and not t.get("grafico_url"):
-                    t["grafico_url"] = g.get("grafico_url")
-                if g.get("grafico_svg"):
-                    t["grafico_svg"] = g.get("grafico_svg")
             cat = t.get("categorias_tarea") or {}
             if not isinstance(cat, dict):
                 cat = {}
@@ -272,6 +246,58 @@ def _tareas_por_sesion(supabase, sesion_ids: list[str], profundidad: str) -> dic
         items.sort(key=lambda x: x.get("orden") or 0)
         by_sesion[sid] = items
     return by_sesion
+
+
+def listar_pizarras_microciclo(supabase, microciclo_id: str) -> list[dict]:
+    """Pizarras de la semana sin el JPEG (el front recaptura la foto del editor)."""
+    if not microciclo_id:
+        return []
+    try:
+        ses = (
+            supabase.table("sesiones")
+            .select("id")
+            .eq("microciclo_id", microciclo_id)
+            .execute()
+        )
+    except Exception:
+        logger.exception("informe pizarras sesiones failed")
+        return []
+    ids = [str(s["id"]) for s in (ses.data or []) if s.get("id")]
+    if not ids:
+        return []
+    try:
+        rows = (
+            supabase.table("sesion_tareas")
+            .select("tareas(id, grafico_data)")
+            .in_("sesion_id", ids)
+            .execute()
+        )
+    except Exception:
+        logger.exception("informe pizarras embed failed")
+        return []
+    out: list[dict] = []
+    seen: set[str] = set()
+    for row in rows.data or []:
+        t = _unwrap_tarea(row.get("tareas"))
+        tid = str(t.get("id") or "")
+        if not tid or tid in seen:
+            continue
+        grafico = parse_grafico(t.get("grafico_data"))
+        slim = {k: v for k, v in grafico.items() if k not in _PREVIEW_KEYS}
+        frames = slim.get("frames")
+        if isinstance(frames, list):
+            slim["frames"] = [
+                {k: v for k, v in fr.items() if k not in _PREVIEW_KEYS} if isinstance(fr, dict) else fr
+                for fr in frames
+            ]
+        has = bool(
+            slim.get("elements") or slim.get("arrows") or slim.get("zones") or slim.get("frames")
+        )
+        if not has:
+            continue
+        seen.add(tid)
+        out.append({"id": tid, "grafico_data": slim})
+    return out
 
 
 def _plantilla_semana(supabase, equipo_id: str) -> Optional[dict]:

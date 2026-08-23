@@ -5,6 +5,7 @@ import { FileDown, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { informesApi, type InformeProfundidad, type InformeTipo } from '@/lib/api/informes'
+import { useHealPizarras } from '@/components/informes/HealPizarrasGate'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { AMBITO_COMPETICION, type PartidoAmbito } from '@/lib/partidoAmbito'
 import { cn } from '@/lib/utils'
@@ -36,6 +37,7 @@ export function ExportarInformeButton({
 }) {
   const equipoActivo = useEquipoStore((s) => s.equipoActivo)
   const [busy, setBusy] = useState(false)
+  const { heal, gate } = useHealPizarras()
 
   const onClick = async () => {
     if (!equipoActivo?.id) {
@@ -44,6 +46,9 @@ export function ExportarInformeButton({
     }
     setBusy(true)
     try {
+      if (tipo === 'microciclo' && microcicloId) {
+        await heal(microcicloId)
+      }
       await informesApi.download({
         tipo,
         equipo_id: equipoActivo.id,
@@ -62,16 +67,19 @@ export function ExportarInformeButton({
   }
 
   return (
-    <Button
-      type="button"
-      variant={variant}
-      size={size}
-      onClick={onClick}
-      disabled={busy}
-      className={cn(className)}
-    >
-      {busy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileDown className="h-4 w-4 mr-1" />}
-      {label}
-    </Button>
+    <>
+      {gate}
+      <Button
+        type="button"
+        variant={variant}
+        size={size}
+        onClick={onClick}
+        disabled={busy}
+        className={cn(className)}
+      >
+        {busy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileDown className="h-4 w-4 mr-1" />}
+        {label}
+      </Button>
+    </>
   )
 }

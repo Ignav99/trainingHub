@@ -71,11 +71,10 @@ export function TaskLibraryCard({
   const handlePreviewReady = useCallback(
     (preview: string) => {
       if (savingPreviewRef.current) return
-      if ((tarea.grafico_data as any)?.preview) return
       savingPreviewRef.current = true
       const nextGrafico = { ...(tarea.grafico_data as any || {}), preview }
       void tareasApi
-        .update(tarea.id, { grafico_data: nextGrafico })
+        .update(tarea.id, { grafico_data: nextGrafico, grafico_url: preview })
         .catch(() => {
           /* silent — no bloquear UI */
         })

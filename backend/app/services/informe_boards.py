@@ -128,12 +128,17 @@ def _shrink_data_uri(uri: str) -> str:
         return uri
 
 
-def extract_preview(grafico: dict, grafico_url: Any = None, grafico_svg: Any = None) -> str:
-    """Foto real de la pizarra. No se descarta por tamaño."""
+# JPEG que escribió el PR #255: cairosvg a tamaño nativo del viewBox.
+# La captura real del editor (captureBoardPreview) es 1080×699 o 1020×788.
+_POISON_SIZES = {(1050, 680), (680, 525), (525, 680)}
+_SERVER_GRASS = (0x2D, 0x7A, 0x2D)  # svg_renderer GRASS_COLOR
+
+
+def _first_preview_uri(grafico: dict, grafico_url: Any = None) -> str:
     for key in _PREVIEW_KEYS:
         uri = _as_data_uri(grafico.get(key))
         if uri:
-            return _shrink_data_uri(uri)
+            return uri
     frames = grafico.get("frames")
     if isinstance(frames, list):
         for fr in frames:
@@ -142,86 +147,57 @@ def extract_preview(grafico: dict, grafico_url: Any = None, grafico_svg: Any = N
             for key in _PREVIEW_KEYS:
                 uri = _as_data_uri(fr.get(key))
                 if uri:
-                    return _shrink_data_uri(uri)
-    uri = _as_data_uri(grafico_url)
-    if uri:
-        return _shrink_data_uri(uri)
-    if isinstance(grafico_svg, str) and grafico_svg.strip().startswith("<svg"):
-        return ""
-    return ""
+                    return uri
+    return _as_data_uri(grafico_url)
 
 
-def _svg_to_jpeg(svg: str, width: int = 1050, height: int = 680) -> str:
-    """Pasa el SVG a foto JPEG. WeasyPrint no pinta SVG de pizarra (césped mal)."""
-    if not svg or "<svg" not in svg:
-        return ""
-    fixed = (
-        svg.replace('width="100%"', f'width="{width}"', 1)
-        .replace('height="100%"', f'height="{height}"', 1)
-    )
-    try:
-        import cairosvg
-        png = cairosvg.svg2png(
-            bytestring=fixed.encode("utf-8"),
-            output_width=width,
-            output_height=height,
-        )
-    except Exception:
-        logger.exception("informe pizarra raster cairosvg failed")
-        return ""
+def is_poisoned_preview(uri: str) -> bool:
+    """True si la 'foto' es el raster inventado del servidor, no la del editor."""
+    if not isinstance(uri, str) or not uri.startswith("data:image"):
+        return False
     try:
         from io import BytesIO
         from PIL import Image
-        im = Image.open(BytesIO(png))
-        if im.mode not in ("RGB", "L"):
-            im = im.convert("RGB")
-        buf = BytesIO()
-        im.save(buf, format="JPEG", quality=78, optimize=True)
-        return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+        _header, b64 = uri.split(",", 1)
+        im = Image.open(BytesIO(base64.b64decode(b64))).convert("RGB")
     except Exception:
-        logger.exception("informe pizarra raster jpeg failed")
-        return ""
+        return False
+    if im.size in _POISON_SIZES:
+        return True
+    w, h = im.size
+    hits = 0
+    for x in (w // 8, w // 4, 3 * w // 4, 7 * w // 8):
+        for y in (h // 8, h // 4, 3 * h // 4, 7 * h // 8):
+            px = im.getpixel((x, y))
+            dist = sum((a - b) ** 2 for a, b in zip(px, _SERVER_GRASS))
+            if dist < 40 * 40:
+                hits += 1
+    return hits >= 6
 
 
-def rasterize_board(grafico: dict, diagram_id: str) -> str:
-    """Foto JPEG del dibujo. Nunca se incrusta SVG en el PDF."""
-    if not grafico:
-        return ""
-    try:
-        from app.services.svg_renderer import (
-            _diagram_has_content,
-            prepare_board_snapshot,
-            render_diagram_thumbnail,
-        )
-        snap = prepare_board_snapshot(grafico)
-        if not snap or not _diagram_has_content(snap):
+def extract_preview(grafico: dict, grafico_url: Any = None, grafico_svg: Any = None) -> str:
+    """Foto real del editor. Descarta el JPEG inventado (informe 6)."""
+    uri = _first_preview_uri(grafico, grafico_url)
+    if not uri:
+        if isinstance(grafico_svg, str) and grafico_svg.strip().startswith("<svg"):
             return ""
-        svg = render_diagram_thumbnail(grafico, diagram_id=diagram_id) or ""
-        pitch = (snap.get("pitchType") or "half")
-        width, height = (1050, 680) if pitch == "full" else (680, 525)
-        return _svg_to_jpeg(svg, width=width, height=height)
-    except Exception:
-        logger.exception("informe pizarra raster failed %s", diagram_id)
         return ""
+    if is_poisoned_preview(uri):
+        return ""
+    return _shrink_data_uri(uri)
 
 
 def board_assets(tarea: dict, diagram_id: str) -> tuple[str, str]:
-    """Solo foto JPEG/PNG. El segundo valor queda vacío: nada de SVG en el PDF."""
+    """Solo la captura del editor (JPEG/PNG). Nunca se redibuja el campo."""
     grafico = parse_grafico(tarea.get("grafico_data"))
+    if tarea.get("preview") and not grafico.get("preview"):
+        grafico = {**grafico, "preview": tarea.get("preview")}
     preview_img = extract_preview(
         grafico,
         tarea.get("grafico_url"),
-        tarea.get("grafico_svg"),
+        None,
     )
-    if preview_img:
-        return preview_img, ""
-
-    raw_svg = tarea.get("grafico_svg")
-    if isinstance(raw_svg, str) and "<svg" in raw_svg:
-        photo = _svg_to_jpeg(raw_svg)
-        return photo, ""
-
-    return rasterize_board(grafico, diagram_id), ""
+    return preview_img, ""
 
 
 def bloques_de_tareas(tareas: list[dict]) -> list[dict]:

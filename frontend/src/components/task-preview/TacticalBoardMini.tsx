@@ -25,8 +25,7 @@ interface TacticalBoardMiniProps {
    */
   autoplay?: boolean
   /**
-   * Si la pizarra aún no tiene `preview`, captura una JPEG del SVG real
-   * y la entrega (para persistir en grafico_data y usarla en el PDF).
+   * Captura una JPEG del SVG real del editor (pisa fotos inventadas del PDF).
    */
   onPreviewReady?: (previewDataUrl: string) => void
 }
@@ -143,13 +142,9 @@ function TacticalBoardMiniInner({
   // Vista estática: top-level (o frame 0). Vista animada: interpolación.
   const staticData = useMemo(() => staticBoardSnapshot(data), [data, framesSig])
 
-  // Captura instantánea real (JPEG) si aún no hay preview guardado
+  // Captura JPEG del SVG real del editor (siempre: recupera fotos inventadas en el PDF)
   useEffect(() => {
     if (!onPreviewReady || previewDoneRef.current) return
-    if (data?.preview) {
-      previewDoneRef.current = true
-      return
-    }
     const timer = setTimeout(async () => {
       const svg = containerRef.current?.querySelector('svg')
       if (!svg) return

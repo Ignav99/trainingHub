@@ -98,6 +98,13 @@ export const informesApi = {
   interpretar: (texto: string, equipo_id: string) =>
     api.post<{ spec: InformeSpec; fuente: string }>('/informes/interpretar', { texto, equipo_id }),
 
+  async pizarrasSemana(microcicloId: string): Promise<Array<{ id: string; grafico_data: Record<string, unknown> }>> {
+    const res = await api.get<{ data: Array<{ id: string; grafico_data: Record<string, unknown> }> }>(
+      `/informes/microciclo/${microcicloId}/pizarras`,
+    )
+    return res.data || []
+  },
+
   async generate(spec: InformeSpec & { equipo_id: string; preview?: boolean }): Promise<void> {
     const blob = await api.postBlob('/informes/pdf', spec, { timeout: 120000 })
     triggerDownload(blob, `informe-${spec.asunto}.pdf`, !!spec.preview)

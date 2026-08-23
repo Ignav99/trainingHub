@@ -831,20 +831,32 @@ async def generate_sesion_pdf_v2(
         duracion_total += duracion
 
         # Preferir instantánea real del editor; SVG como fallback
+        from app.services.informe_boards import is_poisoned_preview
         preview_img = ""
+        preview_poisoned = False
         if isinstance(grafico_data, dict):
             raw_preview = grafico_data.get("preview") or ""
             if isinstance(raw_preview, str) and raw_preview.startswith("data:image"):
-                preview_img = raw_preview
-        if not preview_img:
+                if is_poisoned_preview(raw_preview):
+                    preview_poisoned = True
+                else:
+                    preview_img = raw_preview
+        if not preview_img and not preview_poisoned:
             gu = tarea.get("grafico_url") or ""
             if isinstance(gu, str) and gu:
                 preview_img = _url_to_data_uri(gu) if gu.startswith("http") else gu
                 if not (isinstance(preview_img, str) and preview_img.startswith("data:image")):
                     preview_img = ""
+                elif is_poisoned_preview(preview_img):
+                    preview_img = ""
+                    preview_poisoned = True
 
-        svg_thumb = render_diagram_thumbnail(grafico_data, diagram_id=f"t{len(all_tareas)}")
-        svg_large = render_diagram_svg(grafico_data, diagram_id=f"d{len(all_tareas)}")
+        if preview_poisoned:
+            svg_thumb = ""
+            svg_large = ""
+        else:
+            svg_thumb = render_diagram_thumbnail(grafico_data, diagram_id=f"t{len(all_tareas)}")
+            svg_large = render_diagram_svg(grafico_data, diagram_id=f"d{len(all_tareas)}")
 
         # Formation HTML for detail page + petos HTML for cover page
         formation_html = _build_formation_html(formacion, jugadores_map)
@@ -1499,6 +1511,7 @@ async def generate_sesion_pdf_reducido(
     jugadores_map: Optional[dict] = None,
 ) -> bytes:
     """PDF reducido: 1 folio A4 landscape, conceptos, objetivo, convocatoria densa, 2×2 pizarras."""
+    from app.services.informe_boards import is_poisoned_preview
     env = _get_jinja_env_v2()
     template = env.get_template("sesion_pdf_reducido.html")
 
@@ -1544,24 +1557,31 @@ async def generate_sesion_pdf_reducido(
         grafico = tarea.get("grafico_data") if isinstance(tarea.get("grafico_data"), dict) else {}
         # Preferir instantánea real del editor (JPEG data URL)
         preview_img = ""
+        preview_poisoned = False
         if isinstance(grafico, dict):
             raw_preview = grafico.get("preview") or ""
             if isinstance(raw_preview, str) and raw_preview.startswith("data:image"):
-                preview_img = raw_preview
-        if not preview_img:
+                if is_poisoned_preview(raw_preview):
+                    preview_poisoned = True
+                else:
+                    preview_img = raw_preview
+        if not preview_img and not preview_poisoned:
             # Legacy: grafico_url (http o data URI)
             gu = tarea.get("grafico_url") or ""
             if isinstance(gu, str) and gu:
                 preview_img = _url_to_data_uri(gu) if gu.startswith("http") else gu
                 if not (isinstance(preview_img, str) and preview_img.startswith("data:image")):
                     preview_img = ""
+                elif is_poisoned_preview(preview_img):
+                    preview_img = ""
+                    preview_poisoned = True
 
         svg_thumb = ""
         pitch_kind = "half"
         if isinstance(grafico, dict):
             pitch_kind = "full" if grafico.get("pitchType") == "full" else "half"
-        # Fallback SVG solo si no hay foto
-        if not preview_img:
+        # Fallback SVG solo si no hay foto (y no es el JPEG inventado)
+        if not preview_img and not preview_poisoned:
             try:
                 svg_thumb, pitch_kind = render_diagram_for_pdf(grafico or None, diagram_id=f"r{i}")
                 pitch_kind = pitch_kind or "half"

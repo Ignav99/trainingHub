@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { TacticalBoardMini, boardHasAnimation } from '@/components/task-preview'
+import { tareasApi } from '@/lib/api/tareas'
 import TacticalBoardEditor from '@/components/tactical-board/TacticalBoardEditor'
 import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
 import TareaFichaBody from '@/components/tareas/TareaFichaBody'
@@ -122,6 +123,18 @@ export default function SesionTareaPanel({
   const dirtyRef = useRef(false)
   const formRef = useRef(form)
   formRef.current = form
+  const savingPreviewRef = useRef(false)
+
+  const handlePreviewReady = useCallback((preview: string) => {
+    if (!tarea?.id || savingPreviewRef.current) return
+    savingPreviewRef.current = true
+    const nextGrafico = { ...(formRef.current.grafico_data as any || {}), preview }
+    setForm((f) => ({ ...f, grafico_data: nextGrafico as TareaCreatorData['grafico_data'] }))
+    void tareasApi
+      .update(tarea.id, { grafico_data: nextGrafico, grafico_url: preview })
+      .catch(() => { /* silent */ })
+      .finally(() => { savingPreviewRef.current = false })
+  }, [tarea?.id])
 
   useEffect(() => {
     if (dirtyRef.current) return
@@ -214,6 +227,9 @@ export default function SesionTareaPanel({
         arrows: s.arrows,
         zones: s.zones,
         ...(s.tipo === 'animated' && frames.length > 0 ? { frames } : {}),
+        ...((formRef.current.grafico_data as any)?.preview
+          ? { preview: (formRef.current.grafico_data as any).preview }
+          : {}),
       } as TareaCreatorData['grafico_data'],
     }
     setForm(newForm)
@@ -421,6 +437,7 @@ export default function SesionTareaPanel({
                   animate={hasAnim}
                   autoplay={hasAnim}
                   showPlayBadge={hasAnim}
+                  onPreviewReady={handlePreviewReady}
                 />
               </div>
             </div>

@@ -77,6 +77,7 @@ export interface TareaCreateData {
   video_url?: string
   // Grafico
   grafico_data?: Record<string, any>
+  grafico_url?: string
   // Preparación física / Gimnasio
   es_complementaria?: boolean
   grupo_muscular?: string[]
