@@ -50,7 +50,10 @@ export function useHealPizarras() {
 
   const heal = useCallback(async (microcicloId?: string | null) => {
     if (!microcicloId) return 0
-    const list = (await informesApi.pizarrasSemana(microcicloId)) as Board[]
+    const list: Board[] = (await informesApi.pizarrasSemana(microcicloId)).map((row) => ({
+      id: row.id,
+      grafico_data: row.grafico_data as TareaPizarraData,
+    }))
     if (!list.length) return 0
     savedRef.current = 0
     inflightRef.current = 0
