@@ -2878,4 +2878,7 @@ export interface SesionTimeline {
   microciclo_id?: string
   plan_partido_id?: string
   fase_plan?: string
+  numero_sesion?: number
+  es_pretemporada?: boolean
+  contexto_periodo?: string
 }

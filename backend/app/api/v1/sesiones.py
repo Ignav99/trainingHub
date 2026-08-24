@@ -25,6 +25,7 @@ from app.services.sesion_taxonomy import (
     new_share_token,
     retry_sesion_write,
 )
+from app.services.sesion_microciclo import vincular_sesion_a_microciclo
 
 logger = logging.getLogger(__name__)
 
@@ -820,6 +821,14 @@ async def create_sesion(
     else:
         sesion_data["equipo_id"] = str(sesion_data["equipo_id"])
 
+    sesion_data = vincular_sesion_a_microciclo(
+        supabase,
+        sesion_data,
+        suggest_match_day=not sesion_data.get("match_day"),
+    )
+    if not sesion_data.get("match_day"):
+        sesion_data["match_day"] = "MD-3"
+
     # Insertar — si una columna aún no existe en PostgREST (PGRST204), se omite y se reintenta
     response = retry_sesion_write(
         lambda data: supabase.table("sesiones").insert(data).execute(),
@@ -877,6 +886,27 @@ async def update_sesion(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No hay datos para actualizar"
         )
+
+    explicit = sesion.model_dump(exclude_unset=True)
+    merged = {**existing.data, **update_data}
+    linked = vincular_sesion_a_microciclo(
+        supabase,
+        merged,
+        sesion_id=str(sesion_id),
+        previous_microciclo_id=existing.data.get("microciclo_id"),
+        suggest_match_day="match_day" not in explicit and not existing.data.get("match_day"),
+    )
+    update_data["microciclo_id"] = linked.get("microciclo_id")
+    if linked.get("dia_numero") is not None:
+        update_data["dia_numero"] = linked["dia_numero"]
+    if "numero_sesion" not in explicit and linked.get("numero_sesion") is not None:
+        update_data["numero_sesion"] = linked["numero_sesion"]
+    if "contexto_periodo" not in explicit and linked.get("contexto_periodo"):
+        update_data["contexto_periodo"] = linked["contexto_periodo"]
+    if "es_pretemporada" not in explicit and linked.get("es_pretemporada") is not None:
+        update_data["es_pretemporada"] = linked["es_pretemporada"]
+    if "match_day" not in explicit and linked.get("match_day"):
+        update_data["match_day"] = linked["match_day"]
 
     response = retry_sesion_write(
         lambda data: supabase.table("sesiones").update(data).eq(

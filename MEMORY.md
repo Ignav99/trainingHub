@@ -1,9 +1,8 @@
 # TrainingHub — estado actual
 
 ## En curso
-Informe de microciclo: fotos reales de pizarra + plantilla Sala del lunes.
-Rama `cursor/informes-pizarra-fotos-ae84`.
+Estado de microciclo automático por fechas + contexto de sesión (MD, periodo, nº, link al microciclo).
+Rama `cursor/microciclo-estado-sesion-ae84`.
 
 ## Hecho reciente
-PR #252 — dossier con cromado MD (el usuario veía campo verde, no la foto).
-PR #251 — microciclo extendido (tablas).
+PR #256 — fotos reales de pizarra en informe de microciclo (live en Render).

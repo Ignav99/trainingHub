@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -40,6 +40,12 @@ import TareaCreatorFullscreen, { type TareaCreatorData } from '@/components/tare
 import { FASE_LABELS, ensureBloqueForFase } from '@/lib/sesionEstructura'
 import { madreToCreatorPrefill } from '@/lib/tareaVariante'
 import { jugadoresApi } from '@/lib/api/jugadores'
+import {
+  contextoDesdePlan,
+  matchDayDesdePartido,
+  microcicloCubreFecha,
+  tipoDesdePlan,
+} from '@/lib/sesionMicrociclo'
 
 const MATCH_DAYS = [
   { value: 'MD+1', label: 'MD+1 - Recuperación', color: 'bg-green-100 text-green-800' },
@@ -125,6 +131,8 @@ export default function NuevaSesionPage() {
   // Contexto desde microciclo/plan
   const [microcicloContexto, setMicrocicloContexto] = useState<Microciclo | null>(null)
   const [planContexto, setPlanContexto] = useState<PlanPartido | null>(null)
+  const matchDayTouched = useRef(false)
+  const contextoTouched = useRef(false)
 
   // Recomendador asistido
   const [aiRecommendations, setAiRecommendations] = useState<AIRecomendadorOutput | null>(null)
@@ -138,18 +146,80 @@ export default function NuevaSesionPage() {
         setJugadoresCount(r.total || 16)
       }).catch(() => setJugadoresCount(16))
     }
-    if (microcicloIdFromQuery) {
-      microciclosApi.get(microcicloIdFromQuery).then(m => {
-        setMicrocicloContexto(m)
-        if (m.partido_id) setFormData(prev => ({ ...prev, rival: m.partidos?.rival?.nombre || m.rivales?.nombre || prev.rival }))
-      }).catch(() => {})
-    }
     if (planPartidoIdFromQuery) {
       planPartidoApi.get(planPartidoIdFromQuery).then(p => {
         setPlanContexto(p)
       }).catch(() => {})
     }
-  }, [])
+  }, [equipoActivo?.id, planPartidoIdFromQuery])
+
+  useEffect(() => {
+    matchDayTouched.current = false
+    contextoTouched.current = false
+  }, [formData.fecha])
+
+  useEffect(() => {
+    const equipo = formData.equipo_id || equipoActivo?.id
+    const fecha = formData.fecha
+    if (!equipo || !fecha) return
+    let cancelled = false
+
+    const applyMicro = (m: Microciclo | null) => {
+      if (cancelled) return
+      setMicrocicloContexto(m)
+      if (!m) {
+        setFormData((prev) => ({ ...prev, microciclo_id: undefined }))
+        return
+      }
+      const inherited = contextoDesdePlan(m.plan_ct)
+      const partidoFecha = m.partidos?.fecha || m.fecha_fin
+      const suggestedMd = matchDayDesdePartido(fecha, partidoFecha)
+      const rivalNombre = m.partidos?.rival?.nombre || m.rivales?.nombre
+      setFormData((prev) => {
+        const next = { ...prev, microciclo_id: m.id }
+        if (!contextoTouched.current) {
+          next.contexto_periodo = inherited.contexto_periodo
+          next.es_pretemporada = inherited.es_pretemporada
+        }
+        if (suggestedMd && !matchDayTouched.current) {
+          next.match_day = suggestedMd
+        }
+        if (rivalNombre && !prev.rival) next.rival = rivalNombre
+        return next
+      })
+    }
+
+    ;(async () => {
+      if (microcicloIdFromQuery) {
+        try {
+          const m = await microciclosApi.get(microcicloIdFromQuery)
+          if (microcicloCubreFecha(m, fecha) || !fecha) applyMicro(m)
+          else applyMicro(m)
+        } catch {
+          applyMicro(null)
+        }
+        return
+      }
+      try {
+        const res = await microciclosApi.list({
+          equipo_id: equipo,
+          fecha_desde: fecha,
+          fecha_hasta: fecha,
+          limit: 10,
+        })
+        const covering = (res.data || [])
+          .filter((m) => microcicloCubreFecha(m, fecha))
+          .sort((a, b) => b.fecha_inicio.localeCompare(a.fecha_inicio))
+        applyMicro(covering[0] || null)
+      } catch {
+        applyMicro(null)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [formData.fecha, formData.equipo_id, equipoActivo?.id, microcicloIdFromQuery])
 
   const generateRecommendations = async () => {
     if (!formData.match_day) return
@@ -414,6 +484,7 @@ export default function NuevaSesionPage() {
               dia_carga: formData.dia_carga,
               contexto_periodo: formData.contexto_periodo || 'competicion',
               es_pretemporada: !!formData.es_pretemporada,
+              numero_sesion: formData.numero_sesion,
               rival: formData.rival,
               competicion: formData.competicion,
               partido_id: formData.partido_id || null,
@@ -427,15 +498,30 @@ export default function NuevaSesionPage() {
               objetivo_fisico: formData.objetivo_fisico,
               objetivo_psicologico: formData.objetivo_psicologico,
             }}
+            linkedMicrociclo={
+              microcicloContexto
+                ? {
+                    id: microcicloContexto.id,
+                    fecha_inicio: microcicloContexto.fecha_inicio,
+                    fecha_fin: microcicloContexto.fecha_fin,
+                    tipo: tipoDesdePlan(microcicloContexto.plan_ct),
+                  }
+                : null
+            }
             rivalLocked={!!formData.partido_id && !formData.es_pretemporada}
             onChange={(patch) => {
+              if (patch.match_day !== undefined) matchDayTouched.current = true
+              if (patch.contexto_periodo !== undefined) contextoTouched.current = true
               setFormData((prev) => {
-                const { partido_id, ...rest } = patch
+                const { partido_id, numero_sesion, ...rest } = patch
                 const next: SesionCreateData = {
                   ...prev,
                   ...rest,
                   ...(partido_id !== undefined
                     ? { partido_id: partido_id || undefined }
+                    : {}),
+                  ...(numero_sesion !== undefined
+                    ? { numero_sesion: numero_sesion || undefined }
                     : {}),
                 }
                 if (patch.fases_juego?.length) {

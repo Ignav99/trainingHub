@@ -69,6 +69,11 @@ export function SesionDraggableCard({ session }: SesionDraggableCardProps) {
                 {session.match_day}
               </span>
             )}
+            {session.numero_sesion ? (
+              <span className="text-[10px] font-medium text-muted-foreground">
+                Nº{session.numero_sesion}
+              </span>
+            ) : null}
             {session.estado === 'completada' && (
               <span className="w-1.5 h-1.5 rounded-full bg-green-500" title="Completada" />
             )}

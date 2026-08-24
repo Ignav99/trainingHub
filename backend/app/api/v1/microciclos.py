@@ -28,6 +28,12 @@ from app.models.plan_partido import (
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
+from app.services.microciclo_estado import (
+    aplicar_estado,
+    aplicar_filtro_estado,
+    estado_desde_fechas,
+    persist_estado,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -67,8 +73,7 @@ async def list_microciclos(
         if equipo_ids:
             query = query.in_("equipo_id", equipo_ids)
 
-    if estado:
-        query = query.eq("estado", estado.value)
+    query = aplicar_filtro_estado(query, estado.value if estado else None)
 
     # Overlap with [fecha_desde, fecha_hasta]: micro ends after range start
     # and micro starts before range end (not fully contained — avoids missing edge weeks).
@@ -89,7 +94,7 @@ async def list_microciclos(
     pages = ceil(total / limit) if total > 0 else 1
 
     return MicrocicloListResponse(
-        data=[MicrocicloResponse(**m) for m in response.data],
+        data=[MicrocicloResponse(**aplicar_estado(m)) for m in (response.data or [])],
         total=total,
         page=page,
         limit=limit,
@@ -159,7 +164,8 @@ async def get_microciclo_completo(
         sesiones_resp = supabase.table("sesiones").select(
             "id, titulo, fecha, match_day, estado, duracion_total, objetivo_principal, "
             "intensidad_objetivo, fase_juego_principal, notas_pre, notas_post, "
-            "dia_numero, orden, hora, microciclo_id, "
+            "dia_numero, orden, hora, microciclo_id, numero_sesion, "
+            "es_pretemporada, contexto_periodo, "
             "sesion_tareas(id)"
         ).eq("microciclo_id", str(microciclo_id)).execute()
 
@@ -311,6 +317,7 @@ async def get_microciclo_completo(
                 reflexion_err,
             )
 
+        micro = persist_estado(supabase, micro)
         return {
             "microciclo": micro,
             "sesiones": sesiones,
@@ -347,7 +354,7 @@ async def get_microciclo(
             detail="Microciclo no encontrado"
         )
 
-    return MicrocicloResponse(**response.data)
+    return MicrocicloResponse(**persist_estado(supabase, response.data))
 
 
 @router.get("/{microciclo_id}/sesiones")
@@ -392,6 +399,7 @@ async def create_microciclo(
     supabase = get_supabase()
 
     data = microciclo.model_dump(mode="json", exclude_none=True)
+    data["estado"] = estado_desde_fechas(data.get("fecha_inicio"), data.get("fecha_fin"))
     data["equipo_id"] = str(data["equipo_id"])
     if data.get("partido_id"):
         data["partido_id"] = str(data["partido_id"])
@@ -418,7 +426,7 @@ async def create_microciclo(
             detail="Error al crear microciclo"
         )
 
-    return MicrocicloResponse(**response.data[0])
+    return MicrocicloResponse(**aplicar_estado(response.data[0]))
 
 
 @router.put("/{microciclo_id}", response_model=MicrocicloResponse)
@@ -430,7 +438,7 @@ async def update_microciclo(
     """Actualiza un microciclo."""
     supabase = get_supabase()
 
-    existing = supabase.table("microciclos").select("id").eq(
+    existing = supabase.table("microciclos").select("*").eq(
         "id", str(microciclo_id)
     ).single().execute()
 
@@ -441,12 +449,11 @@ async def update_microciclo(
         )
 
     update_data = microciclo.model_dump(exclude_unset=True, mode="json")
+    update_data.pop("estado", None)
 
-    if not update_data:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No hay datos para actualizar"
-        )
+    ini = update_data.get("fecha_inicio", existing.data.get("fecha_inicio"))
+    fin = update_data.get("fecha_fin", existing.data.get("fecha_fin"))
+    update_data["estado"] = estado_desde_fechas(ini, fin)
 
     # Permitir limpiar FKs enviando null; stringificar UUIDs si vienen con valor
     for fk in ("partido_id", "rival_id", "game_model_id"):
@@ -457,7 +464,7 @@ async def update_microciclo(
         "id", str(microciclo_id)
     ).execute()
 
-    return MicrocicloResponse(**response.data[0])
+    return MicrocicloResponse(**aplicar_estado(response.data[0]))
 
 
 @router.delete("/{microciclo_id}", status_code=status.HTTP_204_NO_CONTENT)

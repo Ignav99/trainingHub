@@ -35,6 +35,7 @@ import { microciclosApi } from '@/lib/api/microciclos'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { cn } from '@/lib/utils'
 import type { Microciclo, PaginatedResponse } from '@/types'
+import { estadoDeMicrociclo } from '@/lib/microcicloEstado'
 
 type FilterKey = 'todos' | 'en_curso' | 'planificado' | 'completado' | 'borrador' | 'competicion' | 'pretemporada'
 
@@ -112,7 +113,8 @@ function daysSpan(start: string, end: string) {
 }
 
 function MicrocicloCard({ m, featured = false }: { m: Microciclo; featured?: boolean }) {
-  const estado = ESTADO_STYLE[m.estado] || ESTADO_STYLE.borrador
+  const estadoKey = estadoDeMicrociclo(m)
+  const estado = ESTADO_STYLE[estadoKey] || ESTADO_STYLE.borrador
   const pre = isPretemporada(m)
   const rival = m.partidos?.rival?.nombre || m.partidos?.rival?.nombre_corto
 
@@ -133,10 +135,10 @@ function MicrocicloCard({ m, featured = false }: { m: Microciclo; featured?: boo
       <div
         className={cn(
           'absolute inset-x-0 top-0 h-16 opacity-60 pointer-events-none',
-          m.estado === 'en_curso' && 'bg-gradient-to-b from-emerald-200/40 to-transparent',
-          m.estado === 'planificado' && 'bg-gradient-to-b from-sky-200/35 to-transparent',
-          m.estado === 'completado' && 'bg-gradient-to-b from-indigo-200/35 to-transparent',
-          m.estado === 'borrador' && 'bg-gradient-to-b from-slate-200/30 to-transparent'
+          estadoKey === 'en_curso' && 'bg-gradient-to-b from-emerald-200/40 to-transparent',
+          estadoKey === 'planificado' && 'bg-gradient-to-b from-sky-200/35 to-transparent',
+          estadoKey === 'completado' && 'bg-gradient-to-b from-indigo-200/35 to-transparent',
+          estadoKey === 'borrador' && 'bg-gradient-to-b from-slate-200/30 to-transparent'
         )}
         aria-hidden
       />
@@ -145,11 +147,11 @@ function MicrocicloCard({ m, featured = false }: { m: Microciclo; featured?: boo
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1.5 mb-2">
               <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border', estado.badge)}>
-                {m.estado === 'en_curso' ? (
+                {estadoKey === 'en_curso' ? (
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                ) : m.estado === 'planificado' ? (
+                ) : estadoKey === 'planificado' ? (
                   <Clock className="h-3 w-3" />
-                ) : m.estado === 'completado' ? (
+                ) : estadoKey === 'completado' ? (
                   <CheckCircle2 className="h-3 w-3" />
                 ) : (
                   <Clock className="h-3 w-3" />
@@ -305,7 +307,7 @@ export default function MicrociclosListPage() {
     const q = query.trim().toLowerCase()
     return microciclos.filter((m) => {
       if (filter === 'en_curso' || filter === 'planificado' || filter === 'completado' || filter === 'borrador') {
-        if (m.estado !== filter) return false
+        if (estadoDeMicrociclo(m) !== filter) return false
       }
       if (filter === 'competicion' && isPretemporada(m)) return false
       if (filter === 'pretemporada' && !isPretemporada(m)) return false
@@ -319,7 +321,7 @@ export default function MicrociclosListPage() {
         rival,
         formatRange(m.fecha_inicio, m.fecha_fin),
         isPretemporada(m) ? 'pretemporada' : 'competicion',
-        m.estado,
+        estadoDeMicrociclo(m),
       ]
         .filter(Boolean)
         .join(' ')
@@ -334,10 +336,10 @@ export default function MicrociclosListPage() {
   const counts = useMemo(() => {
     return {
       todos: microciclos.length,
-      en_curso: microciclos.filter((m) => m.estado === 'en_curso').length,
-      planificado: microciclos.filter((m) => m.estado === 'planificado').length,
-      completado: microciclos.filter((m) => m.estado === 'completado').length,
-      borrador: microciclos.filter((m) => m.estado === 'borrador').length,
+      en_curso: microciclos.filter((m) => estadoDeMicrociclo(m) === 'en_curso').length,
+      planificado: microciclos.filter((m) => estadoDeMicrociclo(m) === 'planificado').length,
+      completado: microciclos.filter((m) => estadoDeMicrociclo(m) === 'completado').length,
+      borrador: microciclos.filter((m) => estadoDeMicrociclo(m) === 'borrador').length,
       competicion: microciclos.filter((m) => !isPretemporada(m)).length,
       pretemporada: microciclos.filter((m) => isPretemporada(m)).length,
     }
@@ -542,7 +544,7 @@ export default function MicrociclosListPage() {
                 )}
               >
                 {library.map((m) => (
-                  <MicrocicloCard key={m.id} m={m} featured={m.estado === 'en_curso'} />
+                  <MicrocicloCard key={m.id} m={m} featured={estadoDeMicrociclo(m) === 'en_curso'} />
                 ))}
               </div>
             </section>

@@ -58,6 +58,7 @@ import { SesionDefinirForm } from '@/components/sesiones/SesionDefinirForm'
 import { SesionMaterialPanel } from '@/components/sesiones/SesionMaterialPanel'
 import { SesionBloquesPanel } from '@/components/sesiones/SesionBloquesPanel'
 import { sesionesApi, SesionUpdateData } from '@/lib/api/sesiones'
+import { microciclosApi } from '@/lib/api/microciclos'
 import { jugadoresApi } from '@/lib/api/jugadores'
 import {
   Sesion,
@@ -87,6 +88,7 @@ import { MATCH_DAYS as MATCH_DAYS_CATALOG, DIAS_CARGA } from '@/lib/catalogos/ca
 import { TaskPickerDialog } from '@/components/tareas/TaskPickerDialog'
 import MargenPanel from '@/components/margen/MargenPanel'
 import { duracionBloquePartido, faseSesionFromBloque, isPartidoCondicionado, resolveEstructura } from '@/lib/sesionEstructura'
+import { tipoDesdePlan } from '@/lib/sesionMicrociclo'
 
 const MATCH_DAY_COLORS: Record<string, string> = {
   'MD+1': 'bg-green-100 text-green-800',
@@ -209,6 +211,10 @@ export default function SesionDetailPage() {
   // Core data fetching via SWR
   const { data: sesionData, error: swrError, isLoading } = useSWR<Sesion>(
     sesionId ? `/sesiones/${sesionId}` : null
+  )
+  const { data: microLinked } = useSWR(
+    sesionData?.microciclo_id ? `/microciclos/${sesionData.microciclo_id}` : null,
+    () => microciclosApi.get(sesionData!.microciclo_id!)
   )
   const [sesion, setSesion] = useState<Sesion | null>(null)
   const loading = isLoading && !sesion
@@ -1100,8 +1106,18 @@ export default function SesionDetailPage() {
                 value={sesion.titulo}
                 onChange={(e) => updateField('titulo', e.target.value)}
               />
-              {/* Match day / Día de carga */}
-              {sesion.es_pretemporada || sesion.contexto_periodo === 'pretemporada' || sesion.contexto_periodo === 'transicion' ? (
+              {/* Match day — always editable, even in pretemporada */}
+              <select
+                className={`text-xs font-bold px-2.5 py-1 rounded border-0 cursor-pointer ${MATCH_DAY_COLORS[sesion.match_day] || 'bg-muted'}`}
+                value={sesion.match_day}
+                onChange={(e) => updateField('match_day', e.target.value)}
+                title="Match day"
+              >
+                {MATCH_DAYS.map((md) => (
+                  <option key={md} value={md}>{md}</option>
+                ))}
+              </select>
+              {(sesion.es_pretemporada || sesion.contexto_periodo === 'pretemporada' || sesion.contexto_periodo === 'transicion') && (
                 <select
                   className={`text-xs font-bold px-2.5 py-1 rounded border-0 cursor-pointer ${MATCH_DAY_COLORS[sesion.dia_carga || ''] || 'bg-amber-50 text-amber-900'}`}
                   value={sesion.dia_carga || ''}
@@ -1115,17 +1131,21 @@ export default function SesionDetailPage() {
                     </option>
                   ))}
                 </select>
-              ) : (
-                <select
-                  className={`text-xs font-bold px-2.5 py-1 rounded border-0 cursor-pointer ${MATCH_DAY_COLORS[sesion.match_day] || 'bg-muted'}`}
-                  value={sesion.match_day}
-                  onChange={(e) => updateField('match_day', e.target.value)}
-                >
-                  {MATCH_DAYS.map((md) => (
-                    <option key={md} value={md}>{md}</option>
-                  ))}
-                </select>
               )}
+              {sesion.numero_sesion ? (
+                <span className="text-xs font-medium px-2 py-1 rounded bg-muted text-muted-foreground">
+                  Sesión {sesion.numero_sesion}
+                </span>
+              ) : null}
+              {(sesion.es_pretemporada || sesion.contexto_periodo === 'pretemporada') ? (
+                <span className="text-xs font-medium px-2 py-1 rounded bg-amber-50 text-amber-900 border border-amber-200">
+                  Pretemporada
+                </span>
+              ) : sesion.contexto_periodo === 'transicion' ? (
+                <span className="text-xs font-medium px-2 py-1 rounded bg-slate-100 text-slate-700">
+                  Transición
+                </span>
+              ) : null}
               {/* Estado dropdown */}
               <select
                 className={`text-xs font-medium px-2 py-1 rounded border cursor-pointer ${estadoConfig.color}`}
@@ -1249,6 +1269,7 @@ export default function SesionDetailPage() {
               dia_carga: sesion.dia_carga || '',
               contexto_periodo: sesion.contexto_periodo || (sesion.es_pretemporada ? 'pretemporada' : 'competicion'),
               es_pretemporada: !!sesion.es_pretemporada,
+              numero_sesion: sesion.numero_sesion ?? null,
               rival: sesion.rival || '',
               competicion: sesion.competicion || '',
               partido_id: sesion.partido_id || null,
@@ -1263,6 +1284,23 @@ export default function SesionDetailPage() {
               objetivo_psicologico: sesion.objetivo_psicologico || '',
             }}
             rivalLocked={!!sesion.partido_id && !sesion.es_pretemporada}
+            linkedMicrociclo={
+              microLinked
+                ? {
+                    id: microLinked.id,
+                    fecha_inicio: microLinked.fecha_inicio,
+                    fecha_fin: microLinked.fecha_fin,
+                    tipo: tipoDesdePlan(microLinked.plan_ct),
+                  }
+                : sesion.microciclo_id
+                  ? {
+                      id: sesion.microciclo_id,
+                      fecha_inicio: sesion.fecha,
+                      fecha_fin: sesion.fecha,
+                      tipo: sesion.es_pretemporada ? 'pretemporada' : sesion.contexto_periodo,
+                    }
+                  : null
+            }
             onChange={(patch) => {
               const next: Record<string, any> = { ...patch }
               if ('contenidos_tecnicos_of' in patch) {

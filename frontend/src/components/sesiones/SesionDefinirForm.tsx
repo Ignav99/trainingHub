@@ -21,6 +21,7 @@ import {
 import { MultiSelect } from '@/components/ui/multi-select'
 import { synthesizeKeywords } from '@/lib/keywords'
 import type { SesionAbpConfig, SesionSubfaseItem } from '@/types'
+import { TIPO_MICROCICLO_LABEL } from '@/lib/sesionMicrociclo'
 
 /** Normaliza abp_config legacy (lado/lados+tipos) → ofensivo/defensivo. */
 function normalizeAbp(raw: SesionAbpConfig | null | undefined): SesionAbpConfig {
@@ -85,6 +86,7 @@ export type SesionDefinirValues = {
   dia_carga?: string
   contexto_periodo?: string
   es_pretemporada?: boolean
+  numero_sesion?: number | null
   rival?: string
   competicion?: string
   partido_id?: string | null
@@ -97,6 +99,13 @@ export type SesionDefinirValues = {
   keywords: string[]
   objetivo_fisico?: string
   objetivo_psicologico?: string
+}
+
+export type LinkedMicrocicloHint = {
+  id: string
+  fecha_inicio: string
+  fecha_fin: string
+  tipo?: string | null
 }
 
 function ChipToggle({
@@ -128,11 +137,13 @@ export function SesionDefinirForm({
   value,
   onChange,
   rivalLocked = false,
+  linkedMicrociclo = null,
   className,
 }: {
   value: SesionDefinirValues
   onChange: (patch: Partial<SesionDefinirValues>) => void
   rivalLocked?: boolean
+  linkedMicrociclo?: LinkedMicrocicloHint | null
   className?: string
 }) {
   const [ofDraft, setOfDraft] = useState('')
@@ -187,12 +198,15 @@ export function SesionDefinirForm({
         <h3 className="text-sm font-semibold">Identidad</h3>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="sm:col-span-2 space-y-1.5">
-            <Label>Título</Label>
+            <Label>Nombre de la sesión</Label>
             <Input
               value={value.titulo}
               onChange={(e) => onChange({ titulo: e.target.value })}
-              placeholder="Ej. MD-3 presión alta"
+              placeholder="Presión alta"
             />
+            <p className="text-[11px] text-muted-foreground">
+              Solo el nombre. El MD, el nº y si es pretemporada van en el contexto, no en el título.
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label>Fecha</Label>
@@ -203,6 +217,20 @@ export function SesionDefinirForm({
             />
           </div>
           <div className="space-y-1.5">
+            <Label>Nº de sesión</Label>
+            <Input
+              type="number"
+              min={1}
+              value={value.numero_sesion ?? ''}
+              onChange={(e) =>
+                onChange({
+                  numero_sesion: e.target.value ? Number(e.target.value) : null,
+                })
+              }
+              placeholder="Auto"
+            />
+          </div>
+          <div className="space-y-1.5">
             <Label>Hora</Label>
             <Input
               type="time"
@@ -210,7 +238,7 @@ export function SesionDefinirForm({
               onChange={(e) => onChange({ hora: e.target.value })}
             />
           </div>
-          <div className="space-y-1.5 sm:col-span-2">
+          <div className="space-y-1.5">
             <Label>Lugar</Label>
             <Input
               value={value.lugar || ''}
@@ -220,8 +248,23 @@ export function SesionDefinirForm({
           </div>
         </div>
 
+        {linkedMicrociclo ? (
+          <p className="text-xs rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sky-900">
+            Se enlaza al microciclo del{' '}
+            {linkedMicrociclo.fecha_inicio.slice(0, 10)} – {linkedMicrociclo.fecha_fin.slice(0, 10)}
+            {linkedMicrociclo.tipo
+              ? ` · ${TIPO_MICROCICLO_LABEL[linkedMicrociclo.tipo] || linkedMicrociclo.tipo}`
+              : ''}
+            .
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Al guardar se enlaza sola al microciclo que cubra esta fecha.
+          </p>
+        )}
+
         <div className="space-y-1.5">
-          <Label>Contexto</Label>
+          <Label>Periodo / tipo</Label>
           <div className="flex flex-wrap gap-1.5">
             {CONTEXTOS_PERIODO.map((c) => (
               <ChipToggle
@@ -237,38 +280,45 @@ export function SesionDefinirForm({
               />
             ))}
           </div>
+          {linkedMicrociclo?.tipo &&
+            linkedMicrociclo.tipo !== 'competicion' &&
+            linkedMicrociclo.tipo !== 'pretemporada' && (
+              <p className="text-[11px] text-muted-foreground">
+                Tipo de la semana:{' '}
+                {TIPO_MICROCICLO_LABEL[linkedMicrociclo.tipo] || linkedMicrociclo.tipo}
+              </p>
+            )}
         </div>
 
         <div className="space-y-1.5">
-          <Label>{isPretemporada ? 'Día de carga (pretemporada)' : 'Match day'}</Label>
+          <Label>Match day</Label>
           <div className="flex flex-wrap gap-1.5">
-            {(isPretemporada ? DIAS_CARGA : MATCH_DAYS).map((d) => (
+            {MATCH_DAYS.map((d) => (
               <ChipToggle
                 key={d.codigo}
-                active={
-                  isPretemporada
-                    ? value.dia_carga === d.codigo
-                    : value.match_day === d.codigo
-                }
+                active={value.match_day === d.codigo}
                 label={`${d.codigo} — ${d.nombre}`}
-                onClick={() =>
-                  isPretemporada
-                    ? onChange({ dia_carga: d.codigo })
-                    : onChange({ match_day: d.codigo })
-                }
+                onClick={() => onChange({ match_day: d.codigo })}
               />
             ))}
           </div>
-          {isPretemporada && value.dia_carga && (
-            <p className="text-xs text-muted-foreground">
-              Seleccionado:{' '}
-              <span className="font-medium text-foreground">
-                {DIAS_CARGA.find((d) => d.codigo === value.dia_carga)?.codigo} —{' '}
-                {DIAS_CARGA.find((d) => d.codigo === value.dia_carga)?.nombre}
-              </span>
-            </p>
-          )}
         </div>
+
+        {isPretemporada ? (
+          <div className="space-y-1.5">
+            <Label>Día de carga (pretemporada)</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {DIAS_CARGA.map((d) => (
+                <ChipToggle
+                  key={d.codigo}
+                  active={value.dia_carga === d.codigo}
+                  label={`${d.codigo} — ${d.nombre}`}
+                  onClick={() => onChange({ dia_carga: d.codigo })}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">

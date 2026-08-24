@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/dialog'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import type { Sesion, Microciclo, Partido } from '@/types'
+import { estadoDeMicrociclo } from '@/lib/microcicloEstado'
 
 // ============ Match Day color palette ============
 const MATCH_DAY_COLORS: Record<string, { border: string; bg: string; text: string; label: string }> = {
@@ -706,9 +707,9 @@ export function CalendarSection({
                     <div className="hidden md:flex w-6 shrink-0 items-stretch py-0.5 justify-center">
                       {weekMicro ? (
                         <button
-                          className={`w-2.5 rounded-sm opacity-70 hover:opacity-100 transition-opacity ${MICRO_ESTADO_COLORS[weekMicro.estado]?.tab || 'bg-gray-500'}`}
+                          className={`w-2.5 rounded-sm opacity-70 hover:opacity-100 transition-opacity ${MICRO_ESTADO_COLORS[estadoDeMicrociclo(weekMicro)]?.tab || 'bg-gray-500'}`}
                           onClick={(e) => { e.stopPropagation(); onNavigate(`/microciclos/${weekMicro.id}`) }}
-                          title={`Ver microciclo (${weekMicro.estado})`}
+                          title={`Ver microciclo (${estadoDeMicrociclo(weekMicro)})`}
                         />
                       ) : weekHasContent && weekBounds ? (
                         <button
@@ -830,7 +831,7 @@ export function CalendarSection({
                             onNavigate(`/microciclos/${mondayMicro.microciclo.id}`)
                           }}
                           className={`absolute left-0 top-7 z-10 px-1.5 py-0.5 rounded-r-md text-[9px] font-bold text-white cursor-pointer hover:opacity-90 transition-opacity ${
-                            MICRO_ESTADO_COLORS[mondayMicro.microciclo.estado]?.tab || 'bg-gray-500'
+                            MICRO_ESTADO_COLORS[estadoDeMicrociclo(mondayMicro.microciclo)]?.tab || 'bg-gray-500'
                           }`}
                           title="Ver microciclo"
                         >
@@ -1079,7 +1080,7 @@ export function CalendarSection({
           {selectedMicro && (() => {
             const matchCount = getMatchCount(selectedMicro)
             const microType = getMicroType(matchCount)
-            const estadoStyle = MICRO_ESTADO_COLORS[selectedMicro.estado] || MICRO_ESTADO_COLORS.borrador
+            const estadoStyle = MICRO_ESTADO_COLORS[estadoDeMicrociclo(selectedMicro)] || MICRO_ESTADO_COLORS.borrador
             const startDate = new Date(selectedMicro.fecha_inicio.slice(0, 10) + 'T12:00:00')
             const endDate = new Date(selectedMicro.fecha_fin.slice(0, 10) + 'T12:00:00')
             const dateRange = `${startDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${endDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`
@@ -1092,7 +1093,7 @@ export function CalendarSection({
                     <CalendarDays className="h-5 w-5 text-muted-foreground" />
                     <DialogTitle>Microciclo</DialogTitle>
                     <Badge variant="outline" className={`text-[10px] ${estadoStyle.badge}`}>
-                      {selectedMicro.estado.replace('_', ' ')}
+                      {estadoDeMicrociclo(selectedMicro).replace('_', ' ')}
                     </Badge>
                   </div>
                   <DialogDescription className="text-xs">
