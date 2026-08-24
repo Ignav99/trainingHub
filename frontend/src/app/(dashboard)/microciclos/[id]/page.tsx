@@ -44,6 +44,10 @@ import type { VistaCompletaMicrociclo, Partido, PaginatedResponse, Jugador, Riva
 
 import { SalaLunes } from '@/components/microciclos/SalaLunes'
 import { ExportarInformeButton } from '@/components/informes/ExportarInformeButton'
+import {
+  estadoDeMicrociclo,
+  ESTADO_MICROCICLO_LABEL,
+} from '@/lib/microcicloEstado'
 
 // ============ Constants ============
 const ESTADO_COLORS: Record<string, string> = {
@@ -152,16 +156,6 @@ export default function MicrocicloDetallePage() {
     }
   }
 
-  const handleUpdateEstado = async (nuevoEstado: string) => {
-    if (!data) return
-    try {
-      await microciclosApi.update(data.microciclo.id, { estado: nuevoEstado })
-      mutate((key: string) => typeof key === 'string' && key.includes('/microciclos'), undefined, { revalidate: true })
-    } catch (err: any) {
-      toast.error(err.message || 'Error al actualizar el estado')
-    }
-  }
-
   // Loading
   if (loading) return <DetailPageSkeleton />
 
@@ -180,6 +174,7 @@ export default function MicrocicloDetallePage() {
 
   const micro = data.microciclo
   const rangeLabel = `${formatDateShort(micro.fecha_inicio.slice(0, 10))} - ${formatDateShort(micro.fecha_fin.slice(0, 10))}`
+  const estadoAuto = estadoDeMicrociclo(micro)
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -198,17 +193,12 @@ export default function MicrocicloDetallePage() {
             <div className="flex items-center gap-3 mb-2">
               <CalendarDays className="h-6 w-6 text-primary" />
               <h1 className="text-2xl font-bold">Microciclo</h1>
-              <select
-                value={micro.estado}
-                onChange={(e) => handleUpdateEstado(e.target.value)}
-                className={`text-xs font-medium px-2.5 py-1 rounded-full border-0 cursor-pointer capitalize ${ESTADO_COLORS[micro.estado] || ESTADO_COLORS.borrador}`}
-                title="Cambiar estado del microciclo"
+              <span
+                className={`text-xs font-medium px-2.5 py-1 rounded-full ${ESTADO_COLORS[estadoAuto] || ESTADO_COLORS.borrador}`}
+                title="Estado según las fechas de la semana"
               >
-                <option value="borrador">Borrador</option>
-                <option value="planificado">Planificado</option>
-                <option value="en_curso">En curso</option>
-                <option value="completado">Completado</option>
-              </select>
+                {ESTADO_MICROCICLO_LABEL[estadoAuto]}
+              </span>
               {micro.equipos && (
                 <Badge variant="outline" className="text-xs">{micro.equipos.nombre}</Badge>
               )}

@@ -526,6 +526,22 @@ export default function SesionesPage() {
                     <td className="px-6 py-4">
                       <div>
                         <p className="text-sm font-medium text-gray-900">{sesion.titulo}</p>
+                        <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                          {sesion.numero_sesion ? (
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
+                              Nº {sesion.numero_sesion}
+                            </span>
+                          ) : null}
+                          {sesion.es_pretemporada || sesion.contexto_periodo === 'pretemporada' ? (
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-50 text-amber-800">
+                              Pretemporada
+                            </span>
+                          ) : sesion.contexto_periodo === 'transicion' ? (
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                              Transición
+                            </span>
+                          ) : null}
+                        </div>
                         {sesion.objetivo_principal && (
                           <p className="text-sm text-gray-500 truncate max-w-xs">
                             {sesion.objetivo_principal}
