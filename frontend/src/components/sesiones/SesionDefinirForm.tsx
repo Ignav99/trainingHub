@@ -179,15 +179,33 @@ export function SesionDefinirForm({
     onChange({ fases_juego: fases, subfases })
   }
 
-  const upsertSubfase = (fase: string, subfase: string, opcion?: string) => {
-    const rest = value.subfases.filter((s) => !(s.fase === fase && s.subfase === subfase))
-    onChange({ subfases: [...rest, { fase, subfase, opcion: opcion || null }] })
+  const toggleSubfase = (fase: string, subfase: string) => {
+    const has = value.subfases.some((s) => s.fase === fase && s.subfase === subfase)
+    if (has) {
+      onChange({
+        subfases: value.subfases.filter((s) => !(s.fase === fase && s.subfase === subfase)),
+      })
+      return
+    }
+    onChange({ subfases: [...value.subfases, { fase, subfase, opcion: null }] })
   }
 
-  const removeSubfase = (fase: string, subfase: string) => {
-    onChange({
-      subfases: value.subfases.filter((s) => !(s.fase === fase && s.subfase === subfase)),
-    })
+  const toggleOpcion = (fase: string, subfase: string, opcion: string) => {
+    const match = (s: SesionSubfaseItem) =>
+      s.fase === fase && s.subfase === subfase && s.opcion === opcion
+    const hasOpcion = value.subfases.some(match)
+    if (hasOpcion) {
+      const next = value.subfases.filter((s) => !match(s))
+      const stillParent = next.some((s) => s.fase === fase && s.subfase === subfase)
+      onChange({
+        subfases: stillParent ? next : [...next, { fase, subfase, opcion: null }],
+      })
+      return
+    }
+    const withoutBare = value.subfases.filter(
+      (s) => !(s.fase === fase && s.subfase === subfase && !s.opcion)
+    )
+    onChange({ subfases: [...withoutBare, { fase, subfase, opcion }] })
   }
 
   const abp = normalizeAbp(value.abp_config)
@@ -364,6 +382,11 @@ export function SesionDefinirForm({
               <p className="text-xs font-medium text-muted-foreground">
                 Subfases · {FASES_JUEGO.find((f) => f.codigo === fase)?.nombre}
               </p>
+              {fase === 'defensa_organizada' ? (
+                <p className="text-[11px] text-muted-foreground">
+                  Puedes marcar varios bloques a la vez (alto y medio, por ejemplo).
+                </p>
+              ) : null}
               <div className="flex flex-wrap gap-1.5">
                 {catalog.map((sf) => {
                   const active = value.subfases.some((s) => s.fase === fase && s.subfase === sf.codigo)
@@ -372,26 +395,26 @@ export function SesionDefinirForm({
                       key={sf.codigo}
                       active={active}
                       label={sf.nombre}
-                      onClick={() =>
-                        active ? removeSubfase(fase, sf.codigo) : upsertSubfase(fase, sf.codigo)
-                      }
+                      onClick={() => toggleSubfase(fase, sf.codigo)}
                     />
                   )
                 })}
               </div>
               {catalog.map((sf) => {
                 if (!sf.opciones?.length) return null
-                const selected = value.subfases.find((s) => s.fase === fase && s.subfase === sf.codigo)
-                if (!selected) return null
+                const parentOn = value.subfases.some((s) => s.fase === fase && s.subfase === sf.codigo)
+                if (!parentOn) return null
                 return (
                   <div key={`${sf.codigo}-opts`} className="flex flex-wrap gap-1.5 pl-1">
                     <span className="text-[10px] text-muted-foreground self-center">{sf.nombre}:</span>
                     {sf.opciones.map((op) => (
                       <ChipToggle
                         key={op.codigo}
-                        active={selected.opcion === op.codigo}
+                        active={value.subfases.some(
+                          (s) => s.fase === fase && s.subfase === sf.codigo && s.opcion === op.codigo
+                        )}
                         label={op.nombre}
-                        onClick={() => upsertSubfase(fase, sf.codigo, op.codigo)}
+                        onClick={() => toggleOpcion(fase, sf.codigo, op.codigo)}
                       />
                     ))}
                   </div>

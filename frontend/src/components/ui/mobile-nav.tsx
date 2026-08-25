@@ -14,7 +14,6 @@ import {
   Settings,
   HeartPulse,
   Trophy,
-  CalendarDays,
   PenTool,
   ScanSearch,
   Activity,
@@ -31,7 +30,6 @@ const mainTabs = [
 ]
 
 const moreTabs = [
-  { name: 'Microciclos', href: '/microciclos', icon: CalendarDays },
   { name: 'Rivales', href: '/rivales', icon: Shield },
   { name: 'Competición', href: '/competicion', icon: Trophy },
   { name: 'Enfermería', href: '/enfermeria', icon: HeartPulse },

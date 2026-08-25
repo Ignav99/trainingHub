@@ -7,7 +7,6 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard,
   Calendar,
-  CalendarDays,
   Settings,
   ChevronDown,
   ChevronRight,
@@ -78,7 +77,6 @@ type NavItem = {
 
 const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Microciclos', href: '/microciclos', icon: CalendarDays },
   { name: 'Sesiones', href: '/sesiones', icon: Calendar },
   { name: 'Plantilla', href: '/plantilla', icon: Users },
   { name: 'Partidos', href: '/partidos', icon: Swords },
@@ -415,8 +413,8 @@ const SidebarContent = memo(function SidebarContent({
   const [saludOpen, setSaludOpen] = useState(() => isSaludPath(pathname))
   const dropdownRef = useRef<HTMLLIElement>(null)
   // Club-admin/superadmin manage the whole club, not a single team's
-  // operational tools — hide the per-team nav (Microciclos, Sesiones,
-  // Plantilla, etc.), Salud, Herramientas and the team selector entirely.
+  // operational tools — hide the per-team nav (Sesiones, Plantilla, etc.),
+  // Salud, Herramientas and the team selector entirely.
   const isClubOnlyRole = isSuperadminRole(user?.rol) || isClubAdminRole(user?.rol)
 
   useEffect(() => {

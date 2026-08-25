@@ -69,12 +69,13 @@ export const SUBFASES_DEFENSA = [
     codigo: 'bloque_alto',
     nombre: 'Bloque alto',
     opciones: [
-      { codigo: 'presion_saque_meta', nombre: 'Presión saque de meta' },
-      { codigo: 'bloque_alto', nombre: 'Bloque alto' },
+      { codigo: 'saque_puerta', nombre: 'Saque de puerta' },
+      { codigo: 'reinicios', nombre: 'Reinicios' },
     ],
   },
   { codigo: 'bloque_medio', nombre: 'Bloque medio', opciones: [] as { codigo: string; nombre: string }[] },
   { codigo: 'bloque_bajo', nombre: 'Bloque bajo', opciones: [] as { codigo: string; nombre: string }[] },
+  { codigo: 'bloque_mixto', nombre: 'Bloque mixto', opciones: [] as { codigo: string; nombre: string }[] },
 ] as const
 
 export const TIPOS_ABP = [
