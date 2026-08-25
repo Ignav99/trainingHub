@@ -479,8 +479,16 @@ export default function DashboardPage() {
         onShowDisponibilidad={() => setShowDisponibilidad(true)}
       />
 
-      {/* Nuevo microciclo — encima del calendario */}
-      <div className="flex justify-end">
+      {/* Controles de microciclo — encima del calendario */}
+      <div className="flex justify-end items-center gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          asChild
+          className="h-8 px-2.5 text-xs font-normal text-muted-foreground hover:text-foreground"
+        >
+          <Link href="/microciclos">Biblioteca de microciclos</Link>
+        </Button>
         <Button
           variant="outline"
           size="sm"

@@ -73,9 +73,13 @@ class SubfaseDefensa(str, Enum):
     BLOQUE_ALTO = "bloque_alto"
     BLOQUE_MEDIO = "bloque_medio"
     BLOQUE_BAJO = "bloque_bajo"
+    BLOQUE_MIXTO = "bloque_mixto"
 
 
 class OpcionBloqueAlto(str, Enum):
+    SAQUE_PUERTA = "saque_puerta"
+    REINICIOS = "reinicios"
+    # legacy
     PRESION_SAQUE_META = "presion_saque_meta"
     BLOQUE_ALTO = "bloque_alto"
 
