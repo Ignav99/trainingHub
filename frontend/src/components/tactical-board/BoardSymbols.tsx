@@ -88,7 +88,9 @@ function PlayerSymbol({ element, selected, uid }: { element: DiagramElement; sel
   const color = element.color || '#3B82F6'
   const label = element.label || ''
   // Texto legible sobre cualquier color de camiseta
-  const textFill = ['#FFFFFF', '#FFFF00', '#EAB308'].includes((color || '').toUpperCase()) ? '#111827' : '#FFFFFF'
+  const textFill = ['#FFFFFF', '#FFFF00', '#EAB308', '#FACC15', '#F59E0B'].includes((color || '').toUpperCase())
+    ? '#111827'
+    : '#FFFFFF'
 
   return (
     <>
@@ -400,6 +402,7 @@ function renderSymbol({ element, selected, uid }: ElementSymbolProps): React.Rea
     case 'player':
     case 'opponent':
     case 'player_gk':
+    case 'player_joker':
       return <PlayerSymbol element={element} selected={selected} uid={uid} />
     case 'ball':
       return <BallSymbol element={element} selected={selected} uid={uid} />
@@ -445,6 +448,7 @@ export const ELEMENT_TOOLS: ElementToolMeta[] = [
   { type: 'player', label: 'Jugador', defaultColor: '#3B82F6', grupo: 'jugadores' },
   { type: 'opponent', label: 'Rival', defaultColor: '#EF4444', grupo: 'jugadores' },
   { type: 'player_gk', label: 'Portero', defaultColor: '#22C55E', grupo: 'jugadores' },
+  { type: 'player_joker', label: 'Comodín', defaultColor: '#EAB308', grupo: 'jugadores' },
   { type: 'ball', label: 'Balón', defaultColor: '#FFFFFF', grupo: 'material' },
   { type: 'cone', label: 'Cono', defaultColor: '#FF6B00', grupo: 'material' },
   { type: 'marker_disc', label: 'Seta', defaultColor: '#FACC15', grupo: 'material' },
@@ -461,7 +465,13 @@ export const ELEMENT_TOOLS: ElementToolMeta[] = [
 /** Miniatura del símbolo para los botones de la toolbar. */
 export function SymbolPreview({ type, color, size = 20 }: { type: ElementType; color?: string; size?: number }) {
   const uid = React.useId().replace(/:/g, '')
-  const el: DiagramElement = { id: `preview-${type}`, type, position: { x: 0, y: 0 }, color }
+  const el: DiagramElement = {
+    id: `preview-${type}`,
+    type,
+    position: { x: 0, y: 0 },
+    color,
+    label: type === 'player_joker' ? 'C' : type === 'player_gk' ? 'G' : undefined,
+  }
   return (
     <svg width={size} height={size} viewBox="-16 -16 32 32" style={{ display: 'block' }}>
       <BoardDefs uid={uid} />

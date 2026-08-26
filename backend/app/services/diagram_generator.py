@@ -23,7 +23,7 @@ Responde UNICAMENTE con JSON puro (sin markdown, sin ```). El JSON debe seguir e
   "elements": [
     {
       "id": "string (unico, 8 chars alfanumericos)",
-      "type": "player" | "opponent" | "player_gk" | "cone" | "ball" | "mini_goal",
+      "type": "player" | "opponent" | "player_gk" | "player_joker" | "cone" | "ball" | "mini_goal",
       "position": { "x": number, "y": number },
       "label": "string (numero del jugador o texto)",
       "color": "string (hex color)"

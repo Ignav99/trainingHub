@@ -20,7 +20,7 @@ import {
 import { partidosApi } from '@/lib/api/partidos'
 
 type Tool =
-  | 'select' | 'player' | 'opponent' | 'player_gk'
+  | 'select' | 'player' | 'opponent' | 'player_gk' | 'player_joker'
   | 'cone' | 'ball' | 'mini_goal'
   | 'arrow_movement' | 'arrow_pass'
   | 'zone_rect' | 'zone_circle'
@@ -315,6 +315,9 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving, lockLado, 
     } else if (elementType === 'player_gk') {
       label = 'GK'
       color = TEAM_COLORS.goalkeeper
+    } else if (elementType === 'player_joker') {
+      label = 'C'
+      color = TEAM_COLORS.joker
     } else if (elementType === 'cone') {
       color = '#FF6B00'
     } else if (elementType === 'ball') {
@@ -472,7 +475,7 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving, lockLado, 
   }
 
   const selectedEl = elements.find(e => e.id === selectedElement)
-  const isPlayerType = selectedEl && (selectedEl.type === 'player' || selectedEl.type === 'opponent' || selectedEl.type === 'player_gk')
+  const isPlayerType = selectedEl && (selectedEl.type === 'player' || selectedEl.type === 'opponent' || selectedEl.type === 'player_gk' || selectedEl.type === 'player_joker')
   const isZoneTool = selectedTool === 'zone_rect' || selectedTool === 'zone_circle'
 
   // ============ Renderers ============
@@ -495,11 +498,12 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving, lockLado, 
       case 'player':
       case 'opponent':
       case 'player_gk':
+      case 'player_joker':
         return (
           <g {...commonProps} transform={`translate(${position.x}, ${position.y})`}>
             <circle cx="2" cy="2" r={size / 2} fill="rgba(0,0,0,0.3)" />
             <circle cx="0" cy="0" r={size / 2} fill={color} stroke={isSelected ? '#FFFF00' : '#FFFFFF'} strokeWidth={isSelected ? 3 : 2} />
-            <text x="0" y="1" textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize={hasRole ? 7 : 10} fontWeight="bold" fontFamily="Arial">
+            <text x="0" y="1" textAnchor="middle" dominantBaseline="middle" fill={type === 'player_joker' || color === '#EAB308' ? '#111827' : '#FFFFFF'} fontSize={hasRole ? 7 : 10} fontWeight="bold" fontFamily="Arial">
               {displayLabel}
             </text>
           </g>
@@ -759,6 +763,7 @@ export default function ABPEditor({ jugada, onSave, onCancel, saving, lockLado, 
           <TB id="player" icon={<Circle className="h-4 w-4" />} label="Jugador" color={teamColors.team1} />
           <TB id="opponent" icon={<Circle className="h-4 w-4" />} label="Rival" color={teamColors.team2} />
           <TB id="player_gk" icon={<Circle className="h-4 w-4" />} label="Portero" color={TEAM_COLORS.goalkeeper} />
+          <TB id="player_joker" icon={<Circle className="h-4 w-4" />} label="Comodín" color={TEAM_COLORS.joker} />
 
           <Sep />
 

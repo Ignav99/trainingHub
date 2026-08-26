@@ -1,7 +1,7 @@
 import type { DiagramData, ElementType } from '@/components/tarea-editor/types'
 import type { AsignacionRolTactico } from '@/types'
 
-const TOKEN_TYPES: ElementType[] = ['player', 'player_gk', 'opponent']
+const TOKEN_TYPES: ElementType[] = ['player', 'player_gk', 'opponent', 'player_joker']
 
 export function deriveAsignacionesFromDiagram(diagram?: DiagramData): AsignacionRolTactico[] {
   return (diagram?.elements ?? [])

@@ -1,3 +1,5 @@
+import type { AssistField } from './shouldAssist'
+
 export function setNativeValue(
   el: HTMLInputElement | HTMLTextAreaElement,
   value: string,
@@ -11,31 +13,29 @@ export function setNativeValue(
   const atEnd = end === old.length
   const keepFocus = opts?.keepFocus !== false && document.activeElement === el
 
-  let applied = false
-  // insertText requiere foco; en blur (p. ej. Guardar) no lo uses: robaría el clic.
-  if (keepFocus && typeof el.select === 'function') {
-    try {
-      el.select()
-      applied = document.execCommand('insertText', false, value)
-    } catch {
-      applied = false
-    }
+  // React 16–18 instala un tracker en la instancia. Hay que escribir por el
+  // setter del prototipo y disparar `input`; execCommand insertText a menudo
+  // pinta el DOM pero no actualiza el estado controlado.
+  const proto =
+    el instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype
+  const protoSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set
+  const ownSetter = Object.getOwnPropertyDescriptor(el, 'value')?.set
+  if (protoSetter && ownSetter && protoSetter !== ownSetter) {
+    protoSetter.call(el, value)
+  } else if (protoSetter) {
+    protoSetter.call(el, value)
+  } else {
+    el.value = value
   }
 
-  if (!applied) {
-    const proto =
-      el instanceof HTMLTextAreaElement
-        ? HTMLTextAreaElement.prototype
-        : HTMLInputElement.prototype
-    const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set
-    if (setter) setter.call(el, value)
-    else el.value = value
-    const ev = typeof InputEvent === 'function'
+  const ev =
+    typeof InputEvent === 'function'
       ? new InputEvent('input', { bubbles: true, inputType: 'insertReplacementText', data: value })
       : new Event('input', { bubbles: true })
-    el.dispatchEvent(ev)
-    el.dispatchEvent(new Event('change', { bubbles: true }))
-  }
+  el.dispatchEvent(ev)
+  el.dispatchEvent(new Event('change', { bubbles: true }))
 
   try {
     if (!keepFocus) return
@@ -55,6 +55,38 @@ export function setNativeValue(
     el.setSelectionRange(next, next + Math.max(0, end - start))
   } catch {
     // Algunos inputs no permiten setSelectionRange.
+  }
+}
+
+export function setFieldText(
+  el: AssistField,
+  value: string,
+  opts?: { keepFocus?: boolean },
+): void {
+  if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+    setNativeValue(el, value, opts)
+    return
+  }
+  const keepFocus = opts?.keepFocus !== false && document.activeElement === el
+  const current = (el.innerText || el.textContent || '').replace(/\u00a0/g, ' ')
+  if (current === value) return
+  el.textContent = value
+  el.dispatchEvent(
+    typeof InputEvent === 'function'
+      ? new InputEvent('input', { bubbles: true, inputType: 'insertReplacementText', data: value })
+      : new Event('input', { bubbles: true }),
+  )
+  if (keepFocus) {
+    try {
+      const range = document.createRange()
+      range.selectNodeContents(el)
+      range.collapse(false)
+      const sel = window.getSelection()
+      sel?.removeAllRanges()
+      sel?.addRange(range)
+    } catch {
+      // ignore
+    }
   }
 }
 

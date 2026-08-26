@@ -6,6 +6,7 @@ import { emptyTareaPizarra } from '@/components/tactical-board/types'
 import { applyAutoLoadToTarea } from '@/lib/tacticalMetrics'
 import { desarrolloFromTarea, reglasFromTarea, variantesFromReglas } from '@/lib/tareaNarrative'
 import { clampSiateFactor } from '@/lib/complejidadSiate'
+import { normalizeDescansoSeconds } from '@/lib/tareaDescanso'
 
 export type TareaFichaVariant = 'campo' | 'margen' | 'portero' | 'all'
 
@@ -132,7 +133,7 @@ export function emptyTareaForm(
     num_series: 2,
     duracion_serie: 8,
     duracion_total: 16,
-    tiempo_descanso: 1,
+    tiempo_descanso: 60,
     espacio_largo: undefined,
     espacio_ancho: undefined,
     dificultad: 3,
@@ -175,7 +176,7 @@ export function tareaToCreatorData(
     num_series: tarea.num_series || 1,
     duracion_serie: tarea.duracion_serie || tarea.duracion_total || 8,
     duracion_total: tarea.duracion_total || 0,
-    tiempo_descanso: tarea.tiempo_descanso ?? 1,
+    tiempo_descanso: normalizeDescansoSeconds(tarea.tiempo_descanso ?? 60),
     espacio_largo: tarea.espacio_largo,
     espacio_ancho: tarea.espacio_ancho,
     espacio_forma: tarea.espacio_forma,

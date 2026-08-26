@@ -61,7 +61,7 @@ export default function ElementEditPanel() {
 
       <div className="p-3 space-y-3">
         {/* Jugadores */}
-        {element && ['player', 'opponent', 'player_gk'].includes(element.type) && (
+        {element && ['player', 'opponent', 'player_gk', 'player_joker'].includes(element.type) && (
           <>
             <Field label="Etiqueta">
               <input
@@ -109,7 +109,7 @@ export default function ElementEditPanel() {
         )}
 
         {/* Material: color + giro */}
-        {element && !['player', 'opponent', 'player_gk', 'text'].includes(element.type) && (
+        {element && !['player', 'opponent', 'player_gk', 'player_joker', 'text'].includes(element.type) && (
           <>
             <ColorPicker
               colors={PLAYER_COLORS}

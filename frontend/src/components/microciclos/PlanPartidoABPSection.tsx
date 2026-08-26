@@ -40,7 +40,7 @@ function MiniDiagram({ jugada }: { jugada: ABPJugada }) {
           />
         ))}
         {elements.map((el) => {
-          if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk') {
+          if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk' || el.type === 'player_joker') {
             return (
               <g key={el.id} transform={`translate(${el.position.x}, ${el.position.y})`}>
                 <circle r={10} fill={el.color || TEAM_COLORS.team1} stroke="#FFF" strokeWidth="2" />

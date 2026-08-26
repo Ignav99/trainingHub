@@ -27,6 +27,7 @@ import {
 } from '@/lib/complejidadSiate'
 import type { SpaceClassification } from '@/lib/tacticalMetrics'
 import type { TareaCreatorData, TareaFichaVariant } from '@/lib/tareaFicha'
+import { combineDescanso, splitDescanso } from '@/lib/tareaDescanso'
 import { cn } from '@/lib/utils'
 
 export function categoriasForVariant(variant: TareaFichaVariant) {
@@ -83,6 +84,7 @@ export default function TareaFichaBody({
   const categorias = categoriasForVariant(variant)
   const showFaseJuego = variant === 'campo' || variant === 'portero' || variant === 'all'
   const nombreCategoria = categorias.find((c) => c.codigo === form.categoria_id)?.nombre || ''
+  const descansoParts = splitDescanso(form.tiempo_descanso)
 
   const toggleOrientacion = (codigo: string) => {
     if (readOnly) return
@@ -433,15 +435,45 @@ export default function TareaFichaBody({
                 disabled={readOnly}
               />
             </Field>
-            <Field label="Descanso (min)">
-              <Input
-                type="number"
-                min={0}
-                value={form.tiempo_descanso}
-                onChange={(e) => onChange('tiempo_descanso', parseInt(e.target.value) || 0)}
-                readOnly={readOnly}
-                disabled={readOnly}
-              />
+            <Field
+              label="Descanso"
+              hint="Entre series. Minutos y/o segundos (p. ej. 30 s o 1 min 15 s)."
+            >
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  inputMode="numeric"
+                  value={descansoParts.minutes}
+                  onChange={(e) =>
+                    onChange(
+                      'tiempo_descanso',
+                      combineDescanso(parseInt(e.target.value, 10) || 0, descansoParts.seconds),
+                    )
+                  }
+                  readOnly={readOnly}
+                  disabled={readOnly}
+                  aria-label="Descanso en minutos"
+                  className="h-9"
+                />
+                <span className="text-xs text-muted-foreground shrink-0">min</span>
+                <Input
+                  type="number"
+                  min={0}
+                  max={59}
+                  inputMode="numeric"
+                  value={descansoParts.seconds}
+                  onChange={(e) => {
+                    const raw = parseInt(e.target.value, 10) || 0
+                    onChange('tiempo_descanso', combineDescanso(descansoParts.minutes, raw))
+                  }}
+                  readOnly={readOnly}
+                  disabled={readOnly}
+                  aria-label="Descanso en segundos"
+                  className="h-9"
+                />
+                <span className="text-xs text-muted-foreground shrink-0">s</span>
+              </div>
             </Field>
           </div>
         )}

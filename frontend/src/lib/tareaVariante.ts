@@ -4,6 +4,7 @@ import type { Tarea } from '@/types'
 import type { TareaCreatorData } from '@/components/tareas/TareaCreatorFullscreen'
 import type { TareaPizarraData } from '@/components/tactical-board/types'
 import { reglasFromTarea } from '@/lib/tareaNarrative'
+import { normalizeDescansoSeconds } from '@/lib/tareaDescanso'
 
 export function madreToCreatorPrefill(
   madre: Tarea,
@@ -46,7 +47,7 @@ export function madreToCreatorPrefill(
     num_series: madre.num_series ?? 2,
     duracion_serie: madre.duracion_serie ?? 8,
     duracion_total: madre.duracion_total,
-    tiempo_descanso: madre.tiempo_descanso ?? 60,
+    tiempo_descanso: normalizeDescansoSeconds(madre.tiempo_descanso ?? 60),
     espacio_largo: madre.espacio_largo,
     espacio_ancho: madre.espacio_ancho,
     espacio_forma: madre.espacio_forma,

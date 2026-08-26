@@ -173,6 +173,7 @@ export interface Tarea {
   duracion_total: number
   num_series: number
   duracion_serie?: number
+  /** Segundos entre series (valores 1–10 heredados se leen como minutos). */
   tiempo_descanso: number
   
   // Espacio
