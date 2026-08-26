@@ -55,7 +55,7 @@ function MiniDiagram({ jugada, ownColor }: { jugada: ABPJugada; ownColor: string
         })}
         {elements.map((el: any) => {
           const size = ELEMENT_SIZES[el.type as keyof typeof ELEMENT_SIZES] || 20
-          if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk') {
+          if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk' || el.type === 'player_joker') {
             return (
               <g key={el.id} transform={`translate(${el.position.x}, ${el.position.y})`}>
                 <circle r={size / 2} fill={el.color || ownColor} stroke="#FFF" strokeWidth="2" />
@@ -114,7 +114,7 @@ function DiagramPreview({ jugada, onClose, ownColor }: { jugada: ABPJugada; onCl
             })}
             {elements.map((el: any) => {
               const size = ELEMENT_SIZES[el.type as keyof typeof ELEMENT_SIZES] || 24
-              if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk') {
+              if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk' || el.type === 'player_joker') {
                 return (
                   <g key={el.id} transform={`translate(${el.position.x}, ${el.position.y})`}>
                     <circle r={size / 2} fill={el.color || ownColor} stroke="#FFF" strokeWidth="2" />

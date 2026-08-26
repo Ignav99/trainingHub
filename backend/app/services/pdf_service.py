@@ -13,6 +13,8 @@ from typing import Optional
 import httpx
 from jinja2 import Environment, FileSystemLoader
 
+from app.services.tarea_descanso import format_descanso
+
 logger = logging.getLogger(__name__)
 
 
@@ -1300,6 +1302,7 @@ async def generate_tarea_pdf(
             equipo_nombre=equipo_nombre,
             grafico_svg_rendered=grafico_svg_rendered,
             grafico_data_uri=grafico_data_uri,
+            descanso_label=format_descanso(tarea.get("tiempo_descanso")),
         )
         try:
             from weasyprint import HTML

@@ -4,11 +4,17 @@ import { useEffect, useRef } from 'react'
 import { flushSync } from 'react-dom'
 import { usePathname } from 'next/navigation'
 import { correctLocal, shouldCorrectText, similarityRatio } from '@/lib/escritura/correctLocal'
-import { isAssistField, isAssistRoute } from '@/lib/escritura/shouldAssist'
-import { setNativeValue } from '@/lib/escritura/applyToField'
+import {
+  findAssistField,
+  getFieldText,
+  isAssistField,
+  isAssistRoute,
+  type AssistField,
+} from '@/lib/escritura/shouldAssist'
+import { setFieldText } from '@/lib/escritura/applyToField'
 import { escrituraApi } from '@/lib/api/escritura'
 
-const IDLE_MS = 1000
+const IDLE_MS = 700
 const AI_MIN_CHARS = 18
 const AI_MIN_RATIO = 0.78
 const UNDO_GUARD_MS = 10000
@@ -41,21 +47,22 @@ type FieldState = {
   aiPromise: Promise<string | null> | null
 }
 
-function commitToField(
-  el: HTMLInputElement | HTMLTextAreaElement,
-  next: string,
-  keepFocus: boolean,
-) {
-  const run = () => setNativeValue(el, next, { keepFocus })
-  if (!keepFocus) {
-    try {
-      flushSync(run)
-    } catch {
-      run()
+function commitToField(el: AssistField, next: string, keepFocus: boolean, applyingRef: { current: boolean }) {
+  const run = () => setFieldText(el, next, { keepFocus })
+  applyingRef.current = true
+  try {
+    if (!keepFocus) {
+      try {
+        flushSync(run)
+      } catch {
+        run()
+      }
+      return
     }
-    return
+    run()
+  } finally {
+    applyingRef.current = false
   }
-  run()
 }
 
 function showHint(el: HTMLElement) {
@@ -98,6 +105,7 @@ export function WritingAssistProvider() {
   const stateRef = useRef(new WeakMap<HTMLElement, FieldState>())
   const composingRef = useRef(false)
   const reenteringRef = useRef(false)
+  const applyingRef = useRef(false)
 
   useEffect(() => {
     if (!enabled) return
@@ -133,14 +141,14 @@ export function WritingAssistProvider() {
     }
 
     const applyIfNeeded = async (
-      el: HTMLInputElement | HTMLTextAreaElement,
+      el: AssistField,
       opts?: { fromBlur?: boolean; localOnly?: boolean },
     ) => {
       if (composingRef.current) return
       if (!isAssistField(el)) return
       if (!opts?.fromBlur && document.activeElement !== el) return
 
-      let raw = el.value
+      let raw = getFieldText(el)
       if (!shouldCorrectText(raw)) return
 
       const st = stateFor(el)
@@ -149,12 +157,13 @@ export function WritingAssistProvider() {
       const local = correctLocal(raw)
       let next = local.text
 
-      // En blur / salir del campo: aplica lo local YA, para que Guardar no se lleve el texto crudo.
-      if (opts?.fromBlur && next !== raw && el.value === raw) {
+      // Aplicar lo local YA (idle o blur). No esperar a la IA: si el API
+      // falla o tarda, las tildes / erratas tienen que verse igual.
+      if (next !== raw && getFieldText(el) === raw) {
         st.lastRaw = raw
         st.lastApplied = next
         st.undoUntil = Date.now() + UNDO_GUARD_MS
-        commitToField(el, next, false)
+        commitToField(el, next, !opts?.fromBlur, applyingRef)
         showHint(el)
         raw = next
       }
@@ -166,36 +175,30 @@ export function WritingAssistProvider() {
         st.lastAi !== next &&
         hasSession()
 
-      if (canAi) {
-        if (!st.aiPromise) {
-          const source = next
-          st.aiPromise = runAi(source).finally(() => {
-            st.aiPromise = null
-          })
-        }
-        const ai = await st.aiPromise
-        st.lastAi = next
-        if (ai) {
-          const current = el.value
-          if (current === raw || current === next) {
-            next = ai
-          } else {
-            return
-          }
-        }
+      if (!canAi) return
+
+      if (!st.aiPromise) {
+        const source = next
+        st.aiPromise = runAi(source).finally(() => {
+          st.aiPromise = null
+        })
       }
+      const ai = await st.aiPromise
+      st.lastAi = next
+      if (!ai) return
 
-      if (next === el.value) return
-      if (!opts?.fromBlur && el.value !== raw && el.value !== next) return
+      const current = getFieldText(el)
+      if (current !== raw && current !== next) return
+      if (ai === current) return
 
-      st.lastRaw = raw
-      st.lastApplied = next
+      st.lastRaw = current
+      st.lastApplied = ai
       st.undoUntil = Date.now() + UNDO_GUARD_MS
-      commitToField(el, next, !opts?.fromBlur)
+      commitToField(el, ai, !opts?.fromBlur, applyingRef)
       showHint(el)
     }
 
-    const schedule = (el: HTMLInputElement | HTMLTextAreaElement) => {
+    const schedule = (el: AssistField) => {
       const st = stateFor(el)
       if (st.timer) clearTimeout(st.timer)
       st.timer = setTimeout(() => {
@@ -204,19 +207,21 @@ export function WritingAssistProvider() {
     }
 
     const onInput = (e: Event) => {
-      if (composingRef.current) return
-      if (!isAssistField(e.target)) return
-      schedule(e.target)
+      if (composingRef.current || applyingRef.current) return
+      const field = findAssistField(e.target)
+      if (!field) return
+      schedule(field)
     }
 
     const onBlur = (e: Event) => {
-      if (!isAssistField(e.target)) return
-      const st = stateFor(e.target)
+      const field = findAssistField(e.target)
+      if (!field) return
+      const st = stateFor(field)
       if (st.timer) {
         clearTimeout(st.timer)
         st.timer = null
       }
-      void applyIfNeeded(e.target, { fromBlur: true })
+      void applyIfNeeded(field, { fromBlur: true })
     }
 
     const onPointerDown = (e: PointerEvent) => {
@@ -235,8 +240,8 @@ export function WritingAssistProvider() {
 
       const btn = (e.target as HTMLElement | null)?.closest?.('button, [type=submit], [role=button]')
       if (!btn || !looksLikeCommit(btn)) return
-      if (!shouldCorrectText(active.value)) return
-      if (active.value.trim().length < AI_MIN_CHARS || !active.value.includes(' ')) return
+      if (!shouldCorrectText(getFieldText(active))) return
+      if (getFieldText(active).trim().length < AI_MIN_CHARS || !getFieldText(active).includes(' ')) return
 
       e.preventDefault()
       e.stopPropagation()
@@ -260,11 +265,13 @@ export function WritingAssistProvider() {
     }
     const onCompositionEnd = (e: Event) => {
       composingRef.current = false
-      if (isAssistField(e.target)) schedule(e.target)
+      const field = findAssistField(e.target)
+      if (field) schedule(field)
     }
 
     document.addEventListener('input', onInput, true)
     document.addEventListener('blur', onBlur, true)
+    document.addEventListener('focusout', onBlur, true)
     document.addEventListener('pointerdown', onPointerDown, true)
     document.addEventListener('compositionstart', onCompositionStart, true)
     document.addEventListener('compositionend', onCompositionEnd, true)
@@ -272,6 +279,7 @@ export function WritingAssistProvider() {
     return () => {
       document.removeEventListener('input', onInput, true)
       document.removeEventListener('blur', onBlur, true)
+      document.removeEventListener('focusout', onBlur, true)
       document.removeEventListener('pointerdown', onPointerDown, true)
       document.removeEventListener('compositionstart', onCompositionStart, true)
       document.removeEventListener('compositionend', onCompositionEnd, true)

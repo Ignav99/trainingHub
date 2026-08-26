@@ -48,7 +48,7 @@ export default function ABPPlayCard({ jugada, onClick, onDuplicate, onDelete }: 
           {/* Render elements */}
           {elements.map((el: any) => {
             const size = ELEMENT_SIZES[el.type as keyof typeof ELEMENT_SIZES] || 20
-            if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk') {
+            if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk' || el.type === 'player_joker') {
               return (
                 <g key={el.id} transform={`translate(${el.position.x}, ${el.position.y})`}>
                   <circle r={size / 2} fill={el.color || TEAM_COLORS.team1} stroke="#FFFFFF" strokeWidth="1.5" />

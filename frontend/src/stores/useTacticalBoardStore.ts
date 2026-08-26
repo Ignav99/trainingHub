@@ -172,7 +172,7 @@ interface TacticalBoardState {
   isDirty: boolean
   saving: boolean
   zoneColor: string
-  playerCounter: { team1: number; team2: number; gk: number }
+  playerCounter: { team1: number; team2: number; gk: number; joker: number }
   arrowCounter: number
 
   // Undo/Redo
@@ -281,7 +281,7 @@ const initialState = {
   isDirty: false,
   saving: false,
   zoneColor: '#3B82F6',
-  playerCounter: { team1: 1, team2: 1, gk: 1 },
+  playerCounter: { team1: 1, team2: 1, gk: 1, joker: 1 },
   arrowCounter: 1,
   history: [] as DiagramSnapshot[],
   historyIndex: -1,
@@ -348,6 +348,7 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
     if (el.type === 'player') counter.team1++
     else if (el.type === 'opponent') counter.team2++
     else if (el.type === 'player_gk') counter.gk++
+    else if (el.type === 'player_joker') counter.joker++
     set((s) => ({
       elements: [...s.elements, el],
       playerCounter: counter,
@@ -565,7 +566,7 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
       elements: [],
       arrows: [],
       zones: [],
-      playerCounter: { team1: 1, team2: 1, gk: 1 },
+      playerCounter: { team1: 1, team2: 1, gk: 1, joker: 1 },
       arrowCounter: 1,
       selectedElementId: null,
       isDirty: true,
@@ -950,7 +951,7 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
       selectedElementIds: [],
       history: [],
       historyIndex: -1,
-      playerCounter: { team1: 1, team2: 1, gk: 1 },
+      playerCounter: { team1: 1, team2: 1, gk: 1, joker: 1 },
       arrowCounter: 1,
     })
   },

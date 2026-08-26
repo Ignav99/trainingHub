@@ -394,7 +394,7 @@ body {
   <div class="mtr-cell">
     <div class="mtr-lbl">Series</div>
     <div class="mtr-val">{{ tarea.get('num_series') }}{% if tarea.get('duracion_serie') %}×{{ tarea.get('duracion_serie') }}'{% endif %}</div>
-    {% if tarea.get('tiempo_descanso') %}<div class="mtr-sub">desc {{ tarea.get('tiempo_descanso') }}'</div>{% endif %}
+    {% if descanso_label %}<div class="mtr-sub">desc {{ descanso_label }}</div>{% endif %}
   </div>
   {% endif %}
   <div class="mtr-cell">

@@ -19,7 +19,7 @@ export {
 export type BoardTool =
   | 'select' | 'text'
   // Jugadores
-  | 'player' | 'opponent' | 'player_gk'
+  | 'player' | 'opponent' | 'player_gk' | 'player_joker'
   // Material
   | 'cone' | 'ball' | 'mini_goal'
   | 'marker_disc' | 'pole' | 'mannequin' | 'hurdle' | 'ladder' | 'flag' | 'goal_large' | 'ball_cart'

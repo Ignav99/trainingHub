@@ -353,6 +353,9 @@ export default function TacticalBoardEditor({
     } else if (elementType === 'player_gk') {
       label = 'GK'
       color = TEAM_COLORS.goalkeeper
+    } else if (elementType === 'player_joker') {
+      label = 'C'
+      color = TEAM_COLORS.joker
     }
 
     addElement({

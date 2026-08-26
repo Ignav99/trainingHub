@@ -42,6 +42,7 @@ type Tool =
   | 'player'
   | 'opponent'
   | 'player_gk'
+  | 'player_joker'
   | 'cone'
   | 'ball'
   | 'mini_goal'
@@ -343,6 +344,9 @@ export default function TareaGraphicEditor({
     } else if (elementType === 'player_gk') {
       label = 'GK'
       color = TEAM_COLORS.goalkeeper
+    } else if (elementType === 'player_joker') {
+      label = 'C'
+      color = TEAM_COLORS.joker
     } else if (elementType === 'cone') {
       color = '#FF6B00'
     } else if (elementType === 'ball') {
@@ -449,6 +453,7 @@ export default function TareaGraphicEditor({
       case 'player':
       case 'opponent':
       case 'player_gk':
+      case 'player_joker':
         return (
           <g {...commonProps} transform={`translate(${position.x}, ${position.y})`}>
             {/* Sombra */}
@@ -468,7 +473,7 @@ export default function TareaGraphicEditor({
               y="1"
               textAnchor="middle"
               dominantBaseline="middle"
-              fill="#FFFFFF"
+              fill={type === 'player_joker' || color === '#EAB308' || color === '#FFFF00' ? '#111827' : '#FFFFFF'}
               fontSize={type === 'player_gk' ? 8 : 10}
               fontWeight="bold"
               fontFamily="Arial"
@@ -718,6 +723,14 @@ export default function TareaGraphicEditor({
         icon={<Circle className="h-4 w-4" />}
         label="Portero"
         color={TEAM_COLORS.goalkeeper}
+        fullscreen={isFullscreen}
+      />
+      <ToolButton
+        active={selectedTool === 'player_joker'}
+        onClick={() => { setSelectedTool('player_joker'); setArrowStart(null) }}
+        icon={<Circle className="h-4 w-4" />}
+        label="Comodín"
+        color={TEAM_COLORS.joker}
         fullscreen={isFullscreen}
       />
 

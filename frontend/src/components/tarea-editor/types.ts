@@ -1,9 +1,24 @@
 // Tipos para el editor de graficos de tareas
 
 export type ElementType =
-  | 'player' | 'player_gk' | 'opponent' | 'cone' | 'ball' | 'mini_goal' | 'zone' | 'text'
+  | 'player' | 'player_gk' | 'opponent' | 'player_joker' | 'cone' | 'ball' | 'mini_goal' | 'zone' | 'text'
   // Material de entrenamiento
   | 'marker_disc' | 'pole' | 'mannequin' | 'hurdle' | 'ladder' | 'flag' | 'goal_large' | 'ball_cart'
+
+/** Fichas de jugador (propios, rival, portero, comodín). */
+export const PLAYER_TOKEN_TYPES = ['player', 'player_gk', 'opponent', 'player_joker'] as const
+export type PlayerTokenType = (typeof PLAYER_TOKEN_TYPES)[number]
+
+/** Jugadores de campo que cuentan para m²/jugador y num_jugadores (no porteros). */
+export const FIELD_PLAYER_TYPES = ['player', 'opponent', 'player_joker'] as const
+
+export function isPlayerToken(type: string | undefined | null): type is PlayerTokenType {
+  return type === 'player' || type === 'player_gk' || type === 'opponent' || type === 'player_joker'
+}
+
+export function isFieldPlayerToken(type: string | undefined | null): boolean {
+  return type === 'player' || type === 'opponent' || type === 'player_joker'
+}
 
 export type ArrowType =
   | 'movement'   // Carrera sin balon — linea continua
@@ -103,6 +118,7 @@ export const TEAM_COLORS = {
   team2: '#EF4444', // Rojo
   neutral: '#F59E0B', // Amarillo/Naranja
   goalkeeper: '#22C55E', // Verde
+  joker: '#EAB308', // Comodín — amarillo
 }
 
 // Tamanos de elementos, en unidades de campo (10 unidades = 1 metro).
@@ -112,6 +128,7 @@ export const ELEMENT_SIZES = {
   player: 16,
   player_gk: 16,
   opponent: 16,
+  player_joker: 16,
   cone: 11,
   ball: 9,
   mini_goal: 30,

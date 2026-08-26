@@ -118,7 +118,7 @@ Return ONLY valid JSON (no markdown, no explanation), with this structure:
 - "green": Plain grass (1050x680) — for fitness, activation, generic exercises
 
 ## Elements (players, cones, balls)
-Each element: {"type": "player"|"opponent"|"player_gk"|"cone"|"ball", "x": number, "y": number, "color": "#hex", "label": "text"}
+Each element: {"type": "player"|"opponent"|"player_gk"|"player_joker"|"cone"|"ball", "x": number, "y": number, "color": "#hex", "label": "text"}
 - Player colors: "#3B82F6" (team1/black), "#EF4444" (team2/white/opponent), "#F59E0B" (neutral/comodin), "#22C55E" (goalkeeper)
 - Labels: short (1-3 chars) — position abbreviations or numbers
 - Coordinates must be within the pitch viewbox boundaries (with ~25px margin)

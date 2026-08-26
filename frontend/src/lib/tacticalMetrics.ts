@@ -347,7 +347,7 @@ export function classifySpace(
 // ============ Resumen a nivel de pizarra ============
 
 /** Tipos de elemento que cuentan como jugador de campo. */
-const TIPOS_JUGADOR = new Set(['player', 'opponent'])
+const TIPOS_JUGADOR = new Set(['player', 'opponent', 'player_joker'])
 
 export interface BoardSpaceSummary {
   /** Zona usada como espacio de juego (marcada o la mayor) */

@@ -68,7 +68,7 @@ Return ONLY valid JSON (no markdown, no explanation), with this structure:
 - "green": Plain grass (1050x680) — for fitness, activation, generic exercises
 
 ## Elements (players, cones, balls)
-Each element: {"type": "player"|"opponent"|"player_gk"|"cone"|"ball", "x": number, "y": number, "color": "#hex", "label": "text"}
+Each element: {"type": "player"|"opponent"|"player_gk"|"player_joker"|"cone"|"ball", "x": number, "y": number, "color": "#hex", "label": "text"}
 - Player colors: "#3B82F6" (team1/black), "#EF4444" (team2/white/opponent), "#F59E0B" (neutral/comodin), "#22C55E" (goalkeeper)
 - Labels: short (1-3 chars) — position abbreviations or numbers
 - Coordinates must be within the pitch viewbox boundaries (with ~25px margin)
@@ -732,7 +732,7 @@ Si incluyes grafico_data, usa este formato:
 - arrows: [{"from":{"x":N,"y":N},"to":{"x":N,"y":N},"type":"pass","color":"#FFFFFF"}, ...]
 - zones: [{"x":N,"y":N,"width":N,"height":N,"color":"rgba(46,204,113,0.08)","label":"Zona A"}]
 - Colores: equipo=#3B82F6, rival=#EF4444, comodín=#F59E0B, portero=#22C55E
-- Tipos de jugador: "player", "player_gk". Otros: "cone", "ball", "mini_goal"
+- Tipos de jugador: "player", "player_gk", "player_joker" (comodín, etiqueta C). Otros: "cone", "ball", "mini_goal"
 - Flechas: type="pass" (dashed blanca) o type="movement" (sólida verde)
 - DIRECCIÓN: ataques siempre HORIZONTALES (→ o ←). "Verticalidad" táctica = horizontal en diagrama.
 """

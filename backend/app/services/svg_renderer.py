@@ -435,7 +435,7 @@ def render_element_svg(element: dict) -> str:
     color = element.get("color", TEAM_COLORS.get("team1", "#3B82F6"))
     label = element.get("label", "")
 
-    if el_type in ("player", "opponent", "player_gk"):
+    if el_type in ("player", "opponent", "player_gk", "player_joker"):
         peto = _get_peto_style(color)
         svg = f'<g transform="translate({x},{y})">'
         # Clear circle with visible number

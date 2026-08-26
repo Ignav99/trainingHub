@@ -58,7 +58,7 @@ function MiniDiagram({ jugada, ownColor = TEAM_COLORS.team1 }: { jugada: ABPJuga
             stroke={arrow.color || '#FFF'} strokeWidth="3" strokeDasharray={arrow.type === 'pass' ? '8,4' : 'none'} />
         ))}
         {elements.map((el: any) => {
-          if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk') {
+          if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk' || el.type === 'player_joker') {
             return (
               <g key={el.id} transform={`translate(${el.position.x}, ${el.position.y})`}>
                 <circle r={10} fill={el.color || ownColor} stroke="#FFF" strokeWidth="2" />
@@ -532,7 +532,7 @@ function PlanJugadaCard({ planJugada, jugadores, onRemove, onUpdateAsignacion, c
   const allElements = fase?.diagram?.elements || []
   const allArrows = fase?.diagram?.arrows || []
   const elements = allElements.filter(
-    (el: any) => el.type === 'player' || el.type === 'player_gk'
+    (el: any) => el.type === 'player' || el.type === 'player_gk' || el.type === 'player_joker'
   )
   const pitchView = jugada.tipo === 'falta_lejana' ? 'full' : 'half'
   const hasDiagram = allElements.length > 0
@@ -587,7 +587,7 @@ function PlanJugadaCard({ planJugada, jugadores, onRemove, onUpdateAsignacion, c
                     )
                   })}
                   {allElements.map((el: any) => {
-                    if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk') {
+                    if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk' || el.type === 'player_joker') {
                       return (
                         <g key={el.id} transform={`translate(${el.position.x}, ${el.position.y})`}>
                           <circle r={12} fill={el.color || ownColor} stroke="#FFF" strokeWidth="2" />

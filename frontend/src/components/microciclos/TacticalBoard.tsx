@@ -40,7 +40,7 @@ interface TacticalBoardProps {
 type BoardTool = 'select' | ElementType | 'arrow_movement' | 'arrow_pass' | 'zone_rect' | 'zone_circle'
 
 const ZONE_COLORS = ['#EF4444', '#3B82F6', '#F59E0B', '#10B981', '#8B5CF6', '#EC4899']
-const TOKEN_TYPES: ElementType[] = ['player', 'player_gk', 'opponent']
+const TOKEN_TYPES: ElementType[] = ['player', 'player_gk', 'opponent', 'player_joker']
 
 const Sep = () => <div className="w-px h-5 bg-gray-200 mx-1" />
 
@@ -423,6 +423,9 @@ export function TacticalBoard({
     } else if (elementType === 'player_gk') {
       label = 'GK'
       color = TEAM_COLORS.goalkeeper
+    } else if (elementType === 'player_joker') {
+      label = 'C'
+      color = TEAM_COLORS.joker
     } else if (elementType === 'cone') {
       color = '#FF6B00'
     } else if (elementType === 'ball') {
@@ -562,10 +565,11 @@ export function TacticalBoard({
       case 'player':
       case 'opponent':
       case 'player_gk':
+      case 'player_joker':
         return (
           <g {...commonProps} transform={`translate(${position.x}, ${position.y})`}>
             <circle cx="0" cy="0" r={size / 2} fill={color} stroke={isSelected ? '#FFFF00' : '#FFFFFF'} strokeWidth={isSelected ? 3 : 2} />
-            <text x="0" y="1" textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize="10" fontWeight="bold" fontFamily="Arial">
+            <text x="0" y="1" textAnchor="middle" dominantBaseline="middle" fill={type === 'player_joker' || color === '#EAB308' ? '#111827' : '#FFFFFF'} fontSize="10" fontWeight="bold" fontFamily="Arial">
               {label || ''}
             </text>
             {(jugador || roleText) && (
@@ -687,7 +691,13 @@ export function TacticalBoard({
     >
       <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-200">
         <span className="text-xs font-semibold text-gray-700">
-          {selectedElement.type === 'opponent' ? 'Jugador rival' : selectedElement.type === 'player_gk' ? 'Portero' : 'Jugador'}
+          {selectedElement.type === 'opponent'
+            ? 'Jugador rival'
+            : selectedElement.type === 'player_gk'
+              ? 'Portero'
+              : selectedElement.type === 'player_joker'
+                ? 'Comodín'
+                : 'Jugador'}
         </span>
         <button type="button" onClick={clearSelection} className="p-0.5 text-gray-400 hover:text-gray-600">
           <X className="h-3.5 w-3.5" />
@@ -749,6 +759,7 @@ export function TacticalBoard({
         <TB id="player" icon={<Circle className="h-3.5 w-3.5" />} label="Jugador" color={TEAM_COLORS.team1} activeTool={activeTool} onSelect={setActiveTool} />
         <TB id="opponent" icon={<Circle className="h-3.5 w-3.5" />} label="Rival" color={TEAM_COLORS.team2} activeTool={activeTool} onSelect={setActiveTool} />
         <TB id="player_gk" icon={<Circle className="h-3.5 w-3.5" />} label="Portero" color={TEAM_COLORS.goalkeeper} activeTool={activeTool} onSelect={setActiveTool} />
+        <TB id="player_joker" icon={<Circle className="h-3.5 w-3.5" />} label="Comodín" color={TEAM_COLORS.joker} activeTool={activeTool} onSelect={setActiveTool} />
         <Sep />
         <TB id="cone" icon={<Triangle className="h-3.5 w-3.5" />} label="Cono" color="#FF6B00" activeTool={activeTool} onSelect={setActiveTool} />
         <TB id="ball" icon={<Target className="h-3.5 w-3.5" />} label="Balon" activeTool={activeTool} onSelect={setActiveTool} />
