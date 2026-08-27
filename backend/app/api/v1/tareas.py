@@ -617,7 +617,6 @@ async def list_tareas(
             applied_origen_eq = False
             applied_family_filter = False
             applied_canon_filters = False
-            needs_client_family = (solo_madres or solo_variantes) and not tarea_origen_id
 
     total = resolve_list_tareas_total(response.count, len(response.data or []))
     pages = pages_for_total(total, limit)
