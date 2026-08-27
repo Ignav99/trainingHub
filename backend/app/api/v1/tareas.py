@@ -8,7 +8,6 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Any, Optional, List
 from uuid import UUID
-from math import ceil
 import asyncio
 import io
 import logging
@@ -38,6 +37,13 @@ from app.services.tarea_write import (
     note_origen_query_error,
     origen_column_available,
     retry_tarea_write,
+)
+from app.services.tarea_list import (
+    apply_origen_family_filter,
+    coerce_tarea_row_for_response,
+    matches_family_filter,
+    pages_for_total,
+    resolve_list_tareas_total,
 )
 from app.services.tarea_siate import preserve_siate_on_grafico_patch
 
@@ -345,6 +351,18 @@ async def list_tareas(
     """
     supabase = get_supabase()
 
+    membership_or = None
+    membership_null_only = False
+    if current_user and not biblioteca:
+        membresias = supabase.table("usuarios_equipos").select("equipo_id").eq(
+            "usuario_id", str(current_user.id)
+        ).execute()
+        equipo_ids = [m["equipo_id"] for m in (membresias.data or [])]
+        if equipo_ids:
+            membership_or = f"equipo_id.is.null,equipo_id.in.({','.join(equipo_ids)})"
+        else:
+            membership_null_only = True
+
     # Construir query base con joins para creador y equipo
     query = supabase.table("tareas").select(
         "*, categorias_tarea(*), usuarios!creado_por(nombre, apellidos), equipos(nombre)",
@@ -361,14 +379,9 @@ async def list_tareas(
         # a nivel club por diseño). Antes esto solo filtraba por organizacion_id,
         # mostrando las tareas de TODOS los equipos del club mezcladas.
         query = query.eq("organizacion_id", current_user.organizacion_id)
-        membresias = supabase.table("usuarios_equipos").select("equipo_id").eq(
-            "usuario_id", str(current_user.id)
-        ).execute()
-        equipo_ids = [m["equipo_id"] for m in (membresias.data or [])]
-        if equipo_ids:
-            ids_list = ",".join(equipo_ids)
-            query = query.or_(f"equipo_id.is.null,equipo_id.in.({ids_list})")
-        else:
+        if membership_or:
+            query = query.or_(membership_or)
+        elif membership_null_only:
             query = query.is_("equipo_id", "null")
     else:
         # Sin autenticación: solo tareas públicas
@@ -442,11 +455,18 @@ async def list_tareas(
         query = query.eq("tipo_variante", tipo_variante)
         applied_canon_filters = True
 
-    # Madre/variante: filtrar en Python (nunca .is_ en PostgREST por mig 067).
+    # Madre/variante: filtrar en PostgREST para que count/offset coincidan.
+    # Si la columna no existe (mig 067 / schema cache), se reintenta sin este filtro.
     applied_origen_eq = False
+    applied_family_filter = False
     if tarea_origen_id and origen_column_available():
         query = query.eq("tarea_origen_id", str(tarea_origen_id))
         applied_origen_eq = True
+    elif (solo_madres or solo_variantes) and origen_column_available():
+        query = apply_origen_family_filter(
+            query, solo_madres=solo_madres, solo_variantes=solo_variantes
+        )
+        applied_family_filter = True
 
     if equipo_id:
         query = query.eq("equipo_id", str(equipo_id))
@@ -460,12 +480,16 @@ async def list_tareas(
 
     offset = (page - 1) * limit
     fetch_limit = limit
-    needs_client_family = (solo_madres or solo_variantes) and not tarea_origen_id
-    if needs_client_family or applied_canon_filters:
+    needs_client_family = (
+        (solo_madres or solo_variantes)
+        and not tarea_origen_id
+        and not applied_family_filter
+    )
+    if needs_client_family:
         fetch_limit = min(limit * 4, 100)
     query = query.range(offset, offset + fetch_limit - 1)
 
-    def _rebuild_list_query(*, include_origen_eq: bool, include_canon: bool):
+    def _rebuild_list_query(*, include_origen_eq: bool, include_canon: bool, include_family: bool):
         q = supabase.table("tareas").select(
             "*, categorias_tarea(*), usuarios!creado_por(nombre, apellidos), equipos(nombre)",
             count="exact",
@@ -474,6 +498,10 @@ async def list_tareas(
             q = q.eq("organizacion_id", current_user.organizacion_id)
         elif current_user:
             q = q.eq("organizacion_id", current_user.organizacion_id)
+            if membership_or:
+                q = q.or_(membership_or)
+            elif membership_null_only:
+                q = q.is_("equipo_id", "null")
         else:
             q = q.eq("es_publica", True)
         if categoria:
@@ -527,6 +555,10 @@ async def list_tareas(
                 q = q.eq("tipo_variante", tipo_variante)
         if include_origen_eq and tarea_origen_id and origen_column_available():
             q = q.eq("tarea_origen_id", str(tarea_origen_id))
+        elif include_family and (solo_madres or solo_variantes) and origen_column_available():
+            q = apply_origen_family_filter(
+                q, solo_madres=solo_madres, solo_variantes=solo_variantes
+            )
         if equipo_id:
             q = q.eq("equipo_id", str(equipo_id))
         if busqueda:
@@ -541,6 +573,7 @@ async def list_tareas(
         err_txt = str(first_err).lower()
         needs_retry = (
             applied_origen_eq
+            or applied_family_filter
             or applied_canon_filters
             or "tarea_origen_id" in err_txt
             or "desarrollo" in err_txt
@@ -564,22 +597,30 @@ async def list_tareas(
             first_err,
         )
         note_origen_query_error(first_err)
-        # Primero sin arrays/tipo; si sigue fallando por origen, sin origen
+        # Primero sin arrays/tipo; si sigue fallando por origen, sin origen/familia
         try:
             response = _rebuild_list_query(
-                include_origen_eq=applied_origen_eq, include_canon=False
+                include_origen_eq=applied_origen_eq,
+                include_canon=False,
+                include_family=applied_family_filter,
             ).execute()
             applied_canon_filters = False
         except Exception as second_err:
             logger.warning("list_tareas: segundo reintento sin origen. %s", second_err)
+            if applied_family_filter:
+                fetch_limit = min(max(fetch_limit, limit * 4), 100)
             response = _rebuild_list_query(
-                include_origen_eq=False, include_canon=False
+                include_origen_eq=False,
+                include_canon=False,
+                include_family=False,
             ).execute()
             applied_origen_eq = False
+            applied_family_filter = False
             applied_canon_filters = False
+            needs_client_family = (solo_madres or solo_variantes) and not tarea_origen_id
 
-    total = response.count or 0
-    pages = ceil(total / limit) if total > 0 else 1
+    total = resolve_list_tareas_total(response.count, len(response.data or []))
+    pages = pages_for_total(total, limit)
 
     # Enriquecer con nombre del creador y equipo
     rows = []
@@ -597,10 +638,9 @@ async def list_tareas(
         if cat_data and isinstance(cat_data, dict):
             t["categoria"] = cat_data
 
-        origen = t.get("tarea_origen_id")
-        if solo_madres and origen:
-            continue
-        if solo_variantes and not origen:
+        if not matches_family_filter(
+            t, solo_madres=solo_madres, solo_variantes=solo_variantes
+        ):
             continue
         if tipo_variante and not applied_canon_filters:
             if (t.get("tipo_variante") or "") != tipo_variante:
@@ -642,17 +682,15 @@ async def list_tareas(
     for t in rows:
         if not t.get("tarea_origen_id"):
             t["num_variantes"] = variant_counts.get(str(t.get("id")), 0)
+        coerced = coerce_tarea_row_for_response(t)
         try:
-            tareas_data.append(TareaResponse(**t))
+            tareas_data.append(TareaResponse(**coerced))
         except Exception as row_err:
             logger.warning("list_tareas: skip row %s — %s", t.get("id"), row_err)
             continue
 
-    if solo_madres or solo_variantes or (not applied_canon_filters and (
-        objetivo_tactico or objetivo_tecnico or orientacion_fisica or tipo_variante
-    )):
-        total = max(len(tareas_data), total if not needs_client_family else len(tareas_data))
-        pages = ceil(total / limit) if total > 0 else 1
+    # Nunca sustituir `total` por len(página): eso ocultaba las tareas 13+.
+    pages = pages_for_total(total, limit)
 
     return TareaListResponse(
         data=tareas_data,

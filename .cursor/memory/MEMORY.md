@@ -1,11 +1,14 @@
 # TrainingHub — estado actual
 
 ## En curso
-Rama `cursor/informe-foto-editor-ae84`.
+Biblioteca de tareas: las tareas SÍ se guardaban. El listado las ocultaba.
 
-El informe 6 (`microciclo (6).pdf`) muestra la pizarra mal: JPEG 1050×680 inventado por cairosvg (jugadores al lado contrario) y CSS que estiraba/dejaba el césped flotando en blanco.
+Causas:
+- Filtro oculto `familia: madres` + `solo_madres=true` (el selector estaba escondido).
+- El API sobrescribía `total` con `len(página)` (12), así que no había página 2.
 
-Arreglo:
-- El PDF descarta esa foto (tamaño 1050×680 / 680×525 o césped `#2d7a2d`) y la borra de `grafico_data`.
-- Al generar el microciclo, el front recaptura el SVG real del editor y guarda `preview`.
-- La celda ya no fuerza 520×336; `object-fit: contain` sobre césped `#2D5016`.
+Rama `cursor/tareas-biblioteca-paginacion-ae84`.
+
+## Hecho reciente
+PR #259 — comodín en pizarra, descanso en segundos, escritura (live).
+PR #258 — biblioteca de microciclos en dashboard + bloques de defensa (live).
