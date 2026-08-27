@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import useSWR, { mutate } from 'swr'
+import useSWRInfinite from 'swr/infinite'
+import { mutate } from 'swr'
 import {
   Plus,
   Search,
@@ -16,12 +17,17 @@ import {
   Copy,
   Trash2,
   MoreHorizontal,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react'
 import { Tarea, PaginatedResponse } from '@/types'
 import { tareasApi, SemanticSearchResult } from '@/lib/api/tareas'
 import { apiKey } from '@/lib/swr'
+import {
+  DEFAULT_TAREA_PAGE_SIZE,
+  TAREA_PAGE_SIZES,
+  type TareaPageSize,
+  readTareaPageSize,
+  writeTareaPageSize,
+} from '@/lib/tareaPageSize'
 import { ListPageSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -50,8 +56,7 @@ const selectClass =
 
 export default function TareasPage() {
   const router = useRouter()
-  const [page, setPage] = useState(1)
-  const limit = 12
+  const [pageSize, setPageSize] = useState<TareaPageSize>(DEFAULT_TAREA_PAGE_SIZE)
   const [tab, setTab] = useState<'mis_tareas' | 'biblioteca'>('mis_tareas')
 
   const [busqueda, setBusqueda] = useState('')
@@ -71,24 +76,69 @@ export default function TareasPage() {
   const [varianteMadre, setVarianteMadre] = useState<Tarea | null>(null)
 
   const [orden, direccion] = sortBy.split(':')
-  const apiFilters = tareaFiltersToApiParams(filters)
+  const apiFilters = useMemo(() => tareaFiltersToApiParams(filters), [filters])
+  const sentinelRef = useRef<HTMLDivElement>(null)
 
-  const { data: tareasRes, error: tareasError, isLoading } = useSWR<PaginatedResponse<Tarea>>(
-    apiKey('/tareas', {
-      page,
-      limit,
-      orden,
-      direccion,
-      busqueda: busquedaActiva || undefined,
-      biblioteca: tab === 'biblioteca' ? true : undefined,
-      ...apiFilters,
-    })
+  useEffect(() => {
+    setPageSize(readTareaPageSize())
+  }, [])
+
+  const getKey = useCallback(
+    (pageIndex: number, previousPageData: PaginatedResponse<Tarea> | null) => {
+      if (previousPageData) {
+        const n = previousPageData.data?.length ?? 0
+        if (n === 0 || n < pageSize) return null
+      }
+      return apiKey('/tareas', {
+        page: pageIndex + 1,
+        limit: pageSize,
+        orden,
+        direccion,
+        busqueda: busquedaActiva || undefined,
+        biblioteca: tab === 'biblioteca' ? true : undefined,
+        ...apiFilters,
+      })
+    },
+    [pageSize, orden, direccion, busquedaActiva, tab, apiFilters]
   )
 
-  const tareas = tareasRes?.data || []
-  const totalPages = tareasRes?.pages || 1
-  const total = tareasRes?.total || 0
+  const {
+    data: pages,
+    error: tareasError,
+    isLoading,
+    isValidating,
+    size,
+    setSize,
+  } = useSWRInfinite<PaginatedResponse<Tarea>>(getKey, {
+    revalidateFirstPage: true,
+    persistSize: false,
+  })
+
+  const tareas = useMemo(() => {
+    const seen = new Set<string>()
+    const out: Tarea[] = []
+    for (const page of pages || []) {
+      for (const tarea of page.data || []) {
+        if (seen.has(tarea.id)) continue
+        seen.add(tarea.id)
+        out.push(tarea)
+      }
+    }
+    return out
+  }, [pages])
+
+  const total = pages?.[0]?.total ?? 0
+  const lastPage = pages?.[pages.length - 1]
+  const lastCount = lastPage?.data?.length ?? 0
+  const hasMore =
+    Boolean(pages?.length) &&
+    lastCount > 0 &&
+    (total > 0 ? tareas.length < total : lastCount >= pageSize)
   const error = tareasError ? 'Error al cargar las tareas' : null
+
+  useEffect(() => {
+    setSize(1)
+  }, [tab, busquedaActiva, sortBy, pageSize, filters, setSize])
 
   useEffect(() => {
     const handleClickOutside = () => setActiveMenu(null)
@@ -100,14 +150,12 @@ export default function TareasPage() {
 
   const patchFilters = (patch: Partial<TareaFilterValues>) => {
     setFilters((prev) => ({ ...prev, ...patch }))
-    setPage(1)
   }
 
   const clearFilters = useCallback(() => {
     setBusqueda('')
     setBusquedaActiva('')
     setFilters({ ...EMPTY_TAREA_FILTERS })
-    setPage(1)
   }, [])
 
   const hasActiveFilters = !!(busquedaActiva || tareaFiltersActive(filters))
@@ -118,7 +166,6 @@ export default function TareasPage() {
       handleAiSearch()
     } else {
       setBusquedaActiva(busqueda)
-      setPage(1)
     }
   }
 
@@ -146,8 +193,27 @@ export default function TareasPage() {
 
   const handleTabChange = (newTab: 'mis_tareas' | 'biblioteca') => {
     setTab(newTab)
-    setPage(1)
   }
+
+  const changePageSize = (next: TareaPageSize) => {
+    setPageSize(next)
+    writeTareaPageSize(next)
+  }
+
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el || aiSearchMode) return
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasMore && !isValidating) {
+          setSize((current) => current + 1)
+        }
+      },
+      { rootMargin: '480px 0px' }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [aiSearchMode, hasMore, isValidating, setSize, tareas.length, size])
 
   const invalidateTareas = () => {
     mutate((key: string) => typeof key === 'string' && key.includes('/tareas'), undefined, {
@@ -224,7 +290,15 @@ export default function TareasPage() {
     <div className="space-y-5 animate-fade-in">
       <PageHeader
         title="Biblioteca de Tareas"
-        description={`${total} tareas madre ${tab === 'biblioteca' ? 'en la biblioteca del club' : 'en tu colección'}. Entra en una para ver sus variantes.`}
+        description={`${total} ${
+          filters.familia === 'madres'
+            ? 'tareas madre'
+            : filters.familia === 'variantes'
+              ? 'variantes'
+              : 'tareas'
+        } ${tab === 'biblioteca' ? 'en la biblioteca del club' : 'en tu colección'}.${
+          total > tareas.length ? ` Mostrando ${tareas.length}.` : ''
+        }`}
         actions={
           <>
             <Link
@@ -339,14 +413,13 @@ export default function TareasPage() {
           value={filters}
           onChange={patchFilters}
           onClear={clearFilters}
-          showFamilia={false}
+          showFamilia
           sortSlot={
             <select
               className={cn(selectClass, 'ml-auto')}
               value={sortBy}
               onChange={(e) => {
                 setSortBy(e.target.value)
-                setPage(1)
               }}
             >
               {SORT_OPTIONS.map((opt) => (
@@ -419,7 +492,7 @@ export default function TareasPage() {
             description="Describe lo que necesitas en lenguaje natural y pulsa Buscar"
           />
         )
-      ) : isLoading ? (
+      ) : isLoading && tareas.length === 0 ? (
         <ListPageSkeleton />
       ) : error ? (
         <div className="text-center py-12">
@@ -571,31 +644,50 @@ export default function TareasPage() {
             ))}
           </div>
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 pt-2">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-                className="inline-flex items-center gap-1 h-9 px-3 rounded-lg border text-sm disabled:opacity-40"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Anterior
-              </button>
-              <span className="text-sm text-muted-foreground tabular-nums px-2">
-                {page} / {totalPages}
+          <div ref={sentinelRef} className="h-1" aria-hidden />
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2 border-t border-border/60">
+            <p className="text-sm text-muted-foreground tabular-nums">
+              Mostrando {tareas.length} de {total}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Por página
               </span>
-              <button
-                type="button"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-                className="inline-flex items-center gap-1 h-9 px-3 rounded-lg border text-sm disabled:opacity-40"
-              >
-                Siguiente
-                <ChevronRight className="h-4 w-4" />
-              </button>
+              <div className="inline-flex rounded-lg border bg-card p-0.5">
+                {TAREA_PAGE_SIZES.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => changePageSize(n)}
+                    className={cn(
+                      'h-8 min-w-[2.75rem] px-2.5 rounded-md text-sm font-medium tabular-nums transition-colors',
+                      pageSize === n
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                    )}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              {hasMore ? (
+                <button
+                  type="button"
+                  disabled={isValidating}
+                  onClick={() => setSize((current) => current + 1)}
+                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-sm disabled:opacity-40"
+                >
+                  {isValidating && size > 1 ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : null}
+                  Cargar más
+                </button>
+              ) : (
+                <span className="text-xs text-muted-foreground">Todas las tareas</span>
+              )}
             </div>
-          )}
+          </div>
         </>
       )}
 

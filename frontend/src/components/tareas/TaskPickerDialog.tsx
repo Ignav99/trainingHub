@@ -80,7 +80,10 @@ export function TaskPickerDialog({
     categoria: defaultCategoria || '',
   })
   const [results, setResults] = useState<Tarea[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const [aiPrompt, setAiPrompt] = useState('')
@@ -99,6 +102,8 @@ export function TaskPickerDialog({
       categoria: defaultCategoria || '',
     })
     setQuery('')
+    setPage(1)
+    setTotal(0)
   }, [open, defaultCategoria])
 
   useEffect(() => {
@@ -111,7 +116,8 @@ export function TaskPickerDialog({
         const res = await tareasApi.list({
           busqueda: query || undefined,
           biblioteca: true,
-          limit: 60,
+          page: 1,
+          limit: 24,
           ...apiParams,
         })
         if (cancelled) return
@@ -127,14 +133,17 @@ export function TaskPickerDialog({
             return allow.has(code)
           })
         }
+        setPage(1)
+        setTotal(res.total || data.length)
         setResults(data)
-        if (data.length && !data.find((t) => t.id === selectedId)) {
-          setSelectedId(data[0].id)
-        }
-        if (!data.length) setSelectedId(null)
+        setSelectedId(data[0]?.id ?? null)
       } catch (err) {
         console.error(err)
-        if (!cancelled) setResults([])
+        if (!cancelled) {
+          setResults([])
+          setTotal(0)
+          setSelectedId(null)
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -144,8 +153,45 @@ export function TaskPickerDialog({
       cancelled = true
       clearTimeout(t)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, tab, query, filters])
+  }, [open, tab, query, filters, allowedCategorias])
+
+  const loadMore = async () => {
+    if (loadingMore || results.length >= total) return
+    setLoadingMore(true)
+    try {
+      const nextPage = page + 1
+      const apiParams = tareaFiltersToApiParams(filters)
+      const res = await tareasApi.list({
+        busqueda: query || undefined,
+        biblioteca: true,
+        page: nextPage,
+        limit: 24,
+        ...apiParams,
+      })
+      let data = res.data || []
+      if (!filters.categoria && allowedCategorias?.length) {
+        const allow = new Set(allowedCategorias)
+        data = data.filter((t) => {
+          const code =
+            (t as any).categoria_codigo ||
+            (t as any).categorias_tarea?.codigo ||
+            t.categoria?.codigo ||
+            ''
+          return allow.has(code)
+        })
+      }
+      setPage(nextPage)
+      setTotal(res.total || total)
+      setResults((prev) => {
+        const seen = new Set(prev.map((t) => t.id))
+        return [...prev, ...data.filter((t) => !seen.has(t.id))]
+      })
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   const handleAdd = async (tarea: Tarea) => {
     setAdding(true)
@@ -219,7 +265,7 @@ export function TaskPickerDialog({
                 onClear={hasFilters ? clearFilters : undefined}
                 categorias={categoriasOpts}
                 compact={compactFilters}
-                showFamilia={false}
+                showFamilia
                 className="border-0 bg-transparent p-0 rounded-none"
               />
             </div>
@@ -248,7 +294,11 @@ export function TaskPickerDialog({
                     )}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-3">
+                    <p className="text-xs text-muted-foreground tabular-nums px-0.5">
+                      Mostrando {results.length} de {total}
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {results.map((tarea) => (
                       <TaskLibraryCard
                         key={tarea.id}
@@ -265,6 +315,24 @@ export function TaskPickerDialog({
                         }
                       />
                     ))}
+                    </div>
+                    {results.length < total ? (
+                      <button
+                        type="button"
+                        onClick={loadMore}
+                        disabled={loadingMore}
+                        className="w-full h-9 rounded-lg border text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50"
+                      >
+                        {loadingMore ? (
+                          <span className="inline-flex items-center gap-2">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Cargando…
+                          </span>
+                        ) : (
+                          'Cargar más'
+                        )}
+                      </button>
+                    ) : null}
                   </div>
                 )}
               </div>

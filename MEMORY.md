@@ -1,10 +1,14 @@
 # TrainingHub — estado actual
 
 ## En curso
-Pizarra: comodín (C amarillo) que cuenta como jugador. Descanso de tarea en min+seg. Corrección de escritura en todos los campos de redacción.
+Biblioteca de tareas: las tareas SÍ se guardaban. El listado las ocultaba.
 
-Rama `cursor/pizarra-comodin-descanso-escritura-ae84`.
+Causas:
+- Filtro oculto `familia: madres` + `solo_madres=true` (el selector estaba escondido).
+- El API sobrescribía `total` con `len(página)` (12), así que no había página 2.
+
+Rama `cursor/tareas-biblioteca-paginacion-ae84`.
 
 ## Hecho reciente
+PR #259 — comodín en pizarra, descanso en segundos, escritura (live).
 PR #258 — biblioteca de microciclos en dashboard + bloques de defensa (live).
-PR #257 — estado de microciclo por fechas + contexto de sesión (live).

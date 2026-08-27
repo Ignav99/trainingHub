@@ -44,14 +44,12 @@ export const EMPTY_TAREA_FILTERS: TareaFilterValues = {
   orientacionFisica: '',
   jugadoresMin: '',
   jugadoresMax: '',
-  familia: 'madres',
+  familia: 'todas',
   tipoVariante: '',
 }
 
 export function tareaFiltersActive(v: TareaFilterValues, opts?: { ignoreFamiliaDefault?: boolean }) {
-  const familiaActive = opts?.ignoreFamiliaDefault
-    ? v.familia !== 'todas'
-    : v.familia !== 'madres' || !!v.tipoVariante
+  const familiaActive = v.familia !== 'todas' || !!v.tipoVariante
   return !!(
     v.categoria ||
     v.modalidad ||
@@ -63,7 +61,7 @@ export function tareaFiltersActive(v: TareaFilterValues, opts?: { ignoreFamiliaD
     v.jugadoresMin ||
     v.jugadoresMax ||
     v.tipoVariante ||
-    (opts?.ignoreFamiliaDefault ? familiaActive : v.familia !== 'madres')
+    (opts?.ignoreFamiliaDefault ? familiaActive : v.familia !== 'todas')
   )
 }
 
