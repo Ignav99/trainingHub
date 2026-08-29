@@ -1,5 +1,6 @@
--- 074: Ficha clínica — valoraciones y tests datados (cuaderno de campo)
+-- 076: Ficha clínica — valoraciones y tests datados (cuaderno de campo)
 -- Cada toma lleva fecha para comparar pretemporada vs controles de temporada.
+-- (074 ya está ocupado por sesion_estructura_fases.)
 
 ALTER TABLE jugadores
   ADD COLUMN IF NOT EXISTS nivel_tecnico_comentario TEXT,
@@ -59,3 +60,5 @@ CREATE TRIGGER trg_jugador_evaluaciones_updated_at
 
 COMMENT ON TABLE jugador_evaluaciones IS
   'Tomas clínicas datadas: valoración postural/antropométrica/artromuscular o batería de tests.';
+
+NOTIFY pgrst, 'reload schema';

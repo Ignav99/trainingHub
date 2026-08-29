@@ -59,7 +59,7 @@ async def list_evaluaciones(
     except Exception as err:
         raise HTTPException(
             status_code=500,
-            detail=f"Error listando evaluaciones (¿migración 074 aplicada?): {err}",
+            detail=f"Error listando evaluaciones (¿migración 076 aplicada?): {err}",
         ) from err
     rows = response.data or []
     return EvaluacionListResponse(data=[_row_to_response(r) for r in rows], total=len(rows))
@@ -89,7 +89,7 @@ async def create_evaluacion(
     except Exception as err:
         raise HTTPException(
             status_code=500,
-            detail=f"No se pudo guardar la evaluación. Aplica la migración 074. {err}",
+            detail=f"No se pudo guardar la evaluación. Aplica la migración 076. {err}",
         ) from err
     if not response.data:
         raise HTTPException(status_code=400, detail="Error al crear la evaluación")
