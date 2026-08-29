@@ -28,9 +28,7 @@ import {
   POSICIONES,
   ESTADOS_JUGADOR,
   compareJugadoresPorPosicion,
-  groupJugadoresByPosicion,
   posicionMeta,
-  ZONA_PLANTILLA_LABELS,
 } from '@/lib/api/jugadores'
 import { equiposApi } from '@/lib/api/equipos'
 import { useEquipoStore } from '@/stores/equipoStore'
@@ -574,16 +572,14 @@ export default function PlantillaPage() {
 
   const busquedaLower = busqueda.trim().toLowerCase()
 
-  const gruposTab = useMemo(
+  const jugadoresTab = useMemo(
     () =>
-      groupJugadoresByPosicion(
-        jugadores
-          .filter((j) => resolveTipoJugador(j) === tipoTab)
-          .filter((j) => !busquedaLower || `${j.nombre} ${j.apellidos} ${j.apodo || ''}`.toLowerCase().includes(busquedaLower)),
-      ),
+      jugadores
+        .filter((j) => resolveTipoJugador(j) === tipoTab)
+        .filter((j) => !busquedaLower || `${j.nombre} ${j.apellidos} ${j.apodo || ''}`.toLowerCase().includes(busquedaLower))
+        .sort(compareJugadoresPorPosicion),
     [jugadores, tipoTab, busquedaLower],
   )
-  const jugadoresTabCount = gruposTab.reduce((n, g) => n + g.jugadores.length, 0)
 
   // Plantilla oficial completa, independiente de la pestaña activa (para el modal de nueva temporada)
   const plantillaOficial = useMemo(
@@ -869,7 +865,7 @@ export default function PlantillaPage() {
             Reintentar
           </button>
         </div>
-      ) : jugadoresTabCount === 0 ? (
+      ) : jugadoresTab.length === 0 ? (
         <EmptyState
           icon={<Users className="h-12 w-12" />}
           title={`No hay ${TIPO_JUGADOR_LABELS[tipoTab].toLowerCase()}s`}
@@ -893,42 +889,20 @@ export default function PlantillaPage() {
           }
         />
       ) : (
-        <div className="space-y-8 animate-fade-in">
-          {gruposTab.map((grupo, index) => {
-            const zonaAnterior = index > 0 ? gruposTab[index - 1].zona : null
-            const showZona = grupo.zona !== zonaAnterior
-            return (
-              <section key={`${grupo.zona}-${grupo.codigo}`} aria-labelledby={`pos-${grupo.codigo}`}>
-                {showZona ? (
-                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400">
-                    {ZONA_PLANTILLA_LABELS[grupo.zona] ?? grupo.zona}
-                  </p>
-                ) : null}
-                <div className="mb-3 flex items-center gap-2">
-                  <h2 id={`pos-${grupo.codigo}`} className="text-sm font-semibold text-gray-900">
-                    {grupo.nombre}
-                  </h2>
-                  <PosicionBadge posicion={grupo.codigo} />
-                  <span className="text-xs tabular-nums text-gray-400">{grupo.jugadores.length}</span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                  {grupo.jugadores.map((jugador) => (
-                    <JugadorCard
-                      key={jugador.id}
-                      jugador={jugador}
-                      onEdit={() => router.push(`/plantilla/${jugador.id}?edit=true`)}
-                      onDelete={() => handleDelete(jugador.id)}
-                      onChangeEstado={() => setEstadoModal(jugador)}
-                      onPromover={!isPlantilla(jugador) ? () => handlePromover(jugador) : undefined}
-                      isCrossTeam={showAllTeams && jugador.equipo_id !== equipoActivo?.id}
-                      cargaData={cargaMap[jugador.id]}
-                      resumen={resumenMap[jugador.id]}
-                    />
-                  ))}
-                </div>
-              </section>
-            )
-          })}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 animate-fade-in">
+          {jugadoresTab.map((jugador) => (
+            <JugadorCard
+              key={jugador.id}
+              jugador={jugador}
+              onEdit={() => router.push(`/plantilla/${jugador.id}?edit=true`)}
+              onDelete={() => handleDelete(jugador.id)}
+              onChangeEstado={() => setEstadoModal(jugador)}
+              onPromover={!isPlantilla(jugador) ? () => handlePromover(jugador) : undefined}
+              isCrossTeam={showAllTeams && jugador.equipo_id !== equipoActivo?.id}
+              cargaData={cargaMap[jugador.id]}
+              resumen={resumenMap[jugador.id]}
+            />
+          ))}
         </div>
       )}
 
