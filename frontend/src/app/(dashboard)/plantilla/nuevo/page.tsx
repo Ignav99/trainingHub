@@ -136,12 +136,20 @@ export default function NuevoJugadorPage() {
     }
   }
 
-  // Agrupar posiciones por zona
+  // Agrupar posiciones por zona, con el mismo orden táctico de la plantilla
   const posicionesPorZona = {
-    porteria: Object.entries(POSICIONES).filter(([_, p]) => p.zona === 'porteria'),
-    defensa: Object.entries(POSICIONES).filter(([_, p]) => p.zona === 'defensa'),
-    mediocampo: Object.entries(POSICIONES).filter(([_, p]) => p.zona === 'mediocampo'),
-    ataque: Object.entries(POSICIONES).filter(([_, p]) => p.zona === 'ataque'),
+    porteria: Object.entries(POSICIONES)
+      .filter(([_, p]) => p.zona === 'porteria')
+      .sort((a, b) => a[1].orden - b[1].orden),
+    defensa: Object.entries(POSICIONES)
+      .filter(([_, p]) => p.zona === 'defensa')
+      .sort((a, b) => a[1].orden - b[1].orden),
+    mediocampo: Object.entries(POSICIONES)
+      .filter(([_, p]) => p.zona === 'mediocampo')
+      .sort((a, b) => a[1].orden - b[1].orden),
+    ataque: Object.entries(POSICIONES)
+      .filter(([_, p]) => p.zona === 'ataque')
+      .sort((a, b) => a[1].orden - b[1].orden),
   }
 
   return (
@@ -305,6 +313,7 @@ export default function NuevoJugadorPage() {
             </label>
             <div className="flex flex-wrap gap-2">
               {Object.entries(POSICIONES)
+                .sort((a, b) => a[1].orden - b[1].orden)
                 .filter(([code]) => code !== formData.posicion_principal)
                 .map(([code, pos]) => (
                   <button

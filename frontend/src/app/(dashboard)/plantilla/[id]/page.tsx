@@ -647,7 +647,9 @@ export default function JugadorDetailPage() {
                     onChange={(e) => setFormData({ ...formData, posicion_principal: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
                   >
-                    {Object.entries(POSICIONES).map(([code, p]) => (
+                    {Object.entries(POSICIONES)
+                      .sort((a, b) => a[1].orden - b[1].orden)
+                      .map(([code, p]) => (
                       <option key={code} value={code}>{code} - {p.nombre}</option>
                     ))}
                   </select>

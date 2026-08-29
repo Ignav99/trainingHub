@@ -14,7 +14,7 @@ import {
   RefreshCw
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { jugadoresApi, Jugador, JugadorCreate, JugadorUpdate, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
+import { jugadoresApi, Jugador, JugadorCreate, JugadorUpdate, POSICIONES, ESTADOS_JUGADOR, compareJugadoresPorPosicion } from '@/lib/api/jugadores'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { isEnTratamiento } from '@/lib/jugadorTipo'
@@ -84,7 +84,7 @@ export default function EquipoPage() {
       filtered = filtered.filter(j => j.estado === filterEstado)
     }
 
-    setFilteredJugadores(filtered)
+    setFilteredJugadores(filtered.sort(compareJugadoresPorPosicion))
   }, [jugadores, searchTerm, filterPosicion, filterEstado])
 
   const handleAddJugador = () => {
@@ -252,7 +252,9 @@ export default function EquipoPage() {
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
           >
             <option value="">Todas las posiciones</option>
-            {Object.entries(POSICIONES).map(([codigo, pos]) => (
+            {Object.entries(POSICIONES)
+              .sort((a, b) => a[1].orden - b[1].orden)
+              .map(([codigo, pos]) => (
               <option key={codigo} value={codigo}>{pos.nombre}</option>
             ))}
           </select>
