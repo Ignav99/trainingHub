@@ -32,8 +32,6 @@ export default function NuevoJugadorPage() {
     dorsal: '',
     posicion_principal: 'MC',
     posiciones_secundarias: [] as string[],
-    altura: '',
-    peso: '',
     pierna_dominante: 'derecha' as 'derecha' | 'izquierda' | 'ambas',
     nivel_tecnico: 5,
     nivel_tactico: 5,
@@ -116,8 +114,6 @@ export default function NuevoJugadorPage() {
         dorsal: formData.dorsal ? parseInt(formData.dorsal) : undefined,
         posicion_principal: formData.posicion_principal,
         posiciones_secundarias: formData.posiciones_secundarias,
-        altura: formData.altura ? parseFloat(formData.altura) : undefined,
-        peso: formData.peso ? parseFloat(formData.peso) : undefined,
         pierna_dominante: formData.pierna_dominante,
         nivel_tecnico: formData.nivel_tecnico,
         nivel_tactico: formData.nivel_tactico,
@@ -333,54 +329,25 @@ export default function NuevoJugadorPage() {
           </div>
         </div>
 
-        {/* Físico */}
+        {/* Identificación */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Datos físicos</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Altura (m)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="1.0"
-                max="2.5"
-                value={formData.altura}
-                onChange={(e) => handleChange('altura', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                placeholder="Ej: 1.75"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Peso (kg)
-              </label>
-              <input
-                type="number"
-                step="0.1"
-                min="30"
-                max="150"
-                value={formData.peso}
-                onChange={(e) => handleChange('peso', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                placeholder="Ej: 70"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Pierna dominante
-              </label>
-              <select
-                value={formData.pierna_dominante}
-                onChange={(e) => handleChange('pierna_dominante', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
-              >
-                <option value="derecha">Derecha</option>
-                <option value="izquierda">Izquierda</option>
-                <option value="ambas">Ambas</option>
-              </select>
-            </div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Pierna dominante</h2>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Pierna dominante
+            </label>
+            <select
+              value={formData.pierna_dominante}
+              onChange={(e) => handleChange('pierna_dominante', e.target.value)}
+              className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+            >
+              <option value="derecha">Derecha</option>
+              <option value="izquierda">Izquierda</option>
+              <option value="ambas">Ambas</option>
+            </select>
+            <p className="mt-2 text-xs text-slate-500">
+              Talla y peso se anotan datados en la ficha clínica, no aquí.
+            </p>
           </div>
         </div>
 

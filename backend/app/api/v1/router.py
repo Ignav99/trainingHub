@@ -59,6 +59,7 @@ from app.api.v1 import (
     alertas,
     escritura,
     informes,
+    ficha_clinica,
 )
 
 api_router = APIRouter()
@@ -283,6 +284,12 @@ api_router.include_router(
     medico.router,
     prefix="/medico",
     tags=["Modulo Medico"]
+)
+
+api_router.include_router(
+    ficha_clinica.router,
+    prefix="/ficha-clinica",
+    tags=["Ficha Clinica"]
 )
 
 api_router.include_router(

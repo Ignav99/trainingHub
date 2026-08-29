@@ -62,6 +62,8 @@ _DB_COLUMNS = {
     "posicion_principal", "posiciones_secundarias", "pierna_dominante",
     "altura", "peso",
     "nivel_tecnico", "nivel_tactico", "nivel_fisico", "nivel_mental",
+    "nivel_tecnico_comentario", "nivel_tactico_comentario",
+    "nivel_fisico_comentario", "nivel_mental_comentario",
     "estado", "fecha_lesion", "fecha_vuelta_estimada", "motivo_baja",
     "es_capitan", "es_convocable", "es_portero", "es_invitado",
     "tipo_jugador", "ficha_estado", "fecha_fin_prueba",

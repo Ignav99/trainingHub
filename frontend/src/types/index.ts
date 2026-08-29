@@ -707,6 +707,10 @@ export interface Jugador {
   nivel_tactico: number
   nivel_fisico: number
   nivel_mental: number
+  nivel_tecnico_comentario?: string | null
+  nivel_tactico_comentario?: string | null
+  nivel_fisico_comentario?: string | null
+  nivel_mental_comentario?: string | null
   estado: EstadoJugador
   /** Disponibilidad operativa: fuera | individual | grupo_adaptado | pleno */
   disponibilidad?: DisponibilidadOperativa

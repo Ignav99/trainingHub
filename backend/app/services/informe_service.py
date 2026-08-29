@@ -65,6 +65,36 @@ def _nombre_jugador(j: dict) -> str:
     return f"{j.get('nombre', '')} {j.get('apellidos', '')}".strip() or "—"
 
 
+def _ficha_clinica_informe(supabase, jugador_id: str) -> dict:
+    """Última valoración y última batería de tests para la ficha PDF."""
+    empty = {"valoracion": None, "tests": None}
+    try:
+        from app.services.ficha_clinica_metrics import snapshot_para_informe
+
+        rows = (
+            supabase.table("jugador_evaluaciones")
+            .select("bloque, fecha, momento, titulo, datos, notas")
+            .eq("jugador_id", str(jugador_id))
+            .order("fecha", desc=True)
+            .order("created_at", desc=True)
+            .limit(20)
+            .execute()
+        )
+    except Exception:
+        logger.exception("informe ficha clínica no disponible")
+        return empty
+    out = dict(empty)
+    for row in rows.data or []:
+        bloque = row.get("bloque")
+        if bloque in out and out[bloque] is None:
+            snap = snapshot_para_informe(row)
+            snap["fecha"] = _fmt_fecha(snap.get("fecha"))
+            out[bloque] = snap
+        if out["valoracion"] and out["tests"]:
+            break
+    return out
+
+
 FASE_SESION_LABEL = {
     "activacion": "Activación",
     "desarrollo_1": "Desarrollo 1",
@@ -646,6 +676,7 @@ def _build_context(
             "estado": (jrow or {}).get("estado") or "",
             "stats": stats,
             "historial": historial[:limite],
+            "clinica": _ficha_clinica_informe(supabase, jugador_id),
         }
 
     micro_ctx = None

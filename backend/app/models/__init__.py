@@ -350,6 +350,15 @@ from app.models.nutricion import (
     NutricionOverviewResponse,
 )
 
+from app.models.ficha_clinica import (
+    BloqueEvaluacion,
+    MomentoEvaluacion,
+    EvaluacionCreate,
+    EvaluacionUpdate,
+    EvaluacionResponse,
+    EvaluacionListResponse,
+)
+
 from app.models.medico import (
     TipoRegistroMedico,
     EstadoRegistroMedico,
@@ -553,6 +562,9 @@ __all__ = [
     "SuplementacionCreate", "SuplementacionUpdate", "SuplementacionResponse",
     "ComposicionCorporalCreate", "ComposicionCorporalResponse",
     "NutricionOverviewResponse",
+    # Ficha clinica
+    "BloqueEvaluacion", "MomentoEvaluacion",
+    "EvaluacionCreate", "EvaluacionUpdate", "EvaluacionResponse", "EvaluacionListResponse",
     # Medico
     "TipoRegistroMedico", "EstadoRegistroMedico", "AccionMedica",
     "DisponibilidadOperativa", "SeveridadLesion", "LadoCorporal", "FaseRTP", "TipoPruebaMedica",
