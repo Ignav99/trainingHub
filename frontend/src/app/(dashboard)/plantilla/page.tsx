@@ -97,6 +97,7 @@ function JugadorCard({
   const extraPlantilla = !isPlantilla(jugador)
   const amarillas = resumen?.amarillas ?? cargaData?.tarjetas_amarillas
   const rojas = resumen?.rojas ?? cargaData?.tarjetas_rojas
+  const displayName = jugador.apodo?.trim() || `${jugador.nombre} ${jugador.apellidos}`.trim()
 
   return (
     <div
@@ -131,8 +132,8 @@ function JugadorCard({
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className={`font-semibold truncate ${isNoDisponible ? 'text-gray-500' : 'text-gray-900'}`}>
-            {jugador.apodo || `${jugador.nombre} ${jugador.apellidos}`}
+          <h3 className={`font-semibold text-sm leading-snug break-words ${isNoDisponible ? 'text-gray-500' : 'text-gray-900'}`}>
+            {displayName}
           </h3>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             <PosicionBadge posicion={jugador.posicion_principal} />
@@ -161,7 +162,7 @@ function JugadorCard({
             )}
           </div>
         </div>
-        <div className="relative" onClick={(e) => e.stopPropagation()}>
+        <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() => setMenuOpen(!menuOpen)}
             className="p-1 text-gray-400 hover:text-gray-600 rounded"
