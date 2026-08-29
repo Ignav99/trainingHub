@@ -534,20 +534,22 @@ export function computeImc(pesoKg: unknown, tallaCm: unknown): number | null {
 }
 
 export function computeFaulkner(datos: Record<string, unknown>): number | null {
-  const keys = ['pliegue_tricipital', 'pliegue_subescapular', 'pliegue_suprailiaco', 'pliegue_abdominal']
-  const vals = keys.map((k) => toNumber(datos[k]))
-  if (vals.some((v) => v == null)) return null
-  const sum = vals.reduce((a, b) => a + (b as number), 0)
+  const suma = computeSumaFaulkner(datos)
+  if (suma == null) return null
   const mujer = String(datos.sexo_formula || 'hombre').toLowerCase().startsWith('muj')
-  const pct = mujer ? 0.213 * sum + 7.9 : 0.153 * sum + 5.783
+  const pct = mujer ? 0.213 * suma + 7.9 : 0.153 * suma + 5.783
   return Math.round(pct * 10) / 10
 }
 
 export function computeSumaFaulkner(datos: Record<string, unknown>): number | null {
   const keys = ['pliegue_tricipital', 'pliegue_subescapular', 'pliegue_suprailiaco', 'pliegue_abdominal']
-  const vals = keys.map((k) => toNumber(datos[k]))
-  if (vals.some((v) => v == null)) return null
-  return Math.round(vals.reduce((a, b) => a + (b as number), 0) * 10) / 10
+  let sum = 0
+  for (const key of keys) {
+    const value = toNumber(datos[key])
+    if (value == null) return null
+    sum += value
+  }
+  return Math.round(sum * 10) / 10
 }
 
 export function computeIcc(cintura: unknown, cadera: unknown): number | null {
