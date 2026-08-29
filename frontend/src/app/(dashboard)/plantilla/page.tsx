@@ -22,7 +22,16 @@ import {
   CalendarPlus,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { Jugador, jugadoresApi, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
+import {
+  Jugador,
+  jugadoresApi,
+  POSICIONES,
+  ESTADOS_JUGADOR,
+  compareJugadoresPorPosicion,
+  groupJugadoresByPosicion,
+  posicionMeta,
+  ZONA_PLANTILLA_LABELS,
+} from '@/lib/api/jugadores'
 import { equiposApi } from '@/lib/api/equipos'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { apiKey } from '@/lib/swr'
@@ -469,6 +478,7 @@ function NuevaTemporadaModal({
                 onChange={() => toggle(j.id)}
                 className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
               />
+              <span className="text-xs tabular-nums text-gray-400 w-9 shrink-0">{j.posicion_principal}</span>
               <span className="text-sm text-gray-900">
                 {j.apodo || `${j.nombre} ${j.apellidos}`}
               </span>
@@ -564,23 +574,22 @@ export default function PlantillaPage() {
 
   const busquedaLower = busqueda.trim().toLowerCase()
 
-  const jugadoresTab = useMemo(
+  const gruposTab = useMemo(
     () =>
-      jugadores
-        .filter((j) => resolveTipoJugador(j) === tipoTab)
-        .filter((j) => !busquedaLower || `${j.nombre} ${j.apellidos} ${j.apodo || ''}`.toLowerCase().includes(busquedaLower))
-        .sort((a, b) => {
-          const zonaA = POSICIONES[a.posicion_principal as keyof typeof POSICIONES]?.zona || ''
-          const zonaB = POSICIONES[b.posicion_principal as keyof typeof POSICIONES]?.zona || ''
-          const ordenZona = ['porteria', 'defensa', 'mediocampo', 'ataque']
-          const diff = ordenZona.indexOf(zonaA) - ordenZona.indexOf(zonaB)
-          return diff !== 0 ? diff : a.apellidos.localeCompare(b.apellidos)
-        }),
-    [jugadores, tipoTab, busquedaLower]
+      groupJugadoresByPosicion(
+        jugadores
+          .filter((j) => resolveTipoJugador(j) === tipoTab)
+          .filter((j) => !busquedaLower || `${j.nombre} ${j.apellidos} ${j.apodo || ''}`.toLowerCase().includes(busquedaLower)),
+      ),
+    [jugadores, tipoTab, busquedaLower],
   )
+  const jugadoresTabCount = gruposTab.reduce((n, g) => n + g.jugadores.length, 0)
 
   // Plantilla oficial completa, independiente de la pestaña activa (para el modal de nueva temporada)
-  const plantillaOficial = useMemo(() => jugadores.filter((j) => isPlantilla(j)), [jugadores])
+  const plantillaOficial = useMemo(
+    () => jugadores.filter((j) => isPlantilla(j)).sort(compareJugadoresPorPosicion),
+    [jugadores],
+  )
 
   // Calcular stats derivados de los datos (siempre sobre plantilla oficial)
   const stats = useMemo(() => {
@@ -590,7 +599,7 @@ export default function PlantillaPage() {
     const disponibles = plantilla.filter((j) => etiquetaPrograma(j) === 'disponible').length
     const porZona: Record<string, number> = { porteria: 0, defensa: 0, mediocampo: 0, ataque: 0 }
     plantilla.forEach((j) => {
-      const pos = POSICIONES[j.posicion_principal as keyof typeof POSICIONES]
+      const pos = posicionMeta(j.posicion_principal)
       if (pos) {
         porZona[pos.zona] = (porZona[pos.zona] || 0) + 1
       }
@@ -860,7 +869,7 @@ export default function PlantillaPage() {
             Reintentar
           </button>
         </div>
-      ) : jugadoresTab.length === 0 ? (
+      ) : jugadoresTabCount === 0 ? (
         <EmptyState
           icon={<Users className="h-12 w-12" />}
           title={`No hay ${TIPO_JUGADOR_LABELS[tipoTab].toLowerCase()}s`}
@@ -884,20 +893,42 @@ export default function PlantillaPage() {
           }
         />
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 animate-fade-in">
-          {jugadoresTab.map((jugador) => (
-            <JugadorCard
-              key={jugador.id}
-              jugador={jugador}
-              onEdit={() => router.push(`/plantilla/${jugador.id}?edit=true`)}
-              onDelete={() => handleDelete(jugador.id)}
-              onChangeEstado={() => setEstadoModal(jugador)}
-              onPromover={!isPlantilla(jugador) ? () => handlePromover(jugador) : undefined}
-              isCrossTeam={showAllTeams && jugador.equipo_id !== equipoActivo?.id}
-              cargaData={cargaMap[jugador.id]}
-              resumen={resumenMap[jugador.id]}
-            />
-          ))}
+        <div className="space-y-8 animate-fade-in">
+          {gruposTab.map((grupo, index) => {
+            const zonaAnterior = index > 0 ? gruposTab[index - 1].zona : null
+            const showZona = grupo.zona !== zonaAnterior
+            return (
+              <section key={`${grupo.zona}-${grupo.codigo}`} aria-labelledby={`pos-${grupo.codigo}`}>
+                {showZona ? (
+                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400">
+                    {ZONA_PLANTILLA_LABELS[grupo.zona] ?? grupo.zona}
+                  </p>
+                ) : null}
+                <div className="mb-3 flex items-center gap-2">
+                  <h2 id={`pos-${grupo.codigo}`} className="text-sm font-semibold text-gray-900">
+                    {grupo.nombre}
+                  </h2>
+                  <PosicionBadge posicion={grupo.codigo} />
+                  <span className="text-xs tabular-nums text-gray-400">{grupo.jugadores.length}</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                  {grupo.jugadores.map((jugador) => (
+                    <JugadorCard
+                      key={jugador.id}
+                      jugador={jugador}
+                      onEdit={() => router.push(`/plantilla/${jugador.id}?edit=true`)}
+                      onDelete={() => handleDelete(jugador.id)}
+                      onChangeEstado={() => setEstadoModal(jugador)}
+                      onPromover={!isPlantilla(jugador) ? () => handlePromover(jugador) : undefined}
+                      isCrossTeam={showAllTeams && jugador.equipo_id !== equipoActivo?.id}
+                      cargaData={cargaMap[jugador.id]}
+                      resumen={resumenMap[jugador.id]}
+                    />
+                  ))}
+                </div>
+              </section>
+            )
+          })}
         </div>
       )}
 

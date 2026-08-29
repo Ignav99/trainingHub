@@ -176,24 +176,105 @@ export const jugadoresApi = {
 }
 
 // Utilidades
+// Orden de plantilla: por línea y, dentro, derecha → centro → izquierda.
 export const POSICIONES = {
-  POR: { nombre: 'Portero', zona: 'porteria', color: '#F59E0B' },
-  DFC: { nombre: 'Defensa Central', zona: 'defensa', color: '#3B82F6' },
-  LTD: { nombre: 'Lateral Derecho', zona: 'defensa', color: '#3B82F6' },
-  LTI: { nombre: 'Lateral Izquierdo', zona: 'defensa', color: '#3B82F6' },
-  CAD: { nombre: 'Carrilero Derecho', zona: 'defensa', color: '#3B82F6' },
-  CAI: { nombre: 'Carrilero Izquierdo', zona: 'defensa', color: '#3B82F6' },
-  MCD: { nombre: 'Mediocentro Defensivo', zona: 'mediocampo', color: '#10B981' },
-  MC: { nombre: 'Mediocentro', zona: 'mediocampo', color: '#10B981' },
-  MCO: { nombre: 'Mediocentro Ofensivo', zona: 'mediocampo', color: '#10B981' },
-  MID: { nombre: 'Interior Derecho', zona: 'mediocampo', color: '#10B981' },
-  MII: { nombre: 'Interior Izquierdo', zona: 'mediocampo', color: '#10B981' },
-  EXD: { nombre: 'Extremo Derecho', zona: 'ataque', color: '#EF4444' },
-  EXI: { nombre: 'Extremo Izquierdo', zona: 'ataque', color: '#EF4444' },
-  MP: { nombre: 'Mediapunta', zona: 'ataque', color: '#EF4444' },
-  DC: { nombre: 'Delantero Centro', zona: 'ataque', color: '#EF4444' },
-  SD: { nombre: 'Segundo Delantero', zona: 'ataque', color: '#EF4444' },
+  POR: { nombre: 'Portero', zona: 'porteria', color: '#F59E0B', orden: 0 },
+  LTD: { nombre: 'Lateral Derecho', zona: 'defensa', color: '#3B82F6', orden: 1 },
+  CAD: { nombre: 'Carrilero Derecho', zona: 'defensa', color: '#3B82F6', orden: 2 },
+  DFC: { nombre: 'Defensa Central', zona: 'defensa', color: '#3B82F6', orden: 3 },
+  LTI: { nombre: 'Lateral Izquierdo', zona: 'defensa', color: '#3B82F6', orden: 4 },
+  CAI: { nombre: 'Carrilero Izquierdo', zona: 'defensa', color: '#3B82F6', orden: 5 },
+  MID: { nombre: 'Interior Derecho', zona: 'mediocampo', color: '#10B981', orden: 6 },
+  MCD: { nombre: 'Mediocentro Defensivo', zona: 'mediocampo', color: '#10B981', orden: 7 },
+  MC: { nombre: 'Mediocentro', zona: 'mediocampo', color: '#10B981', orden: 8 },
+  MCO: { nombre: 'Mediocentro Ofensivo', zona: 'mediocampo', color: '#10B981', orden: 9 },
+  MII: { nombre: 'Interior Izquierdo', zona: 'mediocampo', color: '#10B981', orden: 10 },
+  EXD: { nombre: 'Extremo Derecho', zona: 'ataque', color: '#EF4444', orden: 11 },
+  SD: { nombre: 'Segundo Delantero', zona: 'ataque', color: '#EF4444', orden: 12 },
+  MP: { nombre: 'Mediapunta', zona: 'ataque', color: '#EF4444', orden: 13 },
+  DC: { nombre: 'Delantero Centro', zona: 'ataque', color: '#EF4444', orden: 14 },
+  EXI: { nombre: 'Extremo Izquierdo', zona: 'ataque', color: '#EF4444', orden: 15 },
 } as const
+
+export type PosicionCodigo = keyof typeof POSICIONES
+
+export const POSICION_ALIASES: Record<string, PosicionCodigo> = {
+  LD: 'LTD',
+  LI: 'LTI',
+  ED: 'EXD',
+  EI: 'EXI',
+  DFD: 'DFC',
+  DFI: 'DFC',
+}
+
+export const ZONA_PLANTILLA_LABELS: Record<string, string> = {
+  porteria: 'Porteros',
+  defensa: 'Defensas',
+  mediocampo: 'Medios',
+  ataque: 'Delanteros',
+}
+
+export function canonicalPosicion(codigo?: string | null): string {
+  if (!codigo) return ''
+  const upper = codigo.trim().toUpperCase()
+  return POSICION_ALIASES[upper] ?? upper
+}
+
+export function posicionMeta(codigo?: string | null) {
+  const code = canonicalPosicion(codigo)
+  return POSICIONES[code as PosicionCodigo] ?? null
+}
+
+type JugadorOrdenPosicion = {
+  posicion_principal?: string | null
+  dorsal?: number | null
+  apellidos?: string | null
+}
+
+export function compareJugadoresPorPosicion(a: JugadorOrdenPosicion, b: JugadorOrdenPosicion): number {
+  const ordenA = posicionMeta(a.posicion_principal)?.orden ?? 99
+  const ordenB = posicionMeta(b.posicion_principal)?.orden ?? 99
+  if (ordenA !== ordenB) return ordenA - ordenB
+  const codeA = canonicalPosicion(a.posicion_principal)
+  const codeB = canonicalPosicion(b.posicion_principal)
+  if (codeA !== codeB) return codeA.localeCompare(codeB)
+  const dorsalA = a.dorsal ?? 999
+  const dorsalB = b.dorsal ?? 999
+  if (dorsalA !== dorsalB) return dorsalA - dorsalB
+  return (a.apellidos || '').localeCompare(b.apellidos || '', 'es')
+}
+
+export type GrupoPosicionPlantilla<T> = {
+  codigo: string
+  zona: string
+  nombre: string
+  color: string
+  jugadores: T[]
+}
+
+export function groupJugadoresByPosicion<T extends JugadorOrdenPosicion>(
+  jugadores: T[],
+): GrupoPosicionPlantilla<T>[] {
+  const sorted = [...jugadores].sort(compareJugadoresPorPosicion)
+  const groups: GrupoPosicionPlantilla<T>[] = []
+  for (const j of sorted) {
+    const codigo = canonicalPosicion(j.posicion_principal) || j.posicion_principal || '—'
+    const last = groups[groups.length - 1]
+    if (last && last.codigo === codigo) {
+      last.jugadores.push(j)
+      continue
+    }
+    const meta = posicionMeta(codigo)
+    groups.push({
+      codigo,
+      zona: meta?.zona ?? 'otros',
+      nombre: meta?.nombre ?? codigo,
+      color: meta?.color ?? '#6B7280',
+      jugadores: [j],
+    })
+  }
+  return groups
+}
 
 export const ESTADOS_JUGADOR = {
   activo: { nombre: 'Disponible', color: '#10B981', icon: 'check' },
