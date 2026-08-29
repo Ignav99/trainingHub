@@ -90,56 +90,65 @@ function SaveIndicator({ status }: { status: SaveStatus }) {
 
 function DisponibilidadCompacta({ plantilla }: { plantilla: VistaCompletaMicrociclo['plantilla'] }) {
   const porDisp = plantilla.por_disponibilidad
+  const enTratamiento = (porDisp?.fuera ?? 0) + (porDisp?.individual ?? 0) + (porDisp?.grupo_adaptado ?? 0)
+  const disponibles = porDisp?.pleno ?? plantilla.disponibles
+  const sancionados = plantilla.jugadores_sancionados || []
+  const apercibidos = plantilla.jugadores_apercibidos || []
+  const enTratamientoList = [
+    ...(plantilla.jugadores_lesionados || []),
+    ...(plantilla.jugadores_en_recuperacion || []),
+  ]
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <div className="rounded-lg bg-green-50 p-2 text-center">
-          <p className="text-xl font-bold text-green-700">{porDisp?.pleno ?? plantilla.disponibles}</p>
-          <p className="text-[10px] text-green-600">Pleno</p>
-        </div>
-        <div className="rounded-lg bg-sky-50 p-2 text-center">
-          <p className="text-xl font-bold text-sky-700">{porDisp?.grupo_adaptado ?? 0}</p>
-          <p className="text-[10px] text-sky-600">Adaptado</p>
-        </div>
-        <div className="rounded-lg bg-amber-50 p-2 text-center">
-          <p className="text-xl font-bold text-amber-700">{porDisp?.individual ?? plantilla.en_recuperacion ?? 0}</p>
-          <p className="text-[10px] text-amber-600">Individual</p>
+          <p className="text-xl font-bold tabular-nums text-green-700">{disponibles}</p>
+          <p className="text-[10px] text-green-600">Disponibles</p>
         </div>
         <div className="rounded-lg bg-red-50 p-2 text-center">
-          <p className="text-xl font-bold text-red-700">{porDisp?.fuera ?? plantilla.lesionados}</p>
-          <p className="text-[10px] text-red-600">Fuera</p>
+          <p className="text-xl font-bold tabular-nums text-red-700">{enTratamiento}</p>
+          <p className="text-[10px] text-red-600">En tratamiento</p>
+        </div>
+        <div className="rounded-lg bg-amber-50 p-2 text-center">
+          <p className="text-xl font-bold tabular-nums text-amber-800">{apercibidos.length}</p>
+          <p className="text-[10px] text-amber-700">Apercibidos</p>
+        </div>
+        <div className="rounded-lg bg-yellow-50 p-2 text-center">
+          <p className="text-xl font-bold tabular-nums text-yellow-800">{sancionados.length}</p>
+          <p className="text-[10px] text-yellow-700">Sancionados</p>
         </div>
       </div>
 
-      {plantilla.jugadores_lesionados.length > 0 && (
+      {enTratamientoList.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[10px] font-semibold text-red-700">Fuera / lesionados</p>
-          {plantilla.jugadores_lesionados.map((j) => (
+          <p className="text-[10px] font-semibold text-red-700">En tratamiento</p>
+          {enTratamientoList.map((j) => (
             <div key={j.id} className="flex items-center justify-between gap-2 text-[11px]">
               <span className="truncate">
                 {j.dorsal ? `${j.dorsal}. ` : ''}
                 {j.nombre} {j.apellidos}
               </span>
               <span className="text-red-600 shrink-0">{j.motivo_baja || 'Lesión'}</span>
-              {j.fecha_vuelta_estimada && (
-                <span className="text-[10px] text-muted-foreground shrink-0">
-                  Vuelta: {formatDateShort(j.fecha_vuelta_estimada.slice(0, 10))}
-              </span>
-              )}
             </div>
           ))}
         </div>
       )}
-      {(plantilla.jugadores_en_recuperacion?.length || 0) > 0 && (
+      {apercibidos.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[10px] font-semibold text-amber-700">Individual / RTP</p>
-          {plantilla.jugadores_en_recuperacion.map((j) => (
-            <div key={j.id} className="flex items-center justify-between gap-2 text-[11px]">
-              <span className="truncate">
-                {j.dorsal ? `${j.dorsal}. ` : ''}
-                {j.nombre} {j.apellidos}
-              </span>
-              <span className="text-amber-700 shrink-0 capitalize">{(j.disponibilidad || 'individual').replace('_', ' ')}</span>
+          <p className="text-[10px] font-semibold text-amber-800">Apercibidos</p>
+          {apercibidos.map((j) => (
+            <div key={j.id} className="text-[11px] truncate">
+              {j.dorsal ? `${j.dorsal}. ` : ''}{j.nombre} {j.apellidos}
+            </div>
+          ))}
+        </div>
+      )}
+      {sancionados.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-semibold text-yellow-800">Sancionados</p>
+          {sancionados.map((j) => (
+            <div key={j.id} className="text-[11px] truncate">
+              {j.dorsal ? `${j.dorsal}. ` : ''}{j.nombre} {j.apellidos}
             </div>
           ))}
         </div>

@@ -46,6 +46,14 @@ class LadoCorporal(str, Enum):
     NO_APLICA = "no_aplica"
 
 
+class FaseTratamiento(str, Enum):
+    """Crescendo clínico visible en ficha y enfermería."""
+    REPOSO = "reposo"
+    MARGEN = "margen"
+    INICIO_GRUPO = "inicio_grupo"
+    DISPONIBLE = "disponible"
+
+
 class FaseRTP(str, Enum):
     FASE_1_CONTROL_DOLOR = "fase_1_control_dolor"
     FASE_2_MOVILIDAD = "fase_2_movilidad"
@@ -105,6 +113,9 @@ class RegistroMedicoCreate(BaseModel):
     registro_origen_id: Optional[UUID] = None
     disponibilidad: Optional[DisponibilidadOperativa] = None
     fase_rtp: Optional[FaseRTP] = None
+    es_historico: bool = False
+    zonas: Optional[list] = None
+    fase_tratamiento: Optional[FaseTratamiento] = None
 
 
 class RegistroMedicoUpdate(BaseModel):
@@ -133,6 +144,9 @@ class RegistroMedicoUpdate(BaseModel):
     registro_origen_id: Optional[UUID] = None
     disponibilidad: Optional[DisponibilidadOperativa] = None
     fase_rtp: Optional[FaseRTP] = None
+    es_historico: Optional[bool] = None
+    zonas: Optional[list] = None
+    fase_tratamiento: Optional[FaseTratamiento] = None
 
 
 class RegistroMedicoResponse(BaseModel):
@@ -167,6 +181,9 @@ class RegistroMedicoResponse(BaseModel):
     registro_origen_id: Optional[UUID] = None
     disponibilidad: Optional[DisponibilidadOperativa] = None
     fase_rtp: Optional[FaseRTP] = None
+    es_historico: bool = False
+    zonas: list = Field(default_factory=list)
+    fase_tratamiento: Optional[FaseTratamiento] = None
     created_at: datetime
     updated_at: datetime
 
@@ -189,6 +206,9 @@ class RegistroMedicoSummary(BaseModel):
     fase_rtp: Optional[FaseRTP] = None
     severidad: Optional[SeveridadLesion] = None
     zona_corporal: Optional[str] = None
+    es_historico: bool = False
+    zonas: list = Field(default_factory=list)
+    fase_tratamiento: Optional[FaseTratamiento] = None
     created_at: datetime
 
 
@@ -310,3 +330,50 @@ class PermisosPersonalizadosResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class TratamientoDiarioCreate(BaseModel):
+    fecha: date
+    sesion_id: Optional[UUID] = None
+    entrenamiento_margen_id: Optional[UUID] = None
+    fase_tratamiento: Optional[FaseTratamiento] = None
+    trabajo: Optional[str] = None
+    ejercicios: Optional[str] = None
+    feedback: Optional[str] = None
+    nutricion: Optional[str] = None
+    suplementacion: Optional[str] = None
+
+
+class TratamientoDiarioUpdate(BaseModel):
+    fecha: Optional[date] = None
+    sesion_id: Optional[UUID] = None
+    entrenamiento_margen_id: Optional[UUID] = None
+    fase_tratamiento: Optional[FaseTratamiento] = None
+    trabajo: Optional[str] = None
+    ejercicios: Optional[str] = None
+    feedback: Optional[str] = None
+    nutricion: Optional[str] = None
+    suplementacion: Optional[str] = None
+
+
+class TratamientoDiarioResponse(BaseModel):
+    id: UUID
+    registro_medico_id: UUID
+    jugador_id: UUID
+    equipo_id: Optional[UUID] = None
+    fecha: date
+    sesion_id: Optional[UUID] = None
+    entrenamiento_margen_id: Optional[UUID] = None
+    fase_tratamiento: Optional[str] = None
+    trabajo: Optional[str] = None
+    ejercicios: Optional[str] = None
+    feedback: Optional[str] = None
+    nutricion: Optional[str] = None
+    suplementacion: Optional[str] = None
+    creado_por: Optional[UUID] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+

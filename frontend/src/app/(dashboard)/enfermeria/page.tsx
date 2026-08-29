@@ -37,6 +37,9 @@ import type { DisponibilidadOperativa, RegistroMedico, TipoRegistroMedico } from
 import { resolveDisponibilidad } from '@/lib/jugadorTipo'
 import { EnfermeriaBoard, EnfermeriaHistorico, type PlayerCaseCard } from '@/components/enfermeria/EnfermeriaBoard'
 import { SaludTabs } from '@/components/salud/SaludTabs'
+import { BodyInjuryMap } from '@/components/ficha-clinica/BodyInjuryMap'
+import { FaseTratamientoStepper } from '@/components/ficha-clinica/FaseTratamientoStepper'
+import { labelsFromZonas } from '@/lib/bodyRegions'
 import { cn } from '@/lib/utils'
 
 const TIPOS: { value: TipoRegistroMedico; label: string }[] = [
@@ -118,6 +121,8 @@ export default function EnfermeriaPage() {
   const [nuevoForm, setNuevoForm] = useState<Partial<CreateRegistroMedicoData>>({
     tipo: 'lesion',
     fecha_inicio: new Date().toISOString().slice(0, 10),
+    fase_tratamiento: 'reposo',
+    zonas: [],
   })
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
 
@@ -248,6 +253,8 @@ export default function EnfermeriaPage() {
     setNuevoForm({
       tipo: 'lesion',
       fecha_inicio: new Date().toISOString().slice(0, 10),
+      fase_tratamiento: 'reposo',
+      zonas: [],
     })
     setEsHistorico(false)
     setPendingFiles([])
@@ -268,6 +275,7 @@ export default function EnfermeriaPage() {
 
     setSaving(true)
     try {
+      const zonas = nuevoForm.zonas || []
       const createData: CreateRegistroMedicoData = {
         jugador_id: nuevoForm.jugador_id,
         equipo_id: equipoActivo.id,
@@ -278,11 +286,13 @@ export default function EnfermeriaPage() {
         dias_baja_estimados: esHistorico ? undefined : nuevoForm.dias_baja_estimados,
         registro_padre_id: nuevoForm.registro_padre_id || undefined,
         severidad: nuevoForm.severidad || undefined,
-        zona_corporal: nuevoForm.zona_corporal?.trim() || undefined,
+        zonas,
+        zona_corporal: labelsFromZonas(zonas) || nuevoForm.zona_corporal?.trim() || undefined,
         lado: nuevoForm.lado || undefined,
-        disponibilidad: nuevoForm.disponibilidad || undefined,
+        es_historico: esHistorico,
         es_relesion: !!nuevoForm.registro_padre_id,
         registro_origen_id: nuevoForm.registro_padre_id || undefined,
+        fase_tratamiento: esHistorico ? undefined : (nuevoForm.fase_tratamiento || 'reposo'),
       }
 
       if (esHistorico) {
@@ -337,7 +347,7 @@ export default function EnfermeriaPage() {
       if (!esHistorico && created?.id) router.push(`/enfermeria/${created.id}`)
     } catch (err) {
       console.error('Error creating registro:', err)
-      toast.error('Error al crear el registro médico')
+      toast.error('Error al crear el registro. ¿Migración 077 aplicada?')
     } finally {
       setSaving(false)
     }
@@ -428,7 +438,7 @@ export default function EnfermeriaPage() {
               <EmptyState
                 icon={<HeartPulse className="h-12 w-12" />}
                 title="Plantilla disponible"
-                description="No hay jugadores fuera, en individual o en grupo adaptado. Abre Histórico para ver altas anteriores."
+                description="Nadie en reposo, margen o inicio de grupo. Abre Histórico para ver altas anteriores."
                 action={
                   <Button onClick={() => setShowNuevo(true)}>
                     <Plus className="h-4 w-4 mr-2" />
@@ -478,7 +488,7 @@ export default function EnfermeriaPage() {
           if (!open) resetForm()
         }}
       >
-        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nuevo registro médico</DialogTitle>
           </DialogHeader>
@@ -596,32 +606,6 @@ export default function EnfermeriaPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-sm font-medium mb-1 block">Disponibilidad</label>
-                  <select
-                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                    value={nuevoForm.disponibilidad || ''}
-                    onChange={(e) =>
-                      setNuevoForm({ ...nuevoForm, disponibilidad: e.target.value || undefined })
-                    }
-                  >
-                    <option value="">Auto (según tipo)</option>
-                    <option value="fuera">Fuera</option>
-                    <option value="individual">Individual / margen</option>
-                    <option value="grupo_adaptado">Grupo adaptado</option>
-                    <option value="pleno">Pleno</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Zona corporal</label>
-                  <Input
-                    value={nuevoForm.zona_corporal || ''}
-                    onChange={(e) =>
-                      setNuevoForm({ ...nuevoForm, zona_corporal: e.target.value || undefined })
-                    }
-                    placeholder="Ej: isquios, tobillo…"
-                  />
-                </div>
-                <div>
                   <label className="text-sm font-medium mb-1 block">Lado</label>
                   <select
                     className="w-full rounded-md border bg-background px-3 py-2 text-sm"
@@ -637,6 +621,24 @@ export default function EnfermeriaPage() {
                 </div>
               </div>
             )}
+
+            <div>
+              <label className="text-sm font-medium mb-1 block">Zona en el cuerpo</label>
+              <BodyInjuryMap
+                value={nuevoForm.zonas}
+                onChange={(zonas) => setNuevoForm({ ...nuevoForm, zonas })}
+              />
+            </div>
+
+            {!esHistorico ? (
+              <div>
+                <label className="text-sm font-medium mb-1 block">Fase inicial</label>
+                <FaseTratamientoStepper
+                  value={nuevoForm.fase_tratamiento || 'reposo'}
+                  onChange={(fase) => setNuevoForm({ ...nuevoForm, fase_tratamiento: fase })}
+                />
+              </div>
+            ) : null}
 
             <div>
               <label className="text-sm font-medium mb-1 block">Diagnóstico fisioterapéutico</label>

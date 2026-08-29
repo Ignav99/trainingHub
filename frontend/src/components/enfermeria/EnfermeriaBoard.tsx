@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { Clock, Activity, ChevronRight } from 'lucide-react'
 import type { DisponibilidadOperativa, RegistroMedico } from '@/types'
-import { DISPONIBILIDAD_COLORS, DISPONIBILIDAD_LABELS } from '@/lib/jugadorTipo'
+import { DISPONIBILIDAD_COLORS, DISPONIBILIDAD_LABELS, FASE_TRATAMIENTO_LABELS } from '@/lib/jugadorTipo'
+import { labelsFromZonas } from '@/lib/bodyRegions'
 import { cn } from '@/lib/utils'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 
@@ -50,19 +51,19 @@ const COLUMN_META: Record<
   { title: string; subtitle: string; accent: string; headerBg: string }
 > = {
   fuera: {
-    title: 'Fuera',
+    title: 'Reposo',
     subtitle: 'No entrena · no convoca',
     accent: 'border-t-red-500',
     headerBg: 'bg-red-50/80',
   },
   individual: {
-    title: 'Individual / RTP',
-    subtitle: 'Trabajo al margen o fisio',
+    title: 'Margen',
+    subtitle: 'Trabajo individual o fisio',
     accent: 'border-t-amber-500',
     headerBg: 'bg-amber-50/80',
   },
   grupo_adaptado: {
-    title: 'Grupo adaptado',
+    title: 'Inicio grupo',
     subtitle: 'Con el grupo, carga limitada',
     accent: 'border-t-sky-500',
     headerBg: 'bg-sky-50/80',
@@ -76,6 +77,7 @@ function playerLabel(j: BoardPlayer) {
 export function CaseCard({ item }: { item: PlayerCaseCard }) {
   const { jugador, registro, dias, disponibilidad } = item
   const vuelta = jugador.fecha_vuelta_estimada || null
+  const zona = labelsFromZonas(registro.zonas) || registro.zona_corporal
   const accent =
     disponibilidad === 'fuera'
       ? 'bg-red-500'
@@ -102,7 +104,7 @@ export function CaseCard({ item }: { item: PlayerCaseCard }) {
               <p className="text-sm font-semibold truncate leading-tight">{playerLabel(jugador)}</p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 {jugador.posicion_principal}
-                {registro.zona_corporal ? ` · ${registro.zona_corporal}` : ''}
+                {zona ? ` · ${zona}` : ''}
               </p>
             </div>
             <div className="text-right shrink-0">
@@ -115,7 +117,9 @@ export function CaseCard({ item }: { item: PlayerCaseCard }) {
 
           <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
             <span className={cn('inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium border', DISPONIBILIDAD_COLORS[disponibilidad])}>
-              {DISPONIBILIDAD_LABELS[disponibilidad]}
+              {registro.fase_tratamiento
+                ? (FASE_TRATAMIENTO_LABELS[registro.fase_tratamiento] || registro.fase_tratamiento)
+                : disponibilidad === 'fuera' ? 'Reposo' : disponibilidad === 'individual' ? 'Margen' : disponibilidad === 'grupo_adaptado' ? 'Inicio grupo' : DISPONIBILIDAD_LABELS[disponibilidad]}
             </span>
             <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground">
               {TIPO_LABEL[registro.tipo] || registro.tipo}

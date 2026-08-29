@@ -197,9 +197,9 @@ export const POSICIONES = {
 
 export const ESTADOS_JUGADOR = {
   activo: { nombre: 'Disponible', color: '#10B981', icon: 'check' },
-  lesionado: { nombre: 'Lesionado', color: '#EF4444', icon: 'activity' },
-  en_recuperacion: { nombre: 'En Recuperacion', color: '#F59E0B', icon: 'heart-pulse' },
-  enfermo: { nombre: 'Enfermo', color: '#F97316', icon: 'thermometer' },
+  lesionado: { nombre: 'En tratamiento', color: '#EF4444', icon: 'activity' },
+  en_recuperacion: { nombre: 'En tratamiento', color: '#F59E0B', icon: 'heart-pulse' },
+  enfermo: { nombre: 'En tratamiento', color: '#F97316', icon: 'thermometer' },
   sancionado: { nombre: 'Sancionado', color: '#EAB308', icon: 'alert-triangle' },
   viaje: { nombre: 'Viaje', color: '#8B5CF6', icon: 'plane' },
   permiso: { nombre: 'Permiso', color: '#6366F1', icon: 'calendar-off' },

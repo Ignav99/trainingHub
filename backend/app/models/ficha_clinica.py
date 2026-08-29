@@ -62,3 +62,26 @@ class EvaluacionResponse(BaseModel):
 class EvaluacionListResponse(BaseModel):
     data: List[EvaluacionResponse]
     total: int
+
+
+class HabitosUpdate(BaseModel):
+    comidas: Optional[str] = None
+    sueno: Optional[str] = None
+    actividades_nocivas: Optional[str] = None
+    deportes_externos: Optional[str] = None
+    notas: Optional[str] = None
+    datos: Optional[Dict[str, Any]] = None
+
+
+class HabitosResponse(BaseModel):
+    id: Optional[UUID] = None
+    jugador_id: UUID
+    comidas: Optional[str] = None
+    sueno: Optional[str] = None
+    actividades_nocivas: Optional[str] = None
+    deportes_externos: Optional[str] = None
+    notas: Optional[str] = None
+    datos: Dict[str, Any] = Field(default_factory=dict)
+    actualizado_por: Optional[UUID] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None

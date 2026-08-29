@@ -37,6 +37,10 @@ import { Jugador, POSICIONES } from '@/lib/api/jugadores'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { apiKey } from '@/lib/swr'
 import type { PruebaMedica, RegistroMedico } from '@/types'
+import { FaseTratamientoStepper } from '@/components/ficha-clinica/FaseTratamientoStepper'
+import { TratamientoCuaderno } from '@/components/ficha-clinica/TratamientoCuaderno'
+import { BodyInjuryMap } from '@/components/ficha-clinica/BodyInjuryMap'
+import { FASE_TRATAMIENTO_LABELS } from '@/lib/jugadorTipo'
 
 const ESTADO_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   activo: { label: 'Activo', color: 'text-red-700', bg: 'bg-red-100' },
@@ -145,6 +149,8 @@ export default function EnfermeriaDetailPage() {
       lado: registro.lado || '',
       disponibilidad: registro.disponibilidad || '',
       fase_rtp: registro.fase_rtp || '',
+      fase_tratamiento: registro.fase_tratamiento || '',
+      zonas: registro.zonas || [],
     })
     setIsEditing(true)
   }
@@ -154,7 +160,7 @@ export default function EnfermeriaDetailPage() {
     setSaving(true)
     try {
       const payload = { ...editForm }
-      for (const k of ['severidad', 'lado', 'disponibilidad', 'fase_rtp', 'zona_corporal']) {
+      for (const k of ['severidad', 'lado', 'disponibilidad', 'fase_rtp', 'zona_corporal', 'fase_tratamiento']) {
         if (payload[k] === '') payload[k] = undefined
       }
       await medicoApi.update(registro.id, payload)
@@ -320,6 +326,36 @@ export default function EnfermeriaDetailPage() {
       {(registro.estado !== 'alta' || isEditing) && (
         <Card className="border-amber-200 bg-amber-50/40">
           <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Fase de tratamiento</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <FaseTratamientoStepper
+              value={registro.fase_tratamiento || undefined}
+              onChange={async (fase) => {
+                await medicoApi.update(registro.id, { fase_tratamiento: fase })
+                mutate(apiKey(`/medico/${registro.id}`))
+                mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'))
+                toast.success(`Fase: ${FASE_TRATAMIENTO_LABELS[fase]}`)
+              }}
+            />
+            <p className="text-xs text-muted-foreground">
+              En el resto de la app este jugador cuenta como {registro.disponibilidad === 'pleno' ? 'disponible' : 'en tratamiento'}.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      <BodyInjuryMap
+        value={isEditing ? (editForm.zonas ?? registro.zonas) : registro.zonas}
+        readOnly={!isEditing}
+        onChange={(zonas) => setEditForm({ ...editForm, zonas })}
+      />
+
+      {registro.estado !== 'alta' ? <TratamientoCuaderno registroId={registro.id} /> : null}
+
+      {(registro.estado !== 'alta' || isEditing) && (
+        <Card className="border-amber-200 bg-amber-50/40">
+          <CardHeader className="pb-2">
             <CardTitle className="text-sm">Disponibilidad operativa y RTP</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -332,10 +368,10 @@ export default function EnfermeriaDetailPage() {
                   onChange={(e) => setEditForm({ ...editForm, disponibilidad: e.target.value || undefined })}
                 >
                   <option value="">—</option>
-                  <option value="fuera">Fuera</option>
-                  <option value="individual">Individual / margen</option>
-                  <option value="grupo_adaptado">Grupo adaptado</option>
-                  <option value="pleno">Pleno</option>
+                  <option value="fuera">Reposo</option>
+                  <option value="individual">Margen</option>
+                  <option value="grupo_adaptado">Inicio grupo</option>
+                  <option value="pleno">Disponible</option>
                 </select>
               ) : (
                 <p className="text-sm font-medium capitalize">{(registro.disponibilidad || '—').replace('_', ' ')}</p>

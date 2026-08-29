@@ -14,14 +14,6 @@ import {
   Trash2,
   Loader2,
   AlertCircle,
-  CheckCircle,
-  Activity,
-  Thermometer,
-  AlertTriangle,
-  Plane,
-  CalendarOff,
-  Flag,
-  XCircle,
   Star,
   Eye,
   UserCog,
@@ -49,34 +41,9 @@ import {
   isPlantilla,
   resolveFichaEstado,
   resolveTipoJugador,
+  etiquetaPrograma,
 } from '@/lib/jugadorTipo'
 import type { CargaEquipoResponse, CargaJugador, TipoJugador } from '@/types'
-
-// Badge de estado
-function EstadoBadge({ estado }: { estado: string }) {
-  const config = ESTADOS_JUGADOR[estado as keyof typeof ESTADOS_JUGADOR] || ESTADOS_JUGADOR.activo
-
-  const iconMap: Record<string, React.ReactNode> = {
-    check: <CheckCircle className="h-3 w-3" />,
-    activity: <Activity className="h-3 w-3" />,
-    thermometer: <Thermometer className="h-3 w-3" />,
-    'alert-triangle': <AlertTriangle className="h-3 w-3" />,
-    plane: <Plane className="h-3 w-3" />,
-    'calendar-off': <CalendarOff className="h-3 w-3" />,
-    flag: <Flag className="h-3 w-3" />,
-    'x-circle': <XCircle className="h-3 w-3" />,
-  }
-
-  return (
-    <span
-      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-white"
-      style={{ backgroundColor: config.color }}
-    >
-      {iconMap[config.icon]}
-      {config.nombre}
-    </span>
-  )
-}
 
 // Badge de posicion
 function PosicionBadge({ posicion }: { posicion: string }) {
@@ -117,7 +84,7 @@ function JugadorCard({
   const router = useRouter()
 
   const pos = POSICIONES[jugador.posicion_principal as keyof typeof POSICIONES]
-  const isNoDisponible = jugador.estado !== 'activo'
+  const isNoDisponible = etiquetaPrograma(jugador) !== 'disponible'
   const tipo = resolveTipoJugador(jugador)
   const ficha = resolveFichaEstado(jugador)
   const extraPlantilla = !isPlantilla(jugador)
@@ -238,12 +205,11 @@ function JugadorCard({
         </div>
       </div>
 
-      {/* Estado si no disponible */}
-      {isNoDisponible && (
+      {/* Motivo si no está disponible */}
+      {isNoDisponible && (jugador.motivo_baja || jugador.fecha_vuelta_estimada) && (
         <div className="mb-3">
-          <EstadoBadge estado={jugador.estado} />
           {jugador.motivo_baja && (
-            <p className="text-xs text-gray-500 mt-1">{jugador.motivo_baja}</p>
+            <p className="text-xs text-gray-500">{jugador.motivo_baja}</p>
           )}
           {jugador.fecha_vuelta_estimada && (
             <p className="text-xs text-gray-400 mt-0.5">
@@ -323,10 +289,12 @@ function EstadoModal({
   const [motivo, setMotivo] = useState(jugador.motivo_baja || '')
   const [fechaVuelta, setFechaVuelta] = useState(jugador.fecha_vuelta_estimada || '')
 
-  const estados = Object.entries(ESTADOS_JUGADOR).map(([value, config]) => ({
-    value,
-    ...config,
-  }))
+  const estados = Object.entries(ESTADOS_JUGADOR)
+    .filter(([value]) => !['lesionado', 'en_recuperacion', 'enfermo'].includes(value))
+    .map(([value, config]) => ({
+      value,
+      ...config,
+    }))
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
@@ -357,6 +325,9 @@ function EstadoModal({
                 </button>
               ))}
             </div>
+            <p className="mt-2 text-xs text-gray-500">
+              Las lesiones se cambian en ficha clínica o enfermería (reposo → margen → inicio grupo → disponible).
+            </p>
           </div>
 
           {estado !== 'activo' && (
@@ -616,7 +587,7 @@ export default function PlantillaPage() {
     if (jugadores.length === 0 && !jugadoresResponse) return null
 
     const plantilla = jugadores.filter((j) => isPlantilla(j))
-    const disponibles = plantilla.filter((j) => j.estado === 'activo').length
+    const disponibles = plantilla.filter((j) => etiquetaPrograma(j) === 'disponible').length
     const porZona: Record<string, number> = { porteria: 0, defensa: 0, mediocampo: 0, ataque: 0 }
     plantilla.forEach((j) => {
       const pos = POSICIONES[j.posicion_principal as keyof typeof POSICIONES]

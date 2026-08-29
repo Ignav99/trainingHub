@@ -17,6 +17,7 @@ import { toast } from 'sonner'
 import { jugadoresApi, Jugador, JugadorCreate, JugadorUpdate, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { useEquipoStore } from '@/stores/equipoStore'
+import { isEnTratamiento } from '@/lib/jugadorTipo'
 
 export default function EquipoPage() {
   const { equipoActivo, loadEquipos, isLoading: loadingEquipos } = useEquipoStore()
@@ -131,8 +132,8 @@ export default function EquipoPage() {
   const plantillaJugadores = jugadores.filter(j => !j.es_invitado)
   const stats = {
     total: plantillaJugadores.length,
-    activos: plantillaJugadores.filter(j => j.estado === 'activo').length,
-    lesionados: plantillaJugadores.filter(j => j.estado === 'lesionado').length,
+    activos: plantillaJugadores.filter(j => !isEnTratamiento(j) && j.estado !== 'sancionado').length,
+    lesionados: plantillaJugadores.filter(j => isEnTratamiento(j)).length,
     porteros: plantillaJugadores.filter(j => j.es_portero).length,
   }
 
@@ -204,7 +205,7 @@ export default function EquipoPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.activos}</p>
-              <p className="text-sm text-gray-500">Activos</p>
+              <p className="text-sm text-gray-500">Disponibles</p>
             </div>
           </div>
         </div>
@@ -215,7 +216,7 @@ export default function EquipoPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.lesionados}</p>
-              <p className="text-sm text-gray-500">Lesionados</p>
+              <p className="text-sm text-gray-500">En tratamiento</p>
             </div>
           </div>
         </div>

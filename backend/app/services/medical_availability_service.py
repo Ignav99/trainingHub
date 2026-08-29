@@ -39,6 +39,20 @@ FASES_GRUPO = {
     "fase_8_competicion",
 }
 
+# Crescendo clínico (ficha / enfermería) → disponibilidad operativa (resto de la app)
+FASE_TRATAMIENTO_DISP = {
+    "reposo": "fuera",
+    "margen": "individual",
+    "inicio_grupo": "grupo_adaptado",
+    "disponible": "pleno",
+}
+
+
+def disponibilidad_from_fase_tratamiento(fase: Optional[str]) -> Optional[str]:
+    if not fase:
+        return None
+    return FASE_TRATAMIENTO_DISP.get(fase)
+
 
 def disponibilidad_from_fase(fase_rtp: Optional[str]) -> Optional[str]:
     if not fase_rtp:
@@ -55,10 +69,15 @@ def default_disponibilidad(
     estado: str,
     fase_rtp: Optional[str] = None,
     severidad: Optional[str] = None,
+    fase_tratamiento: Optional[str] = None,
 ) -> str:
     """Disponibilidad por defecto según tipo/estado/fase del caso."""
     if estado == "alta":
         return "pleno"
+
+    from_trat = disponibilidad_from_fase_tratamiento(fase_tratamiento)
+    if from_trat:
+        return from_trat
 
     from_fase = disponibilidad_from_fase(fase_rtp)
     if from_fase:
@@ -82,6 +101,9 @@ def default_disponibilidad(
 
 
 def resolve_record_disponibilidad(record: dict) -> str:
+    from_trat = disponibilidad_from_fase_tratamiento(record.get("fase_tratamiento"))
+    if from_trat:
+        return from_trat
     explicit = record.get("disponibilidad")
     if explicit in DISP_RANK:
         return explicit
@@ -90,27 +112,23 @@ def resolve_record_disponibilidad(record: dict) -> str:
         estado=record.get("estado") or "activo",
         fase_rtp=record.get("fase_rtp"),
         severidad=record.get("severidad"),
+        fase_tratamiento=record.get("fase_tratamiento"),
     )
 
 
 def estado_from_record(record: dict) -> str:
     tipo = record.get("tipo") or "otro"
-    estado_reg = record.get("estado") or "activo"
     disp = resolve_record_disponibilidad(record)
 
+    # Fase «disponible» / pleno: en el programa el jugador cuenta como disponible
+    # aunque el caso médico siga abierto hasta el alta.
+    if disp == "pleno":
+        return "activo"
     if tipo == "enfermedad":
         return "enfermo"
-    if tipo == "molestias" and disp == "pleno":
-        return "activo"
-    if tipo == "rehabilitacion" or estado_reg == "en_recuperacion" or disp in ("individual", "grupo_adaptado"):
-        if tipo == "lesion" and disp == "fuera":
-            return "lesionado"
-        return "en_recuperacion"
-    if tipo == "lesion":
-        return "lesionado"
     if disp == "fuera":
-        return "lesionado"
-    return "activo"
+        return "lesionado" if tipo != "enfermedad" else "enfermo"
+    return "en_recuperacion"
 
 
 def pick_primary_record(records: list[dict]) -> Optional[dict]:
@@ -222,13 +240,13 @@ def sync_jugador_disponibilidad(supabase, jugador_id: str) -> dict:
         supabase.table("registros_medicos")
         .select(
             "id, tipo, estado, titulo, fecha_inicio, dias_baja_estimados, "
-            "disponibilidad, fase_rtp, severidad"
+            "disponibilidad, fase_rtp, severidad, fase_tratamiento, es_historico"
         )
         .eq("jugador_id", str(jugador_id))
         .in_("estado", list(OPEN_ESTADOS))
         .execute()
     )
-    records = open_q.data or []
+    records = [r for r in (open_q.data or []) if not r.get("es_historico")]
 
     if not records:
         update = {
