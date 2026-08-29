@@ -557,38 +557,6 @@ function JugadorModal({
               </div>
             </div>
 
-            {/* Físico */}
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Datos Físicos</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-gray-600 mb-1">Altura (m)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min={1}
-                    max={2.5}
-                    value={formData.altura || ''}
-                    onChange={(e) => setFormData({ ...formData, altura: parseFloat(e.target.value) || undefined })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    placeholder="1.75"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-600 mb-1">Peso (kg)</label>
-                  <input
-                    type="number"
-                    min={30}
-                    max={150}
-                    value={formData.peso || ''}
-                    onChange={(e) => setFormData({ ...formData, peso: parseFloat(e.target.value) || undefined })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    placeholder="70"
-                  />
-                </div>
-              </div>
-            </div>
-
             {/* Niveles */}
             <div>
               <h3 className="text-sm font-medium text-gray-700 mb-3">Niveles (1-10)</h3>

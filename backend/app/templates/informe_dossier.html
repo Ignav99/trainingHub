@@ -370,6 +370,49 @@
         {% endif %}
       </tbody>
     </table>
+    {% if jugador.clinica and (jugador.clinica.valoracion or jugador.clinica.tests) %}
+    <h2>Cuaderno clínico</h2>
+    <table class="kpis">
+      <tr>
+        {% if jugador.clinica.valoracion %}
+        <td>
+          <div class="l">Valoración {{ jugador.clinica.valoracion.fecha }}</div>
+          <div class="n" style="font-size:13px">
+            {% if jugador.clinica.valoracion.talla_cm %}{{ jugador.clinica.valoracion.talla_cm }} cm{% endif %}
+            {% if jugador.clinica.valoracion.peso_kg %} · {{ jugador.clinica.valoracion.peso_kg }} kg{% endif %}
+          </div>
+          <div class="l" style="margin-top:4px;text-transform:none;letter-spacing:0">
+            {{ jugador.clinica.valoracion.momento }}
+            {% if jugador.clinica.valoracion.imc %} · IMC {{ jugador.clinica.valoracion.imc }}{% endif %}
+            {% if jugador.clinica.valoracion.porcentaje_grasa %} · % grasa {{ jugador.clinica.valoracion.porcentaje_grasa }}{% endif %}
+          </div>
+        </td>
+        {% endif %}
+        {% if jugador.clinica.tests %}
+        <td>
+          <div class="l">Tests {{ jugador.clinica.tests.fecha }}</div>
+          <div class="n" style="font-size:13px">
+            {% if jugador.clinica.tests.cmj_cm %}CMJ {{ jugador.clinica.tests.cmj_cm }} cm{% endif %}
+            {% if jugador.clinica.tests.sprint_10_s %} · 10 m {{ jugador.clinica.tests.sprint_10_s }} s{% endif %}
+          </div>
+          <div class="l" style="margin-top:4px;text-transform:none;letter-spacing:0">
+            {{ jugador.clinica.tests.momento }}
+            {% if jugador.clinica.tests.squeeze_45_mmhg %} · Squeeze 45° {{ jugador.clinica.tests.squeeze_45_mmhg }}{% endif %}
+          </div>
+        </td>
+        {% endif %}
+      </tr>
+    </table>
+    {% if jugador.clinica.valoracion and jugador.clinica.valoracion.hallazgos %}
+    <p class="meta">Hallazgos: {{ jugador.clinica.valoracion.hallazgos | join(' · ') }}</p>
+    {% endif %}
+    {% if jugador.clinica.valoracion and jugador.clinica.valoracion.notas %}
+    <div class="notas"><div class="l">Notas de valoración</div>{{ jugador.clinica.valoracion.notas }}</div>
+    {% endif %}
+    {% if jugador.clinica.tests and jugador.clinica.tests.notas %}
+    <div class="notas"><div class="l">Notas de tests</div>{{ jugador.clinica.tests.notas }}</div>
+    {% endif %}
+    {% endif %}
   {% endif %}
 
   {% if 'microciclo' in secciones and microciclo %}

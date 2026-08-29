@@ -109,6 +109,10 @@ class JugadorBase(BaseModel):
     nivel_tactico: int = Field(default=5, ge=1, le=10)
     nivel_fisico: int = Field(default=5, ge=1, le=10)
     nivel_mental: int = Field(default=5, ge=1, le=10)
+    nivel_tecnico_comentario: Optional[str] = None
+    nivel_tactico_comentario: Optional[str] = None
+    nivel_fisico_comentario: Optional[str] = None
+    nivel_mental_comentario: Optional[str] = None
 
     # Estado
     estado: EstadoJugador = Field(default=EstadoJugador.ACTIVO)
@@ -164,6 +168,10 @@ class JugadorUpdate(BaseModel):
     nivel_tactico: Optional[int] = Field(None, ge=1, le=10)
     nivel_fisico: Optional[int] = Field(None, ge=1, le=10)
     nivel_mental: Optional[int] = Field(None, ge=1, le=10)
+    nivel_tecnico_comentario: Optional[str] = None
+    nivel_tactico_comentario: Optional[str] = None
+    nivel_fisico_comentario: Optional[str] = None
+    nivel_mental_comentario: Optional[str] = None
 
     estado: Optional[EstadoJugador] = None
     disponibilidad: Optional[DisponibilidadOperativa] = None

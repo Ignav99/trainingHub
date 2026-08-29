@@ -1,14 +1,18 @@
 # TrainingHub — estado actual
 
 ## En curso
-Biblioteca de tareas: las tareas SÍ se guardaban. El listado las ocultaba.
+Ficha clínica: valoración + tests datados (cuaderno de campo).
+Rama `cursor/ficha-clinica-valoracion-ae84`.
 
-Causas:
-- Filtro oculto `familia: madres` + `solo_madres=true` (el selector estaba escondido).
-- El API sobrescribía `total` con `len(página)` (12), así que no había página 2.
+La foto `cambios_ficha_clinica` no llegó al entorno del agente; el catálogo se basó en el brief + ISAK/Faulkner, Kendall, screening de fútbol (KTW, Y-Balance, squeeze, CMJ, Nordic, hops, 5-0-5).
 
-Rama `cursor/tareas-biblioteca-paginacion-ae84`.
+## Hecho en esta rama
+- Migración 074: `jugador_evaluaciones` + comentarios de niveles.
+- API `/v1/ficha-clinica`.
+- Ficha del jugador: subpestañas Valoración / Tests / Lesiones.
+- Altura/peso fuera de generales y nutrición.
+- Comentarios en niveles al editar.
+- Dossier de jugador incluye última valoración y tests.
 
 ## Hecho reciente
-PR #259 — comodín en pizarra, descanso en segundos, escritura (live).
-PR #258 — biblioteca de microciclos en dashboard + bloques de defensa (live).
+PR #260 — biblioteca de tareas, paginación real (live).

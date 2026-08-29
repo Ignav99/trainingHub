@@ -1,14 +1,8 @@
 # TrainingHub — estado actual
 
 ## En curso
-Biblioteca de tareas: las tareas SÍ se guardaban. El listado las ocultaba.
-
-Causas:
-- Filtro oculto `familia: madres` + `solo_madres=true` (el selector estaba escondido).
-- El API sobrescribía `total` con `len(página)` (12), así que no había página 2.
-
-Rama `cursor/tareas-biblioteca-paginacion-ae84`.
+Ficha clínica: valoración + tests datados. Rama `cursor/ficha-clinica-valoracion-ae84`.
+Foto `cambios_ficha_clinica` no disponible en el entorno; catálogo ISAK/Faulkner + screening fútbol.
 
 ## Hecho reciente
-PR #259 — comodín en pizarra, descanso en segundos, escritura (live).
-PR #258 — biblioteca de microciclos en dashboard + bloques de defensa (live).
+PR #260 — biblioteca de tareas, paginación real (live).
