@@ -207,13 +207,6 @@ export const POSICION_ALIASES: Record<string, PosicionCodigo> = {
   DFI: 'DFC',
 }
 
-export const ZONA_PLANTILLA_LABELS: Record<string, string> = {
-  porteria: 'Porteros',
-  defensa: 'Defensas',
-  mediocampo: 'Medios',
-  ataque: 'Delanteros',
-}
-
 export function canonicalPosicion(codigo?: string | null): string {
   if (!codigo) return ''
   const upper = codigo.trim().toUpperCase()
@@ -242,38 +235,6 @@ export function compareJugadoresPorPosicion(a: JugadorOrdenPosicion, b: JugadorO
   const dorsalB = b.dorsal ?? 999
   if (dorsalA !== dorsalB) return dorsalA - dorsalB
   return (a.apellidos || '').localeCompare(b.apellidos || '', 'es')
-}
-
-export type GrupoPosicionPlantilla<T> = {
-  codigo: string
-  zona: string
-  nombre: string
-  color: string
-  jugadores: T[]
-}
-
-export function groupJugadoresByPosicion<T extends JugadorOrdenPosicion>(
-  jugadores: T[],
-): GrupoPosicionPlantilla<T>[] {
-  const sorted = [...jugadores].sort(compareJugadoresPorPosicion)
-  const groups: GrupoPosicionPlantilla<T>[] = []
-  for (const j of sorted) {
-    const codigo = canonicalPosicion(j.posicion_principal) || j.posicion_principal || '—'
-    const last = groups[groups.length - 1]
-    if (last && last.codigo === codigo) {
-      last.jugadores.push(j)
-      continue
-    }
-    const meta = posicionMeta(codigo)
-    groups.push({
-      codigo,
-      zona: meta?.zona ?? 'otros',
-      nombre: meta?.nombre ?? codigo,
-      color: meta?.color ?? '#6B7280',
-      jugadores: [j],
-    })
-  }
-  return groups
 }
 
 export const ESTADOS_JUGADOR = {
