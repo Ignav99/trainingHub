@@ -12,6 +12,7 @@ import {
   Plus,
   Stethoscope,
   Timer,
+  Trash2,
   Upload,
   X,
   Coffee,
@@ -88,7 +89,9 @@ export function FichaClinicaPanel({
   const medicalRecords: RegistroMedico[] = registrosMedicos
     ? Array.isArray(registrosMedicos) ? registrosMedicos : registrosMedicos.data || []
     : []
-  const activeIncident = medicalRecords.find((r) => r.estado === 'activo' || r.estado === 'en_recuperacion')
+  const openRecords = medicalRecords.filter((r) => r.estado === 'activo' || r.estado === 'en_recuperacion')
+  const activeLesion = openRecords.find((r) => r.tipo !== 'molestias')
+  const openMolestias = openRecords.filter((r) => r.tipo === 'molestias')
 
   const tabs: { id: SubTab; label: string; icon: typeof Stethoscope; count?: number }[] = [
     { id: 'valoracion', label: 'Valoración', icon: Stethoscope, count: valoraciones.length },
@@ -119,8 +122,10 @@ export function FichaClinicaPanel({
                   {tab.count}
                 </span>
               ) : null}
-              {tab.id === 'lesiones' && activeIncident ? (
+              {tab.id === 'lesiones' && activeLesion ? (
                 <span className="h-2 w-2 rounded-full bg-red-400" />
+              ) : tab.id === 'lesiones' && openMolestias.length ? (
+                <span className="h-2 w-2 rounded-full bg-amber-400" />
               ) : null}
             </button>
           )
@@ -155,7 +160,8 @@ export function FichaClinicaPanel({
           jugador={jugador}
           estadoConfig={estadoConfig}
           medicalRecords={medicalRecords}
-          activeIncident={activeIncident}
+          activeLesion={activeLesion}
+          openMolestias={openMolestias}
         />
       ) : null}
     </div>
@@ -166,12 +172,14 @@ function LesionesTab({
   jugador,
   estadoConfig,
   medicalRecords,
-  activeIncident,
+  activeLesion,
+  openMolestias,
 }: {
   jugador: Jugador
   estadoConfig?: { color?: string; nombre?: string }
   medicalRecords: RegistroMedico[]
-  activeIncident?: RegistroMedico
+  activeLesion?: RegistroMedico
+  openMolestias: RegistroMedico[]
 }) {
   const router = useRouter()
   const [modo, setModo] = useState<'temporada' | 'historial'>('temporada')
@@ -185,20 +193,28 @@ function LesionesTab({
   })
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
 
   const historial = medicalRecords.filter((r) => r.es_historico || r.estado === 'alta')
   const temporada = medicalRecords.filter((r) => !r.es_historico && r.estado !== 'alta')
   const lista = modo === 'historial' ? historial : temporada
+  const tipoNuevo = (nuevoForm.tipo || 'lesion') as TipoRegistroMedico
+  const esMolestia = tipoNuevo === 'molestias'
 
-  const resetRegistroForm = () => {
+  const resetRegistroForm = (tipo: TipoRegistroMedico = 'lesion') => {
     setNuevoForm({
-      tipo: 'lesion',
+      tipo,
       fecha_inicio: new Date().toISOString().slice(0, 10),
-      fase_tratamiento: 'reposo',
+      fase_tratamiento: tipo === 'lesion' ? 'reposo' : undefined,
       zonas: [],
     })
     setEsHistorico(modo === 'historial')
     setPendingFiles([])
+  }
+
+  const refreshMedico = () => {
+    mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
+    mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'), undefined, { revalidate: true })
   }
 
   const handleCreateRegistro = async () => {
@@ -209,21 +225,26 @@ function LesionesTab({
       const createData: CreateRegistroMedicoData = {
         jugador_id: jugador.id,
         equipo_id: jugador.equipo_id,
-        tipo: nuevoForm.tipo || 'lesion',
+        tipo: tipoNuevo,
         titulo: nuevoForm.titulo,
         diagnostico_fisioterapeutico: nuevoForm.diagnostico_fisioterapeutico,
         fecha_inicio: nuevoForm.fecha_inicio || new Date().toISOString().slice(0, 10),
-        dias_baja_estimados: esHistorico ? undefined : nuevoForm.dias_baja_estimados,
+        dias_baja_estimados: esHistorico || esMolestia ? undefined : nuevoForm.dias_baja_estimados,
         registro_padre_id: nuevoForm.registro_padre_id,
         zonas,
         zona_corporal: labelsFromZonas(zonas) || nuevoForm.zona_corporal,
         es_historico: esHistorico,
-        fase_tratamiento: esHistorico ? undefined : (nuevoForm.fase_tratamiento || 'reposo'),
       }
       if (esHistorico) {
         createData.estado = 'alta'
         createData.fecha_fin = nuevoForm.fecha_fin
         createData.fecha_alta = nuevoForm.fecha_fin
+      } else if (esMolestia) {
+        createData.disponibilidad = 'pleno'
+      } else if (tipoNuevo === 'lesion') {
+        createData.fase_tratamiento = nuevoForm.fase_tratamiento === 'margen' ? 'margen' : 'reposo'
+      } else {
+        createData.fase_tratamiento = nuevoForm.fase_tratamiento || 'reposo'
       }
       const result = await medicoApi.create(createData)
       const created = (result as { data?: { id: string } })?.data || result
@@ -256,13 +277,39 @@ function LesionesTab({
       }
       resetRegistroForm()
       setShowNuevoRegistro(false)
-      mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
-      mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'), undefined, { revalidate: true })
-      toast.success(esHistorico ? 'Lesión histórica guardada' : 'Lesión registrada')
+      refreshMedico()
+      toast.success(esHistorico ? 'Registro histórico guardado' : esMolestia ? 'Molestia anotada' : 'Lesión registrada')
     } catch {
       toast.error('Error al crear el registro. ¿Migración 077 aplicada?')
     } finally {
       setSavingRegistro(false)
+    }
+  }
+
+  const handleAlta = async (id: string) => {
+    setBusyId(id)
+    try {
+      await medicoApi.darAlta(id, { fecha_alta: new Date().toISOString().slice(0, 10) })
+      refreshMedico()
+      toast.success('Registro cerrado')
+    } catch {
+      toast.error('No se pudo cerrar el registro')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleDeleteRow = async (id: string) => {
+    if (!window.confirm('¿Eliminar este registro? No se puede deshacer.')) return
+    setBusyId(id)
+    try {
+      await medicoApi.delete(id)
+      refreshMedico()
+      toast.success('Registro eliminado')
+    } catch {
+      toast.error('No se pudo eliminar')
+    } finally {
+      setBusyId(null)
     }
   }
 
@@ -289,7 +336,7 @@ function LesionesTab({
       <p className="text-xs text-slate-500">
         {modo === 'historial'
           ? 'Lesiones antiguas y altas. Van con el jugador aunque cambie de plantilla.'
-          : 'Registro de la temporada. Cambia la fase (reposo → margen → inicio grupo) a mano.'}
+          : 'Lesión abierta: solo reposo o margen. Las molestias se anotan aquí pero el jugador sigue disponible en el programa.'}
       </p>
 
       {modo === 'temporada' ? (
@@ -306,44 +353,94 @@ function LesionesTab({
                   : 'En tratamiento'}
             </p>
             {jugador.motivo_baja ? <p className="text-sm text-muted-foreground">{jugador.motivo_baja}</p> : null}
-            {activeIncident ? (
+            {openMolestias.length ? (
+              <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-sm text-amber-900">
+                Molestias abiertas: {openMolestias.map((m) => m.titulo).join(' · ')}. Sigue disponible en plantilla y microciclo.
+              </p>
+            ) : null}
+            {activeLesion ? (
               <div className="mt-3">
-                <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">Fase de la lesión (ficha / enfermería)</p>
+                <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">Fase de la lesión (reposo / margen)</p>
                 <FaseTratamientoStepper
-                  value={activeIncident.fase_tratamiento || undefined}
+                  mode="lesion"
+                  value={activeLesion.fase_tratamiento || undefined}
                   onChange={async (fase) => {
-                    await medicoApi.update(activeIncident.id, { fase_tratamiento: fase })
-                    mutate((key: string) => typeof key === 'string' && key.includes('/medico'))
-                    mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'))
+                    await medicoApi.update(activeLesion.id, { fase_tratamiento: fase })
+                    refreshMedico()
                     toast.success(`Fase: ${FASE_TRATAMIENTO_LABELS[fase]}`)
                   }}
                 />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      await medicoApi.update(activeLesion.id, { fase_tratamiento: 'inicio_grupo' })
+                      refreshMedico()
+                      toast.success('Pasado a inicio grupo')
+                    }}
+                  >
+                    Pasar a inicio grupo
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleAlta(activeLesion.id)}>
+                    Dar alta
+                  </Button>
+                </div>
               </div>
             ) : null}
           </CardContent>
         </Card>
       ) : null}
 
-      {modo === 'temporada' && activeIncident ? (
+      {modo === 'temporada' && openMolestias.length ? (
+        <Card className="border-l-4 border-l-amber-500">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base text-amber-800">Molestias</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {openMolestias.map((m) => (
+              <div key={m.id} className="rounded-lg border border-amber-100 bg-amber-50/50 p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium text-[#16324F]">{m.titulo}</p>
+                    <p className="text-xs text-slate-500">{daysSince(m.fecha_inicio)} días · {labelsFromZonas(m.zonas) || m.zona_corporal || 'Sin zona'}</p>
+                  </div>
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="outline" disabled={busyId === m.id} onClick={() => handleAlta(m.id)}>
+                      Finalizar
+                    </Button>
+                    <Button size="sm" variant="ghost" className="text-red-600" disabled={busyId === m.id} onClick={() => handleDeleteRow(m.id)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+                <BodyInjuryMap value={m.zonas} readOnly />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {modo === 'temporada' && activeLesion ? (
         <>
           <Card className="border-l-4 border-l-red-500">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base text-red-700">{activeIncident.titulo}</CardTitle>
+              <CardTitle className="text-base text-red-700">{activeLesion.titulo}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-sm text-muted-foreground">{daysSince(activeIncident.fecha_inicio)} días</span>
-                <Link href={`/enfermeria/${activeIncident.id}`}>
+                <span className="text-sm text-muted-foreground">{daysSince(activeLesion.fecha_inicio)} días</span>
+                <Link href={`/enfermeria/${activeLesion.id}`}>
                   <Button variant="outline" size="sm">
                     <ExternalLink className="mr-1 h-3.5 w-3.5" />
                     Abrir en enfermería
                   </Button>
                 </Link>
               </div>
-              <BodyInjuryMap value={activeIncident.zonas} readOnly />
+              <BodyInjuryMap value={activeLesion.zonas} readOnly />
             </CardContent>
           </Card>
-          <TratamientoCuaderno registroId={activeIncident.id} />
+          <TratamientoCuaderno registroId={activeLesion.id} />
         </>
       ) : null}
 
@@ -352,15 +449,23 @@ function LesionesTab({
           <CardTitle className="text-base">
             {modo === 'historial' ? 'Lesiones anteriores' : 'Casos de temporada'}
           </CardTitle>
-          <Button size="sm" onClick={() => { setEsHistorico(modo === 'historial'); setShowNuevoRegistro(true) }}>
-            <Plus className="mr-1 h-3.5 w-3.5" />
-            {modo === 'historial' ? 'Añadir histórica' : 'Nueva lesión'}
-          </Button>
+          <div className="flex gap-2">
+            {modo === 'temporada' ? (
+              <Button size="sm" variant="outline" onClick={() => { setEsHistorico(false); resetRegistroForm('molestias'); setShowNuevoRegistro(true) }}>
+                <Plus className="mr-1 h-3.5 w-3.5" />
+                Nueva molestia
+              </Button>
+            ) : null}
+            <Button size="sm" onClick={() => { setEsHistorico(modo === 'historial'); resetRegistroForm('lesion'); setShowNuevoRegistro(true) }}>
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              {modo === 'historial' ? 'Añadir histórica' : 'Nueva lesión'}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {lista.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              {modo === 'historial' ? 'No hay lesiones históricas.' : 'Ninguna lesión abierta esta temporada.'}
+              {modo === 'historial' ? 'No hay lesiones históricas.' : 'Ningún caso abierto esta temporada.'}
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -371,28 +476,46 @@ function LesionesTab({
                     <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Zona</th>
                     <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Título</th>
                     <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Estado</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium uppercase text-gray-500">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {lista.map((r) => {
                     const estadoBadge = ESTADO_BADGE[r.estado] || ESTADO_BADGE.activo
+                    const tipoLabel = TIPOS_MEDICO.find((t) => t.value === r.tipo)?.label || r.tipo
                     return (
-                      <tr
-                        key={r.id}
-                        onClick={() => router.push(`/enfermeria/${r.id}`)}
-                        className="cursor-pointer transition-colors hover:bg-gray-50"
-                      >
-                        <td className="whitespace-nowrap px-4 py-3 text-sm tabular-nums">
+                      <tr key={r.id} className="transition-colors hover:bg-gray-50">
+                        <td
+                          className="cursor-pointer whitespace-nowrap px-4 py-3 text-sm tabular-nums"
+                          onClick={() => router.push(`/enfermeria/${r.id}`)}
+                        >
                           {new Date(r.fecha_inicio).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: '2-digit' })}
                         </td>
-                        <td className="px-4 py-3 text-sm text-slate-600">
+                        <td className="cursor-pointer px-4 py-3 text-sm text-slate-600" onClick={() => router.push(`/enfermeria/${r.id}`)}>
                           {labelsFromZonas(r.zonas) || r.zona_corporal || '—'}
                         </td>
-                        <td className="px-4 py-3 text-sm">{r.titulo}</td>
+                        <td className="cursor-pointer px-4 py-3 text-sm" onClick={() => router.push(`/enfermeria/${r.id}`)}>
+                          <span>{r.titulo}</span>
+                          <span className="ml-2 text-[11px] text-slate-400">{tipoLabel}</span>
+                        </td>
                         <td className="whitespace-nowrap px-4 py-3">
-                          <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${estadoBadge.color}`}>
-                            {r.fase_tratamiento ? FASE_TRATAMIENTO_LABELS[r.fase_tratamiento] : estadoBadge.label}
+                          <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${r.tipo === 'molestias' ? 'bg-amber-100 text-amber-800' : estadoBadge.color}`}>
+                            {r.tipo === 'molestias'
+                              ? (r.estado === 'alta' ? 'Cerrada' : 'Molestia')
+                              : (r.fase_tratamiento ? FASE_TRATAMIENTO_LABELS[r.fase_tratamiento] : estadoBadge.label)}
                           </span>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right">
+                          <div className="inline-flex gap-1">
+                            {r.estado !== 'alta' ? (
+                              <Button size="sm" variant="ghost" disabled={busyId === r.id} onClick={() => handleAlta(r.id)}>
+                                Alta
+                              </Button>
+                            ) : null}
+                            <Button size="sm" variant="ghost" className="text-red-600" disabled={busyId === r.id} onClick={() => handleDeleteRow(r.id)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     )
@@ -407,10 +530,12 @@ function LesionesTab({
       <Dialog open={showNuevoRegistro} onOpenChange={(open) => { setShowNuevoRegistro(open); if (!open) resetRegistroForm() }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{esHistorico ? 'Lesión histórica' : 'Nueva lesión de temporada'}</DialogTitle>
+            <DialogTitle>
+              {esHistorico ? 'Lesión histórica' : esMolestia ? 'Nueva molestia' : 'Nueva lesión de temporada'}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            {historial.length > 0 && !esHistorico ? (
+            {historial.length > 0 && !esHistorico && !esMolestia ? (
               <div>
                 <label className="mb-1 block text-sm font-medium">Relacionar con una anterior</label>
                 <select
@@ -429,22 +554,48 @@ function LesionesTab({
             ) : null}
             <div>
               <label className="mb-1 block text-sm font-medium">Tipo *</label>
-              <select className="w-full rounded-md border bg-background px-3 py-2 text-sm" value={nuevoForm.tipo || 'lesion'} onChange={(e) => setNuevoForm({ ...nuevoForm, tipo: e.target.value })}>
+              <select
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={tipoNuevo}
+                onChange={(e) => {
+                  const tipo = e.target.value as TipoRegistroMedico
+                  setNuevoForm({
+                    ...nuevoForm,
+                    tipo,
+                    fase_tratamiento: tipo === 'lesion' ? 'reposo' : undefined,
+                  })
+                }}
+              >
                 {TIPOS_MEDICO.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">Título *</label>
-              <Input value={nuevoForm.titulo || ''} onChange={(e) => setNuevoForm({ ...nuevoForm, titulo: e.target.value })} placeholder="Ej: Rotura fibrilar isquios derecho" />
+              <Input
+                value={nuevoForm.titulo || ''}
+                onChange={(e) => setNuevoForm({ ...nuevoForm, titulo: e.target.value })}
+                placeholder={esMolestia ? 'Ej: Molestia isquios derecho' : 'Ej: Rotura fibrilar isquios derecho'}
+              />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Zona en el cuerpo</label>
+              <label className="mb-1 block text-sm font-medium">Músculo o estructura</label>
               <BodyInjuryMap
                 value={nuevoForm.zonas}
                 onChange={(zonas) => setNuevoForm({ ...nuevoForm, zonas })}
               />
             </div>
-            {!esHistorico ? (
+            {!esHistorico && !esMolestia && tipoNuevo === 'lesion' ? (
+              <div>
+                <label className="mb-1 block text-sm font-medium">Fase inicial</label>
+                <FaseTratamientoStepper
+                  mode="lesion"
+                  value={nuevoForm.fase_tratamiento || 'reposo'}
+                  onChange={(fase) => setNuevoForm({ ...nuevoForm, fase_tratamiento: fase })}
+                />
+                <p className="mt-1 text-xs text-slate-500">Una lesión nueva solo puede estar en reposo o margen. Después el fisio edita el estado a inicio grupo o alta.</p>
+              </div>
+            ) : null}
+            {!esHistorico && !esMolestia && tipoNuevo !== 'lesion' ? (
               <div>
                 <label className="mb-1 block text-sm font-medium">Fase inicial</label>
                 <FaseTratamientoStepper
@@ -452,6 +603,11 @@ function LesionesTab({
                   onChange={(fase) => setNuevoForm({ ...nuevoForm, fase_tratamiento: fase })}
                 />
               </div>
+            ) : null}
+            {esMolestia ? (
+              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                La molestia queda en la ficha y en enfermería. En plantilla y microciclo el jugador sigue disponible.
+              </p>
             ) : null}
             <div>
               <label className="mb-1 block text-sm font-medium">Diagnóstico fisioterapéutico</label>
@@ -467,7 +623,7 @@ function LesionesTab({
                   <label className="mb-1 block text-sm font-medium">Fecha fin / alta</label>
                   <Input type="date" value={nuevoForm.fecha_fin || ''} onChange={(e) => setNuevoForm({ ...nuevoForm, fecha_fin: e.target.value })} />
                 </div>
-              ) : (
+              ) : esMolestia ? null : (
                 <div>
                   <label className="mb-1 block text-sm font-medium">Días estimados</label>
                   <Input type="number" min={1} value={nuevoForm.dias_baja_estimados || ''} onChange={(e) => setNuevoForm({ ...nuevoForm, dias_baja_estimados: parseInt(e.target.value) || undefined })} />
@@ -508,7 +664,7 @@ function LesionesTab({
             <Button variant="outline" onClick={() => { setShowNuevoRegistro(false); resetRegistroForm() }}>Cancelar</Button>
             <Button onClick={handleCreateRegistro} disabled={savingRegistro || !nuevoForm.titulo}>
               {savingRegistro ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {esHistorico ? 'Guardar histórica' : 'Registrar lesión'}
+              {esHistorico ? 'Guardar histórica' : esMolestia ? 'Anotar molestia' : 'Registrar lesión'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -516,6 +672,7 @@ function LesionesTab({
     </div>
   )
 }
+
 /** Peek used on Datos: last anthropometry from ficha clínica. */
 export function UltimaAntropometria({ jugadorId, onOpenClinica }: { jugadorId: string; onOpenClinica: () => void }) {
   const { data } = useSWR<EvaluacionClinica[] | { data: EvaluacionClinica[] }>(

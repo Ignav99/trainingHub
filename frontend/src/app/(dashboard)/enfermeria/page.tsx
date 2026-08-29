@@ -11,7 +11,6 @@ import {
   Loader2,
   AlertCircle,
   Activity,
-  CheckCircle,
   Clock,
   Upload,
   FileText,
@@ -35,7 +34,7 @@ import { Jugador } from '@/lib/api/jugadores'
 import { apiKey } from '@/lib/swr'
 import type { DisponibilidadOperativa, RegistroMedico, TipoRegistroMedico } from '@/types'
 import { resolveDisponibilidad } from '@/lib/jugadorTipo'
-import { EnfermeriaBoard, EnfermeriaHistorico, type PlayerCaseCard } from '@/components/enfermeria/EnfermeriaBoard'
+import { EnfermeriaBoard, EnfermeriaHistorico, type BoardBucket, type PlayerCaseCard } from '@/components/enfermeria/EnfermeriaBoard'
 import { SaludTabs } from '@/components/salud/SaludTabs'
 import { BodyInjuryMap } from '@/components/ficha-clinica/BodyInjuryMap'
 import { FaseTratamientoStepper } from '@/components/ficha-clinica/FaseTratamientoStepper'
@@ -182,8 +181,8 @@ export default function EnfermeriaPage() {
       })
   }, [historicoRegistros, jugadoresMap])
 
-  /** Una tarjeta por jugador: caso abierto más restrictivo / reciente */
-  const activePlayerCases = useMemo(() => {
+  /** Una tarjeta por jugador: lesión/baja más restrictiva, o molestia si no hay baja */
+  const { bajaCards, molestiasCards } = useMemo(() => {
     const byPlayer = new Map<string, RegistroMedico[]>()
     for (const r of openRegistros) {
       const list = byPlayer.get(r.jugador_id) || []
@@ -191,22 +190,13 @@ export default function EnfermeriaPage() {
       byPlayer.set(r.jugador_id, list)
     }
 
-    const cards: PlayerCaseCard[] = []
+    const baja: PlayerCaseCard[] = []
+    const molestias: PlayerCaseCard[] = []
     for (const [jugadorId, list] of Array.from(byPlayer.entries())) {
       const jugador = jugadoresMap.get(jugadorId)
       if (!jugador) continue
 
-      const ranked = [...list].sort((a, b) => {
-        const da = resolveCaseDisponibilidad(a, jugador)
-        const db = resolveCaseDisponibilidad(b, jugador)
-        if (DISP_RANK[da] !== DISP_RANK[db]) return DISP_RANK[da] - DISP_RANK[db]
-        return (b.fecha_inicio || '').localeCompare(a.fecha_inicio || '')
-      })
-      const registro = ranked[0]
-      const disponibilidad = resolveCaseDisponibilidad(registro, jugador)
-      if (disponibilidad === 'pleno') continue // molestias sin baja → no van al tablero de baja
-
-      cards.push({
+      const toCard = (registro: RegistroMedico, disponibilidad: DisponibilidadOperativa): PlayerCaseCard => ({
         jugador: {
           id: jugador.id,
           nombre: jugador.nombre,
@@ -221,30 +211,53 @@ export default function EnfermeriaPage() {
         dias: daysSince(registro.fecha_inicio),
         disponibilidad,
       })
+
+      const bajas = list.filter((r) => r.tipo !== 'molestias')
+      const mols = list.filter((r) => r.tipo === 'molestias')
+
+      if (bajas.length) {
+        const ranked = [...bajas].sort((a, b) => {
+          const da = resolveCaseDisponibilidad(a, jugador)
+          const db = resolveCaseDisponibilidad(b, jugador)
+          if (DISP_RANK[da] !== DISP_RANK[db]) return DISP_RANK[da] - DISP_RANK[db]
+          return (b.fecha_inicio || '').localeCompare(a.fecha_inicio || '')
+        })
+        const registro = ranked[0]
+        const disponibilidad = resolveCaseDisponibilidad(registro, jugador)
+        if (disponibilidad !== 'pleno') baja.push(toCard(registro, disponibilidad))
+      } else if (mols.length) {
+        const registro = [...mols].sort((a, b) => (b.fecha_inicio || '').localeCompare(a.fecha_inicio || ''))[0]
+        molestias.push(toCard(registro, 'pleno'))
+      }
     }
 
-    cards.sort((a, b) => b.dias - a.dias)
-    return cards
+    baja.sort((a, b) => b.dias - a.dias)
+    molestias.sort((a, b) => b.dias - a.dias)
+    return { bajaCards: baja, molestiasCards: molestias }
   }, [openRegistros, jugadoresMap])
 
+  const activePlayerCases = bajaCards
+
   const columns = useMemo(() => {
-    const base: Record<Exclude<DisponibilidadOperativa, 'pleno'>, PlayerCaseCard[]> = {
+    const base: Record<BoardBucket, PlayerCaseCard[]> = {
       fuera: [],
       individual: [],
       grupo_adaptado: [],
+      molestias: molestiasCards,
     }
-    for (const c of activePlayerCases) {
+    for (const c of bajaCards) {
       if (c.disponibilidad === 'fuera') base.fuera.push(c)
       else if (c.disponibilidad === 'individual') base.individual.push(c)
       else if (c.disponibilidad === 'grupo_adaptado') base.grupo_adaptado.push(c)
     }
     return base
-  }, [activePlayerCases])
+  }, [bajaCards, molestiasCards])
 
   const kpis = {
     fuera: columns.fuera.length,
     individual: columns.individual.length,
     grupo: columns.grupo_adaptado.length,
+    molestias: columns.molestias.length,
     disponibles: jugadores.filter((j) => resolveDisponibilidad(j) === 'pleno').length,
     historico: registros.filter((r) => r.estado === 'alta').length,
   }
@@ -275,15 +288,17 @@ export default function EnfermeriaPage() {
 
     setSaving(true)
     try {
+      const tipo = nuevoForm.tipo || 'lesion'
+      const esMolestia = tipo === 'molestias'
       const zonas = nuevoForm.zonas || []
       const createData: CreateRegistroMedicoData = {
         jugador_id: nuevoForm.jugador_id,
         equipo_id: equipoActivo.id,
-        tipo: nuevoForm.tipo || 'lesion',
+        tipo,
         titulo: nuevoForm.titulo.trim(),
         diagnostico_fisioterapeutico: nuevoForm.diagnostico_fisioterapeutico?.trim() || undefined,
         fecha_inicio: nuevoForm.fecha_inicio || new Date().toISOString().slice(0, 10),
-        dias_baja_estimados: esHistorico ? undefined : nuevoForm.dias_baja_estimados,
+        dias_baja_estimados: esHistorico || esMolestia ? undefined : nuevoForm.dias_baja_estimados,
         registro_padre_id: nuevoForm.registro_padre_id || undefined,
         severidad: nuevoForm.severidad || undefined,
         zonas,
@@ -292,7 +307,6 @@ export default function EnfermeriaPage() {
         es_historico: esHistorico,
         es_relesion: !!nuevoForm.registro_padre_id,
         registro_origen_id: nuevoForm.registro_padre_id || undefined,
-        fase_tratamiento: esHistorico ? undefined : (nuevoForm.fase_tratamiento || 'reposo'),
       }
 
       if (esHistorico) {
@@ -305,6 +319,12 @@ export default function EnfermeriaPage() {
         createData.fecha_fin = nuevoForm.fecha_fin
         createData.fecha_alta = nuevoForm.fecha_fin
         createData.disponibilidad = 'pleno'
+      } else if (esMolestia) {
+        createData.disponibilidad = 'pleno'
+      } else if (tipo === 'lesion') {
+        createData.fase_tratamiento = nuevoForm.fase_tratamiento === 'margen' ? 'margen' : 'reposo'
+      } else {
+        createData.fase_tratamiento = nuevoForm.fase_tratamiento || 'reposo'
       }
 
       const result = await medicoApi.create(createData)
@@ -360,7 +380,7 @@ export default function EnfermeriaPage() {
       <div className="space-y-3">
         <PageHeader
           title="Enfermería"
-          description={`${kpis.fuera + kpis.individual + kpis.grupo} en seguimiento · ${kpis.disponibles} disponibles`}
+          description={`${kpis.fuera + kpis.individual + kpis.grupo} en seguimiento · ${kpis.molestias} con molestias · ${kpis.disponibles} disponibles`}
           actions={
             <Button onClick={() => setShowNuevo(true)}>
               <Plus className="h-4 w-4 mr-2" />
@@ -374,10 +394,10 @@ export default function EnfermeriaPage() {
       {/* KPI strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: 'Fuera', value: kpis.fuera, icon: Activity, tone: 'text-red-700', bg: 'bg-red-50', ring: 'ring-red-100' },
-          { label: 'Individual / RTP', value: kpis.individual, icon: Clock, tone: 'text-amber-700', bg: 'bg-amber-50', ring: 'ring-amber-100' },
-          { label: 'Grupo adaptado', value: kpis.grupo, icon: HeartPulse, tone: 'text-sky-700', bg: 'bg-sky-50', ring: 'ring-sky-100' },
-          { label: 'Disponibles', value: kpis.disponibles, icon: CheckCircle, tone: 'text-emerald-700', bg: 'bg-emerald-50', ring: 'ring-emerald-100' },
+          { label: 'Reposo', value: kpis.fuera, icon: Activity, tone: 'text-red-700', bg: 'bg-red-50', ring: 'ring-red-100' },
+          { label: 'Margen', value: kpis.individual, icon: Clock, tone: 'text-amber-700', bg: 'bg-amber-50', ring: 'ring-amber-100' },
+          { label: 'Inicio grupo', value: kpis.grupo, icon: HeartPulse, tone: 'text-sky-700', bg: 'bg-sky-50', ring: 'ring-sky-100' },
+          { label: 'Molestias', value: kpis.molestias, icon: AlertCircle, tone: 'text-stone-700', bg: 'bg-stone-50', ring: 'ring-stone-100' },
         ].map((k) => (
           <div key={k.label} className={cn('rounded-2xl border p-4 ring-1', k.bg, k.ring)}>
             <div className="flex items-center justify-between gap-2">
@@ -433,12 +453,12 @@ export default function EnfermeriaPage() {
                 Reintentar
               </Button>
             </div>
-          ) : activePlayerCases.length === 0 ? (
+          ) : activePlayerCases.length === 0 && molestiasCards.length === 0 ? (
             <div className="rounded-2xl border bg-card">
               <EmptyState
                 icon={<HeartPulse className="h-12 w-12" />}
                 title="Plantilla disponible"
-                description="Nadie en reposo, margen o inicio de grupo. Abre Histórico para ver altas anteriores."
+                description="Nadie en reposo, margen o inicio de grupo. Las molestias se ven en su columna. Abre Histórico para ver altas."
                 action={
                   <Button onClick={() => setShowNuevo(true)}>
                     <Plus className="h-4 w-4 mr-2" />
@@ -571,7 +591,14 @@ export default function EnfermeriaPage() {
               <select
                 className="w-full rounded-md border bg-background px-3 py-2 text-sm"
                 value={nuevoForm.tipo || 'lesion'}
-                onChange={(e) => setNuevoForm({ ...nuevoForm, tipo: e.target.value })}
+                onChange={(e) => {
+                  const tipo = e.target.value
+                  setNuevoForm({
+                    ...nuevoForm,
+                    tipo,
+                    fase_tratamiento: tipo === 'lesion' ? 'reposo' : tipo === 'molestias' ? undefined : (nuevoForm.fase_tratamiento || 'reposo'),
+                  })
+                }}
               >
                 {TIPOS.map((t) => (
                   <option key={t.value} value={t.value}>
@@ -623,14 +650,27 @@ export default function EnfermeriaPage() {
             )}
 
             <div>
-              <label className="text-sm font-medium mb-1 block">Zona en el cuerpo</label>
+              <label className="text-sm font-medium mb-1 block">Músculo o estructura</label>
               <BodyInjuryMap
                 value={nuevoForm.zonas}
                 onChange={(zonas) => setNuevoForm({ ...nuevoForm, zonas })}
               />
             </div>
 
-            {!esHistorico ? (
+            {!esHistorico && nuevoForm.tipo !== 'molestias' && nuevoForm.tipo === 'lesion' ? (
+              <div>
+                <label className="text-sm font-medium mb-1 block">Fase inicial</label>
+                <FaseTratamientoStepper
+                  mode="lesion"
+                  value={nuevoForm.fase_tratamiento || 'reposo'}
+                  onChange={(fase) => setNuevoForm({ ...nuevoForm, fase_tratamiento: fase })}
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Una lesión nueva solo puede estar en reposo o margen. Después el fisio edita a inicio grupo o alta.
+                </p>
+              </div>
+            ) : null}
+            {!esHistorico && nuevoForm.tipo !== 'molestias' && nuevoForm.tipo !== 'lesion' ? (
               <div>
                 <label className="text-sm font-medium mb-1 block">Fase inicial</label>
                 <FaseTratamientoStepper
@@ -638,6 +678,11 @@ export default function EnfermeriaPage() {
                   onChange={(fase) => setNuevoForm({ ...nuevoForm, fase_tratamiento: fase })}
                 />
               </div>
+            ) : null}
+            {nuevoForm.tipo === 'molestias' && !esHistorico ? (
+              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                El jugador sigue disponible en plantilla y microciclo. La molestia se ve en ficha y en esta columna de enfermería.
+              </p>
             ) : null}
 
             <div>

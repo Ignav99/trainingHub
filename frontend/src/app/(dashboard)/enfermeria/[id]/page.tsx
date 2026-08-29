@@ -322,14 +322,17 @@ export default function EnfermeriaDetailPage() {
         }
       />
 
-      {/* Disponibilidad / RTP */}
-      {(registro.estado !== 'alta' || isEditing) && (
+      {/* Fase de tratamiento */}
+      {registro.tipo !== 'molestias' && (registro.estado !== 'alta' || isEditing) && (
         <Card className="border-amber-200 bg-amber-50/40">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Fase de tratamiento</CardTitle>
+            <CardTitle className="text-sm">
+              {registro.tipo === 'lesion' ? 'Fase de la lesión' : 'Fase de tratamiento'}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <FaseTratamientoStepper
+              mode={registro.tipo === 'lesion' && !isEditing ? 'lesion' : 'full'}
               value={registro.fase_tratamiento || undefined}
               onChange={async (fase) => {
                 await medicoApi.update(registro.id, { fase_tratamiento: fase })
@@ -338,12 +341,30 @@ export default function EnfermeriaDetailPage() {
                 toast.success(`Fase: ${FASE_TRATAMIENTO_LABELS[fase]}`)
               }}
             />
-            <p className="text-xs text-muted-foreground">
-              En el resto de la app este jugador cuenta como {registro.disponibilidad === 'pleno' ? 'disponible' : 'en tratamiento'}.
-            </p>
+            {registro.tipo === 'lesion' && !isEditing && registro.estado !== 'alta' ? (
+              <p className="text-xs text-muted-foreground">
+                Reposo o margen mientras está de baja. Para devolverlo al grupo o darlo de alta usa los botones de abajo.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                En el resto de la app este jugador cuenta como {registro.disponibilidad === 'pleno' ? 'disponible' : 'en tratamiento'}.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
+      {registro.tipo === 'molestias' && registro.estado !== 'alta' ? (
+        <Card className="border-amber-200 bg-amber-50/40">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Molestia</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-amber-900">
+              El jugador sigue disponible en plantilla y microciclo. Finaliza o elimina cuando desaparezca.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <BodyInjuryMap
         value={isEditing ? (editForm.zonas ?? registro.zonas) : registro.zonas}
@@ -353,7 +374,7 @@ export default function EnfermeriaDetailPage() {
 
       {registro.estado !== 'alta' ? <TratamientoCuaderno registroId={registro.id} /> : null}
 
-      {(registro.estado !== 'alta' || isEditing) && (
+      {registro.tipo !== 'molestias' && (registro.estado !== 'alta' || isEditing) && (
         <Card className="border-amber-200 bg-amber-50/40">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Disponibilidad operativa y RTP</CardTitle>
@@ -448,7 +469,22 @@ export default function EnfermeriaDetailPage() {
             <Trash2 className="h-4 w-4 mr-2" />
             Eliminar
           </Button>
-          {registro.estado === 'activo' && (
+          {registro.tipo === 'lesion' && registro.estado !== 'alta' && (
+            <Button
+              variant="outline"
+              onClick={async () => {
+                await medicoApi.update(registro.id, { fase_tratamiento: 'inicio_grupo' })
+                mutate(apiKey(`/medico/${registro.id}`))
+                mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'))
+                toast.success('Pasado a inicio grupo')
+              }}
+              className="text-sky-700 border-sky-300 hover:bg-sky-50"
+            >
+              <Activity className="h-4 w-4 mr-2" />
+              Pasar a inicio grupo
+            </Button>
+          )}
+          {registro.tipo !== 'lesion' && registro.tipo !== 'molestias' && registro.estado === 'activo' && (
             <Button variant="outline" onClick={() => setShowRehab(true)} className="text-blue-700 border-blue-300 hover:bg-blue-50">
               <Activity className="h-4 w-4 mr-2" />
               Pasar a Rehabilitación
@@ -457,7 +493,7 @@ export default function EnfermeriaDetailPage() {
           {registro.estado !== 'alta' && (
             <Button variant="outline" onClick={() => setShowAlta(true)} className="text-green-700 border-green-300 hover:bg-green-50">
               <CheckCircle className="h-4 w-4 mr-2" />
-              Dar Alta
+              {registro.tipo === 'molestias' ? 'Finalizar molestia' : 'Dar Alta'}
             </Button>
           )}
           {isEditing ? (
@@ -507,7 +543,7 @@ export default function EnfermeriaDetailPage() {
                   {/* Days counter */}
                   <div className="mt-4 p-4 rounded-lg bg-red-50 border border-red-100">
                     <p className="text-3xl font-bold text-red-700">{dias}</p>
-                    <p className="text-sm text-red-600">días de baja</p>
+                    <p className="text-sm text-red-600">{registro.tipo === 'molestias' ? 'días con molestia' : 'días de baja'}</p>
                   </div>
 
                   {/* Estimated return */}

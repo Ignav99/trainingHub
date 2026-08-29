@@ -38,6 +38,8 @@ from app.services.audit_service import log_action, log_create, log_update
 from app.services.medical_availability_service import (
     default_disponibilidad,
     disponibilidad_from_fase_tratamiento,
+    is_molestia,
+    normalize_create_fase,
     sync_jugador_disponibilidad,
 )
 logger = logging.getLogger(__name__)
@@ -128,25 +130,31 @@ async def create_registro_medico(
         record["registro_origen_id"] = str(record["registro_origen_id"])
 
     is_historical = bool(record.get("es_historico")) or record.get("estado") == "alta"
+    tipo = record.get("tipo") or "otro"
     if is_historical:
         record["es_historico"] = True
         record["estado"] = "alta"
         record["disponibilidad"] = "pleno"
         record["fase_tratamiento"] = None
     else:
-        if not record.get("fase_tratamiento"):
-            record["fase_tratamiento"] = "reposo"
-        from_trat = disponibilidad_from_fase_tratamiento(record.get("fase_tratamiento"))
-        if from_trat:
-            record["disponibilidad"] = from_trat
+        fase, disp = normalize_create_fase(
+            tipo,
+            record.get("fase_tratamiento"),
+            is_historical=False,
+        )
+        record["fase_tratamiento"] = fase
+        if disp:
+            record["disponibilidad"] = disp
         elif not record.get("disponibilidad"):
             record["disponibilidad"] = default_disponibilidad(
-                tipo=record.get("tipo") or "otro",
+                tipo=tipo,
                 estado=record.get("estado") or "activo",
                 fase_rtp=record.get("fase_rtp"),
                 severidad=record.get("severidad"),
-                fase_tratamiento=record.get("fase_tratamiento"),
+                fase_tratamiento=fase,
             )
+        if tipo == "molestias":
+            record["estado"] = record.get("estado") or "activo"
 
     # Encrypt sensitive fields
     record = _encrypt_medical_fields(record)
@@ -297,8 +305,22 @@ async def update_registro_medico(
     if "registro_origen_id" in update_data and update_data["registro_origen_id"] is not None:
         update_data["registro_origen_id"] = str(update_data["registro_origen_id"])
 
+    existing_tipo_row = (
+        supabase.table("registros_medicos")
+        .select("tipo, estado, severidad")
+        .eq("id", str(registro_id))
+        .single()
+        .execute()
+    )
+    tipo_actual = (update_data.get("tipo") or (existing_tipo_row.data or {}).get("tipo") or "otro")
+
+    # Molestias nunca bajan disponibilidad, aunque arrastren una fase vieja.
+    if is_molestia(tipo_actual):
+        update_data["disponibilidad"] = "pleno"
+        update_data["fase_tratamiento"] = None
+
     # Si cambia fase de tratamiento, mueve la disponibilidad operativa
-    if "fase_tratamiento" in update_data and "disponibilidad" not in update_data:
+    elif "fase_tratamiento" in update_data and "disponibilidad" not in update_data:
         from_trat = disponibilidad_from_fase_tratamiento(update_data.get("fase_tratamiento"))
         if from_trat:
             update_data["disponibilidad"] = from_trat
