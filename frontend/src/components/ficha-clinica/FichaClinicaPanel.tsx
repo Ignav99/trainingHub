@@ -134,7 +134,7 @@ export function FichaClinicaPanel({
 
       {(valoracionError || testsError) ? (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          El cuaderno clínico aún no está disponible en la base de datos (migración 074). Los registros de lesiones siguen funcionando.
+          El cuaderno clínico aún no está disponible en la base de datos (migración 076). Los registros de lesiones siguen funcionando.
         </p>
       ) : null}
 
