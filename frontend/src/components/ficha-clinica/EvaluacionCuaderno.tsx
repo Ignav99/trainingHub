@@ -13,7 +13,6 @@ import {
   MOMENTO_LABELS,
   applyDerived,
   bilateralKeys,
-  computeAsymmetry,
   formatDelta,
   optionLabel,
   type BloqueEvaluacion,
@@ -127,7 +126,6 @@ function FieldInput({
 
   if (field.kind === 'bilateral_number') {
     const { d, i } = bilateralKeys(field.key)
-    const asym = computeAsymmetry(datos[d], datos[i])
     return (
       <div className="sm:col-span-2">
         <div className="mb-1 flex items-baseline justify-between gap-2">
@@ -135,11 +133,6 @@ function FieldInput({
             {field.label}
             {field.unit ? <span className="ml-1 font-normal normal-case tracking-normal text-slate-400">{field.unit}</span> : null}
           </p>
-          {asym != null ? (
-            <span className={`tabular-nums text-[11px] ${asym >= 10 ? 'font-semibold text-[#C45C26]' : 'text-slate-400'}`}>
-              Δ {asym}%
-            </span>
-          ) : null}
         </div>
         <div className="grid grid-cols-2 gap-2">
           {([[d, 'D'], [i, 'I']] as const).map(([key, side]) => (

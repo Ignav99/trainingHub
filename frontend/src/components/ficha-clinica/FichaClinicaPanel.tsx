@@ -9,6 +9,7 @@ import {
   FileText,
   HeartPulse,
   Loader2,
+  Pencil,
   Plus,
   Stethoscope,
   Timer,
@@ -26,10 +27,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { EvaluacionCuaderno } from '@/components/ficha-clinica/EvaluacionCuaderno'
 import { HabitosPanel } from '@/components/ficha-clinica/HabitosPanel'
 import { BodyInjuryMap } from '@/components/ficha-clinica/BodyInjuryMap'
-import { FaseTratamientoStepper } from '@/components/ficha-clinica/FaseTratamientoStepper'
+import { FaseTratamientoStepper, stepperModeForLesion } from '@/components/ficha-clinica/FaseTratamientoStepper'
 import { TratamientoCuaderno } from '@/components/ficha-clinica/TratamientoCuaderno'
 import { medicoApi, type CreateRegistroMedicoData } from '@/lib/api/medico'
-import { labelsFromZonas } from '@/lib/bodyRegions'
+import { labelsFromZonas, zonaIds } from '@/lib/bodyRegions'
 import { etiquetaPrograma, FASE_TRATAMIENTO_LABELS } from '@/lib/jugadorTipo'
 import type { Jugador } from '@/lib/api/jugadores'
 import type { EvaluacionClinica } from '@/lib/api/fichaClinica'
@@ -194,6 +195,9 @@ function LesionesTab({
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [editMolestiaId, setEditMolestiaId] = useState<string | null>(null)
+  const [editMolestiaTitulo, setEditMolestiaTitulo] = useState('')
+  const [editMolestiaZonas, setEditMolestiaZonas] = useState<string[]>([])
 
   const historial = medicalRecords.filter((r) => r.es_historico || r.estado === 'alta')
   const temporada = medicalRecords.filter((r) => !r.es_historico && r.estado !== 'alta')
@@ -313,6 +317,31 @@ function LesionesTab({
     }
   }
 
+  const startEditMolestia = (m: RegistroMedico) => {
+    setEditMolestiaId(m.id)
+    setEditMolestiaTitulo(m.titulo)
+    setEditMolestiaZonas(zonaIds(m.zonas))
+  }
+
+  const handleSaveMolestia = async () => {
+    if (!editMolestiaId || !editMolestiaTitulo.trim()) return
+    setBusyId(editMolestiaId)
+    try {
+      await medicoApi.update(editMolestiaId, {
+        titulo: editMolestiaTitulo.trim(),
+        zonas: editMolestiaZonas,
+        zona_corporal: labelsFromZonas(editMolestiaZonas) || undefined,
+      })
+      setEditMolestiaId(null)
+      refreshMedico()
+      toast.success('Molestia actualizada')
+    } catch {
+      toast.error('No se pudo guardar')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
@@ -360,9 +389,13 @@ function LesionesTab({
             ) : null}
             {activeLesion ? (
               <div className="mt-3">
-                <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">Fase de la lesión (reposo / margen)</p>
+                <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                  {stepperModeForLesion(activeLesion.fase_tratamiento) === 'full'
+                    ? 'Fase de la lesión'
+                    : 'Fase de la lesión (reposo / margen)'}
+                </p>
                 <FaseTratamientoStepper
-                  mode="lesion"
+                  mode={stepperModeForLesion(activeLesion.fase_tratamiento)}
                   value={activeLesion.fase_tratamiento || undefined}
                   onChange={async (fase) => {
                     await medicoApi.update(activeLesion.id, { fase_tratamiento: fase })
@@ -371,17 +404,19 @@ function LesionesTab({
                   }}
                 />
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                      await medicoApi.update(activeLesion.id, { fase_tratamiento: 'inicio_grupo' })
-                      refreshMedico()
-                      toast.success('Pasado a inicio grupo')
-                    }}
-                  >
-                    Pasar a inicio grupo
-                  </Button>
+                  {stepperModeForLesion(activeLesion.fase_tratamiento) === 'lesion' ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        await medicoApi.update(activeLesion.id, { fase_tratamiento: 'inicio_grupo' })
+                        refreshMedico()
+                        toast.success('Pasado a inicio grupo')
+                      }}
+                    >
+                      Pasar a inicio grupo
+                    </Button>
+                  ) : null}
                   <Button size="sm" variant="outline" onClick={() => handleAlta(activeLesion.id)}>
                     Dar alta
                   </Button>
@@ -398,25 +433,60 @@ function LesionesTab({
             <CardTitle className="text-base text-amber-800">Molestias</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {openMolestias.map((m) => (
+            {openMolestias.map((m) => {
+              const editing = editMolestiaId === m.id
+              return (
               <div key={m.id} className="rounded-lg border border-amber-100 bg-amber-50/50 p-3">
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-medium text-[#16324F]">{m.titulo}</p>
-                    <p className="text-xs text-slate-500">{daysSince(m.fecha_inicio)} días · {labelsFromZonas(m.zonas) || m.zona_corporal || 'Sin zona'}</p>
+                  <div className="min-w-0 flex-1">
+                    {editing ? (
+                      <Input
+                        value={editMolestiaTitulo}
+                        onChange={(e) => setEditMolestiaTitulo(e.target.value)}
+                        className="bg-white"
+                      />
+                    ) : (
+                      <p className="font-medium text-[#16324F]">{m.titulo}</p>
+                    )}
+                    <p className="mt-1 text-xs text-slate-500">{daysSince(m.fecha_inicio)} días · {labelsFromZonas(editing ? editMolestiaZonas : m.zonas) || m.zona_corporal || 'Sin zona'}</p>
                   </div>
-                  <div className="flex gap-1">
-                    <Button size="sm" variant="outline" disabled={busyId === m.id} onClick={() => handleAlta(m.id)}>
-                      Finalizar
-                    </Button>
-                    <Button size="sm" variant="ghost" className="text-red-600" disabled={busyId === m.id} onClick={() => handleDeleteRow(m.id)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                  <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                    {editing ? (
+                      <>
+                        <Button size="sm" disabled={busyId === m.id} onClick={handleSaveMolestia}>Guardar</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setEditMolestiaId(null)}>Cancelar</Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button size="sm" variant="outline" onClick={() => startEditMolestia(m)}>
+                          <Pencil className="mr-1 h-3.5 w-3.5" />
+                          Editar
+                        </Button>
+                        <Link href={`/enfermeria/${m.id}`}>
+                          <Button size="sm" variant="ghost">
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </Button>
+                        </Link>
+                        <Button size="sm" variant="outline" disabled={busyId === m.id} onClick={() => handleAlta(m.id)}>
+                          Finalizar
+                        </Button>
+                        <Button size="sm" variant="ghost" className="text-red-600" disabled={busyId === m.id} onClick={() => handleDeleteRow(m.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
-                <BodyInjuryMap value={m.zonas} readOnly />
+                <div className="mt-2">
+                  <BodyInjuryMap
+                    value={editing ? editMolestiaZonas : m.zonas}
+                    readOnly={!editing}
+                    onChange={editing ? setEditMolestiaZonas : undefined}
+                  />
+                </div>
               </div>
-            ))}
+              )
+            })}
           </CardContent>
         </Card>
       ) : null}
@@ -507,9 +577,12 @@ function LesionesTab({
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-right">
                           <div className="inline-flex gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => router.push(`/enfermeria/${r.id}`)}>
+                              Editar
+                            </Button>
                             {r.estado !== 'alta' ? (
                               <Button size="sm" variant="ghost" disabled={busyId === r.id} onClick={() => handleAlta(r.id)}>
-                                Alta
+                                {r.tipo === 'molestias' ? 'Finalizar' : 'Alta'}
                               </Button>
                             ) : null}
                             <Button size="sm" variant="ghost" className="text-red-600" disabled={busyId === r.id} onClick={() => handleDeleteRow(r.id)}>

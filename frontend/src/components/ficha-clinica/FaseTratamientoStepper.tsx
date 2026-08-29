@@ -9,6 +9,12 @@ const STEPS_LESION = ['reposo', 'margen'] as const
 export type FaseTratamiento = typeof STEPS_FULL[number]
 export type FaseStepperMode = 'lesion' | 'full'
 
+/** Lesión nueva: reposo/margen. Si el fisio ya la pasó a grupo o disponible, stepper completo. */
+export function stepperModeForLesion(fase?: string | null): FaseStepperMode {
+  if (fase === 'inicio_grupo' || fase === 'disponible') return 'full'
+  return 'lesion'
+}
+
 export function FaseTratamientoStepper({
   value,
   onChange,

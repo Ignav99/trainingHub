@@ -20,6 +20,7 @@ from app.database import get_supabase
 from app.dependencies import require_permission, require_any_permission, AuthContext
 from app.security.permissions import Permission
 from app.services.audit_service import log_create, log_update, log_delete
+from app.services.medical_availability_service import sync_jugador_disponibilidad
 from app.services.notification_service import notify_jugador_lesion
 from app.services.player_photo_service import delete_player_photo, upload_player_photo
 
@@ -236,7 +237,19 @@ async def get_jugador(jugador_id: UUID, auth: AuthContext = Depends(require_perm
     if not response.data:
         raise HTTPException(status_code=404, detail="Jugador no encontrado")
 
-    return JugadorResponse(**enrich_jugador(response.data))
+    row = response.data
+    # Recalcula si parece de baja: molestias antiguas no deben dejarlo lesionado.
+    estado = row.get("estado")
+    disp = row.get("disponibilidad")
+    if estado in ("lesionado", "en_recuperacion", "enfermo") or (disp and disp != "pleno"):
+        try:
+            synced = sync_jugador_disponibilidad(supabase, str(jugador_id))
+            if synced:
+                row = {**row, **synced}
+        except Exception:
+            logger.exception("Error sync disponibilidad al leer jugador %s", jugador_id)
+
+    return JugadorResponse(**enrich_jugador(row))
 
 
 @router.post("", response_model=JugadorResponse, status_code=status.HTTP_201_CREATED)

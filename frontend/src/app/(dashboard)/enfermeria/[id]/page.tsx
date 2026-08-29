@@ -37,7 +37,7 @@ import { Jugador, POSICIONES } from '@/lib/api/jugadores'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { apiKey } from '@/lib/swr'
 import type { PruebaMedica, RegistroMedico } from '@/types'
-import { FaseTratamientoStepper } from '@/components/ficha-clinica/FaseTratamientoStepper'
+import { FaseTratamientoStepper, stepperModeForLesion } from '@/components/ficha-clinica/FaseTratamientoStepper'
 import { TratamientoCuaderno } from '@/components/ficha-clinica/TratamientoCuaderno'
 import { BodyInjuryMap } from '@/components/ficha-clinica/BodyInjuryMap'
 import { FASE_TRATAMIENTO_LABELS } from '@/lib/jugadorTipo'
@@ -332,7 +332,7 @@ export default function EnfermeriaDetailPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <FaseTratamientoStepper
-              mode={registro.tipo === 'lesion' && !isEditing ? 'lesion' : 'full'}
+              mode={registro.tipo === 'lesion' && !isEditing ? stepperModeForLesion(registro.fase_tratamiento) : 'full'}
               value={registro.fase_tratamiento || undefined}
               onChange={async (fase) => {
                 await medicoApi.update(registro.id, { fase_tratamiento: fase })
@@ -469,7 +469,7 @@ export default function EnfermeriaDetailPage() {
             <Trash2 className="h-4 w-4 mr-2" />
             Eliminar
           </Button>
-          {registro.tipo === 'lesion' && registro.estado !== 'alta' && (
+          {registro.tipo === 'lesion' && registro.estado !== 'alta' && stepperModeForLesion(registro.fase_tratamiento) === 'lesion' && (
             <Button
               variant="outline"
               onClick={async () => {
