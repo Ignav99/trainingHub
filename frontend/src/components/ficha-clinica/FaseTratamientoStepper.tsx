@@ -3,23 +3,30 @@
 import { FASE_TRATAMIENTO_LABELS } from '@/lib/jugadorTipo'
 import { cn } from '@/lib/utils'
 
-const STEPS = ['reposo', 'margen', 'inicio_grupo', 'disponible'] as const
+const STEPS_FULL = ['reposo', 'margen', 'inicio_grupo', 'disponible'] as const
+const STEPS_LESION = ['reposo', 'margen'] as const
+
+export type FaseTratamiento = typeof STEPS_FULL[number]
+export type FaseStepperMode = 'lesion' | 'full'
 
 export function FaseTratamientoStepper({
   value,
   onChange,
   disabled,
+  mode = 'full',
 }: {
   value?: string | null
-  onChange?: (fase: typeof STEPS[number]) => void
+  onChange?: (fase: FaseTratamiento) => void
   disabled?: boolean
+  mode?: FaseStepperMode
 }) {
-  const current = value && STEPS.includes(value as typeof STEPS[number]) ? value : 'reposo'
+  const steps = mode === 'lesion' ? STEPS_LESION : STEPS_FULL
+  const current = value && (steps as readonly string[]).includes(value) ? value : 'reposo'
   return (
-    <div className="grid grid-cols-4 gap-1">
-      {STEPS.map((step, i) => {
+    <div className={cn('grid gap-1', mode === 'lesion' ? 'grid-cols-2' : 'grid-cols-4')}>
+      {steps.map((step, i) => {
         const active = current === step
-        const passed = STEPS.indexOf(current as typeof STEPS[number]) >= i
+        const passed = (steps as readonly string[]).indexOf(current) >= i
         return (
           <button
             key={step}

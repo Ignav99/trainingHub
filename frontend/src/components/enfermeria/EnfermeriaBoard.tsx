@@ -46,8 +46,10 @@ const TIPO_LABEL: Record<string, string> = {
   otro: 'Otro',
 }
 
+export type BoardBucket = Exclude<DisponibilidadOperativa, 'pleno'> | 'molestias'
+
 const COLUMN_META: Record<
-  Exclude<DisponibilidadOperativa, 'pleno'>,
+  BoardBucket,
   { title: string; subtitle: string; accent: string; headerBg: string }
 > = {
   fuera: {
@@ -68,6 +70,12 @@ const COLUMN_META: Record<
     accent: 'border-t-sky-500',
     headerBg: 'bg-sky-50/80',
   },
+  molestias: {
+    title: 'Molestias',
+    subtitle: 'Entrena con el grupo · anotar en ficha',
+    accent: 'border-t-stone-400',
+    headerBg: 'bg-stone-50/80',
+  },
 }
 
 function playerLabel(j: BoardPlayer) {
@@ -83,7 +91,9 @@ export function CaseCard({ item }: { item: PlayerCaseCard }) {
       ? 'bg-red-500'
       : disponibilidad === 'individual'
         ? 'bg-amber-500'
-        : 'bg-sky-500'
+        : registro.tipo === 'molestias'
+          ? 'bg-stone-400'
+          : 'bg-sky-500'
 
   return (
     <Link
@@ -116,8 +126,10 @@ export function CaseCard({ item }: { item: PlayerCaseCard }) {
           <p className="text-sm mt-2.5 line-clamp-2 leading-snug">{registro.titulo}</p>
 
           <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
-            <span className={cn('inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium border', DISPONIBILIDAD_COLORS[disponibilidad])}>
-              {registro.fase_tratamiento
+            <span className={cn('inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium border', registro.tipo === 'molestias' ? 'border-stone-300 bg-stone-100 text-stone-800' : DISPONIBILIDAD_COLORS[disponibilidad])}>
+              {registro.tipo === 'molestias'
+                ? 'Molestia'
+                : registro.fase_tratamiento
                 ? (FASE_TRATAMIENTO_LABELS[registro.fase_tratamiento] || registro.fase_tratamiento)
                 : disponibilidad === 'fuera' ? 'Reposo' : disponibilidad === 'individual' ? 'Margen' : disponibilidad === 'grupo_adaptado' ? 'Inicio grupo' : DISPONIBILIDAD_LABELS[disponibilidad]}
             </span>
@@ -154,7 +166,7 @@ export function BoardColumn({
   bucket,
   items,
 }: {
-  bucket: Exclude<DisponibilidadOperativa, 'pleno'>
+  bucket: BoardBucket
   items: PlayerCaseCard[]
 }) {
   const meta = COLUMN_META[bucket]
@@ -180,12 +192,13 @@ export function BoardColumn({
   )
 }
 
-export function EnfermeriaBoard({ columns }: { columns: Record<Exclude<DisponibilidadOperativa, 'pleno'>, PlayerCaseCard[]> }) {
+export function EnfermeriaBoard({ columns }: { columns: Record<BoardBucket, PlayerCaseCard[]> }) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 animate-fade-in">
+    <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 animate-fade-in">
       <BoardColumn bucket="fuera" items={columns.fuera} />
       <BoardColumn bucket="individual" items={columns.individual} />
       <BoardColumn bucket="grupo_adaptado" items={columns.grupo_adaptado} />
+      <BoardColumn bucket="molestias" items={columns.molestias} />
     </div>
   )
 }

@@ -17,6 +17,7 @@ from app.models.ficha_clinica import (
     HabitosUpdate,
 )
 from app.security.permissions import Permission
+from app.services.ficha_clinica_metrics import apply_derived
 
 router = APIRouter()
 
@@ -82,7 +83,7 @@ async def create_evaluacion(
         "fecha": data.fecha.isoformat(),
         "momento": data.momento.value,
         "titulo": data.titulo,
-        "datos": data.datos or {},
+        "datos": apply_derived(data.datos or {}),
         "notas": data.notas,
         "creado_por": str(auth.user_id) if getattr(auth, "user_id", None) else None,
     }
@@ -213,6 +214,8 @@ async def update_evaluacion(
         patch["fecha"] = patch["fecha"].isoformat()
     if "momento" in patch and patch["momento"] is not None:
         patch["momento"] = patch["momento"].value if hasattr(patch["momento"], "value") else patch["momento"]
+    if "datos" in patch and patch["datos"] is not None:
+        patch["datos"] = apply_derived(patch["datos"])
     if not patch:
         raise HTTPException(status_code=400, detail="Nada que actualizar")
     response = (

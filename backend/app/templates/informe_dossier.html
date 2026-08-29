@@ -384,7 +384,7 @@
           <div class="l" style="margin-top:4px;text-transform:none;letter-spacing:0">
             {{ jugador.clinica.valoracion.momento }}
             {% if jugador.clinica.valoracion.imc %} · IMC {{ jugador.clinica.valoracion.imc }}{% endif %}
-            {% if jugador.clinica.valoracion.porcentaje_grasa %} · % grasa {{ jugador.clinica.valoracion.porcentaje_grasa }}{% endif %}
+            {% if jugador.clinica.valoracion.imc_clasificacion %} · {{ jugador.clinica.valoracion.imc_clasificacion | replace('_', ' ') }}{% endif %}
           </div>
         </td>
         {% endif %}
@@ -392,12 +392,12 @@
         <td>
           <div class="l">Tests {{ jugador.clinica.tests.fecha }}</div>
           <div class="n" style="font-size:13px">
-            {% if jugador.clinica.tests.cmj_cm %}CMJ {{ jugador.clinica.tests.cmj_cm }} cm{% endif %}
-            {% if jugador.clinica.tests.sprint_10_s %} · 10 m {{ jugador.clinica.tests.sprint_10_s }} s{% endif %}
+            {% if jugador.clinica.tests.bronco_20 %}20 m {{ jugador.clinica.tests.bronco_20 }} s{% endif %}
+            {% if jugador.clinica.tests.bronco_40 %} · 40 m {{ jugador.clinica.tests.bronco_40 }} s{% endif %}
+            {% if jugador.clinica.tests.bronco_60x5 %} · 60 m×5 {{ jugador.clinica.tests.bronco_60x5 }} s{% endif %}
           </div>
           <div class="l" style="margin-top:4px;text-transform:none;letter-spacing:0">
             {{ jugador.clinica.tests.momento }}
-            {% if jugador.clinica.tests.squeeze_45_mmhg %} · Squeeze 45° {{ jugador.clinica.tests.squeeze_45_mmhg }}{% endif %}
           </div>
         </td>
         {% endif %}

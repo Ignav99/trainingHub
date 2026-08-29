@@ -3,8 +3,11 @@ from uuid import uuid4
 
 from app.models.ficha_clinica import BloqueEvaluacion, EvaluacionCreate, MomentoEvaluacion
 from app.services.ficha_clinica_metrics import (
+    apply_derived,
     asimetria_pct,
+    clasificacion_imc,
     imc,
+    lectura_ake,
     lsi_pct,
     porcentaje_grasa_faulkner,
     snapshot_para_informe,
@@ -16,6 +19,10 @@ def test_imc_adulto():
     assert imc(74.2, 178) == 23.4
     assert imc(None, 178) is None
     assert imc(70, 0) is None
+    assert clasificacion_imc(17.9) == "bajo_peso"
+    assert clasificacion_imc(22.0) == "normopeso"
+    assert clasificacion_imc(27.0) == "sobrepeso"
+    assert clasificacion_imc(31.0) == "obesidad"
 
 
 def test_faulkner_hombres():
@@ -48,6 +55,26 @@ def test_asimetria_y_lsi():
     assert lsi_pct(None, 180) is None
 
 
+def test_apply_derived_hoja_fisios():
+    datos = apply_derived({
+        "talla_cm": 178,
+        "peso_kg": 74.2,
+        "dedo_pared_d": 12,
+        "dedo_pared_i": 9,
+        "ake_deficit_d": 18,
+        "ake_deficit_i": 32,
+        "longitud_pierna_d": 90,
+        "ybt_ant_d": 81,
+    })
+    assert datos["imc"] == 23.4
+    assert datos["imc_clasificacion"] == "normopeso"
+    assert datos["dedo_pared_asimetria"] == 3.0
+    assert datos["ake_lectura_d"] == "normal"
+    assert datos["ake_lectura_i"] == "severo"
+    assert datos["ybt_ant_pct_d"] == 90.0
+    assert lectura_ake(25) == "leve"
+
+
 def test_evaluacion_create_schema():
     ev = EvaluacionCreate(
         jugador_id=uuid4(),
@@ -70,12 +97,15 @@ def test_snapshot_informe_flags():
         "datos": {
             "talla_cm": 178,
             "peso_kg": 74.2,
-            "ktw_d": 12,
-            "ktw_i": 8,
-            "hombros_posterior": "d_alto",
+            "pelvis": "anteversion",
+            "ake_deficit_i": 34,
+            "dedo_pared_d": 12,
+            "dedo_pared_i": 8,
         },
     })
     assert snap["imc"] == 23.4
     assert snap["momento"] == "Pretemporada"
-    assert any("knee-to-wall" in h for h in snap["hallazgos"])
-    assert any("Hombros" in h for h in snap["hallazgos"])
+    assert snap["imc_clasificacion"] == "normopeso"
+    assert any("Pelvis" in h for h in snap["hallazgos"])
+    assert any("AKE" in h for h in snap["hallazgos"])
+    assert any("dedo-pared" in h for h in snap["hallazgos"])

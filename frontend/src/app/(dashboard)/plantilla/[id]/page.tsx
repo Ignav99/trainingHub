@@ -93,9 +93,11 @@ export default function JugadorDetailPage() {
     ? Array.isArray(registrosMedicos) ? registrosMedicos : (registrosMedicos as any).data || []
     : []
 
-  const activeIncident = medicalRecords.find(
+  const openRecords = medicalRecords.filter(
     (r) => r.estado === 'activo' || r.estado === 'en_recuperacion'
   )
+  const activeIncident = openRecords.find((r) => r.tipo !== 'molestias')
+  const openMolestias = openRecords.filter((r) => r.tipo === 'molestias')
 
   const error = swrError ? 'Error al cargar el jugador' : null
 
@@ -322,9 +324,11 @@ export default function JugadorDetailPage() {
         >
           <HeartPulse className="h-4 w-4" />
           Ficha Clinica
-          {activeIncident && (
+          {activeIncident ? (
             <span className="w-2 h-2 rounded-full bg-red-500" />
-          )}
+          ) : openMolestias.length ? (
+            <span className="w-2 h-2 rounded-full bg-amber-500" />
+          ) : null}
         </button>
         <button
           onClick={() => setActiveTab('nutricion')}

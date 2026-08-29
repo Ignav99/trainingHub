@@ -64,6 +64,34 @@ def disponibilidad_from_fase(fase_rtp: Optional[str]) -> Optional[str]:
     return None
 
 
+LESION_CREATE_FASES = {"reposo", "margen"}
+
+
+def is_molestia(record: dict | str | None) -> bool:
+    if isinstance(record, str):
+        return record == "molestias"
+    return bool(record) and record.get("tipo") == "molestias"
+
+
+def normalize_create_fase(
+    tipo: str,
+    fase_tratamiento: Optional[str] = None,
+    *,
+    is_historical: bool = False,
+) -> tuple[Optional[str], str]:
+    """Fase + disponibilidad al crear. Lesión nueva: solo reposo/margen. Molestias: pleno."""
+    if is_historical:
+        return None, "pleno"
+    if tipo == "molestias":
+        return None, "pleno"
+    if tipo == "lesion":
+        fase = fase_tratamiento if fase_tratamiento in LESION_CREATE_FASES else "reposo"
+        return fase, FASE_TRATAMIENTO_DISP[fase]
+    if fase_tratamiento in FASE_TRATAMIENTO_DISP:
+        return fase_tratamiento, FASE_TRATAMIENTO_DISP[fase_tratamiento]
+    return fase_tratamiento, ""
+
+
 def default_disponibilidad(
     tipo: str,
     estado: str,
@@ -75,6 +103,10 @@ def default_disponibilidad(
     if estado == "alta":
         return "pleno"
 
+    # Molestias: el jugador sigue disponible en programa / plantilla / microciclo.
+    if tipo == "molestias":
+        return "pleno"
+
     from_trat = disponibilidad_from_fase_tratamiento(fase_tratamiento)
     if from_trat:
         return from_trat
@@ -82,9 +114,6 @@ def default_disponibilidad(
     from_fase = disponibilidad_from_fase(fase_rtp)
     if from_fase:
         return from_fase
-
-    if tipo == "molestias":
-        return "pleno" if severidad != "grave" else "grupo_adaptado"
 
     if tipo == "enfermedad":
         return "fuera"
@@ -101,6 +130,8 @@ def default_disponibilidad(
 
 
 def resolve_record_disponibilidad(record: dict) -> str:
+    if is_molestia(record):
+        return "pleno"
     from_trat = disponibilidad_from_fase_tratamiento(record.get("fase_tratamiento"))
     if from_trat:
         return from_trat
@@ -114,6 +145,11 @@ def resolve_record_disponibilidad(record: dict) -> str:
         severidad=record.get("severidad"),
         fase_tratamiento=record.get("fase_tratamiento"),
     )
+
+
+def records_que_afectan_disponibilidad(records: list[dict]) -> list[dict]:
+    """Molestias no bajan al jugador: cuentan como disponibles en el programa."""
+    return [r for r in records if not is_molestia(r)]
 
 
 def estado_from_record(record: dict) -> str:
@@ -247,8 +283,9 @@ def sync_jugador_disponibilidad(supabase, jugador_id: str) -> dict:
         .execute()
     )
     records = [r for r in (open_q.data or []) if not r.get("es_historico")]
+    operativos = records_que_afectan_disponibilidad(records)
 
-    if not records:
+    if not operativos:
         update = {
             "estado": "activo",
             "disponibilidad": "pleno",
@@ -259,9 +296,9 @@ def sync_jugador_disponibilidad(supabase, jugador_id: str) -> dict:
         supabase.table("jugadores").update(update).eq("id", str(jugador_id)).execute()
         return update
 
-    primary = pick_primary_record(records)
+    primary = pick_primary_record(operativos)
     assert primary is not None
-    disp = worst_disponibilidad(records)
+    disp = worst_disponibilidad(operativos)
     new_estado = estado_from_record(primary)
 
     update: dict[str, Any] = {
