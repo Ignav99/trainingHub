@@ -43,4 +43,21 @@ export const fichaClinicaApi = {
     api.put<EvaluacionClinica>(`/ficha-clinica/${id}`, data),
 
   delete: (id: string) => api.delete(`/ficha-clinica/${id}`),
+
+  getHabitos: (jugadorId: string) =>
+    api.get<HabitosJugador>(`/ficha-clinica/habitos/${jugadorId}`),
+
+  saveHabitos: (jugadorId: string, data: Partial<HabitosJugador>) =>
+    api.put<HabitosJugador>(`/ficha-clinica/habitos/${jugadorId}`, data),
+}
+
+export interface HabitosJugador {
+  id?: string | null
+  jugador_id: string
+  comidas?: string | null
+  sueno?: string | null
+  actividades_nocivas?: string | null
+  deportes_externos?: string | null
+  notas?: string | null
+  datos?: Record<string, unknown>
 }

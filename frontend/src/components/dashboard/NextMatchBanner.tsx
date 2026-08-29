@@ -107,17 +107,8 @@ export function NextMatchBanner({
             <span className="text-white/40">|</span>
             <span className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-red-400" />
-              <strong>{plantilla.lesionados}</strong> lesionados
+              <strong>{(plantilla.lesionados || 0) + (plantilla.en_recuperacion || 0)}</strong> en tratamiento
             </span>
-            {plantilla.en_recuperacion > 0 && (
-              <>
-                <span className="text-white/40">|</span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-yellow-400" />
-                  <strong>{plantilla.en_recuperacion}</strong> recuperacion
-                </span>
-              </>
-            )}
             <span className="text-white/40">|</span>
             <span className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-amber-400" />

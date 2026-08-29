@@ -38,6 +38,68 @@ from app.services.microciclo_estado import (
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+
+def _jugadores_apercibidos(supabase, equipo_id: str, jugadores: list) -> list:
+    """Cruza apercibidos RFAF (4 amarillas del ciclo) con la plantilla del microciclo."""
+    try:
+        comps = (
+            supabase.table("rfef_competiciones")
+            .select("id, mi_equipo_nombre")
+            .eq("equipo_id", str(equipo_id))
+            .not_.is_("mi_equipo_nombre", "null")
+            .limit(4)
+            .execute()
+        )
+        if not comps.data:
+            return []
+
+        from app.services.pre_match_service import (
+            _compute_card_states,
+            _get_sanciones_oficiales,
+        )
+
+        nombres: list[str] = []
+        for comp in comps.data:
+            mi = (comp.get("mi_equipo_nombre") or "").strip()
+            if not mi:
+                continue
+            cid = str(comp["id"])
+            sanciones = _get_sanciones_oficiales(supabase, cid, mi) or []
+            result = _compute_card_states(
+                supabase, cid, mi, sanciones_oficiales=sanciones or None
+            )
+            for card_j in result.get("jugadores") or []:
+                if card_j.get("estado") == "Apercibido" and card_j.get("nombre"):
+                    nombres.append(card_j["nombre"])
+
+        if not nombres:
+            return []
+
+        names_upper = [n.upper() for n in nombres]
+        out = []
+        seen: set[str] = set()
+        for j in jugadores:
+            jid = str(j["id"])
+            if jid in seen:
+                continue
+            apellidos = (j.get("apellidos") or "").strip().upper()
+            nombre = (j.get("nombre") or "").strip().upper()
+            if not apellidos:
+                continue
+            matched = any(
+                u.startswith(apellidos) or apellidos in u
+                for u in names_upper
+            ) or any(
+                f"{apellidos}, {nombre}" == u for u in names_upper
+            )
+            if matched:
+                seen.add(jid)
+                out.append(j)
+        return out
+    except Exception:
+        logger.exception("No se pudieron cargar apercibidos del microciclo")
+        return []
+
 RIVAL_CLIPS_BUCKET = "rival-clips"
 MAX_CLIP_SIZE = 50 * 1024 * 1024  # 50MB por archivo (límite del plan Supabase)
 MAX_TOTAL_CLIPS_SIZE = 300 * 1024 * 1024  # 300MB por microciclo (agregado)
@@ -216,6 +278,7 @@ async def get_microciclo_completo(
             "jugadores_lesionados": lesionados,
             "jugadores_en_recuperacion": en_recuperacion,
             "jugadores_sancionados": sancionados,
+            "jugadores_apercibidos": _jugadores_apercibidos(supabase, equipo_id, jugadores),
         }
 
         # 4. RPE

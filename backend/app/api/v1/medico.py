@@ -27,6 +27,9 @@ from app.models.medico import (
     PruebaMedicaCreate,
     PruebaMedicaUpdate,
     PruebaMedicaResponse,
+    TratamientoDiarioCreate,
+    TratamientoDiarioUpdate,
+    TratamientoDiarioResponse,
 )
 from app.security.dependencies import require_permission, require_any_permission, AuthContext
 from app.security.permissions import Permission
@@ -34,6 +37,7 @@ from app.security.encryption import encrypt_field, decrypt_field
 from app.services.audit_service import log_action, log_create, log_update
 from app.services.medical_availability_service import (
     default_disponibilidad,
+    disponibilidad_from_fase_tratamiento,
     sync_jugador_disponibilidad,
 )
 logger = logging.getLogger(__name__)
@@ -71,6 +75,10 @@ def _encrypt_medical_fields(data: dict) -> dict:
 
 def _decrypt_medical_fields(data: dict) -> dict:
     """Decrypt sensitive fields for authorized readers."""
+    if data.get("zonas") is None:
+        data["zonas"] = []
+    if data.get("es_historico") is None:
+        data["es_historico"] = False
     for field_name in ("diagnostico", "tratamiento", "medicacion"):
         if field_name in data and data[field_name] is not None:
             try:
@@ -119,19 +127,26 @@ async def create_registro_medico(
     if record.get("registro_origen_id"):
         record["registro_origen_id"] = str(record["registro_origen_id"])
 
-    # Disponibilidad por defecto si no viene
-    is_historical = record.get("estado") == "alta"
-    if not record.get("disponibilidad"):
-        record["disponibilidad"] = (
-            "pleno"
-            if is_historical
-            else default_disponibilidad(
+    is_historical = bool(record.get("es_historico")) or record.get("estado") == "alta"
+    if is_historical:
+        record["es_historico"] = True
+        record["estado"] = "alta"
+        record["disponibilidad"] = "pleno"
+        record["fase_tratamiento"] = None
+    else:
+        if not record.get("fase_tratamiento"):
+            record["fase_tratamiento"] = "reposo"
+        from_trat = disponibilidad_from_fase_tratamiento(record.get("fase_tratamiento"))
+        if from_trat:
+            record["disponibilidad"] = from_trat
+        elif not record.get("disponibilidad"):
+            record["disponibilidad"] = default_disponibilidad(
                 tipo=record.get("tipo") or "otro",
                 estado=record.get("estado") or "activo",
                 fase_rtp=record.get("fase_rtp"),
                 severidad=record.get("severidad"),
+                fase_tratamiento=record.get("fase_tratamiento"),
             )
-        )
 
     # Encrypt sensitive fields
     record = _encrypt_medical_fields(record)
@@ -158,29 +173,33 @@ async def create_registro_medico(
 
 @router.get("", response_model=RegistroMedicoListResponse)
 async def list_registros_medicos(
-    equipo_id: UUID,
+    equipo_id: Optional[UUID] = None,
     jugador_id: Optional[UUID] = None,
     tipo: Optional[str] = None,
     estado: Optional[str] = None,
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=200),
     request: Request = None,
     auth: AuthContext = Depends(require_any_permission(
         Permission.MEDICAL_READ, Permission.MEDICAL_READ_SUMMARY,
     )),
 ):
-    """Lista registros medicos. Fisio ve todo, entrenador principal ve resumen."""
+    """Lista registros. Con jugador_id (sin equipo) el historial sigue al futbolista entre plantillas."""
+    if not equipo_id and not jugador_id:
+        raise HTTPException(status_code=400, detail="Indica equipo_id o jugador_id")
+
     supabase = get_supabase()
 
     query = (
         supabase.table("registros_medicos")
         .select("*", count="exact")
-        .eq("equipo_id", str(equipo_id))
         .order("fecha_inicio", desc=True)
     )
 
     if jugador_id:
         query = query.eq("jugador_id", str(jugador_id))
+    elif equipo_id:
+        query = query.eq("equipo_id", str(equipo_id))
     if tipo:
         query = query.eq("tipo", tipo)
     if estado:
@@ -194,6 +213,9 @@ async def list_registros_medicos(
 
     records = []
     for r in result.data:
+        r = dict(r)
+        r.setdefault("zonas", [])
+        r.setdefault("es_historico", False)
         if request:
             _log_medical_access(r["id"], auth.user_id, "ver", request)
 
@@ -274,6 +296,18 @@ async def update_registro_medico(
         update_data["registro_padre_id"] = str(update_data["registro_padre_id"])
     if "registro_origen_id" in update_data and update_data["registro_origen_id"] is not None:
         update_data["registro_origen_id"] = str(update_data["registro_origen_id"])
+
+    # Si cambia fase de tratamiento, mueve la disponibilidad operativa
+    if "fase_tratamiento" in update_data and "disponibilidad" not in update_data:
+        from_trat = disponibilidad_from_fase_tratamiento(update_data.get("fase_tratamiento"))
+        if from_trat:
+            update_data["disponibilidad"] = from_trat
+        if update_data.get("fase_tratamiento") == "disponible":
+            update_data.setdefault("estado", "en_recuperacion")
+        elif update_data.get("fase_tratamiento") == "reposo":
+            update_data.setdefault("estado", "activo")
+        elif update_data.get("fase_tratamiento") in ("margen", "inicio_grupo"):
+            update_data.setdefault("estado", "en_recuperacion")
 
     # Si cambia fase_rtp y no hay disponibilidad explícita, recalcular
     if "fase_rtp" in update_data and "disponibilidad" not in update_data:
@@ -696,6 +730,147 @@ async def delete_prueba(
 ):
     supabase = get_supabase()
     supabase.table("pruebas_medicas").delete().eq("id", str(prueba_id)).eq(
+        "registro_medico_id", str(registro_id)
+    ).execute()
+    return None
+
+
+def _tratamiento_row(row: dict) -> TratamientoDiarioResponse:
+    return TratamientoDiarioResponse(
+        id=row["id"],
+        registro_medico_id=row["registro_medico_id"],
+        jugador_id=row["jugador_id"],
+        equipo_id=row.get("equipo_id"),
+        fecha=row["fecha"],
+        sesion_id=row.get("sesion_id"),
+        entrenamiento_margen_id=row.get("entrenamiento_margen_id"),
+        fase_tratamiento=row.get("fase_tratamiento"),
+        trabajo=row.get("trabajo"),
+        ejercicios=row.get("ejercicios"),
+        feedback=row.get("feedback"),
+        nutricion=row.get("nutricion"),
+        suplementacion=row.get("suplementacion"),
+        creado_por=row.get("creado_por"),
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+@router.get("/{registro_id}/tratamiento")
+async def list_tratamiento(
+    registro_id: UUID,
+    auth: AuthContext = Depends(require_any_permission(
+        Permission.MEDICAL_READ, Permission.MEDICAL_READ_SUMMARY,
+    )),
+):
+    """Cuaderno diario + entrenamientos al margen ligados al caso."""
+    supabase = get_supabase()
+    diario = []
+    try:
+        res = (
+            supabase.table("tratamiento_diario")
+            .select("*")
+            .eq("registro_medico_id", str(registro_id))
+            .order("fecha", desc=True)
+            .execute()
+        )
+        diario = [_tratamiento_row(r).model_dump() for r in (res.data or [])]
+    except Exception as err:
+        raise HTTPException(
+            status_code=500,
+            detail=f"No se pudo leer el tratamiento (¿migración 077?): {err}",
+        ) from err
+
+    margen = []
+    try:
+        mres = (
+            supabase.table("entrenamientos_margen")
+            .select("id, sesion_id, estado, objetivo, fase_recuperacion, rpe_post, notas, created_at")
+            .eq("registro_medico_id", str(registro_id))
+            .order("created_at", desc=True)
+            .execute()
+        )
+        margen = mres.data or []
+    except Exception:
+        margen = []
+
+    return {"diario": diario, "margen": margen}
+
+
+@router.post("/{registro_id}/tratamiento", status_code=status.HTTP_201_CREATED)
+async def create_tratamiento(
+    registro_id: UUID,
+    data: TratamientoDiarioCreate,
+    auth: AuthContext = Depends(require_permission(Permission.MEDICAL_UPDATE)),
+):
+    supabase = get_supabase()
+    registro = (
+        supabase.table("registros_medicos")
+        .select("id, jugador_id, equipo_id")
+        .eq("id", str(registro_id))
+        .single()
+        .execute()
+    )
+    if not registro.data:
+        raise HTTPException(status_code=404, detail="Registro médico no encontrado")
+
+    payload = data.model_dump(exclude_unset=True)
+    payload = _serialize_enums(payload)
+    if payload.get("fecha") is not None:
+        payload["fecha"] = payload["fecha"].isoformat() if hasattr(payload["fecha"], "isoformat") else payload["fecha"]
+    for key in ("sesion_id", "entrenamiento_margen_id"):
+        if payload.get(key):
+            payload[key] = str(payload[key])
+    payload.update({
+        "registro_medico_id": str(registro_id),
+        "jugador_id": registro.data["jugador_id"],
+        "equipo_id": registro.data.get("equipo_id"),
+        "creado_por": str(auth.user_id),
+    })
+    try:
+        result = supabase.table("tratamiento_diario").insert(payload).execute()
+    except Exception as err:
+        raise HTTPException(
+            status_code=500,
+            detail=f"No se pudo guardar el tratamiento. Aplica la migración 077. {err}",
+        ) from err
+    if not result.data:
+        raise HTTPException(status_code=400, detail="Error al crear la entrada de tratamiento")
+    return _tratamiento_row(result.data[0])
+
+
+@router.put("/{registro_id}/tratamiento/{entrada_id}")
+async def update_tratamiento(
+    registro_id: UUID,
+    entrada_id: UUID,
+    data: TratamientoDiarioUpdate,
+    auth: AuthContext = Depends(require_permission(Permission.MEDICAL_UPDATE)),
+):
+    supabase = get_supabase()
+    payload = data.model_dump(exclude_unset=True)
+    payload = _serialize_enums(payload)
+    if payload.get("fecha") is not None:
+        payload["fecha"] = payload["fecha"].isoformat() if hasattr(payload["fecha"], "isoformat") else payload["fecha"]
+    result = (
+        supabase.table("tratamiento_diario")
+        .update(payload)
+        .eq("id", str(entrada_id))
+        .eq("registro_medico_id", str(registro_id))
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Entrada no encontrada")
+    return _tratamiento_row(result.data[0])
+
+
+@router.delete("/{registro_id}/tratamiento/{entrada_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_tratamiento(
+    registro_id: UUID,
+    entrada_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.MEDICAL_UPDATE)),
+):
+    supabase = get_supabase()
+    supabase.table("tratamiento_diario").delete().eq("id", str(entrada_id)).eq(
         "registro_medico_id", str(registro_id)
     ).execute()
     return None

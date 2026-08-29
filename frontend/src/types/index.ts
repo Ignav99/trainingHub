@@ -1464,6 +1464,8 @@ export type FaseRTP =
   | 'fase_7_entrenamiento_equipo'
   | 'fase_8_competicion'
 
+export type FaseTratamiento = 'reposo' | 'margen' | 'inicio_grupo' | 'disponible'
+
 export type TipoPruebaMedica =
   | 'imagen' | 'reconocimiento' | 'isokinetico' | 'gps_campo' | 'laboratorio' | 'funcional' | 'otro'
 
@@ -1495,6 +1497,9 @@ export interface RegistroMedico {
   registro_origen_id?: string | null
   disponibilidad?: DisponibilidadOperativa | null
   fase_rtp?: FaseRTP | null
+  es_historico?: boolean
+  zonas?: string[] | Array<{ id: string; lado?: string }>
+  fase_tratamiento?: FaseTratamiento | null
   created_at: string
   updated_at: string
 }
@@ -2837,6 +2842,7 @@ export interface VistaCompletaMicrociclo {
     jugadores_lesionados: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado' | 'disponibilidad' | 'fecha_lesion' | 'fecha_vuelta_estimada' | 'motivo_baja'>[]
     jugadores_en_recuperacion: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado' | 'disponibilidad' | 'fecha_vuelta_estimada' | 'motivo_baja'>[]
     jugadores_sancionados: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado' | 'disponibilidad'>[]
+    jugadores_apercibidos?: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'estado' | 'disponibilidad'>[]
   }
   rpe: {
     registros_por_sesion: Record<string, { rpe_promedio: number | null; num_registros: number }>

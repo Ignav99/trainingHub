@@ -27,6 +27,9 @@ export interface CreateRegistroMedicoData {
   registro_origen_id?: string
   disponibilidad?: string
   fase_rtp?: string
+  es_historico?: boolean
+  zonas?: string[]
+  fase_tratamiento?: string
 }
 
 export interface CreatePruebaMedicaData {
@@ -85,4 +88,61 @@ export const medicoApi = {
 
   deletePrueba: (registroId: string, pruebaId: string) =>
     api.delete(`/medico/${registroId}/pruebas/${pruebaId}`),
+
+  listByJugador: async (jugadorId: string, params?: { tipo?: string; estado?: string }) => {
+    const res = await api.get<RegistroMedico[] | { data: RegistroMedico[]; total?: number }>('/medico', {
+      params: { jugador_id: jugadorId, limit: 200, ...params },
+    })
+    return Array.isArray(res) ? res : (res?.data || [])
+  },
+
+  listTratamiento: (registroId: string) =>
+    api.get<{ diario: TratamientoDiario[]; margen: MargenLigada[] }>(`/medico/${registroId}/tratamiento`),
+
+  createTratamiento: (registroId: string, data: TratamientoDiarioPayload) =>
+    api.post<TratamientoDiario>(`/medico/${registroId}/tratamiento`, data),
+
+  updateTratamiento: (registroId: string, entradaId: string, data: Partial<TratamientoDiarioPayload>) =>
+    api.put<TratamientoDiario>(`/medico/${registroId}/tratamiento/${entradaId}`, data),
+
+  deleteTratamiento: (registroId: string, entradaId: string) =>
+    api.delete(`/medico/${registroId}/tratamiento/${entradaId}`),
+}
+
+export interface TratamientoDiario {
+  id: string
+  registro_medico_id: string
+  jugador_id: string
+  fecha: string
+  sesion_id?: string | null
+  entrenamiento_margen_id?: string | null
+  fase_tratamiento?: string | null
+  trabajo?: string | null
+  ejercicios?: string | null
+  feedback?: string | null
+  nutricion?: string | null
+  suplementacion?: string | null
+}
+
+export interface TratamientoDiarioPayload {
+  fecha: string
+  trabajo?: string
+  ejercicios?: string
+  feedback?: string
+  nutricion?: string
+  suplementacion?: string
+  fase_tratamiento?: string
+  sesion_id?: string
+  entrenamiento_margen_id?: string
+}
+
+export interface MargenLigada {
+  id: string
+  sesion_id?: string
+  estado?: string
+  objetivo?: string | null
+  fase_recuperacion?: string | null
+  rpe_post?: number | null
+  notas?: string | null
+  created_at?: string
 }

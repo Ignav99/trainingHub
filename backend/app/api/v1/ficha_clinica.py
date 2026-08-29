@@ -13,6 +13,8 @@ from app.models.ficha_clinica import (
     EvaluacionListResponse,
     EvaluacionResponse,
     EvaluacionUpdate,
+    HabitosResponse,
+    HabitosUpdate,
 )
 from app.security.permissions import Permission
 
@@ -94,6 +96,87 @@ async def create_evaluacion(
     if not response.data:
         raise HTTPException(status_code=400, detail="Error al crear la evaluación")
     return _row_to_response(response.data[0])
+
+
+def _habitos_row(jugador_id: str, row: Optional[dict] = None) -> HabitosResponse:
+    row = row or {}
+    return HabitosResponse(
+        id=row.get("id"),
+        jugador_id=row.get("jugador_id") or jugador_id,
+        comidas=row.get("comidas"),
+        sueno=row.get("sueno"),
+        actividades_nocivas=row.get("actividades_nocivas"),
+        deportes_externos=row.get("deportes_externos"),
+        notas=row.get("notas"),
+        datos=row.get("datos") or {},
+        actualizado_por=row.get("actualizado_por"),
+        created_at=row.get("created_at"),
+        updated_at=row.get("updated_at"),
+    )
+
+
+@router.get("/habitos/{jugador_id}", response_model=HabitosResponse)
+async def get_habitos(
+    jugador_id: UUID,
+    auth: AuthContext = Depends(
+        require_any_permission(Permission.MEDICAL_READ, Permission.PLANTILLA_READ)
+    ),
+):
+    supabase = get_supabase()
+    try:
+        res = (
+            supabase.table("jugador_habitos")
+            .select("*")
+            .eq("jugador_id", str(jugador_id))
+            .limit(1)
+            .execute()
+        )
+    except Exception as err:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Hábitos no disponibles (¿migración 077?): {err}",
+        ) from err
+    row = (res.data or [None])[0]
+    return _habitos_row(str(jugador_id), row)
+
+
+@router.put("/habitos/{jugador_id}", response_model=HabitosResponse)
+async def upsert_habitos(
+    jugador_id: UUID,
+    data: HabitosUpdate,
+    auth: AuthContext = Depends(
+        require_any_permission(Permission.MEDICAL_UPDATE, Permission.JUGADOR_UPDATE)
+    ),
+):
+    supabase = get_supabase()
+    payload = {k: v for k, v in data.model_dump(exclude_unset=True).items()}
+    payload["jugador_id"] = str(jugador_id)
+    payload["actualizado_por"] = str(auth.user_id)
+    try:
+        existing = (
+            supabase.table("jugador_habitos")
+            .select("id")
+            .eq("jugador_id", str(jugador_id))
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            res = (
+                supabase.table("jugador_habitos")
+                .update(payload)
+                .eq("id", existing.data[0]["id"])
+                .execute()
+            )
+        else:
+            res = supabase.table("jugador_habitos").insert(payload).execute()
+    except Exception as err:
+        raise HTTPException(
+            status_code=500,
+            detail=f"No se pudieron guardar los hábitos. Aplica la migración 077. {err}",
+        ) from err
+    if not res.data:
+        raise HTTPException(status_code=400, detail="Error al guardar hábitos")
+    return _habitos_row(str(jugador_id), res.data[0])
 
 
 @router.get("/{evaluacion_id}", response_model=EvaluacionResponse)

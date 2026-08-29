@@ -69,8 +69,35 @@ export function resolveDisponibilidad(
   return 'pleno'
 }
 
-export function isDisponiblePleno(j: Pick<Jugador, 'disponibilidad' | 'estado'>): boolean {
-  return resolveDisponibilidad(j) === 'pleno'
+export function isEnTratamiento(j: Pick<Jugador, 'disponibilidad' | 'estado'>): boolean {
+  if (ADMIN_ESTADOS.includes(j.estado)) return false
+  return resolveDisponibilidad(j) !== 'pleno'
+}
+
+export function etiquetaPrograma(j: Pick<Jugador, 'disponibilidad' | 'estado'>): 'disponible' | 'en_tratamiento' | 'admin' {
+  if (ADMIN_ESTADOS.includes(j.estado)) return 'admin'
+  return isEnTratamiento(j) ? 'en_tratamiento' : 'disponible'
+}
+
+export const FASE_TRATAMIENTO_LABELS: Record<string, string> = {
+  reposo: 'Reposo',
+  margen: 'Margen',
+  inicio_grupo: 'Inicio grupo',
+  disponible: 'Disponible',
+}
+
+export const FASE_TRATAMIENTO_COLORS: Record<string, string> = {
+  reposo: 'bg-red-100 text-red-800 border-red-200',
+  margen: 'bg-amber-100 text-amber-800 border-amber-200',
+  inicio_grupo: 'bg-sky-100 text-sky-800 border-sky-200',
+  disponible: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+}
+
+export function faseFromDisponibilidad(disp: DisponibilidadOperativa): 'reposo' | 'margen' | 'inicio_grupo' | 'disponible' {
+  if (disp === 'fuera') return 'reposo'
+  if (disp === 'individual') return 'margen'
+  if (disp === 'grupo_adaptado') return 'inicio_grupo'
+  return 'disponible'
 }
 
 /** Puede entrar en convocatoria oficial/amistoso según disponibilidad. */

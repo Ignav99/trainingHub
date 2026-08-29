@@ -593,21 +593,19 @@ export default function DashboardPage() {
           {plantilla && (
             <div className="space-y-4">
               {/* Summary cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div className="text-center p-3 rounded-lg bg-green-50 border border-green-200">
-                  <p className="text-2xl font-bold text-green-700">{plantilla.disponibles}</p>
+                  <p className="text-2xl font-bold tabular-nums text-green-700">{plantilla.disponibles}</p>
                   <p className="text-xs text-green-600">Disponibles</p>
                 </div>
                 <div className="text-center p-3 rounded-lg bg-red-50 border border-red-200">
-                  <p className="text-2xl font-bold text-red-700">{plantilla.lesionados}</p>
-                  <p className="text-xs text-red-600">Lesionados</p>
-                </div>
-                <div className="text-center p-3 rounded-lg bg-yellow-50 border border-yellow-200">
-                  <p className="text-2xl font-bold text-yellow-700">{plantilla.en_recuperacion || 0}</p>
-                  <p className="text-xs text-yellow-600">Recuperacion</p>
+                  <p className="text-2xl font-bold tabular-nums text-red-700">
+                    {(plantilla.lesionados || 0) + (plantilla.en_recuperacion || 0)}
+                  </p>
+                  <p className="text-xs text-red-600">En tratamiento</p>
                 </div>
                 <div className="text-center p-3 rounded-lg bg-amber-50 border border-amber-200">
-                  <p className="text-2xl font-bold text-amber-700">{plantilla.sancionados}</p>
+                  <p className="text-2xl font-bold tabular-nums text-amber-700">{plantilla.sancionados}</p>
                   <p className="text-xs text-amber-600">Sancionados</p>
                 </div>
               </div>

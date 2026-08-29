@@ -1,23 +1,34 @@
 'use client'
 
-import type { DisponibilidadOperativa, NivelCarga } from '@/types'
-import { DISPONIBILIDAD_COLORS, DISPONIBILIDAD_LABELS, resolveDisponibilidad } from '@/lib/jugadorTipo'
+import type { DisponibilidadOperativa, FaseTratamiento, NivelCarga } from '@/types'
+import {
+  DISPONIBILIDAD_COLORS,
+  DISPONIBILIDAD_LABELS,
+  FASE_TRATAMIENTO_COLORS,
+  FASE_TRATAMIENTO_LABELS,
+  faseFromDisponibilidad,
+  resolveDisponibilidad,
+} from '@/lib/jugadorTipo'
 
 interface PlayerStatusBadgesProps {
   estado: string
   disponibilidad?: DisponibilidadOperativa | null
+  faseTratamiento?: FaseTratamiento | string | null
+  /** clinico: reposo/margen/inicio grupo. programa: disponible vs en tratamiento. */
+  variante?: 'programa' | 'clinico'
   nivelCarga?: NivelCarga | null
   sancionado?: boolean
+  apercibido?: boolean
   tarjetasAmarillas?: number
   tarjetasRojas?: number
   className?: string
 }
 
 const ESTADO_BADGES: Record<string, { label: string; className: string } | undefined> = {
-  lesionado: { label: 'Lesión', className: 'bg-red-100 text-red-700 border-red-200' },
-  en_recuperacion: { label: 'Recuperación', className: 'bg-amber-100 text-amber-700 border-amber-200' },
-  sancionado: { label: 'Sanción', className: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-  enfermo: { label: 'Enfermo', className: 'bg-orange-100 text-orange-700 border-orange-200' },
+  lesionado: { label: 'En tratamiento', className: 'bg-red-100 text-red-700 border-red-200' },
+  en_recuperacion: { label: 'En tratamiento', className: 'bg-amber-100 text-amber-700 border-amber-200' },
+  sancionado: { label: 'Sancionado', className: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+  enfermo: { label: 'En tratamiento', className: 'bg-orange-100 text-orange-700 border-orange-200' },
 }
 
 const NIVEL_COLORS: Record<string, { bg: string; text: string; label: string } | undefined> = {
@@ -30,8 +41,11 @@ const NIVEL_COLORS: Record<string, { bg: string; text: string; label: string } |
 export function PlayerStatusBadges({
   estado,
   disponibilidad,
+  faseTratamiento,
+  variante = 'programa',
   nivelCarga,
   sancionado,
+  apercibido,
   tarjetasAmarillas,
   tarjetasRojas,
   className = '',
@@ -51,14 +65,34 @@ export function PlayerStatusBadges({
   }
 
   const disp = resolveDisponibilidad({ estado: estado as any, disponibilidad: disponibilidad ?? undefined })
-  if (disp !== 'pleno') {
+  if (variante === 'clinico' && disp !== 'pleno') {
+    const fase = faseTratamiento || faseFromDisponibilidad(disp)
+    badges.push(
+      <span
+        key="fase"
+        className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium border ${FASE_TRATAMIENTO_COLORS[fase] || DISPONIBILIDAD_COLORS[disp]}`}
+      >
+        {FASE_TRATAMIENTO_LABELS[fase] || DISPONIBILIDAD_LABELS[disp]}
+      </span>
+    )
+  } else if (variante === 'programa' && !estadoBadge && disp !== 'pleno') {
     badges.push(
       <span
         key="disp"
-        className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium border ${DISPONIBILIDAD_COLORS[disp]}`}
-        title="Disponibilidad operativa"
+        className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium border bg-red-100 text-red-700 border-red-200"
       >
-        {DISPONIBILIDAD_LABELS[disp]}
+        En tratamiento
+      </span>
+    )
+  }
+
+  if (apercibido && estado !== 'sancionado') {
+    badges.push(
+      <span
+        key="apercibido"
+        className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium border bg-amber-50 text-amber-800 border-amber-200"
+      >
+        Apercibido
       </span>
     )
   }
