@@ -34,7 +34,7 @@ import { CalendarSection } from '@/components/dashboard/CalendarSection'
 import { DayDetailPanel } from '@/components/dashboard/DayDetailPanel'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import type { CalendarViewMode } from '@/lib/calendar/types'
-import { startOfWeekMonday, addDays, toLocalDateStr } from '@/lib/calendar/types'
+import { startOfWeekMonday, addDays, toLocalDateStr, monthGridRange } from '@/lib/calendar/types'
 import {
   DEFAULT_SEASON_START_MONTH,
   filterByDateRange,
@@ -50,10 +50,6 @@ import {
 const FIELD_PATTERN = `url("data:image/svg+xml,%3Csvg width='200' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='10' y='10' width='180' height='180' fill='none' stroke='%23000' stroke-width='0.5' opacity='0.03'/%3E%3Cline x1='100' y1='10' x2='100' y2='190' stroke='%23000' stroke-width='0.5' opacity='0.03'/%3E%3Ccircle cx='100' cy='100' r='30' fill='none' stroke='%23000' stroke-width='0.5' opacity='0.03'/%3E%3C/svg%3E")`
 
 // ============ Calendar helpers ============
-function getDaysInMonth(year: number, month: number) {
-  return new Date(year, month + 1, 0).getDate()
-}
-
 function dateToStr(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
@@ -184,11 +180,8 @@ export default function DashboardPage() {
       const mon = startOfWeekMonday(focusDate)
       return { fechaDesde: mon, fechaHasta: addDays(mon, 6) }
     }
-    const lastDay = getDaysInMonth(calYear, calMonth)
-    return {
-      fechaDesde: dateToStr(calYear, calMonth, 1),
-      fechaHasta: dateToStr(calYear, calMonth, lastDay),
-    }
+    const { desde, hasta } = monthGridRange(calYear, calMonth)
+    return { fechaDesde: desde, fechaHasta: hasta }
   }, [viewMode, calYear, calMonth, focusDate, seasonBounds])
 
   // Derived data

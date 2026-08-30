@@ -7,6 +7,8 @@
  * - Banner del microciclo; clic en día → DayDetailPanel
  *
  * MES (detalle medio — estable):
+ * - Grid semanal completo: las semanas que cruzan de mes se ven enteras
+ *   en ambos meses (p. ej. lun 31 ago + 1–6 sep en agosto y en septiembre)
  * - Grid mensual con chips de partido/sesión/MD + escudos
  * - Barra lateral de microciclos por semana
  *
@@ -66,6 +68,52 @@ export function addDays(dateStr: string, days: number): string {
 
 export function endOfWeekSunday(dateStr: string): string {
   return addDays(startOfWeekMonday(dateStr), 6)
+}
+
+export type CalendarDayCell = {
+  day: number
+  date: string
+  isToday: boolean
+  inMonth: boolean
+}
+
+/** Monday of the week that contains the 1st → Sunday of the week that contains the last day. */
+export function monthGridRange(year: number, month: number): { desde: string; hasta: string } {
+  const first = dateToStr(year, month, 1)
+  const last = dateToStr(year, month, getDaysInMonth(year, month))
+  return {
+    desde: startOfWeekMonday(first),
+    hasta: endOfWeekSunday(last),
+  }
+}
+
+/** Full Mon–Sun weeks for a month, including overflow days from the adjacent months. */
+export function buildMonthWeeks(
+  year: number,
+  month: number,
+  today: Date = new Date()
+): CalendarDayCell[][] {
+  const { desde, hasta } = monthGridRange(year, month)
+  const todayStr = toLocalDateStr(today)
+  const weeks: CalendarDayCell[][] = []
+  let current = desde
+  while (current <= hasta) {
+    const week: CalendarDayCell[] = []
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(current, i)
+      const y = Number(d.slice(0, 4))
+      const m = Number(d.slice(5, 7))
+      week.push({
+        day: Number(d.slice(8, 10)),
+        date: d,
+        isToday: d === todayStr,
+        inMonth: y === year && m === month + 1,
+      })
+    }
+    weeks.push(week)
+    current = addDays(current, 7)
+  }
+  return weeks
 }
 
 export const MONTH_NAMES_ES = [

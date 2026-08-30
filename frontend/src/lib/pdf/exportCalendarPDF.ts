@@ -8,9 +8,9 @@ import {
   DAY_NAMES_SHORT,
   dateToStr,
   getDaysInMonth,
-  getFirstDayOfWeek,
   startOfWeekMonday,
   addDays,
+  buildMonthWeeks,
 } from '@/lib/calendar/types'
 import { formatSeasonLabel, getSeasonMonths } from '@/lib/calendar/season'
 import { buildDayIndex, getBucket } from '@/lib/calendar/dayIndex'
@@ -180,9 +180,8 @@ function exportMonth(input: CalendarExportInput, index: ReturnType<typeof buildD
   const top = 28
   const usableW = pageW - 28
   const cellW = usableW / 7
-  const firstDow = getFirstDayOfWeek(input.year, input.month)
-  const daysInMonth = getDaysInMonth(input.year, input.month)
-  const rows = Math.ceil((firstDow + daysInMonth) / 7)
+  const weeks = buildMonthWeeks(input.year, input.month)
+  const rows = weeks.length
   const cellH = Math.min(28, (doc.internal.pageSize.getHeight() - top - 14) / rows)
 
   doc.setFontSize(8)
@@ -191,45 +190,51 @@ function exportMonth(input: CalendarExportInput, index: ReturnType<typeof buildD
     doc.text(n, left + i * cellW + cellW / 2, top - 2, { align: 'center' })
   })
 
-  for (let slot = 0; slot < rows * 7; slot++) {
-    const dayNum = slot - firstDow + 1
-    const col = slot % 7
-    const row = Math.floor(slot / 7)
-    const x = left + col * cellW
-    const y = top + row * cellH
-    doc.setDrawColor(220, 220, 220)
-    doc.rect(x, y, cellW - 0.5, cellH - 0.5)
+  weeks.forEach((week, row) => {
+    week.forEach((cell, col) => {
+      const x = left + col * cellW
+      const y = top + row * cellH
+      doc.setDrawColor(220, 220, 220)
+      if (!cell.inMonth) {
+        doc.setFillColor(245, 245, 245)
+        doc.rect(x, y, cellW - 0.5, cellH - 0.5, 'FD')
+      } else {
+        doc.rect(x, y, cellW - 0.5, cellH - 0.5)
+      }
 
-    if (dayNum < 1 || dayNum > daysInMonth) continue
-    const date = dateToStr(input.year, input.month, dayNum)
-    const b = getBucket(index, date)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8)
-    doc.setTextColor(40, 40, 40)
-    doc.text(String(dayNum), x + 1.5, y + 4)
+      const b = getBucket(index, cell.date)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(8)
+      if (cell.inMonth) doc.setTextColor(40, 40, 40)
+      else doc.setTextColor(160, 160, 160)
+      const dayLabel = cell.inMonth
+        ? String(cell.day)
+        : `${cell.day} ${MONTH_NAMES_SHORT[Number(cell.date.slice(5, 7)) - 1]}`
+      doc.text(dayLabel, x + 1.5, y + 4)
 
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(6)
-    let ty = y + 7
-    for (const p of b.partidos.slice(0, 2)) {
-      // Casa = ámbar, fuera = violeta
-      if (p.localia === 'local') doc.setTextColor(180, 83, 9)
-      else doc.setTextColor(109, 40, 217)
-      const rival = p.rival?.nombre_corto || p.rival?.nombre || 'Rival'
-      doc.text(`P ${(p.localia === 'local' ? 'vs' : '@')} ${rival}`.slice(0, 22), x + 1.2, ty)
-      ty += 3
-    }
-    for (const s of b.sesiones.slice(0, 3)) {
-      doc.setTextColor(37, 99, 235)
-      const label = `${s.match_day ? s.match_day + ' ' : ''}${s.titulo}`.slice(0, 22)
-      doc.text(label, x + 1.2, ty)
-      ty += 3
-    }
-    if (b.descanso) {
-      doc.setTextColor(100, 116, 139)
-      doc.text('Descanso', x + 1.2, ty)
-    }
-  }
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(6)
+      let ty = y + 7
+      for (const p of b.partidos.slice(0, 2)) {
+        // Casa = ámbar, fuera = violeta
+        if (p.localia === 'local') doc.setTextColor(180, 83, 9)
+        else doc.setTextColor(109, 40, 217)
+        const rival = p.rival?.nombre_corto || p.rival?.nombre || 'Rival'
+        doc.text(`P ${(p.localia === 'local' ? 'vs' : '@')} ${rival}`.slice(0, 22), x + 1.2, ty)
+        ty += 3
+      }
+      for (const s of b.sesiones.slice(0, 3)) {
+        doc.setTextColor(37, 99, 235)
+        const label = `${s.match_day ? s.match_day + ' ' : ''}${s.titulo}`.slice(0, 22)
+        doc.text(label, x + 1.2, ty)
+        ty += 3
+      }
+      if (b.descanso) {
+        doc.setTextColor(100, 116, 139)
+        doc.text('Descanso', x + 1.2, ty)
+      }
+    })
+  })
 
   doc.save(filename('mes', input.year, input.month, input.focusDate))
 }
