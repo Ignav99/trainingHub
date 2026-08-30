@@ -20,8 +20,16 @@ import {
 } from 'lucide-react'
 import { CalendarYearView } from '@/components/dashboard/calendar/CalendarYearView'
 import { CalendarWeekView } from '@/components/dashboard/calendar/CalendarWeekView'
-import type { CalendarViewMode } from '@/lib/calendar/types'
-import { CALENDAR_VIEW_LABELS, startOfWeekMonday, addDays, toLocalDateStr } from '@/lib/calendar/types'
+import type { CalendarDayCell, CalendarViewMode } from '@/lib/calendar/types'
+import {
+  CALENDAR_VIEW_LABELS,
+  MONTH_NAMES_SHORT,
+  startOfWeekMonday,
+  addDays,
+  buildMonthWeeks,
+  dateToStr,
+  isSameDay,
+} from '@/lib/calendar/types'
 import { formatSeasonLabel } from '@/lib/calendar/season'
 import { exportCalendarPDF } from '@/lib/pdf/exportCalendarPDF'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -88,37 +96,11 @@ const WEEKLY_STRUCTURE: Record<string, string[]> = {
   ],
 }
 
-// ============ Calendar helpers ============
-function getDaysInMonth(year: number, month: number) {
-  return new Date(year, month + 1, 0).getDate()
-}
-
-function getFirstDayOfWeek(year: number, month: number) {
-  const day = new Date(year, month, 1).getDay()
-  return day === 0 ? 6 : day - 1 // Monday = 0
-}
-
-function isSameDay(d1: string, d2: string) {
-  return d1.slice(0, 10) === d2.slice(0, 10)
-}
-
-function dateToStr(year: number, month: number, day: number) {
-  return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-}
-
-function getWeekBounds(week: ({ day: number; date: string; isToday: boolean } | null)[]) {
-  const firstCell = week.find(c => c !== null)
-  if (!firstCell) return null
-  const d = new Date(firstCell.date + 'T12:00:00')
-  const dow = d.getDay()
-  const daysSinceMonday = dow === 0 ? 6 : dow - 1
-  const monday = new Date(d)
-  monday.setDate(d.getDate() - daysSinceMonday)
-  const sunday = new Date(monday)
-  sunday.setDate(monday.getDate() + 6)
+function getWeekBounds(week: CalendarDayCell[]) {
+  if (week.length === 0) return null
   return {
-    fechaInicio: monday.toISOString().split('T')[0],
-    fechaFin: sunday.toISOString().split('T')[0],
+    fechaInicio: week[0].date,
+    fechaFin: week[week.length - 1].date,
   }
 }
 
@@ -237,38 +219,25 @@ export function CalendarSection({
     }
   }, [addMenuDay, setAddMenuDay])
 
-  const calendarCells = useMemo(() => {
-    const daysInMonth = getDaysInMonth(calYear, calMonth)
-    const firstDow = getFirstDayOfWeek(calYear, calMonth)
-    const cells: { day: number; date: string; isToday: boolean }[] = []
+  const monthWeeks = useMemo(
+    () => buildMonthWeeks(calYear, calMonth),
+    [calYear, calMonth]
+  )
 
-    for (let d = 1; d <= daysInMonth; d++) {
-      const dateStr = dateToStr(calYear, calMonth, d)
-      const isToday =
-        d === now.getDate() &&
-        calMonth === now.getMonth() &&
-        calYear === now.getFullYear()
-      cells.push({ day: d, date: dateStr, isToday })
-    }
-    return { cells, firstDow, daysInMonth }
-  }, [calYear, calMonth])
-
-  // Pre-compute which Mondays have microciclos
+  // Pre-compute which Mondays have microciclos (incluye lunes de mes adyacente)
   const mondayMicrociclos = useMemo(() => {
     const map: Record<string, { microciclo: Microciclo; index: number }> = {}
-    const { firstDow, daysInMonth } = calendarCells
-    microciclosMes.forEach((m, i) => {
-      for (let d = 1; d <= daysInMonth; d++) {
-        const dow = (firstDow + d - 1) % 7
-        if (dow !== 0) continue // not Monday
-        const dateStr = dateToStr(calYear, calMonth, d)
-        if (dateStr >= m.fecha_inicio.slice(0, 10) && dateStr <= m.fecha_fin.slice(0, 10)) {
-          map[dateStr] = { microciclo: m, index: i + 1 }
+    monthWeeks.forEach((week) => {
+      const monday = week[0]
+      if (!monday) return
+      microciclosMes.forEach((m, i) => {
+        if (monday.date >= m.fecha_inicio.slice(0, 10) && monday.date <= m.fecha_fin.slice(0, 10)) {
+          map[monday.date] = { microciclo: m, index: i + 1 }
         }
-      }
+      })
     })
     return map
-  }, [microciclosMes, calYear, calMonth, calendarCells])
+  }, [microciclosMes, monthWeeks])
 
   // Count matches within a microciclo date range
   const getMatchCount = (m: Microciclo) => {
@@ -286,34 +255,8 @@ export function CalendarSection({
     return { label: 'Microciclo de triple competicion', key: 'triple' }
   }
 
-  // Mobile: compute week slices
-  const mobileWeeks = useMemo(() => {
-    if (!isMobile) return []
-    const { cells, firstDow } = calendarCells
-    // Build full weeks (pad start with nulls)
-    const padded: (typeof cells[0] | null)[] = Array.from({ length: firstDow }, () => null)
-    padded.push(...cells)
-    // Pad end to fill last week
-    while (padded.length % 7 !== 0) padded.push(null)
-    const weeks: (typeof cells[0] | null)[][] = []
-    for (let i = 0; i < padded.length; i += 7) {
-      weeks.push(padded.slice(i, i + 7))
-    }
-    return weeks
-  }, [isMobile, calendarCells])
-
-  // Desktop: week rows for hover/click grouping
-  const desktopWeeks = useMemo(() => {
-    const { cells, firstDow } = calendarCells
-    const padded: (typeof cells[0] | null)[] = Array.from({ length: firstDow }, () => null)
-    padded.push(...cells)
-    while (padded.length % 7 !== 0) padded.push(null)
-    const weeks: (typeof cells[0] | null)[][] = []
-    for (let i = 0; i < padded.length; i += 7) {
-      weeks.push(padded.slice(i, i + 7))
-    }
-    return weeks
-  }, [calendarCells])
+  const mobileWeeks = monthWeeks
+  const desktopWeeks = monthWeeks
 
   const [hoveredWeekIdx, setHoveredWeekIdx] = useState<number | null>(null)
 
@@ -321,7 +264,7 @@ export function CalendarSection({
   useEffect(() => {
     if (!isMobile || mobileWeeks.length === 0) return
     const todayStr = dateToStr(now.getFullYear(), now.getMonth(), now.getDate())
-    const idx = mobileWeeks.findIndex((w) => w.some((c) => c?.date === todayStr))
+    const idx = mobileWeeks.findIndex((w) => w.some((c) => c.date === todayStr))
     if (idx >= 0 && mobileWeekOffset === 0 && calMonth === now.getMonth() && calYear === now.getFullYear()) {
       setMobileWeekOffset(idx)
     }
@@ -488,15 +431,15 @@ export function CalendarSection({
           {isMobile ? (
             <div>
               <div className="grid grid-cols-7">
-                {currentMobileWeek.map((cell, i) => {
-                  if (!cell) return <div key={`empty-m-${i}`} className="min-h-[60px] border-b border-r last:border-r-0 bg-muted/10" />
-                  const { day, date, isToday } = cell
+                {currentMobileWeek.map((cell) => {
+                  const { day, date, isToday, inMonth } = cell
                   const daySesiones = sesionesMes.filter((s) => isSameDay(s.fecha, date))
                   const dayPartidos = partidosMes.filter((p) => isSameDay(p.fecha, date))
                   const isDescanso = descansos.has(date)
                   const hasContent = daySesiones.length > 0 || dayPartidos.length > 0 || isDescanso
                   const isPast = date < dateToStr(now.getFullYear(), now.getMonth(), now.getDate())
                   const isExpanded = expandedMobileDay === date
+                  const overflowMonth = MONTH_NAMES_SHORT[Number(date.slice(5, 7)) - 1]
 
                   // Color dots (casa = ámbar, fuera = violeta)
                   const dots: string[] = []
@@ -515,7 +458,7 @@ export function CalendarSection({
 
                   return (
                     <div
-                      key={day}
+                      key={date}
                       onClick={() => {
                         if (hasContent) {
                           setExpandedMobileDay(isExpanded ? null : date)
@@ -532,20 +475,29 @@ export function CalendarSection({
                             ? 'bg-slate-50'
                             : mdColors
                               ? mdColors.bg + '/40'
-                              : ''
+                              : !inMonth
+                                ? 'bg-muted/20'
+                                : ''
                       } ${isExpanded ? 'bg-muted/40' : ''} ${hasContent ? 'cursor-pointer' : ''}`}
                     >
                       <span
                         className={`text-sm font-semibold leading-none mb-1 ${
                           isToday
                             ? 'bg-primary text-white w-7 h-7 rounded-full flex items-center justify-center'
-                            : isPast
-                              ? 'text-muted-foreground/50'
-                              : 'text-foreground'
+                            : !inMonth
+                              ? 'text-muted-foreground/45'
+                              : isPast
+                                ? 'text-muted-foreground/50'
+                                : 'text-foreground'
                         }`}
                       >
                         {day}
                       </span>
+                      {!inMonth && !isToday && (
+                        <span className="text-[8px] font-semibold uppercase tracking-wide text-muted-foreground/50 -mt-0.5 mb-0.5">
+                          {overflowMonth}
+                        </span>
+                      )}
                       {/* Color dots */}
                       <div className="flex gap-0.5 mt-auto">
                         {dots.slice(0, 3).map((color, di) => (
@@ -685,15 +637,13 @@ export function CalendarSection({
             <>
               {desktopWeeks.map((week, weekIdx) => {
                 const weekMicro = microciclosMes.find(m =>
-                  week.some(cell => cell !== null && cell.date >= m.fecha_inicio.slice(0, 10) && cell.date <= m.fecha_fin.slice(0, 10))
+                  week.some(cell => cell.date >= m.fecha_inicio.slice(0, 10) && cell.date <= m.fecha_fin.slice(0, 10))
                 ) ?? null
                 const isWeekHovered = hoveredWeekIdx === weekIdx && (weekMicro !== null)
                 const weekBounds = getWeekBounds(week)
                 const weekHasContent = week.some(cell =>
-                  cell !== null && (
-                    sesionesMes.some(s => isSameDay(s.fecha, cell.date)) ||
-                    partidosMes.some(p => isSameDay(p.fecha, cell.date))
-                  )
+                  sesionesMes.some(s => isSameDay(s.fecha, cell.date)) ||
+                  partidosMes.some(p => isSameDay(p.fecha, cell.date))
                 )
 
                 return (
@@ -733,12 +683,8 @@ export function CalendarSection({
                       <div className="absolute inset-0 border-2 border-primary/40 rounded pointer-events-none z-20 transition-opacity" />
                     )}
 
-                {week.map((cell, dayIdx) => {
-                  if (!cell) {
-                    return <div key={`empty-${weekIdx}-${dayIdx}`} className="min-h-[70px] md:min-h-[100px] border-b border-r last:border-r-0 bg-muted/10" />
-                  }
-
-                  const { day, date, isToday } = cell
+                {week.map((cell) => {
+                  const { day, date, isToday, inMonth } = cell
                   const daySesiones = sesionesMes.filter((s) => isSameDay(s.fecha, date))
                   const dayPartidos = partidosMes.filter((p) => isSameDay(p.fecha, date))
                   const isDescanso = descansos.has(date)
@@ -747,11 +693,9 @@ export function CalendarSection({
                   const isPast = date < dateToStr(now.getFullYear(), now.getMonth(), now.getDate())
                   const showAddMenu = addMenuDay === date
                   const mondayMicro = mondayMicrociclos[date]
+                  const overflowMonth = MONTH_NAMES_SHORT[Number(date.slice(5, 7)) - 1]
 
-                  // Determine if this day is in the last 2 rows → open menu upward
-                  const totalCells = calendarCells.firstDow + calendarCells.daysInMonth
-                  const totalRows = Math.ceil(totalCells / 7)
-                  const menuOpensUp = weekIdx >= totalRows - 2
+                  const menuOpensUp = weekIdx >= desktopWeeks.length - 2
 
                   // Determine dominant Match Day for cell coloring
                   const hasMatch = dayPartidos.length > 0
@@ -768,11 +712,13 @@ export function CalendarSection({
                         : 'bg-violet-50'
                       : daySesiones.length > 0
                         ? 'bg-emerald-50/70'
-                        : ''
+                        : !inMonth
+                          ? 'bg-muted/15'
+                          : ''
 
                   return (
                     <div
-                      key={day}
+                      key={date}
                       onClick={(e) => {
                         if (hasContent) {
                           e.stopPropagation()
@@ -793,15 +739,22 @@ export function CalendarSection({
                       {/* Day number header */}
                       <div className="flex items-center justify-between mb-1">
                         <span
-                          className={`text-xs font-medium leading-none ${
+                          className={`text-xs font-medium leading-none inline-flex items-center gap-0.5 ${
                             isToday
-                              ? 'bg-primary text-white w-6 h-6 rounded-full flex items-center justify-center'
-                              : isPast
-                                ? 'text-muted-foreground/50'
-                                : 'text-foreground'
+                              ? 'bg-primary text-white w-6 h-6 rounded-full justify-center'
+                              : !inMonth
+                                ? 'text-muted-foreground/45'
+                                : isPast
+                                  ? 'text-muted-foreground/50'
+                                  : 'text-foreground'
                           }`}
                         >
                           {day}
+                          {!inMonth && !isToday && (
+                            <span className="text-[8px] font-semibold uppercase tracking-wide">
+                              {overflowMonth}
+                            </span>
+                          )}
                         </span>
 
                         {/* "+" button on any editable day -- opens action menu */}
