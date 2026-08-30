@@ -82,16 +82,20 @@ async def get_team_wellness(
     today = date.today()
     d7_ago = today - timedelta(days=7)
 
-    # Get team players
+    # Get team players (plantilla + filial + prueba; no invitados)
+    from app.services.jugador_tipo import incluye_tracking_carga
+
     jugadores = supabase.table("jugadores").select(
-        "id, nombre, apellidos, dorsal, posicion_principal"
+        "id, nombre, apellidos, dorsal, posicion_principal, tipo_jugador, es_invitado"
     ).eq("equipo_id", eid).eq("estado", "activo").order("dorsal").execute()
 
-    if not jugadores.data:
+    jugadores_data = [j for j in (jugadores.data or []) if incluye_tracking_carga(j)]
+
+    if not jugadores_data:
         return {"data": []}
 
-    jugador_ids = [j["id"] for j in jugadores.data]
-    jugador_map = {j["id"]: j for j in jugadores.data}
+    jugador_ids = [j["id"] for j in jugadores_data]
+    jugador_map = {j["id"]: j for j in jugadores_data}
 
     # Get all wellness records for these players
     wellness_records = supabase.table("registros_rpe").select(
@@ -193,16 +197,19 @@ async def get_team_wellness_alerts(
     supabase = get_supabase()
     eid = str(equipo_id)
 
-    # Get team players
+    from app.services.jugador_tipo import incluye_tracking_carga
+
     jugadores = supabase.table("jugadores").select(
-        "id, nombre, apellidos, dorsal, posicion_principal"
+        "id, nombre, apellidos, dorsal, posicion_principal, tipo_jugador, es_invitado"
     ).eq("equipo_id", eid).eq("estado", "activo").execute()
 
-    if not jugadores.data:
+    jugadores_data = [j for j in (jugadores.data or []) if incluye_tracking_carga(j)]
+
+    if not jugadores_data:
         return {"data": [], "total_alertas": 0}
 
-    jugador_ids = [j["id"] for j in jugadores.data]
-    jugador_map = {j["id"]: j for j in jugadores.data}
+    jugador_ids = [j["id"] for j in jugadores_data]
+    jugador_map = {j["id"]: j for j in jugadores_data}
 
     # Get latest wellness per player (just fetch recent records)
     records = supabase.table("registros_rpe").select(

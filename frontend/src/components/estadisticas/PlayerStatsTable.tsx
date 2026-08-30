@@ -23,7 +23,7 @@ const MOTIVO_LABELS: Record<string, string> = {
   enfermedad: 'Enfermedad',
   sancion: 'Sancion',
   permiso: 'Permiso',
-  seleccion: 'Seleccion',
+  seleccion: '1er equipo',
   viaje: 'Viaje',
   otro: 'Otro',
 }

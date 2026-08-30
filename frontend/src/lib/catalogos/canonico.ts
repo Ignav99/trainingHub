@@ -350,7 +350,7 @@ export const MOTIVOS_AUSENCIA = [
   { codigo: 'enfermedad', nombre: 'Enfermedad' },
   { codigo: 'sancion', nombre: 'Sanción' },
   { codigo: 'permiso', nombre: 'Permiso' },
-  { codigo: 'seleccion', nombre: 'Selección' },
+  { codigo: 'seleccion', nombre: '1er equipo' },
   { codigo: 'viaje', nombre: 'Viaje' },
   { codigo: 'otro', nombre: 'Otro' },
 ] as const

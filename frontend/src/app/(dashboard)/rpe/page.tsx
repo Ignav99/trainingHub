@@ -39,6 +39,9 @@ const WellnessChartDialog = dynamic(() => import('@/components/rpe/WellnessChart
 const LoadChartDialog = dynamic(() => import('@/components/rpe/LoadChartDialog').then(m => ({ default: m.LoadChartDialog })), { ssr: false })
 const ExcelImportDialog = dynamic(() => import('@/components/rpe/ExcelImportDialog').then(m => ({ default: m.ExcelImportDialog })), { ssr: false })
 import { useEquipoStore } from '@/stores/equipoStore'
+import { useFilialVisibilityStore } from '@/stores/filialVisibilityStore'
+import { MostrarFilialToggle } from '@/components/jugadores/MostrarFilialToggle'
+import { resolveTipoJugador } from '@/lib/jugadorTipo'
 import { cargaApi } from '@/lib/api/carga'
 import { rpeApi } from '@/lib/api/rpe'
 import { wellnessApi } from '@/lib/api/wellness'
@@ -99,6 +102,7 @@ function getWellnessBg(value: number | null): string {
 
 export default function RPEPage() {
   const { equipoActivo } = useEquipoStore()
+  const mostrarFilial = useFilialVisibilityStore((s) => s.mostrarFilial)
 
   // SWR data fetching
   const { data: cargaData, isLoading: loadingCarga } = useSWR<CargaEquipoResponse>(
@@ -121,10 +125,10 @@ export default function RPEPage() {
     }, ['equipo_id'])
   )
 
-  // Plantilla + juveniles/pruebas con tracking; excluir invitados y fuera
   const jugadores = (jugadoresData?.data || []).filter((j) => {
-    const tipo = j.tipo_jugador || (j.es_invitado ? 'invitado' : 'plantilla')
-    if (tipo === 'invitado') return false
+    const tipo = resolveTipoJugador(j)
+    if (tipo === 'invitado' || tipo === 'prueba') return false
+    if (tipo === 'juvenil' && !mostrarFilial) return false
     const disp = j.disponibilidad || (j.estado === 'activo' ? 'pleno' : 'fuera')
     return disp !== 'fuera' && !['sancionado', 'viaje', 'permiso', 'seleccion', 'baja'].includes(j.estado)
   })
@@ -159,12 +163,28 @@ export default function RPEPage() {
   // Expanded rows for mini-charts
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
 
-  const data = cargaData?.data || []
-  const resumen = cargaData?.resumen
-  const totalAlertas = alertsData?.total_alertas || 0
+  const tipoById = new Map(
+    (jugadoresData?.data || []).map((j) => [j.id, resolveTipoJugador(j)] as const)
+  )
+  const data = (cargaData?.data || []).filter((item) => {
+    const tipo = item.tipo_jugador || tipoById.get(item.jugador_id) || 'plantilla'
+    if (tipo === 'invitado') return false
+    if (tipo === 'juvenil') return mostrarFilial
+    return tipo === 'plantilla'
+  })
+  const resumenVisible = data.length
+    ? {
+        carga_media: data.reduce((s, d) => s + (d.carga_aguda || 0), 0) / data.length,
+        jugadores_riesgo: data.filter((d) => d.nivel_carga === 'alto' || d.nivel_carga === 'critico').length,
+      }
+    : { carga_media: 0, jugadores_riesgo: 0 }
+  const visibleIds = new Set(data.map((d) => d.jugador_id))
+  const totalAlertas = (alertsData?.data || []).filter((a) => visibleIds.has(a.jugador_id)).length
 
-  // Compute team wellness average from aggregates
-  const wellnessValues = wellnessAggregates.filter((w) => w.wellness_last != null).map((w) => w.wellness_last!)
+  // Compute team wellness average from aggregates (same visible set)
+  const wellnessValues = wellnessAggregates
+    .filter((w) => visibleIds.has(w.jugador_id) && w.wellness_last != null)
+    .map((w) => w.wellness_last!)
   const teamWellnessAvg = wellnessValues.length > 0
     ? Math.round((wellnessValues.reduce((a, b) => a + b, 0) / wellnessValues.length) * 10) / 10
     : null
@@ -183,6 +203,8 @@ export default function RPEPage() {
           title="RPE / Wellness"
           description="Control de carga y bienestar de los jugadores"
           actions={
+            <>
+            <MostrarFilialToggle />
             <Button
               variant="outline"
               size="sm"
@@ -196,6 +218,7 @@ export default function RPEPage() {
               )}
               Recalcular
             </Button>
+            </>
           }
         />
         <SaludTabs />
@@ -278,7 +301,7 @@ export default function RPEPage() {
                 <TrendingUp className="h-4 w-4 text-amber-600" />
               </div>
               <p className="text-3xl font-bold tabular-nums mt-1 tracking-tight text-amber-800">
-                {resumen?.jugadores_riesgo ?? data.filter((d) => d.nivel_carga === 'alto' || d.nivel_carga === 'critico').length}
+                {resumenVisible.jugadores_riesgo}
               </p>
             </div>
             <div className="rounded-2xl border bg-sky-50/80 ring-1 ring-sky-100 p-4">
@@ -287,11 +310,7 @@ export default function RPEPage() {
                 <Activity className="h-4 w-4 text-sky-600" />
               </div>
               <p className="text-3xl font-bold tabular-nums mt-1 tracking-tight text-sky-800">
-                {resumen?.carga_media != null
-                  ? Math.round(resumen.carga_media)
-                  : data.length
-                    ? Math.round(data.reduce((s, d) => s + (d.carga_aguda || 0), 0) / data.length)
-                    : '—'}
+                {data.length ? Math.round(resumenVisible.carga_media) : '—'}
               </p>
               {latestWellnessDate && (
                 <p className="text-[11px] text-muted-foreground mt-1">Última wellness {latestWellnessDate}</p>

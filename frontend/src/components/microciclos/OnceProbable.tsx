@@ -6,7 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import type { OnceProbableData, Jugador, Posicion } from '@/types'
-import { isOperativamenteConvocable } from '@/lib/jugadorTipo'
+import { isOperativamenteConvocable, visibleEnListaEquipo } from '@/lib/jugadorTipo'
+import { useFilialVisibilityStore } from '@/stores/filialVisibilityStore'
+import { MostrarFilialToggle } from '@/components/jugadores/MostrarFilialToggle'
 
 interface OnceProbableProps {
   data: Partial<OnceProbableData>
@@ -113,8 +115,9 @@ interface SlotProps {
 }
 
 function PositionSlot({ slot, jugadores, titulares, onSelect }: SlotProps) {
+  const mostrarFilial = useFilialVisibilityStore((s) => s.mostrarFilial)
   const selectedId = titulares[slot.slotKey] ?? ''
-  const active = jugadores.filter((j) => isOperativamenteConvocable(j) && (j.tipo_jugador ? j.tipo_jugador === 'plantilla' : !j.es_invitado))
+  const active = jugadores.filter((j) => isOperativamenteConvocable(j) && visibleEnListaEquipo(j, mostrarFilial))
 
   return (
     <div className="flex flex-col items-center gap-1 min-w-[72px]">
@@ -140,6 +143,7 @@ function PositionSlot({ slot, jugadores, titulares, onSelect }: SlotProps) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function OnceProbable({ data, jugadores, onChange }: OnceProbableProps) {
+  const mostrarFilial = useFilialVisibilityStore((s) => s.mostrarFilial)
   const titulares = data.titulares ?? {}
   const suplentes = data.suplentes ?? []
   const sistema = data.sistema ?? '4-3-3'
@@ -179,16 +183,19 @@ export function OnceProbable({ data, jugadores, onChange }: OnceProbableProps) {
   }
 
   const availableForSuplentes = jugadores
-    .filter((j) => isOperativamenteConvocable(j) && (j.tipo_jugador ? j.tipo_jugador === 'plantilla' : !j.es_invitado) && !titularIds.has(j.id))
+    .filter((j) => isOperativamenteConvocable(j) && visibleEnListaEquipo(j, mostrarFilial) && !titularIds.has(j.id))
     .sort((a, b) => getPlayerLabel(a).localeCompare(getPlayerLabel(b)))
 
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Users className="h-4 w-4 text-muted-foreground" />
-          Once Probable
-        </CardTitle>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            Once Probable
+          </CardTitle>
+          <MostrarFilialToggle />
+        </div>
       </CardHeader>
 
       <CardContent className="space-y-4">

@@ -17,10 +17,13 @@ import { toast } from 'sonner'
 import { jugadoresApi, Jugador, JugadorCreate, JugadorUpdate, POSICIONES, ESTADOS_JUGADOR, compareJugadoresPorPosicion } from '@/lib/api/jugadores'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { useEquipoStore } from '@/stores/equipoStore'
-import { isEnTratamiento } from '@/lib/jugadorTipo'
+import { isEnTratamiento, visibleEnListaEquipo } from '@/lib/jugadorTipo'
+import { useFilialVisibilityStore } from '@/stores/filialVisibilityStore'
+import { MostrarFilialToggle } from '@/components/jugadores/MostrarFilialToggle'
 
 export default function EquipoPage() {
   const { equipoActivo, loadEquipos, isLoading: loadingEquipos } = useEquipoStore()
+  const mostrarFilial = useFilialVisibilityStore((s) => s.mostrarFilial)
 
   const [jugadores, setJugadores] = useState<Jugador[]>([])
   const [filteredJugadores, setFilteredJugadores] = useState<Jugador[]>([])
@@ -66,7 +69,7 @@ export default function EquipoPage() {
 
   // Filtrar jugadores localmente
   useEffect(() => {
-    let filtered = [...jugadores]
+    let filtered = jugadores.filter((j) => visibleEnListaEquipo(j, mostrarFilial))
 
     if (searchTerm) {
       const term = searchTerm.toLowerCase()
@@ -85,7 +88,7 @@ export default function EquipoPage() {
     }
 
     setFilteredJugadores(filtered.sort(compareJugadoresPorPosicion))
-  }, [jugadores, searchTerm, filterPosicion, filterEstado])
+  }, [jugadores, searchTerm, filterPosicion, filterEstado, mostrarFilial])
 
   const handleAddJugador = () => {
     setEditingJugador(null)
@@ -129,7 +132,7 @@ export default function EquipoPage() {
   }
 
   // Estadísticas (only plantilla players, exclude invitados)
-  const plantillaJugadores = jugadores.filter(j => !j.es_invitado)
+  const plantillaJugadores = jugadores.filter((j) => visibleEnListaEquipo(j, mostrarFilial))
   const stats = {
     total: plantillaJugadores.length,
     activos: plantillaJugadores.filter(j => !isEnTratamiento(j) && j.estado !== 'sancionado').length,
@@ -168,6 +171,7 @@ export default function EquipoPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <MostrarFilialToggle />
           <button
             onClick={loadJugadores}
             className="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"

@@ -674,7 +674,7 @@ export default function PlantillaPage() {
 
   const TIPO_TABS: { id: TipoJugador; label: string }[] = [
     { id: 'plantilla', label: 'Plantilla' },
-    { id: 'juvenil', label: 'Juveniles' },
+    { id: 'juvenil', label: 'Filial' },
     { id: 'prueba', label: 'Pruebas' },
     { id: 'invitado', label: 'Invitados' },
   ]

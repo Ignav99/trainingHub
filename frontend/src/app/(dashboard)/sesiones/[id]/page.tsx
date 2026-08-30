@@ -82,7 +82,9 @@ import { madreToCreatorPrefill } from '@/lib/tareaVariante'
 import { variantesFromReglas } from '@/lib/tareaNarrative'
 import { cargaApi } from '@/lib/api/carga'
 import { entrenamientosMargenApi } from '@/lib/api/entrenamientosMargen'
-import { suggestAttendanceFromDisponibilidad } from '@/lib/jugadorTipo'
+import { suggestAttendanceFromDisponibilidad, isPlantilla, isFilial, resolveTipoJugador } from '@/lib/jugadorTipo'
+import { useFilialVisibilityStore } from '@/stores/filialVisibilityStore'
+import { MostrarFilialToggle } from '@/components/jugadores/MostrarFilialToggle'
 import type { CargaJugador } from '@/types'
 import { MATCH_DAYS as MATCH_DAYS_CATALOG, DIAS_CARGA } from '@/lib/catalogos/canonico'
 import { TaskPickerDialog } from '@/components/tareas/TaskPickerDialog'
@@ -136,7 +138,7 @@ const MOTIVOS_AUSENCIA: { value: MotivoAusencia; label: string }[] = [
   { value: 'enfermedad', label: 'Enfermedad' },
   { value: 'sancion', label: 'Sancion' },
   { value: 'permiso', label: 'Permiso' },
-  { value: 'seleccion', label: 'Seleccion' },
+  { value: 'seleccion', label: '1er equipo' },
   { value: 'viaje', label: 'Viaje' },
   { value: 'otro', label: 'Otro' },
 ]
@@ -207,6 +209,7 @@ export default function SesionDetailPage() {
   const params = useParams()
   const router = useRouter()
   const sesionId = params.id as string
+  const mostrarFilial = useFilialVisibilityStore((s) => s.mostrarFilial)
 
   // Core data fetching via SWR
   const { data: sesionData, error: swrError, isLoading } = useSWR<Sesion>(
@@ -299,7 +302,9 @@ export default function SesionDetailPage() {
     if (!sesion?.equipo_id || jugadoresLoadedRef.current) return
     try {
       const response = await jugadoresApi.list({ equipo_id: sesion.equipo_id, limit: 100 })
-      const teamPlayers = (response.data as unknown as Jugador[]).filter((j) => !j.es_invitado)
+      const teamPlayers = (response.data as unknown as Jugador[]).filter(
+        (j) => isPlantilla(j) || isFilial(j)
+      )
       const teamIds = new Set(teamPlayers.map((j) => j.id))
       // Preserve invitados/cross-team players already in state (from loadAsistencias)
       setJugadores((prev) => {
@@ -889,7 +894,9 @@ export default function SesionDetailPage() {
   const saveAsistencias = async () => {
     setSavingAsistencias(true)
     try {
-      const list = jugadores.map((j) => {
+      const list = jugadores
+        .filter((j) => !(isFilial(j) && !mostrarFilial && !asistencias.has(j.id)))
+        .map((j) => {
         const a = asistencias.get(j.id)
         if (a) {
           const presente = a.presente
@@ -1076,8 +1083,12 @@ export default function SesionDetailPage() {
 
   const estadoConfig = ESTADO_CONFIG[sesion.estado] || ESTADO_CONFIG.borrador
 
-  // Group jugadores by position for asistencia
-  const jugadoresByPosition = jugadores.reduce((acc, j) => {
+  // Group jugadores by position for asistencia (filial solo con el botón, salvo si ya tiene asistencia)
+  const jugadoresVisibles = jugadores.filter((j) => {
+    if (isFilial(j) && !mostrarFilial && !asistencias.has(j.id)) return false
+    return true
+  })
+  const jugadoresByPosition = jugadoresVisibles.reduce((acc, j) => {
     const pos = j.posicion_principal || 'Otro'
     if (!acc[pos]) acc[pos] = []
     acc[pos].push(j)
@@ -1442,10 +1453,13 @@ export default function SesionDetailPage() {
                     )}
                   </div>
                   {convocatoriaTab === 'asistencia' && (
+                    <>
+                    <MostrarFilialToggle />
                     <Button onClick={saveAsistencias} disabled={savingAsistencias} size="sm">
                       {savingAsistencias ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
                       Guardar
                     </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -1484,7 +1498,7 @@ export default function SesionDetailPage() {
                 <MargenPanel
                   sesionId={sesionId}
                   equipoId={sesion?.equipo_id}
-                  players={jugadores.flatMap((jugador) => {
+                  players={jugadoresVisibles.flatMap((jugador) => {
                     const asistencia = asistencias.get(jugador.id)
                     const suggestion = !asistencia ? suggestAttendanceFromDisponibilidad(jugador) : null
                     const presente = asistencia?.presente ?? suggestion?.presente ?? true
@@ -1536,7 +1550,7 @@ export default function SesionDetailPage() {
                                 <div>
                                   <p className="text-sm font-medium flex items-center gap-1.5">
                                     {jugador.nombre} {jugador.apellidos}
-                                    {jugador.es_invitado && (
+                                    {resolveTipoJugador(jugador) === 'invitado' && (
                                       <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700 bg-amber-50">
                                         Invitado
                                       </Badge>
@@ -1625,7 +1639,7 @@ export default function SesionDetailPage() {
                                   checked={presente}
                                   onCheckedChange={() => toggleAsistencia(jugador.id)}
                                 />
-                                {(jugador.es_invitado || (sesion?.equipo_id && jugador.equipo_id && jugador.equipo_id !== sesion.equipo_id)) && (
+                                {(resolveTipoJugador(jugador) === 'invitado' || (sesion?.equipo_id && jugador.equipo_id && jugador.equipo_id !== sesion.equipo_id)) && (
                                   <button
                                     onClick={() => handleRemoveFromSession(jugador.id)}
                                     className="p-1 rounded hover:bg-red-100 text-muted-foreground hover:text-red-600 transition-colors"
@@ -1865,7 +1879,7 @@ export default function SesionDetailPage() {
               const currentTeamPlayerIds = new Set(jugadores.map((j) => j.id))
               const filtered = orgJugadores.filter((j) => {
                 // Exclude players already in the session's team
-                if (j.equipo_id === sesion?.equipo_id && !j.es_invitado) return false
+                if (j.equipo_id === sesion?.equipo_id && (isPlantilla(j) || isFilial(j))) return false
                 // Exclude players already added
                 if (currentTeamPlayerIds.has(j.id)) return false
                 // Search filter

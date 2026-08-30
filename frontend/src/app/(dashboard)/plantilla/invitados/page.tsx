@@ -33,7 +33,7 @@ import type { TipoJugador } from '@/types'
 type TipoExtra = Exclude<TipoJugador, 'plantilla'>
 
 const TIPOS_EXTRA: { id: TipoExtra; label: string; hint: string }[] = [
-  { id: 'juvenil', label: 'Juvenil', hint: 'Cantera / seguimiento con pre-ficha' },
+  { id: 'juvenil', label: 'Filial', hint: 'Filial / seguimiento con pre-ficha' },
   { id: 'prueba', label: 'Prueba', hint: 'Trial temporal con tracking de cargas' },
   { id: 'invitado', label: 'Invitado', hint: 'Solo identidad para sesiones' },
 ]
@@ -353,7 +353,7 @@ export default function ExtraplantillaPage() {
       <div className="text-center py-12">
         <AlertCircle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
         <h2 className="text-lg font-medium text-gray-900 mb-2">Selecciona un equipo</h2>
-        <p className="text-gray-500">Debes seleccionar un equipo para gestionar juveniles, pruebas e invitados</p>
+        <p className="text-gray-500">Debes seleccionar un equipo para gestionar filial, pruebas e invitados</p>
       </div>
     )
   }
@@ -387,7 +387,7 @@ export default function ExtraplantillaPage() {
           <div>
             <h3 className="font-medium text-amber-900">Tipologías extraplantilla</h3>
             <p className="text-sm text-amber-700 mt-1">
-              <strong>Juvenil</strong> (cantera, convocable en oficiales), <strong>Prueba</strong> (trial con cargas)
+              <strong>Filial</strong> (convocable en oficiales, mismas cargas que plantilla), <strong>Prueba</strong> (trial con cargas)
               e <strong>Invitado</strong> (solo sesiones). Puedes promoverlos a plantilla cuando corresponda.
             </p>
           </div>
@@ -439,7 +439,7 @@ export default function ExtraplantillaPage() {
         <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
           <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">Nadie fuera de plantilla</h3>
-          <p className="text-gray-500 mb-4">Añade juveniles, pruebas o invitados para entrenamientos</p>
+          <p className="text-gray-500 mb-4">Añade filial, pruebas o invitados para entrenamientos</p>
           <button
             onClick={() => setModalOpen(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90"

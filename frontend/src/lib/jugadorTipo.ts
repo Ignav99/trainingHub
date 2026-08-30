@@ -2,7 +2,7 @@ import type { DisponibilidadOperativa, EstadoJugador, FichaEstado, Jugador, Tipo
 
 export const TIPO_JUGADOR_LABELS: Record<TipoJugador, string> = {
   plantilla: 'Plantilla',
-  juvenil: 'Juvenil',
+  juvenil: 'Filial',
   prueba: 'Prueba',
   invitado: 'Invitado',
 }
@@ -55,6 +55,25 @@ export function resolveFichaEstado(j: Pick<Jugador, 'ficha_estado' | 'tipo_jugad
 
 export function isPlantilla(j: Pick<Jugador, 'tipo_jugador' | 'es_invitado'>): boolean {
   return resolveTipoJugador(j) === 'plantilla'
+}
+
+/** Cantera / filial (valor persistido: tipo_jugador = juvenil). */
+export function isFilial(j: Pick<Jugador, 'tipo_jugador' | 'es_invitado'>): boolean {
+  return resolveTipoJugador(j) === 'juvenil'
+}
+
+/** Listas operativas: plantilla siempre; filial solo con el botón. */
+export function visibleEnListaEquipo(
+  j: Pick<Jugador, 'tipo_jugador' | 'es_invitado'>,
+  mostrarFilial: boolean,
+  opts?: { incluirPrueba?: boolean; incluirInvitado?: boolean }
+): boolean {
+  const tipo = resolveTipoJugador(j)
+  if (tipo === 'plantilla') return true
+  if (tipo === 'juvenil') return mostrarFilial
+  if (tipo === 'prueba') return !!opts?.incluirPrueba
+  if (tipo === 'invitado') return !!opts?.incluirInvitado
+  return false
 }
 
 /** Resuelve disponibilidad (fallback desde estado si aún no hay columna). */
@@ -112,7 +131,7 @@ export function isOperativamenteConvocable(
   return false
 }
 
-/** Convocatoria oficial: plantilla (+ juveniles convocables) + disponibilidad */
+/** Convocatoria oficial: plantilla (+ filial convocable) + disponibilidad */
 export function isConvocableOficial(j: Pick<Jugador, 'tipo_jugador' | 'es_invitado' | 'es_convocable' | 'estado' | 'disponibilidad'>): boolean {
   if (!isOperativamenteConvocable(j)) return false
   if (!j.es_convocable) return false
@@ -120,7 +139,7 @@ export function isConvocableOficial(j: Pick<Jugador, 'tipo_jugador' | 'es_invita
   return tipo === 'plantilla' || tipo === 'juvenil'
 }
 
-/** Amistoso / entreno: plantilla + juveniles + pruebas (+ invitados opcionales) */
+/** Amistoso / entreno: plantilla + filial + pruebas (+ invitados opcionales) */
 export function isConvocableAmistoso(
   j: Pick<Jugador, 'tipo_jugador' | 'es_invitado' | 'es_convocable' | 'estado' | 'disponibilidad'>,
   opts?: { incluirInvitados?: boolean }
@@ -136,7 +155,7 @@ export function incluyeCargaEquipo(j: Pick<Jugador, 'tipo_jugador' | 'es_invitad
   return isPlantilla(j)
 }
 
-/** Tracking individual de cargas (plantilla, juvenil, prueba) */
+/** Tracking individual de cargas (plantilla, filial, prueba) */
 export function incluyeTrackingCarga(j: Pick<Jugador, 'tipo_jugador' | 'es_invitado' | 'ficha_estado'>): boolean {
   const tipo = resolveTipoJugador(j)
   if (tipo === 'invitado') return false

@@ -5,7 +5,9 @@ import { Users, ChevronRight, SkipForward, Check, X, UserPlus, ChevronDown } fro
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { jugadoresApi, Jugador } from '@/lib/api/jugadores'
-import { isPlantilla, resolveTipoJugador, TIPO_JUGADOR_LABELS, suggestAttendanceFromDisponibilidad, resolveDisponibilidad, DISPONIBILIDAD_LABELS } from '@/lib/jugadorTipo'
+import { isPlantilla, isFilial, resolveTipoJugador, TIPO_JUGADOR_LABELS, suggestAttendanceFromDisponibilidad, resolveDisponibilidad, DISPONIBILIDAD_LABELS } from '@/lib/jugadorTipo'
+import { useFilialVisibilityStore } from '@/stores/filialVisibilityStore'
+import { MostrarFilialToggle } from '@/components/jugadores/MostrarFilialToggle'
 
 export type MotivoAusencia = 'lesion' | 'enfermedad' | 'sancion' | 'permiso' | 'seleccion' | 'viaje' | 'otro'
 
@@ -28,7 +30,7 @@ const MOTIVOS: { value: MotivoAusencia; label: string }[] = [
   { value: 'enfermedad', label: 'Enfermedad' },
   { value: 'sancion', label: 'Sanción' },
   { value: 'permiso', label: 'Permiso' },
-  { value: 'seleccion', label: 'Selección' },
+  { value: 'seleccion', label: '1er equipo' },
   { value: 'viaje', label: 'Viaje' },
   { value: 'otro', label: 'Otro' },
 ]
@@ -63,8 +65,9 @@ function mapEstadoToMotivo(estado: string): MotivoAusencia {
 }
 
 export function AttendanceStep({ equipoId, onConfirm, onSkip }: AttendanceStepProps) {
-  const [jugadores, setJugadores] = useState<Jugador[]>([])
-  const [invitadosDisponibles, setInvitadosDisponibles] = useState<Jugador[]>([])
+  const mostrarFilial = useFilialVisibilityStore((s) => s.mostrarFilial)
+  const [allJugadores, setAllJugadores] = useState<Jugador[]>([])
+  const [extraIds, setExtraIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [attendance, setAttendance] = useState<Record<string, PlayerAttendance>>({})
   const [showInvitados, setShowInvitados] = useState(false)
@@ -73,12 +76,9 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip }: AttendanceStepPr
     jugadoresApi
       .list({ equipo_id: equipoId, limit: 100 } as Parameters<typeof jugadoresApi.list>[0])
       .then(({ data }) => {
-        const plantilla = data.filter((j) => isPlantilla(j))
-        const invitados = data.filter((j) => !isPlantilla(j))
-        setJugadores(plantilla)
-        setInvitadosDisponibles(invitados)
+        setAllJugadores(data)
         const initial: Record<string, PlayerAttendance> = {}
-        plantilla.forEach((j) => {
+        data.filter((j) => isPlantilla(j)).forEach((j) => {
           const suggestion = suggestAttendanceFromDisponibilidad(j)
           initial[j.id] = {
             jugador_id: j.id,
@@ -93,9 +93,34 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip }: AttendanceStepPr
       .finally(() => setLoading(false))
   }, [equipoId])
 
+  useEffect(() => {
+    if (!mostrarFilial) return
+    setAttendance((prev) => {
+      const next = { ...prev }
+      for (const j of allJugadores) {
+        if (!isFilial(j) || next[j.id]) continue
+        const suggestion = suggestAttendanceFromDisponibilidad(j)
+        next[j.id] = {
+          jugador_id: j.id,
+          jugador: j,
+          presente: suggestion.presente,
+          motivo_ausencia: suggestion.motivo_ausencia,
+          tipo_participacion: suggestion.tipo_participacion,
+        }
+      }
+      return next
+    })
+  }, [mostrarFilial, allJugadores])
+
+  const jugadores = allJugadores.filter(
+    (j) => isPlantilla(j) || (mostrarFilial && isFilial(j)) || extraIds.has(j.id)
+  )
+  const invitadosDisponibles = allJugadores.filter(
+    (j) => !isPlantilla(j) && !isFilial(j) && !extraIds.has(j.id)
+  )
+
   function addInvitado(j: Jugador) {
-    setJugadores((prev) => [...prev, j])
-    setInvitadosDisponibles((prev) => prev.filter((i) => i.id !== j.id))
+    setExtraIds((prev) => new Set(prev).add(j.id))
     setAttendance((prev) => ({
       ...prev,
       [j.id]: { jugador_id: j.id, jugador: j, presente: true },
@@ -103,8 +128,11 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip }: AttendanceStepPr
   }
 
   function removeInvitado(j: Jugador) {
-    setJugadores((prev) => prev.filter((p) => p.id !== j.id))
-    setInvitadosDisponibles((prev) => [...prev, j])
+    setExtraIds((prev) => {
+      const next = new Set(prev)
+      next.delete(j.id)
+      return next
+    })
     setAttendance((prev) => {
       const next = { ...prev }
       delete next[j.id]
@@ -137,7 +165,8 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip }: AttendanceStepPr
     return acc
   }, {})
 
-  const list = Object.values(attendance)
+  const visibleIds = new Set(jugadores.map((j) => j.id))
+  const list = Object.values(attendance).filter((a) => visibleIds.has(a.jugador_id))
   const presentCount = list.filter((a) => a.presente).length
   const porteros = list.filter((a) => a.jugador.es_portero && a.presente).length
 
@@ -162,8 +191,11 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip }: AttendanceStepPr
         </div>
         <h2 className="text-xl font-semibold">¿Quién está disponible hoy?</h2>
         <p className="text-sm text-muted-foreground">
-          Marcá los jugadores presentes para que la IA diseñe la sesión con el número exacto de jugadores.
+          Toca para marcar asistencia. Si no asiste, elige el motivo (p. ej. 1er equipo).
         </p>
+        <div className="flex justify-center pt-1">
+          <MostrarFilialToggle />
+        </div>
       </div>
 
       {/* Summary pill */}
@@ -291,9 +323,9 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip }: AttendanceStepPr
       )}
 
       {/* Extraplantilla añadidos (chips para quitar) */}
-      {jugadores.filter((j) => !isPlantilla(j)).length > 0 && (
+      {jugadores.filter((j) => extraIds.has(j.id)).length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {jugadores.filter((j) => !isPlantilla(j)).map((j) => (
+          {jugadores.filter((j) => extraIds.has(j.id)).map((j) => (
             <span
               key={j.id}
               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-sm"

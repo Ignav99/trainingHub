@@ -21,7 +21,7 @@ MOTIVO_LABEL = {
     "enfermedad": "Enfermedad",
     "sancion": "Sanción",
     "permiso": "Permiso",
-    "seleccion": "Selección",
+    "seleccion": "1er equipo",
     "viaje": "Viaje",
     "otro": "Otro",
 }
