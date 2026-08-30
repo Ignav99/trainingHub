@@ -237,6 +237,17 @@ export function compareJugadoresPorPosicion(a: JugadorOrdenPosicion, b: JugadorO
   return (a.apellidos || '').localeCompare(b.apellidos || '', 'es')
 }
 
+/** Apodo si existe; si no, nombre y apellidos enteros. */
+export function jugadorNombreVisible(j: {
+  apodo?: string | null
+  nombre?: string | null
+  apellidos?: string | null
+}): string {
+  const apodo = j.apodo?.trim()
+  if (apodo) return apodo
+  return `${j.nombre || ''} ${j.apellidos || ''}`.replace(/\s+/g, ' ').trim()
+}
+
 export const ESTADOS_JUGADOR = {
   activo: { nombre: 'Disponible', color: '#10B981', icon: 'check' },
   lesionado: { nombre: 'En tratamiento', color: '#EF4444', icon: 'activity' },
