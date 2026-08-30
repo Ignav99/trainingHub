@@ -23,6 +23,7 @@ from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
 from app.services.load_calculation_service import recalculate_team_load, recalculate_player_load, recalculate_all_teams
+from app.services.jugador_tipo import incluye_tracking_carga
 
 logger = logging.getLogger(__name__)
 
@@ -38,16 +39,16 @@ async def get_carga_equipo(
     supabase = get_supabase()
     eid = str(equipo_id)
 
-    # Get all players with their carga data (exclude invitados)
-    jugadores = (
+    # Plantilla + filial + prueba (mismo tracking de carga). Invitados fuera.
+    jugadores_raw = (
         supabase.table("jugadores")
-        .select("id, nombre, apellidos, dorsal, posicion_principal, estado")
+        .select("id, nombre, apellidos, dorsal, posicion_principal, estado, tipo_jugador, es_invitado")
         .eq("equipo_id", eid)
-        .neq("es_invitado", True)
         .execute()
     )
+    jugadores_data = [j for j in (jugadores_raw.data or []) if incluye_tracking_carga(j)]
 
-    if not jugadores.data:
+    if not jugadores_data:
         return CargaEquipoResponse(data=[], resumen={
             "carga_media": 0,
             "jugadores_riesgo": 0,
@@ -66,7 +67,7 @@ async def get_carga_equipo(
     carga_map = {r["jugador_id"]: r for r in (carga_rows.data or [])}
 
     # Aggregate tarjetas from convocatorias
-    jugador_ids = [j["id"] for j in jugadores.data]
+    jugador_ids = [j["id"] for j in jugadores_data]
     tarjetas_map: dict[str, dict] = {}
     try:
         convs = (
@@ -92,7 +93,7 @@ async def get_carga_equipo(
     wellness_sum = 0
     wellness_count = 0
 
-    for j in jugadores.data:
+    for j in jugadores_data:
         c = carga_map.get(j["id"], {})
         nivel = c.get("nivel_carga", "optimo")
         carga_aguda = float(c.get("carga_aguda", 0) or 0)
@@ -119,6 +120,7 @@ async def get_carga_equipo(
             dorsal=j.get("dorsal"),
             posicion_principal=j.get("posicion_principal"),
             estado=j.get("estado"),
+            tipo_jugador=j.get("tipo_jugador"),
             tarjetas_amarillas=tarjetas.get("amarillas", 0),
             tarjetas_rojas=tarjetas.get("rojas", 0),
         )
@@ -205,14 +207,14 @@ async def get_semanal_equipo(
     eid = str(equipo_id)
     since = (date.today() - timedelta(weeks=semanas)).isoformat()
 
-    # Fetch players
+    # Fetch players (plantilla + filial + prueba)
     jugadores = (
         supabase.table("jugadores")
-        .select("id, nombre, apellidos, dorsal")
+        .select("id, nombre, apellidos, dorsal, tipo_jugador, es_invitado")
         .eq("equipo_id", eid)
         .execute()
     )
-    jug_map = {j["id"]: j for j in (jugadores.data or [])}
+    jug_map = {j["id"]: j for j in (jugadores.data or []) if incluye_tracking_carga(j)}
 
     # Fetch daily rows for entire team
     rows = (

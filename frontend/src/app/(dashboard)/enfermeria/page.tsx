@@ -29,11 +29,13 @@ import { ListPageSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useEquipoStore } from '@/stores/equipoStore'
+import { useFilialVisibilityStore } from '@/stores/filialVisibilityStore'
+import { MostrarFilialToggle } from '@/components/jugadores/MostrarFilialToggle'
 import { medicoApi, CreateRegistroMedicoData } from '@/lib/api/medico'
 import { Jugador } from '@/lib/api/jugadores'
 import { apiKey } from '@/lib/swr'
 import type { DisponibilidadOperativa, RegistroMedico, TipoRegistroMedico } from '@/types'
-import { resolveDisponibilidad } from '@/lib/jugadorTipo'
+import { resolveDisponibilidad, visibleEnListaEquipo } from '@/lib/jugadorTipo'
 import { EnfermeriaBoard, EnfermeriaHistorico, type BoardBucket, type PlayerCaseCard } from '@/components/enfermeria/EnfermeriaBoard'
 import { SaludTabs } from '@/components/salud/SaludTabs'
 import { BodyInjuryMap } from '@/components/ficha-clinica/BodyInjuryMap'
@@ -81,6 +83,7 @@ function resolveCaseDisponibilidad(registro: RegistroMedico, jugador?: Jugador):
 export default function EnfermeriaPage() {
   const router = useRouter()
   const { equipoActivo } = useEquipoStore()
+  const mostrarFilial = useFilialVisibilityStore((s) => s.mostrarFilial)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { data: registrosRaw, isLoading: loadingRegistros, error: registrosError } = useSWR<
@@ -103,8 +106,8 @@ export default function EnfermeriaPage() {
   }, [registrosRaw])
 
   const jugadores = useMemo(
-    () => (jugadoresData?.data || []).filter((j) => !j.es_invitado),
-    [jugadoresData]
+    () => (jugadoresData?.data || []).filter((j) => visibleEnListaEquipo(j, mostrarFilial)),
+    [jugadoresData, mostrarFilial]
   )
   const jugadoresMap = useMemo(() => new Map(jugadores.map((j) => [j.id, j])), [jugadores])
 
@@ -382,10 +385,13 @@ export default function EnfermeriaPage() {
           title="Enfermería"
           description={`${kpis.fuera + kpis.individual + kpis.grupo} en seguimiento · ${kpis.molestias} con molestias · ${kpis.disponibles} disponibles`}
           actions={
-            <Button onClick={() => setShowNuevo(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Nuevo registro
-            </Button>
+            <>
+              <MostrarFilialToggle />
+              <Button onClick={() => setShowNuevo(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Nuevo registro
+              </Button>
+            </>
           }
         />
         <SaludTabs />

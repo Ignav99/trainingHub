@@ -10,6 +10,9 @@ import {
   Filter, Check, UserCheck, UsersRound,
 } from 'lucide-react'
 import { useEquipoStore } from '@/stores/equipoStore'
+import { useFilialVisibilityStore } from '@/stores/filialVisibilityStore'
+import { MostrarFilialToggle } from '@/components/jugadores/MostrarFilialToggle'
+import { visibleEnListaEquipo } from '@/lib/jugadorTipo'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -86,6 +89,7 @@ export default function NutricionPage() {
         <PageHeader
           title="Nutrición"
           description="Gestión de planes nutricionales, plantillas y composición corporal"
+          actions={<MostrarFilialToggle />}
         />
         <SaludTabs />
       </div>
@@ -125,6 +129,7 @@ export default function NutricionPage() {
 // ============================================================
 
 function TabHoy({ equipoId }: { equipoId: string }) {
+  const mostrarFilial = useFilialVisibilityStore((s) => s.mostrarFilial)
   const [selectedDate, setSelectedDate] = useState(formatDate(new Date()))
   const [showCreateDialog, setShowCreateDialog] = useState(false)
 
@@ -147,9 +152,9 @@ function TabHoy({ equipoId }: { equipoId: string }) {
     const list = (jugadoresRaw as any)?.data || jugadoresRaw
     if (!Array.isArray(list)) return []
     return list
-      .filter((j: any) => !j.es_invitado)
+      .filter((j: any) => visibleEnListaEquipo(j, mostrarFilial))
       .sort((a: any, b: any) => (a.dorsal || 99) - (b.dorsal || 99))
-  }, [jugadoresRaw])
+  }, [jugadoresRaw, mostrarFilial])
 
   // Map jugadorId → display label
   const jugadorMap = useMemo(() => {
@@ -983,6 +988,7 @@ function PlantillaDialog({
 // ============================================================
 
 function TabResumen({ equipoId }: { equipoId: string }) {
+  const mostrarFilial = useFilialVisibilityStore((s) => s.mostrarFilial)
   const [filterHasPlan, setFilterHasPlan] = useState<'all' | 'individual' | 'equipo' | 'without'>('all')
   const hoy = formatDate(new Date())
 
@@ -1014,7 +1020,7 @@ function TabResumen({ equipoId }: { equipoId: string }) {
     if (!Array.isArray(jugadoresList)) return []
 
     return jugadoresList
-      .filter((j: any) => !j.es_invitado)
+      .filter((j: any) => visibleEnListaEquipo(j, mostrarFilial))
       .sort((a: any, b: any) => (a.dorsal || 99) - (b.dorsal || 99))
       .map((j: any) => {
         const hasIndividualPlan = planes?.some((p) => p.jugador_id === j.id) || false
@@ -1044,7 +1050,7 @@ function TabResumen({ equipoId }: { equipoId: string }) {
           supCount,
         }
       })
-  }, [jugadoresRaw, planes, composiciones, suplementos, hasTeamPlan])
+  }, [jugadoresRaw, planes, composiciones, suplementos, hasTeamPlan, mostrarFilial])
 
   const filteredRows = useMemo(() => {
     if (filterHasPlan === 'individual') return playerRows.filter((r) => r.planType === 'individual')

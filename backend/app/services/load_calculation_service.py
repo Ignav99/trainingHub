@@ -13,6 +13,7 @@ from typing import Optional
 from uuid import UUID
 
 from app.database import get_supabase
+from app.services.jugador_tipo import incluye_tracking_carga
 
 logger = logging.getLogger(__name__)
 
@@ -740,14 +741,15 @@ def recalculate_team_load(equipo_id: UUID) -> list[dict]:
 
     jugadores = (
         supabase.table("jugadores")
-        .select("id")
+        .select("id, tipo_jugador, es_invitado")
         .eq("equipo_id", eid)
-        .neq("es_invitado", True)
         .execute()
     )
 
     results = []
     for j in jugadores.data or []:
+        if not incluye_tracking_carga(j):
+            continue
         try:
             row = recalculate_player_load(UUID(j["id"]), equipo_id)
             results.append(row)

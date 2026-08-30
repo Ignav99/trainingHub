@@ -43,6 +43,8 @@ import {
 } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useEquipoStore } from '@/stores/equipoStore'
+import { useFilialVisibilityStore } from '@/stores/filialVisibilityStore'
+import { MostrarFilialToggle } from '@/components/jugadores/MostrarFilialToggle'
 import { convocatoriasApi, CreateConvocatoriaData } from '@/lib/api/convocatorias'
 import { estadisticasPartidoApi, EstadisticaPartidoUpdateData } from '@/lib/api/estadisticasPartido'
 import { partidosApi, rivalesApi } from '@/lib/api/partidos'
@@ -55,6 +57,7 @@ import {
   isConvocableOficial,
   isOperativamenteConvocable,
   isPlantilla,
+  isFilial,
   resolveTipoJugador,
   TIPO_JUGADOR_LABELS,
 } from '@/lib/jugadorTipo'
@@ -150,6 +153,7 @@ export function MatchDetailPanel({
   onDeleteSuccess,
 }: MatchDetailPanelProps) {
   const { equipoActivo } = useEquipoStore()
+  const mostrarFilial = useFilialVisibilityStore((s) => s.mostrarFilial)
 
   const titulares = convocados.filter((c) => c.titular)
   const suplentes = convocados.filter((c) => !c.titular)
@@ -352,16 +356,19 @@ export function MatchDetailPanel({
       sortJugadoresByPosition(
         jugadores.filter((j) => {
           if (j.equipo_id !== equipoActivo?.id) return false
-          return esAmistoso ? isConvocableAmistoso(j) && isPlantilla(j) : isConvocableOficial(j) && isPlantilla(j)
+          if (isFilial(j) && !mostrarFilial) return false
+          const enGrupo = isPlantilla(j) || isFilial(j)
+          if (!enGrupo) return false
+          return esAmistoso ? isConvocableAmistoso(j) : isConvocableOficial(j)
         })
       ),
-    [jugadores, equipoActivo?.id, esAmistoso] // eslint-disable-line react-hooks/exhaustive-deps
+    [jugadores, equipoActivo?.id, esAmistoso, mostrarFilial] // eslint-disable-line react-hooks/exhaustive-deps
   )
   const extraplantillaJugadores = useMemo(
     () =>
       sortJugadoresByPosition(
         jugadores.filter((j) => {
-          if (isPlantilla(j)) return false
+          if (isPlantilla(j) || isFilial(j)) return false
           return esAmistoso
             ? isConvocableAmistoso(j, { incluirInvitados: true })
             : isConvocableOficial(j)
@@ -1418,6 +1425,9 @@ export function MatchDetailPanel({
           <DialogHeader>
             <DialogTitle>Convocar jugadores</DialogTitle>
             <DialogDescription>Selecciona los jugadores para la convocatoria. Puedes marcar titulares.</DialogDescription>
+            <div className="pt-2">
+              <MostrarFilialToggle />
+            </div>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto -mx-6 px-6">
             {loadingJug ? (
@@ -1434,7 +1444,7 @@ export function MatchDetailPanel({
                     <div className="flex items-center gap-2 pt-3 pb-1">
                       <div className="h-px flex-1 bg-border" />
                       <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
-                        {esAmistoso ? 'Juveniles / pruebas / invitados' : 'Juveniles convocables'}
+                        {esAmistoso ? 'Filial / pruebas / invitados' : 'Filial convocable'}
                       </span>
                       <div className="h-px flex-1 bg-border" />
                     </div>

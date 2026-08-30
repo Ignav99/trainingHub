@@ -40,6 +40,7 @@ class CargaJugadorResponse(BaseModel):
     dorsal: Optional[int] = None
     posicion_principal: Optional[str] = None
     estado: Optional[str] = None
+    tipo_jugador: Optional[str] = None
 
     # Aggregated from convocatorias
     tarjetas_amarillas: int = 0

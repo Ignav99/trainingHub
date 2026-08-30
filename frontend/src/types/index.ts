@@ -2047,6 +2047,7 @@ export interface CargaJugador {
   dorsal: number | null
   posicion_principal: string | null
   estado: string | null
+  tipo_jugador?: TipoJugador | null
   // Aggregated from convocatorias
   tarjetas_amarillas: number
   tarjetas_rojas: number

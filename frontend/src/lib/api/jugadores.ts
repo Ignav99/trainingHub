@@ -256,6 +256,6 @@ export const ESTADOS_JUGADOR = {
   sancionado: { nombre: 'Sancionado', color: '#EAB308', icon: 'alert-triangle' },
   viaje: { nombre: 'Viaje', color: '#8B5CF6', icon: 'plane' },
   permiso: { nombre: 'Permiso', color: '#6366F1', icon: 'calendar-off' },
-  seleccion: { nombre: 'Selección', color: '#0EA5E9', icon: 'flag' },
+  seleccion: { nombre: '1er equipo', color: '#0EA5E9', icon: 'flag' },
   baja: { nombre: 'Baja', color: '#6B7280', icon: 'x-circle' },
 } as const
