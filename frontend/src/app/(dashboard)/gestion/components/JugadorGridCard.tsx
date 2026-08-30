@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
-import { POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
+import { POSICIONES, ESTADOS_JUGADOR, jugadorNombreVisible } from '@/lib/api/jugadores'
 import type { ClubJugador } from '@/lib/api/clubAdmin'
 
 const NIVELES: Array<{ key: 'nivel_tecnico' | 'nivel_tactico' | 'nivel_fisico' | 'nivel_mental'; label: string; color: string }> = [
@@ -37,9 +37,9 @@ export default function JugadorGridCard({ jugador, showEquipo }: JugadorGridCard
             </span>
           )}
         </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="font-semibold truncate text-gray-900">
-            {jugador.nombre} {jugador.apellidos}
+        <div className="flex-1">
+          <h3 className="font-semibold text-sm leading-snug whitespace-normal break-words text-gray-900">
+            {jugadorNombreVisible(jugador)}
           </h3>
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             <span

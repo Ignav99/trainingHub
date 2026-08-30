@@ -29,6 +29,7 @@ import {
   ESTADOS_JUGADOR,
   compareJugadoresPorPosicion,
   posicionMeta,
+  jugadorNombreVisible,
 } from '@/lib/api/jugadores'
 import { equiposApi } from '@/lib/api/equipos'
 import { useEquipoStore } from '@/stores/equipoStore'
@@ -97,11 +98,11 @@ function JugadorCard({
   const extraPlantilla = !isPlantilla(jugador)
   const amarillas = resumen?.amarillas ?? cargaData?.tarjetas_amarillas
   const rojas = resumen?.rojas ?? cargaData?.tarjetas_rojas
-  const displayName = jugador.apodo?.trim() || `${jugador.nombre} ${jugador.apellidos}`.trim()
+  const displayName = jugadorNombreVisible(jugador)
 
   return (
     <div
-      className={`relative card-interactive rounded-xl p-4 group ${
+      className={`relative card-interactive rounded-xl p-4 group overflow-visible ${
         isCrossTeam
           ? 'border-dashed border-gray-400 bg-gray-50/50'
           : tipo === 'prueba'
@@ -121,48 +122,13 @@ function JugadorCard({
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex items-start gap-3 mb-3">
-        <div className="relative">
-          <PlayerAvatar player={jugador} size="lg" />
-          {jugador.dorsal && (
-            <span className="absolute -bottom-1 -right-1 bg-gray-900 text-white text-xs font-bold px-1.5 py-0.5 rounded">
-              {jugador.dorsal}
-            </span>
-          )}
-        </div>
-        <div className="flex-1 min-w-0">
-          <h3 className={`font-semibold text-sm leading-snug break-words ${isNoDisponible ? 'text-gray-500' : 'text-gray-900'}`}>
+      {/* Header: nombre a todo el ancho, sin recorte */}
+      <div className="mb-3 overflow-visible">
+        <div className="flex items-start gap-1">
+          <h3 className={`flex-1 font-semibold text-sm leading-snug whitespace-normal break-words overflow-visible ${isNoDisponible ? 'text-gray-500' : 'text-gray-900'}`}>
             {displayName}
           </h3>
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <PosicionBadge posicion={jugador.posicion_principal} />
-            {pos && <span className="text-xs text-gray-500">{pos.nombre}</span>}
-            {extraPlantilla && (
-              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${TIPO_JUGADOR_COLORS[tipo]}`}>
-                {TIPO_JUGADOR_LABELS[tipo]}
-              </span>
-            )}
-            {extraPlantilla && ficha !== 'completa' && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">
-                {FICHA_ESTADO_LABELS[ficha]}
-              </span>
-            )}
-            <PlayerStatusBadges
-              estado={jugador.estado}
-              disponibilidad={jugador.disponibilidad}
-              nivelCarga={cargaData?.nivel_carga}
-              tarjetasAmarillas={amarillas}
-              tarjetasRojas={rojas}
-            />
-            {isCrossTeam && jugador.equipos && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-dashed border-gray-400 text-gray-600 bg-gray-100">
-                {jugador.equipos.nombre}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+          <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() => setMenuOpen(!menuOpen)}
             className="p-1 text-gray-400 hover:text-gray-600 rounded"
@@ -210,6 +176,43 @@ function JugadorCard({
               </button>
             </div>
           )}
+          </div>
+        </div>
+        <div className="flex items-start gap-3 mt-2">
+          <div className="relative shrink-0">
+            <PlayerAvatar player={jugador} size="lg" />
+            {jugador.dorsal && (
+              <span className="absolute -bottom-1 -right-1 bg-gray-900 text-white text-xs font-bold px-1.5 py-0.5 rounded">
+                {jugador.dorsal}
+              </span>
+            )}
+          </div>
+          <div className="flex-1 flex items-center gap-2 flex-wrap">
+            <PosicionBadge posicion={jugador.posicion_principal} />
+            {pos && <span className="text-xs text-gray-500">{pos.nombre}</span>}
+            {extraPlantilla && (
+              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${TIPO_JUGADOR_COLORS[tipo]}`}>
+                {TIPO_JUGADOR_LABELS[tipo]}
+              </span>
+            )}
+            {extraPlantilla && ficha !== 'completa' && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">
+                {FICHA_ESTADO_LABELS[ficha]}
+              </span>
+            )}
+            <PlayerStatusBadges
+              estado={jugador.estado}
+              disponibilidad={jugador.disponibilidad}
+              nivelCarga={cargaData?.nivel_carga}
+              tarjetasAmarillas={amarillas}
+              tarjetasRojas={rojas}
+            />
+            {isCrossTeam && jugador.equipos && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-dashed border-gray-400 text-gray-600 bg-gray-100">
+                {jugador.equipos.nombre}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -890,7 +893,7 @@ export default function PlantillaPage() {
           }
         />
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 animate-fade-in">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 animate-fade-in">
           {jugadoresTab.map((jugador) => (
             <JugadorCard
               key={jugador.id}
