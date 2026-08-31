@@ -10,6 +10,7 @@ import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
 import { emptyPartido } from '@/lib/sesionEstructura'
 import { cargaPartidoCondicionado, countAlineados } from '@/lib/partidoCarga'
 import { formacionSlotKeys } from '@/lib/formaciones11'
+import { canonicalPosicion } from '@/lib/api/jugadores'
 import type { PartidoCondicionadoData, SesionBloque } from '@/types'
 import { cn } from '@/lib/utils'
 import { PartidoAbpPicker } from './PartidoAbpPicker'
@@ -257,6 +258,7 @@ export function PartidoCondicionadoPanel({
                     )}
                   >
                     {playerLabel(j)}
+                    {j.posicion_principal ? ` · ${canonicalPosicion(j.posicion_principal)}` : ''}
                     {marcado ? ' · fuera' : ''}
                   </button>
                 )
