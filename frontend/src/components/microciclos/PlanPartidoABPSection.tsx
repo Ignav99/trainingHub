@@ -8,8 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { apiKey, apiFetcher } from '@/lib/swr'
 import { ABP_TIPOS, ABPJugada, LadoABP, PlanPartidoABPItem } from '@/types'
-import { TEAM_COLORS } from '@/components/tarea-editor/types'
-import ABPPitch from '@/components/abp/ABPPitch'
+import ABPBoardMini from '@/components/abp/ABPBoardMini'
 
 interface PlanPartidoABPSectionProps {
   lado: LadoABP
@@ -19,42 +18,9 @@ interface PlanPartidoABPSectionProps {
 }
 
 function MiniDiagram({ jugada }: { jugada: ABPJugada }) {
-  const fase = jugada.fases?.[0]
-  const elements = fase?.diagram?.elements || []
-  const arrows = fase?.diagram?.arrows || []
-  const pitchView = jugada.tipo === 'falta_lejana' ? 'full' : 'half'
-
   return (
     <div className="w-20 h-14 flex-shrink-0 rounded overflow-hidden border border-gray-200">
-      <ABPPitch type={pitchView as 'full' | 'half'}>
-        {arrows.map((arrow) => (
-          <line
-            key={arrow.id}
-            x1={arrow.from.x}
-            y1={arrow.from.y}
-            x2={arrow.to.x}
-            y2={arrow.to.y}
-            stroke={arrow.color || '#FFF'}
-            strokeWidth="3"
-            strokeDasharray={arrow.type === 'pass' ? '8,4' : 'none'}
-          />
-        ))}
-        {elements.map((el) => {
-          if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk' || el.type === 'player_joker') {
-            return (
-              <g key={el.id} transform={`translate(${el.position.x}, ${el.position.y})`}>
-                <circle r={10} fill={el.color || TEAM_COLORS.team1} stroke="#FFF" strokeWidth="2" />
-              </g>
-            )
-          }
-          if (el.type === 'ball') {
-            return (
-              <circle key={el.id} cx={el.position.x} cy={el.position.y} r="5" fill="#FFF" stroke="#000" strokeWidth="1" />
-            )
-          }
-          return null
-        })}
-      </ABPPitch>
+      <ABPBoardMini jugada={jugada} animate={false} showPlayBadge={false} />
     </div>
   )
 }

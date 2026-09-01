@@ -42,7 +42,9 @@ export interface DiagramElement {
   label?: string // Numero o texto del jugador (dorsal en el círculo)
   /** Nombre del jugador — maps to AsignacionRolTactico.jugador */
   jugador?: string
-  /** Rol táctico (slug, ej. constructor, corredor) */
+  /** Id de plantilla (ABP) ligado al token */
+  jugadorId?: string
+  /** Rol táctico o de ABP (slug, ej. constructor, lanzador) */
   rol?: string
   /**
    * Funciones editables asignadas a este jugador en esta jugada (ABP).

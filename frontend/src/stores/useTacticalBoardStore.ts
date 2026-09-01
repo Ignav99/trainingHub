@@ -206,6 +206,7 @@ interface TacticalBoardState {
   updateElementRotation: (id: string, rotation: number) => void
   updateElementLabel: (id: string, label: string) => void
   updateElementSize: (id: string, size: number) => void
+  patchElement: (id: string, patch: Partial<DiagramElement>) => void
   addArrow: (arrow: DiagramArrow) => void
   updateArrowEndpoint: (id: string, endpoint: 'from' | 'to', pos: Position) => void
   updateArrowLabel: (id: string, label: string) => void
@@ -416,6 +417,17 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
   updateElementSize: (id, size) => {
     set((s) => ({
       elements: s.elements.map((el) => el.id === id ? { ...el, size } : el),
+      isDirty: true,
+    }))
+  },
+
+  patchElement: (id, patch) => {
+    set((s) => ({
+      elements: s.elements.map((el) => el.id === id ? { ...el, ...patch } : el),
+      keyframes: s.keyframes.map((kf) => ({
+        ...kf,
+        elements: kf.elements.map((el) => el.id === id ? { ...el, ...patch } : el),
+      })),
       isDirty: true,
     }))
   },

@@ -11,6 +11,7 @@
 import React from 'react'
 import type { DiagramElement, ElementType } from '@/components/tarea-editor/types'
 import { ELEMENT_SIZES } from '@/components/tarea-editor/types'
+import { abpRoleAbbrev } from '@/lib/abpRoles'
 
 // ============ Utilidades de color ============
 
@@ -87,6 +88,10 @@ function PlayerSymbol({ element, selected, uid }: { element: DiagramElement; sel
   const r = size / 2
   const color = element.color || '#3B82F6'
   const label = element.label || ''
+  const roleAbbrev = abpRoleAbbrev(element.rol)
+  // En ABP el círculo muestra el rol (LAN, BLQ…); el dorsal queda debajo.
+  const circleText = roleAbbrev || label
+  const caption = roleAbbrev ? (label || element.jugador || '') : (element.rol || '')
   // Texto legible sobre cualquier color de camiseta
   const textFill = ['#FFFFFF', '#FFFF00', '#EAB308', '#FACC15', '#F59E0B'].includes((color || '').toUpperCase())
     ? '#111827'
@@ -103,27 +108,28 @@ function PlayerSymbol({ element, selected, uid }: { element: DiagramElement; sel
         stroke={selected ? '#FFE600' : '#FFFFFF'}
         strokeWidth={selected ? 3 : 1.8}
       />
-      {label && (
+      {circleText && (
         <text
           x="0" y="0.5"
           textAnchor="middle" dominantBaseline="middle"
           fill={textFill}
-          fontSize={label.length > 2 ? r * 0.62 : r * 0.82}
+          fontSize={circleText.length > 2 ? r * 0.55 : r * 0.82}
           fontWeight="bold"
           fontFamily="Arial, Helvetica, sans-serif"
           style={{ pointerEvents: 'none' }}
         >
-          {label}
+          {circleText}
         </text>
       )}
-      {element.rol && (
+      {caption && (
         <text
-          x="0" y={r + 7}
+          x="0" y={r + 8}
           textAnchor="middle"
           fill="#FFFFFF" fontSize="7" fontFamily="Arial"
-          opacity="0.85" style={{ pointerEvents: 'none' }}
+          fontWeight="bold"
+          style={{ pointerEvents: 'none', paintOrder: 'stroke', stroke: '#111827', strokeWidth: 2.4 }}
         >
-          {element.rol}
+          {caption}
         </text>
       )}
     </>

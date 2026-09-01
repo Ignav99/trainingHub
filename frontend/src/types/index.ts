@@ -2135,6 +2135,10 @@ export interface ABPFase {
     zones: any[]
     pitchType: 'full' | 'half' | 'quarter' | 'custom'
     customDimensions?: { width: number; height: number }
+    /** Igual que la pizarra táctica: la jugada se anima con `frames`. */
+    tipo?: 'static' | 'animated'
+    frames?: any[]
+    preview?: string
   }
 }
 

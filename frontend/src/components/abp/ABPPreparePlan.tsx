@@ -12,8 +12,8 @@ import {
   Partido, Jugador, ABPJugada, ABPPartidoJugada, ABPAsignacion,
   ABP_TIPOS, ABP_ROLES, LadoABP,
 } from '@/types'
-import { TEAM_COLORS, ELEMENT_SIZES } from '@/components/tarea-editor/types'
-import ABPPitch from './ABPPitch'
+import { TEAM_COLORS } from '@/components/tarea-editor/types'
+import ABPBoardMini from './ABPBoardMini'
 
 interface ABPPreparePlanProps {
   onClose: () => void
@@ -44,31 +44,10 @@ function useOwnKitColor(partidoId: string): string {
   return TEAM_COLORS.team1
 }
 
-function MiniDiagram({ jugada, ownColor = TEAM_COLORS.team1 }: { jugada: ABPJugada; ownColor?: string }) {
-  const fase = jugada.fases?.[0]
-  const elements = fase?.diagram?.elements || []
-  const arrows = fase?.diagram?.arrows || []
-  const pitchView = jugada.tipo === 'falta_lejana' ? 'full' : 'half'
-
+function MiniDiagram({ jugada }: { jugada: ABPJugada; ownColor?: string }) {
   return (
     <div className="w-14 h-10 flex-shrink-0 rounded overflow-hidden border border-gray-200">
-      <ABPPitch type={pitchView as 'full' | 'half'}>
-        {arrows.map((arrow: any) => (
-          <line key={arrow.id} x1={arrow.from.x} y1={arrow.from.y} x2={arrow.to.x} y2={arrow.to.y}
-            stroke={arrow.color || '#FFF'} strokeWidth="3" strokeDasharray={arrow.type === 'pass' ? '8,4' : 'none'} />
-        ))}
-        {elements.map((el: any) => {
-          if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk' || el.type === 'player_joker') {
-            return (
-              <g key={el.id} transform={`translate(${el.position.x}, ${el.position.y})`}>
-                <circle r={10} fill={el.color || ownColor} stroke="#FFF" strokeWidth="2" />
-              </g>
-            )
-          }
-          if (el.type === 'ball') return <circle key={el.id} cx={el.position.x} cy={el.position.y} r="6" fill="#FFF" stroke="#000" strokeWidth="1" />
-          return null
-        })}
-      </ABPPitch>
+      <ABPBoardMini jugada={jugada} animate={false} showPlayBadge={false} />
     </div>
   )
 }
@@ -530,11 +509,9 @@ function PlanJugadaCard({ planJugada, jugadores, onRemove, onUpdateAsignacion, c
   // Get player/gk elements from first phase diagram
   const fase = jugada.fases?.[0]
   const allElements = fase?.diagram?.elements || []
-  const allArrows = fase?.diagram?.arrows || []
   const elements = allElements.filter(
     (el: any) => el.type === 'player' || el.type === 'player_gk' || el.type === 'player_joker'
   )
-  const pitchView = jugada.tipo === 'falta_lejana' ? 'full' : 'half'
   const hasDiagram = allElements.length > 0
 
   const borderColor = color === 'blue' ? 'border-blue-100' : 'border-red-100'
@@ -566,40 +543,8 @@ function PlanJugadaCard({ planJugada, jugadores, onRemove, onUpdateAsignacion, c
           <div className={`mt-2.5 ${hasDiagram && elements.length > 0 ? 'flex gap-4' : ''}`}>
             {/* Diagram preview */}
             {hasDiagram && (
-              <div className={`${elements.length > 0 ? 'w-72 flex-shrink-0' : 'w-full max-w-sm'} rounded-lg overflow-hidden border border-gray-200`}>
-                <ABPPitch type={pitchView as 'full' | 'half'}>
-                  {allArrows.map((arrow: any) => {
-                    const angle = Math.atan2(arrow.to.y - arrow.from.y, arrow.to.x - arrow.from.x)
-                    return (
-                      <g key={arrow.id}>
-                        <line x1={arrow.from.x} y1={arrow.from.y} x2={arrow.to.x} y2={arrow.to.y}
-                          stroke={arrow.color || '#FFF'} strokeWidth="2.5" strokeDasharray={arrow.type === 'pass' ? '8,4' : 'none'} />
-                        <polygon
-                          points={`${arrow.to.x},${arrow.to.y} ${arrow.to.x - 10 * Math.cos(angle - Math.PI / 6)},${arrow.to.y - 10 * Math.sin(angle - Math.PI / 6)} ${arrow.to.x - 10 * Math.cos(angle + Math.PI / 6)},${arrow.to.y - 10 * Math.sin(angle + Math.PI / 6)}`}
-                          fill={arrow.color || '#FFF'} />
-                        {arrow.label && (
-                          <>
-                            <circle cx={(arrow.from.x + arrow.to.x) / 2} cy={(arrow.from.y + arrow.to.y) / 2} r="10" fill="rgba(0,0,0,0.7)" />
-                            <text x={(arrow.from.x + arrow.to.x) / 2} y={(arrow.from.y + arrow.to.y) / 2 + 1} textAnchor="middle" dominantBaseline="middle" fill="#FFF" fontSize="9" fontWeight="bold">{arrow.label}</text>
-                          </>
-                        )}
-                      </g>
-                    )
-                  })}
-                  {allElements.map((el: any) => {
-                    if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk' || el.type === 'player_joker') {
-                      return (
-                        <g key={el.id} transform={`translate(${el.position.x}, ${el.position.y})`}>
-                          <circle r={12} fill={el.color || ownColor} stroke="#FFF" strokeWidth="2" />
-                          <text x="0" y="1" textAnchor="middle" dominantBaseline="middle" fill="#FFF" fontSize="10" fontWeight="bold" fontFamily="Arial">{el.label}</text>
-                        </g>
-                      )
-                    }
-                    if (el.type === 'ball') return <circle key={el.id} cx={el.position.x} cy={el.position.y} r="6" fill="#FFF" stroke="#000" strokeWidth="1" />
-                    if (el.type === 'cone') return <polygon key={el.id} points={`${el.position.x},${el.position.y - 8} ${el.position.x + 6},${el.position.y + 6} ${el.position.x - 6},${el.position.y + 6}`} fill="#FF6B00" />
-                    return null
-                  })}
-                </ABPPitch>
+              <div className={`${elements.length > 0 ? 'w-72 h-52 flex-shrink-0' : 'w-full max-w-sm h-56'} rounded-lg overflow-hidden border border-gray-200`}>
+                <ABPBoardMini jugada={jugada} animate autoplay allowDownload />
               </div>
             )}
 

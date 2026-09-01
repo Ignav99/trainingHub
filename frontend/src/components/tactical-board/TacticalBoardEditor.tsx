@@ -13,11 +13,12 @@ import BoardToolbar from './BoardToolbar'
 import KeyframeTimeline from './KeyframeTimeline'
 import AnimationPlayer, { AnimationState } from './AnimationPlayer'
 import ExportDialog from './ExportDialog'
-import ElementEditPanel from './ElementEditPanel'
+import ElementEditPanel, { BoardEditorExtrasContext, type BoardRoleMode } from './ElementEditPanel'
 import GeometryPanel from './GeometryPanel'
 import BoardArrow from './BoardArrow'
 import { BoardDefs, ElementSymbol, ELEMENT_TOOLS, ROTATABLE_ELEMENTS } from './BoardSymbols'
 import { RESIZE_HANDLES, HANDLE_CURSORS, type ResizeHandle } from './types'
+import type { Jugador } from '@/types'
 
 interface TacticalBoardEditorProps {
   onSave: () => void
@@ -28,6 +29,10 @@ interface TacticalBoardEditorProps {
   numJugadores?: number
   /** Vuelca el espacio calculado en la pizarra sobre los campos de la tarea */
   onApplyEspacio?: (patch: TareaEspacioPatch) => void
+  /** ABP: selector de rol + plantilla en el panel del token */
+  roleMode?: BoardRoleMode
+  jugadores?: Jugador[]
+  teamColors?: { team1: string; team2: string }
 }
 
 /** Tipos de herramienta que colocan un elemento en el campo. */
@@ -39,6 +44,9 @@ export default function TacticalBoardEditor({
   embedded = false,
   numJugadores,
   onApplyEspacio,
+  roleMode = 'tactical',
+  jugadores = [],
+  teamColors,
 }: TacticalBoardEditorProps) {
   const nombre = useTacticalBoardStore((s) => s.nombre)
   const tipo = useTacticalBoardStore((s) => s.tipo)
@@ -346,10 +354,10 @@ export default function TacticalBoardEditor({
 
     if (elementType === 'player') {
       label = String(playerCounter.team1)
-      color = TEAM_COLORS.team1
+      color = teamColors?.team1 || TEAM_COLORS.team1
     } else if (elementType === 'opponent') {
       label = String(playerCounter.team2)
-      color = TEAM_COLORS.team2
+      color = teamColors?.team2 || TEAM_COLORS.team2
     } else if (elementType === 'player_gk') {
       label = 'GK'
       color = TEAM_COLORS.goalkeeper
@@ -365,7 +373,7 @@ export default function TacticalBoardEditor({
       label,
       color,
     })
-  }, [activeTool, arrowStart, arrowCounter, playerCounter, getSvgPosition, pushHistory, addArrow, addElement, setSelectedElementId, isPlaying])
+  }, [activeTool, arrowStart, arrowCounter, playerCounter, getSvgPosition, pushHistory, addArrow, addElement, setSelectedElementId, isPlaying, teamColors])
 
   // Zone drawing
   const handlePitchMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
@@ -1022,6 +1030,7 @@ export default function TacticalBoardEditor({
   )
 
   return (
+    <BoardEditorExtrasContext.Provider value={{ roleMode, jugadores }}>
     <div ref={containerRef} tabIndex={0} className="flex flex-col h-full outline-none">
       {/* Top bar */}
       {!embedded && (
@@ -1098,6 +1107,7 @@ export default function TacticalBoardEditor({
         />
       )}
     </div>
+    </BoardEditorExtrasContext.Provider>
   )
 }
 
