@@ -43,14 +43,12 @@ import {
 } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useEquipoStore } from '@/stores/equipoStore'
-import { useFilialVisibilityStore } from '@/stores/filialVisibilityStore'
-import { MostrarFilialToggle } from '@/components/jugadores/MostrarFilialToggle'
 import { convocatoriasApi, CreateConvocatoriaData } from '@/lib/api/convocatorias'
 import { estadisticasPartidoApi, EstadisticaPartidoUpdateData } from '@/lib/api/estadisticasPartido'
 import { partidosApi, rivalesApi } from '@/lib/api/partidos'
 import { jugadoresApi, Jugador, POSICIONES } from '@/lib/api/jugadores'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
-import { FORMATIONS, Formation, FormationSlot } from '@/lib/formations'
+import { FORMATIONS, FormationSlot } from '@/lib/formations'
 import { formatDate } from '@/lib/utils'
 import {
   isConvocableAmistoso,
@@ -60,6 +58,7 @@ import {
   isFilial,
   resolveTipoJugador,
   TIPO_JUGADOR_LABELS,
+  TIPO_JUGADOR_COLORS,
 } from '@/lib/jugadorTipo'
 import { mutate } from 'swr'
 import dynamic from 'next/dynamic'
@@ -153,10 +152,6 @@ export function MatchDetailPanel({
   onDeleteSuccess,
 }: MatchDetailPanelProps) {
   const { equipoActivo } = useEquipoStore()
-  const mostrarFilial = useFilialVisibilityStore((s) => s.mostrarFilial)
-
-  const titulares = convocados.filter((c) => c.titular)
-  const suplentes = convocados.filter((c) => !c.titular)
 
   // ---- Convocatoria state ----
   const [showAdd, setShowAdd] = useState(false)
@@ -305,24 +300,8 @@ export function MatchDetailPanel({
   }, [selectedPartido?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const activeFormation = FORMATIONS.find((f) => f.name === selectedFormation) || null
-
-  const autoPopulateSlots = (formation: Formation) => {
-    const assignments: Record<string, string> = {}
-    const usedConvIds = new Set<string>()
-    for (const slot of formation.slots) {
-      const match = convocados.find((c) => {
-        if (usedConvIds.has(c.id)) return false
-        const p = getPlayerData(c)
-        const pos = c.posicion_asignada || p?.posicion_principal || ''
-        return pos === slot.position
-      })
-      if (match) {
-        assignments[slot.id] = match.id
-        usedConvIds.add(match.id)
-      }
-    }
-    return assignments
-  }
+  const assignedConvIds = new Set(Object.values(slotAssignments))
+  const suplentes = convocados.filter((c) => !assignedConvIds.has(c.id))
 
   const sortJugadoresByPosition = (list: Jugador[]) => {
     return [...list].sort((a, b) => {
@@ -343,7 +322,7 @@ export function MatchDetailPanel({
     setSelected({})
     setLoadingJug(true)
     jugadoresApi
-      .list({ equipo_id: equipoActivo.id, organizacion_completa: true })
+      .list({ organizacion_completa: true })
       .then((res) => setJugadores(res?.data || []))
       .catch(console.error)
       .finally(() => setLoadingJug(false))
@@ -356,25 +335,31 @@ export function MatchDetailPanel({
       sortJugadoresByPosition(
         jugadores.filter((j) => {
           if (j.equipo_id !== equipoActivo?.id) return false
-          if (isFilial(j) && !mostrarFilial) return false
-          const enGrupo = isPlantilla(j) || isFilial(j)
-          if (!enGrupo) return false
+          if (!isPlantilla(j)) return false
           return esAmistoso ? isConvocableAmistoso(j) : isConvocableOficial(j)
         })
       ),
-    [jugadores, equipoActivo?.id, esAmistoso, mostrarFilial] // eslint-disable-line react-hooks/exhaustive-deps
+    [jugadores, equipoActivo?.id, esAmistoso] // eslint-disable-line react-hooks/exhaustive-deps
+  )
+  const filialJugadores = useMemo(
+    () =>
+      sortJugadoresByPosition(
+        jugadores.filter((j) => isFilial(j) && isOperativamenteConvocable(j))
+      ),
+    [jugadores] // eslint-disable-line react-hooks/exhaustive-deps
   )
   const extraplantillaJugadores = useMemo(
     () =>
       sortJugadoresByPosition(
         jugadores.filter((j) => {
+          if (j.equipo_id !== equipoActivo?.id) return false
           if (isPlantilla(j) || isFilial(j)) return false
           return esAmistoso
             ? isConvocableAmistoso(j, { incluirInvitados: true })
-            : isConvocableOficial(j)
+            : false
         })
       ),
-    [jugadores, esAmistoso] // eslint-disable-line react-hooks/exhaustive-deps
+    [jugadores, equipoActivo?.id, esAmistoso] // eslint-disable-line react-hooks/exhaustive-deps
   )
   const crossTeamJugadores = useMemo(
     () =>
@@ -420,8 +405,7 @@ export function MatchDetailPanel({
   }
 
   const togglePlayer = (jugador: Jugador) => {
-    // Prevent selecting non-active players
-    if (jugador.estado && jugador.estado !== 'activo') return
+    if (!isOperativamenteConvocable(jugador)) return
     setSelected((prev) => {
       const copy = { ...prev }
       if (copy[jugador.id]) delete copy[jugador.id]
@@ -499,8 +483,10 @@ export function MatchDetailPanel({
             return copy
           })
           setSwapSource(null)
+          setPickingSlot(null)
         }
       } else {
+        setPickingSlot(null)
         setSwapSource(slot.id)
       }
     } else {
@@ -512,8 +498,9 @@ export function MatchDetailPanel({
           return copy
         })
         setSwapSource(null)
+        setPickingSlot(null)
       } else {
-        setPickingSlot(slot.id)
+        setPickingSlot((prev) => (prev === slot.id ? null : slot.id))
       }
     }
   }
@@ -538,21 +525,25 @@ export function MatchDetailPanel({
       return copy
     })
     setSwapSource(null)
+    setPickingSlot(null)
   }
 
   const handleSaveLineup = async () => {
     if (!selectedPartido || !activeFormation) return
     setSavingLineup(true)
     try {
-      const updatePromises: Promise<any>[] = []
+      const assignedByConv = new Map<string, string>()
       for (const slot of activeFormation.slots) {
         const convId = slotAssignments[slot.id]
-        if (convId) {
-          updatePromises.push(
-            convocatoriasApi.update(convId, { posicion_asignada: slot.position, titular: true })
-          )
-        }
+        if (convId) assignedByConv.set(convId, slot.position)
       }
+      const updatePromises = convocados.map((conv) => {
+        const pos = assignedByConv.get(conv.id)
+        if (pos) {
+          return convocatoriasApi.update(conv.id, { posicion_asignada: pos, titular: true })
+        }
+        return convocatoriasApi.update(conv.id, { titular: false })
+      })
       await Promise.all(updatePromises)
 
       let existingData: Record<string, any> = {}
@@ -572,14 +563,7 @@ export function MatchDetailPanel({
   }
 
   // Player picker helpers
-  const assignedConvIds = new Set(Object.values(slotAssignments))
   const pickingSlotData = activeFormation?.slots.find((s) => s.id === pickingSlot)
-  const sortedForPicker = [...convocados].sort((a, b) => {
-    if (!pickingSlotData) return 0
-    const aPos = a.posicion_asignada || getPlayerData(a)?.posicion_principal || ''
-    const bPos = b.posicion_asignada || getPlayerData(b)?.posicion_principal || ''
-    return (aPos === pickingSlotData.position ? 0 : 1) - (bPos === pickingSlotData.position ? 0 : 1)
-  })
 
   // ============ Handlers: Post-partido ============
 
@@ -900,10 +884,12 @@ export function MatchDetailPanel({
                             setSelectedFormation(null)
                             setSlotAssignments({})
                             setSwapSource(null)
+                            setPickingSlot(null)
                           } else {
                             setSelectedFormation(f.name)
-                            setSlotAssignments(autoPopulateSlots(f))
+                            setSlotAssignments({})
                             setSwapSource(null)
+                            setPickingSlot(null)
                           }
                         }}
                         className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
@@ -976,6 +962,7 @@ export function MatchDetailPanel({
                                 </button>
                               )
                             } else {
+                              const isPicking = pickingSlot === slot.id
                               return (
                                 <button
                                   key={slot.id}
@@ -983,9 +970,14 @@ export function MatchDetailPanel({
                                   style={{ top: slot.top, left: slot.left }}
                                   onClick={() => handleSlotClick(slot)}
                                   title={`Anadir jugador: ${slot.label}`}
+                                  aria-pressed={isPicking}
                                 >
-                                  <div className="w-9 h-9 rounded-full border-2 border-dashed border-white/50 flex items-center justify-center hover:border-white hover:bg-white/10 transition-colors">
-                                    <Plus className="h-3.5 w-3.5 text-white/70" />
+                                  <div className={`w-9 h-9 rounded-full border-2 border-dashed flex items-center justify-center transition-colors ${
+                                    isPicking
+                                      ? 'border-yellow-300 bg-white/25 ring-2 ring-yellow-300'
+                                      : 'border-white/50 hover:border-white hover:bg-white/10'
+                                  }`}>
+                                    <Plus className={`h-3.5 w-3.5 ${isPicking ? 'text-yellow-200' : 'text-white/70'}`} />
                                   </div>
                                   <span className="block text-[9px] text-white/60 font-medium mt-0.5">
                                     {slot.label}
@@ -997,19 +989,42 @@ export function MatchDetailPanel({
                         </div>
                       </div>
 
-                      {/* Suplentes sidebar (1/4) */}
+                      {/* Banquillo: todos los no alineados; desaparecen al colocarlos */}
                       <div className="md:col-span-1">
-                        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1 flex items-center gap-1.5">
                           <Shirt className="h-3.5 w-3.5" />
                           Banquillo ({suplentes.length})
                         </h4>
+                        <p className="text-[10px] text-muted-foreground mb-2">
+                          {pickingSlotData
+                            ? `Elige jugador para ${pickingSlotData.label}`
+                            : 'Pulsa una posicion vacia y luego un jugador'}
+                        </p>
                         <div className="space-y-1.5">
                           {suplentes.map((conv) => {
                             const player = getPlayerData(conv)
                             const pos = conv.posicion_asignada || player?.posicion_principal || ''
                             const posColor = getPositionColor(pos)
                             return (
-                              <div key={conv.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-muted/50 group">
+                              <div
+                                key={conv.id}
+                                role={pickingSlot ? 'button' : undefined}
+                                tabIndex={pickingSlot ? 0 : undefined}
+                                onClick={() => {
+                                  if (pickingSlot) handlePickPlayer(conv.id)
+                                }}
+                                onKeyDown={(e) => {
+                                  if (pickingSlot && (e.key === 'Enter' || e.key === ' ')) {
+                                    e.preventDefault()
+                                    handlePickPlayer(conv.id)
+                                  }
+                                }}
+                                className={`flex items-center gap-2 p-1.5 rounded-lg group ${
+                                  pickingSlot
+                                    ? 'cursor-pointer hover:bg-primary/10 ring-1 ring-transparent hover:ring-primary/30'
+                                    : 'hover:bg-muted/50'
+                                }`}
+                              >
                                 <PlayerAvatar
                                   player={{
                                     ...(player || {}),
@@ -1027,7 +1042,10 @@ export function MatchDetailPanel({
                                 </div>
                                 <Badge className={`text-[8px] border-0 ${posColor}`}>{pos || '-'}</Badge>
                                 <button
-                                  onClick={() => handleRemoveConvocado(conv.id)}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleRemoveConvocado(conv.id)
+                                  }}
                                   className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                                 >
                                   <X className="h-3 w-3" />
@@ -1036,7 +1054,7 @@ export function MatchDetailPanel({
                             )
                           })}
                           {suplentes.length === 0 && (
-                            <p className="text-xs text-muted-foreground text-center py-2">Sin suplentes</p>
+                            <p className="text-xs text-muted-foreground text-center py-2">Once completo</p>
                           )}
                         </div>
                       </div>
@@ -1047,7 +1065,7 @@ export function MatchDetailPanel({
                     </p>
                   )}
 
-                  {activeFormation && Object.keys(slotAssignments).length > 0 && (
+                  {activeFormation && (
                     <Button onClick={handleSaveLineup} disabled={savingLineup} className="w-full" size="sm">
                       {savingLineup ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                       Guardar alineacion
@@ -1424,10 +1442,9 @@ export function MatchDetailPanel({
         <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>Convocar jugadores</DialogTitle>
-            <DialogDescription>Selecciona los jugadores para la convocatoria. Puedes marcar titulares.</DialogDescription>
-            <div className="pt-2">
-              <MostrarFilialToggle />
-            </div>
+            <DialogDescription>
+              Plantilla arriba. El filial queda abajo, para convocarlos solo si quieres.
+            </DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto -mx-6 px-6">
             {loadingJug ? (
@@ -1439,12 +1456,34 @@ export function MatchDetailPanel({
                 {ownJugadores.filter((j) => !convocados.some((c) => c.jugador_id === j.id)).map((jugador) => (
                   <PlayerSelectRow key={jugador.id} jugador={jugador} selected={selected} onToggle={togglePlayer} onToggleTitular={(id) => setSelected((prev) => ({ ...prev, [id]: { ...prev[id], titular: !prev[id].titular } }))} />
                 ))}
+                {filialJugadores.filter((j) => !convocados.some((c) => c.jugador_id === j.id)).length > 0 && (
+                  <>
+                    <div className="flex items-center gap-2 pt-3 pb-1">
+                      <div className="h-px flex-1 bg-border" />
+                      <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+                        Filial
+                      </span>
+                      <div className="h-px flex-1 bg-border" />
+                    </div>
+                    {filialJugadores.filter((j) => !convocados.some((c) => c.jugador_id === j.id)).map((jugador) => (
+                      <PlayerSelectRow
+                        key={jugador.id}
+                        jugador={jugador}
+                        selected={selected}
+                        onToggle={togglePlayer}
+                        onToggleTitular={(id) => setSelected((prev) => ({ ...prev, [id]: { ...prev[id], titular: !prev[id].titular } }))}
+                        tipoLabel={TIPO_JUGADOR_LABELS[resolveTipoJugador(jugador)]}
+                        crossTeam={jugador.equipo_id !== equipoActivo?.id}
+                      />
+                    ))}
+                  </>
+                )}
                 {extraplantillaJugadores.filter((j) => !convocados.some((c) => c.jugador_id === j.id)).length > 0 && (
                   <>
                     <div className="flex items-center gap-2 pt-3 pb-1">
                       <div className="h-px flex-1 bg-border" />
                       <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
-                        {esAmistoso ? 'Filial / pruebas / invitados' : 'Filial convocable'}
+                        Pruebas / invitados
                       </span>
                       <div className="h-px flex-1 bg-border" />
                     </div>
@@ -1455,7 +1494,6 @@ export function MatchDetailPanel({
                         selected={selected}
                         onToggle={togglePlayer}
                         onToggleTitular={(id) => setSelected((prev) => ({ ...prev, [id]: { ...prev[id], titular: !prev[id].titular } }))}
-                        isInvitado
                         tipoLabel={TIPO_JUGADOR_LABELS[resolveTipoJugador(jugador)]}
                       />
                     ))}
@@ -1525,58 +1563,6 @@ export function MatchDetailPanel({
               </div>
             </div>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Player picker dialog (for formation slots) */}
-      <Dialog open={pickingSlot !== null} onOpenChange={(open) => !open && setPickingSlot(null)}>
-        <DialogContent className="sm:max-w-md max-h-[70vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle>
-              Seleccionar jugador
-              {pickingSlotData && (
-                <Badge className={`ml-2 text-[10px] ${getPositionColor(pickingSlotData.position)}`}>
-                  {pickingSlotData.label}
-                </Badge>
-              )}
-            </DialogTitle>
-            <DialogDescription>Elige un jugador para esta posicion</DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto -mx-6 px-6">
-            <div className="space-y-1 py-2">
-              {sortedForPicker.map((conv) => {
-                const player = getPlayerData(conv)
-                const isAssigned = assignedConvIds.has(conv.id)
-                const pos = conv.posicion_asignada || player?.posicion_principal || ''
-                const posColor = getPositionColor(pos)
-                const isMatch = pickingSlotData && pos === pickingSlotData.position
-                return (
-                  <button
-                    key={conv.id}
-                    onClick={() => handlePickPlayer(conv.id)}
-                    disabled={isAssigned}
-                    className={`w-full flex items-center gap-3 p-2 rounded-lg transition-colors text-left ${isAssigned ? 'opacity-40 cursor-not-allowed' : 'hover:bg-primary/5'}`}
-                  >
-                    <PlayerAvatar
-                      player={{
-                        ...(player || {}),
-                        dorsal: conv.dorsal || player?.dorsal,
-                        posicion_principal: pos || player?.posicion_principal,
-                      }}
-                      size="sm"
-                      preferDorsalFallback
-                    />
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-medium truncate block">{player?.apodo || getPlayerFullName(conv)}</span>
-                    </div>
-                    <Badge className={`text-[9px] border-0 ${posColor}`}>{pos || '\u2014'}</Badge>
-                    {isMatch && <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />}
-                    {isAssigned && <span className="text-[9px] text-muted-foreground">En campo</span>}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
         </DialogContent>
       </Dialog>
 
@@ -1730,7 +1716,6 @@ function PlayerSelectRow({
   onToggle,
   onToggleTitular,
   crossTeam,
-  isInvitado,
   tipoLabel,
 }: {
   jugador: Jugador
@@ -1738,13 +1723,13 @@ function PlayerSelectRow({
   onToggle: (j: Jugador) => void
   onToggleTitular: (id: string) => void
   crossTeam?: boolean
-  isInvitado?: boolean
   tipoLabel?: string
 }) {
   const isSelected = !!selected[jugador.id]
   const info = selected[jugador.id]
   const posColor = getPositionColor(jugador.posicion_principal)
   const isDisabled = !isOperativamenteConvocable(jugador)
+  const tipoColor = TIPO_JUGADOR_COLORS[resolveTipoJugador(jugador)]
 
   return (
     <div className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${isDisabled ? 'opacity-50' : ''} ${isSelected ? 'bg-primary/5 border border-primary/20' : 'hover:bg-muted/50'}`} title={isDisabled ? `No disponible: ${jugador.disponibilidad || jugador.estado}` : undefined}>
@@ -1761,9 +1746,9 @@ function PlayerSelectRow({
           <span className="text-sm font-medium truncate">{jugador.apodo || `${jugador.nombre} ${jugador.apellidos}`}</span>
           <Badge className={`text-[9px] border-0 ${posColor}`}>{jugador.posicion_principal}</Badge>
           <PlayerStatusBadges estado={jugador.estado} disponibilidad={jugador.disponibilidad} />
-          {isInvitado && (
-            <Badge variant="outline" className="text-[9px] border-dashed border-amber-400 text-amber-700 bg-amber-50">
-              {tipoLabel || 'Invitado'}
+          {tipoLabel && (
+            <Badge className={`text-[9px] border-0 ${tipoColor}`}>
+              {tipoLabel}
             </Badge>
           )}
           {crossTeam && (jugador as any).equipos && (
