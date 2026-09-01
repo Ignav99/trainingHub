@@ -1,6 +1,7 @@
 from app.services.sesion_carga import (
     aggregate_sesion_carga,
     carga_from_partido_bloque,
+    carga_partido_condicionado,
     carga_tarea,
 )
 
@@ -26,7 +27,7 @@ class TestPartidoBloque:
         assert carga == 0.0
         assert dur == 0
 
-    def test_partido_uses_duration_and_pco(self):
+    def test_partido_uses_duration_as_training_pco(self):
         bloque = {
             "tipo": "partido_condicionado",
             "duracion_objetivo": 20,
@@ -38,22 +39,26 @@ class TestPartidoBloque:
         }
         carga, dur = carga_from_partido_bloque(bloque)
         assert dur == 25
-        expected = carga_tarea(
-            duracion_min=25, densidad="alta", categoria_codigo="PCO", num_jugadores=3
-        )
-        assert carga == expected
+        assert carga == carga_partido_condicionado(25)
+        # No recargo por nº de jugadores: 3 alineados = mismo que 22
+        assert carga == carga_from_partido_bloque({
+            "tipo": "partido_condicionado",
+            "partido": {"duracion_min": 25},
+        })[0]
 
-    def test_defaults_to_22_when_no_lineup(self):
+    def test_20_min_is_about_30_not_competition_load(self):
         bloque = {
             "tipo": "partido_condicionado",
             "partido": {"duracion_min": 20},
         }
         carga, dur = carga_from_partido_bloque(bloque)
         assert dur == 20
-        expected = carga_tarea(
+        assert carga == 30.0
+        old_competition_like = carga_tarea(
             duracion_min=20, densidad="alta", categoria_codigo="PCO", num_jugadores=22
         )
-        assert carga == expected
+        assert carga < old_competition_like
+        assert old_competition_like == 42.19
 
 
 class TestAggregateWithPartido:

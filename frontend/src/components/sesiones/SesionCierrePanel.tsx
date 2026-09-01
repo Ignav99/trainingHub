@@ -14,7 +14,9 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import type { EstadoSesion, SesionTarea } from '@/types'
+import type { EstadoSesion, SesionBloque, SesionTarea } from '@/types'
+import { cargaPartidoCondicionado } from '@/lib/partidoCarga'
+import { duracionBloquePartido, isPartidoCondicionado } from '@/lib/sesionEstructura'
 
 type PdfVariant = 'reducido' | 'extendido'
 type PdfAction = `${PdfVariant}-preview` | `${PdfVariant}-download` | null
@@ -23,6 +25,7 @@ export function SesionCierrePanel({
   sesionId,
   estado,
   tareas = [],
+  bloques = [],
   cargaSesion,
   intensidadCalculada,
   shareToken,
@@ -41,6 +44,7 @@ export function SesionCierrePanel({
     presentes?: number
   }
   tareas?: SesionTarea[]
+  bloques?: SesionBloque[]
   cargaSesion?: number | null
   intensidadCalculada?: string | null
   shareToken?: string | null
@@ -101,11 +105,22 @@ export function SesionCierrePanel({
     }
   }
 
+  const cargaTareas = tareas.reduce((sum, t) => sum + (t.carga_calculada || 0), 0)
+  const partidos = bloques.filter(isPartidoCondicionado)
+  const cargaPartidos = partidos.reduce(
+    (sum, b) => sum + cargaPartidoCondicionado(duracionBloquePartido(b)),
+    0
+  )
+  const minutosPartidos = partidos.reduce((sum, b) => sum + duracionBloquePartido(b), 0)
+  const cargaTotal = Math.round((cargaTareas + cargaPartidos) * 100) / 100
+  const cargaMostrada = cargaTotal > 0 ? cargaTotal : cargaSesion
+  const hasBreakdown = tareas.length > 0 || partidos.length > 0
+
   return (
     <div className="space-y-5 animate-fade-in">
       <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
         <span className="rounded-lg bg-muted px-2.5 py-1 tabular-nums">
-          Carga {cargaSesion != null ? cargaSesion : '—'}
+          Carga {cargaMostrada != null ? cargaMostrada : '—'}
         </span>
         <span className="rounded-lg bg-muted px-2.5 py-1">
           Intensidad {intensidadCalculada || '—'}
@@ -114,10 +129,10 @@ export function SesionCierrePanel({
       </div>
 
       <div className="rounded-2xl border bg-card p-5 space-y-3">
-        <h3 className="text-sm font-semibold">Carga por tarea</h3>
+        <h3 className="text-sm font-semibold">Carga de la sesión</h3>
         <ul className="divide-y">
-          {tareas.length === 0 && (
-            <li className="py-3 text-sm text-muted-foreground">Sin tareas</li>
+          {!hasBreakdown && (
+            <li className="py-3 text-sm text-muted-foreground">Sin tareas ni partido condicionado</li>
           )}
           {tareas.map((t) => (
             <li key={t.id} className="py-2.5 flex items-center justify-between gap-3 text-sm">
@@ -130,7 +145,27 @@ export function SesionCierrePanel({
               </span>
             </li>
           ))}
+          {partidos.map((b, idx) => {
+            const minutos = duracionBloquePartido(b) || 0
+            const carga = cargaPartidoCondicionado(minutos)
+            return (
+              <li key={b.id || `pco-${idx}`} className="py-2.5 flex items-center justify-between gap-3 text-sm">
+                <span className="min-w-0 truncate font-medium">
+                  {b.label || 'Partido condicionado'}
+                </span>
+                <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                  {minutos} min · carga {carga}
+                </span>
+              </li>
+            )
+          })}
         </ul>
+        {hasBreakdown && (
+          <p className="text-xs text-muted-foreground pt-1 tabular-nums">
+            Total {cargaMostrada}
+            {minutosPartidos > 0 ? ` · ${minutosPartidos} min de partido condicionado` : ''}
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
