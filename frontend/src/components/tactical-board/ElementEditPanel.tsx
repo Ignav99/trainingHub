@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { createContext, useContext } from 'react'
 import { X, Ruler, Target } from 'lucide-react'
 import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
 import { PLAYER_COLORS, ZONE_COLORS } from './types'
@@ -8,10 +8,24 @@ import { ELEMENT_TOOLS, ROTATABLE_ELEMENTS } from './BoardSymbols'
 import { ARROW_STYLES, ARROW_TYPE_ORDER } from './arrowPaths'
 import { zoneGeometry } from '@/lib/tacticalMetrics'
 import type { ArrowType } from '@/components/tarea-editor/types'
+import { isPlayerToken } from '@/components/tarea-editor/types'
+import { ABP_ROLES, type Jugador } from '@/types'
+import ABPFuncionesPanel from '@/components/abp/ABPFuncionesPanel'
 
 const nombreElemento = (type: string) =>
   ELEMENT_TOOLS.find((t) => t.type === type)?.label
   || (type === 'text' ? 'Texto' : type)
+
+export type BoardRoleMode = 'tactical' | 'abp'
+
+export const BoardEditorExtrasContext = createContext<{
+  roleMode: BoardRoleMode
+  jugadores: Jugador[]
+}>({ roleMode: 'tactical', jugadores: [] })
+
+function jugadorLabel(j: Jugador) {
+  return `${j.dorsal ? `${j.dorsal}. ` : ''}${j.nombre} ${j.apellidos || ''}`.trim()
+}
 
 export default function ElementEditPanel() {
   const selectedElementId = useTacticalBoardStore((s) => s.selectedElementId)
@@ -23,6 +37,8 @@ export default function ElementEditPanel() {
   const updateElementLabel = useTacticalBoardStore((s) => s.updateElementLabel)
   const updateElementSize = useTacticalBoardStore((s) => s.updateElementSize)
   const updateElementRotation = useTacticalBoardStore((s) => s.updateElementRotation)
+  const patchElement = useTacticalBoardStore((s) => s.patchElement)
+  const { roleMode, jugadores } = useContext(BoardEditorExtrasContext)
   const updateArrowLabel = useTacticalBoardStore((s) => s.updateArrowLabel)
   const updateArrowComment = useTacticalBoardStore((s) => s.updateArrowComment)
   const updateArrowType = useTacticalBoardStore((s) => s.updateArrowType)
@@ -61,7 +77,7 @@ export default function ElementEditPanel() {
 
       <div className="p-3 space-y-3">
         {/* Jugadores */}
-        {element && ['player', 'opponent', 'player_gk', 'player_joker'].includes(element.type) && (
+        {element && isPlayerToken(element.type) && (
           <>
             <Field label="Etiqueta">
               <input
@@ -77,6 +93,54 @@ export default function ElementEditPanel() {
               value={element.color}
               onChange={(c) => updateElementColor(element.id, c)}
             />
+            {roleMode === 'abp' && (
+              <>
+                <Field label="Rol ABP">
+                  <select
+                    value={element.rol || ''}
+                    onChange={(e) => patchElement(element.id, { rol: e.target.value || undefined })}
+                    className="mt-0.5 w-full px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white focus:border-orange-400 focus:outline-none"
+                  >
+                    <option value="">Sin rol</option>
+                    {ABP_ROLES.map((r) => (
+                      <option key={r.value} value={r.value}>{r.label}</option>
+                    ))}
+                  </select>
+                </Field>
+                {jugadores.length > 0 && (
+                  <Field label="Jugador de plantilla">
+                    <select
+                      value={element.jugadorId || ''}
+                      onChange={(e) => {
+                        const j = jugadores.find((jg) => jg.id === e.target.value)
+                        patchElement(element.id, {
+                          jugadorId: j?.id,
+                          jugador: j ? jugadorLabel(j) : undefined,
+                          label: j?.dorsal != null ? String(j.dorsal) : element.label,
+                        })
+                      }}
+                      className="mt-0.5 w-full px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white focus:border-orange-400 focus:outline-none"
+                    >
+                      <option value="">Sin asignar</option>
+                      {jugadores.map((j) => (
+                        <option key={j.id} value={j.id}>{jugadorLabel(j)}</option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
+                <ABPFuncionesPanel
+                  jugadores={jugadores}
+                  elementos={elements}
+                  funciones={element.funciones || []}
+                  onChange={(funciones) => patchElement(element.id, { funciones })}
+                  fixedJugador={{
+                    jugadorId: element.jugadorId,
+                    jugadorLabel: element.jugador || element.label || 'Jugador',
+                  }}
+                  compact
+                />
+              </>
+            )}
           </>
         )}
 

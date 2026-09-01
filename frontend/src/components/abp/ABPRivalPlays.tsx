@@ -6,9 +6,8 @@ import { Plus, Trash2, Video } from 'lucide-react'
 import { apiKey, apiFetcher } from '@/lib/swr'
 import { abpApi } from '@/lib/api/abp'
 import { ABPRivalJugada, ABPJugada, ABP_TIPOS, LadoABP } from '@/types'
-import { TEAM_COLORS, ELEMENT_SIZES } from '@/components/tarea-editor/types'
-import ABPPitch from './ABPPitch'
 import ABPEditor from './ABPEditor'
+import ABPBoardMini from './ABPBoardMini'
 
 interface ABPRivalPlaysProps {
   rivalId: string
@@ -77,7 +76,7 @@ export default function ABPRivalPlays({ rivalId, lado }: ABPRivalPlaysProps) {
   return (
     <div className="space-y-4">
       {/* Pizarra interactiva — siempre visible, dedicada a las jugadas de ABP */}
-      <div className="rounded-lg border overflow-hidden" style={{ height: 520 }}>
+      <div className="rounded-lg border overflow-hidden" style={{ height: 640 }}>
         <ABPEditor
           key={editingJugada?.id ?? 'new'}
           jugada={editingJugada ? ({ ...editingJugada } as Partial<ABPJugada>) : undefined}
@@ -88,8 +87,7 @@ export default function ABPRivalPlays({ rivalId, lado }: ABPRivalPlaysProps) {
         />
       </div>
       <p className="text-[10px] text-muted-foreground">
-        Dibuja la jugada y pulsa Guardar. La pizarra se vacía para poder crear la siguiente — puedes tener varias jugadas
-        {lado ? (lado === 'ofensivo' ? ' ofensivas' : ' defensivas') : ''} guardadas para este rival.
+        Dibuja la jugada, añade fases para animarla y pulsa Guardar. Puedes descargar el vídeo desde Exportar.
       </p>
 
       {/* Biblioteca de jugadas guardadas */}
@@ -165,10 +163,6 @@ function RivalPlayCard({
   onDelete: () => void
 }) {
   const tipoInfo = ABP_TIPOS.find((t) => t.value === jugada.tipo)
-  const firstFase = jugada.fases?.[0]
-  const elements = firstFase?.diagram?.elements || []
-  const arrows = firstFase?.diagram?.arrows || []
-  const pitchView = jugada.tipo === 'falta_lejana' ? 'full' : 'half'
 
   return (
     <div
@@ -178,46 +172,9 @@ function RivalPlayCard({
       onClick={onClick}
     >
       <div className="relative h-32 overflow-hidden">
-        <ABPPitch type={pitchView as 'full' | 'half'}>
-          {arrows.map((arrow: any) => {
-            const angle = Math.atan2(arrow.to.y - arrow.from.y, arrow.to.x - arrow.from.x)
-            return (
-              <g key={arrow.id}>
-                <line
-                  x1={arrow.from.x} y1={arrow.from.y} x2={arrow.to.x} y2={arrow.to.y}
-                  stroke={arrow.color || '#FFFFFF'} strokeWidth="2"
-                  strokeDasharray={arrow.type === 'pass' ? '8,4' : 'none'}
-                />
-                <polygon
-                  points={`${arrow.to.x},${arrow.to.y} ${arrow.to.x - 8 * Math.cos(angle - Math.PI / 6)},${arrow.to.y - 8 * Math.sin(angle - Math.PI / 6)} ${arrow.to.x - 8 * Math.cos(angle + Math.PI / 6)},${arrow.to.y - 8 * Math.sin(angle + Math.PI / 6)}`}
-                  fill={arrow.color || '#FFFFFF'}
-                />
-              </g>
-            )
-          })}
-          {elements.map((el: any) => {
-            const size = ELEMENT_SIZES[el.type as keyof typeof ELEMENT_SIZES] || 20
-            if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk' || el.type === 'player_joker') {
-              return (
-                <g key={el.id} transform={`translate(${el.position.x}, ${el.position.y})`}>
-                  <circle r={size / 2} fill={el.color || TEAM_COLORS.team1} stroke="#FFFFFF" strokeWidth="1.5" />
-                  <text x="0" y="1" textAnchor="middle" dominantBaseline="middle" fill="#FFF" fontSize="8" fontWeight="bold" fontFamily="Arial">
-                    {el.label}
-                  </text>
-                </g>
-              )
-            }
-            if (el.type === 'cone') {
-              return <polygon key={el.id} points={`${el.position.x},${el.position.y - 8} ${el.position.x + 6},${el.position.y + 6} ${el.position.x - 6},${el.position.y + 6}`} fill="#FF6B00" />
-            }
-            if (el.type === 'ball') {
-              return <circle key={el.id} cx={el.position.x} cy={el.position.y} r="5" fill="#FFFFFF" stroke="#000" strokeWidth="0.5" />
-            }
-            return null
-          })}
-        </ABPPitch>
+        <ABPBoardMini jugada={jugada} animate autoplay showPlayBadge />
 
-        <div className="absolute top-1.5 left-1.5 flex gap-1">
+        <div className="absolute top-1.5 left-1.5 flex gap-1 pointer-events-none">
           <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${jugada.lado === 'ofensivo' ? 'bg-blue-500 text-white' : 'bg-red-500 text-white'}`}>
             {jugada.lado === 'ofensivo' ? 'OF' : 'DF'}
           </span>

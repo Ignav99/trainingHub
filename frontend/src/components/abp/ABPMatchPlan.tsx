@@ -7,8 +7,8 @@ import { apiKey, apiFetcher } from '@/lib/swr'
 import { abpApi } from '@/lib/api/abp'
 import { partidosApi } from '@/lib/api/partidos'
 import { ABPJugada, ABPPartidoJugada, ABP_TIPOS, LadoABP } from '@/types'
-import { TEAM_COLORS, ELEMENT_SIZES } from '@/components/tarea-editor/types'
-import ABPPitch from './ABPPitch'
+import { TEAM_COLORS } from '@/components/tarea-editor/types'
+import ABPBoardMini from './ABPBoardMini'
 
 interface ABPMatchPlanProps {
   partidoId: string
@@ -32,55 +32,18 @@ function useOwnKitColor(partidoId: string): string {
   return TEAM_COLORS.team1
 }
 
-function MiniDiagram({ jugada, ownColor }: { jugada: ABPJugada; ownColor: string }) {
-  const fase = jugada.fases?.[0]
-  const elements = fase?.diagram?.elements || []
-  const arrows = fase?.diagram?.arrows || []
-  const pitchView = jugada.tipo === 'falta_lejana' ? 'full' : 'half'
-
+function MiniDiagram({ jugada }: { jugada: ABPJugada; ownColor?: string }) {
   return (
-    <div className="w-16 h-12 flex-shrink-0 rounded overflow-hidden border border-gray-200">
-      <ABPPitch type={pitchView as 'full' | 'half'}>
-        {arrows.map((arrow: any) => {
-          const angle = Math.atan2(arrow.to.y - arrow.from.y, arrow.to.x - arrow.from.x)
-          return (
-            <g key={arrow.id}>
-              <line x1={arrow.from.x} y1={arrow.from.y} x2={arrow.to.x} y2={arrow.to.y}
-                stroke={arrow.color || '#FFF'} strokeWidth="3" strokeDasharray={arrow.type === 'pass' ? '8,4' : 'none'} />
-              <polygon
-                points={`${arrow.to.x},${arrow.to.y} ${arrow.to.x - 10 * Math.cos(angle - Math.PI / 6)},${arrow.to.y - 10 * Math.sin(angle - Math.PI / 6)} ${arrow.to.x - 10 * Math.cos(angle + Math.PI / 6)},${arrow.to.y - 10 * Math.sin(angle + Math.PI / 6)}`}
-                fill={arrow.color || '#FFF'} />
-            </g>
-          )
-        })}
-        {elements.map((el: any) => {
-          const size = ELEMENT_SIZES[el.type as keyof typeof ELEMENT_SIZES] || 20
-          if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk' || el.type === 'player_joker') {
-            return (
-              <g key={el.id} transform={`translate(${el.position.x}, ${el.position.y})`}>
-                <circle r={size / 2} fill={el.color || ownColor} stroke="#FFF" strokeWidth="2" />
-              </g>
-            )
-          }
-          if (el.type === 'ball') {
-            return <circle key={el.id} cx={el.position.x} cy={el.position.y} r="6" fill="#FFF" stroke="#000" strokeWidth="1" />
-          }
-          return null
-        })}
-      </ABPPitch>
+    <div className="w-20 h-14 flex-shrink-0 rounded overflow-hidden border border-gray-200">
+      <ABPBoardMini jugada={jugada} animate={false} showPlayBadge={false} />
     </div>
   )
 }
 
-function DiagramPreview({ jugada, onClose, ownColor }: { jugada: ABPJugada; onClose: () => void; ownColor: string }) {
-  const fase = jugada.fases?.[0]
-  const elements = fase?.diagram?.elements || []
-  const arrows = fase?.diagram?.arrows || []
-  const pitchView = jugada.tipo === 'falta_lejana' ? 'full' : 'half'
-
+function DiagramPreview({ jugada, onClose }: { jugada: ABPJugada; onClose: () => void; ownColor?: string }) {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${jugada.lado === 'ofensivo' ? 'bg-blue-500 text-white' : 'bg-red-500 text-white'}`}>
@@ -91,42 +54,9 @@ function DiagramPreview({ jugada, onClose, ownColor }: { jugada: ABPJugada; onCl
           <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 rounded"><X className="h-4 w-4" /></button>
         </div>
         <div className="p-4">
-          <ABPPitch type={pitchView as 'full' | 'half'}>
-            {arrows.map((arrow: any) => {
-              const angle = Math.atan2(arrow.to.y - arrow.from.y, arrow.to.x - arrow.from.x)
-              const midX = (arrow.from.x + arrow.to.x) / 2
-              const midY = (arrow.from.y + arrow.to.y) / 2
-              return (
-                <g key={arrow.id}>
-                  <line x1={arrow.from.x} y1={arrow.from.y} x2={arrow.to.x} y2={arrow.to.y}
-                    stroke={arrow.color || '#FFF'} strokeWidth="2.5" strokeDasharray={arrow.type === 'pass' ? '8,4' : 'none'} />
-                  <polygon
-                    points={`${arrow.to.x},${arrow.to.y} ${arrow.to.x - 10 * Math.cos(angle - Math.PI / 6)},${arrow.to.y - 10 * Math.sin(angle - Math.PI / 6)} ${arrow.to.x - 10 * Math.cos(angle + Math.PI / 6)},${arrow.to.y - 10 * Math.sin(angle + Math.PI / 6)}`}
-                    fill={arrow.color || '#FFF'} />
-                  {arrow.label && (
-                    <>
-                      <circle cx={midX} cy={midY} r="10" fill="rgba(0,0,0,0.7)" />
-                      <text x={midX} y={midY + 1} textAnchor="middle" dominantBaseline="middle" fill="#FFF" fontSize="9" fontWeight="bold" fontFamily="Arial">{arrow.label}</text>
-                    </>
-                  )}
-                </g>
-              )
-            })}
-            {elements.map((el: any) => {
-              const size = ELEMENT_SIZES[el.type as keyof typeof ELEMENT_SIZES] || 24
-              if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk' || el.type === 'player_joker') {
-                return (
-                  <g key={el.id} transform={`translate(${el.position.x}, ${el.position.y})`}>
-                    <circle r={size / 2} fill={el.color || ownColor} stroke="#FFF" strokeWidth="2" />
-                    <text x="0" y="1" textAnchor="middle" dominantBaseline="middle" fill="#FFF" fontSize="10" fontWeight="bold" fontFamily="Arial">{el.label}</text>
-                  </g>
-                )
-              }
-              if (el.type === 'ball') return <circle key={el.id} cx={el.position.x} cy={el.position.y} r="6" fill="#FFF" stroke="#000" strokeWidth="1" />
-              if (el.type === 'cone') return <polygon key={el.id} points={`${el.position.x},${el.position.y - 8} ${el.position.x + 6},${el.position.y + 6} ${el.position.x - 6},${el.position.y + 6}`} fill="#FF6B00" />
-              return null
-            })}
-          </ABPPitch>
+          <div className="aspect-[4/3] rounded-lg overflow-hidden border border-gray-200">
+            <ABPBoardMini jugada={jugada} animate autoplay allowDownload />
+          </div>
           {jugada.descripcion && <p className="mt-3 text-sm text-gray-600">{jugada.descripcion}</p>}
           {jugada.notas_tacticas && <p className="mt-1 text-xs text-gray-500 italic">{jugada.notas_tacticas}</p>}
         </div>

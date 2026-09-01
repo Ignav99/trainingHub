@@ -31,114 +31,26 @@ import {
   LadoABP,
   SubtipoABP,
 } from '@/types'
-import { TEAM_COLORS, ELEMENT_SIZES } from '@/components/tarea-editor/types'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import ABPPitch from './ABPPitch'
 import ABPFilters from './ABPFilters'
 import ABPPlayCard from './ABPPlayCard'
+import ABPBoardMini from './ABPBoardMini'
 
 interface ABPSessionLinkProps {
   sesionId: string
   equipoId: string
 }
 
-function renderDiagram(jugada: ABPJugada, opts?: { showLabels?: boolean }) {
-  const fase = jugada.fases?.[0]
-  const elements = fase?.diagram?.elements || []
-  const arrows = fase?.diagram?.arrows || []
-  const pitchView = jugada.tipo === 'falta_lejana' ? 'full' : 'half'
-  const showLabels = opts?.showLabels !== false
-
+function renderDiagram(jugada: ABPJugada, opts?: { animate?: boolean; allowDownload?: boolean }) {
   return (
-    <ABPPitch type={pitchView as 'full' | 'half'}>
-      {arrows.map((arrow: any) => {
-        const angle = Math.atan2(arrow.to.y - arrow.from.y, arrow.to.x - arrow.from.x)
-        const midX = (arrow.from.x + arrow.to.x) / 2
-        const midY = (arrow.from.y + arrow.to.y) / 2
-        return (
-          <g key={arrow.id}>
-            <line
-              x1={arrow.from.x}
-              y1={arrow.from.y}
-              x2={arrow.to.x}
-              y2={arrow.to.y}
-              stroke={arrow.color || '#FFF'}
-              strokeWidth="2.5"
-              strokeDasharray={arrow.type === 'pass' ? '8,4' : 'none'}
-            />
-            <polygon
-              points={`${arrow.to.x},${arrow.to.y} ${arrow.to.x - 10 * Math.cos(angle - Math.PI / 6)},${arrow.to.y - 10 * Math.sin(angle - Math.PI / 6)} ${arrow.to.x - 10 * Math.cos(angle + Math.PI / 6)},${arrow.to.y - 10 * Math.sin(angle + Math.PI / 6)}`}
-              fill={arrow.color || '#FFF'}
-            />
-            {showLabels && arrow.label && (
-              <>
-                <circle cx={midX} cy={midY} r="10" fill="rgba(0,0,0,0.7)" />
-                <text
-                  x={midX}
-                  y={midY + 1}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fill="#FFF"
-                  fontSize="9"
-                  fontWeight="bold"
-                  fontFamily="Arial"
-                >
-                  {arrow.label}
-                </text>
-              </>
-            )}
-          </g>
-        )
-      })}
-      {elements.map((el: any) => {
-        const size = ELEMENT_SIZES[el.type as keyof typeof ELEMENT_SIZES] || 24
-        if (el.type === 'player' || el.type === 'opponent' || el.type === 'player_gk' || el.type === 'player_joker') {
-          return (
-            <g key={el.id} transform={`translate(${el.position.x}, ${el.position.y})`}>
-              <circle r={size / 2} fill={el.color || TEAM_COLORS.team1} stroke="#FFF" strokeWidth="2" />
-              {showLabels && (
-                <text
-                  x="0"
-                  y="1"
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fill="#FFF"
-                  fontSize="10"
-                  fontWeight="bold"
-                  fontFamily="Arial"
-                >
-                  {el.label}
-                </text>
-              )}
-            </g>
-          )
-        }
-        if (el.type === 'ball') {
-          return (
-            <circle
-              key={el.id}
-              cx={el.position.x}
-              cy={el.position.y}
-              r="6"
-              fill="#FFF"
-              stroke="#000"
-              strokeWidth="1"
-            />
-          )
-        }
-        if (el.type === 'cone') {
-          return (
-            <polygon
-              key={el.id}
-              points={`${el.position.x},${el.position.y - 8} ${el.position.x + 6},${el.position.y + 6} ${el.position.x - 6},${el.position.y + 6}`}
-              fill="#FF6B00"
-            />
-          )
-        }
-        return null
-      })}
-    </ABPPitch>
+    <ABPBoardMini
+      jugada={jugada}
+      animate={opts?.animate !== false}
+      autoplay
+      showPlayBadge={opts?.animate !== false}
+      allowDownload={opts?.allowDownload}
+    />
   )
 }
 
@@ -200,7 +112,7 @@ function DetailPanel({
 
       <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
         <div className="rounded-xl overflow-hidden border bg-muted/20">
-          <div className="aspect-[4/3] max-h-[320px]">{renderDiagram(jugadaForFase)}</div>
+          <div className="aspect-[4/3] max-h-[320px]">{renderDiagram(jugadaForFase, { animate: true, allowDownload: true })}</div>
         </div>
 
         {fases.length > 1 && (
@@ -419,7 +331,7 @@ export default function ABPSessionLink({ sesionId, equipoId }: ABPSessionLinkPro
                   onClick={() => setPreviewJugada(jugada)}
                 >
                   <div className="h-28 overflow-hidden border-b bg-muted/20">
-                    {renderDiagram(jugada, { showLabels: false })}
+                    {renderDiagram(jugada, { animate: false })}
                   </div>
                   <div className="p-2.5">
                     <div className="flex items-center gap-1.5 mb-0.5">
