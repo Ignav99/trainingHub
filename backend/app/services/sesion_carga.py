@@ -31,6 +31,10 @@ CATEGORIA_FACTOR = {
     "RCF": 0.45,
 }
 
+# 11v11 de entreno (no competición): entre media (1.0) y alta (1.35).
+# Sin recargo por 22 jugadores — en reducido más gente sube la demanda, aquí no.
+PCO_ENTRENO_DENSIDAD_FACTOR = 1.2
+
 
 def _categoria_codigo(tarea: Optional[dict]) -> Optional[str]:
     if not tarea:
@@ -75,10 +79,11 @@ def carga_from_sesion_tarea(st: Dict[str, Any]) -> float:
     )
 
 
-def _count_alineados(equipo: Any) -> int:
-    if not isinstance(equipo, dict):
-        return 0
-    return sum(1 for v in equipo.values() if v)
+def carga_partido_condicionado(duracion_min: int, num_jugadores: Optional[int] = None) -> float:
+    """Carga de un 11v11 de entreno. `num_jugadores` se ignora (no infla)."""
+    del num_jugadores
+    factor = PCO_ENTRENO_DENSIDAD_FACTOR * CATEGORIA_FACTOR["PCO"]
+    return round(max(0.0, float(duracion_min or 0)) * factor, 2)
 
 
 def carga_from_partido_bloque(bloque: Dict[str, Any]) -> Tuple[float, int]:
@@ -90,16 +95,7 @@ def carga_from_partido_bloque(bloque: Dict[str, Any]) -> Tuple[float, int]:
         partido = {}
     dur = partido.get("duracion_min") or bloque.get("duracion_objetivo") or 0
     dur = int(dur or 0)
-    n_peto = _count_alineados(partido.get("equipo_peto"))
-    n_sin = _count_alineados(partido.get("equipo_sin_peto"))
-    njug = n_peto + n_sin or 22
-    carga = carga_tarea(
-        duracion_min=dur,
-        densidad="alta",
-        categoria_codigo="PCO",
-        num_jugadores=njug,
-    )
-    return carga, dur
+    return carga_partido_condicionado(dur), dur
 
 
 def intensidad_from_carga(carga_total: float, duracion_total: int) -> str:

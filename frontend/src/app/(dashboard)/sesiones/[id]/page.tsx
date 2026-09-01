@@ -1793,6 +1793,7 @@ export default function SesionDetailPage() {
           estado={sesion.estado}
           tareas={sesion.tareas || []}
           cargaSesion={sesion.carga_sesion}
+          bloques={bloquesResueltos}
           intensidadCalculada={sesion.intensidad_calculada || sesion.intensidad_objetivo}
           shareToken={sesion.share_token}
           shareUrl={sesion.share_token ? `${typeof window !== 'undefined' ? window.location.origin : ''}/share/sesiones/${sesion.share_token}` : null}

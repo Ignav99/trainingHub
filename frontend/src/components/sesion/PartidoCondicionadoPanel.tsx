@@ -35,7 +35,7 @@ export function PartidoCondicionadoPanel({
 
   const duracion = partido.duracion_min || bloque.duracion_objetivo || 20
   const nAlineados = countAlineados(partido.equipo_peto, partido.equipo_sin_peto)
-  const carga = cargaPartidoCondicionado(duracion, nAlineados || 22)
+  const carga = cargaPartidoCondicionado(duracion)
 
   const takenIds = useMemo(() => {
     const ids = new Set<string>()
@@ -173,7 +173,7 @@ export function PartidoCondicionadoPanel({
           <p className="text-lg font-semibold tabular-nums leading-tight">{carga}</p>
         </div>
         <p className="text-xs text-muted-foreground pb-1">
-          11 vs 11 a campo normal · densidad alta · {nAlineados || 22} jugadores
+          Partido de entreno (no competición) · {nAlineados || 0} alineados
         </p>
       </div>
 
