@@ -9,6 +9,10 @@ export interface CreateWellnessData {
   dolor: number
   estres: number
   humor: number
+  horas_sueno?: number | null
+  molestia?: boolean | null
+  molestia_texto?: string | null
+  notas?: string | null
 }
 
 export interface WellnessBulkItem {
@@ -19,6 +23,10 @@ export interface WellnessBulkItem {
   dolor: number
   estres: number
   humor: number
+  horas_sueno?: number | null
+  molestia?: boolean | null
+  molestia_texto?: string | null
+  notas?: string | null
 }
 
 export const wellnessApi = {

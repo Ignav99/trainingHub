@@ -16,20 +16,12 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-// xlsx is imported dynamically in handleFileUpload to reduce bundle size
 import { wellnessApi, type WellnessBulkItem } from '@/lib/api/wellness'
+import { parseWellnessSheet, type WellnessParsedRow } from '@/lib/wellnessExcel'
 import type { Jugador } from '@/lib/api/jugadores'
 
-interface ParsedRow {
-  jugador_nombre: string
-  fecha: string
-  sueno: number
-  fatiga: number
-  dolor: number
-  estres: number
-  humor: number
+interface PreviewRow extends WellnessParsedRow {
   matched_jugador_id: string | null
-  total: number
 }
 
 interface ExcelImportDialogProps {
@@ -42,15 +34,17 @@ type Step = 'upload' | 'preview' | 'importing' | 'done'
 
 export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImportDialogProps) {
   const [step, setStep] = useState<Step>('upload')
-  const [parsedRows, setParsedRows] = useState<ParsedRow[]>([])
+  const [parsedRows, setParsedRows] = useState<PreviewRow[]>([])
   const [importResult, setImportResult] = useState<{ imported: number } | null>(null)
   const [importDate, setImportDate] = useState(new Date().toISOString().split('T')[0])
+  const [importAllDates, setImportAllDates] = useState(false)
 
   const resetState = () => {
     setStep('upload')
     setParsedRows([])
     setImportResult(null)
     setImportDate(new Date().toISOString().split('T')[0])
+    setImportAllDates(false)
   }
 
   const handleClose = (open: boolean) => {
@@ -58,17 +52,10 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
     onOpenChange(open)
   }
 
-  // Strip leading number prefix ("6. Babacar Ba" → "Babacar Ba", "12.Juan" → "Juan")
-  const stripNumberPrefix = (name: string): string =>
-    name.replace(/^\d+[\.\)\-\s]+\s*/, '').trim()
-
-  // Build lookup maps for matching
   const matchJugador = useCallback((rawNombre: string): string | null => {
-    const cleaned = stripNumberPrefix(rawNombre)
-    const normalizado = cleaned.toLowerCase().trim()
+    const normalizado = rawNombre.toLowerCase().trim()
     if (!normalizado) return null
 
-    // Build all possible name forms for each player
     for (const j of jugadores) {
       const fullName = `${j.nombre} ${j.apellidos}`.toLowerCase().trim()
       const nameOnly = j.nombre.toLowerCase().trim()
@@ -80,7 +67,6 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
         normalizado === nameOnly ||
         (surnameOnly && normalizado === surnameOnly) ||
         (apodo && normalizado === apodo) ||
-        // Partial: Excel has "nombre apellido1" but DB has "nombre apellido1 apellido2"
         (fullName.startsWith(normalizado) && normalizado.length > 3) ||
         (normalizado.startsWith(fullName) && fullName.length > 3)
       ) {
@@ -91,35 +77,6 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
     return null
   }, [jugadores])
 
-  // Parse a date value from Excel row into "YYYY-MM-DD" string
-  const parseExcelDate = (v: any): string | null => {
-    if (!v) return null
-    // JS Date object (xlsx cellDates: true)
-    if (v instanceof Date && !isNaN(v.getTime())) {
-      const y = v.getFullYear()
-      const m = String(v.getMonth() + 1).padStart(2, '0')
-      const d = String(v.getDate()).padStart(2, '0')
-      return `${y}-${m}-${d}`
-    }
-    const str = String(v).trim()
-    // M/D/YYYY or M/D/YYYY H:MM:SS (Google Sheets US format)
-    const usMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
-    if (usMatch) {
-      const [, month, day, year] = usMatch
-      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
-    }
-    // D/M/YYYY (European)
-    const euMatch = str.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/)
-    if (euMatch) {
-      const [, day, month, year] = euMatch
-      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
-    }
-    // YYYY-MM-DD (ISO)
-    const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/)
-    if (isoMatch) return isoMatch[0]
-    return null
-  }
-
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -129,88 +86,44 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
       const data = await file.arrayBuffer()
       const wb = XLSX.read(data, { type: 'array', cellDates: true })
       const sheet = wb.Sheets[wb.SheetNames[0]]
-      const json = XLSX.utils.sheet_to_json<Record<string, any>>(sheet)
+      const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
 
       if (json.length === 0) {
-        toast.error('El archivo esta vacio')
+        toast.error('El archivo está vacío')
         return
       }
 
-      // Build a case-insensitive, accent-insensitive column lookup
-      const colKeys = json.length > 0 ? Object.keys(json[0]) : []
-      const findCol = (...candidates: string[]): string | undefined => {
-        const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim()
-        for (const candidate of candidates) {
-          const nc = normalize(candidate)
-          const found = colKeys.find((k) => normalize(k).includes(nc))
-          if (found) return found
-        }
-        return undefined
-      }
-
-      const colNombre = findCol('nombre del jugador', 'jugador', 'nombre', 'player')
-      const colFatiga = findCol('fatiga', 'fatigue')
-      const colSueno = findCol('sueno', 'sueño', 'sleep')
-      const colDolor = findCol('dolor', 'pain', 'soreness')
-      const colEstres = findCol('estres', 'estrés', 'stress')
-      const colHumor = findCol('humor', 'animo', 'estado de animo', 'mood')
-      const colFecha = findCol('marca temporal', 'timestamp', 'fecha', 'date')
-
-      // Filter rows by selected date if a date/timestamp column exists
-      let filteredJson = json
-      if (colFecha) {
-        filteredJson = json.filter((row) => parseExcelDate(row[colFecha]) === importDate)
-        const totalRows = json.length
-        const filteredCount = filteredJson.length
-        if (filteredCount === 0) {
-          toast.error(`No hay registros para la fecha ${importDate} (${totalRows} filas en el Excel con otras fechas)`)
+      const parsed = parseWellnessSheet(json)
+      let filtered = parsed.rows
+      if (!importAllDates && parsed.columns.fecha) {
+        filtered = parsed.rows.filter((row) => row.fecha === importDate)
+        if (filtered.length === 0) {
+          const sample = parsed.fechasEnArchivo.slice(0, 8).join(', ') || 'ninguna reconocida'
+          toast.error(
+            `No hay registros para el ${importDate} (${json.length} filas). Fechas en el Excel: ${sample}`,
+          )
           return
         }
-        if (filteredCount < totalRows) {
-          toast.info(`Filtrado: ${filteredCount} de ${totalRows} filas corresponden al ${importDate}`)
+        if (filtered.length < parsed.rows.length) {
+          toast.info(`Filtrado: ${filtered.length} de ${parsed.rows.length} filas del ${importDate}`)
         }
       }
 
-      const rows: ParsedRow[] = filteredJson.map((row) => {
-        const getStr = (col: string | undefined) => col ? String(row[col] ?? '') : ''
-        const getNum = (col: string | undefined) => {
-          if (!col) return 3
-          const v = row[col]
-          if (v === undefined || v === null || v === '') return 3
-          return Math.min(5, Math.max(1, Math.round(Number(v))))
-        }
-
-        const nombre = getStr(colNombre)
-        const sueno = getNum(colSueno)
-        const fatiga = getNum(colFatiga)
-        const dolor = getNum(colDolor)
-        const estres = getNum(colEstres)
-        const humor = getNum(colHumor)
-
-        const cleanedNombre = stripNumberPrefix(nombre)
-
-        return {
-          jugador_nombre: cleanedNombre || nombre,
-          fecha: importDate,
-          sueno,
-          fatiga,
-          dolor,
-          estres,
-          humor,
-          matched_jugador_id: matchJugador(nombre),
-          total: sueno + fatiga + dolor + estres + humor,
-        }
-      })
+      const rows: PreviewRow[] = filtered.map((row) => ({
+        ...row,
+        fecha: row.fecha || importDate,
+        matched_jugador_id: matchJugador(row.jugador_nombre),
+      }))
 
       const unmatched = rows.filter((r) => !r.matched_jugador_id).length
-
       if (unmatched > 0) {
-        toast.warning(`${unmatched} jugador${unmatched > 1 ? 'es' : ''} no encontrado${unmatched > 1 ? 's' : ''} — asignalos manualmente`)
+        toast.warning(`${unmatched} jugador${unmatched > 1 ? 'es' : ''} no encontrado${unmatched > 1 ? 's' : ''} — asígnalos manualmente`)
       }
 
       setParsedRows(rows)
       setStep('preview')
     } catch (err) {
+      console.error(err)
       toast.error('Error al leer el archivo Excel')
     }
   }
@@ -235,12 +148,15 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
     try {
       const items: WellnessBulkItem[] = toImport.map((r) => ({
         jugador_id: r.matched_jugador_id!,
-        fecha: importDate,
+        fecha: r.fecha || importDate,
         sueno: r.sueno,
         fatiga: r.fatiga,
         dolor: r.dolor,
         estres: r.estres,
         humor: r.humor,
+        horas_sueno: r.horas_sueno,
+        molestia: r.molestia,
+        molestia_texto: r.molestia ? (r.molestia_texto || null) : null,
       }))
 
       const result = await wellnessApi.bulkImport(items)
@@ -248,20 +164,21 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
       setStep('done')
       toast.success(`${result.imported} registros importados`)
       mutate((key: string) => typeof key === 'string' && (key.includes('/wellness') || key.includes('/carga')), undefined, { revalidate: true })
-    } catch (err: any) {
-      toast.error(err.message || 'Error al importar')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error al importar'
+      toast.error(message)
       setStep('preview')
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Importar Wellness desde Excel</DialogTitle>
           <DialogDescription>
-            Compatible con Google Forms. Detecta columnas automaticamente (Fatiga, Sueño, Dolor, Estres, Estado de Animo).
-            Los prefijos numericos en nombres (ej: &quot;6. Babacar Ba&quot;) se eliminan automaticamente.
+            Mismo formato que el formulario (Google Forms): calidad del sueño, horas de sueño,
+            fatiga, dolor, molestia (sí/no + texto), estrés y estado de ánimo. Fechas en día/mes/año.
           </DialogDescription>
         </DialogHeader>
 
@@ -273,16 +190,27 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
                 type="date"
                 value={importDate}
                 onChange={(e) => setImportDate(e.target.value)}
+                disabled={importAllDates}
               />
-              <p className="text-xs text-muted-foreground">
-                Solo se importan las filas del Excel que coincidan con esta fecha
-              </p>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={importAllDates}
+                  onChange={(e) => setImportAllDates(e.target.checked)}
+                />
+                Importar todas las fechas del archivo
+              </label>
+              {!importAllDates ? (
+                <p className="text-xs text-muted-foreground">
+                  Solo se importan las filas cuya marca temporal coincida con esta fecha (día/mes).
+                </p>
+              ) : null}
             </div>
 
             <div className="border-2 border-dashed rounded-lg p-8 text-center">
               <FileSpreadsheet className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
               <p className="text-sm text-muted-foreground mb-4">
-                Arrastra o selecciona un archivo .xlsx / .xls
+                Arrastra o selecciona un archivo .xlsx / .xls / .csv
               </p>
               <label className="cursor-pointer">
                 <input
@@ -315,7 +243,7 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
                 </Badge>
               )}
               <span className="text-xs text-muted-foreground ml-auto">
-                Fecha: {importDate}
+                Fecha: {importAllDates ? 'varias' : importDate}
               </span>
             </div>
 
@@ -327,9 +255,11 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
                     <th className="pb-2 font-medium">Jugador asignado</th>
                     <th className="pb-2 font-medium text-center text-[10px]">Fat</th>
                     <th className="pb-2 font-medium text-center text-[10px]">Sue</th>
+                    <th className="pb-2 font-medium text-center text-[10px]">Hrs</th>
                     <th className="pb-2 font-medium text-center text-[10px]">Dol</th>
                     <th className="pb-2 font-medium text-center text-[10px]">Est</th>
                     <th className="pb-2 font-medium text-center text-[10px]">Hum</th>
+                    <th className="pb-2 font-medium text-[10px]">Molestia</th>
                     <th className="pb-2 font-medium text-center">Total</th>
                   </tr>
                 </thead>
@@ -360,9 +290,17 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
                       </td>
                       <td className="py-1.5 text-center text-xs">{row.fatiga}</td>
                       <td className="py-1.5 text-center text-xs">{row.sueno}</td>
+                      <td className="py-1.5 text-center text-xs">{row.horas_sueno ?? '—'}</td>
                       <td className="py-1.5 text-center text-xs">{row.dolor}</td>
                       <td className="py-1.5 text-center text-xs">{row.estres}</td>
                       <td className="py-1.5 text-center text-xs">{row.humor}</td>
+                      <td className="py-1.5 text-[11px] max-w-[9rem]">
+                        {row.molestia
+                          ? <span className="text-red-700">{row.molestia_texto || 'Sí'}</span>
+                          : row.molestia === false
+                            ? 'No'
+                            : '—'}
+                      </td>
                       <td className={`py-1.5 text-center font-bold text-xs ${
                         row.total >= 20 ? 'text-green-600' : row.total >= 15 ? 'text-amber-600' : 'text-red-600'
                       }`}>

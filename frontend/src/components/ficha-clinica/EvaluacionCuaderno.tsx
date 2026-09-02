@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Loader2, Plus, Save, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { mutate } from 'swr'
@@ -13,8 +13,10 @@ import {
   MOMENTO_LABELS,
   applyDerived,
   bilateralKeys,
+  formatBroncoTime,
   formatDelta,
   optionLabel,
+  parseBroncoTime,
   type BloqueEvaluacion,
   type CatalogField,
   type CatalogGroup,
@@ -154,6 +156,24 @@ function FieldInput({
     )
   }
 
+  if (field.kind === 'time') {
+    return (
+      <div>
+        <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-500">
+          {field.label}
+          {field.unit ? <span className="ml-1 font-normal normal-case tracking-normal text-slate-400">{field.unit}</span> : null}
+        </label>
+        <TimeCell
+          value={datos[field.key]}
+          previous={previous?.[field.key]}
+          better={field.better || 'lower'}
+          onChange={(v) => onChange(field.key, v)}
+        />
+        {field.hint ? <p className="mt-1 text-[11px] text-slate-400">{field.hint}</p> : null}
+      </div>
+    )
+  }
+
   return (
     <div>
       <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-500">
@@ -218,6 +238,76 @@ function NumericCell({
             }`}
           >
             {delta.text}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+function TimeCell({
+  value,
+  previous,
+  better,
+  onChange,
+}: {
+  value: unknown
+  previous?: unknown
+  better: 'higher' | 'lower' | 'neutral'
+  onChange: (v: unknown) => void
+}) {
+  const [draft, setDraft] = useState('')
+
+  useEffect(() => {
+    if (value === null || value === undefined || value === '') {
+      setDraft('')
+      return
+    }
+    if (typeof value === 'string') {
+      setDraft(value)
+      return
+    }
+    setDraft(formatBroncoTime(value) || String(value))
+  }, [value])
+
+  const delta = formatDelta(
+    parseBroncoTime(value) ?? value,
+    parseBroncoTime(previous) ?? previous,
+    better,
+  )
+
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <Input
+          type="text"
+          inputMode="decimal"
+          className="tabular-nums"
+          placeholder="5:23"
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.target.value)
+            onChange(e.target.value)
+          }}
+          onBlur={() => {
+            const parsed = parseBroncoTime(draft || value)
+            if (parsed != null) {
+              onChange(parsed)
+              setDraft(formatBroncoTime(parsed))
+            }
+          }}
+        />
+        {delta.tone !== 'na' && delta.text ? (
+          <span
+            className={`shrink-0 tabular-nums text-[11px] ${
+              delta.tone === 'up'
+                ? 'text-teal-800'
+                : delta.tone === 'down'
+                  ? 'text-[#C45C26]'
+                  : 'text-slate-400'
+            }`}
+          >
+            {delta.text}s
           </span>
         ) : null}
       </div>

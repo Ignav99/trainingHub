@@ -392,9 +392,12 @@
         <td>
           <div class="l">Tests {{ jugador.clinica.tests.fecha }}</div>
           <div class="n" style="font-size:13px">
-            {% if jugador.clinica.tests.bronco_20 %}20 m {{ jugador.clinica.tests.bronco_20 }} s{% endif %}
-            {% if jugador.clinica.tests.bronco_40 %} · 40 m {{ jugador.clinica.tests.bronco_40 }} s{% endif %}
-            {% if jugador.clinica.tests.bronco_60x5 %} · 60 m×5 {{ jugador.clinica.tests.bronco_60x5 }} s{% endif %}
+            {% if jugador.clinica.tests.bronco_1200_txt %}Bronco 1200 m {{ jugador.clinica.tests.bronco_1200_txt }}{% elif jugador.clinica.tests.bronco_1200 %}Bronco 1200 m {{ jugador.clinica.tests.bronco_1200 }} s{% endif %}
+            {% if not jugador.clinica.tests.bronco_1200 %}
+              {% if jugador.clinica.tests.bronco_20 %}20 m {{ jugador.clinica.tests.bronco_20 }} s{% endif %}
+              {% if jugador.clinica.tests.bronco_40 %} · 40 m {{ jugador.clinica.tests.bronco_40 }} s{% endif %}
+              {% if jugador.clinica.tests.bronco_60x5 %} · 60 m×5 {{ jugador.clinica.tests.bronco_60x5 }} s{% endif %}
+            {% endif %}
           </div>
           <div class="l" style="margin-top:4px;text-transform:none;letter-spacing:0">
             {{ jugador.clinica.tests.momento }}

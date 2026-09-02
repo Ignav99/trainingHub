@@ -19,6 +19,7 @@ export type MomentoEvaluacion =
 
 export type FieldKind =
   | 'number'
+  | 'time'
   | 'select'
   | 'bilateral_number'
   | 'bilateral_select'
@@ -274,11 +275,16 @@ export const TESTS_GROUPS: CatalogGroup[] = [
   {
     id: 'bronco',
     title: 'Bronco test',
-    description: 'Ida y vuelta 20 m, 40 m y 60 m × 5. Anotar el tiempo de cada tramo (o el total en notas).',
+    description: 'Una sola marca: el tiempo total de los 1200 m.',
     fields: [
-      n('bronco_20', 'Ida y vuelta 20 m', 's', { step: 0.1, better: 'lower' }),
-      n('bronco_40', 'Ida y vuelta 40 m', 's', { step: 0.1, better: 'lower' }),
-      n('bronco_60x5', 'Ida y vuelta 60 m × 5', 's', { step: 0.1, better: 'lower' }),
+      {
+        key: 'bronco_1200',
+        label: 'Bronco 1200 m',
+        kind: 'time',
+        unit: 'min:s',
+        hint: 'Tiempo total. Escribe 5:23 o 5.23',
+        better: 'lower',
+      },
       notas('notas_bronco'),
     ],
   },
@@ -310,6 +316,37 @@ export function toNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null
   const n = typeof value === 'number' ? value : Number(value)
   return Number.isFinite(n) ? n : null
+}
+
+/** Interpreta tiempo de Bronco: `5:23`, `5.23` (min.ss) o segundos crudos. */
+export function parseBroncoTime(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    if (value >= 20) return Math.round(value * 10) / 10
+    const whole = Math.floor(value)
+    const frac = Math.round((value - whole) * 100)
+    if (frac > 0 && frac < 60) return whole * 60 + frac
+    return Math.round(value * 60 * 10) / 10
+  }
+  const s = String(value).trim().replace(',', '.').replace(/['’]/g, ':')
+  const clock = s.match(/^(\d{1,2}):(\d{1,2}(?:\.\d+)?)$/)
+  if (clock) return Number(clock[1]) * 60 + Number(clock[2])
+  const n = Number(s.replace(/s$/i, '').trim())
+  if (Number.isFinite(n)) return parseBroncoTime(n)
+  return null
+}
+
+export function formatBroncoTime(value: unknown): string {
+  const sec = typeof value === 'number' && Number.isFinite(value)
+    ? value
+    : parseBroncoTime(value)
+  if (sec == null) return ''
+  const m = Math.floor(sec / 60)
+  const rest = Math.round((sec - m * 60) * 10) / 10
+  const ss = Number.isInteger(rest)
+    ? String(rest).padStart(2, '0')
+    : rest.toFixed(1).padStart(4, '0')
+  return `${m}:${ss}`
 }
 
 export function computeImc(pesoKg: unknown, tallaCm: unknown): number | null {
@@ -361,6 +398,17 @@ export function computeAlcancePct(distancia: unknown, longitud: unknown): number
 
 export function applyDerived(datos: Record<string, unknown>): Record<string, unknown> {
   const next = { ...datos }
+  if (typeof next.bronco_1200 === 'number') {
+    const bronco = parseBroncoTime(next.bronco_1200)
+    if (bronco != null) next.bronco_1200 = bronco
+  } else if (typeof next.bronco_1200 === 'string') {
+    const raw = next.bronco_1200.trim()
+    const complete = /^\d{1,2}:\d{1,2}(?:\.\d+)?$/.test(raw) || (/^\d+(?:\.\d+)?$/.test(raw) && Number(raw) >= 20)
+    if (complete) {
+      const bronco = parseBroncoTime(raw)
+      if (bronco != null) next.bronco_1200 = bronco
+    }
+  }
   const imcVal = computeImc(next.peso_kg, next.talla_cm)
   if (imcVal != null) {
     next.imc = imcVal

@@ -1,12 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2, Moon, Zap, Heart, Brain, Smile } from 'lucide-react'
+import { Loader2, Moon, Zap, Heart, Brain, Smile, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 import { mutate } from 'swr'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog,
   DialogContent,
@@ -19,10 +20,10 @@ import { wellnessApi } from '@/lib/api/wellness'
 import type { Jugador } from '@/lib/api/jugadores'
 
 const WELLNESS_FIELDS = [
-  { key: 'sueno' as const, label: 'Sueno', icon: Moon, color: 'text-indigo-600' },
+  { key: 'sueno' as const, label: 'Sueño', icon: Moon, color: 'text-indigo-600' },
   { key: 'fatiga' as const, label: 'Fatiga', icon: Zap, color: 'text-amber-600' },
   { key: 'dolor' as const, label: 'Dolor', icon: Heart, color: 'text-red-600' },
-  { key: 'estres' as const, label: 'Estres', icon: Brain, color: 'text-purple-600' },
+  { key: 'estres' as const, label: 'Estrés', icon: Brain, color: 'text-purple-600' },
   { key: 'humor' as const, label: 'Humor', icon: Smile, color: 'text-emerald-600' },
 ]
 
@@ -44,30 +45,51 @@ interface WellnessDialogProps {
   jugadores: Jugador[]
 }
 
+const emptyScores = { sueno: 3, fatiga: 3, dolor: 3, estres: 3, humor: 3 }
+
 export function WellnessDialog({ open, onOpenChange, jugadores }: WellnessDialogProps) {
   const [selectedJugador, setSelectedJugador] = useState('')
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0])
-  const [values, setValues] = useState({ sueno: 3, fatiga: 3, dolor: 3, estres: 3, humor: 3 })
+  const [values, setValues] = useState(emptyScores)
+  const [horasSueno, setHorasSueno] = useState('')
+  const [molestia, setMolestia] = useState(false)
+  const [molestiaTexto, setMolestiaTexto] = useState('')
   const [saving, setSaving] = useState(false)
 
   const total = values.sueno + values.fatiga + values.dolor + values.estres + values.humor
 
+  const resetForm = () => {
+    setSelectedJugador('')
+    setValues(emptyScores)
+    setHorasSueno('')
+    setMolestia(false)
+    setMolestiaTexto('')
+  }
+
   const handleSave = async () => {
     if (!selectedJugador) return
+    if (molestia && !molestiaTexto.trim()) {
+      toast.error('Indica dónde es la molestia')
+      return
+    }
     setSaving(true)
     try {
+      const horas = horasSueno === '' ? null : Number(horasSueno.replace(',', '.'))
       await wellnessApi.create({
         jugador_id: selectedJugador,
         fecha,
         ...values,
+        horas_sueno: horas != null && Number.isFinite(horas) ? horas : null,
+        molestia,
+        molestia_texto: molestia ? molestiaTexto.trim() : null,
       })
       toast.success('Wellness registrado')
       onOpenChange(false)
-      setSelectedJugador('')
-      setValues({ sueno: 3, fatiga: 3, dolor: 3, estres: 3, humor: 3 })
+      resetForm()
       mutate((key: string) => typeof key === 'string' && (key.includes('/wellness') || key.includes('/carga')), undefined, { revalidate: true })
-    } catch (err: any) {
-      toast.error(err.message || 'Error al registrar wellness')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error al registrar wellness'
+      toast.error(message)
     } finally {
       setSaving(false)
     }
@@ -79,7 +101,7 @@ export function WellnessDialog({ open, onOpenChange, jugadores }: WellnessDialog
         <DialogHeader>
           <DialogTitle>Registrar Wellness</DialogTitle>
           <DialogDescription>
-            Bienestar del jugador (cada campo 1-5, total max 25)
+            Bienestar del jugador (cada campo 1-5, total máx 25)
           </DialogDescription>
         </DialogHeader>
 
@@ -110,7 +132,6 @@ export function WellnessDialog({ open, onOpenChange, jugadores }: WellnessDialog
             </div>
           </div>
 
-          {/* Wellness sliders */}
           <div className="space-y-3">
             {WELLNESS_FIELDS.map((field) => {
               const Icon = field.icon
@@ -137,7 +158,50 @@ export function WellnessDialog({ open, onOpenChange, jugadores }: WellnessDialog
             })}
           </div>
 
-          {/* Total */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5 text-indigo-600" />
+                Horas de sueño
+              </Label>
+              <Input
+                type="number"
+                min={0}
+                max={16}
+                step={0.5}
+                placeholder="7.5"
+                value={horasSueno}
+                onChange={(e) => setHorasSueno(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>¿Molestia?</Label>
+              <label className="flex h-10 items-center gap-2 rounded-md border px-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={molestia}
+                  onChange={(e) => {
+                    setMolestia(e.target.checked)
+                    if (!e.target.checked) setMolestiaTexto('')
+                  }}
+                />
+                Sí
+              </label>
+            </div>
+          </div>
+
+          {molestia ? (
+            <div className="space-y-2">
+              <Label>Dónde y de qué tipo</Label>
+              <Textarea
+                rows={2}
+                value={molestiaTexto}
+                onChange={(e) => setMolestiaTexto(e.target.value)}
+                placeholder="Ej. isquio izquierdo, molestia leve al estirar"
+              />
+            </div>
+          ) : null}
+
           <div className={`rounded-lg border p-3 text-center ${getTotalBg(total)}`}>
             <p className="text-xs text-muted-foreground mb-1">Total Wellness</p>
             <p className={`text-3xl font-bold ${getTotalColor(total)}`}>
