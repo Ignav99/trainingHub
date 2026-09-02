@@ -13,6 +13,7 @@ import {
   Shirt,
   Goal,
   FileText,
+  Upload,
   Save,
   Swords,
   MapPin,
@@ -66,6 +67,8 @@ import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
 import type { Convocatoria, Partido, EstadisticaPartido, GolDetalle, FaltaPosicion, Rival } from '@/types'
 import { GoalDetailEditor } from './GoalDetailEditor'
 import { FoulMapEditor } from './FoulMapEditor'
+import { AnotacionesImportDialog } from './AnotacionesImportDialog'
+import type { AnotacionesPlan } from '@/lib/partidoAnotacionesJson'
 
 const PartidoPlanTab = dynamic(() => import('./PartidoPlanTab').then(m => ({ default: m.PartidoPlanTab })), {
   loading: () => <div className="animate-pulse space-y-4 p-4"><div className="h-8 bg-muted rounded w-1/3" /><div className="h-32 bg-muted rounded" /><div className="h-32 bg-muted rounded" /></div>
@@ -205,6 +208,7 @@ export function MatchDetailPanel({
   const [savingRendimientoId, setSavingRendimientoId] = useState<string | null>(null)
   const [savingInforme, setSavingInforme] = useState(false)
   const [informeInitialized, setInformeInitialized] = useState<string | null>(null)
+  const [showAnotacionesImport, setShowAnotacionesImport] = useState(false)
 
   // Goal detail + foul map state
   const [golesDetalleFavor, setGolesDetalleFavor] = useState<GolDetalle[]>([])
@@ -707,6 +711,48 @@ export function MatchDetailPanel({
     } finally {
       setSavingInforme(false)
     }
+  }
+
+  const handleApplyAnotaciones = async (plan: AnotacionesPlan) => {
+    if (!selectedId) throw new Error('No hay partido seleccionado')
+    if (plan.score?.apply) {
+      await partidosApi.registrarResultado(selectedId, plan.score.gf, plan.score.gc)
+    }
+    setTeamStats(plan.teamStats)
+    setPlayerStats(plan.playerStats)
+    setGolesDetalleFavor(plan.golesFavor)
+    setGolesDetalleContra(plan.golesContra)
+    setReflexionEntrenador(plan.reflexion)
+
+    const statsPayload: EstadisticaPartidoUpdateData = {
+      reflexion_entrenador: plan.reflexion,
+      goles_detalle_favor: plan.golesFavor,
+      goles_detalle_contra: plan.golesContra,
+      faltas_mapa_cometidas: faltasMapaCometidas,
+      faltas_mapa_recibidas: faltasMapaRecibidas,
+    }
+    for (const field of TEAM_STAT_FIELDS) {
+      (statsPayload as any)[field.key] = plan.teamStats[field.key] || 0;
+      (statsPayload as any)[`rival_${field.key}`] = plan.teamStats[`rival_${field.key}`] || 0
+    }
+    await estadisticasPartidoApi.upsert(selectedId, statsPayload)
+
+    const updates = Object.entries(plan.playerStats).map(([convId, stats]) => ({
+      id: convId,
+      ...stats,
+    }))
+    if (updates.length > 0) {
+      await convocatoriasApi.batchUpdateStats(updates)
+    }
+
+    mutate((key: string) => typeof key === 'string' && (
+      key.includes('/estadisticas-partido')
+      || key.includes('/convocatorias')
+      || key.includes('/partidos')
+      || key.includes('/microciclos')
+    ), undefined, { revalidate: true })
+    setInformeInitialized(null)
+    toast.success('Anotaciones aplicadas al informe')
   }
 
   const handleRendimientoChange = async (convId: string, raw: string) => {
@@ -1390,6 +1436,10 @@ export function MatchDetailPanel({
               {savingInforme ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Guardar informe
             </Button>
+            <Button variant="outline" onClick={() => setShowAnotacionesImport(true)}>
+              <Upload className="h-4 w-4 mr-2" />
+              Importar anotaciones
+            </Button>
             <Button variant="outline" onClick={handleGenerarInforme} disabled={generatingInforme}>
               {generatingInforme ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileText className="h-4 w-4 mr-2" />}
               Generar PDF
@@ -1704,6 +1754,26 @@ export function MatchDetailPanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AnotacionesImportDialog
+        open={showAnotacionesImport}
+        onOpenChange={setShowAnotacionesImport}
+        convocados={convocados}
+        localia={selectedPartido.localia}
+        equipoNombre={equipoActivo?.nombre}
+        rivalNombre={selectedPartido.rival?.nombre}
+        existing={{
+          hasResultado: Boolean(selectedPartido.resultado),
+          goles_favor: selectedPartido.goles_favor ?? null,
+          goles_contra: selectedPartido.goles_contra ?? null,
+          teamStats,
+          playerStats,
+          golesFavor: golesDetalleFavor,
+          golesContra: golesDetalleContra,
+          reflexion: reflexionEntrenador,
+        }}
+        onApply={handleApplyAnotaciones}
+      />
     </div>
   )
 }

@@ -892,6 +892,9 @@ export interface GolDetalle {
   tipo_abp?: string
   tipo_gol?: string
   zona?: string
+  /** Goleador (p. ej. importado del JSON del delegado). */
+  jugador?: string
+  asistencia?: string
 }
 
 export interface FaltaPosicion {

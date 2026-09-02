@@ -130,6 +130,24 @@ export function GoalDetailEditor({ label, goals, onChange, expectedCount, color 
                     </select>
                   </div>
                 )}
+                <div className="w-28">
+                  <Label className="text-[10px] text-muted-foreground">Goleador</Label>
+                  <Input
+                    className="h-7 text-xs"
+                    value={goal.jugador || ''}
+                    placeholder="—"
+                    onChange={(e) => updateGoal(i, { jugador: e.target.value || undefined })}
+                  />
+                </div>
+                <div className="w-28">
+                  <Label className="text-[10px] text-muted-foreground">Asistencia</Label>
+                  <Input
+                    className="h-7 text-xs"
+                    value={goal.asistencia || ''}
+                    placeholder="—"
+                    onChange={(e) => updateGoal(i, { asistencia: e.target.value || undefined })}
+                  />
+                </div>
               </div>
               <div>
                 <Label className="text-[10px] text-muted-foreground">Zona de ataque</Label>
