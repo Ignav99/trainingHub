@@ -25,6 +25,32 @@ def _num(value: Any) -> Optional[float]:
         return None
 
 
+def _tiempo_segundos(value: Any) -> Optional[float]:
+    """Bronco u otros tiempos: número en segundos, o `m:ss`."""
+    n = _num(value)
+    if n is not None:
+        return n
+    if not isinstance(value, str):
+        return None
+    text = value.strip().replace(",", ".").replace("'", ":")
+    if ":" not in text:
+        return None
+    try:
+        minutes_s, seconds_s = text.split(":", 1)
+        return float(minutes_s) * 60 + float(seconds_s)
+    except (TypeError, ValueError):
+        return None
+
+
+def _fmt_mmss(seconds: Any) -> Optional[str]:
+    n = _tiempo_segundos(seconds)
+    if n is None:
+        return None
+    total = int(round(n))
+    m, s = divmod(total, 60)
+    return f"{m}:{s:02d}"
+
+
 def imc(peso_kg: Any, talla_cm: Any) -> Optional[float]:
     peso = _num(peso_kg)
     talla = _num(talla_cm)
@@ -139,6 +165,8 @@ def snapshot_para_informe(row: dict[str, Any]) -> dict[str, Any]:
         "peso_kg": peso,
         "imc": _num(datos.get("imc")) or imc(peso, talla),
         "imc_clasificacion": datos.get("imc_clasificacion"),
+        "bronco_1200": _tiempo_segundos(datos.get("bronco_1200")),
+        "bronco_1200_txt": _fmt_mmss(datos.get("bronco_1200")),
         "bronco_20": _num(datos.get("bronco_20")),
         "bronco_40": _num(datos.get("bronco_40")),
         "bronco_60x5": _num(datos.get("bronco_60x5")),

@@ -72,6 +72,10 @@ class WellnessCreate(BaseModel):
     dolor: int = Field(..., ge=1, le=5)
     estres: int = Field(..., ge=1, le=5)
     humor: int = Field(..., ge=1, le=5)
+    horas_sueno: Optional[float] = Field(None, ge=0, le=24)
+    molestia: Optional[bool] = None
+    molestia_texto: Optional[str] = None
+    notas: Optional[str] = None
 
 
 class WellnessResponse(BaseModel):
@@ -86,6 +90,10 @@ class WellnessResponse(BaseModel):
     humor: int
     total: int
     created_at: datetime
+    horas_sueno: Optional[float] = None
+    molestia: Optional[bool] = None
+    molestia_texto: Optional[str] = None
+    notas: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -100,3 +108,7 @@ class WellnessBulkItem(BaseModel):
     dolor: int = Field(..., ge=1, le=5)
     estres: int = Field(..., ge=1, le=5)
     humor: int = Field(..., ge=1, le=5)
+    horas_sueno: Optional[float] = Field(None, ge=0, le=24)
+    molestia: Optional[bool] = None
+    molestia_texto: Optional[str] = None
+    notas: Optional[str] = None

@@ -109,3 +109,21 @@ def test_snapshot_informe_flags():
     assert any("Pelvis" in h for h in snap["hallazgos"])
     assert any("AKE" in h for h in snap["hallazgos"])
     assert any("dedo-pared" in h for h in snap["hallazgos"])
+
+
+def test_snapshot_bronco_1200():
+    snap = snapshot_para_informe({
+        "fecha": "2026-09-02",
+        "momento": "pretemporada",
+        "datos": {"bronco_1200": "5:23"},
+    })
+    assert snap["bronco_1200"] == 323
+    assert snap["bronco_1200_txt"] == "5:23"
+
+    snap_sec = snapshot_para_informe({
+        "fecha": "2026-09-02",
+        "momento": "control",
+        "datos": {"bronco_1200": 330},
+    })
+    assert snap_sec["bronco_1200"] == 330
+    assert snap_sec["bronco_1200_txt"] == "5:30"

@@ -802,6 +802,10 @@ export interface WellnessEntry {
   humor: number
   total: number
   created_at: string
+  horas_sueno?: number | null
+  molestia?: boolean | null
+  molestia_texto?: string | null
+  notas?: string | null
 }
 
 export interface WellnessAggregates {

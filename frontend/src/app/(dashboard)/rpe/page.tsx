@@ -522,6 +522,9 @@ function ExpandedWellnessRow({ jugadorId }: { jugadorId: string }) {
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValues, setEditValues] = useState({ sueno: 3, fatiga: 3, dolor: 3, estres: 3, humor: 3 })
+  const [editHoras, setEditHoras] = useState('')
+  const [editMolestia, setEditMolestia] = useState(false)
+  const [editMolestiaTexto, setEditMolestiaTexto] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
 
@@ -552,15 +555,22 @@ function ExpandedWellnessRow({ jugadorId }: { jugadorId: string }) {
       estres: entry.estres,
       humor: entry.humor,
     })
+    setEditHoras(entry.horas_sueno != null ? String(entry.horas_sueno) : '')
+    setEditMolestia(Boolean(entry.molestia))
+    setEditMolestiaTexto(entry.molestia_texto || '')
   }
 
   const handleSaveEdit = async (entry: WellnessEntry) => {
     setSaving(true)
     try {
+      const horas = editHoras === '' ? null : Number(editHoras.replace(',', '.'))
       await wellnessApi.update(entry.id, {
         jugador_id: entry.jugador_id,
         fecha: editFecha,
         ...editValues,
+        horas_sueno: horas != null && Number.isFinite(horas) ? horas : null,
+        molestia: editMolestia,
+        molestia_texto: editMolestia ? editMolestiaTexto.trim() : null,
       })
       toast.success('Registro actualizado')
       setEditingId(null)
@@ -628,7 +638,7 @@ function ExpandedWellnessRow({ jugadorId }: { jugadorId: string }) {
             </LineChart>
           </ResponsiveContainer>
         </div>
-        <div className="w-48 shrink-0">
+        <div className="w-52 shrink-0">
           <p className="text-xs font-medium text-muted-foreground mb-2">Ultimo registro</p>
           <div className="grid grid-cols-5 gap-1 text-center">
             {FIELDS.map((f) => {
@@ -643,6 +653,15 @@ function ExpandedWellnessRow({ jugadorId }: { jugadorId: string }) {
               )
             })}
           </div>
+          {(() => {
+            const last = history[history.length - 1]
+            return (
+              <p className="mt-2 text-[10px] text-muted-foreground">
+                {last.horas_sueno != null ? `${last.horas_sueno} h sueño` : 'Sin horas'}
+                {last.molestia ? ` · Molestia: ${last.molestia_texto || 'sí'}` : ''}
+              </p>
+            )
+          })()}
         </div>
       </div>
 
@@ -655,6 +674,8 @@ function ExpandedWellnessRow({ jugadorId }: { jugadorId: string }) {
               {FIELDS.map((f) => (
                 <th key={f.key} className="pb-1 text-center font-medium">{f.label}</th>
               ))}
+              <th className="pb-1 text-center font-medium">Hrs</th>
+              <th className="pb-1 text-left font-medium">Molestia</th>
               <th className="pb-1 text-center font-medium">Total</th>
               <th className="pb-1 text-center font-medium w-20">Acciones</th>
             </tr>
@@ -698,6 +719,47 @@ function ExpandedWellnessRow({ jugadorId }: { jugadorId: string }) {
                       )}
                     </td>
                   ))}
+                  <td className="py-1.5 text-center">
+                    {isEditing ? (
+                      <input
+                        type="number"
+                        min={0}
+                        max={16}
+                        step={0.5}
+                        value={editHoras}
+                        onChange={(e) => setEditHoras(e.target.value)}
+                        className="w-12 text-center border rounded px-1 py-0.5 text-xs"
+                      />
+                    ) : (
+                      entry.horas_sueno ?? '—'
+                    )}
+                  </td>
+                  <td className="py-1.5 text-[11px] max-w-[8rem]">
+                    {isEditing ? (
+                      <div className="space-y-1">
+                        <label className="flex items-center gap-1">
+                          <input
+                            type="checkbox"
+                            checked={editMolestia}
+                            onChange={(e) => setEditMolestia(e.target.checked)}
+                          />
+                          Sí
+                        </label>
+                        {editMolestia ? (
+                          <input
+                            value={editMolestiaTexto}
+                            onChange={(e) => setEditMolestiaTexto(e.target.value)}
+                            placeholder="Dónde / tipo"
+                            className="w-full border rounded px-1 py-0.5 text-[10px]"
+                          />
+                        ) : null}
+                      </div>
+                    ) : entry.molestia ? (
+                      <span className="text-red-700">{entry.molestia_texto || 'Sí'}</span>
+                    ) : (
+                      'No'
+                    )}
+                  </td>
                   <td className={`py-1.5 text-center font-bold ${
                     total >= 20 ? 'text-green-600' : total >= 15 ? 'text-amber-600' : 'text-red-600'
                   }`}>
