@@ -25,6 +25,14 @@ export interface AnotacionJugador {
   amarilla: boolean | null
   roja: boolean | null
   titular: boolean | null
+  /** Id interno del JSON (para cruzar conv ↔ slots). */
+  ref?: string
+}
+
+export interface JsonShapeRow {
+  clave: string
+  tipo: string
+  detalle: string
 }
 
 export interface AnotacionGol {
@@ -53,10 +61,13 @@ export interface ParsedAnotaciones {
   notas: string | null
   avisos: string[]
   clavesSinMapear: string[]
+  estructura: JsonShapeRow[]
+  formacion: string | null
 }
 
 export interface ConvocadoMatchable {
   id: string
+  jugador_id?: string
   dorsal?: number | null
   jugador?: {
     nombre?: string
@@ -134,12 +145,16 @@ const TEAM_STAT_ALIASES: Record<string, string> = {
   recoveries: 'balones_recuperados',
 }
 
-const EVENT_KEYS = new Set(['eventos', 'events', 'acciones', 'incidencias', 'goles', 'goals'])
+const EVENT_KEYS = new Set([
+  'eventos', 'events', 'acciones', 'incidencias', 'goles', 'goals',
+  'half', 'halves', 'timeline', 'log', 'ev', 'evs', 'evts', 'inc',
+])
 
 const LINEUP_KEYS = [
   'jugadores', 'players', 'plantilla', 'alineacion', 'lineup', 'convocatoria',
   'titulares', 'suplentes', 'starters', 'bench', 'once', 'acta',
   'equipo', 'nuestro_equipo', 'local', 'visitante', 'home', 'away',
+  'conv', 'slots', 'squad', 'xi', 'called', 'dorsales', 'plantel',
 ] as const
 
 function isRivalKey(key: string): boolean {
@@ -169,6 +184,8 @@ const KNOWN_TOP = new Set([
   'fecha', 'date', 'hora', 'time', 'competicion', 'competition',
   'local', 'visitante', 'home', 'away', 'home_team', 'away_team',
   'equipo_local', 'equipo_visitante', 'equipos', 'teams',
+  'campo', 'conv', 'dorsal', 'form', 'formacion', 'slots', 'half',
+  'clock', 'reloj', 'elapsed', 'paused', 'ball', 'kit',
 ])
 
 function norm(raw: unknown): string {
@@ -204,10 +221,17 @@ function asRecord(v: unknown): Record<string, unknown> | null {
   return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function looksLikeUuid(v: unknown): boolean {
+  return typeof v === 'string' && UUID_RE.test(v.trim())
+}
+
 function parseIntSafe(v: unknown): number | null {
   if (v == null || v === '') return null
   if (typeof v === 'boolean') return v ? 1 : 0
   if (typeof v === 'number' && Number.isFinite(v)) return Math.round(v)
+  if (looksLikeUuid(v)) return null
   const s = String(v).trim().replace(',', '.')
   const m = s.match(/-?\d+/)
   if (!m) return null
@@ -227,12 +251,57 @@ function parseBool(v: unknown): boolean | null {
 
 function extractName(v: unknown): string {
   if (v == null || v === '') return ''
-  if (typeof v === 'string' || typeof v === 'number') return String(v).trim()
+  if (typeof v === 'number') return ''
+  if (typeof v === 'string') {
+    const s = v.trim()
+    if (!s || /^\d+$/.test(s)) return ''
+    return s
+  }
   const rec = asRecord(v)
   if (!rec) return ''
-  return String(
-    pick(rec, ['nombre_completo', 'nombre', 'name', 'knownName', 'player_name', 'apodo', 'short_name']) || '',
+  const long = String(
+    pick(rec, ['nombre_completo', 'nombre', 'name', 'knownName', 'player_name', 'apodo', 'short_name', 'nom', 'nm']) || '',
   ).trim()
+  if (long && !/^\d+$/.test(long)) return long
+  const n = rec.n ?? rec.N
+  if (typeof n === 'string' && n.trim() && !/^\d+$/.test(n.trim())) return n.trim()
+  return ''
+}
+
+function compactRef(obj: Record<string, unknown>): string {
+  const v = pick(obj, ['id', 'pid', 'uid', 'player_id', 'jugador_id', 'ref', 'j', 'jid'])
+  if (v == null || v === '') return ''
+  const s = String(v).trim()
+  if (!s || /^\d+$/.test(s)) return ''
+  return s
+}
+
+function emptyPlayer(): Omit<AnotacionJugador, 'nombre'> {
+  return {
+    dorsal: null,
+    minutos: null,
+    goles: null,
+    asistencias: null,
+    amarilla: null,
+    roja: null,
+    titular: null,
+  }
+}
+
+function describeEstructura(root: Record<string, unknown>): JsonShapeRow[] {
+  return Object.entries(root).map(([clave, v]) => {
+    if (Array.isArray(v)) {
+      const first = v.find((x) => x && typeof x === 'object') as Record<string, unknown> | undefined
+      const keys = first ? Object.keys(first).slice(0, 10).join(', ') : (v.length ? typeof v[0] : '')
+      return { clave, tipo: `lista[${v.length}]`, detalle: keys }
+    }
+    const rec = asRecord(v)
+    if (rec) {
+      return { clave, tipo: 'objeto', detalle: Object.keys(rec).slice(0, 12).join(', ') }
+    }
+    const txt = v == null ? 'null' : String(v)
+    return { clave, tipo: typeof v, detalle: txt.length > 48 ? txt.slice(0, 45) + '…' : txt }
+  })
 }
 
 function flattenPlayerish(obj: Record<string, unknown>): Record<string, unknown> {
@@ -241,73 +310,116 @@ function flattenPlayerish(obj: Record<string, unknown>): Record<string, unknown>
     || asRecord(obj.jugador)
     || asRecord(obj.player_info)
     || asRecord(obj.datos)
-  if (!nested) return obj
-  return { ...nested, ...obj }
+    || asRecord(obj.p)
+  const out: Record<string, unknown> = nested ? { ...nested, ...obj } : { ...obj }
+  if (out.nombre == null) {
+    const n = out.n ?? out.N ?? out.nm ?? out.nom
+    if (typeof n === 'string' && n.trim() && !/^\d+$/.test(n.trim())) out.nombre = n.trim()
+  }
+  if (out.dorsal == null) {
+    const d = out.d ?? out.num ?? out.no ?? out.nro ?? out.nr
+    if (d != null && d !== '') out.dorsal = d
+    else if (typeof out.n === 'number') out.dorsal = out.n
+  }
+  if (out.minutos == null && (out.m != null || out.mj != null || out.mins != null)) {
+    out.minutos = out.mj ?? out.mins ?? out.m
+  }
+  if (out.goles == null && (out.g != null || out.gls != null)) out.goles = out.gls ?? out.g
+  if (out.asistencias == null && (out.ast != null || out.asis != null || out.a != null)) {
+    const a = out.ast ?? out.asis ?? out.a
+    if (typeof a === 'number' || (typeof a === 'string' && /^\d+$/.test(a))) out.asistencias = a
+  }
+  if (out.amarilla == null && (out.y != null || out.ta != null || out.am != null)) {
+    out.amarilla = out.y ?? out.ta ?? out.am
+  }
+  if (out.roja == null && (out.r != null || out.tr != null)) out.roja = out.tr ?? out.r
+  if (out.titular == null && (out.tit != null || out.xi != null)) out.titular = out.tit ?? out.xi
+  if (!out.nombre && typeof out.j === 'string' && extractName(out.j) && !looksLikeUuid(out.j)) {
+    out.nombre = extractName(out.j)
+  }
+  return out
 }
 
 function flattenEvent(obj: Record<string, unknown>): Record<string, unknown> {
-  const typeObj = asRecord(obj.type) || asRecord(obj.tipo) || asRecord(obj.event_type)
-  const playerObj = asRecord(obj.player) || asRecord(obj.jugador) || asRecord(obj.scorer)
+  const typeObj = asRecord(obj.type) || asRecord(obj.tipo) || asRecord(obj.event_type) || asRecord(obj.t)
+  const playerObj = asRecord(obj.player) || asRecord(obj.jugador) || asRecord(obj.scorer) || asRecord(obj.j)
   const assistObj = asRecord(obj.assist) || asRecord(obj.asistencia) || asRecord(obj.related_player)
   const out: Record<string, unknown> = { ...obj }
   if (typeObj) {
     out.tipo = typeObj.name || typeObj.nombre || typeObj.label || typeObj.shortName || obj.tipo
   }
+  if (out.tipo == null && out.t != null && typeof out.t !== 'object') out.tipo = out.t
+  if (out.minuto == null) {
+    const m = out.m ?? out.min ?? out.minute
+    if (m != null && m !== '') out.minuto = m
+  }
   if (playerObj) {
     out.jugador = extractName(playerObj) || out.jugador
-    if (out.dorsal == null) out.dorsal = playerObj.dorsal ?? playerObj.shirtNumber ?? playerObj.number
+    if (out.dorsal == null) out.dorsal = playerObj.dorsal ?? playerObj.d ?? playerObj.shirtNumber ?? playerObj.number
+  }
+  if (!out.jugador) {
+    const j = out.j ?? out.n
+    if (typeof j === 'string' && j.trim()) out.jugador = looksLikeUuid(j) ? j.trim() : (extractName(j) || '')
   }
   if (assistObj) {
     out.asistencia = extractName(assistObj) || out.asistencia
   }
+  if (!out.asistencia && typeof out.a === 'string' && extractName(out.a)) out.asistencia = extractName(out.a)
   return out
 }
 
 function looksLikePlayer(obj: Record<string, unknown>): boolean {
   const flat = flattenPlayerish(obj)
+  const tipoN = norm(String(flat.t ?? flat.tipo ?? flat.type ?? ''))
+  if (tipoN && classifyEventType(tipoN) !== 'other') return false
   const keys = Object.keys(flat).map(norm)
-  const hasName = keys.some((k) =>
-    ['nombre', 'name', 'jugador', 'player', 'player_name', 'apodo', 'apellido', 'apellidos', 'knownname'].some(
+  const hasName = Boolean(extractName(flat)) || keys.some((k) =>
+    ['nombre', 'name', 'jugador', 'player', 'player_name', 'apodo', 'apellido', 'apellidos', 'knownname', 'nom', 'nm'].some(
       (w) => k === w || k.endsWith('_' + w),
     ),
   )
   const hasStat = keys.some((k) =>
     [
-      'dorsal', 'numero', 'number', 'shirtnumber', 'shirt',
-      'minutos', 'minutos_jugados', 'minutes', 'mins',
-      'goles', 'goals', 'asistencias', 'assists',
-      'amarilla', 'roja', 'titular', 'starter',
+      'dorsal', 'numero', 'number', 'shirtnumber', 'shirt', 'd', 'num',
+      'minutos', 'minutos_jugados', 'minutes', 'mins', 'm', 'mj',
+      'goles', 'goals', 'g', 'asistencias', 'assists',
+      'amarilla', 'roja', 'titular', 'starter', 'y', 'ta', 'r', 'tr',
     ].some((w) => k === w || k.startsWith(w + '_') || k.endsWith('_' + w)),
   )
+  const ref = compactRef(flat)
+  if (ref && (hasStat || hasName)) return true
   return hasName && hasStat
 }
 
 function looksLikeEvent(obj: Record<string, unknown>): boolean {
   const flat = flattenEvent(obj)
   const keys = Object.keys(flat).map(norm)
-  const hasMin = keys.some((k) => k === 'minuto' || k === 'minute' || k === 'min' || k === 'time' || k === 'eventsec')
+  const hasMin = keys.some((k) => k === 'minuto' || k === 'minute' || k === 'min' || k === 'm' || k === 'time' || k === 'eventsec')
   const hasType = keys.some((k) =>
-    ['tipo', 'type', 'event', 'evento', 'event_type', 'accion', 'kind', 'eventname'].some((w) => k === w || k.includes(w)),
+    ['tipo', 'type', 't', 'event', 'evento', 'event_type', 'accion', 'kind', 'eventname'].some((w) => k === w || k.includes(w)),
   )
   const hasGoalHint = keys.some((k) =>
-    k.includes('gol') || k.includes('goal') || k.includes('scorer') || k.includes('goleador') || k.includes('tarjeta') || k.includes('card'),
+    k.includes('gol') || k.includes('goal') || k.includes('scorer') || k.includes('goleador') || k.includes('tarjeta') || k.includes('card')
+    || k === 'g' || k === 'y' || k === 'ta' || k === 'tr',
   )
   return hasMin && (hasType || hasGoalHint)
 }
 
 function parsePlayer(obj: Record<string, unknown>): AnotacionJugador {
   const flat = flattenPlayerish(obj)
-  const nombre = extractName(flat) || String(pick(flat, ['nombre_completo', 'nombre', 'name', 'jugador', 'player', 'player_name', 'apodo']) || '').trim()
-  const dorsal = parseIntSafe(pick(flat, ['dorsal', 'numero', 'number', 'num', 'dorsal_numero', 'shirtNumber', 'shirt']))
+  const nombre = extractName(flat)
+  const dorsal = parseIntSafe(pick(flat, ['dorsal', 'numero', 'number', 'num', 'dorsal_numero', 'shirtNumber', 'shirt', 'd']))
+  const ref = compactRef(flat)
   return {
     nombre,
     dorsal,
-    minutos: parseIntSafe(pick(flat, ['minutos_jugados', 'minutos', 'minutes', 'min', 'mins', 'played'])),
-    goles: parseIntSafe(pick(flat, ['goles', 'goals', 'gol'])),
-    asistencias: parseIntSafe(pick(flat, ['asistencias', 'assists', 'asistencia', 'assist'])),
-    amarilla: parseBool(pick(flat, ['tarjeta_amarilla', 'amarilla', 'yellow_card', 'yellow', 'ta'])),
+    minutos: parseIntSafe(pick(flat, ['minutos_jugados', 'minutos', 'minutes', 'mins', 'played', 'mj', 'm'])),
+    goles: parseIntSafe(pick(flat, ['goles', 'goals', 'gol', 'g', 'gls'])),
+    asistencias: parseIntSafe(pick(flat, ['asistencias', 'assists', 'asistencia', 'assist', 'ast', 'asis'])),
+    amarilla: parseBool(pick(flat, ['tarjeta_amarilla', 'amarilla', 'yellow_card', 'yellow', 'ta', 'y'])),
     roja: parseBool(pick(flat, ['tarjeta_roja', 'roja', 'red_card', 'red', 'tr'])),
-    titular: parseBool(pick(flat, ['titular', 'starter', 'once'])),
+    titular: parseBool(pick(flat, ['titular', 'starter', 'once', 'tit', 'xi'])),
+    ref: ref || undefined,
   }
 }
 
@@ -338,16 +450,26 @@ type EventKind = 'goal' | 'card_yellow' | 'card_red' | 'sub' | 'other'
 
 function classifyEventType(tipoN: string): EventKind {
   if (!tipoN) return 'other'
-  if (tipoN.includes('amarill') || tipoN.includes('yellow')) return 'card_yellow'
-  if (tipoN.includes('roja') || tipoN.includes('red_card') || tipoN === 'red') return 'card_red'
-  if (tipoN.includes('cambio') || tipoN.includes('sustit') || tipoN.includes('subbed') || tipoN.includes('substitution')) {
+  if (tipoN === 'y' || tipoN === 'ta' || tipoN.includes('amarill') || tipoN.includes('yellow')) return 'card_yellow'
+  if (tipoN === 'r' || tipoN === 'tr' || tipoN.includes('roja') || tipoN.includes('red_card') || tipoN === 'red') {
+    return 'card_red'
+  }
+  if (
+    tipoN === 's'
+    || tipoN === 'sub'
+    || tipoN.includes('cambio')
+    || tipoN.includes('sustit')
+    || tipoN.includes('subbed')
+    || tipoN.includes('substitution')
+  ) {
     return 'sub'
   }
   if (
-    tipoN.includes('gol')
-    || tipoN.includes('goal')
+    tipoN === 'g'
     || tipoN === 'gf'
     || tipoN === 'gc'
+    || tipoN.includes('gol')
+    || tipoN.includes('goal')
     || tipoN.includes('penal')
   ) return 'goal'
   return 'other'
@@ -390,7 +512,8 @@ function parseGoalEvent(
   const kind = classifyEventType(tipoN)
   const looksGoal =
     kind === 'goal'
-    || (!tipoN && pick(flat, ['goles', 'gol', 'scorer', 'goleador']) != null)
+    || parseBool(pick(flat, ['goles', 'gol', 'g', 'goal'])) === true
+    || (!tipoN && pick(flat, ['goles', 'gol', 'scorer', 'goleador', 'g']) != null)
   if (!looksGoal) return null
 
   let minuto = parseIntSafe(pick(flat, ['minuto', 'minute', 'min', 'time', 'minuto_gol']))
@@ -411,8 +534,8 @@ function parseGoalEvent(
   return {
     minuto,
     en_contra: isAgainstUs(flat, tipoN, opts, weAreHome),
-    jugador: String(pick(flat, ['jugador', 'player', 'scorer', 'goleador', 'autor', 'nombre', 'player_name']) || '').trim(),
-    asistencia: String(pick(flat, ['asistencia', 'assist', 'asistente', 'related_player_name']) || '').trim(),
+    jugador: String(pick(flat, ['jugador', 'player', 'scorer', 'goleador', 'autor', 'nombre', 'player_name', 'j']) || '').trim(),
+    asistencia: String(pick(flat, ['asistencia', 'assist', 'asistente', 'related_player_name', 'a']) || '').trim(),
     ...mapped,
   }
 }
@@ -497,6 +620,14 @@ function parseScorePair(
   weAreHome: boolean | null,
 ): { gf: number; gc: number } | null {
   if (v == null || v === '') return null
+  if (Array.isArray(v) && v.length >= 2) {
+    const a = parseIntSafe(v[0])
+    const b = parseIntSafe(v[1])
+    if (a != null && b != null) {
+      if (weAreHome === false) return { gf: b, gc: a }
+      return { gf: a, gc: b }
+    }
+  }
   if (typeof v === 'object' && !Array.isArray(v)) {
     const o = v as Record<string, unknown>
     const explicitGf = parseIntSafe(pick(o, ['goles_favor', 'gf', 'favor', 'nosotros', 'own']))
@@ -520,9 +651,13 @@ function parseScorePair(
 
 function mergePlayerInto(list: AnotacionJugador[], incoming: AnotacionJugador) {
   const keyName = norm(stripNumberPrefix(incoming.nombre))
+  const incomingRef = incoming.ref ? incoming.ref.toLowerCase() : ''
   const idx = list.findIndex((p) => {
-    if (incoming.dorsal != null && p.dorsal === incoming.dorsal) return true
-    return keyName && norm(stripNumberPrefix(p.nombre)) === keyName
+    if (incomingRef && p.ref && p.ref.toLowerCase() === incomingRef) return true
+    if (incoming.dorsal != null && p.dorsal === incoming.dorsal) {
+      if (!incomingRef || !p.ref || p.ref.toLowerCase() === incomingRef) return true
+    }
+    return Boolean(keyName && norm(stripNumberPrefix(p.nombre)) === keyName)
   })
   if (idx < 0) {
     list.push(incoming)
@@ -538,7 +673,106 @@ function mergePlayerInto(list: AnotacionJugador[], incoming: AnotacionJugador) {
     amarilla: cur.amarilla || incoming.amarilla,
     roja: cur.roja || incoming.roja,
     titular: cur.titular ?? incoming.titular,
+    ref: cur.ref || incoming.ref,
   }
+}
+
+function ingestPlayerValue(jugadores: AnotacionJugador[], val: unknown, asTitular: boolean | null) {
+  if (val == null || val === '') return
+  if (typeof val === 'string') {
+    const trimmed = val.trim()
+    const isUuid = looksLikeUuid(trimmed)
+    const dorsal = isUuid ? null : parseIntSafe(trimmed)
+    const nombre = isUuid ? '' : (extractName(trimmed) || (dorsal != null ? '' : trimmed))
+    if (!nombre && dorsal == null && !isUuid) return
+    mergePlayerInto(jugadores, {
+      ...emptyPlayer(),
+      nombre,
+      dorsal,
+      titular: asTitular,
+      ref: trimmed,
+    })
+    return
+  }
+  if (typeof val === 'number') {
+    mergePlayerInto(jugadores, { ...emptyPlayer(), nombre: '', dorsal: val, titular: asTitular })
+    return
+  }
+  const rec = asRecord(val)
+  if (!rec) return
+  const parsed = parsePlayer(rec)
+  if (asTitular) parsed.titular = true
+  if (!parsed.nombre && parsed.dorsal == null && !parsed.ref) return
+  mergePlayerInto(jugadores, parsed)
+}
+
+function ingestKeyedPlayers(
+  jugadores: AnotacionJugador[],
+  val: unknown,
+  asTitular: boolean | null,
+  numericMeaning: 'minutes' | 'dorsal' | 'id-only',
+) {
+  if (val == null || val === '') return
+  if (Array.isArray(val)) {
+    val.forEach((item) => ingestPlayerValue(jugadores, item, asTitular))
+    return
+  }
+  const rec = asRecord(val)
+  if (!rec) {
+    ingestPlayerValue(jugadores, val, asTitular)
+    return
+  }
+  const asSingle = parsePlayer(rec)
+  if (looksLikePlayer(rec) || asSingle.nombre || asSingle.dorsal != null || asSingle.ref) {
+    ingestPlayerValue(jugadores, rec, asTitular)
+    return
+  }
+  for (const [k, item] of Object.entries(rec)) {
+    const keyRef = looksLikeUuid(k) ? k : ''
+    if (typeof item === 'number' || (typeof item === 'string' && /^\d+$/.test(item.trim()))) {
+      if (numericMeaning === 'id-only') {
+        if (keyRef) ingestPlayerValue(jugadores, keyRef, asTitular)
+        continue
+      }
+      const payload: Record<string, unknown> = {}
+      if (keyRef) payload.id = keyRef
+      else if (extractName(k)) payload.n = extractName(k)
+      if (numericMeaning === 'minutes') payload.m = item
+      if (numericMeaning === 'dorsal') payload.d = item
+      ingestPlayerValue(jugadores, payload, asTitular)
+      continue
+    }
+    if (typeof item === 'string') {
+      ingestPlayerValue(jugadores, item, asTitular)
+      continue
+    }
+    const inner = asRecord(item)
+    if (inner) {
+      const withKey = keyRef && !compactRef(inner) ? { ...inner, id: keyRef } : inner
+      ingestPlayerValue(jugadores, withKey, asTitular)
+      continue
+    }
+    ingestPlayerValue(jugadores, item, asTitular)
+  }
+}
+
+/** Formato compacto del delegado: conv / slots / dorsal / form / half. */
+function ingestCompactActa(root: Record<string, unknown>, jugadores: AnotacionJugador[]): string | null {
+  ingestKeyedPlayers(jugadores, root.conv ?? root.Conv ?? pick(root, ['conv', 'convocatoria', 'squad']), null, 'minutes')
+  ingestKeyedPlayers(jugadores, root.slots ?? pick(root, ['slots', 'formacion_slots', 'alineacion']), true, 'id-only')
+
+  const dorsalMap = root.dorsal
+  const dRec = asRecord(dorsalMap)
+  if (dRec && !Array.isArray(dorsalMap)) {
+    const values = Object.values(dRec)
+    const looksMap = values.length > 0 && values.every((v) => typeof v === 'number' || (typeof v === 'string' && /^\d+$/.test(String(v).trim())))
+    if (looksMap) ingestKeyedPlayers(jugadores, dRec, null, 'dorsal')
+  } else if (Array.isArray(dorsalMap)) {
+    dorsalMap.forEach((item) => ingestPlayerValue(jugadores, item, null))
+  }
+
+  const form = pick(root, ['form', 'formacion', 'formation'])
+  return typeof form === 'string' && form.trim() ? form.trim() : (form != null && typeof form !== 'boolean' ? String(form) : null)
 }
 
 export function parseAnotacionesJson(raw: unknown, opts: ParseOpts = {}): ParsedAnotaciones {
@@ -557,6 +791,8 @@ export function parseAnotacionesJson(raw: unknown, opts: ParseOpts = {}): Parsed
       notas: null,
       avisos: ['El archivo no es un JSON de objeto o lista.'],
       clavesSinMapear: [],
+      estructura: [],
+      formacion: null,
     }
   }
 
@@ -597,7 +833,7 @@ export function parseAnotacionesJson(raw: unknown, opts: ParseOpts = {}): Parsed
   }
 
   const jugadores: AnotacionJugador[] = []
-  const seenPlayer = new Set<string>()
+  const formacion = ingestCompactActa(root, jugadores)
   for (const arr of arrays) {
     const recs = arr.items.map((x) => asRecord(x)).filter((x): x is Record<string, unknown> => !!x)
     if (recs.length === 0) continue
@@ -607,14 +843,21 @@ export function parseAnotacionesJson(raw: unknown, opts: ParseOpts = {}): Parsed
     const playerLike = recs.filter(looksLikePlayer)
     const threshold = hinted ? 1 : Math.max(1, Math.floor(recs.length * 0.4))
     if (playerLike.length < threshold) continue
-    const source = hinted ? recs.filter((r) => extractName(flattenPlayerish(r)) || looksLikePlayer(r)) : playerLike
+    const source = hinted
+      ? recs.filter((r) => {
+        const flat = flattenPlayerish(r)
+        return extractName(flat) || looksLikePlayer(r) || parseIntSafe(flat.dorsal ?? flat.d) != null || Boolean(compactRef(flat))
+      })
+      : playerLike
+    if (hinted) {
+      arr.items.forEach((item) => {
+        if (typeof item === 'string' || typeof item === 'number') ingestPlayerValue(jugadores, item, null)
+      })
+    }
     for (const p of source) {
       const parsed = parsePlayer(p)
-      if (!parsed.nombre && parsed.dorsal == null) continue
-      const key = `${parsed.dorsal ?? ''}::${norm(parsed.nombre)}`
-      if (seenPlayer.has(key)) continue
-      seenPlayer.add(key)
-      jugadores.push(parsed)
+      if (!parsed.nombre && parsed.dorsal == null && !parsed.ref) continue
+      mergePlayerInto(jugadores, parsed)
     }
   }
 
@@ -628,45 +871,114 @@ export function parseAnotacionesJson(raw: unknown, opts: ParseOpts = {}): Parsed
     for (const p of recs) {
       if (!looksLikePlayer(p)) continue
       const parsed = parsePlayer(p)
-      if (!parsed.nombre && parsed.dorsal == null) continue
+      if (!parsed.nombre && parsed.dorsal == null && !parsed.ref) continue
       mergePlayerInto(jugadores, parsed)
     }
   }
 
   const goles: AnotacionGol[] = []
+  const seenGoals = new Set<string>()
   let hayCambios = false
+
+  const consumeEvent = (ev: Record<string, unknown>) => {
+    const flat = flattenEvent(ev)
+    const tipoN = norm(pick(flat, ['tipo', 'type', 'event', 'evento', 'event_type', 'accion', 'eventName', 't']))
+    const kind = classifyEventType(tipoN)
+    if (kind === 'sub') {
+      hayCambios = true
+      return
+    }
+    const rawPlayer = String(pick(flat, ['jugador', 'player', 'nombre', 'player_name', 'j']) || '').trim()
+    const playerIsUuid = looksLikeUuid(rawPlayer)
+    const dorsal = parseIntSafe(pick(flat, ['dorsal', 'numero', 'number', 'd']))
+    if (kind === 'card_yellow' || kind === 'card_red') {
+      mergePlayerInto(jugadores, {
+        nombre: playerIsUuid ? '' : rawPlayer,
+        dorsal,
+        minutos: null,
+        goles: null,
+        asistencias: null,
+        amarilla: kind === 'card_yellow' ? true : null,
+        roja: kind === 'card_red' ? true : null,
+        titular: null,
+        ref: playerIsUuid ? rawPlayer : compactRef(flat) || undefined,
+      })
+      return
+    }
+    const g = parseGoalEvent(ev, opts, weAreHome)
+    if (!g) return
+    const key = `${g.minuto}|${g.jugador}|${g.en_contra ? 1 : 0}|${g.asistencia}`
+    if (seenGoals.has(key)) return
+    seenGoals.add(key)
+    goles.push(g)
+    if (!g.en_contra && (g.jugador || playerIsUuid)) {
+      mergePlayerInto(jugadores, {
+        nombre: playerIsUuid ? '' : g.jugador,
+        dorsal,
+        minutos: null,
+        goles: null,
+        asistencias: null,
+        amarilla: null,
+        roja: null,
+        titular: null,
+        ref: playerIsUuid ? rawPlayer : compactRef(flat) || undefined,
+      })
+    }
+  }
+
   for (const arr of arrays) {
     const recs = arr.items.map((x) => asRecord(x)).filter((x): x is Record<string, unknown> => !!x)
     if (recs.length === 0) continue
     const eventLike = recs.filter(looksLikeEvent)
     if (eventLike.length === 0) continue
     if (eventLike.every(looksLikePlayer) && eventLike.length === recs.length) continue
-    for (const ev of eventLike) {
-      const flat = flattenEvent(ev)
-      const tipoN = norm(pick(flat, ['tipo', 'type', 'event', 'evento', 'event_type', 'accion', 'eventName']))
-      const kind = classifyEventType(tipoN)
-      if (kind === 'sub') {
-        hayCambios = true
-        continue
+    eventLike.forEach(consumeEvent)
+  }
+
+  const harvestEventNode = (node: unknown, depth: number) => {
+    if (node == null || depth > 6 || typeof node !== 'object') return
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        const rec = asRecord(item)
+        if (rec && looksLikeEvent(rec) && !looksLikePlayer(rec)) consumeEvent(rec)
+        else harvestEventNode(item, depth + 1)
       }
-      if (kind === 'card_yellow' || kind === 'card_red') {
-        const nombre = String(pick(flat, ['jugador', 'player', 'nombre', 'player_name']) || '').trim()
-        const dorsal = parseIntSafe(pick(flat, ['dorsal', 'numero', 'number']))
-        mergePlayerInto(jugadores, {
-          nombre,
-          dorsal,
-          minutos: null,
-          goles: null,
-          asistencias: null,
-          amarilla: kind === 'card_yellow' ? true : null,
-          roja: kind === 'card_red' ? true : null,
-          titular: null,
-        })
-        continue
-      }
-      const g = parseGoalEvent(ev, opts, weAreHome)
-      if (g) goles.push(g)
+      return
     }
+    const rec = node as Record<string, unknown>
+    if (looksLikeEvent(rec) && !looksLikePlayer(rec)) {
+      consumeEvent(rec)
+      return
+    }
+    for (const v of Object.values(rec)) harvestEventNode(v, depth + 1)
+  }
+  harvestEventNode(root.half ?? pick(root, ['half', 'halves', 'timeline', 'ev', 'evs']), 0)
+
+  if (goles.length > 0 && jugadores.some((j) => j.goles == null)) {
+    const counts = new Map<string, number>()
+    for (const g of goles) {
+      if (g.en_contra || !g.jugador) continue
+      const key = looksLikeUuid(g.jugador) ? `id:${g.jugador.toLowerCase()}` : `n:${norm(g.jugador)}`
+      counts.set(key, (counts.get(key) || 0) + 1)
+    }
+    for (const p of jugadores) {
+      if (p.goles != null) continue
+      const n = (p.ref ? counts.get(`id:${p.ref.toLowerCase()}`) : undefined)
+        ?? (p.nombre ? counts.get(`n:${norm(p.nombre)}`) : undefined)
+      if (n) p.goles = n
+    }
+  }
+
+  const labelFromPlayers = (raw: string): string => {
+    const s = String(raw || '').trim()
+    if (!s) return ''
+    if (!looksLikeUuid(s)) return s
+    const hit = jugadores.find((j) => j.ref && j.ref.toLowerCase() === s.toLowerCase())
+    return hit?.nombre || s
+  }
+  for (const g of goles) {
+    g.jugador = labelFromPlayers(g.jugador)
+    g.asistencia = labelFromPlayers(g.asistencia)
   }
 
   if (hayCambios && jugadores.every((j) => j.minutos == null)) {
@@ -686,7 +998,14 @@ export function parseAnotacionesJson(raw: unknown, opts: ParseOpts = {}): Parsed
     }
   }
 
-  if (jugadores.length === 0) avisos.push('No se han encontrado jugadores con minutos/goles/dorsal.')
+  if (jugadores.length === 0) {
+    avisos.push('No se han encontrado jugadores (ni en conv/slots ni con minutos/goles/dorsal).')
+  } else if (jugadores.every((j) => j.minutos == null && j.goles == null && j.asistencias == null && !j.amarilla && !j.roja)) {
+    avisos.push(
+      `${jugadores.length} jugador${jugadores.length === 1 ? '' : 'es'} en el JSON; no traen minutos/goles/tarjetas (no se inventan).`,
+    )
+  }
+  if (formacion) avisos.push(`Formación del archivo: ${formacion}.`)
   if (gf == null && gc == null && goles.length === 0) {
     avisos.push('No hay marcador ni goles detallados en el archivo.')
   }
@@ -716,6 +1035,8 @@ export function parseAnotacionesJson(raw: unknown, opts: ParseOpts = {}): Parsed
     notas,
     avisos,
     clavesSinMapear,
+    estructura: describeEstructura(root),
+    formacion,
   }
 }
 
@@ -740,6 +1061,8 @@ export function parseAnotacionesFileText(text: string, opts: ParseOpts = {}): Pa
       notas: null,
       avisos: ['El archivo no es un JSON válido.'],
       clavesSinMapear: [],
+      estructura: [],
+      formacion: null,
     }
   }
   if (typeof data === 'string') {
@@ -771,11 +1094,22 @@ export function matchAnotacionPlayers(
   convocados: ConvocadoMatchable[],
 ): MatchedPlayerRow[] {
   const used = new Set<string>()
+  const idsOf = (c: ConvocadoMatchable): string[] => {
+    const out = [c.id, c.jugador_id, c.jugador && (c.jugador as { id?: string }).id]
+    return out.filter((x): x is string => Boolean(x)).map((x) => x.toLowerCase())
+  }
+
   return jugadores.map((j) => {
     const nombre = stripNumberPrefix(j.nombre).toLowerCase()
     let found: string | null = null
 
-    if (j.dorsal != null) {
+    const ref = (j.ref || (looksLikeUuid(j.nombre) ? j.nombre : '')).trim().toLowerCase()
+    if (ref) {
+      const byRef = convocados.filter((c) => !used.has(c.id) && idsOf(c).includes(ref))
+      if (byRef.length === 1) found = byRef[0].id
+    }
+
+    if (!found && j.dorsal != null) {
       const byDorsal = convocados.filter((c) => {
         const d = convName(c).dorsal
         return d != null && d === j.dorsal && !used.has(c.id)
@@ -783,7 +1117,7 @@ export function matchAnotacionPlayers(
       if (byDorsal.length === 1) found = byDorsal[0].id
     }
 
-    if (!found && nombre) {
+    if (!found && nombre && !looksLikeUuid(j.nombre)) {
       for (const c of convocados) {
         if (used.has(c.id)) continue
         const n = convName(c)

@@ -106,6 +106,97 @@ test('plan no pisa marcador ni minutos existentes', () => {
   assert.equal(plan.reflexion, 'ya escrita')
 })
 
+test('acta compacta conv/slots/half tipo SAMCAM empareja por UUID y rellena minutos/goles', () => {
+  const p1 = '1e8574fb-a329-49ad-af87-82175a4eeeca'
+  const p2 = 'd354d45c-f83f-446e-9f3b-86ad2d53fb18'
+  const raw = {
+    campo: 11,
+    conv: [
+      { n: 'Carlos Lopez', d: 9, m: 90, g: 1, j: p1 },
+      { n: 'Hugo Garcia', d: 10, m: 75, g: 1, y: 1, j: p2 },
+    ],
+    dorsal: true,
+    form: '4-3-3',
+    slots: { POR: p1, DC: p2 },
+    half: {
+      '1': [{ t: 'g', m: 12, j: p1 }],
+      '2': [{ t: 'g', m: 70, j: p2 }, { t: 'y', m: 55, j: p2 }],
+    },
+    dirright: true,
+    running: false,
+    gf: 2,
+    gc: 1,
+    clock: 90,
+    paused: true,
+  }
+  const parsed = parseAnotacionesJson(raw, { localia: 'local' })
+  assert.equal(parsed.goles_favor, 2)
+  assert.equal(parsed.goles_contra, 1)
+  assert.ok(parsed.jugadores.length >= 2)
+  const carlos = parsed.jugadores.find((j) => j.ref === p1 || j.nombre.includes('Carlos'))
+  const hugo = parsed.jugadores.find((j) => j.ref === p2 || j.nombre.includes('Hugo'))
+  assert.equal(carlos?.minutos, 90)
+  assert.equal(carlos?.goles, 1)
+  assert.equal(hugo?.minutos, 75)
+  assert.equal(hugo?.amarilla, true)
+  assert.ok(parsed.goles.some((g) => g.minuto === 12))
+  assert.equal(parsed.formacion, '4-3-3')
+  assert.ok(!parsed.avisos.some((a) => /No se han encontrado jugadores/i.test(a)))
+
+  const rows = matchAnotacionPlayers(parsed.jugadores, [
+    { id: 'c1', jugador_id: p1, dorsal: 9, jugador: { nombre: 'Carlos', apellidos: 'Lopez', apodo: '', dorsal: 9 } },
+    { id: 'c2', jugador_id: p2, dorsal: 10, jugador: { nombre: 'Hugo', apellidos: 'Garcia', apodo: '', dorsal: 10 } },
+  ])
+  assert.equal(rows.find((r) => r.ref === p1)?.convocatoria_id, 'c1')
+  assert.equal(rows.find((r) => r.ref === p2)?.convocatoria_id, 'c2')
+
+  const plan = planAnotacionesImport({
+    parsed,
+    convocados: [
+      { id: 'c1', jugador_id: p1, dorsal: 9, jugador: { nombre: 'Carlos', apellidos: 'Lopez', apodo: '', dorsal: 9 } },
+      { id: 'c2', jugador_id: p2, dorsal: 10, jugador: { nombre: 'Hugo', apellidos: 'Garcia', apodo: '', dorsal: 10 } },
+    ],
+    existing: {
+      hasResultado: false,
+      goles_favor: null,
+      goles_contra: null,
+      teamStats: {},
+      playerStats: {},
+      golesFavor: [],
+      golesContra: [],
+      reflexion: '',
+    },
+  })
+  assert.equal(plan.score?.apply, true)
+  assert.ok(plan.matchedCount >= 2)
+  assert.equal(plan.playerStats.c1.minutos_jugados, 90)
+  assert.equal(plan.playerStats.c1.goles, 1)
+  assert.ok(!plan.avisos.some((a) => /Nada que aplicar/i.test(a)))
+})
+
+test('conv de UUIDs + mapa de dorsales + half con goles', () => {
+  const p1 = '960ef8df-bc26-4ef7-bca1-9851f517412e'
+  const parsed = parseAnotacionesJson({
+    campo: '11',
+    conv: [p1],
+    dorsal: { [p1]: 7 },
+    form: '4-4-2',
+    slots: [p1],
+    half: { '1': [{ t: 'g', m: 8, j: p1 }] },
+    dirright: false,
+    running: true,
+  })
+  assert.equal(parsed.jugadores.length, 1)
+  assert.equal(parsed.jugadores[0].ref, p1)
+  assert.equal(parsed.jugadores[0].dorsal, 7)
+  assert.equal(parsed.goles.length, 1)
+  assert.equal(parsed.goles_favor, 1)
+  const rows = matchAnotacionPlayers(parsed.jugadores, [
+    { id: 'cx', jugador_id: p1, dorsal: 7, jugador: { nombre: 'Luis', apellidos: 'Perez', dorsal: 7 } },
+  ])
+  assert.equal(rows[0].convocatoria_id, 'cx')
+})
+
 test('plan rellena ceros y goles detallados sin zona inventada', () => {
   const parsed = parseAnotacionesJson({
     marcador: '1-0',
