@@ -233,6 +233,73 @@ export function bumpStat(
   return { ...stats, [k]: Math.max(0, (stats[k] || 0) + delta) }
 }
 
+export function isPenaltyGoal(ev?: AnotadorEvent | null): boolean {
+  return Boolean(ev && (ev.type === 'gol' || ev.type === 'gol_contra') && ev.es_abp && ev.tipo_abp === 'penalti')
+}
+
+export function goalSide(ev: AnotadorEvent): AnotadorSide {
+  if (ev.side) return ev.side
+  return ev.type === 'gol_contra' ? 'rival' : 'us'
+}
+
+export function nudgeElapsed(elapsedMs: number, deltaMs: number): number {
+  return Math.max(0, elapsedMs + deltaMs)
+}
+
+export function remapFormationSlots(
+  prev: Record<string, string>,
+  oldDefs: { id: string; position: string }[],
+  newDefs: { id: string; position: string }[],
+): Record<string, string> {
+  const next: Record<string, string> = {}
+  const used = new Set<string>()
+  const oldById = new Map(oldDefs.map((s) => [s.id, s]))
+  const occupied = Object.entries(prev).filter(([, convId]) => Boolean(convId))
+
+  for (const [slotId, convId] of occupied) {
+    if (newDefs.some((s) => s.id === slotId) && !used.has(convId)) {
+      next[slotId] = convId
+      used.add(convId)
+    }
+  }
+
+  for (const [slotId, convId] of occupied) {
+    if (used.has(convId)) continue
+    const pos = oldById.get(slotId)?.position
+    const dest = newDefs.find((s) => s.position === pos && !next[s.id])
+    if (dest) {
+      next[dest.id] = convId
+      used.add(convId)
+    }
+  }
+
+  for (const [, convId] of occupied) {
+    if (used.has(convId)) continue
+    const dest = newDefs.find((s) => !next[s.id])
+    if (dest) {
+      next[dest.id] = convId
+      used.add(convId)
+    }
+  }
+
+  return next
+}
+
+export function patchGoalEvent(
+  snapshot: AnotadorSnapshot,
+  id: string,
+  patch: Partial<AnotadorEvent>,
+): AnotadorSnapshot {
+  const before = snapshot.events.find((ev) => ev.id === id)
+  const events = snapshot.events.map((ev) => (ev.id === id ? { ...ev, ...patch } : ev))
+  const after = events.find((ev) => ev.id === id)
+  let teamStats = snapshot.teamStats
+  if (before && after && isPenaltyGoal(before) !== isPenaltyGoal(after)) {
+    teamStats = bumpStat(teamStats, 'penaltis', goalSide(after), isPenaltyGoal(after) ? 1 : -1)
+  }
+  return { ...snapshot, events, teamStats }
+}
+
 export function teamStatsFromEvents(events: AnotadorEvent[]): TeamStatsState {
   const stats = emptyTeamStats()
   for (const ev of events) {

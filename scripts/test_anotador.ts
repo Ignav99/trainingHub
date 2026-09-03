@@ -13,6 +13,10 @@ import {
   assignTitularesToSlots,
   golesDetalleFromEvents,
   DEFAULT_ANOTADOR,
+  nudgeElapsed,
+  remapFormationSlots,
+  patchGoalEvent,
+  isPenaltyGoal,
   type AnotadorSnapshot,
 } from '../frontend/src/lib/anotador.ts'
 
@@ -126,4 +130,40 @@ test('stats de ambos equipos y tipo de gol van al detalle', () => {
   assert.equal(favor[0].es_abp, true)
   assert.equal(favor[0].tipo_abp, 'corner')
   assert.equal(favor[0].zona, 'izquierda')
+})
+
+test('el reloj no baja de cero', () => {
+  assert.equal(nudgeElapsed(30_000, -60_000), 0)
+  assert.equal(nudgeElapsed(60_000, 60_000), 120_000)
+})
+
+test('cambiar de formación conserva jugadores', () => {
+  const next = remapFormationSlots(
+    { POR: 'gk', DC: 'st', EXI: 'lw' },
+    [
+      { id: 'POR', position: 'POR' },
+      { id: 'DC', position: 'DC' },
+      { id: 'EXI', position: 'EXI' },
+    ],
+    [
+      { id: 'POR', position: 'POR' },
+      { id: 'DC_L', position: 'DC' },
+      { id: 'DC_R', position: 'DC' },
+    ],
+  )
+  assert.equal(next.POR, 'gk')
+  assert.equal(next.DC_L, 'st')
+  assert.equal(next.DC_R, 'lw')
+})
+
+test('marcar un gol como penalti suma la estadística', () => {
+  const snap: AnotadorSnapshot = {
+    ...DEFAULT_ANOTADOR,
+    events: [{ id: '1', minute: 12, half: 1, type: 'gol', convId: 'a', es_abp: false, tipo_gol: 'otro' }],
+  }
+  const patched = patchGoalEvent(snap, '1', { es_abp: true, tipo_abp: 'penalti', tipo_gol: undefined })
+  assert.equal(isPenaltyGoal(patched.events[0]), true)
+  assert.equal(patched.teamStats.penaltis, 1)
+  const reverted = patchGoalEvent(patched, '1', { es_abp: false, tipo_gol: 'contraataque', tipo_abp: undefined })
+  assert.equal(reverted.teamStats.penaltis, 0)
 })
