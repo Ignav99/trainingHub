@@ -143,10 +143,17 @@ export function AnotacionesImportDialog({
     ? TEAM_STAT_KEYS.filter((k) => parsed.teamStats[k] != null || parsed.rivalStats[k] != null)
     : []
 
+  const hasPlayerData = Boolean(
+    plan && matchedPreview.some((r) =>
+      r.convocatoria_id && (
+        r.minutos != null || r.goles != null || r.asistencias != null || r.amarilla || r.roja
+      ),
+    ),
+  )
   const canApply = Boolean(
     plan && parsed && (
       plan.score?.apply
-      || plan.matchedCount > 0
+      || hasPlayerData
       || parsed.goles.length > 0
       || incomingStatKeys.length > 0
       || (plan.reflexion && plan.reflexion !== existing.reflexion)
@@ -218,6 +225,24 @@ export function AnotacionesImportDialog({
               </ul>
             )}
 
+            {parsed.estructura.length > 0 && (
+              <details className="rounded-md border px-3 py-2 text-xs">
+                <summary className="cursor-pointer font-medium text-muted-foreground">
+                  Estructura del JSON ({parsed.estructura.length} claves)
+                </summary>
+                <ul className="mt-2 space-y-1 text-muted-foreground">
+                  {parsed.estructura.map((row) => (
+                    <li key={row.clave}>
+                      <span className="font-mono text-foreground">{row.clave}</span>
+                      {' · '}
+                      {row.tipo}
+                      {row.detalle ? ` · ${row.detalle}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+
             {parsed.jugadores.length > 0 && (
               <div className="overflow-x-auto max-h-64 overflow-y-auto border rounded-md">
                 <table className="w-full text-sm">
@@ -236,7 +261,8 @@ export function AnotacionesImportDialog({
                     {matchedPreview.map((row, i) => (
                       <tr key={i} className={`border-b ${!row.convocatoria_id ? 'bg-red-50/60' : ''}`}>
                         <td className="px-2 py-1.5 text-xs">
-                          {row.dorsal != null ? `${row.dorsal}. ` : ''}{row.nombre || '—'}
+                          {row.dorsal != null ? `${row.dorsal}. ` : ''}
+                          {row.nombre || (row.ref ? row.ref.slice(0, 8) + '…' : '—')}
                         </td>
                         <td className="px-2 py-1.5">
                           <select
