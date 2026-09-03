@@ -27,6 +27,7 @@ import {
   UtensilsCrossed,
   PenTool,
   FileStack,
+  Watch,
 } from 'lucide-react'
 import { preload } from 'swr'
 import { apiFetcher } from '@/lib/swr'
@@ -92,6 +93,7 @@ const saludNavigation: NavItem[] = [
 ]
 
 const toolsNavigation: NavItem[] = [
+  { name: 'Anotador', href: '/anotador', icon: Watch },
   { name: 'Video Análisis', href: '/video-analisis', icon: ScanSearch },
   { name: 'Pizarra Táctica', href: '/pizarra-tactica', icon: PenTool },
   { name: 'Estadísticas', href: '/estadisticas', icon: BarChart3 },
