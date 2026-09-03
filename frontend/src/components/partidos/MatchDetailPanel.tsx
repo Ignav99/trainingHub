@@ -24,7 +24,9 @@ import {
   ClipboardList,
   Star,
   Lightbulb,
+  Watch,
 } from 'lucide-react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { TeamCrest } from '@/components/ui/team-crest'
@@ -839,6 +841,12 @@ export function MatchDetailPanel({
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          <Button asChild>
+            <Link href={`/anotador/${selectedPartido.id}`}>
+              <Watch className="h-4 w-4 mr-2" />
+              Anotar en campo
+            </Link>
+          </Button>
           <Button variant="outline" size="icon" onClick={handleOpenEdit}>
             <Pencil className="h-4 w-4" />
           </Button>
@@ -883,6 +891,14 @@ export function MatchDetailPanel({
               <UserPlus className="h-4 w-4 mr-2" />
               Convocar
             </Button>
+            {convocados.length > 0 && (
+              <Button variant="outline" size="sm" asChild>
+                <Link href={`/anotador/${selectedPartido.id}`}>
+                  <Watch className="h-4 w-4 mr-1" />
+                  Anotar en campo
+                </Link>
+              </Button>
+            )}
             {convocados.length > 0 && (
               <Button variant="outline" size="sm" onClick={handleGeneratePdf} disabled={generatingPdf}>
                 {generatingPdf ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
@@ -1432,6 +1448,12 @@ export function MatchDetailPanel({
 
           {/* Save + Actions */}
           <div className="flex items-center gap-2 flex-wrap">
+            <Button asChild>
+              <Link href={`/anotador/${selectedPartido.id}`}>
+                <Watch className="h-4 w-4 mr-2" />
+                Anotar en campo
+              </Link>
+            </Button>
             <Button onClick={handleSaveInforme} disabled={savingInforme}>
               {savingInforme ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Guardar informe
