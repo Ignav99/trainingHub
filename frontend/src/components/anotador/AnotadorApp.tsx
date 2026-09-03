@@ -23,16 +23,18 @@ import { useEquipoStore } from '@/stores/equipoStore'
 import {
   type AttackLane,
   applySub,
-  bumpStat,
-  bumpOccasionLane,
+  bumpPeriodOccasion,
+  bumpPeriodStat,
+  closeMatch,
   computePlayerRows,
+  currentPeriod,
   DEFAULT_ANOTADOR,
   denormalizeFoulDot,
   emptyTeamStats,
   eventLabel,
   formatClock,
-  goalSide,
   golesDetalleFromEvents,
+  golesPorPeriodoFromEvents,
   hydrateSnapshot,
   informeStatsFromUnknown,
   isPenaltyGoal,
@@ -42,22 +44,27 @@ import {
   nudgeElapsed,
   normalizeFoulDot,
   patchGoalEvent,
+  periodReport,
   remapFormationSlots,
+  reopenMatch,
   scoreFromEvents,
+  setActiveHalf,
+  setPeriodFoulMap,
   startEleven,
+  statsPeriodosPayload,
   TEAM_STAT_FIELDS,
   TIPO_ABP_OPTIONS,
   TIPO_GOL_OPTIONS,
   ZONA_OPTIONS,
-  totalOccasionsFromLanes,
   type AnotadorEvent,
+  type AnotadorHalf,
   type AnotadorSide,
   type AnotadorSnapshot,
   type TeamStatKey,
 } from '@/lib/anotador'
 import type { Convocatoria, EstadisticaPartido, Partido } from '@/types'
 
-type Tab = 'acta' | 'once' | 'goles' | 'stats' | 'faltas' | 'notas'
+type Tab = 'acta' | 'once' | 'goles' | 'stats' | 'faltas' | 'notas' | 'cierre'
 type Pending = 'cambio' | 'asistencia' | null
 
 const TABS: { id: Tab; label: string }[] = [
@@ -67,6 +74,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'stats', label: 'Stats' },
   { id: 'faltas', label: 'Faltas' },
   { id: 'notas', label: 'Notas' },
+  { id: 'cierre', label: 'Cierre' },
 ]
 
 const LIVE_STATS: TeamStatKey[] = [
@@ -268,6 +276,8 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
           faltas_mapa_cometidas: current.foulMap.cometidas,
           faltas_mapa_recibidas: current.foulMap.recibidas,
           reflexion_entrenador: reflexionRef.current,
+          goles_por_periodo: golesPorPeriodoFromEvents(current.events),
+          stats_periodos: statsPeriodosPayload(current),
           ...emptyTeamStats(),
           ...current.teamStats,
         }
@@ -292,7 +302,11 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
         undefined,
         { revalidate: true },
       )
-      toast.success(hasLive ? 'Todo guardado en el informe' : 'Once guardado. Pulsa saque al empezar.')
+      toast.success(
+        current.closed
+          ? 'Partido cerrado. Totales 1ª + 2ª en el informe'
+          : hasLive ? 'Todo guardado en el informe' : 'Once guardado. Pulsa saque al empezar.',
+      )
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'No se ha podido guardar')
       throw err
@@ -311,7 +325,7 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
     if (!snap.started && snap.events.length === 0) return
     const t = window.setTimeout(() => persistSilentRef.current(), 12_000)
     return () => window.clearTimeout(t)
-  }, [snap.events, snap.slots, snap.half, snap.form, snap.teamStats, snap.foulMap, ready])
+  }, [snap.events, snap.slots, snap.half, snap.form, snap.teamStats, snap.periods, snap.foulMap, snap.closed, ready])
 
   useEffect(() => {
     if (!snap.running) return
@@ -329,8 +343,9 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
     if (willPause) window.setTimeout(() => { void persistFullRef.current().catch(() => undefined) }, 0)
   }
 
-  const nextHalf = () => {
-    setSnap((s) => ({ ...s, running: false, half: 2, half1Ms: s.elapsedMs, elapsedMs: 0 }))
+  const changeHalf = (half: AnotadorHalf) => {
+    if (snap.half === half) return
+    setSnap((s) => setActiveHalf(s, half))
     window.setTimeout(() => { void persistFullRef.current().catch(() => undefined) }, 0)
   }
 
@@ -339,16 +354,17 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
       const last = s.events[s.events.length - 1]
       if (!last) return s
       const events = s.events.slice(0, -1)
-      let teamStats = s.teamStats
+      let next: AnotadorSnapshot = { ...s, events }
       let slots = s.slots
       let enteredAt = s.enteredAt
       let playedOff = s.playedOff
-      const side = goalSide(last)
-      if (last.type === 'corner') teamStats = bumpStat(teamStats, 'saques_esquina', side, -1)
-      if (last.type === 'falta') teamStats = bumpStat(teamStats, 'faltas_cometidas', side, -1)
-      if (last.type === 'amarilla') teamStats = bumpStat(teamStats, 'tarjetas_amarillas', side, -1)
-      if (last.type === 'roja') teamStats = bumpStat(teamStats, 'tarjetas_rojas', side, -1)
-      if (isPenaltyGoal(last)) teamStats = bumpStat(teamStats, 'penaltis', side, -1)
+      const side = last.side || (last.type === 'gol_contra' ? 'rival' : 'us')
+      const half = last.half || s.half
+      if (last.type === 'corner') next = bumpPeriodStat(next, 'saques_esquina', side, -1, half)
+      if (last.type === 'falta') next = bumpPeriodStat(next, 'faltas_cometidas', side, -1, half)
+      if (last.type === 'amarilla') next = bumpPeriodStat(next, 'tarjetas_amarillas', side, -1, half)
+      if (last.type === 'roja') next = bumpPeriodStat(next, 'tarjetas_rojas', side, -1, half)
+      if (isPenaltyGoal(last)) next = bumpPeriodStat(next, 'penaltis', side, -1, half)
       if (last.type === 'cambio' && last.convId && last.relatedConvId && last.slotId) {
         slots = { ...s.slots, [last.slotId]: last.convId }
         enteredAt = { ...s.enteredAt }
@@ -361,7 +377,7 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
         delete playedOff[last.convId]
         slots = { ...slots, [last.slotId]: last.convId }
       }
-      return { ...s, events, teamStats, slots, enteredAt, playedOff }
+      return { ...next, slots, enteredAt, playedOff }
     })
     setPending(null)
     setGoalDraftId(null)
@@ -425,21 +441,20 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
         const entered = s.enteredAt[convId] ?? nowMin
         const nextSlots = { ...s.slots }
         if (slotId) delete nextSlots[slotId]
-        return {
+        return bumpPeriodStat({
           ...s,
           events: [...s.events, {
             id: newEventId(), minute: nowMin, half: s.half, type: 'roja', convId, slotId, side: 'us',
           }],
           slots: nextSlots,
           playedOff: { ...s.playedOff, [convId]: (s.playedOff[convId] || 0) + Math.max(0, nowMin - entered) },
-          teamStats: bumpStat(s.teamStats, 'tarjetas_rojas', 'us', 1),
-        }
+        }, 'tarjetas_rojas', 'us', 1)
       })
       setSelected(null)
       return
     }
     if (type === 'amarilla') {
-      setSnap((s) => ({
+      setSnap((s) => bumpPeriodStat({
         ...s,
         events: [...s.events, {
           id: newEventId(),
@@ -449,8 +464,7 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
           convId,
           side: 'us',
         }],
-        teamStats: bumpStat(s.teamStats, 'tarjetas_amarillas', 'us', 1),
-      }))
+      }, 'tarjetas_amarillas', 'us', 1))
       return
     }
     const ev = pushTimed({ type: 'gol', convId, side: 'us', es_abp: false, tipo_gol: 'otro', zona: 'central' })
@@ -473,7 +487,7 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
       setSelected(null)
       return
     }
-    setSnap((s) => ({
+    setSnap((s) => bumpPeriodStat({
       ...s,
       events: [...s.events, {
         id: newEventId(),
@@ -482,32 +496,15 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
         type,
         side: 'rival',
       }],
-      teamStats: bumpStat(
-        s.teamStats,
-        type === 'amarilla' ? 'tarjetas_amarillas' : 'tarjetas_rojas',
-        'rival',
-        1,
-      ),
-    }))
+    }, type === 'amarilla' ? 'tarjetas_amarillas' : 'tarjetas_rojas', 'rival', 1))
   }
 
   const bump = (key: TeamStatKey, side: AnotadorSide, delta: number) => {
-    setSnap((s) => ({ ...s, teamStats: bumpStat(s.teamStats, key, side, delta) }))
+    setSnap((s) => bumpPeriodStat(s, key, side, delta))
   }
 
   const bumpOccasion = (side: AnotadorSide, lane: AttackLane, delta: number) => {
-    setSnap((s) => {
-      const occasionLanes = bumpOccasionLane(s.occasionLanes, side, lane, delta)
-      return {
-        ...s,
-        occasionLanes,
-        teamStats: {
-          ...s.teamStats,
-          ocasiones_gol: totalOccasionsFromLanes(occasionLanes, 'us'),
-          rival_ocasiones_gol: totalOccasionsFromLanes(occasionLanes, 'rival'),
-        },
-      }
-    })
+    setSnap((s) => bumpPeriodOccasion(s, side, lane, delta))
   }
 
   const patchGoal = (id: string, patch: Partial<AnotadorEvent>) => {
@@ -571,11 +568,14 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
     )
   }
 
-  const phaseLabel = !snap.started
-    ? 'Previa'
-    : snap.running
-      ? (snap.half === 2 ? '2ª' : '1ª')
-      : snap.half === 2 ? 'Pausa' : 'Descanso'
+  const livePeriod = currentPeriod(snap)
+  const phaseLabel = snap.closed
+    ? 'Cerrado'
+    : !snap.started
+      ? 'Previa'
+      : snap.running
+        ? (snap.half === 2 ? '2ª' : '1ª')
+        : snap.half === 2 ? 'Pausa 2ª' : 'Descanso'
 
   return (
     <div className="h-[100dvh] flex flex-col bg-[#07110c] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
@@ -607,11 +607,22 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
             <p className="text-[10px] uppercase tracking-widest text-emerald-400/80">{phaseLabel}</p>
           </div>
           <button type="button" onClick={() => setSnap((s) => ({ ...s, elapsedMs: nudgeElapsed(s.elapsedMs, 60_000) }))} className="h-10 w-10 rounded-xl bg-white/10 text-lg" aria-label="Sumar minuto">+</button>
-          {snap.half === 1 && snap.started && (
-            <button type="button" onClick={nextHalf} className="h-12 px-2 rounded-2xl bg-white/10 text-xs font-semibold">
+          <div className="grid grid-cols-2 h-12 rounded-2xl overflow-hidden bg-white/10">
+            <button
+              type="button"
+              onClick={() => changeHalf(1)}
+              className={`px-2.5 text-xs font-semibold ${snap.half === 1 ? 'bg-amber-400 text-zinc-950' : 'text-zinc-200'}`}
+            >
+              1ª
+            </button>
+            <button
+              type="button"
+              onClick={() => changeHalf(2)}
+              className={`px-2.5 text-xs font-semibold ${snap.half === 2 ? 'bg-amber-400 text-zinc-950' : 'text-zinc-200'}`}
+            >
               2ª
             </button>
-          )}
+          </div>
           <button
             type="button"
             onClick={toggleClock}
@@ -623,7 +634,7 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
         </div>
       </header>
 
-      <nav className="shrink-0 grid grid-cols-6 gap-1 px-1.5 py-1 bg-[#050d09]">
+      <nav className="shrink-0 grid grid-cols-7 gap-1 px-1.5 py-1 bg-[#050d09]">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -650,7 +661,7 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
             fireCambio={fireCambio}
             fireRival={fireRival}
             bump={bump}
-            teamStats={snap.teamStats}
+            teamStats={livePeriod.teamStats}
             selectedName={selectedConv ? `${dorsalOf(selectedConv) ?? '—'} ${displayName(selectedConv)}` : null}
             onField={onField}
             minutes={Object.fromEntries(Object.entries(rows).map(([id, r]) => [id, r.minutos_jugados]))}
@@ -679,8 +690,10 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
         )}
         {tab === 'stats' && (
           <StatsTab
-            teamStats={snap.teamStats}
-            occasionLanes={snap.occasionLanes}
+            teamStats={livePeriod.teamStats}
+            occasionLanes={livePeriod.occasionLanes}
+            totals={snap.teamStats}
+            half={snap.half}
             usName={equipoNombre}
             rivalName={partido.rival?.nombre || 'Rival'}
             bump={bump}
@@ -689,9 +702,10 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
         )}
         {tab === 'faltas' && (
           <FaltasTab
-            foulMap={snap.foulMap}
+            foulMap={livePeriod.foulMap}
             dirRight={snap.dirRight}
-            setFoulMap={(foulMap) => setSnap((s) => ({ ...s, foulMap }))}
+            half={snap.half}
+            setFoulMap={(foulMap) => setSnap((s) => setPeriodFoulMap(s, foulMap))}
           />
         )}
         {tab === 'notas' && (
@@ -703,6 +717,22 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
             setNotasRend={setNotasRend}
             reflexion={reflexion}
             setReflexion={setReflexion}
+          />
+        )}
+        {tab === 'cierre' && (
+          <CierreTab
+            snap={snap}
+            usName={equipoNombre}
+            rivalName={partido.rival?.nombre || 'Rival'}
+            partidoId={partidoId}
+            saving={saving}
+            onSave={() => void persist()}
+            onClose={() => {
+              setSnap((s) => closeMatch(s))
+              setTab('cierre')
+              window.setTimeout(() => { void persistFullRef.current().catch(() => undefined) }, 0)
+            }}
+            onReopen={() => setSnap((s) => reopenMatch(s))}
           />
         )}
 
@@ -840,7 +870,7 @@ function ActaTab({
           <BigBtn label="Amarilla" onClick={() => fireRival('amarilla')} tone="yellow" />
           <BigBtn label="Roja" onClick={() => fireRival('roja')} tone="red" />
         </div>
-        <p className="text-[10px] uppercase tracking-widest text-zinc-500 px-1 pt-1">Contadores</p>
+        <p className="text-[10px] uppercase tracking-widest text-zinc-500 px-1 pt-1">Contadores de esta parte</p>
         <div className="grid grid-cols-[1fr_72px_72px] gap-y-1 gap-x-1 items-center text-xs">
           <span />
           <span className="text-center text-zinc-500">Nos</span>
@@ -1053,6 +1083,8 @@ function GolesTab({
 function StatsTab({
   teamStats,
   occasionLanes,
+  totals,
+  half,
   usName,
   rivalName,
   bump,
@@ -1060,6 +1092,8 @@ function StatsTab({
 }: {
   teamStats: Record<string, number>
   occasionLanes: AnotadorSnapshot['occasionLanes']
+  totals: Record<string, number>
+  half: AnotadorHalf
   usName: string
   rivalName: string
   bump: (key: TeamStatKey, side: AnotadorSide, delta: number) => void
@@ -1068,9 +1102,13 @@ function StatsTab({
   const regularFields = TEAM_STAT_FIELDS.filter((field) => field.key !== 'ocasiones_gol')
   return (
     <div className="h-full overflow-y-auto p-2 space-y-3">
+      <p className="px-1 text-xs text-amber-200/80">
+        Anotando {half === 1 ? '1ª' : '2ª'} parte. El total del partido se ve en Cierre.
+        {' '}Totales {totals.ocasiones_gol || 0}–{totals.rival_ocasiones_gol || 0} ocas.
+      </p>
       <section className="rounded-2xl bg-[#122018] p-3 space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-semibold">Ocasiones por carril</p>
+          <p className="text-sm font-semibold">Ocasiones por carril · {half === 1 ? '1ª' : '2ª'}</p>
           <p className="text-xs text-zinc-400">
             {teamStats.ocasiones_gol || 0} · {teamStats.rival_ocasiones_gol || 0}
           </p>
@@ -1115,10 +1153,12 @@ function StatsTab({
 function FaltasTab({
   foulMap,
   dirRight,
+  half,
   setFoulMap,
 }: {
   foulMap: AnotadorSnapshot['foulMap']
   dirRight: boolean
+  half: AnotadorHalf
   setFoulMap: (m: AnotadorSnapshot['foulMap']) => void
 }) {
   const [mode, setMode] = useState<'cometidas' | 'recibidas'>('cometidas')
@@ -1146,7 +1186,9 @@ function FaltasTab({
         </button>
       </div>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs text-zinc-500">Toca el campo tal y como lo ves. Dentro, nuestra portería queda siempre a la izquierda.</p>
+        <p className="text-xs text-zinc-500">
+          {half === 1 ? '1ª' : '2ª'} parte. Toca el campo tal y como lo ves. Dentro, nuestra portería queda siempre a la izquierda.
+        </p>
         <button
           type="button"
           onClick={() => setDots(dots.slice(0, -1))}
@@ -1280,6 +1322,150 @@ function NotasTab({
           placeholder="Qué mejorar esta semana. Sale en la Sala del Lunes."
         />
       </div>
+    </div>
+  )
+}
+
+function CierreTab({
+  snap,
+  usName,
+  rivalName,
+  partidoId,
+  saving,
+  onSave,
+  onClose,
+  onReopen,
+}: {
+  snap: AnotadorSnapshot
+  usName: string
+  rivalName: string
+  partidoId: string
+  saving: boolean
+  onSave: () => void
+  onClose: () => void
+  onReopen: () => void
+}) {
+  const report = periodReport(snap)
+  return (
+    <div className="h-full overflow-y-auto p-2 space-y-3">
+      <section className="rounded-2xl bg-[#122018] p-3 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-semibold">Dos espacios: 1ª y 2ª</p>
+          {snap.closed ? (
+            <span className="text-[11px] uppercase tracking-widest text-emerald-400">Cerrado</span>
+          ) : (
+            <span className="text-[11px] uppercase tracking-widest text-amber-300">En curso · {snap.half === 1 ? '1ª' : '2ª'}</span>
+          )}
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <ScoreBox label="1ª" gf={report.score1.gf} gc={report.score1.gc} />
+          <ScoreBox label="2ª" gf={report.score2.gf} gc={report.score2.gc} />
+          <ScoreBox label="Total" gf={report.total.gf} gc={report.total.gc} accent />
+        </div>
+      </section>
+
+      <section className="rounded-2xl bg-[#122018] p-3 overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-zinc-500">
+              <th className="text-left font-medium pb-2">Estadística</th>
+              <th className="text-center font-medium pb-2" colSpan={2}>1ª</th>
+              <th className="text-center font-medium pb-2" colSpan={2}>2ª</th>
+              <th className="text-center font-medium pb-2" colSpan={2}>Total</th>
+            </tr>
+            <tr className="text-[10px] text-zinc-500">
+              <th />
+              <th className="text-center font-normal pb-2 max-w-[4rem] truncate">{usName}</th>
+              <th className="text-center font-normal pb-2">Riv</th>
+              <th className="text-center font-normal pb-2 max-w-[4rem] truncate">{usName}</th>
+              <th className="text-center font-normal pb-2">Riv</th>
+              <th className="text-center font-normal pb-2 max-w-[4rem] truncate">{usName}</th>
+              <th className="text-center font-normal pb-2">Riv</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...report.lanes, ...report.rows].map((row) => (
+              <tr key={row.key} className="border-t border-white/5">
+                <td className="py-1.5 text-zinc-300">{row.label}</td>
+                <td className="text-center font-mono tabular-nums">{row.p1us}</td>
+                <td className="text-center font-mono tabular-nums text-zinc-400">{row.p1rival}</td>
+                <td className="text-center font-mono tabular-nums">{row.p2us}</td>
+                <td className="text-center font-mono tabular-nums text-zinc-400">{row.p2rival}</td>
+                <td className="text-center font-mono tabular-nums text-amber-200">{row.tus}</td>
+                <td className="text-center font-mono tabular-nums text-amber-200/70">{row.trival}</td>
+              </tr>
+            ))}
+            <tr className="border-t border-white/5">
+              <td className="py-1.5 text-zinc-300">Faltas mapa cometidas</td>
+              <td className="text-center font-mono">{report.fouls.cometidas1}</td>
+              <td />
+              <td className="text-center font-mono">{report.fouls.cometidas2}</td>
+              <td />
+              <td className="text-center font-mono text-amber-200">{report.fouls.cometidas1 + report.fouls.cometidas2}</td>
+              <td />
+            </tr>
+            <tr className="border-t border-white/5">
+              <td className="py-1.5 text-zinc-300">Faltas mapa recibidas</td>
+              <td className="text-center font-mono">{report.fouls.recibidas1}</td>
+              <td />
+              <td className="text-center font-mono">{report.fouls.recibidas2}</td>
+              <td />
+              <td className="text-center font-mono text-amber-200">{report.fouls.recibidas1 + report.fouls.recibidas2}</td>
+              <td />
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <div className="grid gap-2">
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={saving || snap.closed}
+          className="min-h-14 rounded-2xl bg-emerald-500 text-zinc-950 font-semibold disabled:opacity-50"
+        >
+          {saving ? 'Guardando…' : snap.closed ? 'Partido cerrado' : 'Cerrar partido y volcar al informe'}
+        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving}
+            className="min-h-12 rounded-xl bg-white/10 font-semibold"
+          >
+            Guardar sin cerrar
+          </button>
+          {snap.closed ? (
+            <button type="button" onClick={onReopen} className="min-h-12 rounded-xl bg-white/10 font-semibold">
+              Seguir anotando
+            </button>
+          ) : (
+            <Link
+              href={`/partidos?match=${partidoId}&tab=informe-partido`}
+              className="min-h-12 rounded-xl bg-white/10 font-semibold flex items-center justify-center"
+            >
+              Ver informe
+            </Link>
+          )}
+        </div>
+        {snap.closed && (
+          <Link
+            href={`/partidos?match=${partidoId}&tab=informe-partido`}
+            className="min-h-12 rounded-xl bg-amber-400 text-zinc-950 font-semibold flex items-center justify-center"
+          >
+            Ver totales en el informe
+          </Link>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ScoreBox({ label, gf, gc, accent }: { label: string; gf: number; gc: number; accent?: boolean }) {
+  return (
+    <div className={`rounded-xl px-2 py-2 ${accent ? 'bg-amber-400 text-zinc-950' : 'bg-white/5'}`}>
+      <p className={`text-[10px] uppercase tracking-widest ${accent ? 'text-zinc-700' : 'text-zinc-500'}`}>{label}</p>
+      <p className="font-mono tabular-nums text-2xl leading-none mt-1">{gf}–{gc}</p>
     </div>
   )
 }

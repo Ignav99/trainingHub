@@ -92,6 +92,29 @@ export function PartidoStatsTab({ data }: Props) {
         <StatCard icon={ArrowLeftRight} value={`${stats.balones_recuperados}/${stats.balones_perdidos}`} label="Recup. / Perdidas" color="purple" />
       </div>
 
+      {stats.por_parte && stats.por_parte.partidos > 0 && (
+        <ChartCard title="1ª parte vs 2ª parte (acumulado)">
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart
+              data={[
+                { stat: 'Tiros', p1: stats.por_parte['1'].tiros_a_puerta, p2: stats.por_parte['2'].tiros_a_puerta },
+                { stat: 'Ocasiones', p1: stats.por_parte['1'].ocasiones_gol, p2: stats.por_parte['2'].ocasiones_gol },
+                { stat: 'Corners', p1: stats.por_parte['1'].saques_esquina, p2: stats.por_parte['2'].saques_esquina },
+                { stat: 'Faltas', p1: stats.por_parte['1'].faltas_cometidas, p2: stats.por_parte['2'].faltas_cometidas },
+                { stat: 'Amarillas', p1: stats.por_parte['1'].tarjetas_amarillas, p2: stats.por_parte['2'].tarjetas_amarillas },
+              ]}
+            >
+              <XAxis dataKey="stat" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="p1" fill="#F59E0B" name="1ª parte" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="p2" fill="#10B981" name="2ª parte" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      )}
+
       <div className="grid md:grid-cols-2 gap-6">
         {/* Horizontal comparison */}
         <ChartCard title="Equipo vs Rivales (acumulado)" isEmpty={stats.partidos_con_estadisticas === 0}>

@@ -945,6 +945,8 @@ export interface EstadisticaPartido {
   comentario_tactico: string
   /** Reflexión 1er/2º entrenador (mejora) → Sala del Lunes siguiente microciclo */
   reflexion_entrenador?: string
+  /** Stats 1ª / 2ª parte del anotador */
+  stats_periodos?: Record<string, unknown>
 
   created_at: string
   updated_at: string

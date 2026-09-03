@@ -22,6 +22,15 @@ import {
   bumpOccasionLane,
   totalOccasionsFromLanes,
   emptyOccasionLanes,
+  bumpPeriodStat,
+  bumpPeriodOccasion,
+  setActiveHalf,
+  closeMatch,
+  reopenMatch,
+  periodReport,
+  golesPorPeriodoFromEvents,
+  normalizeSnapshot,
+  statsPeriodosPayload,
   type AnotadorSnapshot,
 } from '../frontend/src/lib/anotador.ts'
 
@@ -187,4 +196,70 @@ test('las ocasiones por carril recalculan el total', () => {
   lanes = bumpOccasionLane(lanes, 'rival', 'dch', 1)
   assert.equal(totalOccasionsFromLanes(lanes, 'us'), 3)
   assert.equal(totalOccasionsFromLanes(lanes, 'rival'), 1)
+})
+
+test('1ª y 2ª parte guardan stats en espacios distintos y el total suma', () => {
+  let snap: AnotadorSnapshot = { ...DEFAULT_ANOTADOR }
+  snap = bumpPeriodStat(snap, 'tiros_a_puerta', 'us', 2, 1)
+  snap = bumpPeriodStat(snap, 'tiros_a_puerta', 'us', 3, 2)
+  snap = bumpPeriodOccasion(snap, 'us', 'izq', 1, 1)
+  snap = bumpPeriodOccasion(snap, 'us', 'dch', 2, 2)
+  assert.equal(snap.periods[1].teamStats.tiros_a_puerta, 2)
+  assert.equal(snap.periods[2].teamStats.tiros_a_puerta, 3)
+  assert.equal(snap.teamStats.tiros_a_puerta, 5)
+  assert.equal(snap.teamStats.ocasiones_gol, 3)
+  const report = periodReport(snap)
+  assert.equal(report.rows.find((r) => r.key === 'tiros_a_puerta')?.tus, 5)
+  assert.equal(report.lanes.find((r) => r.key === 'oc_izq')?.p1us, 1)
+  assert.equal(report.lanes.find((r) => r.key === 'oc_dch')?.p2us, 2)
+})
+
+test('cambiar de parte conserva el reloj de cada mitad', () => {
+  let snap: AnotadorSnapshot = { ...DEFAULT_ANOTADOR, elapsedMs: 12 * 60000, started: true }
+  snap = setActiveHalf(snap, 2)
+  assert.equal(snap.half, 2)
+  assert.equal(snap.half1Ms, 12 * 60000)
+  assert.equal(snap.elapsedMs, 0)
+  snap = { ...snap, elapsedMs: 8 * 60000 }
+  snap = setActiveHalf(snap, 1)
+  assert.equal(snap.half, 1)
+  assert.equal(snap.elapsedMs, 12 * 60000)
+  assert.equal(snap.half2Ms, 8 * 60000)
+})
+
+test('cerrar el partido marca cierre y se puede reabrir', () => {
+  const closed = closeMatch({ ...DEFAULT_ANOTADOR, started: true, elapsedMs: 1000 })
+  assert.equal(closed.closed, true)
+  assert.equal(closed.running, false)
+  assert.ok(closed.closedAt)
+  const opened = reopenMatch(closed)
+  assert.equal(opened.closed, false)
+})
+
+test('goles por parte alimentan el informe y el payload de periodos', () => {
+  const snap = normalizeSnapshot({
+    ...DEFAULT_ANOTADOR,
+    events: [
+      { id: '1', minute: 12, half: 1, type: 'gol', convId: 'a' },
+      { id: '2', minute: 70, half: 2, type: 'gol_contra' },
+    ],
+  })
+  const gpp = golesPorPeriodoFromEvents(snap.events)
+  assert.equal(gpp['1a_favor'], 1)
+  assert.equal(gpp['2a_contra'], 1)
+  const payload = statsPeriodosPayload(snap)
+  assert.equal(payload.total.goles_favor, 1)
+  assert.equal(payload.total.goles_contra, 1)
+})
+
+test('snapshots viejos sin periods se migran a la 1ª parte', () => {
+  const raw = {
+    ...DEFAULT_ANOTADOR,
+    teamStats: { ...DEFAULT_ANOTADOR.teamStats, tiros_a_puerta: 4 },
+    periods: undefined,
+  } as unknown as AnotadorSnapshot
+  const snap = normalizeSnapshot(raw)
+  assert.equal(snap.periods[1].teamStats.tiros_a_puerta, 4)
+  assert.equal(snap.periods[2].teamStats.tiros_a_puerta, 0)
+  assert.equal(snap.teamStats.tiros_a_puerta, 4)
 })

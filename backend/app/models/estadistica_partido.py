@@ -50,6 +50,8 @@ class EstadisticaPartidoBase(BaseModel):
     comentario_tactico: str = Field(default="", max_length=5000)
     # Reflexión 1er/2º entrenador (mejora) → Sala del Lunes siguiente microciclo
     reflexion_entrenador: str = Field(default="", max_length=5000)
+    # 1ª / 2ª parte (anotador). JSON: {1: {...}, 2: {...}, total, closed}
+    stats_periodos: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
 class EstadisticaPartidoCreate(EstadisticaPartidoBase):
@@ -92,6 +94,7 @@ class EstadisticaPartidoUpdate(BaseModel):
 
     comentario_tactico: Optional[str] = Field(None, max_length=5000)
     reflexion_entrenador: Optional[str] = Field(None, max_length=5000)
+    stats_periodos: Optional[Dict[str, Any]] = None
 
 
 class EstadisticaPartidoResponse(EstadisticaPartidoBase):

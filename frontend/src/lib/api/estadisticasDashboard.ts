@@ -45,6 +45,11 @@ export interface EstadisticasAcumuladas {
   rival_balones_recuperados: number
   partidos_con_estadisticas: number
   promedios: Record<string, number>
+  por_parte?: {
+    '1': Record<string, number>
+    '2': Record<string, number>
+    partidos: number
+  }
 }
 
 export interface GolesData {

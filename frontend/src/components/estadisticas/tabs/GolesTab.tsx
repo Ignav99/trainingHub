@@ -15,11 +15,15 @@ interface Props {
 }
 
 const PERIOD_LABELS: Record<string, string> = {
+  '1a': '1ª parte',
+  '2a': '2ª parte',
   '0_20': '0-20\'',
   '20_45': '20-45\'',
   '45_65': '45-65\'',
   '65_90': '65-90\'',
 }
+
+const PERIOD_ORDER = ['1a', '2a', '0_20', '20_45', '45_65', '65_90']
 
 const TIPO_GOL_LABELS: Record<string, string> = {
   corner: 'Corner',
@@ -59,7 +63,11 @@ export function GolesTab({ data }: Props) {
   // Period chart data
   const allPeriods = new Set([...Object.keys(goles.por_periodo_favor), ...Object.keys(goles.por_periodo_contra)])
   const periodData = Array.from(allPeriods)
-    .sort()
+    .sort((a, b) => {
+      const ia = PERIOD_ORDER.indexOf(a)
+      const ib = PERIOD_ORDER.indexOf(b)
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
+    })
     .map((p) => ({
       name: PERIOD_LABELS[p] || p,
       favor: goles.por_periodo_favor[p] || 0,

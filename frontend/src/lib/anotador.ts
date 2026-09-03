@@ -78,10 +78,17 @@ export interface FoulDot {
 }
 
 export type AttackLane = 'izq' | 'cen' | 'dch'
+export type FoulMap = { cometidas: FoulDot[]; recibidas: FoulDot[] }
 
 export interface OccasionLaneState {
   us: Record<AttackLane, number>
   rival: Record<AttackLane, number>
+}
+
+export interface PeriodState {
+  teamStats: TeamStatsState
+  occasionLanes: OccasionLaneState
+  foulMap: FoulMap
 }
 
 export interface AnotadorSnapshot {
@@ -93,13 +100,28 @@ export interface AnotadorSnapshot {
   running: boolean
   elapsedMs: number
   half1Ms: number
+  half2Ms: number
   started: boolean
+  closed: boolean
+  closedAt?: string
   events: AnotadorEvent[]
   enteredAt: Record<string, number>
   playedOff: Record<string, number>
   teamStats: TeamStatsState
-  foulMap: { cometidas: FoulDot[]; recibidas: FoulDot[] }
+  foulMap: FoulMap
   occasionLanes: OccasionLaneState
+  periods: Record<AnotadorHalf, PeriodState>
+}
+
+export interface PeriodReportRow {
+  key: string
+  label: string
+  p1us: number
+  p1rival: number
+  p2us: number
+  p2rival: number
+  tus: number
+  trival: number
 }
 
 export interface AnotadorPlayerRow {
@@ -126,6 +148,138 @@ export function emptyOccasionLanes(): OccasionLaneState {
   }
 }
 
+export function emptyFoulMap(): FoulMap {
+  return { cometidas: [], recibidas: [] }
+}
+
+export function emptyPeriod(): PeriodState {
+  return {
+    teamStats: emptyTeamStats(),
+    occasionLanes: emptyOccasionLanes(),
+    foulMap: emptyFoulMap(),
+  }
+}
+
+export function emptyPeriods(): Record<AnotadorHalf, PeriodState> {
+  return { 1: emptyPeriod(), 2: emptyPeriod() }
+}
+
+export function clonePeriod(raw?: Partial<PeriodState> | null): PeriodState {
+  const base = emptyPeriod()
+  return {
+    teamStats: { ...base.teamStats, ...(raw?.teamStats || {}) },
+    occasionLanes: {
+      us: { ...base.occasionLanes.us, ...(raw?.occasionLanes?.us || {}) },
+      rival: { ...base.occasionLanes.rival, ...(raw?.occasionLanes?.rival || {}) },
+    },
+    foulMap: {
+      cometidas: [...(raw?.foulMap?.cometidas || [])],
+      recibidas: [...(raw?.foulMap?.recibidas || [])],
+    },
+  }
+}
+
+export function clonePeriods(
+  raw?: Partial<Record<AnotadorHalf, Partial<PeriodState>>> | null,
+): Record<AnotadorHalf, PeriodState> {
+  return { 1: clonePeriod(raw?.[1]), 2: clonePeriod(raw?.[2]) }
+}
+
+export function addTeamStats(a: TeamStatsState, b: TeamStatsState): TeamStatsState {
+  const out = emptyTeamStats()
+  for (const key of Object.keys(out)) {
+    out[key] = (a[key] || 0) + (b[key] || 0)
+  }
+  return out
+}
+
+export function addOccasionLanes(a: OccasionLaneState, b: OccasionLaneState): OccasionLaneState {
+  return {
+    us: {
+      izq: a.us.izq + b.us.izq,
+      cen: a.us.cen + b.us.cen,
+      dch: a.us.dch + b.us.dch,
+    },
+    rival: {
+      izq: a.rival.izq + b.rival.izq,
+      cen: a.rival.cen + b.rival.cen,
+      dch: a.rival.dch + b.rival.dch,
+    },
+  }
+}
+
+export function addFoulMaps(a: FoulMap, b: FoulMap): FoulMap {
+  return {
+    cometidas: [...a.cometidas, ...b.cometidas],
+    recibidas: [...a.recibidas, ...b.recibidas],
+  }
+}
+
+export function totalsFromPeriods(periods: Record<AnotadorHalf, PeriodState>): {
+  teamStats: TeamStatsState
+  occasionLanes: OccasionLaneState
+  foulMap: FoulMap
+} {
+  const occasionLanes = addOccasionLanes(periods[1].occasionLanes, periods[2].occasionLanes)
+  return {
+    teamStats: {
+      ...addTeamStats(periods[1].teamStats, periods[2].teamStats),
+      ocasiones_gol: totalOccasionsFromLanes(occasionLanes, 'us'),
+      rival_ocasiones_gol: totalOccasionsFromLanes(occasionLanes, 'rival'),
+    },
+    occasionLanes,
+    foulMap: addFoulMaps(periods[1].foulMap, periods[2].foulMap),
+  }
+}
+
+export function withSyncedTotals(snapshot: AnotadorSnapshot): AnotadorSnapshot {
+  return { ...snapshot, ...totalsFromPeriods(snapshot.periods) }
+}
+
+export function currentPeriod(snapshot: AnotadorSnapshot): PeriodState {
+  return snapshot.periods[snapshot.half] || emptyPeriod()
+}
+
+export function setActiveHalf(snapshot: AnotadorSnapshot, half: AnotadorHalf): AnotadorSnapshot {
+  if (snapshot.half === half) return snapshot
+  const next: AnotadorSnapshot = {
+    ...snapshot,
+    running: false,
+    half,
+  }
+  if (snapshot.half === 1) next.half1Ms = snapshot.elapsedMs
+  if (snapshot.half === 2) next.half2Ms = snapshot.elapsedMs
+  next.elapsedMs = half === 1 ? (snapshot.half1Ms || 0) : (snapshot.half2Ms || 0)
+  return next
+}
+
+export function closeMatch(snapshot: AnotadorSnapshot): AnotadorSnapshot {
+  const paused = snapshot.half === 1
+    ? { ...snapshot, running: false, half1Ms: snapshot.elapsedMs }
+    : { ...snapshot, running: false, half2Ms: snapshot.elapsedMs }
+  return { ...paused, closed: true, closedAt: new Date().toISOString() }
+}
+
+export function reopenMatch(snapshot: AnotadorSnapshot): AnotadorSnapshot {
+  return { ...snapshot, closed: false, closedAt: undefined, running: false }
+}
+
+function hasPeriodPayload(raw: Partial<AnotadorSnapshot> | null | undefined): boolean {
+  const periods = raw?.periods
+  if (!periods) return false
+  return Boolean(periods[1] || periods[2])
+}
+
+export function migrateLegacyPeriods(raw: Partial<AnotadorSnapshot>): Record<AnotadorHalf, PeriodState> {
+  if (hasPeriodPayload(raw)) return clonePeriods(raw.periods)
+  const legacy = clonePeriod({
+    teamStats: raw.teamStats,
+    occasionLanes: raw.occasionLanes,
+    foulMap: raw.foulMap,
+  })
+  return { 1: legacy, 2: emptyPeriod() }
+}
+
 export const DEFAULT_ANOTADOR: AnotadorSnapshot = {
   form: '4-3-3',
   slots: {},
@@ -135,13 +289,16 @@ export const DEFAULT_ANOTADOR: AnotadorSnapshot = {
   running: false,
   elapsedMs: 0,
   half1Ms: 0,
+  half2Ms: 0,
   started: false,
+  closed: false,
   events: [],
   enteredAt: {},
   playedOff: {},
   teamStats: emptyTeamStats(),
-  foulMap: { cometidas: [], recibidas: [] },
+  foulMap: emptyFoulMap(),
   occasionLanes: emptyOccasionLanes(),
+  periods: emptyPeriods(),
 }
 
 export function newEventId(): string {
@@ -290,6 +447,151 @@ export function bumpOccasionLane(
   return next
 }
 
+export function bumpPeriodStat(
+  snapshot: AnotadorSnapshot,
+  key: string,
+  side: AnotadorSide,
+  delta: number,
+  half: AnotadorHalf = snapshot.half,
+): AnotadorSnapshot {
+  const periods = clonePeriods(snapshot.periods)
+  periods[half].teamStats = bumpStat(periods[half].teamStats, key, side, delta)
+  return withSyncedTotals({ ...snapshot, periods })
+}
+
+export function bumpPeriodOccasion(
+  snapshot: AnotadorSnapshot,
+  side: AnotadorSide,
+  lane: AttackLane,
+  delta: number,
+  half: AnotadorHalf = snapshot.half,
+): AnotadorSnapshot {
+  const periods = clonePeriods(snapshot.periods)
+  periods[half].occasionLanes = bumpOccasionLane(periods[half].occasionLanes, side, lane, delta)
+  periods[half].teamStats = {
+    ...periods[half].teamStats,
+    ocasiones_gol: totalOccasionsFromLanes(periods[half].occasionLanes, 'us'),
+    rival_ocasiones_gol: totalOccasionsFromLanes(periods[half].occasionLanes, 'rival'),
+  }
+  return withSyncedTotals({ ...snapshot, periods })
+}
+
+export function setPeriodFoulMap(
+  snapshot: AnotadorSnapshot,
+  foulMap: FoulMap,
+  half: AnotadorHalf = snapshot.half,
+): AnotadorSnapshot {
+  const periods = clonePeriods(snapshot.periods)
+  periods[half].foulMap = {
+    cometidas: [...foulMap.cometidas],
+    recibidas: [...foulMap.recibidas],
+  }
+  return withSyncedTotals({ ...snapshot, periods })
+}
+
+export function scoreFromEventsByHalf(events: AnotadorEvent[]): Record<AnotadorHalf, { gf: number; gc: number }> {
+  return {
+    1: scoreFromEvents(events.filter((ev) => ev.half === 1)),
+    2: scoreFromEvents(events.filter((ev) => ev.half === 2)),
+  }
+}
+
+export function golesPorPeriodoFromEvents(events: AnotadorEvent[]): Record<string, number> {
+  const out: Record<string, number> = {
+    '1a_favor': 0,
+    '2a_favor': 0,
+    '1a_contra': 0,
+    '2a_contra': 0,
+  }
+  for (const ev of events) {
+    const halfKey = ev.half === 2 ? '2a' : '1a'
+    if (ev.type === 'gol') out[`${halfKey}_favor`] += 1
+    if (ev.type === 'gol_contra') out[`${halfKey}_contra`] += 1
+  }
+  return out
+}
+
+export function periodReport(snapshot: AnotadorSnapshot): {
+  score1: { gf: number; gc: number }
+  score2: { gf: number; gc: number }
+  total: { gf: number; gc: number }
+  rows: PeriodReportRow[]
+  lanes: PeriodReportRow[]
+  fouls: { cometidas1: number; recibidas1: number; cometidas2: number; recibidas2: number }
+  closed: boolean
+} {
+  const p1 = snapshot.periods?.[1] || emptyPeriod()
+  const p2 = snapshot.periods?.[2] || emptyPeriod()
+  const byHalf = scoreFromEventsByHalf(snapshot.events || [])
+  const rows = TEAM_STAT_FIELDS.map((field) => ({
+    key: field.key,
+    label: field.label,
+    p1us: p1.teamStats[field.key] || 0,
+    p1rival: p1.teamStats[`rival_${field.key}`] || 0,
+    p2us: p2.teamStats[field.key] || 0,
+    p2rival: p2.teamStats[`rival_${field.key}`] || 0,
+    tus: (p1.teamStats[field.key] || 0) + (p2.teamStats[field.key] || 0),
+    trival: (p1.teamStats[`rival_${field.key}`] || 0) + (p2.teamStats[`rival_${field.key}`] || 0),
+  }))
+  const laneMeta = [
+    { key: 'izq', label: 'Ocasiones izq' },
+    { key: 'cen', label: 'Ocasiones cen' },
+    { key: 'dch', label: 'Ocasiones dch' },
+  ] as const
+  const lanes = laneMeta.map((lane) => ({
+    key: `oc_${lane.key}`,
+    label: lane.label,
+    p1us: p1.occasionLanes.us[lane.key],
+    p1rival: p1.occasionLanes.rival[lane.key],
+    p2us: p2.occasionLanes.us[lane.key],
+    p2rival: p2.occasionLanes.rival[lane.key],
+    tus: p1.occasionLanes.us[lane.key] + p2.occasionLanes.us[lane.key],
+    trival: p1.occasionLanes.rival[lane.key] + p2.occasionLanes.rival[lane.key],
+  }))
+  return {
+    score1: byHalf[1],
+    score2: byHalf[2],
+    total: scoreFromEvents(snapshot.events || []),
+    rows,
+    lanes,
+    fouls: {
+      cometidas1: p1.foulMap.cometidas.length,
+      recibidas1: p1.foulMap.recibidas.length,
+      cometidas2: p2.foulMap.cometidas.length,
+      recibidas2: p2.foulMap.recibidas.length,
+    },
+    closed: Boolean(snapshot.closed),
+  }
+}
+
+export function statsPeriodosPayload(snapshot: AnotadorSnapshot) {
+  const report = periodReport(snapshot)
+  const pack = (period: PeriodState, score: { gf: number; gc: number }) => ({
+    ...period.teamStats,
+    goles_favor: score.gf,
+    goles_contra: score.gc,
+    occasionLanes: period.occasionLanes,
+    foulMap: period.foulMap,
+  })
+  return {
+    1: pack(snapshot.periods[1], report.score1),
+    2: pack(snapshot.periods[2], report.score2),
+    total: {
+      ...snapshot.teamStats,
+      goles_favor: report.total.gf,
+      goles_contra: report.total.gc,
+    },
+    closed: snapshot.closed,
+    closedAt: snapshot.closedAt || null,
+  }
+}
+
+export function periodReportFromNotasPre(raw?: string | null) {
+  const parsed = parseNotasPre(raw)
+  if (!parsed.anotador) return null
+  return periodReport(normalizeSnapshot(parsed.anotador))
+}
+
 export function remapFormationSlots(
   prev: Record<string, string>,
   oldDefs: { id: string; position: string }[],
@@ -337,11 +639,17 @@ export function patchGoalEvent(
   const before = snapshot.events.find((ev) => ev.id === id)
   const events = snapshot.events.map((ev) => (ev.id === id ? { ...ev, ...patch } : ev))
   const after = events.find((ev) => ev.id === id)
-  let teamStats = snapshot.teamStats
+  let next: AnotadorSnapshot = { ...snapshot, events }
   if (before && after && isPenaltyGoal(before) !== isPenaltyGoal(after)) {
-    teamStats = bumpStat(teamStats, 'penaltis', goalSide(after), isPenaltyGoal(after) ? 1 : -1)
+    next = bumpPeriodStat(
+      next,
+      'penaltis',
+      goalSide(after),
+      isPenaltyGoal(after) ? 1 : -1,
+      after.half || snapshot.half,
+    )
   }
-  return { ...snapshot, events, teamStats }
+  return next
 }
 
 export function teamStatsFromEvents(events: AnotadorEvent[]): TeamStatsState {
@@ -371,32 +679,26 @@ export function teamStatsFromEvents(events: AnotadorEvent[]): TeamStatsState {
 }
 
 export function normalizeSnapshot(raw: AnotadorSnapshot): AnotadorSnapshot {
-  const teamStats = { ...emptyTeamStats(), ...(raw.teamStats || {}) }
+  const periods = migrateLegacyPeriods(raw)
   const derived = teamStatsFromEvents(raw.events || [])
-  const hasAny = Object.values(teamStats).some((n) => n > 0)
-  const occasionLanes = {
-    ...emptyOccasionLanes(),
-    ...(raw.occasionLanes || {}),
-    us: { ...emptyOccasionLanes().us, ...(raw.occasionLanes?.us || {}) },
-    rival: { ...emptyOccasionLanes().rival, ...(raw.occasionLanes?.rival || {}) },
+  const hasPeriodStats = Object.values(periods[1].teamStats).some((n) => n > 0)
+    || Object.values(periods[2].teamStats).some((n) => n > 0)
+  if (!hasPeriodStats) {
+    periods[1].teamStats = { ...emptyTeamStats(), ...derived }
   }
-  const teamStatsWithOccasions = {
-    ...(hasAny ? teamStats : { ...emptyTeamStats(), ...derived }),
-    ocasiones_gol: totalOccasionsFromLanes(occasionLanes, 'us') || teamStats.ocasiones_gol || 0,
-    rival_ocasiones_gol: totalOccasionsFromLanes(occasionLanes, 'rival') || teamStats.rival_ocasiones_gol || 0,
-  }
-  return {
+  const synced = withSyncedTotals({
     ...DEFAULT_ANOTADOR,
     ...raw,
     running: false,
-    teamStats: teamStatsWithOccasions,
-    foulMap: raw.foulMap || { cometidas: [], recibidas: [] },
-    occasionLanes,
+    closed: Boolean(raw.closed),
+    half2Ms: raw.half2Ms || 0,
+    periods,
     events: raw.events || [],
     slots: raw.slots || {},
     enteredAt: raw.enteredAt || {},
     playedOff: raw.playedOff || {},
-  }
+  })
+  return synced
 }
 
 export function hydrateSnapshot(args: {
@@ -408,12 +710,16 @@ export function hydrateSnapshot(args: {
 }): AnotadorSnapshot {
   const parsed = parseNotasPre(args.notasPre)
   if (parsed.anotador) {
-    const snap = normalizeSnapshot(parsed.anotador)
+    let snap = normalizeSnapshot(parsed.anotador)
     if (!Object.values(snap.teamStats).some((n) => n > 0) && args.informeStats) {
-      snap.teamStats = { ...emptyTeamStats(), ...args.informeStats }
+      const periods = clonePeriods(snap.periods)
+      periods[1].teamStats = { ...emptyTeamStats(), ...args.informeStats }
+      snap = withSyncedTotals({ ...snap, periods })
     }
     if (!snap.foulMap.cometidas.length && !snap.foulMap.recibidas.length && args.foulMap) {
-      snap.foulMap = args.foulMap
+      const periods = clonePeriods(snap.periods)
+      periods[1].foulMap = args.foulMap
+      snap = withSyncedTotals({ ...snap, periods })
     }
     return snap
   }
@@ -432,8 +738,16 @@ export function hydrateSnapshot(args: {
     slots,
     enteredAt,
     teamStats: { ...emptyTeamStats(), ...(args.informeStats || {}) },
-    foulMap: args.foulMap || { cometidas: [], recibidas: [] },
+    foulMap: args.foulMap || emptyFoulMap(),
     occasionLanes: emptyOccasionLanes(),
+    periods: {
+      1: clonePeriod({
+        teamStats: { ...emptyTeamStats(), ...(args.informeStats || {}) },
+        occasionLanes: emptyOccasionLanes(),
+        foulMap: args.foulMap || emptyFoulMap(),
+      }),
+      2: emptyPeriod(),
+    },
   }
 }
 
