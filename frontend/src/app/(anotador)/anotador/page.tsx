@@ -36,7 +36,7 @@ export default function AnotadorPickerPage() {
         <div>
           <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-400/80">Campo · tablet</p>
           <h1 className="text-2xl font-semibold tracking-tight">Anotador</h1>
-          <p className="text-sm text-zinc-500 mt-1">Elige el partido. En horizontal: banquillo, campo y botones. Al guardar, el acta pasa al informe.</p>
+          <p className="text-sm text-zinc-500 mt-1">Pestañas: acta, once, goles, stats, faltas y notas. Al guardar se vuelca al informe.</p>
         </div>
       </div>
 

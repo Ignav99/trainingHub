@@ -1,10 +1,11 @@
 /**
  * Motor del anotador de partido (tablet).
  * El registro en campo es la fuente de verdad: al guardar se vuelca
- * a convocatoria, marcador y detalle de goles del informe.
+ * a convocatoria, marcador, detalle de goles y estadísticas de ambos equipos.
  */
 
 export type AnotadorHalf = 1 | 2
+export type AnotadorSide = 'us' | 'rival'
 
 export type AnotadorEventType =
   | 'gol'
@@ -15,6 +16,47 @@ export type AnotadorEventType =
   | 'corner'
   | 'falta'
 
+export const TEAM_STAT_FIELDS = [
+  { key: 'tiros_a_puerta', label: 'Tiros a puerta', short: 'Tiro' },
+  { key: 'ocasiones_gol', label: 'Ocasiones de gol', short: 'Ocasión' },
+  { key: 'saques_esquina', label: 'Córners', short: 'Córner' },
+  { key: 'penaltis', label: 'Penaltis', short: 'Penalti' },
+  { key: 'fueras_juego', label: 'Fueras de juego', short: 'Fuera' },
+  { key: 'faltas_cometidas', label: 'Faltas', short: 'Falta' },
+  { key: 'tarjetas_amarillas', label: 'Amarillas', short: 'Amarilla' },
+  { key: 'tarjetas_rojas', label: 'Rojas', short: 'Roja' },
+  { key: 'balones_perdidos', label: 'Pérdidas', short: 'Pérdida' },
+  { key: 'balones_recuperados', label: 'Recuperaciones', short: 'Recup.' },
+] as const
+
+export type TeamStatKey = typeof TEAM_STAT_FIELDS[number]['key']
+export type TeamStatsState = Record<string, number>
+
+export const TIPO_GOL_OPTIONS = [
+  { value: 'centro_lateral', label: 'Centro' },
+  { value: 'balon_filtrado', label: 'Filtrado' },
+  { value: 'balon_espalda', label: 'Espalda' },
+  { value: 'jugada_individual', label: 'Individual' },
+  { value: 'contraataque', label: 'Contra' },
+  { value: 'error_rival', label: 'Error rival' },
+  { value: 'otro', label: 'Otro' },
+] as const
+
+export const TIPO_ABP_OPTIONS = [
+  { value: 'corner', label: 'Córner' },
+  { value: 'falta_directa', label: 'Falta dir.' },
+  { value: 'falta_indirecta', label: 'Falta ind.' },
+  { value: 'penalti', label: 'Penalti' },
+  { value: 'saque_banda', label: 'Banda' },
+] as const
+
+export const ZONA_OPTIONS = [
+  { value: 'izquierda', label: 'Izq' },
+  { value: 'central', label: 'Centro' },
+  { value: 'central_lejana', label: 'Lejos' },
+  { value: 'derecha', label: 'Der' },
+] as const
+
 export interface AnotadorEvent {
   id: string
   minute: number
@@ -23,6 +65,16 @@ export interface AnotadorEvent {
   convId?: string
   relatedConvId?: string
   slotId?: string
+  side?: AnotadorSide
+  es_abp?: boolean
+  tipo_gol?: string
+  tipo_abp?: string
+  zona?: string
+}
+
+export interface FoulDot {
+  x: number
+  y: number
 }
 
 export interface AnotadorSnapshot {
@@ -36,10 +88,10 @@ export interface AnotadorSnapshot {
   half1Ms: number
   started: boolean
   events: AnotadorEvent[]
-  /** convId → minuto en que saltó al campo */
   enteredAt: Record<string, number>
-  /** convId → minutos ya cerrados (sustituido) */
   playedOff: Record<string, number>
+  teamStats: TeamStatsState
+  foulMap: { cometidas: FoulDot[]; recibidas: FoulDot[] }
 }
 
 export interface AnotadorPlayerRow {
@@ -48,6 +100,15 @@ export interface AnotadorPlayerRow {
   asistencias: number
   tarjeta_amarilla: boolean
   tarjeta_roja: boolean
+}
+
+export function emptyTeamStats(): TeamStatsState {
+  const out: TeamStatsState = {}
+  for (const f of TEAM_STAT_FIELDS) {
+    out[f.key] = 0
+    out[`rival_${f.key}`] = 0
+  }
+  return out
 }
 
 export const DEFAULT_ANOTADOR: AnotadorSnapshot = {
@@ -63,6 +124,8 @@ export const DEFAULT_ANOTADOR: AnotadorSnapshot = {
   events: [],
   enteredAt: {},
   playedOff: {},
+  teamStats: emptyTeamStats(),
+  foulMap: { cometidas: [], recibidas: [] },
 }
 
 export function newEventId(): string {
@@ -70,7 +133,6 @@ export function newEventId(): string {
   return `ev-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-/** Minuto de partido (1ª = 0…; 2ª = 45 + transcurrido). */
 export function matchMinute(half: AnotadorHalf, elapsedMs: number): number {
   const mins = Math.max(0, Math.floor(elapsedMs / 60000))
   return half === 1 ? mins : 45 + mins
@@ -161,14 +223,143 @@ export function assignTitularesToSlots(
   return slots
 }
 
+export function bumpStat(
+  stats: TeamStatsState,
+  key: string,
+  side: AnotadorSide,
+  delta: number,
+): TeamStatsState {
+  const k = side === 'rival' ? `rival_${key}` : key
+  return { ...stats, [k]: Math.max(0, (stats[k] || 0) + delta) }
+}
+
+export function isPenaltyGoal(ev?: AnotadorEvent | null): boolean {
+  return Boolean(ev && (ev.type === 'gol' || ev.type === 'gol_contra') && ev.es_abp && ev.tipo_abp === 'penalti')
+}
+
+export function goalSide(ev: AnotadorEvent): AnotadorSide {
+  if (ev.side) return ev.side
+  return ev.type === 'gol_contra' ? 'rival' : 'us'
+}
+
+export function nudgeElapsed(elapsedMs: number, deltaMs: number): number {
+  return Math.max(0, elapsedMs + deltaMs)
+}
+
+export function remapFormationSlots(
+  prev: Record<string, string>,
+  oldDefs: { id: string; position: string }[],
+  newDefs: { id: string; position: string }[],
+): Record<string, string> {
+  const next: Record<string, string> = {}
+  const used = new Set<string>()
+  const oldById = new Map(oldDefs.map((s) => [s.id, s]))
+  const occupied = Object.entries(prev).filter(([, convId]) => Boolean(convId))
+
+  for (const [slotId, convId] of occupied) {
+    if (newDefs.some((s) => s.id === slotId) && !used.has(convId)) {
+      next[slotId] = convId
+      used.add(convId)
+    }
+  }
+
+  for (const [slotId, convId] of occupied) {
+    if (used.has(convId)) continue
+    const pos = oldById.get(slotId)?.position
+    const dest = newDefs.find((s) => s.position === pos && !next[s.id])
+    if (dest) {
+      next[dest.id] = convId
+      used.add(convId)
+    }
+  }
+
+  for (const [, convId] of occupied) {
+    if (used.has(convId)) continue
+    const dest = newDefs.find((s) => !next[s.id])
+    if (dest) {
+      next[dest.id] = convId
+      used.add(convId)
+    }
+  }
+
+  return next
+}
+
+export function patchGoalEvent(
+  snapshot: AnotadorSnapshot,
+  id: string,
+  patch: Partial<AnotadorEvent>,
+): AnotadorSnapshot {
+  const before = snapshot.events.find((ev) => ev.id === id)
+  const events = snapshot.events.map((ev) => (ev.id === id ? { ...ev, ...patch } : ev))
+  const after = events.find((ev) => ev.id === id)
+  let teamStats = snapshot.teamStats
+  if (before && after && isPenaltyGoal(before) !== isPenaltyGoal(after)) {
+    teamStats = bumpStat(teamStats, 'penaltis', goalSide(after), isPenaltyGoal(after) ? 1 : -1)
+  }
+  return { ...snapshot, events, teamStats }
+}
+
+export function teamStatsFromEvents(events: AnotadorEvent[]): TeamStatsState {
+  const stats = emptyTeamStats()
+  for (const ev of events) {
+    const side: AnotadorSide = ev.side || (ev.type === 'gol_contra' ? 'rival' : 'us')
+    if (ev.type === 'corner') {
+      Object.assign(stats, bumpStat(stats, 'saques_esquina', side, 1))
+    }
+    if (ev.type === 'falta') {
+      Object.assign(stats, bumpStat(stats, 'faltas_cometidas', side, 1))
+    }
+    if (ev.type === 'amarilla') {
+      Object.assign(stats, bumpStat(stats, 'tarjetas_amarillas', side, 1))
+    }
+    if (ev.type === 'roja') {
+      Object.assign(stats, bumpStat(stats, 'tarjetas_rojas', side, 1))
+    }
+    if (ev.type === 'gol' && ev.es_abp && ev.tipo_abp === 'penalti') {
+      Object.assign(stats, bumpStat(stats, 'penaltis', 'us', 1))
+    }
+    if (ev.type === 'gol_contra' && ev.es_abp && ev.tipo_abp === 'penalti') {
+      Object.assign(stats, bumpStat(stats, 'penaltis', 'rival', 1))
+    }
+  }
+  return stats
+}
+
+export function normalizeSnapshot(raw: AnotadorSnapshot): AnotadorSnapshot {
+  const teamStats = { ...emptyTeamStats(), ...(raw.teamStats || {}) }
+  const derived = teamStatsFromEvents(raw.events || [])
+  const hasAny = Object.values(teamStats).some((n) => n > 0)
+  return {
+    ...DEFAULT_ANOTADOR,
+    ...raw,
+    running: false,
+    teamStats: hasAny ? teamStats : { ...emptyTeamStats(), ...derived },
+    foulMap: raw.foulMap || { cometidas: [], recibidas: [] },
+    events: raw.events || [],
+    slots: raw.slots || {},
+    enteredAt: raw.enteredAt || {},
+    playedOff: raw.playedOff || {},
+  }
+}
+
 export function hydrateSnapshot(args: {
   notasPre?: string | null
   titulares?: { id: string; posicion?: string | null }[]
   formationSlots?: { id: string; position: string }[]
+  informeStats?: TeamStatsState | null
+  foulMap?: { cometidas: FoulDot[]; recibidas: FoulDot[] } | null
 }): AnotadorSnapshot {
   const parsed = parseNotasPre(args.notasPre)
   if (parsed.anotador) {
-    return { ...DEFAULT_ANOTADOR, ...parsed.anotador, running: false }
+    const snap = normalizeSnapshot(parsed.anotador)
+    if (!Object.values(snap.teamStats).some((n) => n > 0) && args.informeStats) {
+      snap.teamStats = { ...emptyTeamStats(), ...args.informeStats }
+    }
+    if (!snap.foulMap.cometidas.length && !snap.foulMap.recibidas.length && args.foulMap) {
+      snap.foulMap = args.foulMap
+    }
+    return snap
   }
   const form = parsed.formacion || DEFAULT_ANOTADOR.form
   let slots = parsed.formacion_slots || {}
@@ -184,6 +375,8 @@ export function hydrateSnapshot(args: {
     form,
     slots,
     enteredAt,
+    teamStats: { ...emptyTeamStats(), ...(args.informeStats || {}) },
+    foulMap: args.foulMap || { cometidas: [], recibidas: [] },
   }
 }
 
@@ -248,37 +441,24 @@ export function scoreFromEvents(events: AnotadorEvent[]): { gf: number; gc: numb
   return { gf, gc }
 }
 
-export function teamStatsFromEvents(events: AnotadorEvent[]): {
-  saques_esquina: number
-  faltas_cometidas: number
-  tarjetas_amarillas: number
-  tarjetas_rojas: number
-} {
-  let saques_esquina = 0
-  let faltas_cometidas = 0
-  let tarjetas_amarillas = 0
-  let tarjetas_rojas = 0
-  for (const ev of events) {
-    if (ev.type === 'corner') saques_esquina += 1
-    if (ev.type === 'falta') faltas_cometidas += 1
-    if (ev.type === 'amarilla') tarjetas_amarillas += 1
-    if (ev.type === 'roja') tarjetas_rojas += 1
-  }
-  return { saques_esquina, faltas_cometidas, tarjetas_amarillas, tarjetas_rojas }
-}
-
 export function golesDetalleFromEvents(
   events: AnotadorEvent[],
   nameOf: (convId?: string) => string,
-): { favor: { minuto: number; es_abp: boolean; jugador?: string; asistencia?: string }[]; contra: { minuto: number; es_abp: boolean; jugador?: string }[] } {
-  const favor: { minuto: number; es_abp: boolean; jugador?: string; asistencia?: string }[] = []
-  const contra: { minuto: number; es_abp: boolean; jugador?: string }[] = []
+): {
+  favor: { minuto: number; es_abp: boolean; tipo_gol?: string; tipo_abp?: string; zona?: string; jugador?: string; asistencia?: string }[]
+  contra: { minuto: number; es_abp: boolean; tipo_gol?: string; tipo_abp?: string; zona?: string; jugador?: string }[]
+} {
+  const favor: { minuto: number; es_abp: boolean; tipo_gol?: string; tipo_abp?: string; zona?: string; jugador?: string; asistencia?: string }[] = []
+  const contra: { minuto: number; es_abp: boolean; tipo_gol?: string; tipo_abp?: string; zona?: string; jugador?: string }[] = []
   for (const ev of events) {
     if (ev.type === 'gol') {
-      const row: { minuto: number; es_abp: boolean; jugador?: string; asistencia?: string } = {
+      const row: (typeof favor)[number] = {
         minuto: ev.minute,
-        es_abp: false,
+        es_abp: Boolean(ev.es_abp),
       }
+      if (ev.tipo_gol) row.tipo_gol = ev.tipo_gol
+      if (ev.tipo_abp) row.tipo_abp = ev.tipo_abp
+      if (ev.zona) row.zona = ev.zona
       const n = nameOf(ev.convId)
       if (n) row.jugador = n
       const a = nameOf(ev.relatedConvId)
@@ -286,7 +466,16 @@ export function golesDetalleFromEvents(
       favor.push(row)
     }
     if (ev.type === 'gol_contra') {
-      contra.push({ minuto: ev.minute, es_abp: false, jugador: nameOf(ev.convId) || undefined })
+      const row: (typeof contra)[number] = {
+        minuto: ev.minute,
+        es_abp: Boolean(ev.es_abp),
+      }
+      if (ev.tipo_gol) row.tipo_gol = ev.tipo_gol
+      if (ev.tipo_abp) row.tipo_abp = ev.tipo_abp
+      if (ev.zona) row.zona = ev.zona
+      const n = nameOf(ev.convId)
+      if (n) row.jugador = n
+      contra.push(row)
     }
   }
   return { favor, contra }
@@ -328,24 +517,46 @@ export function startEleven(snapshot: AnotadorSnapshot): AnotadorSnapshot {
   return { ...snapshot, started: true, enteredAt }
 }
 
+function tipoLabel(ev: AnotadorEvent): string {
+  if (ev.es_abp) {
+    const abp = TIPO_ABP_OPTIONS.find((o) => o.value === ev.tipo_abp)
+    return abp ? ` ABP ${abp.label}` : ' ABP'
+  }
+  const t = TIPO_GOL_OPTIONS.find((o) => o.value === ev.tipo_gol)
+  return t && t.value !== 'otro' ? ` ${t.label}` : ''
+}
+
 export function eventLabel(ev: AnotadorEvent, nameOf: (id?: string) => string): string {
   const who = nameOf(ev.convId) || '—'
+  const side = ev.side === 'rival' ? ' rival' : ''
   switch (ev.type) {
     case 'gol':
-      return `${ev.minute}' Gol ${who}${ev.relatedConvId ? ` (asiste ${nameOf(ev.relatedConvId)})` : ''}`
+      return `${ev.minute}' Gol ${who}${tipoLabel(ev)}${ev.relatedConvId ? ` (asiste ${nameOf(ev.relatedConvId)})` : ''}`
     case 'gol_contra':
-      return `${ev.minute}' Gol en contra`
+      return `${ev.minute}' Gol rival${tipoLabel(ev)}`
     case 'amarilla':
-      return `${ev.minute}' Amarilla ${who}`
+      return `${ev.minute}' Amarilla${side} ${ev.convId ? who : ''}`.trim()
     case 'roja':
-      return `${ev.minute}' Roja ${who}`
+      return `${ev.minute}' Roja${side} ${ev.convId ? who : ''}`.trim()
     case 'cambio':
       return `${ev.minute}' Cambio ${who} → ${nameOf(ev.relatedConvId)}`
     case 'corner':
-      return `${ev.minute}' Córner`
+      return `${ev.minute}' Córner${side}`
     case 'falta':
-      return `${ev.minute}' Falta`
+      return `${ev.minute}' Falta${side}`
     default:
       return `${ev.minute}'`
   }
+}
+
+export function informeStatsFromUnknown(data: Record<string, unknown> | null | undefined): TeamStatsState {
+  const stats = emptyTeamStats()
+  if (!data) return stats
+  for (const f of TEAM_STAT_FIELDS) {
+    const v = data[f.key]
+    const r = data[`rival_${f.key}`]
+    if (typeof v === 'number') stats[f.key] = v
+    if (typeof r === 'number') stats[`rival_${f.key}`] = r
+  }
+  return stats
 }
