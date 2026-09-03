@@ -114,3 +114,16 @@ test('detalle de goles para el informe', () => {
   assert.equal(favor[0].asistencia, 'Luis')
   assert.equal(contra[0].minuto, 70)
 })
+
+test('stats de ambos equipos y tipo de gol van al detalle', () => {
+  const { favor } = golesDetalleFromEvents(
+    [{
+      id: '1', minute: 9, half: 1, type: 'gol', convId: 'a',
+      es_abp: true, tipo_abp: 'corner', zona: 'izquierda',
+    }],
+    (id) => (id === 'a' ? 'Hugo' : ''),
+  )
+  assert.equal(favor[0].es_abp, true)
+  assert.equal(favor[0].tipo_abp, 'corner')
+  assert.equal(favor[0].zona, 'izquierda')
+})
