@@ -17,6 +17,11 @@ import {
   remapFormationSlots,
   patchGoalEvent,
   isPenaltyGoal,
+  normalizeFoulDot,
+  denormalizeFoulDot,
+  bumpOccasionLane,
+  totalOccasionsFromLanes,
+  emptyOccasionLanes,
   type AnotadorSnapshot,
 } from '../frontend/src/lib/anotador.ts'
 
@@ -166,4 +171,20 @@ test('marcar un gol como penalti suma la estadística', () => {
   assert.equal(patched.teamStats.penaltis, 1)
   const reverted = patchGoalEvent(patched, '1', { es_abp: false, tipo_gol: 'contraataque', tipo_abp: undefined })
   assert.equal(reverted.teamStats.penaltis, 0)
+})
+
+test('el mapa de faltas se normaliza según el sentido de ataque', () => {
+  const viewed = { x: 20, y: 30 }
+  const normalized = normalizeFoulDot(viewed, false)
+  assert.deepEqual(normalized, { x: 130, y: 30 })
+  assert.deepEqual(denormalizeFoulDot(normalized, false), viewed)
+})
+
+test('las ocasiones por carril recalculan el total', () => {
+  let lanes = emptyOccasionLanes()
+  lanes = bumpOccasionLane(lanes, 'us', 'izq', 1)
+  lanes = bumpOccasionLane(lanes, 'us', 'cen', 2)
+  lanes = bumpOccasionLane(lanes, 'rival', 'dch', 1)
+  assert.equal(totalOccasionsFromLanes(lanes, 'us'), 3)
+  assert.equal(totalOccasionsFromLanes(lanes, 'rival'), 1)
 })

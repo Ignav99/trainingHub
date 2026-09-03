@@ -77,6 +77,13 @@ export interface FoulDot {
   y: number
 }
 
+export type AttackLane = 'izq' | 'cen' | 'dch'
+
+export interface OccasionLaneState {
+  us: Record<AttackLane, number>
+  rival: Record<AttackLane, number>
+}
+
 export interface AnotadorSnapshot {
   form: string
   slots: Record<string, string>
@@ -92,6 +99,7 @@ export interface AnotadorSnapshot {
   playedOff: Record<string, number>
   teamStats: TeamStatsState
   foulMap: { cometidas: FoulDot[]; recibidas: FoulDot[] }
+  occasionLanes: OccasionLaneState
 }
 
 export interface AnotadorPlayerRow {
@@ -111,6 +119,13 @@ export function emptyTeamStats(): TeamStatsState {
   return out
 }
 
+export function emptyOccasionLanes(): OccasionLaneState {
+  return {
+    us: { izq: 0, cen: 0, dch: 0 },
+    rival: { izq: 0, cen: 0, dch: 0 },
+  }
+}
+
 export const DEFAULT_ANOTADOR: AnotadorSnapshot = {
   form: '4-3-3',
   slots: {},
@@ -126,6 +141,7 @@ export const DEFAULT_ANOTADOR: AnotadorSnapshot = {
   playedOff: {},
   teamStats: emptyTeamStats(),
   foulMap: { cometidas: [], recibidas: [] },
+  occasionLanes: emptyOccasionLanes(),
 }
 
 export function newEventId(): string {
@@ -246,6 +262,34 @@ export function nudgeElapsed(elapsedMs: number, deltaMs: number): number {
   return Math.max(0, elapsedMs + deltaMs)
 }
 
+export function normalizeFoulDot(dot: FoulDot, dirRight: boolean): FoulDot {
+  if (dirRight) return dot
+  return { x: Math.round((150 - dot.x) * 10) / 10, y: dot.y }
+}
+
+export function denormalizeFoulDot(dot: FoulDot, dirRight: boolean): FoulDot {
+  return normalizeFoulDot(dot, dirRight)
+}
+
+export function totalOccasionsFromLanes(lanes: OccasionLaneState, side: AnotadorSide): number {
+  const row = lanes[side]
+  return row.izq + row.cen + row.dch
+}
+
+export function bumpOccasionLane(
+  lanes: OccasionLaneState,
+  side: AnotadorSide,
+  lane: AttackLane,
+  delta: number,
+): OccasionLaneState {
+  const next = {
+    us: { ...lanes.us },
+    rival: { ...lanes.rival },
+  }
+  next[side][lane] = Math.max(0, next[side][lane] + delta)
+  return next
+}
+
 export function remapFormationSlots(
   prev: Record<string, string>,
   oldDefs: { id: string; position: string }[],
@@ -330,12 +374,24 @@ export function normalizeSnapshot(raw: AnotadorSnapshot): AnotadorSnapshot {
   const teamStats = { ...emptyTeamStats(), ...(raw.teamStats || {}) }
   const derived = teamStatsFromEvents(raw.events || [])
   const hasAny = Object.values(teamStats).some((n) => n > 0)
+  const occasionLanes = {
+    ...emptyOccasionLanes(),
+    ...(raw.occasionLanes || {}),
+    us: { ...emptyOccasionLanes().us, ...(raw.occasionLanes?.us || {}) },
+    rival: { ...emptyOccasionLanes().rival, ...(raw.occasionLanes?.rival || {}) },
+  }
+  const teamStatsWithOccasions = {
+    ...(hasAny ? teamStats : { ...emptyTeamStats(), ...derived }),
+    ocasiones_gol: totalOccasionsFromLanes(occasionLanes, 'us') || teamStats.ocasiones_gol || 0,
+    rival_ocasiones_gol: totalOccasionsFromLanes(occasionLanes, 'rival') || teamStats.rival_ocasiones_gol || 0,
+  }
   return {
     ...DEFAULT_ANOTADOR,
     ...raw,
     running: false,
-    teamStats: hasAny ? teamStats : { ...emptyTeamStats(), ...derived },
+    teamStats: teamStatsWithOccasions,
     foulMap: raw.foulMap || { cometidas: [], recibidas: [] },
+    occasionLanes,
     events: raw.events || [],
     slots: raw.slots || {},
     enteredAt: raw.enteredAt || {},
@@ -377,6 +433,7 @@ export function hydrateSnapshot(args: {
     enteredAt,
     teamStats: { ...emptyTeamStats(), ...(args.informeStats || {}) },
     foulMap: args.foulMap || { cometidas: [], recibidas: [] },
+    occasionLanes: emptyOccasionLanes(),
   }
 }
 
