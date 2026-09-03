@@ -21,10 +21,13 @@ import { estadisticasPartidoApi, type EstadisticaPartidoUpdateData } from '@/lib
 import { partidosApi } from '@/lib/api/partidos'
 import { useEquipoStore } from '@/stores/equipoStore'
 import {
+  type AttackLane,
   applySub,
   bumpStat,
+  bumpOccasionLane,
   computePlayerRows,
   DEFAULT_ANOTADOR,
+  denormalizeFoulDot,
   emptyTeamStats,
   eventLabel,
   formatClock,
@@ -37,6 +40,7 @@ import {
   mergeNotasPre,
   newEventId,
   nudgeElapsed,
+  normalizeFoulDot,
   patchGoalEvent,
   remapFormationSlots,
   scoreFromEvents,
@@ -45,6 +49,7 @@ import {
   TIPO_ABP_OPTIONS,
   TIPO_GOL_OPTIONS,
   ZONA_OPTIONS,
+  totalOccasionsFromLanes,
   type AnotadorEvent,
   type AnotadorSide,
   type AnotadorSnapshot,
@@ -66,7 +71,6 @@ const TABS: { id: Tab; label: string }[] = [
 
 const LIVE_STATS: TeamStatKey[] = [
   'tiros_a_puerta',
-  'ocasiones_gol',
   'saques_esquina',
   'faltas_cometidas',
   'fueras_juego',
@@ -491,6 +495,21 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
     setSnap((s) => ({ ...s, teamStats: bumpStat(s.teamStats, key, side, delta) }))
   }
 
+  const bumpOccasion = (side: AnotadorSide, lane: AttackLane, delta: number) => {
+    setSnap((s) => {
+      const occasionLanes = bumpOccasionLane(s.occasionLanes, side, lane, delta)
+      return {
+        ...s,
+        occasionLanes,
+        teamStats: {
+          ...s.teamStats,
+          ocasiones_gol: totalOccasionsFromLanes(occasionLanes, 'us'),
+          rival_ocasiones_gol: totalOccasionsFromLanes(occasionLanes, 'rival'),
+        },
+      }
+    })
+  }
+
   const patchGoal = (id: string, patch: Partial<AnotadorEvent>) => {
     setSnap((s) => patchGoalEvent(s, id, patch))
   }
@@ -575,6 +594,13 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
           <p className="truncate text-xs text-zinc-400 max-w-[9rem]">{partido.rival?.nombre || 'Rival'}</p>
         </div>
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setSnap((s) => ({ ...s, dirRight: !s.dirRight }))}
+            className="h-12 px-3 rounded-2xl bg-white/10 text-xs font-semibold whitespace-nowrap"
+          >
+            Atacamos {snap.dirRight ? '→' : '←'}
+          </button>
           <button type="button" onClick={() => setSnap((s) => ({ ...s, elapsedMs: nudgeElapsed(s.elapsedMs, -60_000) }))} className="h-10 w-10 rounded-xl bg-white/10 text-lg" aria-label="Restar minuto">−</button>
           <div className="text-right min-w-[4.5rem]">
             <p className="font-mono tabular-nums text-[26px] leading-none text-amber-200">{formatClock(snap.half, snap.elapsedMs)}</p>
@@ -654,14 +680,17 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
         {tab === 'stats' && (
           <StatsTab
             teamStats={snap.teamStats}
+            occasionLanes={snap.occasionLanes}
             usName={equipoNombre}
             rivalName={partido.rival?.nombre || 'Rival'}
             bump={bump}
+            bumpOccasion={bumpOccasion}
           />
         )}
         {tab === 'faltas' && (
           <FaltasTab
             foulMap={snap.foulMap}
+            dirRight={snap.dirRight}
             setFoulMap={(foulMap) => setSnap((s) => ({ ...s, foulMap }))}
           />
         )}
@@ -924,13 +953,6 @@ function OnceTab({
             {f.name}
           </button>
         ))}
-        <button
-          type="button"
-          onClick={() => setSnap((s) => ({ ...s, dirRight: !s.dirRight }))}
-          className="min-h-10 px-3 rounded-xl bg-white/10 text-sm"
-        >
-          Bandas {snap.dirRight ? '→' : '←'}
-        </button>
       </div>
       <div className="flex-1 min-h-0 relative rounded-2xl overflow-hidden bg-[#147a3a]">
         <div className="absolute inset-3 border-2 border-white/40 pointer-events-none" />
@@ -1030,22 +1052,51 @@ function GolesTab({
 
 function StatsTab({
   teamStats,
+  occasionLanes,
   usName,
   rivalName,
   bump,
+  bumpOccasion,
 }: {
   teamStats: Record<string, number>
+  occasionLanes: AnotadorSnapshot['occasionLanes']
   usName: string
   rivalName: string
   bump: (key: TeamStatKey, side: AnotadorSide, delta: number) => void
+  bumpOccasion: (side: AnotadorSide, lane: AttackLane, delta: number) => void
 }) {
+  const regularFields = TEAM_STAT_FIELDS.filter((field) => field.key !== 'ocasiones_gol')
   return (
-    <div className="h-full overflow-y-auto p-2">
+    <div className="h-full overflow-y-auto p-2 space-y-3">
+      <section className="rounded-2xl bg-[#122018] p-3 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-semibold">Ocasiones por carril</p>
+          <p className="text-xs text-zinc-400">
+            {teamStats.ocasiones_gol || 0} · {teamStats.rival_ocasiones_gol || 0}
+          </p>
+        </div>
+        <div className="grid grid-cols-[1fr_88px_88px] gap-1 items-center">
+          <span />
+          <span className="text-center text-xs text-zinc-400 truncate">{usName}</span>
+          <span className="text-center text-xs text-zinc-400 truncate">{rivalName}</span>
+          {([
+            ['izq', 'Izq'],
+            ['cen', 'Cen'],
+            ['dch', 'Dch'],
+          ] as const).map(([lane, label]) => (
+            <div key={lane} className="contents">
+              <span className="text-zinc-300 text-sm">{label}</span>
+              <LaneStepper value={occasionLanes.us[lane]} onDelta={(delta) => bumpOccasion('us', lane, delta)} />
+              <LaneStepper value={occasionLanes.rival[lane]} onDelta={(delta) => bumpOccasion('rival', lane, delta)} />
+            </div>
+          ))}
+        </div>
+      </section>
       <div className="grid grid-cols-[1fr_88px_88px] gap-1 items-center">
         <span />
         <span className="text-center text-xs text-zinc-400 truncate">{usName}</span>
         <span className="text-center text-xs text-zinc-400 truncate">{rivalName}</span>
-        {TEAM_STAT_FIELDS.map((f) => (
+        {regularFields.map((f) => (
           <StatRow
             key={f.key}
             label={f.label}
@@ -1063,16 +1114,18 @@ function StatsTab({
 
 function FaltasTab({
   foulMap,
+  dirRight,
   setFoulMap,
 }: {
   foulMap: AnotadorSnapshot['foulMap']
+  dirRight: boolean
   setFoulMap: (m: AnotadorSnapshot['foulMap']) => void
 }) {
   const [mode, setMode] = useState<'cometidas' | 'recibidas'>('cometidas')
-  const dots = foulMap[mode]
-  const other = mode === 'cometidas' ? foulMap.recibidas : foulMap.cometidas
+  const dots = foulMap[mode].map((dot) => denormalizeFoulDot(dot, dirRight))
+  const other = (mode === 'cometidas' ? foulMap.recibidas : foulMap.cometidas).map((dot) => denormalizeFoulDot(dot, dirRight))
   const setDots = (next: { x: number; y: number }[]) => {
-    setFoulMap({ ...foulMap, [mode]: next })
+    setFoulMap({ ...foulMap, [mode]: next.map((dot) => normalizeFoulDot(dot, dirRight)) })
   }
   return (
     <div className="h-full flex flex-col p-2 gap-2">
@@ -1092,7 +1145,16 @@ function FaltasTab({
           Recibidas ({foulMap.recibidas.length})
         </button>
       </div>
-      <p className="text-xs text-zinc-500">Toca el campo. Toca un punto para quitarlo.</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-zinc-500">Toca el campo tal y como lo ves. Dentro, nuestra portería queda siempre a la izquierda.</p>
+        <button
+          type="button"
+          onClick={() => setDots(dots.slice(0, -1))}
+          className="min-h-10 px-3 rounded-xl bg-white/10 text-xs font-semibold whitespace-nowrap"
+        >
+          Quitar última
+        </button>
+      </div>
       <svg
         viewBox="0 0 150 100"
         className="flex-1 w-full rounded-2xl bg-[#2D5016]"
@@ -1117,6 +1179,8 @@ function FaltasTab({
         <rect x="127" y="20" width="18" height="60" fill="none" stroke="white" strokeWidth="0.4" opacity={0.3} />
         <rect x="5" y="32" width="8" height="36" fill="none" stroke="white" strokeWidth="0.3" opacity={0.25} />
         <rect x="137" y="32" width="8" height="36" fill="none" stroke="white" strokeWidth="0.3" opacity={0.25} />
+        <text x="8" y="12" fill="white" opacity="0.75" fontSize="6">Nuestra</text>
+        <text x="119" y="12" fill="white" opacity="0.75" fontSize="6">Ataque {dirRight ? '→' : '←'}</text>
         {other.map((d, i) => (
           <circle key={`o${i}`} cx={d.x} cy={d.y} r="3" fill={mode === 'cometidas' ? '#38bdf866' : '#ef444466'} className="pointer-events-none" />
         ))}
@@ -1131,6 +1195,16 @@ function FaltasTab({
           />
         ))}
       </svg>
+    </div>
+  )
+}
+
+function LaneStepper({ value, onDelta }: { value: number; onDelta: (delta: number) => void }) {
+  return (
+    <div className="grid grid-cols-[1fr_1.1fr_1fr] min-h-12 rounded-xl overflow-hidden bg-white/10">
+      <button type="button" onClick={() => onDelta(-1)} className="text-lg">−</button>
+      <span className="font-mono tabular-nums flex items-center justify-center text-base">{value}</span>
+      <button type="button" onClick={() => onDelta(1)} className="text-lg bg-white/10">+1</button>
     </div>
   )
 }
