@@ -35,6 +35,7 @@ export interface EstadisticaPartidoUpdateData {
 
   comentario_tactico?: string
   reflexion_entrenador?: string
+  stats_periodos?: Record<string, unknown>
 }
 
 export const estadisticasPartidoApi = {

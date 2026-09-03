@@ -47,6 +47,7 @@ async def get_estadisticas_partido(
         faltas_mapa_cometidas=[], faltas_mapa_recibidas=[],
         comentario_tactico="",
         reflexion_entrenador="",
+        stats_periodos={},
         created_at="2000-01-01T00:00:00Z",
         updated_at="2000-01-01T00:00:00Z",
     )
@@ -117,9 +118,10 @@ async def upsert_estadisticas_partido(
                 "partido_id", str(partido_id)
             ).execute()
         except Exception as e:
-            # Migración 060 pendiente: reintentar sin reflexion_entrenador
-            if "reflexion_entrenador" in update_data and "42703" in str(e):
+            # Columnas nuevas pendientes (060 reflexion, 079 stats_periodos)
+            if "42703" in str(e):
                 update_data.pop("reflexion_entrenador", None)
+                update_data.pop("stats_periodos", None)
                 response = supabase.table("estadisticas_partido").update(update_data).eq(
                     "partido_id", str(partido_id)
                 ).execute()
@@ -131,8 +133,9 @@ async def upsert_estadisticas_partido(
         try:
             response = supabase.table("estadisticas_partido").insert(update_data).execute()
         except Exception as e:
-            if "reflexion_entrenador" in update_data and "42703" in str(e):
+            if "42703" in str(e):
                 update_data.pop("reflexion_entrenador", None)
+                update_data.pop("stats_periodos", None)
                 response = supabase.table("estadisticas_partido").insert(update_data).execute()
             else:
                 raise
@@ -145,4 +148,5 @@ async def upsert_estadisticas_partido(
 
     row = dict(response.data[0])
     row.setdefault("reflexion_entrenador", "")
+    row.setdefault("stats_periodos", {})
     return EstadisticaPartidoResponse(**row)

@@ -239,6 +239,27 @@ async def estadisticas_dashboard(
     acumulados["partidos_con_estadisticas"] = partidos_con_stats
     acumulados["promedios"] = promedios
 
+    por_parte = {
+        "1": {f: 0 for f in stat_fields},
+        "2": {f: 0 for f in stat_fields},
+        "partidos": 0,
+    }
+    for s in stats_all:
+        sp = s.get("stats_periodos") or {}
+        if not isinstance(sp, dict):
+            continue
+        has_half = False
+        for dest in ("1", "2"):
+            bucket = sp.get(dest) or sp.get(int(dest))
+            if not isinstance(bucket, dict):
+                continue
+            has_half = True
+            for f in stat_fields:
+                por_parte[dest][f] += int(bucket.get(f, 0) or 0)
+        if has_half:
+            por_parte["partidos"] += 1
+    acumulados["por_parte"] = por_parte
+
     # ── 3. GOLES analysis ─────────────────────────────────────
     goles_periodo_favor = defaultdict(int)
     goles_periodo_contra = defaultdict(int)

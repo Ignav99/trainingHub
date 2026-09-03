@@ -71,6 +71,7 @@ import { GoalDetailEditor } from './GoalDetailEditor'
 import { FoulMapEditor } from './FoulMapEditor'
 import { AnotacionesImportDialog } from './AnotacionesImportDialog'
 import type { AnotacionesPlan } from '@/lib/partidoAnotacionesJson'
+import { periodReportFromNotasPre } from '@/lib/anotador'
 
 const PartidoPlanTab = dynamic(() => import('./PartidoPlanTab').then(m => ({ default: m.PartidoPlanTab })), {
   loading: () => <div className="animate-pulse space-y-4 p-4"><div className="h-8 bg-muted rounded w-1/3" /><div className="h-32 bg-muted rounded" /><div className="h-32 bg-muted rounded" /></div>
@@ -1252,6 +1253,67 @@ export function MatchDetailPanel({
               </div>
             </CardContent>
           </Card>
+
+          {selectedPartido.notas_pre && periodReportFromNotasPre(selectedPartido.notas_pre) && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-primary" />
+                  1ª parte · 2ª parte · Total
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="overflow-x-auto">
+                {(() => {
+                  const report = periodReportFromNotasPre(selectedPartido.notas_pre)
+                  if (!report) return null
+                  return (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-3 gap-2 text-center text-sm">
+                        <div className="rounded-lg bg-muted/50 py-2">
+                          <p className="text-[10px] uppercase text-muted-foreground">1ª</p>
+                          <p className="font-mono text-lg font-semibold">{report.score1.gf}–{report.score1.gc}</p>
+                        </div>
+                        <div className="rounded-lg bg-muted/50 py-2">
+                          <p className="text-[10px] uppercase text-muted-foreground">2ª</p>
+                          <p className="font-mono text-lg font-semibold">{report.score2.gf}–{report.score2.gc}</p>
+                        </div>
+                        <div className="rounded-lg bg-primary/10 py-2">
+                          <p className="text-[10px] uppercase text-muted-foreground">Total</p>
+                          <p className="font-mono text-lg font-semibold">{report.total.gf}–{report.total.gc}</p>
+                        </div>
+                      </div>
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b text-center text-muted-foreground">
+                            <th className="text-left font-medium pb-1">Estadística</th>
+                            <th className="pb-1">1ª nos</th>
+                            <th className="pb-1">1ª riv</th>
+                            <th className="pb-1">2ª nos</th>
+                            <th className="pb-1">2ª riv</th>
+                            <th className="pb-1">Tot nos</th>
+                            <th className="pb-1">Tot riv</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[...report.lanes, ...report.rows].map((row) => (
+                            <tr key={row.key} className="border-b last:border-0">
+                              <td className="py-1.5 text-muted-foreground">{row.label}</td>
+                              <td className="text-center font-mono">{row.p1us}</td>
+                              <td className="text-center font-mono">{row.p1rival}</td>
+                              <td className="text-center font-mono">{row.p2us}</td>
+                              <td className="text-center font-mono">{row.p2rival}</td>
+                              <td className="text-center font-mono font-semibold">{row.tus}</td>
+                              <td className="text-center font-mono font-semibold">{row.trival}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                })()}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Player stats (inline editable) */}
           {convocados.length > 0 && (
