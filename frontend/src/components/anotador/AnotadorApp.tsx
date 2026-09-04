@@ -23,6 +23,7 @@ import { useEquipoStore } from '@/stores/equipoStore'
 import {
   type AttackLane,
   applySub,
+  addRivalDorsal,
   bumpPeriodOccasion,
   bumpPeriodStat,
   closeMatch,
@@ -48,6 +49,7 @@ import {
   patchGoalEvent,
   periodReport,
   remapFormationSlots,
+  removeRivalDorsal,
   reopenMatch,
   scoreFromEvents,
   setActiveHalf,
@@ -131,6 +133,8 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
   const [tab, setTab] = useState<Tab>('acta')
   const [selected, setSelected] = useState<string | null>(null)
   const [pending, setPending] = useState<Pending>(null)
+  const [selectedRival, setSelectedRival] = useState<number | null>(null)
+  const persistBusy = useRef(false)
   const [goalDraftId, setGoalDraftId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [ready, setReady] = useState(false)
@@ -236,6 +240,8 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
     const current = opts?.snapshot ?? snapRef.current
     const match = partidoRef.current
     if (!match) return
+    if (opts?.silent && persistBusy.current) return
+    if (!opts?.silent) persistBusy.current = true
     if (!opts?.silent) setSaving(true)
     try {
       const notas = mergeNotasPre(match.notas_pre, { ...current, running: false })
@@ -251,11 +257,13 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
         }
       }
       if (!opts?.silent) {
-        await Promise.all(convocados.map((c) => {
+        await Promise.all(convocados.map(async (c) => {
           const pos = assigned.get(c.id)
-          return convocatoriasApi.update(c.id, pos
-            ? { titular: true, posicion_asignada: pos }
-            : { titular: false })
+          try {
+            await convocatoriasApi.update(c.id, pos
+              ? { titular: true, posicion_asignada: pos }
+              : { titular: false })
+          } catch { /* el once no debe tumbar el volcado */ }
         }))
       }
 
@@ -309,7 +317,6 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
           }))
         }
       }
-      if (dumpError && !opts?.silent) throw dumpError
 
       if (opts?.silent) return
 
@@ -322,6 +329,11 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
         undefined,
         { revalidate: true },
       )
+      if (dumpError) {
+        const msg = dumpError instanceof Error ? dumpError.message : 'Error del servidor'
+        toast.warning(`Acta guardada. El informe no se volcó: ${msg}`)
+        return
+      }
       toast.success(
         current.closed
           ? 'Partido cerrado. Totales 1ª + 2ª en el informe'
@@ -329,8 +341,8 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
       )
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'No se ha podido guardar')
-      throw err
     } finally {
+      if (!opts?.silent) persistBusy.current = false
       if (!opts?.silent) setSaving(false)
     }
   }, [convocados, nameOf])
@@ -344,7 +356,7 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
     if (!snap.started && snap.events.length === 0) return
     const t = window.setTimeout(() => persistSilentRef.current(), 12_000)
     return () => window.clearTimeout(t)
-  }, [snap.events, snap.slots, snap.half, snap.form, snap.teamStats, snap.periods, snap.foulMap, snap.closed, ready])
+  }, [snap.events, snap.slots, snap.half, snap.form, snap.teamStats, snap.periods, snap.foulMap, snap.closed, snap.rivalDorsals, ready])
 
   useEffect(() => {
     if (!snap.running) return
@@ -438,6 +450,7 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
       return
     }
     setSelected((prev) => (prev === convId ? null : convId))
+    setSelectedRival(null)
   }
 
   const pushTimed = (partial: Omit<AnotadorEvent, 'id' | 'minute' | 'half'>) => {
@@ -504,10 +517,14 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
   }
 
   const fireRival = (type: 'gol_contra' | 'amarilla' | 'roja') => {
+    const rivalDorsal = selectedRival ?? undefined
+    if ((type === 'amarilla' || type === 'roja') && rivalDorsal == null) {
+      toast.error('Toca un dorsal rival')
+      return
+    }
     if (type === 'gol_contra') {
-      const ev = pushTimed({ type, side: 'rival', es_abp: false, tipo_gol: 'otro', zona: 'central' })
+      const ev = pushTimed({ type, side: 'rival', rivalDorsal, es_abp: false, tipo_gol: 'otro', zona: 'central' })
       setGoalDraftId(ev.id)
-      setSelected(null)
       return
     }
     setSnap((s) => bumpPeriodStat({
@@ -518,6 +535,7 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
         half: s.half,
         type,
         side: 'rival',
+        rivalDorsal,
       }],
     }, type === 'amarilla' ? 'tarjetas_amarillas' : 'tarjetas_rojas', 'rival', 1))
   }
@@ -688,6 +706,18 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
             selectedName={selectedConv ? `${dorsalOf(selectedConv) ?? '—'} ${displayName(selectedConv)}` : null}
             onField={onField}
             minutes={Object.fromEntries(Object.entries(rows).map(([id, r]) => [id, r.minutos_jugados]))}
+            rivalDorsals={snap.rivalDorsals || []}
+            selectedRival={selectedRival}
+            onSelectRival={(n) => {
+              setSelected(null)
+              setSelectedRival((prev) => (prev === n ? null : n))
+            }}
+            onAddRival={(n) => setSnap((s) => addRivalDorsal(s, n))}
+            onRemoveRival={(n) => {
+              setSnap((s) => removeRivalDorsal(s, n))
+              setSelectedRival((prev) => (prev === n ? null : prev))
+            }}
+            foulMap={livePeriod.foulMap}
           />
         )}
         {tab === 'once' && (
@@ -721,6 +751,7 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
             rivalName={partido.rival?.nombre || 'Rival'}
             bump={bump}
             bumpOccasion={bumpOccasion}
+            foulMap={livePeriod.foulMap}
           />
         )}
         {tab === 'faltas' && (
@@ -817,7 +848,7 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
           type="button"
           onClick={() => void persist()}
           disabled={saving}
-          className="h-10 px-3 rounded-xl bg-emerald-500 text-zinc-950 font-semibold text-sm flex items-center gap-1"
+          className="h-10 px-3 rounded-xl bg-emerald-500 text-zinc-950 font-semibold text-sm flex items-center gap-1 disabled:opacity-60"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           Guardar
@@ -844,6 +875,12 @@ function ActaTab({
   selectedName,
   onField,
   minutes,
+  rivalDorsals,
+  selectedRival,
+  onSelectRival,
+  onAddRival,
+  onRemoveRival,
+  foulMap,
 }: {
   onPitch: Convocatoria[]
   bench: Convocatoria[]
@@ -858,7 +895,15 @@ function ActaTab({
   selectedName: string | null
   onField: Set<string>
   minutes: Record<string, number>
+  rivalDorsals: number[]
+  selectedRival: number | null
+  onSelectRival: (n: number) => void
+  onAddRival: (n: number) => void
+  onRemoveRival: (n: number) => void
+  foulMap: AnotadorSnapshot['foulMap']
 }) {
+  const usFoulsLocked = foulMap.cometidas.length > 0
+  const rivalFoulsLocked = foulMap.recibidas.length > 0
   return (
     <div className="h-full grid grid-cols-1 landscape:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)] gap-1.5 p-1.5">
       <div className="min-h-0 overflow-y-auto rounded-2xl bg-[#122018] p-2 space-y-3">
@@ -881,7 +926,9 @@ function ActaTab({
               ? 'Toca al que entra'
               : selectedName
                 ? `Seleccionado: ${selectedName}`
-                : 'Toca un dorsal'}
+                : selectedRival != null
+                  ? `Rival #${selectedRival}`
+                  : 'Toca un dorsal'}
         </p>
         <div className="grid grid-cols-2 gap-1.5">
           <BigBtn label="Gol" onClick={() => firePlayer('gol')} tone="white" disabled={!selected} />
@@ -889,11 +936,18 @@ function ActaTab({
           <BigBtn label="Amarilla" onClick={() => firePlayer('amarilla')} tone="yellow" disabled={!selected} />
           <BigBtn label="Roja" onClick={() => firePlayer('roja')} tone="red" disabled={!selected} />
         </div>
-        <p className="text-[10px] uppercase tracking-widest text-zinc-500 px-1 pt-1">Rival</p>
+        <p className="text-[10px] uppercase tracking-widest text-zinc-500 px-1 pt-1">Rival · dorsales</p>
+        <RivalDorsalPad
+          dorsals={rivalDorsals}
+          selected={selectedRival}
+          onSelect={onSelectRival}
+          onAdd={onAddRival}
+          onRemove={onRemoveRival}
+        />
         <div className="grid grid-cols-3 gap-1.5">
           <BigBtn label="Gol" onClick={() => fireRival('gol_contra')} tone="mute" />
-          <BigBtn label="Amarilla" onClick={() => fireRival('amarilla')} tone="yellow" />
-          <BigBtn label="Roja" onClick={() => fireRival('roja')} tone="red" />
+          <BigBtn label="Amarilla" onClick={() => fireRival('amarilla')} tone="yellow" disabled={selectedRival == null} />
+          <BigBtn label="Roja" onClick={() => fireRival('roja')} tone="red" disabled={selectedRival == null} />
         </div>
         <p className="text-[10px] uppercase tracking-widest text-zinc-500 px-1 pt-1">Contadores de esta parte</p>
         <div className="grid grid-cols-[1fr_72px_72px] gap-y-1 gap-x-1 items-center text-xs">
@@ -902,6 +956,8 @@ function ActaTab({
           <span className="text-center text-zinc-500">Riv</span>
           {LIVE_STATS.map((key) => {
             const meta = TEAM_STAT_FIELDS.find((f) => f.key === key)!
+            const lockUs = key === 'faltas_cometidas' && usFoulsLocked
+            const lockRival = key === 'faltas_cometidas' && rivalFoulsLocked
             return (
               <StatRow
                 key={key}
@@ -910,11 +966,81 @@ function ActaTab({
                 rival={teamStats[`rival_${key}`] || 0}
                 onUs={(d) => bump(key, 'us', d)}
                 onRival={(d) => bump(key, 'rival', d)}
+                lockUs={lockUs}
+                lockRival={lockRival}
               />
             )
           })}
         </div>
       </div>
+    </div>
+  )
+}
+
+function RivalDorsalPad({
+  dorsals,
+  selected,
+  onSelect,
+  onAdd,
+  onRemove,
+}: {
+  dorsals: number[]
+  selected: number | null
+  onSelect: (n: number) => void
+  onAdd: (n: number) => void
+  onRemove: (n: number) => void
+}) {
+  const [draft, setDraft] = useState('')
+  const add = () => {
+    const n = parseInt(draft, 10)
+    if (!Number.isFinite(n)) return
+    onAdd(n)
+    setDraft('')
+    onSelect(n)
+  }
+  return (
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap gap-1.5">
+        {dorsals.map((n) => {
+          const active = selected === n
+          return (
+            <button
+              key={n}
+              type="button"
+              onClick={() => onSelect(n)}
+              onContextMenu={(e) => { e.preventDefault(); onRemove(n) }}
+              className={`min-h-12 min-w-12 px-2 rounded-xl font-mono text-xl tabular-nums ${
+                active ? 'bg-sky-400 text-zinc-950' : 'bg-white/10 text-sky-200'
+              }`}
+            >
+              {n}
+            </button>
+          )
+        })}
+        {dorsals.length === 0 && (
+          <p className="text-xs text-zinc-500 px-1 py-2">Añade el dorsal y tócalo para la tarjeta.</p>
+        )}
+      </div>
+      <div className="grid grid-cols-[1fr_auto] gap-1.5">
+        <input
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={2}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value.replace(/\D/g, '').slice(0, 2))}
+          onKeyDown={(e) => { if (e.key === 'Enter') add() }}
+          placeholder="Dorsal"
+          className="min-h-12 rounded-xl bg-white/10 px-3 font-mono text-lg tabular-nums"
+        />
+        <button type="button" onClick={add} className="min-h-12 px-4 rounded-xl bg-sky-500 text-zinc-950 font-semibold">
+          +
+        </button>
+      </div>
+      {selected != null && (
+        <button type="button" onClick={() => onRemove(selected)} className="text-[11px] text-zinc-500 underline">
+          Quitar #{selected} de la lista
+        </button>
+      )}
     </div>
   )
 }
@@ -1114,6 +1240,7 @@ function StatsTab({
   rivalName,
   bump,
   bumpOccasion,
+  foulMap,
 }: {
   teamStats: Record<string, number>
   occasionLanes: AnotadorSnapshot['occasionLanes']
@@ -1123,8 +1250,11 @@ function StatsTab({
   rivalName: string
   bump: (key: TeamStatKey, side: AnotadorSide, delta: number) => void
   bumpOccasion: (side: AnotadorSide, lane: AttackLane, delta: number) => void
+  foulMap: AnotadorSnapshot['foulMap']
 }) {
   const regularFields = TEAM_STAT_FIELDS.filter((field) => field.key !== 'ocasiones_gol')
+  const usFoulsLocked = foulMap.cometidas.length > 0
+  const rivalFoulsLocked = foulMap.recibidas.length > 0
   return (
     <div className="h-full overflow-y-auto p-2 space-y-3">
       <p className="px-1 text-xs text-amber-200/80">
@@ -1155,6 +1285,9 @@ function StatsTab({
           ))}
         </div>
       </section>
+      <p className="px-1 text-[11px] text-zinc-500">
+        Las faltas del mapa se copian aquí ({foulMap.cometidas.length} cometidas · {foulMap.recibidas.length} recibidas).
+      </p>
       <div className="grid grid-cols-[1fr_88px_88px] gap-1 items-center">
         <span />
         <span className="text-center text-xs text-zinc-400 truncate">{usName}</span>
@@ -1168,6 +1301,8 @@ function StatsTab({
             onUs={(d) => bump(f.key, 'us', d)}
             onRival={(d) => bump(f.key, 'rival', d)}
             large
+            lockUs={f.key === 'faltas_cometidas' && usFoulsLocked}
+            lockRival={f.key === 'faltas_cometidas' && rivalFoulsLocked}
           />
         ))}
       </div>
@@ -1213,6 +1348,7 @@ function FaltasTab({
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-zinc-500">
           {half === 1 ? '1ª' : '2ª'} parte. Toca el campo tal y como lo ves. Dentro, nuestra portería queda siempre a la izquierda.
+          {' '}Stats Faltas = {foulMap.cometidas.length} cometidas · {foulMap.recibidas.length} recibidas.
         </p>
         <button
           type="button"
@@ -1616,6 +1752,8 @@ function StatRow({
   onUs,
   onRival,
   large,
+  lockUs,
+  lockRival,
 }: {
   label: string
   us: number
@@ -1623,18 +1761,27 @@ function StatRow({
   onUs: (d: number) => void
   onRival: (d: number) => void
   large?: boolean
+  lockUs?: boolean
+  lockRival?: boolean
 }) {
   return (
     <>
       <span className={`text-zinc-300 ${large ? 'text-sm' : 'text-xs'}`}>{label}</span>
-      <Stepper value={us} onDelta={onUs} large={large} />
-      <Stepper value={rival} onDelta={onRival} large={large} />
+      <Stepper value={us} onDelta={onUs} large={large} locked={lockUs} />
+      <Stepper value={rival} onDelta={onRival} large={large} locked={lockRival} />
     </>
   )
 }
 
-function Stepper({ value, onDelta, large }: { value: number; onDelta: (d: number) => void; large?: boolean }) {
+function Stepper({ value, onDelta, large, locked }: { value: number; onDelta: (d: number) => void; large?: boolean; locked?: boolean }) {
   const h = large ? 'min-h-12' : 'min-h-10'
+  if (locked) {
+    return (
+      <div className={`${h} rounded-xl bg-white/5 font-mono tabular-nums flex items-center justify-center text-base text-amber-200`}>
+        {value}
+      </div>
+    )
+  }
   return (
     <div className={`grid grid-cols-[1fr_1.2fr_1fr] ${h} rounded-xl overflow-hidden bg-white/10`}>
       <button type="button" onClick={() => onDelta(-1)} className="text-lg">−</button>

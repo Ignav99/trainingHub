@@ -24,6 +24,10 @@ import {
   emptyOccasionLanes,
   bumpPeriodStat,
   bumpPeriodOccasion,
+  setPeriodFoulMap,
+  addRivalDorsal,
+  removeRivalDorsal,
+  eventLabel,
   setActiveHalf,
   closeMatch,
   reopenMatch,
@@ -363,4 +367,65 @@ test('amarillas de eventos entran en stats aunque el reloj esté a 0', () => {
   assert.equal(rows.p1.tarjeta_amarilla, true)
   assert.equal(rows.p2.tarjeta_amarilla, true)
   assert.equal(effectiveMatchMinute(snap), 62)
+})
+
+test('dorsales rivales se añaden y las tarjetas quedan ligadas al número', () => {
+  let snap = addRivalDorsal(DEFAULT_ANOTADOR, 9)
+  snap = addRivalDorsal(snap, 9)
+  snap = addRivalDorsal(snap, 4)
+  assert.deepEqual(snap.rivalDorsals, [4, 9])
+  snap = removeRivalDorsal(snap, 4)
+  assert.deepEqual(snap.rivalDorsals, [9])
+  const ev = { id: 'y', minute: 33, half: 1 as const, type: 'amarilla' as const, side: 'rival' as const, rivalDorsal: 9 }
+  assert.match(eventLabel(ev, () => ''), /#9/)
+  const detalle = golesDetalleFromEvents([
+    { id: 'g', minute: 70, half: 2, type: 'gol_contra', rivalDorsal: 9 },
+  ], () => '')
+  assert.equal(detalle.contra[0].jugador, '#9')
+})
+
+test('el mapa de faltas copia el número a Stats de esa parte', () => {
+  let snap: AnotadorSnapshot = { ...DEFAULT_ANOTADOR }
+  snap = setPeriodFoulMap(snap, {
+    cometidas: [{ x: 10, y: 20 }, { x: 30, y: 40 }],
+    recibidas: [{ x: 80, y: 50 }],
+  }, 1)
+  assert.equal(snap.periods[1].teamStats.faltas_cometidas, 2)
+  assert.equal(snap.periods[1].teamStats.rival_faltas_cometidas, 1)
+  assert.equal(snap.teamStats.faltas_cometidas, 2)
+  assert.equal(snap.teamStats.rival_faltas_cometidas, 1)
+  snap = setActiveHalf(snap, 2)
+  snap = setPeriodFoulMap(snap, {
+    cometidas: [{ x: 12, y: 12 }],
+    recibidas: [],
+  }, 2)
+  assert.equal(snap.teamStats.faltas_cometidas, 3)
+  assert.equal(snap.periods[2].teamStats.faltas_cometidas, 1)
+  snap = setPeriodFoulMap(snap, { cometidas: [], recibidas: [] }, 2)
+  assert.equal(snap.periods[2].teamStats.faltas_cometidas, 0)
+})
+
+test('el volcado del informe incluye faltas del mapa y amarilla rival', () => {
+  let snap: AnotadorSnapshot = {
+    ...DEFAULT_ANOTADOR,
+    started: true,
+    closed: true,
+    slots: { POR: 'gk' },
+    enteredAt: { gk: 0 },
+    events: [
+      { id: 'y', minute: 40, half: 1, type: 'amarilla', side: 'rival', rivalDorsal: 7 },
+    ],
+  }
+  snap = setPeriodFoulMap(snap, {
+    cometidas: [{ x: 20, y: 20 }, { x: 21, y: 21 }],
+    recibidas: [{ x: 90, y: 40 }],
+  }, 1)
+  const dumped = informeFromSnapshot(snap, ['gk'], () => '')
+  assert.equal(dumped.foulMap.cometidas.length, 2)
+  assert.equal(dumped.teamStats.faltas_cometidas, 2)
+  assert.equal(dumped.teamStats.rival_faltas_cometidas, 1)
+  assert.equal(dumped.teamStats.rival_tarjetas_amarillas, 1)
+  const payload = statsPeriodosPayload(dumped.snap)
+  assert.equal(payload['1'].faltas_cometidas, 2)
+  assert.equal(payload.total.faltas_cometidas, 2)
 })

@@ -70,6 +70,7 @@ export interface AnotadorEvent {
   tipo_gol?: string
   tipo_abp?: string
   zona?: string
+  rivalDorsal?: number
 }
 
 export interface FoulDot {
@@ -111,6 +112,7 @@ export interface AnotadorSnapshot {
   foulMap: FoulMap
   occasionLanes: OccasionLaneState
   periods: Record<AnotadorHalf, PeriodState>
+  rivalDorsals: number[]
 }
 
 export interface PeriodReportRow {
@@ -220,16 +222,29 @@ export function totalsFromPeriods(periods: Record<AnotadorHalf, PeriodState>): {
   occasionLanes: OccasionLaneState
   foulMap: FoulMap
 } {
-  const occasionLanes = addOccasionLanes(periods[1].occasionLanes, periods[2].occasionLanes)
+  const p1 = applyFoulMapCounts(periods[1])
+  const p2 = applyFoulMapCounts(periods[2])
+  const occasionLanes = addOccasionLanes(p1.occasionLanes, p2.occasionLanes)
   return {
     teamStats: {
-      ...addTeamStats(periods[1].teamStats, periods[2].teamStats),
+      ...addTeamStats(p1.teamStats, p2.teamStats),
       ocasiones_gol: totalOccasionsFromLanes(occasionLanes, 'us'),
       rival_ocasiones_gol: totalOccasionsFromLanes(occasionLanes, 'rival'),
     },
     occasionLanes,
-    foulMap: addFoulMaps(periods[1].foulMap, periods[2].foulMap),
+    foulMap: addFoulMaps(p1.foulMap, p2.foulMap),
   }
+}
+
+export function applyFoulMapCounts(period: PeriodState): PeriodState {
+  const nextStats = { ...period.teamStats }
+  if (period.foulMap.cometidas.length > 0) {
+    nextStats.faltas_cometidas = period.foulMap.cometidas.length
+  }
+  if (period.foulMap.recibidas.length > 0) {
+    nextStats.rival_faltas_cometidas = period.foulMap.recibidas.length
+  }
+  return { ...period, teamStats: nextStats }
 }
 
 export function withSyncedTotals(snapshot: AnotadorSnapshot): AnotadorSnapshot {
@@ -353,6 +368,7 @@ export const DEFAULT_ANOTADOR: AnotadorSnapshot = {
   foulMap: emptyFoulMap(),
   occasionLanes: emptyOccasionLanes(),
   periods: emptyPeriods(),
+  rivalDorsals: [],
 }
 
 export function newEventId(): string {
@@ -540,7 +556,31 @@ export function setPeriodFoulMap(
     cometidas: [...foulMap.cometidas],
     recibidas: [...foulMap.recibidas],
   }
+  periods[half].teamStats = {
+    ...periods[half].teamStats,
+    faltas_cometidas: foulMap.cometidas.length,
+    rival_faltas_cometidas: foulMap.recibidas.length,
+  }
   return withSyncedTotals({ ...snapshot, periods })
+}
+
+export function addRivalDorsal(snapshot: AnotadorSnapshot, dorsal: number): AnotadorSnapshot {
+  const n = Math.trunc(dorsal)
+  if (!Number.isFinite(n) || n < 0 || n > 99) return snapshot
+  const current = snapshot.rivalDorsals || []
+  if (current.includes(n)) return snapshot
+  return { ...snapshot, rivalDorsals: [...current, n].sort((a, b) => a - b) }
+}
+
+export function removeRivalDorsal(snapshot: AnotadorSnapshot, dorsal: number): AnotadorSnapshot {
+  return {
+    ...snapshot,
+    rivalDorsals: (snapshot.rivalDorsals || []).filter((d) => d !== dorsal),
+  }
+}
+
+export function rivalDorsalLabel(dorsal?: number): string {
+  return dorsal == null ? '' : `#${dorsal}`
 }
 
 export function scoreFromEventsByHalf(events: AnotadorEvent[]): Record<AnotadorHalf, { gf: number; gc: number }> {
@@ -628,8 +668,8 @@ export function statsPeriodosPayload(snapshot: AnotadorSnapshot) {
     foulMap: period.foulMap,
   })
   return {
-    1: pack(snapshot.periods[1], report.score1),
-    2: pack(snapshot.periods[2], report.score2),
+    '1': pack(snapshot.periods[1], report.score1),
+    '2': pack(snapshot.periods[2], report.score2),
     total: {
       ...snapshot.teamStats,
       goles_favor: report.total.gf,
@@ -766,6 +806,9 @@ export function normalizeSnapshot(raw: AnotadorSnapshot): AnotadorSnapshot {
     slots: raw.slots || {},
     enteredAt: raw.enteredAt || {},
     playedOff: raw.playedOff || {},
+    rivalDorsals: Array.isArray(raw.rivalDorsals)
+      ? raw.rivalDorsals.filter((n) => Number.isInteger(n) && n >= 0 && n <= 99)
+      : [],
   })
 }
 
@@ -947,7 +990,7 @@ export function golesDetalleFromEvents(
       if (ev.tipo_gol) row.tipo_gol = ev.tipo_gol
       if (ev.tipo_abp) row.tipo_abp = ev.tipo_abp
       if (ev.zona) row.zona = ev.zona
-      const n = nameOf(ev.convId)
+      const n = nameOf(ev.convId) || (ev.rivalDorsal != null ? `#${ev.rivalDorsal}` : '')
       if (n) row.jugador = n
       contra.push(row)
     }
@@ -1001,17 +1044,18 @@ function tipoLabel(ev: AnotadorEvent): string {
 }
 
 export function eventLabel(ev: AnotadorEvent, nameOf: (id?: string) => string): string {
-  const who = nameOf(ev.convId) || '—'
+  const rivalNum = ev.rivalDorsal != null ? ` #${ev.rivalDorsal}` : ''
+  const who = nameOf(ev.convId) || rivalNum.trim() || '—'
   const side = ev.side === 'rival' ? ' rival' : ''
   switch (ev.type) {
     case 'gol':
       return `${ev.minute}' Gol ${who}${tipoLabel(ev)}${ev.relatedConvId ? ` (asiste ${nameOf(ev.relatedConvId)})` : ''}`
     case 'gol_contra':
-      return `${ev.minute}' Gol rival${tipoLabel(ev)}`
+      return `${ev.minute}' Gol rival${rivalNum}${tipoLabel(ev)}`
     case 'amarilla':
-      return `${ev.minute}' Amarilla${side} ${ev.convId ? who : ''}`.trim()
+      return `${ev.minute}' Amarilla${side} ${ev.side === 'rival' ? rivalNum.trim() : (ev.convId ? who : '')}`.trim()
     case 'roja':
-      return `${ev.minute}' Roja${side} ${ev.convId ? who : ''}`.trim()
+      return `${ev.minute}' Roja${side} ${ev.side === 'rival' ? rivalNum.trim() : (ev.convId ? who : '')}`.trim()
     case 'cambio':
       return `${ev.minute}' Cambio ${who} → ${nameOf(ev.relatedConvId)}`
     case 'corner':
