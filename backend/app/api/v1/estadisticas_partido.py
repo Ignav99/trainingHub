@@ -14,6 +14,21 @@ from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
 
+OPTIONAL_ESTADISTICA_COLS = ("reflexion_entrenador", "stats_periodos")
+
+
+def is_missing_column_error(err: Exception) -> bool:
+    msg = str(err).lower()
+    return "42703" in msg or "pgrst204" in msg or "schema cache" in msg
+
+
+def drop_optional_estadistica_cols(payload: dict) -> dict:
+    out = dict(payload)
+    for col in OPTIONAL_ESTADISTICA_COLS:
+        out.pop(col, None)
+    return out
+
+
 router = APIRouter()
 
 
@@ -118,10 +133,9 @@ async def upsert_estadisticas_partido(
                 "partido_id", str(partido_id)
             ).execute()
         except Exception as e:
-            # Columnas nuevas pendientes (060 reflexion, 079 stats_periodos)
-            if "42703" in str(e):
-                update_data.pop("reflexion_entrenador", None)
-                update_data.pop("stats_periodos", None)
+            # Columnas nuevas pendientes (060 reflexion, 079 stats_periodos / PGRST204)
+            if is_missing_column_error(e):
+                update_data = drop_optional_estadistica_cols(update_data)
                 response = supabase.table("estadisticas_partido").update(update_data).eq(
                     "partido_id", str(partido_id)
                 ).execute()
@@ -133,9 +147,8 @@ async def upsert_estadisticas_partido(
         try:
             response = supabase.table("estadisticas_partido").insert(update_data).execute()
         except Exception as e:
-            if "42703" in str(e):
-                update_data.pop("reflexion_entrenador", None)
-                update_data.pop("stats_periodos", None)
+            if is_missing_column_error(e):
+                update_data = drop_optional_estadistica_cols(update_data)
                 response = supabase.table("estadisticas_partido").insert(update_data).execute()
             else:
                 raise
