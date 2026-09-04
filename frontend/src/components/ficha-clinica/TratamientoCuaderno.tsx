@@ -15,7 +15,23 @@ import {
 import { apiKey } from '@/lib/swr'
 import { FASE_TRATAMIENTO_LABELS } from '@/lib/jugadorTipo'
 
-export function TratamientoCuaderno({ registroId }: { registroId: string }) {
+const MOLESTIA_TRATAMIENTOS = [
+  'Descarga',
+  'Masaje',
+  'Hielo / crioterapia',
+  'Movilidad',
+  'Vendaje',
+  'Electroterapia',
+  'Otro',
+]
+
+export function TratamientoCuaderno({
+  registroId,
+  variant = 'lesion',
+}: {
+  registroId: string
+  variant?: 'lesion' | 'molestia'
+}) {
   const { data, error } = useSWR(apiKey(`/medico/${registroId}/tratamiento`), () =>
     medicoApi.listTratamiento(registroId),
   )
@@ -43,16 +59,24 @@ export function TratamientoCuaderno({ registroId }: { registroId: string }) {
     }
   }
 
+  const esMolestia = variant === 'molestia'
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-[#16324F]">Tratamiento</h3>
-          <p className="text-xs text-slate-500">Trabajo del día, margen, feedback del readaptador, nutrición.</p>
+          <h3 className="text-sm font-semibold text-[#16324F]">
+            {esMolestia ? 'Seguimiento de la molestia' : 'Tratamiento'}
+          </h3>
+          <p className="text-xs text-slate-500">
+            {esMolestia
+              ? 'Cada sesión: fecha, qué se le hizo (descarga, masaje, hielo…) y cómo respondió.'
+              : 'Trabajo del día, margen, feedback del readaptador, nutrición.'}
+          </p>
         </div>
         <Button size="sm" onClick={() => setOpen((v) => !v)}>
           <Plus className="mr-1 h-3.5 w-3.5" />
-          Nueva entrada
+          {esMolestia ? 'Nueva sesión' : 'Nueva entrada'}
         </Button>
       </div>
 
@@ -69,6 +93,7 @@ export function TratamientoCuaderno({ registroId }: { registroId: string }) {
               <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-500">Fecha</label>
               <Input type="date" value={form.fecha} onChange={(e) => setForm({ ...form, fecha: e.target.value })} />
             </div>
+            {!esMolestia ? (
             <div>
               <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-500">Fase ese día</label>
               <select
@@ -82,6 +107,24 @@ export function TratamientoCuaderno({ registroId }: { registroId: string }) {
                 ))}
               </select>
             </div>
+            ) : (
+            <div>
+              <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-500">Tipo de sesión</label>
+              <select
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={form.trabajo || ''}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setForm({ ...form, trabajo: v || undefined })
+                }}
+              >
+                <option value="">Elegir…</option>
+                {MOLESTIA_TRATAMIENTOS.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+            )}
           </div>
           {margen.length > 0 ? (
             <div>
@@ -101,6 +144,27 @@ export function TratamientoCuaderno({ registroId }: { registroId: string }) {
               </select>
             </div>
           ) : null}
+          {esMolestia ? (
+            <>
+              <Field label="Qué se le hace">
+                <Textarea
+                  rows={2}
+                  value={form.ejercicios || ''}
+                  onChange={(e) => setForm({ ...form, ejercicios: e.target.value })}
+                  placeholder="Ej: descarga de isquios 12 min + hielo"
+                />
+              </Field>
+              <Field label="Notas / respuesta">
+                <Textarea
+                  rows={2}
+                  value={form.feedback || ''}
+                  onChange={(e) => setForm({ ...form, feedback: e.target.value })}
+                  placeholder="Dolor, carga, si puede entrenar mañana…"
+                />
+              </Field>
+            </>
+          ) : (
+            <>
           <Field label="Qué se ha trabajado">
             <Textarea rows={2} value={form.trabajo || ''} onChange={(e) => setForm({ ...form, trabajo: e.target.value })} placeholder="Ej: movilidad de cadera + isquios en camilla" />
           </Field>
@@ -116,11 +180,13 @@ export function TratamientoCuaderno({ registroId }: { registroId: string }) {
           <Field label="Suplementación">
             <Textarea rows={2} value={form.suplementacion || ''} onChange={(e) => setForm({ ...form, suplementacion: e.target.value })} />
           </Field>
+            </>
+          )}
           <div className="flex justify-end gap-2">
             <Button variant="outline" size="sm" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button size="sm" onClick={save} disabled={saving}>
               {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
-              Guardar día
+              {esMolestia ? 'Guardar sesión' : 'Guardar día'}
             </Button>
           </div>
         </div>
@@ -143,7 +209,9 @@ export function TratamientoCuaderno({ registroId }: { registroId: string }) {
       ) : null}
 
       {diario.length === 0 && !open ? (
-        <p className="py-4 text-center text-sm text-muted-foreground">Aún no hay entradas de tratamiento.</p>
+        <p className="py-4 text-center text-sm text-muted-foreground">
+          {esMolestia ? 'Aún no hay sesiones de tratamiento.' : 'Aún no hay entradas de tratamiento.'}
+        </p>
       ) : (
         <ol className="space-y-3">
           {diario.map((d) => (

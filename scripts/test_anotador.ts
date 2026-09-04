@@ -38,6 +38,8 @@ import {
   informeFromSnapshot,
   hasAnotadorLiveData,
   effectiveMatchMinute,
+  informeMatchMinute,
+  resolveGolDetalleNames,
   type AnotadorSnapshot,
 } from '../frontend/src/lib/anotador.ts'
 
@@ -59,6 +61,52 @@ test('once inicial y cambio cierran minutos del que sale', () => {
   assert.equal(rows.a.minutos_jugados, 90)
   assert.equal(rows.b.minutos_jugados, 60)
   assert.equal(rows.c.minutos_jugados, 30)
+})
+
+test('minutos del informe: titular sin reloj ni startEleven juega 90; el cambio congela', () => {
+  const snap: AnotadorSnapshot = {
+    ...DEFAULT_ANOTADOR,
+    started: true,
+    closed: true,
+    slots: { POR: 'a', DC: 'c' },
+    events: [
+      { id: 'sub', minute: 62, half: 2, type: 'cambio', convId: 'b', relatedConvId: 'c', slotId: 'DC' },
+      { id: 'g', minute: 20, half: 1, type: 'gol', convId: 'b', relatedConvId: 'a' },
+      { id: 'y', minute: 40, half: 1, type: 'amarilla', convId: 'a' },
+    ],
+  }
+  assert.equal(informeMatchMinute(snap), 90)
+  const dumped = informeFromSnapshot(snap, ['a', 'b', 'c', 'd'], (id) => {
+    if (id === 'a') return 'Portero'
+    if (id === 'b') return 'Hugo'
+    if (id === 'c') return 'Luis'
+    return ''
+  })
+  assert.equal(dumped.playerRows.a.minutos_jugados, 90)
+  assert.equal(dumped.playerRows.b.minutos_jugados, 62)
+  assert.equal(dumped.playerRows.c.minutos_jugados, 28)
+  assert.equal(dumped.playerRows.d.minutos_jugados, 0)
+  assert.equal(dumped.playerRows.b.goles, 1)
+  assert.equal(dumped.playerRows.a.asistencias, 1)
+  assert.equal(dumped.playerRows.a.tarjeta_amarilla, true)
+  assert.equal(dumped.goles.favor[0].jugador, 'Hugo')
+  assert.equal(dumped.goles.favor[0].asistencia, 'Portero')
+})
+
+test('si el reloj midió 93′, el informe no recorta a 90', () => {
+  const snap: AnotadorSnapshot = {
+    ...DEFAULT_ANOTADOR,
+    started: true,
+    closed: true,
+    half: 2,
+    elapsedMs: 48 * 60_000,
+    half1Ms: 45 * 60_000,
+    half2Ms: 48 * 60_000,
+    slots: { DC: 'a' },
+    enteredAt: { a: 0 },
+  }
+  assert.equal(informeMatchMinute(snap), 93)
+  assert.equal(informeFromSnapshot(snap, ['a'], () => '').playerRows.a.minutos_jugados, 93)
 })
 
 test('goles y tarjetas se cuentan por eventos', () => {
@@ -137,7 +185,21 @@ test('detalle de goles para el informe', () => {
   assert.equal(favor[0].minuto, 12)
   assert.equal(favor[0].jugador, 'Hugo')
   assert.equal(favor[0].asistencia, 'Luis')
+  assert.equal(favor[0].conv_id, 'a')
+  assert.equal(favor[0].asistencia_conv_id, 'b')
   assert.equal(contra[0].minuto, 70)
+})
+
+test('el informe resuelve goleador y asistencia aunque el volcado no trajera nombres', () => {
+  const dumped = golesDetalleFromEvents(
+    [{ id: '1', minute: 12, half: 1, type: 'gol', convId: 'a', relatedConvId: 'b' }],
+    () => '',
+  )
+  assert.equal(dumped.favor[0].jugador, undefined)
+  assert.equal(dumped.favor[0].conv_id, 'a')
+  const resolved = resolveGolDetalleNames(dumped.favor, (id) => (id === 'a' ? 'Hugo' : id === 'b' ? 'Luis' : ''))
+  assert.equal(resolved[0].jugador, 'Hugo')
+  assert.equal(resolved[0].asistencia, 'Luis')
 })
 
 test('stats de ambos equipos y tipo de gol van al detalle', () => {

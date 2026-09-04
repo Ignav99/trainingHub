@@ -71,7 +71,7 @@ import { GoalDetailEditor } from './GoalDetailEditor'
 import { FoulMapEditor } from './FoulMapEditor'
 import { AnotacionesImportDialog } from './AnotacionesImportDialog'
 import type { AnotacionesPlan } from '@/lib/partidoAnotacionesJson'
-import { periodReportFromNotasPre, parseNotasPre, informeFromSnapshot, hasAnotadorLiveData } from '@/lib/anotador'
+import { periodReportFromNotasPre, parseNotasPre, informeFromSnapshot, hasAnotadorLiveData, resolveGolDetalleNames } from '@/lib/anotador'
 
 const PartidoPlanTab = dynamic(() => import('./PartidoPlanTab').then(m => ({ default: m.PartidoPlanTab })), {
   loading: () => <div className="animate-pulse space-y-4 p-4"><div className="h-8 bg-muted rounded w-1/3" /><div className="h-32 bg-muted rounded" /><div className="h-32 bg-muted rounded" /></div>
@@ -225,19 +225,18 @@ export function MatchDetailPanel({
   // Initialize informe data from fetched stats + convocados + acta del anotador
   useEffect(() => {
     if (!selectedId) return
-    if (informeInitialized === selectedId) return
+    const readyKey = `${selectedId}:${convocados.length}`
+    if (informeInitialized === readyKey) return
     if (loadingConv) return
 
     const parsed = parseNotasPre(selectedPartido?.notas_pre)
+    const nameOf = (id?: string) => {
+      if (!id) return ''
+      const c = convocados.find((x) => x.id === id)
+      return c ? getPlayerDisplayName(c) : ''
+    }
     const fromAnotador = parsed.anotador && hasAnotadorLiveData(parsed.anotador)
-      ? informeFromSnapshot(
-        parsed.anotador,
-        convocados.map((c) => c.id),
-        (id) => {
-          const c = convocados.find((x) => x.id === id)
-          return c ? (getPlayerData(c)?.apodo || getPlayerFullName(c)) : ''
-        },
-      )
+      ? informeFromSnapshot(parsed.anotador, convocados.map((c) => c.id), nameOf)
       : null
 
     if (!fromAnotador && estadisticasData === undefined) return
@@ -254,10 +253,20 @@ export function MatchDetailPanel({
     setTeamStats(stats)
     setReflexionEntrenador(estadisticasData?.reflexion_entrenador || '')
     setGolesDetalleFavor(
-      (fromAnotador?.goles.favor.length ? fromAnotador.goles.favor : estadisticasData?.goles_detalle_favor) || [],
+      resolveGolDetalleNames(
+        (fromAnotador?.goles.favor.length
+          ? fromAnotador.goles.favor
+          : estadisticasData?.goles_detalle_favor) || [],
+        nameOf,
+      ),
     )
     setGolesDetalleContra(
-      (fromAnotador?.goles.contra.length ? fromAnotador.goles.contra : estadisticasData?.goles_detalle_contra) || [],
+      resolveGolDetalleNames(
+        (fromAnotador?.goles.contra.length
+          ? fromAnotador.goles.contra
+          : estadisticasData?.goles_detalle_contra) || [],
+        nameOf,
+      ),
     )
     setFaltasMapaCometidas(
       (fromAnotador?.foulMap.cometidas.length ? fromAnotador.foulMap.cometidas : estadisticasData?.faltas_mapa_cometidas) || [],
@@ -288,7 +297,7 @@ export function MatchDetailPanel({
       setRendimientoByConv(rend)
     }
 
-    setInformeInitialized(selectedId)
+    setInformeInitialized(readyKey)
   }, [selectedId, estadisticasData, convocados, loadingConv, selectedPartido?.notas_pre]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset informe init when match changes
@@ -1330,7 +1339,7 @@ export function MatchDetailPanel({
                   Rendimiento jugadores
                 </CardTitle>
                 <p className="text-[11px] text-muted-foreground font-normal">
-                  Columna <strong>Rend.</strong>: cada CT pone su nota (1–10) a quien haya jugado; se guarda la media de todas las notas.
+                  Minutos, goles, asistencias y tarjetas salen del anotador: el once titular acumula hasta el cambio o hasta el final (90′ o lo que dure).
                 </p>
               </CardHeader>
               <CardContent className="p-0">
@@ -1444,7 +1453,7 @@ export function MatchDetailPanel({
           )}
 
           {/* Goal detail editors */}
-          {selectedPartido.resultado && (
+          {(selectedPartido.resultado || golesDetalleFavor.length > 0 || golesDetalleContra.length > 0) && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -1459,6 +1468,8 @@ export function MatchDetailPanel({
                   onChange={setGolesDetalleFavor}
                   expectedCount={selectedPartido.goles_favor || 0}
                   color="emerald"
+                  players={convocados.map((c) => ({ id: c.id, name: getPlayerDisplayName(c) }))}
+                  showAssist
                 />
                 <div className="border-t" />
                 <GoalDetailEditor
@@ -1467,6 +1478,7 @@ export function MatchDetailPanel({
                   onChange={setGolesDetalleContra}
                   expectedCount={selectedPartido.goles_contra || 0}
                   color="red"
+                  showAssist={false}
                 />
               </CardContent>
             </Card>

@@ -484,6 +484,9 @@ function LesionesTab({
                     onChange={editing ? setEditMolestiaZonas : undefined}
                   />
                 </div>
+                <div className="mt-3 border-t border-amber-100 pt-3">
+                  <TratamientoCuaderno registroId={m.id} variant="molestia" />
+                </div>
               </div>
               )
             })}

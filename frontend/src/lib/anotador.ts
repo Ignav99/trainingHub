@@ -862,19 +862,101 @@ export function hydrateSnapshot(args: {
   }
 }
 
+/**
+ * Minutos para el informe: si el reloj no corrió, el partido se da por 90′
+ * (o 45′ si se cerró solo la 1ª). Si el reloj sí midió, se usa esa duración
+ * (incluye 90+).
+ */
+export function informeMatchMinute(snapshot: AnotadorSnapshot): number {
+  const live = effectiveMatchMinute(snapshot)
+  const clockRan = (snapshot.elapsedMs || 0) >= 60_000
+    || (snapshot.half1Ms || 0) >= 60_000
+    || (snapshot.half2Ms || 0) >= 60_000
+  if (snapshot.running || clockRan) return live
+  if (snapshot.closed && !secondHalfStarted(snapshot)) return Math.max(live, 45)
+  const hasLineupOrEvents = Object.values(snapshot.slots || {}).some(Boolean)
+    || snapshot.started
+    || (snapshot.events || []).length > 0
+    || Object.keys(snapshot.enteredAt || {}).length > 0
+  if (hasLineupOrEvents) return Math.max(live, 90)
+  return live
+}
+
+function sortedCambios(snapshot: AnotadorSnapshot): AnotadorEvent[] {
+  return (snapshot.events || [])
+    .filter((ev) => ev.type === 'cambio' && ev.convId && ev.relatedConvId)
+    .slice()
+    .sort((a, b) => (a.minute - b.minute) || String(a.id).localeCompare(String(b.id)))
+}
+
+/** Once inicial rebobinando los cambios sobre el once actual. */
+export function startingLineupIds(snapshot: AnotadorSnapshot): Set<string> {
+  const cambios = sortedCambios(snapshot)
+  if (cambios.length > 0) {
+    const field: Record<string, string> = { ...(snapshot.slots || {}) }
+    for (const sub of [...cambios].reverse()) {
+      if (sub.slotId) {
+        if (sub.convId) field[sub.slotId] = sub.convId
+      } else if (sub.relatedConvId) {
+        const slot = Object.entries(field).find(([, id]) => id === sub.relatedConvId)?.[0]
+        if (slot && sub.convId) field[slot] = sub.convId
+      }
+    }
+    return new Set(Object.values(field).filter(Boolean))
+  }
+  const starters = new Set<string>()
+  for (const [id, entered] of Object.entries(snapshot.enteredAt || {})) {
+    if (entered === 0) starters.add(id)
+  }
+  for (const id of Object.values(snapshot.slots || {})) {
+    if (!id) continue
+    const entered = snapshot.enteredAt[id]
+    if (entered == null || entered === 0) starters.add(id)
+  }
+  return starters
+}
+
+/**
+ * Minutos desde el once y las sustituciones anotadas.
+ * Titular: desde 0′ hasta el cambio (o hasta el final si no sale).
+ * Entra: desde el minuto del cambio hasta que salga o hasta el final.
+ */
 export function computeMinutes(
   snapshot: AnotadorSnapshot,
   convIds: string[],
   nowMinute: number,
 ): Record<string, number> {
+  const enter: Record<string, number> = {}
+  const exit: Record<string, number> = {}
+  for (const id of Array.from(startingLineupIds(snapshot))) enter[id] = 0
+  for (const sub of sortedCambios(snapshot)) {
+    if (sub.convId) exit[sub.convId] = sub.minute
+    if (sub.relatedConvId) enter[sub.relatedConvId] = sub.minute
+  }
+  for (const ev of snapshot.events || []) {
+    if (ev.type === 'roja' && ev.side !== 'rival' && ev.convId && exit[ev.convId] == null) {
+      exit[ev.convId] = ev.minute
+    }
+  }
+
   const out: Record<string, number> = {}
-  const onField = new Set(Object.values(snapshot.slots).filter(Boolean))
+  const onField = new Set(Object.values(snapshot.slots || {}).filter(Boolean))
   for (const id of convIds) {
+    if (enter[id] != null) {
+      let end = nowMinute
+      if (exit[id] != null) {
+        end = exit[id]
+      } else if (!onField.has(id) && (snapshot.playedOff[id] || 0) > 0) {
+        end = enter[id] + snapshot.playedOff[id]
+      }
+      out[id] = Math.max(0, end - enter[id])
+      continue
+    }
     const closed = snapshot.playedOff[id] || 0
     const entered = snapshot.enteredAt[id]
     if (onField.has(id) && entered != null) {
       out[id] = closed + Math.max(0, nowMinute - entered)
-    } else if (onField.has(id) && entered == null && nowMinute > 0) {
+    } else if (onField.has(id) && nowMinute > 0) {
       out[id] = nowMinute
     } else {
       out[id] = closed
@@ -902,7 +984,7 @@ export function informeFromSnapshot(
   nameOf: (id?: string) => string,
 ) {
   const snap = withSyncedTotals(normalizeSnapshot(snapshot))
-  const now = effectiveMatchMinute(snap)
+  const now = informeMatchMinute(snap)
   return {
     snap,
     now,
@@ -958,24 +1040,53 @@ export function scoreFromEvents(events: AnotadorEvent[]): { gf: number; gc: numb
   return { gf, gc }
 }
 
+export type GolDetalleVolcado = {
+  minuto: number
+  es_abp: boolean
+  tipo_gol?: string
+  tipo_abp?: string
+  zona?: string
+  jugador?: string
+  asistencia?: string
+  conv_id?: string
+  asistencia_conv_id?: string
+}
+
+export function resolveGolDetalleNames(
+  goals: GolDetalleVolcado[],
+  nameOf: (convId?: string) => string,
+): GolDetalleVolcado[] {
+  return goals.map((g) => {
+    const jugador = g.jugador || nameOf(g.conv_id) || ''
+    const asistencia = g.asistencia || nameOf(g.asistencia_conv_id) || ''
+    return {
+      ...g,
+      ...(jugador ? { jugador } : {}),
+      ...(asistencia ? { asistencia } : {}),
+    }
+  })
+}
+
 export function golesDetalleFromEvents(
   events: AnotadorEvent[],
   nameOf: (convId?: string) => string,
 ): {
-  favor: { minuto: number; es_abp: boolean; tipo_gol?: string; tipo_abp?: string; zona?: string; jugador?: string; asistencia?: string }[]
-  contra: { minuto: number; es_abp: boolean; tipo_gol?: string; tipo_abp?: string; zona?: string; jugador?: string }[]
+  favor: GolDetalleVolcado[]
+  contra: GolDetalleVolcado[]
 } {
-  const favor: { minuto: number; es_abp: boolean; tipo_gol?: string; tipo_abp?: string; zona?: string; jugador?: string; asistencia?: string }[] = []
-  const contra: { minuto: number; es_abp: boolean; tipo_gol?: string; tipo_abp?: string; zona?: string; jugador?: string }[] = []
+  const favor: GolDetalleVolcado[] = []
+  const contra: GolDetalleVolcado[] = []
   for (const ev of events) {
     if (ev.type === 'gol') {
-      const row: (typeof favor)[number] = {
+      const row: GolDetalleVolcado = {
         minuto: ev.minute,
         es_abp: Boolean(ev.es_abp),
       }
       if (ev.tipo_gol) row.tipo_gol = ev.tipo_gol
       if (ev.tipo_abp) row.tipo_abp = ev.tipo_abp
       if (ev.zona) row.zona = ev.zona
+      if (ev.convId) row.conv_id = ev.convId
+      if (ev.relatedConvId) row.asistencia_conv_id = ev.relatedConvId
       const n = nameOf(ev.convId)
       if (n) row.jugador = n
       const a = nameOf(ev.relatedConvId)
@@ -983,13 +1094,14 @@ export function golesDetalleFromEvents(
       favor.push(row)
     }
     if (ev.type === 'gol_contra') {
-      const row: (typeof contra)[number] = {
+      const row: GolDetalleVolcado = {
         minuto: ev.minute,
         es_abp: Boolean(ev.es_abp),
       }
       if (ev.tipo_gol) row.tipo_gol = ev.tipo_gol
       if (ev.tipo_abp) row.tipo_abp = ev.tipo_abp
       if (ev.zona) row.zona = ev.zona
+      if (ev.convId) row.conv_id = ev.convId
       const n = nameOf(ev.convId) || (ev.rivalDorsal != null ? `#${ev.rivalDorsal}` : '')
       if (n) row.jugador = n
       contra.push(row)

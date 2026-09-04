@@ -8,12 +8,16 @@ import { Switch } from '@/components/ui/switch'
 import { ZonePitchSelector } from './ZonePitchSelector'
 import type { GolDetalle } from '@/types'
 
+export type GoalPlayerOption = { id: string; name: string }
+
 interface GoalDetailEditorProps {
   label: string
   goals: GolDetalle[]
   onChange: (goals: GolDetalle[]) => void
   expectedCount: number
   color: 'emerald' | 'red'
+  players?: GoalPlayerOption[]
+  showAssist?: boolean
 }
 
 const TIPO_ABP_OPTIONS = [
@@ -34,7 +38,15 @@ const TIPO_GOL_OPTIONS = [
   { value: 'otro', label: 'Otro' },
 ]
 
-export function GoalDetailEditor({ label, goals, onChange, expectedCount, color }: GoalDetailEditorProps) {
+export function GoalDetailEditor({
+  label,
+  goals,
+  onChange,
+  expectedCount,
+  color,
+  players = [],
+  showAssist = true,
+}: GoalDetailEditorProps) {
   const borderColor = color === 'emerald' ? 'border-emerald-200' : 'border-red-200'
   const bgColor = color === 'emerald' ? 'bg-emerald-50' : 'bg-red-50'
   const badgeColor = color === 'emerald' ? 'text-emerald-700 bg-emerald-100' : 'text-red-700 bg-red-100'
@@ -130,24 +142,60 @@ export function GoalDetailEditor({ label, goals, onChange, expectedCount, color 
                     </select>
                   </div>
                 )}
-                <div className="w-28">
+                <div className="min-w-[9rem] flex-1">
                   <Label className="text-[10px] text-muted-foreground">Goleador</Label>
-                  <Input
-                    className="h-7 text-xs"
-                    value={goal.jugador || ''}
-                    placeholder="—"
-                    onChange={(e) => updateGoal(i, { jugador: e.target.value || undefined })}
-                  />
+                  {players.length > 0 ? (
+                    <select
+                      className="h-7 w-full text-xs border rounded-md px-2 bg-white"
+                      value={goal.conv_id || ''}
+                      onChange={(e) => {
+                        const conv_id = e.target.value || undefined
+                        const name = players.find((p) => p.id === conv_id)?.name
+                        updateGoal(i, { conv_id, jugador: name || undefined })
+                      }}
+                    >
+                      <option value="">{goal.jugador || '—'}</option>
+                      {players.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      className="h-7 text-xs"
+                      value={goal.jugador || ''}
+                      placeholder="—"
+                      onChange={(e) => updateGoal(i, { jugador: e.target.value || undefined })}
+                    />
+                  )}
                 </div>
-                <div className="w-28">
-                  <Label className="text-[10px] text-muted-foreground">Asistencia</Label>
-                  <Input
-                    className="h-7 text-xs"
-                    value={goal.asistencia || ''}
-                    placeholder="—"
-                    onChange={(e) => updateGoal(i, { asistencia: e.target.value || undefined })}
-                  />
-                </div>
+                {showAssist ? (
+                  <div className="min-w-[9rem] flex-1">
+                    <Label className="text-[10px] text-muted-foreground">Asistencia</Label>
+                    {players.length > 0 ? (
+                      <select
+                        className="h-7 w-full text-xs border rounded-md px-2 bg-white"
+                        value={goal.asistencia_conv_id || ''}
+                        onChange={(e) => {
+                          const asistencia_conv_id = e.target.value || undefined
+                          const name = players.find((p) => p.id === asistencia_conv_id)?.name
+                          updateGoal(i, { asistencia_conv_id, asistencia: name || undefined })
+                        }}
+                      >
+                        <option value="">{goal.asistencia || 'Sin asistencia'}</option>
+                        {players.map((p) => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <Input
+                        className="h-7 text-xs"
+                        value={goal.asistencia || ''}
+                        placeholder="—"
+                        onChange={(e) => updateGoal(i, { asistencia: e.target.value || undefined })}
+                      />
+                    )}
+                  </div>
+                ) : null}
               </div>
               <div>
                 <Label className="text-[10px] text-muted-foreground">Zona de ataque</Label>
