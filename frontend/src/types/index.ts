@@ -895,6 +895,10 @@ export interface GolDetalle {
   /** Goleador (p. ej. importado del JSON del delegado). */
   jugador?: string
   asistencia?: string
+  /** Convocatoria del goleador (anotador). Permite resolver el nombre al volcar. */
+  conv_id?: string
+  /** Convocatoria de la asistencia. */
+  asistencia_conv_id?: string
 }
 
 export interface FaltaPosicion {

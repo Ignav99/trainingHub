@@ -1,5 +1,5 @@
 # TrainingHub — estado actual
 
 ## En curso
-Anotador: dorsales rivales, sync faltas mapa↔stats, Guardar más robusto.
-Rama `cursor/anotador-rivales-faltas-4e77`. El volcado anterior ya está en `main` (PR #283).
+Volcado informe: goleador/asistencia, tabla minutos desde XI+cambios, seguimiento de molestias.
+Rama `cursor/informe-goles-minutos-molestias-4e77`.

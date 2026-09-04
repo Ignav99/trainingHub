@@ -359,9 +359,10 @@ export default function EnfermeriaDetailPage() {
             <CardTitle className="text-sm">Molestia</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-amber-900">
-              El jugador sigue disponible en plantilla y microciclo. Finaliza o elimina cuando desaparezca.
-            </p>
+          <p className="text-sm text-amber-900">
+            El jugador sigue disponible en plantilla y microciclo. Registra cada sesión de tratamiento
+            (descarga, masaje, hielo…) con fecha, igual que en una lesión. Finaliza o elimina cuando desaparezca.
+          </p>
           </CardContent>
         </Card>
       ) : null}
@@ -372,7 +373,12 @@ export default function EnfermeriaDetailPage() {
         onChange={(zonas) => setEditForm({ ...editForm, zonas })}
       />
 
-      {registro.estado !== 'alta' ? <TratamientoCuaderno registroId={registro.id} /> : null}
+      {registro.estado !== 'alta' ? (
+        <TratamientoCuaderno
+          registroId={registro.id}
+          variant={registro.tipo === 'molestias' ? 'molestia' : 'lesion'}
+        />
+      ) : null}
 
       {registro.tipo !== 'molestias' && (registro.estado !== 'alta' || isEditing) && (
         <Card className="border-amber-200 bg-amber-50/40">
