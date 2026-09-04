@@ -5,6 +5,7 @@ GET y PUT (upsert) de estadísticas de equipo por partido.
 
 from fastapi import APIRouter, HTTPException, Depends, status
 from uuid import UUID
+import re
 
 from app.models import (
     EstadisticaPartidoUpdate,
@@ -15,6 +16,7 @@ from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
 
 OPTIONAL_ESTADISTICA_COLS = ("reflexion_entrenador", "stats_periodos")
+MISSING_COL_RE = re.compile(r"Could not find the '([^']+)' column", re.I)
 
 
 def is_missing_column_error(err: Exception) -> bool:
@@ -27,6 +29,38 @@ def drop_optional_estadistica_cols(payload: dict) -> dict:
     for col in OPTIONAL_ESTADISTICA_COLS:
         out.pop(col, None)
     return out
+
+
+def drop_missing_from_error(payload: dict, err: Exception) -> dict:
+    out = dict(payload)
+    found = MISSING_COL_RE.search(str(err))
+    if found:
+        out.pop(found.group(1), None)
+    if is_missing_column_error(err):
+        out = drop_optional_estadistica_cols(out)
+    return out
+
+
+def _write_estadisticas(supabase, partido_id: str, update_data: dict, exists: bool):
+    payload = dict(update_data)
+    last_err = None
+    for _ in range(4):
+        try:
+            if exists:
+                return supabase.table("estadisticas_partido").update(payload).eq(
+                    "partido_id", partido_id
+                ).execute()
+            payload.setdefault("partido_id", partido_id)
+            return supabase.table("estadisticas_partido").insert(payload).execute()
+        except Exception as e:
+            last_err = e
+            if not is_missing_column_error(e):
+                raise
+            nxt = drop_missing_from_error(payload, e)
+            if set(nxt.keys()) == set(payload.keys()):
+                raise
+            payload = nxt
+    raise last_err
 
 
 router = APIRouter()
@@ -127,31 +161,9 @@ async def upsert_estadisticas_partido(
     ).execute()
 
     if existing.data and len(existing.data) > 0:
-        # Update
-        try:
-            response = supabase.table("estadisticas_partido").update(update_data).eq(
-                "partido_id", str(partido_id)
-            ).execute()
-        except Exception as e:
-            # Columnas nuevas pendientes (060 reflexion, 079 stats_periodos / PGRST204)
-            if is_missing_column_error(e):
-                update_data = drop_optional_estadistica_cols(update_data)
-                response = supabase.table("estadisticas_partido").update(update_data).eq(
-                    "partido_id", str(partido_id)
-                ).execute()
-            else:
-                raise
+        response = _write_estadisticas(supabase, str(partido_id), update_data, True)
     else:
-        # Insert
-        update_data["partido_id"] = str(partido_id)
-        try:
-            response = supabase.table("estadisticas_partido").insert(update_data).execute()
-        except Exception as e:
-            if is_missing_column_error(e):
-                update_data = drop_optional_estadistica_cols(update_data)
-                response = supabase.table("estadisticas_partido").insert(update_data).execute()
-            else:
-                raise
+        response = _write_estadisticas(supabase, str(partido_id), update_data, False)
 
     if not response.data:
         raise HTTPException(
