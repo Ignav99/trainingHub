@@ -31,6 +31,9 @@ import {
   golesPorPeriodoFromEvents,
   normalizeSnapshot,
   statsPeriodosPayload,
+  informeFromSnapshot,
+  hasAnotadorLiveData,
+  effectiveMatchMinute,
   type AnotadorSnapshot,
 } from '../frontend/src/lib/anotador.ts'
 
@@ -262,4 +265,102 @@ test('snapshots viejos sin periods se migran a la 1ª parte', () => {
   assert.equal(snap.periods[1].teamStats.tiros_a_puerta, 4)
   assert.equal(snap.periods[2].teamStats.tiros_a_puerta, 0)
   assert.equal(snap.teamStats.tiros_a_puerta, 4)
+})
+
+test('cerrar parte sin reloj sella 45 minutos y el informe recupera acta', () => {
+  let snap: AnotadorSnapshot = {
+    ...DEFAULT_ANOTADOR,
+    started: true,
+    slots: { POR: 'gk', DC: 'st' },
+    enteredAt: { gk: 0, st: 0 },
+    elapsedMs: 0,
+    events: [
+      { id: 'g1', minute: 12, half: 1, type: 'gol', convId: 'st' },
+      { id: 'y1', minute: 33, half: 1, type: 'amarilla', convId: 'st' },
+    ],
+  }
+  snap = setActiveHalf(snap, 2)
+  assert.equal(snap.half1Ms, 45 * 60000)
+  snap = {
+    ...snap,
+    events: [
+      ...snap.events,
+      { id: 'g2', minute: 70, half: 2, type: 'gol_contra' },
+    ],
+    periods: {
+      1: {
+        teamStats: { ...DEFAULT_ANOTADOR.teamStats },
+        occasionLanes: emptyOccasionLanes(),
+        foulMap: { cometidas: [{ x: 20, y: 40 }], recibidas: [{ x: 110, y: 55 }] },
+      },
+      2: {
+        teamStats: { ...DEFAULT_ANOTADOR.teamStats },
+        occasionLanes: emptyOccasionLanes(),
+        foulMap: { cometidas: [{ x: 80, y: 22 }], recibidas: [] },
+      },
+    },
+  }
+  const closed = closeMatch(snap)
+  assert.equal(closed.closed, true)
+  assert.equal(closed.half2Ms, 45 * 60000)
+  assert.equal(effectiveMatchMinute(closed), 90)
+
+  const informe = informeFromSnapshot(closed, ['gk', 'st'], (id) => id === 'st' ? 'Delantero' : 'Portero')
+  assert.equal(informe.now, 90)
+  assert.equal(informe.playerRows.st.minutos_jugados, 90)
+  assert.equal(informe.playerRows.gk.minutos_jugados, 90)
+  assert.equal(informe.playerRows.st.goles, 1)
+  assert.equal(informe.playerRows.st.tarjeta_amarilla, true)
+  assert.equal(informe.score.gf, 1)
+  assert.equal(informe.score.gc, 1)
+  assert.equal(informe.foulMap.cometidas.length, 2)
+  assert.equal(informe.foulMap.recibidas.length, 1)
+  assert.equal(informe.teamStats.tarjetas_amarillas, 1)
+  assert.equal(informe.goles.favor[0].jugador, 'Delantero')
+  assert.equal(hasAnotadorLiveData(informe.snap), true)
+})
+
+test('reloj a 0 en partido vivo no inventa 45 minutos', () => {
+  const snap: AnotadorSnapshot = {
+    ...DEFAULT_ANOTADOR,
+    started: true,
+    elapsedMs: 0,
+    slots: { POR: 'gk' },
+    enteredAt: { gk: 0 },
+  }
+  assert.equal(effectiveMatchMinute(snap), 0)
+  assert.equal(computePlayerRows(snap, ['gk'], effectiveMatchMinute(snap)).gk.minutos_jugados, 0)
+})
+
+test('faltas en el mapa superior se recuperan si periods vienen vacíos', () => {
+  const raw = {
+    ...DEFAULT_ANOTADOR,
+    foulMap: { cometidas: [{ x: 33, y: 44 }], recibidas: [] },
+    periods: {
+      1: { teamStats: { ...DEFAULT_ANOTADOR.teamStats, tiros_a_puerta: 2 }, occasionLanes: emptyOccasionLanes(), foulMap: { cometidas: [], recibidas: [] } },
+      2: { teamStats: { ...DEFAULT_ANOTADOR.teamStats }, occasionLanes: emptyOccasionLanes(), foulMap: { cometidas: [], recibidas: [] } },
+    },
+  }
+  const snap = normalizeSnapshot(raw)
+  assert.equal(snap.foulMap.cometidas.length, 1)
+  assert.equal(snap.foulMap.cometidas[0].x, 33)
+  assert.equal(snap.teamStats.tiros_a_puerta, 2)
+})
+
+test('amarillas de eventos entran en stats aunque el reloj esté a 0', () => {
+  const snap = normalizeSnapshot({
+    ...DEFAULT_ANOTADOR,
+    started: true,
+    elapsedMs: 0,
+    events: [
+      { id: 'a', minute: 18, half: 1, type: 'amarilla', convId: 'p1' },
+      { id: 'b', minute: 62, half: 2, type: 'amarilla', convId: 'p2', side: 'rival' },
+    ],
+  })
+  assert.equal(snap.teamStats.tarjetas_amarillas, 1)
+  assert.equal(snap.teamStats.rival_tarjetas_amarillas, 1)
+  const rows = informeFromSnapshot(snap, ['p1', 'p2'], () => '').playerRows
+  assert.equal(rows.p1.tarjeta_amarilla, true)
+  assert.equal(rows.p2.tarjeta_amarilla, true)
+  assert.equal(effectiveMatchMinute(snap), 62)
 })

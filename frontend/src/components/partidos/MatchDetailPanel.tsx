@@ -71,7 +71,7 @@ import { GoalDetailEditor } from './GoalDetailEditor'
 import { FoulMapEditor } from './FoulMapEditor'
 import { AnotacionesImportDialog } from './AnotacionesImportDialog'
 import type { AnotacionesPlan } from '@/lib/partidoAnotacionesJson'
-import { periodReportFromNotasPre } from '@/lib/anotador'
+import { periodReportFromNotasPre, parseNotasPre, informeFromSnapshot, hasAnotadorLiveData } from '@/lib/anotador'
 
 const PartidoPlanTab = dynamic(() => import('./PartidoPlanTab').then(m => ({ default: m.PartidoPlanTab })), {
   loading: () => <div className="animate-pulse space-y-4 p-4"><div className="h-8 bg-muted rounded w-1/3" /><div className="h-32 bg-muted rounded" /><div className="h-32 bg-muted rounded" /></div>
@@ -222,44 +222,61 @@ export function MatchDetailPanel({
 
   const selectedId = selectedPartido?.id || null
 
-  // Initialize informe data from fetched stats + convocados
+  // Initialize informe data from fetched stats + convocados + acta del anotador
   useEffect(() => {
     if (!selectedId) return
     if (informeInitialized === selectedId) return
+    if (loadingConv) return
 
-    // Team stats
-    if (estadisticasData) {
-      const stats: Record<string, number> = {}
-      for (const field of TEAM_STAT_FIELDS) {
-        stats[field.key] = (estadisticasData as any)[field.key] || 0
-        stats[`rival_${field.key}`] = (estadisticasData as any)[`rival_${field.key}`] || 0
-      }
-      setTeamStats(stats)
-      setReflexionEntrenador(estadisticasData.reflexion_entrenador || '')
-      setGolesDetalleFavor(estadisticasData.goles_detalle_favor || [])
-      setGolesDetalleContra(estadisticasData.goles_detalle_contra || [])
-      setFaltasMapaCometidas(estadisticasData.faltas_mapa_cometidas || [])
-      setFaltasMapaRecibidas(estadisticasData.faltas_mapa_recibidas || [])
-    } else {
-      setTeamStats({})
-      setReflexionEntrenador('')
-      setGolesDetalleFavor([])
-      setGolesDetalleContra([])
-      setFaltasMapaCometidas([])
-      setFaltasMapaRecibidas([])
+    const parsed = parseNotasPre(selectedPartido?.notas_pre)
+    const fromAnotador = parsed.anotador && hasAnotadorLiveData(parsed.anotador)
+      ? informeFromSnapshot(
+        parsed.anotador,
+        convocados.map((c) => c.id),
+        (id) => {
+          const c = convocados.find((x) => x.id === id)
+          return c ? (getPlayerData(c)?.apodo || getPlayerFullName(c)) : ''
+        },
+      )
+      : null
+
+    if (!fromAnotador && estadisticasData === undefined) return
+
+    const stats: Record<string, number> = {}
+    for (const field of TEAM_STAT_FIELDS) {
+      stats[field.key] = fromAnotador?.teamStats[field.key]
+        ?? (estadisticasData as any)?.[field.key]
+        ?? 0
+      stats[`rival_${field.key}`] = fromAnotador?.teamStats[`rival_${field.key}`]
+        ?? (estadisticasData as any)?.[`rival_${field.key}`]
+        ?? 0
     }
+    setTeamStats(stats)
+    setReflexionEntrenador(estadisticasData?.reflexion_entrenador || '')
+    setGolesDetalleFavor(
+      (fromAnotador?.goles.favor.length ? fromAnotador.goles.favor : estadisticasData?.goles_detalle_favor) || [],
+    )
+    setGolesDetalleContra(
+      (fromAnotador?.goles.contra.length ? fromAnotador.goles.contra : estadisticasData?.goles_detalle_contra) || [],
+    )
+    setFaltasMapaCometidas(
+      (fromAnotador?.foulMap.cometidas.length ? fromAnotador.foulMap.cometidas : estadisticasData?.faltas_mapa_cometidas) || [],
+    )
+    setFaltasMapaRecibidas(
+      (fromAnotador?.foulMap.recibidas.length ? fromAnotador.foulMap.recibidas : estadisticasData?.faltas_mapa_recibidas) || [],
+    )
 
-    // Player stats from convocados
     if (convocados.length > 0) {
       const ps: Record<string, { minutos_jugados: number; goles: number; asistencias: number; tarjeta_amarilla: boolean; tarjeta_roja: boolean }> = {}
       const rend: Record<string, { media: number | null; num: number; miNota: number | null }> = {}
       for (const c of convocados) {
+        const row = fromAnotador?.playerRows[c.id]
         ps[c.id] = {
-          minutos_jugados: c.minutos_jugados || 0,
-          goles: c.goles || 0,
-          asistencias: c.asistencias || 0,
-          tarjeta_amarilla: c.tarjeta_amarilla || false,
-          tarjeta_roja: c.tarjeta_roja || false,
+          minutos_jugados: Math.max(c.minutos_jugados || 0, row?.minutos_jugados || 0),
+          goles: Math.max(c.goles || 0, row?.goles || 0),
+          asistencias: Math.max(c.asistencias || 0, row?.asistencias || 0),
+          tarjeta_amarilla: Boolean(c.tarjeta_amarilla || row?.tarjeta_amarilla),
+          tarjeta_roja: Boolean(c.tarjeta_roja || row?.tarjeta_roja),
         }
         rend[c.id] = {
           media: c.rendimiento_media ?? null,
@@ -272,7 +289,7 @@ export function MatchDetailPanel({
     }
 
     setInformeInitialized(selectedId)
-  }, [selectedId, estadisticasData, convocados]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedId, estadisticasData, convocados, loadingConv, selectedPartido?.notas_pre]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset informe init when match changes
   useEffect(() => {
@@ -1215,60 +1232,14 @@ export function MatchDetailPanel({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-center">
-                      <th className="px-3 pb-2 text-left font-medium">Estadistica</th>
-                      <th className="px-3 pb-2 font-medium text-primary">{equipoActivo?.nombre || 'Nosotros'}</th>
-                      <th className="px-3 pb-2 font-medium text-destructive">{selectedPartido.rival?.nombre || 'Rival'}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {TEAM_STAT_FIELDS.map((field) => (
-                      <tr key={field.key} className="border-b last:border-0 row-hover">
-                        <td className="px-3 py-2 text-muted-foreground">{field.label}</td>
-                        <td className="px-3 py-2 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            className="w-16 mx-auto text-center h-8 text-sm"
-                            value={teamStats[field.key] || 0}
-                            onChange={(e) => setTeamStats((prev) => ({ ...prev, [field.key]: parseInt(e.target.value) || 0 }))}
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            className="w-16 mx-auto text-center h-8 text-sm"
-                            value={teamStats[`rival_${field.key}`] || 0}
-                            onChange={(e) => setTeamStats((prev) => ({ ...prev, [`rival_${field.key}`]: parseInt(e.target.value) || 0 }))}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-
-          {selectedPartido.notas_pre && periodReportFromNotasPre(selectedPartido.notas_pre) && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-primary" />
-                  1ª parte · 2ª parte · Total
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="overflow-x-auto">
-                {(() => {
-                  const report = periodReportFromNotasPre(selectedPartido.notas_pre)
-                  if (!report) return null
-                  return (
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-3 gap-2 text-center text-sm">
+              {(() => {
+                const report = periodReportFromNotasPre(selectedPartido.notas_pre)
+                const showHalves = Boolean(report && (report.score1.gf + report.score1.gc + report.score2.gf + report.score2.gc > 0
+                  || report.rows.some((r) => r.p1us + r.p1rival + r.p2us + r.p2rival > 0)))
+                return (
+                  <div className="overflow-x-auto">
+                    {showHalves && report && (
+                      <div className="grid grid-cols-3 gap-2 text-center text-sm mb-3">
                         <div className="rounded-lg bg-muted/50 py-2">
                           <p className="text-[10px] uppercase text-muted-foreground">1ª</p>
                           <p className="font-mono text-lg font-semibold">{report.score1.gf}–{report.score1.gc}</p>
@@ -1282,38 +1253,73 @@ export function MatchDetailPanel({
                           <p className="font-mono text-lg font-semibold">{report.total.gf}–{report.total.gc}</p>
                         </div>
                       </div>
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="border-b text-center text-muted-foreground">
-                            <th className="text-left font-medium pb-1">Estadística</th>
-                            <th className="pb-1">1ª nos</th>
-                            <th className="pb-1">1ª riv</th>
-                            <th className="pb-1">2ª nos</th>
-                            <th className="pb-1">2ª riv</th>
-                            <th className="pb-1">Tot nos</th>
-                            <th className="pb-1">Tot riv</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {[...report.lanes, ...report.rows].map((row) => (
-                            <tr key={row.key} className="border-b last:border-0">
-                              <td className="py-1.5 text-muted-foreground">{row.label}</td>
-                              <td className="text-center font-mono">{row.p1us}</td>
-                              <td className="text-center font-mono">{row.p1rival}</td>
-                              <td className="text-center font-mono">{row.p2us}</td>
-                              <td className="text-center font-mono">{row.p2rival}</td>
-                              <td className="text-center font-mono font-semibold">{row.tus}</td>
-                              <td className="text-center font-mono font-semibold">{row.trival}</td>
+                    )}
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-center">
+                          <th className="px-3 pb-2 text-left font-medium">Estadistica</th>
+                          {showHalves && (
+                            <>
+                              <th className="px-2 pb-2 font-medium text-muted-foreground">1ª</th>
+                              <th className="px-2 pb-2 font-medium text-muted-foreground">2ª</th>
+                            </>
+                          )}
+                          <th className="px-3 pb-2 font-medium text-primary">{equipoActivo?.nombre || 'Nosotros'}</th>
+                          {showHalves && (
+                            <>
+                              <th className="px-2 pb-2 font-medium text-muted-foreground">1ª</th>
+                              <th className="px-2 pb-2 font-medium text-muted-foreground">2ª</th>
+                            </>
+                          )}
+                          <th className="px-3 pb-2 font-medium text-destructive">{selectedPartido.rival?.nombre || 'Rival'}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {TEAM_STAT_FIELDS.map((field) => {
+                          const half = report?.rows.find((r) => r.key === field.key)
+                          return (
+                            <tr key={field.key} className="border-b last:border-0 row-hover">
+                              <td className="px-3 py-2 text-muted-foreground">{field.label}</td>
+                              {showHalves && (
+                                <>
+                                  <td className="px-2 py-2 text-center font-mono text-xs text-muted-foreground">{half?.p1us ?? 0}</td>
+                                  <td className="px-2 py-2 text-center font-mono text-xs text-muted-foreground">{half?.p2us ?? 0}</td>
+                                </>
+                              )}
+                              <td className="px-3 py-2 text-center">
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  className="w-16 mx-auto text-center h-8 text-sm"
+                                  value={teamStats[field.key] || 0}
+                                  onChange={(e) => setTeamStats((prev) => ({ ...prev, [field.key]: parseInt(e.target.value) || 0 }))}
+                                />
+                              </td>
+                              {showHalves && (
+                                <>
+                                  <td className="px-2 py-2 text-center font-mono text-xs text-muted-foreground">{half?.p1rival ?? 0}</td>
+                                  <td className="px-2 py-2 text-center font-mono text-xs text-muted-foreground">{half?.p2rival ?? 0}</td>
+                                </>
+                              )}
+                              <td className="px-3 py-2 text-center">
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  className="w-16 mx-auto text-center h-8 text-sm"
+                                  value={teamStats[`rival_${field.key}`] || 0}
+                                  onChange={(e) => setTeamStats((prev) => ({ ...prev, [`rival_${field.key}`]: parseInt(e.target.value) || 0 }))}
+                                />
+                              </td>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )
-                })()}
-              </CardContent>
-            </Card>
-          )}
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              })()}
+            </CardContent>
+          </Card>
 
           {/* Player stats (inline editable) */}
           {convocados.length > 0 && (

@@ -30,12 +30,14 @@ import {
   currentPeriod,
   DEFAULT_ANOTADOR,
   denormalizeFoulDot,
+  effectiveMatchMinute,
   emptyTeamStats,
   eventLabel,
   formatClock,
-  golesDetalleFromEvents,
   golesPorPeriodoFromEvents,
+  hasAnotadorLiveData,
   hydrateSnapshot,
+  informeFromSnapshot,
   informeStatsFromUnknown,
   isPenaltyGoal,
   matchMinute,
@@ -145,7 +147,6 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
   const elapsedRef = useRef(0)
   elapsedRef.current = snap.elapsedMs
   const persistSilentRef = useRef<() => void>(() => undefined)
-  const persistFullRef = useRef<() => Promise<void>>(async () => undefined)
 
   useEffect(() => {
     if (!partido || loadC || loadS || ready) return
@@ -231,17 +232,15 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
     return c ? displayName(c) : ''
   }, [convocados])
 
-  const persist = useCallback(async (opts?: { silent?: boolean }) => {
-    const current = snapRef.current
+  const persist = useCallback(async (opts?: { silent?: boolean; snapshot?: AnotadorSnapshot }) => {
+    const current = opts?.snapshot ?? snapRef.current
     const match = partidoRef.current
     if (!match) return
     if (!opts?.silent) setSaving(true)
     try {
-      const now = matchMinute(current.half, current.elapsedMs)
       const notas = mergeNotasPre(match.notas_pre, { ...current, running: false })
       await partidosApi.update(match.id, { notas_pre: notas })
       partidoRef.current = { ...match, notas_pre: notas }
-      if (opts?.silent) return
 
       const assigned = new Map<string, string>()
       const formDef = FORMATIONS.find((f) => f.name === current.form)
@@ -251,47 +250,68 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
           if (convId) assigned.set(convId, slot.position)
         }
       }
-      await Promise.all(convocados.map((c) => {
-        const pos = assigned.get(c.id)
-        return convocatoriasApi.update(c.id, pos
-          ? { titular: true, posicion_asignada: pos }
-          : { titular: false })
-      }))
-
-      const hasLive = current.started || current.events.length > 0
-        || Object.values(current.teamStats).some((n) => n > 0)
-        || current.foulMap.cometidas.length > 0
-        || current.foulMap.recibidas.length > 0
-        || Boolean(reflexionRef.current.trim())
-      if (hasLive) {
-        const playerRows = computePlayerRows(current, convocados.map((c) => c.id), now)
-        const { gf, gc } = scoreFromEvents(current.events)
-        if (current.started || current.events.length > 0) {
-          await partidosApi.registrarResultado(match.id, gf, gc)
-        }
-        const goles = golesDetalleFromEvents(current.events, nameOf)
-        const payload: EstadisticaPartidoUpdateData = {
-          goles_detalle_favor: goles.favor,
-          goles_detalle_contra: goles.contra,
-          faltas_mapa_cometidas: current.foulMap.cometidas,
-          faltas_mapa_recibidas: current.foulMap.recibidas,
-          reflexion_entrenador: reflexionRef.current,
-          goles_por_periodo: golesPorPeriodoFromEvents(current.events),
-          stats_periodos: statsPeriodosPayload(current),
-          ...emptyTeamStats(),
-          ...current.teamStats,
-        }
-        await estadisticasPartidoApi.upsert(match.id, payload)
-        await convocatoriasApi.batchUpdateStats(
-          Object.entries(playerRows).map(([id, stats]) => ({ id, ...stats })),
-        )
-        await Promise.all(Object.entries(notasRendRef.current).map(async ([id, nota]) => {
-          if (nota == null) return
-          try {
-            await convocatoriasApi.upsertRendimiento(id, nota)
-          } catch { /* ignore nota errors */ }
+      if (!opts?.silent) {
+        await Promise.all(convocados.map((c) => {
+          const pos = assigned.get(c.id)
+          return convocatoriasApi.update(c.id, pos
+            ? { titular: true, posicion_asignada: pos }
+            : { titular: false })
         }))
       }
+
+      const flushed = informeFromSnapshot(current, convocados.map((c) => c.id), nameOf)
+      const hasLive = hasAnotadorLiveData(flushed.snap) || Boolean(reflexionRef.current.trim())
+      let dumpError: unknown = null
+      if (hasLive) {
+        const { gf, gc } = flushed.score
+        if (!opts?.silent && (current.started || current.events.length > 0 || current.closed)) {
+          try {
+            await partidosApi.registrarResultado(match.id, gf, gc)
+          } catch (err) {
+            dumpError = dumpError || err
+          }
+        }
+        try {
+          await convocatoriasApi.batchUpdateStats(
+            Object.entries(flushed.playerRows).map(([id, stats]) => ({ id, ...stats })),
+          )
+        } catch (err) {
+          dumpError = dumpError || err
+        }
+        const payload: EstadisticaPartidoUpdateData = {
+          goles_detalle_favor: flushed.goles.favor,
+          goles_detalle_contra: flushed.goles.contra,
+          faltas_mapa_cometidas: flushed.foulMap.cometidas,
+          faltas_mapa_recibidas: flushed.foulMap.recibidas,
+          reflexion_entrenador: reflexionRef.current,
+          goles_por_periodo: golesPorPeriodoFromEvents(flushed.snap.events),
+          ...emptyTeamStats(),
+          ...flushed.teamStats,
+        }
+        try {
+          await estadisticasPartidoApi.upsert(match.id, {
+            ...payload,
+            stats_periodos: statsPeriodosPayload(flushed.snap),
+          })
+        } catch {
+          try {
+            await estadisticasPartidoApi.upsert(match.id, payload)
+          } catch (err) {
+            dumpError = dumpError || err
+          }
+        }
+        if (!opts?.silent) {
+          await Promise.all(Object.entries(notasRendRef.current).map(async ([id, nota]) => {
+            if (nota == null) return
+            try {
+              await convocatoriasApi.upsertRendimiento(id, nota)
+            } catch { /* ignore nota errors */ }
+          }))
+        }
+      }
+      if (dumpError && !opts?.silent) throw dumpError
+
+      if (opts?.silent) return
 
       await mutate(
         (key: string) => typeof key === 'string' && (
@@ -318,7 +338,6 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
   persistSilentRef.current = () => {
     void persist({ silent: true }).catch(() => undefined)
   }
-  persistFullRef.current = () => persist()
 
   useEffect(() => {
     if (!ready) return
@@ -335,18 +354,22 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
 
   const toggleClock = () => {
     const willPause = snap.running
-    setSnap((s) => {
-      let next = s
-      if (!s.started && !s.running) next = startEleven(s)
-      return { ...next, running: !s.running }
-    })
-    if (willPause) window.setTimeout(() => { void persistFullRef.current().catch(() => undefined) }, 0)
+    const next = (() => {
+      let cur = snapRef.current
+      if (!cur.started && !cur.running) cur = startEleven(cur)
+      return { ...cur, running: !cur.running }
+    })()
+    snapRef.current = next
+    setSnap(next)
+    if (willPause) void persist({ snapshot: next }).catch(() => undefined)
   }
 
   const changeHalf = (half: AnotadorHalf) => {
     if (snap.half === half) return
-    setSnap((s) => setActiveHalf(s, half))
-    window.setTimeout(() => { void persistFullRef.current().catch(() => undefined) }, 0)
+    const next = setActiveHalf(snapRef.current, half)
+    snapRef.current = next
+    setSnap(next)
+    void persist({ snapshot: next }).catch(() => undefined)
   }
 
   const undo = () => {
@@ -728,9 +751,11 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
             saving={saving}
             onSave={() => void persist()}
             onClose={() => {
-              setSnap((s) => closeMatch(s))
+              const next = closeMatch(snapRef.current)
+              snapRef.current = next
+              setSnap(next)
               setTab('cierre')
-              window.setTimeout(() => { void persistFullRef.current().catch(() => undefined) }, 0)
+              void persist({ snapshot: next }).catch(() => undefined)
             }}
             onReopen={() => setSnap((s) => reopenMatch(s))}
           />

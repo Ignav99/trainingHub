@@ -1,9 +1,13 @@
 # TrainingHub — estado actual
 
 ## En curso
-Anotador: conteo 1ª/2ª parte + pestaña Cierre (`cursor/anotador-partes-4e77`).
-Stats, ocasiones y faltas viven en `periods[1|2]`; los totales se vuelcan al informe.
-`stats_periodos` JSONB opcional (migración 079). Sin SQL, el API reintenta y el desglose queda en `notas_pre`.
+Fix volcado anotador → informe (`cursor/anotador-volcado-4e77`).
+Causa: upsert de `estadisticas_partido` fallaba por `stats_periodos` (PGRST204) y abortaba minutos/tarjetas; el informe leía convocatorias vacías y mostraba una 2ª tabla desde `notas_pre`.
 
-## Hecho
-Anotador tablet + orientación de faltas y carriles de ocasiones live en Render (`add97c6`, PR #281).
+## Hecho (código, pendiente merge/deploy)
+- Persistencia vuelca siempre minutos, tarjetas, faltas y stats (también en autosave).
+- Cerrar/cambiar parte persiste el snapshot sellado (45′ si el reloj no corrió).
+- Informe: una sola tabla; hidrata desde `notas_pre.anotador`.
+- Backend reintenta upsert sin columnas opcionales (PGRST204/42703).
+
+SQL opcional: `backend/database/migrations/079_stats_periodos.sql` (no crea tablas nuevas).

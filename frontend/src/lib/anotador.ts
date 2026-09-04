@@ -240,6 +240,14 @@ export function currentPeriod(snapshot: AnotadorSnapshot): PeriodState {
   return snapshot.periods[snapshot.half] || emptyPeriod()
 }
 
+const HALF_MS = 45 * 60_000
+
+function stampedHalfMs(elapsedMs: number, previous = 0): number {
+  if (elapsedMs >= 60_000) return elapsedMs
+  if (previous >= 60_000) return previous
+  return HALF_MS
+}
+
 export function setActiveHalf(snapshot: AnotadorSnapshot, half: AnotadorHalf): AnotadorSnapshot {
   if (snapshot.half === half) return snapshot
   const next: AnotadorSnapshot = {
@@ -247,17 +255,40 @@ export function setActiveHalf(snapshot: AnotadorSnapshot, half: AnotadorHalf): A
     running: false,
     half,
   }
-  if (snapshot.half === 1) next.half1Ms = snapshot.elapsedMs
-  if (snapshot.half === 2) next.half2Ms = snapshot.elapsedMs
+  if (snapshot.half === 1) next.half1Ms = stampedHalfMs(snapshot.elapsedMs, snapshot.half1Ms)
+  if (snapshot.half === 2) next.half2Ms = stampedHalfMs(snapshot.elapsedMs, snapshot.half2Ms)
   next.elapsedMs = half === 1 ? (snapshot.half1Ms || 0) : (snapshot.half2Ms || 0)
   return next
 }
 
 export function closeMatch(snapshot: AnotadorSnapshot): AnotadorSnapshot {
   const paused = snapshot.half === 1
-    ? { ...snapshot, running: false, half1Ms: snapshot.elapsedMs }
-    : { ...snapshot, running: false, half2Ms: snapshot.elapsedMs }
+    ? { ...snapshot, running: false, half1Ms: stampedHalfMs(snapshot.elapsedMs, snapshot.half1Ms) }
+    : { ...snapshot, running: false, half2Ms: stampedHalfMs(snapshot.elapsedMs, snapshot.half2Ms) }
   return { ...paused, closed: true, closedAt: new Date().toISOString() }
+}
+
+export function secondHalfStarted(snapshot: AnotadorSnapshot): boolean {
+  return snapshot.half === 2
+    || Boolean(snapshot.closed)
+    || (snapshot.half2Ms || 0) > 0
+    || (snapshot.events || []).some((ev) => ev.half === 2)
+}
+
+export function effectiveMatchMinute(snapshot: AnotadorSnapshot): number {
+  const clock = matchMinute(snapshot.half, snapshot.elapsedMs)
+  const eventMax = (snapshot.events || []).reduce((max, ev) => Math.max(max, ev.minute || 0), 0)
+  const h1 = snapshot.half1Ms || 0
+  const h2 = snapshot.half2Ms || 0
+  const stamped = h2 >= 60_000
+    ? matchMinute(2, h2)
+    : h1 >= 60_000
+      ? matchMinute(1, h1)
+      : 0
+  const assumed = snapshot.closed
+    ? (secondHalfStarted(snapshot) ? 90 : 45)
+    : 0
+  return Math.max(clock, eventMax, stamped, assumed)
 }
 
 export function reopenMatch(snapshot: AnotadorSnapshot): AnotadorSnapshot {
@@ -270,8 +301,31 @@ function hasPeriodPayload(raw: Partial<AnotadorSnapshot> | null | undefined): bo
   return Boolean(periods[1] || periods[2])
 }
 
+function periodFoulsEmpty(periods: Record<AnotadorHalf, PeriodState>): boolean {
+  return periods[1].foulMap.cometidas.length
+    + periods[1].foulMap.recibidas.length
+    + periods[2].foulMap.cometidas.length
+    + periods[2].foulMap.recibidas.length === 0
+}
+
 export function migrateLegacyPeriods(raw: Partial<AnotadorSnapshot>): Record<AnotadorHalf, PeriodState> {
-  if (hasPeriodPayload(raw)) return clonePeriods(raw.periods)
+  if (hasPeriodPayload(raw)) {
+    const periods = clonePeriods(raw.periods)
+    const top = raw.foulMap
+    const topCount = (top?.cometidas?.length || 0) + (top?.recibidas?.length || 0)
+    if (periodFoulsEmpty(periods) && topCount > 0) {
+      periods[1].foulMap = {
+        cometidas: [...(top?.cometidas || [])],
+        recibidas: [...(top?.recibidas || [])],
+      }
+    }
+    const hasPeriodStats = Object.values(periods[1].teamStats).some((n) => n > 0)
+      || Object.values(periods[2].teamStats).some((n) => n > 0)
+    if (!hasPeriodStats && raw.teamStats && Object.values(raw.teamStats).some((n) => n > 0)) {
+      periods[1].teamStats = { ...emptyTeamStats(), ...raw.teamStats }
+    }
+    return periods
+  }
   const legacy = clonePeriod({
     teamStats: raw.teamStats,
     occasionLanes: raw.occasionLanes,
@@ -678,15 +732,30 @@ export function teamStatsFromEvents(events: AnotadorEvent[]): TeamStatsState {
   return stats
 }
 
-export function normalizeSnapshot(raw: AnotadorSnapshot): AnotadorSnapshot {
-  const periods = migrateLegacyPeriods(raw)
-  const derived = teamStatsFromEvents(raw.events || [])
-  const hasPeriodStats = Object.values(periods[1].teamStats).some((n) => n > 0)
-    || Object.values(periods[2].teamStats).some((n) => n > 0)
-  if (!hasPeriodStats) {
-    periods[1].teamStats = { ...emptyTeamStats(), ...derived }
+export function ensureEventStatsInPeriods(
+  periods: Record<AnotadorHalf, PeriodState>,
+  events: AnotadorEvent[],
+): Record<AnotadorHalf, PeriodState> {
+  const next = clonePeriods(periods)
+  const byHalf: Record<AnotadorHalf, AnotadorEvent[]> = { 1: [], 2: [] }
+  for (const ev of events) {
+    byHalf[ev.half === 2 ? 2 : 1].push(ev)
   }
-  const synced = withSyncedTotals({
+  for (const half of [1, 2] as const) {
+    const derived = teamStatsFromEvents(byHalf[half])
+    for (const key of Object.keys(next[half].teamStats)) {
+      next[half].teamStats[key] = Math.max(next[half].teamStats[key] || 0, derived[key] || 0)
+    }
+  }
+  return next
+}
+
+export function normalizeSnapshot(raw: AnotadorSnapshot): AnotadorSnapshot {
+  const periods = ensureEventStatsInPeriods(
+    migrateLegacyPeriods(raw),
+    raw.events || [],
+  )
+  return withSyncedTotals({
     ...DEFAULT_ANOTADOR,
     ...raw,
     running: false,
@@ -698,7 +767,6 @@ export function normalizeSnapshot(raw: AnotadorSnapshot): AnotadorSnapshot {
     enteredAt: raw.enteredAt || {},
     playedOff: raw.playedOff || {},
   })
-  return synced
 }
 
 export function hydrateSnapshot(args: {
@@ -760,13 +828,48 @@ export function computeMinutes(
   const onField = new Set(Object.values(snapshot.slots).filter(Boolean))
   for (const id of convIds) {
     const closed = snapshot.playedOff[id] || 0
-    if (onField.has(id) && snapshot.enteredAt[id] != null) {
-      out[id] = closed + Math.max(0, nowMinute - snapshot.enteredAt[id])
+    const entered = snapshot.enteredAt[id]
+    if (onField.has(id) && entered != null) {
+      out[id] = closed + Math.max(0, nowMinute - entered)
+    } else if (onField.has(id) && entered == null && nowMinute > 0) {
+      out[id] = nowMinute
     } else {
       out[id] = closed
     }
   }
   return out
+}
+
+export function hasAnotadorLiveData(snapshot: AnotadorSnapshot): boolean {
+  return snapshot.started
+    || Boolean(snapshot.closed)
+    || (snapshot.events || []).length > 0
+    || Object.values(snapshot.teamStats || {}).some((n) => n > 0)
+    || (snapshot.foulMap?.cometidas.length || 0) > 0
+    || (snapshot.foulMap?.recibidas.length || 0) > 0
+    || (snapshot.periods?.[1]?.foulMap.cometidas.length || 0) > 0
+    || (snapshot.periods?.[2]?.foulMap.cometidas.length || 0) > 0
+    || (snapshot.periods?.[1]?.foulMap.recibidas.length || 0) > 0
+    || (snapshot.periods?.[2]?.foulMap.recibidas.length || 0) > 0
+}
+
+export function informeFromSnapshot(
+  snapshot: AnotadorSnapshot,
+  convIds: string[],
+  nameOf: (id?: string) => string,
+) {
+  const snap = withSyncedTotals(normalizeSnapshot(snapshot))
+  const now = effectiveMatchMinute(snap)
+  return {
+    snap,
+    now,
+    playerRows: computePlayerRows(snap, convIds, now),
+    score: scoreFromEvents(snap.events),
+    goles: golesDetalleFromEvents(snap.events, nameOf),
+    teamStats: snap.teamStats,
+    foulMap: snap.foulMap,
+    report: periodReport(snap),
+  }
 }
 
 export function computePlayerRows(

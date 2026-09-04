@@ -1,5 +1,5 @@
 # TrainingHub — estado actual
 
 ## En curso
-Anotador tablet con pestañas en `cursor/anotador-tabs-ae84`.
-Cubre el informe entero y debe llegar a Render vía PR no-draft + auto-merge.
+Fix volcado anotador → informe (`cursor/anotador-volcado-4e77`).
+Una sola tabla de stats; minutos/tarjetas/faltas se recuperan del acta en `notas_pre`.
