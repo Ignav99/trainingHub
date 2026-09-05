@@ -75,6 +75,45 @@ def test_apply_derived_hoja_fisios():
     assert lectura_ake(25) == "leve"
 
 
+def test_niveles_fuerza_y_nordic():
+    from app.services.ficha_clinica_metrics import (
+        nivel_nordic,
+        nivel_plancha_frontal,
+        nivel_plancha_lateral,
+        nivel_puente_gluteo,
+        nivel_talones,
+        nivel_wall_sit,
+    )
+
+    assert nivel_talones(12) == "bajo"
+    assert nivel_talones(20) == "normal"
+    assert nivel_talones(28) == "bueno"
+    assert nivel_talones(31) == "muy_bueno"
+    assert nivel_plancha_lateral(18) == "bajo"
+    assert nivel_plancha_lateral(45) == "normal"
+    assert nivel_wall_sit(75) == "bueno"
+    assert nivel_puente_gluteo(12) == "normal"
+    assert nivel_plancha_frontal(130) == "muy_bueno"
+    assert nivel_nordic(18) == "riesgo"
+    assert nivel_nordic(35) == "bueno"
+
+    datos = apply_derived({
+        "talon_reps_d": 12,
+        "plancha_lat_s_i": 50,
+        "wall_sit_s": 40,
+        "puente_gluteo_reps_d": 18,
+        "plancha_front_s": 25,
+        "nordic_angulo_i": 18,
+        "daniels_cuadriceps_d": "2",
+    })
+    assert datos["talon_nivel_d"] == "bajo"
+    assert datos["plancha_lat_nivel_i"] == "bueno"
+    assert datos["wall_sit_nivel"] == "normal"
+    assert datos["puente_gluteo_nivel_d"] == "bueno"
+    assert datos["plancha_front_nivel"] == "bajo"
+    assert datos["nordic_nivel_i"] == "riesgo"
+
+
 def test_evaluacion_create_schema():
     ev = EvaluacionCreate(
         jugador_id=uuid4(),

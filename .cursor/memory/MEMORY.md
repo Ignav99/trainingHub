@@ -1,5 +1,4 @@
 # TrainingHub — estado actual
 
 ## En curso
-Informe: nombres de gol/asistencia + minutos del once; molestias con cuaderno de sesiones.
-Rama `cursor/informe-goles-minutos-molestias-4e77`.
+Extensión ficha clínica (Daniels + tests de fuerza) en `cursor/ficha-fuerza-tests-4e77`.
