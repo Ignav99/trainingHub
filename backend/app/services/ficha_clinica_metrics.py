@@ -124,8 +124,86 @@ def lectura_ake(deficit: Any) -> Optional[str]:
     return "severo"
 
 
+def nivel_talones(reps: Any) -> Optional[str]:
+    v = _num(reps)
+    if v is None:
+        return None
+    if v < 15:
+        return "bajo"
+    if v <= 24:
+        return "normal"
+    if v <= 30:
+        return "bueno"
+    return "muy_bueno"
+
+
+def nivel_plancha_lateral(segundos: Any) -> Optional[str]:
+    v = _num(segundos)
+    if v is None:
+        return None
+    if v < 20:
+        return "bajo"
+    if v <= 45:
+        return "normal"
+    if v <= 75:
+        return "bueno"
+    return "muy_bueno"
+
+
+def nivel_wall_sit(segundos: Any) -> Optional[str]:
+    v = _num(segundos)
+    if v is None:
+        return None
+    if v < 30:
+        return "bajo"
+    if v <= 60:
+        return "normal"
+    if v <= 90:
+        return "bueno"
+    return "muy_bueno"
+
+
+def nivel_puente_gluteo(reps: Any) -> Optional[str]:
+    v = _num(reps)
+    if v is None:
+        return None
+    if v < 10:
+        return "bajo"
+    if v <= 15:
+        return "normal"
+    if v <= 20:
+        return "bueno"
+    return "muy_bueno"
+
+
+def nivel_plancha_frontal(segundos: Any) -> Optional[str]:
+    v = _num(segundos)
+    if v is None:
+        return None
+    if v < 30:
+        return "bajo"
+    if v <= 60:
+        return "normal"
+    if v <= 120:
+        return "bueno"
+    return "muy_bueno"
+
+
+def nivel_nordic(angulo: Any) -> Optional[str]:
+    v = _num(angulo)
+    if v is None:
+        return None
+    if v < 20:
+        return "riesgo"
+    if v <= 30:
+        return "aceptable"
+    if v <= 40:
+        return "bueno"
+    return "muy_bueno"
+
+
 def apply_derived(datos: dict[str, Any]) -> dict[str, Any]:
-    """Solo medidas que ya pide la hoja: IMC, asimetría dedo-pared, AKE, Y-Balance %."""
+    """IMC, asimetría dedo-pared, AKE, Y-Balance % y niveles de tests de fuerza."""
     out = dict(datos or {})
     talla = _num(out.get("talla_cm"))
     peso = _num(out.get("peso_kg"))
@@ -149,6 +227,25 @@ def apply_derived(datos: dict[str, Any]) -> dict[str, Any]:
                 dist = _num(out.get(f"{prefix}_{side}"))
                 if dist is not None:
                     out[f"{prefix}_pct_{side}"] = round((dist / limb) * 100, 1)
+        talon = nivel_talones(out.get(f"talon_reps_{side}"))
+        if talon:
+            out[f"talon_nivel_{side}"] = talon
+        lat = nivel_plancha_lateral(out.get(f"plancha_lat_s_{side}"))
+        if lat:
+            out[f"plancha_lat_nivel_{side}"] = lat
+        puente = nivel_puente_gluteo(out.get(f"puente_gluteo_reps_{side}"))
+        if puente:
+            out[f"puente_gluteo_nivel_{side}"] = puente
+        nordic = nivel_nordic(out.get(f"nordic_angulo_{side}"))
+        if nordic:
+            out[f"nordic_nivel_{side}"] = nordic
+
+    wall = nivel_wall_sit(out.get("wall_sit_s"))
+    if wall:
+        out["wall_sit_nivel"] = wall
+    front = nivel_plancha_frontal(out.get("plancha_front_s"))
+    if front:
+        out["plancha_front_nivel"] = front
     return out
 
 
@@ -198,6 +295,27 @@ def _hallazgos(datos: dict[str, Any]) -> list[str]:
             flags.append(f"Thomas {lado} positivo")
         if datos.get(f"valgo_dinamico_{side}") == "si":
             flags.append(f"Valgo dinámico {lado}")
+        for key, label, bad in (
+            (f"talon_nivel_{side}", f"Talones {lado}", ("bajo",)),
+            (f"plancha_lat_nivel_{side}", f"Plancha lateral {lado}", ("bajo",)),
+            (f"puente_gluteo_nivel_{side}", f"Puente glúteo {lado}", ("bajo",)),
+            (f"nordic_nivel_{side}", f"Nordic {lado}", ("riesgo",)),
+        ):
+            if datos.get(key) in bad:
+                flags.append(f"{label}: {datos.get(key)}")
+        for musculo, label in (
+            (f"daniels_cuadriceps_{side}", f"Daniels cuádriceps {lado}"),
+            (f"daniels_isquiotibiales_{side}", f"Daniels isquios {lado}"),
+            (f"daniels_gluteo_mayor_{side}", f"Daniels glúteo mayor {lado}"),
+            (f"daniels_triceps_sural_{side}", f"Daniels tríceps sural {lado}"),
+        ):
+            grade = datos.get(musculo)
+            if grade in ("0", "1", "2"):
+                flags.append(f"{label}: grado {grade}")
+    if datos.get("wall_sit_nivel") == "bajo":
+        flags.append("Wall sit: bajo")
+    if datos.get("plancha_front_nivel") == "bajo":
+        flags.append("Plancha frontal: bajo")
     if datos.get("thomas_global") == "positivo":
         flags.append("Thomas global positivo")
     if datos.get("hip_hinge") in ("compensa", "no_logra"):

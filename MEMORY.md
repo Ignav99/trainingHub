@@ -1,5 +1,5 @@
 # TrainingHub — estado actual
 
 ## En curso
-Volcado informe: goleador/asistencia, tabla minutos desde XI+cambios, seguimiento de molestias.
-Rama `cursor/informe-goles-minutos-molestias-4e77`.
+Ficha clínica: escala Daniels + tests de fuerza/Nordic en Valoración y Tests.
+Rama `cursor/ficha-fuerza-tests-4e77`.

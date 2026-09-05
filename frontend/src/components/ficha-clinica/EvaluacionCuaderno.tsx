@@ -341,7 +341,20 @@ function GroupBlock({
         <span className="mt-1 text-[11px] uppercase tracking-wide text-slate-400">{open ? 'Ocultar' : 'Ver'}</span>
       </button>
       {open ? (
-        <div className="grid grid-cols-1 gap-3 pb-4 sm:grid-cols-2">
+        <div className="pb-4">
+          {group.legend && group.legend.length > 0 ? (
+            <table className="mb-3 w-full max-w-md text-[11px] tabular-nums">
+              <tbody>
+                {group.legend.map((row) => (
+                  <tr key={row.label} className="border-b border-slate-100 last:border-0">
+                    <th className="w-24 py-1 pr-3 text-left font-semibold text-[#16324F]">{row.label}</th>
+                    <td className="py-1 text-slate-600">{row.detail}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : null}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {group.fields.map((field) => (
             <FieldInput
               key={field.key}
@@ -351,6 +364,7 @@ function GroupBlock({
               onChange={onChange}
             />
           ))}
+          </div>
         </div>
       ) : null}
     </section>

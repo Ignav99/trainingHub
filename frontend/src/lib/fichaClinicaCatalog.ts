@@ -1,11 +1,11 @@
 /**
  * Catálogo de la ficha clínica, ceñido a la hoja de los fisios:
- * valoración postural / antropométrica / artromuscular, y tests
- * (Thomas, AKE, control motor, Bronco).
+ * valoración postural / antropométrica / artromuscular / Daniels,
+ * y tests (Thomas, AKE, control motor, Bronco, fuerza y Nordic).
  *
  * Las claves de `datos` se mantienen estables. Solo se calculan
  * medidas que ya pide la hoja (IMC, asimetría dedo-pared, alcance Y,
- * lectura AKE).
+ * lectura AKE, niveles de los tests de fuerza).
  */
 
 export type BloqueEvaluacion = 'valoracion' | 'tests'
@@ -45,10 +45,16 @@ export interface CatalogField {
   better?: BetterDirection
 }
 
+export interface CatalogLegendRow {
+  label: string
+  detail: string
+}
+
 export interface CatalogGroup {
   id: string
   title: string
   description: string
+  legend?: CatalogLegendRow[]
   fields: CatalogField[]
 }
 
@@ -62,6 +68,32 @@ export const MOMENTO_LABELS: Record<MomentoEvaluacion, string> = {
 }
 
 const NV = { value: 'no_valorado', label: 'No valorado' }
+
+const DANIELS_GRADES: CatalogOption[] = [
+  NV,
+  { value: '0', label: '0 · Sin contracción' },
+  { value: '1', label: '1 · Palpable, sin movimiento' },
+  { value: '2', label: '2 · Sin gravedad' },
+  { value: '3', label: '3 · Con gravedad, sin resistencia' },
+  { value: '4', label: '4 · Resistencia leve' },
+  { value: '5', label: '5 · Normal' },
+]
+
+const NIVEL_FUERZA: CatalogOption[] = [
+  { value: '', label: '—' },
+  { value: 'bajo', label: 'Bajo' },
+  { value: 'normal', label: 'Normal' },
+  { value: 'bueno', label: 'Bueno' },
+  { value: 'muy_bueno', label: 'Muy bueno' },
+]
+
+const NIVEL_NORDIC: CatalogOption[] = [
+  { value: '', label: '—' },
+  { value: 'riesgo', label: 'Riesgo' },
+  { value: 'aceptable', label: 'Aceptable' },
+  { value: 'bueno', label: 'Bueno' },
+  { value: 'muy_bueno', label: 'Muy bueno' },
+]
 
 function n(
   key: string,
@@ -195,6 +227,30 @@ export const VALORACION_GROUPS: CatalogGroup[] = [
       notas('notas_balance'),
     ],
   },
+  {
+    id: 'fuerza_daniels',
+    title: 'Valoración fuerza muscular',
+    description: 'Escala Daniels 0–5, lado derecho e izquierdo. Misma toma que el resto de la valoración.',
+    legend: [
+      { label: '0', detail: 'No contracción' },
+      { label: '1', detail: 'Contracción palpable, no movimiento' },
+      { label: '2', detail: 'Movimiento sin gravedad' },
+      { label: '3', detail: 'Movimiento con gravedad. Sin resistencia' },
+      { label: '4', detail: 'Movimiento con gravedad + resistencia leve' },
+      { label: '5', detail: 'Fuerza normal con resistencia máxima' },
+    ],
+    fields: [
+      bsel('daniels_cuadriceps', 'Cuádriceps', DANIELS_GRADES),
+      bsel('daniels_isquiotibiales', 'Isquiotibiales', DANIELS_GRADES),
+      bsel('daniels_gluteo_mayor', 'Glúteo mayor', DANIELS_GRADES),
+      bsel('daniels_gluteo_medio', 'Glúteo medio', DANIELS_GRADES),
+      bsel('daniels_aductores', 'Aductores', DANIELS_GRADES),
+      bsel('daniels_tibial_posterior', 'Tibial posterior', DANIELS_GRADES),
+      bsel('daniels_peroneos', 'Peroneos', DANIELS_GRADES),
+      bsel('daniels_triceps_sural', 'Tríceps sural', DANIELS_GRADES),
+      notas('notas_daniels'),
+    ],
+  },
 ]
 
 export const TESTS_GROUPS: CatalogGroup[] = [
@@ -288,6 +344,102 @@ export const TESTS_GROUPS: CatalogGroup[] = [
       notas('notas_bronco'),
     ],
   },
+  {
+    id: 'test_talon_unilateral',
+    title: 'Elevación de talones unilateral',
+    description: 'Tríceps sural. Anota las repeticiones exactas; el nivel se rellena solo.',
+    legend: [
+      { label: 'Bajo', detail: '< 15 reps' },
+      { label: 'Normal', detail: '16–24 reps' },
+      { label: 'Bueno', detail: '25–30 reps' },
+      { label: 'Muy bueno', detail: '> 30 reps' },
+    ],
+    fields: [
+      bn('talon_reps', 'Repeticiones', 'reps', { step: 1, min: 0, max: 80, better: 'higher' }),
+      bsel('talon_nivel', 'Nivel', NIVEL_FUERZA, 'Se rellena con las reps. Puedes corregirlo.'),
+      notas('notas_talon'),
+    ],
+  },
+  {
+    id: 'test_plancha_lateral',
+    title: 'Plancha lateral',
+    description: 'Core. Tiempo exacto en segundos por lado.',
+    legend: [
+      { label: 'Bajo', detail: '< 20 s' },
+      { label: 'Normal', detail: '20–45 s' },
+      { label: 'Bueno', detail: '45–75 s' },
+      { label: 'Muy bueno', detail: '> 75 s' },
+    ],
+    fields: [
+      bn('plancha_lat_s', 'Tiempo', 's', { step: 1, min: 0, max: 300, better: 'higher' }),
+      bsel('plancha_lat_nivel', 'Nivel', NIVEL_FUERZA, 'Se rellena con el tiempo. Puedes corregirlo.'),
+      notas('notas_plancha_lat'),
+    ],
+  },
+  {
+    id: 'test_wall_sit',
+    title: 'Wall sit',
+    description: 'Cuádriceps. Tiempo exacto en segundos.',
+    legend: [
+      { label: 'Bajo', detail: '< 30 s' },
+      { label: 'Normal', detail: '30–60 s' },
+      { label: 'Bueno', detail: '60–90 s' },
+      { label: 'Muy bueno', detail: '> 90 s' },
+    ],
+    fields: [
+      n('wall_sit_s', 'Tiempo', 's', { step: 1, min: 0, max: 400, better: 'higher' }),
+      sel('wall_sit_nivel', 'Nivel', NIVEL_FUERZA, 'Se rellena con el tiempo. Puedes corregirlo.'),
+      notas('notas_wall_sit'),
+    ],
+  },
+  {
+    id: 'test_puente_gluteo',
+    title: 'Puente glúteo unilateral',
+    description: 'Glúteo. Repeticiones exactas por lado.',
+    legend: [
+      { label: 'Bajo', detail: '< 10 reps' },
+      { label: 'Normal', detail: '10–15 reps' },
+      { label: 'Bueno', detail: '15–20 reps' },
+      { label: 'Muy bueno', detail: '> 20 reps' },
+    ],
+    fields: [
+      bn('puente_gluteo_reps', 'Repeticiones', 'reps', { step: 1, min: 0, max: 80, better: 'higher' }),
+      bsel('puente_gluteo_nivel', 'Nivel', NIVEL_FUERZA, 'Se rellena con las reps. Puedes corregirlo.'),
+      notas('notas_puente_gluteo'),
+    ],
+  },
+  {
+    id: 'test_plancha_frontal',
+    title: 'Plancha frontal',
+    description: 'Core. Tiempo exacto en segundos.',
+    legend: [
+      { label: 'Bajo', detail: '< 30 s' },
+      { label: 'Normal', detail: '30–60 s' },
+      { label: 'Bueno', detail: '60–120 s' },
+      { label: 'Muy bueno', detail: '> 120 s' },
+    ],
+    fields: [
+      n('plancha_front_s', 'Tiempo', 's', { step: 1, min: 0, max: 600, better: 'higher' }),
+      sel('plancha_front_nivel', 'Nivel', NIVEL_FUERZA, 'Se rellena con el tiempo. Puedes corregirlo.'),
+      notas('notas_plancha_front'),
+    ],
+  },
+  {
+    id: 'test_nordic',
+    title: 'Nordic hamstring',
+    description: 'Isquiotibiales. Ángulo exacto en el que pierde el control. Por lado.',
+    legend: [
+      { label: 'Riesgo', detail: '< 20°' },
+      { label: 'Aceptable', detail: '20–30°' },
+      { label: 'Bueno', detail: '30–40°' },
+      { label: 'Muy bueno', detail: '> 40°' },
+    ],
+    fields: [
+      bn('nordic_angulo', 'Ángulo', '°', { step: 1, min: 0, max: 90, better: 'higher' }),
+      bsel('nordic_nivel', 'Nivel', NIVEL_NORDIC, 'Se rellena con el ángulo. Puedes corregirlo.'),
+      notas('notas_nordic'),
+    ],
+  },
 ]
 
 export const GROUPS_BY_BLOQUE: Record<BloqueEvaluacion, CatalogGroup[]> = {
@@ -374,6 +526,66 @@ export function akeLectura(deficit: unknown): string {
   return 'severo'
 }
 
+/** Elevación talones: Bajo <15 · Normal 16–24 · Bueno 25–30 · Muy bueno >30. */
+export function nivelTalones(reps: unknown): string {
+  const v = toNumber(reps)
+  if (v == null) return ''
+  if (v < 15) return 'bajo'
+  if (v <= 24) return 'normal'
+  if (v <= 30) return 'bueno'
+  return 'muy_bueno'
+}
+
+/** Plancha lateral: Bajo <20 s · Normal 20–45 · Bueno 45–75 · Muy bueno >75. */
+export function nivelPlanchaLateral(segundos: unknown): string {
+  const v = toNumber(segundos)
+  if (v == null) return ''
+  if (v < 20) return 'bajo'
+  if (v <= 45) return 'normal'
+  if (v <= 75) return 'bueno'
+  return 'muy_bueno'
+}
+
+/** Wall sit: Bajo <30 s · Normal 30–60 · Bueno 60–90 · Muy bueno >90. */
+export function nivelWallSit(segundos: unknown): string {
+  const v = toNumber(segundos)
+  if (v == null) return ''
+  if (v < 30) return 'bajo'
+  if (v <= 60) return 'normal'
+  if (v <= 90) return 'bueno'
+  return 'muy_bueno'
+}
+
+/** Puente glúteo: Bajo <10 · Normal 10–15 · Bueno 15–20 · Muy bueno >20. */
+export function nivelPuenteGluteo(reps: unknown): string {
+  const v = toNumber(reps)
+  if (v == null) return ''
+  if (v < 10) return 'bajo'
+  if (v <= 15) return 'normal'
+  if (v <= 20) return 'bueno'
+  return 'muy_bueno'
+}
+
+/** Plancha frontal: Bajo <30 s · Normal 30–60 · Bueno 60–120 · Muy bueno >120. */
+export function nivelPlanchaFrontal(segundos: unknown): string {
+  const v = toNumber(segundos)
+  if (v == null) return ''
+  if (v < 30) return 'bajo'
+  if (v <= 60) return 'normal'
+  if (v <= 120) return 'bueno'
+  return 'muy_bueno'
+}
+
+/** Nordic: Riesgo <20° · Aceptable 20–30 · Bueno 30–40 · Muy bueno >40. */
+export function nivelNordic(angulo: unknown): string {
+  const v = toNumber(angulo)
+  if (v == null) return ''
+  if (v < 20) return 'riesgo'
+  if (v <= 30) return 'aceptable'
+  if (v <= 40) return 'bueno'
+  return 'muy_bueno'
+}
+
 export function computeAsymmetryCm(d: unknown, i: unknown): number | null {
   const a = toNumber(d)
   const b = toNumber(i)
@@ -424,7 +636,19 @@ export function applyDerived(datos: Record<string, unknown>): Record<string, unk
       const pct = computeAlcancePct(next[`ybt_${dir}_${side}`], limb)
       if (pct != null) next[`ybt_${dir}_pct_${side}`] = pct
     }
+    const talon = nivelTalones(next[`talon_reps_${side}`])
+    if (talon) next[`talon_nivel_${side}`] = talon
+    const lat = nivelPlanchaLateral(next[`plancha_lat_s_${side}`])
+    if (lat) next[`plancha_lat_nivel_${side}`] = lat
+    const puente = nivelPuenteGluteo(next[`puente_gluteo_reps_${side}`])
+    if (puente) next[`puente_gluteo_nivel_${side}`] = puente
+    const nordic = nivelNordic(next[`nordic_angulo_${side}`])
+    if (nordic) next[`nordic_nivel_${side}`] = nordic
   }
+  const wall = nivelWallSit(next.wall_sit_s)
+  if (wall) next.wall_sit_nivel = wall
+  const front = nivelPlanchaFrontal(next.plancha_front_s)
+  if (front) next.plancha_front_nivel = front
   return next
 }
 
