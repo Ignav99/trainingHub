@@ -141,7 +141,7 @@ export const VALORACION_GROUPS: CatalogGroup[] = [
         NV,
         { value: 'curvaturas_conservadas', label: 'Curvaturas conservadas' },
         { value: 'curvaturas_no_conservadas', label: 'Curvaturas no conservadas' },
-        { value: 'desalineacion', label: 'Desalineación' },
+        { value: 'desalineacion', label: 'Desviación' },
       ]),
       bsel('rodilla_alineacion', 'Rodilla', [
         NV,
@@ -310,9 +310,15 @@ export const TESTS_GROUPS: CatalogGroup[] = [
       sel('single_leg', 'Single leg', [
         NV,
         { value: 'normal', label: 'Normal' },
-        { value: 'compensa', label: 'Compensa' },
-        { value: 'no_logra', label: 'No logra' },
-      ], 'Si usáis app, adjuntad foto o vídeo en notas.'),
+        { value: 'ligero_valgo_dinamico', label: 'Ligero valgo dinámico' },
+        { value: 'valgo_dinamico', label: 'Valgo dinámico' },
+      ]),
+      bsel('valgo_dinamico', 'Valgo dinámico', [
+        NV,
+        { value: 'no', label: 'No' },
+        { value: 'si', label: 'Sí' },
+      ]),
+      notas('notas_control_motor', 'Single leg / vídeo'),
       bn('longitud_pierna', 'Longitud de pierna', 'cm', { better: 'neutral' }),
       bn('ybt_ant', 'Y-Balance anterior', 'cm', { better: 'higher' }),
       bn('ybt_pm', 'Y-Balance posteromedial', 'cm', { better: 'higher' }),
@@ -320,12 +326,6 @@ export const TESTS_GROUPS: CatalogGroup[] = [
       bn('ybt_ant_pct', 'Alcance anterior normalizado', '%', { hint: 'Se calcula solo.', better: 'higher' }),
       bn('ybt_pm_pct', 'Alcance posteromedial normalizado', '%', { hint: 'Se calcula solo.', better: 'higher' }),
       bn('ybt_pl_pct', 'Alcance posterolateral normalizado', '%', { hint: 'Se calcula solo.', better: 'higher' }),
-      bsel('valgo_dinamico', 'Valgo dinámico', [
-        NV,
-        { value: 'no', label: 'No' },
-        { value: 'si', label: 'Sí' },
-      ]),
-      notas('notas_control_motor', 'Single leg / vídeo'),
     ],
   },
   {

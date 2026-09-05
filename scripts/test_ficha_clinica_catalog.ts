@@ -75,3 +75,25 @@ test('applyDerived rellena niveles D/I y tests globales', () => {
   assert.equal(datos.nordic_nivel_d, 'riesgo')
   assert.equal(datos.nordic_nivel_i, 'bueno')
 })
+
+test('columna dice Desviación y single leg va con valgo y vídeo antes de longitud', () => {
+  const alineacion = GROUPS_BY_BLOQUE.valoracion.find((g) => g.id === 'alineacion_estatica')
+  const columna = alineacion?.fields.find((f) => f.key === 'columna')
+  assert.equal(columna?.options?.find((o) => o.value === 'desalineacion')?.label, 'Desviación')
+
+  const control = GROUPS_BY_BLOQUE.tests.find((g) => g.id === 'control_motor')
+  const keys = control?.fields.map((f) => f.key) || []
+  const single = keys.indexOf('single_leg')
+  const valgo = keys.indexOf('valgo_dinamico')
+  const video = keys.indexOf('notas_control_motor')
+  const longitud = keys.indexOf('longitud_pierna')
+  assert.ok(single >= 0 && valgo === single + 1)
+  assert.equal(video, valgo + 1)
+  assert.equal(longitud, video + 1)
+
+  const sl = control?.fields.find((f) => f.key === 'single_leg')
+  assert.deepEqual(
+    (sl?.options || []).filter((o) => o.value !== 'no_valorado').map((o) => o.label),
+    ['Normal', 'Ligero valgo dinámico', 'Valgo dinámico'],
+  )
+})

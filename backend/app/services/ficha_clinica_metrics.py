@@ -278,7 +278,8 @@ def _hallazgos(datos: dict[str, Any]) -> list[str]:
         flags.append(f"Pelvis: {str(pelvis).replace('_', ' ')}")
     columna = datos.get("columna")
     if columna and columna not in ("curvaturas_conservadas", "no_valorado"):
-        flags.append(f"Columna: {str(columna).replace('_', ' ')}")
+        columna_txt = "Desviación" if columna == "desalineacion" else str(columna).replace("_", " ")
+        flags.append(f"Columna: {columna_txt}")
     for side, lado in (("d", "D"), ("i", "I")):
         for key, label in (
             (f"rodilla_alineacion_{side}", f"Rodilla {lado}"),
@@ -322,6 +323,13 @@ def _hallazgos(datos: dict[str, Any]) -> list[str]:
         flags.append(f"Hip hinge: {datos.get('hip_hinge')}")
     if datos.get("hip_hinge_lumbar") == "si":
         flags.append("Compensación lumbar en hip hinge")
+    single_leg = datos.get("single_leg")
+    if single_leg in ("ligero_valgo_dinamico", "valgo_dinamico"):
+        flags.append(
+            "Single leg: ligero valgo dinámico"
+            if single_leg == "ligero_valgo_dinamico"
+            else "Single leg: valgo dinámico"
+        )
     asim = _num(datos.get("dedo_pared_asimetria"))
     if asim is not None and asim >= 2:
         flags.append(f"Asimetría dedo-pared {asim} cm")
