@@ -1282,7 +1282,8 @@ export default function SesionDetailPage() {
               es_pretemporada: !!sesion.es_pretemporada,
               numero_sesion: sesion.numero_sesion ?? null,
               rival: sesion.rival || '',
-              competicion: sesion.competicion || '',
+              rival_id: undefined,
+              competicion: sesion.competicion || 'liga',
               partido_id: sesion.partido_id || null,
               fases_juego: sesion.fases_juego || (sesion.fase_juego_principal ? [sesion.fase_juego_principal] : []),
               subfases: sesion.subfases || [],
@@ -1302,6 +1303,11 @@ export default function SesionDetailPage() {
                     fecha_inicio: microLinked.fecha_inicio,
                     fecha_fin: microLinked.fecha_fin,
                     tipo: tipoDesdePlan(microLinked.plan_ct),
+                    rival_id: microLinked.rival_id || null,
+                    rival_nombre:
+                      microLinked.rivales?.nombre ||
+                      microLinked.partidos?.rival?.nombre ||
+                      null,
                   }
                 : sesion.microciclo_id
                   ? {
@@ -1314,6 +1320,7 @@ export default function SesionDetailPage() {
             }
             onChange={(patch) => {
               const next: Record<string, any> = { ...patch }
+              delete next.rival_id
               if ('contenidos_tecnicos_of' in patch) {
                 next.contenidos_ofensivos = patch.contenidos_tecnicos_of
               }

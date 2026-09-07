@@ -23,6 +23,7 @@ export interface SesionCreateData {
   equipo_id?: string  // Optional: backend will use default in test mode
   match_day: string
   rival?: string
+  rival_id?: string
   competicion?: string
   objetivo_principal?: string
   fase_juego_principal?: string

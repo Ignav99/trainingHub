@@ -408,7 +408,8 @@ async def get_microciclo(
     supabase = get_supabase()
 
     response = supabase.table("microciclos").select(
-        "*, equipos(nombre, categoria), partidos(*, rivales(nombre, nombre_corto))"
+        "*, equipos(nombre, categoria), partidos(*, rivales(nombre, nombre_corto)), "
+        "rivales(nombre, nombre_corto, escudo_url)"
     ).eq("id", str(microciclo_id)).single().execute()
 
     if not response.data:

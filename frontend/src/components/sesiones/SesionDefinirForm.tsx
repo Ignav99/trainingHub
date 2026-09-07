@@ -1,12 +1,18 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import useSWR from 'swr'
 import { Plus } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { apiKey } from '@/lib/swr'
+import { useEquipoStore } from '@/stores/equipoStore'
+import { rivalIdDesdeNombre } from '@/lib/sesionContextoRival'
+import type { PaginatedResponse, Rival } from '@/types'
 import {
   FASES_JUEGO,
   SUBFASES_ATAQUE,
@@ -88,6 +94,7 @@ export type SesionDefinirValues = {
   es_pretemporada?: boolean
   numero_sesion?: number | null
   rival?: string
+  rival_id?: string
   competicion?: string
   partido_id?: string | null
   fases_juego: string[]
@@ -106,6 +113,8 @@ export type LinkedMicrocicloHint = {
   fecha_inicio: string
   fecha_fin: string
   tipo?: string | null
+  rival_id?: string | null
+  rival_nombre?: string | null
 }
 
 function ChipToggle({
@@ -148,6 +157,27 @@ export function SesionDefinirForm({
 }) {
   const [ofDraft, setOfDraft] = useState('')
   const [defDraft, setDefDraft] = useState('')
+  const { equipoActivo } = useEquipoStore()
+  const equipoId = equipoActivo?.id
+
+  const { data: rivalesRes } = useSWR<PaginatedResponse<Rival>>(
+    equipoId ? apiKey('/rivales', { equipo_id: equipoId, limit: 100, orden: 'nombre' }) : null
+  )
+  const rivales = rivalesRes?.data || []
+
+  const selectedRivalId =
+    value.rival_id || rivalIdDesdeNombre(value.rival, rivales) || ''
+  const legacyRival =
+    (value.rival || '').trim() && !selectedRivalId ? value.rival!.trim() : ''
+
+  useEffect(() => {
+    if (!value.rival_id || (value.rival || '').trim() || !rivales.length) return
+    const r = rivales.find((x) => x.id === value.rival_id)
+    if (!r?.nombre) return
+    onChange({ rival_id: r.id, rival: r.nombre })
+    // Rellena el nombre cuando el microciclo solo trae rival_id.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.rival_id, value.rival, rivales])
 
   /** Keywords solo internas (búsqueda NL); no se muestran en el diseño. */
   const syncKeywordsFromObjetivo = (objetivo_principal: string) => {
@@ -338,24 +368,53 @@ export function SesionDefinirForm({
           </div>
         ) : null}
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label>Rival {rivalLocked ? '(desde partido)' : ''}</Label>
-            <Input
-              value={value.rival || ''}
-              onChange={(e) => onChange({ rival: e.target.value })}
-              disabled={rivalLocked && !isPretemporada}
-              placeholder={rivalLocked ? 'Correlacionado al partido' : 'Rival'}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Competición</Label>
-            <Input
-              value={value.competicion || ''}
-              onChange={(e) => onChange({ competicion: e.target.value })}
-              disabled={rivalLocked && !isPretemporada}
-            />
-          </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="sesion-rival">
+            Rival {rivalLocked && !isPretemporada ? '(desde partido)' : ''}
+          </Label>
+          <select
+            id="sesion-rival"
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+            value={selectedRivalId || (legacyRival ? '__legacy' : '')}
+            disabled={rivalLocked && !isPretemporada}
+            onChange={(e) => {
+              const id = e.target.value
+              if (id === '__legacy') return
+              const r = rivales.find((x) => x.id === id)
+              onChange({
+                rival_id: id || undefined,
+                rival: r?.nombre || '',
+              })
+            }}
+          >
+            <option value="">Sin rival</option>
+            {legacyRival ? <option value="__legacy">{legacyRival}</option> : null}
+            {selectedRivalId &&
+            !rivales.some((r) => r.id === selectedRivalId) &&
+            !legacyRival ? (
+              <option value={selectedRivalId}>
+                {value.rival || linkedMicrociclo?.rival_nombre || 'Rival de la semana'}
+              </option>
+            ) : null}
+            {rivales.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.nombre_corto || r.nombre}
+              </option>
+            ))}
+          </select>
+          {linkedMicrociclo?.rival_id && selectedRivalId === linkedMicrociclo.rival_id ? (
+            <p className="text-[11px] text-muted-foreground">
+              Mismo rival que Sala del Lunes
+              {linkedMicrociclo.rival_nombre ? ` (${linkedMicrociclo.rival_nombre})` : ''}.
+            </p>
+          ) : (
+            <p className="text-[11px] text-muted-foreground">
+              Rivales del equipo, como en el microciclo.{' '}
+              <Link href="/rivales" className="underline underline-offset-2 hover:text-foreground">
+                Gestionar rivales
+              </Link>
+            </p>
+          )}
         </div>
       </section>
 

@@ -46,6 +46,7 @@ import {
   microcicloCubreFecha,
   tipoDesdePlan,
 } from '@/lib/sesionMicrociclo'
+import { rivalDesdeMicrociclo } from '@/lib/sesionContextoRival'
 
 const MATCH_DAYS = [
   { value: 'MD+1', label: 'MD+1 - Recuperación', color: 'bg-green-100 text-green-800' },
@@ -92,7 +93,8 @@ export default function NuevaSesionPage() {
     equipo_id: '', // TODO: Obtener del contexto
     match_day: 'MD-3',
     rival: '',
-    competicion: '',
+    rival_id: undefined,
+    competicion: 'liga',
     objetivo_principal: '',
     fase_juego_principal: '',
     principio_tactico_principal: '',
@@ -133,6 +135,7 @@ export default function NuevaSesionPage() {
   const [planContexto, setPlanContexto] = useState<PlanPartido | null>(null)
   const matchDayTouched = useRef(false)
   const contextoTouched = useRef(false)
+  const rivalTouched = useRef(false)
 
   // Recomendador asistido
   const [aiRecommendations, setAiRecommendations] = useState<AIRecomendadorOutput | null>(null)
@@ -156,6 +159,7 @@ export default function NuevaSesionPage() {
   useEffect(() => {
     matchDayTouched.current = false
     contextoTouched.current = false
+    rivalTouched.current = false
   }, [formData.fecha])
 
   useEffect(() => {
@@ -168,13 +172,20 @@ export default function NuevaSesionPage() {
       if (cancelled) return
       setMicrocicloContexto(m)
       if (!m) {
-        setFormData((prev) => ({ ...prev, microciclo_id: undefined }))
+        setFormData((prev) => {
+          const next = { ...prev, microciclo_id: undefined }
+          if (!rivalTouched.current) {
+            next.rival_id = undefined
+            next.rival = ''
+          }
+          return next
+        })
         return
       }
       const inherited = contextoDesdePlan(m.plan_ct)
       const partidoFecha = m.partidos?.fecha || m.fecha_fin
       const suggestedMd = matchDayDesdePartido(fecha, partidoFecha)
-      const rivalNombre = m.partidos?.rival?.nombre || m.rivales?.nombre
+      const rivalCtx = rivalDesdeMicrociclo(m)
       setFormData((prev) => {
         const next = { ...prev, microciclo_id: m.id }
         if (!contextoTouched.current) {
@@ -184,7 +195,13 @@ export default function NuevaSesionPage() {
         if (suggestedMd && !matchDayTouched.current) {
           next.match_day = suggestedMd
         }
-        if (rivalNombre && !prev.rival) next.rival = rivalNombre
+        if (!rivalTouched.current) {
+          next.rival_id = rivalCtx.rival_id
+          next.rival = rivalCtx.rival
+          next.competicion = rivalCtx.competicion
+        } else if (!prev.competicion) {
+          next.competicion = rivalCtx.competicion
+        }
         return next
       })
     }
@@ -288,6 +305,9 @@ export default function NuevaSesionPage() {
         microciclo_id: microcicloIdFromQuery || formData.microciclo_id || undefined,
         plan_partido_id: planPartidoIdFromQuery || formData.plan_partido_id || undefined,
         estructura_fases: estructuraFases.length > 0 ? estructuraFases : undefined,
+        competicion: formData.competicion || 'liga',
+        rival: formData.rival || undefined,
+        rival_id: undefined,
       }
 
       const sesion = await sesionesApi.create(dataToSend)
@@ -486,7 +506,8 @@ export default function NuevaSesionPage() {
               es_pretemporada: !!formData.es_pretemporada,
               numero_sesion: formData.numero_sesion,
               rival: formData.rival,
-              competicion: formData.competicion,
+              rival_id: formData.rival_id,
+              competicion: formData.competicion || 'liga',
               partido_id: formData.partido_id || null,
               fases_juego: formData.fases_juego || [],
               subfases: formData.subfases || [],
@@ -505,6 +526,11 @@ export default function NuevaSesionPage() {
                     fecha_inicio: microcicloContexto.fecha_inicio,
                     fecha_fin: microcicloContexto.fecha_fin,
                     tipo: tipoDesdePlan(microcicloContexto.plan_ct),
+                    rival_id: microcicloContexto.rival_id || null,
+                    rival_nombre:
+                      microcicloContexto.rivales?.nombre ||
+                      microcicloContexto.partidos?.rival?.nombre ||
+                      null,
                   }
                 : null
             }
@@ -513,6 +539,14 @@ export default function NuevaSesionPage() {
               if (patch.match_day !== undefined) matchDayTouched.current = true
               if (patch.contexto_periodo !== undefined) contextoTouched.current = true
               setFormData((prev) => {
+                if (patch.rival !== undefined || patch.rival_id !== undefined) {
+                  const inheritedId = rivalDesdeMicrociclo(microcicloContexto).rival_id
+                  const fillingInheritedName =
+                    !prev.rival &&
+                    !!patch.rival_id &&
+                    patch.rival_id === inheritedId
+                  if (!fillingInheritedName) rivalTouched.current = true
+                }
                 const { partido_id, numero_sesion, ...rest } = patch
                 const next: SesionCreateData = {
                   ...prev,

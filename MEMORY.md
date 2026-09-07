@@ -1,10 +1,10 @@
 # TrainingHub — estado actual
 
-## En curso
-Rama `cursor/competicion-jornada-dia-hora-4e77`:
-- Competición / jornada: cada partido muestra día de la semana + fecha + hora (antes `hora` ocultaba `fecha`).
-- Cabecera de jornada: rango de fechas (p. ej. sáb 12 sep – dom 13 sep).
-- Misma corrección en Estadísticas → Competición.
+## Sesión: contexto rival (en curso)
+Al crear/editar sesión se quitó el campo libre **Competición** (solo liga / grupo RFEF). El rival es un select de `rivales` del equipo, igual que Sala del Lunes. Si la sesión cae en un microciclo con `rival_id`, se hereda automáticamente.
 
-## Siguiente
-CI → auto-merge → Deploy Render.
+## Brief técnico: cargas / RPE / ACWR
+Dos sistemas: diseño de sesión (`sesion_carga.py`) y carga del jugador (sRPE/EWMA). No entra en este cambio.
+
+## En curso
+Rama `cursor/sesion-contexto-rival-4e77`.
