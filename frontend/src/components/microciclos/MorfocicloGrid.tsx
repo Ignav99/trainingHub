@@ -4,9 +4,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { BedDouble, Link2 } from 'lucide-react'
+import { BedDouble, Link2, Plus, Trash2, Clock3 } from 'lucide-react'
 import Link from 'next/link'
-import type { DiaCalendarioKey, DiaMorfociclo, MatchDay, SubtipoFisico, TipoSesionDia } from '@/types'
+import type { DiaCalendarioKey, DiaMorfociclo, MatchDay, SubtipoFisico, TareaSesionPlan, TipoSesionDia, TipoTareaSesion } from '@/types'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -155,6 +155,46 @@ const EMPTY_DAY: DiaMorfociclo = {
   observacion_importante: '',
   aspecto_psicologico: false,
   aspecto_psicologico_texto: '',
+  tareas_sesion: [],
+}
+
+const TAREA_SESION_OPTIONS: {
+  key: TipoTareaSesion
+  label: string
+  hint: string
+  color: string
+}[] = [
+  {
+    key: 'activacion',
+    label: 'Activación',
+    hint: 'Puesta en marcha: movilidad, RAMP, activación neuromuscular.',
+    color: 'text-emerald-700',
+  },
+  {
+    key: 'desarrollo',
+    label: 'Desarrollo',
+    hint: 'Bloque principal de la sesión (táctico / técnico-táctico).',
+    color: 'text-blue-700',
+  },
+  {
+    key: 'partido_condicionado',
+    label: 'Partido condicionado',
+    hint: 'Juego con reglas: espacio, toques, porterías o roles condicionados.',
+    color: 'text-amber-700',
+  },
+  {
+    key: 'abp',
+    label: 'ABP',
+    hint: 'Acciones a balón parado: córner, falta, saque de banda o meta.',
+    color: 'text-orange-700',
+  },
+]
+
+function newTareaSesion(tipo: TipoTareaSesion = 'desarrollo'): TareaSesionPlan {
+  const id = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `t-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+  return { id, tipo, minutos: 15, explicacion: '', responsable: '' }
 }
 
 // ---------------------------------------------------------------------------
@@ -215,7 +255,7 @@ function DayCard({ dayId, cfg, data, linkedSession, onUpdate }: DayCardProps) {
   return (
     <div
       className={`flex h-full flex-col rounded-xl border bg-card shadow-sm transition-all duration-200 ${
-        isDescanso ? 'border-slate-300 bg-slate-100/60 opacity-70 w-[72px]' : `min-w-[200px] flex-1 ${cfg.cardBorder}`
+        isDescanso ? 'border-slate-300 bg-slate-100/60 opacity-70 w-[72px]' : `min-w-[240px] flex-1 ${cfg.cardBorder}`
       }`}
     >
       {/* Header */}
@@ -396,6 +436,11 @@ function DayCard({ dayId, cfg, data, linkedSession, onUpdate }: DayCardProps) {
               />
             </div>
 
+            <TareasSesionBlock
+              tareas={data.tareas_sesion ?? []}
+              onChange={(tareas_sesion) => handleField('tareas_sesion', tareas_sesion)}
+            />
+
             <div className="flex flex-col gap-1">
               <Label className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Notas
@@ -411,6 +456,103 @@ function DayCard({ dayId, cfg, data, linkedSession, onUpdate }: DayCardProps) {
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Distribución de tareas dentro de la sesión
+// ---------------------------------------------------------------------------
+
+function TareasSesionBlock({
+  tareas,
+  onChange,
+}: {
+  tareas: TareaSesionPlan[]
+  onChange: (tareas: TareaSesionPlan[]) => void
+}) {
+  const total = tareas.reduce((sum, t) => sum + (Number(t.minutos) || 0), 0)
+
+  function patch(id: string, partial: Partial<TareaSesionPlan>) {
+    onChange(tareas.map((t) => (t.id === id ? { ...t, ...partial } : t)))
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-border/80 bg-muted/30 p-2">
+      <div className="flex items-center justify-between gap-2">
+        <Label className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Distribución de tareas
+        </Label>
+        <span className="inline-flex items-center gap-1 tabular-nums text-[10px] font-semibold text-foreground">
+          <Clock3 className="h-3 w-3 text-muted-foreground" />
+          {total}'
+        </span>
+      </div>
+      <p className="text-[10px] leading-snug text-muted-foreground">
+        Ordena la sesión: tipo, minutos, explicación y responsable.
+      </p>
+
+      {tareas.map((tarea) => {
+        const meta = TAREA_SESION_OPTIONS.find((o) => o.key === tarea.tipo)
+        return (
+          <div key={tarea.id} className="rounded-md border bg-card p-2 space-y-1.5">
+            <div className="flex items-center gap-1">
+              <select
+                value={tarea.tipo}
+                onChange={(e) => patch(tarea.id, { tipo: e.target.value as TipoTareaSesion })}
+                className="h-7 flex-1 min-w-0 rounded-md border border-input bg-background px-1.5 text-[10px] font-medium"
+                aria-label="Tipo de tarea"
+              >
+                {TAREA_SESION_OPTIONS.map((opt) => (
+                  <option key={opt.key} value={opt.key}>{opt.label}</option>
+                ))}
+              </select>
+              <Input
+                type="number"
+                min={0}
+                max={180}
+                value={tarea.minutos}
+                onChange={(e) => patch(tarea.id, { minutos: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                className="h-7 w-14 px-1.5 text-[11px] tabular-nums"
+                aria-label="Minutos"
+              />
+              <button
+                type="button"
+                onClick={() => onChange(tareas.filter((t) => t.id !== tarea.id))}
+                className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                title="Quitar tarea"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+            {meta?.hint && (
+              <p className={`text-[9px] leading-snug ${meta.color}`}>{meta.hint}</p>
+            )}
+            <Textarea
+              value={tarea.explicacion}
+              onChange={(e) => patch(tarea.id, { explicacion: e.target.value })}
+              placeholder="Explicación breve de este bloque..."
+              rows={2}
+              className="resize-none text-[11px] leading-tight"
+            />
+            <Input
+              value={tarea.responsable}
+              onChange={(e) => patch(tarea.id, { responsable: e.target.value })}
+              placeholder="Responsable (2º, fisio, analista…)"
+              className="h-7 text-[11px]"
+            />
+          </div>
+        )
+      })}
+
+      <button
+        type="button"
+        onClick={() => onChange([...tareas, newTareaSesion(tareas.length === 0 ? 'activacion' : 'desarrollo')])}
+        className="flex items-center justify-center gap-1 rounded-md border border-dashed px-2 py-1.5 text-[10px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+      >
+        <Plus className="h-3 w-3" />
+        Añadir tarea
+      </button>
     </div>
   )
 }
