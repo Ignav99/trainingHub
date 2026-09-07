@@ -48,6 +48,7 @@ export const TIPO_ABP_OPTIONS = [
   { value: 'falta_indirecta', label: 'Falta ind.' },
   { value: 'penalti', label: 'Penalti' },
   { value: 'saque_banda', label: 'Banda' },
+  { value: 'saque_centro', label: 'Saque centro' },
 ] as const
 
 export const ZONA_OPTIONS = [

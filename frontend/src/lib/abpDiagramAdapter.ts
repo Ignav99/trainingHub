@@ -38,7 +38,7 @@ function applyRoles(elements: any[] | undefined, asignaciones?: ABPAsignacion[] 
 }
 
 export function pitchViewForTipo(tipo?: TipoABP): 'full' | 'half' {
-  return tipo === 'falta_lejana' ? 'full' : 'half'
+  return tipo === 'falta_lejana' || tipo === 'saque_centro' ? 'full' : 'half'
 }
 
 function normalizeFrames(

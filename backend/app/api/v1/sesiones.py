@@ -26,6 +26,12 @@ from app.services.sesion_taxonomy import (
     retry_sesion_write,
 )
 from app.services.sesion_microciclo import vincular_sesion_a_microciclo
+from app.services.sesion_create import (
+    ensure_sesion_write_id,
+    find_recent_duplicate_sesion,
+    is_unique_violation,
+    unique_by_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -452,6 +458,7 @@ async def list_sesiones(
     for s in response.data:
         s["equipo"] = s.pop("equipos", None)
         sesiones.append(SesionResponse(**normalize_sesion_row(s)))
+    sesiones = unique_by_id(sesiones)
 
     return SesionListResponse(
         data=sesiones,
@@ -829,12 +836,42 @@ async def create_sesion(
     if not sesion_data.get("match_day"):
         sesion_data["match_day"] = "MD-3"
 
-    # Insertar — si una columna aún no existe en PostgREST (PGRST204), se omite y se reintenta
-    response = retry_sesion_write(
-        lambda data: supabase.table("sesiones").insert(data).execute(),
-        sesion_data,
-        op="insert",
-    )
+    client_supplied_id = "id" in sesion.model_fields_set and sesion.id is not None
+    ensure_sesion_write_id(sesion_data)
+
+    # Clientes antiguos (sin UUID): reutilizar si el mismo POST llega dos veces.
+    # Si el cliente envía `id`, la PK ya hace idempotente el insert.
+    if not client_supplied_id:
+        recent = find_recent_duplicate_sesion(
+            supabase,
+            equipo_id=str(sesion_data.get("equipo_id") or ""),
+            titulo=str(sesion_data.get("titulo") or ""),
+            fecha=str(sesion_data.get("fecha") or ""),
+            creado_por=str(sesion_data.get("creado_por") or ""),
+        )
+        if recent:
+            return SesionResponse(**normalize_sesion_row(recent))
+
+    # Insertar — si una columna aún no existe en PostgREST (PGRST204), se omite y se reintenta.
+    # El UUID se fija antes para que un retry no cree una segunda fila.
+    try:
+        response = retry_sesion_write(
+            lambda data: supabase.table("sesiones").insert(data).execute(),
+            sesion_data,
+            op="insert",
+        )
+    except Exception as exc:
+        if is_unique_violation(exc) and sesion_data.get("id"):
+            existing = (
+                supabase.table("sesiones")
+                .select("*")
+                .eq("id", str(sesion_data["id"]))
+                .maybe_single()
+                .execute()
+            )
+            if existing and existing.data:
+                return SesionResponse(**normalize_sesion_row(existing.data))
+        raise
 
     if not response or not response.data:
         raise HTTPException(

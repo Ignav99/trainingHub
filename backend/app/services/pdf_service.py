@@ -1325,6 +1325,7 @@ ABP_TIPO_LABELS = {
     "penalti": "Penalti",
     "saque_banda": "Saque de banda",
     "saque_puerta": "Saque de puerta",
+    "saque_centro": "Saque de centro",
 }
 
 ABP_LADO_LABELS = {

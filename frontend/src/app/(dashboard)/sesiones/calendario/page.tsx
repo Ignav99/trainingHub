@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { Sesion } from '@/types'
 import { sesionesApi } from '@/lib/api/sesiones'
+import { uniqueById } from '@/lib/uniqueById'
 import {
   format,
   startOfMonth,
@@ -170,7 +171,7 @@ export default function CalendarioSesionesPage() {
         limit: 100, // Obtener todas las del mes
       })
 
-      setSesiones(response.data)
+      setSesiones(uniqueById(response.data || []))
     } catch (err) {
       console.error('Error loading sesiones:', err)
     } finally {

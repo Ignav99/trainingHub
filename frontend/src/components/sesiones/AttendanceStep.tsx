@@ -23,6 +23,7 @@ interface AttendanceStepProps {
   equipoId: string
   onConfirm: (attendance: PlayerAttendance[]) => void
   onSkip: () => void
+  submitting?: boolean
 }
 
 const MOTIVOS: { value: MotivoAusencia; label: string }[] = [
@@ -64,7 +65,7 @@ function mapEstadoToMotivo(estado: string): MotivoAusencia {
   return map[estado] || 'otro'
 }
 
-export function AttendanceStep({ equipoId, onConfirm, onSkip }: AttendanceStepProps) {
+export function AttendanceStep({ equipoId, onConfirm, onSkip, submitting = false }: AttendanceStepProps) {
   const mostrarFilial = useFilialVisibilityStore((s) => s.mostrarFilial)
   const [allJugadores, setAllJugadores] = useState<Jugador[]>([])
   const [extraIds, setExtraIds] = useState<Set<string>>(new Set())
@@ -171,6 +172,7 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip }: AttendanceStepPr
   const porteros = list.filter((a) => a.jugador.es_portero && a.presente).length
 
   function handleConfirm() {
+    if (submitting) return
     onConfirm(list)
   }
 
@@ -342,11 +344,11 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip }: AttendanceStepPr
 
       {/* Actions */}
       <div className="flex gap-3 pt-2">
-        <Button variant="outline" className="flex-1" onClick={onSkip}>
+        <Button variant="outline" className="flex-1" onClick={onSkip} disabled={submitting}>
           <SkipForward className="w-4 h-4 mr-2" />
           Saltar
         </Button>
-        <Button className="flex-1" onClick={handleConfirm}>
+        <Button className="flex-1" onClick={handleConfirm} disabled={submitting}>
           Continuar con {presentCount} jugadores
           <ChevronRight className="w-4 h-4 ml-2" />
         </Button>

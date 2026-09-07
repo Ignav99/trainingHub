@@ -26,6 +26,7 @@ const TIPO_ABP_OPTIONS = [
   { value: 'falta_indirecta', label: 'Falta indirecta' },
   { value: 'penalti', label: 'Penalti' },
   { value: 'saque_banda', label: 'Saque de banda' },
+  { value: 'saque_centro', label: 'Saque de centro' },
 ]
 
 const TIPO_GOL_OPTIONS = [

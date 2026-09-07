@@ -19,6 +19,7 @@ class TipoABP(str, Enum):
     PENALTI = "penalti"
     SAQUE_BANDA = "saque_banda"
     SAQUE_PUERTA = "saque_puerta"
+    SAQUE_CENTRO = "saque_centro"
 
 
 class LadoABP(str, Enum):
