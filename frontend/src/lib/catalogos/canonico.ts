@@ -87,6 +87,7 @@ export const TIPOS_ABP = [
   { codigo: 'penalti', nombre: 'Penalti' },
   { codigo: 'saque_banda', nombre: 'Saque de banda' },
   { codigo: 'saque_puerta', nombre: 'Saque de puerta' },
+  { codigo: 'saque_centro', nombre: 'Saque de centro' },
 ] as const
 
 export const LADOS_ABP = [

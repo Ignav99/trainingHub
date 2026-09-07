@@ -72,6 +72,7 @@ TIPOS_ABP: Dict[str, str] = {
     "penalti": "Penalti",
     "saque_banda": "Saque de banda",
     "saque_puerta": "Saque de puerta",
+    "saque_centro": "Saque de centro",
 }
 
 

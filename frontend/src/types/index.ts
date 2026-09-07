@@ -2143,7 +2143,7 @@ export interface EventoCalendario {
 // ABP (ACCIONES A BALÓN PARADO)
 // ============================================
 
-export type TipoABP = 'corner' | 'semi_corner' | 'falta_lateral' | 'falta_frontal' | 'falta_lejana' | 'penalti' | 'saque_banda' | 'saque_puerta'
+export type TipoABP = 'corner' | 'semi_corner' | 'falta_lateral' | 'falta_frontal' | 'falta_lejana' | 'penalti' | 'saque_banda' | 'saque_puerta' | 'saque_centro'
 export type LadoABP = 'ofensivo' | 'defensivo'
 export type SubtipoABP = 'inswing' | 'outswing' | 'corto' | 'directo' | 'indirecto' | 'largo'
 export type SistemaMarcaje = 'zonal' | 'individual' | 'mixto'
@@ -2259,6 +2259,7 @@ export const ABP_TIPOS: { value: TipoABP; label: string; pitchView: 'full' | 'ha
   { value: 'penalti', label: 'Penalti', pitchView: 'half' },
   { value: 'saque_banda', label: 'Saque de banda', pitchView: 'half' },
   { value: 'saque_puerta', label: 'Saque de puerta', pitchView: 'half' },
+  { value: 'saque_centro', label: 'Saque de centro', pitchView: 'full' },
 ]
 
 export const ABP_SUBTIPOS: { value: SubtipoABP; label: string }[] = [
