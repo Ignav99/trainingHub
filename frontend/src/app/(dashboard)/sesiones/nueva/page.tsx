@@ -48,6 +48,17 @@ import {
 } from '@/lib/sesionMicrociclo'
 import { rivalDesdeMicrociclo } from '@/lib/sesionContextoRival'
 
+function newClientSesionId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
 const MATCH_DAYS = [
   { value: 'MD+1', label: 'MD+1 - Recuperación', color: 'bg-green-100 text-green-800' },
   { value: 'MD+2', label: 'MD+2 - Regeneración', color: 'bg-green-50 text-green-700' },
@@ -136,6 +147,8 @@ export default function NuevaSesionPage() {
   const matchDayTouched = useRef(false)
   const contextoTouched = useRef(false)
   const rivalTouched = useRef(false)
+  const creatingRef = useRef(false)
+  const clientSesionIdRef = useRef(newClientSesionId())
 
   // Recomendador asistido
   const [aiRecommendations, setAiRecommendations] = useState<AIRecomendadorOutput | null>(null)
@@ -295,12 +308,15 @@ export default function NuevaSesionPage() {
   }
 
   const handleSubmit = async (attendanceOverride?: PlayerAttendance[] | null) => {
+    if (creatingRef.current) return
+    creatingRef.current = true
     setLoading(true)
     setError(null)
 
     try {
       const dataToSend = {
         ...formData,
+        id: clientSesionIdRef.current,
         equipo_id: formData.equipo_id || equipoActivo?.id || undefined,
         microciclo_id: microcicloIdFromQuery || formData.microciclo_id || undefined,
         plan_partido_id: planPartidoIdFromQuery || formData.plan_partido_id || undefined,
@@ -349,9 +365,9 @@ export default function NuevaSesionPage() {
 
       router.push(`/sesiones/${sesion.id}`)
     } catch (err: any) {
-      setError(err.message || 'Error al crear la sesión')
-    } finally {
+      creatingRef.current = false
       setLoading(false)
+      setError(err.message || 'Error al crear la sesión')
     }
   }
 
@@ -410,6 +426,7 @@ export default function NuevaSesionPage() {
   }
 
   const handleNext = () => {
+    if (creatingRef.current || loading) return
     if (isAssisted && step === 0) {
       generateRecommendations()
     }
@@ -715,13 +732,15 @@ export default function NuevaSesionPage() {
               equipoId={equipoActivo.id}
               onConfirm={handleAttendanceConfirm}
               onSkip={handleAttendanceSkip}
+              submitting={loading}
             />
           ) : (
             <div className="text-center py-12 text-gray-500">
               <p>No hay equipo activo. La convocatoria se registrará en el detalle.</p>
               <button
-                className="mt-4 text-primary underline text-sm"
+                className="mt-4 text-primary underline text-sm disabled:opacity-50"
                 onClick={handleAttendanceSkip}
+                disabled={loading}
               >
                 Crear sesión
               </button>
@@ -761,7 +780,7 @@ export default function NuevaSesionPage() {
             <button
               type="button"
               onClick={handleNext}
-              disabled={!canGoNext()}
+              disabled={loading || !canGoNext()}
               className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Siguiente

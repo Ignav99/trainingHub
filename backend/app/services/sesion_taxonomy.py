@@ -228,7 +228,7 @@ def prepare_sesion_write_payload(data: Dict[str, Any], *, synthesize: bool = Tru
         if out.get(key) is not None and hasattr(out[key], "isoformat"):
             out[key] = out[key].isoformat()
 
-    for key in ("equipo_id", "microciclo_id", "plan_partido_id", "partido_id"):
+    for key in ("id", "equipo_id", "microciclo_id", "plan_partido_id", "partido_id", "creado_por"):
         if out.get(key) is not None:
             out[key] = str(out[key])
 

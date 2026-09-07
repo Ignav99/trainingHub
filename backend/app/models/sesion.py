@@ -297,6 +297,7 @@ class SesionBase(BaseModel):
 
 class SesionCreate(SesionBase):
     """Schema para crear sesión."""
+    id: Optional[UUID] = None  # Client idempotency key (PK); retries reuse the same row
     equipo_id: Optional[UUID] = None  # Optional for testing mode
     microciclo_id: Optional[UUID] = None
     dia_numero: Optional[int] = Field(None, ge=1, le=14)

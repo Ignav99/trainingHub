@@ -35,6 +35,7 @@ import { DayDetailPanel } from '@/components/dashboard/DayDetailPanel'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import type { CalendarViewMode } from '@/lib/calendar/types'
 import { startOfWeekMonday, addDays, toLocalDateStr, monthGridRange } from '@/lib/calendar/types'
+import { uniqueById } from '@/lib/uniqueById'
 import {
   DEFAULT_SEASON_START_MONTH,
   filterByDateRange,
@@ -167,7 +168,7 @@ export default function DashboardPage() {
     !calParRes
 
   // Full season datasets (year view + cache)
-  const sesionesTemporada = calSesRes?.data || []
+  const sesionesTemporada = uniqueById(calSesRes?.data || [])
   const partidosTemporada = calParRes?.data || []
   const microciclosTemporada = calMicroRes?.data || []
 

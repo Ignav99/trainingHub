@@ -34,6 +34,7 @@ export interface SesionCreateData {
   hora?: string
   lugar?: string
   notas_pre?: string
+  id?: string
   materiales?: string[]
   staff_asistentes?: { nombre: string; rol: string; presente?: boolean }[]
   fase_notas?: Record<string, string>

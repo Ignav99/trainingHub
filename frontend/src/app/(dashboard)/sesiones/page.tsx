@@ -28,6 +28,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { apiKey } from '@/lib/swr'
 import { Sesion, MatchDay, PaginatedResponse } from '@/types'
 import { sesionesApi } from '@/lib/api/sesiones'
+import { uniqueById } from '@/lib/uniqueById'
 import { FASES_JUEGO, MATERIALES } from '@/lib/catalogos/canonico'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -115,7 +116,7 @@ export default function SesionesPage() {
     })
   )
 
-  const sesiones = data?.data || []
+  const sesiones = uniqueById(data?.data || [])
   const totalPages = data?.pages || 1
   const total = data?.total || 0
   const loading = isLoading
