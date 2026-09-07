@@ -61,9 +61,14 @@ class MicrocicloResponse(MicrocicloBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
+    # Joins PostgREST (Sala Lunes / sesión): no recortar rival ni partido.
+    rivales: Optional[dict] = None
+    partidos: Optional[dict] = None
+    equipos: Optional[dict] = None
 
     class Config:
         from_attributes = True
+        extra = "allow"
 
 
 class MicrocicloListResponse(BaseModel):

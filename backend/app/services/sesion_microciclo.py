@@ -41,6 +41,73 @@ def _contexto_desde_plan(plan: dict) -> tuple[str, bool, str]:
     return "competicion", False, tipo or "competicion"
 
 
+def rival_nombre_desde_micro(micro: dict | None) -> Optional[str]:
+    """Nombre del rival asociado en Sala del Lunes (join rivales o partido)."""
+    if not micro:
+        return None
+    rivales = micro.get("rivales")
+    if isinstance(rivales, list):
+        rivales = rivales[0] if rivales else None
+    if isinstance(rivales, dict):
+        nombre = (rivales.get("nombre") or rivales.get("nombre_corto") or "").strip()
+        if nombre:
+            return nombre
+    partidos = micro.get("partidos")
+    if isinstance(partidos, list):
+        partidos = partidos[0] if partidos else None
+    if isinstance(partidos, dict):
+        nested = partidos.get("rivales") or partidos.get("rival") or {}
+        if isinstance(nested, list):
+            nested = nested[0] if nested else {}
+        if isinstance(nested, dict):
+            nombre = (nested.get("nombre") or nested.get("nombre_corto") or "").strip()
+            if nombre:
+                return nombre
+    return None
+
+
+def competicion_sesion_default(partido_competicion: Any = None) -> str:
+    """Por ahora la sesión se asocia a liga (grupo RFEF), no a un campo copa/liga libre."""
+    raw = str(partido_competicion or "").strip().lower()
+    if raw and raw != "copa":
+        return raw
+    return "liga"
+
+
+def _heredar_rival_y_competicion(out: dict, micro: dict, supabase) -> dict:
+    """Rellena rival y competición si el cliente no los envió."""
+    if not (out.get("rival") or "").strip():
+        nombre = rival_nombre_desde_micro(micro)
+        if not nombre:
+            rid = micro.get("rival_id")
+            if rid:
+                try:
+                    r = (
+                        supabase.table("rivales")
+                        .select("nombre, nombre_corto")
+                        .eq("id", str(rid))
+                        .maybe_single()
+                        .execute()
+                    )
+                    row = (r.data or {}) if r else {}
+                    nombre = (row.get("nombre") or row.get("nombre_corto") or "").strip()
+                except Exception:
+                    logger.exception("load rival for sesion inherit failed")
+                    nombre = None
+        if nombre:
+            out["rival"] = nombre
+
+    if not (out.get("competicion") or "").strip():
+        partidos = micro.get("partidos")
+        if isinstance(partidos, list):
+            partidos = partidos[0] if partidos else None
+        comp = None
+        if isinstance(partidos, dict):
+            comp = partidos.get("competicion")
+        out["competicion"] = competicion_sesion_default(comp)
+    return out
+
+
 def _elegir_micro(candidatos: list[dict], fecha: date) -> Optional[dict]:
     covering = []
     for m in candidatos:
@@ -96,7 +163,10 @@ def vincular_sesion_a_microciclo(
         try:
             resp = (
                 supabase.table("microciclos")
-                .select("id, fecha_inicio, fecha_fin, plan_ct, partido_id")
+                .select(
+                    "id, fecha_inicio, fecha_fin, plan_ct, partido_id, rival_id, "
+                    "rivales(nombre, nombre_corto)"
+                )
                 .eq("id", str(mid))
                 .maybe_single()
                 .execute()
@@ -117,7 +187,10 @@ def vincular_sesion_a_microciclo(
             iso = fecha.isoformat()
             resp = (
                 supabase.table("microciclos")
-                .select("id, fecha_inicio, fecha_fin, plan_ct, partido_id")
+                .select(
+                    "id, fecha_inicio, fecha_fin, plan_ct, partido_id, rival_id, "
+                    "rivales(nombre, nombre_corto)"
+                )
                 .eq("equipo_id", str(equipo_id))
                 .lte("fecha_inicio", iso)
                 .gte("fecha_fin", iso)
@@ -166,5 +239,7 @@ def vincular_sesion_a_microciclo(
         suggested = match_day_desde_partido(fecha, partido_fecha)
         if suggested:
             out["match_day"] = suggested
+
+    _heredar_rival_y_competicion(out, micro, supabase)
 
     return out
