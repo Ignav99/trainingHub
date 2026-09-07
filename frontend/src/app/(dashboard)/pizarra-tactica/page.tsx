@@ -50,21 +50,21 @@ export default function PizarraTacticaPage() {
 
     setSaving(true)
     try {
-      const payload = {
-        equipo_id: equipoId,
-        nombre: store.nombre,
-        descripcion: store.descripcion || undefined,
-        tipo: store.tipo,
-        pitch_type: store.pitchType,
-        elements: store.elements,
-        arrows: store.arrows,
-        zones: store.zones,
-        tags: store.tags.length > 0 ? store.tags : undefined,
-      }
-
-      // Save current edits to active keyframe before persisting
       if (store.tipo === 'animated') {
         store.saveCurrentToKeyframe()
+      }
+      const latest = useTacticalBoardStore.getState()
+      const start = latest.keyframes[0]
+      const payload = {
+        equipo_id: equipoId,
+        nombre: latest.nombre,
+        descripcion: latest.descripcion || undefined,
+        tipo: latest.tipo,
+        pitch_type: latest.pitchType,
+        elements: start?.elements ?? latest.elements,
+        arrows: start?.arrows ?? latest.arrows,
+        zones: start?.zones ?? latest.zones,
+        tags: latest.tags.length > 0 ? latest.tags : undefined,
       }
 
       if (store.boardId) {

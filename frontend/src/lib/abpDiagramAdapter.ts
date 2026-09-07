@@ -2,6 +2,7 @@ import type { ABPAsignacion, ABPJugada, TipoABP } from '@/types'
 import type { DiagramElement } from '@/components/tarea-editor/types'
 import { isPlayerToken, generateId } from '@/components/tarea-editor/types'
 import type { Keyframe, TareaPizarraData } from '@/components/tactical-board/types'
+import { compactKeyframes } from '@/components/tactical-board/interpolate'
 
 function getPos(el: any): { x: number; y: number } {
   if (el?.position && typeof el.position.x === 'number') return el.position
@@ -45,7 +46,7 @@ function normalizeFrames(
   asignaciones?: ABPAsignacion[] | null,
 ): Keyframe[] {
   if (!Array.isArray(raw) || raw.length === 0) return []
-  return raw.map((f, i) => ({
+  const mapped = raw.map((f, i) => ({
     id: f.id || generateId(),
     orden: f.orden ?? i,
     nombre: f.nombre || `Fase ${i + 1}`,
@@ -56,6 +57,7 @@ function normalizeFrames(
     transition_type: f.transition_type || 'linear',
     notes: f.notes,
   }))
+  return compactKeyframes(mapped)
 }
 
 /**
@@ -74,11 +76,15 @@ export function jugadaToBoardData(
     ? diagram.pitchType
     : pitchViewForTipo(jugada?.tipo)
   const tipo = diagram?.tipo === 'static' && frames.length < 2 ? 'static' : (diagram?.tipo || (frames.length >= 2 ? 'animated' : 'animated'))
+  const start = frames[0]
+  const startElements = start ? applyRoles(start.elements, jugada?.asignaciones) : elements
+  const startArrows = start && Array.isArray(start.arrows) ? start.arrows : arrows
+  const startZones = start && Array.isArray(start.zones) ? start.zones : zones
 
   return {
-    elements,
-    arrows,
-    zones,
+    elements: startElements,
+    arrows: startArrows,
+    zones: startZones,
     pitchType,
     tipo,
     ...(frames.length > 0 ? { frames } : {}),

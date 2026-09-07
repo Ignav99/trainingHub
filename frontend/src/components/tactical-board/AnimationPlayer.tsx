@@ -3,7 +3,7 @@
 import React, { useRef, useCallback, useEffect, useState } from 'react'
 import { Play, Pause, RotateCcw, Repeat } from 'lucide-react'
 import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
-import { getEasing, lerpElements, snapItems, type AnimationState } from './interpolate'
+import { sampleAnimation, totalDuration, compactKeyframes, type AnimationState } from './interpolate'
 
 export type { AnimationState }
 
@@ -25,13 +25,14 @@ export default function AnimationPlayer({ onFrame }: AnimationPlayerProps) {
   const rafRef = useRef<number>(0)
   const startTimeRef = useRef(0)
 
-  const totalDuration = keyframes.reduce((sum, kf) => sum + kf.duration_ms, 0)
+  const playable = compactKeyframes(keyframes)
 
   const animate = useCallback(() => {
-    if (keyframes.length < 2) return
+    const frames = compactKeyframes(useTacticalBoardStore.getState().keyframes)
+    if (frames.length < 2) return
 
     const elapsed = (performance.now() - startTimeRef.current) * speed
-    const totalMs = totalDuration
+    const totalMs = Math.max(1, totalDuration(frames))
     let t = elapsed / totalMs
 
     if (t >= 1) {
@@ -42,59 +43,31 @@ export default function AnimationPlayer({ onFrame }: AnimationPlayerProps) {
         t = 1
         setIsPlaying(false)
         setProgress(1)
-        // Show last keyframe
-        const last = keyframes[keyframes.length - 1]
+        const last = frames[frames.length - 1]
         onFrame({ elements: last.elements, arrows: last.arrows, zones: last.zones })
         return
       }
     }
 
     setProgress(t)
-
-    // Find which segment we're in
-    let accMs = 0
-    let segIdx = 0
-    const currentMs = t * totalMs
-    for (let i = 0; i < keyframes.length - 1; i++) {
-      if (currentMs < accMs + keyframes[i].duration_ms) {
-        segIdx = i
-        break
-      }
-      accMs += keyframes[i].duration_ms
-      segIdx = i + 1
-    }
-    segIdx = Math.min(segIdx, keyframes.length - 2)
-
-    const segStart = accMs
-    const segDuration = keyframes[segIdx].duration_ms
-    const segProgress = Math.min(1, (currentMs - segStart) / segDuration)
-    const easing = getEasing(keyframes[segIdx].transition_type)
-    const easedT = easing(segProgress)
-
-    const from = keyframes[segIdx]
-    const to = keyframes[segIdx + 1]
-
-    onFrame({
-      elements: lerpElements(from.elements, to.elements, easedT),
-      arrows: snapItems(from.arrows, to.arrows, easedT),
-      zones: snapItems(from.zones, to.zones, easedT),
-    })
+    const sampled = sampleAnimation(frames, t)
+    if (sampled) onFrame(sampled)
 
     rafRef.current = requestAnimationFrame(animate)
-  }, [keyframes, speed, loop, totalDuration, onFrame, setIsPlaying])
+  }, [speed, loop, onFrame, setIsPlaying])
 
   useEffect(() => {
-    if (isPlaying && keyframes.length >= 2) {
+    if (isPlaying && playable.length >= 2) {
       startTimeRef.current = performance.now()
       rafRef.current = requestAnimationFrame(animate)
     }
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
-  }, [isPlaying, animate, keyframes.length])
+  }, [isPlaying, animate, playable.length])
 
   const handlePlay = () => {
-    if (keyframes.length < 2) return
+    if (compactKeyframes(keyframes).length < 2) return
     // Save current edits to keyframe before playing
     saveCurrentToKeyframe()
     setProgress(0)
@@ -113,7 +86,7 @@ export default function AnimationPlayer({ onFrame }: AnimationPlayerProps) {
     }
   }
 
-  if (keyframes.length < 2) {
+  if (playable.length < 2) {
     return (
       <div className="flex items-center gap-2 px-4 py-1.5 text-[11px] text-gray-400">
         Añade al menos 2 frames para reproducir la animacion

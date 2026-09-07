@@ -6,7 +6,7 @@ import ABPPitch from '@/components/abp/ABPPitch'
 import type { DiagramElement, DiagramArrow, DiagramZone } from '../tarea-editor/types'
 import { BoardDefs, ElementSymbol, ROTATABLE_ELEMENTS } from '@/components/tactical-board/BoardSymbols'
 import BoardArrow from '@/components/tactical-board/BoardArrow'
-import { sampleAnimation, totalDuration } from '@/components/tactical-board/interpolate'
+import { sampleAnimation, totalDuration, compactKeyframes } from '@/components/tactical-board/interpolate'
 import type { Keyframe, TareaPizarraData } from '@/components/tactical-board/types'
 import { captureBoardPreview } from '@/components/tactical-board/utils'
 
@@ -55,10 +55,10 @@ function normalizeArrow(a: any): DiagramArrow | null {
   return { ...a, type: a.type || 'movement' }
 }
 
-/** Keyframes válidos (>=2) para animar. */
+/** Keyframes válidos (>=2) para animar. Omite fases vacías (no borra contenido). */
 function usableFrames(data?: TareaPizarraData | null): Keyframe[] | null {
-  const frames = data?.frames
-  if (!Array.isArray(frames) || frames.length < 2) return null
+  const frames = compactKeyframes(data?.frames)
+  if (frames.length < 2) return null
   return frames.map((f, i) => ({
     id: f.id || `f${i}`,
     orden: f.orden ?? i,
@@ -130,7 +130,6 @@ function TacticalBoardMiniInner({
   const startRef = useRef(0)
   const runningRef = useRef(false)
   const framesRef = useRef<Keyframe[] | null>(null)
-  const [frameData, setFrameData] = useState<{ elements: any[]; arrows: any[]; zones: any[] } | null>(null)
   const previewDoneRef = useRef(false)
 
   const framesSig = framesSignature(data)
@@ -141,6 +140,9 @@ function TacticalBoardMiniInner({
 
   // Vista estática: top-level (o frame 0). Vista animada: interpolación.
   const staticData = useMemo(() => staticBoardSnapshot(data), [data, framesSig])
+  const [frameData, setFrameData] = useState<{ elements: any[]; arrows: any[]; zones: any[] } | null>(
+    () => (canAnimate && frames ? sampleAnimation(frames, 0) : null),
+  )
 
   // Captura JPEG del SVG real del editor (siempre: recupera fotos inventadas en el PDF)
   useEffect(() => {
@@ -188,6 +190,8 @@ function TacticalBoardMiniInner({
       if (runningRef.current) return
       runningRef.current = true
       startRef.current = performance.now()
+      const current = framesRef.current
+      if (current) setFrameData(sampleAnimation(current, 0))
       rafRef.current = requestAnimationFrame(tick)
     }
     const stop = () => {
