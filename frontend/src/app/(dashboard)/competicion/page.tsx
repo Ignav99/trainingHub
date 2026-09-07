@@ -46,6 +46,7 @@ import {
 import type { RFEFActa } from '@/types'
 import { MiEquipoTarjetasWidget } from '@/components/pre-match/MiEquipoTarjetasWidget'
 import { CompeticionOnboardingWizard } from '@/components/competicion/CompeticionOnboardingWizard'
+import { formatJornadaDateSpan, formatJornadaKickoff } from '@/lib/jornadaKickoff'
 
 export default function CompeticionPage() {
   const { equipoActivo } = useEquipoStore()
@@ -600,6 +601,7 @@ export default function CompeticionPage() {
   )
 
   const currentJornadaData = jornadas.find(j => j.numero === currentJornada)
+  const jornadaDateSpan = formatJornadaDateSpan(currentJornadaData?.partidos?.map(p => p.fecha) || [])
   const totalJornadas = competicion.calendario?.length || jornadas.length || 30
 
   const racha = miEquipoStats?.ultimos_5 || []
@@ -923,7 +925,12 @@ export default function CompeticionPage() {
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
-              <span className="font-semibold">Jornada {currentJornada}</span>
+              <div className="text-center">
+                <span className="font-semibold">Jornada {currentJornada}</span>
+                {jornadaDateSpan ? (
+                  <p className="text-xs text-muted-foreground font-normal capitalize">{jornadaDateSpan}</p>
+                ) : null}
+              </div>
               <button
                 onClick={() => setCurrentJornada(j => Math.min(totalJornadas, j + 1))}
                 disabled={currentJornada >= totalJornadas}
@@ -1287,6 +1294,7 @@ function PartidoRow({
   const hasResult = partido.goles_local !== null && partido.goles_visitante !== null
   const isMyMatch = isMyTeam(partido.local) || isMyTeam(partido.visitante)
   const hasActa = !!partido.cod_acta
+  const kickoff = formatJornadaKickoff(partido.fecha, partido.hora)
 
   return (
     <div
@@ -1302,16 +1310,32 @@ function PartidoRow({
         </span>
       </div>
 
-      {/* Score */}
-      <div className="w-20 text-center shrink-0">
+      {/* Score / día + hora (sáb vs dom en la misma jornada) */}
+      <div className="w-[5.75rem] text-center shrink-0">
         {hasResult ? (
-          <span className="text-sm font-bold bg-muted px-3 py-1 rounded inline-flex items-center gap-1">
-            {partido.goles_local} - {partido.goles_visitante}
-            {hasActa && <FileText className="h-3 w-3 text-muted-foreground" />}
-          </span>
+          <div className="flex flex-col items-center gap-0.5">
+            <span className="text-sm font-bold bg-muted px-2.5 py-1 rounded inline-flex items-center gap-1">
+              {partido.goles_local} - {partido.goles_visitante}
+              {hasActa && <FileText className="h-3 w-3 text-muted-foreground" />}
+            </span>
+            {kickoff.label !== '-' && (
+              <span className="text-[10px] text-muted-foreground capitalize leading-tight">
+                {kickoff.label}
+              </span>
+            )}
+          </div>
         ) : (
-          <div className="text-xs text-muted-foreground">
-            {partido.hora || partido.fecha || '-'}
+          <div className="leading-tight" title={kickoff.label}>
+            {(kickoff.weekday || kickoff.date) ? (
+              <div className="text-[11px] font-medium text-foreground capitalize">
+                {[kickoff.weekday, kickoff.date].filter(Boolean).join(' ')}
+              </div>
+            ) : null}
+            {kickoff.time ? (
+              <div className="text-[11px] tabular-nums text-muted-foreground">{kickoff.time}</div>
+            ) : kickoff.label === '-' ? (
+              <div className="text-xs text-muted-foreground">-</div>
+            ) : null}
           </div>
         )}
       </div>

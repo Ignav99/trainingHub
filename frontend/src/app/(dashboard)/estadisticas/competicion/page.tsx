@@ -35,6 +35,7 @@ import {
 import { partidosApi } from '@/lib/api/partidos'
 import { apiKey } from '@/lib/swr'
 import type { Partido } from '@/types'
+import { formatJornadaKickoff } from '@/lib/jornadaKickoff'
 
 // ============ Helpers ============
 
@@ -545,6 +546,8 @@ export default function CompeticionPage() {
                         miEquipoNombre.includes(visitanteLower) ||
                         visitanteLower.includes(miEquipoNombre)
                       )
+                      const kickoff = formatJornadaKickoff(p.fecha, p.hora)
+                      const played = p.goles_local !== null && p.goles_visitante !== null
 
                       return (
                         <div
@@ -556,15 +559,31 @@ export default function CompeticionPage() {
                           <span className={`flex-1 text-right text-sm ${isMyMatch && localLower.includes(miEquipoNombre) ? 'font-bold text-primary' : ''}`}>
                             {p.local}
                           </span>
-                          <div className="min-w-[60px] text-center">
-                            {p.goles_local !== null && p.goles_visitante !== null ? (
-                              <Badge variant="outline" className="font-bold">
-                                {p.goles_local} - {p.goles_visitante}
-                              </Badge>
+                          <div className="min-w-[5.5rem] text-center">
+                            {played ? (
+                              <div className="flex flex-col items-center gap-0.5">
+                                <Badge variant="outline" className="font-bold">
+                                  {p.goles_local} - {p.goles_visitante}
+                                </Badge>
+                                {kickoff.label !== '-' && (
+                                  <span className="text-[10px] text-muted-foreground capitalize leading-tight">
+                                    {kickoff.label}
+                                  </span>
+                                )}
+                              </div>
                             ) : (
-                              <span className="text-xs text-muted-foreground">
-                                {p.hora || 'vs'}
-                              </span>
+                              <div className="leading-tight" title={kickoff.label}>
+                                {(kickoff.weekday || kickoff.date) ? (
+                                  <div className="text-[11px] font-medium capitalize">
+                                    {[kickoff.weekday, kickoff.date].filter(Boolean).join(' ')}
+                                  </div>
+                                ) : null}
+                                {kickoff.time ? (
+                                  <div className="text-[11px] tabular-nums text-muted-foreground">{kickoff.time}</div>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">vs</span>
+                                )}
+                              </div>
                             )}
                           </div>
                           <span className={`flex-1 text-sm ${isMyMatch && visitanteLower.includes(miEquipoNombre) ? 'font-bold text-primary' : ''}`}>
