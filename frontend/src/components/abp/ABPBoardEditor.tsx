@@ -11,6 +11,7 @@ import { Film, Save, Settings2, X } from 'lucide-react'
 import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
 import TacticalBoardEditor from '@/components/tactical-board/TacticalBoardEditor'
 import { captureBoardPreview } from '@/components/tactical-board/utils'
+import { compactKeyframes } from '@/components/tactical-board/interpolate'
 import { generateId, TEAM_COLORS } from '@/components/tarea-editor/types'
 import {
   ABPJugada, ABPFase, TipoABP, LadoABP, SubtipoABP,
@@ -134,11 +135,13 @@ export default function ABPBoardEditor({
     if (!nombre.trim()) return
     saveCurrentToKeyframe()
     const state = useTacticalBoardStore.getState()
-    const frames = state.keyframes.map((kf, i) =>
+    const flushed = state.keyframes.map((kf, i) =>
       i === state.activeKeyframeIndex
         ? { ...kf, elements: state.elements, arrows: state.arrows, zones: state.zones }
         : kf,
     )
+    const frames = compactKeyframes(flushed)
+    const start = frames[0]
 
     let preview = previewRef.current
     const svg = rootRef.current?.querySelector('svg')
@@ -152,9 +155,9 @@ export default function ABPBoardEditor({
     }
 
     const diagram = {
-      elements: state.elements,
-      arrows: state.arrows,
-      zones: state.zones,
+      elements: start?.elements ?? state.elements,
+      arrows: start?.arrows ?? state.arrows,
+      zones: start?.zones ?? state.zones,
       pitchType: state.pitchType,
       tipo: 'animated' as const,
       frames,

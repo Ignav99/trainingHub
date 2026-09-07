@@ -15,6 +15,7 @@ import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
 import TacticalBoardEditor from './TacticalBoardEditor'
 import { captureBoardPreview } from './utils'
 import type { TareaPizarraData } from './types'
+import { compactKeyframes } from './interpolate'
 import type { TareaEspacioPatch } from '@/lib/tacticalMetrics'
 
 interface TareaPizarraEditorProps {
@@ -86,16 +87,18 @@ export default function TareaPizarraEditor({
   }, [])
 
   const buildPayload = (): TareaPizarraData => {
-    const frames =
+    const flushed =
       tipo === 'animated'
         ? keyframes.map((kf, i) =>
             i === activeKeyframeIndex ? { ...kf, elements, arrows, zones } : kf,
           )
         : undefined
+    const frames = flushed ? compactKeyframes(flushed) : undefined
+    const start = frames && frames.length > 0 ? frames[0] : null
     return {
-      elements,
-      arrows,
-      zones,
+      elements: start?.elements ?? elements,
+      arrows: start?.arrows ?? arrows,
+      zones: start?.zones ?? zones,
       pitchType,
       tipo,
       ...(frames && frames.length > 0 ? { frames } : {}),

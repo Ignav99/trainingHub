@@ -14,8 +14,13 @@ import {
   TEAM_COLORS,
   Position,
 } from '@/components/tactical-board/types'
+import { compactKeyframes } from '@/components/tactical-board/interpolate'
 import { FORMATIONS } from '@/lib/formations'
 import { metersToUnits } from '@/lib/tacticalMetrics'
+
+function cloneJson<T>(v: T): T {
+  return JSON.parse(JSON.stringify(v))
+}
 
 /** Transformación aplicable a una selección o a un pegado. */
 export interface SelectionTransform {
@@ -837,20 +842,40 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
 
   // Keyframe management
   addKeyframe: () => {
-    const { elements, arrows, zones, keyframes } = get()
+    const { elements, arrows, zones, keyframes, activeKeyframeIndex } = get()
+    const snapshot = {
+      elements: cloneJson(elements),
+      arrows: cloneJson(arrows),
+      zones: cloneJson(zones),
+    }
+    // Volcar el lienzo a la fase activa ANTES de clonar. Si no, la fase 1
+    // se queda vacía y al reproducir/guardar se mezclan las capas.
+    const flushed = keyframes.map((kf, i) =>
+      i === activeKeyframeIndex ? { ...kf, ...snapshot } : kf,
+    )
+    if (flushed.length === 0) {
+      const first: Keyframe = {
+        id: generateId(),
+        orden: 0,
+        nombre: 'Frame 1',
+        duration_ms: 2000,
+        ...snapshot,
+        transition_type: 'linear',
+      }
+      set({ keyframes: [first], activeKeyframeIndex: 0, isDirty: true })
+      return
+    }
     const newKf: Keyframe = {
       id: generateId(),
-      orden: keyframes.length,
-      nombre: `Frame ${keyframes.length + 1}`,
+      orden: flushed.length,
+      nombre: `Frame ${flushed.length + 1}`,
       duration_ms: 2000,
-      elements: JSON.parse(JSON.stringify(elements)),
-      arrows: JSON.parse(JSON.stringify(arrows)),
-      zones: JSON.parse(JSON.stringify(zones)),
+      ...snapshot,
       transition_type: 'linear',
     }
     set({
-      keyframes: [...keyframes, newKf],
-      activeKeyframeIndex: keyframes.length,
+      keyframes: [...flushed, newKf],
+      activeKeyframeIndex: flushed.length,
       isDirty: true,
     })
   },
@@ -932,7 +957,7 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
   // Board lifecycle
   loadBoard: (board) => {
     // Convert server frames to keyframes
-    const keyframes: Keyframe[] = (board.frames || []).map((f: any, i: number) => ({
+    const mapped: Keyframe[] = (board.frames || []).map((f: any, i: number) => ({
       id: f.id || generateId(),
       orden: f.orden ?? i,
       nombre: f.nombre || `Frame ${i + 1}`,
@@ -942,6 +967,16 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
       zones: f.zones || [],
       transition_type: f.transition_type || 'linear',
     }))
+    // Frames vacíos (fase 1 en blanco) no se muestran: el contenido no se borra
+    // si hay algo dibujado, solo se omite el hueco que desordenaba la animación.
+    const keyframes = compactKeyframes(mapped)
+    const start = keyframes[0]
+    // El lienzo debe coincidir con la fase activa (0). Si se carga el
+    // snapshot «actual» (última fase) con índice 0, el siguiente Guardar
+    // machaca la salida y las fichas saltan.
+    const elements = cloneJson(start?.elements ?? board.elements ?? [])
+    const arrows = cloneJson(start?.arrows ?? board.arrows ?? [])
+    const zones = cloneJson(start?.zones ?? board.zones ?? [])
 
     set({
       boardId: board.id,
@@ -950,9 +985,9 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
       tipo: board.tipo || 'static',
       pitchType: board.pitch_type || 'full',
       tags: board.tags || [],
-      elements: board.elements || [],
-      arrows: board.arrows || [],
-      zones: board.zones || [],
+      elements,
+      arrows,
+      zones,
       keyframes,
       activeKeyframeIndex: 0,
       isPlaying: false,

@@ -1136,6 +1136,16 @@ export interface OnceProbableData {
   notas: string
 }
 
+export type TipoTareaSesion = 'activacion' | 'desarrollo' | 'partido_condicionado' | 'abp'
+
+export interface TareaSesionPlan {
+  id: string
+  tipo: TipoTareaSesion
+  minutos: number
+  explicacion: string
+  responsable: string
+}
+
 export interface DiaMorfociclo {
   objetivo_dia: string
   objetivo_tactico?: string
@@ -1148,6 +1158,8 @@ export interface DiaMorfociclo {
   observacion_importante?: string
   aspecto_psicologico?: boolean
   aspecto_psicologico_texto?: string
+  /** Distribución de bloques dentro de la sesión (planificación semanal). */
+  tareas_sesion?: TareaSesionPlan[]
 }
 
 export interface SuplementacionPartidoItem {
