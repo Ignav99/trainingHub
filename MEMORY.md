@@ -1,5 +1,10 @@
 # TrainingHub — estado actual
 
 ## En curso
-Ficha clínica: escala Daniels + tests de fuerza/Nordic en Valoración y Tests.
-Rama `cursor/ficha-fuerza-tests-4e77`.
+Rama `cursor/competicion-jornada-dia-hora-4e77`:
+- Competición / jornada: cada partido muestra día de la semana + fecha + hora (antes `hora` ocultaba `fecha`).
+- Cabecera de jornada: rango de fechas (p. ej. sáb 12 sep – dom 13 sep).
+- Misma corrección en Estadísticas → Competición.
+
+## Siguiente
+CI → auto-merge → Deploy Render.
