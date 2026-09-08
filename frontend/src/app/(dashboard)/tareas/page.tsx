@@ -52,7 +52,7 @@ const SORT_OPTIONS = [
 ]
 
 const selectClass =
-  'h-9 rounded-lg border border-border bg-background px-2.5 text-sm min-w-[9rem]'
+  'h-9 rounded-lg border border-border bg-background px-2.5 text-sm min-w-0 w-full sm:min-w-[9rem] sm:w-auto'
 
 export default function TareasPage() {
   const router = useRouter()

@@ -214,7 +214,7 @@ export default function SesionesPage() {
   ]
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-w-0 max-w-full">
       {/* Header */}
       <PageHeader
         title="Sesiones"
@@ -478,8 +478,108 @@ export default function SesionesPage() {
         />
       ) : (
         <>
-          {/* Tabla de sesiones */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden animate-fade-in">
+          {/* Mobile: same data and actions, stacked so the page does not pan */}
+          <div className="lg:hidden space-y-3 animate-fade-in">
+            {sesiones.map((sesion) => (
+              <div
+                key={sesion.id}
+                className="bg-white rounded-xl border border-gray-200 p-4"
+              >
+                <button
+                  type="button"
+                  onClick={() => router.push(`/sesiones/${sesion.id}`)}
+                  className="w-full text-left min-w-0"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 break-words">{sesion.titulo}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {formatDate(sesion.fecha)}
+                        {sesion.rival ? ` · vs ${sesion.rival}` : ''}
+                      </p>
+                    </div>
+                    <EstadoBadge estado={sesion.estado} />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    <MatchDayBadge matchDay={sesion.match_day} />
+                    {sesion.numero_sesion ? (
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
+                        Nº {sesion.numero_sesion}
+                      </span>
+                    ) : null}
+                    {sesion.es_pretemporada || sesion.contexto_periodo === 'pretemporada' ? (
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-50 text-amber-800">
+                        Pretemporada
+                      </span>
+                    ) : sesion.contexto_periodo === 'transicion' ? (
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                        Transición
+                      </span>
+                    ) : null}
+                    <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                      <ListChecks className="h-3.5 w-3.5" />
+                      {sesion.tareas?.length || 0}
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                      <Clock className="h-3.5 w-3.5" />
+                      {sesion.duracion_total ? `${sesion.duracion_total} min` : '-'}
+                    </span>
+                  </div>
+                  {sesion.objetivo_principal && (
+                    <p className="text-sm text-gray-500 mt-2 line-clamp-2">{sesion.objetivo_principal}</p>
+                  )}
+                </button>
+                <div className="relative mt-3 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setActiveMenu(activeMenu === sesion.id ? null : sesion.id)
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                    Acciones
+                  </button>
+                  {activeMenu === sesion.id && (
+                    <div className="absolute left-0 right-0 top-10 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                      <Link
+                        href={`/sesiones/${sesion.id}`}
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      >
+                        <Eye className="h-4 w-4" />
+                        Ver detalle
+                      </Link>
+                      <button
+                        onClick={(e) => handleGeneratePdf(sesion.id, e, sesion.fecha, 'reducido')}
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
+                      >
+                        <FileText className="h-4 w-4" />
+                        PDF reducido
+                      </button>
+                      <button
+                        onClick={(e) => handleGeneratePdf(sesion.id, e, sesion.fecha, 'extendido')}
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
+                      >
+                        <FileText className="h-4 w-4" />
+                        PDF extendido
+                      </button>
+                      <button
+                        onClick={(e) => handleDelete(sesion.id, e)}
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Eliminar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden lg:block bg-white rounded-xl border border-gray-200 overflow-hidden animate-fade-in">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -625,7 +725,7 @@ export default function SesionesPage() {
 
           {/* Paginación */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-4 py-3">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white rounded-xl border border-gray-200 px-4 py-3">
               <div className="text-sm text-gray-500">
                 Mostrando {((page - 1) * limit) + 1} - {Math.min(page * limit, total)} de {total}
               </div>

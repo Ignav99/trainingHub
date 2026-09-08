@@ -208,3 +208,16 @@
 html {
   -webkit-tap-highlight-color: transparent;
 }
+
+/* Phone / tablet: keep the page itself from panning sideways.
+   Wide widgets (tables, week strips) scroll inside their own box. */
+@media (max-width: 1023px) {
+  html, body {
+    overflow-x: clip;
+    max-width: 100%;
+  }
+
+  .overflow-x-auto {
+    max-width: 100%;
+  }
+}

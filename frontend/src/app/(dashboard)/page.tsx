@@ -459,7 +459,7 @@ export default function DashboardPage() {
   const proximoPartido = resumen?.proximo_partido
 
   return (
-    <div className="space-y-6" style={{ backgroundImage: FIELD_PATTERN }}>
+    <div className="space-y-6 min-w-0 max-w-full" style={{ backgroundImage: FIELD_PATTERN }}>
       {/* ============ SECTION 1: Top banner — Rival + Availability ============ */}
       <NextMatchBanner
         greeting={greeting}
@@ -474,7 +474,7 @@ export default function DashboardPage() {
       />
 
       {/* Controles de microciclo — encima del calendario */}
-      <div className="flex justify-end items-center gap-2">
+      <div className="flex justify-end items-center gap-2 flex-wrap">
         <Button
           variant="ghost"
           size="sm"

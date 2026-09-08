@@ -84,7 +84,7 @@ export function tareaFiltersToApiParams(v: TareaFilterValues) {
 }
 
 const selectClass =
-  'h-9 rounded-lg border border-border bg-background px-2.5 text-sm min-w-[9rem] max-w-[14rem]'
+  'h-9 rounded-lg border border-border bg-background px-2.5 text-sm min-w-0 w-full sm:min-w-[9rem] sm:w-auto max-w-full sm:max-w-[14rem]'
 
 export interface TareaFiltersBarProps {
   value: TareaFilterValues

@@ -1153,20 +1153,20 @@ export default function SesionDetailPage() {
   )
 
   return (
-    <div className="max-w-5xl mx-auto animate-fade-in">
+    <div className="max-w-5xl mx-auto animate-fade-in min-w-0">
       {/* Header */}
-      <nav className="flex items-center gap-1 text-sm text-muted-foreground mb-3">
-        <Link href="/sesiones" className="hover:text-foreground transition-colors">Sesiones</Link>
-        <ChevronRight className="h-3 w-3" />
-        <span className="text-foreground font-medium">{sesion.titulo}</span>
+      <nav className="flex items-center gap-1 text-sm text-muted-foreground mb-3 min-w-0 overflow-x-auto">
+        <Link href="/sesiones" className="hover:text-foreground transition-colors shrink-0">Sesiones</Link>
+        <ChevronRight className="h-3 w-3 shrink-0" />
+        <span className="text-foreground font-medium truncate">{sesion.titulo}</span>
       </nav>
-      <div className="flex items-start justify-between mb-6">
-        <div className="flex items-start gap-4">
-          <div className="flex-1">
+      <div className="flex items-start justify-between mb-6 gap-3 max-lg:flex-col">
+        <div className="flex items-start gap-4 min-w-0 flex-1">
+          <div className="flex-1 min-w-0">
             {/* Editable title */}
             <div className="flex items-center gap-3 mb-2 flex-wrap">
               <input
-                className="text-2xl font-bold bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none transition-colors py-0.5 min-w-[200px]"
+                className="text-2xl font-bold bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none transition-colors py-0.5 w-full min-w-0 max-lg:text-xl lg:w-auto lg:min-w-[200px]"
                 value={sesion.titulo}
                 onChange={(e) => updateField('titulo', e.target.value)}
               />
@@ -1227,7 +1227,7 @@ export default function SesionDetailPage() {
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
               <span className="flex items-center gap-1">
                 <Calendar className="h-4 w-4" />
                 <input
@@ -1258,7 +1258,7 @@ export default function SesionDetailPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <Button variant="outline" size="icon" onClick={() => handlePreviewPdf('reducido')} disabled={previewingPdf} title="Vista previa PDF reducido">
             {previewingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
           </Button>
@@ -1283,8 +1283,8 @@ export default function SesionDetailPage() {
             cierre: sesion.estado === 'planificada' || sesion.estado === 'completada',
           }}
         />
-        <div className="flex items-center gap-3">
-          <div className="flex-1 flex gap-1">
+        <div className="flex items-center gap-3 min-w-0 flex-wrap">
+          <div className="flex-1 flex gap-1 min-w-0">
             {bloquesResueltos.map((bloque) => {
               const filled =
                 bloque.tipo === 'videoanalisis'
