@@ -7,7 +7,7 @@ import asyncio
 import logging
 
 from fastapi import APIRouter, HTTPException, Depends, Query, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Any, Optional, List, Union
 from uuid import UUID
@@ -221,6 +221,7 @@ from app.models import (
     EstadoSesion,
     UsuarioResponse,
     AsistenciaBatchCreate,
+    AsistenciaCreate,
     AsistenciaUpdate,
     AsistenciaResponse,
     AsistenciaListResponse,
@@ -238,6 +239,7 @@ from app.services.storage_service import upload_file
 from app.services.audit_service import log_create, log_update, log_delete
 from app.services.notification_service import notify_sesion_created
 from app.services.load_calculation_service import recalculate_player_load
+from app.services.jugador_tipo import is_filial
 from app.config import get_settings
 
 
@@ -1215,6 +1217,79 @@ async def batch_save_asistencias(
         logger.warning(f"Error recalculating load after attendance: {e}")
 
     return await get_asistencias(sesion_id, auth)
+
+
+@router.post("/{sesion_id}/asistencias/jugador", response_model=AsistenciaResponse)
+async def upsert_asistencia_jugador(
+    sesion_id: UUID,
+    payload: AsistenciaCreate,
+    auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
+):
+    """Añade o actualiza un jugador en la convocatoria sin reescribir el resto."""
+    supabase = get_supabase()
+    existing_sesion = supabase.table("sesiones").select("id").eq(
+        "id", str(sesion_id)
+    ).maybe_single().execute()
+    if not existing_sesion or not existing_sesion.data:
+        raise HTTPException(status_code=404, detail="Sesion no encontrada")
+
+    row = {
+        "sesion_id": str(sesion_id),
+        "jugador_id": str(payload.jugador_id),
+        "presente": payload.presente,
+        "motivo_ausencia": payload.motivo_ausencia.value if payload.motivo_ausencia else None,
+        "notas": payload.notas,
+        "hora_llegada": payload.hora_llegada.isoformat() if payload.hora_llegada else None,
+        "tipo_participacion": [tp.value for tp in payload.tipo_participacion] if payload.tipo_participacion else ["sesion"],
+    }
+
+    found = supabase.table("asistencias_sesion").select("id").match({
+        "sesion_id": str(sesion_id),
+        "jugador_id": str(payload.jugador_id),
+    }).execute()
+    if found.data:
+        response = supabase.table("asistencias_sesion").update(row).eq(
+            "id", found.data[0]["id"]
+        ).execute()
+    else:
+        response = supabase.table("asistencias_sesion").insert(row).execute()
+
+    if not response or not response.data:
+        raise HTTPException(status_code=400, detail="Error al guardar asistencia")
+    return AsistenciaResponse(**response.data[0])
+
+
+@router.delete("/{sesion_id}/asistencias/jugador/{jugador_id}", status_code=204)
+async def delete_asistencia_jugador(
+    sesion_id: UUID,
+    jugador_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
+):
+    """Quita un jugador de la convocatoria (idempotente)."""
+    supabase = get_supabase()
+    supabase.table("asistencias_sesion").delete().eq(
+        "sesion_id", str(sesion_id)
+    ).eq("jugador_id", str(jugador_id)).execute()
+    return Response(status_code=204)
+
+
+@router.delete("/{sesion_id}/asistencias/filial", status_code=204)
+async def delete_asistencias_filial(
+    sesion_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
+):
+    """Quita de golpe a todos los jugadores del filial de la convocatoria."""
+    supabase = get_supabase()
+    existing = supabase.table("asistencias_sesion").select(
+        "id, jugador_id, jugadores(tipo_jugador, es_invitado)"
+    ).eq("sesion_id", str(sesion_id)).execute()
+    for row in existing.data or []:
+        jugador = row.get("jugadores") or {}
+        if isinstance(jugador, list):
+            jugador = jugador[0] if jugador else {}
+        if is_filial(jugador):
+            supabase.table("asistencias_sesion").delete().eq("id", row["id"]).execute()
+    return Response(status_code=204)
 
 
 @router.put("/{sesion_id}/asistencias/{asistencia_id}", response_model=AsistenciaResponse)

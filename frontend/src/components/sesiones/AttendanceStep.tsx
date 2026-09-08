@@ -5,7 +5,16 @@ import { Users, ChevronRight, SkipForward, Check, X, UserPlus, ChevronDown } fro
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { jugadoresApi, Jugador } from '@/lib/api/jugadores'
-import { isPlantilla, isFilial, resolveTipoJugador, TIPO_JUGADOR_LABELS, suggestAttendanceFromDisponibilidad, resolveDisponibilidad, DISPONIBILIDAD_LABELS } from '@/lib/jugadorTipo'
+import {
+  isPlantilla,
+  isFilial,
+  resolveTipoJugador,
+  TIPO_JUGADOR_LABELS,
+  suggestAttendanceFromDisponibilidad,
+  resolveDisponibilidad,
+  DISPONIBILIDAD_LABELS,
+  splitSesionAsistenciaRoster,
+} from '@/lib/jugadorTipo'
 import { useFilialVisibilityStore } from '@/stores/filialVisibilityStore'
 import { MostrarFilialToggle } from '@/components/jugadores/MostrarFilialToggle'
 
@@ -52,21 +61,9 @@ function getZone(jugador: Jugador): string {
   return 'ataque'
 }
 
-function mapEstadoToMotivo(estado: string): MotivoAusencia {
-  const map: Record<string, MotivoAusencia> = {
-    lesionado: 'lesion',
-    en_recuperacion: 'lesion',
-    enfermo: 'enfermedad',
-    sancionado: 'sancion',
-    permiso: 'permiso',
-    seleccion: 'seleccion',
-    viaje: 'viaje',
-  }
-  return map[estado] || 'otro'
-}
-
 export function AttendanceStep({ equipoId, onConfirm, onSkip, submitting = false }: AttendanceStepProps) {
   const mostrarFilial = useFilialVisibilityStore((s) => s.mostrarFilial)
+  const setMostrarFilial = useFilialVisibilityStore((s) => s.setMostrarFilial)
   const [allJugadores, setAllJugadores] = useState<Jugador[]>([])
   const [extraIds, setExtraIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
@@ -94,41 +91,21 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip, submitting = false
       .finally(() => setLoading(false))
   }, [equipoId])
 
-  useEffect(() => {
-    if (!mostrarFilial) return
-    setAttendance((prev) => {
-      const next = { ...prev }
-      for (const j of allJugadores) {
-        if (!isFilial(j) || next[j.id]) continue
-        const suggestion = suggestAttendanceFromDisponibilidad(j)
-        next[j.id] = {
-          jugador_id: j.id,
-          jugador: j,
-          presente: suggestion.presente,
-          motivo_ausencia: suggestion.motivo_ausencia,
-          tipo_participacion: suggestion.tipo_participacion,
-        }
-      }
-      return next
-    })
-  }, [mostrarFilial, allJugadores])
-
-  const jugadores = allJugadores.filter(
-    (j) => isPlantilla(j) || (mostrarFilial && isFilial(j)) || extraIds.has(j.id)
-  )
+  const { inSession, filialDisponibles } = splitSesionAsistenciaRoster(allJugadores, extraIds)
   const invitadosDisponibles = allJugadores.filter(
     (j) => !isPlantilla(j) && !isFilial(j) && !extraIds.has(j.id)
   )
 
-  function addInvitado(j: Jugador) {
+  function addOptIn(j: Jugador) {
     setExtraIds((prev) => new Set(prev).add(j.id))
     setAttendance((prev) => ({
       ...prev,
-      [j.id]: { jugador_id: j.id, jugador: j, presente: true },
+      [j.id]: { jugador_id: j.id, jugador: j, presente: true, tipo_participacion: ['sesion'] },
     }))
+    if (isFilial(j) && !mostrarFilial) setMostrarFilial(true)
   }
 
-  function removeInvitado(j: Jugador) {
+  function removeOptIn(j: Jugador) {
     setExtraIds((prev) => {
       const next = new Set(prev)
       next.delete(j.id)
@@ -137,6 +114,22 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip, submitting = false
     setAttendance((prev) => {
       const next = { ...prev }
       delete next[j.id]
+      return next
+    })
+  }
+
+  function removeAllFilial() {
+    const filialIds = new Set(allJugadores.filter((j) => isFilial(j)).map((j) => j.id))
+    setExtraIds((prev) => {
+      const next = new Set(prev)
+      filialIds.forEach((id) => next.delete(id))
+      return next
+    })
+    setAttendance((prev) => {
+      const next = { ...prev }
+      filialIds.forEach((id) => {
+        delete next[id]
+      })
       return next
     })
   }
@@ -160,13 +153,13 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip, submitting = false
     }))
   }
 
-  const byZone = jugadores.reduce<Record<string, Jugador[]>>((acc, j) => {
+  const byZone = inSession.reduce<Record<string, Jugador[]>>((acc, j) => {
     const z = getZone(j)
     ;(acc[z] = acc[z] || []).push(j)
     return acc
   }, {})
 
-  const visibleIds = new Set(jugadores.map((j) => j.id))
+  const visibleIds = new Set(inSession.map((j) => j.id))
   const list = Object.values(attendance).filter((a) => visibleIds.has(a.jugador_id))
   const presentCount = list.filter((a) => a.presente).length
   const porteros = list.filter((a) => a.jugador.es_portero && a.presente).length
@@ -186,21 +179,19 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip, submitting = false
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      {/* Header */}
       <div className="text-center space-y-2">
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-2">
           <Users className="w-6 h-6 text-primary" />
         </div>
         <h2 className="text-xl font-semibold">¿Quién está disponible hoy?</h2>
         <p className="text-sm text-muted-foreground">
-          Toca para marcar asistencia. Si no asiste, elige el motivo (p. ej. 1er equipo).
+          La plantilla entra sola. El filial aparece abajo para añadirlo a mano, nunca automático.
         </p>
         <div className="flex justify-center pt-1">
-          <MostrarFilialToggle />
+          <MostrarFilialToggle onHide={removeAllFilial} />
         </div>
       </div>
 
-      {/* Summary pill */}
       <div className="flex items-center justify-center gap-3 flex-wrap">
         <Badge variant="secondary" className="px-4 py-1.5 text-sm">
           <Check className="w-3.5 h-3.5 mr-1.5 text-green-500" />
@@ -215,7 +206,6 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip, submitting = false
         </Badge>
       </div>
 
-      {/* Players by zone */}
       <div className="space-y-4">
         {ZONE_ORDER.filter((z) => byZone[z]?.length).map((zone) => (
           <div key={zone}>
@@ -226,6 +216,7 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip, submitting = false
               {byZone[zone].map((j) => {
                 const a = attendance[j.id]
                 if (!a) return null
+                const optIn = extraIds.has(j.id)
                 return (
                   <div
                     key={j.id}
@@ -238,7 +229,6 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip, submitting = false
                     `}
                     onClick={() => togglePlayer(j.id)}
                   >
-                    {/* Toggle indicator */}
                     <div
                       className={`
                         flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center
@@ -251,13 +241,15 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip, submitting = false
                       }
                     </div>
 
-                    {/* Player info */}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">
                         {j.dorsal ? `${j.dorsal}. ` : ''}{j.apodo || `${j.nombre} ${j.apellidos}`}
                       </p>
                       <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                         <span>{j.posicion_principal}</span>
+                        {isFilial(j) && (
+                          <span className="text-[10px] font-medium text-blue-700">· Filial</span>
+                        )}
                         {resolveDisponibilidad(j) !== 'pleno' && (
                           <span className="text-[10px] font-medium text-amber-700">
                             · {DISPONIBILIDAD_LABELS[resolveDisponibilidad(j)]}
@@ -266,7 +258,6 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip, submitting = false
                       </p>
                     </div>
 
-                    {/* Motivo selector (only when absent) */}
                     {!a.presente && (
                       <select
                         className="text-xs border rounded px-1 py-0.5 bg-background"
@@ -279,6 +270,19 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip, submitting = false
                         ))}
                       </select>
                     )}
+                    {optIn && (
+                      <button
+                        type="button"
+                        className="p-1 rounded hover:bg-red-100 text-muted-foreground hover:text-red-600"
+                        title="Quitar de la convocatoria"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          removeOptIn(j)
+                        }}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 )
               })}
@@ -287,7 +291,33 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip, submitting = false
         ))}
       </div>
 
-      {/* Invitados section */}
+      {filialDisponibles.length > 0 && (
+        <div className="border rounded-lg overflow-hidden">
+          <div className="px-4 py-3 text-sm font-medium flex items-center gap-2 text-muted-foreground">
+            <UserPlus className="w-4 h-4" />
+            Añadir del filial ({filialDisponibles.length})
+          </div>
+          <div className="px-4 pb-4 pt-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {filialDisponibles.map((j) => (
+              <button
+                key={j.id}
+                type="button"
+                className="flex items-center gap-3 p-3 rounded-lg border border-dashed border-blue-300/60 hover:border-blue-500 hover:bg-blue-50/60 transition-colors text-left"
+                onClick={() => addOptIn(j)}
+              >
+                <UserPlus className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{j.apodo || `${j.nombre} ${j.apellidos}`}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {j.posicion_principal} · {TIPO_JUGADOR_LABELS[resolveTipoJugador(j)]}
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {invitadosDisponibles.length > 0 && (
         <div className="border rounded-lg overflow-hidden">
           <button
@@ -308,7 +338,7 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip, submitting = false
                   key={j.id}
                   type="button"
                   className="flex items-center gap-3 p-3 rounded-lg border border-dashed border-muted-foreground/30 hover:border-primary hover:bg-primary/5 transition-colors text-left"
-                  onClick={() => addInvitado(j)}
+                  onClick={() => addOptIn(j)}
                 >
                   <UserPlus className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                   <div className="min-w-0">
@@ -324,25 +354,6 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip, submitting = false
         </div>
       )}
 
-      {/* Extraplantilla añadidos (chips para quitar) */}
-      {jugadores.filter((j) => extraIds.has(j.id)).length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {jugadores.filter((j) => extraIds.has(j.id)).map((j) => (
-            <span
-              key={j.id}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-sm"
-            >
-              {j.apodo || `${j.nombre} ${j.apellidos}`}
-              <span className="text-[10px] text-muted-foreground">{TIPO_JUGADOR_LABELS[resolveTipoJugador(j)]}</span>
-              <button type="button" onClick={() => removeInvitado(j)} className="hover:text-red-500 transition-colors">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Actions */}
       <div className="flex gap-3 pt-2">
         <Button variant="outline" className="flex-1" onClick={onSkip} disabled={submitting}>
           <SkipForward className="w-4 h-4 mr-2" />

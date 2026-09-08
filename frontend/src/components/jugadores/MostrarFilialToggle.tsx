@@ -4,7 +4,13 @@ import { Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useFilialVisibilityStore } from '@/stores/filialVisibilityStore'
 
-export function MostrarFilialToggle({ className }: { className?: string }) {
+export function MostrarFilialToggle({
+  className,
+  onHide,
+}: {
+  className?: string
+  onHide?: () => void
+}) {
   const mostrarFilial = useFilialVisibilityStore((s) => s.mostrarFilial)
   const toggleMostrarFilial = useFilialVisibilityStore((s) => s.toggleMostrarFilial)
 
@@ -13,7 +19,10 @@ export function MostrarFilialToggle({ className }: { className?: string }) {
       type="button"
       variant={mostrarFilial ? 'default' : 'outline'}
       size="sm"
-      onClick={toggleMostrarFilial}
+      onClick={() => {
+        if (mostrarFilial) onHide?.()
+        toggleMostrarFilial()
+      }}
       className={className}
       aria-pressed={mostrarFilial}
     >
