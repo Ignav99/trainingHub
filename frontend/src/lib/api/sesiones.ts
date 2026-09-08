@@ -263,6 +263,24 @@ export const sesionesApi = {
     return api.post<AsistenciaListResponse>(`/sesiones/${sesionId}/asistencias/batch`, { asistencias })
   },
 
+  async upsertAsistenciaJugador(sesionId: string, data: {
+    jugador_id: string
+    presente?: boolean
+    motivo_ausencia?: string
+    notas?: string
+    tipo_participacion?: string[]
+  }): Promise<Asistencia> {
+    return api.post<Asistencia>(`/sesiones/${sesionId}/asistencias/jugador`, data)
+  },
+
+  async deleteAsistenciaJugador(sesionId: string, jugadorId: string): Promise<void> {
+    await api.delete(`/sesiones/${sesionId}/asistencias/jugador/${jugadorId}`)
+  },
+
+  async deleteAsistenciasFilial(sesionId: string): Promise<void> {
+    await api.delete(`/sesiones/${sesionId}/asistencias/filial`)
+  },
+
   async updateAsistencia(sesionId: string, asistenciaId: string, data: {
     presente?: boolean
     motivo_ausencia?: string

@@ -82,8 +82,7 @@ import { madreToCreatorPrefill } from '@/lib/tareaVariante'
 import { variantesFromReglas } from '@/lib/tareaNarrative'
 import { cargaApi } from '@/lib/api/carga'
 import { entrenamientosMargenApi } from '@/lib/api/entrenamientosMargen'
-import { suggestAttendanceFromDisponibilidad, isPlantilla, isFilial, resolveTipoJugador } from '@/lib/jugadorTipo'
-import { useFilialVisibilityStore } from '@/stores/filialVisibilityStore'
+import { suggestAttendanceFromDisponibilidad, isPlantilla, isFilial, resolveTipoJugador, splitSesionAsistenciaRoster, TIPO_JUGADOR_LABELS } from '@/lib/jugadorTipo'
 import { MostrarFilialToggle } from '@/components/jugadores/MostrarFilialToggle'
 import type { CargaJugador } from '@/types'
 import { MATCH_DAYS as MATCH_DAYS_CATALOG, DIAS_CARGA } from '@/lib/catalogos/canonico'
@@ -209,7 +208,6 @@ export default function SesionDetailPage() {
   const params = useParams()
   const router = useRouter()
   const sesionId = params.id as string
-  const mostrarFilial = useFilialVisibilityStore((s) => s.mostrarFilial)
 
   // Core data fetching via SWR
   const { data: sesionData, error: swrError, isLoading } = useSWR<Sesion>(
@@ -793,7 +791,7 @@ export default function SesionDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sesionId])
 
-  // Rellenar jugadores sin fila de asistencia según disponibilidad operativa
+  // Rellenar solo plantilla sin fila de asistencia. El filial se añade a mano.
   useEffect(() => {
     if (!asistenciasLoaded || jugadores.length === 0) return
     setAsistencias((prev) => {
@@ -801,6 +799,7 @@ export default function SesionDetailPage() {
       const next = new Map(prev)
       for (const j of jugadores) {
         if (next.has(j.id)) continue
+        if (!isPlantilla(j)) continue
         const suggestion = suggestAttendanceFromDisponibilidad(j)
         next.set(j.id, {
           presente: suggestion.presente,
@@ -894,9 +893,14 @@ export default function SesionDetailPage() {
   const saveAsistencias = async () => {
     setSavingAsistencias(true)
     try {
-      const list = jugadores
-        .filter((j) => !(isFilial(j) && !mostrarFilial && !asistencias.has(j.id)))
-        .map((j) => {
+      const explicitIds = new Set(
+        Array.from(asistencias.keys()).filter((id) => {
+          const j = jugadores.find((p) => p.id === id)
+          return j && !isPlantilla(j)
+        })
+      )
+      const { inSession } = splitSesionAsistenciaRoster(jugadores, explicitIds)
+      const list = inSession.map((j) => {
         const a = asistencias.get(j.id)
         if (a) {
           const presente = a.presente
@@ -1020,23 +1024,75 @@ export default function SesionDetailPage() {
     }
   }
 
+  const handleAddFilialToSession = (jugador: Jugador) => {
+    setAsistencias((prev) => {
+      const next = new Map(prev)
+      if (!next.has(jugador.id)) {
+        next.set(jugador.id, { presente: true, tipo_participacion: ['sesion'] })
+      }
+      return next
+    })
+    void sesionesApi.upsertAsistenciaJugador(sesionId, {
+      jugador_id: jugador.id,
+      presente: true,
+      tipo_participacion: ['sesion'],
+    }).catch((err) => {
+      console.error('Error adding filial:', err)
+      toast.error('No se pudo añadir al filial')
+    })
+  }
+
   const handleRemoveFromSession = (jugadorId: string) => {
-    setJugadores((prev) => prev.filter((j) => j.id !== jugadorId))
+    const jugador = jugadores.find((j) => j.id === jugadorId)
     setAsistencias((prev) => {
       const next = new Map(prev)
       next.delete(jugadorId)
       return next
     })
+    if (jugador && !isFilial(jugador) && !isPlantilla(jugador)) {
+      setJugadores((prev) => prev.filter((j) => j.id !== jugadorId))
+    }
+    void sesionesApi.deleteAsistenciaJugador(sesionId, jugadorId).catch((err) => {
+      console.error('Error removing player:', err)
+      toast.error('No se pudo quitar al jugador')
+    })
   }
 
-  const presentesCount = jugadores.filter((j) => {
+  const handleRemoveAllFilial = () => {
+    const filialIds = jugadores.filter((j) => isFilial(j)).map((j) => j.id)
+    setAsistencias((prev) => {
+      const next = new Map(prev)
+      filialIds.forEach((id) => next.delete(id))
+      return next
+    })
+    void sesionesApi.deleteAsistenciasFilial(sesionId).catch((err) => {
+      console.error('Error removing filial:', err)
+      toast.error('No se pudo quitar el filial')
+    })
+  }
+
+  const explicitAsistenciaIds = useMemo(() => {
+    const ids = new Set<string>()
+    asistencias.forEach((_a, id) => {
+      const j = jugadores.find((p) => p.id === id)
+      if (j && !isPlantilla(j)) ids.add(id)
+    })
+    return ids
+  }, [asistencias, jugadores])
+
+  const { inSession: jugadoresEnConvocatoria, filialDisponibles } = useMemo(
+    () => splitSesionAsistenciaRoster(jugadores, explicitAsistenciaIds),
+    [jugadores, explicitAsistenciaIds]
+  )
+
+  const presentesCount = jugadoresEnConvocatoria.filter((j) => {
     const a = asistencias.get(j.id)
-    return a?.presente ?? true
+    return a?.presente ?? isPlantilla(j)
   }).length
 
-  const enSesionCount = jugadores.filter((j) => {
+  const enSesionCount = jugadoresEnConvocatoria.filter((j) => {
     const a = asistencias.get(j.id)
-    if (!(a?.presente ?? true)) return false
+    if (!(a?.presente ?? isPlantilla(j))) return false
     const tipos = a?.tipo_participacion || ['sesion']
     return tipos.includes('sesion')
   }).length
@@ -1083,11 +1139,8 @@ export default function SesionDetailPage() {
 
   const estadoConfig = ESTADO_CONFIG[sesion.estado] || ESTADO_CONFIG.borrador
 
-  // Group jugadores by position for asistencia (filial solo con el botón, salvo si ya tiene asistencia)
-  const jugadoresVisibles = jugadores.filter((j) => {
-    if (isFilial(j) && !mostrarFilial && !asistencias.has(j.id)) return false
-    return true
-  })
+  // Group jugadores by position for asistencia (filial solo si se añadió a mano)
+  const jugadoresVisibles = jugadoresEnConvocatoria
   const jugadoresByPosition = jugadoresVisibles.reduce((acc, j) => {
     const pos = j.posicion_principal || 'Otro'
     if (!acc[pos]) acc[pos] = []
@@ -1347,9 +1400,9 @@ export default function SesionDetailPage() {
             savingTareas={savingTareas}
             staffOptions={staffOptions}
             formacionDialogStId={formacionDialogStId}
-            jugadores={jugadores.filter((j) => {
+            jugadores={jugadoresEnConvocatoria.filter((j) => {
               const a = asistencias.get(j.id)
-              if (!(a?.presente ?? true)) return false
+              if (!(a?.presente ?? isPlantilla(j))) return false
               const tipos = a?.tipo_participacion || ['sesion']
               return tipos.includes('sesion')
             })}
@@ -1449,7 +1502,7 @@ export default function SesionDetailPage() {
                       <UserCheck className="h-4 w-4 text-green-600" />
                       <span className="font-medium">{presentesCount}</span>
                       <span className="text-muted-foreground">/</span>
-                      <span className="font-medium">{jugadores.length}</span>
+                      <span className="font-medium">{jugadoresEnConvocatoria.length}</span>
                       <span className="text-muted-foreground">presentes</span>
                     </div>
                     {margenMap.size > 0 && (
@@ -1461,7 +1514,7 @@ export default function SesionDetailPage() {
                   </div>
                   {convocatoriaTab === 'asistencia' && (
                     <>
-                    <MostrarFilialToggle />
+                    <MostrarFilialToggle onHide={handleRemoveAllFilial} />
                     <Button onClick={saveAsistencias} disabled={savingAsistencias} size="sm">
                       {savingAsistencias ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
                       Guardar
@@ -1562,6 +1615,11 @@ export default function SesionDetailPage() {
                                         Invitado
                                       </Badge>
                                     )}
+                                    {isFilial(jugador) && (
+                                      <Badge variant="outline" className="text-[10px] border-blue-300 text-blue-700 bg-blue-50">
+                                        Filial
+                                      </Badge>
+                                    )}
                                     <PlayerStatusBadges estado={jugador.estado} disponibilidad={jugador.disponibilidad} />
                                   </p>
                                   {/* Carga / wellness / tarjetas badges */}
@@ -1646,8 +1704,9 @@ export default function SesionDetailPage() {
                                   checked={presente}
                                   onCheckedChange={() => toggleAsistencia(jugador.id)}
                                 />
-                                {(resolveTipoJugador(jugador) === 'invitado' || (sesion?.equipo_id && jugador.equipo_id && jugador.equipo_id !== sesion.equipo_id)) && (
+                                {(isFilial(jugador) || resolveTipoJugador(jugador) === 'invitado' || (sesion?.equipo_id && jugador.equipo_id && jugador.equipo_id !== sesion.equipo_id)) && (
                                   <button
+                                    type="button"
                                     onClick={() => handleRemoveFromSession(jugador.id)}
                                     className="p-1 rounded hover:bg-red-100 text-muted-foreground hover:text-red-600 transition-colors"
                                     title="Quitar de la sesión"
@@ -1686,6 +1745,39 @@ export default function SesionDetailPage() {
                       </div>
                     </div>
                   ))}
+
+                  {/* Filial: disponibles para añadir, nunca automáticos */}
+                  {filialDisponibles.length > 0 && (
+                    <div className="border-t pt-4 mt-4">
+                      <h4 className="text-sm font-semibold mb-1 flex items-center gap-2">
+                        <Plus className="h-4 w-4" />
+                        Añadir del filial ({filialDisponibles.length})
+                      </h4>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        No entran solos. Toca uno para meterlo en la convocatoria.
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {filialDisponibles.map((j) => (
+                          <button
+                            key={j.id}
+                            type="button"
+                            className="flex items-center gap-3 p-3 rounded-lg border border-dashed border-blue-300/70 hover:border-blue-500 hover:bg-blue-50/70 transition-colors text-left"
+                            onClick={() => handleAddFilialToSession(j)}
+                          >
+                            <PlayerAvatar player={j} size="sm" preferDorsalFallback />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate">
+                                {j.apodo || `${j.nombre} ${j.apellidos}`}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {j.posicion_principal} · {TIPO_JUGADOR_LABELS[resolveTipoJugador(j)]}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Invitados section */}
                   <div className="border-t pt-4 mt-4">

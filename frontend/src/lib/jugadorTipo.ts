@@ -62,6 +62,22 @@ export function isFilial(j: Pick<Jugador, 'tipo_jugador' | 'es_invitado'>): bool
   return resolveTipoJugador(j) === 'juvenil'
 }
 
+/** Plantilla entra sola en la convocatoria de sesión; filial/prueba/invitado se añaden a mano. */
+export function autoIncludeInSesionAsistencia(
+  j: Pick<Jugador, 'tipo_jugador' | 'es_invitado'>
+): boolean {
+  return isPlantilla(j)
+}
+
+export function splitSesionAsistenciaRoster<T extends Pick<Jugador, 'id' | 'tipo_jugador' | 'es_invitado'>>(
+  all: T[],
+  explicitIds: Set<string>
+): { inSession: T[]; filialDisponibles: T[] } {
+  const inSession = all.filter((j) => autoIncludeInSesionAsistencia(j) || explicitIds.has(j.id))
+  const filialDisponibles = all.filter((j) => isFilial(j) && !explicitIds.has(j.id))
+  return { inSession, filialDisponibles }
+}
+
 /** Listas operativas: plantilla siempre; filial solo con el botón. */
 export function visibleEnListaEquipo(
   j: Pick<Jugador, 'tipo_jugador' | 'es_invitado'>,
