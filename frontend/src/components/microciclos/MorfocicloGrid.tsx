@@ -255,7 +255,9 @@ function DayCard({ dayId, cfg, data, linkedSession, onUpdate }: DayCardProps) {
   return (
     <div
       className={`flex h-full flex-col rounded-xl border bg-card shadow-sm transition-all duration-200 ${
-        isDescanso ? 'border-slate-300 bg-slate-100/60 opacity-70 w-[72px]' : `min-w-[240px] flex-1 ${cfg.cardBorder}`
+        isDescanso
+          ? 'border-slate-300 bg-slate-100/60 opacity-70 max-lg:w-full lg:w-[72px]'
+          : `max-lg:w-full max-lg:min-w-0 lg:min-w-[240px] flex-1 ${cfg.cardBorder}`
       }`}
     >
       {/* Header */}
@@ -572,12 +574,12 @@ export function MorfocicloGrid({
   if (mode === 'calendario') {
     return (
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between gap-2 flex-wrap">
           <h3 className="text-sm font-semibold">Planificación semanal (pretemporada)</h3>
           <p className="text-xs text-muted-foreground">Días de calendario · sin MD de competición</p>
         </div>
-        <div className="overflow-x-auto pb-2">
-          <div className="flex gap-3 min-w-max">
+        <div className="max-lg:space-y-3 lg:overflow-x-auto lg:pb-2 min-w-0">
+          <div className="flex flex-col lg:flex-row gap-3 lg:min-w-max">
             {CAL_DAY_ORDER.map((key) => {
               const data = diasCalendario[key] ?? { ...EMPTY_DAY }
               return (
@@ -604,12 +606,12 @@ export function MorfocicloGrid({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-2 flex-wrap">
         <h3 className="text-sm font-semibold">Planificación semanal</h3>
         <p className="text-xs text-muted-foreground">Domingo (MD) se omite: competición</p>
       </div>
-      <div className="overflow-x-auto pb-2">
-        <div className="flex gap-3 min-w-max">
+      <div className="max-lg:space-y-3 lg:overflow-x-auto lg:pb-2 min-w-0">
+        <div className="flex flex-col lg:flex-row gap-3 lg:min-w-max">
           {MATCH_DAY_ORDER.map((md) => {
             const data = dias[md] ?? { ...EMPTY_DAY }
             const linkedSession = sesiones.find((s) => s.match_day === md)

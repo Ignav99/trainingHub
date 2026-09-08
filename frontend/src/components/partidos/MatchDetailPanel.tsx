@@ -847,8 +847,8 @@ export function MatchDetailPanel({
   return (
     <div className="animate-fade-in">
       {/* Match header */}
-      <div className="mb-4 flex items-start justify-between gap-2">
-        <div>
+      <div className="mb-4 flex items-start justify-between gap-2 flex-wrap min-w-0">
+        <div className="min-w-0">
           <h2 className="text-lg font-bold flex items-center gap-2">
             {selectedPartido.rival?.escudo_url && (
               <TeamCrest src={selectedPartido.rival.escudo_url} name={(selectedPartido as any).rival?.nombre || 'Rival'} size="sm" />
@@ -869,9 +869,10 @@ export function MatchDetailPanel({
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <Button asChild>
-            <Link href={`/anotador/${selectedPartido.id}`}>
+            <Link href={`/anotador/${selectedPartido.id}`} className="inline-flex items-center">
               <Watch className="h-4 w-4 mr-2" />
-              Anotar en campo
+              <span className="max-lg:hidden">Anotar en campo</span>
+              <span className="lg:hidden">Anotar</span>
             </Link>
           </Button>
           <Button variant="outline" size="icon" onClick={handleOpenEdit}>
@@ -884,7 +885,7 @@ export function MatchDetailPanel({
       </div>
 
       <Tabs value={tabParam} onValueChange={onSetTab}>
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 w-full max-lg:justify-start">
           <TabsTrigger value="plan-partido" className="gap-1.5">
             <ClipboardList className="h-4 w-4" />
             Plan de partido

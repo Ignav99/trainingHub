@@ -125,7 +125,7 @@ export function CalendarWeekView({
         </button>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
+      <div className="grid grid-cols-1 md:grid-cols-7 gap-2 min-w-0">
         {days.map((date, i) => {
           const bucket = getBucket(index, date)
           const isToday = date === todayStr
@@ -145,7 +145,7 @@ export function CalendarWeekView({
             <div
               key={date}
               className={`
-                relative rounded-xl border flex flex-col min-h-[340px]
+                relative rounded-xl border flex flex-col min-h-[200px] md:min-h-[340px]
                 ${isToday ? 'border-primary ring-1 ring-primary/30' : 'border-border'}
                 ${
                   bucket.descanso

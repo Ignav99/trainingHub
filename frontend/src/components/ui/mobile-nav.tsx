@@ -82,23 +82,23 @@ export function MobileBottomNav() {
         </div>
       )}
 
-      <nav className="fixed bottom-0 left-0 right-0 z-30 lg:hidden bg-card border-t safe-bottom">
-        <div className="flex items-center justify-around min-h-[52px]">
+      <nav className="fixed bottom-0 left-0 right-0 z-30 lg:hidden bg-card border-t safe-bottom max-w-full overflow-x-clip">
+        <div className="flex items-center justify-around min-h-[52px] min-w-0">
           {mainTabs.map((tab) => (
             <Link
               key={tab.href}
               href={tab.href}
-              className={`flex flex-col items-center justify-center gap-0.5 px-3 py-2 min-w-[64px] min-h-[48px] transition-colors ${
+              className={`flex flex-1 flex-col items-center justify-center gap-0.5 px-1 py-2 min-w-0 min-h-[48px] transition-colors ${
                 isActive(tab.href) ? 'text-primary' : 'text-muted-foreground'
               }`}
             >
-              <tab.icon className={`h-5 w-5 ${isActive(tab.href) ? 'stroke-[2.5]' : ''}`} />
-              <span className="text-[11px] font-medium">{tab.name}</span>
+              <tab.icon className={`h-5 w-5 shrink-0 ${isActive(tab.href) ? 'stroke-[2.5]' : ''}`} />
+              <span className="text-[11px] font-medium truncate max-w-full">{tab.name}</span>
             </Link>
           ))}
           <button
             onClick={() => setMoreOpen(!moreOpen)}
-            className={`flex flex-col items-center justify-center gap-0.5 px-3 py-2 min-w-[64px] min-h-[48px] transition-colors ${
+            className={`flex flex-1 flex-col items-center justify-center gap-0.5 px-1 py-2 min-w-0 min-h-[48px] transition-colors ${
               moreOpen ? 'text-primary' : 'text-muted-foreground'
             }`}
           >

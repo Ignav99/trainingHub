@@ -347,14 +347,14 @@ export function CalendarSection({
               </Badge>
             )}
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 min-w-0 flex-wrap justify-end">
             <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={onGoToToday}>
               Hoy
             </Button>
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handlePrev}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="text-xs sm:text-sm font-semibold min-w-[120px] sm:min-w-[160px] text-center">
+            <span className="text-xs sm:text-sm font-semibold min-w-0 flex-1 sm:flex-none sm:min-w-[160px] text-center truncate">
               {periodLabel}
             </span>
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleNext}>
@@ -431,7 +431,7 @@ export function CalendarSection({
           {isMobile ? (
             <div>
               <div className="grid grid-cols-7">
-                {currentMobileWeek.map((cell) => {
+                {currentMobileWeek.map((cell, i) => {
                   const { day, date, isToday, inMonth } = cell
                   const daySesiones = sesionesMes.filter((s) => isSameDay(s.fecha, date))
                   const dayPartidos = partidosMes.filter((p) => isSameDay(p.fecha, date))
@@ -519,7 +519,9 @@ export function CalendarSection({
                       {/* Add menu on mobile */}
                       {addMenuDay === date && (
                         <div
-                          className="absolute top-full left-0 right-0 z-50 bg-popover border rounded-lg shadow-lg py-1 min-w-[160px] animate-in fade-in duration-150"
+                          className={`absolute top-full z-50 bg-popover border rounded-lg shadow-lg py-1 w-44 max-w-[calc(100vw-2rem)] animate-in fade-in duration-150 ${
+                            i >= 4 ? 'right-0' : 'left-0'
+                          }`}
                           onClick={(e) => e.stopPropagation()}
                         >
                           <button className="flex items-center gap-2 w-full px-3 py-2.5 text-xs row-hover text-left" onClick={() => { setAddMenuDay(null); onNavigate(`/sesiones/nueva?fecha=${date}`) }}>
@@ -795,7 +797,7 @@ export function CalendarSection({
                       {/* Action menu dropdown */}
                       {showAddMenu && (
                         <div
-                          className={`absolute right-1 z-50 bg-popover border rounded-lg shadow-lg py-1 min-w-[160px] animate-in fade-in duration-150 ${
+                          className={`absolute right-1 z-50 bg-popover border rounded-lg shadow-lg py-1 w-44 max-w-[calc(100vw-2rem)] animate-in fade-in duration-150 ${
                             menuOpensUp
                               ? 'bottom-8 slide-in-from-bottom-1'
                               : 'top-8 slide-in-from-top-1'

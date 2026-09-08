@@ -259,7 +259,7 @@ export default function DashboardLayout({
   const contentPad = collapsed ? 'lg:pl-[4.5rem]' : 'lg:pl-72'
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="min-h-screen bg-muted/30 max-lg:max-w-full max-lg:overflow-x-clip">
       {/* Mobile sidebar overlay */}
       <div className={cn('fixed inset-0 z-50 lg:hidden', sidebarOpen ? '' : 'hidden')}>
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={handleCloseSidebar} />
@@ -315,7 +315,7 @@ export default function DashboardLayout({
       </div>
 
       {/* Main column */}
-      <div className={cn('transition-[padding] duration-200 ease-out', contentPad)}>
+      <div className={cn('min-w-0 max-lg:max-w-full max-lg:overflow-x-clip transition-[padding] duration-200 ease-out', contentPad)}>
         {/* Mobile header */}
         <div
           className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-x-3 border-b px-4 shadow-sm lg:hidden"
@@ -356,7 +356,7 @@ export default function DashboardLayout({
           </Link>
         </div>
 
-        <main className="py-6 pb-24 lg:pb-6 px-4 sm:px-6 lg:px-8">{children}</main>
+        <main className="min-w-0 max-w-full py-6 pb-24 lg:pb-6 px-4 sm:px-6 lg:px-8">{children}</main>
       </div>
       <MobileBottomNav />
       <InstallPrompt />

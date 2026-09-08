@@ -110,7 +110,7 @@ export default function PartidosPage() {
   // ============ Render ============
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-w-0 max-w-full">
       {/* Header */}
       <PageHeader
         title="Partidos"
@@ -126,9 +126,9 @@ export default function PartidosPage() {
       />
 
       {/* Main layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 min-w-0">
         {/* Left: match list */}
-        <div className="space-y-2">
+        <div className="space-y-2 min-w-0">
           <PartidosList
             loading={loading}
             allPartidos={allPartidos}
@@ -140,7 +140,7 @@ export default function PartidosPage() {
         </div>
 
         {/* Right: tabbed content */}
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-3 min-w-0">
           <MatchDetailPanel
             selectedPartido={selectedPartido}
             convocados={convocados}
