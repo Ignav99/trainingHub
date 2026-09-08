@@ -104,13 +104,34 @@ async def get_playbook_pdf(
     if not jugadas:
         raise HTTPException(status_code=404, detail="No hay jugadas ABP para exportar")
 
-    # Get team name
-    team_resp = supabase.table("equipos").select("nombre").eq(
+    team_resp = supabase.table("equipos").select("nombre, temporada, categoria").eq(
         "id", str(equipo_id)
     ).execute()
-    equipo_nombre = team_resp.data[0]["nombre"] if team_resp.data else "Equipo"
+    equipo_data = team_resp.data[0] if team_resp.data else {}
+    equipo_nombre = equipo_data.get("nombre") or "Equipo"
+    equipo_temporada = equipo_data.get("temporada") or ""
+    equipo_categoria = equipo_data.get("categoria") or ""
 
-    pdf_bytes = await generate_abp_playbook_pdf(jugadas, equipo_nombre)
+    jugadores_map = {}
+    jugadores_resp = supabase.table("jugadores").select(
+        "id, nombre, apellidos, dorsal, apodo"
+    ).eq("equipo_id", str(equipo_id)).execute()
+    for j in (jugadores_resp.data or []):
+        jugadores_map[j["id"]] = j
+
+    org_resp = supabase.table("organizaciones").select(
+        "nombre, logo_url, color_primario"
+    ).eq("id", str(auth.organizacion_id)).execute()
+    organizacion = org_resp.data[0] if org_resp.data else {}
+
+    pdf_bytes = await generate_abp_playbook_pdf(
+        jugadas,
+        equipo_nombre,
+        organizacion=organizacion,
+        equipo_temporada=equipo_temporada,
+        equipo_categoria=equipo_categoria,
+        jugadores_map=jugadores_map,
+    )
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

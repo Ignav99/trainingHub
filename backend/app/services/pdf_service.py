@@ -1334,14 +1334,127 @@ ABP_LADO_LABELS = {
 }
 
 
-def _render_abp_diagram_svg(fase: dict, diagram_id: str = "abp") -> str:
-    """Render a single ABP phase diagram to inline SVG."""
+ABP_ROL_LABELS = {
+    "lanzador": "Lanzador",
+    "bloqueador": "Bloqueador",
+    "palo_corto": "Palo corto",
+    "palo_largo": "Palo largo",
+    "borde_area": "Borde área",
+    "señuelo": "Señuelo",
+    "rechace": "Rechace",
+    "referencia": "Referencia",
+    "barrera": "Barrera",
+    "marcaje_zonal": "Marcaje zonal",
+    "marcaje_individual": "Marcaje individual",
+    "portero": "Portero",
+    "otro": "Otro",
+}
+
+
+def _player_display_name(player: Optional[dict]) -> str:
+    if not player:
+        return ""
+    apodo = (player.get("apodo") or "").strip()
+    if apodo:
+        return apodo
+    return f"{player.get('nombre', '')} {player.get('apellidos', '')}".strip()
+
+
+def _name_by_element_id(
+    asignaciones: list,
+    jugadores_map: Optional[dict],
+    elements: list,
+) -> dict:
+    """Map diagram element id → player name (asignaciones + token fields)."""
+    names: dict[str, str] = {}
+    for el in elements or []:
+        eid = str(el.get("id", ""))
+        if not eid:
+            continue
+        if el.get("jugador"):
+            names[eid] = str(el["jugador"])
+        elif jugadores_map and el.get("jugadorId"):
+            n = _player_display_name(jugadores_map.get(el["jugadorId"]))
+            if n:
+                names[eid] = n
+        elif jugadores_map and el.get("jugador_id"):
+            n = _player_display_name(jugadores_map.get(el["jugador_id"]))
+            if n:
+                names[eid] = n
+    for asig in asignaciones or []:
+        eid = str(asig.get("element_id") or "")
+        if not eid:
+            continue
+        if asig.get("jugador_nombre"):
+            names[eid] = str(asig["jugador_nombre"])
+            continue
+        jids = asig.get("jugador_ids") or ([asig["jugador_id"]] if asig.get("jugador_id") else [])
+        resolved = []
+        for jid in jids:
+            n = _player_display_name((jugadores_map or {}).get(jid) if jugadores_map else None)
+            if n:
+                resolved.append(n)
+        if resolved:
+            names[eid] = " / ".join(resolved)
+    return names
+
+
+def _collect_directrices(fase: dict, elements: list, arrows: list) -> list[str]:
+    items: list[str] = []
+    desc = (fase.get("descripcion") or "").strip()
+    if desc:
+        items.append(desc)
+    for el in elements or []:
+        who = (el.get("jugador") or el.get("label") or "").strip()
+        for fn in el.get("funciones") or []:
+            if not isinstance(fn, dict):
+                continue
+            text = (fn.get("funcion") or "").strip()
+            if not text:
+                continue
+            label = (fn.get("jugadorLabel") or who).strip()
+            items.append(f"{label}: {text}" if label else text)
+    for ar in arrows or []:
+        comment = (ar.get("comment") or "").strip()
+        if not comment:
+            continue
+        num = ar.get("label") or ""
+        items.append(f"{num}. {comment}" if num else comment)
+    seen = set()
+    unique = []
+    for item in items:
+        if item not in seen:
+            seen.add(item)
+            unique.append(item)
+    return unique
+
+
+def _render_abp_diagram_svg(
+    fase: dict,
+    diagram_id: str = "abp",
+    name_by_element: Optional[dict] = None,
+) -> str:
+    """Render a single ABP phase diagram with editor orientation (goal at bottom)."""
     try:
-        from app.services.svg_renderer import render_diagram_svg
-        diagram = fase.get("diagram", {})
-        if not diagram or not diagram.get("elements"):
+        from app.services.svg_renderer import (
+            render_abp_diagram_svg,
+            prepare_abp_playbook_snapshot,
+        )
+        diagram = fase.get("diagram") or {}
+        if not isinstance(diagram, dict):
             return ""
-        return render_diagram_svg(diagram, diagram_id=diagram_id)
+        snap = prepare_abp_playbook_snapshot(diagram)
+        if not snap:
+            return ""
+        pitch = snap.get("pitchType") or diagram.get("pitchType") or "half"
+        is_full = pitch == "full"
+        return render_abp_diagram_svg(
+            diagram,
+            diagram_id=diagram_id,
+            horizontal_full=is_full,
+            name_by_element=name_by_element,
+            include_trails=True,
+        )
     except Exception as e:
         logger.warning(f"Error rendering ABP diagram: {e}")
         return ""
@@ -1350,30 +1463,81 @@ def _render_abp_diagram_svg(fase: dict, diagram_id: str = "abp") -> str:
 async def generate_abp_playbook_pdf(
     jugadas: list[dict],
     equipo_nombre: str = "",
+    organizacion: Optional[dict] = None,
+    equipo_temporada: str = "",
+    equipo_categoria: str = "",
+    jugadores_map: Optional[dict] = None,
 ) -> bytes:
-    """Genera PDF del playbook ABP completo del equipo."""
+    """Genera PDF del playbook ABP completo del equipo (mismo diseño que el resto de PDFs)."""
     env = _get_jinja_env_v2()
     template = env.get_template("abp_playbook_pdf.html")
 
+    org = organizacion or {}
+    color_primario = org.get("color_primario") or "#1a365d"
+    raw_logo = org.get("logo_url") or org.get("logo") or ""
+    logo_url = _url_to_data_uri(raw_logo) if raw_logo else ""
+
     grouped: dict[str, list] = {}
+    toc: list[dict] = []
     for j in jugadas:
         tipo = j.get("tipo", "otro")
         if tipo not in grouped:
             grouped[tipo] = []
         fases = j.get("fases") or []
+        asignaciones = j.get("asignaciones") or []
         rendered_fases = []
+        all_directrices: list[str] = []
+        all_asignaciones: list[dict] = []
         for i, fase in enumerate(fases):
-            svg = _render_abp_diagram_svg(fase, diagram_id=f"j{j.get('id','')[:8]}_f{i}")
-            rendered_fases.append({**fase, "svg": svg})
+            diagram = fase.get("diagram") or {}
+            from app.services.svg_renderer import prepare_abp_playbook_snapshot
+            snap = prepare_abp_playbook_snapshot(diagram) or {}
+            elements = snap.get("elements") or []
+            arrows = snap.get("arrows") or []
+            names = _name_by_element_id(asignaciones, jugadores_map, elements)
+            svg = _render_abp_diagram_svg(
+                fase,
+                diagram_id=f"j{str(j.get('id', ''))[:8]}_f{i}",
+                name_by_element=names,
+            )
+            directrices = _collect_directrices(fase, elements, arrows)
+            all_directrices.extend(directrices)
+            rendered_fases.append({**fase, "svg": svg, "directrices": directrices})
+            for el in elements:
+                eid = str(el.get("id", ""))
+                name = names.get(eid) or (el.get("jugador") or "")
+                rol = el.get("rol") or ""
+                if name or rol:
+                    all_asignaciones.append({
+                        "label": el.get("label") or "",
+                        "rol": ABP_ROL_LABELS.get(rol, rol) if rol else "",
+                        "nombre": name,
+                    })
         j["rendered_fases"] = rendered_fases
+        j["play_directrices"] = list(dict.fromkeys(all_directrices))
+        j["resolved_asignaciones"] = all_asignaciones
         grouped[tipo].append(j)
+        toc.append({
+            "nombre": j.get("nombre") or "",
+            "codigo": j.get("codigo") or "",
+            "tipo": tipo,
+            "lado": j.get("lado") or "",
+        })
 
     def _render() -> bytes:
         html_content = template.render(
             grouped=grouped,
+            toc=toc,
             equipo_nombre=equipo_nombre,
+            equipo_temporada=equipo_temporada,
+            equipo_categoria=equipo_categoria,
+            org_nombre=org.get("nombre", ""),
+            logo_url=logo_url,
+            color_primario=color_primario,
             tipo_labels=ABP_TIPO_LABELS,
             lado_labels=ABP_LADO_LABELS,
+            rol_labels=ABP_ROL_LABELS,
+            total_jugadas=len(jugadas),
         )
         try:
             from weasyprint import HTML
@@ -1402,33 +1566,38 @@ async def generate_abp_partido_pdf(
     env = _get_jinja_env_v2()
     template = env.get_template("abp_partido_pdf.html")
 
-    # Render diagrams for our plays using ABP pitch (goal at bottom)
+    from app.services.svg_renderer import prepare_abp_playbook_snapshot
+
+    # Render diagrams for our plays using ABP pitch (goal at bottom, same as editor)
     for idx, jp in enumerate(jugadas_partido):
         jugada = jp.get("jugada") or {}
         fases = jugada.get("fases") or []
-        # Use first phase diagram as the main diagram
+        asignaciones = jp.get("asignaciones_override") or jugada.get("asignaciones") or []
         if fases:
-            diagram = fases[0].get("diagram", {})
-            jugada["main_svg"] = render_abp_diagram_svg(diagram, diagram_id=f"own_{idx}") if diagram and diagram.get("elements") else ""
+            diagram = fases[0].get("diagram") or {}
+            snap = prepare_abp_playbook_snapshot(diagram) or {}
+            names = _name_by_element_id(asignaciones, jugadores_map, snap.get("elements") or [])
+            pitch = snap.get("pitchType") or (diagram or {}).get("pitchType") or "half"
+            jugada["main_svg"] = render_abp_diagram_svg(
+                diagram,
+                diagram_id=f"own_{idx}",
+                horizontal_full=(pitch == "full"),
+                name_by_element=names,
+            ) if diagram else ""
+            diagram_elements = snap.get("elements") or []
         else:
             jugada["main_svg"] = ""
+            diagram_elements = []
 
-        # Resolve player assignments — use diagram element label (not dorsal)
-        asignaciones = jp.get("asignaciones_override") or jugada.get("asignaciones") or []
-        fases = jugada.get("fases") or []
-        diagram_elements = fases[0].get("diagram", {}).get("elements", []) if fases else []
         element_labels = {str(el.get("id", "")): str(el.get("label", "")) for el in diagram_elements}
         resolved = []
         for asig in asignaciones:
-            # Support jugador_ids (array) with fallback to legacy jugador_id (single)
             jids = asig.get("jugador_ids") or ([asig["jugador_id"]] if asig.get("jugador_id") else [])
             names = []
             for jid in jids:
-                player = jugadores_map.get(jid, {}) if jugadores_map and jid else {}
-                if player:
-                    name = f"{player.get('nombre', '')} {player.get('apellidos', '')}".strip()
-                    if name:
-                        names.append(name)
+                name = _player_display_name((jugadores_map or {}).get(jid) if jugadores_map and jid else None)
+                if name:
+                    names.append(name)
             element_label = element_labels.get(str(asig.get("element_id", "")), "")
             resolved.append({
                 "element_id": asig.get("element_id", ""),
@@ -1442,8 +1611,13 @@ async def generate_abp_partido_pdf(
     for idx, rj in enumerate(rival_jugadas):
         fases = rj.get("fases") or []
         if fases:
-            diagram = fases[0].get("diagram", {})
-            rj["main_svg"] = render_abp_diagram_svg(diagram, diagram_id=f"rival_{idx}") if diagram and diagram.get("elements") else ""
+            diagram = fases[0].get("diagram") or {}
+            pitch = (diagram or {}).get("pitchType") or "half"
+            rj["main_svg"] = render_abp_diagram_svg(
+                diagram,
+                diagram_id=f"rival_{idx}",
+                horizontal_full=(pitch == "full"),
+            ) if diagram else ""
         else:
             rj["main_svg"] = ""
 
@@ -1456,22 +1630,9 @@ async def generate_abp_partido_pdf(
 
     org = organizacion or {}
     color_primario = org.get("color_primario", "#1a365d")
-
-    ABP_ROL_LABELS = {
-        "lanzador": "Lanzador",
-        "bloqueador": "Bloqueador",
-        "palo_corto": "Palo corto",
-        "palo_largo": "Palo largo",
-        "borde_area": "Borde área",
-        "señuelo": "Señuelo",
-        "rechace": "Rechace",
-        "referencia": "Referencia",
-        "barrera": "Barrera",
-        "marcaje_zonal": "Marcaje zonal",
-        "marcaje_individual": "Marcaje individual",
-        "portero": "Portero",
-        "otro": "Otro",
-    }
+    raw_logo = org.get("logo_url") or ""
+    if raw_logo:
+        org = {**org, "logo_url": _url_to_data_uri(raw_logo)}
 
     def _render() -> bytes:
         html_content = template.render(

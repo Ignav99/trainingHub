@@ -3,161 +3,274 @@
 <head>
     <meta charset="UTF-8">
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&display=swap');
+
+        @page {
+            size: A4;
+            margin: 20mm 15mm 18mm 15mm;
+            @top-center { content: element(page-header); }
+            @bottom-center { content: element(page-footer); }
+        }
+        @page :first {
+            margin-top: 15mm;
+            @top-center { content: none; }
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            margin: 30px 40px;
+            font-family: 'Barlow Condensed', 'Helvetica Neue', Arial, sans-serif;
             color: #1a1a2e;
             font-size: 13px;
-            line-height: 1.5;
+            line-height: 1.4;
         }
-        .cover {
-            text-align: center;
-            padding: 80px 0;
-            border-bottom: 4px solid #F97316;
-            margin-bottom: 40px;
-        }
-        .cover h1 {
-            font-size: 36px;
-            font-weight: 800;
-            color: #F97316;
-            margin-bottom: 10px;
-        }
-        .cover .team {
-            font-size: 20px;
-            color: #666;
-        }
-        .section-title {
-            font-size: 20px;
-            font-weight: 700;
-            color: #F97316;
-            border-bottom: 2px solid #F97316;
-            padding-bottom: 8px;
-            margin: 30px 0 15px;
-            page-break-after: avoid;
-        }
-        .play-card {
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 20px;
-            page-break-inside: avoid;
-        }
-        .play-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        .play-name {
-            font-size: 16px;
-            font-weight: 700;
-            color: #1a1a2e;
-        }
-        .play-code {
-            font-size: 11px;
-            background: #F97316;
-            color: white;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-weight: 700;
-        }
-        .badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 4px;
+
+        .running-header {
+            position: running(page-header);
+            display: table;
+            width: 100%;
+            padding-bottom: 6px;
+            border-bottom: 2px solid {{ color_primario or '#1a365d' }};
             font-size: 10px;
-            font-weight: 600;
-            margin-right: 4px;
+            color: #555;
+        }
+        .running-header .hdr-left,
+        .running-header .hdr-right {
+            display: table-cell;
+            vertical-align: middle;
+        }
+        .running-header .hdr-left { text-align: left; white-space: nowrap; }
+        .running-header .hdr-right { text-align: right; color: #aaa; font-size: 9px; }
+        .running-header img {
+            width: 18px; height: 18px; object-fit: contain;
+            vertical-align: middle; margin-right: 8px;
+        }
+        .running-header .hdr-club {
+            font-weight: 700;
+            color: {{ color_primario or '#1a365d' }};
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            vertical-align: middle;
+        }
+        .running-header .hdr-sep { color: #ccc; margin: 0 6px; vertical-align: middle; }
+        .running-header .hdr-team { font-weight: 600; color: #333; vertical-align: middle; }
+        .running-header .hdr-season { color: #888; vertical-align: middle; }
+
+        .running-footer {
+            position: running(page-footer);
+            display: table;
+            width: 100%;
+            padding-top: 6px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 9px;
+            color: #aaa;
+        }
+        .running-footer .ft-left,
+        .running-footer .ft-right { display: table-cell; vertical-align: middle; }
+        .running-footer .ft-left { text-align: left; white-space: nowrap; }
+        .running-footer .ft-right { text-align: right; }
+        .running-footer img {
+            width: 12px; height: 12px; object-fit: contain;
+            vertical-align: middle; margin-right: 6px; opacity: 0.5;
+        }
+
+        .cover { page-break-after: always; min-height: 100%; }
+
+        .cover-header {
+            background: {{ color_primario or '#1a365d' }};
+            color: white;
+            padding: 24px 28px;
+            border-radius: 10px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .cover-header .cover-logo {
+            width: 64px; height: 64px; object-fit: contain; flex-shrink: 0;
+        }
+        .cover-header .cover-info { flex: 1; }
+        .cover-header h1 {
+            font-size: 28px; font-weight: 800;
+            text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;
+        }
+        .cover-header .subtitle { font-size: 16px; font-weight: 500; opacity: 0.85; }
+        .cover-header .team-meta {
+            font-size: 11px; opacity: 0.55; margin-top: 6px;
+        }
+
+        .summary {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 16px 18px;
+        }
+        .summary h3 {
+            font-size: 13px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.5px; color: {{ color_primario or '#1a365d' }};
+            margin-bottom: 12px;
+        }
+        .toc-tipo {
+            font-size: 12px; font-weight: 700; color: #64748b;
+            text-transform: uppercase; letter-spacing: 0.4px;
+            margin: 10px 0 4px;
+        }
+        .toc-play {
+            display: flex; align-items: baseline; gap: 8px;
+            padding: 4px 0; border-bottom: 1px solid #eef2f6; font-size: 12px;
+        }
+        .toc-play:last-child { border-bottom: none; }
+        .toc-code {
+            font-family: monospace; font-size: 10px; font-weight: 700;
+            padding: 1px 5px; border-radius: 3px; background: #f1f5f9; color: #334155;
+        }
+        .toc-name { font-weight: 600; color: #333; }
+        .badge {
+            display: inline-block; padding: 2px 8px; border-radius: 4px;
+            font-size: 10px; font-weight: 600; margin-right: 4px;
         }
         .badge-of { background: #DBEAFE; color: #1E40AF; }
         .badge-df { background: #FEE2E2; color: #991B1B; }
         .badge-sub { background: #F3F4F6; color: #374151; }
-        .play-meta {
-            font-size: 11px;
-            color: #666;
-            margin-bottom: 8px;
+        .badge-tipo {
+            background: {{ color_primario or '#1a365d' }}; color: white;
         }
-        .play-desc {
-            font-size: 12px;
-            color: #444;
-            margin-bottom: 10px;
+        .badge-senal { background: #FEF3C7; color: #92400E; }
+
+        .section-title {
+            font-size: 18px; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 1px; padding: 8px 14px; border-radius: 6px;
+            margin: 0 0 16px; page-break-after: avoid;
+            background: {{ color_primario or '#1a365d' }}; color: white;
         }
-        .signal {
-            font-size: 11px;
-            background: #FEF3C7;
-            color: #92400E;
-            padding: 3px 8px;
-            border-radius: 4px;
-            display: inline-block;
-            margin-bottom: 8px;
+
+        .play-card {
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 20px;
+            page-break-inside: avoid;
         }
-        .phase {
-            margin-top: 10px;
-            padding: 8px;
-            background: #f8fafc;
-            border-radius: 6px;
+        .play-title-row {
+            display: flex; align-items: center; gap: 8px; margin-bottom: 4px;
         }
-        .phase-name {
-            font-size: 12px;
-            font-weight: 600;
-            color: #F97316;
-            margin-bottom: 4px;
+        .play-name { font-size: 16px; font-weight: 700; color: #1a1a2e; }
+        .play-code {
+            font-size: 11px; font-family: monospace; padding: 2px 6px;
+            background: #f1f5f9; border-radius: 4px; font-weight: 700;
         }
-        .phase-desc {
-            font-size: 11px;
-            color: #555;
-        }
-        .diagram-container {
-            margin-top: 8px;
-            text-align: center;
-        }
+        .play-meta { font-size: 11px; color: #666; margin-bottom: 8px; }
+        .play-desc { font-size: 12px; color: #444; margin-bottom: 10px; }
+
+        .diagram-container { text-align: center; margin: 10px 0; }
         .diagram-container svg {
             max-width: 100%;
-            height: auto;
+            max-height: 420px;
         }
+
+        .phase { margin-top: 8px; }
+        .phase-name {
+            font-size: 12px; font-weight: 700;
+            color: {{ color_primario or '#1a365d' }};
+            margin-bottom: 4px;
+        }
+
+        .asignaciones, .directrices {
+            margin-top: 10px;
+            padding: 10px 12px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        .asignaciones h4, .directrices h4 {
+            font-size: 11px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.4px; color: {{ color_primario or '#1a365d' }};
+            margin-bottom: 6px;
+        }
+        .asig-row, .dir-row {
+            font-size: 12px; padding: 2px 0; color: #333;
+        }
+        .asig-num {
+            font-family: monospace; font-weight: 700; margin-right: 6px;
+            color: {{ color_primario or '#1a365d' }};
+        }
+        .asig-rol { color: #64748b; margin-right: 6px; }
         .notes {
-            font-size: 11px;
-            color: #555;
-            font-style: italic;
-            margin-top: 8px;
-            padding-top: 8px;
-            border-top: 1px solid #eee;
+            font-size: 11px; color: #555; margin-top: 10px;
+            padding-top: 8px; border-top: 1px solid #eee;
         }
     </style>
 </head>
 <body>
+    <div class="running-header">
+        <div class="hdr-left">
+            {% if logo_url %}<img src="{{ logo_url }}" alt="">{% endif %}
+            {% if org_nombre %}<span class="hdr-club">{{ org_nombre }}</span><span class="hdr-sep">|</span>{% endif %}
+            <span class="hdr-team">{{ equipo_nombre }}</span>
+            {% if equipo_temporada %}<span class="hdr-sep">|</span><span class="hdr-season">{{ equipo_temporada }}</span>{% endif %}
+        </div>
+        <div class="hdr-right">Playbook ABP</div>
+    </div>
+
+    <div class="running-footer">
+        <div class="ft-left">
+            {% if logo_url %}<img src="{{ logo_url }}" alt="">{% endif %}
+            <span>{% if org_nombre %}{{ org_nombre }} · {% endif %}Generado con Kabin-e</span>
+        </div>
+        <div class="ft-right">{{ equipo_nombre }}{% if equipo_temporada %} · {{ equipo_temporada }}{% endif %}</div>
+    </div>
+
     <div class="cover">
-        <h1>Playbook ABP</h1>
-        <div class="team">{{ equipo_nombre }}</div>
+        <div class="cover-header">
+            {% if logo_url %}<img class="cover-logo" src="{{ logo_url }}" alt="">{% endif %}
+            <div class="cover-info">
+                <h1>Playbook ABP</h1>
+                <div class="subtitle">{{ equipo_nombre or 'Equipo' }}</div>
+                {% if equipo_temporada or equipo_categoria %}
+                <div class="team-meta">
+                    {% if equipo_categoria %}{{ equipo_categoria }}{% endif %}
+                    {% if equipo_categoria and equipo_temporada %} · {% endif %}
+                    {% if equipo_temporada %}Temporada {{ equipo_temporada }}{% endif %}
+                    {% if total_jugadas %} · {{ total_jugadas }} jugadas{% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="summary">
+            <h3>Índice de jugadas</h3>
+            {% for tipo_code, plays in grouped.items() %}
+            <div class="toc-tipo">{{ tipo_labels.get(tipo_code, tipo_code) }}</div>
+            {% for play in plays %}
+            <div class="toc-play">
+                {% if play.codigo %}<span class="toc-code">{{ play.codigo }}</span>{% endif %}
+                <span class="toc-name">{{ play.nombre }}</span>
+                <span class="badge {% if play.lado == 'ofensivo' %}badge-of{% else %}badge-df{% endif %}">
+                    {{ lado_labels.get(play.lado, play.lado) }}
+                </span>
+            </div>
+            {% endfor %}
+            {% endfor %}
+        </div>
     </div>
 
     {% for tipo_code, plays in grouped.items() %}
-    <h2 class="section-title">{{ tipo_labels.get(tipo_code, tipo_code) }}</h2>
+    <div class="section-title">{{ tipo_labels.get(tipo_code, tipo_code) }}</div>
 
     {% for play in plays %}
     <div class="play-card">
-        <div class="play-header">
+        <div class="play-title-row">
             <span class="play-name">{{ play.nombre }}</span>
-            {% if play.codigo %}
-            <span class="play-code">{{ play.codigo }}</span>
-            {% endif %}
+            {% if play.codigo %}<span class="play-code">{{ play.codigo }}</span>{% endif %}
         </div>
         <div class="play-meta">
+            <span class="badge badge-tipo">{{ tipo_labels.get(play.tipo, play.tipo) }}</span>
             <span class="badge {% if play.lado == 'ofensivo' %}badge-of{% else %}badge-df{% endif %}">
                 {{ lado_labels.get(play.lado, play.lado) }}
             </span>
-            {% if play.subtipo %}
-            <span class="badge badge-sub">{{ play.subtipo }}</span>
-            {% endif %}
-            {% if play.sistema_marcaje %}
-            <span class="badge badge-sub">{{ play.sistema_marcaje }}</span>
-            {% endif %}
+            {% if play.subtipo %}<span class="badge badge-sub">{{ play.subtipo }}</span>{% endif %}
+            {% if play.sistema_marcaje %}<span class="badge badge-sub">{{ play.sistema_marcaje }}</span>{% endif %}
+            {% if play.senal_codigo %}<span class="badge badge-senal">Señal: {{ play.senal_codigo }}</span>{% endif %}
         </div>
-
-        {% if play.senal_codigo %}
-        <div class="signal">Senal: {{ play.senal_codigo }}</div>
-        {% endif %}
 
         {% if play.descripcion %}
         <div class="play-desc">{{ play.descripcion }}</div>
@@ -165,15 +278,36 @@
 
         {% for fase in play.rendered_fases %}
         <div class="phase">
+            {% if play.rendered_fases | length > 1 %}
             <div class="phase-name">{{ fase.nombre }}</div>
-            {% if fase.descripcion %}
-            <div class="phase-desc">{{ fase.descripcion }}</div>
             {% endif %}
             {% if fase.svg %}
             <div class="diagram-container">{{ fase.svg }}</div>
             {% endif %}
         </div>
         {% endfor %}
+
+        {% if play.resolved_asignaciones %}
+        <div class="asignaciones">
+            <h4>Jugadores</h4>
+            {% for asig in play.resolved_asignaciones %}
+            <div class="asig-row">
+                {% if asig.label %}<span class="asig-num">{{ asig.label }}</span>{% endif %}
+                {% if asig.rol %}<span class="asig-rol">{{ asig.rol }}</span>{% endif %}
+                <span>{{ asig.nombre }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if play.play_directrices %}
+        <div class="directrices">
+            <h4>Directrices</h4>
+            {% for d in play.play_directrices %}
+            <div class="dir-row">· {{ d }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
 
         {% if play.notas_tacticas %}
         <div class="notes">{{ play.notas_tacticas }}</div>
