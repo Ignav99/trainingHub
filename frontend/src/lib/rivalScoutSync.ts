@@ -65,17 +65,132 @@ export function mergeScoutOnLoad(
   }
 }
 
-/** Fusiona jugadores RFEF frescos con anotaciones guardadas (comentarios, emojis, colocación). */
+export type RivalOnceProbable = NonNullable<RivalScoutStrategy['once_probable']>
+
+export function emptyJugadorEvaluacion(
+  partial: Partial<RivalJugadorEvaluacion> & { nombre: string }
+): RivalJugadorEvaluacion {
+  return {
+    nombre: partial.nombre.trim(),
+    dorsal: partial.dorsal ?? null,
+    apariciones: partial.apariciones ?? 0,
+    sancionado: partial.sancionado,
+    posicion: partial.posicion ?? '',
+    rol: partial.rol ?? '',
+    comentario: partial.comentario ?? '',
+    puntuacion: partial.puntuacion,
+    atributos: partial.atributos,
+  }
+}
+
+export function ensureOnceProbable(
+  once: RivalScoutStrategy['once_probable'] | undefined
+): RivalOnceProbable {
+  return {
+    actas_analizadas: once?.actas_analizadas ?? 0,
+    jugadores: [...(once?.jugadores ?? [])],
+    colocacion: { ...(once?.colocacion ?? {}) },
+  }
+}
+
+function nameKey(nombre: string): string {
+  return nombre.trim().toLowerCase()
+}
+
+export function upsertRivalJugador(
+  once: RivalScoutStrategy['once_probable'] | undefined,
+  nombre: string,
+  extras?: { dorsal?: number | null; posicion?: string }
+): RivalOnceProbable {
+  const next = ensureOnceProbable(once)
+  const trimmed = nombre.trim()
+  if (!trimmed) return next
+  const idx = next.jugadores.findIndex((j) => nameKey(j.nombre) === nameKey(trimmed))
+  if (idx >= 0) {
+    next.jugadores[idx] = {
+      ...next.jugadores[idx],
+      nombre: trimmed,
+      ...(extras?.dorsal !== undefined ? { dorsal: extras.dorsal } : {}),
+      ...(extras?.posicion ? { posicion: extras.posicion } : {}),
+    }
+  } else {
+    next.jugadores.push(emptyJugadorEvaluacion({ nombre: trimmed, ...extras }))
+  }
+  return next
+}
+
+export function renameRivalJugador(
+  once: RivalScoutStrategy['once_probable'] | undefined,
+  oldName: string,
+  newName: string
+): RivalOnceProbable {
+  const next = ensureOnceProbable(once)
+  const trimmed = newName.trim()
+  if (!trimmed || nameKey(oldName) === nameKey(trimmed)) {
+    if (trimmed && trimmed !== oldName) {
+      next.jugadores = next.jugadores.map((j) =>
+        j.nombre === oldName ? { ...j, nombre: trimmed } : j
+      )
+    }
+    return next
+  }
+  next.jugadores = next.jugadores.map((j) =>
+    j.nombre === oldName ? { ...j, nombre: trimmed } : j
+  )
+  const colocacion: Record<string, string> = {}
+  for (const [slot, name] of Object.entries(next.colocacion ?? {})) {
+    colocacion[slot] = name === oldName ? trimmed : name
+  }
+  next.colocacion = colocacion
+  return next
+}
+
+export function removeRivalJugador(
+  once: RivalScoutStrategy['once_probable'] | undefined,
+  nombre: string
+): RivalOnceProbable {
+  const next = ensureOnceProbable(once)
+  next.jugadores = next.jugadores.filter((j) => j.nombre !== nombre)
+  const colocacion: Record<string, string> = {}
+  for (const [slot, name] of Object.entries(next.colocacion ?? {})) {
+    if (name !== nombre) colocacion[slot] = name
+  }
+  next.colocacion = colocacion
+  return next
+}
+
+export function assignRivalSlot(
+  once: RivalScoutStrategy['once_probable'] | undefined,
+  slotId: string,
+  playerName: string | null
+): RivalOnceProbable {
+  const next = ensureOnceProbable(once)
+  const trimmed = playerName?.trim() ?? ''
+  const colocacion: Record<string, string> = { ...(next.colocacion ?? {}) }
+  for (const k of Object.keys(colocacion)) {
+    if (colocacion[k] === trimmed || k === slotId) delete colocacion[k]
+  }
+  if (!trimmed) {
+    next.colocacion = colocacion
+    return next
+  }
+  const withPlayer = upsertRivalJugador(next, trimmed)
+  withPlayer.colocacion = { ...colocacion, [slotId]: trimmed }
+  return withPlayer
+}
+
+/** Fusiona jugadores RFEF frescos con anotaciones guardadas (comentarios, emojis, colocación).
+ *  Conserva jugadores añadidos a mano que no salen en las actas. */
 export function mergeOnceProbableAnnotations(
   fresh: RivalJugadorEvaluacion[],
   saved: RivalJugadorEvaluacion[] | undefined,
   colocacion: Record<string, string> | undefined,
   actas: number
-): RivalScoutStrategy['once_probable'] {
-  const byName = new Map((saved ?? []).map((j) => [j.nombre, j]))
+): RivalOnceProbable {
+  const byName = new Map((saved ?? []).map((j) => [nameKey(j.nombre), j]))
 
-  const jugadores = fresh.map((j) => {
-    const prev = byName.get(j.nombre)
+  const jugadores: RivalJugadorEvaluacion[] = fresh.map((j) => {
+    const prev = byName.get(nameKey(j.nombre))
     return {
       ...j,
       rol: prev?.rol ?? '',
@@ -85,6 +200,14 @@ export function mergeOnceProbableAnnotations(
       posicion: prev?.posicion ?? '',
     }
   })
+
+  const seen = new Set(jugadores.map((j) => nameKey(j.nombre)))
+  for (const prev of saved ?? []) {
+    if (!seen.has(nameKey(prev.nombre))) {
+      jugadores.push(prev)
+      seen.add(nameKey(prev.nombre))
+    }
+  }
 
   return {
     actas_analizadas: actas,
