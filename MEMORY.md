@@ -14,6 +14,8 @@ Dos herramientas: **Video Análisis** (partido entero local, nunca a la nube) y 
 - Sala: HDMI en el PC + tablet por el 5G del móvil. Sync por WebSocket `/v1/ws`.
 Migración: `080_revision_video.sql`.
 
+## Tratamiento (enfermería / ficha)
+Los días/sesiones del cuaderno se pueden **editar** (lápiz) además de eliminar. El PUT ya existía; ahora el fisio lo usa desde la ficha y desde el caso.
 
 ## Layout móvil
 La app es la misma (mismas rutas, mismas acciones). Por debajo de `lg` (1024px) el contenido se refluja para caber en el ancho de la pantalla y el documento no hace pan horizontal. El portátil a tamaño completo no cambia.
