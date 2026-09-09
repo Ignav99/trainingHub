@@ -72,6 +72,60 @@ export interface RevisionSession {
   current_clip?: RevisionClip | null
 }
 
+export interface RevisionClipUploadMeta {
+  pack_id: string
+  equipo_id: string
+  titulo: string
+  frase?: string
+  folder_id?: string
+  fase?: string
+  duration_ms?: number
+  start_ms?: number
+  end_ms?: number
+  source_video_id?: string
+  rival_jugador_nombre?: string
+  rival_jugador_dorsal?: string
+  jugador_id?: string
+  slot_tipo?: 'folder' | 'once_jugador'
+  mime_type?: string
+}
+
+async function putToSignedUrl(signedUrl: string, file: File, mime: string) {
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), 300000)
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': mime,
+      'x-upsert': 'true',
+    }
+    const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (anon) {
+      headers.apikey = anon
+      headers.Authorization = `Bearer ${anon}`
+    }
+    const res = await fetch(signedUrl, {
+      method: 'PUT',
+      headers,
+      body: file,
+      signal: controller.signal,
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(text || `No se pudo subir el archivo (${res.status})`)
+    }
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      throw new Error('La subida tardó demasiado. Prueba un recorte más corto.')
+    }
+    if (e instanceof TypeError) {
+      throw new Error('No se pudo enviar el recorte a Storage. Revisa la conexión e inténtalo de nuevo.')
+    }
+    throw e
+  } finally {
+    window.clearTimeout(timer)
+  }
+}
+
 export const revisionApi = {
   getOrCreatePack(data: {
     equipo_id: string
@@ -104,8 +158,48 @@ export const revisionApi = {
     return api.delete(`/revision/folders/${id}`)
   },
 
-  uploadClip(formData: FormData): Promise<RevisionClip> {
-    return api.upload('/revision/clips/upload', formData, { timeout: 300000 })
+  async uploadClip(file: File, meta: RevisionClipUploadMeta): Promise<RevisionClip> {
+    if (file.size > 200 * 1024 * 1024) {
+      throw new Error('El recorte no puede superar 200MB')
+    }
+    if (file.size < 1000) {
+      throw new Error('El archivo está vacío o es demasiado pequeño')
+    }
+
+    const prepared = await api.post<{
+      signed_url: string
+      token: string
+      path: string
+      mime_type: string
+    }>('/revision/clips/upload-url', {
+      pack_id: meta.pack_id,
+      equipo_id: meta.equipo_id,
+      filename: file.name,
+      size_bytes: file.size,
+      mime_type: file.type || meta.mime_type,
+    })
+
+    await putToSignedUrl(prepared.signed_url, file, prepared.mime_type || file.type || 'video/webm')
+
+    return api.post('/revision/clips/confirm', {
+      pack_id: meta.pack_id,
+      equipo_id: meta.equipo_id,
+      storage_path: prepared.path,
+      titulo: meta.titulo,
+      size_bytes: file.size,
+      mime_type: prepared.mime_type || file.type || 'video/webm',
+      frase: meta.frase,
+      folder_id: meta.folder_id,
+      fase: meta.fase,
+      duration_ms: meta.duration_ms,
+      start_ms: meta.start_ms,
+      end_ms: meta.end_ms,
+      source_video_id: meta.source_video_id,
+      rival_jugador_nombre: meta.rival_jugador_nombre,
+      rival_jugador_dorsal: meta.rival_jugador_dorsal,
+      jugador_id: meta.jugador_id,
+      slot_tipo: meta.slot_tipo || 'folder',
+    })
   },
 
   updateClip(id: string, data: Partial<Pick<RevisionClip, 'titulo' | 'frase' | 'nota' | 'fase'>>): Promise<RevisionClip> {

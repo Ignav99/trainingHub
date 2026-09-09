@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 REVISION_BUCKET = "revision-clips"
 MAX_CLIP_BYTES = 200 * 1024 * 1024  # 200 MB
+MIN_CLIP_BYTES = 1000
 HOT_DAYS = 30
 
 # Fases canónicas (informe de partido / Video Análisis)
@@ -194,6 +195,89 @@ def archive_expired_clips(supabase) -> dict:
         "skipped_no_api": skipped_no_api,
         "errors": errors,
     }
+
+
+def sanitize_clip_filename(filename: str | None) -> str:
+    base = "".join(c if c.isalnum() or c in "._-" else "_" for c in (filename or "clip.webm"))
+    base = base.strip("._") or "clip.webm"
+    if "." not in base:
+        base += ".webm"
+    return base[:120]
+
+
+def make_clip_storage_path(
+    equipo_id: str,
+    pack_id: str,
+    filename: str | None,
+    now_ms: int | None = None,
+) -> str:
+    ts = now_ms if now_ms is not None else int(datetime.now(timezone.utc).timestamp() * 1000)
+    return f"{equipo_id}/{pack_id}/{ts}_{sanitize_clip_filename(filename)}"
+
+
+def strip_bucket_prefix(path: str, bucket: str = REVISION_BUCKET) -> str:
+    cleaned = (path or "").lstrip("/")
+    prefix = f"{bucket}/"
+    if cleaned.startswith(prefix):
+        return cleaned[len(prefix) :]
+    return cleaned
+
+
+def is_allowed_clip_path(path: str, equipo_id: str, pack_id: str) -> bool:
+    if not path or ".." in path or path.startswith("/") or "\\" in path:
+        return False
+    return path.startswith(f"{equipo_id}/{pack_id}/")
+
+
+def mime_from_filename(filename: str | None) -> str:
+    name = (filename or "").lower()
+    if name.endswith(".mp4"):
+        return "video/mp4"
+    if name.endswith(".webm"):
+        return "video/webm"
+    if name.endswith(".mov"):
+        return "video/quicktime"
+    if name.endswith(".mkv"):
+        return "video/x-matroska"
+    return "video/webm"
+
+
+def normalize_clip_mime(mime: str | None, filename: str | None = None) -> str:
+    value = (mime or "").split(";")[0].strip().lower()
+    if not value or value == "application/octet-stream":
+        return mime_from_filename(filename)
+    if value.startswith("video/"):
+        return value
+    raise ValueError("Solo se permiten archivos de video.")
+
+
+def normalize_signed_upload_url(
+    raw: dict,
+    supabase_url: str,
+    storage_path: str,
+    bucket: str = REVISION_BUCKET,
+) -> dict:
+    """Normaliza la respuesta de create_signed_upload_url (claves y URL absoluta)."""
+    token = str(raw.get("token") or "")
+    signed = str(
+        raw.get("signed_url")
+        or raw.get("signedUrl")
+        or raw.get("signedURL")
+        or raw.get("url")
+        or ""
+    )
+    path = strip_bucket_prefix(str(raw.get("path") or storage_path), bucket)
+    base = supabase_url.rstrip("/")
+    if signed and not signed.startswith("http"):
+        if not signed.startswith("/"):
+            signed = "/" + signed
+        if signed.startswith("/storage/v1/"):
+            signed = base + signed
+        else:
+            signed = base + "/storage/v1" + signed
+    if token and signed and "token=" not in signed:
+        signed = f"{signed}{'&' if '?' in signed else '?'}token={token}"
+    return {"signed_url": signed, "token": token, "path": path}
 
 
 def ensure_video_bucket(supabase, bucket: str = REVISION_BUCKET) -> None:
