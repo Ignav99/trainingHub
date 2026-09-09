@@ -111,6 +111,22 @@ class Settings(BaseSettings):
     R2_BUCKET: str = "revision-clips"
     R2_PUBLIC_BASE_URL: str | None = None
 
+    @field_validator(
+        "R2_ACCOUNT_ID",
+        "R2_ACCESS_KEY_ID",
+        "R2_SECRET_ACCESS_KEY",
+        "R2_BUCKET",
+        "R2_PUBLIC_BASE_URL",
+        mode="before",
+    )
+    @classmethod
+    def strip_r2_values(cls, v):
+        """Render pega a veces un salto de línea; eso rompe la firma SigV4 (PUT 403 sin CORS)."""
+        if isinstance(v, str):
+            v = v.strip()
+            return v or None
+        return v
+
     # Redis (rate limiting, optional)
     REDIS_URL: str | None = None
 

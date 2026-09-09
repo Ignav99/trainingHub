@@ -159,9 +159,10 @@ export function putToSignedUrl(
     xhr.onerror = () => {
       if (lastPct >= 80) {
         reject(new Error(
-          'El recorte llegó a R2 pero el bucket lo rechazó. Casi siempre es CORS o la Access Key. '
-          + 'En el cubo revision-clips → Settings → CORS: PUT, GET, HEAD y orígenes del frontend. '
-          + 'En Render, R2_ACCESS_KEY_ID debe ser el «Access Key ID», no el token que empieza por cfut_.',
+          'R2 rechazó el recorte al terminar la subida (403). '
+          + 'Casi siempre es la firma: en Render, R2_SECRET_ACCESS_KEY no puede tener espacios ni salto de línea. '
+          + 'CORS del cubo: PUT, GET, HEAD y cabecera content-type (no *). '
+          + 'R2_ACCESS_KEY_ID no es el token cfut_.',
         ))
         return
       }
