@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
 import useSWR from 'swr'
 import { toast } from 'sonner'
 import {
@@ -12,6 +13,7 @@ import {
   Trash2,
   Upload,
   Folder,
+  Loader2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -27,13 +29,18 @@ import {
 } from '@/components/ui/dialog'
 import {
   revisionApi,
+  REVISION_FOLDER_PRESETS,
   type RevisionAmbito,
   type RevisionClip,
   type RevisionFolder,
   type RevisionPack,
 } from '@/lib/api/revision'
-import { VideoPlayer } from '@/components/video-analyzer/VideoPlayer'
 import { SalaHostDialog } from './SalaHostDialog'
+
+const VideoPlayer = dynamic(
+  () => import('@/components/video-analyzer/VideoPlayer').then((m) => ({ default: m.VideoPlayer })),
+  { ssr: false }
+)
 
 interface RevisionLibraryProps {
   equipoId: string
@@ -59,15 +66,35 @@ export function RevisionLibrary({
     ? `revision:${ambito}:${partidoId || ''}:${rivalId || ''}:${microcicloId || ''}`
     : null
 
-  const { data: pack, mutate, isLoading } = useSWR(swrKey, () =>
-    revisionApi.getOrCreatePack({
+  const { data: pack, error, mutate, isLoading } = useSWR(
+    swrKey,
+    () =>
+      revisionApi.getOrCreatePack({
+        equipo_id: equipoId,
+        ambito,
+        partido_id: partidoId,
+        rival_id: rivalId,
+        microciclo_id: microcicloId,
+      }),
+    {
+      errorRetryCount: 0,
+      shouldRetryOnError: false,
+      revalidateOnFocus: false,
+    }
+  )
+
+  const ensurePack = async (): Promise<RevisionPack> => {
+    if (pack) return pack
+    const next = await revisionApi.getOrCreatePack({
       equipo_id: equipoId,
       ambito,
       partido_id: partidoId,
       rival_id: rivalId,
       microciclo_id: microcicloId,
     })
-  )
+    await mutate(next, { revalidate: false })
+    return next
+  }
 
   const [folderId, setFolderId] = useState<string | null>(null)
   const [playing, setPlaying] = useState<RevisionClip | null>(null)
@@ -107,10 +134,11 @@ export function RevisionLibrary({
   }, [pack, folderId, links, selected])
 
   const handleCreateFolder = async () => {
-    if (!pack || !newFolderName.trim()) return
+    if (!newFolderName.trim()) return
     try {
+      const current = await ensurePack()
       await revisionApi.createFolder({
-        pack_id: pack.id,
+        pack_id: current.id,
         nombre: newFolderName.trim(),
         parent_id: newFolderParent || undefined,
       })
@@ -172,7 +200,7 @@ export function RevisionLibrary({
             <FolderPlus className="h-3.5 w-3.5 mr-1" />
             Carpeta
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setUploadOpen(true)} disabled={!pack}>
+          <Button variant="outline" size="sm" onClick={() => setUploadOpen(true)}>
             <Upload className="h-3.5 w-3.5 mr-1" />
             Subir recorte
           </Button>
@@ -183,12 +211,24 @@ export function RevisionLibrary({
         Recortes cortos para la charla. El partido entero se queda en el ordenador (Video Análisis).
       </p>
 
-      {isLoading || !pack ? (
-        <Card className="p-6 text-sm text-muted-foreground text-center">Cargando librería…</Card>
-      ) : (
-        <div className={`grid gap-3 ${compact ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-[200px_1fr]'}`}>
+      {error && !pack && (
+        <Card className="p-3 text-sm text-destructive flex items-center justify-between gap-2">
+          <span>No se pudo cargar la librería. Puedes reintentar o subir el recorte igual.</span>
+          <Button variant="outline" size="sm" onClick={() => mutate()}>Reintentar</Button>
+        </Card>
+      )}
+
+      {isLoading && !pack && !error && (
+        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Cargando recortes…
+        </p>
+      )}
+
+      <div className={`grid gap-3 ${compact ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-[200px_1fr]'}`}>
           <div className="space-y-1">
-            {rootFolders.map((f) => (
+            {(rootFolders.length > 0 ? rootFolders : REVISION_FOLDER_PRESETS[ambito] || []).map((f) => (
+              'id' in f ? (
               <FolderRow
                 key={f.id}
                 folder={f}
@@ -199,6 +239,12 @@ export function RevisionLibrary({
                 onDelete={handleDeleteFolder}
                 onAddChild={(id) => { setNewFolderParent(id); setNewFolderOpen(true) }}
               />
+              ) : (
+                <div key={f.fase} className="flex items-center gap-1 text-sm px-2 py-1.5 rounded-md text-muted-foreground">
+                  <Folder className="h-3.5 w-3.5" />
+                  {f.nombre}
+                </div>
+              )
             ))}
           </div>
 
@@ -222,7 +268,9 @@ export function RevisionLibrary({
             {clipsInFolder.length === 0 ? (
               <Card className="p-6 text-center text-sm text-muted-foreground">
                 <Clapperboard className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                No hay recortes en esta carpeta. Córtalos en Video Análisis y envíalos aquí, o súbelos.
+                {isLoading && !pack
+                  ? 'Cargando recortes…'
+                  : 'No hay recortes en esta carpeta. Córtalos en Video Análisis y envíalos aquí, o súbelos.'}
               </Card>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -239,7 +287,6 @@ export function RevisionLibrary({
             )}
           </div>
         </div>
-      )}
 
       <Dialog open={newFolderOpen} onOpenChange={setNewFolderOpen}>
         <DialogContent>
@@ -271,15 +318,14 @@ export function RevisionLibrary({
         </DialogContent>
       </Dialog>
 
-      {pack && (
-        <UploadClipDialog
-          open={uploadOpen}
-          onOpenChange={setUploadOpen}
-          pack={pack}
-          folderId={folderId}
-          onDone={() => { setUploadOpen(false); mutate() }}
-        />
-      )}
+      <UploadClipDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        pack={pack}
+        folderId={folderId}
+        ensurePack={ensurePack}
+        onDone={() => { setUploadOpen(false); mutate() }}
+      />
 
       {pack && salaClip && (
         <SalaHostDialog
@@ -406,12 +452,14 @@ function UploadClipDialog({
   onOpenChange,
   pack,
   folderId,
+  ensurePack,
   onDone,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
-  pack: RevisionPack
+  pack: RevisionPack | undefined
   folderId: string | null
+  ensurePack: () => Promise<RevisionPack>
   onDone: () => void
 }) {
   const [titulo, setTitulo] = useState('')
@@ -427,9 +475,10 @@ function UploadClipDialog({
     }
     setBusy(true)
     try {
+      const current = pack ?? await ensurePack()
       await revisionApi.uploadClip(file, {
-        pack_id: pack.id,
-        equipo_id: pack.equipo_id,
+        pack_id: current.id,
+        equipo_id: current.equipo_id,
         titulo: titulo.trim() || file.name,
         frase: frase.trim() || undefined,
         folder_id: folderId || undefined,

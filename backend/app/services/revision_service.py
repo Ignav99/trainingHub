@@ -229,6 +229,26 @@ def is_allowed_clip_path(path: str, equipo_id: str, pack_id: str) -> bool:
     return path.startswith(f"{equipo_id}/{pack_id}/")
 
 
+def flatten_pack_graph(row: dict) -> dict:
+    """Separa folders/clips/links de un select anidado de PostgREST."""
+    pack = dict(row)
+    folders = list(pack.pop("revision_folders", None) or [])
+    clips_raw = list(pack.pop("revision_clips", None) or [])
+    links: list[dict] = []
+    clips: list[dict] = []
+    for clip_row in clips_raw:
+        clip = dict(clip_row)
+        nested = clip.pop("revision_clip_links", None) or []
+        links.extend(nested)
+        clips.append(clip)
+    folders.sort(key=lambda f: (f.get("orden") is None, f.get("orden") or 0))
+    clips.sort(key=lambda c: c.get("created_at") or "", reverse=True)
+    pack["folders"] = folders
+    pack["clips"] = clips
+    pack["links"] = links
+    return pack
+
+
 def mime_from_filename(filename: str | None) -> str:
     name = (filename or "").lower()
     if name.endswith(".mp4"):

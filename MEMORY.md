@@ -3,6 +3,9 @@
 ## Revisión de vídeo
 Dos herramientas: **Video Análisis** (partido entero local, nunca a la nube) y **Revisión** (recortes cortos en informes).
 - Subida de recortes: el navegador manda el fichero **directo a Supabase Storage** (URL firmada). El API solo firma y confirma. El proxy anterior cargaba el vídeo en RAM y Render mataba la instancia (`failed to fetch` + restart).
+- Informe de partido: **ya no hay bloque «Añadir video»** encima de Revisión (era el mismo flujo). Solo Revisión.
+- La librería no bloquea la UI: «Subir recorte» funciona aunque el pack aún no haya cargado. Si falla, hay reintentar (antes el spinner «Cargando librería…» se quedaba eterno si el POST fallaba porque `!pack` seguía activo).
+- Lista de partidos y GET de un partido van sin `pre_match_intel` (JSON enorme). El intel se pide en su endpoint.
 - Informe de partido y informe rival (fases + Once probable) tienen librería de carpetas.
 - Desde el analizador: «A revisión» recorta en el PC y sube solo ese fragmento.
 - Sala: HDMI en el PC + tablet por el 5G del móvil. Sync por WebSocket `/v1/ws`.

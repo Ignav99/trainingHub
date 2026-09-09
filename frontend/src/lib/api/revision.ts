@@ -3,6 +3,34 @@ import { api } from './client'
 export type RevisionAmbito = 'partido_post' | 'rival' | 'partido_plan'
 export type RevisionClipStatus = 'hot' | 'en_drive' | 'missing'
 
+export const REVISION_FOLDER_PRESETS: Record<RevisionAmbito, { fase: string; nombre: string }[]> = {
+  partido_post: [
+    { fase: 'ataque_organizado', nombre: 'Ataque organizado' },
+    { fase: 'defensa_organizada', nombre: 'Defensa organizada' },
+    { fase: 'transicion_defensa_ataque', nombre: 'Transición defensa → ataque' },
+    { fase: 'transicion_ataque_defensa', nombre: 'Transición ataque → defensa' },
+    { fase: 'balon_parado_ofensivo', nombre: 'ABP ofensivo' },
+    { fase: 'balon_parado_defensivo', nombre: 'ABP defensivo' },
+  ],
+  rival: [
+    { fase: 'ataque_organizado', nombre: 'Ataque organizado' },
+    { fase: 'defensa_organizada', nombre: 'Defensa organizada' },
+    { fase: 'transicion_ofensiva', nombre: 'Transición ofensiva' },
+    { fase: 'transicion_defensiva', nombre: 'Transición defensiva' },
+    { fase: 'abp_ofensiva', nombre: 'ABP ofensiva' },
+    { fase: 'abp_defensiva', nombre: 'ABP defensiva' },
+    { fase: 'once_probable', nombre: 'Once probable' },
+  ],
+  partido_plan: [
+    { fase: 'ataque_organizado', nombre: 'Ataque organizado' },
+    { fase: 'defensa_organizada', nombre: 'Defensa organizada' },
+    { fase: 'transicion_ofensiva', nombre: 'Transición ofensiva' },
+    { fase: 'transicion_defensiva', nombre: 'Transición defensiva' },
+    { fase: 'abp_ofensiva', nombre: 'ABP ofensiva' },
+    { fase: 'abp_defensiva', nombre: 'ABP defensiva' },
+  ],
+}
+
 export interface RevisionFolder {
   id: string
   pack_id: string
@@ -134,7 +162,7 @@ export const revisionApi = {
     rival_id?: string
     microciclo_id?: string
   }): Promise<RevisionPack> {
-    return api.post('/revision/packs', data)
+    return api.post('/revision/packs', data, { timeout: 15000 })
   },
 
   getPack(packId: string, equipoId: string): Promise<RevisionPack> {

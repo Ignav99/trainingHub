@@ -60,7 +60,10 @@ async def list_partidos(
 
     # Query con relación a rivales
     query = supabase.table("partidos").select(
-        "*, rivales(*)",
+        "id,equipo_id,rival_id,fecha,hora,localia,competicion,jornada,ubicacion,"
+        "goles_favor,goles_contra,resultado,created_at,updated_at,auto_creado,"
+        "rfef_competicion_id,video_url,informe_url,"
+        "rivales(id,organizacion_id,nombre,nombre_corto,escudo_url,created_at,updated_at)",
         count="exact"
     )
 
@@ -135,8 +138,11 @@ async def get_partido(
     supabase = get_supabase()
 
     response = supabase.table("partidos").select(
-        "*, rivales(*)"
-    ).eq("id", str(partido_id)).single().execute()
+        "id,equipo_id,rival_id,fecha,hora,localia,competicion,jornada,ubicacion,"
+        "goles_favor,goles_contra,resultado,notas_pre,notas_post,video_url,informe_url,"
+        "rfef_competicion_id,auto_creado,created_at,updated_at,"
+        "rivales(id,organizacion_id,nombre,nombre_corto,escudo_url,created_at,updated_at)"
+    ).eq("id", str(partido_id)).limit(1).execute()
 
     if not response.data:
         raise HTTPException(
@@ -144,8 +150,9 @@ async def get_partido(
             detail="Partido no encontrado"
         )
 
-    rival_data = response.data.pop("rivales", None)
-    partido = PartidoResponse(**response.data)
+    row = response.data[0]
+    rival_data = row.pop("rivales", None)
+    partido = PartidoResponse(**row)
     if rival_data:
         partido.rival = RivalResponse(**rival_data)
 

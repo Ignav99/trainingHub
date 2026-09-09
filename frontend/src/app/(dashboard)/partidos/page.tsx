@@ -58,10 +58,14 @@ export default function PartidosPage() {
   // Selected match
   const [selectedId, setSelectedId] = useState<string | null>(matchParam)
 
-  const selectedPartido = useMemo(
-    () => allPartidos.find((p) => p.id === selectedId) || null,
-    [allPartidos, selectedId]
+  const { data: partidoDetail } = useSWR<Partido>(
+    selectedId ? apiKey(`/partidos/${selectedId}`) : null
   )
+
+  const selectedPartido = useMemo(() => {
+    if (partidoDetail?.id === selectedId) return partidoDetail
+    return allPartidos.find((p) => p.id === selectedId) || null
+  }, [partidoDetail, allPartidos, selectedId])
 
   // Auto-select next match on load
   useEffect(() => {
