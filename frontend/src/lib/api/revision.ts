@@ -139,7 +139,7 @@ async function putToSignedUrl(signedUrl: string, file: File, mime: string) {
     })
     if (!res.ok) {
       const text = await res.text().catch(() => '')
-      throw new Error(text || `No se pudo subir el archivo (${res.status})`)
+      throw new Error(storageUploadMessage(res.status, text))
     }
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') {
@@ -152,6 +152,28 @@ async function putToSignedUrl(signedUrl: string, file: File, mime: string) {
   } finally {
     window.clearTimeout(timer)
   }
+}
+
+function storageUploadMessage(status: number, text: string): string {
+  const raw = (text || '').trim()
+  try {
+    const parsed = JSON.parse(raw) as { code?: string; error?: string; message?: string }
+    const code = String(parsed.code || '')
+    const err = String(parsed.error || '')
+    if (
+      status === 413
+      || code === 'EntityTooLarge'
+      || /payload too large/i.test(err)
+      || /exceeded the maximum allowed size/i.test(String(parsed.message || ''))
+    ) {
+      return 'El recorte supera el límite de Storage (máximo 200MB). Recorta más corto e inténtalo de nuevo.'
+    }
+  } catch {
+    if (status === 413 || /EntityTooLarge|Payload too large/i.test(raw)) {
+      return 'El recorte supera el límite de Storage (máximo 200MB). Recorta más corto e inténtalo de nuevo.'
+    }
+  }
+  return raw || `No se pudo subir el archivo (${status})`
 }
 
 export const revisionApi = {

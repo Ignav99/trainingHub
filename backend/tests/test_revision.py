@@ -3,8 +3,10 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from app.services.revision_service import (
+    MAX_CLIP_BYTES,
     default_folders_for,
     drive_connected,
+    ensure_video_bucket,
     flatten_pack_graph,
     generate_session_code,
     make_fingerprint,
@@ -341,3 +343,36 @@ class TestFlattenPackGraph:
         assert flat["folders"] == []
         assert flat["clips"] == []
         assert flat["links"] == []
+
+
+class TestEnsureVideoBucket:
+    def test_raises_limit_on_existing_50mb_bucket(self):
+        from unittest.mock import MagicMock
+
+        supabase = MagicMock()
+        supabase.storage.get_bucket.return_value = {"id": "revision-clips", "file_size_limit": 50 * 1024 * 1024}
+        ensure_video_bucket(supabase)
+        supabase.storage.update_bucket.assert_called_once_with(
+            "revision-clips",
+            {"public": True, "file_size_limit": MAX_CLIP_BYTES},
+        )
+        supabase.storage.create_bucket.assert_not_called()
+
+    def test_skips_update_when_already_200mb(self):
+        from unittest.mock import MagicMock
+
+        supabase = MagicMock()
+        supabase.storage.get_bucket.return_value = {"id": "revision-clips", "file_size_limit": MAX_CLIP_BYTES}
+        ensure_video_bucket(supabase)
+        supabase.storage.update_bucket.assert_not_called()
+
+    def test_creates_bucket_when_missing(self):
+        from unittest.mock import MagicMock
+
+        supabase = MagicMock()
+        supabase.storage.get_bucket.side_effect = Exception("not found")
+        ensure_video_bucket(supabase)
+        supabase.storage.create_bucket.assert_called_once_with(
+            "revision-clips",
+            options={"public": True, "file_size_limit": MAX_CLIP_BYTES},
+        )
