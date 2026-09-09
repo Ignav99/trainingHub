@@ -5,6 +5,7 @@ import pytest
 from app.services.revision_service import (
     default_folders_for,
     drive_connected,
+    flatten_pack_graph,
     generate_session_code,
     make_fingerprint,
     should_keep_hot,
@@ -302,3 +303,41 @@ class TestClipUploadEndpoints:
                 )
         assert err.value.status_code == 400
         get_sb.assert_not_called()
+
+
+class TestFlattenPackGraph:
+    def test_splits_nested_clips_and_links(self):
+        flat = flatten_pack_graph({
+            "id": "pack-1",
+            "revision_folders": [
+                {"id": "f2", "orden": 1, "nombre": "Defensa"},
+                {"id": "f1", "orden": 0, "nombre": "Ataque"},
+            ],
+            "revision_clips": [
+                {
+                    "id": "c1",
+                    "titulo": "Gol",
+                    "created_at": "2026-09-09T10:00:00Z",
+                    "revision_clip_links": [
+                        {"id": "l1", "clip_id": "c1", "folder_id": "f1"},
+                    ],
+                },
+                {
+                    "id": "c2",
+                    "titulo": "Pérdida",
+                    "created_at": "2026-09-09T11:00:00Z",
+                    "revision_clip_links": [],
+                },
+            ],
+        })
+        assert "revision_clips" not in flat
+        assert [f["id"] for f in flat["folders"]] == ["f1", "f2"]
+        assert [c["id"] for c in flat["clips"]] == ["c2", "c1"]
+        assert "revision_clip_links" not in flat["clips"][0]
+        assert flat["links"] == [{"id": "l1", "clip_id": "c1", "folder_id": "f1"}]
+
+    def test_empty_graph(self):
+        flat = flatten_pack_graph({"id": "pack-2"})
+        assert flat["folders"] == []
+        assert flat["clips"] == []
+        assert flat["links"] == []

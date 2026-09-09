@@ -77,10 +77,6 @@ const PartidoPlanTab = dynamic(() => import('./PartidoPlanTab').then(m => ({ def
   loading: () => <div className="animate-pulse space-y-4 p-4"><div className="h-8 bg-muted rounded w-1/3" /><div className="h-32 bg-muted rounded" /><div className="h-32 bg-muted rounded" /></div>
 })
 
-const VideoSection = dynamic(() => import('./VideoSection').then(m => ({ default: m.VideoSection })), {
-  loading: () => <div className="animate-pulse h-24 bg-muted rounded" />
-})
-
 const RevisionLibrary = dynamic(() => import('@/components/revision/RevisionLibrary').then(m => ({ default: m.RevisionLibrary })), {
   loading: () => <div className="animate-pulse h-24 bg-muted rounded" />
 })
@@ -229,7 +225,8 @@ export function MatchDetailPanel({
   // Initialize informe data from fetched stats + convocados + acta del anotador
   useEffect(() => {
     if (!selectedId) return
-    const readyKey = `${selectedId}:${convocados.length}`
+    const statsKey = estadisticasData === undefined ? 'pending' : 'ready'
+    const readyKey = `${selectedId}:${convocados.length}:${statsKey}`
     if (informeInitialized === readyKey) return
     if (loadingConv) return
 
@@ -242,8 +239,6 @@ export function MatchDetailPanel({
     const fromAnotador = parsed.anotador && hasAnotadorLiveData(parsed.anotador)
       ? informeFromSnapshot(parsed.anotador, convocados.map((c) => c.id), nameOf)
       : null
-
-    if (!fromAnotador && estadisticasData === undefined) return
 
     const stats: Record<string, number> = {}
     for (const field of TEAM_STAT_FIELDS) {
@@ -1583,11 +1578,6 @@ export function MatchDetailPanel({
                 </Button>
               )}
             </div>
-          )}
-
-          {/* Video Section */}
-          {equipoActivo?.id && (
-            <VideoSection partidoId={selectedPartido.id} equipoId={equipoActivo.id} contexto="post_partido" />
           )}
 
           {equipoActivo?.id && (

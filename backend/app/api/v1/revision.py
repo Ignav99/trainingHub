@@ -94,26 +94,30 @@ def _ensure_default_folders(supabase, pack: dict) -> list[dict]:
     return created.data or []
 
 
-def _pack_payload(supabase, pack: dict) -> dict:
-    folders = _ensure_default_folders(supabase, pack)
+def _load_clips_and_links(supabase, pack_id: str) -> tuple[list[dict], list[dict]]:
     clips = (
         supabase.table("revision_clips")
         .select("*")
-        .eq("pack_id", pack["id"])
+        .eq("pack_id", pack_id)
         .order("created_at", desc=True)
         .execute()
     )
     clip_rows = clips.data or []
     clip_ids = [c["id"] for c in clip_rows]
-    links = []
-    if clip_ids:
-        links_res = (
-            supabase.table("revision_clip_links")
-            .select("*")
-            .in_("clip_id", clip_ids)
-            .execute()
-        )
-        links = links_res.data or []
+    if not clip_ids:
+        return clip_rows, []
+    links_res = (
+        supabase.table("revision_clip_links")
+        .select("*")
+        .in_("clip_id", clip_ids)
+        .execute()
+    )
+    return clip_rows, links_res.data or []
+
+
+def _pack_payload(supabase, pack: dict) -> dict:
+    folders = _ensure_default_folders(supabase, pack)
+    clip_rows, links = _load_clips_and_links(supabase, pack["id"])
     return {
         **pack,
         "folders": folders,
@@ -138,7 +142,6 @@ async def get_or_create_pack(
 
     supabase = get_supabase()
     equipo_id = str(data.equipo_id)
-    _verify_equipo(supabase, equipo_id)
 
     query = (
         supabase.table("revision_packs")
@@ -166,8 +169,19 @@ async def get_or_create_pack(
         "rival_id": str(data.rival_id) if data.rival_id else None,
         "microciclo_id": str(data.microciclo_id) if data.microciclo_id else None,
     }
-    created = supabase.table("revision_packs").insert(row).execute()
-    pack = created.data[0]
+    try:
+        _verify_equipo(supabase, equipo_id)
+        created = supabase.table("revision_packs").insert(row).execute()
+        pack = created.data[0]
+    except HTTPException:
+        raise
+    except Exception as exc:
+        # Dos pestañas a la vez: reutiliza el pack que acaba de crear la otra.
+        logger.warning("revision pack insert conflict: %s", exc)
+        raced = query.limit(1).execute()
+        if raced.data:
+            return _pack_payload(supabase, raced.data[0])
+        raise HTTPException(status_code=500, detail="No se pudo abrir la librería de revisión.") from exc
     return _pack_payload(supabase, pack)
 
 
