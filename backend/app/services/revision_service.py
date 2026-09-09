@@ -300,11 +300,32 @@ def normalize_signed_upload_url(
     return {"signed_url": signed, "token": token, "path": path}
 
 
+def bucket_file_size_limit(bucket) -> int:
+    if bucket is None:
+        return 0
+    if isinstance(bucket, dict):
+        return int(bucket.get("file_size_limit") or 0)
+    return int(getattr(bucket, "file_size_limit", 0) or 0)
+
+
 def ensure_video_bucket(supabase, bucket: str = REVISION_BUCKET) -> None:
+    """Crea el bucket o sube su tope a 200MB (el default de Storage es 50MB)."""
+    options = {"public": True, "file_size_limit": MAX_CLIP_BYTES}
     try:
-        supabase.storage.get_bucket(bucket)
+        existing = supabase.storage.get_bucket(bucket)
     except Exception:
+        existing = None
+
+    if existing is None:
         try:
-            supabase.storage.create_bucket(bucket, options={"public": True})
-        except Exception:
-            pass
+            supabase.storage.create_bucket(bucket, options=options)
+        except Exception as exc:
+            logger.warning("could not create %s bucket: %s", bucket, exc)
+        return
+
+    if bucket_file_size_limit(existing) >= MAX_CLIP_BYTES:
+        return
+    try:
+        supabase.storage.update_bucket(bucket, options)
+    except Exception as exc:
+        logger.warning("could not raise %s file size limit to %s: %s", bucket, MAX_CLIP_BYTES, exc)

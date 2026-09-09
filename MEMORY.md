@@ -3,6 +3,7 @@
 ## Revisión de vídeo
 Dos herramientas: **Video Análisis** (partido entero local, nunca a la nube) y **Revisión** (recortes cortos en informes).
 - Subida de recortes: el navegador manda el fichero **directo a Supabase Storage** (URL firmada). El API solo firma y confirma. El proxy anterior cargaba el vídeo en RAM y Render mataba la instancia (`failed to fetch` + restart).
+- El bucket `revision-clips` se crea/actualiza a **200MB**. El 413 `EntityTooLarge` en 87MB era el tope default de 50MB. Si el proyecto es Free, Supabase no deja más de 50MB a nivel global (hay que Pro o recortar más).
 - Informe de partido: **ya no hay bloque «Añadir video»** encima de Revisión (era el mismo flujo). Solo Revisión.
 - La librería no bloquea la UI: «Subir recorte» funciona aunque el pack aún no haya cargado. Si falla, hay reintentar (antes el spinner «Cargando librería…» se quedaba eterno si el POST fallaba porque `!pack` seguía activo).
 - Lista de partidos y GET de un partido van sin `pre_match_intel` (JSON enorme). El intel se pide en su endpoint.
