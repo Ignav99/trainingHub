@@ -33,6 +33,9 @@ class ConnectionManager:
         self.user_connections: dict[str, list[WebSocket]] = {}
         # team_id -> dict of user_id -> WebSocket
         self.team_connections: dict[str, dict[str, WebSocket]] = {}
+        # sala code -> list of sockets (host + tablet)
+        self.sala_rooms: dict[str, list[WebSocket]] = {}
+        self.ws_salas: dict[int, list[str]] = {}
 
     async def connect_user(self, websocket: WebSocket, user_id: str, team_id: Optional[str] = None):
         """Accept and register a user's WebSocket connection."""
@@ -64,6 +67,33 @@ class ConnectionManager:
                 del self.team_connections[team_id]
 
         logger.info(f"WebSocket disconnected: user={user_id}")
+        self.leave_all_salas(websocket)
+
+    def join_sala(self, websocket: WebSocket, session_code: str):
+        code = session_code.upper().strip()
+        self.sala_rooms.setdefault(code, []).append(websocket)
+        self.ws_salas.setdefault(id(websocket), []).append(code)
+
+    def leave_all_salas(self, websocket: WebSocket):
+        for code in self.ws_salas.pop(id(websocket), []):
+            remaining = [w for w in self.sala_rooms.get(code, []) if w != websocket]
+            if remaining:
+                self.sala_rooms[code] = remaining
+            else:
+                self.sala_rooms.pop(code, None)
+
+    async def broadcast_sala(self, session_code: str, message: dict, exclude: Optional[WebSocket] = None):
+        code = session_code.upper().strip()
+        disconnected: list[WebSocket] = []
+        for ws in list(self.sala_rooms.get(code, [])):
+            if ws is exclude:
+                continue
+            try:
+                await ws.send_json(message)
+            except Exception:
+                disconnected.append(ws)
+        if disconnected:
+            self.sala_rooms[code] = [w for w in self.sala_rooms.get(code, []) if w not in disconnected]
 
     async def send_to_user(self, user_id: str, message: dict):
         """Send a message to all connections of a specific user."""
@@ -217,6 +247,27 @@ async def websocket_endpoint(
                     },
                     exclude_user=user_id,
                 )
+
+            elif msg_type == "sala_join":
+                code = (data.get("session_code") or "").upper().strip()
+                if code:
+                    manager.join_sala(websocket, code)
+                    await websocket.send_json({"type": "sala_joined", "session_code": code})
+
+            elif msg_type == "sala_sync":
+                code = (data.get("session_code") or "").upper().strip()
+                if code:
+                    payload = {
+                        "type": "sala_sync",
+                        "user_id": user_id,
+                        "session_code": code,
+                        "clip_id": data.get("clip_id"),
+                        "t": data.get("t"),
+                        "paused": data.get("paused"),
+                        "overlay": data.get("overlay"),
+                        "role": data.get("role"),
+                    }
+                    await manager.broadcast_sala(code, payload, exclude=websocket)
 
     except WebSocketDisconnect:
         manager.disconnect_user(websocket, user_id, equipo_id)

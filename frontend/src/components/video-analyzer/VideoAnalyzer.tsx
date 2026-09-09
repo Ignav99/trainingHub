@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { X, Camera, Scissors, ArrowLeft, Snowflake, Download, List, LayoutGrid } from 'lucide-react'
+import { X, Camera, Scissors, ArrowLeft, Snowflake, Download, List, LayoutGrid, Send } from 'lucide-react'
 import type { DrawingElement } from '@/types'
 
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
@@ -26,6 +26,7 @@ import { useCodeWindowStore } from './useCodeWindowStore'
 import { useOrganizerStore } from './useOrganizerStore'
 import { FloatingWindowManager } from './FloatingWindowManager'
 import { useFloatingWindows } from './useFloatingWindows'
+import { SendToRevisionDialog } from '@/components/revision/SendToRevisionDialog'
 import type { DrawingTool, FreezeFrame } from './types'
 
 interface VideoAnalyzerProps {
@@ -35,6 +36,7 @@ interface VideoAnalyzerProps {
   partidoId: string
   equipoId: string
   videoId?: string
+  rivalId?: string
   onClose: () => void
 }
 
@@ -45,6 +47,7 @@ export function VideoAnalyzer({
   partidoId,
   equipoId,
   videoId,
+  rivalId,
   onClose,
 }: VideoAnalyzerProps) {
   const playerRef = useRef<VideoPlayerHandle>(null)
@@ -157,6 +160,7 @@ export function VideoAnalyzer({
 
   // Shortcut overlay
   const [showShortcuts, setShowShortcuts] = useState(false)
+  const [sendRevisionClipId, setSendRevisionClipId] = useState<string | null>(null)
 
   // Tagging keyboard hook
   useTaggingKeyboard({
@@ -209,8 +213,8 @@ export function VideoAnalyzer({
     mergeClips, captureFreezeFrame, updateFreezeFrame, removeFreezeFrame,
   } = useClips()
 
-  // Persist clips to localStorage per partido
-  useClipPersistence(partidoId, clips, setClipsFromStorage)
+  // Persist clips to localStorage per partido + huella del fichero
+  useClipPersistence(partidoId, clips, setClipsFromStorage, localFile ? `${localFile.name}|${localFile.size}` : undefined)
 
   // Organizer: add code event from timeline lanes
   const handleAddCodeEventToOrganizer = useCallback((eventId: string) => {
@@ -408,9 +412,9 @@ export function VideoAnalyzer({
   // Drawing engine — uses full elements array; wrapper tags new elements
   const {
     preview,
-    handleMouseDown,
-    handleMouseMove,
-    handleMouseUp,
+    handlePointerDown,
+    handlePointerMove,
+    handlePointerUp,
     deleteSelected: engineDeleteSelected,
   } = useDrawingEngine({
     elements,
@@ -827,6 +831,16 @@ export function VideoAnalyzer({
                 <Download className="h-4 w-4 mr-1" />
                 Exportar
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-emerald-300 hover:text-white hover:bg-emerald-600/50"
+                onClick={() => setSendRevisionClipId(editingClipId)}
+                title="Enviar recorte a Revisión (informe)"
+              >
+                <Send className="h-4 w-4 mr-1" />
+                A revisión
+              </Button>
             </div>
           </>
         ) : (
@@ -907,9 +921,9 @@ export function VideoAnalyzer({
                   selectedId={selectedId}
                   interactive={interactive}
                   tool={tool}
-                  onMouseDown={handleMouseDown}
-                  onMouseMove={handleMouseMove}
-                  onMouseUp={handleMouseUp}
+                  onPointerDown={handlePointerDown}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
                 />
               </div>
             </div>
@@ -930,6 +944,12 @@ export function VideoAnalyzer({
                   onClick={() => handleAddClipToOrganizer(activeClipId)}
                 >
                   + Añadir al Organizer
+                </button>
+                <button
+                  className="text-[11px] px-2 py-0.5 rounded bg-emerald-600/40 hover:bg-emerald-600/70 text-white transition-colors shrink-0"
+                  onClick={() => setSendRevisionClipId(activeClipId)}
+                >
+                  A revisión
                 </button>
               </div>
             )
@@ -999,6 +1019,19 @@ export function VideoAnalyzer({
       <ClipExportDialog
         open={!!exportingClip}
         clipTitle={exportingClip?.title || ''}
+      />
+
+      <SendToRevisionDialog
+        open={!!sendRevisionClipId}
+        onOpenChange={(v) => { if (!v) setSendRevisionClipId(null) }}
+        equipoId={equipoId}
+        partidoId={partidoId}
+        rivalId={rivalId}
+        videoElement={playerRef.current?.getVideoElement() || null}
+        clipTitle={clips.find((c) => c.id === sendRevisionClipId)?.title || 'Clip'}
+        startTime={clips.find((c) => c.id === sendRevisionClipId)?.startTime || 0}
+        endTime={clips.find((c) => c.id === sendRevisionClipId)?.endTime || 0}
+        sourceVideoId={videoId}
       />
 
       {/* Shortcut overlay */}

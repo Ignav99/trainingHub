@@ -9,16 +9,19 @@ interface DrawingOverlayProps {
   selectedId: string | null
   interactive: boolean
   tool: string
-  onMouseDown: (e: React.MouseEvent<SVGSVGElement>) => void
-  onMouseMove: (e: React.MouseEvent<SVGSVGElement>) => void
-  onMouseUp: (e: React.MouseEvent<SVGSVGElement>) => void
+  onMouseDown?: (e: React.MouseEvent<SVGSVGElement>) => void
+  onMouseMove?: (e: React.MouseEvent<SVGSVGElement>) => void
+  onMouseUp?: (e: React.MouseEvent<SVGSVGElement>) => void
+  onPointerDown?: (e: React.PointerEvent<SVGSVGElement>) => void
+  onPointerMove?: (e: React.PointerEvent<SVGSVGElement>) => void
+  onPointerUp?: (e: React.PointerEvent<SVGSVGElement>) => void
 }
 
 export const DrawingOverlay = forwardRef<SVGSVGElement, DrawingOverlayProps>(
-  function DrawingOverlay(
-    { elements, preview, selectedId, interactive, tool, onMouseDown, onMouseMove, onMouseUp },
-    ref
-  ) {
+      function DrawingOverlay(
+        { elements, preview, selectedId, interactive, tool, onMouseDown, onMouseMove, onMouseUp, onPointerDown, onPointerMove, onPointerUp },
+        ref
+      ) {
     const allElements = preview ? [...elements, preview] : elements
 
     // Collect unique colors for arrow markers
@@ -38,11 +41,15 @@ export const DrawingOverlay = forwardRef<SVGSVGElement, DrawingOverlayProps>(
         ref={ref}
         viewBox="0 0 1920 1080"
         preserveAspectRatio="xMidYMid meet"
-        className="absolute inset-0 w-full h-full"
-        style={{ pointerEvents: enablePointer ? 'all' : 'none', zIndex: 3 }}
+        className="absolute inset-0 w-full h-full touch-none"
+        style={{ pointerEvents: enablePointer ? 'all' : 'none', zIndex: 3, touchAction: 'none' }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerLeave={onPointerUp}
       >
         <defs>
           {arrowColors.map((c) => (

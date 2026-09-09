@@ -55,6 +55,9 @@ export default function ConfiguracionPage() {
   const [colorSecundario, setColorSecundario] = useState(theme.colorSecundario)
   const [savingClub, setSavingClub] = useState(false)
   const [savedClub, setSavedClub] = useState(false)
+  const [driveConnected, setDriveConnected] = useState(!!organizacion?.config?.google_drive?.connected)
+  const [driveFolderUrl, setDriveFolderUrl] = useState(organizacion?.config?.google_drive?.folder_url || '')
+  const [savingDrive, setSavingDrive] = useState(false)
 
   // Logo upload
   const [uploadingLogo, setUploadingLogo] = useState(false)
@@ -88,6 +91,8 @@ export default function ConfiguracionPage() {
   useEffect(() => {
     if (organizacion) {
       setClubName(organizacion.nombre)
+      setDriveConnected(!!organizacion.config?.google_drive?.connected)
+      setDriveFolderUrl(organizacion.config?.google_drive?.folder_url || '')
     }
   }, [organizacion])
 
@@ -288,6 +293,60 @@ export default function ConfiguracionPage() {
                   <Save className="h-4 w-4 mr-2" />
                 )}
                 {savedClub ? 'Guardado' : 'Guardar cambios'}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="card-hover">
+            <CardHeader>
+              <CardTitle className="text-lg">Google Drive (revisión de vídeo)</CardTitle>
+              <CardDescription>
+                A los 30 días los recortes de Revisión se vuelcan a Drive del club y se liberan de Kabin-e.
+                Si Drive no está indicado, los recortes se quedan en la app (no se borran).
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={driveConnected}
+                  onChange={(e) => setDriveConnected(e.target.checked)}
+                />
+                Carpeta de Drive del club lista
+              </label>
+              <div className="space-y-1">
+                <Label>URL de la carpeta de Drive</Label>
+                <Input
+                  value={driveFolderUrl}
+                  onChange={(e) => setDriveFolderUrl(e.target.value)}
+                  placeholder="https://drive.google.com/drive/folders/..."
+                />
+              </div>
+              <Button
+                variant="outline"
+                disabled={savingDrive}
+                onClick={async () => {
+                  setSavingDrive(true)
+                  try {
+                    const updated = await organizacionApi.update({
+                      config: {
+                        google_drive: {
+                          connected: driveConnected,
+                          folder_url: driveFolderUrl.trim() || null,
+                        },
+                      },
+                    })
+                    setOrganizacion(updated)
+                    toast.success('Drive guardado')
+                  } catch (err: any) {
+                    toast.error(err.message || 'No se pudo guardar Drive')
+                  } finally {
+                    setSavingDrive(false)
+                  }
+                }}
+              >
+                {savingDrive ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                Guardar Drive
               </Button>
             </CardContent>
           </Card>

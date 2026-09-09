@@ -81,6 +81,10 @@ const VideoSection = dynamic(() => import('./VideoSection').then(m => ({ default
   loading: () => <div className="animate-pulse h-24 bg-muted rounded" />
 })
 
+const RevisionLibrary = dynamic(() => import('@/components/revision/RevisionLibrary').then(m => ({ default: m.RevisionLibrary })), {
+  loading: () => <div className="animate-pulse h-24 bg-muted rounded" />
+})
+
 // ============ Constants ============
 
 const RESULTADO_LABELS: Record<string, { label: string; color: string }> = {
@@ -1584,6 +1588,14 @@ export function MatchDetailPanel({
           {/* Video Section */}
           {equipoActivo?.id && (
             <VideoSection partidoId={selectedPartido.id} equipoId={equipoActivo.id} contexto="post_partido" />
+          )}
+
+          {equipoActivo?.id && (
+            <RevisionLibrary
+              equipoId={equipoActivo.id}
+              ambito="partido_post"
+              partidoId={selectedPartido.id}
+            />
           )}
         </TabsContent>
       </Tabs>

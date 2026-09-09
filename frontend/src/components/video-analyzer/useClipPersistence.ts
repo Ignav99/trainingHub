@@ -17,9 +17,12 @@ const STORAGE_PREFIX = 'kabin-video-clips-'
 export function useClipPersistence(
   partidoId: string,
   clips: Clip[],
-  setClipsFromStorage: (clips: Clip[]) => void
+  setClipsFromStorage: (clips: Clip[]) => void,
+  fileKey?: string
 ) {
-  const storageKey = `${STORAGE_PREFIX}${partidoId}`
+  const storageKey = fileKey
+    ? `${STORAGE_PREFIX}${partidoId}-${fileKey}`
+    : `${STORAGE_PREFIX}${partidoId}`
   const isRestoredRef = useRef(false)
 
   // Restore clips from localStorage on mount

@@ -1,0 +1,474 @@
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+import useSWR from 'swr'
+import { toast } from 'sonner'
+import {
+  Clapperboard,
+  FolderPlus,
+  MonitorPlay,
+  Pencil,
+  Plus,
+  Trash2,
+  Upload,
+  Folder,
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  revisionApi,
+  type RevisionAmbito,
+  type RevisionClip,
+  type RevisionFolder,
+  type RevisionPack,
+} from '@/lib/api/revision'
+import { VideoPlayer } from '@/components/video-analyzer/VideoPlayer'
+import { SalaHostDialog } from './SalaHostDialog'
+
+interface RevisionLibraryProps {
+  equipoId: string
+  ambito: RevisionAmbito
+  partidoId?: string
+  rivalId?: string
+  microcicloId?: string
+  /** Si se indica, selecciona esa fase al abrir. */
+  initialFase?: string
+  compact?: boolean
+}
+
+export function RevisionLibrary({
+  equipoId,
+  ambito,
+  partidoId,
+  rivalId,
+  microcicloId,
+  initialFase,
+  compact,
+}: RevisionLibraryProps) {
+  const swrKey = equipoId
+    ? `revision:${ambito}:${partidoId || ''}:${rivalId || ''}:${microcicloId || ''}`
+    : null
+
+  const { data: pack, mutate, isLoading } = useSWR(swrKey, () =>
+    revisionApi.getOrCreatePack({
+      equipo_id: equipoId,
+      ambito,
+      partido_id: partidoId,
+      rival_id: rivalId,
+      microciclo_id: microcicloId,
+    })
+  )
+
+  const [folderId, setFolderId] = useState<string | null>(null)
+  const [playing, setPlaying] = useState<RevisionClip | null>(null)
+  const [salaClip, setSalaClip] = useState<RevisionClip | null>(null)
+  const [newFolderOpen, setNewFolderOpen] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
+  const [newFolderParent, setNewFolderParent] = useState<string | null>(null)
+  const [renaming, setRenaming] = useState<RevisionFolder | null>(null)
+  const [uploadOpen, setUploadOpen] = useState(false)
+
+  const folders = pack?.folders || []
+  const rootFolders = folders.filter((f) => !f.parent_id).sort((a, b) => a.orden - b.orden)
+
+  useEffect(() => {
+    if (!pack) return
+    if (folderId && pack.folders.some((f) => f.id === folderId)) return
+    const match = initialFase ? pack.folders.find((f) => f.fase === initialFase) : null
+    const firstRoot = [...pack.folders].filter((f) => !f.parent_id).sort((a, b) => a.orden - b.orden)[0]
+    setFolderId(match?.id || firstRoot?.id || null)
+  }, [pack, initialFase, folderId])
+
+  const selected = folders.find((f) => f.id === folderId) || null
+  const children = folders.filter((f) => f.parent_id === folderId).sort((a, b) => a.orden - b.orden)
+  const links = pack?.links || []
+  const clipsInFolder = useMemo(() => {
+    if (!pack || !folderId) return pack?.clips || []
+    const ids = new Set(links.filter((l) => l.folder_id === folderId).map((l) => l.clip_id))
+    const once = selected?.fase === 'once_probable'
+      ? pack.clips.filter((c) => links.some((l) => l.clip_id === c.id && l.slot_tipo === 'once_jugador'))
+      : []
+    const fromFolder = pack.clips.filter((c) => ids.has(c.id))
+    const merged = [...fromFolder]
+    for (const c of once) {
+      if (!merged.some((x) => x.id === c.id)) merged.push(c)
+    }
+    return merged
+  }, [pack, folderId, links, selected])
+
+  const handleCreateFolder = async () => {
+    if (!pack || !newFolderName.trim()) return
+    try {
+      await revisionApi.createFolder({
+        pack_id: pack.id,
+        nombre: newFolderName.trim(),
+        parent_id: newFolderParent || undefined,
+      })
+      setNewFolderOpen(false)
+      setNewFolderName('')
+      setNewFolderParent(null)
+      mutate()
+      toast.success('Carpeta creada')
+    } catch {
+      toast.error('No se pudo crear la carpeta')
+    }
+  }
+
+  const handleRename = async () => {
+    if (!renaming) return
+    try {
+      await revisionApi.updateFolder(renaming.id, { nombre: renaming.nombre })
+      setRenaming(null)
+      mutate()
+    } catch {
+      toast.error('No se pudo renombrar')
+    }
+  }
+
+  const handleDeleteFolder = async (folder: RevisionFolder) => {
+    if (!confirm(`¿Eliminar la carpeta «${folder.nombre}»? Los clips no se borran.`)) return
+    try {
+      await revisionApi.deleteFolder(folder.id)
+      if (folderId === folder.id) setFolderId(folder.parent_id || rootFolders[0]?.id || null)
+      mutate()
+    } catch {
+      toast.error('No se pudo eliminar')
+    }
+  }
+
+  const handleDeleteClip = async (clip: RevisionClip) => {
+    if (!confirm(`¿Eliminar el recorte «${clip.titulo}»?`)) return
+    try {
+      await revisionApi.deleteClip(clip.id)
+      if (playing?.id === clip.id) setPlaying(null)
+      mutate()
+      toast.success('Recorte eliminado')
+    } catch {
+      toast.error('No se pudo eliminar')
+    }
+  }
+
+  if (!equipoId) return null
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <h4 className="text-sm font-semibold flex items-center gap-1.5">
+          <Clapperboard className="h-4 w-4" />
+          Revisión
+        </h4>
+        <div className="flex items-center gap-1">
+          <Button variant="outline" size="sm" onClick={() => { setNewFolderParent(folderId); setNewFolderOpen(true) }}>
+            <FolderPlus className="h-3.5 w-3.5 mr-1" />
+            Carpeta
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setUploadOpen(true)} disabled={!pack}>
+            <Upload className="h-3.5 w-3.5 mr-1" />
+            Subir recorte
+          </Button>
+        </div>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        Recortes cortos para la charla. El partido entero se queda en el ordenador (Video Análisis).
+      </p>
+
+      {isLoading || !pack ? (
+        <Card className="p-6 text-sm text-muted-foreground text-center">Cargando librería…</Card>
+      ) : (
+        <div className={`grid gap-3 ${compact ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-[200px_1fr]'}`}>
+          <div className="space-y-1">
+            {rootFolders.map((f) => (
+              <FolderRow
+                key={f.id}
+                folder={f}
+                folders={folders}
+                selectedId={folderId}
+                onSelect={setFolderId}
+                onRename={setRenaming}
+                onDelete={handleDeleteFolder}
+                onAddChild={(id) => { setNewFolderParent(id); setNewFolderOpen(true) }}
+              />
+            ))}
+          </div>
+
+          <div className="space-y-3 min-w-0">
+            {children.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {children.map((c) => (
+                  <Button key={c.id} variant={folderId === c.id ? 'default' : 'outline'} size="sm" onClick={() => setFolderId(c.id)}>
+                    {c.nombre}
+                  </Button>
+                ))}
+              </div>
+            )}
+
+            {playing && playing.url && playing.status === 'hot' && (
+              <div className="rounded-md overflow-hidden border bg-black">
+                <VideoPlayer src={playing.url} standalonePreview />
+              </div>
+            )}
+
+            {clipsInFolder.length === 0 ? (
+              <Card className="p-6 text-center text-sm text-muted-foreground">
+                <Clapperboard className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                No hay recortes en esta carpeta. Córtalos en Video Análisis y envíalos aquí, o súbelos.
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {clipsInFolder.map((clip) => (
+                  <ClipCard
+                    key={clip.id}
+                    clip={clip}
+                    onPlay={() => setPlaying(clip)}
+                    onPresent={() => setSalaClip(clip)}
+                    onDelete={() => handleDeleteClip(clip)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <Dialog open={newFolderOpen} onOpenChange={setNewFolderOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nueva carpeta</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Nombre</Label>
+            <Input value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} placeholder="Ej. Pressing alto" />
+          </div>
+          <DialogFooter>
+            <Button onClick={handleCreateFolder}>Crear</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!renaming} onOpenChange={() => setRenaming(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Renombrar carpeta</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={renaming?.nombre || ''}
+            onChange={(e) => setRenaming((f) => (f ? { ...f, nombre: e.target.value } : f))}
+          />
+          <DialogFooter>
+            <Button onClick={handleRename}>Guardar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {pack && (
+        <UploadClipDialog
+          open={uploadOpen}
+          onOpenChange={setUploadOpen}
+          pack={pack}
+          folderId={folderId}
+          onDone={() => { setUploadOpen(false); mutate() }}
+        />
+      )}
+
+      {pack && salaClip && (
+        <SalaHostDialog
+          pack={pack}
+          clip={salaClip}
+          equipoId={equipoId}
+          onClose={() => setSalaClip(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function FolderRow({
+  folder,
+  folders,
+  selectedId,
+  onSelect,
+  onRename,
+  onDelete,
+  onAddChild,
+  depth = 0,
+}: {
+  folder: RevisionFolder
+  folders: RevisionFolder[]
+  selectedId: string | null
+  onSelect: (id: string) => void
+  onRename: (f: RevisionFolder) => void
+  onDelete: (f: RevisionFolder) => void
+  onAddChild: (id: string) => void
+  depth?: number
+}) {
+  const kids = folders.filter((f) => f.parent_id === folder.id).sort((a, b) => a.orden - b.orden)
+  const active = selectedId === folder.id
+  return (
+    <div>
+      <div
+        className={`group flex items-center gap-1 rounded-md px-2 py-1 text-sm cursor-pointer ${active ? 'bg-muted font-medium' : 'hover:bg-muted/60'}`}
+        style={{ paddingLeft: 8 + depth * 12 }}
+        onClick={() => onSelect(folder.id)}
+      >
+        <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <span className="truncate flex-1">{folder.nombre}</span>
+        <button className="opacity-0 group-hover:opacity-100 p-0.5" onClick={(e) => { e.stopPropagation(); onRename(folder) }} title="Renombrar">
+          <Pencil className="h-3 w-3" />
+        </button>
+        <button className="opacity-0 group-hover:opacity-100 p-0.5" onClick={(e) => { e.stopPropagation(); onAddChild(folder.id) }} title="Subcarpeta">
+          <Plus className="h-3 w-3" />
+        </button>
+        <button className="opacity-0 group-hover:opacity-100 p-0.5 text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(folder) }} title="Eliminar">
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </div>
+      {kids.map((k) => (
+        <FolderRow
+          key={k.id}
+          folder={k}
+          folders={folders}
+          selectedId={selectedId}
+          onSelect={onSelect}
+          onRename={onRename}
+          onDelete={onDelete}
+          onAddChild={onAddChild}
+          depth={depth + 1}
+        />
+      ))}
+    </div>
+  )
+}
+
+function ClipCard({
+  clip,
+  onPlay,
+  onPresent,
+  onDelete,
+}: {
+  clip: RevisionClip
+  onPlay: () => void
+  onPresent: () => void
+  onDelete: () => void
+}) {
+  const enDrive = clip.status === 'en_drive'
+  const missing = clip.status === 'missing'
+  return (
+    <Card className="p-3 space-y-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-medium truncate">{clip.titulo}</p>
+          {clip.frase && <p className="text-xs text-muted-foreground line-clamp-2">{clip.frase}</p>}
+          {(clip.rival_jugador_nombre || clip.rival_jugador_dorsal) && (
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {clip.rival_jugador_dorsal ? `#${clip.rival_jugador_dorsal} ` : ''}
+              {clip.rival_jugador_nombre}
+            </p>
+          )}
+        </div>
+        {enDrive ? (
+          <Badge variant="secondary">En Drive</Badge>
+        ) : missing ? (
+          <Badge variant="destructive">Sin archivo</Badge>
+        ) : null}
+      </div>
+      {clip.archive_warning && (
+        <p className="text-[11px] text-amber-700">{clip.archive_warning}</p>
+      )}
+      <div className="flex items-center gap-1">
+        <Button size="sm" variant="outline" onClick={onPlay} disabled={!clip.url || clip.status !== 'hot'}>
+          Ver
+        </Button>
+        <Button size="sm" onClick={onPresent} disabled={!clip.url || clip.status !== 'hot'}>
+          <MonitorPlay className="h-3.5 w-3.5 mr-1" />
+          Presentar
+        </Button>
+        <Button size="icon" variant="ghost" className="h-8 w-8 ml-auto text-destructive" onClick={onDelete}>
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    </Card>
+  )
+}
+
+function UploadClipDialog({
+  open,
+  onOpenChange,
+  pack,
+  folderId,
+  onDone,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  pack: RevisionPack
+  folderId: string | null
+  onDone: () => void
+}) {
+  const [titulo, setTitulo] = useState('')
+  const [frase, setFrase] = useState('')
+  const [file, setFile] = useState<File | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const submit = async () => {
+    if (!file) return
+    if (file.size > 200 * 1024 * 1024) {
+      toast.error('El recorte no puede superar 200MB')
+      return
+    }
+    setBusy(true)
+    try {
+      const fd = new FormData()
+      fd.append('pack_id', pack.id)
+      fd.append('equipo_id', pack.equipo_id)
+      fd.append('titulo', titulo.trim() || file.name)
+      if (frase.trim()) fd.append('frase', frase.trim())
+      if (folderId) fd.append('folder_id', folderId)
+      fd.append('file', file)
+      await revisionApi.uploadClip(fd)
+      toast.success('Recorte subido')
+      setTitulo('')
+      setFrase('')
+      setFile(null)
+      onDone()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error al subir')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Subir recorte</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">Solo clips cortos (1–2 min). No subas el partido entero.</p>
+          <div className="space-y-1">
+            <Label>Título</Label>
+            <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Frase corta</Label>
+            <Input value={frase} onChange={(e) => setFrase(e.target.value)} placeholder="Una línea para la charla" />
+          </div>
+          <Input type="file" accept="video/*" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+        </div>
+        <DialogFooter>
+          <Button onClick={submit} disabled={!file || busy}>{busy ? 'Subiendo…' : 'Subir'}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}

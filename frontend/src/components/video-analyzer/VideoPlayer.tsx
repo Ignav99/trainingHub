@@ -46,16 +46,17 @@ interface VideoPlayerProps {
    *    keeps play position) for a bigger, popup-like viewing area
    */
   standalonePreview?: boolean
+  defaultMuted?: boolean
 }
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
-  function VideoPlayer({ src, clipRange, onTimeUpdate, onPlayStateChange, onDurationChange, standalonePreview }, ref) {
+  function VideoPlayer({ src, clipRange, onTimeUpdate, onPlayStateChange, onDurationChange, standalonePreview, defaultMuted }, ref) {
     const videoRef = useRef<HTMLVideoElement>(null as unknown as HTMLVideoElement)
     const containerRef = useRef<HTMLDivElement>(null)
     const [playing, setPlaying] = useState(false)
     const [currentTime, setCurrentTime] = useState(0)
     const [duration, setDuration] = useState(0)
-    const [muted, setMuted] = useState(false)
+    const [muted, setMuted] = useState(!!defaultMuted)
     const [speed, setSpeed] = useState(1)
     const [isFullscreen, setIsFullscreen] = useState(false)
     const [isExpanded, setIsExpanded] = useState(false)

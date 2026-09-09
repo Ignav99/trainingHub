@@ -45,6 +45,7 @@ from app.api.v1 import (
     abp,
     portero_tareas,
     videos,
+    revision,
     video_anotaciones,
     video_tag_categories,
     video_tags,
@@ -332,6 +333,12 @@ api_router.include_router(
     videos.router,
     prefix="/videos",
     tags=["Videos Partido"]
+)
+
+api_router.include_router(
+    revision.router,
+    prefix="/revision",
+    tags=["Revisión de vídeo"]
 )
 
 api_router.include_router(
