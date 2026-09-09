@@ -427,14 +427,13 @@ function UploadClipDialog({
     }
     setBusy(true)
     try {
-      const fd = new FormData()
-      fd.append('pack_id', pack.id)
-      fd.append('equipo_id', pack.equipo_id)
-      fd.append('titulo', titulo.trim() || file.name)
-      if (frase.trim()) fd.append('frase', frase.trim())
-      if (folderId) fd.append('folder_id', folderId)
-      fd.append('file', file)
-      await revisionApi.uploadClip(fd)
+      await revisionApi.uploadClip(file, {
+        pack_id: pack.id,
+        equipo_id: pack.equipo_id,
+        titulo: titulo.trim() || file.name,
+        frase: frase.trim() || undefined,
+        folder_id: folderId || undefined,
+      })
       toast.success('Recorte subido')
       setTitulo('')
       setFrase('')

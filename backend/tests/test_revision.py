@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from app.services.revision_service import (
     default_folders_for,
     drive_connected,
@@ -123,3 +125,180 @@ class TestDriveGate:
 
     def test_connected_flag(self):
         assert drive_connected({"google_drive": {"connected": True, "folder_url": "https://drive.google.com"}}) is True
+
+
+class TestClipUploadHelpers:
+    def test_sanitize_replaces_spaces(self):
+        from app.services.revision_service import sanitize_clip_filename
+        assert sanitize_clip_filename("gol 1.mp4") == "gol_1.mp4"
+
+    def test_path_includes_equipo_and_pack(self):
+        from app.services.revision_service import make_clip_storage_path
+        path = make_clip_storage_path("eq-1", "pack-2", "a.mp4", now_ms=99)
+        assert path == "eq-1/pack-2/99_a.mp4"
+
+    def test_rejects_foreign_or_traversal_path(self):
+        from app.services.revision_service import is_allowed_clip_path
+        assert is_allowed_clip_path("eq/pk/1_a.mp4", "eq", "pk") is True
+        assert is_allowed_clip_path("other/pk/1_a.mp4", "eq", "pk") is False
+        assert is_allowed_clip_path("eq/pk/../secret.mp4", "eq", "pk") is False
+
+    def test_strip_bucket_prefix(self):
+        from app.services.revision_service import strip_bucket_prefix
+        assert strip_bucket_prefix("revision-clips/eq/a.webm") == "eq/a.webm"
+        assert strip_bucket_prefix("eq/a.webm") == "eq/a.webm"
+
+    def test_signed_url_relative_becomes_absolute(self):
+        from app.services.revision_service import normalize_signed_upload_url
+        out = normalize_signed_upload_url(
+            {"url": "/object/upload/sign/revision-clips/eq/a", "token": "tok"},
+            "https://proj.supabase.co",
+            "eq/a",
+        )
+        assert out["signed_url"].startswith("https://proj.supabase.co/storage/v1/object/upload/sign/")
+        assert "token=tok" in out["signed_url"]
+        assert out["path"] == "eq/a"
+
+    def test_signed_url_already_absolute(self):
+        from app.services.revision_service import normalize_signed_upload_url
+        out = normalize_signed_upload_url(
+            {
+                "signed_url": "https://proj.supabase.co/storage/v1/object/upload/sign/x?token=abc",
+                "token": "tok",
+                "path": "revision-clips/eq/pk/clip.webm",
+            },
+            "https://proj.supabase.co",
+            "eq/pk/clip.webm",
+        )
+        assert out["signed_url"].startswith("https://")
+        assert out["path"] == "eq/pk/clip.webm"
+
+    def test_mime_from_name_and_rejects_images(self):
+        from app.services.revision_service import normalize_clip_mime
+        assert normalize_clip_mime("", "clip.mp4") == "video/mp4"
+        assert normalize_clip_mime("application/octet-stream", "a.webm") == "video/webm"
+        try:
+            normalize_clip_mime("image/png", "a.png")
+            raise AssertionError("expected ValueError")
+        except ValueError:
+            pass
+
+    def test_upload_route_does_not_join_file_in_memory(self):
+        from pathlib import Path
+        src = Path(__file__).resolve().parents[1] / "app" / "api" / "v1" / "revision.py"
+        text = src.read_text()
+        assert 'b"".join' not in text
+        assert "create_signed_upload_url" in text
+        assert "/clips/upload-url" in text
+        assert "NamedTemporaryFile" in text
+
+
+class TestClipUploadEndpoints:
+    @pytest.fixture(autouse=True)
+    def _need_api_stack(self):
+        pytest.importorskip("fastapi")
+        pytest.importorskip("supabase")
+
+    @pytest.mark.asyncio
+    async def test_upload_url_rejects_oversize_before_storage(self):
+        from unittest.mock import MagicMock, patch
+        from uuid import uuid4
+
+        from fastapi import HTTPException
+
+        from app.api.v1.revision import create_clip_upload_url
+        from app.models.revision import ClipUploadUrlRequest
+
+        auth = MagicMock()
+        auth.user_id = "user-1"
+        with patch("app.api.v1.revision.get_supabase") as get_sb:
+            with pytest.raises(HTTPException) as err:
+                await create_clip_upload_url(
+                    ClipUploadUrlRequest(
+                        pack_id=uuid4(),
+                        equipo_id=uuid4(),
+                        filename="clip.webm",
+                        size_bytes=201 * 1024 * 1024,
+                        mime_type="video/webm",
+                    ),
+                    auth=auth,
+                )
+        assert err.value.status_code == 400
+        get_sb.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_upload_url_returns_signed_url_without_uploading_bytes(self):
+        from unittest.mock import MagicMock, patch
+        from uuid import uuid4
+
+        from app.api.v1.revision import create_clip_upload_url
+        from app.models.revision import ClipUploadUrlRequest
+
+        equipo = uuid4()
+        pack = uuid4()
+        supabase = MagicMock()
+        chain = MagicMock()
+        chain.select.return_value = chain
+        chain.eq.return_value = chain
+        chain.limit.return_value = chain
+
+        def table(name):
+            if name == "equipos":
+                chain.execute.return_value = MagicMock(data=[{"id": str(equipo), "organizacion_id": "org"}])
+            elif name == "revision_packs":
+                chain.execute.return_value = MagicMock(data=[{"id": str(pack), "equipo_id": str(equipo)}])
+            return chain
+
+        supabase.table.side_effect = table
+        supabase.storage.get_bucket.return_value = {"id": "revision-clips"}
+        supabase.storage.from_.return_value.create_signed_upload_url.return_value = {
+            "signed_url": "https://proj.supabase.co/storage/v1/object/upload/sign/x?token=abc",
+            "token": "abc",
+            "path": f"{equipo}/{pack}/1_clip.webm",
+        }
+
+        auth = MagicMock()
+        auth.user_id = "user-1"
+        with patch("app.api.v1.revision.get_supabase", return_value=supabase):
+            result = await create_clip_upload_url(
+                ClipUploadUrlRequest(
+                    pack_id=pack,
+                    equipo_id=equipo,
+                    filename="clip.webm",
+                    size_bytes=5000,
+                    mime_type="video/webm",
+                ),
+                auth=auth,
+            )
+
+        assert result["signed_url"].startswith("https://")
+        assert result["path"].startswith(f"{equipo}/{pack}/")
+        supabase.storage.from_.return_value.upload.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_confirm_rejects_path_from_another_team(self):
+        from unittest.mock import MagicMock, patch
+        from uuid import uuid4
+
+        from fastapi import HTTPException
+
+        from app.api.v1.revision import confirm_clip_upload
+        from app.models.revision import ClipConfirmRequest
+
+        auth = MagicMock()
+        auth.user_id = "user-1"
+        with patch("app.api.v1.revision.get_supabase") as get_sb:
+            with pytest.raises(HTTPException) as err:
+                await confirm_clip_upload(
+                    ClipConfirmRequest(
+                        pack_id=uuid4(),
+                        equipo_id=uuid4(),
+                        storage_path="other-team/pack/clip.webm",
+                        titulo="Gol",
+                        size_bytes=5000,
+                        mime_type="video/webm",
+                    ),
+                    auth=auth,
+                )
+        assert err.value.status_code == 400
+        get_sb.assert_not_called()

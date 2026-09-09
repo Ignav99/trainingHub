@@ -93,20 +93,24 @@ export function SendToRevisionDialog({
     try {
       toast.message('Recortando en el ordenador… el partido no se sube')
       const blob = await extractClipRange(videoElement, startTime, endTime)
-      const fd = new FormData()
-      fd.append('pack_id', pack.id)
-      fd.append('equipo_id', equipoId)
-      fd.append('titulo', titulo.trim() || clipTitle)
-      if (frase.trim()) fd.append('frase', frase.trim())
-      fd.append('folder_id', folderId)
-      fd.append('duration_ms', String(Math.round((endTime - startTime) * 1000)))
-      fd.append('start_ms', String(Math.round(startTime * 1000)))
-      fd.append('end_ms', String(Math.round(endTime * 1000)))
-      if (sourceVideoId) fd.append('source_video_id', sourceVideoId)
+      const clipFile = new File(
+        [blob],
+        `${(titulo || 'clip').replace(/[^\w.-]+/g, '_')}.webm`,
+        { type: blob.type || 'video/webm' }
+      )
       const fase = pack.folders.find((f) => f.id === folderId)?.fase
-      if (fase) fd.append('fase', fase)
-      fd.append('file', new File([blob], `${(titulo || 'clip').replace(/[^\w.-]+/g, '_')}.webm`, { type: blob.type || 'video/webm' }))
-      await revisionApi.uploadClip(fd)
+      await revisionApi.uploadClip(clipFile, {
+        pack_id: pack.id,
+        equipo_id: equipoId,
+        titulo: titulo.trim() || clipTitle,
+        frase: frase.trim() || undefined,
+        folder_id: folderId,
+        duration_ms: Math.round((endTime - startTime) * 1000),
+        start_ms: Math.round(startTime * 1000),
+        end_ms: Math.round(endTime * 1000),
+        source_video_id: sourceVideoId,
+        fase: fase || undefined,
+      })
       toast.success('Recorte enviado a Revisión')
       onOpenChange(false)
     } catch (e) {

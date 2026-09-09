@@ -5,16 +5,21 @@ Revisión de vídeo — librería de recortes para informes y sala.
 from __future__ import annotations
 
 import logging
+import os
+import tempfile
 from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 
+from app.config import get_settings
 from app.database import get_supabase
 from app.models.revision import (
     AMBITOS,
+    ClipConfirmRequest,
     ClipLinkCreate,
     ClipUpdate,
+    ClipUploadUrlRequest,
     FolderCreate,
     FolderUpdate,
     PackGetOrCreate,
@@ -25,12 +30,17 @@ from app.security.dependencies import AuthContext, require_permission
 from app.security.permissions import Permission
 from app.services.revision_service import (
     MAX_CLIP_BYTES,
+    MIN_CLIP_BYTES,
     REVISION_BUCKET,
     archive_expired_clips,
     default_folders_for,
     ensure_video_bucket,
     generate_session_code,
     hot_until_from,
+    is_allowed_clip_path,
+    make_clip_storage_path,
+    normalize_clip_mime,
+    normalize_signed_upload_url,
 )
 
 logger = logging.getLogger(__name__)
@@ -243,6 +253,152 @@ async def delete_folder(
 
 # ============ CLIPS ============
 
+def _insert_clip(
+    supabase,
+    *,
+    pack_id: str,
+    equipo_id: str,
+    titulo: str,
+    frase: str | None,
+    storage_path: str,
+    mime: str,
+    size: int,
+    duration_ms: int | None,
+    start_ms: int | None,
+    end_ms: int | None,
+    source_video_id: str | None,
+    rival_jugador_nombre: str | None,
+    rival_jugador_dorsal: str | None,
+    jugador_id: str | None,
+    fase: str | None,
+    folder_id: str | None,
+    slot_tipo: str,
+    created_by: str,
+) -> dict:
+    public_url = supabase.storage.from_(REVISION_BUCKET).get_public_url(storage_path)
+    row = {
+        "pack_id": pack_id,
+        "equipo_id": equipo_id,
+        "titulo": (titulo or "").strip() or "Clip",
+        "frase": (frase or "").strip() or None,
+        "url": public_url,
+        "storage_path": storage_path,
+        "mime_type": mime,
+        "size_bytes": size,
+        "duration_ms": duration_ms,
+        "fase": fase,
+        "jugador_id": jugador_id or None,
+        "rival_jugador_nombre": rival_jugador_nombre,
+        "rival_jugador_dorsal": rival_jugador_dorsal,
+        "source_video_id": source_video_id or None,
+        "start_ms": start_ms,
+        "end_ms": end_ms,
+        "hot_until": hot_until_from().isoformat(),
+        "status": "hot",
+        "created_by": created_by,
+    }
+    created = supabase.table("revision_clips").insert(row).execute()
+    clip = created.data[0]
+    if folder_id or slot_tipo == "once_jugador":
+        link = {
+            "clip_id": clip["id"],
+            "folder_id": folder_id or None,
+            "slot_tipo": slot_tipo if slot_tipo in ("folder", "once_jugador") else "folder",
+            "jugador_id": jugador_id or None,
+            "rival_jugador_nombre": rival_jugador_nombre,
+            "rival_jugador_dorsal": rival_jugador_dorsal,
+        }
+        supabase.table("revision_clip_links").insert(link).execute()
+    return clip
+
+
+@router.post("/clips/upload-url")
+async def create_clip_upload_url(
+    data: ClipUploadUrlRequest,
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+):
+    """Firma una subida directa a Storage. El fichero no pasa por el API (evita OOM en Render)."""
+    if data.size_bytes > MAX_CLIP_BYTES:
+        raise HTTPException(status_code=400, detail="El recorte no puede superar 200MB.")
+    if data.size_bytes < MIN_CLIP_BYTES:
+        raise HTTPException(status_code=400, detail="El archivo está vacío o es demasiado pequeño.")
+    try:
+        mime = normalize_clip_mime(data.mime_type, data.filename)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    equipo_id = str(data.equipo_id)
+    pack_id = str(data.pack_id)
+    supabase = get_supabase()
+    _verify_equipo(supabase, equipo_id)
+    _get_pack(supabase, pack_id, equipo_id)
+    ensure_video_bucket(supabase)
+
+    storage_path = make_clip_storage_path(equipo_id, pack_id, data.filename)
+    try:
+        raw = supabase.storage.from_(REVISION_BUCKET).create_signed_upload_url(storage_path)
+    except Exception as e:
+        logger.error("Error creating signed upload url: %s", e)
+        raise HTTPException(status_code=500, detail="No se pudo preparar la subida del recorte.") from e
+
+    if hasattr(raw, "model_dump"):
+        raw = raw.model_dump()
+    elif hasattr(raw, "dict") and not isinstance(raw, dict):
+        raw = raw.dict()
+    payload = normalize_signed_upload_url(raw if isinstance(raw, dict) else {}, get_settings().SUPABASE_URL, storage_path)
+    if not payload.get("signed_url"):
+        logger.error("Signed upload url empty for path=%s raw=%s", storage_path, raw)
+        raise HTTPException(status_code=500, detail="No se pudo preparar la subida del recorte.")
+
+    logger.info("revision clip signed url path=%s size=%s user=%s", payload["path"], data.size_bytes, auth.user_id)
+    return {**payload, "mime_type": mime}
+
+
+@router.post("/clips/confirm", status_code=201)
+async def confirm_clip_upload(
+    data: ClipConfirmRequest,
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+):
+    equipo_id = str(data.equipo_id)
+    pack_id = str(data.pack_id)
+    if data.size_bytes > MAX_CLIP_BYTES:
+        raise HTTPException(status_code=400, detail="El recorte no puede superar 200MB.")
+    if data.size_bytes < MIN_CLIP_BYTES:
+        raise HTTPException(status_code=400, detail="El archivo está vacío o es demasiado pequeño.")
+    if not is_allowed_clip_path(data.storage_path, equipo_id, pack_id):
+        raise HTTPException(status_code=400, detail="Ruta de almacenamiento no válida.")
+    try:
+        mime = normalize_clip_mime(data.mime_type, data.storage_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    supabase = get_supabase()
+    _verify_equipo(supabase, equipo_id)
+    _get_pack(supabase, pack_id, equipo_id)
+
+    return _insert_clip(
+        supabase,
+        pack_id=pack_id,
+        equipo_id=equipo_id,
+        titulo=data.titulo,
+        frase=data.frase,
+        storage_path=data.storage_path,
+        mime=mime,
+        size=data.size_bytes,
+        duration_ms=data.duration_ms,
+        start_ms=data.start_ms,
+        end_ms=data.end_ms,
+        source_video_id=str(data.source_video_id) if data.source_video_id else None,
+        rival_jugador_nombre=data.rival_jugador_nombre,
+        rival_jugador_dorsal=data.rival_jugador_dorsal,
+        jugador_id=str(data.jugador_id) if data.jugador_id else None,
+        fase=data.fase,
+        folder_id=str(data.folder_id) if data.folder_id else None,
+        slot_tipo=data.slot_tipo,
+        created_by=auth.user_id,
+    )
+
+
 @router.post("/clips/upload", status_code=201)
 async def upload_clip(
     pack_id: str = Form(...),
@@ -262,83 +418,73 @@ async def upload_clip(
     file: UploadFile = File(...),
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
 ):
-    """Sube un recorte corto (no el partido entero). Máx 200MB."""
-    if not file.content_type or not (
-        file.content_type.startswith("video/") or file.content_type in ("application/octet-stream",)
-    ):
-        raise HTTPException(status_code=400, detail="Solo se permiten archivos de video.")
+    """Fallback: escribe a disco y sube sin cargar el vídeo entero en RAM."""
+    try:
+        mime = normalize_clip_mime(file.content_type, file.filename)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     supabase = get_supabase()
     _verify_equipo(supabase, equipo_id)
-    pack = _get_pack(supabase, pack_id, equipo_id)
+    _get_pack(supabase, pack_id, equipo_id)
 
-    chunks: list[bytes] = []
+    tmp_path: str | None = None
     size = 0
-    while True:
-        chunk = await file.read(1024 * 1024)
-        if not chunk:
-            break
-        size += len(chunk)
-        if size > MAX_CLIP_BYTES:
-            raise HTTPException(status_code=400, detail="El recorte no puede superar 200MB.")
-        chunks.append(chunk)
-    content = b"".join(chunks)
-    if size < 1000:
-        raise HTTPException(status_code=400, detail="El archivo está vacío o es demasiado pequeño.")
-
-    ensure_video_bucket(supabase)
-    timestamp = int(datetime.now(timezone.utc).timestamp() * 1000)
-    safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in (file.filename or "clip.webm"))
-    storage_path = f"{equipo_id}/{pack_id}/{timestamp}_{safe_name}"
-    mime = file.content_type if file.content_type.startswith("video/") else "video/webm"
-
     try:
-        supabase.storage.from_(REVISION_BUCKET).upload(
-            storage_path,
-            content,
-            file_options={"content-type": mime, "upsert": "true"},
-        )
-        public_url = supabase.storage.from_(REVISION_BUCKET).get_public_url(storage_path)
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            tmp_path = tmp.name
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > MAX_CLIP_BYTES:
+                    raise HTTPException(status_code=400, detail="El recorte no puede superar 200MB.")
+                tmp.write(chunk)
+        if size < MIN_CLIP_BYTES:
+            raise HTTPException(status_code=400, detail="El archivo está vacío o es demasiado pequeño.")
+
+        ensure_video_bucket(supabase)
+        storage_path = make_clip_storage_path(equipo_id, pack_id, file.filename)
+        with open(tmp_path, "rb") as fh:
+            supabase.storage.from_(REVISION_BUCKET).upload(
+                storage_path,
+                fh,
+                file_options={"content-type": mime, "upsert": "true"},
+            )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Error uploading revision clip: %s", e)
-        raise HTTPException(status_code=500, detail="Error al subir el recorte.")
+        raise HTTPException(status_code=500, detail="Error al subir el recorte.") from e
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
-    row = {
-        "pack_id": pack_id,
-        "equipo_id": equipo_id,
-        "titulo": titulo.strip() or "Clip",
-        "frase": (frase or "").strip() or None,
-        "url": public_url,
-        "storage_path": storage_path,
-        "mime_type": mime,
-        "size_bytes": size,
-        "duration_ms": duration_ms,
-        "fase": fase,
-        "jugador_id": jugador_id or None,
-        "rival_jugador_nombre": rival_jugador_nombre,
-        "rival_jugador_dorsal": rival_jugador_dorsal,
-        "source_video_id": source_video_id or None,
-        "start_ms": start_ms,
-        "end_ms": end_ms,
-        "hot_until": hot_until_from().isoformat(),
-        "status": "hot",
-        "created_by": auth.user_id,
-    }
-    created = supabase.table("revision_clips").insert(row).execute()
-    clip = created.data[0]
-
-    if folder_id or slot_tipo == "once_jugador":
-        link = {
-            "clip_id": clip["id"],
-            "folder_id": folder_id or None,
-            "slot_tipo": slot_tipo if slot_tipo in ("folder", "once_jugador") else "folder",
-            "jugador_id": jugador_id or None,
-            "rival_jugador_nombre": rival_jugador_nombre,
-            "rival_jugador_dorsal": rival_jugador_dorsal,
-        }
-        supabase.table("revision_clip_links").insert(link).execute()
-
-    return clip
+    return _insert_clip(
+        supabase,
+        pack_id=pack_id,
+        equipo_id=equipo_id,
+        titulo=titulo,
+        frase=frase,
+        storage_path=storage_path,
+        mime=mime,
+        size=size,
+        duration_ms=duration_ms,
+        start_ms=start_ms,
+        end_ms=end_ms,
+        source_video_id=source_video_id or None,
+        rival_jugador_nombre=rival_jugador_nombre,
+        rival_jugador_dorsal=rival_jugador_dorsal,
+        jugador_id=jugador_id or None,
+        fase=fase,
+        folder_id=folder_id,
+        slot_tipo=slot_tipo,
+        created_by=auth.user_id,
+    )
 
 
 @router.patch("/clips/{clip_id}")

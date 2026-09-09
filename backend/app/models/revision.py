@@ -45,6 +45,34 @@ class ClipUpdate(BaseModel):
     rival_jugador_dorsal: Optional[str] = None
 
 
+class ClipUploadUrlRequest(BaseModel):
+    pack_id: UUID
+    equipo_id: UUID
+    filename: str
+    size_bytes: int
+    mime_type: Optional[str] = None
+
+
+class ClipConfirmRequest(BaseModel):
+    pack_id: UUID
+    equipo_id: UUID
+    storage_path: str
+    titulo: str
+    size_bytes: int
+    mime_type: Optional[str] = None
+    frase: Optional[str] = None
+    folder_id: Optional[UUID] = None
+    fase: Optional[str] = None
+    duration_ms: Optional[int] = None
+    start_ms: Optional[int] = None
+    end_ms: Optional[int] = None
+    source_video_id: Optional[UUID] = None
+    rival_jugador_nombre: Optional[str] = None
+    rival_jugador_dorsal: Optional[str] = None
+    jugador_id: Optional[UUID] = None
+    slot_tipo: str = "folder"
+
+
 class ClipLinkCreate(BaseModel):
     folder_id: Optional[UUID] = None
     slot_tipo: str = "folder"
