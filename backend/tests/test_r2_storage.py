@@ -49,3 +49,22 @@ class TestPresignPut:
     def test_public_url_joins_base(self):
         with patch("app.services.r2_storage.get_settings", return_value=_settings()):
             assert public_url("eq/pk/a.webm") == "https://pub.example.com/eq/pk/a.webm"
+
+
+class TestR2SettingsStrip:
+    def test_secret_newline_is_stripped(self):
+        from app.config import Settings
+
+        s = Settings(
+            SUPABASE_URL="https://example.supabase.co",
+            SUPABASE_ANON_KEY="anon",
+            SUPABASE_SERVICE_ROLE_KEY="svc",
+            SECRET_KEY="secret",
+            R2_ACCOUNT_ID=" accid \n",
+            R2_ACCESS_KEY_ID="AKIAEXAMPLE",
+            R2_SECRET_ACCESS_KEY="deadbeef\n",
+            R2_BUCKET="revision-clips",
+            R2_PUBLIC_BASE_URL="https://pub.example.com/",
+        )
+        assert s.R2_SECRET_ACCESS_KEY == "deadbeef"
+        assert s.R2_ACCOUNT_ID == "accid"
