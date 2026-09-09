@@ -873,6 +873,9 @@ async def update_tratamiento(
     payload = _serialize_enums(payload)
     if payload.get("fecha") is not None:
         payload["fecha"] = payload["fecha"].isoformat() if hasattr(payload["fecha"], "isoformat") else payload["fecha"]
+    for key in ("sesion_id", "entrenamiento_margen_id"):
+        if key in payload:
+            payload[key] = str(payload[key]) if payload[key] else None
     result = (
         supabase.table("tratamiento_diario")
         .update(payload)

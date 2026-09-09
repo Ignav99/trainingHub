@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react'
 import useSWR, { mutate } from 'swr'
-import { Loader2, Plus, Trash2 } from 'lucide-react'
+import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,6 +25,23 @@ const MOLESTIA_TRATAMIENTOS = [
   'Otro',
 ]
 
+function emptyForm(): TratamientoDiarioPayload {
+  return { fecha: new Date().toISOString().slice(0, 10) }
+}
+
+function payloadFromEntry(d: TratamientoDiario): TratamientoDiarioPayload {
+  return {
+    fecha: (d.fecha || '').slice(0, 10),
+    trabajo: d.trabajo || undefined,
+    ejercicios: d.ejercicios || undefined,
+    feedback: d.feedback || undefined,
+    nutricion: d.nutricion || undefined,
+    suplementacion: d.suplementacion || undefined,
+    fase_tratamiento: d.fase_tratamiento || undefined,
+    entrenamiento_margen_id: d.entrenamiento_margen_id || undefined,
+  }
+}
+
 export function TratamientoCuaderno({
   registroId,
   variant = 'lesion',
@@ -36,30 +53,53 @@ export function TratamientoCuaderno({
     medicoApi.listTratamiento(registroId),
   )
   const [open, setOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState<TratamientoDiarioPayload>({
-    fecha: new Date().toISOString().slice(0, 10),
-  })
+  const [form, setForm] = useState<TratamientoDiarioPayload>(emptyForm)
 
   const diario: TratamientoDiario[] = data?.diario || []
   const margen = data?.margen || []
+  const esMolestia = variant === 'molestia'
+
+  const refresh = () =>
+    mutate((key: string) => typeof key === 'string' && key.includes(`/medico/${registroId}/tratamiento`))
+
+  const closeForm = () => {
+    setOpen(false)
+    setEditingId(null)
+    setForm(emptyForm())
+  }
+
+  const startCreate = () => {
+    setEditingId(null)
+    setForm(emptyForm())
+    setOpen(true)
+  }
+
+  const startEdit = (d: TratamientoDiario) => {
+    setEditingId(d.id)
+    setForm(payloadFromEntry(d))
+    setOpen(true)
+  }
 
   const save = async () => {
     setSaving(true)
     try {
-      await medicoApi.createTratamiento(registroId, form)
-      setOpen(false)
-      setForm({ fecha: new Date().toISOString().slice(0, 10) })
-      mutate((key: string) => typeof key === 'string' && key.includes(`/medico/${registroId}/tratamiento`))
-      toast.success('Entrada de tratamiento guardada')
+      if (editingId) {
+        await medicoApi.updateTratamiento(registroId, editingId, form)
+        toast.success(esMolestia ? 'Sesión actualizada' : 'Día de tratamiento actualizado')
+      } else {
+        await medicoApi.createTratamiento(registroId, form)
+        toast.success(esMolestia ? 'Sesión guardada' : 'Entrada de tratamiento guardada')
+      }
+      closeForm()
+      refresh()
     } catch {
-      toast.error('No se pudo guardar. ¿Migración 077 aplicada?')
+      toast.error(editingId ? 'No se pudo actualizar el día' : 'No se pudo guardar. ¿Migración 077 aplicada?')
     } finally {
       setSaving(false)
     }
   }
-
-  const esMolestia = variant === 'molestia'
 
   return (
     <div className="space-y-4">
@@ -70,11 +110,11 @@ export function TratamientoCuaderno({
           </h3>
           <p className="text-xs text-slate-500">
             {esMolestia
-              ? 'Cada sesión: fecha, qué se le hizo (descarga, masaje, hielo…) y cómo respondió.'
-              : 'Trabajo del día, margen, feedback del readaptador, nutrición.'}
+              ? 'Cada sesión: fecha, qué se le hizo (descarga, masaje, hielo…) y cómo respondió. Se puede editar después.'
+              : 'Trabajo del día, margen, feedback del readaptador, nutrición. Se puede editar un día ya creado.'}
           </p>
         </div>
-        <Button size="sm" onClick={() => setOpen((v) => !v)}>
+        <Button size="sm" onClick={startCreate}>
           <Plus className="mr-1 h-3.5 w-3.5" />
           {esMolestia ? 'Nueva sesión' : 'Nueva entrada'}
         </Button>
@@ -88,6 +128,11 @@ export function TratamientoCuaderno({
 
       {open ? (
         <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+          <p className="text-xs font-medium text-slate-600">
+            {editingId
+              ? (esMolestia ? 'Editar sesión' : 'Editar día')
+              : (esMolestia ? 'Nueva sesión' : 'Nueva entrada')}
+          </p>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-500">Fecha</label>
@@ -183,10 +228,12 @@ export function TratamientoCuaderno({
             </>
           )}
           <div className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setOpen(false)}>Cancelar</Button>
+            <Button variant="outline" size="sm" onClick={closeForm}>Cancelar</Button>
             <Button size="sm" onClick={save} disabled={saving}>
               {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
-              {esMolestia ? 'Guardar sesión' : 'Guardar día'}
+              {editingId
+                ? 'Guardar cambios'
+                : (esMolestia ? 'Guardar sesión' : 'Guardar día')}
             </Button>
           </div>
         </div>
@@ -215,7 +262,12 @@ export function TratamientoCuaderno({
       ) : (
         <ol className="space-y-3">
           {diario.map((d) => (
-            <li key={d.id} className="rounded-xl border border-slate-200 bg-white p-3">
+            <li
+              key={d.id}
+              className={`rounded-xl border bg-white p-3 ${
+                editingId === d.id ? 'border-[#16324F]' : 'border-slate-200'
+              }`}
+            >
               <div className="flex items-start justify-between gap-2">
                 <p className="text-sm font-medium tabular-nums text-[#16324F]">
                   {new Date(`${d.fecha}T00:00:00`).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -226,10 +278,20 @@ export function TratamientoCuaderno({
                   ) : null}
                   <button
                     type="button"
+                    className="text-slate-400 hover:text-[#16324F]"
+                    aria-label={esMolestia ? 'Editar sesión' : 'Editar día'}
+                    onClick={() => startEdit(d)}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
                     className="text-slate-400 hover:text-red-600"
+                    aria-label={esMolestia ? 'Eliminar sesión' : 'Eliminar día'}
                     onClick={async () => {
                       await medicoApi.deleteTratamiento(registroId, d.id)
-                      mutate((key: string) => typeof key === 'string' && key.includes(`/medico/${registroId}/tratamiento`))
+                      if (editingId === d.id) closeForm()
+                      refresh()
                     }}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
