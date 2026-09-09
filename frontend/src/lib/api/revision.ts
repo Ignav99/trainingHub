@@ -141,9 +141,11 @@ export function putToSignedUrl(
         xhr.setRequestHeader('Authorization', `Bearer ${anon}`)
       }
     }
+    let lastPct = 0
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && onProgress) {
-        onProgress(Math.round((e.loaded / e.total) * 100))
+        lastPct = Math.round((e.loaded / e.total) * 100)
+        onProgress(lastPct)
       }
     }
     xhr.onload = () => {
@@ -155,6 +157,14 @@ export function putToSignedUrl(
       reject(new Error(storageUploadMessage(xhr.status, xhr.responseText || '')))
     }
     xhr.onerror = () => {
+      if (lastPct >= 80) {
+        reject(new Error(
+          'El recorte llegó a R2 pero el bucket lo rechazó. Casi siempre es CORS o la Access Key. '
+          + 'En el cubo revision-clips → Settings → CORS: PUT, GET, HEAD y orígenes del frontend. '
+          + 'En Render, R2_ACCESS_KEY_ID debe ser el «Access Key ID», no el token que empieza por cfut_.',
+        ))
+        return
+      }
       reject(new Error('No se pudo enviar el recorte. Revisa la conexión e inténtalo de nuevo.'))
     }
     xhr.ontimeout = () => {

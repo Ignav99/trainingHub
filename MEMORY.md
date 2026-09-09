@@ -5,7 +5,7 @@ Dos herramientas: **Video Análisis** (partido entero local, nunca a la nube) y 
 - Capacidad objetivo: ~2 min ≈ 87–100 MB; **7–10 clips/partido** (~1 GB, charla 15–30 min). ~15 GB cada 15 días y luego se borra.
 - **Opción elegida: Cloudflare R2**, no Supabase Pro (25 $/mes). El navegador hace PUT a URL firmada; el fichero no pasa por Render (evita OOM). Playback sin egress de pago. 15 GB × 15 días = céntimos. Supabase Free sigue para DB/auth.
 - Sin vars `R2_*` en el API de Render, se usa Supabase Storage (Free capea a **50 MB/archivo** — un clip de 87 MB sigue en 413).
-- Vars: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=revision-clips`, `R2_PUBLIC_BASE_URL` (URL pública del bucket). CORS: PUT/GET/HEAD desde el frontend Render + localhost.
+- Vars: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` (**no** el token `cfut_…`), `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=revision-clips`, `R2_PUBLIC_BASE_URL`. CORS PUT/GET/HEAD en el bucket.
 - Cron `POST /v1/revision/cron/archive` **borra** clips caducados (R2 + Storage). Partidos aún no jugados alargan `hot_until`.
 - Informe de partido: **ya no hay bloque «Añadir video»** encima de Revisión. Solo Revisión.
 - La librería no bloquea la UI: «Subir recorte» funciona aunque el pack aún no haya cargado.

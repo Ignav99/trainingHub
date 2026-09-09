@@ -42,7 +42,7 @@ from app.services.revision_service import (
     normalize_clip_mime,
     normalize_signed_upload_url,
 )
-from app.services.r2_storage import delete_object, presign_put, public_url, put_file, r2_enabled
+from app.services.r2_storage import delete_object, presign_put, public_url, put_file, r2_config_error, r2_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -353,6 +353,9 @@ async def create_clip_upload_url(
 
     storage_path = make_clip_storage_path(equipo_id, pack_id, data.filename)
     if r2_enabled():
+        cfg_err = r2_config_error()
+        if cfg_err:
+            raise HTTPException(status_code=400, detail=cfg_err)
         try:
             signed = presign_put(storage_path, mime)
         except Exception as e:

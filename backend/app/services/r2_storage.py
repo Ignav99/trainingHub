@@ -39,6 +39,19 @@ def r2_enabled() -> bool:
     )
 
 
+def r2_config_error() -> str | None:
+    """Error de claves mal pegadas. El token cfut_ no sirve como Access Key ID de S3."""
+    s = get_settings()
+    key = (s.R2_ACCESS_KEY_ID or "").strip()
+    if key.lower().startswith("cfut_"):
+        return (
+            "R2_ACCESS_KEY_ID no es el token que empieza por cfut_. "
+            "En Cloudflare → R2 → Tokens de API crea uno nuevo y copia "
+            "«Access Key ID» / «ID de clave de acceso» (32 caracteres), no el valor del token."
+        )
+    return None
+
+
 def _host(account_id: str) -> str:
     return f"{account_id}.r2.cloudflarestorage.com"
 
@@ -67,21 +80,24 @@ def presign_put(storage_path: str, mime: str, expires: int = 3600) -> str:
     key = storage_path.lstrip("/")
     canonical_uri = "/" + _uri_encode(bucket, slash=True) + "/" + _uri_encode(key, slash=True)
     credential = f"{s.R2_ACCESS_KEY_ID}/{datestamp}/{_REGION}/{_SERVICE}/aws4_request"
+    # Solo se firma `host`. Content-Type lo manda el navegador sin entrar en la firma
+    # (si no, un 403 de R2 llega sin CORS y el XHR dice «compruebe su conexión» al 99%).
     query_items = [
         ("X-Amz-Algorithm", "AWS4-HMAC-SHA256"),
+        ("X-Amz-Content-Sha256", "UNSIGNED-PAYLOAD"),
         ("X-Amz-Credential", credential),
         ("X-Amz-Date", amz_date),
         ("X-Amz-Expires", str(expires)),
-        ("X-Amz-SignedHeaders", "content-type;host"),
+        ("X-Amz-SignedHeaders", "host"),
     ]
     canonical_query = "&".join(f"{_uri_encode(k, slash=False)}={_uri_encode(v, slash=False)}" for k, v in query_items)
-    canonical_headers = f"content-type:{mime}\nhost:{host}\n"
+    canonical_headers = f"host:{host}\n"
     canonical_request = "\n".join([
         "PUT",
         canonical_uri,
         canonical_query,
         canonical_headers,
-        "content-type;host",
+        "host",
         "UNSIGNED-PAYLOAD",
     ])
     scope = f"{datestamp}/{_REGION}/{_SERVICE}/aws4_request"
