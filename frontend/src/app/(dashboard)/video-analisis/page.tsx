@@ -19,6 +19,7 @@ import {
   Film,
   ChevronDown,
 } from 'lucide-react'
+import { formatTime } from '@/components/video-analyzer/utils'
 import { readLocalVideoFingerprint } from '@/components/video-analyzer/extractClip'
 
 const VideoAnalyzer = lazy(() =>
