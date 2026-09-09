@@ -26,6 +26,15 @@ class TestR2Enabled:
         with patch("app.services.r2_storage.get_settings", return_value=_settings()):
             assert r2_enabled() is True
 
+    def test_cfut_token_is_not_access_key(self):
+        from app.services.r2_storage import r2_config_error
+        with patch("app.services.r2_storage.get_settings", return_value=_settings(
+            R2_ACCESS_KEY_ID="cfut_not_an_s3_access_key_id",
+        )):
+            err = r2_config_error()
+            assert err is not None
+            assert "cfut_" in err
+
 
 class TestPresignPut:
     def test_url_has_signature_and_bucket_key(self):
@@ -34,6 +43,7 @@ class TestPresignPut:
         assert url.startswith("https://accid.r2.cloudflarestorage.com/revision-clips/eq/pk/clip.webm?")
         assert "X-Amz-Signature=" in url
         assert "X-Amz-Algorithm=AWS4-HMAC-SHA256" in url
+        assert "X-Amz-SignedHeaders=host" in url
         assert "UNSIGNED" not in url.split("?")[0]
 
     def test_public_url_joins_base(self):
