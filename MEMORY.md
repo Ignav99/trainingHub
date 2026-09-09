@@ -2,15 +2,16 @@
 
 ## Revisión de vídeo
 Dos herramientas: **Video Análisis** (partido entero local, nunca a la nube) y **Revisión** (recortes cortos en informes).
-- Subida de recortes: el navegador manda el fichero **directo a Supabase Storage** (URL firmada). El API solo firma y confirma. El proxy anterior cargaba el vídeo en RAM y Render mataba la instancia (`failed to fetch` + restart).
-- El bucket `revision-clips` se crea/actualiza a **200MB**. El 413 `EntityTooLarge` en 87MB era el tope default de 50MB. Si el proyecto es Free, Supabase no deja más de 50MB a nivel global (hay que Pro o recortar más).
-- Informe de partido: **ya no hay bloque «Añadir video»** encima de Revisión (era el mismo flujo). Solo Revisión.
-- La librería no bloquea la UI: «Subir recorte» funciona aunque el pack aún no haya cargado. Si falla, hay reintentar (antes el spinner «Cargando librería…» se quedaba eterno si el POST fallaba porque `!pack` seguía activo).
-- Lista de partidos y GET de un partido van sin `pre_match_intel` (JSON enorme). El intel se pide en su endpoint.
-- Informe de partido y informe rival (fases + Once probable) tienen librería de carpetas.
-- Desde el analizador: «A revisión» recorta en el PC y sube solo ese fragmento.
+- Capacidad objetivo: ~2 min ≈ 87–100 MB; **7–10 clips/partido** (~1 GB, charla 15–30 min). ~15 GB cada 15 días y luego se borra.
+- **Opción elegida: Cloudflare R2**, no Supabase Pro (25 $/mes). El navegador hace PUT a URL firmada; el fichero no pasa por Render (evita OOM). Playback sin egress de pago. 15 GB × 15 días = céntimos. Supabase Free sigue para DB/auth.
+- Sin vars `R2_*` en el API de Render, se usa Supabase Storage (Free capea a **50 MB/archivo** — un clip de 87 MB sigue en 413).
+- Vars: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=revision-clips`, `R2_PUBLIC_BASE_URL` (URL pública del bucket). CORS: PUT/GET/HEAD desde el frontend Render + localhost.
+- Cron `POST /v1/revision/cron/archive` **borra** clips caducados (R2 + Storage). Partidos aún no jugados alargan `hot_until`.
+- Informe de partido: **ya no hay bloque «Añadir video»** encima de Revisión. Solo Revisión.
+- La librería no bloquea la UI: «Subir recorte» funciona aunque el pack aún no haya cargado.
+- Lista de partidos y GET de un partido van sin `pre_match_intel`.
+- Desde el analizador: «A revisión» recorta en el PC y sube solo ese fragmento (progreso %).
 - Sala: HDMI en el PC + tablet por el 5G del móvil. Sync por WebSocket `/v1/ws`.
-- Retención 30 días. Sin Drive conectado no se borra nada.
 Migración: `080_revision_video.sql`.
 
 

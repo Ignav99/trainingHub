@@ -118,40 +118,50 @@ export interface RevisionClipUploadMeta {
   mime_type?: string
 }
 
-async function putToSignedUrl(signedUrl: string, file: File, mime: string) {
-  const controller = new AbortController()
-  const timer = window.setTimeout(() => controller.abort(), 300000)
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': mime,
-      'x-upsert': 'true',
+function isSupabaseStorageUrl(url: string): boolean {
+  return url.includes('/storage/v1/') || url.includes('.supabase.co')
+}
+
+export function putToSignedUrl(
+  signedUrl: string,
+  file: File,
+  mime: string,
+  onProgress?: (pct: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('PUT', signedUrl)
+    xhr.timeout = 600000
+    xhr.setRequestHeader('Content-Type', mime)
+    if (isSupabaseStorageUrl(signedUrl)) {
+      xhr.setRequestHeader('x-upsert', 'true')
+      const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      if (anon) {
+        xhr.setRequestHeader('apikey', anon)
+        xhr.setRequestHeader('Authorization', `Bearer ${anon}`)
+      }
     }
-    const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    if (anon) {
-      headers.apikey = anon
-      headers.Authorization = `Bearer ${anon}`
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100))
+      }
     }
-    const res = await fetch(signedUrl, {
-      method: 'PUT',
-      headers,
-      body: file,
-      signal: controller.signal,
-    })
-    if (!res.ok) {
-      const text = await res.text().catch(() => '')
-      throw new Error(storageUploadMessage(res.status, text))
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress?.(100)
+        resolve()
+        return
+      }
+      reject(new Error(storageUploadMessage(xhr.status, xhr.responseText || '')))
     }
-  } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') {
-      throw new Error('La subida tardó demasiado. Prueba un recorte más corto.')
+    xhr.onerror = () => {
+      reject(new Error('No se pudo enviar el recorte. Revisa la conexión e inténtalo de nuevo.'))
     }
-    if (e instanceof TypeError) {
-      throw new Error('No se pudo enviar el recorte a Storage. Revisa la conexión e inténtalo de nuevo.')
+    xhr.ontimeout = () => {
+      reject(new Error('La subida tardó demasiado. Prueba un recorte más corto.'))
     }
-    throw e
-  } finally {
-    window.clearTimeout(timer)
-  }
+    xhr.send(file)
+  })
 }
 
 function storageUploadMessage(status: number, text: string): string {
@@ -208,7 +218,11 @@ export const revisionApi = {
     return api.delete(`/revision/folders/${id}`)
   },
 
-  async uploadClip(file: File, meta: RevisionClipUploadMeta): Promise<RevisionClip> {
+  async uploadClip(
+    file: File,
+    meta: RevisionClipUploadMeta,
+    onProgress?: (pct: number) => void,
+  ): Promise<RevisionClip> {
     if (file.size > 200 * 1024 * 1024) {
       throw new Error('El recorte no puede superar 200MB')
     }
@@ -221,6 +235,7 @@ export const revisionApi = {
       token: string
       path: string
       mime_type: string
+      storage?: string
     }>('/revision/clips/upload-url', {
       pack_id: meta.pack_id,
       equipo_id: meta.equipo_id,
@@ -229,7 +244,12 @@ export const revisionApi = {
       mime_type: file.type || meta.mime_type,
     })
 
-    await putToSignedUrl(prepared.signed_url, file, prepared.mime_type || file.type || 'video/webm')
+    await putToSignedUrl(
+      prepared.signed_url,
+      file,
+      prepared.mime_type || file.type || 'video/webm',
+      onProgress,
+    )
 
     return api.post('/revision/clips/confirm', {
       pack_id: meta.pack_id,

@@ -1,5 +1,5 @@
 """
-Revisión de vídeo — packs, carpetas por fase, retención 30 días.
+Revisión de vídeo — packs, carpetas por fase, retención 15 días en R2.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 REVISION_BUCKET = "revision-clips"
 MAX_CLIP_BYTES = 200 * 1024 * 1024  # 200 MB
 MIN_CLIP_BYTES = 1000
-HOT_DAYS = 30
+HOT_DAYS = 15
 
 # Fases canónicas (informe de partido / Video Análisis)
 FOLDERS_PARTIDO = [
@@ -96,9 +96,8 @@ def drive_connected(org_config: Optional[dict]) -> bool:
 
 def archive_expired_clips(supabase) -> dict:
     """
-    Clips > 30 días: volcar a Drive si el club lo tiene conectado.
-    Si Drive no está, se dejan en Kabin-e y se avisa. Nunca se borran bytes
-    si el volcado no se ha completado.
+    Clips caducados: se borra el fichero (R2 o Storage). El partido entero nunca está en la nube.
+    Si el partido asociado aún no se ha jugado, se alarga la retención.
     """
     now = datetime.now(timezone.utc)
     now_iso = now.isoformat()
@@ -112,10 +111,10 @@ def archive_expired_clips(supabase) -> dict:
     )
     clips = result.data or []
     skipped_future = 0
-    skipped_no_drive = 0
-    skipped_no_api = 0
     archived = 0
     errors = 0
+
+    from app.services.r2_storage import delete_object, r2_enabled
 
     for clip in clips:
         try:
@@ -128,7 +127,6 @@ def archive_expired_clips(supabase) -> dict:
             )
             pack_row = (pack.data or [None])[0]
             partido_fecha = None
-            org_config = None
             if pack_row and pack_row.get("partido_id"):
                 partido = (
                     supabase.table("partidos")
@@ -150,39 +148,17 @@ def archive_expired_clips(supabase) -> dict:
                 skipped_future += 1
                 continue
 
-            equipo = (
-                supabase.table("equipos")
-                .select("id, organizacion_id")
-                .eq("id", clip["equipo_id"])
-                .limit(1)
-                .execute()
-            )
-            if equipo.data:
-                org = (
-                    supabase.table("organizaciones")
-                    .select("id, config")
-                    .eq("id", equipo.data[0]["organizacion_id"])
-                    .limit(1)
-                    .execute()
-                )
-                if org.data:
-                    org_config = org.data[0].get("config") or {}
+            path = clip.get("storage_path")
+            if path:
+                if r2_enabled():
+                    delete_object(path)
+                try:
+                    supabase.storage.from_(REVISION_BUCKET).remove([path])
+                except Exception as exc:
+                    logger.warning("storage remove %s: %s", path, exc)
 
-            if not drive_connected(org_config):
-                supabase.table("revision_clips").update({
-                    "archive_warning": "Google Drive no está conectado. El clip se queda en Kabin-e.",
-                    "updated_at": now_iso,
-                }).eq("id", clip["id"]).execute()
-                skipped_no_drive += 1
-                continue
-
-            # Drive marcado como conectado, pero no hay API de volcado todavía:
-            # no borrar bytes.
-            supabase.table("revision_clips").update({
-                "archive_warning": "Drive indicado en Configuración, pero el volcado automático aún no está activo. El clip se conserva.",
-                "updated_at": now_iso,
-            }).eq("id", clip["id"]).execute()
-            skipped_no_api += 1
+            supabase.table("revision_clips").delete().eq("id", clip["id"]).execute()
+            archived += 1
         except Exception as exc:
             logger.exception("Error archivando clip %s: %s", clip.get("id"), exc)
             errors += 1
@@ -191,8 +167,6 @@ def archive_expired_clips(supabase) -> dict:
         "scanned": len(clips),
         "archived": archived,
         "skipped_future_match": skipped_future,
-        "skipped_no_drive": skipped_no_drive,
-        "skipped_no_api": skipped_no_api,
         "errors": errors,
     }
 
