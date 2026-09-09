@@ -1,0 +1,41 @@
+from unittest.mock import MagicMock, patch
+
+from app.services.r2_storage import presign_put, public_url, r2_enabled
+
+
+def _settings(**kwargs):
+    s = MagicMock()
+    s.R2_ACCOUNT_ID = "accid"
+    s.R2_ACCESS_KEY_ID = "AKIAEXAMPLE"
+    s.R2_SECRET_ACCESS_KEY = "secret"
+    s.R2_BUCKET = "revision-clips"
+    s.R2_PUBLIC_BASE_URL = "https://pub.example.com"
+    for k, v in kwargs.items():
+        setattr(s, k, v)
+    return s
+
+
+class TestR2Enabled:
+    def test_false_without_keys(self):
+        with patch("app.services.r2_storage.get_settings", return_value=_settings(
+            R2_ACCOUNT_ID=None, R2_ACCESS_KEY_ID=None, R2_SECRET_ACCESS_KEY=None, R2_PUBLIC_BASE_URL=None,
+        )):
+            assert r2_enabled() is False
+
+    def test_true_when_all_set(self):
+        with patch("app.services.r2_storage.get_settings", return_value=_settings()):
+            assert r2_enabled() is True
+
+
+class TestPresignPut:
+    def test_url_has_signature_and_bucket_key(self):
+        with patch("app.services.r2_storage.get_settings", return_value=_settings()):
+            url = presign_put("eq/pk/clip.webm", "video/webm")
+        assert url.startswith("https://accid.r2.cloudflarestorage.com/revision-clips/eq/pk/clip.webm?")
+        assert "X-Amz-Signature=" in url
+        assert "X-Amz-Algorithm=AWS4-HMAC-SHA256" in url
+        assert "UNSIGNED" not in url.split("?")[0]
+
+    def test_public_url_joins_base(self):
+        with patch("app.services.r2_storage.get_settings", return_value=_settings()):
+            assert public_url("eq/pk/a.webm") == "https://pub.example.com/eq/pk/a.webm"

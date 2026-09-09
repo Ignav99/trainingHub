@@ -48,6 +48,7 @@ export function SendToRevisionDialog({
   const [frase, setFrase] = useState('')
   const [loadingPack, setLoadingPack] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState<number | null>(null)
 
   const folders = useMemo(
     () => (pack?.folders || []).filter((f) => !f.parent_id).sort((a, b) => a.orden - b.orden),
@@ -90,6 +91,7 @@ export function SendToRevisionDialog({
       return
     }
     setBusy(true)
+    setProgress(null)
     try {
       toast.message('Recortando en el ordenador… el partido no se sube')
       const blob = await extractClipRange(videoElement, startTime, endTime)
@@ -99,6 +101,7 @@ export function SendToRevisionDialog({
         { type: blob.type || 'video/webm' }
       )
       const fase = pack.folders.find((f) => f.id === folderId)?.fase
+      setProgress(0)
       await revisionApi.uploadClip(clipFile, {
         pack_id: pack.id,
         equipo_id: equipoId,
@@ -110,13 +113,14 @@ export function SendToRevisionDialog({
         end_ms: Math.round(endTime * 1000),
         source_video_id: sourceVideoId,
         fase: fase || undefined,
-      })
+      }, setProgress)
       toast.success('Recorte enviado a Revisión')
       onOpenChange(false)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'No se pudo enviar el recorte')
     } finally {
       setBusy(false)
+      setProgress(null)
     }
   }
 
@@ -170,11 +174,14 @@ export function SendToRevisionDialog({
             <Label>Frase corta</Label>
             <Input value={frase} onChange={(e) => setFrase(e.target.value)} placeholder="Lo que quieres decir en la charla" />
           </div>
+          {busy && progress != null ? (
+            <p className="text-xs text-muted-foreground">Subiendo recorte… {progress}%</p>
+          ) : null}
         </div>
         <DialogFooter>
           <Button onClick={submit} disabled={busy || loadingPack}>
             {busy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
-            {busy ? 'Enviando…' : 'Enviar recorte'}
+            {busy ? (progress != null ? `Subiendo… ${progress}%` : 'Recortando…') : 'Enviar recorte'}
           </Button>
         </DialogFooter>
       </DialogContent>

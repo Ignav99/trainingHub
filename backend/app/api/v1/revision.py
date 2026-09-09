@@ -42,6 +42,7 @@ from app.services.revision_service import (
     normalize_clip_mime,
     normalize_signed_upload_url,
 )
+from app.services.r2_storage import delete_object, presign_put, public_url, put_file, r2_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -289,13 +290,16 @@ def _insert_clip(
     slot_tipo: str,
     created_by: str,
 ) -> dict:
-    public_url = supabase.storage.from_(REVISION_BUCKET).get_public_url(storage_path)
+    if r2_enabled():
+        public = public_url(storage_path)
+    else:
+        public = supabase.storage.from_(REVISION_BUCKET).get_public_url(storage_path)
     row = {
         "pack_id": pack_id,
         "equipo_id": equipo_id,
         "titulo": (titulo or "").strip() or "Clip",
         "frase": (frase or "").strip() or None,
-        "url": public_url,
+        "url": public,
         "storage_path": storage_path,
         "mime_type": mime,
         "size_bytes": size,
@@ -346,9 +350,18 @@ async def create_clip_upload_url(
     supabase = get_supabase()
     _verify_equipo(supabase, equipo_id)
     _get_pack(supabase, pack_id, equipo_id)
-    ensure_video_bucket(supabase)
 
     storage_path = make_clip_storage_path(equipo_id, pack_id, data.filename)
+    if r2_enabled():
+        try:
+            signed = presign_put(storage_path, mime)
+        except Exception as e:
+            logger.error("Error creating R2 signed url: %s", e)
+            raise HTTPException(status_code=500, detail="No se pudo preparar la subida del recorte.") from e
+        logger.info("revision clip R2 signed url path=%s size=%s user=%s", storage_path, data.size_bytes, auth.user_id)
+        return {"signed_url": signed, "token": "", "path": storage_path, "mime_type": mime, "storage": "r2"}
+
+    ensure_video_bucket(supabase)
     try:
         raw = supabase.storage.from_(REVISION_BUCKET).create_signed_upload_url(storage_path)
     except Exception as e:
@@ -458,14 +471,17 @@ async def upload_clip(
         if size < MIN_CLIP_BYTES:
             raise HTTPException(status_code=400, detail="El archivo está vacío o es demasiado pequeño.")
 
-        ensure_video_bucket(supabase)
         storage_path = make_clip_storage_path(equipo_id, pack_id, file.filename)
-        with open(tmp_path, "rb") as fh:
-            supabase.storage.from_(REVISION_BUCKET).upload(
-                storage_path,
-                fh,
-                file_options={"content-type": mime, "upsert": "true"},
-            )
+        if r2_enabled():
+            put_file(presign_put(storage_path, mime), tmp_path, mime)
+        else:
+            ensure_video_bucket(supabase)
+            with open(tmp_path, "rb") as fh:
+                supabase.storage.from_(REVISION_BUCKET).upload(
+                    storage_path,
+                    fh,
+                    file_options={"content-type": mime, "upsert": "true"},
+                )
     except HTTPException:
         raise
     except Exception as e:
@@ -538,6 +554,8 @@ async def delete_clip(
         raise HTTPException(status_code=404, detail="Clip no encontrado.")
     clip = existing.data[0]
     if clip.get("storage_path"):
+        if r2_enabled():
+            delete_object(clip["storage_path"])
         try:
             supabase.storage.from_(REVISION_BUCKET).remove([clip["storage_path"]])
         except Exception as e:

@@ -466,6 +466,7 @@ function UploadClipDialog({
   const [frase, setFrase] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState<number | null>(null)
 
   const submit = async () => {
     if (!file) return
@@ -474,6 +475,7 @@ function UploadClipDialog({
       return
     }
     setBusy(true)
+    setProgress(0)
     try {
       const current = pack ?? await ensurePack()
       await revisionApi.uploadClip(file, {
@@ -482,7 +484,7 @@ function UploadClipDialog({
         titulo: titulo.trim() || file.name,
         frase: frase.trim() || undefined,
         folder_id: folderId || undefined,
-      })
+      }, setProgress)
       toast.success('Recorte subido')
       setTitulo('')
       setFrase('')
@@ -492,6 +494,7 @@ function UploadClipDialog({
       toast.error(e instanceof Error ? e.message : 'Error al subir')
     } finally {
       setBusy(false)
+      setProgress(null)
     }
   }
 
@@ -502,7 +505,9 @@ function UploadClipDialog({
           <DialogTitle>Subir recorte</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">Solo clips cortos (1–2 min). No subas el partido entero.</p>
+          <p className="text-xs text-muted-foreground">
+            Clips de 1–2 min (~100MB). Cabén 7–10 por partido para una charla de 15–30 min. El partido entero no se sube.
+          </p>
           <div className="space-y-1">
             <Label>Título</Label>
             <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
@@ -512,9 +517,12 @@ function UploadClipDialog({
             <Input value={frase} onChange={(e) => setFrase(e.target.value)} placeholder="Una línea para la charla" />
           </div>
           <Input type="file" accept="video/*" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+          {busy && progress != null ? (
+            <p className="text-xs text-muted-foreground">Subiendo… {progress}%</p>
+          ) : null}
         </div>
         <DialogFooter>
-          <Button onClick={submit} disabled={!file || busy}>{busy ? 'Subiendo…' : 'Subir'}</Button>
+          <Button onClick={submit} disabled={!file || busy}>{busy ? `Subiendo… ${progress ?? 0}%` : 'Subir'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

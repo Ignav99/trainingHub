@@ -68,14 +68,13 @@ class TestRetention:
 
 
 class TestArchiveJob:
-    def test_does_not_delete_without_drive(self):
+    def test_deletes_expired_clip(self):
         from unittest.mock import MagicMock
         from app.services.revision_service import archive_expired_clips
 
         clip_id = "clip-1"
         pack_id = "pack-1"
         equipo_id = "eq-1"
-        org_id = "org-1"
 
         supabase = MagicMock()
         calls = {"n": 0}
@@ -87,6 +86,7 @@ class TestArchiveJob:
             q.lte.return_value = q
             q.limit.return_value = q
             q.update.return_value = q
+            q.delete.return_value = q
 
             def execute():
                 calls["n"] += 1
@@ -102,10 +102,6 @@ class TestArchiveJob:
                     }])
                 if name == "revision_packs":
                     return MagicMock(data=[{"id": pack_id, "partido_id": None, "equipo_id": equipo_id}])
-                if name == "equipos":
-                    return MagicMock(data=[{"id": equipo_id, "organizacion_id": org_id}])
-                if name == "organizaciones":
-                    return MagicMock(data=[{"id": org_id, "config": {}}])
                 return MagicMock(data=[{}])
 
             q.execute.side_effect = execute
@@ -115,9 +111,9 @@ class TestArchiveJob:
         supabase.storage.from_.return_value.remove = MagicMock()
 
         stats = archive_expired_clips(supabase)
-        assert stats["skipped_no_drive"] == 1
-        assert stats["archived"] == 0
-        supabase.storage.from_.return_value.remove.assert_not_called()
+        assert stats["archived"] == 1
+        assert stats["skipped_future_match"] == 0
+        supabase.storage.from_.return_value.remove.assert_called_once_with(["x.webm"])
 
 
 class TestDriveGate:
@@ -194,6 +190,8 @@ class TestClipUploadHelpers:
         assert "create_signed_upload_url" in text
         assert "/clips/upload-url" in text
         assert "NamedTemporaryFile" in text
+        assert "presign_put" in text
+        assert "r2_enabled" in text
 
 
 class TestClipUploadEndpoints:
@@ -263,20 +261,68 @@ class TestClipUploadEndpoints:
         auth = MagicMock()
         auth.user_id = "user-1"
         with patch("app.api.v1.revision.get_supabase", return_value=supabase):
-            result = await create_clip_upload_url(
-                ClipUploadUrlRequest(
-                    pack_id=pack,
-                    equipo_id=equipo,
-                    filename="clip.webm",
-                    size_bytes=5000,
-                    mime_type="video/webm",
-                ),
-                auth=auth,
-            )
+            with patch("app.api.v1.revision.r2_enabled", return_value=False):
+                result = await create_clip_upload_url(
+                    ClipUploadUrlRequest(
+                        pack_id=pack,
+                        equipo_id=equipo,
+                        filename="clip.webm",
+                        size_bytes=5000,
+                        mime_type="video/webm",
+                    ),
+                    auth=auth,
+                )
 
         assert result["signed_url"].startswith("https://")
         assert result["path"].startswith(f"{equipo}/{pack}/")
         supabase.storage.from_.return_value.upload.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_upload_url_uses_r2_when_configured(self):
+        from unittest.mock import MagicMock, patch
+        from uuid import uuid4
+
+        from app.api.v1.revision import create_clip_upload_url
+        from app.models.revision import ClipUploadUrlRequest
+
+        equipo = uuid4()
+        pack = uuid4()
+        supabase = MagicMock()
+        chain = MagicMock()
+        chain.select.return_value = chain
+        chain.eq.return_value = chain
+        chain.limit.return_value = chain
+
+        def table(name):
+            if name == "equipos":
+                chain.execute.return_value = MagicMock(data=[{"id": str(equipo), "organizacion_id": "org"}])
+            elif name == "revision_packs":
+                chain.execute.return_value = MagicMock(data=[{"id": str(pack), "equipo_id": str(equipo)}])
+            return chain
+
+        supabase.table.side_effect = table
+        auth = MagicMock()
+        auth.user_id = "user-1"
+        signed = "https://acc.r2.cloudflarestorage.com/revision-clips/eq/pk/clip.webm?X-Amz-Signature=abc"
+        with patch("app.api.v1.revision.get_supabase", return_value=supabase):
+            with patch("app.api.v1.revision.r2_enabled", return_value=True):
+                with patch("app.api.v1.revision.presign_put", return_value=signed) as presign:
+                    result = await create_clip_upload_url(
+                        ClipUploadUrlRequest(
+                            pack_id=pack,
+                            equipo_id=equipo,
+                            filename="clip.webm",
+                            size_bytes=87 * 1024 * 1024,
+                            mime_type="video/webm",
+                        ),
+                        auth=auth,
+                    )
+
+        assert result["storage"] == "r2"
+        assert result["signed_url"] == signed
+        assert result["path"].startswith(f"{equipo}/{pack}/")
+        presign.assert_called_once()
+        supabase.storage.from_.return_value.create_signed_upload_url.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_confirm_rejects_path_from_another_team(self):

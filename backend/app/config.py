@@ -103,6 +103,14 @@ class Settings(BaseSettings):
     # Error Monitoring
     SENTRY_DSN: str | None = None
 
+    # Cloudflare R2 — recortes de revisión (el partido entero no se sube).
+    # Si están las 5, el navegador sube directo a R2 y no se usa el bucket de 50MB de Supabase.
+    R2_ACCOUNT_ID: str | None = None
+    R2_ACCESS_KEY_ID: str | None = None
+    R2_SECRET_ACCESS_KEY: str | None = None
+    R2_BUCKET: str = "revision-clips"
+    R2_PUBLIC_BASE_URL: str | None = None
+
     # Redis (rate limiting, optional)
     REDIS_URL: str | None = None
 
