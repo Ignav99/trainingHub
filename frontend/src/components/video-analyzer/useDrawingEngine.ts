@@ -40,8 +40,10 @@ export function useDrawingEngine({
     []
   )
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent<SVGSVGElement>) => {
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<SVGSVGElement>) => {
+      e.preventDefault()
+      try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* ignore */ }
       const svg = e.currentTarget
       const pos = getSvgPosition(svg, e.clientX, e.clientY)
 
@@ -49,7 +51,6 @@ export function useDrawingEngine({
         const hitId = findElementAtPoint(e.target)
         if (hitId) {
           setSelectedId(hitId)
-          // Start drag if clicking on already-selected or newly-selected element
           draggingRef.current = true
           dragOriginRef.current = pos
           const el = elements.find((el) => el.id === hitId)
@@ -102,12 +103,18 @@ export function useDrawingEngine({
     [tool, color, strokeWidth, elements, setElements, findElementAtPoint, setSelectedId]
   )
 
-  const handleMouseMove = useCallback(
+  const handleMouseDown = useCallback(
     (e: React.MouseEvent<SVGSVGElement>) => {
+      handlePointerDown(e as unknown as React.PointerEvent<SVGSVGElement>)
+    },
+    [handlePointerDown]
+  )
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent<SVGSVGElement>) => {
       const svg = e.currentTarget
       const pos = getSvgPosition(svg, e.clientX, e.clientY)
 
-      // Dragging selected element
       if (draggingRef.current && dragOriginRef.current && dragElementSnapshotRef.current && selectedId) {
         const dx = pos.x - dragOriginRef.current.x
         const dy = pos.y - dragOriginRef.current.y
@@ -120,7 +127,6 @@ export function useDrawingEngine({
         return
       }
 
-      // Drawing
       if (!drawingRef.current || !startRef.current) return
 
       if (tool === 'freehand') {
@@ -139,9 +145,16 @@ export function useDrawingEngine({
     [tool, color, strokeWidth, selectedId, elements, setElements]
   )
 
-  const handleMouseUp = useCallback(
+  const handleMouseMove = useCallback(
     (e: React.MouseEvent<SVGSVGElement>) => {
-      // End drag
+      handlePointerMove(e as unknown as React.PointerEvent<SVGSVGElement>)
+    },
+    [handlePointerMove]
+  )
+
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent<SVGSVGElement>) => {
+      try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { /* ignore */ }
       if (draggingRef.current) {
         draggingRef.current = false
         dragOriginRef.current = null
@@ -149,7 +162,6 @@ export function useDrawingEngine({
         return
       }
 
-      // End draw
       if (!drawingRef.current || !startRef.current) return
       drawingRef.current = false
       const svg = e.currentTarget
@@ -195,6 +207,13 @@ export function useDrawingEngine({
     [tool, color, strokeWidth, elements, setElements]
   )
 
+  const handleMouseUp = useCallback(
+    (e: React.MouseEvent<SVGSVGElement>) => {
+      handlePointerUp(e as unknown as React.PointerEvent<SVGSVGElement>)
+    },
+    [handlePointerUp]
+  )
+
   const deleteSelected = useCallback(() => {
     if (!selectedId) return
     setElements(elements.filter((el) => el.id !== selectedId))
@@ -211,6 +230,9 @@ export function useDrawingEngine({
     handleMouseDown,
     handleMouseMove,
     handleMouseUp,
+    handlePointerDown,
+    handlePointerMove,
+    handlePointerUp,
     deleteSelected,
     clearAll,
   }

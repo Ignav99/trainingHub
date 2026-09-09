@@ -28,6 +28,7 @@ import { deriveAsignacionesFromDiagram } from '@/lib/planPartidoDiagramRoles'
 import { TacticalBoard } from './TacticalBoard'
 import { RivalStrategy } from './RivalStrategy'
 import { RivalContextoIntel } from './RivalContextoIntel'
+import { RevisionLibrary } from '@/components/revision/RevisionLibrary'
 import { api } from '@/lib/api/client'
 import { rivalesApi } from '@/lib/api/partidos'
 import { VideoPlayer } from '@/components/video-analyzer/VideoPlayer'
@@ -310,6 +311,16 @@ export function RivalScout({ data, rivalNombre, rivalId, microcicloId, equipoId,
               competicionId={competicionId}
               onChange={(nuevaEstrategia) => update({ estrategia: nuevaEstrategia })}
             />
+            {equipoId && rivalId && (
+              <RevisionLibrary
+                equipoId={equipoId}
+                ambito="rival"
+                rivalId={rivalId}
+                microcicloId={microcicloId}
+                initialFase="once_probable"
+                compact
+              />
+            )}
           </TabsContent>
 
           {FASES.map((fase) => (
@@ -331,6 +342,16 @@ export function RivalScout({ data, rivalNombre, rivalId, microcicloId, equipoId,
                 onRemoveClip={removeClip}
                 onTagKey={handleTagKey}
               />
+              {equipoId && rivalId && (
+                <RevisionLibrary
+                  equipoId={equipoId}
+                  ambito="rival"
+                  rivalId={rivalId}
+                  microcicloId={microcicloId}
+                  initialFase={fase}
+                  compact
+                />
+              )}
             </TabsContent>
           ))}
         </Tabs>

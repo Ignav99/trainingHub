@@ -19,7 +19,7 @@ import {
   Film,
   ChevronDown,
 } from 'lucide-react'
-import { formatTime } from '@/components/video-analyzer/utils'
+import { readLocalVideoFingerprint } from '@/components/video-analyzer/extractClip'
 
 const VideoAnalyzer = lazy(() =>
   import('@/components/video-analyzer/VideoAnalyzer').then((m) => ({ default: m.VideoAnalyzer }))
@@ -71,12 +71,16 @@ export default function VideoAnalisisPage() {
       return
     }
 
-    // Register a local session to enable tagging — non-blocking
+    // Register a local session to enable tagging — reuse by file fingerprint
     try {
+      const { fingerprint, durationMs } = await readLocalVideoFingerprint(f)
       const session = await videosApi.createLocalSession({
         partido_id: selectedPartidoId!,
         equipo_id: equipoId,
         filename: f.name,
+        size_bytes: f.size,
+        duration_ms: durationMs,
+        fingerprint,
       })
       setLocalVideoId(session.id)
     } catch {
@@ -185,7 +189,7 @@ export default function VideoAnalisisPage() {
           </div>
 
           <p className="text-xs text-muted-foreground mt-2">
-            El video se carga desde tu ordenador y no se sube al servidor. Solo los momentos guardados y clips recortados se almacenan.
+            El partido entero se queda en tu ordenador. Si cierras y abres el mismo archivo (mismo nombre, tamaño y duración), vuelven tags y cortes. A Revisión solo se envían recortes cortos.
           </p>
         </Card>
 
@@ -239,6 +243,7 @@ export default function VideoAnalisisPage() {
             partidoId={selectedPartidoId}
             equipoId={equipoId}
             videoId={localVideoId || undefined}
+            rivalId={selectedPartido?.rival_id}
             onClose={() => {
               setAnalyzerFile(null)
               setLocalVideoId(null)

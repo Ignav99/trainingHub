@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 
 from app.database import get_supabase
 from app.models.video import VideoPartidoCreate, VideoPartidoResponse, VideoPartidoUpdate
+from app.services.revision_service import make_fingerprint
 from app.security.dependencies import AuthContext, require_permission
 from app.security.permissions import Permission
 
@@ -92,6 +93,11 @@ async def create_local_session(
     partido_id = data.get("partido_id")
     equipo_id = data.get("equipo_id")
     filename = data.get("filename", "local_video")
+    fingerprint = data.get("fingerprint") or make_fingerprint(
+        filename,
+        data.get("size_bytes"),
+        data.get("duration_ms"),
+    )
 
     if not partido_id or not equipo_id:
         raise HTTPException(status_code=400, detail="partido_id y equipo_id son requeridos.")
@@ -101,6 +107,22 @@ async def create_local_session(
     if not _verify_partido(supabase, partido_id, equipo_id):
         raise HTTPException(status_code=404, detail="Partido no encontrado.")
 
+    try:
+        existing = (
+            supabase.table("videos_partido")
+            .select("id, titulo, local_file_fingerprint")
+            .eq("partido_id", partido_id)
+            .eq("equipo_id", equipo_id)
+            .eq("tipo", "local_session")
+            .eq("local_file_fingerprint", fingerprint)
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            return existing.data[0]
+    except Exception:
+        logger.warning("local_file_fingerprint lookup failed; creating a new session")
+
     row = {
         "partido_id": partido_id,
         "equipo_id": equipo_id,
@@ -108,9 +130,16 @@ async def create_local_session(
         "contexto": "post_partido",
         "titulo": f"Sesión local: {filename}",
         "url": "",  # local sessions have no remote URL
+        "local_file_fingerprint": fingerprint,
+        "size_bytes": data.get("size_bytes"),
     }
-    result = supabase.table("videos_partido").insert(row).execute()
-    return result.data[0]
+    try:
+        result = supabase.table("videos_partido").insert(row).execute()
+        return result.data[0]
+    except Exception:
+        row.pop("local_file_fingerprint", None)
+        result = supabase.table("videos_partido").insert(row).execute()
+        return result.data[0]
 
 
 # ============ ADD LINK (Veo / External) ============

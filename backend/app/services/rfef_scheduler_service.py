@@ -800,6 +800,13 @@ def start_scheduler():
         replace_existing=True,
     )
 
+    scheduler.add_job(
+        _archive_revision_clips,
+        CronTrigger(hour=3, minute=20, timezone="Europe/Madrid"),
+        id="revision_clip_archive",
+        replace_existing=True,
+    )
+
     scheduler.start()
     logger.info("RFAF scheduler started with %d jobs", len(scheduler.get_jobs()))
 
@@ -860,6 +867,18 @@ async def _daily_load_recalc():
         logger.info("Daily load recalc completed: %d teams", count)
     except Exception as e:
         logger.error("Error in daily load recalc: %s", e, exc_info=True)
+
+
+async def _archive_revision_clips():
+    """Clips de revisión con más de 30 días: Drive si hay, si no se conservan."""
+    try:
+        from app.services.revision_service import archive_expired_clips
+
+        supabase = get_supabase()
+        stats = await asyncio.to_thread(archive_expired_clips, supabase)
+        logger.info("Revision clip archive: %s", stats)
+    except Exception as e:
+        logger.error("Error archiving revision clips: %s", e, exc_info=True)
 
 
 def stop_scheduler():

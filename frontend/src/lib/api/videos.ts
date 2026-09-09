@@ -44,6 +44,9 @@ export const videosApi = {
     partido_id: string
     equipo_id: string
     filename: string
+    size_bytes?: number
+    duration_ms?: number
+    fingerprint?: string
   }): Promise<{ id: string }> {
     return api.post<{ id: string }>('/videos/local-session', data)
   },
