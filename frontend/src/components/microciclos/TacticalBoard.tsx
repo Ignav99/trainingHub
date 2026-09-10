@@ -166,12 +166,15 @@ export function TacticalBoard({
   const [playerCounter, setPlayerCounter] = useState({ team1: 1, team2: 1 })
   const [arrowCounter, setArrowCounter] = useState(1)
   const [isExpanded, setIsExpanded] = useState(false)
+  const [inspecting, setInspecting] = useState(false)
 
   const roleOptions = roleContext ? getRolesForContext(roleContext) : []
   const isZoneTool = activeTool === 'zone_rect' || activeTool === 'zone_circle'
+  const placingTokens = TOKEN_TYPES.includes(activeTool as ElementType)
   const selectedElement = elements.find((e) => e.id === selectedId)
   const selectedArrow = arrows.find((a) => a.id === selectedId)
   const selectedZone = zones.find((z) => z.id === selectedId)
+  const inspectorOpen = inspecting && !!(selectedElement || selectedArrow || selectedZone)
 
   // Hidratar solo al montar o al cambiar de pizarra (boardKey). Tras editar, el estado local manda.
   useEffect(() => {
@@ -184,6 +187,7 @@ export function TacticalBoard({
     isDirtyRef.current = false
     hydratedBoardKeyRef.current = key
     setSelectedId(null)
+    setInspecting(false)
     hydrateFromDiagram(
       diagramValue,
       setElements,
@@ -298,6 +302,7 @@ export function TacticalBoard({
     pushHistory()
     applyState([], [], [])
     setSelectedId(null)
+    setInspecting(false)
   }, [pushHistory, applyState])
 
   const deleteSelected = useCallback(() => {
@@ -309,6 +314,7 @@ export function TacticalBoard({
     const nextZones = curZones.filter((z) => z.id !== selectedId)
     applyState(nextElements, nextArrows, nextZones)
     setSelectedId(null)
+    setInspecting(false)
   }, [selectedId, pushHistory, applyState])
 
   const updateElement = useCallback((id: string, patch: Partial<DiagramElement>, recordHistory = false) => {
@@ -333,7 +339,15 @@ export function TacticalBoard({
   const clearSelection = useCallback(() => {
     flushEmit()
     setSelectedId(null)
+    setInspecting(false)
   }, [flushEmit])
+
+  const chooseTool = useCallback((tool: BoardTool) => {
+    setActiveTool(tool)
+    if (TOKEN_TYPES.includes(tool as ElementType) || tool === 'cone' || tool === 'ball' || tool === 'mini_goal' || tool === 'text' || tool.startsWith('arrow_') || tool === 'zone_rect' || tool === 'zone_circle') {
+      setInspecting(false)
+    }
+  }, [])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -351,13 +365,20 @@ export function TacticalBoard({
         e.preventDefault()
         redo()
       }
-      if (e.key === 'Escape' && isExpanded) {
-        setIsExpanded(false)
+      if (e.key === 'Escape') {
+        if (inspecting) {
+          e.preventDefault()
+          setInspecting(false)
+          return
+        }
+        if (isExpanded) {
+          setIsExpanded(false)
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [deleteSelected, undo, redo, isExpanded])
+  }, [deleteSelected, undo, redo, isExpanded, inspecting])
 
   useEffect(() => {
     if (gRef.current) svgRef.current = gRef.current.ownerSVGElement || null
@@ -406,6 +427,7 @@ export function TacticalBoard({
         setArrowCounter((c) => c + 1)
         setArrowStart(null)
         setSelectedId(newArrow.id)
+        setInspecting(false)
         setActiveTool('select')
       }
       return
@@ -432,6 +454,7 @@ export function TacticalBoard({
       setActiveTool('select')
       suppressPitchClickRef.current = true
       setSelectedId(newText.id)
+      setInspecting(true)
       return
     }
 
@@ -473,8 +496,8 @@ export function TacticalBoard({
       setPlayerCounter(newCounter)
     }
     if (TOKEN_TYPES.includes(elementType)) {
-      // Mantener herramienta activa para colocar varios; rol opcional
       setSelectedId(null)
+      setInspecting(false)
       suppressPitchClickRef.current = true
     }
   }, [activeTool, arrowStart, arrowCounter, playerCounter, getSvgPosition, pushHistory, applyState, clearSelection])
@@ -549,33 +572,35 @@ export function TacticalBoard({
     setIsDragging(false)
   }, [zoneDragStart, zoneDragCurrent, isZoneTool, activeTool, zoneColor, isDragging, getSvgPosition, pushHistory, applyState])
 
-  const selectElement = useCallback((elementId: string, openPanel = true) => {
+  const selectElement = useCallback((elementId: string) => {
     suppressPitchClickRef.current = true
-    if (openPanel) {
-      setSelectedId(elementId)
-      setActiveTool('select')
-    }
+    setSelectedId(elementId)
+  }, [])
+
+  const openInspector = useCallback((elementId: string) => {
+    suppressPitchClickRef.current = true
+    setSelectedId(elementId)
+    setInspecting(true)
+    setActiveTool('select')
   }, [])
 
   const handleElementMouseDown = useCallback((e: React.MouseEvent, elementId: string) => {
+    if (placingTokens) return
     e.stopPropagation()
     e.preventDefault()
     dragMovedRef.current = false
     if (activeTool === 'select') {
-      selectElement(elementId, true)
+      selectElement(elementId)
       setIsDragging(true)
       const pos = getSvgPosition(e)
       const el = elements.find((item) => item.id === elementId)
       const z = zones.find((item) => item.id === elementId)
       if (el) setDragOffset({ x: pos.x - el.position.x, y: pos.y - el.position.y })
       else if (z) setDragOffset({ x: pos.x - z.position.x, y: pos.y - z.position.y })
-    } else if (TOKEN_TYPES.includes(elements.find((item) => item.id === elementId)?.type as ElementType)) {
-      // Con herramienta de colocación activa, permitir seguir añadiendo en el campo
-      return
     } else {
-      selectElement(elementId, true)
+      selectElement(elementId)
     }
-  }, [activeTool, elements, zones, getSvgPosition, selectElement])
+  }, [placingTokens, activeTool, elements, zones, getSvgPosition, selectElement])
 
   const renderElement = (element: DiagramElement) => {
     const { id, type, position, color, label, jugador, rol } = element
@@ -585,9 +610,17 @@ export function TacticalBoard({
 
     const commonProps = {
       key: id,
-      style: { cursor: activeTool === 'select' ? 'move' : 'pointer' } as React.CSSProperties,
+      style: {
+        cursor: placingTokens ? 'crosshair' : activeTool === 'select' ? 'move' : 'pointer',
+        pointerEvents: placingTokens ? 'none' : 'auto',
+      } as React.CSSProperties,
       onMouseDown: (e: React.MouseEvent) => handleElementMouseDown(e, id),
       onClick: (e: React.MouseEvent) => e.stopPropagation(),
+      onDoubleClick: (e: React.MouseEvent) => {
+        e.stopPropagation()
+        e.preventDefault()
+        openInspector(id)
+      },
     }
 
     switch (type) {
@@ -649,16 +682,25 @@ export function TacticalBoard({
   }
 
   const renderArrow = (arrow: DiagramArrow) => (
-    <BoardArrow
+    <g
       key={arrow.id}
-      arrow={arrow}
-      selected={selectedId === arrow.id}
-      interactive
-      onSelect={(e) => {
+      style={{ pointerEvents: placingTokens ? 'none' : 'auto' }}
+      onDoubleClick={(e) => {
         e.stopPropagation()
-        selectElement(arrow.id, true)
+        openInspector(arrow.id)
       }}
-    />
+    >
+      <BoardArrow
+        arrow={arrow}
+        selected={selectedId === arrow.id}
+        interactive
+        onSelect={(e) => {
+          e.stopPropagation()
+          if (placingTokens) return
+          selectElement(arrow.id)
+        }}
+      />
+    </g>
   )
 
   const renderZone = (zone: DiagramZone) => {
@@ -668,8 +710,12 @@ export function TacticalBoard({
     return (
       <g key={id}
         onMouseDown={(e) => handleElementMouseDown(e, id)}
-        onClick={(e) => { e.stopPropagation(); selectElement(id, true) }}
-        style={{ cursor: activeTool === 'select' ? 'move' : 'pointer' }}
+        onClick={(e) => { e.stopPropagation(); if (!placingTokens) selectElement(id) }}
+        onDoubleClick={(e) => { e.stopPropagation(); openInspector(id) }}
+        style={{
+          cursor: placingTokens ? 'crosshair' : activeTool === 'select' ? 'move' : 'pointer',
+          pointerEvents: placingTokens ? 'none' : 'auto',
+        }}
       >
         {shape === 'ellipse' ? (
           <ellipse
@@ -715,9 +761,9 @@ export function TacticalBoard({
     return <rect x={x} y={y} width={w} height={h} fill={zoneColor} opacity={0.3} stroke="#FFFF00" strokeWidth="1" strokeDasharray="4,2" />
   }
 
-  const elementPanel = (selectedElement || selectedArrow || selectedZone) && (
+  const elementPanel = inspectorOpen && (
     <div
-      className="absolute top-2 right-2 w-52 bg-white rounded-xl shadow-lg border border-gray-200 z-[60] overflow-hidden pointer-events-auto"
+      className="w-full max-w-md bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
       onMouseDown={(e) => e.stopPropagation()}
       onMouseUp={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
@@ -743,7 +789,7 @@ export function TacticalBoard({
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
-      <div className="p-3 space-y-2">
+      <div className="p-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
         {selectedElement && TOKEN_TYPES.includes(selectedElement.type) && (
           <>
             <div className="space-y-0.5">
@@ -858,23 +904,23 @@ export function TacticalBoard({
       }
     >
       <div className="flex flex-wrap items-center gap-1">
-        <TB id="select" icon={<MousePointer className="h-3.5 w-3.5" />} label="Seleccionar" activeTool={activeTool} onSelect={setActiveTool} />
+        <TB id="select" icon={<MousePointer className="h-3.5 w-3.5" />} label="Seleccionar" activeTool={activeTool} onSelect={chooseTool} />
         <Sep />
-        <TB id="player" icon={<Circle className="h-3.5 w-3.5" />} label="Jugador" color={TEAM_COLORS.team1} activeTool={activeTool} onSelect={setActiveTool} />
-        <TB id="opponent" icon={<Circle className="h-3.5 w-3.5" />} label="Rival" color={TEAM_COLORS.team2} activeTool={activeTool} onSelect={setActiveTool} />
-        <TB id="player_gk" icon={<Circle className="h-3.5 w-3.5" />} label="Portero" color={TEAM_COLORS.goalkeeper} activeTool={activeTool} onSelect={setActiveTool} />
-        <TB id="player_joker" icon={<Circle className="h-3.5 w-3.5" />} label="Comodín" color={TEAM_COLORS.joker} activeTool={activeTool} onSelect={setActiveTool} />
+        <TB id="player" icon={<Circle className="h-3.5 w-3.5" />} label="Jugador" color={TEAM_COLORS.team1} activeTool={activeTool} onSelect={chooseTool} />
+        <TB id="opponent" icon={<Circle className="h-3.5 w-3.5" />} label="Rival" color={TEAM_COLORS.team2} activeTool={activeTool} onSelect={chooseTool} />
+        <TB id="player_gk" icon={<Circle className="h-3.5 w-3.5" />} label="Portero" color={TEAM_COLORS.goalkeeper} activeTool={activeTool} onSelect={chooseTool} />
+        <TB id="player_joker" icon={<Circle className="h-3.5 w-3.5" />} label="Comodín" color={TEAM_COLORS.joker} activeTool={activeTool} onSelect={chooseTool} />
         <Sep />
-        <TB id="cone" icon={<Triangle className="h-3.5 w-3.5" />} label="Cono" color="#FF6B00" activeTool={activeTool} onSelect={setActiveTool} />
-        <TB id="ball" icon={<Target className="h-3.5 w-3.5" />} label="Balon" activeTool={activeTool} onSelect={setActiveTool} />
-        <TB id="mini_goal" icon={<Minus className="h-3.5 w-3.5 rotate-90" />} label="Mini" activeTool={activeTool} onSelect={setActiveTool} />
-        <TB id="text" icon={<Type className="h-3.5 w-3.5" />} label="Texto" activeTool={activeTool} onSelect={setActiveTool} />
+        <TB id="cone" icon={<Triangle className="h-3.5 w-3.5" />} label="Cono" color="#FF6B00" activeTool={activeTool} onSelect={chooseTool} />
+        <TB id="ball" icon={<Target className="h-3.5 w-3.5" />} label="Balon" activeTool={activeTool} onSelect={chooseTool} />
+        <TB id="mini_goal" icon={<Minus className="h-3.5 w-3.5 rotate-90" />} label="Mini" activeTool={activeTool} onSelect={chooseTool} />
+        <TB id="text" icon={<Type className="h-3.5 w-3.5" />} label="Texto" activeTool={activeTool} onSelect={chooseTool} />
         <Sep />
         {ARROW_TYPE_ORDER.map((type) => (
           <button
             key={type}
             type="button"
-            onClick={() => setActiveTool(`arrow_${type}`)}
+            onClick={() => chooseTool(`arrow_${type}`)}
             title={`${ARROW_STYLES[type].label} — ${ARROW_STYLES[type].hint}`}
             className={`flex items-center px-1 py-1 rounded-lg ${
               activeTool === `arrow_${type}` ? 'bg-blue-600 ring-2 ring-blue-300' : 'bg-gray-100 hover:bg-gray-200'
@@ -884,8 +930,8 @@ export function TacticalBoard({
           </button>
         ))}
         <Sep />
-        <TB id="zone_rect" icon={<Square className="h-3.5 w-3.5" />} label="Zona" color={zoneColor} activeTool={activeTool} onSelect={setActiveTool} />
-        <TB id="zone_circle" icon={<Circle className="h-3.5 w-3.5" />} label="Elipse" color={zoneColor} activeTool={activeTool} onSelect={setActiveTool} />
+        <TB id="zone_rect" icon={<Square className="h-3.5 w-3.5" />} label="Zona" color={zoneColor} activeTool={activeTool} onSelect={chooseTool} />
+        <TB id="zone_circle" icon={<Circle className="h-3.5 w-3.5" />} label="Elipse" color={zoneColor} activeTool={activeTool} onSelect={chooseTool} />
         {isZoneTool && (
           <div className="flex items-center gap-0.5 ml-1">
             {ZONE_COLORS.map((c) => (
@@ -926,7 +972,6 @@ export function TacticalBoard({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
-        {elementPanel}
         <ABPPitch
           type="half"
           orientation="vertical"
@@ -944,16 +989,18 @@ export function TacticalBoard({
         </ABPPitch>
       </div>
 
+      {elementPanel}
+
       <div className="flex justify-between items-center">
         <p className="text-[10px] text-muted-foreground">
           {activeTool.startsWith('arrow_')
             ? (arrowStart ? '2. Click destino de la flecha' : '1. Click origen — luego destino')
             : isZoneTool
               ? 'Click y arrastra para dibujar zona'
-              : selectedArrow
-                ? 'Añade etiqueta y comentario al movimiento'
+              : placingTokens
+                ? 'Click en el campo para colocar. Puedes poner uno justo debajo de otro. Doble clic (con Seleccionar) para nombre y rol.'
                 : roleContext
-                  ? 'Coloca jugadores, flechas, zonas y comentarios; usa Seleccionar para roles'
+                  ? 'Doble clic en un jugador para nombre y rol. Un clic solo selecciona o mueve.'
                   : 'Selecciona una herramienta y click en el campo'}
         </p>
         {onChange && (
