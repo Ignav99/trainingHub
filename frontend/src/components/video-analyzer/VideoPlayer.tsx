@@ -57,13 +57,18 @@ interface VideoPlayerProps {
    *    keeps play position) for a bigger, popup-like viewing area
    */
   standalonePreview?: boolean
+  /**
+   * Live dossier presenter: same player, already in a large window.
+   * Hides the nested expand overlay and leaves ←/→ to change slides.
+   */
+  presenterEmbed?: boolean
   defaultMuted?: boolean
   /** Zoom del recuadro de vídeo (sala). No afecta a la barra de controles. */
   contentTransform?: { transform: string; transformOrigin: string }
 }
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
-  function VideoPlayer({ src, clipRange, onTimeUpdate, onPlayStateChange, onDurationChange, onSeeked, onError, standalonePreview, defaultMuted, contentTransform }, ref) {
+  function VideoPlayer({ src, clipRange, onTimeUpdate, onPlayStateChange, onDurationChange, onSeeked, onError, standalonePreview, presenterEmbed, defaultMuted, contentTransform }, ref) {
     const videoRef = useRef<HTMLVideoElement>(null as unknown as HTMLVideoElement)
     const containerRef = useRef<HTMLDivElement>(null)
     const [playing, setPlaying] = useState(false)
@@ -359,6 +364,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       const v = videoRef.current
       if (!v) return
       if (e.key === 'ArrowLeft') {
+        if (presenterEmbed) return
         e.preventDefault()
         if (e.shiftKey) {
           const min = clipRange?.start ?? 0
@@ -367,6 +373,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           frameStep(-1)
         }
       } else if (e.key === 'ArrowRight') {
+        if (presenterEmbed) return
         e.preventDefault()
         if (e.shiftKey) {
           const max = clipRange?.end ?? v.duration
@@ -380,15 +387,15 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       } else if (e.key === 'Escape' && isExpanded) {
         setIsExpanded(false)
       }
-    }, [standalonePreview, clipRange, togglePlay, isExpanded, frameStep])
+    }, [standalonePreview, presenterEmbed, clipRange, togglePlay, isExpanded, frameStep])
 
     // Auto-focus the container when entering the expanded overlay so arrow
     // keys work immediately without an extra click.
     useEffect(() => {
-      if (standalonePreview && isExpanded) {
+      if (standalonePreview && (isExpanded || presenterEmbed)) {
         containerRef.current?.focus()
       }
-    }, [standalonePreview, isExpanded])
+    }, [standalonePreview, isExpanded, presenterEmbed])
 
     // Real OS fullscreen toggle
     useEffect(() => {
@@ -422,7 +429,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         className={
           isPortalExpanded
             ? 'fixed inset-4 z-[100] flex flex-col bg-black outline-none rounded-lg overflow-hidden shadow-2xl'
-            : 'flex flex-col outline-none'
+            : presenterEmbed
+              ? 'flex h-full min-h-0 flex-col outline-none'
+              : 'flex flex-col outline-none'
         }
         tabIndex={standalonePreview ? 0 : undefined}
         onKeyDown={handleContainerKeyDown}
@@ -434,7 +443,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           muted={muted}
           playsInline
           className={
-            isPortalExpanded
+            isPortalExpanded || presenterEmbed
               ? 'flex-1 min-h-0 w-full object-contain bg-black'
               : 'w-full h-full object-contain bg-black'
           }
@@ -586,15 +595,17 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           {standalonePreview && (
             <>
               <div className="w-px h-4 bg-white/20 mx-0.5" />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20"
-                onClick={() => setIsExpanded((v) => !v)}
-                title={isExpanded ? 'Contraer' : 'Ampliar ventana'}
-              >
-                {isExpanded ? <Shrink className="h-3.5 w-3.5" /> : <Expand className="h-3.5 w-3.5" />}
-              </Button>
+              {!presenterEmbed && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20"
+                  onClick={() => setIsExpanded((v) => !v)}
+                  title={isExpanded ? 'Contraer' : 'Ampliar ventana'}
+                >
+                  {isExpanded ? <Shrink className="h-3.5 w-3.5" /> : <Expand className="h-3.5 w-3.5" />}
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"

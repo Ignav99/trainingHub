@@ -22,7 +22,10 @@ import type {
 import { exportPlanPartidoPDF } from '@/lib/pdf/exportPlanPartidoPDF'
 import { deriveAsignacionesFromDiagram } from '@/lib/planPartidoDiagramRoles'
 import { ExportDossierMenu } from '@/components/rivales/ExportDossierMenu'
+import { DossierPresenter } from '@/components/rivales/DossierPresenter'
 import { exportPresentacionDossier } from '@/lib/api/presentaciones'
+import { buildPlanShow, type DossierShow } from '@/lib/dossierShow'
+import { useClubStore } from '@/stores/clubStore'
 import { TacticalBoard } from './TacticalBoard'
 import { PlanPartidoABPSection } from './PlanPartidoABPSection'
 import { getContextForSubfase } from '@/lib/tacticalRoles'
@@ -108,8 +111,10 @@ export function PlanPartido({
 }: PlanPartidoProps) {
   const [activeTab, setActiveTab] = useState<FasePlanPartido>('ataque_organizado')
   const [exportingDeck, setExportingDeck] = useState(false)
+  const [liveShow, setLiveShow] = useState<DossierShow | null>(null)
   const dataRef = useRef(data)
   dataRef.current = data
+  const clubNombre = useClubStore((s) => s.organizacion?.nombre)
   const fases = data.fases ?? []
 
   const totalClipsSize = fases.reduce(
@@ -175,6 +180,17 @@ export function PlanPartido({
           </CardTitle>
           <ExportDossierMenu
             exporting={exportingDeck}
+            onPresentar={() => {
+              setLiveShow(buildPlanShow(dataRef.current, {
+                rivalNombre,
+                clubNombre,
+                fecha: fechaPartido,
+                hora: horaPartido,
+                campo: campoPartido || ciudadPartido,
+                localia,
+                tramo,
+              }))
+            }}
             onPdf={() =>
               void exportPlanPartidoPDF(data, equipoId, {
                 rivalNombre,
@@ -207,6 +223,10 @@ export function PlanPartido({
           />
         </div>
       </CardHeader>
+
+      {liveShow && (
+        <DossierPresenter show={liveShow} onClose={() => setLiveShow(null)} />
+      )}
 
       <CardContent className="space-y-5">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FasePlanPartido)}>

@@ -26,7 +26,10 @@ import type { DiagramData } from '@/components/tarea-editor/types'
 import { exportRivalScoutPDF } from '@/lib/pdf/exportRivalScoutPDF'
 import { deriveAsignacionesFromDiagram } from '@/lib/planPartidoDiagramRoles'
 import { ExportDossierMenu } from '@/components/rivales/ExportDossierMenu'
+import { DossierPresenter } from '@/components/rivales/DossierPresenter'
 import { exportPresentacionDossier } from '@/lib/api/presentaciones'
+import { buildInformeShow, type DossierShow } from '@/lib/dossierShow'
+import { useClubStore } from '@/stores/clubStore'
 import { TacticalBoard } from './TacticalBoard'
 import { RivalStrategy } from './RivalStrategy'
 import { RivalContextoIntel } from './RivalContextoIntel'
@@ -98,8 +101,10 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({})
   const [activeTab, setActiveTab] = useState<TabValue>('contexto')
   const [exportingDeck, setExportingDeck] = useState(false)
+  const [liveShow, setLiveShow] = useState<DossierShow | null>(null)
   const dataRef = useRef(data)
   dataRef.current = data
+  const clubNombre = useClubStore((s) => s.organizacion?.nombre)
 
   const { data: rfefRes } = useSWR<{ data: RFEFCompeticion[] }>(
     equipoId ? apiKey('/rfef/competiciones', { equipo_id: equipoId }) : null
@@ -217,6 +222,13 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
           </div>
           <ExportDossierMenu
             exporting={exportingDeck}
+            onPresentar={() => {
+              setLiveShow(buildInformeShow(dataRef.current, {
+                rivalNombre,
+                clubNombre,
+                localia,
+              }))
+            }}
             onPdf={() => void exportRivalScoutPDF(data, {
               rivalNombre,
               rivalEscudoUrl,
@@ -239,6 +251,10 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
           />
         </div>
       </CardHeader>
+
+      {liveShow && (
+        <DossierPresenter show={liveShow} onClose={() => setLiveShow(null)} />
+      )}
 
       <CardContent className="space-y-5">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)}>
