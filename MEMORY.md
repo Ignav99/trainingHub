@@ -10,7 +10,7 @@ Dos herramientas: **Video Análisis** (partido entero local, nunca a la nube) y 
 - Reproductor único (`VideoPlayer`): barra de seek bajo el vídeo + rebobinado al mantener pulsado. Informe rival, plan, revisión, sala, análisis, organizer y vídeos subidos de partido lo comparten.
 
 ## Partidos: lista plegable + presentación
-La columna de próximos/jugados se puede ocultar para ganar tablero. El botón Exportar de informe rival y plan de partido ofrece PDF (enviar) o Presentación (.pptx, abre en PowerPoint y Google Slides). La IA sintetiza el dossier en pocas diapos (claves, pocas palabras). Si la IA falla, hay un guion determinista. Informe de partido no se tocó.
+La columna de próximos/jugados se puede ocultar para ganar tablero. **Presentar** (informe rival y plan de partido) abre una charla a pantalla completa: portada, luego cada fase (diapositiva) y a continuación los clips ya asociados a esa fase, con el `VideoPlayer` compartido. El PPT sigue como descarga (Exportar → Descargar PPT). El PDF sigue para enviar. Informe de partido no se tocó.
 
 ## Ficha rival
 Solo Scouting, Informe rival, Plan de partido, ABP y Equipación. Plan ida/vuelta. PDF informe rival alineado con el plan. En el partido, la primera pestaña es **Plan del rival** (el mismo informe de la ficha, enlace a `/rivales/:id?tab=informe`). En la pizarra del plan/informe: colocar jugadores no abre el panel de rol; doble clic para nombre/rol; el editor no tapa el césped.
