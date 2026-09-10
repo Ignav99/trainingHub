@@ -28,4 +28,16 @@ describe('partidos workspace and dossier export', () => {
     assert.equal(plan.includes('Exportar PDF'), false)
     assert.equal(scout.includes('Exportar PDF'), false)
   })
+
+  it('opens the rival plan as the first match tab, linked to the rival ficha', () => {
+    const panel = readFileSync(join(src, 'components/partidos/MatchDetailPanel.tsx'), 'utf8')
+    const tab = readFileSync(join(src, 'components/partidos/PartidoPlanRivalTab.tsx'), 'utf8')
+    const rivalPage = readFileSync(join(src, 'app/(dashboard)/rivales/[id]/page.tsx'), 'utf8')
+    const planIdx = panel.indexOf('value="plan-partido"')
+    const rivalIdx = panel.indexOf('value="plan-rival"')
+    assert.ok(rivalIdx >= 0 && rivalIdx < planIdx)
+    assert.match(tab, /RivalInformeTab/)
+    assert.match(tab, /\/rivales\/\$\{rivalId\}\?tab=informe/)
+    assert.match(rivalPage, /searchParams.get\('tab'\)/)
+  })
 })

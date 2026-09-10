@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import useSWR, { mutate } from 'swr'
@@ -48,6 +48,12 @@ const RivalPlanPartidoTab = dynamic(() => import('@/components/rivales/RivalPlan
 
 type TabId = 'scouting' | 'informe' | 'plan_partido' | 'abp' | 'equipacion'
 
+const TAB_IDS: TabId[] = ['scouting', 'informe', 'plan_partido', 'abp', 'equipacion']
+
+function isTabId(value: string | null): value is TabId {
+  return !!value && (TAB_IDS as string[]).includes(value)
+}
+
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'scouting', label: 'Scouting', icon: <Database className="h-3.5 w-3.5" /> },
   { id: 'informe', label: 'Informe Rival', icon: <FileText className="h-3.5 w-3.5" /> },
@@ -59,9 +65,21 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
 export default function RivalDetailPage() {
   const params = useParams()
   const id = params.id as string
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const { equipoActivo } = useEquipoStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [activeTab, setActiveTab] = useState<TabId>('scouting')
+  const initialTab = searchParams.get('tab')
+  const [activeTab, setActiveTab] = useState<TabId>(isTabId(initialTab) ? initialTab : 'scouting')
+
+  const selectTab = (tab: TabId) => {
+    setActiveTab(tab)
+    const next = new URLSearchParams(searchParams.toString())
+    if (tab === 'scouting') next.delete('tab')
+    else next.set('tab', tab)
+    const qs = next.toString()
+    router.replace(qs ? `/rivales/${id}?${qs}` : `/rivales/${id}`, { scroll: false })
+  }
   const [uploadingEscudo, setUploadingEscudo] = useState(false)
   const [refreshingIntel, setRefreshingIntel] = useState(false)
 
@@ -193,7 +211,7 @@ export default function RivalDetailPage() {
         {TABS.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => selectTab(tab.id)}
             className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
               activeTab === tab.id
                 ? 'border-primary text-foreground'
