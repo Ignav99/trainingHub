@@ -19,7 +19,8 @@ email-validator==2.3.0
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 
-# PDF Generation & Parsing
+# PDF / PPTX
+python-pptx==1.0.2
 weasyprint==60.2
 pydyf==0.10.0  # pydyf 0.11+ breaks weasyprint 60.x PDF.__init__ signature
 Jinja2==3.1.3

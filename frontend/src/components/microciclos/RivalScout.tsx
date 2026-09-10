@@ -25,6 +25,8 @@ import type {
 import type { DiagramData } from '@/components/tarea-editor/types'
 import { exportRivalScoutPDF } from '@/lib/pdf/exportRivalScoutPDF'
 import { deriveAsignacionesFromDiagram } from '@/lib/planPartidoDiagramRoles'
+import { ExportDossierMenu } from '@/components/rivales/ExportDossierMenu'
+import { exportPresentacionDossier } from '@/lib/api/presentaciones'
 import { TacticalBoard } from './TacticalBoard'
 import { RivalStrategy } from './RivalStrategy'
 import { RivalContextoIntel } from './RivalContextoIntel'
@@ -95,6 +97,7 @@ type TabValue = 'contexto' | 'once_probable' | FaseRival
 export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microcicloId, equipoId, localia, onChange }: RivalScoutProps) {
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({})
   const [activeTab, setActiveTab] = useState<TabValue>('contexto')
+  const [exportingDeck, setExportingDeck] = useState(false)
   const dataRef = useRef(data)
   dataRef.current = data
 
@@ -212,19 +215,28 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
             <CardTitle className="text-base">Informe Rival</CardTitle>
             {rivalNombre && <p className="text-sm text-muted-foreground font-medium">{rivalNombre}</p>}
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 text-xs"
-            onClick={() => void exportRivalScoutPDF(data, {
+          <ExportDossierMenu
+            exporting={exportingDeck}
+            onPdf={() => void exportRivalScoutPDF(data, {
               rivalNombre,
               rivalEscudoUrl,
               localia,
             })}
-          >
-            Exportar PDF
-          </Button>
+            onPresentacion={async () => {
+              setExportingDeck(true)
+              try {
+                await exportPresentacionDossier('informe', data, {
+                  rival_nombre: rivalNombre,
+                  rival_escudo_url: rivalEscudoUrl,
+                  localia,
+                })
+              } catch (err: unknown) {
+                toast.error(err instanceof Error ? err.message : 'No se pudo crear la presentación')
+              } finally {
+                setExportingDeck(false)
+              }
+            }}
+          />
         </div>
       </CardHeader>
 

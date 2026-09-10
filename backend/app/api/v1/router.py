@@ -61,6 +61,7 @@ from app.api.v1 import (
     escritura,
     informes,
     ficha_clinica,
+    presentaciones,
 )
 
 api_router = APIRouter()
@@ -193,6 +194,12 @@ api_router.include_router(
     informes.router,
     prefix="/informes",
     tags=["Informes"]
+)
+
+api_router.include_router(
+    presentaciones.router,
+    prefix="/presentaciones",
+    tags=["Presentaciones"]
 )
 
 api_router.include_router(
