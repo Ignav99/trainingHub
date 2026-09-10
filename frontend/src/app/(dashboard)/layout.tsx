@@ -248,9 +248,19 @@ export default function DashboardLayout({
   const handleOpenSidebar = useCallback(() => setSidebarOpen(true), [])
 
   const activeTeam = equipoActivo ?? equipos[0] ?? null
+  const isRevisionSala = pathname.startsWith('/revision/')
 
   // Club-admin/superadmin have no single "active team" (they manage the whole
   // club) — only gate on team data for the operational, single-team roles.
+  if (isRevisionSala && isAuthenticated && (isClubOnlyRole || activeTeam)) {
+    return (
+      <div className="min-h-screen bg-black">
+        {children}
+        <Toaster />
+      </div>
+    )
+  }
+
   if (!isAuthenticated || !dataReady || (!isClubOnlyRole && !activeTeam)) {
     return <SplashScreen />
   }

@@ -27,6 +27,7 @@ const TOOLS: { tool: DrawingTool; icon: React.ElementType; label: string }[] = [
   { tool: 'rect', icon: Square, label: 'Rectángulo' },
   { tool: 'freehand', icon: Pencil, label: 'Dibujo libre' },
   { tool: 'text', icon: Type, label: 'Texto' },
+  { tool: 'eraser', icon: Eraser, label: 'Goma' },
 ]
 
 const TOOL_LABELS: Record<string, string> = {
@@ -192,12 +193,13 @@ export function DrawingToolbar({
         </Button>
         <Button
           variant="ghost"
-          size="icon"
-          className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20"
+          size="sm"
+          className="h-7 px-2 text-white/80 hover:text-white hover:bg-white/20"
           onClick={onClearAll}
           title="Borrar todo"
         >
-          <Eraser className="h-3.5 w-3.5" />
+          <Trash2 className="h-3.5 w-3.5 mr-1" />
+          Borrar todo
         </Button>
       </div>
 

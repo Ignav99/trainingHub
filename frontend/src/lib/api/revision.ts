@@ -48,6 +48,7 @@ export interface RevisionClip {
   frase?: string | null
   nota?: string | null
   url?: string | null
+  url_play?: string | null
   storage_path?: string | null
   mime_type?: string | null
   size_bytes?: number | null
@@ -116,6 +117,11 @@ export interface RevisionClipUploadMeta {
   jugador_id?: string
   slot_tipo?: 'folder' | 'once_jugador'
   mime_type?: string
+}
+
+export function clipPlaySrc(clip: { url_play?: string | null; url?: string | null } | null | undefined): string | null {
+  if (!clip) return null
+  return clip.url_play || clip.url || null
 }
 
 function isSupabaseStorageUrl(url: string): boolean {

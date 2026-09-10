@@ -67,8 +67,7 @@ def _uri_encode(path: str, *, slash: bool) -> str:
     return quote(path, safe="/" if slash else "")
 
 
-def presign_put(storage_path: str, mime: str, expires: int = 3600) -> str:
-    """URL firmada para PUT del recorte (hasta 200MB) desde el navegador."""
+def _presign(method: str, storage_path: str, expires: int) -> str:
     s = get_settings()
     if not r2_enabled():
         raise RuntimeError("R2 no está configurado")
@@ -93,7 +92,7 @@ def presign_put(storage_path: str, mime: str, expires: int = 3600) -> str:
     canonical_query = "&".join(f"{_uri_encode(k, slash=False)}={_uri_encode(v, slash=False)}" for k, v in query_items)
     canonical_headers = f"host:{host}\n"
     canonical_request = "\n".join([
-        "PUT",
+        method,
         canonical_uri,
         canonical_query,
         canonical_headers,
@@ -113,6 +112,16 @@ def presign_put(storage_path: str, mime: str, expires: int = 3600) -> str:
         hashlib.sha256,
     ).hexdigest()
     return f"https://{host}{canonical_uri}?{canonical_query}&X-Amz-Signature={signature}"
+
+
+def presign_put(storage_path: str, mime: str, expires: int = 3600) -> str:
+    """URL firmada para PUT del recorte (hasta 200MB) desde el navegador."""
+    return _presign("PUT", storage_path, expires)
+
+
+def presign_get(storage_path: str, expires: int = 14400) -> str:
+    """URL firmada para reproducir el recorte (Chrome / iPad no siempre abren r2.dev)."""
+    return _presign("GET", storage_path, expires)
 
 
 def public_url(storage_path: str) -> str:

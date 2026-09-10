@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dialog'
 import {
   revisionApi,
+  clipPlaySrc,
   REVISION_FOLDER_PRESETS,
   type RevisionAmbito,
   type RevisionClip,
@@ -259,9 +260,9 @@ export function RevisionLibrary({
               </div>
             )}
 
-            {playing && playing.url && playing.status === 'hot' && (
+            {playing && clipPlaySrc(playing) && playing.status === 'hot' && (
               <div className="rounded-md overflow-hidden border bg-black">
-                <VideoPlayer src={playing.url} standalonePreview />
+                <VideoPlayer src={clipPlaySrc(playing)!} standalonePreview />
               </div>
             )}
 
@@ -432,10 +433,10 @@ function ClipCard({
         <p className="text-[11px] text-amber-700">{clip.archive_warning}</p>
       )}
       <div className="flex items-center gap-1">
-        <Button size="sm" variant="outline" onClick={onPlay} disabled={!clip.url || clip.status !== 'hot'}>
+        <Button size="sm" variant="outline" onClick={onPlay} disabled={!clipPlaySrc(clip) || clip.status !== 'hot'}>
           Ver
         </Button>
-        <Button size="sm" onClick={onPresent} disabled={!clip.url || clip.status !== 'hot'}>
+        <Button size="sm" onClick={onPresent} disabled={!clipPlaySrc(clip) || clip.status !== 'hot'}>
           <MonitorPlay className="h-3.5 w-3.5 mr-1" />
           Presentar
         </Button>

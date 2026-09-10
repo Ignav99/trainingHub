@@ -1,6 +1,6 @@
 import type { DrawingElement } from '@/types'
 
-export type DrawingTool = 'select' | 'arrow' | 'line' | 'circle' | 'rect' | 'freehand' | 'text'
+export type DrawingTool = 'select' | 'arrow' | 'line' | 'circle' | 'rect' | 'freehand' | 'text' | 'eraser'
 
 export type ViewMode = 'general' | 'clip-editor'
 
@@ -44,6 +44,7 @@ export const CLIP_COLORS = [
 
 export const DRAWING_COLORS = [
   '#ef4444', // red
+  '#f97316', // orange
   '#f59e0b', // amber
   '#22c55e', // green
   '#3b82f6', // blue
@@ -51,7 +52,7 @@ export const DRAWING_COLORS = [
   '#000000', // black
 ]
 
-export const STROKE_WIDTHS = [2, 4, 6]
+export const STROKE_WIDTHS = [2, 4, 6, 10]
 
 // ─── Code Window (Sportscode-style event coding) ───────────────────────────
 

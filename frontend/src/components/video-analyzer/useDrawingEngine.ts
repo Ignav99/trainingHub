@@ -10,6 +10,7 @@ interface UseDrawingEngineOptions {
   setElements: (next: DrawingElement[]) => void
   color: string
   strokeWidth: number
+  fillOpacity?: number
   tool: DrawingTool
   selectedId: string | null
   setSelectedId: (id: string | null) => void
@@ -20,6 +21,7 @@ export function useDrawingEngine({
   setElements,
   color,
   strokeWidth,
+  fillOpacity = 0.22,
   tool,
   selectedId,
   setSelectedId,
@@ -61,6 +63,16 @@ export function useDrawingEngine({
         return
       }
 
+      if (tool === 'eraser') {
+        const hitId = findElementAtPoint(e.target)
+        drawingRef.current = true
+        if (hitId) {
+          setElements(elements.filter((el) => el.id !== hitId))
+          setSelectedId(null)
+        }
+        return
+      }
+
       if (tool === 'text') {
         const text = prompt('Texto:')
         if (!text) return
@@ -90,6 +102,7 @@ export function useDrawingEngine({
           points: [pos],
         })
       } else {
+        const poly = tool === 'rect' || tool === 'circle'
         setPreview({
           id: 'preview',
           type: tool as DrawingElement['type'],
@@ -97,10 +110,11 @@ export function useDrawingEngine({
           strokeWidth,
           from: pos,
           to: pos,
+          fillOpacity: poly ? fillOpacity : undefined,
         })
       }
     },
-    [tool, color, strokeWidth, elements, setElements, findElementAtPoint, setSelectedId]
+    [tool, color, strokeWidth, fillOpacity, elements, setElements, findElementAtPoint, setSelectedId]
   )
 
   const handleMouseDown = useCallback(
@@ -127,6 +141,15 @@ export function useDrawingEngine({
         return
       }
 
+      if (tool === 'eraser' && drawingRef.current) {
+        const hitId = findElementAtPoint(e.target)
+        if (hitId) {
+          setElements(elements.filter((el) => el.id !== hitId))
+          setSelectedId(null)
+        }
+        return
+      }
+
       if (!drawingRef.current || !startRef.current) return
 
       if (tool === 'freehand') {
@@ -142,7 +165,7 @@ export function useDrawingEngine({
         setPreview((prev) => (prev ? { ...prev, to: pos } : null))
       }
     },
-    [tool, color, strokeWidth, selectedId, elements, setElements]
+    [tool, color, strokeWidth, selectedId, elements, setElements, findElementAtPoint, setSelectedId]
   )
 
   const handleMouseMove = useCallback(
@@ -159,6 +182,11 @@ export function useDrawingEngine({
         draggingRef.current = false
         dragOriginRef.current = null
         dragElementSnapshotRef.current = null
+        return
+      }
+
+      if (tool === 'eraser') {
+        drawingRef.current = false
         return
       }
 
@@ -181,11 +209,12 @@ export function useDrawingEngine({
           }
         }
         pointsRef.current = []
-      } else {
+      } else if (tool !== 'select' && tool !== 'text') {
         const start = startRef.current
         const dx = pos.x - start.x
         const dy = pos.y - start.y
         if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+          const poly = tool === 'rect' || tool === 'circle'
           el = {
             id: generateId(),
             type: tool as DrawingElement['type'],
@@ -193,6 +222,7 @@ export function useDrawingEngine({
             strokeWidth,
             from: start,
             to: pos,
+            fillOpacity: poly ? fillOpacity : undefined,
           }
         }
       }
@@ -204,7 +234,7 @@ export function useDrawingEngine({
         setElements([...elements, el])
       }
     },
-    [tool, color, strokeWidth, elements, setElements]
+    [tool, color, strokeWidth, fillOpacity, elements, setElements]
   )
 
   const handleMouseUp = useCallback(

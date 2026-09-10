@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useAuthStore } from '@/stores/authStore'
+import { trainingHubWsUrl } from '@/lib/wsUrl'
 
 export interface CollabEvent {
   type: 'collab_edit'
@@ -44,8 +45,7 @@ export function useTrainingHubSocket(equipoId?: string) {
   useEffect(() => {
     if (!accessToken || !equipoId) return
 
-    const isSecure = window.location.protocol === 'https:'
-    const wsUrl = `${isSecure ? 'wss' : 'ws'}://${window.location.host}/v1/ws?token=${encodeURIComponent(accessToken)}&equipo_id=${encodeURIComponent(equipoId)}`
+    const wsUrl = trainingHubWsUrl(accessToken, equipoId)
 
     const ws = new WebSocket(wsUrl)
     wsRef.current = ws
