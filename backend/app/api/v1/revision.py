@@ -34,6 +34,8 @@ from app.services.revision_service import (
     REVISION_BUCKET,
     archive_expired_clips,
     default_folders_for,
+    delete_clip_storage,
+    earliest_clip_created,
     ensure_video_bucket,
     generate_session_code,
     hot_until_from,
@@ -41,9 +43,12 @@ from app.services.revision_service import (
     make_clip_storage_path,
     normalize_clip_mime,
     normalize_signed_upload_url,
+    pack_retention_payload,
+    parse_iso,
+    partido_fecha_for_pack,
+    purge_hot_clips,
 )
 from app.services.r2_storage import (
-    delete_object,
     presign_get,
     presign_put,
     public_url,
@@ -141,11 +146,25 @@ def _decorate_clip(clip: dict | None) -> dict | None:
 def _pack_payload(supabase, pack: dict) -> dict:
     folders = _ensure_default_folders(supabase, pack)
     clip_rows, links = _load_clips_and_links(supabase, pack["id"])
+    try:
+        retention = pack_retention_payload(supabase, pack, clip_rows)
+    except Exception as exc:
+        logger.warning("revision retention payload pack=%s: %s", pack.get("id"), exc)
+        retention = {
+            "expires_at": hot_until_from().isoformat(),
+            "days_left": 30,
+            "pending_match": False,
+            "warn": False,
+            "hot_count": sum(1 for c in clip_rows if (c.get("status") or "hot") == "hot"),
+            "drive_connected": False,
+            "drive_folder_url": None,
+        }
     return {
         **pack,
         "folders": folders,
         "clips": clip_rows,
         "links": links,
+        "retention": retention,
     }
 
 
@@ -290,6 +309,20 @@ async def delete_folder(
 
 # ============ CLIPS ============
 
+def _hot_until_for_pack(supabase, pack_id: str):
+    pack = _get_pack(supabase, pack_id)
+    clips = (
+        supabase.table("revision_clips")
+        .select("created_at")
+        .eq("pack_id", pack_id)
+        .execute()
+    )
+    return hot_until_from(
+        partido_fecha=partido_fecha_for_pack(supabase, pack),
+        created_at=earliest_clip_created(clips.data or []) or parse_iso(pack.get("created_at")),
+    )
+
+
 def _insert_clip(
     supabase,
     *,
@@ -333,7 +366,7 @@ def _insert_clip(
         "source_video_id": source_video_id or None,
         "start_ms": start_ms,
         "end_ms": end_ms,
-        "hot_until": hot_until_from().isoformat(),
+        "hot_until": _hot_until_for_pack(supabase, pack_id).isoformat(),
         "status": "hot",
         "created_by": created_by,
     }
@@ -578,15 +611,29 @@ async def delete_clip(
     if not existing.data:
         raise HTTPException(status_code=404, detail="Clip no encontrado.")
     clip = existing.data[0]
-    if clip.get("storage_path"):
-        if r2_enabled():
-            delete_object(clip["storage_path"])
-        try:
-            supabase.storage.from_(REVISION_BUCKET).remove([clip["storage_path"]])
-        except Exception as e:
-            logger.warning("Could not delete revision clip from storage: %s", e)
+    delete_clip_storage(supabase, clip.get("storage_path"))
     supabase.table("revision_clips").delete().eq("id", str(clip_id)).execute()
     return {"status": "deleted"}
+
+
+@router.post("/packs/{pack_id}/purge")
+async def purge_pack_clips(
+    pack_id: UUID,
+    equipo_id: UUID = Query(...),
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
+):
+    """Borra todos los recortes calientes del pack (R2/Storage + filas). No es clip a clip."""
+    supabase = get_supabase()
+    pack = _get_pack(supabase, str(pack_id), str(equipo_id))
+    clips = (
+        supabase.table("revision_clips")
+        .select("id, storage_path, status")
+        .eq("pack_id", pack["id"])
+        .eq("status", "hot")
+        .execute()
+    )
+    deleted = purge_hot_clips(supabase, clips.data or [])
+    return {"deleted": deleted}
 
 
 @router.post("/clips/{clip_id}/links", status_code=201)

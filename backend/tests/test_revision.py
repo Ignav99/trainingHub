@@ -1,15 +1,20 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from unittest.mock import MagicMock, patch
 
 from app.services.revision_service import (
+    HOT_DAYS,
     MAX_CLIP_BYTES,
+    WARN_DAYS,
     default_folders_for,
     drive_connected,
+    drive_ready,
     ensure_video_bucket,
     flatten_pack_graph,
     generate_session_code,
     make_fingerprint,
+    pack_expires_at,
     should_keep_hot,
 )
 
@@ -66,54 +71,222 @@ class TestRetention:
     def test_no_partido_does_not_block_archive(self):
         assert should_keep_hot(None) is False
 
+    def test_expires_thirty_days_after_match(self):
+        match = datetime(2026, 8, 10, tzinfo=timezone.utc)
+        expires = pack_expires_at(match, created_at=datetime(2026, 8, 11, tzinfo=timezone.utc))
+        assert expires == match + timedelta(days=HOT_DAYS)
+        assert HOT_DAYS == 30
+        assert WARN_DAYS == 7
+
+    def test_expires_thirty_days_from_created_without_match(self):
+        created = datetime(2026, 8, 1, tzinfo=timezone.utc)
+        assert pack_expires_at(None, created) == created + timedelta(days=30)
+
+
+class _Chain:
+    def __init__(self, db, name):
+        self.db = db
+        self.name = name
+        self._filters = {}
+        self._op = "select"
+        self._payload = None
+
+    def select(self, *a, **k):
+        self._op = "select"
+        return self
+
+    def eq(self, k, v):
+        self._filters[k] = v
+        return self
+
+    def lte(self, k, v):
+        self._filters[f"{k}__lte"] = v
+        return self
+
+    def limit(self, n):
+        return self
+
+    def update(self, payload):
+        self._op = "update"
+        self._payload = payload
+        return self
+
+    def delete(self):
+        self._op = "delete"
+        return self
+
+    def execute(self):
+        rows = list(self.db.data.get(self.name, []))
+        for k, v in self._filters.items():
+            if k.endswith("__lte"):
+                field = k[:-5]
+                rows = [r for r in rows if (r.get(field) or "") <= v]
+            else:
+                rows = [r for r in rows if r.get(k) == v]
+        if self._op == "update":
+            for r in rows:
+                r.update(self._payload)
+            self.db.ops.append(("update", self.name, dict(self._payload), dict(self._filters)))
+            return MagicMock(data=rows)
+        if self._op == "delete":
+            remaining = []
+            removed = []
+            for r in self.db.data.get(self.name, []):
+                if all(
+                    (r.get(k[:-5]) or "") <= v if k.endswith("__lte") else r.get(k) == v
+                    for k, v in self._filters.items()
+                ):
+                    removed.append(r)
+                else:
+                    remaining.append(r)
+            self.db.data[self.name] = remaining
+            self.db.ops.append(("delete", self.name, [x["id"] for r in removed for x in [r]]))
+            return MagicMock(data=removed)
+        return MagicMock(data=rows)
+
+
+class _FakeDb:
+    def __init__(self, data):
+        self.data = data
+        self.ops = []
+        self.storage = MagicMock()
+        self.storage.from_.return_value.remove = MagicMock()
+
+    def table(self, name):
+        return _Chain(self, name)
+
 
 class TestArchiveJob:
     def test_deletes_expired_clip(self):
-        from unittest.mock import MagicMock
         from app.services.revision_service import archive_expired_clips
 
         clip_id = "clip-1"
         pack_id = "pack-1"
         equipo_id = "eq-1"
+        supabase = _FakeDb({
+            "revision_clips": [{
+                "id": clip_id,
+                "equipo_id": equipo_id,
+                "storage_path": "x.webm",
+                "hot_until": "2020-01-31T00:00:00+00:00",
+                "status": "hot",
+                "pack_id": pack_id,
+                "archive_warning": None,
+                "created_at": "2020-01-01T00:00:00+00:00",
+            }],
+            "revision_packs": [{"id": pack_id, "partido_id": None, "equipo_id": equipo_id, "created_at": "2020-01-01T00:00:00+00:00"}],
+        })
 
-        supabase = MagicMock()
-        calls = {"n": 0}
-
-        def make_query(name):
-            q = MagicMock()
-            q.select.return_value = q
-            q.eq.return_value = q
-            q.lte.return_value = q
-            q.limit.return_value = q
-            q.update.return_value = q
-            q.delete.return_value = q
-
-            def execute():
-                calls["n"] += 1
-                if name == "revision_clips" and calls["n"] == 1:
-                    return MagicMock(data=[{
-                        "id": clip_id,
-                        "equipo_id": equipo_id,
-                        "storage_path": "x.webm",
-                        "url": "http://x",
-                        "hot_until": "2020-01-01T00:00:00+00:00",
-                        "status": "hot",
-                        "pack_id": pack_id,
-                    }])
-                if name == "revision_packs":
-                    return MagicMock(data=[{"id": pack_id, "partido_id": None, "equipo_id": equipo_id}])
-                return MagicMock(data=[{}])
-
-            q.execute.side_effect = execute
-            return q
-
-        supabase.table.side_effect = make_query
-        supabase.storage.from_.return_value.remove = MagicMock()
-
-        stats = archive_expired_clips(supabase)
+        with patch("app.services.r2_storage.r2_enabled", return_value=False):
+            stats = archive_expired_clips(supabase, now=datetime(2026, 9, 10, tzinfo=timezone.utc))
         assert stats["archived"] == 1
+        assert stats["packs_purged"] == 1
         assert stats["skipped_future_match"] == 0
         supabase.storage.from_.return_value.remove.assert_called_once_with(["x.webm"])
+        assert supabase.data["revision_clips"] == []
+
+    def test_warns_pack_seven_days_before_without_deleting(self):
+        from app.services.revision_service import archive_expired_clips
+
+        now = datetime(2026, 9, 10, tzinfo=timezone.utc)
+        created = now - timedelta(days=24)
+        pack_id = "pack-w"
+        supabase = _FakeDb({
+            "revision_clips": [{
+                "id": "c1",
+                "equipo_id": "eq-1",
+                "storage_path": "a.webm",
+                "hot_until": (created + timedelta(days=30)).isoformat(),
+                "status": "hot",
+                "pack_id": pack_id,
+                "archive_warning": None,
+                "created_at": created.isoformat(),
+            }, {
+                "id": "c2",
+                "equipo_id": "eq-1",
+                "storage_path": "b.webm",
+                "hot_until": (created + timedelta(days=30)).isoformat(),
+                "status": "hot",
+                "pack_id": pack_id,
+                "archive_warning": None,
+                "created_at": created.isoformat(),
+            }],
+            "revision_packs": [{"id": pack_id, "partido_id": None, "equipo_id": "eq-1", "created_at": created.isoformat()}],
+        })
+        with patch("app.services.revision_service._warn_pack_staff") as warn:
+            stats = archive_expired_clips(supabase, now=now)
+        assert stats["archived"] == 0
+        assert stats["warned"] == 2
+        assert stats["packs_warned"] == 1
+        warn.assert_called_once()
+        assert all(c.get("archive_warning") for c in supabase.data["revision_clips"])
+        supabase.storage.from_.return_value.remove.assert_not_called()
+
+        stats2 = archive_expired_clips(supabase, now=now)
+        assert stats2["packs_warned"] == 0
+        assert stats2["warned"] == 2
+
+    def test_extends_when_match_not_played(self):
+        from app.services.revision_service import archive_expired_clips
+
+        now = datetime(2026, 9, 10, tzinfo=timezone.utc)
+        future = datetime(2026, 9, 20, tzinfo=timezone.utc)
+        supabase = _FakeDb({
+            "revision_clips": [{
+                "id": "c1",
+                "equipo_id": "eq-1",
+                "storage_path": "a.webm",
+                "hot_until": "2026-09-09T00:00:00+00:00",
+                "status": "hot",
+                "pack_id": "p1",
+                "archive_warning": "old",
+                "created_at": "2026-08-01T00:00:00+00:00",
+            }],
+            "revision_packs": [{"id": "p1", "partido_id": "m1", "equipo_id": "eq-1", "created_at": "2026-08-01T00:00:00+00:00"}],
+            "partidos": [{"id": "m1", "fecha": future.isoformat()}],
+        })
+        stats = archive_expired_clips(supabase, now=now)
+        assert stats["archived"] == 0
+        assert stats["skipped_future_match"] == 1
+        assert supabase.data["revision_clips"][0]["archive_warning"] is None
+        assert supabase.data["revision_clips"][0]["hot_until"].startswith("2026-10-20")
+
+    def test_purges_whole_pack_together(self):
+        from app.services.revision_service import archive_expired_clips
+
+        now = datetime(2026, 9, 10, tzinfo=timezone.utc)
+        match = datetime(2026, 8, 1, tzinfo=timezone.utc)
+        supabase = _FakeDb({
+            "revision_clips": [
+                {
+                    "id": "c1",
+                    "equipo_id": "eq-1",
+                    "storage_path": "a.webm",
+                    "hot_until": "2026-09-20T00:00:00+00:00",
+                    "status": "hot",
+                    "pack_id": "p1",
+                    "archive_warning": "warn",
+                    "created_at": "2026-08-02T00:00:00+00:00",
+                },
+                {
+                    "id": "c2",
+                    "equipo_id": "eq-1",
+                    "storage_path": "b.webm",
+                    "hot_until": "2026-09-25T00:00:00+00:00",
+                    "status": "hot",
+                    "pack_id": "p1",
+                    "archive_warning": "warn",
+                    "created_at": "2026-08-03T00:00:00+00:00",
+                },
+            ],
+            "revision_packs": [{"id": "p1", "partido_id": "m1", "equipo_id": "eq-1", "created_at": "2026-08-02T00:00:00+00:00"}],
+            "partidos": [{"id": "m1", "fecha": match.isoformat()}],
+        })
+        with patch("app.services.r2_storage.r2_enabled", return_value=False):
+            stats = archive_expired_clips(supabase, now=now)
+        assert stats["archived"] == 2
+        assert stats["packs_purged"] == 1
+        assert supabase.data["revision_clips"] == []
 
 
 class TestDriveGate:
@@ -124,6 +297,10 @@ class TestDriveGate:
 
     def test_connected_flag(self):
         assert drive_connected({"google_drive": {"connected": True, "folder_url": "https://drive.google.com"}}) is True
+
+    def test_drive_ready_needs_url(self):
+        assert drive_ready({"google_drive": {"connected": True}}) is False
+        assert drive_ready({"google_drive": {"connected": True, "folder_url": "https://drive.google.com/drive/folders/x"}}) is True
 
 
 class TestClipUploadHelpers:
@@ -189,9 +366,11 @@ class TestClipUploadHelpers:
         assert 'b"".join' not in text
         assert "create_signed_upload_url" in text
         assert "/clips/upload-url" in text
+        assert "/packs/{pack_id}/purge" in text
         assert "NamedTemporaryFile" in text
         assert "presign_put" in text
         assert "r2_enabled" in text
+        assert "pack_retention_payload" in text
 
 
 class TestClipUploadEndpoints:

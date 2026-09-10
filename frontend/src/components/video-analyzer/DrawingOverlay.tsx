@@ -74,7 +74,7 @@ export const DrawingOverlay = forwardRef<SVGSVGElement, DrawingOverlayProps>(
             key={el.id}
             data-element-id={el.id}
             style={{
-              cursor: tool === 'select' ? 'pointer' : tool === 'eraser' ? 'cell' : 'crosshair',
+              cursor: tool === 'select' ? 'grab' : tool === 'eraser' ? 'cell' : 'crosshair',
             }}
           >
             {showHits && el.id !== 'preview' && (

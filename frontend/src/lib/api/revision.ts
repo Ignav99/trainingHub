@@ -75,6 +75,16 @@ export interface RevisionClipLink {
   rival_jugador_dorsal?: string | null
 }
 
+export interface RevisionPackRetention {
+  expires_at: string
+  days_left: number
+  pending_match: boolean
+  warn: boolean
+  hot_count: number
+  drive_connected: boolean
+  drive_folder_url?: string | null
+}
+
 export interface RevisionPack {
   id: string
   equipo_id: string
@@ -85,6 +95,7 @@ export interface RevisionPack {
   folders: RevisionFolder[]
   clips: RevisionClip[]
   links: RevisionClipLink[]
+  retention?: RevisionPackRetention
 }
 
 export interface RevisionSession {
@@ -295,6 +306,10 @@ export const revisionApi = {
 
   deleteClip(id: string): Promise<void> {
     return api.delete(`/revision/clips/${id}`)
+  },
+
+  purgePack(packId: string, equipoId: string): Promise<{ deleted: number }> {
+    return api.post(`/revision/packs/${packId}/purge`, undefined, { params: { equipo_id: equipoId }, timeout: 60000 })
   },
 
   addLink(clipId: string, data: {
