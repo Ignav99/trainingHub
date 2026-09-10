@@ -22,10 +22,14 @@ import { exportPlanPartidoPDF } from '@/lib/pdf/exportPlanPartidoPDF'
 import { ExportDossierMenu } from '@/components/rivales/ExportDossierMenu'
 import { DossierPresenter } from '@/components/rivales/DossierPresenter'
 import { DossierTacticalBoard } from '@/components/rivales/DossierTacticalBoard'
+import { PresentacionSala } from '@/components/revision/PresentacionSala'
 import { exportPresentacionDossier } from '@/lib/api/presentaciones'
 import { buildPlanShow, type DossierShow } from '@/lib/dossierShow'
+import { prepareDossierSala } from '@/lib/dossierPresentar'
+import type { RevisionSession } from '@/lib/api/revision'
 import { useClubStore } from '@/stores/clubStore'
 import { PlanPartidoABPSection } from './PlanPartidoABPSection'
+import { RevisionLibrary } from '@/components/revision/RevisionLibrary'
 import { api } from '@/lib/api/client'
 import { rivalesApi } from '@/lib/api/partidos'
 import { VideoPlayer } from '@/components/video-analyzer/VideoPlayer'
@@ -98,9 +102,12 @@ export function PlanPartido({
   const [activeTab, setActiveTab] = useState<FasePlanPartido>('ataque_organizado')
   const [exportingDeck, setExportingDeck] = useState(false)
   const [liveShow, setLiveShow] = useState<DossierShow | null>(null)
+  const [sala, setSala] = useState<{ show: DossierShow; session: RevisionSession } | null>(null)
+  const [presenting, setPresenting] = useState(false)
   const dataRef = useRef(data)
   dataRef.current = data
   const clubNombre = useClubStore((s) => s.organizacion?.nombre)
+  const clubEscudoUrl = useClubStore((s) => s.theme.logoUrl || s.organizacion?.logo_url)
   const fases = data.fases ?? []
 
   const totalClipsSize = fases.reduce(
@@ -166,16 +173,33 @@ export function PlanPartido({
           </CardTitle>
           <ExportDossierMenu
             exporting={exportingDeck}
-            onPresentar={() => {
-              setLiveShow(buildPlanShow(dataRef.current, {
-                rivalNombre,
-                clubNombre,
-                fecha: fechaPartido,
-                hora: horaPartido,
-                campo: campoPartido || ciudadPartido,
-                localia,
-                tramo,
-              }))
+            presenting={presenting}
+            onPresentar={async () => {
+              setPresenting(true)
+              try {
+                const built = buildPlanShow(dataRef.current, {
+                  rivalNombre,
+                  clubNombre,
+                  clubEscudoUrl: clubEscudoUrl || undefined,
+                  rivalEscudoUrl,
+                  fecha: fechaPartido,
+                  hora: horaPartido,
+                  campo: campoPartido || ciudadPartido,
+                  localia,
+                  tramo,
+                })
+                const ready = await prepareDossierSala({
+                  show: built,
+                  equipoId,
+                  ambito: 'partido_plan',
+                  rivalId,
+                  microcicloId,
+                })
+                if (ready.session) setSala({ show: ready.show, session: ready.session })
+                else setLiveShow(ready.show)
+              } finally {
+                setPresenting(false)
+              }
             }}
             onPdf={() =>
               void exportPlanPartidoPDF(data, equipoId, {
@@ -210,6 +234,15 @@ export function PlanPartido({
         </div>
       </CardHeader>
 
+      {sala && (
+        <PresentacionSala
+          code={sala.session.code}
+          role="host"
+          initialSession={sala.session}
+          initialShow={sala.show}
+          onClose={() => setSala(null)}
+        />
+      )}
       {liveShow && (
         <DossierPresenter show={liveShow} onClose={() => setLiveShow(null)} />
       )}
@@ -343,6 +376,16 @@ export function PlanPartido({
                     onAddClip={(clip) => addClip(section.fase, clip)}
                     onUpdateClip={(id, patch) => updateClip(section.fase, id, patch)}
                     onRemoveClip={(id) => removeClip(section.fase, id)}
+                  />
+                )}
+                {equipoId && (rivalId || microcicloId) && (
+                  <RevisionLibrary
+                    equipoId={equipoId}
+                    ambito="partido_plan"
+                    rivalId={rivalId}
+                    microcicloId={microcicloId}
+                    initialFase={section.fase}
+                    compact
                   />
                 )}
               </TabsContent>

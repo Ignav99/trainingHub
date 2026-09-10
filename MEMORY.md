@@ -6,11 +6,11 @@ Dos herramientas: **Video Análisis** (partido entero local, nunca a la nube) y 
 - **Cloudflare R2** para los recortes. PUT firmado desde el navegador. Playback con GET firmado (`url_play`).
 - Retención: **30 días después del partido** (`partido.fecha + 30`). Sin partido (rival/plan): 30 días desde el alta. Partido aún no jugado: no se borra.
 - Cron diario: aviso al staff 7 días antes (una vez por carpeta) y **borrado de toda la carpeta** en R2 + DB. No hay OAuth a Drive: si hay URL de carpeta, el usuario descarga un zip y la abre; si no, solo zip. También «Borrar todo».
-- Sala: columna de carpetas plegable (vídeo más grande). Pizarra con **Mover**. Tablet: modo **Acercar** (pellizco, no pinta) + Original; **Repetir 2s**, fotograma a fotograma y rebobinar manteniendo pulsado.
-- Reproductor único (`VideoPlayer`): barra de seek bajo el vídeo + rebobinado al mantener pulsado. Informe rival, plan, revisión, sala, análisis, organizer y vídeos subidos de partido lo comparten.
+- Sala de recorte: **Presentar** en Revisión abre QR (`SalaHostDialog` → `/revision/{code}` con `current_clip_id`). Pizarra, play, rebobinar, acercar. No tocar ese flujo.
+- Sala de presentación: **Presentar** en Informe Rival / Plan de Partido abre QR de charla (sesión sin `clip_id`). La tablet entra en `PresentacionSala`: mismas diapositivas, dibujo y control de vídeo. Clips de revisión intercalados por fase / once. `sala_sync` reenvía `slide` y `show`.
 
 ## Partidos: lista plegable + presentación
-La columna de próximos/jugados se puede ocultar para ganar tablero. **Presentar** (informe rival y plan de partido) abre una charla a pantalla completa: portada, contexto/once (informe), cada fase y los clips de esa fase. En cada fase, si hay pizarra animada, se reproduce en bucle al lado de las frases. PPT sigue como descarga (Exportar → Descargar PPT). PDF para enviar.
+La columna de próximos/jugados se puede ocultar para ganar tablero. **Presentar** (informe rival y plan de partido) abre sala QR a pantalla completa: portada (escudo rival junto al nombre), contexto/once (informe), cada fase y los clips de esa fase (inline + revisión). Escudo del club en todas las diapositivas. Si no hay diagrama dibujado, la fase no muestra césped vacío. PPT sigue como descarga (Exportar → Descargar PPT). PDF para enviar.
 
 La pizarra de informe y plan usa el mismo editor que las tareas (`TareaPizarraEditor` / campo entero / animación). Preview compacta + Editar abre el editor a pantalla completa. Vector en `pizarra_diagrama`; PNG en `pizarra_tactica` para el PDF.
 

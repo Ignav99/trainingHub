@@ -26,8 +26,11 @@ import { exportRivalScoutPDF } from '@/lib/pdf/exportRivalScoutPDF'
 import { ExportDossierMenu } from '@/components/rivales/ExportDossierMenu'
 import { DossierPresenter } from '@/components/rivales/DossierPresenter'
 import { DossierTacticalBoard } from '@/components/rivales/DossierTacticalBoard'
+import { PresentacionSala } from '@/components/revision/PresentacionSala'
 import { exportPresentacionDossier } from '@/lib/api/presentaciones'
 import { buildInformeShow, type DossierShow } from '@/lib/dossierShow'
+import { prepareDossierSala } from '@/lib/dossierPresentar'
+import type { RevisionSession } from '@/lib/api/revision'
 import { useClubStore } from '@/stores/clubStore'
 import { RivalStrategy } from './RivalStrategy'
 import { RivalContextoIntel } from './RivalContextoIntel'
@@ -88,9 +91,12 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
   const [activeTab, setActiveTab] = useState<TabValue>('contexto')
   const [exportingDeck, setExportingDeck] = useState(false)
   const [liveShow, setLiveShow] = useState<DossierShow | null>(null)
+  const [sala, setSala] = useState<{ show: DossierShow; session: RevisionSession } | null>(null)
+  const [presenting, setPresenting] = useState(false)
   const dataRef = useRef(data)
   dataRef.current = data
   const clubNombre = useClubStore((s) => s.organizacion?.nombre)
+  const clubEscudoUrl = useClubStore((s) => s.theme.logoUrl || s.organizacion?.logo_url)
 
   const { data: rfefRes } = useSWR<{ data: RFEFCompeticion[] }>(
     equipoId ? apiKey('/rfef/competiciones', { equipo_id: equipoId }) : null
@@ -208,12 +214,29 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
           </div>
           <ExportDossierMenu
             exporting={exportingDeck}
-            onPresentar={() => {
-              setLiveShow(buildInformeShow(dataRef.current, {
-                rivalNombre,
-                clubNombre,
-                localia,
-              }))
+            presenting={presenting}
+            onPresentar={async () => {
+              setPresenting(true)
+              try {
+                const built = buildInformeShow(dataRef.current, {
+                  rivalNombre,
+                  clubNombre,
+                  clubEscudoUrl: clubEscudoUrl || undefined,
+                  rivalEscudoUrl,
+                  localia,
+                })
+                const ready = await prepareDossierSala({
+                  show: built,
+                  equipoId,
+                  ambito: 'rival',
+                  rivalId,
+                  microcicloId,
+                })
+                if (ready.session) setSala({ show: ready.show, session: ready.session })
+                else setLiveShow(ready.show)
+              } finally {
+                setPresenting(false)
+              }
             }}
             onPdf={() => void exportRivalScoutPDF(data, {
               rivalNombre,
@@ -238,6 +261,15 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
         </div>
       </CardHeader>
 
+      {sala && (
+        <PresentacionSala
+          code={sala.session.code}
+          role="host"
+          initialSession={sala.session}
+          initialShow={sala.show}
+          onClose={() => setSala(null)}
+        />
+      )}
       {liveShow && (
         <DossierPresenter show={liveShow} onClose={() => setLiveShow(null)} />
       )}

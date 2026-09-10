@@ -4,8 +4,10 @@ import {
   buildInformeShow,
   buildPlanShow,
   chapterIndexForSlide,
+  attachRevisionPack,
   playableClipUrl,
   showChapters,
+  slimShowForSync,
 } from './dossierShow.ts'
 
 describe('dossier live show builder', () => {
@@ -127,7 +129,7 @@ describe('dossier live show builder', () => {
     )
     assert.equal(show.slides[1].kind === 'contexto' && show.slides[1].bullets[0], 'Presiona alto y corta por dentro')
     assert.equal(show.slides[1].kind === 'contexto' && show.slides[1].bullets.includes('Campo 105 x 68'), true)
-    assert.equal(show.slides[2].kind === 'once' && show.slides[2].bullets[0], '4-3-3')
+    assert.equal(show.slides[2].kind === 'once' && show.slides[2].sistema, '4-3-3')
     assert.equal(
       show.slides[2].kind === 'once' && show.slides[2].bullets.some((b) => b.includes('García') && b.includes('llega tarde')),
       true
@@ -136,6 +138,27 @@ describe('dossier live show builder', () => {
       show.slides[2].kind === 'once' && show.slides[2].bullets.some((b) => b.includes('López')),
       false
     )
+  })
+
+  it('puts the once on a pitch with the formation and placed names', () => {
+    const show = buildInformeShow({
+      estrategia: {
+        sistema: '4-3-3',
+        once_probable: {
+          actas_analizadas: 2,
+          jugadores: [
+            { nombre: 'García', dorsal: 10, apariciones: 8 },
+            { nombre: 'López', dorsal: 9, apariciones: 8 },
+          ],
+          colocacion: { DC: 'López', MC_C: 'García' },
+        },
+      },
+    })
+    const once = show.slides.find((slide) => slide.kind === 'once')
+    assert.equal(once?.kind, 'once')
+    assert.equal(once?.kind === 'once' && once.sistema, '4-3-3')
+    assert.equal(once?.kind === 'once' && once.colocacion?.DC, 'López')
+    assert.equal(once?.kind === 'once' && once.colocacion?.MC_C, 'García')
   })
 
   it('does not invent contexto or once slides on the match plan', () => {
@@ -196,5 +219,106 @@ describe('dossier live show builder', () => {
     assert.equal(show.slides[1].kind === 'fase' && show.slides[1].title, 'Transición ofensiva')
     assert.equal(show.slides[1].kind === 'fase' && show.slides[1].board?.tipo, 'animated')
     assert.equal(show.slides[1].kind === 'fase' && (show.slides[1].board?.frames?.length ?? 0) >= 2, true)
+  })
+
+  it('skips empty board jpegs when nothing is drawn', () => {
+    const show = buildInformeShow({
+      fases: [
+        {
+          fase: 'defensa_organizada',
+          fortalezas: ['Bloque medio'],
+          debilidades: [],
+          clips: [],
+          pizarra_tactica: 'data:image/jpeg;base64,AAAA',
+          pizarra_diagrama: { elements: [], arrows: [], zones: [] },
+        },
+      ],
+    })
+    assert.equal(show.slides[1].kind, 'fase')
+    assert.equal(show.slides[1].kind === 'fase' && show.slides[1].board, undefined)
+    assert.equal(show.slides[1].kind === 'fase' && show.slides[1].boardSrc, undefined)
+  })
+
+  it('puts club and rival crests on the show, rival only on the cover', () => {
+    const show = buildInformeShow(
+      { fases: [] },
+      {
+        rivalNombre: 'Racing',
+        clubNombre: 'CAC',
+        clubEscudoUrl: 'https://cdn.example/cac.png',
+        rivalEscudoUrl: 'https://cdn.example/racing.png',
+      }
+    )
+    assert.equal(show.clubEscudoUrl, 'https://cdn.example/cac.png')
+    assert.equal(show.rivalEscudoUrl, 'https://cdn.example/racing.png')
+    assert.equal(show.slides[0].kind === 'portada' && show.slides[0].rivalEscudoUrl, 'https://cdn.example/racing.png')
+  })
+
+  it('interleaves hot revision clips after the matching phase and once', () => {
+    const base = buildInformeShow({
+      estrategia: {
+        sistema: '4-3-3',
+        once_probable: { actas_analizadas: 1, jugadores: [{ nombre: 'García', apariciones: 1, comentario: 'llega' }] },
+      },
+      fases: [
+        {
+          fase: 'ataque_organizado',
+          fortalezas: ['Sale por fuera'],
+          debilidades: [],
+          clips: [{ id: 'inline', titulo: 'Ya estaba', url: 'https://cdn.example/inline.mp4', fase: 'ataque_organizado', notas: '' }],
+        },
+      ],
+    })
+    const show = attachRevisionPack(base, {
+      clips: [
+        { id: 'rev-ao', titulo: 'Presión alta', url_play: 'https://cdn.example/ao.mp4', status: 'hot', fase: 'ataque_organizado' },
+        { id: 'dup', titulo: 'Duplicado', url: 'https://cdn.example/inline.mp4', status: 'hot', fase: 'ataque_organizado' },
+        { id: 'cold', titulo: 'En drive', url_play: 'https://cdn.example/cold.mp4', status: 'en_drive', fase: 'ataque_organizado' },
+        { id: 'once1', titulo: 'Delantero', url_play: 'https://cdn.example/once.mp4', status: 'hot', fase: 'once_probable' },
+        { id: 'folder-abp', titulo: 'Córner', url_play: 'https://cdn.example/abp.mp4', status: 'hot' },
+      ],
+      folders: [{ id: 'f-abp', fase: 'abp_ofensiva' }],
+      links: [
+        { clip_id: 'folder-abp', folder_id: 'f-abp', slot_tipo: 'folder' },
+      ],
+    })
+    const kinds = show.slides.map((slide) => `${slide.kind}:${'fase' in slide ? slide.fase : slide.kind}`)
+    assert.deepEqual(kinds, [
+      'portada:portada',
+      'once:once',
+      'video:once_probable',
+      'fase:ataque_organizado',
+      'video:ataque_organizado',
+      'video:ataque_organizado',
+      'fase:abp_ofensiva',
+      'video:abp_ofensiva',
+    ])
+    assert.equal(show.slides[2].kind === 'video' && show.slides[2].title, 'Delantero')
+    assert.equal(show.slides[5].kind === 'video' && show.slides[5].title, 'Presión alta')
+    assert.equal(show.slides.some((slide) => slide.kind === 'video' && slide.title === 'Duplicado'), false)
+    assert.equal(show.slides.some((slide) => slide.kind === 'video' && slide.title === 'En drive'), false)
+  })
+
+  it('strips board jpeg previews before sending the show over the sala', () => {
+    const show = buildInformeShow({
+      fases: [
+        {
+          fase: 'transicion_ofensiva',
+          fortalezas: ['Sale'],
+          debilidades: [],
+          clips: [],
+          pizarra_diagrama: {
+            elements: [{ id: 'p1', type: 'player', position: { x: 10, y: 20 } }],
+            arrows: [],
+            zones: [],
+            preview: 'data:image/jpeg;base64,HUGE',
+          },
+        },
+      ],
+    })
+    const slim = slimShowForSync(show)
+    assert.equal(slim.slides[1].kind === 'fase' && slim.slides[1].board?.preview, undefined)
+    assert.equal(slim.slides[1].kind === 'fase' && slim.slides[1].boardSrc, undefined)
+    assert.equal(slim.slides[1].kind === 'fase' && slim.slides[1].board?.elements?.length, 1)
   })
 })

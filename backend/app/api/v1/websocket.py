@@ -281,17 +281,7 @@ async def websocket_endpoint(
             elif msg_type == "sala_sync":
                 code = (data.get("session_code") or "").upper().strip()
                 if code:
-                    payload = {
-                        "type": "sala_sync",
-                        "user_id": user_id,
-                        "session_code": code,
-                        "clip_id": data.get("clip_id"),
-                        "t": data.get("t"),
-                        "paused": data.get("paused"),
-                        "overlay": data.get("overlay"),
-                        "zoom": data.get("zoom"),
-                        "role": data.get("role"),
-                    }
+                    payload = sala_sync_payload(data, user_id)
                     await manager.broadcast_sala(code, payload, exclude=websocket)
 
     except WebSocketDisconnect:
@@ -334,6 +324,25 @@ async def websocket_endpoint(
 
 
 # ============ Message Handlers ============
+
+def sala_sync_payload(data: dict, user_id: str) -> dict:
+    """Forward clip sala fields plus presentation slide/show when present."""
+    payload = {
+        "type": "sala_sync",
+        "user_id": user_id,
+        "session_code": (data.get("session_code") or "").upper().strip(),
+        "clip_id": data.get("clip_id"),
+        "t": data.get("t"),
+        "paused": data.get("paused"),
+        "overlay": data.get("overlay"),
+        "zoom": data.get("zoom"),
+        "role": data.get("role"),
+    }
+    if "slide" in data:
+        payload["slide"] = data.get("slide")
+    if "show" in data:
+        payload["show"] = data.get("show")
+    return payload
 
 async def _handle_chat_message(user_id: str, user_name: str, equipo_id: str, data: dict):
     """Handle incoming chat message: save to DB and broadcast."""

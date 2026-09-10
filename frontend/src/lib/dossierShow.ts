@@ -5,7 +5,6 @@ import type {
   FasePlanPartido,
   PlanPartidoData,
   PlanPartidoPhase,
-  RivalJugadorEvaluacion,
   RivalPhaseAnalysis,
   RivalScoutData,
   RivalScoutStrategy,
@@ -52,9 +51,13 @@ const MAX_BULLET_CHARS = 140
 
 export type ShowKind = 'informe' | 'plan'
 
+export type ShowVideoSlot = FasePlanPartido | 'once_probable'
+
 export interface ShowMeta {
   rivalNombre?: string
   clubNombre?: string
+  clubEscudoUrl?: string
+  rivalEscudoUrl?: string
   fecha?: string
   hora?: string
   campo?: string
@@ -70,6 +73,7 @@ export type ShowSlide =
       title: string
       subtitle?: string
       meta: string[]
+      rivalEscudoUrl?: string
     }
   | {
       id: string
@@ -84,6 +88,9 @@ export type ShowSlide =
       kicker: string
       title: string
       bullets: string[]
+      sistema?: string
+      colocacion?: Record<string, string>
+      jugadores?: Array<{ nombre: string; dorsal?: number | null; comentario?: string }>
     }
   | {
       id: string
@@ -98,7 +105,7 @@ export type ShowSlide =
   | {
       id: string
       kind: 'video'
-      fase: FasePlanPartido
+      fase: ShowVideoSlot
       kicker: string
       title: string
       src: string
@@ -108,7 +115,26 @@ export type ShowSlide =
 export interface DossierShow {
   kind: ShowKind
   rivalNombre?: string
+  clubEscudoUrl?: string
+  rivalEscudoUrl?: string
   slides: ShowSlide[]
+}
+
+export interface RevisionPackLike {
+  clips?: Array<{
+    id: string
+    titulo?: string | null
+    url?: string | null
+    url_play?: string | null
+    status?: string
+    fase?: string | null
+  }>
+  folders?: Array<{ id: string; fase?: string | null }>
+  links?: Array<{
+    clip_id: string
+    folder_id?: string | null
+    slot_tipo?: string
+  }>
 }
 
 export interface ShowChapter {
@@ -140,7 +166,13 @@ export function buildInformeShow(data: Partial<RivalScoutData> | undefined, meta
     const phase = fases.find((item) => item.fase === fase)
     slides.push(...phaseBlock(fase, phase, bulletsFromInforme(phase)))
   }
-  return { kind: 'informe', rivalNombre: meta.rivalNombre, slides }
+  return {
+    kind: 'informe',
+    rivalNombre: meta.rivalNombre,
+    clubEscudoUrl: meta.clubEscudoUrl,
+    rivalEscudoUrl: meta.rivalEscudoUrl,
+    slides,
+  }
 }
 
 export function buildPlanShow(data: Partial<PlanPartidoData> | undefined, meta: ShowMeta = {}): DossierShow {
@@ -150,7 +182,91 @@ export function buildPlanShow(data: Partial<PlanPartidoData> | undefined, meta: 
     const phase = fases.find((item) => item.fase === fase)
     slides.push(...phaseBlock(fase, phase, bulletsFromPlan(phase)))
   }
-  return { kind: 'plan', rivalNombre: meta.rivalNombre, slides }
+  return {
+    kind: 'plan',
+    rivalNombre: meta.rivalNombre,
+    clubEscudoUrl: meta.clubEscudoUrl,
+    rivalEscudoUrl: meta.rivalEscudoUrl,
+    slides,
+  }
+}
+
+const FASE_ALIASES: Record<string, ShowVideoSlot> = {
+  ataque_organizado: 'ataque_organizado',
+  defensa_organizada: 'defensa_organizada',
+  transicion_ofensiva: 'transicion_ofensiva',
+  transicion_defensiva: 'transicion_defensiva',
+  transicion_defensa_ataque: 'transicion_ofensiva',
+  transicion_ataque_defensa: 'transicion_defensiva',
+  balon_parado_ofensivo: 'abp_ofensiva',
+  balon_parado_defensivo: 'abp_defensiva',
+  abp_ofensiva: 'abp_ofensiva',
+  abp_defensiva: 'abp_defensiva',
+  once_probable: 'once_probable',
+}
+
+export function attachRevisionPack(show: DossierShow, pack?: RevisionPackLike | null): DossierShow {
+  if (!pack) return show
+  const folderById = new Map((pack.folders ?? []).map((folder) => [folder.id, folder]))
+  const linksByClip = new Map<string, NonNullable<RevisionPackLike['links']>>()
+  for (const link of pack.links ?? []) {
+    const list = linksByClip.get(link.clip_id) ?? []
+    list.push(link)
+    linksByClip.set(link.clip_id, list)
+  }
+
+  const used = new Set<string>()
+  for (const slide of show.slides) {
+    if (slide.kind !== 'video') continue
+    used.add(slide.clipId)
+    used.add(slide.src)
+  }
+
+  const bySlot = new Map<ShowVideoSlot, Extract<ShowSlide, { kind: 'video' }>[]>()
+  for (const clip of pack.clips ?? []) {
+    if (clip.status && clip.status !== 'hot') continue
+    const src = playableClipUrl(clip.url_play ?? undefined) ?? playableClipUrl(clip.url ?? undefined)
+    if (!src) continue
+    if (used.has(clip.id) || used.has(src)) continue
+    const slot = slotForRevisionClip(clip, linksByClip.get(clip.id) ?? [], folderById)
+    if (!slot) continue
+    const video: Extract<ShowSlide, { kind: 'video' }> = {
+      id: `video:rev:${clip.id}`,
+      kind: 'video',
+      fase: slot,
+      kicker: slot === 'once_probable' ? 'Once probable' : SHOW_FASE_LABELS[slot],
+      title: (clip.titulo || '').trim() || 'Clip',
+      src,
+      clipId: clip.id,
+    }
+    const list = bySlot.get(slot) ?? []
+    list.push(video)
+    bySlot.set(slot, list)
+    used.add(clip.id)
+    used.add(src)
+  }
+
+  if (bySlot.size === 0) return show
+
+  const slides = [...show.slides]
+  for (const [slot, videos] of Array.from(bySlot.entries())) {
+    if (slot === 'once_probable') insertOnceVideos(slides, videos)
+    else insertPhaseVideos(slides, slot, videos)
+  }
+  return { ...show, slides }
+}
+
+export function slimShowForSync(show: DossierShow): DossierShow {
+  return {
+    ...show,
+    slides: show.slides.map((slide) => {
+      if (slide.kind !== 'fase' || !slide.board) {
+        return slide.kind === 'fase' ? { ...slide, boardSrc: undefined } : slide
+      }
+      const { preview: _preview, ...board } = slide.board
+      return { ...slide, board, boardSrc: undefined }
+    }),
+  }
 }
 
 export function showChapters(slides: ShowSlide[]): ShowChapter[] {
@@ -170,14 +286,22 @@ export function showChapters(slides: ShowSlide[]): ShowChapter[] {
       continue
     }
     if (slide.kind === 'contexto' || slide.kind === 'once') {
+      let j = i + 1
+      let videoCount = 0
+      while (j < slides.length) {
+        const next = slides[j]
+        if (next.kind !== 'video' || next.fase !== 'once_probable') break
+        videoCount += 1
+        j += 1
+      }
       chapters.push({
         id: slide.id,
         label: slide.title,
         startIndex: i,
-        slideCount: 1,
-        videoCount: 0,
+        slideCount: j - i,
+        videoCount,
       })
-      i += 1
+      i = j
       continue
     }
     if (slide.kind === 'fase') {
@@ -195,6 +319,23 @@ export function showChapters(slides: ShowSlide[]): ShowChapter[] {
         startIndex: i,
         slideCount: j - i,
         videoCount,
+      })
+      i = j
+      continue
+    }
+    if (slide.kind === 'video') {
+      let j = i + 1
+      while (j < slides.length) {
+        const next = slides[j]
+        if (next.kind !== 'video' || next.fase !== slide.fase) break
+        j += 1
+      }
+      chapters.push({
+        id: slide.fase,
+        label: slide.kicker || 'Vídeo',
+        startIndex: i,
+        slideCount: j - i,
+        videoCount: j - i,
       })
       i = j
       continue
@@ -235,6 +376,7 @@ function portadaSlide(kind: ShowKind, meta: ShowMeta): ShowSlide {
     title,
     subtitle,
     meta: metaLines,
+    rivalEscudoUrl: meta.rivalEscudoUrl,
   }
 }
 
@@ -245,8 +387,7 @@ function phaseBlock(
 ): ShowSlide[] {
   const clips = playableClips(phase && 'clips' in phase ? phase.clips : undefined)
   const board = pickBoard(phase)
-  const boardSrc = boardPreviewSrc(board) ?? firstBoardSrc(phase)
-  if (bullets.length === 0 && !board && !boardSrc && clips.length === 0) return []
+  if (bullets.length === 0 && !board && clips.length === 0) return []
 
   const title = SHOW_FASE_LABELS[fase]
   const slides: ShowSlide[] = [
@@ -258,7 +399,6 @@ function phaseBlock(
       title,
       bullets,
       board,
-      boardSrc,
     },
   ]
   clips.forEach((clip, index) => {
@@ -275,6 +415,71 @@ function phaseBlock(
     })
   })
   return slides
+}
+
+function slotForRevisionClip(
+  clip: { fase?: string | null },
+  links: Array<{ folder_id?: string | null; slot_tipo?: string }>,
+  folderById: Map<string, { fase?: string | null }>,
+): ShowVideoSlot | null {
+  const fromClip = normalizeShowSlot(clip.fase)
+  if (fromClip) return fromClip
+  for (const link of links) {
+    if (link.slot_tipo === 'once_jugador') return 'once_probable'
+    if (link.folder_id) {
+      const fromFolder = normalizeShowSlot(folderById.get(link.folder_id)?.fase)
+      if (fromFolder) return fromFolder
+    }
+  }
+  return null
+}
+
+function normalizeShowSlot(value?: string | null): ShowVideoSlot | null {
+  if (!value) return null
+  return FASE_ALIASES[value] ?? null
+}
+
+function insertPhaseVideos(
+  slides: ShowSlide[],
+  fase: FasePlanPartido,
+  videos: Extract<ShowSlide, { kind: 'video' }>[],
+) {
+  let last = -1
+  for (let i = 0; i < slides.length; i += 1) {
+    const slide = slides[i]
+    if (slide.kind === 'fase' && slide.fase === fase) last = i
+    if (slide.kind === 'video' && slide.fase === fase) last = i
+  }
+  if (last < 0) {
+    slides.push(
+      {
+        id: `fase:${fase}`,
+        kind: 'fase',
+        fase,
+        kicker: 'Fase',
+        title: SHOW_FASE_LABELS[fase],
+        bullets: [],
+      },
+      ...videos,
+    )
+    return
+  }
+  slides.splice(last + 1, 0, ...videos)
+}
+
+function insertOnceVideos(slides: ShowSlide[], videos: Extract<ShowSlide, { kind: 'video' }>[]) {
+  let last = -1
+  for (let i = 0; i < slides.length; i += 1) {
+    const slide = slides[i]
+    if (slide.kind === 'once') last = i
+    if (slide.kind === 'video' && slide.fase === 'once_probable') last = i
+  }
+  if (last < 0) {
+    const contextoIdx = slides.findIndex((slide) => slide.kind === 'contexto')
+    const portadaIdx = slides.findIndex((slide) => slide.kind === 'portada')
+    last = contextoIdx >= 0 ? contextoIdx : Math.max(portadaIdx, 0)
+  }
+  slides.splice(last + 1, 0, ...videos)
 }
 
 function bulletsFromInforme(phase: RivalPhaseAnalysis | undefined): string[] {
@@ -353,10 +558,6 @@ function boardLoops(data?: TareaPizarraData | null): boolean {
   return (kept.length > 0 ? kept : frames).length >= 2
 }
 
-function boardPreviewSrc(board?: TareaPizarraData): string | undefined {
-  return isDataImage(board?.preview) ? board.preview : undefined
-}
-
 function contextoSlide(estrategia?: RivalScoutStrategy): ShowSlide | null {
   if (!estrategia) return null
   const bullets: string[] = []
@@ -376,32 +577,42 @@ function contextoSlide(estrategia?: RivalScoutStrategy): ShowSlide | null {
 
 function onceSlide(estrategia?: RivalScoutStrategy): ShowSlide | null {
   if (!estrategia) return null
+  const sistema = (estrategia.sistema || '').trim()
+  const colocacion = estrategia.once_probable?.colocacion ?? {}
+  const jugadores = (estrategia.once_probable?.jugadores ?? [])
+    .filter((j) => (j.nombre || '').trim())
+    .map((j) => ({
+      nombre: j.nombre.trim(),
+      dorsal: j.dorsal,
+      comentario: j.comentario,
+    }))
+  const placed = Object.values(colocacion).some((name) => (name || '').trim())
   const bullets: string[] = []
-  pushLine(bullets, estrategia.sistema)
-  const jugadores = estrategia.once_probable?.jugadores ?? []
   const commented = jugadores.filter((j) => (j.comentario || '').trim())
-  if (commented.length > 0) {
-    for (const jugador of commented) {
-      pushLine(bullets, oncePlayerLine(jugador))
-    }
-  } else {
-    const colocacion = estrategia.once_probable?.colocacion ?? {}
-    for (const name of Object.values(colocacion)) {
-      pushLine(bullets, name)
-    }
+  for (const jugador of commented) {
+    pushLine(bullets, oncePlayerLine(jugador))
   }
   const clipped = finalizeBullets(bullets)
-  if (clipped.length === 0) return null
+  if (!sistema && !placed && clipped.length === 0) return null
   return {
     id: 'once',
     kind: 'once',
     kicker: 'Once probable',
     title: 'Once probable',
     bullets: clipped,
+    sistema: sistema || undefined,
+    colocacion: placed ? colocacion : undefined,
+    jugadores: jugadores.length > 0 ? jugadores : undefined,
   }
 }
 
-function oncePlayerLine(jugador: RivalJugadorEvaluacion): string {
+function oncePlayerLine(jugador: {
+  nombre?: string
+  dorsal?: number | null
+  rol?: string
+  posicion?: string
+  comentario?: string
+}): string {
   const dorsal = jugador.dorsal != null && Number.isFinite(jugador.dorsal) ? String(jugador.dorsal) : ''
   const name = [dorsal, (jugador.nombre || '').trim()].filter(Boolean).join(' ')
   const role = (jugador.rol || jugador.posicion || '').trim()
@@ -415,22 +626,6 @@ function formatCampo(value?: string): string | undefined {
   const text = (value || '').replace(/\s+/g, ' ').trim()
   if (!text) return undefined
   return `Campo ${text}`
-}
-
-function firstBoardSrc(phase: RivalPhaseAnalysis | PlanPartidoPhase | undefined): string | undefined {
-  if (!phase) return undefined
-  if (isDataImage(phase.pizarra_tactica)) return phase.pizarra_tactica
-  const subfases = phase.subfases
-  if (!subfases) return undefined
-  for (const key of SUBFASE_ORDER) {
-    const src = subfases[key]?.pizarra_tactica
-    if (isDataImage(src)) return src
-  }
-  return undefined
-}
-
-function isDataImage(value?: string): value is string {
-  return typeof value === 'string' && value.startsWith('data:image')
 }
 
 function pushAll(out: string[], values?: string[]) {

@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button'
 interface ExportDossierMenuProps {
   onPdf: () => void | Promise<void>
   onPresentacion: () => void | Promise<void>
-  onPresentar?: () => void
+  onPresentar?: () => void | Promise<void>
   exporting?: boolean
+  presenting?: boolean
 }
 
 export function ExportDossierMenu({
@@ -16,6 +17,7 @@ export function ExportDossierMenu({
   onPresentacion,
   onPresentar,
   exporting,
+  presenting,
 }: ExportDossierMenuProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -37,10 +39,15 @@ export function ExportDossierMenu({
           variant="club"
           size="sm"
           className="h-8 text-xs"
-          onClick={onPresentar}
+          disabled={presenting}
+          onClick={() => void onPresentar()}
         >
-          <Presentation className="mr-1.5 h-3.5 w-3.5" />
-          Presentar
+          {presenting ? (
+            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Presentation className="mr-1.5 h-3.5 w-3.5" />
+          )}
+          {presenting ? 'Abriendo sala…' : 'Presentar'}
         </Button>
       )}
       <div ref={rootRef} className="relative">
