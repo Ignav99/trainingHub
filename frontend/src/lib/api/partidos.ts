@@ -1,5 +1,6 @@
 import { api } from './client'
-import { Partido, Rival, PaginatedResponse, TipoCompeticion, LocaliaPartido, OnceProbableResponse, TarjetasResumenResponse, PreMatchIntel, RivalInforme, InformeRivalEnriquecido, RivalScoutData, PlanPartidoData } from '@/types'
+import { Partido, Rival, PaginatedResponse, TipoCompeticion, LocaliaPartido, OnceProbableResponse, TarjetasResumenResponse, PreMatchIntel, RivalInforme, InformeRivalEnriquecido, RivalScoutData } from '@/types'
+import type { PlanPartidoManualRaw } from '@/lib/planPartidoTramos'
 import { Equipacion } from './equipaciones'
 
 export interface EquipacionesPartido {
@@ -84,15 +85,15 @@ export const rivalesApi = {
     return api.put<Partial<RivalScoutData>>(`/rivales/${rivalId}/scout-manual`, data)
   },
 
-  async getPlanPartidoManual(rivalId: string): Promise<Partial<PlanPartidoData>> {
-    return api.get<Partial<PlanPartidoData>>(`/rivales/${rivalId}/plan-partido-manual`)
+  async getPlanPartidoManual(rivalId: string): Promise<PlanPartidoManualRaw> {
+    return api.get<PlanPartidoManualRaw>(`/rivales/${rivalId}/plan-partido-manual`)
   },
 
   async putPlanPartidoManual(
     rivalId: string,
-    data: Partial<PlanPartidoData>
-  ): Promise<Partial<PlanPartidoData>> {
-    return api.put<Partial<PlanPartidoData>>(`/rivales/${rivalId}/plan-partido-manual`, data)
+    data: PlanPartidoManualRaw
+  ): Promise<PlanPartidoManualRaw> {
+    return api.put<PlanPartidoManualRaw>(`/rivales/${rivalId}/plan-partido-manual`, data)
   },
 
   async uploadRivalClip(

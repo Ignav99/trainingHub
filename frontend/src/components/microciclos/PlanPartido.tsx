@@ -42,6 +42,7 @@ interface PlanPartidoProps {
   rivalEscudoUrl?: string
   campoPartido?: string
   localia?: string
+  tramo?: 'ida' | 'vuelta'
 }
 
 const FASES: { fase: FasePlanPartido; label: string; color: string }[] = [
@@ -101,6 +102,7 @@ export function PlanPartido({
   rivalEscudoUrl,
   campoPartido,
   localia,
+  tramo,
 }: PlanPartidoProps) {
   const [activeTab, setActiveTab] = useState<FasePlanPartido>('ataque_organizado')
   const dataRef = useRef(data)
@@ -165,7 +167,9 @@ export function PlanPartido({
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base">Plan de Partido</CardTitle>
+          <CardTitle className="text-base">
+            Plan de Partido{tramo === 'vuelta' ? ' · Vuelta' : tramo === 'ida' ? ' · Ida' : ''}
+          </CardTitle>
           <Button
             type="button"
             variant="outline"
@@ -179,6 +183,7 @@ export function PlanPartido({
                 hora: horaPartido,
                 campo: campoPartido || ciudadPartido,
                 localia,
+                tramo,
               })
             }
           >

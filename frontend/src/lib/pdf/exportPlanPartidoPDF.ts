@@ -20,6 +20,7 @@ import {
   formatLocalia,
   formatPlanFecha,
   formatPlanHora,
+  formatPlanTramo,
   hexToRgb,
   pitchDisplaySize,
   planPdfFilename,
@@ -71,6 +72,7 @@ export interface PlanPartidoPdfMeta {
   clubNombre?: string
   clubLogoUrl?: string
   colorPrimario?: string
+  tramo?: 'ida' | 'vuelta' | string
 }
 
 type JugadaInfo = {
@@ -265,6 +267,8 @@ function drawHeader(
   const fecha = formatPlanFecha(meta.fecha)
   const hora = formatPlanHora(meta.hora)
   const localia = formatLocalia(meta.localia)
+  const tramo = formatPlanTramo(meta.tramo)
+  if (tramo) chips.push(tramo)
   if (fecha) chips.push(fecha)
   if (hora) chips.push(hora)
   if (meta.campo?.trim()) chips.push(meta.campo.trim())
@@ -489,7 +493,7 @@ export async function exportPlanPartidoPDF(
   }
 
   drawFooters(doc, meta.clubNombre)
-  doc.save(planPdfFilename(meta.rivalNombre, meta.fecha))
+  doc.save(planPdfFilename(meta.rivalNombre, meta.fecha, meta.tramo))
 }
 
 /** @deprecated sync wrapper — use exportPlanPartidoPDF async */

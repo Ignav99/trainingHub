@@ -1,35 +1,26 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import useSWR, { mutate } from 'swr'
 import {
-  Shield,
   MapPin,
   Building,
   Loader2,
   Camera,
   Database,
   RefreshCw,
-  Brain,
   FileText,
-  Info,
-  Clock,
-  LinkIcon,
   Flag,
-  Swords,
-  Download,
   Target,
   Shirt,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { apiKey } from '@/lib/swr'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
@@ -38,14 +29,10 @@ import { RFEFCompeticion } from '@/lib/api/rfef'
 import { toast } from 'sonner'
 import { rivalesApi } from '@/lib/api/partidos'
 import { useEquipoStore } from '@/stores/equipoStore'
-import { MiniFieldPressure } from '@/components/rivales/MiniFieldPressure'
-import { ModeloComparativa } from '@/components/rivales/ModeloComparativa'
-import { InformeRivalEnriquecidoEditor } from '@/components/rivales/InformeRivalEnriquecidoEditor'
 import { KitEditor } from '@/components/equipaciones/KitEditor'
 import { equipacionesApi, type Equipacion, type EquipacionInput, type TipoEquipacion } from '@/lib/api/equipaciones'
-import type { Rival, PreMatchIntel, RivalInforme, AIInformeRival, AIPlanPartido, GameModel, InformeRivalEnriquecido, MapaPresion } from '@/types'
+import type { Rival, PreMatchIntel } from '@/types'
 
-// Dynamic imports for heavy pre-match widgets
 const WidgetSkeleton = () => (
   <Card><CardContent className="p-4"><Skeleton className="h-32 w-full" /></CardContent></Card>
 )
@@ -55,23 +42,18 @@ const OnceProbableWidget = dynamic(() => import('@/components/pre-match/OnceProb
 const TarjetasWidget = dynamic(() => import('@/components/pre-match/TarjetasWidget').then(m => ({ default: m.TarjetasWidget })), { loading: () => <WidgetSkeleton /> })
 const ResultadosWidget = dynamic(() => import('@/components/pre-match/ResultadosWidget').then(m => ({ default: m.ResultadosWidget })), { loading: () => <WidgetSkeleton /> })
 const HeadToHeadWidget = dynamic(() => import('@/components/pre-match/HeadToHeadWidget').then(m => ({ default: m.HeadToHeadWidget })), { loading: () => <WidgetSkeleton /> })
-const InformeRivalSection = dynamic(() => import('@/components/pre-match/InformeRivalSection').then(m => ({ default: m.InformeRivalSection })), { loading: () => <WidgetSkeleton /> })
-const PlanPartidoSection = dynamic(() => import('@/components/pre-match/PlanPartidoSection').then(m => ({ default: m.PlanPartidoSection })), { loading: () => <WidgetSkeleton /> })
 const ABPRivalPlays = dynamic(() => import('@/components/abp/ABPRivalPlays'), { loading: () => <WidgetSkeleton /> })
 const RivalInformeTab = dynamic(() => import('@/components/rivales/RivalInformeTab').then(m => ({ default: m.RivalInformeTab })), { loading: () => <WidgetSkeleton /> })
 const RivalPlanPartidoTab = dynamic(() => import('@/components/rivales/RivalPlanPartidoTab').then(m => ({ default: m.RivalPlanPartidoTab })), { loading: () => <WidgetSkeleton /> })
 
-type TabId = 'scouting' | 'informe' | 'plan_partido' | 'informes' | 'comparativa' | 'abp' | 'equipacion' | 'info'
+type TabId = 'scouting' | 'informe' | 'plan_partido' | 'abp' | 'equipacion'
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'scouting', label: 'Scouting', icon: <Database className="h-3.5 w-3.5" /> },
   { id: 'informe', label: 'Informe Rival', icon: <FileText className="h-3.5 w-3.5" /> },
   { id: 'plan_partido', label: 'Plan de Partido', icon: <Target className="h-3.5 w-3.5" /> },
-  { id: 'informes', label: 'Informes AI', icon: <Brain className="h-3.5 w-3.5" /> },
-  { id: 'comparativa', label: 'Comparativa', icon: <Swords className="h-3.5 w-3.5" /> },
   { id: 'abp', label: 'ABP', icon: <Flag className="h-3.5 w-3.5" /> },
   { id: 'equipacion', label: 'Equipacion', icon: <Shirt className="h-3.5 w-3.5" /> },
-  { id: 'info', label: 'Info', icon: <Info className="h-3.5 w-3.5" /> },
 ]
 
 export default function RivalDetailPage() {
@@ -80,13 +62,13 @@ export default function RivalDetailPage() {
   const { equipoActivo } = useEquipoStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [activeTab, setActiveTab] = useState<TabId>('scouting')
+  const [uploadingEscudo, setUploadingEscudo] = useState(false)
+  const [refreshingIntel, setRefreshingIntel] = useState(false)
 
-  // SWR for rival data
   const { data: rival, isLoading: loadingRival } = useSWR<Rival>(
     apiKey(`/rivales/${id}`)
   )
 
-  // SWR for RFEF competitions
   const { data: rfefRes } = useSWR<{ data: RFEFCompeticion[]; total: number }>(
     equipoActivo?.id ? apiKey('/rfef/competiciones', { equipo_id: equipoActivo.id }) : null
   )
@@ -97,81 +79,15 @@ export default function RivalDetailPage() {
     return comp?.id
   }, [rfefRes])
 
-  // SWR for rival intel
   const { data: intel, mutate: mutateIntel } = useSWR<PreMatchIntel>(
     id && competicionId
       ? apiKey(`/rivales/${id}/intel`, { competicion_id: competicionId })
       : null
   )
 
-  // SWR for rival informes
-  const { data: informesRes, mutate: mutateInformes } = useSWR<{ data: RivalInforme[] }>(
-    id ? apiKey(`/rivales/${id}/informes`) : null
-  )
-
-  const informes = informesRes?.data || []
-
-  // SWR for rival kit/equipacion
   const { data: equipaciones, mutate: mutateEquipaciones } = useSWR<Equipacion[]>(
     id ? apiKey(`/rivales/${id}/equipaciones`) : null
   )
-
-  // FASE 2 — SWR for game model (for Comparativa tab)
-  const { data: gameModelsRes } = useSWR<{ data: GameModel[] }>(
-    equipoActivo?.id ? apiKey('/game-models', { equipo_id: equipoActivo.id }) : null
-  )
-  const gameModel = gameModelsRes?.data?.[0]
-
-  // FASE 2 — SWR for latest enriched informe
-  const { data: informeEnriquecido } = useSWR<InformeRivalEnriquecido>(
-    id ? apiKey(`/rivales/${id}/informes-enriquecidos/latest`) : null
-  )
-
-  const [notas, setNotas] = useState('')
-  const [notasInitialized, setNotasInitialized] = useState(false)
-  const [savingNotas, setSavingNotas] = useState(false)
-  const [uploadingEscudo, setUploadingEscudo] = useState(false)
-  const [refreshingIntel, setRefreshingIntel] = useState(false)
-
-  const [aiInforme, setAiInforme] = useState<AIInformeRival | null>(null)
-  const [aiPlan, setAiPlan] = useState<AIPlanPartido | null>(null)
-
-  useEffect(() => {
-    if (rival && !notasInitialized) {
-      setNotas(rival.notas || '')
-      setNotasInitialized(true)
-    }
-  }, [rival, notasInitialized])
-
-  useEffect(() => {
-    setNotasInitialized(false)
-  }, [id])
-
-  useEffect(() => {
-    if (informes.length > 0) {
-      const latestInforme = informes.find((i) => i.tipo === 'informe')
-      const latestPlan = informes.find((i) => i.tipo === 'plan')
-      if (latestInforme && !aiInforme) {
-        setAiInforme(latestInforme.contenido as AIInformeRival)
-      }
-      if (latestPlan && !aiPlan) {
-        setAiPlan(latestPlan.contenido as AIPlanPartido)
-      }
-    }
-  }, [informes]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function handleSaveNotas() {
-    if (!rival) return
-    setSavingNotas(true)
-    try {
-      await rivalesApi.update(id, { notas })
-      mutate((key: string) => typeof key === 'string' && key.includes('/rivales'), undefined, { revalidate: true })
-    } catch (err) {
-      console.error('Error saving notas:', err)
-    } finally {
-      setSavingNotas(false)
-    }
-  }
 
   async function handleEscudoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -181,8 +97,8 @@ export default function RivalDetailPage() {
       await rivalesApi.uploadEscudo(id, file)
       mutate((key: string) => typeof key === 'string' && key.includes('/rivales'), undefined, { revalidate: true })
       toast.success('Escudo actualizado')
-    } catch (err: any) {
-      toast.error(err.message || 'Error al subir el escudo')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al subir el escudo')
     } finally {
       setUploadingEscudo(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -200,16 +116,6 @@ export default function RivalDetailPage() {
     } finally {
       setRefreshingIntel(false)
     }
-  }
-
-  function handleInformeResult(informe: AIInformeRival) {
-    setAiInforme(informe)
-    mutateInformes()
-  }
-
-  function handlePlanResult(plan: AIPlanPartido) {
-    setAiPlan(plan)
-    mutateInformes()
   }
 
   if (loadingRival) {
@@ -237,7 +143,6 @@ export default function RivalDetailPage() {
         ]}
       />
 
-      {/* Header with escudo upload */}
       <div className="flex items-center gap-4">
         <button
           onClick={() => fileInputRef.current?.click()}
@@ -284,7 +189,6 @@ export default function RivalDetailPage() {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1 border-b border-border overflow-x-auto">
         {TABS.map((tab) => (
           <button
@@ -298,16 +202,10 @@ export default function RivalDetailPage() {
           >
             {tab.icon}
             {tab.label}
-            {tab.id === 'informes' && informes.length > 0 && (
-              <Badge variant="secondary" className="text-[10px] h-4 px-1.5 ml-1">
-                {informes.length}
-              </Badge>
-            )}
           </button>
         ))}
       </div>
 
-      {/* Tab content */}
       {activeTab === 'scouting' && (
         <ScoutingTab
           intel={intel || null}
@@ -322,6 +220,7 @@ export default function RivalDetailPage() {
         <RivalInformeTab
           rivalId={id}
           rivalNombre={rival.nombre}
+          rivalEscudoUrl={rival.escudo_url}
           equipoId={equipoActivo?.id}
         />
       )}
@@ -332,28 +231,6 @@ export default function RivalDetailPage() {
           rivalNombre={rival.nombre}
           rivalEscudoUrl={rival.escudo_url}
           estadio={rival.estadio}
-        />
-      )}
-
-      {activeTab === 'informes' && (
-        <InformesTab
-          rivalId={id}
-          informes={informes}
-          aiInforme={aiInforme}
-          aiPlan={aiPlan}
-          informeEnriquecido={informeEnriquecido || null}
-          onInformeResult={handleInformeResult}
-          onPlanResult={handlePlanResult}
-          onEnriquecidoSaved={() => mutate((key: string) => typeof key === 'string' && key.includes(`/rivales/${id}/informes`), undefined, { revalidate: true })}
-        />
-      )}
-
-      {activeTab === 'comparativa' && (
-        <ComparativaTab
-          rivalId={id}
-          gameModel={gameModel || null}
-          informeEnriquecido={informeEnriquecido || null}
-          rival={rival}
         />
       )}
 
@@ -372,21 +249,9 @@ export default function RivalDetailPage() {
           onSaved={() => mutateEquipaciones()}
         />
       )}
-
-      {activeTab === 'info' && (
-        <InfoTab
-          rival={rival}
-          notas={notas}
-          setNotas={setNotas}
-          savingNotas={savingNotas}
-          onSaveNotas={handleSaveNotas}
-        />
-      )}
     </div>
   )
 }
-
-// ==================== Equipacion Tab ====================
 
 function EquipacionTab({
   rivalId,
@@ -419,69 +284,6 @@ function EquipacionTab({
   )
 }
 
-// ==================== Comparativa Tab (FASE 2) ====================
-
-function ComparativaTab({
-  rivalId,
-  gameModel,
-  informeEnriquecido,
-  rival,
-}: {
-  rivalId: string
-  gameModel: GameModel | null
-  informeEnriquecido: InformeRivalEnriquecido | null
-  rival: Rival
-}) {
-  return (
-    <div className="space-y-4">
-      {/* Modelo vs Rival comparison */}
-      <ModeloComparativa
-        nuestroModelo={gameModel}
-        rivalInfo={informeEnriquecido}
-      />
-
-      {/* Mini-field pressure map */}
-      {informeEnriquecido?.mapa_presion && (
-        <Card>
-          <CardContent className="p-4">
-            <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
-              <Shield className="h-3.5 w-3.5 text-indigo-500" />
-              Mapa de presión del rival
-            </h3>
-            <MiniFieldPressure
-              mapaPresion={informeEnriquecido.mapa_presion as unknown as MapaPresion}
-              size="md"
-            />
-            {informeEnriquecido.notas && (
-              <p className="text-xs text-muted-foreground mt-2 border-t pt-2">
-                {informeEnriquecido.notas}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Empty state */}
-      {!informeEnriquecido && !gameModel && (
-        <Card className="bg-slate-900/50 border-slate-700 border-dashed">
-          <CardContent className="p-6 text-center">
-            <Swords className="h-8 w-8 text-slate-600 mx-auto mb-2" />
-            <p className="text-sm text-slate-500">
-              Sin datos para comparar
-            </p>
-            <p className="text-xs text-slate-600 mt-1">
-              {!gameModel && 'Define tu modelo de juego y '}
-              {!informeEnriquecido && 'genera un informe del rival para ver la comparativa lado a lado.'}
-            </p>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  )
-}
-
-// ==================== Scouting Tab ====================
-
 function ScoutingTab({
   intel,
   competicionId,
@@ -497,10 +299,10 @@ function ScoutingTab({
 }) {
   if (!competicionId) {
     return (
-      <Card className="bg-slate-900/50 border-slate-700 border-dashed">
+      <Card className="border-dashed">
         <CardContent className="p-6 text-center">
-          <Database className="h-8 w-8 text-slate-600 mx-auto mb-2" />
-          <p className="text-sm text-slate-500">
+          <Database className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">
             No hay competicion RFEF vinculada. Vincula una competicion primero.
           </p>
         </CardContent>
@@ -564,217 +366,15 @@ function ScoutingTab({
           )}
         </div>
       ) : (
-        <Card className="bg-slate-900/50 border-slate-700 border-dashed">
+        <Card className="border-dashed">
           <CardContent className="p-6 text-center">
-            <Database className="h-8 w-8 text-slate-600 mx-auto mb-2" />
-            <p className="text-sm text-slate-500">
+            <Database className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">
               Pulsa &quot;Generar Intel&quot; para cargar datos del rival desde RFEF
             </p>
           </CardContent>
         </Card>
       )}
-    </div>
-  )
-}
-
-// ==================== Informe Download Button ====================
-
-function InformeDownloadButton({ rivalId, informeId }: { rivalId: string; informeId: string }) {
-  const [downloading, setDownloading] = useState(false)
-  const handleDownload = async () => {
-    setDownloading(true)
-    try {
-      await rivalesApi.downloadInformePdf(rivalId, informeId)
-    } catch (err: any) {
-      toast.error(err.message || 'Error al descargar PDF')
-    } finally {
-      setDownloading(false)
-    }
-  }
-  return (
-    <Button variant="ghost" size="sm" onClick={handleDownload} disabled={downloading} className="h-7 text-[10px]">
-      {downloading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-      PDF
-    </Button>
-  )
-}
-
-// ==================== Informes Tab ====================
-
-function InformesTab({
-  rivalId,
-  informes,
-  aiInforme,
-  aiPlan,
-  informeEnriquecido,
-  onInformeResult,
-  onPlanResult,
-  onEnriquecidoSaved,
-}: {
-  rivalId: string
-  informes: RivalInforme[]
-  aiInforme: AIInformeRival | null
-  aiPlan: AIPlanPartido | null
-  informeEnriquecido: InformeRivalEnriquecido | null
-  onInformeResult: (informe: AIInformeRival) => void
-  onPlanResult: (plan: AIPlanPartido) => void
-  onEnriquecidoSaved: () => void
-}) {
-  return (
-    <Tabs defaultValue="ai">
-      <TabsList className="mb-4">
-        <TabsTrigger value="ai">Informe AI</TabsTrigger>
-        <TabsTrigger value="enriquecido">Informe enriquecido</TabsTrigger>
-        <TabsTrigger value="historial">Historial ({informes.length})</TabsTrigger>
-      </TabsList>
-
-      <TabsContent value="ai" className="space-y-4">
-        <InformeRivalSection
-          onSend={(msgs) => rivalesApi.scoutingChat(rivalId, msgs, 'informe')}
-          informe={aiInforme}
-          onResult={onInformeResult}
-        />
-
-        <PlanPartidoSection
-          onSend={(msgs) => rivalesApi.scoutingChat(rivalId, msgs, 'plan')}
-          plan={aiPlan}
-          onResult={onPlanResult}
-        />
-      </TabsContent>
-
-      <TabsContent value="enriquecido">
-        <InformeRivalEnriquecidoEditor
-          rivalId={rivalId}
-          informe={informeEnriquecido}
-          onSaved={() => {
-            onEnriquecidoSaved()
-            toast.success('Informe guardado')
-          }}
-        />
-      </TabsContent>
-
-      <TabsContent value="historial">
-        {informes.length > 0 ? (
-          <div className="space-y-2">
-            {informes.map((informe) => (
-              <div
-                key={informe.id}
-                className="flex items-center gap-3 px-3 py-2 rounded-lg border bg-card"
-              >
-                <Badge
-                  className={`text-[10px] ${
-                    informe.tipo === 'informe'
-                      ? 'bg-cyan-100 text-cyan-800'
-                      : 'bg-emerald-100 text-emerald-800'
-                  }`}
-                >
-                  {informe.tipo === 'informe' ? 'Informe' : 'Plan'}
-                </Badge>
-                <span className="text-xs text-muted-foreground flex-1">
-                  {new Date(informe.created_at).toLocaleDateString('es-ES', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </span>
-                {informe.partido_id && (
-                  <Link
-                    href={`/partidos/${informe.partido_id}`}
-                    className="flex items-center gap-1 text-[10px] text-primary hover:underline"
-                  >
-                    <LinkIcon className="h-3 w-3" />
-                    Partido
-                  </Link>
-                )}
-                {informe.tipo === 'informe' && (
-                  <InformeDownloadButton rivalId={rivalId} informeId={informe.id} />
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">No hay informes AI generados aún.</p>
-        )}
-      </TabsContent>
-    </Tabs>
-  )
-}
-
-// ==================== Info Tab ====================
-
-function InfoTab({
-  rival,
-  notas,
-  setNotas,
-  savingNotas,
-  onSaveNotas,
-}: {
-  rival: Rival
-  notas: string
-  setNotas: (v: string) => void
-  savingNotas: boolean
-  onSaveNotas: () => void
-}) {
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardContent className="p-4 space-y-3">
-          <h3 className="text-sm font-semibold">Informacion basica</h3>
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            {rival.ciudad && (
-              <div>
-                <span className="text-xs text-muted-foreground">Ciudad</span>
-                <p className="font-medium">{rival.ciudad}</p>
-              </div>
-            )}
-            {rival.estadio && (
-              <div>
-                <span className="text-xs text-muted-foreground">Estadio</span>
-                <p className="font-medium">{rival.estadio}</p>
-              </div>
-            )}
-            {rival.sistema_juego && (
-              <div>
-                <span className="text-xs text-muted-foreground">Sistema de juego</span>
-                <p className="font-medium">{rival.sistema_juego}</p>
-              </div>
-            )}
-            {rival.estilo && (
-              <div>
-                <span className="text-xs text-muted-foreground">Estilo</span>
-                <p className="font-medium">{rival.estilo}</p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <FileText className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-semibold">Notas del entrenador</h3>
-          </div>
-          <Textarea
-            rows={4}
-            placeholder="Estilo de juego, puntos fuertes, debilidades, jugadores clave..."
-            value={notas}
-            onChange={(e) => setNotas(e.target.value)}
-          />
-          {notas !== (rival.notas || '') && (
-            <Button
-              size="sm"
-              onClick={onSaveNotas}
-              disabled={savingNotas}
-            >
-              {savingNotas && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
-              Guardar notas
-            </Button>
-          )}
-        </CardContent>
-      </Card>
     </div>
   )
 }

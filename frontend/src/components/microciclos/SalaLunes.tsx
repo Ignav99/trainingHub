@@ -18,14 +18,22 @@ import {
 import { Button } from '@/components/ui/button'
 import { TeamCrest } from '@/components/ui/team-crest'
 import { microciclosApi } from '@/lib/api/microciclos'
-import { rivalesApi } from '@/lib/api/partidos'
+import { rivalesApi, partidosApi } from '@/lib/api/partidos'
 import { extractPersistentScout, mergeScoutOnLoad } from '@/lib/rivalScoutSync'
 import { extractPersistentPlanPartido, mergePlanPartidoOnLoad } from '@/lib/rivalPlanPartidoSync'
+import {
+  inferPlanTramo,
+  unwrapPlanTramos,
+  wrapPlanTramos,
+  tramoHasContent,
+  type PlanTramo,
+} from '@/lib/planPartidoTramos'
 import { toast } from 'sonner'
-import type { VistaCompletaMicrociclo, PlanCT, TipoMicrociclo, Jugador, MatchDay } from '@/types'
+import type { VistaCompletaMicrociclo, PlanCT, TipoMicrociclo, Jugador, MatchDay, PlanPartidoData } from '@/types'
 
 import { RivalScout } from './RivalScout'
 import { PlanPartido } from './PlanPartido'
+import { PlanTramoToggle } from '@/components/rivales/PlanTramoToggle'
 import { MorfocicloGrid } from './MorfocicloGrid'
 import { OnceProbable } from './OnceProbable'
 import { WarRoomCargas } from './WarRoomCargas'
@@ -169,9 +177,13 @@ interface SalaLunesProps {
 export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLunesProps) {
   const [planCT, setPlanCT] = useState<PlanCT>(data.microciclo.plan_ct ?? {})
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+  const [planTramo, setPlanTramo] = useState<PlanTramo>('ida')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isMountedRef = useRef(false)
+  const planStoreRef = useRef<Record<PlanTramo, Partial<PlanPartidoData>>>({ ida: {}, vuelta: {} })
+  const planTramoRef = useRef<PlanTramo>('ida')
+  planTramoRef.current = planTramo
 
   const micro = data.microciclo
   const reflexionAnterior = data.reflexion_partido_anterior
@@ -193,21 +205,35 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
     Promise.all([
       rivalesApi.getScoutManual(rivalId),
       rivalesApi.getPlanPartidoManual(rivalId),
+      micro.equipo_id
+        ? partidosApi.list({
+            equipo_id: micro.equipo_id,
+            rival_id: rivalId,
+            limit: 50,
+            orden: 'fecha',
+            direccion: 'asc',
+          })
+        : Promise.resolve({ data: [] }),
     ])
-      .then(([persistentScout, persistentPlan]) => {
+      .then(([persistentScout, persistentPlan, partidos]) => {
+        const store = unwrapPlanTramos(persistentPlan)
+        const tramo = inferPlanTramo(partidos.data || [], micro.partidos?.fecha)
+        planStoreRef.current = store
+        setPlanTramo(tramo)
         setPlanCT((prev) => {
           const next = { ...prev }
           if (persistentScout && (persistentScout.fases?.length || persistentScout.estrategia)) {
             next.rival_scout = mergeScoutOnLoad(persistentScout, prev.rival_scout)
           }
-          if (persistentPlan && persistentPlan.fases?.length) {
-            next.plan_partido = mergePlanPartidoOnLoad(persistentPlan, prev.plan_partido)
+          const persistentForTramo = store[tramo]
+          if (tramoHasContent(persistentForTramo)) {
+            next.plan_partido = mergePlanPartidoOnLoad(persistentForTramo, prev.plan_partido)
           }
           return next
         })
       })
       .catch((err) => console.error('Error cargando perfil del rival:', err))
-  }, [micro.rival_id])
+  }, [micro.rival_id, micro.equipo_id, micro.partidos?.fecha])
 
   // Auto-save
   useEffect(() => {
@@ -227,10 +253,10 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
           await rivalesApi.putScoutManual(micro.rival_id, extractPersistentScout(planCT.rival_scout))
         }
         if (micro.rival_id && planCT.plan_partido) {
-          await rivalesApi.putPlanPartidoManual(
-            micro.rival_id,
-            extractPersistentPlanPartido(planCT.plan_partido)
-          )
+          const store = { ...planStoreRef.current }
+          store[planTramoRef.current] = extractPersistentPlanPartido(planCT.plan_partido)
+          planStoreRef.current = store
+          await rivalesApi.putPlanPartidoManual(micro.rival_id, wrapPlanTramos(store))
         }
         setSaveStatus('saved')
         idleTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
@@ -520,26 +546,46 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
           <RivalScout
             data={planCT.rival_scout ?? {}}
             rivalNombre={data.microciclo.rivales?.nombre}
+            rivalEscudoUrl={data.microciclo.rivales?.escudo_url}
             rivalId={data.microciclo.rival_id}
             microcicloId={data.microciclo.id}
             equipoId={data.microciclo.equipo_id}
             localia={data.microciclo.partidos?.localia}
             onChange={(d) => updatePlanCT({ rival_scout: d })}
           />
-          <PlanPartido
-            data={planCT.plan_partido ?? {}}
-            rivalId={data.microciclo.rival_id}
-            microcicloId={data.microciclo.id}
-            equipoId={data.microciclo.equipo_id}
-            horaPartido={data.microciclo.partidos?.hora}
-            fechaPartido={data.microciclo.partidos?.fecha}
-            ciudadPartido={data.microciclo.rivales?.ciudad || undefined}
-            rivalNombre={data.microciclo.rivales?.nombre}
-            rivalEscudoUrl={data.microciclo.rivales?.escudo_url}
-            campoPartido={data.microciclo.rivales?.estadio || undefined}
-            localia={data.microciclo.partidos?.localia}
-            onChange={(d) => updatePlanCT({ plan_partido: d })}
-          />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <PlanTramoToggle
+                value={planTramo}
+                onChange={(next) => {
+                  const store = { ...planStoreRef.current }
+                  store[planTramo] = extractPersistentPlanPartido(planCT.plan_partido ?? {})
+                  planStoreRef.current = store
+                  setPlanTramo(next)
+                  updatePlanCT({
+                    plan_partido: mergePlanPartidoOnLoad(store[next], {}),
+                  })
+                }}
+                idaHasContent={tramoHasContent(planStoreRef.current.ida) || (planTramo === 'ida' && tramoHasContent(planCT.plan_partido))}
+                vueltaHasContent={tramoHasContent(planStoreRef.current.vuelta) || (planTramo === 'vuelta' && tramoHasContent(planCT.plan_partido))}
+              />
+            </div>
+            <PlanPartido
+              data={planCT.plan_partido ?? {}}
+              rivalId={data.microciclo.rival_id}
+              microcicloId={data.microciclo.id}
+              equipoId={data.microciclo.equipo_id}
+              horaPartido={data.microciclo.partidos?.hora}
+              fechaPartido={data.microciclo.partidos?.fecha}
+              ciudadPartido={data.microciclo.rivales?.ciudad || undefined}
+              rivalNombre={data.microciclo.rivales?.nombre}
+              rivalEscudoUrl={data.microciclo.rivales?.escudo_url}
+              campoPartido={data.microciclo.rivales?.estadio || undefined}
+              localia={data.microciclo.partidos?.localia}
+              tramo={planTramo}
+              onChange={(d) => updatePlanCT({ plan_partido: d })}
+            />
+          </div>
         </div>
       ) : (
         <div className="rounded-xl border border-dashed px-4 py-6 text-center text-xs text-muted-foreground">

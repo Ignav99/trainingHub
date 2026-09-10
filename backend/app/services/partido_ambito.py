@@ -69,3 +69,20 @@ def en_ambito(competicion: Optional[str], ambito: str) -> bool:
 
 def filtrar_por_ambito(rows: Iterable[Any], ambito: str) -> list:
     return [r for r in rows if en_ambito(competicion_de(r), ambito)]
+
+
+def tarjetas_por_jugador(convocatorias: Iterable[Any], ambito: str) -> dict[str, dict[str, int]]:
+    """Amarillas/rojas de convocatorias filtradas por ámbito (amistosos fuera por defecto)."""
+    tarjetas_map: dict[str, dict[str, int]] = {}
+    for c in filtrar_por_ambito(convocatorias, ambito):
+        if not isinstance(c, dict):
+            continue
+        jid = c.get("jugador_id")
+        if not jid:
+            continue
+        bucket = tarjetas_map.setdefault(jid, {"amarillas": 0, "rojas": 0})
+        if c.get("tarjeta_amarilla"):
+            bucket["amarillas"] += 1
+        if c.get("tarjeta_roja"):
+            bucket["rojas"] += 1
+    return tarjetas_map

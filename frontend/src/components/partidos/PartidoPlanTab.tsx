@@ -11,6 +11,7 @@ import {
   savePartidoPlan,
   type PartidoPlanContext,
 } from '@/lib/partidoPlanContext'
+import { PLAN_TRAMO_LABEL } from '@/lib/planPartidoTramos'
 
 interface PartidoPlanTabProps {
   partido: Partido
@@ -21,7 +22,7 @@ type SaveStatus = 'idle' | 'pending' | 'saved' | 'error'
 
 export function PartidoPlanTab({ partido, equipoId }: PartidoPlanTabProps) {
   const [plan, setPlan] = useState<Partial<PlanPartidoData>>({})
-  const [context, setContext] = useState<PartidoPlanContext>({ microcicloId: null, source: 'empty' })
+  const [context, setContext] = useState<PartidoPlanContext>({ microcicloId: null, source: 'empty', tramo: 'ida' })
   const [loading, setLoading] = useState(true)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -34,7 +35,7 @@ export function PartidoPlanTab({ partido, equipoId }: PartidoPlanTabProps) {
     isMountedRef.current = false
     let cancelled = false
     setLoading(true)
-    loadPartidoPlan(partido.id, equipoId, partido.rival_id)
+    loadPartidoPlan(partido.id, equipoId, partido.rival_id, partido.fecha)
       .then(({ plan: loaded, context: ctx }) => {
         if (cancelled) return
         setPlan(loaded)
@@ -94,6 +95,7 @@ export function PartidoPlanTab({ partido, equipoId }: PartidoPlanTabProps) {
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 px-3 py-2">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <ClipboardList className="h-3.5 w-3.5" />
+          <span className="font-medium text-foreground">{PLAN_TRAMO_LABEL[context.tramo]}</span>
           {context.source === 'microciclo' && context.microcicloId ? (
             <span>
               Vinculado al microciclo — los cambios se sincronizan con la Sala del Lunes
@@ -139,6 +141,7 @@ export function PartidoPlanTab({ partido, equipoId }: PartidoPlanTabProps) {
         rivalEscudoUrl={partido.rival?.escudo_url}
         campoPartido={partido.rival?.estadio || partido.ubicacion}
         localia={partido.localia}
+        tramo={context.tramo}
       />
     </div>
   )
