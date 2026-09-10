@@ -1,10 +1,14 @@
+import type { TareaPizarraData } from '../components/tactical-board/types'
+import { diagramHasContent } from './planPartidoDiagramRoles'
 import type {
   ClipRival,
   FasePlanPartido,
   PlanPartidoData,
   PlanPartidoPhase,
+  RivalJugadorEvaluacion,
   RivalPhaseAnalysis,
   RivalScoutData,
+  RivalScoutStrategy,
 } from '../types'
 
 export const SHOW_FASE_ORDER: FasePlanPartido[] = [
@@ -69,11 +73,26 @@ export type ShowSlide =
     }
   | {
       id: string
+      kind: 'contexto'
+      kicker: string
+      title: string
+      bullets: string[]
+    }
+  | {
+      id: string
+      kind: 'once'
+      kicker: string
+      title: string
+      bullets: string[]
+    }
+  | {
+      id: string
       kind: 'fase'
       fase: FasePlanPartido
       kicker: string
       title: string
       bullets: string[]
+      board?: TareaPizarraData
       boardSrc?: string
     }
   | {
@@ -112,6 +131,10 @@ export function playableClips(clips?: ClipRival[]): ClipRival[] {
 
 export function buildInformeShow(data: Partial<RivalScoutData> | undefined, meta: ShowMeta = {}): DossierShow {
   const slides: ShowSlide[] = [portadaSlide('informe', meta)]
+  const contexto = contextoSlide(data?.estrategia)
+  const once = onceSlide(data?.estrategia)
+  if (contexto) slides.push(contexto)
+  if (once) slides.push(once)
   const fases = data?.fases ?? []
   for (const fase of SHOW_FASE_ORDER) {
     const phase = fases.find((item) => item.fase === fase)
@@ -139,6 +162,17 @@ export function showChapters(slides: ShowSlide[]): ShowChapter[] {
       chapters.push({
         id: 'portada',
         label: 'Inicio',
+        startIndex: i,
+        slideCount: 1,
+        videoCount: 0,
+      })
+      i += 1
+      continue
+    }
+    if (slide.kind === 'contexto' || slide.kind === 'once') {
+      chapters.push({
+        id: slide.id,
+        label: slide.title,
         startIndex: i,
         slideCount: 1,
         videoCount: 0,
@@ -210,8 +244,9 @@ function phaseBlock(
   bullets: string[]
 ): ShowSlide[] {
   const clips = playableClips(phase && 'clips' in phase ? phase.clips : undefined)
-  const boardSrc = firstBoardSrc(phase)
-  if (bullets.length === 0 && !boardSrc && clips.length === 0) return []
+  const board = pickBoard(phase)
+  const boardSrc = boardPreviewSrc(board) ?? firstBoardSrc(phase)
+  if (bullets.length === 0 && !board && !boardSrc && clips.length === 0) return []
 
   const title = SHOW_FASE_LABELS[fase]
   const slides: ShowSlide[] = [
@@ -222,6 +257,7 @@ function phaseBlock(
       kicker: 'Fase',
       title,
       bullets,
+      board,
       boardSrc,
     },
   ]
@@ -283,6 +319,102 @@ function pushSubfaseNotes(
     if (bits.length === 0) continue
     pushLine(out, `${SUBFASE_LABELS[key] ?? key}: ${bits.join(' · ')}`)
   }
+}
+
+function pickBoard(
+  phase: RivalPhaseAnalysis | PlanPartidoPhase | undefined
+): TareaPizarraData | undefined {
+  if (!phase) return undefined
+  const candidates: Array<TareaPizarraData | undefined> = [phase.pizarra_diagrama]
+  const subfases = phase.subfases
+  if (subfases) {
+    for (const key of SUBFASE_ORDER) {
+      candidates.push(subfases[key]?.pizarra_diagrama)
+    }
+  }
+  let firstContent: TareaPizarraData | undefined
+  for (const candidate of candidates) {
+    if (!candidate) continue
+    if (boardLoops(candidate)) return candidate
+    if (!firstContent && diagramHasContent(candidate)) firstContent = candidate
+  }
+  return firstContent
+}
+
+function boardLoops(data?: TareaPizarraData | null): boolean {
+  const frames = data?.frames
+  if (!Array.isArray(frames) || frames.length < 2) return false
+  const kept = frames.filter(
+    (frame) =>
+      (frame.elements?.length ?? 0) > 0 ||
+      (frame.arrows?.length ?? 0) > 0 ||
+      (frame.zones?.length ?? 0) > 0
+  )
+  return (kept.length > 0 ? kept : frames).length >= 2
+}
+
+function boardPreviewSrc(board?: TareaPizarraData): string | undefined {
+  return isDataImage(board?.preview) ? board.preview : undefined
+}
+
+function contextoSlide(estrategia?: RivalScoutStrategy): ShowSlide | null {
+  if (!estrategia) return null
+  const bullets: string[] = []
+  pushLine(bullets, estrategia.notas)
+  pushLine(bullets, formatCampo(estrategia.dimensiones_campo))
+  pushLine(bullets, estrategia.actitud_estilo)
+  const clipped = finalizeBullets(bullets)
+  if (clipped.length === 0) return null
+  return {
+    id: 'contexto',
+    kind: 'contexto',
+    kicker: 'Contexto',
+    title: 'Contexto',
+    bullets: clipped,
+  }
+}
+
+function onceSlide(estrategia?: RivalScoutStrategy): ShowSlide | null {
+  if (!estrategia) return null
+  const bullets: string[] = []
+  pushLine(bullets, estrategia.sistema)
+  const jugadores = estrategia.once_probable?.jugadores ?? []
+  const commented = jugadores.filter((j) => (j.comentario || '').trim())
+  if (commented.length > 0) {
+    for (const jugador of commented) {
+      pushLine(bullets, oncePlayerLine(jugador))
+    }
+  } else {
+    const colocacion = estrategia.once_probable?.colocacion ?? {}
+    for (const name of Object.values(colocacion)) {
+      pushLine(bullets, name)
+    }
+  }
+  const clipped = finalizeBullets(bullets)
+  if (clipped.length === 0) return null
+  return {
+    id: 'once',
+    kind: 'once',
+    kicker: 'Once probable',
+    title: 'Once probable',
+    bullets: clipped,
+  }
+}
+
+function oncePlayerLine(jugador: RivalJugadorEvaluacion): string {
+  const dorsal = jugador.dorsal != null && Number.isFinite(jugador.dorsal) ? String(jugador.dorsal) : ''
+  const name = [dorsal, (jugador.nombre || '').trim()].filter(Boolean).join(' ')
+  const role = (jugador.rol || jugador.posicion || '').trim()
+  const comment = clipText(jugador.comentario, 80)
+  const head = [name, role].filter(Boolean).join(' · ')
+  if (head && comment) return `${head} — ${comment}`
+  return comment || head
+}
+
+function formatCampo(value?: string): string | undefined {
+  const text = (value || '').replace(/\s+/g, ' ').trim()
+  if (!text) return undefined
+  return `Campo ${text}`
 }
 
 function firstBoardSrc(phase: RivalPhaseAnalysis | PlanPartidoPhase | undefined): string | undefined {

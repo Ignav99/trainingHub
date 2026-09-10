@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, Film, X } from 'lucide-react'
 import { VideoPlayer, type VideoPlayerHandle } from '@/components/video-analyzer/VideoPlayer'
+import { TacticalBoardMini, boardHasAnimation } from '@/components/task-preview'
 import {
   chapterIndexForSlide,
   showChapters,
@@ -180,6 +181,7 @@ export function DossierPresenter({ show, onClose }: DossierPresenterProps) {
       <div className="relative min-h-0 flex-1">
         <div className="dossier-slide flex h-full min-h-0 flex-col px-6 pb-2 sm:px-12">
           {slide.kind === 'portada' && <PortadaSlide slide={slide} />}
+          {(slide.kind === 'contexto' || slide.kind === 'once') && <NotesSlide slide={slide} />}
           {slide.kind === 'fase' && <FaseSlide slide={slide} />}
           {slide.kind === 'video' && (
             <VideoSlide
@@ -265,7 +267,35 @@ function PortadaSlide({ slide }: { slide: Extract<ShowSlide, { kind: 'portada' }
   )
 }
 
+function NotesSlide({
+  slide,
+}: {
+  slide: Extract<ShowSlide, { kind: 'contexto' | 'once' }>
+}) {
+  return (
+    <div data-testid={`dossier-slide-${slide.kind}`} className="flex h-full min-h-0 flex-col justify-center py-4">
+      <h2
+        className="text-4xl font-extrabold leading-none tracking-tight sm:text-6xl"
+        style={{ fontFamily: DISPLAY_FONT }}
+      >
+        {slide.title}
+      </h2>
+      <ul className="mt-8 max-w-3xl space-y-3">
+        {slide.bullets.map((bullet) => (
+          <li key={bullet} className="flex gap-3 text-lg leading-snug sm:text-xl">
+            <span className="mt-2 h-2 w-2 shrink-0 rounded-full" style={{ background: '#F0C35A' }} />
+            <span>{bullet}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 function FaseSlide({ slide }: { slide: Extract<ShowSlide, { kind: 'fase' }> }) {
+  const looping = boardHasAnimation(slide.board)
+  const showBoard = Boolean(slide.board) || Boolean(slide.boardSrc)
+
   return (
     <div data-testid="dossier-slide-fase" className="grid h-full min-h-0 grid-cols-1 gap-6 py-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
       <div className="flex min-h-0 flex-col justify-center">
@@ -286,11 +316,25 @@ function FaseSlide({ slide }: { slide: Extract<ShowSlide, { kind: 'fase' }> }) {
           </ul>
         ) : (
           <p className="mt-8 text-lg" style={{ color: '#9AA59B' }}>
-            Vídeo de esta fase
+            {showBoard ? 'Pizarra de esta fase' : 'Vídeo de esta fase'}
           </p>
         )}
       </div>
-      {slide.boardSrc && (
+      {slide.board ? (
+        <div
+          className="flex min-h-0 items-center justify-center overflow-hidden rounded-md"
+          style={{ background: '#1a3a12' }}
+        >
+          <TacticalBoardMini
+            key={slide.id}
+            data={slide.board}
+            animate={looping}
+            autoplay
+            height="100%"
+            className="h-full w-full"
+          />
+        </div>
+      ) : slide.boardSrc ? (
         <div className="flex min-h-0 items-center justify-center">
           <img
             src={slide.boardSrc}
@@ -298,7 +342,7 @@ function FaseSlide({ slide }: { slide: Extract<ShowSlide, { kind: 'fase' }> }) {
             className="max-h-full w-full object-contain"
           />
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

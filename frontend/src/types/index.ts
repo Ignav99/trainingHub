@@ -1033,7 +1033,7 @@ export interface RivalSubfaseData {
   /** Derivado de pizarra_diagrama — compat PDF/sync */
   roles?: AsignacionRolTactico[]
   pizarra_tactica?: string
-  pizarra_diagrama?: import('@/components/tarea-editor/types').DiagramData
+  pizarra_diagrama?: import('@/components/tactical-board/types').TareaPizarraData
 }
 
 export interface RivalPhaseAnalysis {
@@ -1042,7 +1042,7 @@ export interface RivalPhaseAnalysis {
   debilidades: string[]
   clips: ClipRival[]
   pizarra_tactica?: string
-  pizarra_diagrama?: import('@/components/tarea-editor/types').DiagramData
+  pizarra_diagrama?: import('@/components/tactical-board/types').TareaPizarraData
   formacion?: string
   espacios?: string
   vigilancias?: string
@@ -1081,7 +1081,7 @@ export interface PlanPartidoSubfaseData {
   /** Derivado de pizarra_diagrama — compat PDF/sync */
   roles?: AsignacionRolTactico[]
   pizarra_tactica?: string
-  pizarra_diagrama?: import('@/components/tarea-editor/types').DiagramData
+  pizarra_diagrama?: import('@/components/tactical-board/types').TareaPizarraData
 }
 
 export interface PlanPartidoABPItem {
@@ -1108,7 +1108,7 @@ export interface PlanPartidoPhase {
   consignas?: string[]
   clips?: ClipRival[]
   pizarra_tactica?: string
-  pizarra_diagrama?: import('@/components/tarea-editor/types').DiagramData
+  pizarra_diagrama?: import('@/components/tactical-board/types').TareaPizarraData
   /** @deprecated usar subfases[].sistema */
   formacion?: string
   /** @deprecated */
