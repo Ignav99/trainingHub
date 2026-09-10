@@ -10,11 +10,14 @@ import { extractPersistentPlanPartido } from '@/lib/rivalPlanPartidoSync'
 
 interface RivalPlanPartidoTabProps {
   rivalId: string
+  rivalNombre?: string
+  rivalEscudoUrl?: string
+  estadio?: string
 }
 
 type SaveStatus = 'idle' | 'pending' | 'saved' | 'error'
 
-export function RivalPlanPartidoTab({ rivalId }: RivalPlanPartidoTabProps) {
+export function RivalPlanPartidoTab({ rivalId, rivalNombre, rivalEscudoUrl, estadio }: RivalPlanPartidoTabProps) {
   const { equipoActivo } = useEquipoStore()
   const [plan, setPlan] = useState<Partial<PlanPartidoData>>({})
   const [loaded, setLoaded] = useState(false)
@@ -86,6 +89,9 @@ export function RivalPlanPartidoTab({ rivalId }: RivalPlanPartidoTabProps) {
         data={plan}
         rivalId={rivalId}
         equipoId={equipoActivo?.id}
+        rivalNombre={rivalNombre}
+        rivalEscudoUrl={rivalEscudoUrl}
+        campoPartido={estadio}
         onChange={setPlan}
       />
     </div>

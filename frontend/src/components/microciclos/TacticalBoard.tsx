@@ -4,7 +4,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Circle, Triangle, Target, Trash2, RotateCcw, MousePointer,
-  ArrowRight, Minus, Square, Undo2, Redo2, Type, Expand, Shrink, X,
+  Minus, Square, Undo2, Redo2, Type, Expand, Shrink, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -18,6 +18,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import ABPPitch from '@/components/abp/ABPPitch'
+import BoardArrow from '@/components/tactical-board/BoardArrow'
+import { ARROW_STYLES, ARROW_TYPE_ORDER, arrowGeometry, arrowHeadPoints, arrowBarPoints } from '@/components/tactical-board/arrowPaths'
+import { exportBoardPNG } from '@/components/tactical-board/utils'
 import {
   DiagramData, DiagramElement, DiagramArrow, DiagramZone, ElementType, ArrowType,
   Position, TEAM_COLORS, ELEMENT_SIZES, generateId, emptyDiagramData,
@@ -37,7 +40,7 @@ interface TacticalBoardProps {
   height?: number
 }
 
-type BoardTool = 'select' | ElementType | 'arrow_movement' | 'arrow_pass' | 'zone_rect' | 'zone_circle'
+type BoardTool = 'select' | ElementType | `arrow_${ArrowType}` | 'zone_rect' | 'zone_circle'
 
 const ZONE_COLORS = ['#EF4444', '#3B82F6', '#F59E0B', '#10B981', '#8B5CF6', '#EC4899']
 const TOKEN_TYPES: ElementType[] = ['player', 'player_gk', 'opponent', 'player_joker']
@@ -71,6 +74,34 @@ function TB({ id, icon, label, color, activeTool, onSelect }: {
   )
 }
 
+function ArrowPreview({ type }: { type: ArrowType }) {
+  const style = ARROW_STYLES[type]
+  const from = { x: 2, y: 10 }
+  const to = { x: 30, y: 10 }
+  const { d, tip, angle } = arrowGeometry({ type, from, to })
+  const head = style.strokeWidth * 2.2
+  const bar = arrowBarPoints(tip, angle, head * 0.8)
+  return (
+    <svg width="32" height="20" viewBox="0 0 32 20" style={{ display: 'block' }}>
+      <path
+        d={d} fill="none" stroke={style.color}
+        strokeWidth={style.strokeWidth * 0.85} strokeDasharray={style.dash}
+        strokeLinecap="round"
+      />
+      {style.head === 'arrow' && <polygon points={arrowHeadPoints(tip, angle, head)} fill={style.color} />}
+      {style.head === 'double' && (
+        <>
+          <polygon points={arrowHeadPoints(tip, angle, head)} fill={style.color} />
+          <polygon points={arrowHeadPoints({ x: tip.x - head * 0.85, y: tip.y }, angle, head)} fill={style.color} />
+        </>
+      )}
+      {style.head === 'bar' && (
+        <line x1={bar.x1} y1={bar.y1} x2={bar.x2} y2={bar.y2} stroke={style.color} strokeWidth={style.strokeWidth} strokeLinecap="round" />
+      )}
+    </svg>
+  )
+}
+
 function hydrateFromDiagram(
   diagramValue: DiagramData | undefined,
   setElements: React.Dispatch<React.SetStateAction<DiagramElement[]>>,
@@ -98,11 +129,9 @@ export function TacticalBoard({
   boardKey,
   diagramValue,
   onDiagramChange,
-  value,
   onChange,
   roleContext,
   jugadorLabel = 'Jugador',
-  height = 300,
 }: TacticalBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const gRef = useRef<SVGGElement>(null)
@@ -141,6 +170,8 @@ export function TacticalBoard({
   const roleOptions = roleContext ? getRolesForContext(roleContext) : []
   const isZoneTool = activeTool === 'zone_rect' || activeTool === 'zone_circle'
   const selectedElement = elements.find((e) => e.id === selectedId)
+  const selectedArrow = arrows.find((a) => a.id === selectedId)
+  const selectedZone = zones.find((z) => z.id === selectedId)
 
   // Hidratar solo al montar o al cambiar de pizarra (boardKey). Tras editar, el estado local manda.
   useEffect(() => {
@@ -200,29 +231,11 @@ export function TacticalBoard({
 
   const exportToPng = useCallback(() => {
     const svg = svgRef.current
-    if (!svg || !containerRef.current || !onChange) return
-    const rect = containerRef.current.getBoundingClientRect()
-    const width = rect.width
-    const heightValue = height
-    const serializer = new XMLSerializer()
-    const svgString = serializer.serializeToString(svg)
-    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const img = new Image()
-    img.onload = () => {
-      const canvas = document.createElement('canvas')
-      canvas.width = width * 2
-      canvas.height = heightValue * 2
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return
-      ctx.fillStyle = '#2D5016'
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-      URL.revokeObjectURL(url)
-      onChange(canvas.toDataURL('image/png'))
-    }
-    img.src = url
-  }, [height, onChange])
+    if (!svg || !onChange) return
+    void exportBoardPNG(svg, { maxWidth: 900, mime: 'image/png' })
+      .then((png) => onChange(png))
+      .catch(() => { /* ignore capture errors */ })
+  }, [onChange])
 
   const schedulePngExport = useCallback(() => {
     if (!onChange) return
@@ -302,8 +315,20 @@ export function TacticalBoard({
     if (recordHistory) pushHistory()
     const { elements: curElements, arrows: curArrows, zones: curZones } = pendingStateRef.current
     const nextElements = curElements.map((e) => (e.id === id ? { ...e, ...patch } : e))
-    applyLocalState(nextElements, curArrows, curZones, { emit: 'debounced', exportPng: false })
+    applyLocalState(nextElements, curArrows, curZones, { emit: 'debounced' })
   }, [pushHistory, applyLocalState])
+
+  const updateArrow = useCallback((id: string, patch: Partial<DiagramArrow>) => {
+    const { elements: curElements, arrows: curArrows, zones: curZones } = pendingStateRef.current
+    const nextArrows = curArrows.map((a) => (a.id === id ? { ...a, ...patch } : a))
+    applyLocalState(curElements, nextArrows, curZones, { emit: 'debounced' })
+  }, [applyLocalState])
+
+  const updateZone = useCallback((id: string, patch: Partial<DiagramZone>) => {
+    const { elements: curElements, arrows: curArrows, zones: curZones } = pendingStateRef.current
+    const nextZones = curZones.map((z) => (z.id === id ? { ...z, ...patch } : z))
+    applyLocalState(curElements, curArrows, nextZones, { emit: 'debounced' })
+  }, [applyLocalState])
 
   const clearSelection = useCallback(() => {
     flushEmit()
@@ -366,18 +391,22 @@ export function TacticalBoard({
         setArrowStart(pos)
       } else {
         pushHistory()
-        const arrowType: ArrowType = activeTool === 'arrow_pass' ? 'pass' : 'movement'
+        const arrowType = activeTool.replace('arrow_', '') as ArrowType
+        const style = ARROW_STYLES[arrowType]
         const newArrow: DiagramArrow = {
           id: generateId(),
           type: arrowType,
           from: arrowStart,
           to: pos,
-          color: arrowType === 'pass' ? '#FFFFFF' : '#FFFF00',
+          color: style?.color,
           label: String(arrowCounter),
+          curvature: style?.shape === 'curve' ? 0.22 : undefined,
         }
         applyState(curElements, [...curArrows, newArrow], curZones)
         setArrowCounter((c) => c + 1)
         setArrowStart(null)
+        setSelectedId(newArrow.id)
+        setActiveTool('select')
       }
       return
     }
@@ -619,30 +648,21 @@ export function TacticalBoard({
     }
   }
 
-  const renderArrow = (arrow: DiagramArrow) => {
-    const { id, from, to, type, color } = arrow
-    const isSelected = selectedId === id
-    const angle = Math.atan2(to.y - from.y, to.x - from.x)
-    const arrowSize = 10
-    const tipX = to.x - arrowSize * Math.cos(angle)
-    const tipY = to.y - arrowSize * Math.sin(angle)
-
-    return (
-      <g key={id} onClick={(e) => { e.stopPropagation(); selectElement(id, true) }} style={{ cursor: 'pointer' }}>
-        <line x1={from.x} y1={from.y} x2={tipX} y2={tipY}
-          stroke={color || '#FFFFFF'} strokeWidth={isSelected ? 4 : 2.5}
-          strokeDasharray={type === 'pass' ? '8,4' : 'none'}
-        />
-        <polygon
-          points={`${to.x},${to.y} ${to.x - arrowSize * Math.cos(angle - Math.PI / 6)},${to.y - arrowSize * Math.sin(angle - Math.PI / 6)} ${to.x - arrowSize * Math.cos(angle + Math.PI / 6)},${to.y - arrowSize * Math.sin(angle + Math.PI / 6)}`}
-          fill={color || '#FFFFFF'}
-        />
-      </g>
-    )
-  }
+  const renderArrow = (arrow: DiagramArrow) => (
+    <BoardArrow
+      key={arrow.id}
+      arrow={arrow}
+      selected={selectedId === arrow.id}
+      interactive
+      onSelect={(e) => {
+        e.stopPropagation()
+        selectElement(arrow.id, true)
+      }}
+    />
+  )
 
   const renderZone = (zone: DiagramZone) => {
-    const { id, position, width, height, color, shape } = zone
+    const { id, position, width, height, color, shape, label } = zone
     const isSelected = selectedId === id
 
     return (
@@ -656,14 +676,28 @@ export function TacticalBoard({
             cx={position.x + width / 2} cy={position.y + height / 2}
             rx={width / 2} ry={height / 2}
             fill={color} opacity={0.3}
-            stroke={isSelected ? '#FFFF00' : 'none'} strokeWidth={isSelected ? 2 : 0}
+            stroke={isSelected ? '#FFFF00' : color} strokeWidth={isSelected ? 2 : 1}
           />
         ) : (
           <rect
             x={position.x} y={position.y} width={width} height={height}
             fill={color} opacity={0.3}
-            stroke={isSelected ? '#FFFF00' : 'none'} strokeWidth={isSelected ? 2 : 0}
+            stroke={isSelected ? '#FFFF00' : color} strokeWidth={isSelected ? 2 : 1}
           />
+        )}
+        {label && (
+          <text
+            x={position.x + width / 2}
+            y={position.y + height / 2}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fill="#FFFFFF"
+            fontSize="11"
+            fontWeight="bold"
+            fontFamily="Arial"
+          >
+            {label}
+          </text>
         )}
       </g>
     )
@@ -681,7 +715,7 @@ export function TacticalBoard({
     return <rect x={x} y={y} width={w} height={h} fill={zoneColor} opacity={0.3} stroke="#FFFF00" strokeWidth="1" strokeDasharray="4,2" />
   }
 
-  const elementPanel = selectedElement && TOKEN_TYPES.includes(selectedElement.type) && (
+  const elementPanel = (selectedElement || selectedArrow || selectedZone) && (
     <div
       className="absolute top-2 right-2 w-52 bg-white rounded-xl shadow-lg border border-gray-200 z-[60] overflow-hidden pointer-events-auto"
       onMouseDown={(e) => e.stopPropagation()}
@@ -691,54 +725,124 @@ export function TacticalBoard({
     >
       <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-200">
         <span className="text-xs font-semibold text-gray-700">
-          {selectedElement.type === 'opponent'
-            ? 'Jugador rival'
-            : selectedElement.type === 'player_gk'
-              ? 'Portero'
-              : selectedElement.type === 'player_joker'
-                ? 'Comodín'
-                : 'Jugador'}
+          {selectedArrow
+            ? 'Movimiento'
+            : selectedZone
+              ? 'Zona'
+              : selectedElement?.type === 'opponent'
+                ? 'Jugador rival'
+                : selectedElement?.type === 'player_gk'
+                  ? 'Portero'
+                  : selectedElement?.type === 'player_joker'
+                    ? 'Comodín'
+                    : selectedElement?.type === 'text'
+                      ? 'Comentario'
+                      : 'Jugador'}
         </span>
         <button type="button" onClick={clearSelection} className="p-0.5 text-gray-400 hover:text-gray-600">
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
       <div className="p-3 space-y-2">
-        <div className="space-y-0.5">
-          <Label className="text-[10px] text-muted-foreground">Dorsal / etiqueta</Label>
-          <Input
-            value={selectedElement.label ?? ''}
-            onChange={(e) => updateElement(selectedElement.id, { label: e.target.value })}
-            className="h-7 text-xs"
-            placeholder="Ej: 8, GK"
-          />
-        </div>
-        <div className="space-y-0.5">
-          <Label className="text-[10px] text-muted-foreground">{jugadorLabel}</Label>
-          <Input
-            value={selectedElement.jugador ?? ''}
-            onChange={(e) => updateElement(selectedElement.id, { jugador: e.target.value })}
-            className="h-7 text-xs"
-            placeholder="Nombre del jugador..."
-          />
-        </div>
-        {roleContext && roleOptions.length > 0 && (
+        {selectedElement && TOKEN_TYPES.includes(selectedElement.type) && (
+          <>
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">Dorsal / etiqueta</Label>
+              <Input
+                value={selectedElement.label ?? ''}
+                onChange={(e) => updateElement(selectedElement.id, { label: e.target.value })}
+                className="h-7 text-xs"
+                placeholder="Ej: 8, GK"
+              />
+            </div>
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">{jugadorLabel}</Label>
+              <Input
+                value={selectedElement.jugador ?? ''}
+                onChange={(e) => updateElement(selectedElement.id, { jugador: e.target.value })}
+                className="h-7 text-xs"
+                placeholder="Nombre del jugador..."
+              />
+            </div>
+            {roleContext && roleOptions.length > 0 && (
+              <div className="space-y-0.5">
+                <Label className="text-[10px] text-muted-foreground">Rol táctico (opcional)</Label>
+                <Select
+                  value={selectedElement.rol ?? '__none__'}
+                  onValueChange={(v) => updateElement(selectedElement.id, { rol: v === '__none__' ? undefined : v })}
+                >
+                  <SelectTrigger className="h-7 text-xs" onPointerDown={(e) => e.stopPropagation()}>
+                    <SelectValue placeholder="Sin rol (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent position="popper" className="z-[200]">
+                    <SelectItem value="__none__" className="text-xs text-muted-foreground">Sin rol</SelectItem>
+                    {roleOptions.map((o) => (
+                      <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </>
+        )}
+        {selectedElement?.type === 'text' && (
           <div className="space-y-0.5">
-            <Label className="text-[10px] text-muted-foreground">Rol táctico (opcional)</Label>
-            <Select
-              value={selectedElement.rol ?? '__none__'}
-              onValueChange={(v) => updateElement(selectedElement.id, { rol: v === '__none__' ? undefined : v })}
-            >
-              <SelectTrigger className="h-7 text-xs" onPointerDown={(e) => e.stopPropagation()}>
-                <SelectValue placeholder="Sin rol (opcional)" />
-              </SelectTrigger>
-              <SelectContent position="popper" className="z-[200]">
-                <SelectItem value="__none__" className="text-xs text-muted-foreground">Sin rol</SelectItem>
-                {roleOptions.map((o) => (
-                  <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label className="text-[10px] text-muted-foreground">Comentario</Label>
+            <Input
+              value={selectedElement.label ?? ''}
+              onChange={(e) => updateElement(selectedElement.id, { label: e.target.value })}
+              className="h-7 text-xs"
+              placeholder="Texto en el campo..."
+            />
+          </div>
+        )}
+        {selectedArrow && (
+          <>
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">Tipo</Label>
+              <Select
+                value={selectedArrow.type}
+                onValueChange={(v) => updateArrow(selectedArrow.id, { type: v as ArrowType, color: ARROW_STYLES[v as ArrowType]?.color })}
+              >
+                <SelectTrigger className="h-7 text-xs" onPointerDown={(e) => e.stopPropagation()}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent position="popper" className="z-[200]">
+                  {ARROW_TYPE_ORDER.map((t) => (
+                    <SelectItem key={t} value={t} className="text-xs">{ARROW_STYLES[t].label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">Etiqueta</Label>
+              <Input
+                value={selectedArrow.label ?? ''}
+                onChange={(e) => updateArrow(selectedArrow.id, { label: e.target.value })}
+                className="h-7 text-xs"
+                placeholder="Orden"
+              />
+            </div>
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">Comentario</Label>
+              <Input
+                value={selectedArrow.comment ?? ''}
+                onChange={(e) => updateArrow(selectedArrow.id, { comment: e.target.value })}
+                className="h-7 text-xs"
+                placeholder="Nota de la acción..."
+              />
+            </div>
+          </>
+        )}
+        {selectedZone && (
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">Etiqueta de zona</Label>
+            <Input
+              value={selectedZone.label ?? ''}
+              onChange={(e) => updateZone(selectedZone.id, { label: e.target.value })}
+              className="h-7 text-xs"
+              placeholder="Ej: presión, pasillo..."
+            />
           </div>
         )}
       </div>
@@ -764,9 +868,21 @@ export function TacticalBoard({
         <TB id="cone" icon={<Triangle className="h-3.5 w-3.5" />} label="Cono" color="#FF6B00" activeTool={activeTool} onSelect={setActiveTool} />
         <TB id="ball" icon={<Target className="h-3.5 w-3.5" />} label="Balon" activeTool={activeTool} onSelect={setActiveTool} />
         <TB id="mini_goal" icon={<Minus className="h-3.5 w-3.5 rotate-90" />} label="Mini" activeTool={activeTool} onSelect={setActiveTool} />
+        <TB id="text" icon={<Type className="h-3.5 w-3.5" />} label="Texto" activeTool={activeTool} onSelect={setActiveTool} />
         <Sep />
-        <TB id="arrow_movement" icon={<ArrowRight className="h-3.5 w-3.5" />} label="Movimiento" color="#FFFF00" activeTool={activeTool} onSelect={setActiveTool} />
-        <TB id="arrow_pass" icon={<ArrowRight className="h-3.5 w-3.5" />} label="Pase" color="#FFFFFF" activeTool={activeTool} onSelect={setActiveTool} />
+        {ARROW_TYPE_ORDER.map((type) => (
+          <button
+            key={type}
+            type="button"
+            onClick={() => setActiveTool(`arrow_${type}`)}
+            title={`${ARROW_STYLES[type].label} — ${ARROW_STYLES[type].hint}`}
+            className={`flex items-center px-1 py-1 rounded-lg ${
+              activeTool === `arrow_${type}` ? 'bg-blue-600 ring-2 ring-blue-300' : 'bg-gray-100 hover:bg-gray-200'
+            }`}
+          >
+            <ArrowPreview type={type} />
+          </button>
+        ))}
         <Sep />
         <TB id="zone_rect" icon={<Square className="h-3.5 w-3.5" />} label="Zona" color={zoneColor} activeTool={activeTool} onSelect={setActiveTool} />
         <TB id="zone_circle" icon={<Circle className="h-3.5 w-3.5" />} label="Elipse" color={zoneColor} activeTool={activeTool} onSelect={setActiveTool} />
@@ -783,8 +899,6 @@ export function TacticalBoard({
             ))}
           </div>
         )}
-        <Sep />
-        <TB id="text" icon={<Type className="h-3.5 w-3.5" />} label="Texto" activeTool={activeTool} onSelect={setActiveTool} />
         <Sep />
         <button type="button" onClick={undo} disabled={historyIndex < 0} className="p-1 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-30" title="Deshacer">
           <Undo2 className="h-3.5 w-3.5" />
@@ -806,8 +920,8 @@ export function TacticalBoard({
 
       <div
         ref={containerRef}
-        className={`relative ${isExpanded ? 'w-full flex-1 min-h-0 rounded-lg overflow-hidden border border-white/10' : 'w-full rounded-lg overflow-hidden border border-white/10'}`}
-        style={isExpanded ? undefined : { height }}
+        className={`relative ${isExpanded ? 'w-full flex-1 min-h-0 rounded-lg overflow-hidden border border-white/10 bg-[#2D5016]' : 'w-full rounded-lg overflow-hidden border border-white/10 bg-[#2D5016]'}`}
+        style={isExpanded ? undefined : { aspectRatio: '680 / 525' }}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
@@ -832,13 +946,15 @@ export function TacticalBoard({
 
       <div className="flex justify-between items-center">
         <p className="text-[10px] text-muted-foreground">
-          {roleContext
-            ? 'Coloca varios jugadores; usa Seleccionar para nombre/rol (opcional)'
-            : activeTool.startsWith('arrow_')
-              ? (arrowStart ? '2. Click destino' : '1. Click origen')
-              : isZoneTool
-                ? 'Click y arrastra para dibujar zona'
-                : 'Selecciona una herramienta y click en el campo'}
+          {activeTool.startsWith('arrow_')
+            ? (arrowStart ? '2. Click destino de la flecha' : '1. Click origen — luego destino')
+            : isZoneTool
+              ? 'Click y arrastra para dibujar zona'
+              : selectedArrow
+                ? 'Añade etiqueta y comentario al movimiento'
+                : roleContext
+                  ? 'Coloca jugadores, flechas, zonas y comentarios; usa Seleccionar para roles'
+                  : 'Selecciona una herramienta y click en el campo'}
         </p>
         {onChange && (
           <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={exportToPng}>

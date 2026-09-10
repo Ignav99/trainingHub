@@ -38,6 +38,10 @@ interface PlanPartidoProps {
   horaPartido?: string
   fechaPartido?: string
   ciudadPartido?: string
+  rivalNombre?: string
+  rivalEscudoUrl?: string
+  campoPartido?: string
+  localia?: string
 }
 
 const FASES: { fase: FasePlanPartido; label: string; color: string }[] = [
@@ -93,6 +97,10 @@ export function PlanPartido({
   horaPartido,
   fechaPartido,
   ciudadPartido,
+  rivalNombre,
+  rivalEscudoUrl,
+  campoPartido,
+  localia,
 }: PlanPartidoProps) {
   const [activeTab, setActiveTab] = useState<FasePlanPartido>('ataque_organizado')
   const dataRef = useRef(data)
@@ -163,7 +171,16 @@ export function PlanPartido({
             variant="outline"
             size="sm"
             className="h-8 text-xs"
-            onClick={() => void exportPlanPartidoPDF(data, equipoId)}
+            onClick={() =>
+              void exportPlanPartidoPDF(data, equipoId, {
+                rivalNombre,
+                rivalEscudoUrl,
+                fecha: fechaPartido,
+                hora: horaPartido,
+                campo: campoPartido || ciudadPartido,
+                localia,
+              })
+            }
           >
             Exportar PDF
           </Button>
@@ -249,6 +266,19 @@ export function PlanPartido({
                       )
                     })}
                   </Tabs>
+                )}
+
+                {section.fase === 'ataque_organizado' && (
+                  <PlanPartidoABPSection
+                    lado="ofensivo"
+                    tipos={['saque_puerta']}
+                    defaultTipo="saque_puerta"
+                    titulo="Saques de puerta (balón parado)"
+                    emptyHint="Enlaza o crea saques de puerta para la salida de ataque organizado"
+                    items={phase.jugadas_abp ?? []}
+                    equipoId={equipoId}
+                    onChange={(jugadas_abp) => updatePhase(section.fase, { jugadas_abp })}
+                  />
                 )}
 
                 {isTransitionPhase(section.fase) && (

@@ -327,7 +327,12 @@ export default function RivalDetailPage() {
       )}
 
       {activeTab === 'plan_partido' && (
-        <RivalPlanPartidoTab rivalId={id} />
+        <RivalPlanPartidoTab
+          rivalId={id}
+          rivalNombre={rival.nombre}
+          rivalEscudoUrl={rival.escudo_url}
+          estadio={rival.estadio}
+        />
       )}
 
       {activeTab === 'informes' && (

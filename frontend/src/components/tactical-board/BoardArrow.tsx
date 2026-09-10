@@ -97,6 +97,32 @@ export default function BoardArrow({
         </>
       )}
 
+      {arrow.comment && (
+        <g style={{ pointerEvents: 'none' }}>
+          <rect
+            x={midX - 46}
+            y={midY + (arrow.label ? 12 : 8)}
+            width="92"
+            height="16"
+            rx="4"
+            fill="rgba(0,0,0,0.72)"
+            stroke={color}
+            strokeWidth="0.8"
+          />
+          <text
+            x={midX}
+            y={midY + (arrow.label ? 20.5 : 16)}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fill="#FFFFFF"
+            fontSize="8"
+            fontFamily="Arial"
+          >
+            {arrow.comment.length > 22 ? `${arrow.comment.slice(0, 21)}…` : arrow.comment}
+          </text>
+        </g>
+      )}
+
       {/* Tiradores de los extremos */}
       {interactive && selected && (
         <>
