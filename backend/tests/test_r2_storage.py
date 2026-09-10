@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch
 
-from app.services.r2_storage import presign_put, public_url, r2_enabled
+from app.services.r2_storage import presign_get, presign_put, public_url, r2_enabled
 
 
 def _settings(**kwargs):
@@ -49,6 +49,15 @@ class TestPresignPut:
     def test_public_url_joins_base(self):
         with patch("app.services.r2_storage.get_settings", return_value=_settings()):
             assert public_url("eq/pk/a.webm") == "https://pub.example.com/eq/pk/a.webm"
+
+    def test_presign_get_is_signed_get(self):
+        with patch("app.services.r2_storage.get_settings", return_value=_settings()):
+            url = presign_get("eq/pk/clip.webm")
+        assert url.startswith("https://accid.r2.cloudflarestorage.com/revision-clips/eq/pk/clip.webm?")
+        assert url.split("?")[0].endswith("/clip.webm")
+        assert "X-Amz-Signature=" in url
+        canonical = url.split("?")[0]
+        assert "UNSIGNED" not in canonical
 
 
 class TestR2SettingsStrip:

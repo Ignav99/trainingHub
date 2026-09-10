@@ -5,13 +5,14 @@ Dos herramientas: **Video Análisis** (partido entero local, nunca a la nube) y 
 - Capacidad objetivo: ~2 min ≈ 87–100 MB; **7–10 clips/partido** (~1 GB, charla 15–30 min). ~15 GB cada 15 días y luego se borra.
 - **Opción elegida: Cloudflare R2**, no Supabase Pro (25 $/mes). El navegador hace PUT a URL firmada; el fichero no pasa por Render (evita OOM). Playback sin egress de pago. 15 GB × 15 días = céntimos. Supabase Free sigue para DB/auth.
 - Sin vars `R2_*` en el API de Render, se usa Supabase Storage (Free capea a **50 MB/archivo** — un clip de 87 MB sigue en 413).
-- Vars: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` (**no** el token `cfut_…`), `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=revision-clips`, `R2_PUBLIC_BASE_URL`. CORS PUT/GET/HEAD en el bucket.
+- Vars: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` (**no** el token `cfut_…`, debe ser el Access Key ID de ~32 chars), `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=revision-clips`, `R2_PUBLIC_BASE_URL`. CORS PUT/GET/HEAD en el bucket.
+- Fallo 99% con claves ya buenas: `R2_SECRET_ACCESS_KEY` en Render tenía un `\n` al pegar (len 65). Firma SigV4 no coincide, R2 403 **sin** CORS → XHR «el bucket lo rechazó». CORS del cubo sí estaba (OPTIONS 204, AllowedHeaders `content-type`, no `*`). PUT con secret recortado = 200. Strip en Settings + secret limpio en Render.
 - Cron `POST /v1/revision/cron/archive` **borra** clips caducados (R2 + Storage). Partidos aún no jugados alargan `hot_until`.
 - Informe de partido: **ya no hay bloque «Añadir video»** encima de Revisión. Solo Revisión.
 - La librería no bloquea la UI: «Subir recorte» funciona aunque el pack aún no haya cargado.
 - Lista de partidos y GET de un partido van sin `pre_match_intel`.
 - Desde el analizador: «A revisión» recorta en el PC y sube solo ese fragmento (progreso %).
-- Sala: HDMI en el PC + tablet por el 5G del móvil. Sync por WebSocket `/v1/ws`.
+- Sala: HDMI en el PC + tablet por el 5G del móvil. Sync por WebSocket **directo al API** (`wss://…/v1/ws`, no el host del frontend). Play/pausa desde ambos. El QR de la tablet abre la sala en overlay a pantalla completa en el portátil. Pizarra (colores, grosor, rectángulo, goma, borrar todo, opacidad/sombra). La barra derecha replica la jerarquía de carpetas.
 Migración: `080_revision_video.sql`.
 
 ## Tratamiento (enfermería / ficha)

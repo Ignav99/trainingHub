@@ -42,7 +42,15 @@ from app.services.revision_service import (
     normalize_clip_mime,
     normalize_signed_upload_url,
 )
-from app.services.r2_storage import delete_object, presign_put, public_url, put_file, r2_config_error, r2_enabled
+from app.services.r2_storage import (
+    delete_object,
+    presign_get,
+    presign_put,
+    public_url,
+    put_file,
+    r2_config_error,
+    r2_enabled,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +111,7 @@ def _load_clips_and_links(supabase, pack_id: str) -> tuple[list[dict], list[dict
         .order("created_at", desc=True)
         .execute()
     )
-    clip_rows = clips.data or []
+    clip_rows = [_decorate_clip(c) for c in (clips.data or [])]
     clip_ids = [c["id"] for c in clip_rows]
     if not clip_ids:
         return clip_rows, []
@@ -114,6 +122,20 @@ def _load_clips_and_links(supabase, pack_id: str) -> tuple[list[dict], list[dict
         .execute()
     )
     return clip_rows, links_res.data or []
+
+
+def _decorate_clip(clip: dict | None) -> dict | None:
+    """Añade url_play (GET firmado) para que Chrome/iPad reproduzcan el recorte."""
+    if not clip:
+        return clip
+    out = dict(clip)
+    path = out.get("storage_path")
+    if r2_enabled() and path:
+        try:
+            out["url_play"] = presign_get(path)
+        except Exception as exc:
+            logger.warning("revision clip presign_get failed path=%s: %s", path, exc)
+    return out
 
 
 def _pack_payload(supabase, pack: dict) -> dict:
@@ -327,7 +349,7 @@ def _insert_clip(
             "rival_jugador_dorsal": rival_jugador_dorsal,
         }
         supabase.table("revision_clip_links").insert(link).execute()
-    return clip
+    return _decorate_clip(clip)
 
 
 @router.post("/clips/upload-url")
@@ -659,7 +681,7 @@ async def get_session_by_code(
             .limit(1)
             .execute()
         )
-        current_clip = (clip.data or [None])[0]
+        current_clip = _decorate_clip((clip.data or [None])[0])
     return {**session, "pack": pack, "current_clip": current_clip}
 
 

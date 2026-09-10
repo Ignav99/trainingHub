@@ -34,6 +34,8 @@ interface VideoPlayerProps {
   onTimeUpdate?: (time: number) => void
   onPlayStateChange?: (playing: boolean) => void
   onDurationChange?: (duration: number) => void
+  onSeeked?: (time: number) => void
+  onError?: () => void
   /**
    * Enables extra controls meant for standalone/embedded previews (e.g. rival clips
    * list) that are NOT active by default so the full Video Analyzer tool (which
@@ -50,7 +52,7 @@ interface VideoPlayerProps {
 }
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
-  function VideoPlayer({ src, clipRange, onTimeUpdate, onPlayStateChange, onDurationChange, standalonePreview, defaultMuted }, ref) {
+  function VideoPlayer({ src, clipRange, onTimeUpdate, onPlayStateChange, onDurationChange, onSeeked, onError, standalonePreview, defaultMuted }, ref) {
     const videoRef = useRef<HTMLVideoElement>(null as unknown as HTMLVideoElement)
     const containerRef = useRef<HTMLDivElement>(null)
     const [playing, setPlaying] = useState(false)
@@ -84,7 +86,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         }
       },
       pause: () => videoRef.current?.pause(),
-      play: () => videoRef.current?.play(),
+      play: () => { void videoRef.current?.play()?.catch(() => undefined) },
     }))
 
     // HLS.js support for .m3u8 streams
@@ -218,19 +220,29 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         setDuration(v.duration)
         onDurationChange?.(v.duration)
       }
+      const handleSeeked = () => {
+        onSeeked?.(v.currentTime)
+      }
+      const handleError = () => {
+        onError?.()
+      }
 
       v.addEventListener('timeupdate', handleTime)
       v.addEventListener('play', handlePlay)
       v.addEventListener('pause', handlePause)
       v.addEventListener('loadedmetadata', handleDuration)
+      v.addEventListener('seeked', handleSeeked)
+      v.addEventListener('error', handleError)
 
       return () => {
         v.removeEventListener('timeupdate', handleTime)
         v.removeEventListener('play', handlePlay)
         v.removeEventListener('pause', handlePause)
         v.removeEventListener('loadedmetadata', handleDuration)
+        v.removeEventListener('seeked', handleSeeked)
+        v.removeEventListener('error', handleError)
       }
-    }, [clipRange, onTimeUpdate, onPlayStateChange, onDurationChange])
+    }, [clipRange, onTimeUpdate, onPlayStateChange, onDurationChange, onSeeked, onError])
 
     // When clipRange changes, seek to clip start
     useEffect(() => {
@@ -367,8 +379,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         <video
           ref={videoRef}
           src={src.includes('.m3u8') ? undefined : src}
-          preload="metadata"
+          preload="auto"
           muted={muted}
+          playsInline
           className={
             isPortalExpanded
               ? 'flex-1 min-h-0 w-full object-contain bg-black'

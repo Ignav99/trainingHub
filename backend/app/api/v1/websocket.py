@@ -69,10 +69,18 @@ class ConnectionManager:
         logger.info(f"WebSocket disconnected: user={user_id}")
         self.leave_all_salas(websocket)
 
-    def join_sala(self, websocket: WebSocket, session_code: str):
+    def join_sala(self, websocket: WebSocket, session_code: str) -> int:
         code = session_code.upper().strip()
-        self.sala_rooms.setdefault(code, []).append(websocket)
-        self.ws_salas.setdefault(id(websocket), []).append(code)
+        room = self.sala_rooms.setdefault(code, [])
+        if websocket not in room:
+            room.append(websocket)
+        codes = self.ws_salas.setdefault(id(websocket), [])
+        if code not in codes:
+            codes.append(code)
+        return len(room)
+
+    def sala_peer_count(self, session_code: str) -> int:
+        return len(self.sala_rooms.get(session_code.upper().strip(), []))
 
     def leave_all_salas(self, websocket: WebSocket):
         for code in self.ws_salas.pop(id(websocket), []):
@@ -250,9 +258,25 @@ async def websocket_endpoint(
 
             elif msg_type == "sala_join":
                 code = (data.get("session_code") or "").upper().strip()
+                role = data.get("role") or "tablet"
                 if code:
-                    manager.join_sala(websocket, code)
-                    await websocket.send_json({"type": "sala_joined", "session_code": code})
+                    peers = manager.join_sala(websocket, code)
+                    await websocket.send_json({
+                        "type": "sala_joined",
+                        "session_code": code,
+                        "role": role,
+                        "peers": peers,
+                    })
+                    await manager.broadcast_sala(
+                        code,
+                        {
+                            "type": "sala_peer_joined",
+                            "session_code": code,
+                            "role": role,
+                            "peers": peers,
+                        },
+                        exclude=websocket,
+                    )
 
             elif msg_type == "sala_sync":
                 code = (data.get("session_code") or "").upper().strip()
@@ -270,7 +294,17 @@ async def websocket_endpoint(
                     await manager.broadcast_sala(code, payload, exclude=websocket)
 
     except WebSocketDisconnect:
+        salas = list(manager.ws_salas.get(id(websocket), []))
         manager.disconnect_user(websocket, user_id, equipo_id)
+        for code in salas:
+            await manager.broadcast_sala(
+                code,
+                {
+                    "type": "sala_peer_left",
+                    "session_code": code,
+                    "peers": manager.sala_peer_count(code),
+                },
+            )
 
         if equipo_id:
             await manager.broadcast_to_team(
@@ -285,7 +319,17 @@ async def websocket_endpoint(
 
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
+        salas = list(manager.ws_salas.get(id(websocket), []))
         manager.disconnect_user(websocket, user_id, equipo_id)
+        for code in salas:
+            await manager.broadcast_sala(
+                code,
+                {
+                    "type": "sala_peer_left",
+                    "session_code": code,
+                    "peers": manager.sala_peer_count(code),
+                },
+            )
 
 
 # ============ Message Handlers ============

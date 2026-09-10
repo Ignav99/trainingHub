@@ -2370,6 +2370,8 @@ export interface DrawingElement {
   points?: { x: number; y: number }[]
   text?: string
   fontSize?: number
+  fillOpacity?: number
+  strokeOpacity?: number
   startTime?: number
   endTime?: number
   freezeFrameId?: string

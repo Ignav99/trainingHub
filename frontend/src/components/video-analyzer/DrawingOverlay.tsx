@@ -33,8 +33,7 @@ export const DrawingOverlay = forwardRef<SVGSVGElement, DrawingOverlayProps>(
       return Array.from(colors)
     }, [allElements])
 
-    // Allow pointer events for select tool (to click/drag elements) OR drawing tools
-    const enablePointer = interactive || tool === 'select'
+    const showHits = tool === 'select' || tool === 'eraser'
 
     return (
       <svg
@@ -42,7 +41,7 @@ export const DrawingOverlay = forwardRef<SVGSVGElement, DrawingOverlayProps>(
         viewBox="0 0 1920 1080"
         preserveAspectRatio="xMidYMid meet"
         className="absolute inset-0 w-full h-full touch-none"
-        style={{ pointerEvents: enablePointer ? 'all' : 'none', zIndex: 3, touchAction: 'none' }}
+        style={{ pointerEvents: interactive ? 'all' : 'none', zIndex: 3, touchAction: 'none' }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
@@ -65,6 +64,9 @@ export const DrawingOverlay = forwardRef<SVGSVGElement, DrawingOverlayProps>(
               <polygon points="0 0, 10 3.5, 0 7" fill={c} />
             </marker>
           ))}
+          <filter id="poly-shadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="3" dy="4" stdDeviation="5" floodColor="#000" floodOpacity="0.45" />
+          </filter>
         </defs>
 
         {allElements.map((el) => (
@@ -72,11 +74,10 @@ export const DrawingOverlay = forwardRef<SVGSVGElement, DrawingOverlayProps>(
             key={el.id}
             data-element-id={el.id}
             style={{
-              cursor: tool === 'select' ? 'pointer' : 'crosshair',
+              cursor: tool === 'select' ? 'pointer' : tool === 'eraser' ? 'cell' : 'crosshair',
             }}
           >
-            {/* Hit area: wide invisible stroke for thin elements */}
-            {tool === 'select' && el.id !== 'preview' && (
+            {showHits && el.id !== 'preview' && (
               <HitArea element={el} />
             )}
             <RenderElement element={el} />
@@ -117,7 +118,34 @@ function HitArea({ element: el }: { element: DrawingElement }) {
     )
   }
 
+  if ((el.type === 'rect' || el.type === 'circle') && el.from && el.to) {
+    return (
+      <rect
+        x={Math.min(el.from.x, el.to.x)}
+        y={Math.min(el.from.y, el.to.y)}
+        width={Math.abs(el.to.x - el.from.x)}
+        height={Math.abs(el.to.y - el.from.y)}
+        fill="transparent"
+        stroke="transparent"
+        strokeWidth={hitWidth}
+      />
+    )
+  }
+
   return null
+}
+
+function shapePaint(el: DrawingElement) {
+  const fillOpacity = el.fillOpacity ?? (el.type === 'rect' || el.type === 'circle' ? 0.22 : 0)
+  const strokeOpacity = el.strokeOpacity ?? 1
+  return {
+    fill: el.color,
+    fillOpacity,
+    stroke: el.color,
+    strokeWidth: el.strokeWidth,
+    strokeOpacity,
+    filter: 'url(#poly-shadow)',
+  }
 }
 
 function RenderElement({ element: el }: { element: DrawingElement }) {
@@ -131,6 +159,7 @@ function RenderElement({ element: el }: { element: DrawingElement }) {
           y2={el.to.y}
           stroke={el.color}
           strokeWidth={el.strokeWidth}
+          strokeOpacity={el.strokeOpacity ?? 1}
           markerEnd={`url(#arrowhead-${el.color.replace('#', '')})`}
         />
       ) : null
@@ -144,6 +173,7 @@ function RenderElement({ element: el }: { element: DrawingElement }) {
           y2={el.to.y}
           stroke={el.color}
           strokeWidth={el.strokeWidth}
+          strokeOpacity={el.strokeOpacity ?? 1}
         />
       ) : null
 
@@ -155,9 +185,7 @@ function RenderElement({ element: el }: { element: DrawingElement }) {
           cy={(el.from.y + el.to.y) / 2}
           rx={Math.abs(el.to.x - el.from.x) / 2}
           ry={Math.abs(el.to.y - el.from.y) / 2}
-          stroke={el.color}
-          strokeWidth={el.strokeWidth}
-          fill="none"
+          {...shapePaint(el)}
         />
       )
 
@@ -169,9 +197,8 @@ function RenderElement({ element: el }: { element: DrawingElement }) {
           y={Math.min(el.from.y, el.to.y)}
           width={Math.abs(el.to.x - el.from.x)}
           height={Math.abs(el.to.y - el.from.y)}
-          stroke={el.color}
-          strokeWidth={el.strokeWidth}
-          fill="none"
+          rx={10}
+          {...shapePaint(el)}
         />
       )
 
@@ -185,6 +212,7 @@ function RenderElement({ element: el }: { element: DrawingElement }) {
           )}
           stroke={el.color}
           strokeWidth={el.strokeWidth}
+          strokeOpacity={el.strokeOpacity ?? 1}
           fill="none"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -197,6 +225,7 @@ function RenderElement({ element: el }: { element: DrawingElement }) {
           x={el.from.x}
           y={el.from.y}
           fill={el.color}
+          fillOpacity={el.strokeOpacity ?? 1}
           fontSize={el.fontSize || 32}
           fontWeight="bold"
           fontFamily="sans-serif"
