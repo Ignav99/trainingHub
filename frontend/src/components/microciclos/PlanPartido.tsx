@@ -436,7 +436,7 @@ function ClipsSection({
               </Button>
             </div>
             {clip.url && (
-              <div className="rounded-md overflow-hidden border bg-black max-h-40">
+              <div className="rounded-md overflow-hidden border bg-black">
                 <VideoPlayer src={clip.url} standalonePreview />
               </div>
             )}

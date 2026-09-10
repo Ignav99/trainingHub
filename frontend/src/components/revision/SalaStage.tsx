@@ -30,7 +30,7 @@ import {
   type RevisionSession,
 } from '@/lib/api/revision'
 import { trainingHubWsUrl } from '@/lib/wsUrl'
-import { VideoPlayer, type VideoPlayerHandle } from '@/components/video-analyzer/VideoPlayer'
+import { VideoPlayer, VIDEO_PLAYER_CHROME_CLASS, type VideoPlayerHandle } from '@/components/video-analyzer/VideoPlayer'
 import { DrawingOverlay } from '@/components/video-analyzer/DrawingOverlay'
 import { useDrawingEngine } from '@/components/video-analyzer/useDrawingEngine'
 import { useUndoRedo } from '@/components/video-analyzer/useUndoRedo'
@@ -455,7 +455,7 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
               </div>
             )}
             {playSrc && (
-              <div className="absolute left-0 right-0 top-0 bottom-9 overflow-hidden">
+              <div className={`absolute left-0 right-0 top-0 ${VIDEO_PLAYER_CHROME_CLASS} overflow-hidden`}>
                 <div className="absolute inset-0" style={zoomCss(zoom)}>
                   <DrawingOverlay
                     elements={elements}

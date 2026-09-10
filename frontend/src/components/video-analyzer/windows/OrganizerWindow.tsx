@@ -1,9 +1,10 @@
 'use client'
 
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { Pencil, X, Plus } from 'lucide-react'
 import { useOrganizerStore } from '../useOrganizerStore'
 import type { OrganizerClip, OrganizerRow } from '../useOrganizerStore'
+import { VideoPlayer } from '../VideoPlayer'
 
 interface OrganizerWindowProps {
   videoSrc: string
@@ -23,70 +24,6 @@ interface MiniPlayerProps {
 }
 
 function MiniPlayer({ videoSrc, clip }: MiniPlayerProps) {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const [isPlaying, setIsPlaying] = useState(false)
-
-  // Seek to clip start when selection changes
-  useEffect(() => {
-    const video = videoRef.current
-    if (!video || !clip) return
-    video.currentTime = clip.startTime
-    video.pause()
-    setIsPlaying(false)
-  }, [clip])
-
-  const togglePlay = useCallback(() => {
-    const video = videoRef.current
-    if (!video) return
-    if (video.paused) {
-      video.play()
-    } else {
-      video.pause()
-    }
-  }, [])
-
-  const handleTimeUpdate = useCallback(() => {
-    const video = videoRef.current
-    if (!video || !clip) return
-    // Stop at clip end
-    if (video.currentTime >= clip.endTime) {
-      video.pause()
-      video.currentTime = clip.endTime
-    }
-  }, [clip])
-
-  const handleScrubClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      const video = videoRef.current
-      if (!video || !clip) return
-      const rect = e.currentTarget.getBoundingClientRect()
-      const ratio = (e.clientX - rect.left) / rect.width
-      const clipDur = clip.endTime - clip.startTime
-      const newTime = clip.startTime + ratio * clipDur
-      video.currentTime = Math.max(clip.startTime, Math.min(clip.endTime, newTime))
-    },
-    [clip]
-  )
-
-  // Compute scrub progress
-  const [currentTime, setCurrentTime] = useState(clip?.startTime ?? 0)
-
-  useEffect(() => {
-    const video = videoRef.current
-    if (!video) return
-    const onTime = () => setCurrentTime(video.currentTime)
-    const onPlay = () => setIsPlaying(true)
-    const onPause = () => setIsPlaying(false)
-    video.addEventListener('timeupdate', onTime)
-    video.addEventListener('play', onPlay)
-    video.addEventListener('pause', onPause)
-    return () => {
-      video.removeEventListener('timeupdate', onTime)
-      video.removeEventListener('play', onPlay)
-      video.removeEventListener('pause', onPause)
-    }
-  }, [])
-
   if (!clip) {
     return (
       <div className="flex items-center justify-center h-full text-white/20 text-xs text-center p-4">
@@ -95,27 +32,16 @@ function MiniPlayer({ videoSrc, clip }: MiniPlayerProps) {
     )
   }
 
-  const clipDur = clip.endTime - clip.startTime
-  const progressPct =
-    clipDur > 0
-      ? Math.max(0, Math.min(100, ((currentTime - clip.startTime) / clipDur) * 100))
-      : 0
-
   return (
     <div className="flex flex-col h-full bg-black">
-      {/* Video */}
       <div className="flex-1 relative min-h-0 overflow-hidden bg-black">
-        <video
-          ref={videoRef}
+        <VideoPlayer
+          key={clip.id}
           src={videoSrc}
-          className="w-full h-full object-contain"
-          onTimeUpdate={handleTimeUpdate}
-          playsInline
-          preload="metadata"
+          clipRange={{ start: clip.startTime, end: clip.endTime }}
+          standalonePreview
         />
       </div>
-
-      {/* Clip info */}
       <div className="px-3 py-1 bg-zinc-900 border-t border-zinc-800 shrink-0">
         <p
           className="text-[10px] font-medium truncate"
@@ -123,39 +49,6 @@ function MiniPlayer({ videoSrc, clip }: MiniPlayerProps) {
         >
           {clip.title}
         </p>
-      </div>
-
-      {/* Controls */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-zinc-900 border-t border-zinc-800 shrink-0">
-        <button
-          className="text-white text-xs w-6 h-6 flex items-center justify-center bg-zinc-700 rounded hover:bg-zinc-600 shrink-0"
-          onClick={togglePlay}
-        >
-          {isPlaying ? '⏸' : '▶'}
-        </button>
-
-        <span className="text-[10px] text-zinc-500 font-mono w-10 shrink-0">
-          {formatTime(currentTime)}
-        </span>
-
-        {/* Scrub bar */}
-        <div
-          className="flex-1 relative h-3 bg-zinc-800 rounded cursor-pointer"
-          onClick={handleScrubClick}
-        >
-          <div
-            className="absolute top-0 left-0 h-full rounded transition-none"
-            style={{
-              width: `${progressPct}%`,
-              backgroundColor: clip.color,
-              opacity: 0.7,
-            }}
-          />
-        </div>
-
-        <span className="text-[10px] text-zinc-500 font-mono w-10 text-right shrink-0">
-          {formatTime(clip.endTime)}
-        </span>
       </div>
     </div>
   )

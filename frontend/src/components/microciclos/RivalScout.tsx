@@ -664,7 +664,7 @@ function PhaseEditor({
                     <VideoPlayer src={clip.url} standalonePreview />
                   </div>
                   <p className="text-[10px] text-muted-foreground">
-                    Click + dos dedos para adelantar/retroceder · ←/→ un fotograma · Shift+←/→ 5s
+                    Barra para ir al segundo · mantén Rebobinar · dos dedos · ←/→ fotograma · Shift+←/→ 5s
                   </p>
                 </div>
               )}

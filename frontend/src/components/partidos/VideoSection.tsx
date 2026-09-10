@@ -23,6 +23,7 @@ import {
   Plus,
   X,
 } from 'lucide-react'
+import { VideoPlayer } from '@/components/video-analyzer/VideoPlayer'
 
 // ============ Helpers ============
 
@@ -209,12 +210,9 @@ function VideoCard({
     <Card className="p-3 space-y-2">
       {/* Upload: inline video player */}
       {video.tipo === 'upload' && (
-        <video
-          src={video.url}
-          controls
-          preload="metadata"
-          className="w-full rounded-md bg-black aspect-video"
-        />
+        <div className="w-full rounded-md overflow-hidden bg-black aspect-video">
+          <VideoPlayer src={video.url} standalonePreview />
+        </div>
       )}
 
       <div className="flex items-start justify-between gap-2">

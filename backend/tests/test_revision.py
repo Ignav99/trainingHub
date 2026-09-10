@@ -623,3 +623,28 @@ class TestSalaSync:
         assert "Acercar" in sala
         assert "Rebobinar" in sala
         assert "Original" in sala
+
+    def test_shared_player_has_seek_bar_and_hold_rewind(self):
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[2]
+        player = (root / "frontend/src/components/video-analyzer/VideoPlayer.tsx").read_text()
+        scout = (root / "frontend/src/components/microciclos/RivalScout.tsx").read_text()
+        plan = (root / "frontend/src/components/microciclos/PlanPartido.tsx").read_text()
+        library = (root / "frontend/src/components/revision/RevisionLibrary.tsx").read_text()
+        sala = (root / "frontend/src/components/revision/SalaStage.tsx").read_text()
+        section = (root / "frontend/src/components/partidos/VideoSection.tsx").read_text()
+        organizer = (root / "frontend/src/components/video-analyzer/windows/OrganizerWindow.tsx").read_text()
+        studio = (root / "frontend/src/components/video-analyzer/windows/StudioWindow.tsx").read_text()
+        assert 'data-testid="video-seek-bar"' in player
+        assert "Mantén pulsado para rebobinar" in player
+        assert "startHoldRewind" in player
+        assert "VIDEO_PLAYER_CHROME_CLASS" in player
+        assert "VIDEO_PLAYER_CHROME_CLASS" in sala
+        assert "<video" not in section
+        assert "VideoPlayer" in section
+        assert "VideoPlayer" in scout
+        assert "VideoPlayer" in plan
+        assert "VideoPlayer" in library
+        assert "VideoPlayer" in organizer
+        assert "Mini scrub bar" not in studio
+

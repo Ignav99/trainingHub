@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { X, Camera, Scissors, ArrowLeft, Snowflake, Download, List, LayoutGrid, Send } from 'lucide-react'
 import type { DrawingElement } from '@/types'
 
-import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
+import { VideoPlayer, VIDEO_PLAYER_CHROME_CLASS, type VideoPlayerHandle } from './VideoPlayer'
 import { DrawingOverlay } from './DrawingOverlay'
 import { DrawingToolbar } from './DrawingToolbar'
 import { Timeline } from './Timeline'
@@ -908,23 +908,25 @@ export function VideoAnalyzer({
                   <img
                     src={freezeOverlayUrl}
                     alt="Freeze frame"
-                    className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                    className={`absolute left-0 right-0 top-0 ${VIDEO_PLAYER_CHROME_CLASS} object-contain pointer-events-none`}
                     style={{ zIndex: 2 }}
                   />
                 )}
 
-                {/* Drawing overlay — always on top */}
-                <DrawingOverlay
-                  ref={svgRef}
-                  elements={visibleElements}
-                  preview={preview}
-                  selectedId={selectedId}
-                  interactive={interactive}
-                  tool={tool}
-                  onPointerDown={handlePointerDown}
-                  onPointerMove={handlePointerMove}
-                  onPointerUp={handlePointerUp}
-                />
+                {/* Drawing overlay — covers the vídeo, not the seek bar */}
+                <div className={`absolute left-0 right-0 top-0 ${VIDEO_PLAYER_CHROME_CLASS}`}>
+                  <DrawingOverlay
+                    ref={svgRef}
+                    elements={visibleElements}
+                    preview={preview}
+                    selectedId={selectedId}
+                    interactive={interactive}
+                    tool={tool}
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                  />
+                </div>
               </div>
             </div>
           </div>
