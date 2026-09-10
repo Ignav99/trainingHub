@@ -16,6 +16,7 @@ import type { DrawingTool } from '@/components/video-analyzer/types'
 import { ClubCrest, DISPLAY_FONT, StaticSlideBody } from '@/components/rivales/DossierSlides'
 import { SalaFloatingChrome, SalaReviewBar, WhiteboardBar } from '@/components/revision/salaChrome'
 import { SalaZoomCatcher } from '@/components/revision/SalaZoomCatcher'
+import { useSalaVideoShare } from '@/components/revision/useSalaVideoShare'
 import {
   chapterIndexForSlide,
   showChapters,
@@ -129,6 +130,16 @@ export function PresentacionSala({
     }
   }, [code, role])
 
+  const {
+    paneRef: videoPaneRef,
+    audioMuted,
+    fullscreen: videoFullscreen,
+    theater: videoTheater,
+    toggleFullscreen: toggleVideoFullscreen,
+    handleMutedChange,
+    applyRemoteShare,
+  } = useSalaVideoShare(sendSync)
+
   const broadcastShow = useCallback((slideIndex: number) => {
     const current = showRef.current
     if (!current) return
@@ -225,6 +236,7 @@ export function PresentacionSala({
             y: Number(msg.zoom.y) || 0,
           })
         }
+        applyRemoteShare(msg)
         window.setTimeout(() => { applyingRemote.current = false }, 280)
       } catch {
         // ignore
@@ -238,7 +250,7 @@ export function PresentacionSala({
       ws.close()
       wsRef.current = null
     }
-  }, [accessToken, equipoActivo?.id, code, role, reset, isHost, broadcastShow])
+  }, [accessToken, equipoActivo?.id, code, role, reset, isHost, broadcastShow, applyRemoteShare])
 
   useEffect(() => {
     if (skipOverlaySend.current) {
@@ -258,10 +270,10 @@ export function PresentacionSala({
       if (!leaderRef.current || applyingRemote.current || !isVideo) return
       const v = playerRef.current?.getVideoElement()
       if (!v || v.paused) return
-      sendSync({ t: v.currentTime, paused: false, clip_id: clipId, slide: indexRef.current })
+      sendSync({ t: v.currentTime, paused: false, clip_id: clipId, slide: indexRef.current, muted: audioMuted })
     }, 2500)
     return () => clearInterval(tick)
-  }, [sendSync, clipId, isVideo])
+  }, [sendSync, clipId, isVideo, audioMuted])
 
   const handlePlayState = useCallback((nextPlaying: boolean) => {
     setPlaying(nextPlaying)
@@ -272,8 +284,9 @@ export function PresentacionSala({
       t: playerRef.current?.getCurrentTime() ?? 0,
       clip_id: clipId,
       slide: indexRef.current,
+      muted: audioMuted,
     })
-  }, [sendSync, clipId])
+  }, [sendSync, clipId, audioMuted])
 
   const handleSeeked = useCallback((t: number) => {
     if (applyingRemote.current) return
@@ -509,7 +522,7 @@ export function PresentacionSala({
 
       {!isHost && (
         <div className="px-4 py-1 text-[11px] flex items-center gap-1" style={{ color: '#9AA59B' }}>
-          <VolumeX className="h-3 w-3" /> Silenciada · el audio sale del PC
+          <VolumeX className="h-3 w-3" /> Audio en el PC · mute aquí también lo corta allí
         </div>
       )}
 
@@ -531,7 +544,16 @@ export function PresentacionSala({
                     {slide.kicker}
                   </span>
                 </div>
-                <div className="relative min-h-0 flex-1 isolate overflow-hidden rounded-md" style={{ background: '#000' }}>
+                <div
+                  ref={videoPaneRef}
+                  data-testid="sala-video-pane"
+                  className={
+                    videoTheater
+                      ? 'fixed inset-0 z-[120] isolate overflow-hidden bg-black'
+                      : 'relative min-h-0 flex-1 isolate overflow-hidden rounded-md'
+                  }
+                  style={{ background: '#000' }}
+                >
                   {playSrc ? (
                     <VideoPlayer
                       key={playSrc}
@@ -539,7 +561,11 @@ export function PresentacionSala({
                       src={playSrc}
                       standalonePreview={isHost}
                       presenterEmbed
-                      defaultMuted={!isHost}
+                      playbackMuted={!isHost}
+                      muted={audioMuted}
+                      onMutedChange={(next) => handleMutedChange(next, { clip_id: clipId, slide: indexRef.current })}
+                      isFullscreen={videoFullscreen}
+                      onToggleFullscreen={() => toggleVideoFullscreen({ clip_id: clipId, slide: indexRef.current })}
                       contentTransform={zoomCss(zoom)}
                       onPlayStateChange={handlePlayState}
                       onSeeked={handleSeeked}
@@ -605,6 +631,8 @@ export function PresentacionSala({
                       onRepeat={repeatAction}
                       onRewindDown={startHoldRewind}
                       onRewindUp={stopHoldRewind}
+                      fullscreen={videoFullscreen}
+                      onToggleFullscreen={() => toggleVideoFullscreen({ clip_id: clipId, slide: indexRef.current })}
                     />
                   </SalaFloatingChrome>
                   {mediaError && (

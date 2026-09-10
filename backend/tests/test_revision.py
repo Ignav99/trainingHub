@@ -610,6 +610,8 @@ class TestSalaSync:
         text = src.read_text()
         assert '"zoom": data.get("zoom")' in text
         assert '"overlay": data.get("overlay")' in text
+        assert '"muted": data.get("muted")' in text
+        assert '"fullscreen": data.get("fullscreen")' in text
 
     def test_player_exposes_jog_and_zoom(self):
         from pathlib import Path
@@ -634,6 +636,13 @@ class TestSalaSync:
         assert 'data-testid="sala-floating-chrome"' in chrome
         assert "overflow-hidden" in sala
         assert "z-50" in chrome
+        assert "playbackMuted" in sala
+        assert "playbackMuted" in presentacion
+        assert "onMutedChange" in sala
+        assert "onMutedChange" in presentacion
+        assert "sala-video-fullscreen" in chrome
+        assert "video-mute-toggle" in player
+        assert "video-fullscreen-toggle" in player
 
     def test_shared_player_has_seek_bar_and_hold_rewind(self):
         from pathlib import Path

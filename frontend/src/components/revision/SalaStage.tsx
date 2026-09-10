@@ -32,6 +32,7 @@ import { Button } from '@/components/ui/button'
 import { SalaClipTree } from './SalaClipTree'
 import { SalaZoomCatcher } from './SalaZoomCatcher'
 import { SalaFloatingChrome, SalaReviewBar, WhiteboardBar } from './salaChrome'
+import { useSalaVideoShare } from './useSalaVideoShare'
 import {
   IDENTITY_ZOOM,
   JOG_SECONDS,
@@ -124,6 +125,16 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
     }
   }, [code, role])
 
+  const {
+    paneRef: videoPaneRef,
+    audioMuted,
+    fullscreen: videoFullscreen,
+    theater: videoTheater,
+    toggleFullscreen: toggleVideoFullscreen,
+    handleMutedChange,
+    applyRemoteShare,
+  } = useSalaVideoShare(sendSync)
+
   useEffect(() => {
     if (!accessToken || !equipoActivo?.id) return
     const ws = new WebSocket(trainingHubWsUrl(accessToken, equipoActivo.id))
@@ -167,6 +178,7 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
             y: Number(msg.zoom.y) || 0,
           })
         }
+        applyRemoteShare(msg)
         if (msg.clip_id) {
           const cur = sessionRef.current
           if (cur && cur.current_clip_id !== msg.clip_id) {
@@ -191,7 +203,7 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
       ws.close()
       wsRef.current = null
     }
-  }, [accessToken, equipoActivo?.id, code, role, reset])
+  }, [accessToken, equipoActivo?.id, code, role, reset, applyRemoteShare])
 
   useEffect(() => {
     if (skipOverlaySend.current) {
@@ -210,10 +222,10 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
       if (!leaderRef.current || applyingRemote.current) return
       const v = playerRef.current?.getVideoElement()
       if (!v || v.paused) return
-      sendSync({ t: v.currentTime, paused: false, clip_id: currentClip?.id })
+      sendSync({ t: v.currentTime, paused: false, clip_id: currentClip?.id, muted: audioMuted })
     }, 2500)
     return () => clearInterval(tick)
-  }, [sendSync, currentClip?.id])
+  }, [sendSync, currentClip?.id, audioMuted])
 
   const handlePlayState = useCallback((nextPlaying: boolean) => {
     setPlaying(nextPlaying)
@@ -223,8 +235,9 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
       paused: !nextPlaying,
       t: playerRef.current?.getCurrentTime() ?? 0,
       clip_id: currentClip?.id,
+      muted: audioMuted,
     })
-  }, [sendSync, currentClip?.id])
+  }, [sendSync, currentClip?.id, audioMuted])
 
   const handleSeeked = useCallback((t: number) => {
     if (applyingRemote.current) return
@@ -380,13 +393,21 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
       </div>
       {!isHost && (
         <div className="px-3 py-1 text-[11px] text-zinc-400 flex items-center gap-1 bg-zinc-950">
-          <VolumeX className="h-3 w-3" /> Silenciada · el audio sale del PC. Play y pausa salen de aquí o del portátil.
+          <VolumeX className="h-3 w-3" /> Audio en el PC · mute aquí también lo corta allí. Play y pausa salen de aquí o del portátil.
         </div>
       )}
 
       <div className="flex-1 min-h-0 flex">
         <div className="relative flex-1 min-h-0 min-w-0 overflow-hidden bg-black">
-          <div className="relative h-full w-full min-h-0 overflow-hidden isolate">
+          <div
+            ref={videoPaneRef}
+            data-testid="sala-video-pane"
+            className={
+              videoTheater
+                ? 'fixed inset-0 z-[120] isolate overflow-hidden bg-black'
+                : 'relative h-full w-full min-h-0 overflow-hidden isolate'
+            }
+          >
             {playSrc ? (
               <VideoPlayer
                 key={playSrc}
@@ -394,7 +415,11 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
                 src={playSrc}
                 standalonePreview={isHost}
                 presenterEmbed
-                defaultMuted={!isHost}
+                playbackMuted={!isHost}
+                muted={audioMuted}
+                onMutedChange={(next) => handleMutedChange(next, { clip_id: currentClip?.id })}
+                isFullscreen={videoFullscreen}
+                onToggleFullscreen={() => toggleVideoFullscreen({ clip_id: currentClip?.id })}
                 contentTransform={zoomCss(zoom)}
                 onPlayStateChange={handlePlayState}
                 onSeeked={handleSeeked}
@@ -460,6 +485,8 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
                 onRepeat={repeatAction}
                 onRewindDown={startHoldRewind}
                 onRewindUp={stopHoldRewind}
+                fullscreen={videoFullscreen}
+                onToggleFullscreen={() => toggleVideoFullscreen({ clip_id: currentClip?.id })}
               />
             </SalaFloatingChrome>
             {mediaError && (
