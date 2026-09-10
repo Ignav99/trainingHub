@@ -1,5 +1,6 @@
 """
-Revisión de vídeo — packs, carpetas por fase, retención 15 días en R2.
+Revisión de vídeo — packs, carpetas por fase, retención 30 días en R2.
+El reloj es partido.fecha + 30 días (si no hay partido, created_at + 30).
 """
 
 from __future__ import annotations
@@ -15,7 +16,8 @@ logger = logging.getLogger(__name__)
 REVISION_BUCKET = "revision-clips"
 MAX_CLIP_BYTES = 200 * 1024 * 1024  # 200 MB
 MIN_CLIP_BYTES = 1000
-HOT_DAYS = 15
+HOT_DAYS = 30
+WARN_DAYS = 7
 
 # Fases canónicas (informe de partido / Video Análisis)
 FOLDERS_PARTIDO = [
@@ -58,9 +60,36 @@ def default_folders_for(ambito: str) -> list[tuple[str, str]]:
     return list(FOLDERS_PARTIDO)
 
 
-def hot_until_from(now: Optional[datetime] = None) -> datetime:
+def _aware(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
+
+
+def pack_expires_at(
+    partido_fecha: Optional[datetime],
+    created_at: Optional[datetime] = None,
+    now: Optional[datetime] = None,
+) -> datetime:
+    """Caduca 30 días después del partido jugado; si no hay partido, 30 días desde el alta."""
     now = now or datetime.now(timezone.utc)
-    return now + timedelta(days=HOT_DAYS)
+    if partido_fecha is not None:
+        return _aware(partido_fecha) + timedelta(days=HOT_DAYS)
+    base = created_at or now
+    return _aware(base) + timedelta(days=HOT_DAYS)
+
+
+def days_until(expires: datetime, now: Optional[datetime] = None) -> int:
+    now = now or datetime.now(timezone.utc)
+    return (expires.date() - now.date()).days
+
+
+def hot_until_from(
+    now: Optional[datetime] = None,
+    partido_fecha: Optional[datetime] = None,
+    created_at: Optional[datetime] = None,
+) -> datetime:
+    return pack_expires_at(partido_fecha, created_at, now)
 
 
 def should_keep_hot(
@@ -71,9 +100,7 @@ def should_keep_hot(
     now = now or datetime.now(timezone.utc)
     if partido_fecha is None:
         return False
-    if partido_fecha.tzinfo is None:
-        partido_fecha = partido_fecha.replace(tzinfo=timezone.utc)
-    return partido_fecha.date() >= now.date()
+    return _aware(partido_fecha).date() >= now.date()
 
 
 def parse_iso(value: Optional[str]) -> Optional[datetime]:
@@ -94,79 +121,230 @@ def drive_connected(org_config: Optional[dict]) -> bool:
     return False
 
 
-def archive_expired_clips(supabase) -> dict:
+def drive_folder_url(org_config: Optional[dict]) -> Optional[str]:
+    if not org_config:
+        return None
+    drive = org_config.get("google_drive") or {}
+    if not isinstance(drive, dict):
+        return None
+    url = (drive.get("folder_url") or "").strip()
+    return url or None
+
+
+def drive_ready(org_config: Optional[dict]) -> bool:
+    return drive_connected(org_config) and bool(drive_folder_url(org_config))
+
+
+def org_config_for_equipo(supabase, equipo_id: Optional[str]) -> dict:
+    if not equipo_id:
+        return {}
+    eq = (
+        supabase.table("equipos")
+        .select("organizacion_id")
+        .eq("id", equipo_id)
+        .limit(1)
+        .execute()
+    )
+    if not eq.data:
+        return {}
+    org_id = eq.data[0].get("organizacion_id")
+    if not org_id:
+        return {}
+    org = (
+        supabase.table("organizaciones")
+        .select("config")
+        .eq("id", org_id)
+        .limit(1)
+        .execute()
+    )
+    if not org.data:
+        return {}
+    return org.data[0].get("config") or {}
+
+
+def partido_fecha_for_pack(supabase, pack: Optional[dict]) -> Optional[datetime]:
+    if not pack or not pack.get("partido_id"):
+        return None
+    partido = (
+        supabase.table("partidos")
+        .select("fecha")
+        .eq("id", pack["partido_id"])
+        .limit(1)
+        .execute()
+    )
+    if not partido.data:
+        return None
+    return parse_iso(partido.data[0].get("fecha"))
+
+
+def earliest_clip_created(clips: list[dict]) -> Optional[datetime]:
+    dates = [parse_iso(c.get("created_at")) for c in clips]
+    dates = [d for d in dates if d]
+    return min(dates) if dates else None
+
+
+def pack_retention_payload(
+    supabase,
+    pack: dict,
+    clips: list[dict],
+    now: Optional[datetime] = None,
+) -> dict:
+    now = now or datetime.now(timezone.utc)
+    partido_fecha = partido_fecha_for_pack(supabase, pack)
+    created = parse_iso(pack.get("created_at")) or earliest_clip_created(clips)
+    expires = pack_expires_at(partido_fecha, created, now)
+    pending = should_keep_hot(partido_fecha, now)
+    left = days_until(expires, now)
+    org_config = org_config_for_equipo(supabase, pack.get("equipo_id"))
+    hot_count = sum(1 for c in clips if (c.get("status") or "hot") == "hot")
+    return {
+        "expires_at": expires.isoformat(),
+        "days_left": left,
+        "pending_match": pending,
+        "warn": (not pending) and hot_count > 0 and left <= WARN_DAYS,
+        "hot_count": hot_count,
+        "drive_connected": drive_ready(org_config),
+        "drive_folder_url": drive_folder_url(org_config),
+    }
+
+
+def delete_clip_storage(supabase, storage_path: Optional[str]) -> None:
+    if not storage_path:
+        return
+    from app.services.r2_storage import delete_object, r2_enabled
+
+    if r2_enabled():
+        try:
+            delete_object(storage_path)
+        except Exception as exc:
+            logger.warning("r2 delete %s: %s", storage_path, exc)
+    try:
+        supabase.storage.from_(REVISION_BUCKET).remove([storage_path])
+    except Exception as exc:
+        logger.warning("storage remove %s: %s", storage_path, exc)
+
+
+def purge_hot_clips(supabase, clips: list[dict]) -> int:
+    deleted = 0
+    for clip in clips:
+        try:
+            delete_clip_storage(supabase, clip.get("storage_path"))
+            supabase.table("revision_clips").delete().eq("id", clip["id"]).execute()
+            deleted += 1
+        except Exception as exc:
+            logger.exception("Error borrando clip %s: %s", clip.get("id"), exc)
+    return deleted
+
+
+def _warn_pack_staff(equipo_id: str, pack_id: str, expires: datetime, days_left: int) -> None:
+    try:
+        from app.services.notification_service import notify_team_staff
+
+        fecha = expires.date().isoformat()
+        notify_team_staff(
+            equipo_id=equipo_id,
+            tipo="revision_caduca",
+            titulo="Los recortes de este partido se borran pronto",
+            contenido=(
+                f"El {fecha} (en {days_left} días) desaparecen de la app y de Cloudflare. "
+                "En Revisión puedes descargar la carpeta entera o abrir Drive y luego borrar todo junto."
+            ),
+            entidad_tipo="revision_pack",
+            entidad_id=pack_id,
+            prioridad="alta",
+        )
+    except Exception as exc:
+        logger.warning("revision warn notify pack=%s: %s", pack_id, exc)
+
+
+def archive_expired_clips(supabase, now: Optional[datetime] = None) -> dict:
     """
-    Clips caducados: se borra el fichero (R2 o Storage). El partido entero nunca está en la nube.
-    Si el partido asociado aún no se ha jugado, se alarga la retención.
+    Carpeta completa: aviso 7 días antes y borrado en R2/Storage/DB a los 30 días
+    del partido (o del alta si no hay partido). No es clip a clip.
     """
-    now = datetime.now(timezone.utc)
+    now = now or datetime.now(timezone.utc)
     now_iso = now.isoformat()
 
     result = (
         supabase.table("revision_clips")
-        .select("id, equipo_id, storage_path, url, hot_until, status, pack_id")
+        .select("id, equipo_id, storage_path, hot_until, status, pack_id, archive_warning, created_at")
         .eq("status", "hot")
-        .lte("hot_until", now_iso)
         .execute()
     )
     clips = result.data or []
+    by_pack: dict[str, list[dict]] = {}
+    for clip in clips:
+        pack_id = clip.get("pack_id")
+        if pack_id:
+            by_pack.setdefault(pack_id, []).append(clip)
+
     skipped_future = 0
     archived = 0
+    warned = 0
+    packs_purged = 0
+    packs_warned = 0
     errors = 0
 
-    from app.services.r2_storage import delete_object, r2_enabled
-
-    for clip in clips:
+    for pack_id, pack_clips in by_pack.items():
         try:
             pack = (
                 supabase.table("revision_packs")
-                .select("id, partido_id, equipo_id")
-                .eq("id", clip["pack_id"])
+                .select("id, partido_id, equipo_id, created_at")
+                .eq("id", pack_id)
                 .limit(1)
                 .execute()
             )
             pack_row = (pack.data or [None])[0]
-            partido_fecha = None
-            if pack_row and pack_row.get("partido_id"):
-                partido = (
-                    supabase.table("partidos")
-                    .select("id, fecha, equipo_id")
-                    .eq("id", pack_row["partido_id"])
-                    .limit(1)
-                    .execute()
-                )
-                if partido.data:
-                    partido_fecha = parse_iso(partido.data[0].get("fecha"))
+            if not pack_row:
+                continue
+            partido_fecha = partido_fecha_for_pack(supabase, pack_row)
+            created = parse_iso(pack_row.get("created_at")) or earliest_clip_created(pack_clips)
+            expires = pack_expires_at(partido_fecha, created, now)
 
             if should_keep_hot(partido_fecha, now):
-                extend_until = (partido_fecha + timedelta(days=1)).isoformat() if partido_fecha else now_iso
-                supabase.table("revision_clips").update({
-                    "hot_until": extend_until,
-                    "archive_warning": None,
-                    "updated_at": now_iso,
-                }).eq("id", clip["id"]).execute()
-                skipped_future += 1
+                extend_until = expires.isoformat()
+                for clip in pack_clips:
+                    supabase.table("revision_clips").update({
+                        "hot_until": extend_until,
+                        "archive_warning": None,
+                        "updated_at": now_iso,
+                    }).eq("id", clip["id"]).execute()
+                skipped_future += len(pack_clips)
                 continue
 
-            path = clip.get("storage_path")
-            if path:
-                if r2_enabled():
-                    delete_object(path)
-                try:
-                    supabase.storage.from_(REVISION_BUCKET).remove([path])
-                except Exception as exc:
-                    logger.warning("storage remove %s: %s", path, exc)
+            if now >= expires:
+                archived += purge_hot_clips(supabase, pack_clips)
+                packs_purged += 1
+                continue
 
-            supabase.table("revision_clips").delete().eq("id", clip["id"]).execute()
-            archived += 1
+            left = days_until(expires, now)
+            if left <= WARN_DAYS:
+                warning = (
+                    f"Esta carpeta se borra de la app y de Cloudflare el {expires.date().isoformat()} "
+                    f"({left} días). Descárgala o súbela a Drive; no se guarda recorte a recorte."
+                )
+                already = all(bool(c.get("archive_warning")) for c in pack_clips)
+                for clip in pack_clips:
+                    supabase.table("revision_clips").update({
+                        "hot_until": expires.isoformat(),
+                        "archive_warning": warning,
+                        "updated_at": now_iso,
+                    }).eq("id", clip["id"]).execute()
+                warned += len(pack_clips)
+                if not already:
+                    _warn_pack_staff(pack_row.get("equipo_id") or pack_clips[0].get("equipo_id"), pack_id, expires, left)
+                    packs_warned += 1
         except Exception as exc:
-            logger.exception("Error archivando clip %s: %s", clip.get("id"), exc)
+            logger.exception("Error archivando pack %s: %s", pack_id, exc)
             errors += 1
 
     return {
         "scanned": len(clips),
         "archived": archived,
         "skipped_future_match": skipped_future,
+        "warned": warned,
+        "packs_purged": packs_purged,
+        "packs_warned": packs_warned,
         "errors": errors,
     }
 

@@ -301,8 +301,10 @@ export default function ConfiguracionPage() {
             <CardHeader>
               <CardTitle className="text-lg">Google Drive (revisión de vídeo)</CardTitle>
               <CardDescription>
-                A los 30 días los recortes de Revisión se vuelcan a Drive del club y se liberan de Kabin-e.
-                Si Drive no está indicado, los recortes se quedan en la app (no se borran).
+                A los 30 días del partido los recortes desaparecen de la app y de Cloudflare.
+                Siete días antes avisamos. Si indicas una carpeta de Drive, desde Revisión puedes
+                descargar el zip de toda la carpeta y abrir Drive para subirlo; si no, solo se
+                descarga. También puedes borrar todo de golpe. No hay subida automática a Drive.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -312,7 +314,7 @@ export default function ConfiguracionPage() {
                   checked={driveConnected}
                   onChange={(e) => setDriveConnected(e.target.checked)}
                 />
-                Carpeta de Drive del club lista
+                Carpeta de Drive del club lista (la usaremos para abrirla al caducar)
               </label>
               <div className="space-y-1">
                 <Label>URL de la carpeta de Drive</Label>

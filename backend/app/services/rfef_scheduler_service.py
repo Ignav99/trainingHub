@@ -870,7 +870,7 @@ async def _daily_load_recalc():
 
 
 async def _archive_revision_clips():
-    """Clips de revisión con más de 30 días: Drive si hay, si no se conservan."""
+    """Recortes de revisión: aviso 7 días antes y borrado a los 30 días del partido."""
     try:
         from app.services.revision_service import archive_expired_clips
 
