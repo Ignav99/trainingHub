@@ -135,6 +135,10 @@ export function PartidoPlanTab({ partido, equipoId }: PartidoPlanTabProps) {
         horaPartido={partido.hora}
         fechaPartido={partido.fecha}
         ciudadPartido={partido.rival?.ciudad || undefined}
+        rivalNombre={partido.rival?.nombre}
+        rivalEscudoUrl={partido.rival?.escudo_url}
+        campoPartido={partido.rival?.estadio || partido.ubicacion}
+        localia={partido.localia}
       />
     </div>
   )
