@@ -77,6 +77,10 @@ const PartidoPlanTab = dynamic(() => import('./PartidoPlanTab').then(m => ({ def
   loading: () => <div className="animate-pulse space-y-4 p-4"><div className="h-8 bg-muted rounded w-1/3" /><div className="h-32 bg-muted rounded" /><div className="h-32 bg-muted rounded" /></div>
 })
 
+const PartidoPlanRivalTab = dynamic(() => import('./PartidoPlanRivalTab').then(m => ({ default: m.PartidoPlanRivalTab })), {
+  loading: () => <div className="animate-pulse space-y-4 p-4"><div className="h-8 bg-muted rounded w-1/3" /><div className="h-32 bg-muted rounded" /></div>
+})
+
 const RevisionLibrary = dynamic(() => import('@/components/revision/RevisionLibrary').then(m => ({ default: m.RevisionLibrary })), {
   loading: () => <div className="animate-pulse h-24 bg-muted rounded" />
 })
@@ -885,6 +889,10 @@ export function MatchDetailPanel({
 
       <Tabs value={tabParam} onValueChange={onSetTab}>
         <TabsList className="mb-4 w-full max-lg:justify-start">
+          <TabsTrigger value="plan-rival" className="gap-1.5">
+            <FileText className="h-4 w-4" />
+            Plan del rival
+          </TabsTrigger>
           <TabsTrigger value="plan-partido" className="gap-1.5">
             <ClipboardList className="h-4 w-4" />
             Plan de partido
@@ -898,6 +906,15 @@ export function MatchDetailPanel({
             Informe del partido
           </TabsTrigger>
         </TabsList>
+
+        {/* ==================== TAB: PLAN DEL RIVAL ==================== */}
+        <TabsContent value="plan-rival" className="space-y-6">
+          <PartidoPlanRivalTab
+            key={selectedPartido.id}
+            partido={selectedPartido}
+            equipoId={equipoActivo?.id}
+          />
+        </TabsContent>
 
         {/* ==================== TAB: PLAN DE PARTIDO ==================== */}
         <TabsContent value="plan-partido" className="space-y-6">

@@ -21,6 +21,12 @@ describe('ficha rival tabs', () => {
     assert.equal(page.includes('Informes AI'), false)
   })
 
+  it('opens informe from ?tab=informe so the match can deep-link the rival ficha', () => {
+    const page = readFileSync(join(src, 'app/(dashboard)/rivales/[id]/page.tsx'), 'utf8')
+    assert.match(page, /searchParams.get\('tab'\)/)
+    assert.match(page, /isTabId/)
+  })
+
   it('splits match plans into ida and vuelta without wiping the other leg', () => {
     const tab = readFileSync(join(src, 'components/rivales/RivalPlanPartidoTab.tsx'), 'utf8')
     assert.match(tab, /PlanTramoToggle/)

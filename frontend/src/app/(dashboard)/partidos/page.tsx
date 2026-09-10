@@ -129,7 +129,7 @@ export default function PartidosPage() {
       {/* Header */}
       <PageHeader
         title="Partidos"
-        description="Plan de partido, convocatoria e informe"
+        description="Plan del rival, plan de partido, convocatoria e informe"
         actions={
           <Button asChild>
             <Link href="/partidos/nuevo">
