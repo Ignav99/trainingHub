@@ -30,7 +30,9 @@ export default function PartidosPage() {
       ? 'plan-partido'
       : rawTab === 'post-partido'
         ? 'informe-partido'
-        : rawTab
+        : rawTab === 'plan-rival'
+          ? 'informe-rival'
+          : rawTab
 
   // ---- Data: partidos list ----
   const { data: partidosData, isLoading: loading } = useSWR<PaginatedResponse<Partido>>(
@@ -129,7 +131,7 @@ export default function PartidosPage() {
       {/* Header */}
       <PageHeader
         title="Partidos"
-        description="Plan del rival, plan de partido, convocatoria e informe"
+        description="Informe Rival, Plan de Partido, convocatoria e Informe del partido"
         actions={
           <Button asChild>
             <Link href="/partidos/nuevo">

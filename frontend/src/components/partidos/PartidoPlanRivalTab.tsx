@@ -28,8 +28,8 @@ export function PartidoPlanRivalTab({ partido, equipoId }: PartidoPlanRivalTabPr
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <FileText className="h-3.5 w-3.5" />
           <span>
-            {rivalNombre ? `Plan de ${rivalNombre}` : 'Plan del rival'}
-            {' — '}el mismo informe que en la ficha
+            {rivalNombre ? `Informe Rival · ${rivalNombre}` : 'Informe Rival'}
+            {' — '}el mismo que en la ficha
           </span>
         </div>
         <Link

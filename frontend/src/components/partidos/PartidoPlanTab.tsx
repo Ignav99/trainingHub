@@ -101,7 +101,7 @@ export function PartidoPlanTab({ partido, equipoId }: PartidoPlanTabProps) {
               Vinculado al microciclo — los cambios se sincronizan con la Sala del Lunes
             </span>
           ) : context.source === 'rival' ? (
-            <span>Plan del rival (perfil persistente) — vincula un microciclo para sincronizar semana</span>
+            <span>Plan de Partido (perfil persistente) — vincula un microciclo para sincronizar semana</span>
           ) : (
             <span>Plan nuevo — se guardará en el perfil del rival</span>
           )}

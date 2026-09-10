@@ -219,7 +219,7 @@ export function chapterIndexForSlide(chapters: ShowChapter[], slideIndex: number
 function portadaSlide(kind: ShowKind, meta: ShowMeta): ShowSlide {
   const rival = (meta.rivalNombre || '').trim()
   const club = (meta.clubNombre || '').trim()
-  const kicker = kind === 'plan' ? 'Plan de partido' : 'Informe rival'
+  const kicker = kind === 'plan' ? 'Plan de Partido' : 'Informe Rival'
   const title = rival || kicker
   const subtitle = rival && club ? club : club || undefined
   const metaLines = [

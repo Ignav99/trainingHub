@@ -291,7 +291,7 @@ function drawFooters(doc: jsPDF, clubNombre?: string) {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7.5)
     doc.setTextColor(148, 163, 184)
-    const left = clubNombre || 'Plan de partido'
+    const left = clubNombre || 'Plan de Partido'
     doc.text(left, 12, pageHeight - 6)
     doc.text(`${i} / ${total}`, pageWidth - 12, pageHeight - 6, { align: 'right' })
   }

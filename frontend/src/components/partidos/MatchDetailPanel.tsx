@@ -889,13 +889,13 @@ export function MatchDetailPanel({
 
       <Tabs value={tabParam} onValueChange={onSetTab}>
         <TabsList className="mb-4 w-full max-lg:justify-start">
-          <TabsTrigger value="plan-rival" className="gap-1.5">
+          <TabsTrigger value="informe-rival" className="gap-1.5">
             <FileText className="h-4 w-4" />
-            Plan del rival
+            Informe Rival
           </TabsTrigger>
           <TabsTrigger value="plan-partido" className="gap-1.5">
             <ClipboardList className="h-4 w-4" />
-            Plan de partido
+            Plan de Partido
           </TabsTrigger>
           <TabsTrigger value="convocatoria" className="gap-1.5">
             <Users className="h-4 w-4" />
@@ -907,8 +907,8 @@ export function MatchDetailPanel({
           </TabsTrigger>
         </TabsList>
 
-        {/* ==================== TAB: PLAN DEL RIVAL ==================== */}
-        <TabsContent value="plan-rival" className="space-y-6">
+        {/* ==================== TAB: INFORME RIVAL ==================== */}
+        <TabsContent value="informe-rival" className="space-y-6">
           <PartidoPlanRivalTab
             key={selectedPartido.id}
             partido={selectedPartido}

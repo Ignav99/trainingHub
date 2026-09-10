@@ -204,7 +204,7 @@ def fallback_deck(briefing: dict[str, Any]) -> dict[str, Any]:
     slides: list[dict[str, Any]] = [
         {
             "layout": "portada",
-            "kicker": club or ("Informe rival" if tipo == "informe" else "Plan de partido"),
+            "kicker": club or ("Informe Rival" if tipo == "informe" else "Plan de Partido"),
             "title": f"vs {rival}" if tipo == "informe" else f"Plan vs {rival}",
             "bullets": [x for x in [briefing.get("fecha"), briefing.get("tramo"), briefing.get("localia")] if x],
             "keywords": [],
