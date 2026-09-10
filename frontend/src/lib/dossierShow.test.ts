@@ -129,7 +129,7 @@ describe('dossier live show builder', () => {
     )
     assert.equal(show.slides[1].kind === 'contexto' && show.slides[1].bullets[0], 'Presiona alto y corta por dentro')
     assert.equal(show.slides[1].kind === 'contexto' && show.slides[1].bullets.includes('Campo 105 x 68'), true)
-    assert.equal(show.slides[2].kind === 'once' && show.slides[2].bullets[0], '4-3-3')
+    assert.equal(show.slides[2].kind === 'once' && show.slides[2].sistema, '4-3-3')
     assert.equal(
       show.slides[2].kind === 'once' && show.slides[2].bullets.some((b) => b.includes('García') && b.includes('llega tarde')),
       true
@@ -138,6 +138,27 @@ describe('dossier live show builder', () => {
       show.slides[2].kind === 'once' && show.slides[2].bullets.some((b) => b.includes('López')),
       false
     )
+  })
+
+  it('puts the once on a pitch with the formation and placed names', () => {
+    const show = buildInformeShow({
+      estrategia: {
+        sistema: '4-3-3',
+        once_probable: {
+          actas_analizadas: 2,
+          jugadores: [
+            { nombre: 'García', dorsal: 10, apariciones: 8 },
+            { nombre: 'López', dorsal: 9, apariciones: 8 },
+          ],
+          colocacion: { DC: 'López', MC_C: 'García' },
+        },
+      },
+    })
+    const once = show.slides.find((slide) => slide.kind === 'once')
+    assert.equal(once?.kind, 'once')
+    assert.equal(once?.kind === 'once' && once.sistema, '4-3-3')
+    assert.equal(once?.kind === 'once' && once.colocacion?.DC, 'López')
+    assert.equal(once?.kind === 'once' && once.colocacion?.MC_C, 'García')
   })
 
   it('does not invent contexto or once slides on the match plan', () => {

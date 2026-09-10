@@ -5,7 +5,6 @@ import type {
   FasePlanPartido,
   PlanPartidoData,
   PlanPartidoPhase,
-  RivalJugadorEvaluacion,
   RivalPhaseAnalysis,
   RivalScoutData,
   RivalScoutStrategy,
@@ -89,6 +88,9 @@ export type ShowSlide =
       kicker: string
       title: string
       bullets: string[]
+      sistema?: string
+      colocacion?: Record<string, string>
+      jugadores?: Array<{ nombre: string; dorsal?: number | null; comentario?: string }>
     }
   | {
       id: string
@@ -575,32 +577,42 @@ function contextoSlide(estrategia?: RivalScoutStrategy): ShowSlide | null {
 
 function onceSlide(estrategia?: RivalScoutStrategy): ShowSlide | null {
   if (!estrategia) return null
+  const sistema = (estrategia.sistema || '').trim()
+  const colocacion = estrategia.once_probable?.colocacion ?? {}
+  const jugadores = (estrategia.once_probable?.jugadores ?? [])
+    .filter((j) => (j.nombre || '').trim())
+    .map((j) => ({
+      nombre: j.nombre.trim(),
+      dorsal: j.dorsal,
+      comentario: j.comentario,
+    }))
+  const placed = Object.values(colocacion).some((name) => (name || '').trim())
   const bullets: string[] = []
-  pushLine(bullets, estrategia.sistema)
-  const jugadores = estrategia.once_probable?.jugadores ?? []
   const commented = jugadores.filter((j) => (j.comentario || '').trim())
-  if (commented.length > 0) {
-    for (const jugador of commented) {
-      pushLine(bullets, oncePlayerLine(jugador))
-    }
-  } else {
-    const colocacion = estrategia.once_probable?.colocacion ?? {}
-    for (const name of Object.values(colocacion)) {
-      pushLine(bullets, name)
-    }
+  for (const jugador of commented) {
+    pushLine(bullets, oncePlayerLine(jugador))
   }
   const clipped = finalizeBullets(bullets)
-  if (clipped.length === 0) return null
+  if (!sistema && !placed && clipped.length === 0) return null
   return {
     id: 'once',
     kind: 'once',
     kicker: 'Once probable',
     title: 'Once probable',
     bullets: clipped,
+    sistema: sistema || undefined,
+    colocacion: placed ? colocacion : undefined,
+    jugadores: jugadores.length > 0 ? jugadores : undefined,
   }
 }
 
-function oncePlayerLine(jugador: RivalJugadorEvaluacion): string {
+function oncePlayerLine(jugador: {
+  nombre?: string
+  dorsal?: number | null
+  rol?: string
+  posicion?: string
+  comentario?: string
+}): string {
   const dorsal = jugador.dorsal != null && Number.isFinite(jugador.dorsal) ? String(jugador.dorsal) : ''
   const name = [dorsal, (jugador.nombre || '').trim()].filter(Boolean).join(' ')
   const role = (jugador.rol || jugador.posicion || '').trim()

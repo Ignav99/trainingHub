@@ -2,6 +2,7 @@
 
 import { TacticalBoardMini, boardHasAnimation } from '@/components/task-preview'
 import type { ShowSlide } from '@/lib/dossierShow'
+import { buildOncePitchTokens } from '@/lib/oncePitch'
 
 export const DISPLAY_FONT = '"Archivo Narrow", "Arial Narrow", sans-serif'
 
@@ -64,7 +65,7 @@ export function PortadaSlide({ slide }: { slide: Extract<ShowSlide, { kind: 'por
 export function NotesSlide({
   slide,
 }: {
-  slide: Extract<ShowSlide, { kind: 'contexto' | 'once' }>
+  slide: Extract<ShowSlide, { kind: 'contexto' }>
 }) {
   return (
     <div data-testid={`dossier-slide-${slide.kind}`} className="flex h-full min-h-0 flex-col justify-center py-4">
@@ -136,9 +137,80 @@ export function FaseSlide({ slide }: { slide: Extract<ShowSlide, { kind: 'fase' 
   )
 }
 
+export function OnceSlide({ slide }: { slide: Extract<ShowSlide, { kind: 'once' }> }) {
+  const tokens = buildOncePitchTokens(slide.sistema, slide.colocacion, slide.jugadores)
+  const showPitch = Boolean(slide.sistema) || tokens.some((token) => token.nombre)
+
+  return (
+    <div
+      data-testid="dossier-slide-once"
+      className={`grid h-full min-h-0 grid-cols-1 gap-6 py-4 ${showPitch && slide.bullets.length > 0 ? 'lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.2fr)]' : ''}`}
+    >
+      <div className="flex min-h-0 flex-col justify-center">
+        <h2
+          className="text-4xl font-extrabold leading-none tracking-tight sm:text-6xl"
+          style={{ fontFamily: DISPLAY_FONT }}
+        >
+          {slide.title}
+        </h2>
+        {slide.sistema ? (
+          <p className="mt-3 text-lg uppercase tracking-[0.18em]" style={{ color: '#F0C35A', fontFamily: DISPLAY_FONT }}>
+            {slide.sistema}
+          </p>
+        ) : null}
+        {slide.bullets.length > 0 && (
+          <ul className="mt-6 space-y-3">
+            {slide.bullets.map((bullet) => (
+              <li key={bullet} className="flex gap-3 text-lg leading-snug sm:text-xl">
+                <span className="mt-2 h-2 w-2 shrink-0 rounded-full" style={{ background: '#F0C35A' }} />
+                <span>{bullet}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {showPitch ? (
+        <div className="flex min-h-0 items-center justify-center">
+          <div
+            data-testid="dossier-once-pitch"
+            className="relative w-full max-w-3xl overflow-hidden rounded-md"
+            style={{ aspectRatio: '4 / 3', background: '#1a3a12' }}
+          >
+            <div className="absolute inset-3">
+              <div className="absolute inset-0 rounded border-2 border-white/25" />
+              <div className="absolute top-0 bottom-0 left-1/2 border-l-2 border-white/25" />
+              <div className="absolute top-1/2 left-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/25" />
+              <div className="absolute left-0 top-1/2 h-2/3 w-[16%] -translate-y-1/2 border-2 border-l-0 border-white/25" />
+              <div className="absolute right-0 top-1/2 h-2/3 w-[16%] -translate-y-1/2 border-2 border-r-0 border-white/25" />
+            </div>
+            {tokens.map((token) => (
+              <div
+                key={token.id}
+                className="absolute -translate-x-1/2 -translate-y-1/2 text-center"
+                style={{ top: `${token.topPct}%`, left: `${token.leftPct}%` }}
+              >
+                <div
+                  className="mx-auto flex h-9 w-9 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-md"
+                  style={{ background: token.color }}
+                >
+                  {token.dorsal || (token.nombre ? token.nombre.slice(0, 1) : token.label)}
+                </div>
+                <span className="mt-0.5 block max-w-[72px] truncate text-[11px] font-semibold text-white drop-shadow">
+                  {token.nombre || token.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export function StaticSlideBody({ slide }: { slide: ShowSlide }) {
   if (slide.kind === 'portada') return <PortadaSlide slide={slide} />
-  if (slide.kind === 'contexto' || slide.kind === 'once') return <NotesSlide slide={slide} />
+  if (slide.kind === 'contexto') return <NotesSlide slide={slide} />
+  if (slide.kind === 'once') return <OnceSlide slide={slide} />
   if (slide.kind === 'fase') return <FaseSlide slide={slide} />
   return null
 }

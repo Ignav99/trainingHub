@@ -616,13 +616,18 @@ class TestSalaSync:
         root = Path(__file__).resolve().parents[2]
         player = (root / "frontend/src/components/video-analyzer/VideoPlayer.tsx").read_text()
         sala = (root / "frontend/src/components/revision/SalaStage.tsx").read_text()
+        chrome = (root / "frontend/src/components/revision/salaChrome.tsx").read_text()
+        presentacion = (root / "frontend/src/components/revision/PresentacionSala.tsx").read_text()
         assert "frameStep:" in player
         assert "seekBy:" in player
         assert "contentTransform" in player
-        assert "Repetir" in sala
-        assert "Acercar" in sala
-        assert "Rebobinar" in sala
-        assert "Original" in sala
+        chrome_src = sala + chrome + presentacion
+        assert "Repetir" in chrome_src
+        assert "Acercar" in chrome_src
+        assert "Rebobinar" in chrome_src
+        assert "Original" in chrome_src
+        assert "SalaReviewBar" in sala
+        assert "SalaReviewBar" in presentacion
 
     def test_shared_player_has_seek_bar_and_hold_rewind(self):
         from pathlib import Path
