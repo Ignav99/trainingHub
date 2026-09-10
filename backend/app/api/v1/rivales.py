@@ -61,10 +61,22 @@ def _clips_size_from_scout(scout: dict | None) -> int:
     return _clips_size_from_phases(scout.get("fases"))
 
 
+def _clips_size_from_plan(plan: dict | None) -> int:
+    if not plan:
+        return 0
+    tramos = plan.get("tramos")
+    if isinstance(tramos, dict):
+        total = 0
+        for t in tramos.values():
+            if isinstance(t, dict):
+                total += _clips_size_from_phases(t.get("fases"))
+        return total
+    return _clips_size_from_phases(plan.get("fases"))
+
+
 def _clips_size_from_rival(rival: dict) -> int:
     total = _clips_size_from_scout(rival.get("scout_manual"))
-    plan = rival.get("plan_partido_manual") or {}
-    total += _clips_size_from_phases(plan.get("fases"))
+    total += _clips_size_from_plan(rival.get("plan_partido_manual") or {})
     return total
 
 

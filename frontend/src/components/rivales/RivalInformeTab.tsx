@@ -13,12 +13,13 @@ import { extractPersistentScout } from '@/lib/rivalScoutSync'
 interface RivalInformeTabProps {
   rivalId: string
   rivalNombre?: string
+  rivalEscudoUrl?: string
   equipoId?: string
 }
 
 type SaveStatus = 'idle' | 'pending' | 'saved' | 'error'
 
-export function RivalInformeTab({ rivalId, rivalNombre, equipoId }: RivalInformeTabProps) {
+export function RivalInformeTab({ rivalId, rivalNombre, rivalEscudoUrl, equipoId }: RivalInformeTabProps) {
   const [scout, setScout] = useState<Partial<RivalScoutData>>({})
   const [loaded, setLoaded] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
@@ -90,6 +91,7 @@ export function RivalInformeTab({ rivalId, rivalNombre, equipoId }: RivalInforme
       <RivalScout
         data={scout}
         rivalNombre={rivalNombre}
+        rivalEscudoUrl={rivalEscudoUrl}
         rivalId={rivalId}
         equipoId={equipoId}
         onChange={setScout}

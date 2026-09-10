@@ -1,14 +1,21 @@
 import { microciclosApi } from '@/lib/api/microciclos'
-import { rivalesApi } from '@/lib/api/partidos'
+import { rivalesApi, partidosApi } from '@/lib/api/partidos'
 import {
   extractPersistentPlanPartido,
   mergePlanPartidoOnLoad,
 } from '@/lib/rivalPlanPartidoSync'
+import {
+  inferPlanTramo,
+  mergeTramoIntoStore,
+  planFromStore,
+  type PlanTramo,
+} from '@/lib/planPartidoTramos'
 import type { PlanPartidoData } from '@/types'
 
 export interface PartidoPlanContext {
   microcicloId: string | null
   source: 'microciclo' | 'rival' | 'empty'
+  tramo: PlanTramo
 }
 
 export async function findMicrocicloForPartido(
@@ -20,32 +27,56 @@ export async function findMicrocicloForPartido(
   return match?.id ?? null
 }
 
+export async function inferTramoForPartido(
+  equipoId: string,
+  rivalId: string,
+  fecha?: string | null
+): Promise<PlanTramo> {
+  try {
+    const res = await partidosApi.list({
+      equipo_id: equipoId,
+      rival_id: rivalId,
+      limit: 50,
+      orden: 'fecha',
+      direccion: 'asc',
+    })
+    return inferPlanTramo(res.data || [], fecha)
+  } catch {
+    return 'ida'
+  }
+}
+
 export async function loadPartidoPlan(
   partidoId: string,
   equipoId: string,
-  rivalId: string
+  rivalId: string,
+  fecha?: string | null
 ): Promise<{ plan: Partial<PlanPartidoData>; context: PartidoPlanContext }> {
-  const microcicloId = await findMicrocicloForPartido(equipoId, partidoId)
+  const [microcicloId, tramo] = await Promise.all([
+    findMicrocicloForPartido(equipoId, partidoId),
+    inferTramoForPartido(equipoId, rivalId, fecha),
+  ])
 
-  let rivalPlan: Partial<PlanPartidoData> = {}
+  let rivalStore = null
   try {
-    rivalPlan = (await rivalesApi.getPlanPartidoManual(rivalId)) ?? {}
+    rivalStore = (await rivalesApi.getPlanPartidoManual(rivalId)) ?? {}
   } catch {
-    rivalPlan = {}
+    rivalStore = {}
   }
+  const rivalPlan = planFromStore(rivalStore, tramo)
 
   if (microcicloId) {
     const micro = await microciclosApi.get(microcicloId)
     const localPlan = micro.plan_ct?.plan_partido ?? {}
     const plan = mergePlanPartidoOnLoad(rivalPlan, localPlan)
-    return { plan, context: { microcicloId, source: 'microciclo' } }
+    return { plan, context: { microcicloId, source: 'microciclo', tramo } }
   }
 
   if (rivalPlan.fases?.length) {
-    return { plan: rivalPlan, context: { microcicloId: null, source: 'rival' } }
+    return { plan: rivalPlan, context: { microcicloId: null, source: 'rival', tramo } }
   }
 
-  return { plan: {}, context: { microcicloId: null, source: 'empty' } }
+  return { plan: {}, context: { microcicloId: null, source: 'empty', tramo } }
 }
 
 export async function savePartidoPlan(
@@ -65,6 +96,15 @@ export async function savePartidoPlan(
   }
 
   if (rivalId) {
-    await rivalesApi.putPlanPartidoManual(rivalId, persistent)
+    let current = {}
+    try {
+      current = (await rivalesApi.getPlanPartidoManual(rivalId)) ?? {}
+    } catch {
+      current = {}
+    }
+    await rivalesApi.putPlanPartidoManual(
+      rivalId,
+      mergeTramoIntoStore(current, context.tramo, persistent)
+    )
   }
 }

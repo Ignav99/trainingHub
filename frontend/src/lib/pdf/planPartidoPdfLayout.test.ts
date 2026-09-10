@@ -7,6 +7,7 @@ import {
   formatLocalia,
   formatPlanFecha,
   formatPlanHora,
+  formatPlanTramo,
   pitchDisplaySize,
   planPdfFilename,
 } from './planPartidoPdfLayout.ts'
@@ -28,6 +29,7 @@ describe('plan partido PDF layout', () => {
   it('formats match meta for the header strip', () => {
     assert.equal(formatPlanHora('18:30:00'), '18:30')
     assert.equal(formatLocalia('visitante'), 'Visitante')
+    assert.equal(formatPlanTramo('vuelta'), 'Vuelta')
     const fecha = formatPlanFecha('2026-09-12')
     assert.match(fecha, /septiembre/i)
     assert.match(fecha, /12/)
@@ -37,6 +39,10 @@ describe('plan partido PDF layout', () => {
     assert.equal(
       planPdfFilename('Atlético Madrid', '2026-09-12'),
       'plan-partido-atletico-madrid-2026-09-12.pdf'
+    )
+    assert.equal(
+      planPdfFilename('Atlético Madrid', '2026-09-12', 'vuelta'),
+      'plan-partido-atletico-madrid-vuelta-2026-09-12.pdf'
     )
   })
 

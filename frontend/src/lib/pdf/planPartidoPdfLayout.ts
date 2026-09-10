@@ -61,7 +61,13 @@ export function formatLocalia(localia?: string): string {
   return localia?.trim() || ''
 }
 
-export function planPdfFilename(rivalNombre?: string, fecha?: string): string {
+export function formatPlanTramo(tramo?: string): string {
+  if (tramo === 'ida') return 'Ida'
+  if (tramo === 'vuelta') return 'Vuelta'
+  return ''
+}
+
+export function planPdfFilename(rivalNombre?: string, fecha?: string, tramo?: string): string {
   const rival = (rivalNombre || 'rival')
     .toLowerCase()
     .normalize('NFD')
@@ -70,5 +76,17 @@ export function planPdfFilename(rivalNombre?: string, fecha?: string): string {
     .replace(/^-|-$/g, '')
     .slice(0, 40)
   const day = fecha?.slice(0, 10) || ''
-  return ['plan-partido', rival, day].filter(Boolean).join('-') + '.pdf'
+  const leg = tramo === 'ida' || tramo === 'vuelta' ? tramo : ''
+  return ['plan-partido', rival, leg, day].filter(Boolean).join('-') + '.pdf'
+}
+
+export function informeRivalPdfFilename(rivalNombre?: string): string {
+  const rival = (rivalNombre || 'rival')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 40)
+  return ['informe-rival', rival].filter(Boolean).join('-') + '.pdf'
 }

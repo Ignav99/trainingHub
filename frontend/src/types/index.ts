@@ -1713,7 +1713,12 @@ export interface Rival {
   sistema_juego?: string
   estilo?: string
   scout_manual?: Partial<RivalScoutData>
-  plan_partido_manual?: Partial<PlanPartidoData>
+  plan_partido_manual?: Partial<PlanPartidoData> | {
+    tramos?: {
+      ida?: Partial<PlanPartidoData>
+      vuelta?: Partial<PlanPartidoData>
+    }
+  }
   created_at: string
   updated_at: string
 }

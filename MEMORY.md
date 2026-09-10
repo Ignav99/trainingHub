@@ -28,3 +28,9 @@ Al crear una sesión, un doble POST generaba dos filas. El alta envía un UUID d
 
 ## Plan de partido PDF y pizarra
 El PDF del plan (Exportar PDF en Sala Lunes / partido / rival) ya no lleva “TrainingHub Pro” ni “Generado”. Cabecera con escudo, club, rival, fecha, hora, campo y localía. Los campogramas respetan el aspect ratio del campo (portería abajo). Desde el plan se pueden enlazar y editar jugadas ABP, y en ataque organizado se linkean saques de puerta. La pizarra del plan tiene los mismos movimientos, zonas y comentarios que la herramienta táctica.
+
+## Ficha rival
+Solo quedan Scouting, Informe rival, Plan de partido, ABP y Equipación. El plan se guarda aparte en **ida** y **vuelta** (primer partido oficial vs ese rival = ida). El PDF del informe rival usa el mismo cromado que el plan (escudo, sin TrainingHub Pro, campogramas sin aplastar).
+
+## Estadísticas y amistosos
+Amarillas, rojas, goles y el resto de agregados de plantilla/carga son de competición por defecto. Los amistosos se conservan en el partido y se pueden ver con el ámbito «Amistosos» o «Conjunta». No cuentan para ciclos de tarjetas.

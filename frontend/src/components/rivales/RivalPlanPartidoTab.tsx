@@ -3,10 +3,18 @@
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { PlanPartido } from '@/components/microciclos/PlanPartido'
-import { rivalesApi } from '@/lib/api/partidos'
+import { PlanTramoToggle } from '@/components/rivales/PlanTramoToggle'
+import { rivalesApi, partidosApi } from '@/lib/api/partidos'
 import { useEquipoStore } from '@/stores/equipoStore'
 import type { PlanPartidoData } from '@/types'
 import { extractPersistentPlanPartido } from '@/lib/rivalPlanPartidoSync'
+import {
+  inferPlanTramo,
+  unwrapPlanTramos,
+  wrapPlanTramos,
+  tramoHasContent,
+  type PlanTramo,
+} from '@/lib/planPartidoTramos'
 
 interface RivalPlanPartidoTabProps {
   rivalId: string
@@ -19,21 +27,38 @@ type SaveStatus = 'idle' | 'pending' | 'saved' | 'error'
 
 export function RivalPlanPartidoTab({ rivalId, rivalNombre, rivalEscudoUrl, estadio }: RivalPlanPartidoTabProps) {
   const { equipoActivo } = useEquipoStore()
-  const [plan, setPlan] = useState<Partial<PlanPartidoData>>({})
+  const [tramo, setTramo] = useState<PlanTramo>('ida')
+  const [plans, setPlans] = useState<Record<PlanTramo, Partial<PlanPartidoData>>>({
+    ida: {},
+    vuelta: {},
+  })
   const [loaded, setLoaded] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isMountedRef = useRef(false)
+  const plansRef = useRef(plans)
+  plansRef.current = plans
 
   useEffect(() => {
     let cancelled = false
-    rivalesApi
-      .getPlanPartidoManual(rivalId)
-      .then((data) => {
-        if (!cancelled) {
-          setPlan(data ?? {})
-          setLoaded(true)
-        }
+    Promise.all([
+      rivalesApi.getPlanPartidoManual(rivalId),
+      equipoActivo?.id
+        ? partidosApi.list({
+            equipo_id: equipoActivo.id,
+            rival_id: rivalId,
+            limit: 50,
+            orden: 'fecha',
+            direccion: 'asc',
+          })
+        : Promise.resolve({ data: [] }),
+    ])
+      .then(([raw, partidos]) => {
+        if (cancelled) return
+        const store = unwrapPlanTramos(raw)
+        setPlans(store)
+        setTramo(inferPlanTramo(partidos.data || []))
+        setLoaded(true)
       })
       .catch(() => {
         if (!cancelled) setLoaded(true)
@@ -41,7 +66,7 @@ export function RivalPlanPartidoTab({ rivalId, rivalNombre, rivalEscudoUrl, esta
     return () => {
       cancelled = true
     }
-  }, [rivalId])
+  }, [rivalId, equipoActivo?.id])
 
   useEffect(() => {
     if (!loaded || !isMountedRef.current) {
@@ -53,7 +78,13 @@ export function RivalPlanPartidoTab({ rivalId, rivalNombre, rivalEscudoUrl, esta
 
     saveTimerRef.current = setTimeout(async () => {
       try {
-        await rivalesApi.putPlanPartidoManual(rivalId, extractPersistentPlanPartido(plan))
+        await rivalesApi.putPlanPartidoManual(
+          rivalId,
+          wrapPlanTramos({
+            ida: extractPersistentPlanPartido(plansRef.current.ida),
+            vuelta: extractPersistentPlanPartido(plansRef.current.vuelta),
+          })
+        )
         setSaveStatus('saved')
         setTimeout(() => setSaveStatus('idle'), 2000)
       } catch (err: unknown) {
@@ -65,25 +96,35 @@ export function RivalPlanPartidoTab({ rivalId, rivalNombre, rivalEscudoUrl, esta
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     }
-  }, [plan, rivalId, loaded])
+  }, [plans, rivalId, loaded])
 
   if (!loaded) {
     return <p className="text-sm text-muted-foreground py-8 text-center">Cargando plan de partido...</p>
   }
 
+  const plan = plans[tramo]
+
   return (
     <div className="space-y-2">
-      {saveStatus === 'pending' && (
-        <p className="text-xs text-muted-foreground">Guardando...</p>
-      )}
-      {saveStatus === 'saved' && (
-        <p className="text-xs text-green-600">Guardado en perfil del rival</p>
-      )}
-      {saveStatus === 'error' && (
-        <p className="text-xs text-red-600">Error al guardar</p>
-      )}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <PlanTramoToggle
+          value={tramo}
+          onChange={setTramo}
+          idaHasContent={tramoHasContent(plans.ida)}
+          vueltaHasContent={tramoHasContent(plans.vuelta)}
+        />
+        {saveStatus === 'pending' && (
+          <p className="text-xs text-muted-foreground">Guardando...</p>
+        )}
+        {saveStatus === 'saved' && (
+          <p className="text-xs text-green-600">Guardado en perfil del rival</p>
+        )}
+        {saveStatus === 'error' && (
+          <p className="text-xs text-red-600">Error al guardar</p>
+        )}
+      </div>
       <p className="text-xs text-muted-foreground">
-        Pizarras, roles, clips y jugadas ABP se guardan en el perfil del rival.
+        Ida y vuelta se guardan aparte. Pizarras, roles, clips y jugadas ABP van con cada enfrentamiento.
       </p>
       <PlanPartido
         data={plan}
@@ -92,7 +133,8 @@ export function RivalPlanPartidoTab({ rivalId, rivalNombre, rivalEscudoUrl, esta
         rivalNombre={rivalNombre}
         rivalEscudoUrl={rivalEscudoUrl}
         campoPartido={estadio}
-        onChange={setPlan}
+        tramo={tramo}
+        onChange={(next) => setPlans((prev) => ({ ...prev, [tramo]: next }))}
       />
     </div>
   )

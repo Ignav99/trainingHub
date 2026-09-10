@@ -40,6 +40,7 @@ import type { RFEFCompeticion } from '@/lib/api/rfef'
 interface RivalScoutProps {
   data: Partial<RivalScoutData>
   rivalNombre?: string
+  rivalEscudoUrl?: string
   rivalId?: string
   microcicloId?: string
   equipoId?: string
@@ -91,7 +92,7 @@ function handleDiagramUpdate(
 
 type TabValue = 'contexto' | 'once_probable' | FaseRival
 
-export function RivalScout({ data, rivalNombre, rivalId, microcicloId, equipoId, localia, onChange }: RivalScoutProps) {
+export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microcicloId, equipoId, localia, onChange }: RivalScoutProps) {
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({})
   const [activeTab, setActiveTab] = useState<TabValue>('contexto')
   const dataRef = useRef(data)
@@ -216,7 +217,11 @@ export function RivalScout({ data, rivalNombre, rivalId, microcicloId, equipoId,
             variant="outline"
             size="sm"
             className="h-8 text-xs"
-            onClick={() => exportRivalScoutPDF(data, rivalNombre)}
+            onClick={() => void exportRivalScoutPDF(data, {
+              rivalNombre,
+              rivalEscudoUrl,
+              localia,
+            })}
           >
             Exportar PDF
           </Button>
