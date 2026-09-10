@@ -4,6 +4,8 @@ import type { ReactNode } from 'react'
 import {
   Eraser,
   Hand,
+  Maximize,
+  Minimize,
   Pause,
   Play,
   Repeat,
@@ -54,6 +56,8 @@ export function SalaReviewBar({
   onRepeat,
   onRewindDown,
   onRewindUp,
+  fullscreen,
+  onToggleFullscreen,
 }: {
   zoomMode: boolean
   zoomed: boolean
@@ -68,6 +72,8 @@ export function SalaReviewBar({
   onRepeat: () => void
   onRewindDown: () => void
   onRewindUp: () => void
+  fullscreen?: boolean
+  onToggleFullscreen?: () => void
 }) {
   return (
     <div className="flex items-center gap-1.5 px-2 py-1.5 bg-zinc-950 border-b border-white/10 text-xs flex-wrap">
@@ -160,6 +166,18 @@ export function SalaReviewBar({
         <Undo2 className="h-3.5 w-3.5" />
         Original
       </button>
+      {onToggleFullscreen && (
+        <button
+          type="button"
+          data-testid="sala-video-fullscreen"
+          className="h-10 px-3 rounded-md bg-white/10 active:bg-white/20 inline-flex items-center gap-1"
+          onClick={onToggleFullscreen}
+          title={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+        >
+          {fullscreen ? <Minimize className="h-3.5 w-3.5" /> : <Maximize className="h-3.5 w-3.5" />}
+          {fullscreen ? 'Salir' : 'Pantalla completa'}
+        </button>
+      )}
     </div>
   )
 }

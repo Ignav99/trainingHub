@@ -35,6 +35,7 @@ export interface VideoPlayerHandle {
   frameStep: (direction: 1 | -1) => void
   pause: () => void
   play: () => void
+  setMuted: (muted: boolean) => void
 }
 
 interface VideoPlayerProps {
@@ -63,23 +64,49 @@ interface VideoPlayerProps {
    */
   presenterEmbed?: boolean
   defaultMuted?: boolean
+  /** Tablet: el altavoz local se queda mudo; el botón mute controla el PC. */
+  playbackMuted?: boolean
+  muted?: boolean
+  onMutedChange?: (muted: boolean) => void
+  isFullscreen?: boolean
+  onToggleFullscreen?: () => void
   /** Zoom del recuadro de vídeo (sala). No afecta a la barra de controles. */
   contentTransform?: { transform: string; transformOrigin: string }
 }
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
-  function VideoPlayer({ src, clipRange, onTimeUpdate, onPlayStateChange, onDurationChange, onSeeked, onError, standalonePreview, presenterEmbed, defaultMuted, contentTransform }, ref) {
+  function VideoPlayer({
+    src,
+    clipRange,
+    onTimeUpdate,
+    onPlayStateChange,
+    onDurationChange,
+    onSeeked,
+    onError,
+    standalonePreview,
+    presenterEmbed,
+    defaultMuted,
+    playbackMuted,
+    muted: mutedProp,
+    onMutedChange,
+    isFullscreen: fullscreenProp,
+    onToggleFullscreen,
+    contentTransform,
+  }, ref) {
     const videoRef = useRef<HTMLVideoElement>(null as unknown as HTMLVideoElement)
     const containerRef = useRef<HTMLDivElement>(null)
     const [playing, setPlaying] = useState(false)
     const [currentTime, setCurrentTime] = useState(0)
     const [duration, setDuration] = useState(0)
-    const [muted, setMuted] = useState(!!defaultMuted)
+    const [internalMuted, setInternalMuted] = useState(!!defaultMuted)
     const [speed, setSpeed] = useState(1)
-    const [isFullscreen, setIsFullscreen] = useState(false)
+    const [internalFullscreen, setIsFullscreen] = useState(false)
     const [isExpanded, setIsExpanded] = useState(false)
     const currentTimeRef = useRef(0)
     const seekBarRef = useRef<HTMLDivElement>(null)
+    const uiMuted = mutedProp ?? internalMuted
+    const elementMuted = !!playbackMuted || uiMuted
+    const showFullscreen = fullscreenProp ?? internalFullscreen
     const rewindIntervalRef = useRef<number | null>(null)
 
     // HLS.js support for .m3u8 streams
@@ -237,7 +264,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       frameStep,
       pause: () => videoRef.current?.pause(),
       play: () => { void videoRef.current?.play()?.catch(() => undefined) },
-    }), [frameStep, seek, seekToTime])
+      setMuted: (next) => {
+        setInternalMuted(next)
+        if (videoRef.current && !playbackMuted) videoRef.current.muted = next
+        onMutedChange?.(next)
+      },
+    }), [frameStep, seek, seekToTime, playbackMuted, onMutedChange])
 
     const cycleSpeed = useCallback(() => {
       const speeds = [0.25, 0.5, 1, 1.5, 2]
@@ -303,6 +335,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         videoRef.current.currentTime = clipRange.start
       }
     }, [clipRange?.start, clipRange?.end])
+
+    useEffect(() => {
+      if (videoRef.current) videoRef.current.muted = elementMuted
+    }, [elementMuted])
 
     // Two-finger trackpad horizontal swipe — scoped to this player only.
     // Only active when standalonePreview is enabled to avoid double-handling
@@ -440,7 +476,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           ref={videoRef}
           src={src.includes('.m3u8') ? undefined : src}
           preload="auto"
-          muted={muted}
+          muted={elementMuted}
           playsInline
           className={
             isPortalExpanded || presenterEmbed
@@ -579,10 +615,16 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           <Button
             variant="ghost"
             size="icon"
+            data-testid="video-mute-toggle"
             className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20"
-            onClick={() => setMuted(!muted)}
+            onClick={() => {
+              const next = !uiMuted
+              if (mutedProp === undefined) setInternalMuted(next)
+              onMutedChange?.(next)
+            }}
+            title={uiMuted ? 'Activar sonido' : 'Silenciar'}
           >
-            {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+            {uiMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
           </Button>
 
           <button
@@ -592,7 +634,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             {speed}x
           </button>
 
-          {standalonePreview && (
+          {(standalonePreview || presenterEmbed) && (
             <>
               <div className="w-px h-4 bg-white/20 mx-0.5" />
               {!presenterEmbed && (
@@ -609,11 +651,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
               <Button
                 variant="ghost"
                 size="icon"
+                data-testid="video-fullscreen-toggle"
                 className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20"
-                onClick={toggleFullscreen}
-                title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+                onClick={() => (onToggleFullscreen ? onToggleFullscreen() : toggleFullscreen())}
+                title={showFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
               >
-                {isFullscreen ? <Minimize className="h-3.5 w-3.5" /> : <Maximize className="h-3.5 w-3.5" />}
+                {showFullscreen ? <Minimize className="h-3.5 w-3.5" /> : <Maximize className="h-3.5 w-3.5" />}
               </Button>
             </>
           )}

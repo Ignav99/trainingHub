@@ -337,6 +337,8 @@ def sala_sync_payload(data: dict, user_id: str) -> dict:
         "overlay": data.get("overlay"),
         "zoom": data.get("zoom"),
         "role": data.get("role"),
+        "muted": data.get("muted"),
+        "fullscreen": data.get("fullscreen"),
     }
     if "slide" in data:
         payload["slide"] = data.get("slide")
