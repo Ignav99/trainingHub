@@ -11,6 +11,11 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { PartidosList } from '@/components/partidos/PartidosList'
 import { MatchDetailPanel } from '@/components/partidos/MatchDetailPanel'
+import {
+  PartidosCollapsedRail,
+  PartidosListCollapseToggle,
+  usePartidosListCollapsed,
+} from '@/components/partidos/PartidosListCollapse'
 import type { Convocatoria, Partido, PaginatedResponse, EstadisticaPartido } from '@/types'
 
 export default function PartidosPage() {
@@ -111,6 +116,12 @@ export default function PartidosPage() {
     router.replace('/partidos')
   }
 
+  const { collapsed: listCollapsed, toggle: toggleList } = usePartidosListCollapsed()
+  const selectedLabel =
+    (selectedPartido as Partido & { rival?: { nombre?: string } } | null)?.rival?.nombre ||
+    selectedPartido?.fecha ||
+    undefined
+
   // ============ Render ============
 
   return (
@@ -130,21 +141,30 @@ export default function PartidosPage() {
       />
 
       {/* Main layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 min-w-0">
-        {/* Left: match list */}
+      <div className={`grid gap-6 min-w-0 ${listCollapsed ? 'lg:grid-cols-[3rem_minmax(0,1fr)]' : 'grid-cols-1 lg:grid-cols-4'}`}>
+        {/* Left: match list (collapsible to free the board) */}
         <div className="space-y-2 min-w-0">
-          <PartidosList
-            loading={loading}
-            allPartidos={allPartidos}
-            proximos={proximos}
-            jugados={jugados}
-            selectedId={selectedId}
-            onSelectMatch={selectMatch}
-          />
+          {listCollapsed ? (
+            <PartidosCollapsedRail selectedLabel={selectedLabel} onExpand={() => toggleList(false)} />
+          ) : (
+            <>
+              <div className="flex justify-end">
+                <PartidosListCollapseToggle collapsed={false} onToggle={() => toggleList(true)} />
+              </div>
+              <PartidosList
+                loading={loading}
+                allPartidos={allPartidos}
+                proximos={proximos}
+                jugados={jugados}
+                selectedId={selectedId}
+                onSelectMatch={selectMatch}
+              />
+            </>
+          )}
         </div>
 
         {/* Right: tabbed content */}
-        <div className="lg:col-span-3 min-w-0">
+        <div className={listCollapsed ? 'min-w-0' : 'lg:col-span-3 min-w-0'}>
           <MatchDetailPanel
             selectedPartido={selectedPartido}
             convocados={convocados}

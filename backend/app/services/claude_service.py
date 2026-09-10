@@ -1835,6 +1835,44 @@ class ClaudeService:
             logger.error("Claude API error in correct_writing: %s", e)
             raise ClaudeError(f"Error al corregir texto: {str(e)}")
 
+    async def synthesize_presentacion(
+        self,
+        briefing: dict,
+        tipo: str = "informe",
+        meta: dict | None = None,
+    ) -> dict:
+        """Sintetiza un informe/plan en un guion de diapositivas para la charla."""
+        from app.services.presentacion_briefing import briefing_to_prompt
+        from app.services.presentacion_deck import SYNTHESIZE_PRESENTACION_PROMPT, parse_deck_json
+
+        user = (
+            f"Tipo: {tipo}\n"
+            f"Meta: {(meta or {}).get('rival_nombre') or briefing.get('rival') or ''}\n\n"
+            f"{briefing_to_prompt(briefing)}"
+        )
+        try:
+            response = await self.client.messages.create(
+                model=self.model,
+                max_tokens=2500,
+                temperature=0.3,
+                system=SYNTHESIZE_PRESENTACION_PROMPT,
+                messages=[{"role": "user", "content": user}],
+            )
+            out = ""
+            for block in response.content:
+                if getattr(block, "type", None) == "text":
+                    out += block.text
+            return parse_deck_json(out, briefing)
+        except anthropic.APIConnectionError as e:
+            logger.error("Claude connection error in synthesize_presentacion: %s", e)
+            raise ClaudeError("Error de conexión con Claude. Inténtalo de nuevo.")
+        except anthropic.RateLimitError as e:
+            logger.error("Claude rate limit in synthesize_presentacion: %s", e)
+            raise ClaudeError("Claude está saturado. Espera unos segundos.")
+        except anthropic.APIError as e:
+            logger.error("Claude API error in synthesize_presentacion: %s", e)
+            raise ClaudeError(f"Error al sintetizar la presentación: {str(e)}")
+
     async def create_task_from_prompt(
         self,
         prompt: str,

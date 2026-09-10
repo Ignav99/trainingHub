@@ -8,29 +8,11 @@ Dos herramientas: **Video Análisis** (partido entero local, nunca a la nube) y 
 - Cron diario: aviso al staff 7 días antes (una vez por carpeta) y **borrado de toda la carpeta** en R2 + DB. No hay OAuth a Drive: si hay URL de carpeta, el usuario descarga un zip y la abre; si no, solo zip. También «Borrar todo».
 - Sala: columna de carpetas plegable (vídeo más grande). Pizarra con **Mover**. Tablet: modo **Acercar** (pellizco, no pinta) + Original; **Repetir 2s**, fotograma a fotograma y rebobinar manteniendo pulsado.
 
-## Tratamiento (enfermería / ficha)
-Los días/sesiones del cuaderno se pueden **editar** (lápiz) además de eliminar. El PUT ya existía; ahora el fisio lo usa desde la ficha y desde el caso.
-
-## Layout móvil
-La app es la misma (mismas rutas, mismas acciones). Por debajo de `lg` (1024px) el contenido se refluja para caber en el ancho de la pantalla y el documento no hace pan horizontal. El portátil a tamaño completo no cambia.
-
-## Playbook ABP PDF
-El PDF del playbook usa el campo ABP (portería abajo, mismas coords que el editor), no el campo horizontal de tareas. Portada con logo/club como el resto de PDFs. Nombres, roles, directrices, flechas y trails de animación salen en el diagrama.
-
-## Sesión: filial a mano en convocatoria
-La plantilla entra sola. El filial sale en «Añadir del filial» y hay que meterlo a mano (predisño y sesión creada). Quitar un jugador del filial quita la tarjeta al instante y persiste en segundo plano. Ocultar filial los saca todos de golpe.
-
-## Informe rival: once manual
-En Once Probable se puede escribir el 11 a mano (formación + nombres/dorsales en el campo o en la tabla) sin extraer actas. Cargar desde actas sigue disponible y no borra jugadores añadidos a mano.
-
-## Sesión duplicada + ABP saque de centro
-Al crear una sesión, un doble POST generaba dos filas. El alta envía un UUID de cliente y el backend reutiliza la PK. ABP incluye `saque_centro`.
-
-## Plan de partido PDF y pizarra
-El PDF del plan (Exportar PDF en Sala Lunes / partido / rival) ya no lleva “TrainingHub Pro” ni “Generado”. Cabecera con escudo, club, rival, fecha, hora, campo y localía. Los campogramas respetan el aspect ratio del campo (portería abajo). Desde el plan se pueden enlazar y editar jugadas ABP, y en ataque organizado se linkean saques de puerta. La pizarra del plan tiene los mismos movimientos, zonas y comentarios que la herramienta táctica.
+## Partidos: lista plegable + presentación
+La columna de próximos/jugados se puede ocultar para ganar tablero. El botón Exportar de informe rival y plan de partido ofrece PDF (enviar) o Presentación (.pptx, abre en PowerPoint y Google Slides). La IA sintetiza el dossier en pocas diapos (claves, pocas palabras). Si la IA falla, hay un guion determinista. Informe de partido no se tocó.
 
 ## Ficha rival
-Solo quedan Scouting, Informe rival, Plan de partido, ABP y Equipación. El plan se guarda aparte en **ida** y **vuelta** (primer partido oficial vs ese rival = ida). El PDF del informe rival usa el mismo cromado que el plan (escudo, sin TrainingHub Pro, campogramas sin aplastar).
+Solo Scouting, Informe rival, Plan de partido, ABP y Equipación. Plan ida/vuelta. PDF informe rival alineado con el plan.
 
 ## Estadísticas y amistosos
-Amarillas, rojas, goles y el resto de agregados de plantilla/carga son de competición por defecto. Los amistosos se conservan en el partido y se pueden ver con el ámbito «Amistosos» o «Conjunta». No cuentan para ciclos de tarjetas.
+Amarillas, rojas, goles y asistencias de plantilla/carga son de competición por defecto. Los amistosos se conservan y se ven con el filtro de ámbito.

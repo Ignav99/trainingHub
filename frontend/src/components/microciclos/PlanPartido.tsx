@@ -21,6 +21,8 @@ import type {
 } from '@/types'
 import { exportPlanPartidoPDF } from '@/lib/pdf/exportPlanPartidoPDF'
 import { deriveAsignacionesFromDiagram } from '@/lib/planPartidoDiagramRoles'
+import { ExportDossierMenu } from '@/components/rivales/ExportDossierMenu'
+import { exportPresentacionDossier } from '@/lib/api/presentaciones'
 import { TacticalBoard } from './TacticalBoard'
 import { PlanPartidoABPSection } from './PlanPartidoABPSection'
 import { getContextForSubfase } from '@/lib/tacticalRoles'
@@ -105,6 +107,7 @@ export function PlanPartido({
   tramo,
 }: PlanPartidoProps) {
   const [activeTab, setActiveTab] = useState<FasePlanPartido>('ataque_organizado')
+  const [exportingDeck, setExportingDeck] = useState(false)
   const dataRef = useRef(data)
   dataRef.current = data
   const fases = data.fases ?? []
@@ -170,12 +173,9 @@ export function PlanPartido({
           <CardTitle className="text-base">
             Plan de Partido{tramo === 'vuelta' ? ' · Vuelta' : tramo === 'ida' ? ' · Ida' : ''}
           </CardTitle>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 text-xs"
-            onClick={() =>
+          <ExportDossierMenu
+            exporting={exportingDeck}
+            onPdf={() =>
               void exportPlanPartidoPDF(data, equipoId, {
                 rivalNombre,
                 rivalEscudoUrl,
@@ -186,9 +186,25 @@ export function PlanPartido({
                 tramo,
               })
             }
-          >
-            Exportar PDF
-          </Button>
+            onPresentacion={async () => {
+              setExportingDeck(true)
+              try {
+                await exportPresentacionDossier('plan', data, {
+                  rival_nombre: rivalNombre,
+                  rival_escudo_url: rivalEscudoUrl,
+                  fecha: fechaPartido,
+                  hora: horaPartido,
+                  campo: campoPartido || ciudadPartido,
+                  localia,
+                  tramo,
+                })
+              } catch (err: unknown) {
+                toast.error(err instanceof Error ? err.message : 'No se pudo crear la presentación')
+              } finally {
+                setExportingDeck(false)
+              }
+            }}
+          />
         </div>
       </CardHeader>
 
