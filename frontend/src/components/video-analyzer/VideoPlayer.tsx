@@ -430,7 +430,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           isPortalExpanded
             ? 'fixed inset-4 z-[100] flex flex-col bg-black outline-none rounded-lg overflow-hidden shadow-2xl'
             : presenterEmbed
-              ? 'flex h-full min-h-0 flex-col outline-none'
+              ? 'flex h-full min-h-0 flex-col overflow-hidden outline-none'
               : 'flex flex-col outline-none'
         }
         tabIndex={standalonePreview ? 0 : undefined}

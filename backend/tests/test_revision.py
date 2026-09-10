@@ -628,6 +628,12 @@ class TestSalaSync:
         assert "Original" in chrome_src
         assert "SalaReviewBar" in sala
         assert "SalaReviewBar" in presentacion
+        assert "presenterEmbed" in sala
+        assert "SalaFloatingChrome" in sala
+        assert "SalaFloatingChrome" in presentacion
+        assert 'data-testid="sala-floating-chrome"' in chrome
+        assert "overflow-hidden" in sala
+        assert "z-50" in chrome
 
     def test_shared_player_has_seek_bar_and_hold_rewind(self):
         from pathlib import Path
