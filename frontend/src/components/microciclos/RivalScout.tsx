@@ -22,15 +22,13 @@ import type {
   RivalSubfaseData,
   LocaliaPartido,
 } from '@/types'
-import type { DiagramData } from '@/components/tarea-editor/types'
 import { exportRivalScoutPDF } from '@/lib/pdf/exportRivalScoutPDF'
-import { deriveAsignacionesFromDiagram } from '@/lib/planPartidoDiagramRoles'
 import { ExportDossierMenu } from '@/components/rivales/ExportDossierMenu'
 import { DossierPresenter } from '@/components/rivales/DossierPresenter'
+import { DossierTacticalBoard } from '@/components/rivales/DossierTacticalBoard'
 import { exportPresentacionDossier } from '@/lib/api/presentaciones'
 import { buildInformeShow, type DossierShow } from '@/lib/dossierShow'
 import { useClubStore } from '@/stores/clubStore'
-import { TacticalBoard } from './TacticalBoard'
 import { RivalStrategy } from './RivalStrategy'
 import { RivalContextoIntel } from './RivalContextoIntel'
 import { RevisionLibrary } from '@/components/revision/RevisionLibrary'
@@ -38,7 +36,6 @@ import { api } from '@/lib/api/client'
 import { rivalesApi } from '@/lib/api/partidos'
 import { VideoPlayer } from '@/components/video-analyzer/VideoPlayer'
 import ABPRivalPlays from '@/components/abp/ABPRivalPlays'
-import { getContextForSubfase } from '@/lib/tacticalRoles'
 import { apiKey } from '@/lib/swr'
 import type { RFEFCompeticion } from '@/lib/api/rfef'
 
@@ -83,17 +80,6 @@ const SUBFASES_DEFENSA: { key: RivalSubfaseDefensa; label: string }[] = [
   { key: 'bloque_medio', label: 'Bloque medio' },
   { key: 'bloque_bajo', label: 'Bloque bajo' },
 ]
-
-function handleDiagramUpdate(
-  diagram: DiagramData,
-  extra?: Partial<RivalSubfaseData>
-): Partial<RivalSubfaseData> {
-  return {
-    ...extra,
-    pizarra_diagrama: diagram,
-    roles: deriveAsignacionesFromDiagram(diagram),
-  }
-}
 
 type TabValue = 'contexto' | 'once_probable' | FaseRival
 
@@ -461,7 +447,6 @@ function PhaseEditor({
             </TabsList>
             {subfases.map((s) => {
               const sub = phase.subfases?.[s.key] ?? { notas: '' }
-              const roleContext = getContextForSubfase(fase, s.key)
               return (
                 <TabsContent key={s.key} value={s.key} className="space-y-3 mt-2">
                   <Input
@@ -470,22 +455,11 @@ function PhaseEditor({
                     placeholder={`Apunte sobre ${s.label.toLowerCase()}...`}
                     className="h-8 text-xs"
                   />
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">
-                      Pizarra táctica — coloca jugadores rivales · doble clic para nombre y rol
-                    </Label>
-                    <TacticalBoard
-                      boardKey={`scout-${fase}-${s.key}`}
-                      diagramValue={sub.pizarra_diagrama}
-                      onDiagramChange={(diagram) =>
-                        onUpdateSubfase(fase, s.key, handleDiagramUpdate(diagram))
-                      }
-                      value={sub.pizarra_tactica}
-                      onChange={(png) => onUpdateSubfase(fase, s.key, { pizarra_tactica: png })}
-                      roleContext={roleContext}
-                      jugadorLabel="Jugador rival"
-                    />
-                  </div>
+                  <DossierTacticalBoard
+                    value={sub.pizarra_diagrama}
+                    title={`Pizarra · ${s.label}`}
+                    onChange={(patch) => onUpdateSubfase(fase, s.key, patch)}
+                  />
                 </TabsContent>
               )
             })}
@@ -517,25 +491,11 @@ function PhaseEditor({
               className="text-sm resize-none"
             />
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">
-              Pizarra táctica — roles del rival en transición ofensiva
-            </Label>
-            <TacticalBoard
-              boardKey={`scout-${fase}`}
-              diagramValue={phase.pizarra_diagrama}
-              onDiagramChange={(diagram) =>
-                onUpdate(fase, {
-                  pizarra_diagrama: diagram,
-                  roles: deriveAsignacionesFromDiagram(diagram),
-                })
-              }
-              value={phase.pizarra_tactica}
-              onChange={(png) => onUpdate(fase, { pizarra_tactica: png })}
-              roleContext="transicion_ofensiva"
-              jugadorLabel="Jugador rival"
-            />
-          </div>
+          <DossierTacticalBoard
+            value={phase.pizarra_diagrama}
+            title="Pizarra · Transición ofensiva"
+            onChange={(patch) => onUpdate(fase, patch)}
+          />
         </div>
       )}
       {fase === 'transicion_defensiva' && (
@@ -550,16 +510,11 @@ function PhaseEditor({
               className="text-sm resize-none"
             />
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Pizarra táctica</Label>
-            <TacticalBoard
-              boardKey={`scout-${fase}`}
-              diagramValue={phase.pizarra_diagrama}
-              onDiagramChange={(diagram) => onUpdate(fase, { pizarra_diagrama: diagram })}
-              value={phase.pizarra_tactica}
-              onChange={(png) => onUpdate(fase, { pizarra_tactica: png })}
-            />
-          </div>
+          <DossierTacticalBoard
+            value={phase.pizarra_diagrama}
+            title="Pizarra · Transición defensiva"
+            onChange={(patch) => onUpdate(fase, patch)}
+          />
         </div>
       )}
       {fase === 'abp_ofensiva' && (

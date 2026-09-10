@@ -26,6 +26,8 @@ interface TareaPizarraEditorProps {
   /** Vuelca espacio, densidad y tipo de esfuerzo calculados sobre el formulario de la tarea */
   onApplyEspacio?: (patch: TareaEspacioPatch) => void
   onClose?: () => void
+  /** Texto de la cabecera. Por defecto, pizarra de tarea. */
+  title?: string
   /**
    * Altura total del bloque (cabecera + barra + campo). Acotarla es lo que
    * hace que el campo entre entero sin scroll; usa '100%' dentro de un padre
@@ -40,6 +42,7 @@ export default function TareaPizarraEditor({
   numJugadores,
   onApplyEspacio,
   onClose,
+  title = 'Pizarra de la tarea',
   height = 620,
 }: TareaPizarraEditorProps) {
   const loadBoard = useTacticalBoardStore((s) => s.loadBoard)
@@ -151,7 +154,7 @@ export default function TareaPizarraEditor({
     >
       {/* Cabecera compacta */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-        <span className="text-sm font-semibold text-gray-800 flex-1">Pizarra de la tarea</span>
+        <span className="text-sm font-semibold text-gray-800 flex-1">{title}</span>
 
         <button
           type="button"
