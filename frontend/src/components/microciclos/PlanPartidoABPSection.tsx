@@ -1,20 +1,28 @@
 'use client'
 
 import { useState } from 'react'
-import useSWR from 'swr'
+import useSWR, { mutate as globalMutate } from 'swr'
 import Link from 'next/link'
-import { Plus, Trash2, Flag, ExternalLink, X, Loader2 } from 'lucide-react'
+import { Plus, Trash2, Flag, ExternalLink, X, Loader2, Pencil, Sparkles } from 'lucide-react'
+import { toast } from 'sonner'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { apiKey, apiFetcher } from '@/lib/swr'
-import { ABP_TIPOS, ABPJugada, LadoABP, PlanPartidoABPItem } from '@/types'
+import { abpApi } from '@/lib/api/abp'
+import { jugadoresApi } from '@/lib/api/jugadores'
+import { ABP_TIPOS, ABPJugada, LadoABP, PlanPartidoABPItem, TipoABP, Jugador } from '@/types'
 import ABPBoardMini from '@/components/abp/ABPBoardMini'
+import ABPEditor from '@/components/abp/ABPEditor'
 
 interface PlanPartidoABPSectionProps {
   lado: LadoABP
   items: PlanPartidoABPItem[]
   equipoId?: string
   onChange: (items: PlanPartidoABPItem[]) => void
+  titulo?: string
+  tipos?: TipoABP[]
+  defaultTipo?: TipoABP
+  emptyHint?: string
 }
 
 function MiniDiagram({ jugada }: { jugada: ABPJugada }) {
@@ -25,16 +33,34 @@ function MiniDiagram({ jugada }: { jugada: ABPJugada }) {
   )
 }
 
-export function PlanPartidoABPSection({ lado, items, equipoId, onChange }: PlanPartidoABPSectionProps) {
+export function PlanPartidoABPSection({
+  lado,
+  items,
+  equipoId,
+  onChange,
+  titulo,
+  tipos,
+  defaultTipo,
+  emptyHint,
+}: PlanPartidoABPSectionProps) {
   const [showPicker, setShowPicker] = useState(false)
+  const [editorOpen, setEditorOpen] = useState(false)
+  const [editingJugada, setEditingJugada] = useState<Partial<ABPJugada> | null>(null)
+  const [saving, setSaving] = useState(false)
 
   const libraryKey = equipoId ? apiKey('/abp', { equipo_id: equipoId, lado }) : null
-  const { data: libraryData } = useSWR<{ data: ABPJugada[] }>(libraryKey, apiFetcher)
-  const library = libraryData?.data ?? []
+  const { data: libraryData, mutate } = useSWR<{ data: ABPJugada[] }>(libraryKey, apiFetcher)
+  const library = (libraryData?.data ?? []).filter((j) => !tipos || tipos.includes(j.tipo))
+
+  const { data: jugadoresData } = useSWR(
+    equipoId ? ['/jugadores', equipoId, 'plan-abp'] : null,
+    () => jugadoresApi.list({ equipo_id: equipoId })
+  )
+  const jugadores = (jugadoresData?.data || []) as unknown as Jugador[]
 
   const assignedIds = new Set(items.map((i) => i.jugada_id))
   const available = library.filter((j) => !assignedIds.has(j.id))
-  const jugadaById = new Map(library.map((j) => [j.id, j]))
+  const jugadaById = new Map((libraryData?.data ?? []).map((j) => [j.id, j]))
 
   const handleAdd = (jugada: ABPJugada) => {
     onChange([...items, { jugada_id: jugada.id, comentario: '', orden: items.length }])
@@ -51,25 +77,102 @@ export function PlanPartidoABPSection({ lado, items, equipoId, onChange }: PlanP
     onChange(items.map((i) => (i.jugada_id === jugadaId ? { ...i, comentario } : i)))
   }
 
+  const refreshLibrary = async () => {
+    if (libraryKey) await mutate()
+    if (equipoId) await globalMutate(apiKey('/abp', { equipo_id: equipoId }))
+  }
+
+  const openCreate = () => {
+    setEditingJugada({
+      lado,
+      tipo: defaultTipo || tipos?.[0] || (lado === 'ofensivo' ? 'corner' : 'corner'),
+      nombre: '',
+    })
+    setEditorOpen(true)
+  }
+
+  const openEdit = (jugada: ABPJugada) => {
+    setEditingJugada(jugada)
+    setEditorOpen(true)
+  }
+
+  const handleSave = async (payload: Partial<ABPJugada>) => {
+    if (!equipoId) return
+    setSaving(true)
+    try {
+      if (editingJugada?.id) {
+        await abpApi.update(editingJugada.id, payload as Parameters<typeof abpApi.update>[1])
+        toast.success('Jugada actualizada')
+      } else {
+        const created = await abpApi.create({
+          ...payload,
+          equipo_id: equipoId,
+          lado: payload.lado || lado,
+          tipo: payload.tipo || defaultTipo || 'corner',
+          nombre: payload.nombre || 'Jugada',
+        } as Parameters<typeof abpApi.create>[0])
+        onChange([...items, { jugada_id: created.id, comentario: '', orden: items.length }])
+        toast.success('Jugada creada y enlazada al plan')
+      }
+      await refreshLibrary()
+      setEditorOpen(false)
+      setEditingJugada(null)
+    } catch (e) {
+      console.error('Error saving ABP from plan:', e)
+      toast.error('No se pudo guardar la jugada')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const colorClass = lado === 'ofensivo' ? 'text-blue-700' : 'text-red-700'
   const badgeClass = lado === 'ofensivo' ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800'
+  const heading = titulo ?? `Jugadas ABP ${lado === 'ofensivo' ? 'ofensivas' : 'defensivas'} del partido`
+
+  if (editorOpen) {
+    return (
+      <div className="fixed inset-0 z-[80] bg-white flex flex-col">
+        <ABPEditor
+          jugada={editingJugada || undefined}
+          onSave={handleSave}
+          onCancel={() => {
+            setEditorOpen(false)
+            setEditingJugada(null)
+          }}
+          saving={saving}
+          lockLado={lado}
+          lockTipo={defaultTipo}
+          jugadores={jugadores}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Flag className={`h-4 w-4 ${lado === 'ofensivo' ? 'text-blue-600' : 'text-red-600'}`} />
-          <span className={`text-xs font-semibold ${colorClass}`}>
-            Jugadas ABP {lado === 'ofensivo' ? 'ofensivas' : 'defensivas'} del partido
-          </span>
+          <span className={`text-xs font-semibold ${colorClass}`}>{heading}</span>
           <span className="text-[10px] text-muted-foreground">({items.length})</span>
         </div>
         <div className="flex items-center gap-1.5">
           <Button type="button" variant="ghost" size="sm" className="h-7 text-[10px] px-2" asChild>
             <Link href="/abp" target="_blank">
               <ExternalLink className="h-3 w-3 mr-1" />
-              Laboratorio ABP
+              Laboratorio
             </Link>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            disabled={!equipoId}
+            onClick={openCreate}
+          >
+            <Sparkles className="h-3 w-3 mr-1" />
+            Crear
           </Button>
           <Button
             type="button"
@@ -80,7 +183,7 @@ export function PlanPartidoABPSection({ lado, items, equipoId, onChange }: PlanP
             onClick={() => setShowPicker(true)}
           >
             <Plus className="h-3 w-3 mr-1" />
-            Añadir jugada
+            Enlazar
           </Button>
         </div>
       </div>
@@ -91,7 +194,7 @@ export function PlanPartidoABPSection({ lado, items, equipoId, onChange }: PlanP
 
       {items.length === 0 ? (
         <div className="text-center py-6 text-xs text-muted-foreground border border-dashed rounded-lg">
-          Selecciona jugadas del laboratorio de balón parado para este partido
+          {emptyHint ?? 'Selecciona o crea jugadas de balón parado para este partido'}
         </div>
       ) : (
         <div className="space-y-2">
@@ -119,6 +222,18 @@ export function PlanPartidoABPSection({ lado, items, equipoId, onChange }: PlanP
                       <p className="text-[10px] text-amber-700 mt-0.5">Señal: {jugada.senal_codigo}</p>
                     )}
                   </div>
+                  {jugada && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0 text-muted-foreground hover:text-blue-700"
+                      onClick={() => openEdit(jugada)}
+                      title="Editar jugada"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     variant="ghost"
@@ -152,9 +267,7 @@ export function PlanPartidoABPSection({ lado, items, equipoId, onChange }: PlanP
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-4 py-3 border-b flex items-center justify-between">
-              <h3 className="text-sm font-semibold">
-                Biblioteca ABP — {lado === 'ofensivo' ? 'Ofensivas' : 'Defensivas'}
-              </h3>
+              <h3 className="text-sm font-semibold">{heading}</h3>
               <button type="button" onClick={() => setShowPicker(false)} className="text-muted-foreground">
                 <X className="h-4 w-4" />
               </button>
@@ -169,7 +282,7 @@ export function PlanPartidoABPSection({ lado, items, equipoId, onChange }: PlanP
               ) : available.length === 0 ? (
                 <div className="text-center py-8 text-sm text-muted-foreground">
                   {library.length === 0
-                    ? 'No hay jugadas en el laboratorio. Créalas en Balón Parado.'
+                    ? 'No hay jugadas. Créalas aquí o en el laboratorio de balón parado.'
                     : 'Todas las jugadas de este tipo ya están en el plan'}
                 </div>
               ) : (

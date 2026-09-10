@@ -26,6 +26,7 @@ export interface ABPBoardEditorProps {
   onCancel: () => void
   saving?: boolean
   lockLado?: LadoABP
+  lockTipo?: TipoABP
   partidoId?: string
   jugadores?: Jugador[]
 }
@@ -36,6 +37,7 @@ export default function ABPBoardEditor({
   onCancel,
   saving,
   lockLado,
+  lockTipo,
   partidoId,
   jugadores = [],
 }: ABPBoardEditorProps) {
@@ -55,7 +57,7 @@ export default function ABPBoardEditor({
 
   const [nombre, setNombre] = useState(jugada?.nombre || '')
   const [codigo, setCodigo] = useState(jugada?.codigo || '')
-  const [tipo, setTipo] = useState<TipoABP>(jugada?.tipo || 'corner')
+  const [tipo, setTipo] = useState<TipoABP>(lockTipo || jugada?.tipo || 'corner')
   const [lado, setLado] = useState<LadoABP>(lockLado || jugada?.lado || 'ofensivo')
   const [subtipo, setSubtipo] = useState<SubtipoABP | ''>(jugada?.subtipo || '')
   const [descripcion, setDescripcion] = useState(jugada?.descripcion || '')
@@ -205,13 +207,19 @@ export default function ABPBoardEditor({
           Animada
         </span>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <select
-            value={tipo}
-            onChange={(e) => setTipo(e.target.value as TipoABP)}
-            className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white"
-          >
-            {ABP_TIPOS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-          </select>
+          {lockTipo ? (
+            <span className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-gray-50 text-gray-700">
+              {ABP_TIPOS.find((t) => t.value === tipo)?.label || tipo}
+            </span>
+          ) : (
+            <select
+              value={tipo}
+              onChange={(e) => setTipo(e.target.value as TipoABP)}
+              className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white"
+            >
+              {ABP_TIPOS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          )}
           {!lockLado && (
             <select
               value={lado}

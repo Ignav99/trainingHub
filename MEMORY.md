@@ -26,5 +26,5 @@ En Once Probable se puede escribir el 11 a mano (formación + nombres/dorsales e
 ## Sesión duplicada + ABP saque de centro
 Al crear una sesión, un doble POST generaba dos filas. El alta envía un UUID de cliente y el backend reutiliza la PK. ABP incluye `saque_centro`.
 
-## Sesión: contexto rival
-Al crear/editar sesión se quitó el campo libre Competición. El rival es un select de rivales del equipo.
+## Plan de partido PDF y pizarra
+El PDF del plan (Exportar PDF en Sala Lunes / partido / rival) ya no lleva “TrainingHub Pro” ni “Generado”. Cabecera con escudo, club, rival, fecha, hora, campo y localía. Los campogramas respetan el aspect ratio del campo (portería abajo). Desde el plan se pueden enlazar y editar jugadas ABP, y en ataque organizado se linkean saques de puerta. La pizarra del plan tiene los mismos movimientos, zonas y comentarios que la herramienta táctica.
