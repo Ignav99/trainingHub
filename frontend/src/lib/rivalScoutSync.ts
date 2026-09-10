@@ -1,8 +1,11 @@
 import type { RivalJugadorEvaluacion, RivalScoutData, RivalScoutStrategy } from '@/types'
 
 /**
- * Partes del informe rival que viven en rivales.scout_manual (perfil persistente del rival).
- * Se sincronizan entre la ficha del rival y cualquier microciclo que enfrente a ese rival.
+ * Perfil persistente del rival (`rivales.scout_manual`).
+ *
+ * Incluye el olfato del entrenador: Comentarios Rival (`estrategia.notas`),
+ * dimensiones y actitud. No es intel de actas. Se guarda al autosave de
+ * Informe Rival y Sala del Lunes; al reabrir la ficha tiene que seguir ahí.
  */
 export function extractPersistentScout(scout: Partial<RivalScoutData>): Partial<RivalScoutData> {
   const estrategia = scout.estrategia
@@ -32,17 +35,26 @@ export function extractPersistentScout(scout: Partial<RivalScoutData>): Partial<
       ? {
           sistema: estrategia.sistema,
           once_probable: onceOverlay,
+          notas: estrategia.notas,
+          dimensiones_campo: estrategia.dimensiones_campo,
+          actitud_estilo: estrategia.actitud_estilo,
         }
       : undefined,
   }
 }
 
-/** Contexto de la semana de partido — solo en plan_ct del microciclo. */
+/** Contexto local del microciclo (`plan_ct`). Solo como respaldo si el perfil aún no tiene olfato. */
 export function extractWeeklyContext(scout: Partial<RivalScoutData>): Partial<RivalScoutStrategy> {
   return {
     notas: scout.estrategia?.notas,
     dimensiones_campo: scout.estrategia?.dimensiones_campo,
+    actitud_estilo: scout.estrategia?.actitud_estilo,
   }
+}
+
+function pickText(saved: string | undefined, weekly: string | undefined): string {
+  if (typeof saved === 'string') return saved
+  return weekly || ''
 }
 
 /** Combina perfil persistente del rival con contexto semanal del microciclo. */
@@ -57,10 +69,13 @@ export function mergeScoutOnLoad(
   return {
     fases: saved.fases?.length ? saved.fases : local.fases ?? [],
     estrategia: {
+      ...saved.estrategia,
       sistema: local.estrategia?.sistema ?? saved.estrategia?.sistema,
-      notas: weekly.notas ?? '',
-      dimensiones_campo: weekly.dimensiones_campo ?? '',
       once_probable: local.estrategia?.once_probable ?? saved.estrategia?.once_probable,
+      // Comentarios Rival: el perfil gana. El plan semanal vacío no puede borrarlos.
+      notas: pickText(saved.estrategia?.notas, weekly.notas),
+      dimensiones_campo: pickText(saved.estrategia?.dimensiones_campo, weekly.dimensiones_campo),
+      actitud_estilo: pickText(saved.estrategia?.actitud_estilo, weekly.actitud_estilo),
     },
   }
 }
