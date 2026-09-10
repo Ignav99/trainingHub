@@ -8,6 +8,7 @@ Dos herramientas: **Video Análisis** (partido entero local, nunca a la nube) y 
 - Cron diario: aviso al staff 7 días antes (una vez por carpeta) y **borrado de toda la carpeta** en R2 + DB. No hay OAuth a Drive: si hay URL de carpeta, el usuario descarga un zip y la abre; si no, solo zip. También «Borrar todo».
 - Sala de recorte: **Presentar** en Revisión abre QR (`SalaHostDialog` → `/revision/{code}` con `current_clip_id`). Pizarra, play, rebobinar, acercar. No tocar ese flujo.
 - Sala de presentación: **Presentar** en Informe Rival / Plan de Partido abre QR de charla (sesión sin `clip_id`). La tablet entra en `PresentacionSala`: mismas diapositivas, dibujo y control de vídeo. Clips de revisión intercalados por fase / once. `sala_sync` reenvía `slide` y `show`.
+- Tablet: al ocultar carpetas el vídeo crece con `object-contain` (`presenterEmbed`) y no se recorta. Barras de dibujo/zoom (`SalaFloatingChrome`) flotan `z-50` sobre el pellizco.
 
 ## Partidos: lista plegable + presentación
 La columna de próximos/jugados se puede ocultar para ganar tablero. **Presentar** (informe rival y plan de partido) abre sala QR a pantalla completa: portada (escudo rival junto al nombre), contexto/once (informe), cada fase y los clips de esa fase (inline + revisión). Escudo del club en todas las diapositivas. Si no hay diagrama dibujado, la fase no muestra césped vacío. PPT sigue como descarga (Exportar → Descargar PPT). PDF para enviar.

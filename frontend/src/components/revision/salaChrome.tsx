@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import {
   Eraser,
   Hand,
@@ -15,6 +16,20 @@ import {
 import { Button } from '@/components/ui/button'
 import { DRAWING_COLORS, STROKE_WIDTHS, type DrawingTool } from '@/components/video-analyzer/types'
 import { REPEAT_SECONDS } from '@/lib/videoZoom'
+
+/** Barras de dibujo/zoom encima del vídeo: no se las come el pellizco. */
+export function SalaFloatingChrome({ children }: { children: ReactNode }) {
+  return (
+    <div
+      data-testid="sala-floating-chrome"
+      className="pointer-events-none absolute inset-x-0 top-0 z-50"
+    >
+      <div className="pointer-events-auto bg-zinc-950/95 shadow-[0_10px_28px_rgba(0,0,0,0.55)] backdrop-blur-sm">
+        {children}
+      </div>
+    </div>
+  )
+}
 
 export const SALA_DRAW_TOOLS: { tool: DrawingTool; label: string }[] = [
   { tool: 'arrow', label: 'Flecha' },

@@ -31,7 +31,7 @@ import type { DrawingElement } from '@/types'
 import { Button } from '@/components/ui/button'
 import { SalaClipTree } from './SalaClipTree'
 import { SalaZoomCatcher } from './SalaZoomCatcher'
-import { SalaReviewBar, WhiteboardBar } from './salaChrome'
+import { SalaFloatingChrome, SalaReviewBar, WhiteboardBar } from './salaChrome'
 import {
   IDENTITY_ZOOM,
   JOG_SECONDS,
@@ -384,49 +384,16 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
         </div>
       )}
 
-      <WhiteboardBar
-        tool={tool}
-        setTool={(t) => { setZoomMode(false); setTool(t) }}
-        color={color}
-        setColor={setColor}
-        strokeWidth={strokeWidth}
-        setStrokeWidth={setStrokeWidth}
-        fillOpacity={fillOpacity}
-        setFillOpacity={setFillOpacity}
-        selectedForMove={tool === 'select' && !zoomMode}
-        onMoveTool={() => { setZoomMode(false); setTool('select') }}
-        canUndo={canUndo}
-        onUndo={undo}
-        onClearAll={clearAll}
-        playing={playing}
-        onPlay={togglePlay}
-      />
-
-      <SalaReviewBar
-        zoomMode={zoomMode}
-        zoomed={!isIdentityZoom(zoom)}
-        onEnterZoom={enterZoomMode}
-        onExitZoom={() => setZoomMode(false)}
-        onZoomIn={() => bumpZoom(1.25)}
-        onZoomOut={() => bumpZoom(1 / 1.25)}
-        onRestore={restoreZoom}
-        onFrameBack={() => stepFrame(-1)}
-        onFrameFwd={() => stepFrame(1)}
-        onJogBack={() => jogBy(-0.5)}
-        onRepeat={repeatAction}
-        onRewindDown={startHoldRewind}
-        onRewindUp={stopHoldRewind}
-      />
-
       <div className="flex-1 min-h-0 flex">
-        <div className="flex-1 relative bg-black flex items-center justify-center min-w-0">
-          <div className="relative w-full h-full flex flex-col">
+        <div className="relative flex-1 min-h-0 min-w-0 overflow-hidden bg-black">
+          <div className="relative h-full w-full min-h-0 overflow-hidden isolate">
             {playSrc ? (
               <VideoPlayer
                 key={playSrc}
                 ref={playerRef}
                 src={playSrc}
                 standalonePreview={isHost}
+                presenterEmbed
                 defaultMuted={!isHost}
                 contentTransform={zoomCss(zoom)}
                 onPlayStateChange={handlePlayState}
@@ -434,7 +401,7 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
                 onError={() => setMediaError(true)}
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-zinc-500 text-sm">
+              <div className="flex h-full w-full items-center justify-center text-zinc-500 text-sm">
                 Elige un recorte en la barra de la derecha
               </div>
             )}
@@ -461,8 +428,42 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
                 )}
               </div>
             )}
+            <SalaFloatingChrome>
+              <WhiteboardBar
+                tool={tool}
+                setTool={(t) => { setZoomMode(false); setTool(t) }}
+                color={color}
+                setColor={setColor}
+                strokeWidth={strokeWidth}
+                setStrokeWidth={setStrokeWidth}
+                fillOpacity={fillOpacity}
+                setFillOpacity={setFillOpacity}
+                selectedForMove={tool === 'select' && !zoomMode}
+                onMoveTool={() => { setZoomMode(false); setTool('select') }}
+                canUndo={canUndo}
+                onUndo={undo}
+                onClearAll={clearAll}
+                playing={playing}
+                onPlay={togglePlay}
+              />
+              <SalaReviewBar
+                zoomMode={zoomMode}
+                zoomed={!isIdentityZoom(zoom)}
+                onEnterZoom={enterZoomMode}
+                onExitZoom={() => setZoomMode(false)}
+                onZoomIn={() => bumpZoom(1.25)}
+                onZoomOut={() => bumpZoom(1 / 1.25)}
+                onRestore={restoreZoom}
+                onFrameBack={() => stepFrame(-1)}
+                onFrameFwd={() => stepFrame(1)}
+                onJogBack={() => jogBy(-0.5)}
+                onRepeat={repeatAction}
+                onRewindDown={startHoldRewind}
+                onRewindUp={stopHoldRewind}
+              />
+            </SalaFloatingChrome>
             {mediaError && (
-              <div className="absolute inset-x-4 top-4 rounded-md bg-black/80 text-amber-200 text-xs p-3">
+              <div className="absolute inset-x-4 top-24 z-[60] rounded-md bg-black/80 text-amber-200 text-xs p-3">
                 Este recorte no se pudo reproducir en este navegador. Prueba Safari en el iPad o sube el clip en MP4/WebM (H.264).
               </div>
             )}
