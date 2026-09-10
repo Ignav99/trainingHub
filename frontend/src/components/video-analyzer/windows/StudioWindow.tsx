@@ -1,6 +1,6 @@
 'use client'
 import { useRef, useState } from 'react'
-import { VideoPlayer, type VideoPlayerHandle } from '../VideoPlayer'
+import { VideoPlayer, VIDEO_PLAYER_CHROME_CLASS, type VideoPlayerHandle } from '../VideoPlayer'
 import { DrawingOverlay } from '../DrawingOverlay'
 import { DrawingToolbar } from '../DrawingToolbar'
 import { useDrawingEngine } from '../useDrawingEngine'
@@ -29,7 +29,6 @@ export function StudioWindow({ videoSrc, eventId }: StudioWindowProps) {
   const [color, setColor] = useState('#ef4444')
   const [strokeWidth, setStrokeWidth] = useState(4)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [currentTime, setCurrentTime] = useState(event?.startTime ?? 0)
   const [isPlaying, setIsPlaying] = useState(false)
 
   const { elements, setElements: pushElements, undo, redo, canUndo, canRedo } = useUndoRedo()
@@ -98,53 +97,20 @@ export function StudioWindow({ videoSrc, eventId }: StudioWindowProps) {
           ref={playerRef}
           src={videoSrc}
           clipRange={clipRange}
-          onTimeUpdate={setCurrentTime}
           onPlayStateChange={setIsPlaying}
         />
-        <DrawingOverlay
-          elements={elements}
-          preview={preview}
-          selectedId={selectedId}
-          interactive={!isPlaying}
-          tool={tool}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-        />
-      </div>
-
-      {/* Mini scrub bar */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-zinc-900 border-t border-zinc-800 shrink-0">
-        <button
-          className="text-white text-xs w-6 h-6 flex items-center justify-center bg-zinc-700 rounded hover:bg-zinc-600"
-          onClick={() => isPlaying ? playerRef.current?.pause() : playerRef.current?.play()}
-        >
-          {isPlaying ? '⏸' : '▶'}
-        </button>
-        <span className="text-[10px] text-zinc-500 font-mono w-10">
-          {formatTime(currentTime)}
-        </span>
-        <div
-          className="flex-1 relative h-3 bg-zinc-800 rounded cursor-pointer"
-          onClick={(e) => {
-            const rect = e.currentTarget.getBoundingClientRect()
-            const ratio = (e.clientX - rect.left) / rect.width
-            const time = event.startTime + ratio * (event.endTime - event.startTime)
-            playerRef.current?.seekTo(Math.max(event.startTime, Math.min(event.endTime, time)))
-          }}
-        >
-          <div
-            className="absolute top-0 left-0 h-full rounded"
-            style={{
-              width: `${Math.max(0, Math.min(100, ((currentTime - event.startTime) / (event.endTime - event.startTime)) * 100))}%`,
-              backgroundColor: button?.color ?? '#3b82f6',
-              opacity: 0.6,
-            }}
+        <div className={`absolute left-0 right-0 top-0 ${VIDEO_PLAYER_CHROME_CLASS}`}>
+          <DrawingOverlay
+            elements={elements}
+            preview={preview}
+            selectedId={selectedId}
+            interactive={!isPlaying}
+            tool={tool}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
           />
         </div>
-        <span className="text-[10px] text-zinc-500 font-mono w-10 text-right">
-          {formatTime(event.endTime)}
-        </span>
       </div>
     </div>
   )

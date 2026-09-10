@@ -7,6 +7,7 @@ Dos herramientas: **Video Análisis** (partido entero local, nunca a la nube) y 
 - Retención: **30 días después del partido** (`partido.fecha + 30`). Sin partido (rival/plan): 30 días desde el alta. Partido aún no jugado: no se borra.
 - Cron diario: aviso al staff 7 días antes (una vez por carpeta) y **borrado de toda la carpeta** en R2 + DB. No hay OAuth a Drive: si hay URL de carpeta, el usuario descarga un zip y la abre; si no, solo zip. También «Borrar todo».
 - Sala: columna de carpetas plegable (vídeo más grande). Pizarra con **Mover**. Tablet: modo **Acercar** (pellizco, no pinta) + Original; **Repetir 2s**, fotograma a fotograma y rebobinar manteniendo pulsado.
+- Reproductor único (`VideoPlayer`): barra de seek bajo el vídeo + rebobinado al mantener pulsado. Informe rival, plan, revisión, sala, análisis, organizer y vídeos subidos de partido lo comparten.
 
 ## Partidos: lista plegable + presentación
 La columna de próximos/jugados se puede ocultar para ganar tablero. El botón Exportar de informe rival y plan de partido ofrece PDF (enviar) o Presentación (.pptx, abre en PowerPoint y Google Slides). La IA sintetiza el dossier en pocas diapos (claves, pocas palabras). Si la IA falla, hay un guion determinista. Informe de partido no se tocó.

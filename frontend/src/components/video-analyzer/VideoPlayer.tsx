@@ -17,8 +17,15 @@ import {
   Shrink,
   Maximize,
   Minimize,
+  Rewind,
 } from 'lucide-react'
 import { formatTime } from './utils'
+import { JOG_SECONDS } from '@/lib/videoZoom'
+
+const HOLD_REWIND_INTERVAL_MS = 70
+
+/** Alto de la barra de controles (seek + botones). La sala deja este hueco para pintar encima del vídeo. */
+export const VIDEO_PLAYER_CHROME_CLASS = 'bottom-16'
 
 export interface VideoPlayerHandle {
   getVideoElement: () => HTMLVideoElement | null
@@ -67,6 +74,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const [isFullscreen, setIsFullscreen] = useState(false)
     const [isExpanded, setIsExpanded] = useState(false)
     const currentTimeRef = useRef(0)
+    const seekBarRef = useRef<HTMLDivElement>(null)
+    const rewindIntervalRef = useRef<number | null>(null)
 
     // HLS.js support for .m3u8 streams
     const hlsRef = useRef<Hls | null>(null)
@@ -107,13 +116,59 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       }
     }, [clipRange])
 
+    const rangeBounds = useCallback(() => {
+      const v = videoRef.current
+      const min = clipRange?.start ?? 0
+      const rawMax = clipRange?.end ?? v?.duration ?? duration
+      const max = Number.isFinite(rawMax) ? rawMax : min
+      return { min, max }
+    }, [clipRange, duration])
+
+    const seekToTime = useCallback((time: number) => {
+      const v = videoRef.current
+      if (!v) return
+      const { min, max } = rangeBounds()
+      const next = Math.max(min, Math.min(max, time))
+      currentTimeRef.current = next
+      setCurrentTime(next)
+      v.currentTime = next
+    }, [rangeBounds])
+
     const seek = useCallback((delta: number) => {
       const v = videoRef.current
       if (!v) return
-      const min = clipRange?.start ?? 0
-      const max = clipRange?.end ?? v.duration
-      v.currentTime = Math.max(min, Math.min(max, v.currentTime + delta))
-    }, [clipRange])
+      seekToTime(v.currentTime + delta)
+    }, [seekToTime])
+
+    const stopHoldRewind = useCallback(() => {
+      if (rewindIntervalRef.current != null) {
+        window.clearInterval(rewindIntervalRef.current)
+        rewindIntervalRef.current = null
+      }
+    }, [])
+
+    const startHoldRewind = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+      e.preventDefault()
+      try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* ignore */ }
+      const v = videoRef.current
+      if (v && !v.paused) v.pause()
+      stopHoldRewind()
+      const tick = () => seek(-JOG_SECONDS)
+      tick()
+      rewindIntervalRef.current = window.setInterval(tick, HOLD_REWIND_INTERVAL_MS)
+    }, [seek, stopHoldRewind])
+
+    useEffect(() => () => stopHoldRewind(), [stopHoldRewind])
+
+    const seekFromClientX = useCallback((clientX: number) => {
+      const el = seekBarRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      if (rect.width <= 0) return
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+      const { min, max } = rangeBounds()
+      seekToTime(min + ratio * Math.max(0, max - min))
+    }, [rangeBounds, seekToTime])
 
     // Frame-accurate stepping using requestVideoFrameCallback: nudges currentTime
     // in small increments and watches the *actual presented frame* (metadata.mediaTime)
@@ -169,19 +224,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       getVideoElement: () => videoRef.current,
       getCurrentTime: () => videoRef.current?.currentTime || 0,
       seekTo: (time: number) => {
-        const v = videoRef.current
-        if (v) {
-          if (clipRange) {
-            time = Math.max(clipRange.start, Math.min(clipRange.end, time))
-          }
-          if (v.seeking) return
-          const videoEl = v as HTMLVideoElement & { fastSeek?: (time: number) => void }
-          if (videoEl.fastSeek) {
-            videoEl.fastSeek(time)
-          } else {
-            videoEl.currentTime = time
-          }
-        }
+        seekToTime(time)
       },
       seekBy: (delta: number) => {
         seek(delta)
@@ -189,7 +232,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       frameStep,
       pause: () => videoRef.current?.pause(),
       play: () => { void videoRef.current?.play()?.catch(() => undefined) },
-    }), [clipRange, frameStep, seek])
+    }), [frameStep, seek, seekToTime])
 
     const cycleSpeed = useCallback(() => {
       const speeds = [0.25, 0.5, 1, 1.5, 2]
@@ -367,6 +410,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     // Time display: show relative time in clip mode
     const displayTime = clipRange ? currentTime - clipRange.start : currentTime
     const displayDuration = clipRange ? clipRange.end - clipRange.start : duration
+    const seekProgress = displayDuration > 0
+      ? Math.max(0, Math.min(1, displayTime / displayDuration))
+      : 0
 
     const isPortalExpanded = standalonePreview && isExpanded
 
@@ -396,8 +442,61 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           onClick={togglePlay}
         />
 
-        {/* Compact controls: [Play] [-5] [<f] [f>] [+5] | time | [mute] [speed] */}
-        <div className="flex items-center gap-1 px-2 py-1 bg-black/80 text-white text-xs relative z-10">
+        {/* Controls: seek bar + [Play] [Rewind] [-5] [<f] [f>] [+5] | time | mute | speed */}
+        <div className="bg-black/80 text-white text-xs relative z-10 shrink-0">
+          <div
+            ref={seekBarRef}
+            role="slider"
+            data-testid="video-seek-bar"
+            aria-label="Posición del vídeo"
+            aria-valuemin={0}
+            aria-valuemax={Math.max(0, Math.round(displayDuration))}
+            aria-valuenow={Math.round(Math.max(0, displayTime))}
+            aria-valuetext={`${formatTime(Math.max(0, displayTime))} de ${formatTime(displayDuration)}`}
+            tabIndex={0}
+            className="group relative mx-2 h-5 cursor-pointer touch-none outline-none"
+            onPointerDown={(e) => {
+              e.preventDefault()
+              try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* ignore */ }
+              seekFromClientX(e.clientX)
+            }}
+            onPointerMove={(e) => {
+              if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
+              seekFromClientX(e.clientX)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowLeft') {
+                e.preventDefault()
+                e.stopPropagation()
+                seek(e.shiftKey ? -5 : -1)
+              } else if (e.key === 'ArrowRight') {
+                e.preventDefault()
+                e.stopPropagation()
+                seek(e.shiftKey ? 5 : 1)
+              } else if (e.key === 'Home') {
+                e.preventDefault()
+                e.stopPropagation()
+                seekToTime(rangeBounds().min)
+              } else if (e.key === 'End') {
+                e.preventDefault()
+                e.stopPropagation()
+                seekToTime(rangeBounds().max)
+              }
+            }}
+          >
+            <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-white/20">
+              <div
+                className="h-full rounded-full bg-orange-500"
+                style={{ width: `${seekProgress * 100}%` }}
+              />
+              <div
+                className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow group-hover:h-3.5 group-hover:w-3.5"
+                style={{ left: `${seekProgress * 100}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1 px-2 pb-1">
           <Button
             variant="ghost"
             size="icon"
@@ -405,6 +504,19 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             onClick={togglePlay}
           >
             {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20 touch-none"
+            title="Mantén pulsado para rebobinar"
+            onPointerDown={startHoldRewind}
+            onPointerUp={stopHoldRewind}
+            onPointerCancel={stopHoldRewind}
+            onLostPointerCapture={stopHoldRewind}
+          >
+            <Rewind className="h-3.5 w-3.5" />
           </Button>
 
           <Button
@@ -450,7 +562,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           <div className="w-px h-4 bg-white/20 mx-0.5" />
 
           <span className="tabular-nums text-white/80">
-            {formatTime(Math.max(0, displayTime))} / {formatTime(displayDuration)}
+            {formatTime(Math.max(0, Number.isFinite(displayTime) ? displayTime : 0))} / {formatTime(Number.isFinite(displayDuration) ? displayDuration : 0)}
           </span>
 
           <div className="flex-1" />
@@ -494,6 +606,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
               </Button>
             </>
           )}
+          </div>
         </div>
       </div>
     )
