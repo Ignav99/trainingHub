@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import {
+  ChevronLeft,
+  ChevronRight,
   Eraser,
+  Hand,
   Loader2,
   Maximize,
   Minimize,
@@ -64,6 +67,7 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
   const [mediaError, setMediaError] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [playing, setPlaying] = useState(false)
+  const [foldersOpen, setFoldersOpen] = useState(false)
   const skipOverlaySend = useRef(true)
 
   const rootRef = useRef<HTMLDivElement>(null)
@@ -306,6 +310,8 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
         setStrokeWidth={setStrokeWidth}
         fillOpacity={fillOpacity}
         setFillOpacity={setFillOpacity}
+        selectedForMove={tool === 'select'}
+        onMoveTool={() => setTool('select')}
         canUndo={canUndo}
         onUndo={undo}
         onClearAll={clearAll}
@@ -354,12 +360,28 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
           </div>
         </div>
 
-        <aside className="w-60 shrink-0 border-l border-white/10 bg-zinc-950 overflow-y-auto p-2">
-          <p className="text-[11px] text-zinc-500 px-1 mb-2">Carpetas y recortes</p>
-          {session.pack ? (
-            <SalaClipTree pack={session.pack} currentClipId={currentClip?.id} onPick={pickClip} />
+        <aside className={`${foldersOpen ? 'w-60' : 'w-9'} shrink-0 border-l border-white/10 bg-zinc-950 flex flex-col transition-[width] duration-200`}>
+          <button
+            type="button"
+            className="h-8 w-full flex items-center justify-center text-zinc-300 hover:bg-white/10"
+            onClick={() => setFoldersOpen((open) => !open)}
+            title={foldersOpen ? 'Ocultar carpetas' : 'Mostrar carpetas'}
+          >
+            {foldersOpen ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </button>
+          {foldersOpen ? (
+            <div className="flex-1 min-h-0 overflow-y-auto p-2">
+              <p className="text-[11px] text-zinc-500 px-1 mb-2">Carpetas y recortes</p>
+              {session.pack ? (
+                <SalaClipTree pack={session.pack} currentClipId={currentClip?.id} onPick={pickClip} />
+              ) : (
+                <p className="text-xs text-zinc-500">Sin librería</p>
+              )}
+            </div>
           ) : (
-            <p className="text-xs text-zinc-500">Sin librería</p>
+            <p className="flex-1 [writing-mode:vertical-rl] text-[10px] text-zinc-500 tracking-widest px-2 py-3 rotate-180">
+              Carpetas
+            </p>
           )}
         </aside>
       </div>
@@ -394,6 +416,8 @@ function WhiteboardBar({
   setStrokeWidth,
   fillOpacity,
   setFillOpacity,
+  selectedForMove,
+  onMoveTool,
   canUndo,
   onUndo,
   onClearAll,
@@ -408,6 +432,8 @@ function WhiteboardBar({
   setStrokeWidth: (w: number) => void
   fillOpacity: number
   setFillOpacity: (n: number) => void
+  selectedForMove: boolean
+  onMoveTool: () => void
   canUndo: boolean
   onUndo: () => void
   onClearAll: () => void
@@ -464,6 +490,15 @@ function WhiteboardBar({
           className="w-20"
         />
       </label>
+      <button
+        type="button"
+        className={`px-2 py-1 rounded inline-flex items-center gap-1 ${selectedForMove ? 'bg-orange-500 text-black' : 'bg-white/10'}`}
+        onClick={onMoveTool}
+        title="Mover la forma seleccionada"
+      >
+        <Hand className="h-3.5 w-3.5" />
+        Mover
+      </button>
       <button className="px-2 py-1 rounded bg-white/10" onClick={onUndo} disabled={!canUndo}>Deshacer</button>
       <button className="px-2 py-1 rounded bg-white/10" onClick={onClearAll}>Borrar todo</button>
     </div>
