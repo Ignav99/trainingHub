@@ -267,7 +267,7 @@ export function PlanPartido({
                           />
                           <div className="space-y-1">
                             <Label className="text-xs text-muted-foreground">
-                              Pizarra táctica — coloca jugadores y asigna nombre + rol
+                              Pizarra táctica — coloca jugadores · doble clic para nombre y rol
                             </Label>
                             <TacticalBoard
                               boardKey={`plan-${section.fase}-${s.key}`}

@@ -456,7 +456,7 @@ function PhaseEditor({
                   />
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">
-                      Pizarra táctica — coloca jugadores rivales y asigna nombre + rol
+                      Pizarra táctica — coloca jugadores rivales · doble clic para nombre y rol
                     </Label>
                     <TacticalBoard
                       boardKey={`scout-${fase}-${s.key}`}
