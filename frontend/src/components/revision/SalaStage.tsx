@@ -12,9 +12,14 @@ import {
   Minimize,
   Pause,
   Play,
+  Repeat,
+  Rewind,
   Square,
+  Undo2,
   VolumeX,
   X,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useEquipoStore } from '@/stores/equipoStore'
@@ -33,6 +38,17 @@ import { DRAWING_COLORS, STROKE_WIDTHS, type DrawingTool } from '@/components/vi
 import type { DrawingElement } from '@/types'
 import { Button } from '@/components/ui/button'
 import { SalaClipTree } from './SalaClipTree'
+import { SalaZoomCatcher } from './SalaZoomCatcher'
+import {
+  IDENTITY_ZOOM,
+  JOG_SECONDS,
+  REPEAT_SECONDS,
+  clampZoom,
+  isIdentityZoom,
+  zoomAt,
+  zoomCss,
+  type ZoomState,
+} from '@/lib/videoZoom'
 
 const TOOLS: { tool: DrawingTool; label: string }[] = [
   { tool: 'arrow', label: 'Flecha' },
@@ -68,7 +84,11 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [playing, setPlaying] = useState(false)
   const [foldersOpen, setFoldersOpen] = useState(false)
+  const [zoomMode, setZoomMode] = useState(false)
+  const [zoom, setZoom] = useState<ZoomState>(IDENTITY_ZOOM)
   const skipOverlaySend = useRef(true)
+  const zoomRef = useRef(zoom)
+  zoomRef.current = zoom
 
   const rootRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<VideoPlayerHandle>(null)
@@ -156,6 +176,13 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
         if (Array.isArray(msg.overlay)) {
           reset(msg.overlay)
         }
+        if (msg.zoom && typeof msg.zoom.scale === 'number') {
+          setZoom({
+            scale: clampZoom(msg.zoom.scale),
+            x: Number(msg.zoom.x) || 0,
+            y: Number(msg.zoom.y) || 0,
+          })
+        }
         if (msg.clip_id) {
           const cur = sessionRef.current
           if (cur && cur.current_clip_id !== msg.clip_id) {
@@ -220,6 +247,76 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
     sendSync({ t, clip_id: currentClip?.id })
   }, [sendSync, currentClip?.id])
 
+  const sendZoom = useCallback((next: ZoomState) => {
+    sendSync({ zoom: next, clip_id: currentClip?.id })
+  }, [sendSync, currentClip?.id])
+
+  const applyZoom = useCallback((next: ZoomState, broadcast = false) => {
+    setZoom(next)
+    if (broadcast) sendZoom(next)
+  }, [sendZoom])
+
+  const restoreZoom = useCallback(() => {
+    setZoom(IDENTITY_ZOOM)
+    sendZoom(IDENTITY_ZOOM)
+  }, [sendZoom])
+
+  const bumpZoom = useCallback((factor: number) => {
+    const next = zoomAt(zoomRef.current, zoomRef.current.scale * factor, 0, 0, 800, 450)
+    setZoom(next)
+    sendZoom(next)
+    setZoomMode(true)
+  }, [sendZoom])
+
+  const enterZoomMode = () => {
+    setZoomMode(true)
+    setSelectedId(null)
+  }
+
+  const stepFrame = (direction: 1 | -1) => {
+    const v = playerRef.current?.getVideoElement()
+    if (!v) return
+    if (!v.paused) v.pause()
+    playerRef.current?.frameStep(direction)
+  }
+
+  const jogBy = (delta: number) => {
+    const v = playerRef.current?.getVideoElement()
+    if (!v) return
+    if (!v.paused) v.pause()
+    playerRef.current?.seekBy(delta)
+  }
+
+  const repeatAction = () => {
+    const v = playerRef.current?.getVideoElement()
+    if (!v) return
+    const t = Math.max(0, v.currentTime - REPEAT_SECONDS)
+    v.currentTime = t
+    v.play()?.catch(() => toast.error('Pulsa play en este dispositivo para desbloquear el audio'))
+    sendSync({ t, paused: false, clip_id: currentClip?.id })
+  }
+
+  const rewindHoldRef = useRef<number | null>(null)
+  const startHoldRewind = () => {
+    const v = playerRef.current?.getVideoElement()
+    if (!v) return
+    if (!v.paused) v.pause()
+    const tick = () => playerRef.current?.seekBy(-JOG_SECONDS)
+    tick()
+    if (rewindHoldRef.current) window.clearInterval(rewindHoldRef.current)
+    rewindHoldRef.current = window.setInterval(tick, 70)
+  }
+  const stopHoldRewind = () => {
+    if (rewindHoldRef.current) {
+      window.clearInterval(rewindHoldRef.current)
+      rewindHoldRef.current = null
+    }
+  }
+
+  useEffect(() => () => {
+    if (rewindHoldRef.current) window.clearInterval(rewindHoldRef.current)
+  }, [])
+
   const togglePlay = () => {
     const v = playerRef.current?.getVideoElement()
     if (!v) return
@@ -230,13 +327,15 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
   const pickClip = async (clip: RevisionClip) => {
     reset([])
     setMediaError(false)
+    setZoom(IDENTITY_ZOOM)
+    setZoomMode(false)
     setSession((s) => (s ? { ...s, current_clip_id: clip.id, current_clip: clip } : s))
     try {
       await revisionApi.updateSession(code, { current_clip_id: clip.id, overlay_json: [], current_time_ms: 0, paused: true })
     } catch {
       // still sync over WS
     }
-    sendSync({ clip_id: clip.id, t: 0, paused: true, overlay: [] })
+    sendSync({ clip_id: clip.id, t: 0, paused: true, overlay: [], zoom: IDENTITY_ZOOM })
   }
 
   useEffect(() => {
@@ -303,20 +402,36 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
 
       <WhiteboardBar
         tool={tool}
-        setTool={setTool}
+        setTool={(t) => { setZoomMode(false); setTool(t) }}
         color={color}
         setColor={setColor}
         strokeWidth={strokeWidth}
         setStrokeWidth={setStrokeWidth}
         fillOpacity={fillOpacity}
         setFillOpacity={setFillOpacity}
-        selectedForMove={tool === 'select'}
-        onMoveTool={() => setTool('select')}
+        selectedForMove={tool === 'select' && !zoomMode}
+        onMoveTool={() => { setZoomMode(false); setTool('select') }}
         canUndo={canUndo}
         onUndo={undo}
         onClearAll={clearAll}
         playing={playing}
         onPlay={togglePlay}
+      />
+
+      <SalaReviewBar
+        zoomMode={zoomMode}
+        zoomed={!isIdentityZoom(zoom)}
+        onEnterZoom={enterZoomMode}
+        onExitZoom={() => setZoomMode(false)}
+        onZoomIn={() => bumpZoom(1.25)}
+        onZoomOut={() => bumpZoom(1 / 1.25)}
+        onRestore={restoreZoom}
+        onFrameBack={() => stepFrame(-1)}
+        onFrameFwd={() => stepFrame(1)}
+        onJogBack={() => jogBy(-0.5)}
+        onRepeat={repeatAction}
+        onRewindDown={startHoldRewind}
+        onRewindUp={stopHoldRewind}
       />
 
       <div className="flex-1 min-h-0 flex">
@@ -329,6 +444,7 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
                 src={playSrc}
                 standalonePreview={isHost}
                 defaultMuted={!isHost}
+                contentTransform={zoomCss(zoom)}
                 onPlayStateChange={handlePlayState}
                 onSeeked={handleSeeked}
                 onError={() => setMediaError(true)}
@@ -339,17 +455,26 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
               </div>
             )}
             {playSrc && (
-              <div className="absolute left-0 right-0 top-0 bottom-9">
-                <DrawingOverlay
-                  elements={elements}
-                  preview={preview}
-                  selectedId={selectedId}
-                  interactive
-                  tool={tool}
-                  onPointerDown={handlePointerDown}
-                  onPointerMove={handlePointerMove}
-                  onPointerUp={handlePointerUp}
-                />
+              <div className="absolute left-0 right-0 top-0 bottom-9 overflow-hidden">
+                <div className="absolute inset-0" style={zoomCss(zoom)}>
+                  <DrawingOverlay
+                    elements={elements}
+                    preview={preview}
+                    selectedId={selectedId}
+                    interactive={!zoomMode}
+                    tool={tool}
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                  />
+                </div>
+                {zoomMode && (
+                  <SalaZoomCatcher
+                    zoom={zoom}
+                    onChange={(next) => applyZoom(next)}
+                    onCommit={() => sendZoom(zoomRef.current)}
+                  />
+                )}
               </div>
             )}
             {mediaError && (
@@ -403,6 +528,130 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function SalaReviewBar({
+  zoomMode,
+  zoomed,
+  onEnterZoom,
+  onExitZoom,
+  onZoomIn,
+  onZoomOut,
+  onRestore,
+  onFrameBack,
+  onFrameFwd,
+  onJogBack,
+  onRepeat,
+  onRewindDown,
+  onRewindUp,
+}: {
+  zoomMode: boolean
+  zoomed: boolean
+  onEnterZoom: () => void
+  onExitZoom: () => void
+  onZoomIn: () => void
+  onZoomOut: () => void
+  onRestore: () => void
+  onFrameBack: () => void
+  onFrameFwd: () => void
+  onJogBack: () => void
+  onRepeat: () => void
+  onRewindDown: () => void
+  onRewindUp: () => void
+}) {
+  return (
+    <div className="flex items-center gap-1.5 px-2 py-1.5 bg-zinc-950 border-b border-white/10 text-xs flex-wrap">
+      <button
+        type="button"
+        className="h-10 px-3 rounded-md bg-white/10 active:bg-white/20"
+        onClick={onJogBack}
+        title="Medio segundo atrás"
+      >
+        −0,5s
+      </button>
+      <button
+        type="button"
+        className="h-10 px-3 rounded-md bg-white/10 active:bg-white/20"
+        onClick={onFrameBack}
+        title="Fotograma anterior"
+      >
+        −1 fot.
+      </button>
+      <button
+        type="button"
+        className="h-10 px-3 rounded-md bg-white/10 active:bg-white/20 inline-flex items-center gap-1 touch-none"
+        onPointerDown={(e) => {
+          e.preventDefault()
+          try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* ignore */ }
+          onRewindDown()
+        }}
+        onPointerUp={onRewindUp}
+        onPointerCancel={onRewindUp}
+        title="Mantén pulsado para rebobinar"
+      >
+        <Rewind className="h-3.5 w-3.5" />
+        Rebobinar
+      </button>
+      <button
+        type="button"
+        className="h-10 px-3 rounded-md bg-orange-500 text-black font-medium inline-flex items-center gap-1"
+        onClick={onRepeat}
+        title={`Repite los últimos ${REPEAT_SECONDS} segundos`}
+      >
+        <Repeat className="h-3.5 w-3.5" />
+        Repetir {REPEAT_SECONDS}s
+      </button>
+      <button
+        type="button"
+        className="h-10 px-3 rounded-md bg-white/10 active:bg-white/20"
+        onClick={onFrameFwd}
+        title="Fotograma siguiente"
+      >
+        +1 fot.
+      </button>
+      <div className="w-px h-6 bg-white/15 mx-0.5" />
+      <button
+        type="button"
+        className={`h-10 px-3 rounded-md inline-flex items-center gap-1 ${zoomMode ? 'bg-orange-500 text-black' : 'bg-white/10'}`}
+        onClick={zoomMode ? onExitZoom : onEnterZoom}
+        title="Pellizca con dos dedos. No pinta mientras está activo."
+      >
+        <ZoomIn className="h-3.5 w-3.5" />
+        {zoomMode ? 'Acercar ON' : 'Acercar'}
+      </button>
+      {zoomMode && (
+        <span className="text-[10px] text-amber-200 hidden sm:inline">
+          Pellizca con dos dedos · un dedo arrastra
+        </span>
+      )}
+      <button
+        type="button"
+        className="h-10 w-10 rounded-md bg-white/10 inline-flex items-center justify-center"
+        onClick={onZoomIn}
+        title="Acercar"
+      >
+        <ZoomIn className="h-4 w-4" />
+      </button>
+      <button
+        type="button"
+        className="h-10 w-10 rounded-md bg-white/10 inline-flex items-center justify-center"
+        onClick={onZoomOut}
+        title="Alejar"
+      >
+        <ZoomOut className="h-4 w-4" />
+      </button>
+      <button
+        type="button"
+        className="h-10 px-3 rounded-md bg-white/10 inline-flex items-center gap-1 disabled:opacity-40"
+        onClick={onRestore}
+        disabled={!zoomed}
+        title="Tamaño original"
+      >
+        <Undo2 className="h-3.5 w-3.5" />
+        Original
+      </button>
     </div>
   )
 }

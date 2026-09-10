@@ -6,7 +6,7 @@ Dos herramientas: **Video Análisis** (partido entero local, nunca a la nube) y 
 - **Cloudflare R2** para los recortes. PUT firmado desde el navegador. Playback con GET firmado (`url_play`).
 - Retención: **30 días después del partido** (`partido.fecha + 30`). Sin partido (rival/plan): 30 días desde el alta. Partido aún no jugado: no se borra.
 - Cron diario: aviso al staff 7 días antes (una vez por carpeta) y **borrado de toda la carpeta** en R2 + DB. No hay OAuth a Drive: si hay URL de carpeta, el usuario descarga un zip y la abre; si no, solo zip. También «Borrar todo».
-- Sala: columna de carpetas plegable (vídeo más grande). Pizarra con **Mover** (manita) al lado de opacidad.
+- Sala: columna de carpetas plegable (vídeo más grande). Pizarra con **Mover**. Tablet: modo **Acercar** (pellizco, no pinta) + Original; **Repetir 2s**, fotograma a fotograma y rebobinar manteniendo pulsado.
 
 ## Tratamiento (enfermería / ficha)
 Los días/sesiones del cuaderno se pueden **editar** (lápiz) además de eliminar. El PUT ya existía; ahora el fisio lo usa desde la ficha y desde el caso.

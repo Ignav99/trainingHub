@@ -24,6 +24,8 @@ export interface VideoPlayerHandle {
   getVideoElement: () => HTMLVideoElement | null
   getCurrentTime: () => number
   seekTo: (time: number) => void
+  seekBy: (delta: number) => void
+  frameStep: (direction: 1 | -1) => void
   pause: () => void
   play: () => void
 }
@@ -49,10 +51,12 @@ interface VideoPlayerProps {
    */
   standalonePreview?: boolean
   defaultMuted?: boolean
+  /** Zoom del recuadro de vídeo (sala). No afecta a la barra de controles. */
+  contentTransform?: { transform: string; transformOrigin: string }
 }
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
-  function VideoPlayer({ src, clipRange, onTimeUpdate, onPlayStateChange, onDurationChange, onSeeked, onError, standalonePreview, defaultMuted }, ref) {
+  function VideoPlayer({ src, clipRange, onTimeUpdate, onPlayStateChange, onDurationChange, onSeeked, onError, standalonePreview, defaultMuted, contentTransform }, ref) {
     const videoRef = useRef<HTMLVideoElement>(null as unknown as HTMLVideoElement)
     const containerRef = useRef<HTMLDivElement>(null)
     const [playing, setPlaying] = useState(false)
@@ -63,31 +67,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const [isFullscreen, setIsFullscreen] = useState(false)
     const [isExpanded, setIsExpanded] = useState(false)
     const currentTimeRef = useRef(0)
-
-    useImperativeHandle(ref, () => ({
-      getVideoElement: () => videoRef.current,
-      getCurrentTime: () => videoRef.current?.currentTime || 0,
-      seekTo: (time: number) => {
-        const v = videoRef.current
-        if (v) {
-          // Clamp to clip range if active
-          if (clipRange) {
-            time = Math.max(clipRange.start, Math.min(clipRange.end, time))
-          }
-          // Skip if already seeking — prevents decoder queue overflow during fast scrub
-          if (v.seeking) return
-          // fastSeek() seeks to nearest keyframe — much faster for scrubbing
-          const videoEl = v as HTMLVideoElement & { fastSeek?: (time: number) => void }
-          if (videoEl.fastSeek) {
-            videoEl.fastSeek(time)
-          } else {
-            videoEl.currentTime = time
-          }
-        }
-      },
-      pause: () => videoRef.current?.pause(),
-      play: () => { void videoRef.current?.play()?.catch(() => undefined) },
-    }))
 
     // HLS.js support for .m3u8 streams
     const hlsRef = useRef<Hls | null>(null)
@@ -185,6 +164,32 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         }
       })()
     }, [clipRange])
+
+    useImperativeHandle(ref, () => ({
+      getVideoElement: () => videoRef.current,
+      getCurrentTime: () => videoRef.current?.currentTime || 0,
+      seekTo: (time: number) => {
+        const v = videoRef.current
+        if (v) {
+          if (clipRange) {
+            time = Math.max(clipRange.start, Math.min(clipRange.end, time))
+          }
+          if (v.seeking) return
+          const videoEl = v as HTMLVideoElement & { fastSeek?: (time: number) => void }
+          if (videoEl.fastSeek) {
+            videoEl.fastSeek(time)
+          } else {
+            videoEl.currentTime = time
+          }
+        }
+      },
+      seekBy: (delta: number) => {
+        seek(delta)
+      },
+      frameStep,
+      pause: () => videoRef.current?.pause(),
+      play: () => { void videoRef.current?.play()?.catch(() => undefined) },
+    }), [clipRange, frameStep, seek])
 
     const cycleSpeed = useCallback(() => {
       const speeds = [0.25, 0.5, 1, 1.5, 2]
@@ -387,11 +392,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
               ? 'flex-1 min-h-0 w-full object-contain bg-black'
               : 'w-full h-full object-contain bg-black'
           }
+          style={contentTransform}
           onClick={togglePlay}
         />
 
         {/* Compact controls: [Play] [-5] [<f] [f>] [+5] | time | [mute] [speed] */}
-        <div className="flex items-center gap-1 px-2 py-1 bg-black/80 text-white text-xs">
+        <div className="flex items-center gap-1 px-2 py-1 bg-black/80 text-white text-xs relative z-10">
           <Button
             variant="ghost"
             size="icon"

@@ -289,6 +289,7 @@ async def websocket_endpoint(
                         "t": data.get("t"),
                         "paused": data.get("paused"),
                         "overlay": data.get("overlay"),
+                        "zoom": data.get("zoom"),
                         "role": data.get("role"),
                     }
                     await manager.broadcast_sala(code, payload, exclude=websocket)
