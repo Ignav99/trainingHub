@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import type { RivalScoutData } from '@/types'
 import {
   upsertRivalJugador,
   renameRivalJugador,
@@ -7,6 +8,8 @@ import {
   assignRivalSlot,
   mergeOnceProbableAnnotations,
   emptyJugadorEvaluacion,
+  extractPersistentScout,
+  mergeScoutOnLoad,
 } from './rivalScoutSync.ts'
 
 describe('manual once probable', () => {
@@ -63,5 +66,64 @@ describe('manual once probable', () => {
     assert.equal(acta?.apariciones, 4)
     assert.equal(manual?.dorsal, 7)
     assert.equal(merged.colocacion.ST, 'Manual, Juan')
+  })
+})
+
+describe('Comentarios Rival persist on the rival profile', () => {
+  const scout: Partial<RivalScoutData> = {
+    fases: [
+      {
+        fase: 'ataque_organizado',
+        fortalezas: [],
+        debilidades: [],
+        clips: [],
+      },
+    ],
+    estrategia: {
+      sistema: '4-3-3',
+      notas: 'Presionan en bloque alto. Laterales se incorporan.',
+      dimensiones_campo: '105x68',
+      actitud_estilo: 'Directo',
+      once_probable: {
+        actas_analizadas: 0,
+        jugadores: [emptyJugadorEvaluacion({ nombre: 'Porter' })],
+        colocacion: { GK: 'Porter' },
+      },
+    },
+  }
+
+  it('extractPersistentScout keeps Comentarios Rival, not only fases and once', () => {
+    const persistent = extractPersistentScout(scout)
+    assert.equal(persistent.estrategia?.notas, 'Presionan en bloque alto. Laterales se incorporan.')
+    assert.equal(persistent.estrategia?.dimensiones_campo, '105x68')
+    assert.equal(persistent.estrategia?.actitud_estilo, 'Directo')
+    assert.equal(persistent.estrategia?.sistema, '4-3-3')
+    assert.equal(persistent.estrategia?.once_probable?.colocacion?.GK, 'Porter')
+  })
+
+  it('mergeScoutOnLoad does not let empty weekly notes wipe the coach comments', () => {
+    const persistent = extractPersistentScout(scout)
+    const merged = mergeScoutOnLoad(persistent, {
+      estrategia: { notas: '', dimensiones_campo: '', actitud_estilo: '' },
+    })
+    assert.equal(merged.estrategia?.notas, 'Presionan en bloque alto. Laterales se incorporan.')
+    assert.equal(merged.estrategia?.dimensiones_campo, '105x68')
+    assert.equal(merged.estrategia?.actitud_estilo, 'Directo')
+  })
+
+  it('mergeScoutOnLoad recovers comments from the microciclo if the profile is still empty', () => {
+    const merged = mergeScoutOnLoad(
+      { fases: [], estrategia: { sistema: '4-3-3' } },
+      { estrategia: { notas: 'Olfato histórico en el microciclo' } }
+    )
+    assert.equal(merged.estrategia?.notas, 'Olfato histórico en el microciclo')
+  })
+
+  it('keeps an explicit empty profile comment instead of restoring weekly notes', () => {
+    const merged = mergeScoutOnLoad(
+      { estrategia: { notas: '' } },
+      { estrategia: { notas: 'Notas viejas del microciclo' } }
+    )
+    assert.equal(merged.estrategia?.notas, '')
   })
 })

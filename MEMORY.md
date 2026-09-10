@@ -17,5 +17,7 @@ La pizarra de informe y plan usa el mismo editor que las tareas (`TareaPizarraEd
 ## Ficha rival
 Solo Scouting, Informe Rival, Plan de Partido, ABP y Equipación. Plan ida/vuelta. PDF Informe Rival alineado con el plan. En el partido, la primera pestaña es **Informe Rival** (el mismo informe de la ficha, enlace a `/rivales/:id?tab=informe`). En la pizarra del plan/informe: colocar jugadores no abre el panel de rol; doble clic para nombre/rol; el editor no tapa el césped.
 
+**Comentarios Rival** (Contexto → textarea, `estrategia.notas`) es el olfato del entrenador. Vive en `rivales.scout_manual`, no en intel. `extractPersistentScout` los tiene que guardar; `mergeScoutOnLoad` no los pisa con el plan semanal vacío.
+
 ## Estadísticas y amistosos
 Amarillas, rojas, goles y asistencias de plantilla/carga son de competición por defecto. Los amistosos se conservan y se ven con el filtro de ámbito.
