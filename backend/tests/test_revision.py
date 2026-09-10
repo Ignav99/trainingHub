@@ -601,3 +601,25 @@ class TestEnsureVideoBucket:
             "revision-clips",
             options={"public": True, "file_size_limit": MAX_CLIP_BYTES},
         )
+
+
+class TestSalaSync:
+    def test_forwards_zoom_payload(self):
+        from pathlib import Path
+        src = Path(__file__).resolve().parents[1] / "app" / "api" / "v1" / "websocket.py"
+        text = src.read_text()
+        assert '"zoom": data.get("zoom")' in text
+        assert '"overlay": data.get("overlay")' in text
+
+    def test_player_exposes_jog_and_zoom(self):
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[2]
+        player = (root / "frontend/src/components/video-analyzer/VideoPlayer.tsx").read_text()
+        sala = (root / "frontend/src/components/revision/SalaStage.tsx").read_text()
+        assert "frameStep:" in player
+        assert "seekBy:" in player
+        assert "contentTransform" in player
+        assert "Repetir" in sala
+        assert "Acercar" in sala
+        assert "Rebobinar" in sala
+        assert "Original" in sala

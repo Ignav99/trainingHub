@@ -10,10 +10,8 @@ export function getSvgPosition(
 ): { x: number; y: number } {
   const ctm = svg.getScreenCTM()
   if (!ctm) return { x: 0, y: 0 }
-  return {
-    x: (clientX - ctm.e) / ctm.a,
-    y: (clientY - ctm.f) / ctm.d,
-  }
+  const mapped = new DOMPoint(clientX, clientY).matrixTransform(ctm.inverse())
+  return { x: mapped.x, y: mapped.y }
 }
 
 /**
