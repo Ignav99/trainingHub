@@ -58,3 +58,39 @@ class TestFiltrar:
         assert es_amistoso("amistoso")
         assert competicion_de({"partidos": {"competicion": "copa"}}) == "copa"
         assert AMBITO_LABELS[AMBITO_COMPETICION]
+
+
+class TestTarjetasPorJugador:
+    def test_excludes_amistoso_cards_from_competition(self):
+        from app.services.partido_ambito import tarjetas_por_jugador
+
+        rows = [
+            {
+                "jugador_id": "j1",
+                "tarjeta_amarilla": True,
+                "tarjeta_roja": False,
+                "partidos": {"competicion": "amistoso"},
+            },
+            {
+                "jugador_id": "j1",
+                "tarjeta_amarilla": True,
+                "tarjeta_roja": False,
+                "partidos": {"competicion": "liga"},
+            },
+            {
+                "jugador_id": "j1",
+                "tarjeta_amarilla": False,
+                "tarjeta_roja": True,
+                "partidos": {"competicion": "amistoso"},
+            },
+        ]
+        of = tarjetas_por_jugador(rows, AMBITO_COMPETICION)
+        assert of["j1"]["amarillas"] == 1
+        assert of["j1"]["rojas"] == 0
+        am = tarjetas_por_jugador(rows, AMBITO_AMISTOSOS)
+        assert am["j1"]["amarillas"] == 1
+        assert am["j1"]["rojas"] == 1
+        todos = tarjetas_por_jugador(rows, AMBITO_TODOS)
+        assert todos["j1"]["amarillas"] == 2
+        assert todos["j1"]["rojas"] == 1
+

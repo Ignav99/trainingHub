@@ -22,6 +22,7 @@ from app.models.carga import (
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
+from app.services.partido_ambito import AMBITO_COMPETICION, normalize_ambito, tarjetas_por_jugador
 from app.services.load_calculation_service import recalculate_team_load, recalculate_player_load, recalculate_all_teams
 from app.services.jugador_tipo import incluye_tracking_carga
 
@@ -33,11 +34,16 @@ router = APIRouter()
 @router.get("/equipo/{equipo_id}", response_model=CargaEquipoResponse)
 async def get_carga_equipo(
     equipo_id: UUID,
+    ambito: str = Query(
+        AMBITO_COMPETICION,
+        description="competicion (default) | amistosos | todos",
+    ),
     auth: AuthContext = Depends(require_permission(Permission.RPE_READ)),
 ):
     """Get accumulated load for all players in a team."""
     supabase = get_supabase()
     eid = str(equipo_id)
+    ambito_n = normalize_ambito(ambito)
 
     # Plantilla + filial + prueba (mismo tracking de carga). Invitados fuera.
     jugadores_raw = (
@@ -66,24 +72,17 @@ async def get_carga_equipo(
 
     carga_map = {r["jugador_id"]: r for r in (carga_rows.data or [])}
 
-    # Aggregate tarjetas from convocatorias
+    # Tarjetas de convocatorias: por defecto solo competición (los amistosos no cuentan).
     jugador_ids = [j["id"] for j in jugadores_data]
     tarjetas_map: dict[str, dict] = {}
     try:
         convs = (
             supabase.table("convocatorias")
-            .select("jugador_id, tarjeta_amarilla, tarjeta_roja")
+            .select("jugador_id, tarjeta_amarilla, tarjeta_roja, partidos(competicion)")
             .in_("jugador_id", jugador_ids)
             .execute()
         )
-        for c in convs.data or []:
-            jid = c["jugador_id"]
-            if jid not in tarjetas_map:
-                tarjetas_map[jid] = {"amarillas": 0, "rojas": 0}
-            if c.get("tarjeta_amarilla"):
-                tarjetas_map[jid]["amarillas"] += 1
-            if c.get("tarjeta_roja"):
-                tarjetas_map[jid]["rojas"] += 1
+        tarjetas_map = tarjetas_por_jugador(convs.data or [], ambito_n)
     except Exception as e:
         logger.warning(f"Error fetching tarjetas for team {eid}: {e}")
 

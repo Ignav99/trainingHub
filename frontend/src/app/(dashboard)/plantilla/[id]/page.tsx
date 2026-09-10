@@ -1254,6 +1254,7 @@ function PlayerLoadTab({ jugadorId, equipoId }: { jugadorId: string; equipoId: s
         <Card>
           <CardContent className="p-3 text-center">
             <p className="text-xs text-muted-foreground">T. Amarillas</p>
+            <p className="text-[10px] text-muted-foreground">competición</p>
             <p className={`text-lg font-bold ${tarjetas.amarillas >= 4 ? 'text-orange-600' : tarjetas.amarillas > 0 ? 'text-yellow-600' : ''}`}>
               {tarjetas.amarillas}
               {tarjetas.amarillas >= 4 && <AlertCircle className="inline h-4 w-4 ml-1 text-orange-500" />}
@@ -1263,6 +1264,7 @@ function PlayerLoadTab({ jugadorId, equipoId }: { jugadorId: string; equipoId: s
         <Card>
           <CardContent className="p-3 text-center">
             <p className="text-xs text-muted-foreground">T. Rojas</p>
+            <p className="text-[10px] text-muted-foreground">competición</p>
             <p className={`text-lg font-bold ${tarjetas.rojas > 0 ? 'text-red-600' : ''}`}>
               {tarjetas.rojas}
             </p>
