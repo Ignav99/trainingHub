@@ -114,7 +114,7 @@ export function DossierPresenter({ show, onClose }: DossierPresenterProps) {
       ref={rootRef}
       role="dialog"
       aria-modal="true"
-      aria-label={show.kind === 'plan' ? 'Presentar plan de partido' : 'Presentar informe rival'}
+      aria-label={show.kind === 'plan' ? 'Presentar Plan de Partido' : 'Presentar Informe Rival'}
       data-testid="dossier-presenter"
       tabIndex={-1}
       className="fixed inset-0 z-[100] flex flex-col outline-none"

@@ -150,7 +150,7 @@ export function SendToRevisionDialog({
               disabled={!rivalId}
               onClick={() => { setAmbito('rival'); void loadPack('rival') }}
             >
-              Informe rival
+              Informe Rival
             </Button>
           </div>
           <div className="space-y-1">

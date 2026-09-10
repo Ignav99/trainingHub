@@ -15,7 +15,7 @@ La columna de próximos/jugados se puede ocultar para ganar tablero. **Presentar
 La pizarra de informe y plan usa el mismo editor que las tareas (`TareaPizarraEditor` / campo entero / animación). Preview compacta + Editar abre el editor a pantalla completa. Vector en `pizarra_diagrama`; PNG en `pizarra_tactica` para el PDF.
 
 ## Ficha rival
-Solo Scouting, Informe rival, Plan de partido, ABP y Equipación. Plan ida/vuelta. PDF informe rival alineado con el plan. En el partido, la primera pestaña es **Plan del rival** (el mismo informe de la ficha, enlace a `/rivales/:id?tab=informe`). En la pizarra del plan/informe: colocar jugadores no abre el panel de rol; doble clic para nombre/rol; el editor no tapa el césped.
+Solo Scouting, Informe Rival, Plan de Partido, ABP y Equipación. Plan ida/vuelta. PDF Informe Rival alineado con el plan. En el partido, la primera pestaña es **Informe Rival** (el mismo informe de la ficha, enlace a `/rivales/:id?tab=informe`). En la pizarra del plan/informe: colocar jugadores no abre el panel de rol; doble clic para nombre/rol; el editor no tapa el césped.
 
 ## Estadísticas y amistosos
 Amarillas, rojas, goles y asistencias de plantilla/carga son de competición por defecto. Los amistosos se conservan y se ven con el filtro de ámbito.
