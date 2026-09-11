@@ -95,3 +95,7 @@ next-env.d.ts
 # ============================================
 documentacion/
 docs/superpowers/
+
+# Clips/PDF de prueba para el agente (nunca el partido entero)
+_inbox/*
+!_inbox/README.md

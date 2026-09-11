@@ -216,6 +216,22 @@ No meter pesos en el repo. Primera corrida los baja a `~/.cache/kabine-vision/`.
 
 ---
 
+## Cómo pasarme archivos (agente cloud)
+
+Este agente **no ve** `/Users/User/Desktop` ni el disco del Mac. Corre en una VM Linux.
+
+| Dónde | ¿Lo leo? |
+|---|---|
+| Escritorio del Mac (`/Users/User/Desktop`) | No |
+| Chat de Cursor (arrastrar PDF/clip) | Sí — lo mejor |
+| `/workspace/_inbox/` en este repo (gitignore) | Sí, si el archivo llega a la VM |
+| Escritorio de la VM (`/home/ubuntu/Desktop`) | Sí, pero solo hay PDFs viejos de Kabine; tú no puedes copiar ahí desde el Mac |
+| GitHub / Render | No subas partidos ni clips de juego |
+
+Para la primera prueba: **arrastra al chat** el PDF `Open-source…` y **un recorte de 20–60 s** de vuestra cámara (no el partido). Kit nuestro (color). Con eso corro el probe.
+
+Esta VM no tiene NVIDIA: el primer test aquí es corto (10–20 s, pocos fps). El análisis de partido real se hará en vuestro PC.
+
 ## Preguntas abiertas (no bloquean la fase 0)
 
 1. Cámara habitual: táctica fija / Veo vs. TV con replay y zoom.
