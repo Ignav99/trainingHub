@@ -5,8 +5,10 @@ import {
   buildPlanShow,
   chapterIndexForSlide,
   attachRevisionPack,
+  concatCharlaShow,
   playableClipUrl,
   showChapters,
+  showPresenterLabel,
   slimShowForSync,
 } from './dossierShow.ts'
 
@@ -91,8 +93,8 @@ describe('dossier live show builder', () => {
       chapters.map((chapter) => ({ id: chapter.id, videos: chapter.videoCount, count: chapter.slideCount })),
       [
         { id: 'portada', videos: 0, count: 1 },
-        { id: 'ataque_organizado', videos: 1, count: 2 },
-        { id: 'abp_ofensiva', videos: 0, count: 1 },
+        { id: 'fase:ataque_organizado', videos: 1, count: 2 },
+        { id: 'fase:abp_ofensiva', videos: 0, count: 1 },
       ]
     )
     assert.equal(chapterIndexForSlide(chapters, 2), 1)
@@ -320,5 +322,83 @@ describe('dossier live show builder', () => {
     assert.equal(slim.slides[1].kind === 'fase' && slim.slides[1].board?.preview, undefined)
     assert.equal(slim.slides[1].kind === 'fase' && slim.slides[1].boardSrc, undefined)
     assert.equal(slim.slides[1].kind === 'fase' && slim.slides[1].board?.elements?.length, 1)
+  })
+
+  it('concatenates informe then plan with unique chapter ids and two covers', () => {
+    const informe = buildInformeShow(
+      {
+        estrategia: { notas: 'Presiona alto' },
+        fases: [
+          {
+            fase: 'ataque_organizado',
+            fortalezas: ['Sale por fuera'],
+            debilidades: [],
+            clips: [{ id: 'i1', titulo: 'Salida', url: 'https://cdn.example/i.mp4', fase: 'ataque_organizado', notas: '' }],
+          },
+        ],
+      },
+      { rivalNombre: 'Racing' }
+    )
+    const plan = buildPlanShow(
+      {
+        ataque_organizado: 'Por fuera',
+        defensa_organizada: '',
+        transicion_ofensiva: '',
+        transicion_defensiva: '',
+        abp_ofensiva: '',
+        abp_defensiva: '',
+        fases: [
+          {
+            fase: 'ataque_organizado',
+            texto: 'Por fuera',
+            clips: [{ id: 'p1', titulo: 'Nuestra salida', url: 'https://cdn.example/p.mp4', fase: 'ataque_organizado', notas: '' }],
+          },
+        ],
+      },
+      { rivalNombre: 'Racing' }
+    )
+    const charla = concatCharlaShow(informe, plan)
+    assert.equal(charla.kind, 'charla')
+    assert.equal(showPresenterLabel(charla.kind), 'Presentar Informe Rival y Plan de Partido')
+    assert.equal(charla.slides[0].id, 'informe:portada')
+    assert.equal(charla.slides[0].kind === 'portada' && charla.slides[0].section, 'informe')
+    const planCover = charla.slides.find((slide) => slide.id === 'plan:portada')
+    assert.equal(planCover?.kind, 'portada')
+    assert.equal(planCover?.section, 'plan')
+    const coverIndex = charla.slides.findIndex((slide) => slide.id === 'plan:portada')
+    assert.ok(coverIndex > 0)
+    assert.equal(
+      charla.slides.slice(0, coverIndex).every((slide) => slide.section === 'informe'),
+      true
+    )
+    assert.equal(
+      charla.slides.slice(coverIndex).every((slide) => slide.section === 'plan'),
+      true
+    )
+    const chapters = showChapters(charla.slides)
+    const ids = chapters.map((chapter) => chapter.id)
+    assert.equal(new Set(ids).size, ids.length)
+    assert.equal(chapters[0].label, 'Informe Rival')
+    const planChapter = chapters.find((chapter) => chapter.id === 'plan:portada')
+    assert.equal(planChapter?.label, 'Plan de Partido')
+    const rivalFase = chapters.find((chapter) => chapter.id === 'informe:fase:ataque_organizado')
+    const planFase = chapters.find((chapter) => chapter.id === 'plan:fase:ataque_organizado')
+    assert.equal(rivalFase?.label, 'Rival · Ataque organizado')
+    assert.equal(planFase?.label, 'Plan · Ataque organizado')
+    assert.equal(rivalFase?.videoCount, 1)
+    assert.equal(planFase?.videoCount, 1)
+
+    const packed = concatCharlaShow(
+      attachRevisionPack(informe, {
+        clips: [{ id: 'rev-i', titulo: 'Presión', url_play: 'https://cdn.example/rev-i.mp4', status: 'hot', fase: 'ataque_organizado' }],
+      }),
+      attachRevisionPack(plan, {
+        clips: [{ id: 'rev-p', titulo: 'Nuestra presión', url_play: 'https://cdn.example/rev-p.mp4', status: 'hot', fase: 'ataque_organizado' }],
+      })
+    )
+    const packedIds = packed.slides.map((slide) => slide.id)
+    assert.equal(new Set(packedIds).size, packedIds.length)
+    assert.equal(packed.slides.some((slide) => slide.id === 'informe:video:rev:rev-i'), true)
+    assert.equal(packed.slides.some((slide) => slide.id === 'plan:video:rev:rev-p'), true)
   })
 })

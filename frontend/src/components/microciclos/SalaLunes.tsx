@@ -552,6 +552,7 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
             equipoId={data.microciclo.equipo_id}
             localia={data.microciclo.partidos?.localia}
             onChange={(d) => updatePlanCT({ rival_scout: d })}
+            getPlanForCharla={() => planCT.plan_partido ?? {}}
           />
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
@@ -584,6 +585,7 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
               localia={data.microciclo.partidos?.localia}
               tramo={planTramo}
               onChange={(d) => updatePlanCT({ plan_partido: d })}
+              getInformeForCharla={() => planCT.rival_scout ?? {}}
             />
           </div>
         </div>

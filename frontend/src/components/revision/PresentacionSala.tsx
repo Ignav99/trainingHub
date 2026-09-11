@@ -20,6 +20,7 @@ import { useSalaVideoShare } from '@/components/revision/useSalaVideoShare'
 import {
   chapterIndexForSlide,
   showChapters,
+  showPresenterLabel,
   slimShowForSync,
   type DossierShow,
 } from '@/lib/dossierShow'
@@ -451,7 +452,7 @@ export function PresentacionSala({
       ref={rootRef}
       role="dialog"
       aria-modal="true"
-      aria-label={show?.kind === 'plan' ? 'Presentar Plan de Partido' : 'Presentar Informe Rival'}
+      aria-label={showPresenterLabel(show?.kind ?? 'informe')}
       data-testid="presentacion-sala"
       tabIndex={-1}
       className="fixed inset-0 z-[100] flex flex-col outline-none"

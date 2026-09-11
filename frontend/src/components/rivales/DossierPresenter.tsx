@@ -12,6 +12,7 @@ import {
 import {
   chapterIndexForSlide,
   showChapters,
+  showPresenterLabel,
   type DossierShow,
   type ShowSlide,
 } from '@/lib/dossierShow'
@@ -116,7 +117,7 @@ export function DossierPresenter({ show, onClose }: DossierPresenterProps) {
       ref={rootRef}
       role="dialog"
       aria-modal="true"
-      aria-label={show.kind === 'plan' ? 'Presentar Plan de Partido' : 'Presentar Informe Rival'}
+      aria-label={showPresenterLabel(show.kind)}
       data-testid="dossier-presenter"
       tabIndex={-1}
       className="fixed inset-0 z-[100] flex flex-col outline-none"

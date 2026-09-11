@@ -49,7 +49,8 @@ const SUBFASE_ORDER = [
 const MAX_BULLETS = 6
 const MAX_BULLET_CHARS = 140
 
-export type ShowKind = 'informe' | 'plan'
+export type ShowKind = 'informe' | 'plan' | 'charla'
+export type ShowSection = 'informe' | 'plan'
 
 export type ShowVideoSlot = FasePlanPartido | 'once_probable'
 
@@ -68,6 +69,7 @@ export interface ShowMeta {
 export type ShowSlide =
   | {
       id: string
+      section?: ShowSection
       kind: 'portada'
       kicker: string
       title: string
@@ -77,6 +79,7 @@ export type ShowSlide =
     }
   | {
       id: string
+      section?: ShowSection
       kind: 'contexto'
       kicker: string
       title: string
@@ -84,6 +87,7 @@ export type ShowSlide =
     }
   | {
       id: string
+      section?: ShowSection
       kind: 'once'
       kicker: string
       title: string
@@ -94,6 +98,7 @@ export type ShowSlide =
     }
   | {
       id: string
+      section?: ShowSection
       kind: 'fase'
       fase: FasePlanPartido
       kicker: string
@@ -104,6 +109,7 @@ export type ShowSlide =
     }
   | {
       id: string
+      section?: ShowSection
       kind: 'video'
       fase: ShowVideoSlot
       kicker: string
@@ -191,6 +197,31 @@ export function buildPlanShow(data: Partial<PlanPartidoData> | undefined, meta: 
   }
 }
 
+export function stampShowSection(show: DossierShow, section: ShowSection): ShowSlide[] {
+  return show.slides.map((slide) => ({
+    ...slide,
+    id: `${section}:${slide.id}`,
+    section,
+  }))
+}
+
+/** Informe Rival first, then Plan de Partido — same slides, unique ids. */
+export function concatCharlaShow(informe: DossierShow, plan: DossierShow): DossierShow {
+  return {
+    kind: 'charla',
+    rivalNombre: informe.rivalNombre || plan.rivalNombre,
+    clubEscudoUrl: informe.clubEscudoUrl || plan.clubEscudoUrl,
+    rivalEscudoUrl: informe.rivalEscudoUrl || plan.rivalEscudoUrl,
+    slides: [...stampShowSection(informe, 'informe'), ...stampShowSection(plan, 'plan')],
+  }
+}
+
+export function showPresenterLabel(kind: ShowKind): string {
+  if (kind === 'plan') return 'Presentar Plan de Partido'
+  if (kind === 'charla') return 'Presentar Informe Rival y Plan de Partido'
+  return 'Presentar Informe Rival'
+}
+
 const FASE_ALIASES: Record<string, ShowVideoSlot> = {
   ataque_organizado: 'ataque_organizado',
   defensa_organizada: 'defensa_organizada',
@@ -276,8 +307,8 @@ export function showChapters(slides: ShowSlide[]): ShowChapter[] {
     const slide = slides[i]
     if (slide.kind === 'portada') {
       chapters.push({
-        id: 'portada',
-        label: 'Inicio',
+        id: slide.id,
+        label: chapterLabel(slide),
         startIndex: i,
         slideCount: 1,
         videoCount: 0,
@@ -291,12 +322,13 @@ export function showChapters(slides: ShowSlide[]): ShowChapter[] {
       while (j < slides.length) {
         const next = slides[j]
         if (next.kind !== 'video' || next.fase !== 'once_probable') break
+        if (next.section && slide.section && next.section !== slide.section) break
         videoCount += 1
         j += 1
       }
       chapters.push({
         id: slide.id,
-        label: slide.title,
+        label: chapterLabel(slide),
         startIndex: i,
         slideCount: j - i,
         videoCount,
@@ -310,12 +342,13 @@ export function showChapters(slides: ShowSlide[]): ShowChapter[] {
       while (j < slides.length) {
         const next = slides[j]
         if (next.kind !== 'video' || next.fase !== slide.fase) break
+        if (next.section && slide.section && next.section !== slide.section) break
         videoCount += 1
         j += 1
       }
       chapters.push({
-        id: slide.fase,
-        label: slide.title,
+        id: slide.id,
+        label: chapterLabel(slide),
         startIndex: i,
         slideCount: j - i,
         videoCount,
@@ -328,11 +361,12 @@ export function showChapters(slides: ShowSlide[]): ShowChapter[] {
       while (j < slides.length) {
         const next = slides[j]
         if (next.kind !== 'video' || next.fase !== slide.fase) break
+        if (next.section && slide.section && next.section !== slide.section) break
         j += 1
       }
       chapters.push({
-        id: slide.fase,
-        label: slide.kicker || 'Vídeo',
+        id: slide.id,
+        label: chapterLabel(slide),
         startIndex: i,
         slideCount: j - i,
         videoCount: j - i,
@@ -343,6 +377,23 @@ export function showChapters(slides: ShowSlide[]): ShowChapter[] {
     i += 1
   }
   return chapters
+}
+
+function chapterLabel(slide: ShowSlide): string {
+  if (slide.kind === 'portada') {
+    if (slide.section === 'informe') return 'Informe Rival'
+    if (slide.section === 'plan') return 'Plan de Partido'
+    return 'Inicio'
+  }
+  if (slide.kind === 'fase') {
+    if (slide.section === 'informe') return `Rival · ${slide.title}`
+    if (slide.section === 'plan') return `Plan · ${slide.title}`
+    return slide.title
+  }
+  if (slide.kind === 'contexto' || slide.kind === 'once') return slide.title
+  if (slide.section === 'informe') return `Rival · ${slide.kicker || 'Vídeo'}`
+  if (slide.section === 'plan') return `Plan · ${slide.kicker || 'Vídeo'}`
+  return slide.kicker || 'Vídeo'
 }
 
 export function chapterIndexForSlide(chapters: ShowChapter[], slideIndex: number): number {
