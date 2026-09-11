@@ -15,6 +15,7 @@ import type {
   PlanPartidoData,
   PlanPartidoPhase,
   PlanPartidoSubfaseData,
+  RivalScoutData,
   RivalSubfaseAtaque,
   RivalSubfaseDefensa,
 } from '@/types'
@@ -24,8 +25,8 @@ import { DossierPresenter } from '@/components/rivales/DossierPresenter'
 import { DossierTacticalBoard } from '@/components/rivales/DossierTacticalBoard'
 import { PresentacionSala } from '@/components/revision/PresentacionSala'
 import { exportPresentacionDossier } from '@/lib/api/presentaciones'
-import { buildPlanShow, type DossierShow } from '@/lib/dossierShow'
-import { prepareDossierSala } from '@/lib/dossierPresentar'
+import { buildPlanShow, buildInformeShow, type DossierShow } from '@/lib/dossierShow'
+import { loadInformeDataForCharla, prepareCharlaSala, prepareDossierSala } from '@/lib/dossierPresentar'
 import type { RevisionSession } from '@/lib/api/revision'
 import { useClubStore } from '@/stores/clubStore'
 import { PlanPartidoABPSection } from './PlanPartidoABPSection'
@@ -49,6 +50,7 @@ interface PlanPartidoProps {
   campoPartido?: string
   localia?: string
   tramo?: 'ida' | 'vuelta'
+  getInformeForCharla?: () => Partial<RivalScoutData> | null
 }
 
 const FASES: { fase: FasePlanPartido; label: string; color: string }[] = [
@@ -98,12 +100,14 @@ export function PlanPartido({
   campoPartido,
   localia,
   tramo,
+  getInformeForCharla,
 }: PlanPartidoProps) {
   const [activeTab, setActiveTab] = useState<FasePlanPartido>('ataque_organizado')
   const [exportingDeck, setExportingDeck] = useState(false)
   const [liveShow, setLiveShow] = useState<DossierShow | null>(null)
   const [sala, setSala] = useState<{ show: DossierShow; session: RevisionSession } | null>(null)
   const [presenting, setPresenting] = useState(false)
+  const [presentingTodo, setPresentingTodo] = useState(false)
   const dataRef = useRef(data)
   dataRef.current = data
   const clubNombre = useClubStore((s) => s.organizacion?.nombre)
@@ -174,6 +178,7 @@ export function PlanPartido({
           <ExportDossierMenu
             exporting={exportingDeck}
             presenting={presenting}
+            presentingTodo={presentingTodo}
             onPresentar={async () => {
               setPresenting(true)
               try {
@@ -199,6 +204,36 @@ export function PlanPartido({
                 else setLiveShow(ready.show)
               } finally {
                 setPresenting(false)
+              }
+            }}
+            onPresentarTodo={async () => {
+              setPresentingTodo(true)
+              try {
+                const meta = {
+                  rivalNombre,
+                  clubNombre,
+                  clubEscudoUrl: clubEscudoUrl || undefined,
+                  rivalEscudoUrl,
+                  fecha: fechaPartido,
+                  hora: horaPartido,
+                  campo: campoPartido || ciudadPartido,
+                  localia,
+                  tramo,
+                }
+                const plan = buildPlanShow(dataRef.current, meta)
+                const informeData = await loadInformeDataForCharla(getInformeForCharla?.() ?? null, rivalId)
+                const informe = buildInformeShow(informeData, meta)
+                const ready = await prepareCharlaSala({
+                  informe,
+                  plan,
+                  equipoId,
+                  rivalId,
+                  microcicloId,
+                })
+                if (ready.session) setSala({ show: ready.show, session: ready.session })
+                else setLiveShow(ready.show)
+              } finally {
+                setPresentingTodo(false)
               }
             }}
             onPdf={() =>

@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type {
   ClipRival,
   FaseRival,
+  PlanPartidoData,
   RivalPhaseAnalysis,
   RivalScoutData,
   RivalSubfaseAtaque,
@@ -28,8 +29,8 @@ import { DossierPresenter } from '@/components/rivales/DossierPresenter'
 import { DossierTacticalBoard } from '@/components/rivales/DossierTacticalBoard'
 import { PresentacionSala } from '@/components/revision/PresentacionSala'
 import { exportPresentacionDossier } from '@/lib/api/presentaciones'
-import { buildInformeShow, type DossierShow } from '@/lib/dossierShow'
-import { prepareDossierSala } from '@/lib/dossierPresentar'
+import { buildInformeShow, buildPlanShow, type DossierShow } from '@/lib/dossierShow'
+import { loadPlanDataForCharla, prepareCharlaSala, prepareDossierSala } from '@/lib/dossierPresentar'
 import type { RevisionSession } from '@/lib/api/revision'
 import { useClubStore } from '@/stores/clubStore'
 import { RivalStrategy } from './RivalStrategy'
@@ -51,6 +52,7 @@ interface RivalScoutProps {
   equipoId?: string
   localia?: LocaliaPartido
   onChange: (data: Partial<RivalScoutData>) => void
+  getPlanForCharla?: () => Partial<PlanPartidoData> | null
 }
 
 const FASE_LABELS: Record<FaseRival, string> = {
@@ -86,13 +88,14 @@ const SUBFASES_DEFENSA: { key: RivalSubfaseDefensa; label: string }[] = [
 
 type TabValue = 'contexto' | 'once_probable' | FaseRival
 
-export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microcicloId, equipoId, localia, onChange }: RivalScoutProps) {
+export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microcicloId, equipoId, localia, onChange, getPlanForCharla }: RivalScoutProps) {
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({})
   const [activeTab, setActiveTab] = useState<TabValue>('contexto')
   const [exportingDeck, setExportingDeck] = useState(false)
   const [liveShow, setLiveShow] = useState<DossierShow | null>(null)
   const [sala, setSala] = useState<{ show: DossierShow; session: RevisionSession } | null>(null)
   const [presenting, setPresenting] = useState(false)
+  const [presentingTodo, setPresentingTodo] = useState(false)
   const dataRef = useRef(data)
   dataRef.current = data
   const clubNombre = useClubStore((s) => s.organizacion?.nombre)
@@ -215,6 +218,7 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
           <ExportDossierMenu
             exporting={exportingDeck}
             presenting={presenting}
+            presentingTodo={presentingTodo}
             onPresentar={async () => {
               setPresenting(true)
               try {
@@ -236,6 +240,32 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
                 else setLiveShow(ready.show)
               } finally {
                 setPresenting(false)
+              }
+            }}
+            onPresentarTodo={async () => {
+              setPresentingTodo(true)
+              try {
+                const meta = {
+                  rivalNombre,
+                  clubNombre,
+                  clubEscudoUrl: clubEscudoUrl || undefined,
+                  rivalEscudoUrl,
+                  localia,
+                }
+                const informe = buildInformeShow(dataRef.current, meta)
+                const planData = await loadPlanDataForCharla(getPlanForCharla?.() ?? null, rivalId)
+                const plan = buildPlanShow(planData, meta)
+                const ready = await prepareCharlaSala({
+                  informe,
+                  plan,
+                  equipoId,
+                  rivalId,
+                  microcicloId,
+                })
+                if (ready.session) setSala({ show: ready.show, session: ready.session })
+                else setLiveShow(ready.show)
+              } finally {
+                setPresentingTodo(false)
               }
             }}
             onPdf={() => void exportRivalScoutPDF(data, {

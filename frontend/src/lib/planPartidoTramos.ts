@@ -68,6 +68,18 @@ export function tramoHasContent(plan: Partial<PlanPartidoData> | undefined | nul
   return (plan?.fases?.length ?? 0) > 0 || !!plan?.nutricion_partido
 }
 
+/** Prefer the current tramo if it has content; otherwise the first tramo with a plan. */
+export function pickPlanForCharla(
+  raw: PlanPartidoManualRaw,
+  preferred?: PlanTramo,
+): Partial<PlanPartidoData> {
+  const tramos = unwrapPlanTramos(raw)
+  if (preferred && tramoHasContent(tramos[preferred])) return tramos[preferred]
+  if (tramoHasContent(tramos.ida)) return tramos.ida
+  if (tramoHasContent(tramos.vuelta)) return tramos.vuelta
+  return preferred ? (tramos[preferred] ?? {}) : (tramos.ida ?? {})
+}
+
 /** First official meeting vs this rival is ida; any later official match is vuelta. */
 export function inferPlanTramo(
   matches: Array<{ fecha?: string | null; competicion?: string | null }>,

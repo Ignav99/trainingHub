@@ -8,16 +8,20 @@ interface ExportDossierMenuProps {
   onPdf: () => void | Promise<void>
   onPresentacion: () => void | Promise<void>
   onPresentar?: () => void | Promise<void>
+  onPresentarTodo?: () => void | Promise<void>
   exporting?: boolean
   presenting?: boolean
+  presentingTodo?: boolean
 }
 
 export function ExportDossierMenu({
   onPdf,
   onPresentacion,
   onPresentar,
+  onPresentarTodo,
   exporting,
   presenting,
+  presentingTodo,
 }: ExportDossierMenuProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -31,15 +35,17 @@ export function ExportDossierMenu({
     return () => document.removeEventListener('mousedown', onDoc)
   }, [open])
 
+  const busy = Boolean(presenting || presentingTodo)
+
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center justify-end gap-2">
       {onPresentar && (
         <Button
           type="button"
           variant="club"
           size="sm"
           className="h-8 text-xs"
-          disabled={presenting}
+          disabled={busy}
           onClick={() => void onPresentar()}
         >
           {presenting ? (
@@ -48,6 +54,25 @@ export function ExportDossierMenu({
             <Presentation className="mr-1.5 h-3.5 w-3.5" />
           )}
           {presenting ? 'Abriendo sala…' : 'Presentar'}
+        </Button>
+      )}
+      {onPresentarTodo && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 text-xs"
+          disabled={busy}
+          title="Primero el informe del rival, luego nuestro plan"
+          data-testid="presentar-todo"
+          onClick={() => void onPresentarTodo()}
+        >
+          {presentingTodo ? (
+            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Presentation className="mr-1.5 h-3.5 w-3.5" />
+          )}
+          {presentingTodo ? 'Abriendo sala…' : 'Presentar todo'}
         </Button>
       )}
       <div ref={rootRef} className="relative">

@@ -11,7 +11,7 @@ Dos herramientas: **Video Análisis** (partido entero local, nunca a la nube) y 
 - Tablet: al ocultar carpetas el vídeo crece con `object-contain` (`presenterEmbed`) y no se recorta. Barras de dibujo/zoom (`SalaFloatingChrome`) flotan `z-50` sobre el pellizco. Mute de la tablet silencia el PC (`sala_sync.muted`). Pantalla completa del recuadro de vídeo (OS o theater) desde la tablet.
 
 ## Partidos: lista plegable + presentación
-La columna de próximos/jugados se puede ocultar para ganar tablero. **Presentar** (informe rival y plan de partido) abre sala QR a pantalla completa: portada (escudo rival junto al nombre), contexto/once (informe), cada fase y los clips de esa fase (inline + revisión). Escudo del club en todas las diapositivas. Si no hay diagrama dibujado, la fase no muestra césped vacío. PPT sigue como descarga (Exportar → Descargar PPT). PDF para enviar.
+La columna de próximos/jugados se puede ocultar para ganar tablero. **Presentar** abre solo el informe o solo el plan. **Presentar todo** concatena primero el Informe Rival y después el Plan de Partido (mismas diapositivas, capítulos únicos). Sala QR a pantalla completa: portada (escudo rival junto al nombre), contexto/once (informe), cada fase y los clips de esa fase (inline + revisión). Escudo del club en todas las diapositivas. Si no hay diagrama dibujado, la fase no muestra césped vacío. PPT sigue como descarga (Exportar → Descargar PPT). PDF para enviar.
 
 La pizarra de informe y plan usa el mismo editor que las tareas (`TareaPizarraEditor` / campo entero / animación). Preview compacta + Editar abre el editor a pantalla completa. Vector en `pizarra_diagrama`; PNG en `pizarra_tactica` para el PDF.
 

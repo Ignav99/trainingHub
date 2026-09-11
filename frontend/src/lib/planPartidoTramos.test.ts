@@ -7,6 +7,7 @@ import {
   planFromStore,
   unwrapPlanTramos,
   wrapPlanTramos,
+  pickPlanForCharla,
 } from './planPartidoTramos.ts'
 
 describe('plan de partido ida / vuelta', () => {
@@ -38,5 +39,14 @@ describe('plan de partido ida / vuelta', () => {
     assert.equal(inferPlanTramo(matches, '2026-09-13'), 'ida')
     assert.equal(inferPlanTramo(matches, '2026-12-20'), 'vuelta')
     assert.equal(inferPlanTramo(matches, '2026-09-06'), 'ida')
+  })
+
+  it('picks the preferred tramo for a combined charla, else the one with content', () => {
+    const ida = { fases: [{ fase: 'ataque_organizado', clips: [] }] }
+    const vuelta = { fases: [{ fase: 'defensa_organizada', clips: [] }] }
+    const store = wrapPlanTramos({ ida, vuelta })
+    assert.equal(pickPlanForCharla(store, 'vuelta').fases?.[0]?.fase, 'defensa_organizada')
+    assert.equal(pickPlanForCharla(wrapPlanTramos({ ida: {}, vuelta })).fases?.[0]?.fase, 'defensa_organizada')
+    assert.equal(pickPlanForCharla(wrapPlanTramos({ ida, vuelta: {} })).fases?.[0]?.fase, 'ataque_organizado')
   })
 })
