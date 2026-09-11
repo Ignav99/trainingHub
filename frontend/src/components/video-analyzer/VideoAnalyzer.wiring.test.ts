@@ -36,18 +36,28 @@ describe('video desk wiring', () => {
     assert.match(botonera, /size/)
   })
 
-  it('offers clip, folder, and full-pack downloads without uploading the match', () => {
+  it('offers clip, folder, and full-pack MP4 downloads without uploading the match', () => {
     const menu = read('VideoDeskDownloadMenu.tsx')
     const dl = read('videoDeskDownload.ts')
     const extract = read('extractClip.ts')
+    const timeline = read('VideoDeskTimeline.tsx')
     assert.match(menu, /Este recorte/)
     assert.match(menu, /Esta carpeta \(zip\)/)
     assert.match(menu, /Todas las carpetas \(zip\)/)
     assert.match(menu, /Todos los clips sueltos \(zip\)/)
+    assert.match(menu, /MP4/)
     assert.match(dl, /all-folders/)
+    assert.match(dl, /sourceFile/)
     assert.match(dl, /LOCAL_CLIP_MAX_SECONDS/)
     assert.match(extract, /REVISION_CLIP_MAX_SECONDS = 180/)
     assert.match(extract, /LOCAL_CLIP_MAX_SECONDS = 600/)
+    assert.match(extract, /captureStream/)
+    assert.match(extract, /video\/mp4/)
+    assert.match(extract, /libx264/)
+    assert.equal(extract.includes('canvas.captureStream'), false)
+    assert.match(timeline, /zoomCinta/)
+    assert.match(timeline, /Alejar/)
+    assert.match(timeline, /Acercar/)
   })
 
   it('keeps the video object-contain and the sala drawing overlay intact', () => {

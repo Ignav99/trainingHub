@@ -36,7 +36,7 @@ export function VideoDeskDownloadMenu({
           <button type="button" onClick={() => { setOpen(false); onPick('all-folders') }}>Todas las carpetas (zip)</button>
           <button type="button" onClick={() => { setOpen(false); onPick('all-flat') }}>Todos los clips sueltos (zip)</button>
           <p className="vd-menu-hint">
-            Se recorta aquí. El partido no se sube. Sirve para copiar los archivos a otra carpeta del PC.
+            MP4 en la máxima calidad posible. El partido no se sube. Sirve para copiar los archivos a otra carpeta del PC.
           </p>
         </div>
       ) : null}

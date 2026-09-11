@@ -3,8 +3,8 @@
 ## Video Análisis (mesa de recortes)
 Herramienta local a pantalla completa en `/video-analisis`. El partido **nunca** sale del PC.
 - Una botonera: las 6 fases (ataque/defensa organizado, transiciones, ABP) con **tiempos distintos** (p. ej. ataque −5/+8, ABP −8/+12). Se pueden crear más botones, cambiar tamaño (s/m/l) y editar pre/post.
-- Cada pulsación crea un recorte en la carpeta de ese botón y en la cinta del partido.
-- Descargas locales: este recorte, carpeta (zip), todas las carpetas (zip) o clips sueltos. A Revisión solo van los que elija el entrenador (fase preseleccionada).
+- Cada pulsación crea un recorte en la carpeta de ese botón y en la cinta del partido. La cinta se acerca con la rueda (Mayús + rueda o arrastrar la regla para desplazar).
+- Descargas en **MP4**: si el archivo original cabe, se copia el recorte sin re-encodear; si no, captura a resolución nativa y pasa a H.264 de alta calidad. El partido no se sube.
 - Sin pizarra ni ventanas flotantes en esta pantalla. El dibujo sigue en la sala de presentación.
 
 ## Revisión de vídeo

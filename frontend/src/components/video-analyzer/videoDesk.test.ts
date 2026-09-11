@@ -9,6 +9,10 @@ import {
   matchRevisionFolderId,
   groupClipsByButton,
   clipDisplayTitle,
+  zoomCinta,
+  panCinta,
+  cintaWindow,
+  cintaTickStep,
 } from './videoDesk.ts'
 import type { CodeButton, CodeEvent } from './types.ts'
 
@@ -52,9 +56,10 @@ describe('video desk coding', () => {
   it('names clip files so they can be dropped into another PC folder', () => {
     assert.equal(
       clipFileName('Ataque organizado', 64, 78),
-      'Ataque organizado — 01.04-01.18.webm'
+      'Ataque organizado — 01.04-01.18.mp4'
     )
-    assert.equal(clipFileName('A/B:C', 0, 3), 'A B C — 00.00-00.03.webm')
+    assert.equal(clipFileName('A/B:C', 0, 3), 'A B C — 00.00-00.03.mp4')
+    assert.equal(clipFileName('ABP', 0, 3, 'webm'), 'ABP — 00.00-00.03.webm')
   })
 
   it('preselects the revision folder even when informe uses other fase ids', () => {
@@ -77,5 +82,19 @@ describe('video desk coding', () => {
     assert.equal(ataque?.clips.length, 1)
     assert.equal(orphan?.clips.length, 1)
     assert.equal(clipDisplayTitle(events[1], null), 'Solo')
+  })
+
+  it('zooms the tape around the playhead and keeps the window inside the match', () => {
+    const full = cintaWindow(5400, 1, 0)
+    assert.equal(full.viewStart, 0)
+    assert.equal(full.viewEnd, 5400)
+    const inAt = zoomCinta(5400, 1, 0, 1200, 4)
+    assert.ok(inAt.zoom > 1)
+    assert.ok(inAt.visible < full.visible)
+    assert.ok(inAt.viewStart <= 1200 && inAt.viewEnd >= 1200)
+    const panned = panCinta(5400, inAt.zoom, inAt.viewStart, 30)
+    assert.ok(panned.viewStart > inAt.viewStart - 0.001)
+    assert.equal(cintaTickStep(8), 1)
+    assert.equal(cintaTickStep(900), 60)
   })
 })
