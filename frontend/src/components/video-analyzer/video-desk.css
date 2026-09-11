@@ -408,7 +408,7 @@
 }
 
 .vd-cinta-gutter {
-  width: 92px;
+  width: 108px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -420,6 +420,34 @@
   flex-shrink: 0;
 }
 
+.vd-cinta-zoom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+  padding: 0 4px;
+  font-family: var(--vd-mono);
+  font-size: 9px;
+  color: var(--vd-muted);
+}
+
+.vd-cinta-zoom button {
+  width: 20px;
+  height: 16px;
+  border: 1px solid color-mix(in srgb, var(--vd-line) 40%, transparent);
+  background: var(--vd-bg);
+  color: var(--vd-line);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 2px;
+  padding: 0;
+}
+
+.vd-cinta-zoom button:hover {
+  background: color-mix(in srgb, var(--vd-line) 16%, var(--vd-bg));
+}
+
 .vd-cinta-lanes {
   flex: 1;
   min-width: 0;
@@ -427,6 +455,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  cursor: crosshair;
 }
 
 .vd-lane {

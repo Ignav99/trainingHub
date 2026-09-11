@@ -166,8 +166,9 @@ export function formatTimecodeFile(seconds: number): string {
   return `${pad(m)}.${pad(sec)}`
 }
 
-export function clipFileName(label: string, start: number, end: number): string {
-  return `${sanitizeFilename(label)} — ${formatTimecodeFile(start)}-${formatTimecodeFile(end)}.webm`
+export function clipFileName(label: string, start: number, end: number, ext = 'mp4'): string {
+  const safeExt = (ext || 'mp4').replace(/^\./, '')
+  return `${sanitizeFilename(label)} — ${formatTimecodeFile(start)}-${formatTimecodeFile(end)}.${safeExt}`
 }
 
 export function zipFolderName(label: string): string {
@@ -240,4 +241,75 @@ export function clampClipTimes(
     if (end - start < 0.5) start = Math.max(0, end - 0.5)
   }
   return { startTime: start, endTime: end }
+}
+
+export const CINTA_ZOOM_MIN = 1
+export const CINTA_ZOOM_MAX = 400
+
+export function cintaWindow(
+  duration: number,
+  zoom: number,
+  viewStart: number
+): { zoom: number; viewStart: number; viewEnd: number; visible: number } {
+  const dur = Math.max(0, duration)
+  const z = Math.min(CINTA_ZOOM_MAX, Math.max(CINTA_ZOOM_MIN, zoom))
+  if (dur <= 0) {
+    return { zoom: z, viewStart: 0, viewEnd: 0, visible: 0 }
+  }
+  const minVisible = Math.min(dur, 3)
+  const visible = Math.min(dur, Math.max(dur / z, minVisible))
+  const maxStart = Math.max(0, dur - visible)
+  const start = Math.min(Math.max(0, viewStart), maxStart)
+  return { zoom: z, viewStart: start, viewEnd: start + visible, visible }
+}
+
+export function zoomCinta(
+  duration: number,
+  zoom: number,
+  viewStart: number,
+  anchorTime: number,
+  factor: number
+) {
+  const current = cintaWindow(duration, zoom, viewStart)
+  const nextZoom = current.zoom * factor
+  const rel = current.visible > 0
+    ? (anchorTime - current.viewStart) / current.visible
+    : 0.5
+  const preview = cintaWindow(duration, nextZoom, 0)
+  return cintaWindow(duration, preview.zoom, anchorTime - rel * preview.visible)
+}
+
+export function panCinta(
+  duration: number,
+  zoom: number,
+  viewStart: number,
+  deltaSeconds: number
+) {
+  return cintaWindow(duration, zoom, viewStart + deltaSeconds)
+}
+
+export function cintaTickStep(visible: number): number {
+  if (visible <= 8) return 1
+  if (visible <= 20) return 2
+  if (visible <= 45) return 5
+  if (visible <= 90) return 10
+  if (visible <= 240) return 15
+  if (visible <= 600) return 30
+  if (visible <= 1800) return 60
+  return 300
+}
+
+export function timeToViewPct(time: number, viewStart: number, visible: number): number {
+  if (visible <= 0) return 0
+  return ((time - viewStart) / visible) * 100
+}
+
+export function viewPctToTime(pct: number, viewStart: number, visible: number): number {
+  return viewStart + (pct / 100) * visible
+}
+
+export function clipExportExt(mime?: string | null): 'mp4' | 'webm' {
+  const value = (mime || '').toLowerCase()
+  if (value.includes('mp4') || value.includes('quicktime') || value.includes('m4v')) return 'mp4'
+  return 'webm'
 }

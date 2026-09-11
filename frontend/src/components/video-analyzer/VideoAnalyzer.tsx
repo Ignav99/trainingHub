@@ -177,6 +177,7 @@ export function VideoAnalyzer({
         selectedClipId: target?.id,
         selectedButtonId: target?.buttonId || activeButtonId,
         matchLabel: title.replace(/\.[^.]+$/, ''),
+        sourceFile: localFile,
         onProgress: setProgress,
       })
       toast.success('Descarga lista. El partido no ha salido de este ordenador.')
@@ -185,7 +186,7 @@ export function VideoAnalyzer({
     } finally {
       setProgress(null)
     }
-  }, [activeButtonId, buttons, events, selectedClip, title])
+  }, [activeButtonId, buttons, events, localFile, selectedClip, title])
 
   const onVSplit = (e: React.PointerEvent) => {
     const startX = e.clientX

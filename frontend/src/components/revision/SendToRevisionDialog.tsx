@@ -98,10 +98,11 @@ export function SendToRevisionDialog({
     try {
       toast.message('Recortando en el ordenador… el partido no se sube')
       const blob = await extractClipRange(videoElement, startTime, endTime)
+      const ext = (blob.type || '').includes('mp4') ? 'mp4' : 'webm'
       const clipFile = new File(
         [blob],
-        `${(titulo || 'clip').replace(/[^\w.-]+/g, '_')}.webm`,
-        { type: blob.type || 'video/webm' }
+        `${(titulo || 'clip').replace(/[^\w.-]+/g, '_')}.${ext}`,
+        { type: blob.type || 'video/mp4' }
       )
       const fase = pack.folders.find((f) => f.id === folderId)?.fase
       setProgress(0)
