@@ -308,8 +308,9 @@ export function viewPctToTime(pct: number, viewStart: number, visible: number): 
   return viewStart + (pct / 100) * visible
 }
 
-export function clipExportExt(mime?: string | null): 'mp4' | 'webm' {
-  const value = (mime || '').toLowerCase()
-  if (value.includes('mp4') || value.includes('quicktime') || value.includes('m4v')) return 'mp4'
-  return 'webm'
+export function clipsOnLane(events: CodeEvent[], buttonId: string): CodeEvent[] {
+  return events
+    .filter((e) => e.buttonId === buttonId)
+    .slice()
+    .sort((a, b) => a.startTime - b.startTime)
 }

@@ -32,11 +32,11 @@ export function VideoDeskDownloadMenu({
       {open ? (
         <div className="vd-menu" role="menu">
           <button type="button" onClick={() => { setOpen(false); onPick('clip') }}>Este recorte</button>
-          <button type="button" onClick={() => { setOpen(false); onPick('folder') }}>Esta carpeta (zip)</button>
+          <button type="button" onClick={() => { setOpen(false); onPick('folder') }}>Esta línea (zip)</button>
           <button type="button" onClick={() => { setOpen(false); onPick('all-folders') }}>Todas las carpetas (zip)</button>
           <button type="button" onClick={() => { setOpen(false); onPick('all-flat') }}>Todos los clips sueltos (zip)</button>
           <p className="vd-menu-hint">
-            MP4 en la máxima calidad posible. El partido no se sube. Sirve para copiar los archivos a otra carpeta del PC.
+            MP4 sin audio, misma resolución, peso contenido. El partido no se sube.
           </p>
         </div>
       ) : null}

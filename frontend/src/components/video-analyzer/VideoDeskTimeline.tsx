@@ -1,5 +1,6 @@
 'use client'
 
+import { Hand } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CodeButton, CodeEvent } from './types'
 import { formatTime } from './utils'
@@ -17,8 +18,11 @@ export function VideoDeskTimeline({
   duration,
   currentTime,
   selectedClipId,
+  selectedClipIds,
+  selectedLaneId,
   onSeek,
   onSelect,
+  onSelectLane,
   onTrim,
 }: {
   buttons: CodeButton[]
@@ -26,13 +30,18 @@ export function VideoDeskTimeline({
   duration: number
   currentTime: number
   selectedClipId: string | null
+  selectedClipIds: string[]
+  selectedLaneId: string | null
   onSeek: (time: number) => void
   onSelect: (clip: CodeEvent) => void
+  onSelectLane: (buttonId: string) => void
   onTrim: (clip: CodeEvent, startTime: number, endTime: number) => void
 }) {
   const trackRef = useRef<HTMLDivElement>(null)
   const [zoom, setZoom] = useState(1)
   const [viewStart, setViewStart] = useState(0)
+  const [handTool, setHandTool] = useState(false)
+  const [panning, setPanning] = useState(false)
   const dragRef = useRef<{
     clip: CodeEvent
     edge: 'start' | 'end' | 'body'
@@ -41,6 +50,7 @@ export function VideoDeskTimeline({
     end: number
   } | null>(null)
   const panRef = useRef<{ originX: number; startView: number } | null>(null)
+  const handPanRef = useRef<{ pointerId: number; originX: number; startView: number; moved: boolean } | null>(null)
 
   const view = cintaWindow(duration, zoom, viewStart)
 
@@ -81,9 +91,53 @@ export function VideoDeskTimeline({
     return () => el.removeEventListener('wheel', onWheel)
   }, [duration, zoom, viewStart, timeFromClientX, view.visible])
 
-  const handleTrackPointer = useCallback((e: React.PointerEvent) => {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (e.key === 'h' || e.key === 'H') {
+        e.preventDefault()
+        setHandTool((v) => !v)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  const onLanesPointerDown = useCallback((e: React.PointerEvent) => {
     if (dragRef.current || panRef.current) return
+    if ((e.target as HTMLElement).closest('.vd-block')) return
+    if (handTool) {
+      e.preventDefault()
+      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+      handPanRef.current = {
+        pointerId: e.pointerId,
+        originX: e.clientX,
+        startView: viewStart,
+        moved: false,
+      }
+      setPanning(true)
+      return
+    }
     onSeek(timeFromClientX(e.clientX))
+  }, [handTool, onSeek, timeFromClientX, viewStart])
+
+  const onLanesPointerMove = useCallback((e: React.PointerEvent) => {
+    const pan = handPanRef.current
+    const el = trackRef.current
+    if (!pan || pan.pointerId !== e.pointerId || !el || view.visible <= 0) return
+    if (Math.abs(e.clientX - pan.originX) > 4) pan.moved = true
+    const dt = -((e.clientX - pan.originX) / el.getBoundingClientRect().width) * view.visible
+    applyView(panCinta(duration, zoom, pan.startView, dt))
+  }, [duration, view.visible, zoom])
+
+  const onLanesPointerUp = useCallback((e: React.PointerEvent) => {
+    const pan = handPanRef.current
+    if (!pan || pan.pointerId !== e.pointerId) return
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId) } catch { /* ignore */ }
+    handPanRef.current = null
+    setPanning(false)
+    if (!pan.moved) onSeek(timeFromClientX(e.clientX))
   }, [onSeek, timeFromClientX])
 
   const onRulerPointerDown = (e: React.PointerEvent) => {
@@ -160,19 +214,40 @@ export function VideoDeskTimeline({
   return (
     <div className="vd-cinta" style={{ ['--vd-lane-h' as string]: `${laneH}px` }}>
       <div className="vd-cinta-gutter">
-        <div className="vd-ruler vd-cinta-zoom">
+        <div className="vd-ruler vd-cinta-zoom" role="group" aria-label="Zoom y mano de la cinta">
+          <button
+            type="button"
+            className={handTool ? 'is-on' : undefined}
+            aria-pressed={handTool}
+            aria-label={handTool ? 'Desactivar mano' : 'Activar mano para mover la cinta'}
+            title="Mano: arrastra la cinta. Tecla H"
+            onClick={() => setHandTool((v) => !v)}
+          >
+            <Hand size={11} strokeWidth={2.4} />
+          </button>
           <button type="button" aria-label="Alejar" onClick={() => applyView(zoomCinta(duration, zoom, viewStart, currentTime, 1 / 1.35))}>−</button>
           <span>{zoomLabel}</span>
           <button type="button" aria-label="Acercar" onClick={() => applyView(zoomCinta(duration, zoom, viewStart, currentTime, 1.35))}>+</button>
         </div>
         {lanes.map((btn) => (
-          <div key={btn.id} className="vd-lane-label" title={btn.label}>{btn.label}</div>
+          <button
+            key={btn.id}
+            type="button"
+            className={`vd-lane-label${selectedLaneId === btn.id ? ' is-selected' : ''}`}
+            title={`Seleccionar todos los recortes de ${btn.label}`}
+            onClick={() => { if (btn.id !== '_none') onSelectLane(btn.id) }}
+          >
+            {btn.label}
+          </button>
         ))}
       </div>
       <div
-        className="vd-cinta-lanes"
+        className={`vd-cinta-lanes${handTool ? ' is-hand' : ''}${panning ? ' is-panning' : ''}`}
         ref={trackRef}
-        onPointerDown={handleTrackPointer}
+        onPointerDown={onLanesPointerDown}
+        onPointerMove={onLanesPointerMove}
+        onPointerUp={onLanesPointerUp}
+        onPointerCancel={onLanesPointerUp}
       >
         <div
           className="vd-ruler"
@@ -193,7 +268,7 @@ export function VideoDeskTimeline({
         {lanes.map((btn) => {
           const clips = events.filter((e) => e.buttonId === btn.id)
           return (
-            <div key={btn.id} className="vd-lane">
+            <div key={btn.id} className={`vd-lane${selectedLaneId === btn.id ? ' is-selected' : ''}`}>
               <div className="vd-lane-track">
                 {clips.map((clip) => {
                   if (clip.endTime < view.viewStart || clip.startTime > view.viewEnd) return null
@@ -202,7 +277,7 @@ export function VideoDeskTimeline({
                   return (
                     <div
                       key={clip.id}
-                      className={`vd-block${selectedClipId === clip.id ? ' is-selected' : ''}`}
+                      className={`vd-block${selectedClipIds.includes(clip.id) || selectedClipId === clip.id ? ' is-selected' : ''}`}
                       style={{
                         left: `${left}%`,
                         width: `max(4px, ${Math.max(0.3, right - left)}%)`,

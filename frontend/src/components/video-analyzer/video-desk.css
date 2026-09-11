@@ -408,7 +408,7 @@
 }
 
 .vd-cinta-gutter {
-  width: 108px;
+  width: 124px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -442,10 +442,18 @@
   cursor: pointer;
   border-radius: 2px;
   padding: 0;
+  display: grid;
+  place-items: center;
 }
 
 .vd-cinta-zoom button:hover {
   background: color-mix(in srgb, var(--vd-line) 16%, var(--vd-bg));
+}
+
+.vd-cinta-zoom button.is-on {
+  background: var(--vd-line);
+  color: var(--vd-ink);
+  border-color: var(--vd-line);
 }
 
 .vd-cinta-lanes {
@@ -458,6 +466,14 @@
   cursor: crosshair;
 }
 
+.vd-cinta-lanes.is-hand {
+  cursor: grab;
+}
+
+.vd-cinta-lanes.is-panning {
+  cursor: grabbing;
+}
+
 .vd-lane {
   display: flex;
   height: var(--vd-lane-h, 24px);
@@ -467,6 +483,7 @@
 
 .vd-lane-label {
   height: var(--vd-lane-h, 24px);
+  width: 100%;
   flex-shrink: 0;
   font-size: 9px;
   font-family: var(--vd-display);
@@ -479,7 +496,26 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  border: 0;
   border-bottom: 1px solid color-mix(in srgb, var(--vd-text) 10%, transparent);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vd-lane-label:hover {
+  color: var(--vd-text);
+  background: color-mix(in srgb, var(--vd-line) 10%, transparent);
+}
+
+.vd-lane-label.is-selected,
+.vd-folder-head.is-selected {
+  color: var(--vd-ink);
+  background: var(--vd-playhead);
+}
+
+.vd-lane.is-selected {
+  background: color-mix(in srgb, var(--vd-playhead) 10%, transparent);
 }
 
 .vd-lane-track {

@@ -9,6 +9,8 @@ export function VideoDeskFolders({
   buttons,
   events,
   selectedClipId,
+  selectedClipIds,
+  selectedLaneId,
   onSelect,
   onPlay,
   onRename,
@@ -20,6 +22,8 @@ export function VideoDeskFolders({
   buttons: CodeButton[]
   events: CodeEvent[]
   selectedClipId: string | null
+  selectedClipIds: string[]
+  selectedLaneId: string | null
   onSelect: (clip: CodeEvent) => void
   onPlay: (clip: CodeEvent) => void
   onRename: (clip: CodeEvent, title: string) => void
@@ -45,7 +49,7 @@ export function VideoDeskFolders({
           <div key={key} className="vd-folder">
             <button
               type="button"
-              className="vd-folder-head"
+              className={`vd-folder-head${selectedLaneId && selectedLaneId === group.button?.id ? ' is-selected' : ''}`}
               onClick={() => setOpen((s) => ({ ...s, [key]: !expanded }))}
             >
               <span className="vd-folder-swatch" style={{ background: group.color }} />
@@ -55,7 +59,7 @@ export function VideoDeskFolders({
             {expanded
               ? group.clips.map((clip) => {
                   const title = clipDisplayTitle(clip, group.button)
-                  const selected = selectedClipId === clip.id
+                  const selected = selectedClipIds.includes(clip.id) || selectedClipId === clip.id
                   return (
                     <div
                       key={clip.id}

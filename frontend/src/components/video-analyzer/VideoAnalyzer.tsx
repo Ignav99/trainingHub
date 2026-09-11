@@ -11,7 +11,7 @@ import { VideoDeskFolders } from './VideoDeskFolders'
 import { VideoDeskTimeline } from './VideoDeskTimeline'
 import { VideoDeskDownloadMenu } from './VideoDeskDownloadMenu'
 import { extractAndDownloadDeskClips, type DeskDownloadKind } from './videoDeskDownload'
-import { clipDisplayTitle } from './videoDesk'
+import { clipDisplayTitle, clipsOnLane } from './videoDesk'
 import type { CodeButton, CodeEvent } from './types'
 import './video-desk.css'
 
@@ -44,6 +44,8 @@ export function VideoAnalyzer({
   const [railWidth, setRailWidth] = useState(360)
   const [cintaHeight, setCintaHeight] = useState(168)
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null)
+  const [selectedClipIds, setSelectedClipIds] = useState<string[]>([])
+  const [selectedLaneId, setSelectedLaneId] = useState<string | null>(null)
   const [sendClipId, setSendClipId] = useState<string | null>(null)
   const [progress, setProgress] = useState<string | null>(null)
   const [objectUrl, setObjectUrl] = useState('')
@@ -103,15 +105,37 @@ export function VideoAnalyzer({
 
   const playClip = useCallback((clip: CodeEvent) => {
     setSelectedClipId(clip.id)
+    setSelectedClipIds([clip.id])
+    setSelectedLaneId(null)
     clipHoldRef.current = clip.endTime
     seekTo(clip.startTime)
     playerRef.current?.play()
   }, [seekTo])
 
+  const selectClip = useCallback((clip: CodeEvent) => {
+    setSelectedClipId(clip.id)
+    setSelectedClipIds([clip.id])
+    setSelectedLaneId(null)
+    setActiveButtonId(clip.buttonId)
+  }, [setActiveButtonId])
+
+  const selectLane = useCallback((buttonId: string) => {
+    const clips = clipsOnLane(events, buttonId)
+    const btn = buttons.find((b) => b.id === buttonId)
+    setSelectedLaneId(buttonId)
+    setActiveButtonId(buttonId)
+    setSelectedClipIds(clips.map((c) => c.id))
+    setSelectedClipId(clips[0]?.id || null)
+    if (clips.length) toast.success(`${clips.length} recortes de ${btn?.label || 'esta línea'}`)
+    else toast.message(`No hay recortes en ${btn?.label || 'esta línea'}`)
+  }, [buttons, events, setActiveButtonId])
+
   const pressButton = useCallback((btn: CodeButton) => {
     const videoDur = duration || playerRef.current?.getVideoElement()?.duration || 0
     const event = recordEvent(btn.id, currentTimeRef.current, videoDur)
     setSelectedClipId(event.id)
+    setSelectedClipIds([event.id])
+    setSelectedLaneId(null)
     toast.success(`${btn.label} · −${btn.preRoll}s / +${btn.postRoll}s`)
   }, [duration, recordEvent])
 
@@ -175,7 +199,7 @@ export function VideoAnalyzer({
         clips: events,
         buttons,
         selectedClipId: target?.id,
-        selectedButtonId: target?.buttonId || activeButtonId,
+        selectedButtonId: selectedLaneId || target?.buttonId || activeButtonId,
         matchLabel: title.replace(/\.[^.]+$/, ''),
         sourceFile: localFile,
         onProgress: setProgress,
@@ -186,7 +210,7 @@ export function VideoAnalyzer({
     } finally {
       setProgress(null)
     }
-  }, [activeButtonId, buttons, events, localFile, selectedClip, title])
+  }, [activeButtonId, buttons, events, localFile, selectedClip, selectedLaneId, title])
 
   const onVSplit = (e: React.PointerEvent) => {
     const startX = e.clientX
@@ -281,9 +305,10 @@ export function VideoAnalyzer({
             buttons={buttons}
             events={events}
             selectedClipId={selectedClipId}
+            selectedClipIds={selectedClipIds}
+            selectedLaneId={selectedLaneId}
             onSelect={(clip) => {
-              setSelectedClipId(clip.id)
-              setActiveButtonId(clip.buttonId)
+              selectClip(clip)
               seekTo(clip.startTime)
             }}
             onPlay={playClip}
@@ -296,6 +321,7 @@ export function VideoAnalyzer({
             onSend={(clip) => setSendClipId(clip.id)}
             onDelete={(clip) => {
               removeEvent(videoKey, clip.id)
+              setSelectedClipIds((ids) => ids.filter((id) => id !== clip.id))
               if (selectedClipId === clip.id) setSelectedClipId(null)
             }}
           />
@@ -310,11 +336,11 @@ export function VideoAnalyzer({
         duration={duration}
         currentTime={currentTime}
         selectedClipId={selectedClipId}
+        selectedClipIds={selectedClipIds}
+        selectedLaneId={selectedLaneId}
         onSeek={seekTo}
-        onSelect={(clip) => {
-          setSelectedClipId(clip.id)
-          setActiveButtonId(clip.buttonId)
-        }}
+        onSelect={selectClip}
+        onSelectLane={selectLane}
         onTrim={patchClip}
       />
 
