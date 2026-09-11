@@ -7,7 +7,7 @@ Herramienta local a pantalla completa en `/video-analisis`. El partido **nunca**
 - **Jog de partido largo:** dos dedos en el trackpad (un seek en vuelo, cabezal optimista) y flechas frame a frame (`requestVideoFrameCallback` + `currentTime`, nunca `fastSeek`). Shift+flecha = 1 s. El fps se estima al reproducir (25/50 típico de TV).
 - Descargas en **MP4 sin audio**, misma resolución: CRF 21 + tope ~5 Mbps en 1080p (un recorte de 18s queda ~8–12 MB, no 50). Manita (H) para desplazar la cinta; clic en el nombre de la fila selecciona todos sus recortes para exportar esa línea. El partido no se sube.
 - Sin pizarra ni ventanas flotantes en esta pantalla. El dibujo sigue en la sala de presentación.
-- **Visión:** Mac arm64 **MPS ok**. `prueba2.mp4` 21 s → detect 9,2 s a 5 fps (~40 min / 90 min solo cajas, 512 MB). Terminal necesitaba permiso al Escritorio. Siguiente: 60 s del partido 4–5 GB. Plan: `docs/VISION_PLAN.md`.
+- **Visión:** **Pausado 11 sep 2026.** Handoff: `docs/VISION_HANDOFF.md`. Mac MPS ok (21 s → ~40 min/partido solo cajas). Siguiente al retomar: 60 s del Veo 4–5 GB. Plan: `docs/VISION_PLAN.md`.
 
 ## Revisión de vídeo
 Dos herramientas: **Video Análisis** (partido entero local, nunca a la nube) y **Revisión** (recortes cortos en informes).
