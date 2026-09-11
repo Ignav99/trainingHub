@@ -295,23 +295,19 @@ Colab T4 (el tutorial de Roboflow) también se lleva el vídeo a Google. No.
 
 ### Escalera de pruebas (mismo script)
 
-En el Mac, con Python 3.10+ (no hace falta GPU NVIDIA). **No** uses `opencv-python-headless` (en Mac a menudo no abre MP4). Copia el vídeo **fuera** del Escritorio (macOS bloquea esa carpeta).
+En el Mac: el vídeo lo lee **imageio-ffmpeg**; OpenCV headless solo hace falta para YOLO. No desinstales headless. Copia el mp4 **fuera** del Escritorio. El script se baja de `main` (`curl -fL`), nunca de una rama `cursor/*`.
 
 ```bash
 PY=/Users/User/.pyenv/versions/3.11.9/bin/python3
 mkdir -p /Users/User/kabine-vision-bench
 cd /Users/User/kabine-vision-bench
-curl -L -o vision_bench.py https://raw.githubusercontent.com/Ignav99/trainingHub/main/scripts/vision_bench.py
-$PY -m pip uninstall -y opencv-python-headless
-$PY -m pip install opencv-python imageio imageio-ffmpeg ultralytics numpy
+curl -fL -o vision_bench.py https://raw.githubusercontent.com/Ignav99/trainingHub/main/scripts/vision_bench.py
+$PY -m pip install --only-binary=:all: opencv-python-headless imageio imageio-ffmpeg ultralytics numpy
+ls -lh ~/Desktop/*.mp4 ~/Downloads/*.mp4 2>/dev/null
 cp "/Users/User/Desktop/prueba 2.mp4" ./clip.mp4
 ls -lh ./clip.mp4
-# tiene que ser ~11 MB. Luego el vídeo es ./clip.mp4 — no el Escritorio
-$PY vision_bench.py --video ./clip.mp4 --stride 6
-# si OpenCV sigue fallando:
 $PY vision_bench.py --video ./clip.mp4 --stride 6 --backend imageio
-# 60 s del partido (cópialo también a esta carpeta)
-$PY vision_bench.py --video ./partido.mp4 --max-seconds 60 --stride 6
+$PY vision_bench.py --video ./partido.mp4 --max-seconds 60 --stride 6 --backend imageio
 ```
 
 Pegad el JSON. Decisión:
