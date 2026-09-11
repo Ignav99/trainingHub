@@ -71,6 +71,19 @@ describe('video desk wiring', () => {
     assert.match(analyzer, /selectedLaneId/)
   })
 
+  it('jogs long matches with coalesced trackpad seeks and arrow frames', () => {
+    const player = read('VideoPlayer.tsx')
+    const analyzer = read('VideoAnalyzer.tsx')
+    assert.match(player, /wheelPixelsToSeconds/)
+    assert.match(player, /waitUntilSeeked/)
+    assert.match(player, /jogKeysWindow/)
+    assert.match(player, /nextFrameTime/)
+    assert.match(player, /fillFrame/)
+    assert.equal(player.includes('fastSeek'), false)
+    assert.equal(analyzer.includes('deltaX / 80'), false)
+    assert.match(analyzer, /dos dedos o flechas/)
+  })
+
   it('keeps the video object-contain and the sala drawing overlay intact', () => {
     const player = read('VideoPlayer.tsx')
     const sala = readFileSync(join(here, '../revision/PresentacionSala.tsx'), 'utf8')

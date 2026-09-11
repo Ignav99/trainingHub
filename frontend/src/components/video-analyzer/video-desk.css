@@ -21,6 +21,7 @@
   background: var(--vd-bg);
   color: var(--vd-text);
   font-family: var(--vd-sans);
+  overscroll-behavior: none;
 }
 
 .vd-header {

@@ -4,6 +4,7 @@
 Herramienta local a pantalla completa en `/video-analisis`. El partido **nunca** sale del PC.
 - Una botonera: las 6 fases (ataque/defensa organizado, transiciones, ABP) con **tiempos distintos** (p. ej. ataque −5/+8, ABP −8/+12). Se pueden crear más botones, cambiar tamaño (s/m/l) y editar pre/post.
 - Cada pulsación crea un recorte en la carpeta de ese botón y en la cinta del partido. La cinta se acerca con la rueda (Mayús + rueda o arrastrar la regla para desplazar).
+- **Jog de partido largo:** dos dedos en el trackpad (un seek en vuelo, cabezal optimista) y flechas frame a frame (`requestVideoFrameCallback` + `currentTime`, nunca `fastSeek`). Shift+flecha = 1 s. El fps se estima al reproducir (25/50 típico de TV).
 - Descargas en **MP4 sin audio**, misma resolución: CRF 21 + tope ~5 Mbps en 1080p (un recorte de 18s queda ~8–12 MB, no 50). Manita (H) para desplazar la cinta; clic en el nombre de la fila selecciona todos sus recortes para exportar esa línea. El partido no se sube.
 - Sin pizarra ni ventanas flotantes en esta pantalla. El dibujo sigue en la sala de presentación.
 

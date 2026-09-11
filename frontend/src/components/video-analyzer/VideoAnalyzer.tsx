@@ -165,21 +165,6 @@ export function VideoAnalyzer({
     return () => window.removeEventListener('keydown', handler)
   }, [buttons, onClose, pressButton])
 
-  useEffect(() => {
-    const el = playerRef.current?.getVideoElement()?.parentElement
-    const stage = el?.closest('.vd-monitor-stage') as HTMLElement | null
-    if (!stage) return
-    const handler = (e: WheelEvent) => {
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) * 0.5 && Math.abs(e.deltaX) > 5) {
-        e.preventDefault()
-        const next = Math.max(0, Math.min(duration, currentTimeRef.current + (e.deltaX / 80) * 3))
-        seekTo(next)
-      }
-    }
-    stage.addEventListener('wheel', handler, { passive: false })
-    return () => stage.removeEventListener('wheel', handler)
-  }, [duration, seekTo])
-
   const patchClip = useCallback((clip: CodeEvent, startTime: number, endTime: number) => {
     updateEvent(videoKey, clip.id, { startTime, endTime }, duration)
   }, [duration, updateEvent, videoKey])
@@ -252,7 +237,7 @@ export function VideoAnalyzer({
         </button>
         <div style={{ minWidth: 0 }}>
           <div className="vd-header-title">{title}</div>
-          <div className="vd-header-meta">{events.length} recortes · el partido se queda en el PC</div>
+          <div className="vd-header-meta">{events.length} recortes · dos dedos o flechas para los frames · el partido se queda en el PC</div>
         </div>
         <div className="vd-header-actions">
           <VideoDeskDownloadMenu disabled={!events.length} onPick={(kind) => void runDownload(kind)} />

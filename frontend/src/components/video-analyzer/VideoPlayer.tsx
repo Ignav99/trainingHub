@@ -21,6 +21,20 @@ import {
 } from 'lucide-react'
 import { formatTime } from './utils'
 import { JOG_SECONDS } from '@/lib/videoZoom'
+import {
+  ARROW_HOLD_MS,
+  BROADCAST_FPS,
+  arrowJog,
+  clampTime,
+  estimateFps,
+  isScrubGesture,
+  isTypingTarget,
+  nextFrameTime,
+  scrubPixels,
+  waitUntilSeeked,
+  wheelPixelsToSeconds,
+  type ArrowJog,
+} from './videoJog'
 
 const HOLD_REWIND_INTERVAL_MS = 70
 
@@ -48,14 +62,8 @@ interface VideoPlayerProps {
   onError?: () => void
   /**
    * Enables extra controls meant for standalone/embedded previews (e.g. rival clips
-   * list) that are NOT active by default so the full Video Analyzer tool (which
-   * already implements its own page-level trackpad/keyboard scrubbing) keeps
-   * working exactly as before:
-   *  - Two-finger trackpad horizontal scrub (scoped to this player only)
-   *  - Left/Right arrow seek (only while this player has focus)
-   *  - A real OS fullscreen toggle button
-   *  - A "expand" toggle that enlarges this same instance in place (no reload,
-   *    keeps play position) for a bigger, popup-like viewing area
+   * list): OS fullscreen, expand overlay, and (unless presenterEmbed) the same
+   * frame jog as the coding desk (two-finger trackpad + arrow keys).
    */
   standalonePreview?: boolean
   /**
@@ -114,6 +122,16 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const elementMuted = !!playbackMuted || uiMuted
     const showFullscreen = fullscreenProp ?? internalFullscreen
     const rewindIntervalRef = useRef<number | null>(null)
+    const fpsRef = useRef(BROADCAST_FPS)
+    const frameBusyRef = useRef(false)
+    const pendingFramesRef = useRef(0)
+    const heldJogRef = useRef<ArrowJog | null>(null)
+    const holdTimerRef = useRef<number | null>(null)
+    const onTimeUpdateRef = useRef(onTimeUpdate)
+    onTimeUpdateRef.current = onTimeUpdate
+    const jogPointer = (standalonePreview || fillFrame) && !presenterEmbed
+    const jogKeysWindow = !!fillFrame && !presenterEmbed
+    const jogKeysContainer = !!standalonePreview && !presenterEmbed
 
     // HLS.js support for .m3u8 streams
     const hlsRef = useRef<Hls | null>(null)
@@ -166,10 +184,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       const v = videoRef.current
       if (!v) return
       const { min, max } = rangeBounds()
-      const next = Math.max(min, Math.min(max, time))
+      const next = clampTime(time, min, max)
       currentTimeRef.current = next
       setCurrentTime(next)
       v.currentTime = next
+      onTimeUpdateRef.current?.(next)
     }, [rangeBounds])
 
     const seek = useCallback((delta: number) => {
@@ -208,55 +227,46 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       seekToTime(min + ratio * Math.max(0, max - min))
     }, [rangeBounds, seekToTime])
 
-    // Frame-accurate stepping using requestVideoFrameCallback: nudges currentTime
-    // in small increments and watches the *actual presented frame* (metadata.mediaTime)
-    // instead of assuming a fixed fps. This works correctly regardless of the
-    // clip's real frame rate (24/25/30/50/60fps...) and codec GOP structure.
-    // Falls back to a fixed 1/30s step on browsers without rVFC support.
-    const frameStepRef = useRef(false)
-    const frameStep = useCallback((direction: 1 | -1) => {
-      const v = videoRef.current as (HTMLVideoElement & {
-        requestVideoFrameCallback?: (cb: (now: number, metadata: { mediaTime: number }) => void) => number
-      }) | null
-      if (!v || !v.paused || frameStepRef.current) return
-      const min = clipRange?.start ?? 0
-      const max = clipRange?.end ?? v.duration
-
-      if (typeof v.requestVideoFrameCallback !== 'function') {
-        // Fallback for browsers without rVFC (older Safari/Firefox)
-        v.currentTime = Math.max(min, Math.min(max, v.currentTime + direction / 30))
-        return
-      }
-
-      frameStepRef.current = true
-      const STEP = 1 / 120 // ~8.3ms nudge — fine enough for up to ~120fps footage
-      const MAX_ATTEMPTS = 24 // covers down to ~5fps within a bounded, snappy time
-
-      const getMediaTime = () => new Promise<number>((resolve) => {
-        v.requestVideoFrameCallback!((_now, metadata) => resolve(metadata.mediaTime))
-      })
-
-      ;(async () => {
-        try {
-          const baseline = await getMediaTime()
-          let attempts = 0
-          let lastTime = v.currentTime
-          while (attempts < MAX_ATTEMPTS) {
-            const next = direction === 1
-              ? Math.min(max, lastTime + STEP)
-              : Math.max(min, lastTime - STEP)
-            if (next === lastTime) break // hit clip/video bounds
-            v.currentTime = next
-            lastTime = next
-            const t = await getMediaTime()
-            if (t !== baseline) break
-            attempts++
+    // Frame step: pause, nudge by 1/fps, wait for seeked so long-GOP H.264
+    // match files stay in lockstep with the keys (web.dev rVFC + MDN currentTime).
+    const runFrameQueue = useCallback(async () => {
+      const v = videoRef.current
+      if (!v || frameBusyRef.current) return
+      frameBusyRef.current = true
+      try {
+        while (true) {
+          let dir: 1 | -1 | 0 = 0
+          if (pendingFramesRef.current !== 0) {
+            dir = pendingFramesRef.current > 0 ? 1 : -1
+            pendingFramesRef.current -= dir
+          } else if (heldJogRef.current?.kind === 'frame') {
+            dir = heldJogRef.current.direction
           }
-        } finally {
-          frameStepRef.current = false
+          if (dir === 0) break
+          if (!v.paused) v.pause()
+          const { min, max } = rangeBounds()
+          const from = v.currentTime
+          const next = nextFrameTime(from, dir, fpsRef.current, min, max)
+          if (Math.abs(next - from) < 0.0004) break
+          currentTimeRef.current = next
+          setCurrentTime(next)
+          v.currentTime = next
+          onTimeUpdateRef.current?.(next)
+          if (v.seeking) await waitUntilSeeked(v)
+          else await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
         }
-      })()
-    }, [clipRange])
+      } finally {
+        frameBusyRef.current = false
+        if (pendingFramesRef.current !== 0 || heldJogRef.current?.kind === 'frame') {
+          void runFrameQueue()
+        }
+      }
+    }, [rangeBounds])
+
+    const frameStep = useCallback((direction: 1 | -1) => {
+      pendingFramesRef.current = Math.max(-8, Math.min(8, pendingFramesRef.current + direction))
+      void runFrameQueue()
+    }, [runFrameQueue])
 
     useImperativeHandle(ref, () => ({
       getVideoElement: () => videoRef.current,
@@ -335,6 +345,33 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       }
     }, [clipRange, onTimeUpdate, onPlayStateChange, onDurationChange, onSeeked, onError])
 
+    useEffect(() => {
+      const v = videoRef.current as (HTMLVideoElement & {
+        requestVideoFrameCallback?: (cb: (now: number, metadata: { presentedFrames: number; mediaTime: number }) => void) => number
+      }) | null
+      if (!v || typeof v.requestVideoFrameCallback !== 'function') return
+      let last: { frames: number; mediaTime: number } | null = null
+      let active = true
+      const sample = (_now: number, meta: { presentedFrames: number; mediaTime: number }) => {
+        if (!active) return
+        if (last) {
+          const fps = estimateFps(meta.presentedFrames - last.frames, meta.mediaTime - last.mediaTime)
+          if (fps) fpsRef.current = fps
+        }
+        last = { frames: meta.presentedFrames, mediaTime: meta.mediaTime }
+        if (!v.paused) v.requestVideoFrameCallback!(sample)
+      }
+      const onPlay = () => {
+        last = null
+        v.requestVideoFrameCallback!(sample)
+      }
+      v.addEventListener('play', onPlay)
+      return () => {
+        active = false
+        v.removeEventListener('play', onPlay)
+      }
+    }, [src])
+
     // When clipRange changes, seek to clip start
     useEffect(() => {
       if (clipRange && videoRef.current) {
@@ -346,98 +383,167 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       if (videoRef.current) videoRef.current.muted = elementMuted
     }, [elementMuted])
 
-    // Two-finger trackpad horizontal swipe — scoped to this player only.
-    // Only active when standalonePreview is enabled to avoid double-handling
-    // when this component is embedded inside a tool that already implements
-    // its own page-level scrubbing (e.g. the full Video Analyzer).
-    //
-    // Rapid trackpad gestures can fire dozens of wheel events per second —
-    // issuing a seek() on every single one overwhelms the decoder and feels
-    // "stuck"/choppy. Instead we accumulate the deltas and apply a single
-    // coalesced seek per rendered frame (via requestAnimationFrame), using
-    // fastSeek() (nearest-keyframe) for low-latency scrubbing feedback, and
-    // skip a frame entirely if the previous seek hasn't resolved yet.
+    // Two-finger trackpad jog. One decoder seek in flight; playhead is optimistic
+    // so a 90-minute file stays fluid instead of queueing dozens of GOP decodes.
     useEffect(() => {
-      if (!standalonePreview) return
+      if (!jogPointer) return
       const el = containerRef.current
       if (!el) return
 
-      let pendingDelta = 0
+      let pendingPx = 0
+      let pendingTarget: number | null = null
       let rafId: number | null = null
 
-      const applyScrub = () => {
-        rafId = null
+      const bounds = () => {
         const v = videoRef.current
-        if (!v || pendingDelta === 0) return
+        const min = clipRange?.start ?? 0
+        const rawMax = clipRange?.end ?? v?.duration ?? 0
+        return { min, max: Number.isFinite(rawMax) ? rawMax : min }
+      }
+
+      const commitDecoder = (time: number) => {
+        const v = videoRef.current
+        if (!v) return
+        if (!v.paused) v.pause()
         if (v.seeking) {
-          // Decoder still catching up — try again next frame instead of
-          // dropping the gesture (this is what keeps fast swipes smooth).
-          rafId = requestAnimationFrame(applyScrub)
+          pendingTarget = time
           return
         }
-        const min = clipRange?.start ?? 0
-        const max = clipRange?.end ?? v.duration
-        const deltaSeconds = (pendingDelta / 80) * 3
-        pendingDelta = 0
-        const target = Math.max(min, Math.min(max, currentTimeRef.current + deltaSeconds))
-        const videoEl = v as HTMLVideoElement & { fastSeek?: (time: number) => void }
-        if (videoEl.fastSeek) videoEl.fastSeek(target)
-        else v.currentTime = target
+        pendingTarget = null
+        if (Math.abs(v.currentTime - time) < 0.0008) return
+        v.currentTime = time
+      }
+
+      const flush = () => {
+        rafId = null
+        const v = videoRef.current
+        if (!v) return
+        if (pendingPx !== 0) {
+          const { min, max } = bounds()
+          const next = clampTime(
+            currentTimeRef.current + wheelPixelsToSeconds(pendingPx, fpsRef.current),
+            min,
+            max
+          )
+          pendingPx = 0
+          currentTimeRef.current = next
+          setCurrentTime(next)
+          onTimeUpdateRef.current?.(next)
+          commitDecoder(next)
+        }
+      }
+
+      const onSeeked = () => {
+        if (pendingTarget != null) {
+          const t = pendingTarget
+          pendingTarget = null
+          commitDecoder(t)
+        } else if (pendingPx !== 0 && rafId === null) {
+          rafId = requestAnimationFrame(flush)
+        }
       }
 
       const handler = (e: WheelEvent) => {
-        if (Math.abs(e.deltaX) > Math.abs(e.deltaY) * 0.5 && Math.abs(e.deltaX) > 5) {
-          e.preventDefault()
-          pendingDelta += e.deltaX
-          if (rafId === null) rafId = requestAnimationFrame(applyScrub)
-        }
+        if (!isScrubGesture(e.deltaX, e.deltaY)) return
+        e.preventDefault()
+        pendingPx += scrubPixels(e.deltaX, e.deltaY)
+        if (rafId === null) rafId = requestAnimationFrame(flush)
       }
+
+      const v = videoRef.current
+      v?.addEventListener('seeked', onSeeked)
       el.addEventListener('wheel', handler, { passive: false })
       return () => {
+        v?.removeEventListener('seeked', onSeeked)
         el.removeEventListener('wheel', handler)
         if (rafId !== null) cancelAnimationFrame(rafId)
       }
-    }, [standalonePreview, clipRange])
+    }, [jogPointer, clipRange])
 
-    // Left/Right arrow: single-frame step for detailed play review.
-    // Shift+Left/Right: bigger ±5s jump. Space: play/pause.
-    const handleContainerKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-      if (!standalonePreview) return
+    const stopHoldJog = useCallback(() => {
+      heldJogRef.current = null
+      if (holdTimerRef.current != null) {
+        window.clearTimeout(holdTimerRef.current)
+        holdTimerRef.current = null
+      }
+    }, [])
+
+    const applyArrowJog = useCallback((jog: ArrowJog) => {
+      if (jog.kind === 'frame') {
+        frameStep(jog.direction)
+        return
+      }
       const v = videoRef.current
       if (!v) return
-      if (e.key === 'ArrowLeft') {
-        if (presenterEmbed) return
-        e.preventDefault()
-        if (e.shiftKey) {
-          const min = clipRange?.start ?? 0
-          v.currentTime = Math.max(min, currentTimeRef.current - 5)
-        } else {
-          frameStep(-1)
+      if (!v.paused) v.pause()
+      seekToTime(v.currentTime + jog.direction)
+    }, [frameStep, seekToTime])
+
+    const onJogKeyDown = useCallback((e: KeyboardEvent | React.KeyboardEvent) => {
+      if (presenterEmbed) return false
+      if (isTypingTarget(e.target)) return false
+      const jog = arrowJog(e.key, e.shiftKey)
+      if (!jog) return false
+      e.preventDefault()
+      if ('repeat' in e && e.repeat) return true
+      applyArrowJog(jog)
+      if (holdTimerRef.current != null) window.clearTimeout(holdTimerRef.current)
+      holdTimerRef.current = window.setTimeout(() => {
+        heldJogRef.current = jog
+        if (jog.kind === 'frame') {
+          void runFrameQueue()
+          return
         }
-      } else if (e.key === 'ArrowRight') {
-        if (presenterEmbed) return
-        e.preventDefault()
-        if (e.shiftKey) {
-          const max = clipRange?.end ?? v.duration
-          v.currentTime = Math.min(max, currentTimeRef.current + 5)
-        } else {
-          frameStep(1)
+        const tick = () => {
+          if (heldJogRef.current?.kind !== 'second') return
+          applyArrowJog(heldJogRef.current)
+          holdTimerRef.current = window.setTimeout(tick, 90)
         }
-      } else if (e.key === ' ') {
+        tick()
+      }, ARROW_HOLD_MS)
+      return true
+    }, [applyArrowJog, presenterEmbed, runFrameQueue])
+
+    const onJogKeyUp = useCallback((e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') stopHoldJog()
+    }, [stopHoldJog])
+
+    // Left/Right: one frame. Shift+Left/Right: 1s. Hold keeps stepping at decoder pace.
+    const handleContainerKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (!jogKeysContainer) return
+      if (e.key === ' ') {
         e.preventDefault()
         togglePlay()
-      } else if (e.key === 'Escape' && isExpanded) {
-        setIsExpanded(false)
+        return
       }
-    }, [standalonePreview, presenterEmbed, clipRange, togglePlay, isExpanded, frameStep])
+      if (e.key === 'Escape' && isExpanded) {
+        setIsExpanded(false)
+        return
+      }
+      onJogKeyDown(e)
+    }, [jogKeysContainer, togglePlay, isExpanded, onJogKeyDown])
+
+    useEffect(() => {
+      if (!jogKeysWindow) return
+      const down = (e: KeyboardEvent) => { onJogKeyDown(e) }
+      const up = (e: KeyboardEvent) => { onJogKeyUp(e) }
+      window.addEventListener('keydown', down)
+      window.addEventListener('keyup', up)
+      return () => {
+        window.removeEventListener('keydown', down)
+        window.removeEventListener('keyup', up)
+        stopHoldJog()
+      }
+    }, [jogKeysWindow, onJogKeyDown, onJogKeyUp, stopHoldJog])
 
     // Auto-focus the container when entering the expanded overlay so arrow
     // keys work immediately without an extra click.
     useEffect(() => {
+      if (fillFrame && !presenterEmbed) containerRef.current?.focus()
       if (standalonePreview && (isExpanded || presenterEmbed)) {
         containerRef.current?.focus()
       }
-    }, [standalonePreview, isExpanded, presenterEmbed])
+    }, [standalonePreview, isExpanded, presenterEmbed, fillFrame, src])
 
     // Real OS fullscreen toggle
     useEffect(() => {
@@ -476,8 +582,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
               ? 'flex h-full min-h-0 flex-col overflow-hidden outline-none'
               : 'flex flex-col outline-none'
         }
-        tabIndex={standalonePreview ? 0 : undefined}
+        tabIndex={jogPointer ? 0 : undefined}
         onKeyDown={handleContainerKeyDown}
+        onKeyUp={(e) => {
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') stopHoldJog()
+        }}
       >
         <video
           ref={videoRef}
@@ -520,11 +629,13 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
               if (e.key === 'ArrowLeft') {
                 e.preventDefault()
                 e.stopPropagation()
-                seek(e.shiftKey ? -5 : -1)
+                if (e.shiftKey) seek(-1)
+                else frameStep(-1)
               } else if (e.key === 'ArrowRight') {
                 e.preventDefault()
                 e.stopPropagation()
-                seek(e.shiftKey ? 5 : 1)
+                if (e.shiftKey) seek(1)
+                else frameStep(1)
               } else if (e.key === 'Home') {
                 e.preventDefault()
                 e.stopPropagation()
@@ -586,7 +697,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             size="icon"
             className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20"
             onClick={() => frameStep(-1)}
-            title="Frame anterior"
+            title="Frame anterior (←)"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
@@ -596,7 +707,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             size="icon"
             className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20"
             onClick={() => frameStep(1)}
-            title="Frame siguiente"
+            title="Frame siguiente (→)"
           >
             <ChevronRight className="h-3.5 w-3.5" />
           </Button>
