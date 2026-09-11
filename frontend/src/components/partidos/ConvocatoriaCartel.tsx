@@ -181,7 +181,7 @@ export function ConvocatoriaCartel({
         }}
       >
         <div style={{ color: '#F3EFE4' }}>
-          <KitFullPreview kit={kit} size={108} labels={false} />
+          <KitFullPreview kit={kit} size={108} labels={false} escudoUrl={clubLogoUrl} />
         </div>
         <div>
           <div style={{ fontSize: 9, letterSpacing: '0.22em', color: '#D4E54E', fontWeight: 700 }}>EQUIPACIÓN</div>
@@ -195,7 +195,7 @@ export function ConvocatoriaCartel({
           >
             {kitLabel}
           </div>
-          <div style={{ fontSize: 11, opacity: 0.75, marginTop: 4 }}>Camiseta, pantalón y medias de Configuración</div>
+          <div style={{ fontSize: 11, opacity: 0.75, marginTop: 4 }}>Camiseta, calzonas y medias de Configuración</div>
         </div>
       </div>
 

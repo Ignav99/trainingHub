@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { ColorPicker } from '@/components/ui/color-picker'
-import { JerseyPreview } from './JerseyPreview'
+import { KitFullPreview } from './KitFullPreview'
 import type { Equipacion, EquipacionInput, PatronCamiseta, TipoEquipacion } from '@/lib/api/equipaciones'
 
 const PATRONES: { value: PatronCamiseta; label: string }[] = [
@@ -18,9 +18,11 @@ interface KitEditorProps {
   tipo: TipoEquipacion
   initial?: Equipacion
   onSave: (data: EquipacionInput) => Promise<void>
+  /** Escudo subido en Configuración (club) o ficha del rival. */
+  escudoUrl?: string | null
 }
 
-export function KitEditor({ tipo, initial, onSave }: KitEditorProps) {
+export function KitEditor({ tipo, initial, onSave, escudoUrl }: KitEditorProps) {
   const [colorPrincipal, setColorPrincipal] = useState(initial?.color_camiseta_principal || '#1a365d')
   const [colorSecundario, setColorSecundario] = useState(initial?.color_camiseta_secundario || '#ffffff')
   const [patron, setPatron] = useState<PatronCamiseta>(initial?.patron_camiseta || 'solido')
@@ -49,12 +51,17 @@ export function KitEditor({ tipo, initial, onSave }: KitEditorProps) {
 
   return (
     <div className="flex flex-col gap-6 rounded-2xl border bg-card p-6 sm:flex-row">
-      <div className="flex items-center justify-center rounded-xl bg-muted/40 p-6 sm:w-56 sm:shrink-0">
-        <JerseyPreview
-          colorPrincipal={colorPrincipal}
-          colorSecundario={colorSecundario}
-          patron={patron}
-          size={160}
+      <div className="flex items-center justify-center rounded-xl bg-muted/40 p-5 sm:w-52 sm:shrink-0">
+        <KitFullPreview
+          kit={{
+            color_camiseta_principal: colorPrincipal,
+            color_camiseta_secundario: colorSecundario,
+            patron_camiseta: patron,
+            color_pantalon: colorPantalon,
+            color_medias: colorMedias,
+          }}
+          escudoUrl={escudoUrl}
+          size={168}
         />
       </div>
       <div className="flex-1 space-y-4">
@@ -79,7 +86,7 @@ export function KitEditor({ tipo, initial, onSave }: KitEditorProps) {
           {patron !== 'solido' && (
             <ColorPicker label="Color del patron" value={colorSecundario} onChange={setColorSecundario} />
           )}
-          <ColorPicker label="Pantalon" value={colorPantalon} onChange={setColorPantalon} />
+          <ColorPicker label="Calzonas" value={colorPantalon} onChange={setColorPantalon} />
           <ColorPicker label="Medias" value={colorMedias} onChange={setColorMedias} />
         </div>
 

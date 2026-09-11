@@ -356,7 +356,9 @@ export default function ConfiguracionPage() {
           <Card className="card-hover">
             <CardHeader>
               <CardTitle className="text-lg">Equipacion del club</CardTitle>
-              <CardDescription>Colores y patron de las camisetas local y visitante</CardDescription>
+              <CardDescription>
+                Camiseta, calzonas y medias. El escudo que subes arriba va en el pecho izquierdo.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {loadingEquipaciones ? (
@@ -368,17 +370,21 @@ export default function ConfiguracionPage() {
                   <div>
                     <h3 className="text-sm font-semibold mb-2">Equipacion local</h3>
                     <KitEditor
+                      key={equipacionesClub.find((e) => e.tipo === 'local')?.id || 'local'}
                       tipo="local"
                       initial={equipacionesClub.find((e) => e.tipo === 'local')}
                       onSave={(data) => handleSaveEquipacionClub('local', data)}
+                      escudoUrl={theme.logoUrl || organizacion?.logo_url}
                     />
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold mb-2">Equipacion visitante</h3>
                     <KitEditor
+                      key={equipacionesClub.find((e) => e.tipo === 'visitante')?.id || 'visitante'}
                       tipo="visitante"
                       initial={equipacionesClub.find((e) => e.tipo === 'visitante')}
                       onSave={(data) => handleSaveEquipacionClub('visitante', data)}
+                      escudoUrl={theme.logoUrl || organizacion?.logo_url}
                     />
                   </div>
                 </>
