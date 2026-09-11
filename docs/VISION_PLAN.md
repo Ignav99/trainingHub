@@ -104,16 +104,23 @@ Hardware (PDF): hace falta GPU. T4 Colab para el tutorial; RTX 3090 ~3 GB VRAM e
 | Árbitro | Azul claro (no meterlo en el cluster de kits) |
 | Césped | Artificial, líneas naranjas + blancas, de noche con torre |
 
-Siguiente prueba en **vuestro Mac** (Metal): los mismos 21 s con RF-DETR + BoT-SORT + SigLIP (kits). El HSV del probe CPU falla con la luz verde de las torres.
+Siguiente prueba en **vuestro Mac** (Metal): los mismos 21 s con el script de abajo, luego 60 s del partido de 4–5 GB. El HSV del probe CPU falla con la luz verde de las torres; en producto será SigLIP + pin blanco.
 
-Probe CPU ya hecho (esta VM, `yolo11n` COCO, 1 de cada 10 frames, 640 px):
+### Bench CPU (esta VM, `yolo11n` COCO, 640 px) — `scripts/vision_bench.py`
 
-- 63 frames en **~6,5 s** (~10 inf/s). Un 90 min al mismo stride serían **~25–40 min solo detección** en esta CPU; el pipeline completo (homografía + balón) más. En el Mac, de noche, sobra.
-- ~10–17 personas por frame en el Veo. Los lejanos se pierden.
-- El balón COCO casi no existe (1 detección en 21 s). Hace falta modelo de fútbol + teselas.
-- Kits por color HSV: mal (luz verde). Hay que SigLIP + pin blanco, no el histograma.
+Clip `prueba 2.mp4` (20,85 s, 625 frames, 1080p). Decode OpenCV ~550 fps (~1,1 s el clip; un 90 min serían ~5 min solo de leer el MP4). RAM del proceso ~530 MB: **el MP4 de 4–5 GB no se carga entero**.
 
-Script: `scripts/vision_probe.py` (solo prueba; producción = RF-DETR Apache).
+| Modo | Inferencias | Tiempo | Velocidad | Extrapolación 90 min (solo cajas) |
+|---|---|---|---|---|
+| Decode | 0 | 1,1 s | 550 fps de lectura | ~5 min |
+| Stride 6 (~5 fps) | 105 | **3,9 s** | 27 inf/s | **~17 min** |
+| Stride 1 (30 fps) | 625 | 12,7 s | 49 inf/s | ~55 min |
+
+Personas/frame: 8–19 (media ~12). Balón COCO: 0 hits a 5 fps, 4 a 30 fps — inútil; hace falta modelo de fútbol + teselas.
+
+El pipeline real (RF-DETR + BoT-SORT + homografía + slicer de balón) será **más lento** (×2–×4). Aun así, a 5 fps un partido entra en una tarde/noche en CPU; en el Mac con Metal debería ir igual o mejor. No hace falta 30 fps para tracking táctico.
+
+Script de cajas anotadas: `scripts/vision_probe.py`. Script comparable Mac ↔ esta VM: `scripts/vision_bench.py`.
 
 ---
 
@@ -284,16 +291,31 @@ El MP4 de partido son **4–5 GB** (Veo). Eso cabe en el Mac y en un disco USB. 
 
 Colab T4 (el tutorial de Roboflow) también se lleva el vídeo a Google. No.
 
-**Pasos prácticos**
+**Recomendación (partido 4–5 GB):** analizar **en este Mac**, una vez, a **~5 fps** (1 de cada 6 frames). El peso no es el problema (cabe en disco; OpenCV lo lee a ~550 fps). El tiempo sí: por eso no se manda a Render ni a un GPU alquilado.
 
-1. Instalar el worker en el Mac que abre Video Análisis (`uv`/`pip`, pesos a `~/.cache/kabine-vision/`).
-2. Probe: los 21 s de `prueba 2.mp4` → cajas + blancos vs azules. Si eso falla, no tiene sentido un servidor.
-3. 8–10 min de un tiempo (un Veo ya cortado).
-4. Un tiempo completo **de noche**, stride 5 fps.
-5. Si 4 tarda de más: el mini PC NVIDIA, no un alquiler por partido.
-6. Render solo enseña la mesa y guarda recortes cortos de Revisión, como ahora.
+### Escalera de pruebas (mismo script)
 
-Pregunta que cierra el hardware: ¿el Mac de análisis es M1/M2/M3/M4 y de cuántos GB? Con eso se estima si hace falta el mini PC.
+En el Mac, con Python 3.10+ (no hace falta GPU NVIDIA):
+
+```bash
+python3 -m pip install opencv-python-headless ultralytics
+# mismos 21 s que ya medimos en la VM (compara device: mps vs cpu)
+python3 scripts/vision_bench.py --video "/ruta/prueba 2.mp4" --stride 6
+# 60 s del partido real de 4–5 GB (no subir el archivo)
+python3 scripts/vision_bench.py --video "/ruta/partido.mp4" --max-seconds 60 --stride 6
+# si 60 s va bien: 10 min
+python3 scripts/vision_bench.py --video "/ruta/partido.mp4" --max-seconds 600 --stride 6
+```
+
+Pegad el JSON. Decisión:
+
+| 60 s del partido a stride 6 | Qué implica un 90 min | Siguiente paso |
+|---|---|---|
+| < ~20 s | Detect ~30 min; pipeline completo una tarde | Seguir a 10 min, luego un tiempo de noche |
+| 20–90 s | Una noche | Seguir; no comprar nada aún |
+| \> 2 min o el Mac se queda sin RAM | Mini PC NVIDIA una vez | No alquilar GPU por partido |
+
+El chip (M1/M2/M3/M4 + GB) sigue ayudando a estimar, pero **el JSON de 60 s manda**.
 
 ---
 
@@ -325,5 +347,5 @@ El PDF y `prueba 2.mp4` ya se leyeron desde `_inbox/` (upload a GitHub). Siguien
 ## Preguntas abiertas (no bloquean la fase 0)
 
 1. ~~Cámara~~ → **Veo** (clip de prueba).
-2. ¿Qué Mac (chip + RAM) abre el Veo? Eso decide MPS vs mini PC NVIDIA. No alquilar GPU por partido.
+2. ~~Peso del partido~~ → **4–5 GB**. Cabe en el Mac. Bench CPU del clip: ~17 min / 90 min a 5 fps (solo cajas). Falta el JSON del mismo script en el Mac (21 s + 60 s del partido).
 3. ~~PDF~~ → leído; RF-DETR + `roboflow/trackers` BoT-SORT.
