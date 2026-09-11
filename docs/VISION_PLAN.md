@@ -2,11 +2,11 @@
 
 Modo **Visión** dentro de la mesa de `/video-analisis`. No es una app aparte. Empieza pequeño y se apila complejidad.
 
-> PDF del club (aún no llegó a esta VM): **Open-Source Computer Vision Stack for Soccer Video Analysis: Tools, Models, and Licensing Guide (2025-2026)**. Título y tema cubiertos abajo (herramientas, modelos, **licencias**). El binario no está en el chat: cuando el adjunto aterrice se fusionan tablas extra.
+> PDF **leído** (8 páginas): *Open-Source Computer Vision Stack for Soccer Video Analysis: Tools, Models, and Licensing Guide (2025-2026)*. TL;DR del propio informe: Roboflow (`sports` MIT + `trackers` Apache + `supervision` MIT) y detector **RF-DETR Apache 2.0**; no Ultralytics AGPL en producto cerrado; SoccerNet GSR es el SOTA académico (GPL + NDA de vídeos).
 >
-> Kit nuestro: **blanco**. El rival se infiere; el usuario puede pinchar “estos son los nuestros”.
+> Clip de prueba **leído**: `_inbox/prueba 2.mp4` — Veo, 20,85 s, 1920×1080, 29,97 fps, H.264, sin audio, 11 MB. Kit **blanco** vs rival azul oscuro; portero rival amarillo; árbitro azul claro. Cámara alta táctica que **panea** (al final se acerca a la portería izquierda).
 >
-> Writeup práctico de pipeline: [Ignit — open-source computer vision](https://ignit.group/blog/world-cup-2026-building-football-analytics-with-open-source-computer-vision). Tareas: [SoccerNet](https://www.soccer-net.org/tasks).
+> Writeup práctico extra: [Ignit](https://ignit.group/blog/world-cup-2026-building-football-analytics-with-open-source-computer-vision). Tareas: [SoccerNet](https://www.soccer-net.org/tasks).
 
 ---
 
@@ -45,7 +45,7 @@ El artículo de Ignit monta un overlay de fin de semana en un portátil Apple Si
 | Etapa | Qué hace | Pieza open-source |
 |---|---|---|
 | Detección | Cajas por frame: jugador, portero, árbitro, balón | **Producción:** [RF-DETR](https://github.com/roboflow/rf-detr) (Apache 2.0). Probe: pesos Universe [football-players-detection](https://universe.roboflow.com/roboflow-jvuqo/football-players-detection-3zvbc). Ultralytics YOLO solo con licencia Enterprise; AGPL no entra en Kabine cerrado. |
-| Tracking | La misma persona sigue siendo el mismo id | [ByteTrack](https://github.com/ifzhang/ByteTrack) vía [`supervision`](https://github.com/roboflow/supervision) (`sv.ByteTrack`) |
+| Tracking | La misma persona sigue siendo el mismo id | **Producción:** [`roboflow/trackers`](https://github.com/roboflow/trackers) Apache 2.0 con **BoT-SORT** (compensa paneo/zoom Veo). No BoxMOT (AGPL). |
 | Equipos | Dos clusters de kit, sin leer dorsal | [`roboflow/sports`](https://github.com/roboflow/sports) `TeamClassifier`: crop → SigLIP → UMAP → KMeans |
 | Balón | En el frame entero se pierde; hay que cortar en teselas | `sv.InferenceSlicer` + buffer corto cuando desaparece |
 | Homografía | Caja de área, círculo, intersecciones → plano 105×68 | YOLO de [football-field-detection](https://universe.roboflow.com/roboflow-jvuqo/football-field-detection-f07vi) + `cv2.findHomography`. Suavizar entre frames. |
@@ -73,8 +73,8 @@ Kabine es producto cerrado. **No copiar** motores GPL/AGPL al repo. El worker pu
 | Pieza | Licencia | ¿En Visión? |
 |---|---|---|
 | [RF-DETR](https://github.com/roboflow/rf-detr) Nano–Large | Apache 2.0 | **Detector por defecto** |
-| [`supervision`](https://github.com/roboflow/supervision), OpenCV, ByteTrack, NumPy | MIT / Apache | Sí |
-| [`roboflow/sports`](https://github.com/roboflow/sports) | comprobar LICENSE del repo | Kits + `draw_pitch` si es permisiva |
+| [`roboflow/trackers`](https://github.com/roboflow/trackers) (SORT, ByteTrack, OC-SORT, BoT-SORT) | Apache 2.0 | **Tracker de producto** |
+| [`roboflow/sports`](https://github.com/roboflow/sports) | **MIT** (el demo arrastra YOLO AGPL) | Pipeline de referencia RADAR; no usar su YOLO |
 | Ultralytics YOLO (v8/11/26) | **AGPL-3.0** o [Enterprise de pago](https://www.ultralytics.com/license) | No en el producto. Probe local aparte, como mucho |
 | [Tactix](https://github.com/rondo-labs/Tactix) | **GPL-3.0** | Ideas sí; código no |
 | [PitchWise.Lab](https://github.com/arturbuszka/PitchWise.Lab) | **GPL-3.0** (.NET / GSR) | Igual |
@@ -82,7 +82,31 @@ Kabine es producto cerrado. **No copiar** motores GPL/AGPL al repo. El worker pu
 | [SoccerMaster](https://github.com/haolinyang-hlyang/SoccerMaster) (CVPR 2026) | research; YOLO+GSR+Qwen | Candidato a largo plazo, no v0 |
 | RF-DETR XL/2XL (`rfdetr[plus]`) | PML 1.0 (no Apache) | No |
 
-Tactix es el pipeline más parecido a lo que queremos (detección → ByteTrack → kits → homografía → minimapa → Voronoi / pases / transiciones / ABP, export JSON). Lo usamos de **mapa de fases**, no de dependencia.
+Tactix es el pipeline más parecido a lo que queremos (detección → tracks → kits → homografía → minimapa → Voronoi / pases / transiciones / ABP, export JSON). Lo usamos de **mapa de fases**, no de dependencia.
+
+Tutoriales MIT (también arrastran YOLO AGPL por dentro): [abdullahtarek/football_analysis](https://github.com/abdullahtarek/football_analysis) (el más clonado), [Tony-Luna/soccer-video-analytics](https://github.com/Tony-Luna/soccer-video-analytics). Calibración SOTA: [No-Bells-Just-Whistles](https://github.com/mguti97/No-Bells-Just-Whistles), [PnLCalib](https://github.com/mguti97/PnLCalib). Balón: TrackNet o dataset [football-ball-detection](https://universe.roboflow.com/roboflow-jvuqo/football-ball-detection-rejhg) + slicer. Offside: no hay repo llave en mano.
+
+Cámara **Veo** (nuestro clip): el PDF dice que en vista amplia los jugadores salen más pequeños y que BoT-SORT importa porque hay paneo. SoccerTrack v2 es para cámara fija; Veo no es fija.
+
+Hardware (PDF): hace falta GPU. T4 Colab para el tutorial; RTX 3090 ~3 GB VRAM en el ejemplo Roboflow; GTX 1650 ~2–4 FPS 720p. Esta VM cloud **no tiene NVIDIA** — aquí solo probe de frames. El worker real corre en vuestro PC (MPS o CUDA).
+
+---
+
+## Probe `prueba 2.mp4` (hecho)
+
+| Campo | Valor |
+|---|---|
+| Duración | 20,85 s |
+| Imagen | 1920×1080, 29,97 fps, H.264 High, ~4 Mbps, sin audio |
+| Cámara | Veo elevada, 3/4 de campo, paneo hacia portería |
+| Nuestros | Blanco |
+| Rival | Azul oscuro; portero amarillo |
+| Árbitro | Azul claro (no meterlo en el cluster de kits) |
+| Césped | Artificial, líneas naranjas + blancas, de noche con torre |
+
+Siguiente prueba en **vuestro Mac** (tiene GPU Metal): RF-DETR o pesos Universe sobre estos 21 s → cajas + BoT-SORT + cluster blanco. Aquí no instalo PyTorch/CUDA.
+
+El MP4 y el PDF se **quitan de git** (siguen en `_inbox/` local, gitignore). No deben vivir en GitHub.
 
 ---
 
@@ -252,14 +276,12 @@ Este agente **no ve** `/Users/User/Desktop` ni el disco del Mac. Corre en una VM
 | Chat de Cursor (arrastrar PDF/clip) | Sí — lo mejor |
 | `/workspace/_inbox/` en este repo (gitignore) | Sí, si el archivo llega a la VM |
 | Escritorio de la VM (`/home/ubuntu/Desktop`) | Sí, pero solo hay PDFs viejos de Kabine; tú no puedes copiar ahí desde el Mac |
-| GitHub / Render | No subas partidos ni clips de juego |
+| GitHub / Render | **No** — el upload a `_inbox/` en main se borra; el partido no va al repo |
 
-Para la primera prueba: **arrastra al chat** el PDF `Open-source…` y **un recorte de 20–60 s** de vuestra cámara (no el partido). Kit nuestro (color). Con eso corro el probe.
-
-Esta VM no tiene NVIDIA: el primer test aquí es corto (10–20 s, pocos fps). El análisis de partido real se hará en vuestro PC.
+El PDF y `prueba 2.mp4` ya se leyeron desde `_inbox/` (upload a GitHub). Siguientes clips: mismo `_inbox/` **sin commit**, o un recorte aún más corto.
 
 ## Preguntas abiertas (no bloquean la fase 0)
 
-1. Cámara habitual: táctica fija / Veo vs. TV con replay y zoom.
-2. GPU en el PC de análisis (MPS, NVIDIA, o CPU y solo probes).
-3. ¿El PDF `Open-source…` del escritorio trae repos que no estén en este mapa? Adjuntarlo al chat y se fusionan aquí.
+1. ~~Cámara~~ → **Veo** (clip de prueba).
+2. GPU en el PC de análisis (MPS en Mac, NVIDIA, o CPU y solo probes).
+3. ~~PDF~~ → leído; RF-DETR + `roboflow/trackers` BoT-SORT.
