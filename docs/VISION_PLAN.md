@@ -1,5 +1,9 @@
 # Visión — plan de análisis automático en Video Análisis
 
+> **Pausa (11 sep 2026).** Handoff para retomar: [`docs/VISION_HANDOFF.md`](./VISION_HANDOFF.md). El siguiente paso es 60 s del partido Veo 4–5 GB, no repetir el bench de 21 s.
+
+Modo **Visión** dentro de la mesa de `/video-analisis`. No es una app aparte. Empieza pequeño y se apila complejidad.
+
 Modo **Visión** dentro de la mesa de `/video-analisis`. No es una app aparte. Empieza pequeño y se apila complejidad.
 
 > PDF **leído** (8 páginas): *Open-Source Computer Vision Stack for Soccer Video Analysis: Tools, Models, and Licensing Guide (2025-2026)*. TL;DR del propio informe: Roboflow (`sports` MIT + `trackers` Apache + `supervision` MIT) y detector **RF-DETR Apache 2.0**; no Ultralytics AGPL en producto cerrado; SoccerNet GSR es el SOTA académico (GPL + NDA de vídeos).
