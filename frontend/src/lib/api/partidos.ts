@@ -187,6 +187,9 @@ export interface PartidoCreateData {
   video_url?: string
   informe_url?: string
   ubicacion?: string
+  hora_citacion?: string | null
+  lugar_citacion?: string | null
+  kit_convocatoria?: 'local' | 'visitante' | null
 }
 
 export interface PartidoUpdateData extends Partial<Omit<PartidoCreateData, 'equipo_id'>> {}

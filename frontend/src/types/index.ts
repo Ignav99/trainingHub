@@ -1750,6 +1750,11 @@ export interface Partido {
   auto_creado?: boolean
   ubicacion?: string
 
+  // Cartel de convocatoria (citación + kit)
+  hora_citacion?: string | null
+  lugar_citacion?: string | null
+  kit_convocatoria?: 'local' | 'visitante' | null
+
   // Auto-generated pre-match intelligence
   pre_match_intel?: PreMatchIntel | null
 

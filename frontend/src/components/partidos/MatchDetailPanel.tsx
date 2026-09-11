@@ -24,6 +24,7 @@ import {
   ClipboardList,
   Star,
   Lightbulb,
+  ImageDown,
   Watch,
 } from 'lucide-react'
 import Link from 'next/link'
@@ -70,6 +71,7 @@ import type { Convocatoria, Partido, EstadisticaPartido, GolDetalle, FaltaPosici
 import { GoalDetailEditor } from './GoalDetailEditor'
 import { FoulMapEditor } from './FoulMapEditor'
 import { AnotacionesImportDialog } from './AnotacionesImportDialog'
+import { ConvocatoriaCartelDialog } from './ConvocatoriaCartelDialog'
 import type { AnotacionesPlan } from '@/lib/partidoAnotacionesJson'
 import { periodReportFromNotasPre, parseNotasPre, informeFromSnapshot, hasAnotadorLiveData, resolveGolDetalleNames } from '@/lib/anotador'
 
@@ -173,7 +175,7 @@ export function MatchDetailPanel({
   const [quickAddName, setQuickAddName] = useState('')
   const [quickAddPos, setQuickAddPos] = useState('MC')
   const [quickAddSaving, setQuickAddSaving] = useState(false)
-  const [generatingPdf, setGeneratingPdf] = useState(false)
+  const [showCartel, setShowCartel] = useState(false)
 
   // Formation builder state
   const [selectedFormation, setSelectedFormation] = useState<string | null>(null)
@@ -489,21 +491,6 @@ export function MatchDetailPanel({
     }
   }
 
-  const handleGeneratePdf = async () => {
-    if (!selectedPartido) return
-    setGeneratingPdf(true)
-    try {
-      const blob = await convocatoriasApi.generatePdf(selectedPartido.id)
-      const url = URL.createObjectURL(blob)
-      window.open(url, '_blank')
-    } catch (err) {
-      console.error('Error generating PDF:', err)
-    } finally {
-      setGeneratingPdf(false)
-    }
-  }
-
-  // Formation builder handlers
   const handleSlotClick = (slot: FormationSlot) => {
     const assignedConvId = slotAssignments[slot.id]
     if (assignedConvId) {
@@ -944,9 +931,9 @@ export function MatchDetailPanel({
               </Button>
             )}
             {convocados.length > 0 && (
-              <Button variant="outline" size="sm" onClick={handleGeneratePdf} disabled={generatingPdf}>
-                {generatingPdf ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
-                PDF
+              <Button variant="outline" size="sm" onClick={() => setShowCartel(true)}>
+                <ImageDown className="h-4 w-4 mr-1" />
+                Cartel
               </Button>
             )}
           </div>
@@ -1876,6 +1863,15 @@ export function MatchDetailPanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {selectedPartido && (
+        <ConvocatoriaCartelDialog
+          open={showCartel}
+          onOpenChange={setShowCartel}
+          partido={selectedPartido}
+          convocados={convocados}
+        />
+      )}
 
       <AnotacionesImportDialog
         open={showAnotacionesImport}

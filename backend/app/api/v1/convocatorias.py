@@ -523,7 +523,7 @@ async def generate_convocatoria_pdf(
     # Obtener convocatoria con jugadores
     conv_resp = supabase.table("convocatorias").select(
         "*, jugadores(nombre, apellidos, dorsal, posicion_principal, apodo)"
-    ).eq("partido_id", str(partido_id)).order("titular", desc=True).execute()
+    ).eq("partido_id", str(partido_id)).order("dorsal").execute()
 
     pdf_bytes = await gen_pdf(
         partido=partido,

@@ -4,7 +4,7 @@ Gestión de partidos, rivales y calendario competitivo.
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import datetime, date
 from uuid import UUID
 from enum import Enum
@@ -112,6 +112,11 @@ class PartidoBase(BaseModel):
     auto_creado: Optional[bool] = False
     ubicacion: Optional[str] = None
 
+    # Cartel de convocatoria
+    hora_citacion: Optional[str] = Field(None, pattern=r"^\d{2}:\d{2}$")
+    lugar_citacion: Optional[str] = Field(None, max_length=200)
+    kit_convocatoria: Optional[Literal["local", "visitante"]] = None
+
     # Auto-generated pre-match intelligence
     pre_match_intel: Optional[dict] = None
 
@@ -136,6 +141,9 @@ class PartidoUpdate(BaseModel):
     video_url: Optional[str] = None
     informe_url: Optional[str] = None
     ubicacion: Optional[str] = None
+    hora_citacion: Optional[str] = Field(None, pattern=r"^\d{2}:\d{2}$")
+    lugar_citacion: Optional[str] = Field(None, max_length=200)
+    kit_convocatoria: Optional[Literal["local", "visitante"]] = None
 
 
 class PartidoResponse(PartidoBase):

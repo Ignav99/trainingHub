@@ -7,18 +7,18 @@
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
             margin: 30px 40px;
-            color: #1a1a2e;
+            color: #0B1F17;
             font-size: 13px;
             line-height: 1.5;
         }
         .header {
             text-align: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
             border-bottom: 3px solid {{ color_primario }};
         }
         .header .org-name {
-            font-size: 14px;
+            font-size: 12px;
             color: #666;
             text-transform: uppercase;
             letter-spacing: 2px;
@@ -39,22 +39,40 @@
             color: white;
             border-radius: 8px;
             padding: 18px 25px;
-            margin: 20px 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            margin: 16px 0;
         }
         .match-bar .team {
             font-size: 18px;
             font-weight: 700;
         }
-        .match-bar .vs {
-            font-size: 14px;
-            opacity: 0.8;
-        }
         .match-bar .info {
             font-size: 11px;
             opacity: 0.9;
+            margin-top: 4px;
+        }
+        .meta-row {
+            display: flex;
+            gap: 12px;
+            margin: 12px 0 18px;
+        }
+        .meta-box {
+            flex: 1;
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 10px 12px;
+            border-left: 3px solid {{ color_primario }};
+        }
+        .meta-box .label {
+            font-size: 9px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #888;
+            font-weight: 700;
+        }
+        .meta-box .value {
+            font-size: 13px;
+            font-weight: 700;
+            margin-top: 2px;
         }
         .section-title {
             font-size: 14px;
@@ -99,6 +117,10 @@
             font-size: 12px;
             font-weight: 700;
         }
+        .apodo {
+            color: #667;
+            font-size: 11px;
+        }
         .pos-badge {
             display: inline-block;
             padding: 2px 8px;
@@ -107,30 +129,6 @@
             font-size: 10px;
             font-weight: 700;
             color: #555;
-        }
-        .stats-row {
-            display: flex;
-            gap: 15px;
-            margin: 15px 0;
-        }
-        .stat-box {
-            flex: 1;
-            text-align: center;
-            background: #f8f9fa;
-            border-radius: 6px;
-            padding: 12px;
-            border-left: 3px solid {{ color_primario }};
-        }
-        .stat-box .number {
-            font-size: 22px;
-            font-weight: 800;
-            color: {{ color_primario }};
-        }
-        .stat-box .label {
-            font-size: 10px;
-            color: #888;
-            text-transform: uppercase;
-            letter-spacing: 1px;
         }
         .footer {
             margin-top: 40px;
@@ -150,75 +148,56 @@
     </div>
 
     <div class="match-bar">
-        <div>
-            <div class="team">{{ equipo_nombre }} vs {{ rival_nombre }}</div>
-            <div class="info">
-                {{ fecha }}{% if hora %} &bull; {{ hora }}h{% endif %}
-                {% if competicion %} &bull; {{ competicion | capitalize }}{% endif %}
-                {% if jornada %} &bull; Jornada {{ jornada }}{% endif %}
-            </div>
+        <div class="team">{{ equipo_nombre }} vs {{ rival_nombre }}</div>
+        <div class="info">
+            {{ fecha }}{% if hora %} &bull; {{ hora }}h{% endif %}
+            {% if competicion %} &bull; {{ competicion | capitalize }}{% endif %}
+            {% if jornada %} &bull; Jornada {{ jornada }}{% endif %}
+            {% if lugar_partido %} &bull; {{ lugar_partido }}{% endif %}
+            &bull; {{ localia | capitalize }}
         </div>
-        <div class="info">{{ localia | capitalize }}</div>
     </div>
 
-    <div class="stats-row">
-        <div class="stat-box">
-            <div class="number">{{ total_convocados }}</div>
+    <div class="meta-row">
+        <div class="meta-box">
             <div class="label">Convocados</div>
+            <div class="value">{{ total_convocados }}</div>
         </div>
-        <div class="stat-box">
-            <div class="number">{{ titulares | length }}</div>
-            <div class="label">Titulares</div>
+        <div class="meta-box">
+            <div class="label">Citación</div>
+            <div class="value">{% if hora_citacion %}{{ hora_citacion }} h{% else %}—{% endif %}</div>
         </div>
-        <div class="stat-box">
-            <div class="number">{{ suplentes | length }}</div>
-            <div class="label">Suplentes</div>
+        <div class="meta-box">
+            <div class="label">Lugar de citación</div>
+            <div class="value">{{ lugar_citacion or '—' }}</div>
+        </div>
+        <div class="meta-box">
+            <div class="label">Equipación</div>
+            <div class="value">{{ kit_convocatoria | capitalize }}</div>
         </div>
     </div>
 
-    {% if titulares %}
-    <div class="section-title">Titulares ({{ titulares | length }})</div>
+    <div class="section-title">Convocados por dorsal ({{ total_convocados }})</div>
     <table>
         <thead>
             <tr>
                 <th style="width: 45px;">#</th>
                 <th>Jugador</th>
+                <th>Apodo</th>
                 <th>Posición</th>
             </tr>
         </thead>
         <tbody>
-            {% for c in titulares %}
+            {% for c in convocados %}
             <tr>
                 <td><span class="dorsal">{{ c.dorsal or '-' }}</span></td>
                 <td style="font-weight: 600;">{{ c.jugador_nombre }}</td>
+                <td class="apodo">{{ c.apodo or '—' }}</td>
                 <td><span class="pos-badge">{{ c.posicion or '-' }}</span></td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
-    {% endif %}
-
-    {% if suplentes %}
-    <div class="section-title">Suplentes ({{ suplentes | length }})</div>
-    <table>
-        <thead>
-            <tr>
-                <th style="width: 45px;">#</th>
-                <th>Jugador</th>
-                <th>Posición</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for c in suplentes %}
-            <tr>
-                <td><span class="dorsal" style="background: #94a3b8;">{{ c.dorsal or '-' }}</span></td>
-                <td style="font-weight: 600;">{{ c.jugador_nombre }}</td>
-                <td><span class="pos-badge">{{ c.posicion or '-' }}</span></td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% endif %}
 
     <div class="footer">
         Generado con Kabin-e &bull; {{ org_nombre }}
