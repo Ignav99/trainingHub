@@ -303,7 +303,7 @@ mkdir -p /Users/User/kabine-vision-bench
 cd /Users/User/kabine-vision-bench
 curl -L -o vision_bench.py https://raw.githubusercontent.com/Ignav99/trainingHub/main/scripts/vision_bench.py
 $PY -m pip uninstall -y opencv-python-headless
-$PY -m pip install opencv-python imageio imageio-ffmpeg ultralytics
+$PY -m pip install opencv-python imageio imageio-ffmpeg ultralytics numpy
 cp "/Users/User/Desktop/prueba 2.mp4" ./clip.mp4
 ls -lh ./clip.mp4
 # tiene que ser ~11 MB. Luego el vídeo es ./clip.mp4 — no el Escritorio
