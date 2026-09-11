@@ -26,8 +26,16 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-import cv2
+try:
+    import cv2
+except ImportError:
+    cv2 = None  # type: ignore[assignment]
+
 import numpy as np
+
+
+def pip_cmd() -> str:
+    return f"{sys.executable} -m pip install opencv-python imageio imageio-ffmpeg ultralytics numpy"
 
 
 def rss_mb() -> float:
@@ -51,6 +59,8 @@ def device_label() -> str:
 
 
 def ffmpeg_enabled() -> bool:
+    if cv2 is None:
+        return False
     return bool(re.search(r"FFMPEG\s*:\s*YES", cv2.getBuildInformation()))
 
 
@@ -75,12 +85,14 @@ class VideoSrc:
             "frame_count": self.frame_count,
             "duration_s": round(dur, 2),
             "backend": self.backend,
-            "opencv": cv2.__version__,
+            "opencv": None if cv2 is None else cv2.__version__,
             "ffmpeg_build": ffmpeg_enabled(),
         }
 
     def iter_bgr(self) -> Iterator[np.ndarray]:
         if self.backend == "opencv":
+            if cv2 is None:
+                raise SystemExit("opencv requested but cv2 is not installed\n  " + pip_cmd())
             cap = cv2.VideoCapture(str(self.path))
             try:
                 while True:
@@ -102,6 +114,8 @@ class VideoSrc:
 
 
 def try_opencv(path: Path) -> VideoSrc | None:
+    if cv2 is None:
+        return None
     backends: list[tuple[str, int]] = []
     if hasattr(cv2, "CAP_FFMPEG"):
         backends.append(("CAP_FFMPEG", int(cv2.CAP_FFMPEG)))
@@ -171,8 +185,11 @@ def open_src(path: Path, backend: str) -> VideoSrc:
             [
                 f"cannot open {path}",
                 f"  exists={path.exists()} is_file={path.is_file()} bytes={size} ({size / (1024**2):.1f} MB)",
-                f"  opencv={cv2.__version__} ffmpeg_build={ffmpeg_enabled()}",
+                f"  opencv={None if cv2 is None else cv2.__version__} ffmpeg_build={ffmpeg_enabled()}",
+                f"  python={sys.executable}",
                 f"  tried={errors}",
+                "  Install into THIS python:",
+                f"    {pip_cmd()}",
                 "  On Mac: copy the mp4 next to the script, not from Desktop:",
                 "    cp \"/Users/User/Desktop/prueba 2.mp4\" /Users/User/kabine-vision-bench/clip.mp4",
                 "    python3 -m pip uninstall -y opencv-python-headless",
@@ -202,7 +219,13 @@ def decode_pass(src: VideoSrc, max_seconds: float | None) -> dict:
 
 
 def detect_pass(src: VideoSrc, stride: int, max_seconds: float | None, imgsz: int) -> dict:
-    from ultralytics import YOLO
+    try:
+        from ultralytics import YOLO
+    except ImportError as exc:
+        raise SystemExit(
+            f"need ultralytics/opencv for detect ({exc})\n  {pip_cmd()}\n"
+            "  Or time decode only:  python3 vision_bench.py --video ./clip.mp4 --decode-only --backend imageio"
+        ) from exc
 
     model = YOLO("yolo11n.pt")
     limit = int(max_seconds * src.fps) if max_seconds and src.fps else None
