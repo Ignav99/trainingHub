@@ -13,6 +13,7 @@ import {
   panCinta,
   cintaWindow,
   cintaTickStep,
+  clipsOnLane,
 } from './videoDesk.ts'
 import type { CodeButton, CodeEvent } from './types.ts'
 
@@ -96,5 +97,15 @@ describe('video desk coding', () => {
     assert.ok(panned.viewStart > inAt.viewStart - 0.001)
     assert.equal(cintaTickStep(8), 1)
     assert.equal(cintaTickStep(900), 60)
+  })
+
+  it('collects every clip on a timeline lane so that row can be exported together', () => {
+    const events: CodeEvent[] = [
+      { id: 'b', buttonId: 'fase-ataque-org', timestamp: 40, startTime: 35, endTime: 48 },
+      { id: 'a', buttonId: 'fase-ataque-org', timestamp: 10, startTime: 5, endTime: 18 },
+      { id: 'd', buttonId: 'fase-defensa-org', timestamp: 20, startTime: 15, endTime: 28 },
+    ]
+    const lane = clipsOnLane(events, 'fase-ataque-org')
+    assert.deepEqual(lane.map((c) => c.id), ['a', 'b'])
   })
 })

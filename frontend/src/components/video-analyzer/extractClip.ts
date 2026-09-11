@@ -1,13 +1,13 @@
 /**
  * Recorta un rango del vídeo local. El partido no sale del ordenador.
- * Preferencia: copia del archivo original (misma calidad) → MP4.
- * Si el archivo es demasiado grande: captura a resolución nativa y convierte a MP4.
+ * MP4 H.264 a resolución nativa, sin audio: nitidez de análisis con un peso razonable.
  */
 
 export const REVISION_CLIP_MAX_SECONDS = 180
 export const LOCAL_CLIP_MAX_SECONDS = 600
+export const CLIP_CRF = '21'
 
-const COPY_SOURCE_MAX_BYTES = 380 * 1024 * 1024
+const SOURCE_ENCODE_MAX_BYTES = 380 * 1024 * 1024
 
 type FfmpegHandle = {
   loaded: boolean
@@ -27,6 +27,31 @@ export function clipMimeToExt(mime?: string | null): 'mp4' | 'webm' {
   return 'webm'
 }
 
+/** Cap so an 18s 1080p clip stays around ~8–12 MB, not 50 MB. Resolution stays native. */
+export function h264Maxrate(width: number, height: number): { maxrate: string; bufsize: string } {
+  const px = Math.max(1, width) * Math.max(1, height)
+  if (px >= 3_000_000) return { maxrate: '10M', bufsize: '20M' }
+  if (px >= 1_200_000) return { maxrate: '5M', bufsize: '10M' }
+  return { maxrate: '3M', bufsize: '6M' }
+}
+
+export function h264EncodeArgs(inName: string, width: number, height: number): string[] {
+  const { maxrate, bufsize } = h264Maxrate(width, height)
+  return [
+    '-i', inName,
+    '-an',
+    '-c:v', 'libx264',
+    '-preset', 'veryfast',
+    '-crf', CLIP_CRF,
+    '-maxrate', maxrate,
+    '-bufsize', bufsize,
+    '-pix_fmt', 'yuv420p',
+    '-profile:v', 'high',
+    '-movflags', '+faststart',
+    'out.mp4',
+  ]
+}
+
 function waitEvent(el: HTMLMediaElement, event: 'seeked' | 'loadedmetadata'): Promise<void> {
   return new Promise((resolve, reject) => {
     const done = () => {
@@ -44,27 +69,51 @@ function waitEvent(el: HTMLMediaElement, event: 'seeked' | 'loadedmetadata'): Pr
   })
 }
 
-function targetVideoBits(width: number, height: number): number {
-  const px = Math.max(1, width) * Math.max(1, height)
-  return Math.min(48_000_000, Math.max(12_000_000, Math.round(px * 12)))
+export function h264MaxrateBits(width: number, height: number): number {
+  const { maxrate } = h264Maxrate(width, height)
+  return Number.parseInt(maxrate, 10) * 1_000_000
+}
+
+function captureBits(width: number, height: number): number {
+  return h264MaxrateBits(width, height)
+}
+
+function mpeg4EncodeArgs(inName: string, width: number, height: number): string[] {
+  const { maxrate, bufsize } = h264Maxrate(width, height)
+  return [
+    '-i', inName,
+    '-an',
+    '-c:v', 'mpeg4',
+    '-b:v', maxrate,
+    '-maxrate', maxrate,
+    '-bufsize', bufsize,
+    '-pix_fmt', 'yuv420p',
+    '-movflags', '+faststart',
+    'out.mp4',
+  ]
+}
+
+function isMp4Blob(blob: Blob): boolean {
+  const type = (blob.type || '').toLowerCase()
+  return type.includes('mp4') || type.includes('quicktime') || type.includes('m4v')
 }
 
 function pickRecorderMime(): string | undefined {
   if (typeof MediaRecorder === 'undefined') return undefined
   const types = [
-    'video/mp4;codecs=avc1.640032,mp4a.40.2',
-    'video/mp4;codecs=avc1.640028,mp4a.40.2',
-    'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+    'video/mp4;codecs=avc1.640028',
     'video/mp4',
-    'video/webm;codecs=vp9,opus',
-    'video/webm;codecs=vp8,opus',
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
     'video/webm',
   ]
   return types.find((t) => MediaRecorder.isTypeSupported(t))
 }
 
-function isMp4Blob(blob: Blob): boolean {
-  return clipMimeToExt(blob.type) === 'mp4'
+function blobToMp4(data: Uint8Array): Blob {
+  const bytes = new Uint8Array(data.byteLength)
+  bytes.set(data)
+  return new Blob([bytes], { type: 'video/mp4' })
 }
 
 function asBytes(data: Uint8Array | string): Uint8Array {
@@ -100,29 +149,26 @@ async function loadFfmpeg(onProgress?: (msg: string) => void): Promise<FfmpegHan
 
 async function ffmpegToMp4(
   input: Blob,
+  width: number,
+  height: number,
   onProgress?: (msg: string) => void
 ): Promise<Blob> {
   const ff = await loadFfmpeg(onProgress)
   const { fetchFile } = await import('@ffmpeg/util')
-  const inName = isMp4Blob(input) ? 'in.mp4' : 'in.webm'
+  const inName = (input.type || '').includes('mp4') ? 'in.mp4' : 'in.webm'
   await ff.writeFile(inName, await fetchFile(input))
   const attempts = [
-    ['-i', inName, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '14', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '256k', '-movflags', '+faststart', 'out.mp4'],
-    ['-i', inName, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '14', '-pix_fmt', 'yuv420p', '-an', '-movflags', '+faststart', 'out.mp4'],
-    ['-i', inName, '-c:v', 'mpeg4', '-q:v', '3', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', 'out.mp4'],
+    h264EncodeArgs(inName, width, height),
+    mpeg4EncodeArgs(inName, width, height),
   ]
   try {
     for (const args of attempts) {
-      onProgress?.('Pasando a MP4 a máxima calidad…')
+      onProgress?.('Codificando MP4 sin audio…')
       try { await ff.deleteFile('out.mp4') } catch { /* no estaba */ }
       const code = await ff.exec(args)
       if (code === 0) {
         const data = asBytes(await ff.readFile('out.mp4'))
-        if (data.byteLength > 64) {
-          const bytes = new Uint8Array(data.byteLength)
-          bytes.set(data)
-          return new Blob([bytes], { type: 'video/mp4' })
-        }
+        if (data.byteLength > 64) return blobToMp4(data)
       }
     }
     throw new Error('No se pudo generar el MP4')
@@ -132,38 +178,33 @@ async function ffmpegToMp4(
   }
 }
 
-async function cutOriginalFile(
+async function encodeFromOriginalFile(
   file: File,
   startTime: number,
   endTime: number,
+  width: number,
+  height: number,
   onProgress?: (msg: string) => void
 ): Promise<Blob | null> {
-  if (file.size > COPY_SOURCE_MAX_BYTES) return null
-  if (!/\.(mp4|m4v|mov)$/i.test(file.name)) return null
+  if (file.size > SOURCE_ENCODE_MAX_BYTES) return null
+  if (!/\.(mp4|m4v|mov|webm)$/i.test(file.name)) return null
   const ff = await loadFfmpeg(onProgress)
   const { fetchFile } = await import('@ffmpeg/util')
-  onProgress?.('Copiando el recorte del archivo original…')
+  onProgress?.('Recortando del archivo original…')
   await ff.writeFile('src.bin', await fetchFile(file))
   const dur = (endTime - startTime).toFixed(3)
   const ss = startTime.toFixed(3)
-  const copyArgs = [
-    '-ss', ss,
-    '-i', 'src.bin',
-    '-t', dur,
-    '-c', 'copy',
-    '-avoid_negative_ts', 'make_zero',
-    '-movflags', '+faststart',
-    'out.mp4',
+  const attempts = [
+    ['-ss', ss, '-i', 'src.bin', '-t', dur, ...h264EncodeArgs('src.bin', width, height).slice(2)],
+    ['-ss', ss, '-i', 'src.bin', '-t', dur, ...mpeg4EncodeArgs('src.bin', width, height).slice(2)],
   ]
   try {
-    try { await ff.deleteFile('out.mp4') } catch { /* ignore */ }
-    const code = await ff.exec(copyArgs)
-    if (code === 0) {
-      const data = asBytes(await ff.readFile('out.mp4'))
-      if (data.byteLength > 64) {
-        const bytes = new Uint8Array(data.byteLength)
-        bytes.set(data)
-        return new Blob([bytes], { type: 'video/mp4' })
+    for (const args of attempts) {
+      try { await ff.deleteFile('out.mp4') } catch { /* ignore */ }
+      const code = await ff.exec(args)
+      if (code === 0) {
+        const data = asBytes(await ff.readFile('out.mp4'))
+        if (data.byteLength > 64) return blobToMp4(data)
       }
     }
     return null
@@ -180,6 +221,10 @@ function captureStreamOf(video: HTMLVideoElement): MediaStream {
   }
   const stream = withCapture.captureStream?.() || withCapture.mozCaptureStream?.()
   if (!stream) throw new Error('Este navegador no puede recortar el vídeo')
+  stream.getAudioTracks().forEach((t) => {
+    stream.removeTrack(t)
+    t.stop()
+  })
   return stream
 }
 
@@ -190,6 +235,7 @@ async function recordNativeRange(
 ): Promise<Blob> {
   const clone = document.createElement('video')
   clone.playsInline = true
+  clone.muted = true
   clone.preload = 'auto'
   clone.src = source.currentSrc || source.src
   clone.style.cssText = 'position:fixed;left:-9999px;top:0;width:16px;height:16px;opacity:0;pointer-events:none'
@@ -199,15 +245,11 @@ async function recordNativeRange(
     clone.currentTime = startTime
     await waitEvent(clone, 'seeked')
     const mimeType = pickRecorderMime()
-    const bits = targetVideoBits(clone.videoWidth || source.videoWidth, clone.videoHeight || source.videoHeight)
+    const bits = captureBits(clone.videoWidth || source.videoWidth, clone.videoHeight || source.videoHeight)
     const stream = captureStreamOf(clone)
     const recorder = mimeType
-      ? new MediaRecorder(stream, {
-          mimeType,
-          videoBitsPerSecond: bits,
-          audioBitsPerSecond: 256_000,
-        })
-      : new MediaRecorder(stream, { videoBitsPerSecond: bits, audioBitsPerSecond: 256_000 })
+      ? new MediaRecorder(stream, { mimeType, videoBitsPerSecond: bits })
+      : new MediaRecorder(stream, { videoBitsPerSecond: bits })
     const chunks: Blob[] = []
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunks.push(e.data)
@@ -219,14 +261,8 @@ async function recordNativeRange(
       }
       recorder.onerror = () => reject(new Error('Error al grabar el recorte'))
     })
-    clone.muted = false
     recorder.start(200)
-    try {
-      await clone.play()
-    } catch {
-      clone.muted = true
-      await clone.play()
-    }
+    await clone.play()
     await new Promise<void>((resolve) => {
       const tick = () => {
         if (clone.currentTime >= endTime || clone.paused || clone.ended) {
@@ -270,26 +306,31 @@ export async function extractClipRange(
     throw new Error(`El recorte no puede superar ${mins} minutos`)
   }
 
+  const width = videoElement.videoWidth || 1920
+  const height = videoElement.videoHeight || 1080
+
   if (options?.sourceFile) {
     try {
-      const copied = await cutOriginalFile(
+      const encoded = await encodeFromOriginalFile(
         options.sourceFile,
         startTime,
         endTime,
+        width,
+        height,
         options.onProgress
       )
-      if (copied) return copied
+      if (encoded) return encoded
     } catch {
-      // El archivo es demasiado grande o el contenedor no admite copia.
+      // Sigue por captura nativa.
     }
   }
 
   options?.onProgress?.('Recortando a resolución nativa…')
   const recorded = await recordNativeRange(videoElement, startTime, endTime)
-  if (isMp4Blob(recorded)) return recorded
   try {
-    return await ffmpegToMp4(recorded, options?.onProgress)
+    return await ffmpegToMp4(recorded, width, height, options?.onProgress)
   } catch {
+    if (isMp4Blob(recorded)) return recorded
     throw new Error('No se pudo generar el MP4. Prueba Chrome o Edge.')
   }
 }
