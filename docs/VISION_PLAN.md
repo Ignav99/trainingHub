@@ -104,11 +104,24 @@ Hardware (PDF): hace falta GPU. T4 Colab para el tutorial; RTX 3090 ~3 GB VRAM e
 | Árbitro | Azul claro (no meterlo en el cluster de kits) |
 | Césped | Artificial, líneas naranjas + blancas, de noche con torre |
 
-Siguiente prueba en **vuestro Mac** (Metal): los mismos 21 s con el script de abajo, luego 60 s del partido de 4–5 GB. El HSV del probe CPU falla con la luz verde de las torres; en producto será SigLIP + pin blanco.
+### Bench Mac (hecho) — Apple Silicon, `device: mps`, `prueba2.mp4`
+
+Terminal no podía leer el Escritorio hasta dar permiso en Ajustes → Privacidad → Archivos y carpetas. El archivo real es `~/Desktop/prueba2.mp4` (no `prueba 2.mp4`). Copia a `kabine-vision-bench/clip.mp4`. Backend **imageio** (OpenCV headless + FFmpeg embebido).
+
+| | Esta VM Linux CPU | **Mac arm64 MPS** |
+|---|---|---|
+| Decode | 550 fps (OpenCV) | 143 fps (imageio) |
+| Detect ~5 fps (21 s) | 3,9 s · 27 inf/s | **9,2 s · 11 inf/s** |
+| Extrapolación 90 min (solo cajas) | ~17 min | **~40 min** |
+| RAM | ~530 MB | **512 MB** |
+| Personas/frame | 8–19 (media 12) | 8–18 (media 12,4) |
+| Balón COCO | 0 | **0** |
+
+Metal **sí** está activo. El Mac es más lento que esta CPU porque imageio copia cada frame; sigue cabiendo en una tarde. Pipeline real ×2–×4 → una noche. **No hace falta mini PC** para un partido. No hace falta 30 fps.
 
 ### Bench CPU (esta VM, `yolo11n` COCO, 640 px) — `scripts/vision_bench.py`
 
-Clip `prueba 2.mp4` (20,85 s, 625 frames, 1080p). Decode OpenCV ~550 fps (~1,1 s el clip; un 90 min serían ~5 min solo de leer el MP4). RAM del proceso ~530 MB: **el MP4 de 4–5 GB no se carga entero**.
+Clip `prueba 2.mp4` (20,85 s, 625 frames, 1080p). Decode OpenCV ~550 fps. RAM ~530 MB: **el MP4 de 4–5 GB no se carga entero**.
 
 | Modo | Inferencias | Tiempo | Velocidad | Extrapolación 90 min (solo cajas) |
 |---|---|---|---|---|
@@ -116,9 +129,7 @@ Clip `prueba 2.mp4` (20,85 s, 625 frames, 1080p). Decode OpenCV ~550 fps (~1,1 s
 | Stride 6 (~5 fps) | 105 | **3,9 s** | 27 inf/s | **~17 min** |
 | Stride 1 (30 fps) | 625 | 12,7 s | 49 inf/s | ~55 min |
 
-Personas/frame: 8–19 (media ~12). Balón COCO: 0 hits a 5 fps, 4 a 30 fps — inútil; hace falta modelo de fútbol + teselas.
-
-El pipeline real (RF-DETR + BoT-SORT + homografía + slicer de balón) será **más lento** (×2–×4). Aun así, a 5 fps un partido entra en una tarde/noche en CPU; en el Mac con Metal debería ir igual o mejor. No hace falta 30 fps para tracking táctico.
+Siguiente: 60 s de un partido Veo de 4–5 GB (`--max-seconds 60 --backend imageio`). El HSV del probe CPU falla con la luz verde; en producto será SigLIP + pin blanco.
 
 Script de cajas anotadas: `scripts/vision_probe.py`. Script comparable Mac ↔ esta VM: `scripts/vision_bench.py`.
 
