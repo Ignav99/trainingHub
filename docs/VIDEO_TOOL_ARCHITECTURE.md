@@ -20,15 +20,15 @@ La herramienta de video de TrainingHub es un **analizador táctico de video** qu
 | Extracción de clips MP4 | **Backend (Render)** | ffmpeg lee URL remota |
 | Almacenamiento de uploads | **Supabase Storage** | Bucket `partido-videos` |
 
-**Flujo clave**: Cuando el usuario selecciona un archivo local de 15GB, **NO se sube al servidor**. Se crea un `URL.createObjectURL(file)` y el `<video>` lo reproduce directamente desde memoria del navegador. Solo los metadatos (tags, categorías, playlists) se envían al backend.
+**Flujo clave**: Cuando el usuario selecciona un archivo local (Veo típico **4–5 GB**; el navegador aguanta más), **NO se sube al servidor**. Se crea un `URL.createObjectURL(file)` y el `<video>` lo reproduce desde disco. Solo los metadatos (tags, categorías, playlists) se envían al backend.
 
 ---
 
-## ¿Cómo aguanta videos de 15GB?
+## ¿Cómo aguanta videos de 4–5 GB (y más)?
 
 ### Opción A: Archivo local (sin subir)
 ```
-Usuario selecciona video.mp4 (15GB) desde disco
+Usuario selecciona video.mp4 (4–5 GB) desde disco
      ↓
 URL.createObjectURL(file)  →  blob:http://...
      ↓
@@ -39,7 +39,7 @@ El video se reproduce desde el filesystem local via el blob URL.
 ```
 
 - **Limitación**: El archivo solo existe en la pestaña del navegador. Si se cierra, se pierde el acceso.
-- **RAM**: El navegador NO carga los 15GB en RAM; usa streaming del disco con range requests internos.
+- **RAM**: El navegador NO carga los 4–5 GB en RAM; usa streaming del disco con range requests internos.
 
 ### Opción B: Video externo + HLS streaming
 ```
