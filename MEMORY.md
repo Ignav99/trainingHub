@@ -7,7 +7,7 @@ Dos herramientas: **Video Análisis** (partido entero local, nunca a la nube) y 
 - Retención: **30 días después del partido** (`partido.fecha + 30`). Sin partido (rival/plan): 30 días desde el alta. Partido aún no jugado: no se borra.
 - Cron diario: aviso al staff 7 días antes (una vez por carpeta) y **borrado de toda la carpeta** en R2 + DB. No hay OAuth a Drive: si hay URL de carpeta, el usuario descarga un zip y la abre; si no, solo zip. También «Borrar todo».
 - Sala de recorte: **Presentar** en Revisión abre QR (`SalaHostDialog` → `/revision/{code}` con `current_clip_id`). Pizarra, play, rebobinar, acercar. No tocar ese flujo.
-- Sala de presentación: **Presentar** en Informe Rival / Plan de Partido abre QR de charla (sesión sin `clip_id`). La tablet entra en `PresentacionSala`: mismas diapositivas, dibujo y control de vídeo. Clips de revisión intercalados por fase / once. `sala_sync` reenvía `slide` y `show`.
+- Sala de presentación: **Presentar** en Informe Rival / Plan de Partido abre QR de charla (sesión sin `clip_id`). La tablet entra en `PresentacionSala`. **La tablet también manda el cambio de diapositiva** (antes solo el host/PC). Enlace: reconecta solo, reintenta con `seq`/`ack`, y si los dos están en el mismo 5G/hotspot abre **WebRTC DataChannel** (`enlace directo`) para no salir a internet en cada pulsación. `sala_sync` reenvía `slide`, `show`, `seq`, `sala_signal`.
 - Tablet: al ocultar carpetas el vídeo crece con `object-contain` (`presenterEmbed`) y no se recorta. Barras de dibujo/zoom (`SalaFloatingChrome`) flotan `z-50` sobre el pellizco. Mute de la tablet silencia el PC (`sala_sync.muted`). Pantalla completa del recuadro de vídeo (OS o theater) desde la tablet.
 
 ## Partidos: lista plegable + presentación
