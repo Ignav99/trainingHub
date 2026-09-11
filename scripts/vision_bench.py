@@ -7,10 +7,11 @@ Mac — copy the mp4 NEXT TO this script (not Desktop), then:
 
   PY=/Users/User/.pyenv/versions/3.11.9/bin/python3
   cd /Users/User/kabine-vision-bench
-  $PY -m pip uninstall -y opencv-python-headless
-  $PY -m pip install opencv-python imageio imageio-ffmpeg ultralytics
+  curl -fL -o vision_bench.py https://raw.githubusercontent.com/Ignav99/trainingHub/main/scripts/vision_bench.py
+  $PY -m pip install --only-binary=:all: opencv-python-headless imageio imageio-ffmpeg ultralytics numpy
+  ls ~/Desktop/*.mp4
   cp "/Users/User/Desktop/prueba 2.mp4" ./clip.mp4
-  $PY vision_bench.py --video ./clip.mp4 --stride 6
+  $PY vision_bench.py --video ./clip.mp4 --stride 6 --backend imageio
 """
 
 from __future__ import annotations
@@ -35,7 +36,7 @@ import numpy as np
 
 
 def pip_cmd() -> str:
-    return f"{sys.executable} -m pip install opencv-python imageio imageio-ffmpeg ultralytics numpy"
+    return f"{sys.executable} -m pip install --only-binary=:all: opencv-python-headless imageio imageio-ffmpeg ultralytics numpy"
 
 
 def rss_mb() -> float:
