@@ -2,17 +2,23 @@
  * Recorta un rango del video local en el navegador (MediaRecorder).
  * El partido entero no sale del ordenador; solo este blob se puede subir.
  */
+export const REVISION_CLIP_MAX_SECONDS = 180
+export const LOCAL_CLIP_MAX_SECONDS = 600
+
 export async function extractClipRange(
   videoElement: HTMLVideoElement,
   startTime: number,
-  endTime: number
+  endTime: number,
+  options?: { maxSeconds?: number }
 ): Promise<Blob> {
   const clipDuration = endTime - startTime
   if (clipDuration < 0.4) {
     throw new Error('El clip debe durar al menos 0.5s')
   }
-  if (clipDuration > 180) {
-    throw new Error('El recorte no puede superar 3 minutos')
+  const maxSeconds = options?.maxSeconds ?? REVISION_CLIP_MAX_SECONDS
+  if (clipDuration > maxSeconds) {
+    const mins = Math.round(maxSeconds / 60)
+    throw new Error(`El recorte no puede superar ${mins} minutos`)
   }
 
   const canvas = document.createElement('canvas')

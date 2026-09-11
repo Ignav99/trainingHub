@@ -1,33 +1,19 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button } from '@/components/ui/button'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { X, Camera, Scissors, ArrowLeft, Snowflake, Download, List, LayoutGrid, Send } from 'lucide-react'
-import type { DrawingElement } from '@/types'
-
-import { VideoPlayer, VIDEO_PLAYER_CHROME_CLASS, type VideoPlayerHandle } from './VideoPlayer'
-import { DrawingOverlay } from './DrawingOverlay'
-import { DrawingToolbar } from './DrawingToolbar'
-import { Timeline } from './Timeline'
-import { ShortcutOverlay } from '../video/ShortcutOverlay'
-import { useTaggingStore } from '@/stores/useTaggingStore'
-import { useTaggingKeyboard } from '@/hooks/useTaggingKeyboard'
-import { ClipExportDialog } from './ClipExportDialog'
-import { useDrawingEngine } from './useDrawingEngine'
-import { useUndoRedo } from './useUndoRedo'
-import { useClips } from './useClips'
-import { useVideoAnalyzerStore } from './useVideoAnalyzerStore'
-import { useVirtualTimeline, virtualToReal, realToVirtual } from './useVirtualTimeline'
-import type { TimeSegment } from './useVirtualTimeline'
-import { exportFramePNG, downloadDataUrl } from './utils'
-import { useClipPersistence } from './useClipPersistence'
+import { Send, X } from 'lucide-react'
+import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 import { useCodeWindowStore } from './useCodeWindowStore'
-import { useOrganizerStore } from './useOrganizerStore'
-import { FloatingWindowManager } from './FloatingWindowManager'
-import { useFloatingWindows } from './useFloatingWindows'
 import { SendToRevisionDialog } from '@/components/revision/SendToRevisionDialog'
-import type { DrawingTool, FreezeFrame } from './types'
+import { VideoDeskBotonera } from './VideoDeskBotonera'
+import { VideoDeskFolders } from './VideoDeskFolders'
+import { VideoDeskTimeline } from './VideoDeskTimeline'
+import { VideoDeskDownloadMenu } from './VideoDeskDownloadMenu'
+import { extractAndDownloadDeskClips, type DeskDownloadKind } from './videoDeskDownload'
+import { clipDisplayTitle } from './videoDesk'
+import type { CodeButton, CodeEvent } from './types'
+import './video-desk.css'
 
 interface VideoAnalyzerProps {
   localFile?: File
@@ -51,993 +37,301 @@ export function VideoAnalyzer({
   onClose,
 }: VideoAnalyzerProps) {
   const playerRef = useRef<VideoPlayerHandle>(null)
-  const svgRef = useRef<SVGSVGElement>(null)
-  const videoContainerRef = useRef<HTMLDivElement>(null)
   const currentTimeRef = useRef(0)
-  const isScrubRef = useRef(false)
-  const scrubFinalTimeRef = useRef<number | null>(null)
+  const clipHoldRef = useRef<number | null>(null)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [railWidth, setRailWidth] = useState(360)
+  const [cintaHeight, setCintaHeight] = useState(168)
+  const [selectedClipId, setSelectedClipId] = useState<string | null>(null)
+  const [sendClipId, setSendClipId] = useState<string | null>(null)
+  const [progress, setProgress] = useState<string | null>(null)
+  const [objectUrl, setObjectUrl] = useState('')
 
-  // Resizable timeline height
-  const [timelineHeight, setTimelineHeight] = useState(220)
-  const resizeDragRef = useRef<{ startY: number; startHeight: number } | null>(null)
-
-  const handleResizeHandlePointerDown = useCallback((e: React.PointerEvent) => {
-    e.preventDefault()
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    resizeDragRef.current = { startY: e.clientY, startHeight: timelineHeight }
-  }, [timelineHeight])
-
-  const handleResizeHandlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!resizeDragRef.current) return
-    const delta = resizeDragRef.current.startY - e.clientY
-    const newH = Math.max(80, Math.min(600, resizeDragRef.current.startHeight + delta))
-    setTimelineHeight(newH)
-  }, [])
-
-  const handleResizeHandlePointerUp = useCallback((e: React.PointerEvent) => {
-    ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
-    resizeDragRef.current = null
-  }, [])
-
-  // Store — individual selectors
-  const tool = useVideoAnalyzerStore((s) => s.tool)
-  const color = useVideoAnalyzerStore((s) => s.color)
-  const strokeWidth = useVideoAnalyzerStore((s) => s.strokeWidth)
-  const selectedId = useVideoAnalyzerStore((s) => s.selectedId)
-  const isPlaying = useVideoAnalyzerStore((s) => s.isPlaying)
-  const duration = useVideoAnalyzerStore((s) => s.duration)
-  const exportingClipId = useVideoAnalyzerStore((s) => s.exportingClipId)
-  const viewMode = useVideoAnalyzerStore((s) => s.viewMode)
-  const editingClipId = useVideoAnalyzerStore((s) => s.editingClipId)
-  const activeFreezeFrameId = useVideoAnalyzerStore((s) => s.activeFreezeFrameId)
-  const setTool = useVideoAnalyzerStore((s) => s.setTool)
-  const setColor = useVideoAnalyzerStore((s) => s.setColor)
-  const setStrokeWidth = useVideoAnalyzerStore((s) => s.setStrokeWidth)
-  const setSelectedId = useVideoAnalyzerStore((s) => s.setSelectedId)
-  const setIsPlaying = useVideoAnalyzerStore((s) => s.setIsPlaying)
-  const setDuration = useVideoAnalyzerStore((s) => s.setDuration)
-  const enterClipEditor = useVideoAnalyzerStore((s) => s.enterClipEditor)
-  const exitClipEditor = useVideoAnalyzerStore((s) => s.exitClipEditor)
-  const setActiveFreezeFrameId = useVideoAnalyzerStore((s) => s.setActiveFreezeFrameId)
-  const updateFreezeFrameStore = useVideoAnalyzerStore((s) => s.updateFreezeFrame)
-  const removeFreezeFrameStore = useVideoAnalyzerStore((s) => s.removeFreezeFrame)
-
-  // Tagging store
-  const taggingMode = useTaggingStore((s) => s.mode)
-  const setTaggingMode = useTaggingStore((s) => s.setMode)
-  const fetchTags = useTaggingStore((s) => s.fetchTags)
-  const fetchCategories = useTaggingStore((s) => s.fetchCategories)
-  const resetTagging = useTaggingStore((s) => s.reset)
-  const resetAll = useVideoAnalyzerStore((s) => s.resetAll)
-  const setClipsFromStorage = useVideoAnalyzerStore((s) => s.setClipsFromStorage)
-
-  // Floating windows
-  const { openWindow } = useFloatingWindows()
-  const handleOpenBotonera = useCallback(() => openWindow('botonera', { title: 'Botonera', botoneraId: 'default' }), [openWindow])
-  const handleOpenOrganizer = useCallback(() => openWindow('organizer', { title: 'Organizer' }), [openWindow])
-  const handleOpenStudio = useCallback((eventId: string) => openWindow('studio', { title: 'Studio', clipId: eventId }), [openWindow])
-
-  // Code Window store
-  const codeButtons = useCodeWindowStore((s) => s.buttons)
+  const buttons = useCodeWindowStore((s) => s.buttons)
+  const activeButtonId = useCodeWindowStore((s) => s.activeButtonId)
   const setCodeVideoKey = useCodeWindowStore((s) => s.setCurrentVideoKey)
-  const currentCodeEvents = useCodeWindowStore((s) => {
+  const recordEvent = useCodeWindowStore((s) => s.recordEvent)
+  const updateEvent = useCodeWindowStore((s) => s.updateEvent)
+  const removeEvent = useCodeWindowStore((s) => s.removeEvent)
+  const addButton = useCodeWindowStore((s) => s.addButton)
+  const updateButton = useCodeWindowStore((s) => s.updateButton)
+  const removeButton = useCodeWindowStore((s) => s.removeButton)
+  const setActiveButtonId = useCodeWindowStore((s) => s.setActiveButtonId)
+  const events = useCodeWindowStore((s) => {
     const key = s.currentVideoKey || '_default'
     return s.events[key] || []
   })
 
-  // Organizer store
-  const addClipToOrganizer = useOrganizerStore((s) => s.addClip)
-
-  // Video key (used by code window and floating windows)
   const videoKey = partidoId || (localFile?.name ?? '_local')
 
-  // Set video key for code window (uses partidoId or file name)
   useEffect(() => {
-    const key = partidoId || (localFile?.name ?? '_local')
-    setCodeVideoKey(key)
-  }, [partidoId, localFile, setCodeVideoKey])
+    setCodeVideoKey(videoKey)
+  }, [videoKey, setCodeVideoKey])
 
-  // Reset analyzer state on mount/unmount to prevent session bleed
   useEffect(() => {
-    resetAll()
-    return () => { resetAll() }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Load tags when videoId is available
-  useEffect(() => {
-    fetchCategories(equipoId)
-    if (videoId) {
-      fetchTags(videoId)
+    if (!localFile) {
+      setObjectUrl('')
+      return
     }
-    return () => { resetTagging() }
-  }, [videoId, equipoId, fetchTags, fetchCategories, resetTagging])
-
-  // Get current time in ms for tagging
-  const getCurrentMs = useCallback(() => {
-    return Math.round(currentTimeRef.current * 1000)
-  }, [])
-
-  // Shortcut overlay
-  const [showShortcuts, setShowShortcuts] = useState(false)
-  const [sendRevisionClipId, setSendRevisionClipId] = useState<string | null>(null)
-
-  // Tagging keyboard hook
-  useTaggingKeyboard({
-    videoId,
-    getCurrentMs,
-    onSeek: (ms) => playerRef.current?.seekTo(ms / 1000),
-    onPlay: () => playerRef.current?.play(),
-    onPause: () => playerRef.current?.pause(),
-    isPlaying,
-    duration,
-    onToggleDrawMode: () => setTaggingMode(taggingMode === 'draw' ? 'tag' : 'draw'),
-    onToggleShortcutOverlay: () => setShowShortcuts((v) => !v),
-    enabled: !!videoId && taggingMode === 'tag',
-  })
-
-  // Trackpad scrubbing — two-finger horizontal swipe over video
-  useEffect(() => {
-    const el = videoContainerRef.current
-    if (!el) return
-    const handler = (e: WheelEvent) => {
-      // Only horizontal scroll (two-finger swipe) → scrub video
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) * 0.5 && Math.abs(e.deltaX) > 5) {
-        e.preventDefault()
-        // sensitivity: 80px = 3s of video scrub
-        const deltaSeconds = (e.deltaX / 80) * 3
-        const clampedTime = Math.max(0, Math.min(duration, currentTimeRef.current + deltaSeconds))
-        playerRef.current?.seekTo(clampedTime)
-      }
-    }
-    el.addEventListener('wheel', handler, { passive: false })
-    return () => el.removeEventListener('wheel', handler)
-  }, [duration])
-
-  // Create object URL for local file (must be in useEffect — side effect, not memo)
-  const [objectUrl, setObjectUrl] = useState<string>('')
-  useEffect(() => {
-    if (!localFile) { setObjectUrl(''); return }
     const url = URL.createObjectURL(localFile)
     setObjectUrl(url)
     return () => URL.revokeObjectURL(url)
   }, [localFile])
+
   const src = localFile ? objectUrl : (videoUrl || '')
+  const title = videoTitle || localFile?.name || 'Video local'
+  const selectedClip = events.find((e) => e.id === selectedClipId) || null
+  const sendClip = events.find((e) => e.id === sendClipId) || null
+  const sendButton = sendClip ? buttons.find((b) => b.id === sendClip.buttonId) : null
 
-  const title = videoTitle || localFile?.name || 'Video'
+  const seekTo = useCallback((time: number) => {
+    playerRef.current?.seekTo(time)
+    currentTimeRef.current = time
+    setCurrentTime(time)
+  }, [])
 
-  // Clips
-  const {
-    clips, activeClipId, setActiveClipId,
-    createClipAtTime, createClipFromRange, updateClip, deleteClip, exportClip,
-    mergeClips, captureFreezeFrame, updateFreezeFrame, removeFreezeFrame,
-  } = useClips()
-
-  // Persist clips to localStorage per partido + huella del fichero
-  useClipPersistence(partidoId, clips, setClipsFromStorage, localFile ? `${localFile.name}|${localFile.size}` : undefined)
-
-  // Organizer: add code event from timeline lanes
-  const handleAddCodeEventToOrganizer = useCallback((eventId: string) => {
-    const event = currentCodeEvents.find((e) => e.id === eventId)
-    if (!event) return
-    const btn = codeButtons.find((b) => b.id === event.buttonId)
-    const rows = useOrganizerStore.getState().rows
-    let rowId = rows[0]?.id
-    if (!rowId) {
-      useOrganizerStore.getState().addRow('Sin categoría', '#6366f1')
-      rowId = useOrganizerStore.getState().rows[0]?.id ?? 'default'
-    }
-    addClipToOrganizer({
-      sourceId: eventId,
-      sourceType: 'codeEvent',
-      title: btn?.label ?? 'Evento',
-      startTime: event.startTime,
-      endTime: event.endTime,
-      color: btn?.color ?? '#6366f1',
-      rowId,
-    })
-  }, [currentCodeEvents, codeButtons, addClipToOrganizer])
-
-  // Organizer: add clip from timeline
-  const handleAddClipToOrganizer = useCallback((clipId: string) => {
-    const clip = clips.find((c) => c.id === clipId)
-    if (!clip) return
-    const rows = useOrganizerStore.getState().rows
-    let rowId = rows[0]?.id
-    if (!rowId) {
-      useOrganizerStore.getState().addRow('Sin categoría', '#6366f1')
-      rowId = useOrganizerStore.getState().rows[0]?.id ?? 'default'
-    }
-    addClipToOrganizer({
-      sourceId: clipId,
-      sourceType: 'clip',
-      title: clip.title,
-      startTime: clip.startTime,
-      endTime: clip.endTime,
-      color: clip.color,
-      rowId,
-    })
-  }, [clips, addClipToOrganizer])
-
-  // Find editing clip
-  const editingClip = editingClipId ? clips.find((c) => c.id === editingClipId) || null : null
-  const isClipEditor = viewMode === 'clip-editor' && editingClip
-
-  // Virtual timeline
-  const { segments, totalDuration: virtualDuration } = useVirtualTimeline(
-    isClipEditor ? editingClip : null
-  )
-
-  // Active freeze frame
-  const activeFreezeFrame = useMemo(() => {
-    if (!activeFreezeFrameId || !editingClip) return null
-    return editingClip.freezeFrames.find((ff) => ff.id === activeFreezeFrameId) || null
-  }, [activeFreezeFrameId, editingClip])
-
-  // Clip range for video player
-  const clipRange = editingClip
-    ? { start: editingClip.startTime, end: editingClip.endTime }
-    : undefined
-
-  // =============== Freeze playback state ===============
-  const virtualTimeRef = useRef(0)
-  const isFrozenRef = useRef(false)
-  const freezeStartPerfRef = useRef(0)
-  const activeFreezeSegRef = useRef<TimeSegment | null>(null)
-  const passedFreezesRef = useRef(new Set<string>())
-  const segmentsRef = useRef(segments)
-  const [freezeOverlayUrl, setFreezeOverlayUrl] = useState<string | null>(null)
-
-  useEffect(() => {
-    segmentsRef.current = segments
-  }, [segments])
-
-  // Hide video element when freeze overlay is shown (prevents visual duplication)
-  useEffect(() => {
-    const video = playerRef.current?.getVideoElement()
-    if (video) {
-      video.style.opacity = freezeOverlayUrl ? '0' : '1'
-    }
-  }, [freezeOverlayUrl])
-
-  // Freeze playback RAF loop (clip-editor mode only)
-  useEffect(() => {
-    if (!isClipEditor || segments.length === 0) return
-
-    let rafId: number
-
-    const tick = () => {
-      const video = playerRef.current?.getVideoElement()
-      if (!video) {
-        rafId = requestAnimationFrame(tick)
-        return
-      }
-
-      if (isFrozenRef.current && activeFreezeSegRef.current) {
-        // During freeze: update virtual time based on elapsed real time
-        const elapsed = (performance.now() - freezeStartPerfRef.current) / 1000
-        const seg = activeFreezeSegRef.current
-        virtualTimeRef.current = seg.virtualStart + Math.min(elapsed, seg.freezeFrame!.duration)
-
-        if (elapsed >= seg.freezeFrame!.duration) {
-          // End freeze
-          isFrozenRef.current = false
-          activeFreezeSegRef.current = null
-          setFreezeOverlayUrl(null)
-          video.play()
-        }
-      } else if (!video.paused) {
-        // During video playback: check for freeze thresholds
-        const rt = video.currentTime
-        virtualTimeRef.current = realToVirtual(segmentsRef.current, rt)
-
-        for (const seg of segmentsRef.current) {
-          if (
-            seg.type === 'freeze' &&
-            seg.freezeFrame &&
-            !passedFreezesRef.current.has(seg.freezeFrame.id)
-          ) {
-            const ft = seg.freezeFrame.timestamp
-            if (rt >= ft - 0.02 && rt <= ft + 0.15) {
-              // Hit freeze point
-              passedFreezesRef.current.add(seg.freezeFrame.id)
-              isFrozenRef.current = true
-              activeFreezeSegRef.current = seg
-              freezeStartPerfRef.current = performance.now()
-              virtualTimeRef.current = seg.virtualStart
-              setFreezeOverlayUrl(seg.freezeFrame.imageData)
-              video.pause()
-              video.currentTime = ft
-              break
-            }
-          }
-        }
-      } else {
-        // Paused (not frozen): just track virtual time
-        virtualTimeRef.current = realToVirtual(segmentsRef.current, video.currentTime)
-      }
-
-      rafId = requestAnimationFrame(tick)
-    }
-
-    rafId = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(rafId)
-  }, [isClipEditor, segments])
-
-  // Get virtual time (for Timeline playhead)
-  const getVirtualTime = useCallback(() => virtualTimeRef.current, [])
-
-  // =============== Drawing (single global array) ===============
-
-  // All drawings live here — freeze frame drawings are tagged with freezeFrameId
-  const { elements, setElements, undo, redo, reset, canUndo, canRedo } = useUndoRedo()
-
-  // Display time for temporal filtering (updated ~4fps via timeupdate)
-  const [displayTime, setDisplayTime] = useState(0)
-
-  // Wrap setElements to auto-tag new elements
-  const wrappedSetElements = useCallback(
-    (next: DrawingElement[]) => {
-      const prevIds = new Set(elements.map((el) => el.id))
-
-      if (activeFreezeFrameId) {
-        // Tag new elements with the active freeze frame ID
-        const tagged = next.map((el) => {
-          if (!prevIds.has(el.id) && !el.freezeFrameId) {
-            return { ...el, freezeFrameId: activeFreezeFrameId }
-          }
-          return el
-        })
-        setElements(tagged)
-      } else if (isClipEditor) {
-        // Tag new elements with temporal info
-        const enhanced = next.map((el) => {
-          if (!prevIds.has(el.id) && el.startTime === undefined) {
-            return {
-              ...el,
-              startTime: virtualTimeRef.current,
-              endTime: Math.min(virtualTimeRef.current + 3, virtualDuration || duration),
-            }
-          }
-          return el
-        })
-        setElements(enhanced)
-      } else {
-        setElements(next)
-      }
-    },
-    [activeFreezeFrameId, isClipEditor, elements, setElements, virtualDuration, duration]
-  )
-
-  // Drawing engine — uses full elements array; wrapper tags new elements
-  const {
-    preview,
-    handlePointerDown,
-    handlePointerMove,
-    handlePointerUp,
-    deleteSelected: engineDeleteSelected,
-  } = useDrawingEngine({
-    elements,
-    setElements: wrappedSetElements,
-    color,
-    strokeWidth,
-    tool,
-    selectedId,
-    setSelectedId,
-  })
-
-  // Visible elements: filtered by context (freeze, temporal, general)
-  const visibleElements = useMemo(() => {
-    if (activeFreezeFrameId) {
-      return elements.filter((el) => el.freezeFrameId === activeFreezeFrameId)
-    }
-    if (isClipEditor) {
-      return elements.filter((el) => {
-        if (el.freezeFrameId) return false
-        if (el.startTime !== undefined && el.endTime !== undefined) {
-          return displayTime >= el.startTime && displayTime <= el.endTime
-        }
-        return true
-      })
-    }
-    return elements.filter((el) => !el.freezeFrameId)
-  }, [elements, activeFreezeFrameId, isClipEditor, displayTime])
-
-  // Context-aware clear: only removes visible elements
-  const clearAll = useCallback(() => {
-    const visibleIds = new Set(visibleElements.map((el) => el.id))
-    setElements(elements.filter((el) => !visibleIds.has(el.id)))
-    setSelectedId(null)
-  }, [visibleElements, elements, setElements, setSelectedId])
-
-  // Clear selection when switching drawing context
-  useEffect(() => {
-    setSelectedId(null)
-  }, [activeFreezeFrameId, setSelectedId])
-
-  // =============== Handlers ===============
-
-  // Time update — also feeds displayTime for temporal visibility
   const handleTimeUpdate = useCallback((time: number) => {
     currentTimeRef.current = time
-    // During scrub: skip React state updates — playhead animates via its own RAF loop
-    if (isScrubRef.current) return
-    if (isClipEditor) {
-      setDisplayTime(virtualTimeRef.current)
-    } else {
-      virtualTimeRef.current = time
-      setDisplayTime(time)
-    }
-  }, [isClipEditor])
-
-  // Get video element
-  const getVideoElement = useCallback(() => {
-    return playerRef.current?.getVideoElement() || null
-  }, [])
-
-  // Tool change auto-pauses
-  const handleToolChange = useCallback((t: DrawingTool) => {
-    setTool(t)
-    if (t !== 'select') {
+    setCurrentTime(time)
+    const hold = clipHoldRef.current
+    if (hold != null && time >= hold) {
+      clipHoldRef.current = null
       playerRef.current?.pause()
     }
-    setSelectedId(null)
-  }, [setTool, setSelectedId])
-
-  // Play state change
-  const handlePlayStateChange = useCallback((playing: boolean) => {
-    setIsPlaying(playing)
-    if (playing && tool !== 'select') {
-      setTool('select')
-    }
-    // When playing starts in clip mode, deselect freeze frame
-    if (playing && activeFreezeFrameId) {
-      setActiveFreezeFrameId(null)
-      setFreezeOverlayUrl(null)
-    }
-  }, [tool, setIsPlaying, setTool, activeFreezeFrameId, setActiveFreezeFrameId])
-
-  // Export PNG
-  const handleExportPNG = useCallback(async () => {
-    const videoEl = playerRef.current?.getVideoElement()
-    const svgEl = svgRef.current
-    if (!videoEl || !svgEl) return
-    try {
-      playerRef.current?.pause()
-      const dataUrl = await exportFramePNG(videoEl, svgEl)
-      downloadDataUrl(dataUrl, `analisis_${Math.floor(currentTimeRef.current)}s.png`)
-      toast.success('PNG exportado')
-    } catch {
-      toast.error('Error al exportar PNG')
-    }
   }, [])
 
-  // Export clip
-  const handleExportClip = useCallback(async (clipId: string) => {
-    const videoEl = playerRef.current?.getVideoElement()
-    if (!videoEl) return
-    playerRef.current?.pause()
-    await exportClip(clipId, videoEl)
-  }, [exportClip])
+  const playClip = useCallback((clip: CodeEvent) => {
+    setSelectedClipId(clip.id)
+    clipHoldRef.current = clip.endTime
+    seekTo(clip.startTime)
+    playerRef.current?.play()
+  }, [seekTo])
 
-  // Create clip at current time
-  const handleCreateClipHere = useCallback(() => {
-    createClipAtTime(currentTimeRef.current)
-  }, [createClipAtTime])
+  const pressButton = useCallback((btn: CodeButton) => {
+    const videoDur = duration || playerRef.current?.getVideoElement()?.duration || 0
+    const event = recordEvent(btn.id, currentTimeRef.current, videoDur)
+    setSelectedClipId(event.id)
+    toast.success(`${btn.label} · −${btn.preRoll}s / +${btn.postRoll}s`)
+  }, [duration, recordEvent])
 
-  // Select clip from sidebar (seek to start)
-  const handleSelectClipFromSidebar = useCallback((clipId: string) => {
-    setActiveClipId(clipId)
-    const clip = clips.find((c) => c.id === clipId)
-    if (clip) {
-      playerRef.current?.seekTo(clip.startTime)
-    }
-  }, [clips, setActiveClipId])
-
-  // Enter clip editor (from sidebar or timeline double-click)
-  const handleEnterClipEditor = useCallback((clipId: string) => {
-    enterClipEditor(clipId)
-    passedFreezesRef.current.clear()
-    const clip = clips.find((c) => c.id === clipId)
-    if (clip) {
-      playerRef.current?.seekTo(clip.startTime)
-    }
-  }, [clips, enterClipEditor])
-
-  // Exit clip editor
-  const handleExitClipEditor = useCallback(() => {
-    isFrozenRef.current = false
-    activeFreezeSegRef.current = null
-    passedFreezesRef.current.clear()
-    setFreezeOverlayUrl(null)
-    exitClipEditor()
-  }, [exitClipEditor])
-
-  // Capture freeze frame
-  const handleCaptureFreezeFrame = useCallback(() => {
-    if (!editingClipId) return
-    const videoEl = playerRef.current?.getVideoElement()
-    if (!videoEl) return
-    playerRef.current?.pause()
-    captureFreezeFrame(editingClipId, currentTimeRef.current, videoEl)
-  }, [editingClipId, captureFreezeFrame])
-
-  // Scrub lifecycle callbacks — skip React state during drag
-  const handleScrubStart = useCallback(() => {
-    isScrubRef.current = true
-    scrubFinalTimeRef.current = null
-    // Reset freeze state once at scrub start (not on every move)
-    passedFreezesRef.current.clear()
-    isFrozenRef.current = false
-    activeFreezeSegRef.current = null
-    setFreezeOverlayUrl(null)
-  }, [])
-
-  const handleScrubEnd = useCallback(() => {
-    isScrubRef.current = false
-    // Flush pending display time after scrub ends
-    if (scrubFinalTimeRef.current !== null) {
-      setDisplayTime(scrubFinalTimeRef.current)
-      scrubFinalTimeRef.current = null
-    }
-  }, [])
-
-  // Seek — converts virtual time to real time in clip mode
-  const handleSeek = useCallback((time: number) => {
-    if (isScrubRef.current) {
-      // During scrub: only move the video, skip all setState
-      scrubFinalTimeRef.current = time
-      if (isClipEditor && segmentsRef.current.length > 0) {
-        const result = virtualToReal(segmentsRef.current, time)
-        virtualTimeRef.current = time
-        if (result.type === 'video') {
-          playerRef.current?.seekTo(result.time)
-        }
-      } else {
-        playerRef.current?.seekTo(time)
-      }
-      return
-    }
-
-    // Normal (non-scrub) seek
-    passedFreezesRef.current.clear()
-    isFrozenRef.current = false
-    activeFreezeSegRef.current = null
-    setFreezeOverlayUrl(null)
-
-    if (isClipEditor && segmentsRef.current.length > 0) {
-      const result = virtualToReal(segmentsRef.current, time)
-      virtualTimeRef.current = time
-      setDisplayTime(time)
-      if (result.type === 'video') {
-        playerRef.current?.seekTo(result.time)
-      } else {
-        // Seeking into a freeze frame — show it and pause
-        playerRef.current?.seekTo(result.frame.timestamp)
-        playerRef.current?.pause()
-        setFreezeOverlayUrl(result.frame.imageData)
-        setActiveFreezeFrameId(result.frame.id)
-      }
-      // Mark freezes before this point as passed
-      for (const seg of segmentsRef.current) {
-        if (seg.type === 'freeze' && seg.freezeFrame && seg.virtualEnd <= time) {
-          passedFreezesRef.current.add(seg.freezeFrame.id)
-        }
-      }
-    } else {
-      playerRef.current?.seekTo(time)
-      setDisplayTime(time)
-    }
-  }, [isClipEditor, setActiveFreezeFrameId])
-
-  // Click on freeze frame (from timeline or sidebar)
-  const handleFreezeFrameClick = useCallback((frame: FreezeFrame | null) => {
-    if (!frame) {
-      // Deselect
-      setActiveFreezeFrameId(null)
-      setFreezeOverlayUrl(null)
-      return
-    }
-    playerRef.current?.pause()
-    playerRef.current?.seekTo(frame.timestamp)
-    setActiveFreezeFrameId(frame.id)
-    setFreezeOverlayUrl(frame.imageData)
-  }, [setActiveFreezeFrameId])
-
-  // Select freeze frame — seek to its timestamp
-  const handleSelectFreezeFrame = useCallback((frame: FreezeFrame) => {
-    handleFreezeFrameClick(frame)
-  }, [handleFreezeFrameClick])
-
-  // Update freeze frame duration from sidebar
-  const handleUpdateFreezeFrameDuration = useCallback((clipId: string, frameId: string, dur: number) => {
-    updateFreezeFrameStore(clipId, frameId, { duration: dur })
-  }, [updateFreezeFrameStore])
-
-  // Delete freeze frame
-  const handleDeleteFreezeFrame = useCallback((clipId: string, frameId: string) => {
-    if (activeFreezeFrameId === frameId) {
-      setActiveFreezeFrameId(null)
-      setFreezeOverlayUrl(null)
-    }
-    removeFreezeFrameStore(clipId, frameId)
-    toast.success('Freeze frame eliminado')
-  }, [activeFreezeFrameId, setActiveFreezeFrameId, removeFreezeFrameStore])
-
-  // Update drawing temporal range
-  const handleDrawingTimeUpdate = useCallback((id: string, startTime: number, endTime: number) => {
-    setElements(elements.map((el) => (el.id === id ? { ...el, startTime, endTime } : el)))
-  }, [elements, setElements])
-
-  // Update selected element props
-  const handleUpdateSelectedProps = useCallback((patch: Partial<Pick<DrawingElement, 'color' | 'strokeWidth'>>) => {
-    if (!selectedId) return
-    wrappedSetElements(elements.map((el) =>
-      el.id === selectedId ? { ...el, ...patch } : el
-    ))
-  }, [selectedId, elements, wrappedSetElements])
-
-  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return
-
-      switch (e.key) {
-        case ' ':
-          e.preventDefault()
-          if (isPlaying) playerRef.current?.pause()
-          else playerRef.current?.play()
-          break
-        case 'Escape':
-          if (activeFreezeFrameId) {
-            setActiveFreezeFrameId(null)
-            setFreezeOverlayUrl(null)
-          } else if (viewMode === 'clip-editor') {
-            handleExitClipEditor()
-          } else if (tool !== 'select') {
-            setTool('select')
-          } else if (selectedId) {
-            setSelectedId(null)
-          } else {
-            onClose()
-          }
-          break
-        case 'Delete':
-        case 'Backspace':
-          if (selectedId) {
-            e.preventDefault()
-            engineDeleteSelected()
-          }
-          break
-        case 'z':
-          if ((e.ctrlKey || e.metaKey) && e.shiftKey) {
-            e.preventDefault()
-            redo()
-          } else if (e.ctrlKey || e.metaKey) {
-            e.preventDefault()
-            undo()
-          }
-          break
-        case 'ArrowLeft':
-          e.preventDefault()
-          playerRef.current?.seekTo(Math.max(clipRange?.start ?? 0, currentTimeRef.current - 5))
-          break
-        case 'ArrowRight':
-          e.preventDefault()
-          playerRef.current?.seekTo(Math.min(clipRange?.end ?? duration, currentTimeRef.current + 5))
-          break
-        case 'v':
-        case 'V':
-          if (!e.ctrlKey && !e.metaKey) setTool('select')
-          break
-        case 'c':
-        case 'C':
-          if (!e.ctrlKey && !e.metaKey) {
-            if (viewMode === 'general') {
-              createClipAtTime(currentTimeRef.current)
-            }
-          }
-          break
-        case 'f':
-        case 'F':
-          if (!e.ctrlKey && !e.metaKey && viewMode === 'clip-editor') {
-            handleCaptureFreezeFrame()
-          }
-          break
-        case 'b':
-        case 'B':
-          if (!e.ctrlKey && !e.metaKey) handleOpenBotonera()
-          break
-        case 'o':
-        case 'O':
-          if (!e.ctrlKey && !e.metaKey) handleOpenOrganizer()
-          break
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+        return
+      }
+      if (e.key === ' ') {
+        e.preventDefault()
+        const video = playerRef.current?.getVideoElement()
+        if (video?.paused) playerRef.current?.play()
+        else playerRef.current?.pause()
+        return
+      }
+      const btn = buttons.find((b) => b.shortcut === e.key.toLowerCase())
+      if (btn) {
+        e.preventDefault()
+        pressButton(btn)
       }
     }
-
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [isPlaying, tool, selectedId, duration, viewMode, clipRange, activeFreezeFrameId, onClose, engineDeleteSelected, undo, redo, setTool, setSelectedId, setActiveFreezeFrameId, createClipAtTime, handleExitClipEditor, handleCaptureFreezeFrame, handleOpenBotonera, handleOpenOrganizer])
+  }, [buttons, onClose, pressButton])
 
-  const interactive = !isPlaying && tool !== 'select'
+  useEffect(() => {
+    const el = playerRef.current?.getVideoElement()?.parentElement
+    const stage = el?.closest('.vd-monitor-stage') as HTMLElement | null
+    if (!stage) return
+    const handler = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) * 0.5 && Math.abs(e.deltaX) > 5) {
+        e.preventDefault()
+        const next = Math.max(0, Math.min(duration, currentTimeRef.current + (e.deltaX / 80) * 3))
+        seekTo(next)
+      }
+    }
+    stage.addEventListener('wheel', handler, { passive: false })
+    return () => stage.removeEventListener('wheel', handler)
+  }, [duration, seekTo])
 
-  // Find exporting clip title for dialog
-  const exportingClip = exportingClipId ? clips.find((c) => c.id === exportingClipId) : null
+  const patchClip = useCallback((clip: CodeEvent, startTime: number, endTime: number) => {
+    updateEvent(videoKey, clip.id, { startTime, endTime }, duration)
+  }, [duration, updateEvent, videoKey])
+
+  const runDownload = useCallback(async (kind: DeskDownloadKind, clip?: CodeEvent) => {
+    const video = playerRef.current?.getVideoElement()
+    if (!video) {
+      toast.error('No hay vídeo cargado')
+      return
+    }
+    const target = clip || selectedClip
+    try {
+      setProgress('Recortando…')
+      await extractAndDownloadDeskClips({
+        video,
+        kind,
+        clips: events,
+        buttons,
+        selectedClipId: target?.id,
+        selectedButtonId: target?.buttonId || activeButtonId,
+        matchLabel: title.replace(/\.[^.]+$/, ''),
+        onProgress: setProgress,
+      })
+      toast.success('Descarga lista. El partido no ha salido de este ordenador.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo descargar')
+    } finally {
+      setProgress(null)
+    }
+  }, [activeButtonId, buttons, events, selectedClip, title])
+
+  const onVSplit = (e: React.PointerEvent) => {
+    const startX = e.clientX
+    const startW = railWidth
+    const move = (ev: PointerEvent) => {
+      setRailWidth(Math.max(280, Math.min(560, startW - (ev.clientX - startX))))
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
+  const onHSplit = (e: React.PointerEvent) => {
+    const startY = e.clientY
+    const startH = cintaHeight
+    const move = (ev: PointerEvent) => {
+      setCintaHeight(Math.max(96, Math.min(360, startH - (ev.clientY - startY))))
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 bg-black/90 border-b border-white/10">
-        {isClipEditor ? (
-          /* Clip editor header */
-          <>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-white hover:text-white hover:bg-white/20"
-              onClick={handleExitClipEditor}
-            >
-              <ArrowLeft className="h-4 w-4 mr-1" />
-              Video General
-            </Button>
-
-            <div className="flex items-center gap-2">
-              <div
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: editingClip!.color }}
-              />
-              <h2 className="text-sm font-medium text-white truncate max-w-[30%]">
-                {editingClip!.title}
-              </h2>
-              {activeFreezeFrame && (
-                <span className="text-[10px] text-cyan-400 bg-cyan-400/10 px-1.5 py-0.5 rounded">
-                  ❄ Freeze frame
-                </span>
-              )}
-            </div>
-
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-white hover:text-white hover:bg-white/20"
-                onClick={handleCaptureFreezeFrame}
-                title="Capturar freeze frame (F)"
-              >
-                <Snowflake className="h-4 w-4 mr-1" />
-                Captura
-              </Button>
-
-              <div className="w-px h-5 bg-white/20" />
-
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-white hover:text-white hover:bg-white/20"
-                onClick={handleExportPNG}
-                title="Exportar PNG"
-              >
-                <Camera className="h-4 w-4 mr-1" />
-                PNG
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-white hover:text-white hover:bg-white/20"
-                onClick={() => handleExportClip(editingClipId!)}
-                title="Exportar clip"
-              >
-                <Download className="h-4 w-4 mr-1" />
-                Exportar
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-emerald-300 hover:text-white hover:bg-emerald-600/50"
-                onClick={() => setSendRevisionClipId(editingClipId)}
-                title="Enviar recorte a Revisión (informe)"
-              >
-                <Send className="h-4 w-4 mr-1" />
-                A revisión
-              </Button>
-            </div>
-          </>
-        ) : (
-          /* General mode header */
-          <>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-white hover:text-white hover:bg-white/20"
-              onClick={onClose}
-            >
-              <X className="h-4 w-4 mr-1" />
-              Cerrar
-            </Button>
-
-            <h2 className="text-sm font-medium text-white truncate max-w-[30%]">{title}</h2>
-
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-blue-400 hover:text-white hover:bg-blue-600/60"
-                onClick={handleOpenBotonera}
-                title="Botonera (B)"
-              >
-                <LayoutGrid className="h-4 w-4 mr-1" />
-                Botonera
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-white/70 hover:text-white hover:bg-white/20"
-                onClick={handleOpenOrganizer}
-                title="Organizer (O)"
-              >
-                <List className="h-4 w-4 mr-1" />
-                Organizer
-              </Button>
-
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Main content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left: Video + controls + timeline */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* Video + SVG overlay */}
-          <div ref={videoContainerRef} className="flex-1 min-h-[120px] relative bg-black flex items-center justify-center overflow-hidden">
-            <div className="relative w-full h-full flex items-center justify-center">
-              <div className="relative w-full" style={{ maxHeight: '100%', aspectRatio: '16/9' }}>
-                <VideoPlayer
-                  ref={playerRef}
-                  src={src}
-                  clipRange={clipRange}
-                  onTimeUpdate={handleTimeUpdate}
-                  onPlayStateChange={handlePlayStateChange}
-                  onDurationChange={setDuration}
-                />
-
-                {/* Freeze frame overlay — covers video, pointer-events-none */}
-                {freezeOverlayUrl && (
-                  <img
-                    src={freezeOverlayUrl}
-                    alt="Freeze frame"
-                    className={`absolute left-0 right-0 top-0 ${VIDEO_PLAYER_CHROME_CLASS} object-contain pointer-events-none`}
-                    style={{ zIndex: 2 }}
-                  />
-                )}
-
-                {/* Drawing overlay — covers the vídeo, not the seek bar */}
-                <div className={`absolute left-0 right-0 top-0 ${VIDEO_PLAYER_CHROME_CLASS}`}>
-                  <DrawingOverlay
-                    ref={svgRef}
-                    elements={visibleElements}
-                    preview={preview}
-                    selectedId={selectedId}
-                    interactive={interactive}
-                    tool={tool}
-                    onPointerDown={handlePointerDown}
-                    onPointerMove={handlePointerMove}
-                    onPointerUp={handlePointerUp}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Add to Organizer bar — shown when a clip is selected in general mode */}
-          {viewMode === 'general' && activeClipId && (() => {
-            const selectedClip = clips.find((c) => c.id === activeClipId)
-            if (!selectedClip) return null
-            return (
-              <div className="flex items-center justify-between px-3 py-1 bg-[#1a1a1a] border-t border-white/10">
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: selectedClip.color }} />
-                  <span className="text-[11px] text-white/70 truncate max-w-[200px]">{selectedClip.title}</span>
-                </div>
-                <button
-                  className="text-[11px] px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-colors shrink-0"
-                  onClick={() => handleAddClipToOrganizer(activeClipId)}
-                >
-                  + Añadir al Organizer
-                </button>
-                <button
-                  className="text-[11px] px-2 py-0.5 rounded bg-emerald-600/40 hover:bg-emerald-600/70 text-white transition-colors shrink-0"
-                  onClick={() => setSendRevisionClipId(activeClipId)}
-                >
-                  A revisión
-                </button>
-              </div>
-            )
-          })()}
-
-          {/* Resize handle */}
-          <div
-            className="group relative w-full flex items-center justify-center bg-[#111] hover:bg-[#1e3a5f] border-t border-b border-white/10 hover:border-blue-500/50 cursor-row-resize select-none shrink-0 transition-colors"
-            style={{ height: 14 }}
-            onPointerDown={handleResizeHandlePointerDown}
-            onPointerMove={handleResizeHandlePointerMove}
-            onPointerUp={handleResizeHandlePointerUp}
-            onPointerCancel={handleResizeHandlePointerUp}
-            title="Arrastrá para cambiar el tamaño del timeline"
+    <div
+      className="vd-root"
+      style={{ ['--vd-rail' as string]: `${railWidth}px`, ['--vd-cinta' as string]: `${cintaHeight}px` }}
+    >
+      <header className="vd-header">
+        <button type="button" className="vd-btn vd-btn-ghost" onClick={onClose}>
+          <X size={14} />
+          Cerrar
+        </button>
+        <div style={{ minWidth: 0 }}>
+          <div className="vd-header-title">{title}</div>
+          <div className="vd-header-meta">{events.length} recortes · el partido se queda en el PC</div>
+        </div>
+        <div className="vd-header-actions">
+          <VideoDeskDownloadMenu disabled={!events.length} onPick={(kind) => void runDownload(kind)} />
+          <button
+            type="button"
+            className="vd-btn vd-btn-accent"
+            disabled={!selectedClip}
+            onClick={() => selectedClip && setSendClipId(selectedClip.id)}
           >
-            <div className="flex items-center gap-1">
-              <div className="w-4 h-1 rounded-full bg-white/20 group-hover:bg-blue-400/70 transition-colors" />
-              <div className="w-4 h-1 rounded-full bg-white/20 group-hover:bg-blue-400/70 transition-colors" />
-              <div className="w-4 h-1 rounded-full bg-white/20 group-hover:bg-blue-400/70 transition-colors" />
-            </div>
-          </div>
+            <Send size={14} />
+            A revisión
+          </button>
+        </div>
+      </header>
 
-          {/* Timeline — height controlled by drag handle */}
-          <div className="shrink-0 overflow-hidden" style={{ height: timelineHeight }}>
-            <Timeline
-              videoSrc={src}
-              duration={duration}
-              getVideoElement={getVideoElement}
-              clips={clips}
-              activeClipId={activeClipId}
-              onSeek={handleSeek}
-              onScrubStart={handleScrubStart}
-              onScrubEnd={handleScrubEnd}
-              onClipUpdate={updateClip}
-              onClipSelect={setActiveClipId}
-              onClipCreate={createClipFromRange}
-              onClipDoubleClick={handleEnterClipEditor}
-              viewMode={viewMode}
-              editingClip={editingClip}
-              getVirtualTime={getVirtualTime}
-              onFreezeFrameClick={handleFreezeFrameClick}
-              activeFreezeFrameId={activeFreezeFrameId}
-              drawingElements={elements}
-              onDrawingTimeUpdate={handleDrawingTimeUpdate}
-              codeButtons={codeButtons}
-              codeEvents={currentCodeEvents}
-              onCodeLaneClick={(_buttonId: string) => handleOpenBotonera()}
-              onCodeEventDoubleClick={handleOpenStudio}
-              onAddClipToOrganizer={handleAddClipToOrganizer}
-              onAddCodeEventToOrganizer={handleAddCodeEventToOrganizer}
-            />
+      <div className="vd-body">
+        <div className="vd-monitor">
+          <div className="vd-monitor-stage">
+            {src ? (
+              <VideoPlayer
+                ref={playerRef}
+                src={src}
+                fillFrame
+                onTimeUpdate={handleTimeUpdate}
+                onDurationChange={setDuration}
+                onSeeked={(t) => {
+                  currentTimeRef.current = t
+                  setCurrentTime(t)
+                }}
+              />
+            ) : null}
+            {progress ? <div className="vd-progress">{progress}</div> : null}
           </div>
         </div>
+
+        <div className="vd-vsplit" onPointerDown={onVSplit} role="separator" aria-orientation="vertical" />
+
+        <aside className="vd-rail">
+          <div className="vd-section-label">Botonera</div>
+          <VideoDeskBotonera
+            buttons={buttons}
+            activeButtonId={activeButtonId}
+            onPress={pressButton}
+            onAdd={addButton}
+            onUpdate={updateButton}
+            onRemove={removeButton}
+          />
+          <div className="vd-section-label">Carpetas</div>
+          <VideoDeskFolders
+            buttons={buttons}
+            events={events}
+            selectedClipId={selectedClipId}
+            onSelect={(clip) => {
+              setSelectedClipId(clip.id)
+              setActiveButtonId(clip.buttonId)
+              seekTo(clip.startTime)
+            }}
+            onPlay={playClip}
+            onRename={(clip, title) => updateEvent(videoKey, clip.id, { title })}
+            onNudge={(clip, edge, delta) => {
+              if (edge === 'start') patchClip(clip, clip.startTime + delta, clip.endTime)
+              else patchClip(clip, clip.startTime, clip.endTime + delta)
+            }}
+            onDownload={(clip) => void runDownload('clip', clip)}
+            onSend={(clip) => setSendClipId(clip.id)}
+            onDelete={(clip) => {
+              removeEvent(videoKey, clip.id)
+              if (selectedClipId === clip.id) setSelectedClipId(null)
+            }}
+          />
+        </aside>
       </div>
 
-      {/* Floating windows overlay */}
-      <FloatingWindowManager
-        videoSrc={src}
-        currentTime={displayTime}
-        videoDuration={duration}
-        videoKey={videoKey}
-        onTagCreated={() => {}}
-        onSeekTo={handleSeek}
+      <div className="vd-hsplit" onPointerDown={onHSplit} role="separator" aria-orientation="horizontal" />
+
+      <VideoDeskTimeline
+        buttons={buttons}
+        events={events}
+        duration={duration}
+        currentTime={currentTime}
+        selectedClipId={selectedClipId}
+        onSeek={seekTo}
+        onSelect={(clip) => {
+          setSelectedClipId(clip.id)
+          setActiveButtonId(clip.buttonId)
+        }}
+        onTrim={patchClip}
       />
 
-      {/* Clip export dialog */}
-      <ClipExportDialog
-        open={!!exportingClip}
-        clipTitle={exportingClip?.title || ''}
-      />
-
-      <SendToRevisionDialog
-        open={!!sendRevisionClipId}
-        onOpenChange={(v) => { if (!v) setSendRevisionClipId(null) }}
-        equipoId={equipoId}
-        partidoId={partidoId}
-        rivalId={rivalId}
-        videoElement={playerRef.current?.getVideoElement() || null}
-        clipTitle={clips.find((c) => c.id === sendRevisionClipId)?.title || 'Clip'}
-        startTime={clips.find((c) => c.id === sendRevisionClipId)?.startTime || 0}
-        endTime={clips.find((c) => c.id === sendRevisionClipId)?.endTime || 0}
-        sourceVideoId={videoId}
-      />
-
-      {/* Shortcut overlay */}
-      <ShortcutOverlay open={showShortcuts} onClose={() => setShowShortcuts(false)} />
+      {sendClip ? (
+        <SendToRevisionDialog
+          open
+          onOpenChange={(v) => { if (!v) setSendClipId(null) }}
+          equipoId={equipoId}
+          partidoId={partidoId}
+          rivalId={rivalId}
+          videoElement={playerRef.current?.getVideoElement() || null}
+          clipTitle={clipDisplayTitle(sendClip, sendButton)}
+          startTime={sendClip.startTime}
+          endTime={sendClip.endTime}
+          sourceVideoId={videoId}
+          preferredFase={sendButton?.fase}
+        />
+      ) : null}
     </div>
   )
 }

@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import { revisionApi, type RevisionAmbito, type RevisionPack } from '@/lib/api/revision'
 import { extractClipRange } from '@/components/video-analyzer/extractClip'
+import { matchRevisionFolderId } from '@/components/video-analyzer/videoDesk'
 
 interface SendToRevisionDialogProps {
   open: boolean
@@ -27,6 +28,7 @@ interface SendToRevisionDialogProps {
   startTime: number
   endTime: number
   sourceVideoId?: string
+  preferredFase?: string
 }
 
 export function SendToRevisionDialog({
@@ -40,6 +42,7 @@ export function SendToRevisionDialog({
   startTime,
   endTime,
   sourceVideoId,
+  preferredFase,
 }: SendToRevisionDialogProps) {
   const [ambito, setAmbito] = useState<RevisionAmbito>('partido_post')
   const [pack, setPack] = useState<RevisionPack | null>(null)
@@ -61,11 +64,11 @@ export function SendToRevisionDialog({
       const p = await revisionApi.getOrCreatePack({
         equipo_id: equipoId,
         ambito: next,
-        partido_id: next === 'partido_post' ? partidoId : undefined,
+        partido_id: next === 'partido_post' || next === 'partido_plan' ? partidoId : undefined,
         rival_id: next === 'rival' ? rivalId : undefined,
       })
       setPack(p)
-      setFolderId(p.folders.find((f) => !f.parent_id)?.id || '')
+      setFolderId(matchRevisionFolderId(p.folders, preferredFase))
     } catch {
       toast.error('No se pudo abrir la librería de revisión')
     } finally {
@@ -134,7 +137,7 @@ export function SendToRevisionDialog({
           <p className="text-xs text-muted-foreground">
             Se recorta aquí y solo sube ese fragmento (máx. 3 min). El archivo del partido no sale de este ordenador.
           </p>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button
               type="button"
               size="sm"
@@ -151,6 +154,14 @@ export function SendToRevisionDialog({
               onClick={() => { setAmbito('rival'); void loadPack('rival') }}
             >
               Informe Rival
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={ambito === 'partido_plan' ? 'default' : 'outline'}
+              onClick={() => { setAmbito('partido_plan'); void loadPack('partido_plan') }}
+            >
+              Plan de Partido
             </Button>
           </div>
           <div className="space-y-1">
