@@ -221,3 +221,9 @@ video_playlists
 | Export clip frontend | Máx 2 min, formato WebM |
 | Sin colaboración real-time | Un usuario a la vez por video |
 | Audio en export local | Puede fallar (limitación de MediaRecorder) |
+
+---
+
+## Visión (análisis automático)
+
+Plan de computer vision **local** en la misma mesa: `docs/VISION_PLAN.md`. El partido no se sube; un worker Python en el PC escribe JSON y la botonera recorta. No implementado todavía.
