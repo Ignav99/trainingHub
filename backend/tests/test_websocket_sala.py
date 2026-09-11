@@ -57,6 +57,7 @@ class TestSalaSyncPayload:
                 "show": {"kind": "informe", "slides": []},
                 "muted": True,
                 "fullscreen": True,
+                "seq": 7,
             },
             "user-1",
         )
@@ -66,6 +67,7 @@ class TestSalaSyncPayload:
         assert payload["clip_id"] == "clip-1"
         assert payload["muted"] is True
         assert payload["fullscreen"] is True
+        assert payload["seq"] == 7
 
     def test_clip_sala_payload_omits_missing_show(self):
         from app.api.v1.websocket import sala_sync_payload

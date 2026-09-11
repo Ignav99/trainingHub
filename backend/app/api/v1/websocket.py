@@ -284,6 +284,49 @@ async def websocket_endpoint(
                     payload = sala_sync_payload(data, user_id)
                     await manager.broadcast_sala(code, payload, exclude=websocket)
 
+            elif msg_type == "sala_sync_ack":
+                code = (data.get("session_code") or "").upper().strip()
+                if code:
+                    await manager.broadcast_sala(
+                        code,
+                        {
+                            "type": "sala_sync_ack",
+                            "session_code": code,
+                            "seq": data.get("seq"),
+                            "user_id": user_id,
+                        },
+                        exclude=websocket,
+                    )
+
+            elif msg_type == "sala_sync_request":
+                code = (data.get("session_code") or "").upper().strip()
+                if code:
+                    await manager.broadcast_sala(
+                        code,
+                        {
+                            "type": "sala_sync_request",
+                            "session_code": code,
+                            "role": data.get("role") or "tablet",
+                            "user_id": user_id,
+                        },
+                        exclude=websocket,
+                    )
+
+            elif msg_type == "sala_signal":
+                code = (data.get("session_code") or "").upper().strip()
+                if code:
+                    await manager.broadcast_sala(
+                        code,
+                        {
+                            "type": "sala_signal",
+                            "session_code": code,
+                            "role": data.get("role"),
+                            "signal": data.get("signal"),
+                            "user_id": user_id,
+                        },
+                        exclude=websocket,
+                    )
+
     except WebSocketDisconnect:
         salas = list(manager.ws_salas.get(id(websocket), []))
         manager.disconnect_user(websocket, user_id, equipo_id)
@@ -344,6 +387,8 @@ def sala_sync_payload(data: dict, user_id: str) -> dict:
         payload["slide"] = data.get("slide")
     if "show" in data:
         payload["show"] = data.get("show")
+    if "seq" in data:
+        payload["seq"] = data.get("seq")
     return payload
 
 async def _handle_chat_message(user_id: str, user_name: str, equipo_id: str, data: dict):

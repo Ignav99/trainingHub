@@ -21,7 +21,6 @@ import {
   type RevisionClip,
   type RevisionSession,
 } from '@/lib/api/revision'
-import { trainingHubWsUrl } from '@/lib/wsUrl'
 import { VideoPlayer, VIDEO_PLAYER_CHROME_CLASS, type VideoPlayerHandle } from '@/components/video-analyzer/VideoPlayer'
 import { DrawingOverlay } from '@/components/video-analyzer/DrawingOverlay'
 import { useDrawingEngine } from '@/components/video-analyzer/useDrawingEngine'
@@ -33,6 +32,8 @@ import { SalaClipTree } from './SalaClipTree'
 import { SalaZoomCatcher } from './SalaZoomCatcher'
 import { SalaFloatingChrome, SalaReviewBar, WhiteboardBar } from './salaChrome'
 import { useSalaVideoShare } from './useSalaVideoShare'
+import { useSalaLink } from '@/hooks/useSalaLink'
+import { salaLinkLabel } from '@/lib/salaLink'
 import {
   IDENTITY_ZOOM,
   JOG_SECONDS,
@@ -59,7 +60,6 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
   const [session, setSession] = useState<RevisionSession | null>(initialSession || null)
   const [loading, setLoading] = useState(!initialSession)
   const [peerReady, setPeerReady] = useState(!isHost)
-  const [wsOk, setWsOk] = useState(false)
   const [tool, setTool] = useState<DrawingTool>('freehand')
   const [color, setColor] = useState('#f97316')
   const [strokeWidth, setStrokeWidth] = useState(4)
@@ -74,11 +74,12 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
   const skipOverlaySend = useRef(true)
   const zoomRef = useRef(zoom)
   zoomRef.current = zoom
+  const remoteHandlerRef = useRef<(msg: Record<string, unknown>) => void>(() => {})
+  const resyncRef = useRef<() => void>(() => {})
 
   const rootRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<VideoPlayerHandle>(null)
   const applyingRemote = useRef(false)
-  const wsRef = useRef<WebSocket | null>(null)
   const leaderRef = useRef(false)
   const sessionRef = useRef<RevisionSession | null>(session)
   sessionRef.current = session
@@ -113,17 +114,22 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
     || null
   const playSrc = clipPlaySrc(currentClip)
 
+  const { send, requestSync, status, wsOk } = useSalaLink({
+    code,
+    role,
+    accessToken,
+    equipoId: equipoActivo?.id,
+    onMessage: (msg) => remoteHandlerRef.current(msg),
+    onPeerJoined: () => {
+      setPeerReady(true)
+      resyncRef.current()
+    },
+    onSyncRequest: () => resyncRef.current(),
+  })
+
   const sendSync = useCallback((payload: Record<string, unknown>) => {
-    const ws = wsRef.current
-    if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'sala_sync',
-        session_code: code,
-        role,
-        ...payload,
-      }))
-    }
-  }, [code, role])
+    send(payload)
+  }, [send])
 
   const {
     paneRef: videoPaneRef,
@@ -136,74 +142,60 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
   } = useSalaVideoShare(sendSync)
 
   useEffect(() => {
-    if (!accessToken || !equipoActivo?.id) return
-    const ws = new WebSocket(trainingHubWsUrl(accessToken, equipoActivo.id))
-    wsRef.current = ws
-    ws.onopen = () => {
-      setWsOk(true)
-      ws.send(JSON.stringify({ type: 'sala_join', session_code: code, role }))
-    }
-    ws.onclose = () => setWsOk(false)
-    ws.onerror = () => setWsOk(false)
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data)
-        if (msg.session_code && msg.session_code !== code) return
-
-        if (msg.type === 'sala_joined') {
-          if (typeof msg.peers === 'number' && msg.peers > 1) setPeerReady(true)
-          return
-        }
-        if (msg.type === 'sala_peer_joined') {
-          setPeerReady(true)
-          return
-        }
-
-        if (msg.type !== 'sala_sync') return
-        applyingRemote.current = true
-        leaderRef.current = false
-        if (typeof msg.t === 'number') playerRef.current?.seekTo(msg.t)
-        if (typeof msg.paused === 'boolean') {
-          if (msg.paused) playerRef.current?.pause()
-          else playerRef.current?.play()
-          setPlaying(!msg.paused)
-        }
-        if (Array.isArray(msg.overlay)) {
-          reset(msg.overlay)
-        }
-        if (msg.zoom && typeof msg.zoom.scale === 'number') {
-          setZoom({
-            scale: clampZoom(msg.zoom.scale),
-            x: Number(msg.zoom.x) || 0,
-            y: Number(msg.zoom.y) || 0,
-          })
-        }
-        applyRemoteShare(msg)
-        if (msg.clip_id) {
-          const cur = sessionRef.current
-          if (cur && cur.current_clip_id !== msg.clip_id) {
-            const next = cur.pack?.clips.find((c) => c.id === msg.clip_id)
-            if (next) {
-              setSession((s) => (s ? { ...s, current_clip_id: msg.clip_id, current_clip: next } : s))
-              setMediaError(false)
-              if (!Array.isArray(msg.overlay)) reset([])
-            }
+    remoteHandlerRef.current = (msg) => {
+      applyingRemote.current = true
+      leaderRef.current = false
+      if (typeof msg.t === 'number') playerRef.current?.seekTo(msg.t)
+      if (typeof msg.paused === 'boolean') {
+        if (msg.paused) playerRef.current?.pause()
+        else playerRef.current?.play()
+        setPlaying(!msg.paused)
+      }
+      if (Array.isArray(msg.overlay)) {
+        reset(msg.overlay)
+      }
+      if (msg.zoom && typeof msg.zoom === 'object' && typeof (msg.zoom as ZoomState).scale === 'number') {
+        const z = msg.zoom as ZoomState
+        setZoom({
+          scale: clampZoom(z.scale),
+          x: Number(z.x) || 0,
+          y: Number(z.y) || 0,
+        })
+      }
+      applyRemoteShare(msg)
+      if (typeof msg.clip_id === 'string') {
+        const cur = sessionRef.current
+        if (cur && cur.current_clip_id !== msg.clip_id) {
+          const next = cur.pack?.clips.find((c) => c.id === msg.clip_id)
+          if (next) {
+            setSession((s) => (s ? { ...s, current_clip_id: msg.clip_id as string, current_clip: next } : s))
+            setMediaError(false)
+            if (!Array.isArray(msg.overlay)) reset([])
           }
         }
-        window.setTimeout(() => { applyingRemote.current = false }, 280)
-      } catch {
-        // ignore
       }
+      window.setTimeout(() => { applyingRemote.current = false }, 280)
     }
-    const ping = window.setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }))
-    }, 25000)
-    return () => {
-      clearInterval(ping)
-      ws.close()
-      wsRef.current = null
-    }
-  }, [accessToken, equipoActivo?.id, code, role, reset, applyRemoteShare])
+  }, [applyRemoteShare, reset])
+
+  useEffect(() => {
+    if (isHost || status === 'offline') return
+    const timer = window.setTimeout(() => requestSync(), 800)
+    return () => window.clearTimeout(timer)
+  }, [isHost, status, requestSync])
+
+  resyncRef.current = () => {
+    if (!isHost) return
+    const clipId = sessionRef.current?.current_clip_id
+    if (!clipId) return
+    send({
+      clip_id: clipId,
+      t: playerRef.current?.getCurrentTime() ?? 0,
+      paused: true,
+      overlay: [],
+      zoom: zoomRef.current,
+    }, { reliable: true })
+  }
 
   useEffect(() => {
     if (skipOverlaySend.current) {
@@ -332,7 +324,7 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
     } catch {
       // still sync over WS
     }
-    sendSync({ clip_id: clip.id, t: 0, paused: true, overlay: [], zoom: IDENTITY_ZOOM })
+    send({ clip_id: clip.id, t: 0, paused: true, overlay: [], zoom: IDENTITY_ZOOM }, { reliable: true })
   }
 
   useEffect(() => {
@@ -372,7 +364,7 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
         <div className="text-sm font-medium truncate">
           Sala {session.code} · {isHost ? 'TV / portátil' : 'Tablet'}
           <span className={`ml-2 text-[10px] ${wsOk ? 'text-emerald-400' : 'text-amber-400'}`}>
-            {wsOk ? 'en vivo' : 'conectando…'}
+            {salaLinkLabel(status)}
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -527,7 +519,7 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
         <div className="absolute inset-0 z-[90] bg-black/85 flex items-center justify-center p-6">
           <div className="max-w-sm w-full text-center space-y-4">
             <p className="text-sm text-zinc-300">
-              Escanea el QR con la tablet. En cuanto entre, esta pantalla pasa sola a la revisión y las dos se sincronizan.
+              Escanea el QR con la tablet. En cuanto entre, esta pantalla pasa sola a la revisión y las dos se sincronizan. Si el 5G va justo, se abre un enlace directo entre tablet y televisor.
             </p>
             <p className="text-4xl font-mono tracking-[0.3em] font-semibold">{session.code}</p>
             {qrSrc ? (
@@ -535,7 +527,7 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
               <img src={qrSrc} alt={`QR sala ${session.code}`} width={240} height={240} className="mx-auto rounded-md bg-white p-2" />
             ) : null}
             <p className={`text-xs ${wsOk ? 'text-emerald-400' : 'text-amber-400'}`}>
-              {wsOk ? 'Esperando a la tablet…' : 'Conectando la sala…'}
+              {wsOk ? 'Esperando a la tablet…' : 'Reconectando la sala…'}
             </p>
           </div>
         </div>

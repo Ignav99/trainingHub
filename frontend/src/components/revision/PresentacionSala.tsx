@@ -7,7 +7,6 @@ import { ChevronLeft, ChevronRight, Film, Loader2, VolumeX, X } from 'lucide-rea
 import { useAuthStore } from '@/stores/authStore'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { revisionApi, type RevisionSession } from '@/lib/api/revision'
-import { trainingHubWsUrl } from '@/lib/wsUrl'
 import { VideoPlayer, VIDEO_PLAYER_CHROME_CLASS, type VideoPlayerHandle } from '@/components/video-analyzer/VideoPlayer'
 import { DrawingOverlay } from '@/components/video-analyzer/DrawingOverlay'
 import { useDrawingEngine } from '@/components/video-analyzer/useDrawingEngine'
@@ -17,6 +16,8 @@ import { ClubCrest, DISPLAY_FONT, StaticSlideBody } from '@/components/rivales/D
 import { SalaFloatingChrome, SalaReviewBar, WhiteboardBar } from '@/components/revision/salaChrome'
 import { SalaZoomCatcher } from '@/components/revision/SalaZoomCatcher'
 import { useSalaVideoShare } from '@/components/revision/useSalaVideoShare'
+import { useSalaLink } from '@/hooks/useSalaLink'
+import { salaLinkLabel } from '@/lib/salaLink'
 import {
   chapterIndexForSlide,
   showChapters,
@@ -59,7 +60,6 @@ export function PresentacionSala({
   const [loading, setLoading] = useState(!initialSession)
   const [index, setIndex] = useState(0)
   const [peerReady, setPeerReady] = useState(!isHost)
-  const [wsOk, setWsOk] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [tool, setTool] = useState<DrawingTool>('freehand')
   const [color, setColor] = useState('#f97316')
@@ -73,11 +73,12 @@ export function PresentacionSala({
   const skipOverlaySend = useRef(true)
   const zoomRef = useRef(zoom)
   zoomRef.current = zoom
+  const remoteHandlerRef = useRef<(msg: Record<string, unknown>) => void>(() => {})
+  const broadcastShowRef = useRef<(slideIndex: number) => void>(() => {})
 
   const rootRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<VideoPlayerHandle>(null)
   const applyingRemote = useRef(false)
-  const wsRef = useRef<WebSocket | null>(null)
   const leaderRef = useRef(false)
   const showRef = useRef<DossierShow | null>(show)
   showRef.current = show
@@ -119,17 +120,24 @@ export function PresentacionSala({
     return () => { cancelled = true }
   }, [code, initialSession])
 
+  const { send, requestSync, status, wsOk } = useSalaLink({
+    code,
+    role,
+    accessToken,
+    equipoId: equipoActivo?.id,
+    onMessage: (msg) => remoteHandlerRef.current(msg),
+    onPeerJoined: () => {
+      setPeerReady(true)
+      if (isHost) broadcastShowRef.current(indexRef.current)
+    },
+    onSyncRequest: () => {
+      if (isHost) broadcastShowRef.current(indexRef.current)
+    },
+  })
+
   const sendSync = useCallback((payload: Record<string, unknown>) => {
-    const ws = wsRef.current
-    if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'sala_sync',
-        session_code: code,
-        role,
-        ...payload,
-      }))
-    }
-  }, [code, role])
+    send(payload)
+  }, [send])
 
   const {
     paneRef: videoPaneRef,
@@ -145,7 +153,7 @@ export function PresentacionSala({
     const current = showRef.current
     if (!current) return
     const next = current.slides[slideIndex]
-    sendSync({
+    send({
       show: slimShowForSync(current),
       slide: slideIndex,
       clip_id: next?.kind === 'video' ? next.clipId : null,
@@ -153,8 +161,9 @@ export function PresentacionSala({
       paused: true,
       overlay: [],
       zoom: IDENTITY_ZOOM,
-    })
-  }, [sendSync])
+    }, { reliable: true })
+  }, [send])
+  broadcastShowRef.current = broadcastShow
 
   const goTo = useCallback((to: number, broadcast = true) => {
     if (!showRef.current) return
@@ -166,92 +175,62 @@ export function PresentacionSala({
     setZoom(IDENTITY_ZOOM)
     setZoomMode(false)
     reset([])
-    if (broadcast && isHost) {
+    if (broadcast) {
       const next = showRef.current.slides[to]
-      sendSync({
+      send({
         slide: to,
         clip_id: next?.kind === 'video' ? next.clipId : null,
         t: 0,
         paused: true,
         overlay: [],
         zoom: IDENTITY_ZOOM,
-      })
+      }, { reliable: true })
     }
-  }, [isHost, reset, sendSync])
+  }, [reset, send])
 
   const go = useCallback((delta: number) => {
     goTo(indexRef.current + delta)
   }, [goTo])
 
   useEffect(() => {
-    if (!accessToken || !equipoActivo?.id) return
-    const ws = new WebSocket(trainingHubWsUrl(accessToken, equipoActivo.id))
-    wsRef.current = ws
-    ws.onopen = () => {
-      setWsOk(true)
-      ws.send(JSON.stringify({ type: 'sala_join', session_code: code, role }))
-    }
-    ws.onclose = () => setWsOk(false)
-    ws.onerror = () => setWsOk(false)
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data)
-        if (msg.session_code && msg.session_code !== code) return
-
-        if (msg.type === 'sala_joined') {
-          if (typeof msg.peers === 'number' && msg.peers > 1) {
-            setPeerReady(true)
-            if (isHost) broadcastShow(indexRef.current)
-          }
-          return
-        }
-        if (msg.type === 'sala_peer_joined') {
-          setPeerReady(true)
-          if (isHost) broadcastShow(indexRef.current)
-          return
-        }
-
-        if (msg.type !== 'sala_sync') return
-        applyingRemote.current = true
-        leaderRef.current = false
-        if (msg.show && Array.isArray(msg.show.slides)) {
-          setShow(msg.show)
-        }
-        if (typeof msg.slide === 'number') {
-          setIndex(msg.slide)
-          setMediaError(false)
-        }
-        if (typeof msg.t === 'number') playerRef.current?.seekTo(msg.t)
-        if (typeof msg.paused === 'boolean') {
-          if (msg.paused) playerRef.current?.pause()
-          else playerRef.current?.play()
-          setPlaying(!msg.paused)
-        }
-        if (Array.isArray(msg.overlay)) {
-          reset(msg.overlay)
-        }
-        if (msg.zoom && typeof msg.zoom.scale === 'number') {
-          setZoom({
-            scale: clampZoom(msg.zoom.scale),
-            x: Number(msg.zoom.x) || 0,
-            y: Number(msg.zoom.y) || 0,
-          })
-        }
-        applyRemoteShare(msg)
-        window.setTimeout(() => { applyingRemote.current = false }, 280)
-      } catch {
-        // ignore
+    remoteHandlerRef.current = (msg) => {
+      applyingRemote.current = true
+      leaderRef.current = false
+      if (msg.show && typeof msg.show === 'object' && Array.isArray((msg.show as DossierShow).slides)) {
+        setShow(msg.show as DossierShow)
       }
+      if (typeof msg.slide === 'number') {
+        setIndex(msg.slide)
+        setMediaError(false)
+      }
+      if (typeof msg.t === 'number') playerRef.current?.seekTo(msg.t)
+      if (typeof msg.paused === 'boolean') {
+        if (msg.paused) playerRef.current?.pause()
+        else playerRef.current?.play()
+        setPlaying(!msg.paused)
+      }
+      if (Array.isArray(msg.overlay)) {
+        reset(msg.overlay)
+      }
+      if (msg.zoom && typeof msg.zoom === 'object' && typeof (msg.zoom as ZoomState).scale === 'number') {
+        const z = msg.zoom as ZoomState
+        setZoom({
+          scale: clampZoom(z.scale),
+          x: Number(z.x) || 0,
+          y: Number(z.y) || 0,
+        })
+      }
+      applyRemoteShare(msg)
+      window.setTimeout(() => { applyingRemote.current = false }, 280)
     }
-    const ping = window.setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }))
-    }, 25000)
-    return () => {
-      clearInterval(ping)
-      ws.close()
-      wsRef.current = null
-    }
-  }, [accessToken, equipoActivo?.id, code, role, reset, isHost, broadcastShow, applyRemoteShare])
+  }, [applyRemoteShare, reset])
+
+  useEffect(() => {
+    if (isHost || show) return
+    if (status === 'offline') return
+    const timer = window.setTimeout(() => requestSync(), 700)
+    return () => window.clearTimeout(timer)
+  }, [isHost, show, status, requestSync])
 
   useEffect(() => {
     if (skipOverlaySend.current) {
@@ -483,7 +462,7 @@ export function PresentacionSala({
           {slide?.kicker || 'Presentación'}
         </p>
         <span className={`text-[10px] ${wsOk ? 'text-emerald-400' : 'text-amber-400'}`}>
-          {wsOk ? 'en vivo' : 'conectando…'}
+          {salaLinkLabel(status)}
         </span>
         <div className="h-px flex-1" style={{ background: '#2A3A34' }} />
         {total > 0 && (
@@ -689,7 +668,7 @@ export function PresentacionSala({
         <div className="absolute inset-0 z-[90] flex items-center justify-center p-6" style={{ background: 'rgba(8,17,15,0.92)' }}>
           <div className="max-w-sm w-full text-center space-y-4">
             <p className="text-sm" style={{ color: '#C5CDC7' }}>
-              Escanea el QR con la tablet. En cuanto entre, las dos pantallas muestran la misma diapositiva.
+              Escanea el QR con la tablet. En cuanto entre, las dos pantallas muestran la misma diapositiva. Si el 5G va justo, se abre un enlace directo entre tablet y televisor: pasar diapositiva no tiene que salir a internet.
             </p>
             <p className="text-4xl font-mono tracking-[0.3em] font-semibold">{session.code}</p>
             {qrSrc ? (
@@ -697,7 +676,7 @@ export function PresentacionSala({
               <img src={qrSrc} alt={`QR sala ${session.code}`} width={240} height={240} className="mx-auto rounded-md bg-white p-2" />
             ) : null}
             <p className={`text-xs ${wsOk ? 'text-emerald-400' : 'text-amber-400'}`}>
-              {wsOk ? 'Esperando a la tablet…' : 'Conectando la sala…'}
+              {wsOk ? 'Esperando a la tablet…' : 'Reconectando la sala…'}
             </p>
           </div>
         </div>
