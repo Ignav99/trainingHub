@@ -107,3 +107,44 @@ async def test_generate_convocatoria_pdf_is_async():
             partido={}, rival={}, convocatoria=[], organizacion={}, equipo_nombre=""
         )
     assert isinstance(result, bytes)
+
+
+def test_convocatoria_pdf_rows_are_by_dorsal_not_xi():
+    from app.services.pdf_service import build_convocatoria_pdf_rows
+
+    rows = build_convocatoria_pdf_rows([
+        {
+            "titular": True,
+            "dorsal": 10,
+            "jugadores": {
+                "nombre": "Ana",
+                "apellidos": "Ruiz",
+                "apodo": "Ani",
+                "dorsal": 10,
+                "posicion_principal": "MC",
+            },
+        },
+        {
+            "titular": False,
+            "dorsal": 1,
+            "jugadores": {
+                "nombre": "Luis",
+                "apellidos": "Perez",
+                "apodo": "Lucho",
+                "dorsal": 1,
+                "posicion_principal": "PO",
+            },
+        },
+        {
+            "titular": True,
+            "jugadores": {
+                "nombre": "Noa",
+                "apellidos": "Gil",
+                "apodo": "",
+                "posicion_principal": "DC",
+            },
+        },
+    ])
+    assert [r["dorsal"] for r in rows] == [1, 10, ""]
+    assert rows[0]["apodo"] == "Lucho"
+    assert rows[1]["jugador_nombre"] == "Ana Ruiz"

@@ -541,25 +541,21 @@ async def generate_convocatoria_pdf(
     equipo_nombre: str = "",
     equipo_categoria: str = "",
 ) -> bytes:
-    """Genera PDF de convocatoria (hoja de convocados)."""
+    """Genera PDF de convocatoria: todos los convocados por dorsal, sin once titular."""
     env = _get_jinja_env()
     template = env.get_template("convocatoria_pdf.html")
 
     color = organizacion.get("color_primario", "#1a365d")
+    convocados = build_convocatoria_pdf_rows(convocatoria)
 
-    titulares = []
-    suplentes = []
-    for c in convocatoria:
-        jugador = c.get("jugadores", {}) or {}
-        entry = {
-            "dorsal": c.get("dorsal") or jugador.get("dorsal", ""),
-            "jugador_nombre": f"{jugador.get('nombre', '')} {jugador.get('apellidos', '')}".strip(),
-            "posicion": c.get("posicion_asignada") or jugador.get("posicion_principal", ""),
-        }
-        if c.get("titular"):
-            titulares.append(entry)
-        else:
-            suplentes.append(entry)
+    lugar_partido = (
+        (partido.get("ubicacion") or rival.get("estadio") or rival.get("ciudad") or "")
+    ).strip()
+    hora_citacion = (partido.get("hora_citacion") or "").strip()
+    lugar_citacion = (partido.get("lugar_citacion") or lugar_partido or "").strip()
+    kit = partido.get("kit_convocatoria") or (
+        "visitante" if partido.get("localia") == "visitante" else "local"
+    )
 
     def _render() -> bytes:
         html_content = template.render(
@@ -573,9 +569,12 @@ async def generate_convocatoria_pdf(
             competicion=partido.get("competicion"),
             jornada=partido.get("jornada"),
             localia=partido.get("localia", ""),
-            titulares=titulares,
-            suplentes=suplentes,
-            total_convocados=len(convocatoria),
+            lugar_partido=lugar_partido,
+            hora_citacion=hora_citacion,
+            lugar_citacion=lugar_citacion,
+            kit_convocatoria=kit,
+            convocados=convocados,
+            total_convocados=len(convocados),
         )
         try:
             from weasyprint import HTML
@@ -585,6 +584,31 @@ async def generate_convocatoria_pdf(
             return html_content.encode("utf-8")
 
     return await asyncio.to_thread(_render)
+
+
+def build_convocatoria_pdf_rows(convocatoria: Optional[list] = None) -> list:
+    """Todos los convocados por dorsal. No separa titulares/suplentes."""
+
+    def _dorsal_sort(c: dict):
+        jugador = c.get("jugadores") or {}
+        raw = c.get("dorsal") if c.get("dorsal") is not None else jugador.get("dorsal")
+        try:
+            n = int(raw)
+            return (0, n, (jugador.get("apellidos") or ""), (jugador.get("nombre") or ""))
+        except (TypeError, ValueError):
+            return (1, 0, (jugador.get("apellidos") or ""), (jugador.get("nombre") or ""))
+
+    rows: list[dict] = []
+    for c in sorted(convocatoria or [], key=_dorsal_sort):
+        jugador = c.get("jugadores") or {}
+        nombre = f"{jugador.get('nombre', '')} {jugador.get('apellidos', '')}".strip()
+        rows.append({
+            "dorsal": c.get("dorsal") if c.get("dorsal") is not None else jugador.get("dorsal") or "",
+            "jugador_nombre": nombre,
+            "apodo": (jugador.get("apodo") or "").strip(),
+            "posicion": c.get("posicion_asignada") or jugador.get("posicion_principal", ""),
+        })
+    return rows
 
 
 def _build_equipos_reducido(

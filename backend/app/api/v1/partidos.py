@@ -63,7 +63,8 @@ async def list_partidos(
         "id,equipo_id,rival_id,fecha,hora,localia,competicion,jornada,ubicacion,"
         "goles_favor,goles_contra,resultado,created_at,updated_at,auto_creado,"
         "rfef_competicion_id,video_url,informe_url,"
-        "rivales(id,organizacion_id,nombre,nombre_corto,escudo_url,created_at,updated_at)",
+        "hora_citacion,lugar_citacion,kit_convocatoria,"
+        "rivales(id,organizacion_id,nombre,nombre_corto,escudo_url,estadio,ciudad,created_at,updated_at)",
         count="exact"
     )
 
@@ -141,7 +142,8 @@ async def get_partido(
         "id,equipo_id,rival_id,fecha,hora,localia,competicion,jornada,ubicacion,"
         "goles_favor,goles_contra,resultado,notas_pre,notas_post,video_url,informe_url,"
         "rfef_competicion_id,auto_creado,created_at,updated_at,"
-        "rivales(id,organizacion_id,nombre,nombre_corto,escudo_url,created_at,updated_at)"
+        "hora_citacion,lugar_citacion,kit_convocatoria,"
+        "rivales(id,organizacion_id,nombre,nombre_corto,escudo_url,estadio,ciudad,created_at,updated_at)"
     ).eq("id", str(partido_id)).limit(1).execute()
 
     if not response.data:
