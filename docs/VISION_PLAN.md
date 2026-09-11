@@ -255,6 +255,35 @@ No meter pesos en el repo. Primera corrida los baja a `~/.cache/kabine-vision/`.
 
 ---
 
+## Cómo correrlo (hardware y coste)
+
+**No alquilar un servidor en Render ni un GPU cloud por cada partido.** El MP4 de 90 min no sale del PC. Render es la web; Visión es un worker en la máquina que ya tiene el archivo de Veo.
+
+Es **un disparo después del partido**, no en directo. Pulsa «Analizar», se genera el JSON una vez, y esa semana se recorta a mano encima. No se paga por minuto de juego.
+
+No analizar 30 fps del partido entero. Basta **5 fps** (un frame de cada 6) a 1280 de lado. El balón a teselas solo cuando haga falta. Si no, 90 min × 30 fps es inabordable.
+
+| Opción | Cuándo | Coste | Privacidad |
+|---|---|---|---|
+| **1. El Mac de Veo (Metal / MPS)** | Empieza aquí. El clip de prueba ya es Veo. | 0 € extra. Tiempo: 21 s en minutos; un tiempo en **unas horas / de noche** (M1 más lento, M4 Pro/Max mejor). | El partido no se mueve |
+| **2. Mini PC NVIDIA en el club** (RTX 4060 8 GB o 4070) | Si el Mac se queda corto o hay varios partidos/fin de semana | Compra **una vez** (~300–800 €). Luz ~céntimos por partido. El PDF cita ~3 GB VRAM en un 3090 para el ejemplo Roboflow. | Igual: disco local |
+| **3. GPU alquilada** (RunPod / Vast / Lambda, 1–3 h) | Solo si un día aceptáis que el vídeo **salga** del edificio | Orden de **1–5 USD por partido** (4090, no tiempo real). Subir 10–20 GB es el cuello. | **No** es el flujo Kabine |
+
+Colab T4 (el tutorial de Roboflow) también se lleva el vídeo a Google. No.
+
+**Pasos prácticos**
+
+1. Instalar el worker en el Mac que abre Video Análisis (`uv`/`pip`, pesos a `~/.cache/kabine-vision/`).
+2. Probe: los 21 s de `prueba 2.mp4` → cajas + blancos vs azules. Si eso falla, no tiene sentido un servidor.
+3. 8–10 min de un tiempo (un Veo ya cortado).
+4. Un tiempo completo **de noche**, stride 5 fps.
+5. Si 4 tarda de más: el mini PC NVIDIA, no un alquiler por partido.
+6. Render solo enseña la mesa y guarda recortes cortos de Revisión, como ahora.
+
+Pregunta que cierra el hardware: ¿el Mac de análisis es M1/M2/M3/M4 y de cuántos GB? Con eso se estima si hace falta el mini PC.
+
+---
+
 ## Fuera de alcance (hasta que el probe de 60 s convenza)
 
 - Subir el MP4 a la API.
@@ -283,5 +312,5 @@ El PDF y `prueba 2.mp4` ya se leyeron desde `_inbox/` (upload a GitHub). Siguien
 ## Preguntas abiertas (no bloquean la fase 0)
 
 1. ~~Cámara~~ → **Veo** (clip de prueba).
-2. GPU en el PC de análisis (MPS en Mac, NVIDIA, o CPU y solo probes).
+2. ¿Qué Mac (chip + RAM) abre el Veo? Eso decide MPS vs mini PC NVIDIA. No alquilar GPU por partido.
 3. ~~PDF~~ → leído; RF-DETR + `roboflow/trackers` BoT-SORT.
