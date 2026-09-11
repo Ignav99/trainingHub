@@ -7,7 +7,7 @@ Herramienta local a pantalla completa en `/video-analisis`. El partido **nunca**
 - **Jog de partido largo:** dos dedos en el trackpad (un seek en vuelo, cabezal optimista) y flechas frame a frame (`requestVideoFrameCallback` + `currentTime`, nunca `fastSeek`). Shift+flecha = 1 s. El fps se estima al reproducir (25/50 típico de TV).
 - Descargas en **MP4 sin audio**, misma resolución: CRF 21 + tope ~5 Mbps en 1080p (un recorte de 18s queda ~8–12 MB, no 50). Manita (H) para desplazar la cinta; clic en el nombre de la fila selecciona todos sus recortes para exportar esa línea. El partido no se sube.
 - Sin pizarra ni ventanas flotantes en esta pantalla. El dibujo sigue en la sala de presentación.
-- **Visión (plan, no código aún):** sub-herramienta de CV en la misma mesa. Partido local → worker Python en el PC → JSON → recortes con `extractClip`. Stack v0: YOLO + ByteTrack + `roboflow/sports` (kits + homografía) según el writeup open-source de Ignit / SoccerNet. Plan: `docs/VISION_PLAN.md`.
+- **Visión (plan, no código aún):** CV local en la mesa. Kit nuestro **blanco**. Detector de producción **RF-DETR Apache 2.0** (no Ultralytics AGPL ni Tactix/PitchWise GPL). PDF guía: *Open-Source Computer Vision Stack for Soccer Video Analysis (2025-2026)* — el binario aún no llega a la VM. Plan: `docs/VISION_PLAN.md`.
 
 ## Revisión de vídeo
 Dos herramientas: **Video Análisis** (partido entero local, nunca a la nube) y **Revisión** (recortes cortos en informes).

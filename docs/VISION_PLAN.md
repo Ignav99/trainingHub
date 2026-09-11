@@ -2,7 +2,11 @@
 
 Modo **Visión** dentro de la mesa de `/video-analisis`. No es una app aparte. Empieza pequeño y se apila complejidad.
 
-> Documento de escritorio: el PDF `Open-source…` vive en el Mac (`/Users/User/Desktop`). Este agente cloud no monta ese disco. El contenido de abajo incorpora el writeup público que coincide con ese nombre y tema — [World Cup 2026: building football analytics with open-source computer vision](https://ignit.group/blog/world-cup-2026-building-football-analytics-with-open-source-computer-vision) (Ignit Group, julio 2026) — más el mapa de tareas [SoccerNet](https://www.soccer-net.org/tasks) y los kits oficiales. Si el PDF local trae enlaces extra, se añaden aquí sin cambiar la arquitectura.
+> PDF del club (aún no llegó a esta VM): **Open-Source Computer Vision Stack for Soccer Video Analysis: Tools, Models, and Licensing Guide (2025-2026)**. Título y tema cubiertos abajo (herramientas, modelos, **licencias**). El binario no está en el chat: cuando el adjunto aterrice se fusionan tablas extra.
+>
+> Kit nuestro: **blanco**. El rival se infiere; el usuario puede pinchar “estos son los nuestros”.
+>
+> Writeup práctico de pipeline: [Ignit — open-source computer vision](https://ignit.group/blog/world-cup-2026-building-football-analytics-with-open-source-computer-vision). Tareas: [SoccerNet](https://www.soccer-net.org/tasks).
 
 ---
 
@@ -40,7 +44,7 @@ El artículo de Ignit monta un overlay de fin de semana en un portátil Apple Si
 
 | Etapa | Qué hace | Pieza open-source |
 |---|---|---|
-| Detección | Cajas por frame: jugador, portero, árbitro, balón | YOLO afinado en [football-players-detection](https://universe.roboflow.com/roboflow-jvuqo/football-players-detection-3zvbc) (Roboflow Universe). No entrenar en v0. |
+| Detección | Cajas por frame: jugador, portero, árbitro, balón | **Producción:** [RF-DETR](https://github.com/roboflow/rf-detr) (Apache 2.0). Probe: pesos Universe [football-players-detection](https://universe.roboflow.com/roboflow-jvuqo/football-players-detection-3zvbc). Ultralytics YOLO solo con licencia Enterprise; AGPL no entra en Kabine cerrado. |
 | Tracking | La misma persona sigue siendo el mismo id | [ByteTrack](https://github.com/ifzhang/ByteTrack) vía [`supervision`](https://github.com/roboflow/supervision) (`sv.ByteTrack`) |
 | Equipos | Dos clusters de kit, sin leer dorsal | [`roboflow/sports`](https://github.com/roboflow/sports) `TeamClassifier`: crop → SigLIP → UMAP → KMeans |
 | Balón | En el frame entero se pierde; hay que cortar en teselas | `sv.InferenceSlicer` + buffer corto cuando desaparece |
@@ -58,6 +62,27 @@ Notebook de arranque de Roboflow: [how-to-track-football-players](https://github
 - Los ids aguantan casi todo **excepto dos jugadores que se cruzan**. Ahí salta el número.
 - Homografía plana: un balón en el aire se proyecta como si estuviera en el césped y se va al borde del mapa. Una cámara táctica alta falla menos que una de TV.
 - PlayVision (baloncesto) enseña que el cuello de botella no es la arquitectura: es **anotar y corregir**. Visión tiene que dejar confirmar / rechazar eventos a mano.
+- Kit **blanco**: no fiarse solo de KMeans (árbitro, líneas, sobreexposición). Pin `our_kit: "white"`, sacar la clase referee del clustering, y que el usuario confirme el cluster.
+
+---
+
+## Licencias (el PDF es una guía de esto)
+
+Kabine es producto cerrado. **No copiar** motores GPL/AGPL al repo. El worker puede *llamar* a pesos con licencia permisiva.
+
+| Pieza | Licencia | ¿En Visión? |
+|---|---|---|
+| [RF-DETR](https://github.com/roboflow/rf-detr) Nano–Large | Apache 2.0 | **Detector por defecto** |
+| [`supervision`](https://github.com/roboflow/supervision), OpenCV, ByteTrack, NumPy | MIT / Apache | Sí |
+| [`roboflow/sports`](https://github.com/roboflow/sports) | comprobar LICENSE del repo | Kits + `draw_pitch` si es permisiva |
+| Ultralytics YOLO (v8/11/26) | **AGPL-3.0** o [Enterprise de pago](https://www.ultralytics.com/license) | No en el producto. Probe local aparte, como mucho |
+| [Tactix](https://github.com/rondo-labs/Tactix) | **GPL-3.0** | Ideas sí; código no |
+| [PitchWise.Lab](https://github.com/arturbuszka/PitchWise.Lab) | **GPL-3.0** (.NET / GSR) | Igual |
+| SoccerNet kits (TrackLab, sn-gamestate, spotting) | mezclan GPL / investigación / NDA de vídeos | Usar tareas y métricas; no vender sus pesos |
+| [SoccerMaster](https://github.com/haolinyang-hlyang/SoccerMaster) (CVPR 2026) | research; YOLO+GSR+Qwen | Candidato a largo plazo, no v0 |
+| RF-DETR XL/2XL (`rfdetr[plus]`) | PML 1.0 (no Apache) | No |
+
+Tactix es el pipeline más parecido a lo que queremos (detección → ByteTrack → kits → homografía → minimapa → Voronoi / pases / transiciones / ABP, export JSON). Lo usamos de **mapa de fases**, no de dependencia.
 
 ---
 
@@ -129,6 +154,7 @@ Un archivo por partido, junto al MP4 (o en `~/.kabine/vision/<matchId>/`). La me
   "source": { "path": "local", "fps": 25, "width": 1920, "height": 1080, "duration_s": 5640 },
   "job": { "status": "idle", "probe_s": 60, "error": null },
   "our_team": 0,
+  "our_kit": "white",
   "tracks": [
     { "id": 7, "team": 0, "role": "player", "samples": [{ "t": 12.04, "x": 0.42, "y": 0.61, "px": 910, "py": 540 }] }
   ],
@@ -162,7 +188,7 @@ Un archivo por partido, junto al MP4 (o en `~/.kabine/vision/<matchId>/`). La me
 ### 1 — Cuerpos en el césped
 
 - YOLO + ByteTrack + keypoints + homography suavizado + minimapa.
-- “Estos son los nuestros”: el usuario pinta el kit (o elige el cluster 0/1).
+- “Estos son los nuestros”: kit **blanco** por defecto; el usuario confirma el cluster (blanco vs rival).
 - Overlay: elipses por track, id, color de equipo. Minimapa en una esquina del panel Visión, no encima de toda la mesa.
 - Probe 60 s tiene que verse bien antes de un tiempo completo.
 
