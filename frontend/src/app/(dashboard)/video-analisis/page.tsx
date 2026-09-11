@@ -125,7 +125,7 @@ export default function VideoAnalisisPage() {
     <>
       <PageHeader
         title="Video Análisis"
-        description="Carga un video de partido, dibuja anotaciones y guarda momentos clave"
+        description="Carga el partido en el ordenador, recorta con la botonera y descarga o envía solo esos clips"
       />
 
       <input
@@ -190,7 +190,7 @@ export default function VideoAnalisisPage() {
           </div>
 
           <p className="text-xs text-muted-foreground mt-2">
-            El partido entero se queda en tu ordenador. Si cierras y abres el mismo archivo (mismo nombre, tamaño y duración), vuelven tags y cortes. A Revisión solo se envían recortes cortos.
+            El partido entero se queda en tu ordenador. Cada botón tiene sus tiempos (un ABP no recorta igual que un ataque). Descarga por clip, carpeta o todo; a Revisión solo van los recortes que elijas.
           </p>
         </Card>
 
@@ -208,8 +208,8 @@ export default function VideoAnalisisPage() {
             {anotaciones.length === 0 ? (
               <Card className="p-6 text-center text-muted-foreground text-sm">
                 <ScanSearch className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                <p>No hay momentos guardados para este partido</p>
-                <p className="text-xs mt-1">Carga un video y usa el analizador para crear anotaciones</p>
+                <p>Pulsa un botón en el momento. El recorte entra en esa carpeta.</p>
+                <p className="text-xs mt-1">Carga un video para abrir la mesa de trabajo</p>
               </Card>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

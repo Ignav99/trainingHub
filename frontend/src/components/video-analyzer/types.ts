@@ -56,6 +56,8 @@ export const STROKE_WIDTHS = [2, 4, 6, 10]
 
 // ─── Code Window (Sportscode-style event coding) ───────────────────────────
 
+export type CodeButtonSize = 's' | 'm' | 'l'
+
 export interface CodeButton {
   id: string
   label: string
@@ -64,6 +66,9 @@ export interface CodeButton {
   preRoll: number     // seconds before press included in clip (default 5)
   postRoll: number    // seconds after press included in clip (default 5)
   description?: string
+  size?: CodeButtonSize
+  /** Maps the folder to Revisión (ataque_organizado, abp_ofensiva, …). */
+  fase?: string
 }
 
 export interface CodeEvent {
@@ -73,6 +78,8 @@ export interface CodeEvent {
   startTime: number   // timestamp - preRoll
   endTime: number     // timestamp + postRoll
   notes?: string
+  /** Override the button name for this clip. */
+  title?: string
 }
 
 // ─── Botonera (Tactical Button Groups) ────────────────────────────────────

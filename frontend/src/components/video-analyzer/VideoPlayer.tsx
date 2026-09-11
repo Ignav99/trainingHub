@@ -63,6 +63,11 @@ interface VideoPlayerProps {
    * Hides the nested expand overlay and leaves ←/→ to change slides.
    */
   presenterEmbed?: boolean
+  /**
+   * Fill a sized parent (coding desk). Same object-contain layout as sala,
+   * without hiding standalone controls or stealing arrow keys.
+   */
+  fillFrame?: boolean
   defaultMuted?: boolean
   /** Tablet: el altavoz local se queda mudo; el botón mute controla el PC. */
   playbackMuted?: boolean
@@ -85,6 +90,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     onError,
     standalonePreview,
     presenterEmbed,
+    fillFrame,
     defaultMuted,
     playbackMuted,
     muted: mutedProp,
@@ -458,6 +464,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       : 0
 
     const isPortalExpanded = standalonePreview && isExpanded
+    const fillVideo = isPortalExpanded || presenterEmbed || fillFrame
 
     const player = (
       <div
@@ -465,7 +472,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         className={
           isPortalExpanded
             ? 'fixed inset-4 z-[100] flex flex-col bg-black outline-none rounded-lg overflow-hidden shadow-2xl'
-            : presenterEmbed
+            : fillVideo
               ? 'flex h-full min-h-0 flex-col overflow-hidden outline-none'
               : 'flex flex-col outline-none'
         }
@@ -479,7 +486,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           muted={elementMuted}
           playsInline
           className={
-            isPortalExpanded || presenterEmbed
+            fillVideo
               ? 'flex-1 min-h-0 w-full object-contain bg-black'
               : 'w-full h-full object-contain bg-black'
           }

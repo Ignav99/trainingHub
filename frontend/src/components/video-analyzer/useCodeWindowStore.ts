@@ -4,51 +4,46 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { CodeButton, CodeEvent } from './types'
 import { generateId } from './utils'
-
-const DEFAULT_BUTTONS: CodeButton[] = [
-  { id: 'btn-1', label: 'Ataque', color: '#ef4444', shortcut: '1', preRoll: 5, postRoll: 5 },
-  { id: 'btn-2', label: 'Defensa', color: '#3b82f6', shortcut: '2', preRoll: 5, postRoll: 5 },
-  { id: 'btn-3', label: 'Transición', color: '#22c55e', shortcut: '3', preRoll: 4, postRoll: 6 },
-  { id: 'btn-4', label: 'Córner', color: '#f59e0b', shortcut: '4', preRoll: 3, postRoll: 8 },
-]
+import {
+  DEFAULT_DESK_BUTTONS,
+  clipRangeFromPress,
+  clampClipTimes,
+  migrateDeskButtons,
+} from './videoDesk'
 
 interface CodeWindowState {
-  // Buttons — persisted globally (user creates once, reuses across videos)
   buttons: CodeButton[]
-
-  // Events — persisted per videoKey
-  events: Record<string, CodeEvent[]>   // key: videoKey (partidoId or sanitized filename)
+  events: Record<string, CodeEvent[]>
   currentVideoKey: string
-
-  // UI state
   isEditMode: boolean
-  activeButtonId: string | null         // last pressed button (visual feedback)
+  activeButtonId: string | null
 
-  // ─── Setters ───────────────────────────────────────────────────────────────
   setCurrentVideoKey: (key: string) => void
   setEditMode: (v: boolean) => void
   setActiveButtonId: (id: string | null) => void
 
-  // ─── Button management ─────────────────────────────────────────────────────
   addButton: (btn: Omit<CodeButton, 'id'>) => CodeButton
   updateButton: (id: string, patch: Partial<Omit<CodeButton, 'id'>>) => void
   removeButton: (id: string) => void
   reorderButtons: (ids: string[]) => void
 
-  // ─── Event management ──────────────────────────────────────────────────────
   recordEvent: (buttonId: string, timestamp: number, duration: number) => CodeEvent
+  updateEvent: (
+    videoKey: string,
+    eventId: string,
+    patch: Partial<Pick<CodeEvent, 'startTime' | 'endTime' | 'notes' | 'title'>>,
+    duration?: number
+  ) => void
   removeEvent: (videoKey: string, eventId: string) => void
   getEventsForVideo: (videoKey?: string) => CodeEvent[]
   getEventsByButton: (buttonId: string, videoKey?: string) => CodeEvent[]
-
-  // ─── Reset ─────────────────────────────────────────────────────────────────
   resetEvents: (videoKey?: string) => void
 }
 
 export const useCodeWindowStore = create<CodeWindowState>()(
   persist(
     (set, get) => ({
-      buttons: DEFAULT_BUTTONS,
+      buttons: DEFAULT_DESK_BUTTONS.map((b) => ({ ...b })),
       events: {},
       currentVideoKey: '',
       isEditMode: false,
@@ -59,7 +54,13 @@ export const useCodeWindowStore = create<CodeWindowState>()(
       setActiveButtonId: (activeButtonId) => set({ activeButtonId }),
 
       addButton: (btn) => {
-        const newBtn: CodeButton = { ...btn, id: generateId() }
+        const newBtn: CodeButton = {
+          ...btn,
+          id: generateId(),
+          size: btn.size || 'm',
+          preRoll: Number.isFinite(btn.preRoll) ? btn.preRoll : 5,
+          postRoll: Number.isFinite(btn.postRoll) ? btn.postRoll : 5,
+        }
         set((s) => ({ buttons: [...s.buttons, newBtn] }))
         return newBtn
       },
@@ -71,7 +72,10 @@ export const useCodeWindowStore = create<CodeWindowState>()(
       },
 
       removeButton: (id) => {
-        set((s) => ({ buttons: s.buttons.filter((b) => b.id !== id) }))
+        set((s) => ({
+          buttons: s.buttons.filter((b) => b.id !== id),
+          activeButtonId: s.activeButtonId === id ? null : s.activeButtonId,
+        }))
       },
 
       reorderButtons: (ids) => {
@@ -86,18 +90,40 @@ export const useCodeWindowStore = create<CodeWindowState>()(
         const btn = buttons.find((b) => b.id === buttonId)
         if (!btn) throw new Error(`Button ${buttonId} not found`)
 
+        const range = clipRangeFromPress(timestamp, duration, btn.preRoll, btn.postRoll)
         const event: CodeEvent = {
           id: generateId(),
           buttonId,
           timestamp,
-          startTime: Math.max(0, timestamp - btn.preRoll),
-          endTime: Math.min(duration, timestamp + btn.postRoll),
+          startTime: range.startTime,
+          endTime: range.endTime,
         }
 
         const key = currentVideoKey || '_default'
         const existing = events[key] || []
-        set({ events: { ...events, [key]: [...existing, event] } })
+        set({ events: { ...events, [key]: [...existing, event] }, activeButtonId: buttonId })
         return event
+      },
+
+      updateEvent: (videoKey, eventId, patch, duration) => {
+        set((s) => {
+          const existing = s.events[videoKey] || []
+          return {
+            events: {
+              ...s.events,
+              [videoKey]: existing.map((e) => {
+                if (e.id !== eventId) return e
+                const next = { ...e, ...patch }
+                if (duration != null && (patch.startTime != null || patch.endTime != null)) {
+                  const clamped = clampClipTimes(next.startTime, next.endTime, duration)
+                  next.startTime = clamped.startTime
+                  next.endTime = clamped.endTime
+                }
+                return next
+              }),
+            },
+          }
+        })
       },
 
       removeEvent: (videoKey, eventId) => {
@@ -126,8 +152,15 @@ export const useCodeWindowStore = create<CodeWindowState>()(
     }),
     {
       name: 'kabin-code-window',
-      // Persist buttons + events. Skip transient UI state.
+      version: 2,
       partialize: (s) => ({ buttons: s.buttons, events: s.events }),
+      migrate: (persisted, version) => {
+        const state = (persisted || {}) as { buttons?: CodeButton[]; events?: Record<string, CodeEvent[]> }
+        return {
+          buttons: version < 2 ? migrateDeskButtons(state.buttons) : migrateDeskButtons(state.buttons),
+          events: state.events || {},
+        }
+      },
     }
   )
 )
