@@ -303,12 +303,15 @@ mkdir -p /Users/User/kabine-vision-bench
 cd /Users/User/kabine-vision-bench
 curl -L -o vision_bench.py https://raw.githubusercontent.com/Ignav99/trainingHub/main/scripts/vision_bench.py
 $PY -m pip uninstall -y opencv-python-headless
-$PY -m pip install opencv-python ultralytics
-# arrastra el mp4 a esta carpeta, o:
-cp "/Users/User/Desktop/prueba 2.mp4" /Users/User/kabine-vision-bench/clip.mp4
-$PY vision_bench.py --video /Users/User/kabine-vision-bench/clip.mp4 --stride 6
-# 60 s del partido real (tampoco desde Escritorio: cópialo primero)
-$PY vision_bench.py --video /Users/User/kabine-vision-bench/partido.mp4 --max-seconds 60 --stride 6
+$PY -m pip install opencv-python imageio imageio-ffmpeg ultralytics
+cp "/Users/User/Desktop/prueba 2.mp4" ./clip.mp4
+ls -lh ./clip.mp4
+# tiene que ser ~11 MB. Luego el vídeo es ./clip.mp4 — no el Escritorio
+$PY vision_bench.py --video ./clip.mp4 --stride 6
+# si OpenCV sigue fallando:
+$PY vision_bench.py --video ./clip.mp4 --stride 6 --backend imageio
+# 60 s del partido (cópialo también a esta carpeta)
+$PY vision_bench.py --video ./partido.mp4 --max-seconds 60 --stride 6
 ```
 
 Pegad el JSON. Decisión:

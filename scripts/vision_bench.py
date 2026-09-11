@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 """Comparable Vision bench: decode vs detect. Same script on this VM and on the Mac.
 
-Not the production worker (that is RF-DETR Apache + BoT-SORT). This times:
-  - OpenCV decode of a Veo MP4
-  - optional Ultralytics YOLO person boxes (COCO) at a chosen stride
+Not the production worker (that is RF-DETR Apache + BoT-SORT).
 
-Mac (from any folder, use the full path to this file):
+Mac — copy the mp4 NEXT TO this script (not Desktop), then:
 
   PY=/Users/User/.pyenv/versions/3.11.9/bin/python3
+  cd /Users/User/kabine-vision-bench
   $PY -m pip uninstall -y opencv-python-headless
-  $PY -m pip install opencv-python ultralytics
-  cp "/ruta/prueba 2.mp4" /Users/User/kabine-vision-bench/clip.mp4
-  $PY vision_bench.py --video /Users/User/kabine-vision-bench/clip.mp4 --stride 6
+  $PY -m pip install opencv-python imageio imageio-ffmpeg ultralytics
+  cp "/Users/User/Desktop/prueba 2.mp4" ./clip.mp4
+  $PY vision_bench.py --video ./clip.mp4 --stride 6
 """
 
 from __future__ import annotations
@@ -23,9 +22,12 @@ import re
 import resource
 import sys
 import time
+from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
 
 import cv2
+import numpy as np
 
 
 def rss_mb() -> float:
@@ -52,85 +54,145 @@ def ffmpeg_enabled() -> bool:
     return bool(re.search(r"FFMPEG\s*:\s*YES", cv2.getBuildInformation()))
 
 
-def capture_backends() -> list[tuple[str, int]]:
-    out: list[tuple[str, int]] = []
+@dataclass
+class VideoSrc:
+    path: Path
+    fps: float
+    frame_count: int
+    width: int
+    height: int
+    backend: str
+
+    def meta(self) -> dict:
+        dur = self.frame_count / self.fps if self.fps else 0
+        return {
+            "path": str(self.path),
+            "bytes": self.path.stat().st_size,
+            "gb": round(self.path.stat().st_size / (1024**3), 3),
+            "width": self.width,
+            "height": self.height,
+            "fps": self.fps,
+            "frame_count": self.frame_count,
+            "duration_s": round(dur, 2),
+            "backend": self.backend,
+            "opencv": cv2.__version__,
+            "ffmpeg_build": ffmpeg_enabled(),
+        }
+
+    def iter_bgr(self) -> Iterator[np.ndarray]:
+        if self.backend == "opencv":
+            cap = cv2.VideoCapture(str(self.path))
+            try:
+                while True:
+                    ok, frame = cap.read()
+                    if not ok:
+                        break
+                    yield frame
+            finally:
+                cap.release()
+            return
+        import imageio.v2 as imageio
+
+        reader = imageio.get_reader(str(self.path), format="FFMPEG")
+        try:
+            for frame in reader:
+                yield frame[:, :, ::-1].copy()
+        finally:
+            reader.close()
+
+
+def try_opencv(path: Path) -> VideoSrc | None:
+    backends: list[tuple[str, int]] = []
     if hasattr(cv2, "CAP_FFMPEG"):
-        out.append(("CAP_FFMPEG", int(cv2.CAP_FFMPEG)))
+        backends.append(("CAP_FFMPEG", int(cv2.CAP_FFMPEG)))
     if sys.platform == "darwin" and hasattr(cv2, "CAP_AVFOUNDATION"):
-        out.append(("CAP_AVFOUNDATION", int(cv2.CAP_AVFOUNDATION)))
-    out.append(("CAP_ANY", int(cv2.CAP_ANY)))
-    return out
-
-
-def fail_open(path: Path, tried: list[str]) -> str:
-    size = path.stat().st_size if path.exists() else 0
-    lines = [
-        f"cannot open {path}",
-        f"  exists={path.exists()} is_file={path.is_file()} bytes={size} ({size / (1024**2):.1f} MB)",
-        f"  opencv={cv2.__version__} ffmpeg_build={ffmpeg_enabled()}",
-        f"  backends={tried}",
-        "  Fix on Mac:",
-        "    1) Copy the mp4 next to this script (Desktop/Downloads are often blocked):",
-        "       cp \"/path/to/clip.mp4\" /Users/User/kabine-vision-bench/clip.mp4",
-        "    2) Use opencv-python, not headless:",
-        "       python3 -m pip uninstall -y opencv-python-headless",
-        "       python3 -m pip install opencv-python",
-        "    3) If bytes is 0 or ~ a few KB, download the file from iCloud in Finder first.",
-        "    4) Confirm QuickTime can play the file.",
-    ]
-    return "\n".join(lines)
-
-
-def open_video(path: Path) -> cv2.VideoCapture:
-    tried: list[str] = []
-    for name, backend in capture_backends():
-        cap = cv2.VideoCapture(str(path), backend)
-        opened = bool(cap.isOpened())
-        ok = False
-        if opened:
+        backends.append(("CAP_AVFOUNDATION", int(cv2.CAP_AVFOUNDATION)))
+    backends.append(("CAP_ANY", int(cv2.CAP_ANY)))
+    for _, be in backends:
+        cap = cv2.VideoCapture(str(path), be)
+        if cap.isOpened():
             ok, frame = cap.read()
             if ok and frame is not None and frame.size:
-                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                return cap
+                fps = float(cap.get(cv2.CAP_PROP_FPS) or 0) or 30.0
+                count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+                h, w = frame.shape[:2]
+                cap.release()
+                return VideoSrc(path, fps, count, w, h, "opencv")
         cap.release()
-        tried.append(f"{name}:opened={opened}:read={ok}")
-    raise SystemExit(fail_open(path, tried))
+    return None
 
 
-def video_meta(path: Path) -> dict:
-    cap = open_video(path)
-    meta = {
-        "path": str(path),
-        "bytes": path.stat().st_size,
-        "gb": round(path.stat().st_size / (1024**3), 3),
-        "width": int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
-        "height": int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-        "fps": float(cap.get(cv2.CAP_PROP_FPS) or 0),
-        "frame_count": int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0),
-        "opencv": cv2.__version__,
-        "ffmpeg_build": ffmpeg_enabled(),
-    }
-    dur = meta["frame_count"] / meta["fps"] if meta["fps"] else 0
-    meta["duration_s"] = round(dur, 2)
-    cap.release()
-    return meta
+def try_imageio(path: Path) -> VideoSrc | None:
+    try:
+        import imageio.v2 as imageio
+    except ImportError:
+        return None
+    try:
+        reader = imageio.get_reader(str(path), format="FFMPEG")
+        meta = reader.get_meta_data()
+        frame = reader.get_data(0)
+        reader.close()
+    except Exception:
+        return None
+    if frame is None or not getattr(frame, "size", 0):
+        return None
+    fps = float(meta.get("fps") or 30)
+    raw_n = meta.get("nframes")
+    if raw_n is None:
+        raw_n = meta.get("n_frames") or 0
+    try:
+        n = int(raw_n)
+    except (TypeError, OverflowError, ValueError):
+        n = 0
+    if n <= 0 or n > 10**9:
+        n = 0
+    h, w = frame.shape[:2]
+    if n == 0 and fps:
+        dur = float(meta.get("duration") or 0)
+        n = int(dur * fps) if dur else 0
+    return VideoSrc(path, fps, n, w, h, "imageio")
 
 
-def decode_pass(path: Path, max_seconds: float | None) -> dict:
-    cap = open_video(path)
-    fps = float(cap.get(cv2.CAP_PROP_FPS) or 30)
-    limit = int(max_seconds * fps) if max_seconds else None
+def open_src(path: Path, backend: str) -> VideoSrc:
+    size = path.stat().st_size
+    errors: list[str] = []
+    if backend in ("auto", "opencv"):
+        src = try_opencv(path)
+        if src:
+            return src
+        errors.append("opencv: no stream")
+    if backend in ("auto", "imageio"):
+        src = try_imageio(path)
+        if src:
+            return src
+        errors.append("imageio: no stream (pip install imageio imageio-ffmpeg)")
+    raise SystemExit(
+        "\n".join(
+            [
+                f"cannot open {path}",
+                f"  exists={path.exists()} is_file={path.is_file()} bytes={size} ({size / (1024**2):.1f} MB)",
+                f"  opencv={cv2.__version__} ffmpeg_build={ffmpeg_enabled()}",
+                f"  tried={errors}",
+                "  On Mac: copy the mp4 next to the script, not from Desktop:",
+                "    cp \"/Users/User/Desktop/prueba 2.mp4\" /Users/User/kabine-vision-bench/clip.mp4",
+                "    python3 -m pip uninstall -y opencv-python-headless",
+                "    python3 -m pip install opencv-python imageio imageio-ffmpeg",
+                "    python3 vision_bench.py --video ./clip.mp4 --stride 6",
+                "  If bytes is 0 or a few KB, download the file from iCloud in Finder first.",
+            ]
+        )
+    )
+
+
+def decode_pass(src: VideoSrc, max_seconds: float | None) -> dict:
+    limit = int(max_seconds * src.fps) if max_seconds and src.fps else None
     n = 0
     t0 = time.perf_counter()
-    while True:
-        ok, _ = cap.read()
-        if not ok:
-            break
+    for _ in src.iter_bgr():
         n += 1
         if limit is not None and n >= limit:
             break
     elapsed = time.perf_counter() - t0
-    cap.release()
     return {
         "frames": n,
         "seconds": round(elapsed, 3),
@@ -139,22 +201,17 @@ def decode_pass(path: Path, max_seconds: float | None) -> dict:
     }
 
 
-def detect_pass(path: Path, stride: int, max_seconds: float | None, imgsz: int) -> dict:
+def detect_pass(src: VideoSrc, stride: int, max_seconds: float | None, imgsz: int) -> dict:
     from ultralytics import YOLO
 
     model = YOLO("yolo11n.pt")
-    cap = open_video(path)
-    fps = float(cap.get(cv2.CAP_PROP_FPS) or 30)
-    limit = int(max_seconds * fps) if max_seconds else None
+    limit = int(max_seconds * src.fps) if max_seconds and src.fps else None
     people: list[int] = []
     balls = 0
     infer_n = 0
     frame_i = 0
     t0 = time.perf_counter()
-    while True:
-        ok, frame = cap.read()
-        if not ok:
-            break
+    for frame in src.iter_bgr():
         if limit is not None and frame_i >= limit:
             break
         if frame_i % stride == 0:
@@ -170,14 +227,13 @@ def detect_pass(path: Path, stride: int, max_seconds: float | None, imgsz: int) 
             infer_n += 1
         frame_i += 1
     elapsed = time.perf_counter() - t0
-    cap.release()
-    clip_s = float(max_seconds) if max_seconds else (frame_i / fps if fps else 0.0)
+    clip_s = float(max_seconds) if max_seconds else (frame_i / src.fps if src.fps else 0.0)
     extra = round((90 * 60) / clip_s * elapsed / 60, 1) if elapsed and clip_s else None
     return {
         "decoded_frames": frame_i,
         "inferred_frames": infer_n,
         "stride": stride,
-        "sample_fps": round((fps / stride), 2) if fps else None,
+        "sample_fps": round((src.fps / stride), 2) if src.fps else None,
         "seconds": round(elapsed, 3),
         "infer_per_s": round(infer_n / elapsed, 2) if elapsed else None,
         "people_min": min(people) if people else 0,
@@ -197,6 +253,7 @@ def main() -> None:
     ap.add_argument("--max-seconds", type=float, default=None)
     ap.add_argument("--imgsz", type=int, default=640)
     ap.add_argument("--decode-only", action="store_true")
+    ap.add_argument("--backend", choices=("auto", "opencv", "imageio"), default="auto")
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
 
@@ -206,6 +263,7 @@ def main() -> None:
     if not path.is_file():
         raise SystemExit(f"not a file {path}")
 
+    src = open_src(path, args.backend)
     report: dict = {
         "host": {
             "system": platform.system(),
@@ -214,17 +272,18 @@ def main() -> None:
             "python": sys.version.split()[0],
             "device": device_label(),
         },
-        "video": video_meta(path),
+        "video": src.meta(),
         "args": {
             "stride": args.stride,
             "max_seconds": args.max_seconds,
             "imgsz": args.imgsz,
             "decode_only": args.decode_only,
+            "backend": args.backend,
         },
     }
-    report["decode"] = decode_pass(path, args.max_seconds)
+    report["decode"] = decode_pass(src, args.max_seconds)
     if not args.decode_only:
-        report["detect"] = detect_pass(path, args.stride, args.max_seconds, args.imgsz)
+        report["detect"] = detect_pass(src, args.stride, args.max_seconds, args.imgsz)
 
     text = json.dumps(report, indent=2)
     print(text)
