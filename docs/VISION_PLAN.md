@@ -104,7 +104,18 @@ Hardware (PDF): hace falta GPU. T4 Colab para el tutorial; RTX 3090 ~3 GB VRAM e
 | Árbitro | Azul claro (no meterlo en el cluster de kits) |
 | Césped | Artificial, líneas naranjas + blancas, de noche con torre |
 
-Siguiente prueba en **vuestro Mac** (tiene GPU Metal): RF-DETR o pesos Universe sobre estos 21 s → cajas + BoT-SORT + cluster blanco. Aquí no instalo PyTorch/CUDA.
+Siguiente prueba en **vuestro Mac** (Metal): los mismos 21 s con RF-DETR + BoT-SORT + SigLIP (kits). El HSV del probe CPU falla con la luz verde de las torres.
+
+Probe CPU ya hecho (esta VM, `yolo11n` COCO, 1 de cada 10 frames, 640 px):
+
+- 63 frames en **~6,5 s** (~10 inf/s). Un 90 min al mismo stride serían **~25–40 min solo detección** en esta CPU; el pipeline completo (homografía + balón) más. En el Mac, de noche, sobra.
+- ~10–17 personas por frame en el Veo. Los lejanos se pierden.
+- El balón COCO casi no existe (1 detección en 21 s). Hace falta modelo de fútbol + teselas.
+- Kits por color HSV: mal (luz verde). Hay que SigLIP + pin blanco, no el histograma.
+
+Script: `scripts/vision_probe.py` (solo prueba; producción = RF-DETR Apache).
+
+---
 
 El MP4 y el PDF se **quitan de git** (siguen en `_inbox/` local, gitignore). No deben vivir en GitHub.
 
@@ -261,13 +272,15 @@ No meter pesos en el repo. Primera corrida los baja a `~/.cache/kabine-vision/`.
 
 Es **un disparo después del partido**, no en directo. Pulsa «Analizar», se genera el JSON una vez, y esa semana se recorta a mano encima. No se paga por minuto de juego.
 
-No analizar 30 fps del partido entero. Basta **5 fps** (un frame de cada 6) a 1280 de lado. El balón a teselas solo cuando haga falta. Si no, 90 min × 30 fps es inabordable.
+El MP4 de partido son **4–5 GB** (Veo). Eso cabe en el Mac y en un disco USB. No justifica alquilar GPU: subir 5 GB a RunPod solo para ahorrar una noche en el Mac no merece la pena.
+
+---
 
 | Opción | Cuándo | Coste | Privacidad |
 |---|---|---|---|
 | **1. El Mac de Veo (Metal / MPS)** | Empieza aquí. El clip de prueba ya es Veo. | 0 € extra. Tiempo: 21 s en minutos; un tiempo en **unas horas / de noche** (M1 más lento, M4 Pro/Max mejor). | El partido no se mueve |
 | **2. Mini PC NVIDIA en el club** (RTX 4060 8 GB o 4070) | Si el Mac se queda corto o hay varios partidos/fin de semana | Compra **una vez** (~300–800 €). Luz ~céntimos por partido. El PDF cita ~3 GB VRAM en un 3090 para el ejemplo Roboflow. | Igual: disco local |
-| **3. GPU alquilada** (RunPod / Vast / Lambda, 1–3 h) | Solo si un día aceptáis que el vídeo **salga** del edificio | Orden de **1–5 USD por partido** (4090, no tiempo real). Subir 10–20 GB es el cuello. | **No** es el flujo Kabine |
+| **3. GPU alquilada** (RunPod / Vast / Lambda, 1–3 h) | Solo si un día aceptáis que el vídeo **salga** del edificio | Orden de **1–5 USD por partido**. Subir 4–5 GB es rápido; el problema es privacidad, no el peso. | **No** es el flujo Kabine |
 
 Colab T4 (el tutorial de Roboflow) también se lleva el vídeo a Google. No.
 
