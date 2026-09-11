@@ -361,5 +361,5 @@ El PDF y `prueba 2.mp4` ya se leyeron desde `_inbox/` (upload a GitHub). Siguien
 ## Preguntas abiertas (no bloquean la fase 0)
 
 1. ~~Cámara~~ → **Veo** (clip de prueba).
-2. ~~Peso del partido~~ → **4–5 GB**. Cabe en el Mac. Bench CPU del clip: ~17 min / 90 min a 5 fps (solo cajas). Falta el JSON del mismo script en el Mac (21 s + 60 s del partido).
+2. ~~Mac~~ → arm64, **MPS**. 21 s a 5 fps = 9,2 s (~40 min / 90 min solo cajas). Falta 60 s del partido 4–5 GB.
 3. ~~PDF~~ → leído; RF-DETR + `roboflow/trackers` BoT-SORT.
