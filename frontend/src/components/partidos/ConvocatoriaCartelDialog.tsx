@@ -250,13 +250,13 @@ export function ConvocatoriaCartelDialog({
                         : 'border-border hover:bg-muted/40'
                     }`}
                   >
-                    <KitFullPreview kit={kitsByTipo[key] ?? null} size={72} labels={false} />
+                    <KitFullPreview kit={kitsByTipo[key] ?? null} size={72} labels={false} escudoUrl={clubLogoUrl} />
                     <span className="mt-1 block">{key}</span>
                   </button>
                 ))}
               </div>
               <p className="text-xs text-muted-foreground">
-                Colores de Configuración → Equipaciones (camiseta, pantalón y medias).
+                Colores de Configuración → Equipaciones (camiseta, calzonas y medias).
               </p>
             </div>
             <div className="flex flex-col gap-2 pt-2">

@@ -263,6 +263,7 @@ export default function RivalDetailPage() {
       {activeTab === 'equipacion' && (
         <EquipacionTab
           rivalId={id}
+          rivalEscudoUrl={rival.escudo_url}
           equipaciones={equipaciones || []}
           onSaved={() => mutateEquipaciones()}
         />
@@ -273,10 +274,12 @@ export default function RivalDetailPage() {
 
 function EquipacionTab({
   rivalId,
+  rivalEscudoUrl,
   equipaciones,
   onSaved,
 }: {
   rivalId: string
+  rivalEscudoUrl?: string | null
   equipaciones: Equipacion[]
   onSaved: () => void
 }) {
@@ -292,11 +295,21 @@ function EquipacionTab({
     <div className="space-y-4">
       <div>
         <h3 className="text-sm font-semibold mb-2">Equipacion local</h3>
-        <KitEditor tipo="local" initial={local} onSave={(data) => handleSave('local', data)} />
+        <KitEditor
+          tipo="local"
+          initial={local}
+          onSave={(data) => handleSave('local', data)}
+          escudoUrl={rivalEscudoUrl}
+        />
       </div>
       <div>
         <h3 className="text-sm font-semibold mb-2">Equipacion visitante</h3>
-        <KitEditor tipo="visitante" initial={visitante} onSave={(data) => handleSave('visitante', data)} />
+        <KitEditor
+          tipo="visitante"
+          initial={visitante}
+          onSave={(data) => handleSave('visitante', data)}
+          escudoUrl={rivalEscudoUrl}
+        />
       </div>
     </div>
   )
