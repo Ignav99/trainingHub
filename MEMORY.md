@@ -7,7 +7,7 @@ Herramienta local a pantalla completa en `/video-analisis`. El partido **nunca**
 - **Jog de partido largo:** dos dedos en el trackpad (un seek en vuelo, cabezal optimista) y flechas frame a frame (`requestVideoFrameCallback` + `currentTime`, nunca `fastSeek`). Shift+flecha = 1 s. El fps se estima al reproducir (25/50 típico de TV).
 - Descargas en **MP4 sin audio**, misma resolución: CRF 21 + tope ~5 Mbps en 1080p (un recorte de 18s queda ~8–12 MB, no 50). Manita (H) para desplazar la cinta; clic en el nombre de la fila selecciona todos sus recortes para exportar esa línea. El partido no se sube.
 - Sin pizarra ni ventanas flotantes en esta pantalla. El dibujo sigue en la sala de presentación.
-- **Visión:** PDF de licencias 2025-2026 leído. Clip `prueba 2.mp4` (Veo 21 s, kit blanco vs azul). Detector RF-DETR Apache; tracker `roboflow/trackers` BoT-SORT. Plan: `docs/VISION_PLAN.md`. Partido **4–5 GB** se analiza en el Mac (no cloud). Bench CPU del clip: decode 550 fps; detección ~5 fps → **~17 min / 90 min** solo cajas (`scripts/vision_bench.py`). Siguiente: mismos comandos en el Mac (21 s, luego `--max-seconds 60` del partido).
+- **Visión:** Partido 4–5 GB en el Mac. Bench: `scripts/vision_bench.py`. En Mac usar `opencv-python` (no headless) y copiar el mp4 fuera del Escritorio.
 
 ## Revisión de vídeo
 Dos herramientas: **Video Análisis** (partido entero local, nunca a la nube) y **Revisión** (recortes cortos en informes).
