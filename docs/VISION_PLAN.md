@@ -295,16 +295,20 @@ Colab T4 (el tutorial de Roboflow) también se lleva el vídeo a Google. No.
 
 ### Escalera de pruebas (mismo script)
 
-En el Mac, con Python 3.10+ (no hace falta GPU NVIDIA):
+En el Mac, con Python 3.10+ (no hace falta GPU NVIDIA). **No** uses `opencv-python-headless` (en Mac a menudo no abre MP4). Copia el vídeo **fuera** del Escritorio (macOS bloquea esa carpeta).
 
 ```bash
-python3 -m pip install opencv-python-headless ultralytics
-# mismos 21 s que ya medimos en la VM (compara device: mps vs cpu)
-python3 scripts/vision_bench.py --video "/ruta/prueba 2.mp4" --stride 6
-# 60 s del partido real de 4–5 GB (no subir el archivo)
-python3 scripts/vision_bench.py --video "/ruta/partido.mp4" --max-seconds 60 --stride 6
-# si 60 s va bien: 10 min
-python3 scripts/vision_bench.py --video "/ruta/partido.mp4" --max-seconds 600 --stride 6
+PY=/Users/User/.pyenv/versions/3.11.9/bin/python3
+mkdir -p /Users/User/kabine-vision-bench
+cd /Users/User/kabine-vision-bench
+curl -L -o vision_bench.py https://raw.githubusercontent.com/Ignav99/trainingHub/main/scripts/vision_bench.py
+$PY -m pip uninstall -y opencv-python-headless
+$PY -m pip install opencv-python ultralytics
+# arrastra el mp4 a esta carpeta, o:
+cp "/Users/User/Desktop/prueba 2.mp4" /Users/User/kabine-vision-bench/clip.mp4
+$PY vision_bench.py --video /Users/User/kabine-vision-bench/clip.mp4 --stride 6
+# 60 s del partido real (tampoco desde Escritorio: cópialo primero)
+$PY vision_bench.py --video /Users/User/kabine-vision-bench/partido.mp4 --max-seconds 60 --stride 6
 ```
 
 Pegad el JSON. Decisión:

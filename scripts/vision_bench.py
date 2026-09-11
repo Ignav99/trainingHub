@@ -5,10 +5,13 @@ Not the production worker (that is RF-DETR Apache + BoT-SORT). This times:
   - OpenCV decode of a Veo MP4
   - optional Ultralytics YOLO person boxes (COCO) at a chosen stride
 
-Examples:
-  python3 scripts/vision_bench.py --video "_inbox/prueba 2.mp4" --decode-only
-  python3 scripts/vision_bench.py --video "_inbox/prueba 2.mp4" --stride 6
-  python3 scripts/vision_bench.py --video /path/to/partido.mp4 --max-seconds 60 --stride 6
+Mac (from any folder, use the full path to this file):
+
+  PY=/Users/User/.pyenv/versions/3.11.9/bin/python3
+  $PY -m pip uninstall -y opencv-python-headless
+  $PY -m pip install opencv-python ultralytics
+  cp "/ruta/prueba 2.mp4" /Users/User/kabine-vision-bench/clip.mp4
+  $PY vision_bench.py --video /Users/User/kabine-vision-bench/clip.mp4 --stride 6
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ from __future__ import annotations
 import argparse
 import json
 import platform
+import re
 import resource
 import sys
 import time
@@ -44,10 +48,57 @@ def device_label() -> str:
     return "cpu"
 
 
+def ffmpeg_enabled() -> bool:
+    return bool(re.search(r"FFMPEG\s*:\s*YES", cv2.getBuildInformation()))
+
+
+def capture_backends() -> list[tuple[str, int]]:
+    out: list[tuple[str, int]] = []
+    if hasattr(cv2, "CAP_FFMPEG"):
+        out.append(("CAP_FFMPEG", int(cv2.CAP_FFMPEG)))
+    if sys.platform == "darwin" and hasattr(cv2, "CAP_AVFOUNDATION"):
+        out.append(("CAP_AVFOUNDATION", int(cv2.CAP_AVFOUNDATION)))
+    out.append(("CAP_ANY", int(cv2.CAP_ANY)))
+    return out
+
+
+def fail_open(path: Path, tried: list[str]) -> str:
+    size = path.stat().st_size if path.exists() else 0
+    lines = [
+        f"cannot open {path}",
+        f"  exists={path.exists()} is_file={path.is_file()} bytes={size} ({size / (1024**2):.1f} MB)",
+        f"  opencv={cv2.__version__} ffmpeg_build={ffmpeg_enabled()}",
+        f"  backends={tried}",
+        "  Fix on Mac:",
+        "    1) Copy the mp4 next to this script (Desktop/Downloads are often blocked):",
+        "       cp \"/path/to/clip.mp4\" /Users/User/kabine-vision-bench/clip.mp4",
+        "    2) Use opencv-python, not headless:",
+        "       python3 -m pip uninstall -y opencv-python-headless",
+        "       python3 -m pip install opencv-python",
+        "    3) If bytes is 0 or ~ a few KB, download the file from iCloud in Finder first.",
+        "    4) Confirm QuickTime can play the file.",
+    ]
+    return "\n".join(lines)
+
+
+def open_video(path: Path) -> cv2.VideoCapture:
+    tried: list[str] = []
+    for name, backend in capture_backends():
+        cap = cv2.VideoCapture(str(path), backend)
+        opened = bool(cap.isOpened())
+        ok = False
+        if opened:
+            ok, frame = cap.read()
+            if ok and frame is not None and frame.size:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                return cap
+        cap.release()
+        tried.append(f"{name}:opened={opened}:read={ok}")
+    raise SystemExit(fail_open(path, tried))
+
+
 def video_meta(path: Path) -> dict:
-    cap = cv2.VideoCapture(str(path))
-    if not cap.isOpened():
-        raise SystemExit(f"cannot open {path}")
+    cap = open_video(path)
     meta = {
         "path": str(path),
         "bytes": path.stat().st_size,
@@ -56,6 +107,8 @@ def video_meta(path: Path) -> dict:
         "height": int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
         "fps": float(cap.get(cv2.CAP_PROP_FPS) or 0),
         "frame_count": int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0),
+        "opencv": cv2.__version__,
+        "ffmpeg_build": ffmpeg_enabled(),
     }
     dur = meta["frame_count"] / meta["fps"] if meta["fps"] else 0
     meta["duration_s"] = round(dur, 2)
@@ -64,7 +117,7 @@ def video_meta(path: Path) -> dict:
 
 
 def decode_pass(path: Path, max_seconds: float | None) -> dict:
-    cap = cv2.VideoCapture(str(path))
+    cap = open_video(path)
     fps = float(cap.get(cv2.CAP_PROP_FPS) or 30)
     limit = int(max_seconds * fps) if max_seconds else None
     n = 0
@@ -90,7 +143,7 @@ def detect_pass(path: Path, stride: int, max_seconds: float | None, imgsz: int) 
     from ultralytics import YOLO
 
     model = YOLO("yolo11n.pt")
-    cap = cv2.VideoCapture(str(path))
+    cap = open_video(path)
     fps = float(cap.get(cv2.CAP_PROP_FPS) or 30)
     limit = int(max_seconds * fps) if max_seconds else None
     people: list[int] = []
@@ -150,6 +203,8 @@ def main() -> None:
     path = Path(args.video).expanduser().resolve()
     if not path.exists():
         raise SystemExit(f"missing {path}")
+    if not path.is_file():
+        raise SystemExit(f"not a file {path}")
 
     report: dict = {
         "host": {
