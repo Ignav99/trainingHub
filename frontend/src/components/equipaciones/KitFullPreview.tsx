@@ -29,11 +29,11 @@ export function KitFullPreview({
   escudoUrl,
 }: KitFullPreviewProps) {
   const k = kit || FALLBACK
-  const shirt = Math.round(size * 0.78)
-  const shortsW = Math.round(size * 0.64)
-  const shortsH = Math.round(size * 0.38)
-  const sockH = Math.round(size * 0.4)
-  const sockW = Math.round(size * 0.2)
+  const shirt = Math.round(size * 0.82)
+  const shortsW = Math.round(size * 0.72)
+  const shortsH = Math.round(size * 0.44)
+  const sockH = Math.round(size * 0.5)
+  const sockW = Math.round(size * 0.26)
 
   return (
     <div
@@ -52,12 +52,12 @@ export function KitFullPreview({
         size={shirt}
         escudoUrl={escudoUrl}
       />
-      <div style={{ marginTop: -8 }}>
+      <div style={{ marginTop: -10 }}>
         <Shorts color={k.color_pantalon} width={shortsW} height={shortsH} />
       </div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginTop: 2 }} aria-hidden>
-        <Sock color={k.color_medias} width={sockW} height={sockH} />
-        <Sock color={k.color_medias} width={sockW} height={sockH} />
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, marginTop: 2 }} aria-hidden>
+        <Sock color={k.color_medias} width={sockW} height={sockH} lean={-5} />
+        <Sock color={k.color_medias} width={sockW} height={sockH} lean={5} />
       </div>
       {labels ? (
         <span className="mt-1 text-[9px] uppercase tracking-[0.18em] text-current/70">
@@ -68,62 +68,104 @@ export function KitFullPreview({
   )
 }
 
-/** Calzonas de fútbol: cintura, pernera y entrepierna en una silueta. */
-const SHORTS_PATH =
-  'M26 7 ' +
-  'C26 3.2 30 2 34.5 2 ' +
-  'H65.5 ' +
-  'C70 2 74 3.2 74 7 ' +
-  'V14 ' +
-  'C88 17 93 32 91 49 ' +
-  'C90.4 53.6 86 56 80.5 56 ' +
-  'H57.5 ' +
-  'C53.8 56 51.6 52.6 51.4 48 ' +
-  'C51.2 36 50.6 24.5 50 20 ' +
-  'C49.4 24.5 48.8 36 48.6 48 ' +
-  'C48.4 52.6 46.2 56 42.5 56 ' +
-  'H19.5 ' +
-  'C14 56 9.6 53.6 9 49 ' +
-  'C7 32 12 17 26 14 ' +
+/** Calzonas: cinturilla elástica y perneras con entrepierna en V. */
+export const SHORTS_PATH =
+  'M19.2 11 ' +
+  'C19.2 5.6 27.6 3.5 37.6 3.5 ' +
+  'H62.4 ' +
+  'C72.4 3.5 80.8 5.6 80.8 11 ' +
+  'L81.6 18 ' +
+  'C84.2 20.4 85.4 34 84.6 58.2 ' +
+  'C84.2 66.6 80 70.8 73.6 70.8 ' +
+  'C68.8 71 64 70.6 59.2 70 ' +
+  'C55.4 69.4 53 64 52 56.2 ' +
+  'C51.2 46.2 50.5 40 50 37.4 ' +
+  'C49.5 40 48.8 46.2 48 56.2 ' +
+  'C47 64 44.6 69.4 40.8 70 ' +
+  'C36 70.6 31.2 71 26.4 70.8 ' +
+  'C20 70.8 15.8 66.6 15.4 58.2 ' +
+  'C14.6 34 15.8 20.4 18.4 18 ' +
+  'Z'
+
+const WAISTBAND_PATH =
+  'M18.6 6.2 ' +
+  'C18.6 4.6 27 3.8 37 3.8 ' +
+  'H63 ' +
+  'C73 3.8 81.4 4.6 81.4 6.2 ' +
+  'L82.4 16.8 ' +
+  'C82.4 18.4 73.2 19.2 63 19.2 ' +
+  'H37 ' +
+  'C26.8 19.2 17.6 18.4 17.6 16.8 ' +
   'Z'
 
 export function Shorts({ color, width, height }: { color: string; width: number; height: number }) {
+  const stitches = Array.from({ length: 15 }, (_, i) => 22 + i * 4)
   return (
-    <svg width={width} height={height} viewBox="0 0 100 58" aria-hidden>
+    <svg width={width} height={height} viewBox="0 0 100 74" aria-hidden>
       <path d={SHORTS_PATH} fill="none" stroke="#F3EFE466" strokeWidth="2.4" />
-      <path d={SHORTS_PATH} fill={color} stroke="#00000028" strokeWidth="1" />
+      <path d={SHORTS_PATH} fill={color} stroke="#1a1a1a" strokeWidth="1.15" strokeLinejoin="round" />
+      <path d={WAISTBAND_PATH} fill="#C5C8CC" stroke="#6B7178" strokeWidth="0.55" />
       <path
-        d="M29 9 C29 7.2 32.4 6.2 36 6.2 H64 C67.6 6.2 71 7.2 71 9 V13.2 C71 14.6 67.8 15.4 64 15.4 H36 C32.2 15.4 29 14.6 29 13.2 Z"
-        fill="#ffffff"
-        fillOpacity="0.2"
+        d="M19.8 8.2 C19.8 7.2 27.4 6.6 37 6.6 H63 C72.6 6.6 80.2 7.2 80.2 8.2 L81 15.4 C81 16.4 72.4 17.2 63 17.2 H37 C27.6 17.2 19 16.4 19 15.4 Z"
+        fill="#9AA0A6"
       />
-      <path d="M50 15.2 C49.5 24 49.2 34 49.4 43" fill="none" stroke="#00000022" strokeWidth="1.3" strokeLinecap="round" />
+      {stitches.map((x) => (
+        <path
+          key={x}
+          d={`M${x} 8.4 V14.8`}
+          fill="none"
+          stroke="#6B7178"
+          strokeWidth="0.55"
+          strokeLinecap="round"
+        />
+      ))}
     </svg>
   )
 }
 
-/** Media de fútbol: puño doblado y caña con gemelo. */
-const SOCK_BODY =
-  'M9.5 18 ' +
-  'C8 28 7.6 38 9.4 48.5 ' +
-  'C10 52.8 12.8 56.2 16 56.2 ' +
-  'C19.2 56.2 22 52.8 22.6 48.5 ' +
-  'C24.4 38 24 28 22.5 18 ' +
+/** Media con puño doblado, gemelo y pie (como la plantilla del inbox). */
+const SOCK_CUFF =
+  'M13.8 1.1 ' +
+  'C13.8 0.3 15 0 16.4 0 ' +
+  'H25.6 ' +
+  'C27 0 28.2 0.3 28.2 1.1 ' +
+  'L27 17 ' +
+  'C27 18.2 25.6 19.2 24 19.2 ' +
+  'H18 ' +
+  'C16.4 19.2 15 18.2 15 17 ' +
   'Z'
 
-export function Sock({ color, width, height }: { color: string; width: number; height: number }) {
+const SOCK_BODY =
+  'M15.4 19.2 ' +
+  'C13.4 32 12.6 45 14.2 57 ' +
+  'C15 63 15.4 67 14.4 70.5 ' +
+  'C11.2 74.5 9.6 79 12.2 82.4 ' +
+  'C14.6 85.6 18.4 87.2 21 87.2 ' +
+  'C23.6 87.2 27.4 85.6 29.8 82.4 ' +
+  'C32.4 79 30.8 74.5 27.6 70.5 ' +
+  'C26.6 67 27 63 27.8 57 ' +
+  'C29.4 45 28.6 32 26.6 19.2 ' +
+  'Z'
+
+export function Sock({
+  color,
+  width,
+  height,
+  lean = 0,
+}: {
+  color: string
+  width: number
+  height: number
+  lean?: number
+}) {
   return (
-    <svg width={width} height={height} viewBox="0 0 32 60" aria-hidden>
-      <path d={SOCK_BODY} fill="none" stroke="#F3EFE466" strokeWidth="2.2" />
-      <path d={SOCK_BODY} fill={color} stroke="#00000028" strokeWidth="0.8" />
-      <path
-        d="M8.2 4.2 C8.2 2.4 10.2 1.2 12.6 1.2 H19.4 C21.8 1.2 23.8 2.4 23.8 4.2 V16.6 C23.8 18.2 21.9 19.2 19.6 19.2 H12.4 C10.1 19.2 8.2 18.2 8.2 16.6 Z"
-        fill="#f3efe4"
-        stroke="#00000022"
-        strokeWidth="0.7"
-      />
-      <path d="M10 16 H22" stroke={color} strokeOpacity="0.5" strokeWidth="2.2" strokeLinecap="round" />
-      <path d="M11.2 29.5 H20.8" stroke="#ffffff" strokeOpacity="0.32" strokeWidth="2.4" strokeLinecap="round" />
+    <svg width={width} height={height} viewBox="0 0 42 88" aria-hidden>
+      <g transform={lean ? `rotate(${lean} 21 48)` : undefined}>
+        <path d={SOCK_BODY} fill="none" stroke="#F3EFE466" strokeWidth="2.2" />
+        <path d={SOCK_BODY} fill={color} stroke="#1a1a1a" strokeWidth="1.05" strokeLinejoin="round" />
+        <path d={SOCK_CUFF} fill="#F4F4F4" stroke="#6B7178" strokeWidth="0.7" strokeLinejoin="round" />
+        <path d="M16 16.6 H26" stroke={color} strokeOpacity="0.55" strokeWidth="1.6" strokeLinecap="round" />
+      </g>
     </svg>
   )
 }

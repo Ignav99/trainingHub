@@ -13,10 +13,60 @@ interface JerseyPreviewProps {
 }
 
 /**
- * Silueta SVG de una camiseta de futbol (vista frontal, mangas cortas,
- * cuello en V) que renderiza uno de los 5 patrones soportados por el
- * modelo de Equipacion. El escudo va al pecho izquierdo (el del jugador).
+ * Camiseta de fútbol tipo plantilla (vista frontal): cuello en V con canalé,
+ * mangas cortas acampanadas y bajo recto. Misma silueta en cartel, picker y editor.
  */
+export const JERSEY_PATH =
+  'M37.2 8.4 ' +
+  'C33.6 10 29.2 12.8 25.4 15.4 ' +
+  'L6.2 25.8 ' +
+  'L4.4 36.2 ' +
+  'C5.4 39.4 11.2 40.6 16.8 38.8 ' +
+  'L23.2 31.2 ' +
+  'L23.4 88.6 ' +
+  'C23.4 92.2 27 95 32.6 95.2 ' +
+  'H67.4 ' +
+  'C73 95 76.6 92.2 76.6 88.6 ' +
+  'L76.8 31.2 ' +
+  'L83.2 38.8 ' +
+  'C88.8 40.6 94.6 39.4 95.6 36.2 ' +
+  'L93.8 25.8 ' +
+  'L74.6 15.4 ' +
+  'C70.8 12.8 66.4 10 62.8 8.4 ' +
+  'C59.4 14 54.6 20.2 50 23.8 ' +
+  'C45.4 20.2 40.6 14 37.2 8.4 ' +
+  'Z'
+
+const LEFT_SLEEVE_PATH =
+  'M37.2 8.4 ' +
+  'C33.6 10 29.2 12.8 25.4 15.4 ' +
+  'L6.2 25.8 ' +
+  'L4.4 36.2 ' +
+  'C5.4 39.4 11.2 40.6 16.8 38.8 ' +
+  'L23.2 31.2 ' +
+  'C27 22.6 32 14.4 37.2 8.4 ' +
+  'Z'
+
+const RIGHT_SLEEVE_PATH =
+  'M62.8 8.4 ' +
+  'C66.4 10 70.8 12.8 74.6 15.4 ' +
+  'L93.8 25.8 ' +
+  'L95.6 36.2 ' +
+  'C94.6 39.4 88.8 40.6 83.2 38.8 ' +
+  'L76.8 31.2 ' +
+  'C73 22.6 68 14.4 62.8 8.4 ' +
+  'Z'
+
+const COLLAR_PATH =
+  'M38.8 9.6 ' +
+  'C42.6 15.2 46.4 20.6 50 23.2 ' +
+  'C53.6 20.6 57.4 15.2 61.2 9.6 ' +
+  'C58.8 10.8 56 14 53.4 17.4 ' +
+  'C51.8 19.6 50.8 21.2 50 21.6 ' +
+  'C49.2 21.2 48.2 19.6 46.6 17.4 ' +
+  'C44 14 41.2 10.8 38.8 9.6 ' +
+  'Z'
+
 export function JerseyPreview({
   colorPrincipal,
   colorSecundario,
@@ -28,29 +78,10 @@ export function JerseyPreview({
   const stripesId = `jersey-stripes-${rawId}`
   const hoopsId = `jersey-hoops-${rawId}`
   const gradientId = `jersey-grad-${rawId}`
+  const clipId = `jersey-clip-${rawId}`
 
   const secundario = colorSecundario || colorPrincipal
-  // Pecho, dentro del torso (no en la manga). Más chico para no salirse.
   const crest = Math.max(7, Math.round(size * 0.1))
-
-  // Silueta: torso con cuello en V y bultos de manga corta a cada lado.
-  const jerseySilhouette =
-    'M38 6 ' +
-    'L20 12 ' +
-    'L4 24 ' +
-    'L14 40 ' +
-    'L22 32 ' +
-    'L22 96 ' +
-    'L78 96 ' +
-    'L78 32 ' +
-    'L86 40 ' +
-    'L96 24 ' +
-    'L80 12 ' +
-    'L62 6 ' +
-    'L54 14 ' +
-    'L50 20 ' +
-    'L46 14 ' +
-    'Z'
 
   const fillFor = (base: string) => {
     if (patron === 'rayas_verticales') return `url(#${stripesId})`
@@ -68,6 +99,9 @@ export function JerseyPreview({
     >
       <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden>
         <defs>
+          <clipPath id={clipId}>
+            <path d={JERSEY_PATH} />
+          </clipPath>
           <pattern id={stripesId} width="10" height="100" patternUnits="userSpaceOnUse">
             <rect width="10" height="100" fill={colorPrincipal} />
             <rect width="5" height="100" fill={secundario} />
@@ -82,26 +116,23 @@ export function JerseyPreview({
           </linearGradient>
         </defs>
 
-        <path d={jerseySilhouette} fill={fillFor(colorPrincipal)} stroke="#00000022" strokeWidth="1" />
+        <path d={JERSEY_PATH} fill="none" stroke="#F3EFE466" strokeWidth="2.4" />
+        <path
+          d={JERSEY_PATH}
+          fill={fillFor(colorPrincipal)}
+          stroke="#1a1a1a"
+          strokeWidth="1.15"
+          strokeLinejoin="round"
+        />
 
         {patron === 'mangas_diferentes' && (
-          <>
-            <path
-              d="M38 6 L20 12 L4 24 L14 40 L22 32 L22 18 Z"
-              fill={secundario}
-              stroke="#00000022"
-              strokeWidth="1"
-            />
-            <path
-              d="M62 6 L80 12 L96 24 L86 40 L78 32 L78 18 Z"
-              fill={secundario}
-              stroke="#00000022"
-              strokeWidth="1"
-            />
-          </>
+          <g clipPath={`url(#${clipId})`}>
+            <path d={LEFT_SLEEVE_PATH} fill={secundario} />
+            <path d={RIGHT_SLEEVE_PATH} fill={secundario} />
+          </g>
         )}
 
-        <path d="M46 14 L50 20 L54 14 L58 17 L50 26 L42 17 Z" fill="#ffffff" fillOpacity="0.15" />
+        <path d={COLLAR_PATH} fill="#A8ADB3" stroke="#6B7178" strokeWidth="0.6" />
       </svg>
       {escudoUrl ? (
         // html2canvas captura <img> mejor que next/image
@@ -112,7 +143,6 @@ export function JerseyPreview({
           {...(/^https?:/i.test(escudoUrl) ? { crossOrigin: 'anonymous' as const } : {})}
           style={{
             position: 'absolute',
-            // Pecho izquierdo del jugador = interior derecho del torso, no la manga
             left: '56%',
             top: '36%',
             width: crest,
