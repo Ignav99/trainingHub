@@ -26,6 +26,7 @@ from app.security.permissions import Permission
 from app.services.audit_service import log_create, log_update, log_delete
 from app.services.notification_service import notify_partido_resultado
 from app.services.pdf_service import generate_informe_partido_pdf, generate_informe_rival_pdf, generate_plan_partido_pdf, generate_plan_partido_jugadores_pdf
+from app.services.partido_campo import hydrate_partido_campo, sanitize_partido_campo
 from app.services.pre_match_service import populate_partido_intel
 from app.services.ai_factory import call_ai_with_fallback
 from app.services.ai_errors import AIError
@@ -60,7 +61,7 @@ async def list_partidos(
 
     # Query con relación a rivales
     query = supabase.table("partidos").select(
-        "id,equipo_id,rival_id,fecha,hora,localia,competicion,jornada,ubicacion,"
+        "id,equipo_id,rival_id,fecha,hora,localia,competicion,jornada,ubicacion,arbitro,"
         "goles_favor,goles_contra,resultado,created_at,updated_at,auto_creado,"
         "rfef_competicion_id,video_url,informe_url,"
         "hora_citacion,lugar_citacion,kit_convocatoria,"
@@ -114,6 +115,7 @@ async def list_partidos(
     partidos = []
     for p in response.data:
         rival_data = p.pop("rivales", None)
+        hydrate_partido_campo(p)
         partido = PartidoResponse(**p)
         if rival_data:
             partido.rival = RivalResponse(**rival_data)
@@ -139,7 +141,7 @@ async def get_partido(
     supabase = get_supabase()
 
     response = supabase.table("partidos").select(
-        "id,equipo_id,rival_id,fecha,hora,localia,competicion,jornada,ubicacion,"
+        "id,equipo_id,rival_id,fecha,hora,localia,competicion,jornada,ubicacion,arbitro,"
         "goles_favor,goles_contra,resultado,notas_pre,notas_post,video_url,informe_url,"
         "rfef_competicion_id,auto_creado,created_at,updated_at,"
         "hora_citacion,lugar_citacion,kit_convocatoria,"
@@ -154,6 +156,7 @@ async def get_partido(
 
     row = response.data[0]
     rival_data = row.pop("rivales", None)
+    hydrate_partido_campo(row)
     partido = PartidoResponse(**row)
     if rival_data:
         partido.rival = RivalResponse(**rival_data)
@@ -173,6 +176,7 @@ async def create_partido(
     supabase = get_supabase()
 
     partido_data = partido.model_dump(mode='json')
+    sanitize_partido_campo(partido_data)
 
     # Use default equipo if not provided
     if not partido.equipo_id:
@@ -212,6 +216,7 @@ async def create_partido(
         if fetched.data:
             row = {**row, **fetched.data[0]}
     rival_data = row.pop("rivales", None)
+    hydrate_partido_campo(row)
     result = PartidoResponse(**row)
     if rival_data:
         result.rival = RivalResponse(**rival_data)
@@ -246,6 +251,8 @@ async def update_partido(
         )
 
     update_data = partido.model_dump(exclude_unset=True, mode='json')
+    if "ubicacion" in update_data or "arbitro" in update_data:
+        sanitize_partido_campo(update_data)
 
     if not update_data:
         raise HTTPException(
@@ -267,6 +274,7 @@ async def update_partido(
     ).eq("id", str(partido_id)).single().execute()
 
     rival_data = partido_completo.data.pop("rivales", None)
+    hydrate_partido_campo(partido_completo.data)
     result = PartidoResponse(**partido_completo.data)
     if rival_data:
         result.rival = RivalResponse(**rival_data)
@@ -402,6 +410,7 @@ async def registrar_resultado(
     ).eq("id", str(partido_id)).single().execute()
 
     rival_data = partido_completo.data.pop("rivales", None)
+    hydrate_partido_campo(partido_completo.data)
     result = PartidoResponse(**partido_completo.data)
     if rival_data:
         result.rival = RivalResponse(**rival_data)

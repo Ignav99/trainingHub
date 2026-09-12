@@ -6,8 +6,10 @@ import {
   defaultLugarCitacion,
   defaultLugarPartido,
   jornadaLabel,
+  partidoLugarArbitro,
   slugCartelFilename,
   sortConvocadosForCartel,
+  splitCampoArbitro,
 } from './convocatoriaCartel.ts'
 
 function conv(partial: {
@@ -84,6 +86,33 @@ describe('convocatoria cartel', () => {
     )
     assert.equal(defaultLugarCitacion({ estadio: 'Municipal' }), 'Municipal')
     assert.equal(defaultLugarCitacion({}), 'Por confirmar')
+  })
+
+  it('splits jammed referee from stadium and keeps it once', () => {
+    const jammed = splitCampoArbitro('Campo El PalmarÁrbitro: PEREZ, JUANÁrbitro asistente: DOS')
+    assert.equal(jammed.lugar, 'Campo El Palmar')
+    assert.equal(jammed.arbitro, 'PEREZ, JUAN')
+    assert.equal(
+      defaultLugarPartido({ ubicacion: 'MunicipalÁrbitro: Uno' }),
+      'Municipal',
+    )
+    assert.equal(
+      defaultLugarCitacion({ saved: 'MunicipalÁrbitro: Uno' }),
+      'Municipal',
+    )
+    const venue = partidoLugarArbitro({
+      ubicacion: 'Campo El PalmarÁrbitro: PEREZ, JUAN',
+      rival: { estadio: 'OtroÁrbitro: DOS' },
+    })
+    assert.equal(venue.lugar, 'Campo El Palmar')
+    assert.equal(venue.arbitro, 'PEREZ, JUAN')
+    assert.equal(
+      partidoLugarArbitro({
+        ubicacion: 'AnexoÁrbitro: Viejo',
+        arbitro: 'Nuevo',
+      }).arbitro,
+      'Nuevo',
+    )
   })
 
   it('labels jornada without exposing a starting XI', () => {

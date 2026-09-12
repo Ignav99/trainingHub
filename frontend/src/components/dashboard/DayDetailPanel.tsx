@@ -23,6 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { TeamCrest } from '@/components/ui/team-crest'
 import type { Sesion, Partido, Microciclo } from '@/types'
 import { isSameDay } from '@/lib/calendar/types'
+import { partidoLugarArbitro } from '@/lib/convocatoriaCartel'
 
 const INTENSIDAD_LABEL: Record<string, string> = {
   baja: 'Baja',
@@ -149,6 +150,7 @@ export function DayDetailPanel({
                   <div className="space-y-2">
                     {dayPartidos.map((p) => {
                       const isLocal = p.localia === 'local'
+                      const venue = partidoLugarArbitro(p)
                       return (
                         <div
                           key={p.id}
@@ -194,11 +196,14 @@ export function DayDetailPanel({
                                     <Clock className="h-3 w-3" /> {p.hora}
                                   </span>
                                 )}
-                                {p.ubicacion && (
+                                {venue.lugar ? (
                                   <span className="inline-flex items-center gap-1 truncate">
-                                    <MapPin className="h-3 w-3 shrink-0" /> {p.ubicacion}
+                                    <MapPin className="h-3 w-3 shrink-0" /> {venue.lugar}
                                   </span>
-                                )}
+                                ) : null}
+                                {venue.arbitro ? (
+                                  <span className="truncate">Árbitro: {venue.arbitro}</span>
+                                ) : null}
                               </div>
                             </div>
                           </div>

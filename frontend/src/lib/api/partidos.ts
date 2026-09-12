@@ -187,6 +187,7 @@ export interface PartidoCreateData {
   video_url?: string
   informe_url?: string
   ubicacion?: string
+  arbitro?: string | null
   hora_citacion?: string | null
   lugar_citacion?: string | null
   kit_convocatoria?: 'local' | 'visitante' | null

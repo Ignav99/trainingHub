@@ -18,6 +18,7 @@ from app.services.rival_escudo_service import (
     backfill_rival_escudos,
     build_escudo_lookup,
 )
+from app.services.partido_campo import split_campo_arbitro
 
 logger = logging.getLogger(__name__)
 
@@ -321,6 +322,7 @@ def link_competition(supabase, comp: dict) -> dict:
         goles_contra = goles_visitante if is_local else goles_local
 
         campo = match.get("campo", "")
+        lugar, arbitro = split_campo_arbitro(campo)
 
         existing = partido_by_jornada.get(jornada_num)
 
@@ -334,10 +336,12 @@ def link_competition(supabase, comp: dict) -> dict:
             # Update rival if it changed
             if existing.get("rival_id") != rival_record["id"]:
                 update_data["rival_id"] = rival_record["id"]
-            # Always update fecha/hora/ubicacion from RFEF when available
+            # Always update fecha/hora/ubicación/árbitro from RFEF when available
             # (RFEF may publish or correct dates after initial partido creation)
-            if campo and existing.get("ubicacion") != campo:
-                update_data["ubicacion"] = campo
+            if lugar and existing.get("ubicacion") != lugar:
+                update_data["ubicacion"] = lugar
+            if arbitro and existing.get("arbitro") != arbitro:
+                update_data["arbitro"] = arbitro
             if hora and existing.get("hora") != hora:
                 update_data["hora"] = hora
             if fecha and existing.get("fecha") != fecha.isoformat():
@@ -359,7 +363,8 @@ def link_competition(supabase, comp: dict) -> dict:
                 "jornada": jornada_num,
                 "rfef_competicion_id": comp_id,
                 "auto_creado": True,
-                "ubicacion": campo or None,
+                "ubicacion": lugar or None,
+                "arbitro": arbitro or None,
             }
 
             # Only set fecha if available (don't skip the match)

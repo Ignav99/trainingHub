@@ -14,6 +14,7 @@ import httpx
 from jinja2 import Environment, FileSystemLoader
 
 from app.services.tarea_descanso import format_descanso
+from app.services.partido_campo import split_campo_arbitro
 
 logger = logging.getLogger(__name__)
 
@@ -548,11 +549,14 @@ async def generate_convocatoria_pdf(
     color = organizacion.get("color_primario", "#1a365d")
     convocados = build_convocatoria_pdf_rows(convocatoria)
 
-    lugar_partido = (
+    raw_lugar = (
         (partido.get("ubicacion") or rival.get("estadio") or rival.get("ciudad") or "")
     ).strip()
+    lugar_partido, arbitro_from_lugar = split_campo_arbitro(raw_lugar)
+    arbitro = (partido.get("arbitro") or arbitro_from_lugar or "").strip()
     hora_citacion = (partido.get("hora_citacion") or "").strip()
-    lugar_citacion = (partido.get("lugar_citacion") or lugar_partido or "").strip()
+    raw_citacion = (partido.get("lugar_citacion") or lugar_partido or "").strip()
+    lugar_citacion, _ = split_campo_arbitro(raw_citacion)
     kit = partido.get("kit_convocatoria") or (
         "visitante" if partido.get("localia") == "visitante" else "local"
     )
@@ -570,6 +574,7 @@ async def generate_convocatoria_pdf(
             jornada=partido.get("jornada"),
             localia=partido.get("localia", ""),
             lugar_partido=lugar_partido,
+            arbitro=arbitro,
             hora_citacion=hora_citacion,
             lugar_citacion=lugar_citacion,
             kit_convocatoria=kit,
