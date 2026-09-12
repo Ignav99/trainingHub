@@ -1,5 +1,15 @@
 export type KitConvocatoria = 'local' | 'visitante'
 
+export interface KitCombo {
+  camiseta: KitConvocatoria
+  pantalon: KitConvocatoria
+  medias: KitConvocatoria
+}
+
+const KIT_SIDE = /^(local|visitante)$/
+const PITCH_CUT_RE =
+  /\s*[([{]\s*f\s*-?\s*11\b|\s+f\s*-?\s*11\b|\s+hierba\s+artificial\b|\s+c[eé]sped\s+artificial\b|\s+hierba\s+natural\b|\s+c[eé]sped\s+natural\b/iu
+
 export interface CartelPlayer {
   dorsal: number | null
   nombre: string
@@ -66,6 +76,71 @@ export function defaultKitConvocatoria(localia?: string | null): KitConvocatoria
   return localia === 'visitante' ? 'visitante' : 'local'
 }
 
+export function uniformKitCombo(side: KitConvocatoria): KitCombo {
+  return { camiseta: side, pantalon: side, medias: side }
+}
+
+export function parseKitCombo(raw?: string | null, localia?: string | null): KitCombo {
+  const fallback = uniformKitCombo(defaultKitConvocatoria(localia))
+  const text = (raw || '').trim().toLowerCase()
+  if (!text) return fallback
+  if (KIT_SIDE.test(text)) return uniformKitCombo(text as KitConvocatoria)
+  const parts = text.split(':')
+  if (
+    parts.length === 3 &&
+    parts.every((p) => KIT_SIDE.test(p))
+  ) {
+    return {
+      camiseta: parts[0] as KitConvocatoria,
+      pantalon: parts[1] as KitConvocatoria,
+      medias: parts[2] as KitConvocatoria,
+    }
+  }
+  return fallback
+}
+
+export function serializeKitCombo(combo: KitCombo): string {
+  if (combo.camiseta === combo.pantalon && combo.pantalon === combo.medias) {
+    return combo.camiseta
+  }
+  return `${combo.camiseta}:${combo.pantalon}:${combo.medias}`
+}
+
+export function kitPiecesFromCombo<
+  T extends {
+    color_camiseta_principal: string
+    color_camiseta_secundario?: string | null
+    patron_camiseta: string
+    color_pantalon: string
+    color_medias: string
+  },
+>(kits: Partial<Record<KitConvocatoria, T | undefined>>, combo: KitCombo): T | null {
+  const shirt = kits[combo.camiseta] || kits.local || kits.visitante
+  if (!shirt) return null
+  const shorts = kits[combo.pantalon] || shirt
+  const socks = kits[combo.medias] || shirt
+  return {
+    ...shirt,
+    color_pantalon: shorts.color_pantalon,
+    color_medias: socks.color_medias,
+  }
+}
+
+export function isUniformKit(combo: KitCombo): KitConvocatoria | null {
+  if (combo.camiseta === combo.pantalon && combo.pantalon === combo.medias) {
+    return combo.camiseta
+  }
+  return null
+}
+
+export function cleanEstadioNombre(raw?: string | null): string {
+  let lugar = splitCampoArbitro(raw).lugar
+  if (!lugar) return ''
+  const cut = lugar.match(PITCH_CUT_RE)
+  if (cut && cut.index != null) lugar = lugar.slice(0, cut.index)
+  return lugar.replace(/[\s\-–—,.;:]+$/u, '').trim()
+}
+
 export function splitCampoArbitro(raw?: string | null): { lugar: string; arbitro: string } {
   const text = (raw || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim()
   if (!text) return { lugar: '', arbitro: '' }
@@ -89,7 +164,10 @@ export function resolveCartelLugarArbitro(opts: {
 }): { lugar: string; arbitro: string } {
   const fromUbicacion = splitCampoArbitro(opts.ubicacion)
   const fromEstadio = splitCampoArbitro(opts.estadio)
-  const lugar = fromUbicacion.lugar || fromEstadio.lugar || (opts.ciudad || '').trim()
+  const lugar =
+    cleanEstadioNombre(fromUbicacion.lugar) ||
+    cleanEstadioNombre(fromEstadio.lugar) ||
+    (opts.ciudad || '').trim()
   const arbitro = (opts.arbitro || '').trim() || fromUbicacion.arbitro || fromEstadio.arbitro
   return { lugar, arbitro }
 }
@@ -123,7 +201,7 @@ export function defaultLugarCitacion(opts: {
   ciudad?: string | null
   arbitro?: string | null
 }): string {
-  const saved = splitCampoArbitro(opts.saved).lugar
+  const saved = cleanEstadioNombre(opts.saved)
   if (saved) return saved
   return defaultLugarPartido(opts) || 'Por confirmar'
 }

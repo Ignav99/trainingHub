@@ -30,7 +30,8 @@ export function JerseyPreview({
   const gradientId = `jersey-grad-${rawId}`
 
   const secundario = colorSecundario || colorPrincipal
-  const crest = Math.max(11, Math.round(size * 0.14))
+  // Pecho, dentro del torso (no en la manga). Más chico para no salirse.
+  const crest = Math.max(7, Math.round(size * 0.1))
 
   // Silueta: torso con cuello en V y bultos de manga corta a cada lado.
   const jerseySilhouette =
@@ -61,7 +62,7 @@ export function JerseyPreview({
   return (
     <div
       className="relative shrink-0"
-      style={{ width: size, height: size }}
+      style={{ width: size, height: size, overflow: 'hidden' }}
       role="img"
       aria-label="Vista previa de camiseta"
     >
@@ -111,9 +112,9 @@ export function JerseyPreview({
           {...(/^https?:/i.test(escudoUrl) ? { crossOrigin: 'anonymous' as const } : {})}
           style={{
             position: 'absolute',
-            // Pecho izquierdo del jugador = derecha en vista frontal
-            left: '62%',
-            top: '35%',
+            // Pecho izquierdo del jugador = interior derecho del torso, no la manga
+            left: '56%',
+            top: '36%',
             width: crest,
             height: crest,
             objectFit: 'contain',

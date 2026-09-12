@@ -5,11 +5,15 @@ import {
   defaultKitConvocatoria,
   defaultLugarCitacion,
   defaultLugarPartido,
+  isUniformKit,
   jornadaLabel,
+  parseKitCombo,
   partidoLugarArbitro,
+  serializeKitCombo,
   slugCartelFilename,
   sortConvocadosForCartel,
   splitCampoArbitro,
+  uniformKitCombo,
 } from './convocatoriaCartel.ts'
 
 function conv(partial: {
@@ -113,6 +117,37 @@ describe('convocatoria cartel', () => {
       }).arbitro,
       'Nuevo',
     )
+  })
+
+  it('strips (F11) and artificial pitch from stadium names', () => {
+    assert.equal(
+      defaultLugarPartido({ ubicacion: 'Campo El Palmar (F11) Hierba Artificial' }),
+      'Campo El Palmar',
+    )
+    assert.equal(
+      defaultLugarCitacion({
+        saved: 'Campo El Palmar (F11) Hierba Artificial',
+        ubicacion: 'Otro',
+      }),
+      'Campo El Palmar',
+    )
+    assert.equal(
+      partidoLugarArbitro({
+        ubicacion: 'Municipal (f11) césped artificialÁrbitro: Uno',
+      }).lugar,
+      'Municipal',
+    )
+  })
+
+  it('stores mixed kit as camiseta:pantalon:medias and keeps uniform as one word', () => {
+    assert.deepEqual(parseKitCombo('local'), uniformKitCombo('local'))
+    assert.deepEqual(parseKitCombo(null, 'visitante'), uniformKitCombo('visitante'))
+    assert.equal(serializeKitCombo(uniformKitCombo('visitante')), 'visitante')
+    const mixed = parseKitCombo('local:visitante:local')
+    assert.deepEqual(mixed, { camiseta: 'local', pantalon: 'visitante', medias: 'local' })
+    assert.equal(serializeKitCombo(mixed), 'local:visitante:local')
+    assert.equal(isUniformKit(mixed), null)
+    assert.equal(isUniformKit(uniformKitCombo('local')), 'local')
   })
 
   it('labels jornada without exposing a starting XI', () => {

@@ -14,7 +14,7 @@ import httpx
 from jinja2 import Environment, FileSystemLoader
 
 from app.services.tarea_descanso import format_descanso
-from app.services.partido_campo import split_campo_arbitro
+from app.services.partido_campo import clean_estadio_nombre, format_kit_convocatoria_label, split_campo_arbitro
 
 logger = logging.getLogger(__name__)
 
@@ -552,13 +552,15 @@ async def generate_convocatoria_pdf(
     raw_lugar = (
         (partido.get("ubicacion") or rival.get("estadio") or rival.get("ciudad") or "")
     ).strip()
-    lugar_partido, arbitro_from_lugar = split_campo_arbitro(raw_lugar)
+    lugar_partido = clean_estadio_nombre(raw_lugar) or split_campo_arbitro(raw_lugar)[0]
+    _, arbitro_from_lugar = split_campo_arbitro(raw_lugar)
     arbitro = (partido.get("arbitro") or arbitro_from_lugar or "").strip()
     hora_citacion = (partido.get("hora_citacion") or "").strip()
     raw_citacion = (partido.get("lugar_citacion") or lugar_partido or "").strip()
-    lugar_citacion, _ = split_campo_arbitro(raw_citacion)
-    kit = partido.get("kit_convocatoria") or (
-        "visitante" if partido.get("localia") == "visitante" else "local"
+    lugar_citacion = clean_estadio_nombre(raw_citacion)
+    kit = format_kit_convocatoria_label(
+        partido.get("kit_convocatoria"),
+        partido.get("localia"),
     )
 
     def _render() -> bytes:

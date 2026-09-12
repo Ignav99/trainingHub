@@ -56,7 +56,7 @@ import { FORMATIONS } from '@/lib/formations'
 import { SlotPlayerSelect } from '@/components/sesion/SlotPlayerSelect'
 import { isPortero, jugadorZona, type SlotPlayer } from '@/lib/slotPlayerGroups'
 import { formatDate } from '@/lib/utils'
-import { partidoLugarArbitro, splitCampoArbitro } from '@/lib/convocatoriaCartel'
+import { cleanEstadioNombre, partidoLugarArbitro, splitCampoArbitro } from '@/lib/convocatoriaCartel'
 import {
   isConvocableAmistoso,
   isConvocableOficial,
@@ -628,7 +628,7 @@ export function MatchDetailPanel({
       localia: selectedPartido.localia as 'local' | 'visitante' | 'neutral' || 'local',
       competicion: selectedPartido.competicion as 'liga' | 'copa' | 'amistoso' | 'torneo' | 'otro' || 'liga',
       jornada: selectedPartido.jornada ? String(selectedPartido.jornada) : '',
-      ubicacion: splitCampoArbitro(selectedPartido.ubicacion).lugar,
+      ubicacion: cleanEstadioNombre(selectedPartido.ubicacion),
       arbitro:
         (selectedPartido.arbitro || '').trim() ||
         splitCampoArbitro(selectedPartido.ubicacion).arbitro,
@@ -661,7 +661,7 @@ export function MatchDetailPanel({
         localia: editForm.localia,
         competicion: editForm.competicion,
         jornada: editForm.jornada ? parseInt(editForm.jornada) : undefined,
-        ubicacion: splitCampoArbitro(editForm.ubicacion).lugar || undefined,
+        ubicacion: cleanEstadioNombre(editForm.ubicacion) || undefined,
         arbitro:
           editForm.arbitro.trim() ||
           splitCampoArbitro(editForm.ubicacion).arbitro ||

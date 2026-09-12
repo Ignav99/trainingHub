@@ -53,7 +53,7 @@ export function KitFullPreview({ kit, size = 120, labels = true, escudoUrl }: Ki
   )
 }
 
-function Shorts({ color, width, height }: { color: string; width: number; height: number }) {
+export function Shorts({ color, width, height }: { color: string; width: number; height: number }) {
   return (
     <svg width={width} height={height} viewBox="0 0 80 44" aria-hidden>
       <path
@@ -74,7 +74,7 @@ function Shorts({ color, width, height }: { color: string; width: number; height
   )
 }
 
-function Sock({ color, width, height }: { color: string; width: number; height: number }) {
+export function Sock({ color, width, height }: { color: string; width: number; height: number }) {
   return (
     <svg width={width} height={height} viewBox="0 0 26 54" aria-hidden>
       <path

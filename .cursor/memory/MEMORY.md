@@ -9,3 +9,6 @@ Bajo `lg` el dashboard refluja; el portátil no cambia.
 
 ## Partidos calendario
 Nunca 500/vacío por columna opcional (`arbitro`). Linker no purge si scrape RFEF vacío o <50% jornadas. Amistosos no se tocan.
+
+## Cartel convocatoria
+Campo sin (F11)/hierba artificial. Kit = camiseta+calzonas+medias mezclables; 2 botones kit completo. Escudo en el pecho. Sin texto local/visitante en el cartel.
