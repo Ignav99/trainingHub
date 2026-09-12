@@ -117,11 +117,8 @@ export function JerseyPreview({
             width: crest,
             height: crest,
             objectFit: 'contain',
-            background: 'rgba(255,255,255,0.94)',
-            borderRadius: 2,
-            padding: Math.max(1, Math.round(crest * 0.08)),
+            background: 'transparent',
             pointerEvents: 'none',
-            boxShadow: '0 0 0 0.5px rgba(0,0,0,0.12)',
           }}
         />
       ) : null}

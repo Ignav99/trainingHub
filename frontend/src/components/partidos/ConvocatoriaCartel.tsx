@@ -266,7 +266,7 @@ function Crest({ src, name }: { src?: string | null; name: string }) {
         width={52}
         height={52}
         crossOrigin="anonymous"
-        style={{ width: 52, height: 52, objectFit: 'contain', background: '#F3EFE4', borderRadius: 8, padding: 4 }}
+        style={{ width: 52, height: 52, objectFit: 'contain', background: 'transparent' }}
       />
     )
   }
