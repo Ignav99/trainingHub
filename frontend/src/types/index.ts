@@ -1749,6 +1749,7 @@ export interface Partido {
   rfef_competicion_id?: string
   auto_creado?: boolean
   ubicacion?: string
+  arbitro?: string | null
 
   // Cartel de convocatoria (citación + kit)
   hora_citacion?: string | null

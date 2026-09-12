@@ -357,7 +357,7 @@ export default function ConfiguracionPage() {
             <CardHeader>
               <CardTitle className="text-lg">Equipacion del club</CardTitle>
               <CardDescription>
-                Camiseta, calzonas y medias. El escudo que subes arriba va en el pecho izquierdo.
+                Local y visitante. El escudo que subes arriba va en el pecho izquierdo.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

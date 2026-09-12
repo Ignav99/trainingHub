@@ -56,6 +56,7 @@ import { FORMATIONS } from '@/lib/formations'
 import { SlotPlayerSelect } from '@/components/sesion/SlotPlayerSelect'
 import { isPortero, jugadorZona, type SlotPlayer } from '@/lib/slotPlayerGroups'
 import { formatDate } from '@/lib/utils'
+import { partidoLugarArbitro, splitCampoArbitro } from '@/lib/convocatoriaCartel'
 import {
   isConvocableAmistoso,
   isConvocableOficial,
@@ -202,6 +203,7 @@ export function MatchDetailPanel({
     competicion: 'liga' as 'liga' | 'copa' | 'amistoso' | 'torneo' | 'otro',
     jornada: '',
     ubicacion: '',
+    arbitro: '',
   })
   const [savingEdit, setSavingEdit] = useState(false)
   const [rivalesEdit, setRivalesEdit] = useState<Rival[]>([])
@@ -626,7 +628,10 @@ export function MatchDetailPanel({
       localia: selectedPartido.localia as 'local' | 'visitante' | 'neutral' || 'local',
       competicion: selectedPartido.competicion as 'liga' | 'copa' | 'amistoso' | 'torneo' | 'otro' || 'liga',
       jornada: selectedPartido.jornada ? String(selectedPartido.jornada) : '',
-      ubicacion: selectedPartido.ubicacion || '',
+      ubicacion: splitCampoArbitro(selectedPartido.ubicacion).lugar,
+      arbitro:
+        (selectedPartido.arbitro || '').trim() ||
+        splitCampoArbitro(selectedPartido.ubicacion).arbitro,
     })
     setShowEdit(true)
     if (rivalesEdit.length === 0) {
@@ -656,7 +661,11 @@ export function MatchDetailPanel({
         localia: editForm.localia,
         competicion: editForm.competicion,
         jornada: editForm.jornada ? parseInt(editForm.jornada) : undefined,
-        ubicacion: editForm.ubicacion || undefined,
+        ubicacion: splitCampoArbitro(editForm.ubicacion).lugar || undefined,
+        arbitro:
+          editForm.arbitro.trim() ||
+          splitCampoArbitro(editForm.ubicacion).arbitro ||
+          null,
       })
       mutate((key: string) => typeof key === 'string' && key.includes('/partidos'), undefined, { revalidate: true })
       setShowEdit(false)
@@ -1135,6 +1144,7 @@ export function MatchDetailPanel({
           {/* Result card */}
           {(() => {
             const resInfo = selectedPartido.resultado ? RESULTADO_LABELS[selectedPartido.resultado] : null
+            const venue = partidoLugarArbitro(selectedPartido)
             return (
               <Card className={`card-hover ${resInfo ? `border-2 ${resInfo.color.split(' ')[0].replace('bg-', 'border-')}` : ''}`}>
                 <CardContent className="p-6">
@@ -1183,12 +1193,15 @@ export function MatchDetailPanel({
                         {formatDate(selectedPartido.fecha)}
                       </span>
                       {selectedPartido.hora && <span>{selectedPartido.hora}h</span>}
-                      {selectedPartido.ubicacion && (
+                      {venue.lugar ? (
                         <span className="flex items-center gap-1">
                           <MapPin className="h-3.5 w-3.5" />
-                          {selectedPartido.ubicacion}
+                          {venue.lugar}
                         </span>
-                      )}
+                      ) : null}
+                      {venue.arbitro ? (
+                        <span>Árbitro: {venue.arbitro}</span>
+                      ) : null}
                     </div>
                   </div>
                 </CardContent>
@@ -1802,16 +1815,24 @@ export function MatchDetailPanel({
                 </select>
               </div>
             </div>
-            {/* Jornada y Ubicación */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Jornada</Label>
                 <Input type="number" min="1" value={editForm.jornada} onChange={(e) => setEditForm({ ...editForm, jornada: e.target.value })} placeholder="Ej: 15" />
               </div>
               <div className="space-y-1">
-                <Label><MapPin className="h-3.5 w-3.5 inline mr-1" />Ubicación</Label>
+                <Label><MapPin className="h-3.5 w-3.5 inline mr-1" />Estadio</Label>
                 <Input type="text" value={editForm.ubicacion} onChange={(e) => setEditForm({ ...editForm, ubicacion: e.target.value })} placeholder="Ej: Estadio Municipal" />
               </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Árbitro</Label>
+              <Input
+                type="text"
+                value={editForm.arbitro}
+                onChange={(e) => setEditForm({ ...editForm, arbitro: e.target.value })}
+                placeholder="Ej: Pérez García, Juan"
+              />
             </div>
           </div>
           <DialogFooter>

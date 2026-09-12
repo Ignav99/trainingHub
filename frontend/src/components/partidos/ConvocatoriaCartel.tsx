@@ -1,7 +1,7 @@
 'use client'
 
 import type { Ref } from 'react'
-import { KitFullPreview } from '@/components/equipaciones/KitFullPreview'
+import { JerseyPreview } from '@/components/equipaciones/JerseyPreview'
 import type { Equipacion } from '@/lib/api/equipaciones'
 import type { CartelPlayer } from '@/lib/convocatoriaCartel'
 import { formatFechaCartel, jornadaLabel } from '@/lib/convocatoriaCartel'
@@ -17,6 +17,7 @@ export interface ConvocatoriaCartelProps {
   competicion?: string | null
   localia?: string | null
   lugarPartido: string
+  arbitro?: string | null
   horaCitacion: string
   lugarCitacion: string
   kitLabel: string
@@ -37,6 +38,7 @@ export function ConvocatoriaCartel({
   competicion,
   localia,
   lugarPartido,
+  arbitro,
   horaCitacion,
   lugarCitacion,
   kitLabel,
@@ -83,8 +85,37 @@ export function ConvocatoriaCartel({
       />
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative' }}>
-        <Crest src={clubLogoUrl} name={clubNombre} />
-        <div style={{ textAlign: 'right' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8, minWidth: 88 }}>
+          <Crest src={clubLogoUrl} name={clubNombre} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {kit ? (
+              <JerseyPreview
+                colorPrincipal={kit.color_camiseta_principal}
+                colorSecundario={kit.color_camiseta_secundario || undefined}
+                patron={kit.patron_camiseta}
+                size={42}
+                escudoUrl={clubLogoUrl}
+              />
+            ) : null}
+            <div>
+              <div style={{ fontSize: 8, letterSpacing: '0.16em', color: '#D4E54E', fontWeight: 700 }}>
+                JUGAREMOS DE
+              </div>
+              <div
+                style={{
+                  fontFamily: 'Oswald, "Arial Narrow", Impact, sans-serif',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  lineHeight: 1.1,
+                }}
+              >
+                {kitLabel}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style={{ textAlign: 'center', paddingTop: 4 }}>
           <div
             style={{
               fontFamily: 'Oswald, "Arial Narrow", Impact, sans-serif',
@@ -105,7 +136,7 @@ export function ConvocatoriaCartel({
         <Crest src={rivalEscudoUrl} name={rivalNombre} />
       </div>
 
-      <div style={{ marginTop: 22, position: 'relative' }}>
+      <div style={{ marginTop: 18, position: 'relative' }}>
         <div
           style={{
             fontFamily: 'Oswald, "Arial Narrow", Impact, sans-serif',
@@ -144,7 +175,7 @@ export function ConvocatoriaCartel({
         <Meta label="Día" value={fechaTxt || '—'} />
         <Meta label="Hora del partido" value={horaPartido ? `${horaPartido} h` : '—'} />
         <Meta label="Lugar" value={lugarPartido || '—'} />
-        <Meta label="Localía" value={localiaLabel(localia)} />
+        <Meta label="Árbitro" value={arbitro || '—'} />
       </div>
 
       <div
@@ -169,37 +200,7 @@ export function ConvocatoriaCartel({
         </div>
       </div>
 
-      <div
-        style={{
-          marginTop: 16,
-          display: 'flex',
-          gap: 16,
-          alignItems: 'center',
-          borderTop: '1px solid #D4E54E33',
-          borderBottom: '1px solid #D4E54E33',
-          padding: '12px 0',
-        }}
-      >
-        <div style={{ color: '#F3EFE4' }}>
-          <KitFullPreview kit={kit} size={108} labels={false} escudoUrl={clubLogoUrl} />
-        </div>
-        <div>
-          <div style={{ fontSize: 9, letterSpacing: '0.22em', color: '#D4E54E', fontWeight: 700 }}>EQUIPACIÓN</div>
-          <div
-            style={{
-              fontFamily: 'Oswald, "Arial Narrow", Impact, sans-serif',
-              fontSize: 20,
-              fontWeight: 700,
-              textTransform: 'uppercase',
-            }}
-          >
-            {kitLabel}
-          </div>
-          <div style={{ fontSize: 11, opacity: 0.75, marginTop: 4 }}>Camiseta, calzonas y medias de Configuración</div>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 16, fontSize: 9, letterSpacing: '0.22em', color: '#D4E54E', fontWeight: 700 }}>
+      <div style={{ marginTop: 18, fontSize: 9, letterSpacing: '0.22em', color: '#D4E54E', fontWeight: 700 }}>
         CONVOCADOS · {players.length} · POR DORSAL
       </div>
       <div
@@ -208,7 +209,7 @@ export function ConvocatoriaCartel({
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
           columnGap: 16,
-          rowGap: 5,
+          rowGap: 8,
         }}
       >
         {players.map((p, i) => (
@@ -216,21 +217,29 @@ export function ConvocatoriaCartel({
             <span
               style={{
                 fontFamily: 'Oswald, "Arial Narrow", Impact, sans-serif',
-                fontSize: 18,
+                fontSize: 22,
                 fontWeight: 700,
                 color: '#D4E54E',
-                width: 28,
+                width: 32,
                 flexShrink: 0,
               }}
             >
               {p.dorsal ?? '—'}
             </span>
             <span style={{ minWidth: 0 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+              <span
+                style={{
+                  fontSize: 18,
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.02em',
+                  lineHeight: 1.15,
+                }}
+              >
                 {playerLine(p)}
               </span>
               {p.apodo ? (
-                <span style={{ display: 'block', fontSize: 10, opacity: 0.65 }}>{p.apodo}</span>
+                <span style={{ display: 'block', fontSize: 11, opacity: 0.7 }}>{p.apodo}</span>
               ) : null}
             </span>
           </div>
@@ -244,7 +253,7 @@ function Meta({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <div style={{ fontSize: 9, letterSpacing: '0.18em', color: '#D4E54E', fontWeight: 700 }}>{label.toUpperCase()}</div>
-      <div style={{ marginTop: 2, fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}>{value}</div>
+      <div style={{ marginTop: 2, fontSize: 13, fontWeight: 600 }}>{value}</div>
     </div>
   )
 }
@@ -293,10 +302,4 @@ function Crest({ src, name }: { src?: string | null; name: string }) {
 function playerLine(p: CartelPlayer): string {
   const full = `${p.nombre} ${p.apellidos}`.trim()
   return full || 'Jugador'
-}
-
-function localiaLabel(localia?: string | null): string {
-  if (localia === 'visitante') return 'Visitante'
-  if (localia === 'neutral') return 'Neutral'
-  return 'Local'
 }

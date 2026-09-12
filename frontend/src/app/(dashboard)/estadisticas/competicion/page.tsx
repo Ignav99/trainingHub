@@ -36,6 +36,7 @@ import { partidosApi } from '@/lib/api/partidos'
 import { apiKey } from '@/lib/swr'
 import type { Partido } from '@/types'
 import { formatJornadaKickoff } from '@/lib/jornadaKickoff'
+import { partidoLugarArbitro } from '@/lib/convocatoriaCartel'
 
 // ============ Helpers ============
 
@@ -669,12 +670,12 @@ export default function CompeticionPage() {
                           ) : (
                             <Badge variant="outline" className="text-[10px]">Pendiente</Badge>
                           )}
-                          {p.ubicacion && (
+                          {partidoLugarArbitro(p).lugar ? (
                             <span className="text-[10px] text-muted-foreground hidden lg:flex items-center gap-0.5">
                               <MapPin className="h-2.5 w-2.5" />
-                              {p.ubicacion}
+                              {partidoLugarArbitro(p).lugar}
                             </span>
-                          )}
+                          ) : null}
                         </Link>
                       )
                     })}

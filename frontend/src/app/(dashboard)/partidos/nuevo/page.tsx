@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { partidosApi, rivalesApi } from '@/lib/api/partidos'
+import { splitCampoArbitro } from '@/lib/convocatoriaCartel'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { Rival } from '@/types'
 import { revalidateKeysContaining } from '@/lib/swrCache'
@@ -44,6 +45,7 @@ export default function NuevoPartidoPage() {
     competicion: 'liga' as Competicion,
     jornada: '',
     ubicacion: '',
+    arbitro: '',
     notas_pre: ''
   })
 
@@ -93,10 +95,13 @@ export default function NuevoPartidoPage() {
 
     setLoading(true)
     try {
+      const campo = splitCampoArbitro(formData.ubicacion)
       await partidosApi.create({
         ...formData,
         equipo_id: equipoActivo?.id,
-        jornada: formData.jornada ? parseInt(formData.jornada) : undefined
+        jornada: formData.jornada ? parseInt(formData.jornada) : undefined,
+        ubicacion: campo.lugar || undefined,
+        arbitro: formData.arbitro.trim() || campo.arbitro || undefined,
       })
 
       revalidateKeysContaining('/partidos', '/dashboard', '/calendario')
@@ -274,7 +279,7 @@ export default function NuevoPartidoPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Ubicación / Estadio
+              Estadio
             </label>
             <input
               type="text"
@@ -284,6 +289,18 @@ export default function NuevoPartidoPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
             />
           </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Árbitro
+          </label>
+          <input
+            type="text"
+            value={formData.arbitro}
+            onChange={(e) => setFormData({ ...formData, arbitro: e.target.value })}
+            placeholder="Ej: Pérez García, Juan"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+          />
         </div>
 
         {/* Notas */}

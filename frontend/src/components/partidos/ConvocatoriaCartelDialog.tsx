@@ -20,16 +20,17 @@ import { partidosApi } from '@/lib/api/partidos'
 import { apiKey } from '@/lib/swr'
 import { useClubStore } from '@/stores/clubStore'
 import { useEquipoStore } from '@/stores/equipoStore'
-import { KitFullPreview } from '@/components/equipaciones/KitFullPreview'
+import { JerseyPreview } from '@/components/equipaciones/JerseyPreview'
 import type { Equipacion, TipoEquipacion } from '@/lib/api/equipaciones'
 import type { Convocatoria, Partido } from '@/types'
 import {
   defaultHoraCitacion,
   defaultKitConvocatoria,
   defaultLugarCitacion,
-  defaultLugarPartido,
+  partidoLugarArbitro,
   slugCartelFilename,
   sortConvocadosForCartel,
+  splitCampoArbitro,
   type KitConvocatoria,
 } from '@/lib/convocatoriaCartel'
 import { ConvocatoriaCartel } from './ConvocatoriaCartel'
@@ -75,15 +76,12 @@ export function ConvocatoriaCartelDialog({
   const equipoNombre = useEquipoStore((s) => s.equipoActivo?.nombre)
   const { data: clubKits } = useSWR<Equipacion[]>(open ? apiKey('/organizacion/equipaciones') : null)
 
-  const venue = useMemo(
-    () =>
-      defaultLugarPartido({
-        ubicacion: partido.ubicacion,
-        estadio: partido.rival?.estadio,
-        ciudad: partido.rival?.ciudad,
-      }),
-    [partido.ubicacion, partido.rival?.estadio, partido.rival?.ciudad],
-  )
+  const venue = useMemo(() => partidoLugarArbitro(partido), [
+    partido.ubicacion,
+    partido.arbitro,
+    partido.rival?.estadio,
+    partido.rival?.ciudad,
+  ])
 
   const [horaCitacion, setHoraCitacion] = useState('')
   const [lugarCitacion, setLugarCitacion] = useState('')
@@ -101,6 +99,7 @@ export function ConvocatoriaCartelDialog({
         ubicacion: partido.ubicacion,
         estadio: partido.rival?.estadio,
         ciudad: partido.rival?.ciudad,
+        arbitro: partido.arbitro,
       }),
     )
     setKitChoice(partido.kit_convocatoria || defaultKitConvocatoria(partido.localia))
@@ -113,6 +112,7 @@ export function ConvocatoriaCartelDialog({
     partido.kit_convocatoria,
     partido.localia,
     partido.ubicacion,
+    partido.arbitro,
     partido.rival?.estadio,
     partido.rival?.ciudad,
   ])
@@ -128,8 +128,9 @@ export function ConvocatoriaCartelDialog({
   const clubNombre = club.organizacion?.nombre || equipoNombre || 'Equipo'
   const clubLogoUrl = club.theme.logoUrl || club.organizacion?.logo_url || null
   const rivalNombre = partido.rival?.nombre || 'Rival'
-  const lugarPartido = venue || 'Por confirmar'
-  const kitLabel = kitChoice === 'visitante' ? 'Visitante' : 'Local'
+  const lugarPartido = venue.lugar || 'Por confirmar'
+  const arbitro = venue.arbitro
+  const kitLabel = kitChoice === 'visitante' ? 'visitante' : 'local'
 
   const persist = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -137,7 +138,7 @@ export function ConvocatoriaCartelDialog({
       try {
         await partidosApi.update(partido.id, {
           hora_citacion: horaCitacion.trim() || null,
-          lugar_citacion: lugarCitacion.trim() || null,
+          lugar_citacion: splitCampoArbitro(lugarCitacion).lugar || null,
           kit_convocatoria: kitChoice,
         })
         await mutate(apiKey(`/partidos/${partido.id}`))
@@ -250,14 +251,21 @@ export function ConvocatoriaCartelDialog({
                         : 'border-border hover:bg-muted/40'
                     }`}
                   >
-                    <KitFullPreview kit={kitsByTipo[key] ?? null} size={72} labels={false} escudoUrl={clubLogoUrl} />
-                    <span className="mt-1 block">{key}</span>
+                    {kitsByTipo[key] ? (
+                      <JerseyPreview
+                        colorPrincipal={kitsByTipo[key]!.color_camiseta_principal}
+                        colorSecundario={kitsByTipo[key]!.color_camiseta_secundario || undefined}
+                        patron={kitsByTipo[key]!.patron_camiseta}
+                        size={56}
+                        escudoUrl={clubLogoUrl}
+                      />
+                    ) : (
+                      <span className="block py-4 text-xs text-muted-foreground">Sin kit</span>
+                    )}
+                    <span className="mt-1 block">Jugaremos de {key}</span>
                   </button>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground">
-                Colores de Configuración → Equipaciones (camiseta, calzonas y medias).
-              </p>
             </div>
             <div className="flex flex-col gap-2 pt-2">
               <Button type="button" variant="outline" className="gap-2" onClick={handleSave} disabled={saving}>
@@ -296,6 +304,7 @@ export function ConvocatoriaCartelDialog({
                 competicion={partido.competicion}
                 localia={partido.localia}
                 lugarPartido={lugarPartido}
+                arbitro={arbitro}
                 horaCitacion={horaCitacion}
                 lugarCitacion={lugarCitacion}
                 kitLabel={kitLabel}

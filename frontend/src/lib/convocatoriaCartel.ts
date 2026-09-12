@@ -66,12 +66,54 @@ export function defaultKitConvocatoria(localia?: string | null): KitConvocatoria
   return localia === 'visitante' ? 'visitante' : 'local'
 }
 
+export function splitCampoArbitro(raw?: string | null): { lugar: string; arbitro: string } {
+  const text = (raw || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim()
+  if (!text) return { lugar: '', arbitro: '' }
+  const re = /(Árbitros?|Arbitros?|Colegiados?)\s*:?\s*/iu
+  const m = text.match(re)
+  if (!m || m.index == null) return { lugar: text, arbitro: '' }
+  const lugar = text.slice(0, m.index).replace(/[\s\-–—,.;:]+$/u, '').trim()
+  let rest = text.slice(m.index + m[0].length).trim()
+  const extra = rest.match(re)
+  if (extra && extra.index != null && extra.index > 0) {
+    rest = rest.slice(0, extra.index).replace(/[\s\-–—,.;:]+$/u, '').trim()
+  }
+  return { lugar, arbitro: rest }
+}
+
+export function resolveCartelLugarArbitro(opts: {
+  ubicacion?: string | null
+  arbitro?: string | null
+  estadio?: string | null
+  ciudad?: string | null
+}): { lugar: string; arbitro: string } {
+  const fromUbicacion = splitCampoArbitro(opts.ubicacion)
+  const fromEstadio = splitCampoArbitro(opts.estadio)
+  const lugar = fromUbicacion.lugar || fromEstadio.lugar || (opts.ciudad || '').trim()
+  const arbitro = (opts.arbitro || '').trim() || fromUbicacion.arbitro || fromEstadio.arbitro
+  return { lugar, arbitro }
+}
+
 export function defaultLugarPartido(opts: {
   ubicacion?: string | null
   estadio?: string | null
   ciudad?: string | null
+  arbitro?: string | null
 }): string {
-  return (opts.ubicacion || opts.estadio || opts.ciudad || '').trim()
+  return resolveCartelLugarArbitro(opts).lugar
+}
+
+export function partidoLugarArbitro(partido: {
+  ubicacion?: string | null
+  arbitro?: string | null
+  rival?: { estadio?: string | null; ciudad?: string | null } | null
+}): { lugar: string; arbitro: string } {
+  return resolveCartelLugarArbitro({
+    ubicacion: partido.ubicacion,
+    arbitro: partido.arbitro,
+    estadio: partido.rival?.estadio,
+    ciudad: partido.rival?.ciudad,
+  })
 }
 
 export function defaultLugarCitacion(opts: {
@@ -79,8 +121,9 @@ export function defaultLugarCitacion(opts: {
   ubicacion?: string | null
   estadio?: string | null
   ciudad?: string | null
+  arbitro?: string | null
 }): string {
-  const saved = (opts.saved || '').trim()
+  const saved = splitCampoArbitro(opts.saved).lugar
   if (saved) return saved
   return defaultLugarPartido(opts) || 'Por confirmar'
 }

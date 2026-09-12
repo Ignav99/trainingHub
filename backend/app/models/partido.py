@@ -111,6 +111,7 @@ class PartidoBase(BaseModel):
     rfef_competicion_id: Optional[UUID] = None
     auto_creado: Optional[bool] = False
     ubicacion: Optional[str] = None
+    arbitro: Optional[str] = Field(None, max_length=200)
 
     # Cartel de convocatoria
     hora_citacion: Optional[str] = Field(None, pattern=r"^\d{2}:\d{2}$")
@@ -141,6 +142,7 @@ class PartidoUpdate(BaseModel):
     video_url: Optional[str] = None
     informe_url: Optional[str] = None
     ubicacion: Optional[str] = None
+    arbitro: Optional[str] = Field(None, max_length=200)
     hora_citacion: Optional[str] = Field(None, pattern=r"^\d{2}:\d{2}$")
     lugar_citacion: Optional[str] = Field(None, max_length=200)
     kit_convocatoria: Optional[Literal["local", "visitante"]] = None

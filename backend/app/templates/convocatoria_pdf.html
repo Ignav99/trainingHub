@@ -100,8 +100,8 @@
             border-bottom: 2px solid {{ color_primario }};
         }
         table td {
-            padding: 8px 10px;
-            font-size: 12px;
+            padding: 10px 10px;
+            font-size: 15px;
             border-bottom: 1px solid #f1f5f9;
         }
         table tr:nth-child(even) { background: #fafbfc; }
@@ -164,6 +164,14 @@
             <div class="value">{{ total_convocados }}</div>
         </div>
         <div class="meta-box">
+            <div class="label">Lugar</div>
+            <div class="value">{{ lugar_partido or '—' }}</div>
+        </div>
+        <div class="meta-box">
+            <div class="label">Árbitro</div>
+            <div class="value">{{ arbitro or '—' }}</div>
+        </div>
+        <div class="meta-box">
             <div class="label">Citación</div>
             <div class="value">{% if hora_citacion %}{{ hora_citacion }} h{% else %}—{% endif %}</div>
         </div>
@@ -191,7 +199,7 @@
             {% for c in convocados %}
             <tr>
                 <td><span class="dorsal">{{ c.dorsal or '-' }}</span></td>
-                <td style="font-weight: 600;">{{ c.jugador_nombre }}</td>
+                <td style="font-weight: 700; font-size: 16px;">{{ c.jugador_nombre }}</td>
                 <td class="apodo">{{ c.apodo or '—' }}</td>
                 <td><span class="pos-badge">{{ c.posicion or '-' }}</span></td>
             </tr>
