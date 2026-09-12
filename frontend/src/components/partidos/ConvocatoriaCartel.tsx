@@ -112,48 +112,62 @@ export function ConvocatoriaCartel({
 
       <div
         style={{
-          marginTop: 16,
+          marginTop: 8,
           display: 'flex',
           alignItems: 'flex-start',
           justifyContent: 'space-between',
-          gap: 16,
+          gap: 12,
           position: 'relative',
           zIndex: 1,
         }}
       >
-        <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div
             style={{
               fontFamily: 'Oswald, "Arial Narrow", Impact, sans-serif',
-              fontSize: 30,
-              lineHeight: 1.05,
+              fontSize: 26,
+              lineHeight: 1.02,
               fontWeight: 700,
               textTransform: 'uppercase',
             }}
           >
             {clubNombre}
           </div>
-          <div style={{ color: '#D4E54E', fontSize: 12, letterSpacing: '0.28em', margin: '6px 0' }}>{vs}</div>
+          <div style={{ color: '#D4E54E', fontSize: 11, letterSpacing: '0.28em', margin: '4px 0' }}>{vs}</div>
           <div
             style={{
               fontFamily: 'Oswald, "Arial Narrow", Impact, sans-serif',
-              fontSize: 24,
-              lineHeight: 1.05,
+              fontSize: 20,
+              lineHeight: 1.02,
               fontWeight: 700,
               textTransform: 'uppercase',
             }}
           >
             {rivalNombre}
           </div>
+          <div
+            style={{
+              marginTop: 10,
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '5px 10px',
+              letterSpacing: '0.04em',
+            }}
+          >
+            <Meta label="Día" value={fechaTxt || '—'} />
+            <Meta label="Hora del partido" value={horaPartido ? `${horaPartido} h` : '—'} />
+            <Meta label="Lugar" value={lugarPartido || '—'} />
+            <Meta label="Árbitro" value={arbitro || '—'} />
+          </div>
         </div>
         {kit ? (
           <div
             style={{
-              width: 128,
+              width: 118,
               flexShrink: 0,
               border: '1.5px solid #D4E54E',
               background: 'transparent',
-              padding: '8px 8px 10px',
+              padding: '6px 6px 8px',
             }}
           >
             <div
@@ -163,35 +177,19 @@ export function ConvocatoriaCartel({
                 color: '#D4E54E',
                 fontWeight: 700,
                 textAlign: 'center',
-                marginBottom: 6,
+                marginBottom: 4,
               }}
             >
               VESTIREMOS CON…
             </div>
-            <KitFullPreview kit={kit} size={108} labels={false} escudoUrl={clubLogoUrl} />
+            <KitFullPreview kit={kit} size={102} labels={false} escudoUrl={clubLogoUrl} />
           </div>
         ) : null}
       </div>
 
       <div
         style={{
-          marginTop: 22,
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 8,
-          fontSize: 10,
-          letterSpacing: '0.04em',
-        }}
-      >
-        <Meta label="Día" value={fechaTxt || '—'} />
-        <Meta label="Hora del partido" value={horaPartido ? `${horaPartido} h` : '—'} />
-        <Meta label="Lugar" value={lugarPartido || '—'} />
-        <Meta label="Árbitro" value={arbitro || '—'} />
-      </div>
-
-      <div
-        style={{
-          marginTop: 16,
+          marginTop: 12,
           background: '#D4E54E',
           color: '#0B1F17',
           padding: '12px 14px',
@@ -263,8 +261,8 @@ export function ConvocatoriaCartel({
 function Meta({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div style={{ fontSize: 8, letterSpacing: '0.16em', color: '#D4E54E', fontWeight: 700 }}>{label.toUpperCase()}</div>
-      <div style={{ marginTop: 1, fontSize: 11, fontWeight: 600, lineHeight: 1.25 }}>{value}</div>
+      <div style={{ fontSize: 7, letterSpacing: '0.16em', color: '#D4E54E', fontWeight: 700 }}>{label.toUpperCase()}</div>
+      <div style={{ marginTop: 1, fontSize: 10, fontWeight: 600, lineHeight: 1.2 }}>{value}</div>
     </div>
   )
 }

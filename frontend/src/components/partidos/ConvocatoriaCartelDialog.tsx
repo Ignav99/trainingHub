@@ -311,9 +311,9 @@ export function ConvocatoriaCartelDialog({
                           ) : piece === 'pantalon' ? (
                             <Shorts color={kitSide.color_pantalon} width={52} height={28} />
                           ) : (
-                            <div className="flex gap-2" aria-hidden>
-                              <Sock color={kitSide.color_medias} width={16} height={36} />
-                              <Sock color={kitSide.color_medias} width={16} height={36} />
+                            <div className="flex gap-1" aria-hidden>
+                              <Sock color={kitSide.color_medias} width={18} height={40} lean={-5} />
+                              <Sock color={kitSide.color_medias} width={18} height={40} lean={5} />
                             </div>
                           )}
                         </button>
