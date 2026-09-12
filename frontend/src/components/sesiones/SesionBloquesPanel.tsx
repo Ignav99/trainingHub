@@ -90,7 +90,7 @@ export interface SesionBloquesPanelProps {
   savingTareas?: boolean
   staffOptions: string[]
   formacionDialogStId: string | null
-  jugadores?: Array<Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'apodo' | 'dorsal' | 'posicion_principal'>>
+  jugadores?: Array<Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'apodo' | 'dorsal' | 'posicion_principal' | 'posiciones_secundarias' | 'es_portero'>>
   onOpenTaskPicker: (fase: FaseSesion) => void
   onEstructuraChange: (bloques: SesionBloque[]) => void
   onMoveTarea: (tarea: SesionTarea, direction: 'up' | 'down', bloqueOrder: FaseSesion[]) => void

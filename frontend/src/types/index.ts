@@ -856,8 +856,8 @@ export interface Convocatoria {
   created_at: string
   updated_at: string
   // Join data
-  jugador?: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'foto_url' | 'apodo'>
-  jugadores?: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'foto_url' | 'apodo'>
+  jugador?: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'posiciones_secundarias' | 'foto_url' | 'apodo' | 'es_portero'>
+  jugadores?: Pick<Jugador, 'id' | 'nombre' | 'apellidos' | 'dorsal' | 'posicion_principal' | 'posiciones_secundarias' | 'foto_url' | 'apodo' | 'es_portero'>
 }
 
 export interface ConvocatoriasJugadorStats {

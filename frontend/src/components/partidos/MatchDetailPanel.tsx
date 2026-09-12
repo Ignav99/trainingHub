@@ -50,9 +50,11 @@ import { useEquipoStore } from '@/stores/equipoStore'
 import { convocatoriasApi, CreateConvocatoriaData } from '@/lib/api/convocatorias'
 import { estadisticasPartidoApi, EstadisticaPartidoUpdateData } from '@/lib/api/estadisticasPartido'
 import { partidosApi, rivalesApi } from '@/lib/api/partidos'
-import { jugadoresApi, Jugador, POSICIONES } from '@/lib/api/jugadores'
+import { jugadoresApi, Jugador, POSICIONES, posicionZonaClasses } from '@/lib/api/jugadores'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
-import { FORMATIONS, FormationSlot } from '@/lib/formations'
+import { FORMATIONS } from '@/lib/formations'
+import { SlotPlayerSelect } from '@/components/sesion/SlotPlayerSelect'
+import { isPortero, jugadorZona, type SlotPlayer } from '@/lib/slotPlayerGroups'
 import { formatDate } from '@/lib/utils'
 import {
   isConvocableAmistoso,
@@ -97,6 +99,13 @@ const RESULTADO_LABELS: Record<string, { label: string; color: string }> = {
 
 const ZONA_ORDER: Record<string, number> = { porteria: 0, defensa: 1, mediocampo: 2, ataque: 3 }
 
+const CONVOCAR_ZONAS: { key: 'porteria' | 'defensa' | 'mediocampo' | 'ataque'; label: string }[] = [
+  { key: 'porteria', label: 'Porteros' },
+  { key: 'defensa', label: 'Defensas' },
+  { key: 'mediocampo', label: 'Centrocampistas' },
+  { key: 'ataque', label: 'Delanteros' },
+]
+
 const TEAM_STAT_FIELDS = [
   { key: 'tiros_a_puerta', label: 'Tiros a puerta' },
   { key: 'ocasiones_gol', label: 'Ocasiones de gol' },
@@ -113,15 +122,7 @@ const TEAM_STAT_FIELDS = [
 // ============ Helpers ============
 
 function getPositionColor(pos: string): string {
-  const info = POSICIONES[pos as keyof typeof POSICIONES]
-  if (!info) return 'bg-gray-100 text-gray-800'
-  switch (info.zona) {
-    case 'porteria': return 'bg-amber-100 text-amber-800'
-    case 'defensa': return 'bg-blue-100 text-blue-800'
-    case 'mediocampo': return 'bg-emerald-100 text-emerald-800'
-    case 'ataque': return 'bg-red-100 text-red-800'
-    default: return 'bg-gray-100 text-gray-800'
-  }
+  return posicionZonaClasses(pos)
 }
 
 function getPlayerData(conv: Convocatoria) {
@@ -180,8 +181,7 @@ export function MatchDetailPanel({
   // Formation builder state
   const [selectedFormation, setSelectedFormation] = useState<string | null>(null)
   const [slotAssignments, setSlotAssignments] = useState<Record<string, string>>({})
-  const [pickingSlot, setPickingSlot] = useState<string | null>(null)
-  const [swapSource, setSwapSource] = useState<string | null>(null)
+  const [openLineupSlot, setOpenLineupSlot] = useState<string | null>(null)
   const [savingLineup, setSavingLineup] = useState(false)
 
   // ---- Informe state ----
@@ -343,10 +343,8 @@ export function MatchDetailPanel({
 
   const sortJugadoresByPosition = (list: Jugador[]) => {
     return [...list].sort((a, b) => {
-      const posA = POSICIONES[a.posicion_principal as keyof typeof POSICIONES]
-      const posB = POSICIONES[b.posicion_principal as keyof typeof POSICIONES]
-      const zA = posA ? (ZONA_ORDER[posA.zona] ?? 99) : 99
-      const zB = posB ? (ZONA_ORDER[posB.zona] ?? 99) : 99
+      const zA = ZONA_ORDER[jugadorZona(a)] ?? 99
+      const zB = ZONA_ORDER[jugadorZona(b)] ?? 99
       if (zA !== zB) return zA - zB
       return (a.dorsal || 99) - (b.dorsal || 99)
     })
@@ -374,6 +372,7 @@ export function MatchDetailPanel({
         jugadores.filter((j) => {
           if (j.equipo_id !== equipoActivo?.id) return false
           if (!isPlantilla(j)) return false
+          if (isPortero(j) && isOperativamenteConvocable(j)) return true
           return esAmistoso ? isConvocableAmistoso(j) : isConvocableOficial(j)
         })
       ),
@@ -491,54 +490,19 @@ export function MatchDetailPanel({
     }
   }
 
-  const handleSlotClick = (slot: FormationSlot) => {
-    const assignedConvId = slotAssignments[slot.id]
-    if (assignedConvId) {
-      if (swapSource) {
-        if (swapSource === slot.id) {
-          setSwapSource(null)
-        } else {
-          setSlotAssignments((prev) => {
-            const copy = { ...prev }
-            const temp = copy[swapSource]
-            copy[swapSource] = copy[slot.id]
-            copy[slot.id] = temp
-            return copy
-          })
-          setSwapSource(null)
-          setPickingSlot(null)
-        }
-      } else {
-        setPickingSlot(null)
-        setSwapSource(slot.id)
-      }
-    } else {
-      if (swapSource) {
-        setSlotAssignments((prev) => {
-          const copy = { ...prev }
-          copy[slot.id] = copy[swapSource]
-          delete copy[swapSource]
-          return copy
-        })
-        setSwapSource(null)
-        setPickingSlot(null)
-      } else {
-        setPickingSlot((prev) => (prev === slot.id ? null : slot.id))
-      }
-    }
-  }
-
-  const handlePickPlayer = (convId: string) => {
-    if (!pickingSlot) return
+  const handleAssignToSlot = (slotId: string, convId: string) => {
     setSlotAssignments((prev) => {
       const copy = { ...prev }
-      for (const [slotId, cId] of Object.entries(copy)) {
-        if (cId === convId) delete copy[slotId]
+      if (!convId) {
+        delete copy[slotId]
+        return copy
       }
-      copy[pickingSlot] = convId
+      for (const [id, cId] of Object.entries(copy)) {
+        if (cId === convId) delete copy[id]
+      }
+      copy[slotId] = convId
       return copy
     })
-    setPickingSlot(null)
   }
 
   const handleRemoveFromSlot = (slotId: string) => {
@@ -547,8 +511,7 @@ export function MatchDetailPanel({
       delete copy[slotId]
       return copy
     })
-    setSwapSource(null)
-    setPickingSlot(null)
+    setOpenLineupSlot(null)
   }
 
   const handleSaveLineup = async () => {
@@ -585,8 +548,24 @@ export function MatchDetailPanel({
     }
   }
 
-  // Player picker helpers
-  const pickingSlotData = activeFormation?.slots.find((s) => s.id === pickingSlot)
+  const lineupPlayers: SlotPlayer[] = useMemo(
+    () =>
+      convocados.map((conv) => {
+        const p = getPlayerData(conv)
+        const full = jugadores.find((j) => j.id === conv.jugador_id)
+        return {
+          id: conv.id,
+          nombre: p?.nombre || '',
+          apellidos: p?.apellidos || '',
+          apodo: p?.apodo,
+          dorsal: conv.dorsal || p?.dorsal,
+          posicion_principal: p?.posicion_principal,
+          posiciones_secundarias: p?.posiciones_secundarias || full?.posiciones_secundarias,
+          es_portero: Boolean(p?.es_portero ?? full?.es_portero) || isPortero({ posicion_principal: p?.posicion_principal }),
+        }
+      }),
+    [convocados, jugadores]
+  )
 
   // ============ Handlers: Post-partido ============
 
@@ -967,7 +946,7 @@ export function MatchDetailPanel({
                     )}
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-3 overflow-visible">
                   <div className="flex flex-wrap gap-1.5">
                     {FORMATIONS.map((f) => (
                       <button
@@ -976,13 +955,11 @@ export function MatchDetailPanel({
                           if (selectedFormation === f.name) {
                             setSelectedFormation(null)
                             setSlotAssignments({})
-                            setSwapSource(null)
-                            setPickingSlot(null)
+                            setOpenLineupSlot(null)
                           } else {
                             setSelectedFormation(f.name)
                             setSlotAssignments({})
-                            setSwapSource(null)
-                            setPickingSlot(null)
+                            setOpenLineupSlot(null)
                           }
                         }}
                         className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
@@ -999,124 +976,110 @@ export function MatchDetailPanel({
                   {/* Main layout: pitch + suplentes sidebar */}
                   {activeFormation ? (
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      {/* Pitch (3/4) */}
                       <div className="md:col-span-3">
-                        <div className="relative bg-emerald-600/90 rounded-xl overflow-hidden mx-auto" style={{ aspectRatio: '3/4' }}>
-                          <div className="absolute inset-4">
-                            <div className="absolute inset-0 border-2 border-white/30 rounded" />
-                            <div className="absolute top-1/2 left-0 right-0 border-t-2 border-white/30" />
-                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 border-2 border-white/30 rounded-full" />
-                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-[18%] border-2 border-t-0 border-white/30" />
-                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2/3 h-[18%] border-2 border-b-0 border-white/30" />
+                        <div className="relative mx-auto overflow-visible" style={{ aspectRatio: '3/4' }}>
+                          <div className="absolute inset-0 bg-emerald-600/90 rounded-xl overflow-hidden">
+                            <div className="absolute inset-4">
+                              <div className="absolute inset-0 border-2 border-white/30 rounded" />
+                              <div className="absolute top-1/2 left-0 right-0 border-t-2 border-white/30" />
+                              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 border-2 border-white/30 rounded-full" />
+                              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-[18%] border-2 border-t-0 border-white/30" />
+                              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2/3 h-[18%] border-2 border-b-0 border-white/30" />
+                            </div>
                           </div>
                           {activeFormation.slots.map((slot) => {
                             const convId = slotAssignments[slot.id]
                             const conv = convId ? convocados.find((c) => c.id === convId) : null
-                            const isSwapActive = swapSource === slot.id
-
-                            if (conv) {
-                              return (
-                                <button
-                                  key={slot.id}
-                                  className={`absolute -translate-x-1/2 -translate-y-1/2 text-center group cursor-pointer ${isSwapActive ? 'z-10' : ''}`}
-                                  style={{ top: slot.top, left: slot.left }}
-                                  onClick={() => handleSlotClick(slot)}
-                                  title={isSwapActive ? 'Click otro jugador para intercambiar' : 'Click para intercambiar'}
-                                >
-                                  <div
-                                    className={`relative transition-all ${
-                                      isSwapActive ? 'ring-2 ring-yellow-400 ring-offset-1 scale-110 rounded-full' : ''
-                                    }`}
-                                  >
-                                    <PlayerAvatar
-                                      player={{
-                                        ...(getPlayerData(conv) || {}),
-                                        dorsal: conv.dorsal || getPlayerData(conv)?.dorsal,
-                                        posicion_principal:
-                                          conv.posicion_asignada ||
-                                          getPlayerData(conv)?.posicion_principal ||
-                                          slot.position,
-                                      }}
-                                      size="sm"
-                                      preferDorsalFallback
-                                      className="shadow-md ring-2 ring-white/40"
-                                    />
-                                  </div>
-                                  <span className="block text-[9px] text-white font-medium mt-0.5 max-w-[60px] truncate drop-shadow">
-                                    {getPlayerDisplayName(conv)}
-                                  </span>
+                            const dropUp = Number.parseFloat(slot.top) >= 60
+                            const isOpen = openLineupSlot === slot.id
+                            return (
+                              <div
+                                key={slot.id}
+                                className={`absolute -translate-x-1/2 -translate-y-1/2 text-center ${isOpen ? 'z-30' : 'z-10'}`}
+                                style={{ top: slot.top, left: slot.left }}
+                              >
+                                <div className="relative group">
+                                <SlotPlayerSelect
+                                  slotLabel={slot.label}
+                                  selectedId={convId || ''}
+                                  jugadores={lineupPlayers}
+                                  takenIds={assignedConvIds}
+                                  dropUp={dropUp}
+                                  open={isOpen}
+                                  onToggle={() => setOpenLineupSlot((cur) => (cur === slot.id ? null : slot.id))}
+                                  onClose={() => setOpenLineupSlot(null)}
+                                  onSelect={(id) => handleAssignToSlot(slot.id, id)}
+                                  trigger={
+                                    conv ? (
+                                      <span className="flex flex-col items-center">
+                                        <PlayerAvatar
+                                          player={{
+                                            ...(getPlayerData(conv) || {}),
+                                            dorsal: conv.dorsal || getPlayerData(conv)?.dorsal,
+                                            posicion_principal:
+                                              getPlayerData(conv)?.posicion_principal || slot.position,
+                                          }}
+                                          size="sm"
+                                          preferDorsalFallback
+                                          className={`shadow-md ring-2 ${isOpen ? 'ring-yellow-300' : 'ring-white/40'}`}
+                                        />
+                                        <span className="block text-[9px] text-white font-medium mt-0.5 max-w-[60px] truncate drop-shadow">
+                                          {getPlayerDisplayName(conv)}
+                                        </span>
+                                      </span>
+                                    ) : (
+                                      <span className="flex flex-col items-center">
+                                        <span className={`w-9 h-9 rounded-full border-2 border-dashed flex items-center justify-center transition-colors ${
+                                          isOpen
+                                            ? 'border-yellow-300 bg-white/25 ring-2 ring-yellow-300'
+                                            : 'border-white/50 hover:border-white hover:bg-white/10'
+                                        }`}>
+                                          <Plus className={`h-3.5 w-3.5 ${isOpen ? 'text-yellow-200' : 'text-white/70'}`} />
+                                        </span>
+                                        <span className="block text-[9px] text-white/60 font-medium mt-0.5">
+                                          {slot.label}
+                                        </span>
+                                      </span>
+                                    )
+                                  }
+                                />
+                                {conv ? (
                                   <button
-                                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                    onClick={(e) => { e.stopPropagation(); handleRemoveFromSlot(slot.id) }}
+                                    type="button"
+                                    className="absolute -top-1 -right-1 z-40 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleRemoveFromSlot(slot.id)
+                                    }}
                                     title="Quitar del puesto"
                                   >
                                     <X className="h-2.5 w-2.5" />
                                   </button>
-                                </button>
-                              )
-                            } else {
-                              const isPicking = pickingSlot === slot.id
-                              return (
-                                <button
-                                  key={slot.id}
-                                  className="absolute -translate-x-1/2 -translate-y-1/2 text-center cursor-pointer"
-                                  style={{ top: slot.top, left: slot.left }}
-                                  onClick={() => handleSlotClick(slot)}
-                                  title={`Anadir jugador: ${slot.label}`}
-                                  aria-pressed={isPicking}
-                                >
-                                  <div className={`w-9 h-9 rounded-full border-2 border-dashed flex items-center justify-center transition-colors ${
-                                    isPicking
-                                      ? 'border-yellow-300 bg-white/25 ring-2 ring-yellow-300'
-                                      : 'border-white/50 hover:border-white hover:bg-white/10'
-                                  }`}>
-                                    <Plus className={`h-3.5 w-3.5 ${isPicking ? 'text-yellow-200' : 'text-white/70'}`} />
-                                  </div>
-                                  <span className="block text-[9px] text-white/60 font-medium mt-0.5">
-                                    {slot.label}
-                                  </span>
-                                </button>
-                              )
-                            }
+                                ) : null}
+                                </div>
+                              </div>
+                            )
                           })}
                         </div>
                       </div>
 
-                      {/* Banquillo: todos los no alineados; desaparecen al colocarlos */}
                       <div className="md:col-span-1">
                         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1 flex items-center gap-1.5">
                           <Shirt className="h-3.5 w-3.5" />
                           Banquillo ({suplentes.length})
                         </h4>
                         <p className="text-[10px] text-muted-foreground mb-2">
-                          {pickingSlotData
-                            ? `Elige jugador para ${pickingSlotData.label}`
-                            : 'Pulsa una posicion vacia y luego un jugador'}
+                          Pulsa una posición en el campo para elegir. Primero los habituales, luego la misma línea.
                         </p>
                         <div className="space-y-1.5">
                           {suplentes.map((conv) => {
                             const player = getPlayerData(conv)
-                            const pos = conv.posicion_asignada || player?.posicion_principal || ''
+                            const pos = player?.posicion_principal || conv.posicion_asignada || ''
                             const posColor = getPositionColor(pos)
                             return (
                               <div
                                 key={conv.id}
-                                role={pickingSlot ? 'button' : undefined}
-                                tabIndex={pickingSlot ? 0 : undefined}
-                                onClick={() => {
-                                  if (pickingSlot) handlePickPlayer(conv.id)
-                                }}
-                                onKeyDown={(e) => {
-                                  if (pickingSlot && (e.key === 'Enter' || e.key === ' ')) {
-                                    e.preventDefault()
-                                    handlePickPlayer(conv.id)
-                                  }
-                                }}
-                                className={`flex items-center gap-2 p-1.5 rounded-lg group ${
-                                  pickingSlot
-                                    ? 'cursor-pointer hover:bg-primary/10 ring-1 ring-transparent hover:ring-primary/30'
-                                    : 'hover:bg-muted/50'
-                                }`}
+                                className="flex items-center gap-2 p-1.5 rounded-lg group hover:bg-muted/50"
                               >
                                 <PlayerAvatar
                                   player={{
@@ -1135,10 +1098,7 @@ export function MatchDetailPanel({
                                 </div>
                                 <Badge className={`text-[8px] border-0 ${posColor}`}>{pos || '-'}</Badge>
                                 <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleRemoveConvocado(conv.id)
-                                  }}
+                                  onClick={() => handleRemoveConvocado(conv.id)}
                                   className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                                 >
                                   <X className="h-3 w-3" />
@@ -1602,7 +1562,7 @@ export function MatchDetailPanel({
           <DialogHeader>
             <DialogTitle>Convocar jugadores</DialogTitle>
             <DialogDescription>
-              Plantilla arriba. El filial queda abajo, para convocarlos solo si quieres.
+              Porteros, defensas, medios y delanteros. El filial queda abajo, para convocarlos solo si quieres.
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto -mx-6 px-6">
@@ -1612,9 +1572,26 @@ export function MatchDetailPanel({
               </div>
             ) : (
               <div className="space-y-1 py-2">
-                {ownJugadores.filter((j) => !convocados.some((c) => c.jugador_id === j.id)).map((jugador) => (
-                  <PlayerSelectRow key={jugador.id} jugador={jugador} selected={selected} onToggle={togglePlayer} onToggleTitular={(id) => setSelected((prev) => ({ ...prev, [id]: { ...prev[id], titular: !prev[id].titular } }))} />
-                ))}
+                {CONVOCAR_ZONAS.map((zona) => {
+                  const list = ownJugadores.filter(
+                    (j) => jugadorZona(j) === zona.key && !convocados.some((c) => c.jugador_id === j.id)
+                  )
+                  if (list.length === 0) return null
+                  return (
+                    <div key={zona.key}>
+                      <ConvocarZoneHeader label={zona.label} />
+                      {list.map((jugador) => (
+                        <PlayerSelectRow
+                          key={jugador.id}
+                          jugador={jugador}
+                          selected={selected}
+                          onToggle={togglePlayer}
+                          onToggleTitular={(id) => setSelected((prev) => ({ ...prev, [id]: { ...prev[id], titular: !prev[id].titular } }))}
+                        />
+                      ))}
+                    </div>
+                  )
+                })}
                 {filialJugadores.filter((j) => !convocados.some((c) => c.jugador_id === j.id)).length > 0 && (
                   <>
                     <div className="flex items-center gap-2 pt-3 pb-1">
@@ -1897,6 +1874,18 @@ export function MatchDetailPanel({
 }
 
 // ============ Player Select Row (Add Dialog) ============
+
+function ConvocarZoneHeader({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 pt-3 pb-1 first:pt-0">
+      <div className="h-px flex-1 bg-border" />
+      <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+        {label}
+      </span>
+      <div className="h-px flex-1 bg-border" />
+    </div>
+  )
+}
 
 function PlayerSelectRow({
   jugador,
