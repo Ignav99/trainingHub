@@ -87,13 +87,8 @@ export function ConvocatoriaCartel({
         }}
       />
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8, minWidth: 88 }}>
-          <Crest src={clubLogoUrl} name={clubNombre} />
-          {kit ? (
-            <KitFullPreview kit={kit} size={86} labels={false} escudoUrl={clubLogoUrl} />
-          ) : null}
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
+        <Crest src={clubLogoUrl} name={clubNombre} />
         <div style={{ textAlign: 'center', paddingTop: 4, flex: 1, minWidth: 0 }}>
           <div
             style={{
@@ -115,35 +110,72 @@ export function ConvocatoriaCartel({
         <Crest src={rivalEscudoUrl} name={rivalNombre} />
       </div>
 
-      <div style={{ marginTop: 18, position: 'relative' }}>
-        <div
-          style={{
-            fontFamily: 'Oswald, "Arial Narrow", Impact, sans-serif',
-            fontSize: 34,
-            lineHeight: 1.05,
-            fontWeight: 700,
-            textTransform: 'uppercase',
-          }}
-        >
-          {clubNombre}
+      <div
+        style={{
+          marginTop: 16,
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 16,
+          position: 'relative',
+          zIndex: 1,
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
+          <div
+            style={{
+              fontFamily: 'Oswald, "Arial Narrow", Impact, sans-serif',
+              fontSize: 30,
+              lineHeight: 1.05,
+              fontWeight: 700,
+              textTransform: 'uppercase',
+            }}
+          >
+            {clubNombre}
+          </div>
+          <div style={{ color: '#D4E54E', fontSize: 12, letterSpacing: '0.28em', margin: '6px 0' }}>{vs}</div>
+          <div
+            style={{
+              fontFamily: 'Oswald, "Arial Narrow", Impact, sans-serif',
+              fontSize: 24,
+              lineHeight: 1.05,
+              fontWeight: 700,
+              textTransform: 'uppercase',
+            }}
+          >
+            {rivalNombre}
+          </div>
         </div>
-        <div style={{ color: '#D4E54E', fontSize: 12, letterSpacing: '0.28em', margin: '6px 0' }}>{vs}</div>
-        <div
-          style={{
-            fontFamily: 'Oswald, "Arial Narrow", Impact, sans-serif',
-            fontSize: 28,
-            lineHeight: 1.05,
-            fontWeight: 700,
-            textTransform: 'uppercase',
-          }}
-        >
-          {rivalNombre}
-        </div>
+        {kit ? (
+          <div
+            style={{
+              width: 128,
+              flexShrink: 0,
+              border: '1.5px solid #D4E54E',
+              background: 'transparent',
+              padding: '8px 8px 10px',
+            }}
+          >
+            <div
+              style={{
+                fontSize: 8,
+                letterSpacing: '0.16em',
+                color: '#D4E54E',
+                fontWeight: 700,
+                textAlign: 'center',
+                marginBottom: 6,
+              }}
+            >
+              VESTIREMOS CON…
+            </div>
+            <KitFullPreview kit={kit} size={108} labels={false} escudoUrl={clubLogoUrl} />
+          </div>
+        ) : null}
       </div>
 
       <div
         style={{
-          marginTop: 18,
+          marginTop: 22,
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
           gap: 8,
