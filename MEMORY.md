@@ -34,5 +34,8 @@ Solo Scouting, Informe Rival, Plan de Partido, ABP y Equipación. Plan ida/vuelt
 
 **Comentarios Rival** (Contexto → textarea, `estrategia.notas`) es el olfato del entrenador. Vive en `rivales.scout_manual`, no en intel. `extractPersistentScout` los tiene que guardar; `mergeScoutOnLoad` no los pisa con el plan semanal vacío.
 
+## Partidos: el calendario no puede desaparecer
+Listar `/v1/partidos` **nunca** debe devolver 500 (ni un dashboard vacío) porque falte una columna SQL opcional (`arbitro`, etc.). El API reintenta el SELECT sin esa columna. El linker RFEF **no borra** `auto_creado` si el scrape viene vacío o incompleto (menos de la mitad de jornadas). Amistosos (`auto_creado=false`) no entran en ese purge. Si el calendario se ve vacío, es un error de lectura, no un borrado: mostrar aviso, no «Sin partidos». Migración 083: `ALTER TABLE partidos ADD COLUMN IF NOT EXISTS arbitro TEXT;`
+
 ## Estadísticas y amistosos
 Amarillas, rojas, goles y asistencias de plantilla/carga son de competición por defecto. Los amistosos se conservan y se ven con el filtro de ámbito.

@@ -35,7 +35,7 @@ export default function PartidosPage() {
           : rawTab
 
   // ---- Data: partidos list ----
-  const { data: partidosData, isLoading: loading } = useSWR<PaginatedResponse<Partido>>(
+  const { data: partidosData, isLoading: loading, error: partidosError } = useSWR<PaginatedResponse<Partido>>(
     apiKey('/partidos', {
       equipo_id: equipoActivo?.id,
       orden: 'fecha',
@@ -155,6 +155,7 @@ export default function PartidosPage() {
               </div>
               <PartidosList
                 loading={loading}
+                error={partidosError}
                 allPartidos={allPartidos}
                 proximos={proximos}
                 jugados={jugados}

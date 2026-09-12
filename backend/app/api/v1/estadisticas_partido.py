@@ -5,7 +5,6 @@ GET y PUT (upsert) de estadísticas de equipo por partido.
 
 from fastapi import APIRouter, HTTPException, Depends, status
 from uuid import UUID
-import re
 
 from app.models import (
     EstadisticaPartidoUpdate,
@@ -14,14 +13,9 @@ from app.models import (
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
+from app.services.supabase_schema import MISSING_COL_RE, is_missing_column_error
 
 OPTIONAL_ESTADISTICA_COLS = ("reflexion_entrenador", "stats_periodos")
-MISSING_COL_RE = re.compile(r"Could not find the '([^']+)' column", re.I)
-
-
-def is_missing_column_error(err: Exception) -> bool:
-    msg = str(err).lower()
-    return "42703" in msg or "pgrst204" in msg or "schema cache" in msg
 
 
 def drop_optional_estadistica_cols(payload: dict) -> dict:

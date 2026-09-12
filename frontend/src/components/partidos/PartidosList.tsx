@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Calendar, Trophy, Swords, Plus } from 'lucide-react'
+import { Calendar, Trophy, Swords, Plus, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -8,6 +8,7 @@ import type { Partido } from '@/types'
 
 interface PartidosListProps {
   loading: boolean
+  error?: Error | null
   allPartidos: Partido[]
   proximos: Partido[]
   jugados: Partido[]
@@ -17,6 +18,7 @@ interface PartidosListProps {
 
 export function PartidosList({
   loading,
+  error,
   allPartidos,
   proximos,
   jugados,
@@ -30,6 +32,16 @@ export function PartidosList({
           <Skeleton key={i} className="h-16 rounded-lg" />
         ))}
       </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <EmptyState
+        icon={<AlertTriangle className="h-12 w-12" />}
+        title="No se pudieron cargar los partidos"
+        description="No están borrados. Recarga la página. Si sigue vacío, el API no está leyendo el calendario."
+      />
     )
   }
 

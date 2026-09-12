@@ -6,3 +6,6 @@ Tablet: `presenterEmbed` contain al ocultar carpetas; `SalaFloatingChrome` z-50 
 
 ## Layout móvil
 Bajo `lg` el dashboard refluja; el portátil no cambia.
+
+## Partidos calendario
+Nunca 500/vacío por columna opcional (`arbitro`). Linker no purge si scrape RFEF vacío o <50% jornadas. Amistosos no se tocan.

@@ -28,6 +28,12 @@ from app.services.notification_service import notify_partido_resultado
 from app.services.pdf_service import generate_informe_partido_pdf, generate_informe_rival_pdf, generate_plan_partido_pdf, generate_plan_partido_jugadores_pdf
 from app.services.partido_campo import hydrate_partido_campo, sanitize_partido_campo
 from app.services.pre_match_service import populate_partido_intel
+from app.services.supabase_schema import (
+    PARTIDOS_GET_SELECT,
+    PARTIDOS_LIST_SELECT,
+    execute_partidos_query,
+    write_partido_row,
+)
 from app.services.ai_factory import call_ai_with_fallback
 from app.services.ai_errors import AIError
 
@@ -59,54 +65,42 @@ async def list_partidos(
     """
     supabase = get_supabase()
 
-    # Query con relación a rivales
-    query = supabase.table("partidos").select(
-        "id,equipo_id,rival_id,fecha,hora,localia,competicion,jornada,ubicacion,arbitro,"
-        "goles_favor,goles_contra,resultado,created_at,updated_at,auto_creado,"
-        "rfef_competicion_id,video_url,informe_url,"
-        "hora_citacion,lugar_citacion,kit_convocatoria,"
-        "rivales(id,organizacion_id,nombre,nombre_corto,escudo_url,estadio,ciudad,created_at,updated_at)",
-        count="exact"
-    )
+    def _run(select_cols: str):
+        query = supabase.table("partidos").select(select_cols, count="exact")
+        if equipo_id:
+            query = query.eq("equipo_id", str(equipo_id))
+        else:
+            equipos = supabase.table("equipos").select("id").eq(
+                "organizacion_id", auth.organizacion_id
+            ).execute()
+            equipo_ids = [e["id"] for e in equipos.data]
+            if equipo_ids:
+                query = query.in_("equipo_id", equipo_ids)
 
-    # Filtrar por equipos de la organización del usuario
-    if equipo_id:
-        query = query.eq("equipo_id", str(equipo_id))
-    else:
-        # Obtener todos los equipos de la organización
-        equipos = supabase.table("equipos").select("id").eq(
-            "organizacion_id", auth.organizacion_id
-        ).execute()
-        equipo_ids = [e["id"] for e in equipos.data]
-        if equipo_ids:
-            query = query.in_("equipo_id", equipo_ids)
+        if rival_id:
+            query = query.eq("rival_id", str(rival_id))
 
-    if rival_id:
-        query = query.eq("rival_id", str(rival_id))
+        if competicion:
+            query = query.eq("competicion", competicion.value)
 
-    if competicion:
-        query = query.eq("competicion", competicion.value)
+        if fecha_desde:
+            query = query.gte("fecha", fecha_desde.isoformat())
 
-    if fecha_desde:
-        query = query.gte("fecha", fecha_desde.isoformat())
+        if fecha_hasta:
+            query = query.lte("fecha", fecha_hasta.isoformat())
 
-    if fecha_hasta:
-        query = query.lte("fecha", fecha_hasta.isoformat())
+        if solo_jugados:
+            query = query.not_.is_("goles_favor", "null")
 
-    if solo_jugados:
-        query = query.not_.is_("goles_favor", "null")
+        if solo_pendientes:
+            query = query.is_("goles_favor", "null")
 
-    if solo_pendientes:
-        query = query.is_("goles_favor", "null")
+        query = query.order(orden, desc=(direccion == "desc"))
+        offset = (page - 1) * limit
+        query = query.range(offset, offset + limit - 1)
+        return query.execute()
 
-    # Ordenación
-    query = query.order(orden, desc=(direccion == "desc"))
-
-    # Paginación
-    offset = (page - 1) * limit
-    query = query.range(offset, offset + limit - 1)
-
-    response = query.execute()
+    response = execute_partidos_query(_run, PARTIDOS_LIST_SELECT)
 
     total = response.count or 0
     pages = ceil(total / limit) if total > 0 else 1
@@ -140,13 +134,16 @@ async def get_partido(
     """
     supabase = get_supabase()
 
-    response = supabase.table("partidos").select(
-        "id,equipo_id,rival_id,fecha,hora,localia,competicion,jornada,ubicacion,arbitro,"
-        "goles_favor,goles_contra,resultado,notas_pre,notas_post,video_url,informe_url,"
-        "rfef_competicion_id,auto_creado,created_at,updated_at,"
-        "hora_citacion,lugar_citacion,kit_convocatoria,"
-        "rivales(id,organizacion_id,nombre,nombre_corto,escudo_url,estadio,ciudad,created_at,updated_at)"
-    ).eq("id", str(partido_id)).limit(1).execute()
+    def _run(select_cols: str):
+        return (
+            supabase.table("partidos")
+            .select(select_cols)
+            .eq("id", str(partido_id))
+            .limit(1)
+            .execute()
+        )
+
+    response = execute_partidos_query(_run, PARTIDOS_GET_SELECT)
 
     if not response.data:
         raise HTTPException(
@@ -196,7 +193,10 @@ async def create_partido(
 
     partido_data["rival_id"] = str(partido_data["rival_id"])
 
-    response = supabase.table("partidos").insert(partido_data).execute()
+    response = write_partido_row(
+        lambda body: supabase.table("partidos").insert(body).execute(),
+        partido_data,
+    )
 
     if not response.data:
         raise HTTPException(
@@ -264,9 +264,12 @@ async def update_partido(
     if update_data.get("rival_id"):
         update_data["rival_id"] = str(update_data["rival_id"])
 
-    response = supabase.table("partidos").update(update_data).eq(
-        "id", str(partido_id)
-    ).execute()
+    response = write_partido_row(
+        lambda body: supabase.table("partidos").update(body).eq(
+            "id", str(partido_id)
+        ).execute(),
+        update_data,
+    )
 
     # Obtener con relación
     partido_completo = supabase.table("partidos").select(
