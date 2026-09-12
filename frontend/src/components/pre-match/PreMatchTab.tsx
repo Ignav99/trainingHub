@@ -40,6 +40,7 @@ import { PlanPartidoSection } from './PlanPartidoSection'
 import ABPMatchPlan from '@/components/abp/ABPMatchPlan'
 import ABPPlanSummary from '@/components/abp/ABPPlanSummary'
 import type { Partido, PreMatchIntel, AIInformeRival, AIPlanPartido } from '@/types'
+import { notasPreRecord } from '@/lib/anotador'
 
 // Pre-partido default data (manual tactical notes)
 const DEFAULT_PRE_PARTIDO = {
@@ -83,30 +84,17 @@ interface PreMatchTabProps {
 export function PreMatchTab({ partido, onMutate }: PreMatchTabProps) {
   const intel = partido.pre_match_intel
 
-  // Parse AI reports from notas_pre
-  const parsedNotas = (() => {
-    if (partido.notas_pre) {
-      try { return JSON.parse(partido.notas_pre) } catch { return {} }
-    }
-    return {}
-  })()
+  const parsedNotas = notasPreRecord(partido.notas_pre) as Record<string, any>
 
   const [aiInforme, setAiInforme] = useState<AIInformeRival | null>(parsedNotas.ai_informe_rival || null)
   const [aiPlan, setAiPlan] = useState<AIPlanPartido | null>(parsedNotas.ai_plan_partido || null)
   const [manualExpanded, setManualExpanded] = useState(false)
 
   // Manual tactical notes state
-  const [prePartido, setPrePartido] = useState<PrePartidoState>(() => {
-    if (partido.notas_pre) {
-      try {
-        const parsed = JSON.parse(partido.notas_pre)
-        return { ...structuredClone(DEFAULT_PRE_PARTIDO), ...parsed }
-      } catch {
-        return structuredClone(DEFAULT_PRE_PARTIDO)
-      }
-    }
-    return structuredClone(DEFAULT_PRE_PARTIDO)
-  })
+  const [prePartido, setPrePartido] = useState<PrePartidoState>(() => ({
+    ...structuredClone(DEFAULT_PRE_PARTIDO),
+    ...notasPreRecord(partido.notas_pre),
+  }))
 
   const [savingPre, setSavingPre] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -121,10 +109,7 @@ export function PreMatchTab({ partido, onMutate }: PreMatchTabProps) {
   const handleSavePrePartido = async () => {
     setSavingPre(true)
     try {
-      let existingData: Record<string, any> = {}
-      if (partido.notas_pre) {
-        try { existingData = JSON.parse(partido.notas_pre) } catch { existingData = {} }
-      }
+      const existingData = notasPreRecord(partido.notas_pre)
       const merged = {
         ...existingData,
         sistema_rival: prePartido.sistema_rival,

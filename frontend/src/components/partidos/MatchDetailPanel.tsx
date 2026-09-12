@@ -76,7 +76,8 @@ import { FoulMapEditor } from './FoulMapEditor'
 import { AnotacionesImportDialog } from './AnotacionesImportDialog'
 import { ConvocatoriaCartelDialog } from './ConvocatoriaCartelDialog'
 import type { AnotacionesPlan } from '@/lib/partidoAnotacionesJson'
-import { periodReportFromNotasPre, parseNotasPre, informeFromSnapshot, hasAnotadorLiveData, resolveGolDetalleNames } from '@/lib/anotador'
+import { periodReportFromNotasPre, parseNotasPre, informeFromSnapshot, hasAnotadorLiveData, resolveGolDetalleNames, remapFormationSlots } from '@/lib/anotador'
+import { hydrateLineup, mergeLineupIntoNotasPre, shouldPersistLineup } from '@/lib/lineupPersistence'
 
 const PartidoPlanTab = dynamic(() => import('./PartidoPlanTab').then(m => ({ default: m.PartidoPlanTab })), {
   loading: () => <div className="animate-pulse space-y-4 p-4"><div className="h-8 bg-muted rounded w-1/3" /><div className="h-32 bg-muted rounded" /><div className="h-32 bg-muted rounded" /></div>
@@ -184,6 +185,7 @@ export function MatchDetailPanel({
   const [slotAssignments, setSlotAssignments] = useState<Record<string, string>>({})
   const [openLineupSlot, setOpenLineupSlot] = useState<string | null>(null)
   const [savingLineup, setSavingLineup] = useState(false)
+  const lineupDirtyRef = useRef(false)
 
   // ---- Informe state ----
   const [showResult, setShowResult] = useState(false)
@@ -312,32 +314,41 @@ export function MatchDetailPanel({
     setInformeInitialized(null)
   }, [selectedId])
 
-  // Load saved formation from partido.notas_pre
+  const lineupSourceKey = useMemo(() => {
+    const titulares = convocados
+      .filter((c) => c.titular)
+      .map((c) => `${c.id}:${c.posicion_asignada || ''}`)
+      .sort()
+      .join('|')
+    const notas = typeof selectedPartido?.notas_pre === 'string'
+      ? selectedPartido.notas_pre
+      : selectedPartido?.notas_pre != null
+        ? JSON.stringify(selectedPartido.notas_pre)
+        : ''
+    return `${selectedPartido?.id || ''}::${notas}::${loadingConv ? '1' : '0'}::${titulares}`
+  }, [selectedPartido?.id, selectedPartido?.notas_pre, convocados, loadingConv])
+
+  useEffect(() => {
+    lineupDirtyRef.current = false
+  }, [selectedId])
+
+  // Restore the saved XI from notas_pre and/or titular flags. Wait for convocados
+  // when the list row has no JSON yet, so a reload does not flash an empty pitch.
   useEffect(() => {
     if (!selectedPartido) {
       setSelectedFormation(null)
       setSlotAssignments({})
       return
     }
-    if (selectedPartido.notas_pre) {
-      try {
-        const parsed = JSON.parse(selectedPartido.notas_pre)
-        if (parsed.formacion) {
-          setSelectedFormation(parsed.formacion)
-          setSlotAssignments(parsed.formacion_slots || {})
-        } else {
-          setSelectedFormation(null)
-          setSlotAssignments({})
-        }
-      } catch {
-        setSelectedFormation(null)
-        setSlotAssignments({})
-      }
-    } else {
-      setSelectedFormation(null)
-      setSlotAssignments({})
-    }
-  }, [selectedPartido?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (lineupDirtyRef.current) return
+    if (!selectedPartido.notas_pre && loadingConv) return
+    const next = hydrateLineup({
+      notasPre: selectedPartido.notas_pre,
+      convocados,
+    })
+    setSelectedFormation(next.formation)
+    setSlotAssignments(next.slots)
+  }, [lineupSourceKey, selectedPartido, convocados, loadingConv])
 
   const activeFormation = FORMATIONS.find((f) => f.name === selectedFormation) || null
   const assignedConvIds = new Set(Object.values(slotAssignments))
@@ -477,6 +488,7 @@ export function MatchDetailPanel({
   }
 
   const handleRemoveConvocado = async (convId: string) => {
+    lineupDirtyRef.current = true
     setSlotAssignments((prev) => {
       const copy = { ...prev }
       for (const [slotId, cId] of Object.entries(copy)) {
@@ -493,6 +505,7 @@ export function MatchDetailPanel({
   }
 
   const handleAssignToSlot = (slotId: string, convId: string) => {
+    lineupDirtyRef.current = true
     setSlotAssignments((prev) => {
       const copy = { ...prev }
       if (!convId) {
@@ -508,6 +521,7 @@ export function MatchDetailPanel({
   }
 
   const handleRemoveFromSlot = (slotId: string) => {
+    lineupDirtyRef.current = true
     setSlotAssignments((prev) => {
       const copy = { ...prev }
       delete copy[slotId]
@@ -520,27 +534,36 @@ export function MatchDetailPanel({
     if (!selectedPartido || !activeFormation) return
     setSavingLineup(true)
     try {
+      let latestNotas = selectedPartido.notas_pre
+      try {
+        const latest = await partidosApi.get(selectedPartido.id)
+        latestNotas = latest.notas_pre ?? latestNotas
+      } catch {
+        // Keep the in-memory JSON if the detail fetch fails.
+      }
+      const existing = parseNotasPre(latestNotas)
+      if (!shouldPersistLineup(slotAssignments, existing.formacion_slots)) {
+        toast.error('El 11 titular no se ha vaciado. Asigna los puestos o recarga para recuperar el guardado.')
+        return
+      }
+
       const assignedByConv = new Map<string, string>()
       for (const slot of activeFormation.slots) {
         const convId = slotAssignments[slot.id]
-        if (convId) assignedByConv.set(convId, slot.position)
+        if (convId) assignedByConv.set(convId, slot.id)
       }
-      const updatePromises = convocados.map((conv) => {
+      await Promise.all(convocados.map((conv) => {
         const pos = assignedByConv.get(conv.id)
         if (pos) {
           return convocatoriasApi.update(conv.id, { posicion_asignada: pos, titular: true })
         }
         return convocatoriasApi.update(conv.id, { titular: false })
-      })
-      await Promise.all(updatePromises)
+      }))
 
-      let existingData: Record<string, any> = {}
-      if (selectedPartido.notas_pre) {
-        try { existingData = JSON.parse(selectedPartido.notas_pre) } catch { existingData = {} }
-      }
-      const merged = { ...existingData, formacion: selectedFormation, formacion_slots: slotAssignments }
-      await partidosApi.update(selectedPartido.id, { notas_pre: JSON.stringify(merged) })
-
+      const merged = mergeLineupIntoNotasPre(latestNotas, selectedFormation, slotAssignments)
+      await partidosApi.update(selectedPartido.id, { notas_pre: merged })
+      lineupDirtyRef.current = false
+      toast.success('Alineacion guardada')
       mutate((key: string) => typeof key === 'string' && (key.includes('/convocatorias') || key.includes('/partidos')), undefined, { revalidate: true })
     } catch (err) {
       console.error('Error saving lineup:', err)
@@ -961,15 +984,14 @@ export function MatchDetailPanel({
                       <button
                         key={f.name}
                         onClick={() => {
-                          if (selectedFormation === f.name) {
-                            setSelectedFormation(null)
-                            setSlotAssignments({})
-                            setOpenLineupSlot(null)
-                          } else {
-                            setSelectedFormation(f.name)
-                            setSlotAssignments({})
-                            setOpenLineupSlot(null)
-                          }
+                          if (selectedFormation === f.name) return
+                          lineupDirtyRef.current = true
+                          const prev = FORMATIONS.find((x) => x.name === selectedFormation)
+                          setSelectedFormation(f.name)
+                          setSlotAssignments(prev
+                            ? remapFormationSlots(slotAssignments, prev.slots, f.slots)
+                            : {})
+                          setOpenLineupSlot(null)
                         }}
                         className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
                           selectedFormation === f.name

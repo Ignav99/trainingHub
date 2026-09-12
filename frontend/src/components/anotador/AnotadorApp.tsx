@@ -43,6 +43,7 @@ import {
   isPenaltyGoal,
   matchMinute,
   mergeNotasPre,
+  parseNotasPre,
   newEventId,
   nudgeElapsed,
   normalizeFoulDot,
@@ -154,14 +155,7 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
 
   useEffect(() => {
     if (!partido || loadC || loadS || ready) return
-    const parsedForm = (() => {
-      try {
-        const parsed = partido.notas_pre ? JSON.parse(partido.notas_pre) : null
-        return typeof parsed?.formacion === 'string' ? parsed.formacion : DEFAULT_ANOTADOR.form
-      } catch {
-        return DEFAULT_ANOTADOR.form
-      }
-    })()
+    const parsedForm = parseNotasPre(partido.notas_pre).formacion || DEFAULT_ANOTADOR.form
     const formation = FORMATIONS.find((f) => f.name === parsedForm) || FORMATIONS[0]
     setSnap(hydrateSnapshot({
       notasPre: partido.notas_pre,
