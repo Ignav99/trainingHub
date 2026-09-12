@@ -390,27 +390,46 @@ export function formatClock(half: AnotadorHalf, elapsedMs: number): string {
   return `${String(shown).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
 }
 
-export function parseNotasPre(raw?: string | null): {
+/** PostgREST/JSON columns may arrive as a string or as an already-parsed object. */
+export function notasPreRecord(raw?: unknown): Record<string, unknown> {
+  if (raw == null || raw === '') return {}
+  if (typeof raw === 'object') {
+    if (Array.isArray(raw)) return {}
+    return { ...(raw as Record<string, unknown>) }
+  }
+  if (typeof raw !== 'string') return {}
+  const trimmed = raw.trim()
+  if (!trimmed) return {}
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    return parsed as Record<string, unknown>
+  } catch {
+    return {}
+  }
+}
+
+export function parseNotasPre(raw?: unknown): {
   formacion?: string
   formacion_slots?: Record<string, string>
   anotador?: AnotadorSnapshot
   rest: Record<string, unknown>
 } {
-  if (!raw) return { rest: {} }
-  try {
-    const parsed = JSON.parse(raw)
-    if (!parsed || typeof parsed !== 'object') return { rest: {} }
-    const { formacion, formacion_slots, anotador, ...rest } = parsed as Record<string, unknown>
-    return {
-      formacion: typeof formacion === 'string' ? formacion : undefined,
-      formacion_slots: formacion_slots && typeof formacion_slots === 'object'
-        ? formacion_slots as Record<string, string>
-        : undefined,
-      anotador: isSnapshot(anotador) ? anotador : undefined,
-      rest,
-    }
-  } catch {
-    return { rest: {} }
+  const parsed = notasPreRecord(raw)
+  if (!Object.keys(parsed).length) return { rest: {} }
+  const { formacion, formacion_slots, anotador, ...rest } = parsed
+  const slots = formacion_slots && typeof formacion_slots === 'object' && !Array.isArray(formacion_slots)
+    ? Object.fromEntries(
+        Object.entries(formacion_slots as Record<string, unknown>).flatMap(([key, value]) => (
+          typeof value === 'string' && value ? [[key, value]] : []
+        )),
+      ) as Record<string, string>
+    : undefined
+  return {
+    formacion: typeof formacion === 'string' ? formacion : undefined,
+    formacion_slots: slots && Object.keys(slots).length ? slots : undefined,
+    anotador: isSnapshot(anotador) ? anotador : undefined,
+    rest,
   }
 }
 
@@ -421,14 +440,17 @@ function isSnapshot(v: unknown): v is AnotadorSnapshot {
 }
 
 export function mergeNotasPre(
-  existingRaw: string | null | undefined,
+  existingRaw: unknown,
   snapshot: AnotadorSnapshot,
 ): string {
-  const { rest } = parseNotasPre(existingRaw)
+  const parsed = parseNotasPre(existingRaw)
+  const nextSlots = Object.values(snapshot.slots || {}).some(Boolean)
+    ? snapshot.slots
+    : parsed.formacion_slots || snapshot.slots || {}
   return JSON.stringify({
-    ...rest,
-    formacion: snapshot.form,
-    formacion_slots: snapshot.slots,
+    ...parsed.rest,
+    formacion: snapshot.form || parsed.formacion,
+    formacion_slots: nextSlots,
     anotador: { ...snapshot, running: false },
   })
 }
@@ -681,7 +703,7 @@ export function statsPeriodosPayload(snapshot: AnotadorSnapshot) {
   }
 }
 
-export function periodReportFromNotasPre(raw?: string | null) {
+export function periodReportFromNotasPre(raw?: unknown) {
   const parsed = parseNotasPre(raw)
   if (!parsed.anotador) return null
   return periodReport(normalizeSnapshot(parsed.anotador))
@@ -814,7 +836,7 @@ export function normalizeSnapshot(raw: AnotadorSnapshot): AnotadorSnapshot {
 }
 
 export function hydrateSnapshot(args: {
-  notasPre?: string | null
+  notasPre?: unknown
   titulares?: { id: string; posicion?: string | null }[]
   formationSlots?: { id: string; position: string }[]
   informeStats?: TeamStatsState | null

@@ -3,11 +3,23 @@ TrainingHub Pro - Modelos de Partido y Rival
 Gestión de partidos, rivales y calendario competitivo.
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional, List, Literal
+import json
+from pydantic import BaseModel, Field, field_validator
+from typing import Optional, List, Literal, Any
 from datetime import datetime, date
 from uuid import UUID
 from enum import Enum
+
+
+def coerce_notas_pre(value: Any) -> Optional[str]:
+    """Supabase JSON/JSONB arrives as dict; the API contract is a JSON string."""
+    if value is None:
+        return None
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, str):
+        return value
+    return str(value)
 
 
 class TipoCompeticion(str, Enum):
@@ -107,6 +119,11 @@ class PartidoBase(BaseModel):
     video_url: Optional[str] = None
     informe_url: Optional[str] = None
 
+    @field_validator("notas_pre", mode="before")
+    @classmethod
+    def _coerce_notas_pre(cls, value: Any) -> Optional[str]:
+        return coerce_notas_pre(value)
+
     # Competition link
     rfef_competicion_id: Optional[UUID] = None
     auto_creado: Optional[bool] = False
@@ -145,6 +162,12 @@ class PartidoUpdate(BaseModel):
     notas_post: Optional[str] = None
     video_url: Optional[str] = None
     informe_url: Optional[str] = None
+
+    @field_validator("notas_pre", mode="before")
+    @classmethod
+    def _coerce_notas_pre(cls, value: Any) -> Optional[str]:
+        return coerce_notas_pre(value)
+
     ubicacion: Optional[str] = None
     arbitro: Optional[str] = Field(None, max_length=200)
     hora_citacion: Optional[str] = Field(None, pattern=r"^\d{2}:\d{2}$")
