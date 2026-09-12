@@ -150,7 +150,7 @@ export default function DashboardPage() {
     seasonSesKey,
     { keepPreviousData: true, revalidateOnFocus: true, revalidateOnMount: true, dedupingInterval: 4_000 }
   )
-  const { data: calParRes, isLoading: seasonParLoading } = useSWR<PaginatedResponse<Partido>>(
+  const { data: calParRes, error: calParError, isLoading: seasonParLoading } = useSWR<PaginatedResponse<Partido>>(
     seasonParKey,
     { keepPreviousData: true, revalidateOnFocus: true, revalidateOnMount: true, dedupingInterval: 4_000 }
   )
@@ -495,6 +495,21 @@ export default function DashboardPage() {
           Nuevo Microciclo
         </Button>
       </div>
+
+      {calParError && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="flex items-start gap-3 pt-4">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+            <div>
+              <p className="text-sm font-medium">No se pudieron cargar los partidos</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Competición y amistosos no están borrados. Recarga la página. Si el próximo rival
+                sigue visible arriba, el calendario está en base de datos y el listado ha fallado.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ============ SECTION 2: Interactive monthly calendar ============ */}
       <CalendarSection

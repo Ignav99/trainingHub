@@ -19,8 +19,29 @@ from app.services.rival_escudo_service import (
     build_escudo_lookup,
 )
 from app.services.partido_campo import split_campo_arbitro
+from app.services.supabase_schema import write_partido_row
 
 logger = logging.getLogger(__name__)
+
+
+def auto_creado_ids_to_purge(existing_partidos: list, my_jornada_nums: set) -> list:
+    """Ids auto-creados que ya no están en el calendario RFEF.
+
+    Nunca borrar el calendario si:
+    - RFEF no ha devuelto partidos (scrape vacío / fallo)
+    - el scrape es demasiado incompleto frente a lo que ya hay
+    """
+    if not my_jornada_nums:
+        return []
+    auto = [p for p in existing_partidos if p.get("auto_creado") and p.get("jornada")]
+    if auto and len(my_jornada_nums) < max(1, len(auto) // 2):
+        logger.error(
+            "Refuse auto_creado purge: rfef_jornadas=%s existing_auto=%s",
+            len(my_jornada_nums),
+            len(auto),
+        )
+        return []
+    return [p["id"] for p in auto if p["jornada"] not in my_jornada_nums]
 
 
 def _parse_fecha(fecha_str: str) -> date | None:
@@ -276,14 +297,19 @@ def link_competition(supabase, comp: dict) -> dict:
     # Clean up: delete auto-created partidos for jornadas where mi_equipo
     # is NOT in the match anymore (e.g., mi_equipo changed)
     my_jornadas = {m["jornada_num"] for m in my_matches}
+    if not my_matches:
+        logger.warning(
+            "Link competition %s: RFEF returned 0 matches for %s — skip auto_creado cleanup",
+            comp_id,
+            mi_equipo,
+        )
     partidos_deleted = 0
-    for p in existing_partidos:
-        if p.get("auto_creado") and p.get("jornada") and p["jornada"] not in my_jornadas:
-            try:
-                supabase.table("partidos").delete().eq("id", p["id"]).execute()
-                partidos_deleted += 1
-            except Exception:
-                pass
+    for pid in auto_creado_ids_to_purge(existing_partidos, my_jornadas):
+        try:
+            supabase.table("partidos").delete().eq("id", pid).execute()
+            partidos_deleted += 1
+        except Exception:
+            pass
     if partidos_deleted > 0:
         logger.info("Cleaned up %d stale auto-created partidos", partidos_deleted)
 
@@ -348,9 +374,12 @@ def link_competition(supabase, comp: dict) -> dict:
                 update_data["fecha"] = fecha.isoformat()
 
             if update_data:
-                supabase.table("partidos").update(update_data).eq(
-                    "id", existing["id"]
-                ).execute()
+                write_partido_row(
+                    lambda body: supabase.table("partidos").update(body).eq(
+                        "id", existing["id"]
+                    ).execute(),
+                    update_data,
+                )
                 partidos_updated += 1
 
         elif not existing:
@@ -377,7 +406,10 @@ def link_competition(supabase, comp: dict) -> dict:
                 partido_data["goles_favor"] = goles_favor
                 partido_data["goles_contra"] = goles_contra
 
-            result = supabase.table("partidos").insert(partido_data).execute()
+            result = write_partido_row(
+                lambda body: supabase.table("partidos").insert(body).execute(),
+                partido_data,
+            )
             if result.data:
                 partido_by_jornada[jornada_num] = result.data[0]
                 partidos_created += 1
