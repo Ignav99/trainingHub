@@ -116,7 +116,11 @@ class PartidoBase(BaseModel):
     # Cartel de convocatoria
     hora_citacion: Optional[str] = Field(None, pattern=r"^\d{2}:\d{2}$")
     lugar_citacion: Optional[str] = Field(None, max_length=200)
-    kit_convocatoria: Optional[Literal["local", "visitante"]] = None
+    kit_convocatoria: Optional[str] = Field(
+        None,
+        max_length=40,
+        pattern=r"^(local|visitante)(:(local|visitante)){0,2}$",
+    )
 
     # Auto-generated pre-match intelligence
     pre_match_intel: Optional[dict] = None
@@ -145,7 +149,11 @@ class PartidoUpdate(BaseModel):
     arbitro: Optional[str] = Field(None, max_length=200)
     hora_citacion: Optional[str] = Field(None, pattern=r"^\d{2}:\d{2}$")
     lugar_citacion: Optional[str] = Field(None, max_length=200)
-    kit_convocatoria: Optional[Literal["local", "visitante"]] = None
+    kit_convocatoria: Optional[str] = Field(
+        None,
+        max_length=40,
+        pattern=r"^(local|visitante)(:(local|visitante)){0,2}$",
+    )
 
 
 class PartidoResponse(PartidoBase):

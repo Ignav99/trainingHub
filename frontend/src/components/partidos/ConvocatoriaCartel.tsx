@@ -1,10 +1,15 @@
 'use client'
 
 import type { Ref } from 'react'
-import { JerseyPreview } from '@/components/equipaciones/JerseyPreview'
+import { KitFullPreview } from '@/components/equipaciones/KitFullPreview'
 import type { Equipacion } from '@/lib/api/equipaciones'
 import type { CartelPlayer } from '@/lib/convocatoriaCartel'
 import { formatFechaCartel, jornadaLabel } from '@/lib/convocatoriaCartel'
+
+type CartelKit = Pick<
+  Equipacion,
+  'color_camiseta_principal' | 'color_camiseta_secundario' | 'patron_camiseta' | 'color_pantalon' | 'color_medias'
+>
 
 export interface ConvocatoriaCartelProps {
   clubNombre: string
@@ -20,8 +25,7 @@ export interface ConvocatoriaCartelProps {
   arbitro?: string | null
   horaCitacion: string
   lugarCitacion: string
-  kitLabel: string
-  kit: Equipacion | null
+  kit: CartelKit | null
   players: CartelPlayer[]
   posterRef?: Ref<HTMLDivElement>
 }
@@ -41,7 +45,6 @@ export function ConvocatoriaCartel({
   arbitro,
   horaCitacion,
   lugarCitacion,
-  kitLabel,
   kit,
   players,
   posterRef,
@@ -87,48 +90,24 @@ export function ConvocatoriaCartel({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8, minWidth: 88 }}>
           <Crest src={clubLogoUrl} name={clubNombre} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {kit ? (
-              <JerseyPreview
-                colorPrincipal={kit.color_camiseta_principal}
-                colorSecundario={kit.color_camiseta_secundario || undefined}
-                patron={kit.patron_camiseta}
-                size={42}
-                escudoUrl={clubLogoUrl}
-              />
-            ) : null}
-            <div>
-              <div style={{ fontSize: 8, letterSpacing: '0.16em', color: '#D4E54E', fontWeight: 700 }}>
-                JUGAREMOS DE
-              </div>
-              <div
-                style={{
-                  fontFamily: 'Oswald, "Arial Narrow", Impact, sans-serif',
-                  fontSize: 14,
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  lineHeight: 1.1,
-                }}
-              >
-                {kitLabel}
-              </div>
-            </div>
-          </div>
+          {kit ? (
+            <KitFullPreview kit={kit} size={86} labels={false} escudoUrl={clubLogoUrl} />
+          ) : null}
         </div>
-        <div style={{ textAlign: 'center', paddingTop: 4 }}>
+        <div style={{ textAlign: 'center', paddingTop: 4, flex: 1, minWidth: 0 }}>
           <div
             style={{
               fontFamily: 'Oswald, "Arial Narrow", Impact, sans-serif',
-              fontSize: 13,
-              letterSpacing: '0.35em',
+              fontSize: 18,
+              letterSpacing: '0.22em',
               color: '#D4E54E',
-              fontWeight: 500,
+              fontWeight: 600,
             }}
           >
             CONVOCATORIA
           </div>
           {meta ? (
-            <div style={{ marginTop: 4, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.8 }}>
+            <div style={{ marginTop: 6, fontSize: 15, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: 0.88, fontWeight: 600 }}>
               {meta}
             </div>
           ) : null}
@@ -167,8 +146,8 @@ export function ConvocatoriaCartel({
           marginTop: 18,
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
-          gap: 10,
-          fontSize: 12,
+          gap: 8,
+          fontSize: 10,
           letterSpacing: '0.04em',
         }}
       >
@@ -195,7 +174,7 @@ export function ConvocatoriaCartel({
             {horaCitacion || '—'} h
           </div>
         </div>
-        <div style={{ textAlign: 'right', alignSelf: 'flex-end', fontSize: 12, fontWeight: 600, maxWidth: 220 }}>
+        <div style={{ textAlign: 'right', alignSelf: 'flex-end', fontSize: 11, fontWeight: 600, maxWidth: 220, lineHeight: 1.25 }}>
           {lugarCitacion || 'Lugar de citación'}
         </div>
       </div>
@@ -252,8 +231,8 @@ export function ConvocatoriaCartel({
 function Meta({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div style={{ fontSize: 9, letterSpacing: '0.18em', color: '#D4E54E', fontWeight: 700 }}>{label.toUpperCase()}</div>
-      <div style={{ marginTop: 2, fontSize: 13, fontWeight: 600 }}>{value}</div>
+      <div style={{ fontSize: 8, letterSpacing: '0.16em', color: '#D4E54E', fontWeight: 700 }}>{label.toUpperCase()}</div>
+      <div style={{ marginTop: 1, fontSize: 11, fontWeight: 600, lineHeight: 1.25 }}>{value}</div>
     </div>
   )
 }

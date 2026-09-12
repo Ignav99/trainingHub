@@ -21,17 +21,22 @@ import { apiKey } from '@/lib/swr'
 import { useClubStore } from '@/stores/clubStore'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { JerseyPreview } from '@/components/equipaciones/JerseyPreview'
+import { KitFullPreview, Shorts, Sock } from '@/components/equipaciones/KitFullPreview'
 import type { Equipacion, TipoEquipacion } from '@/lib/api/equipaciones'
 import type { Convocatoria, Partido } from '@/types'
 import {
+  cleanEstadioNombre,
   defaultHoraCitacion,
-  defaultKitConvocatoria,
   defaultLugarCitacion,
+  isUniformKit,
+  kitPiecesFromCombo,
+  parseKitCombo,
   partidoLugarArbitro,
+  serializeKitCombo,
   slugCartelFilename,
   sortConvocadosForCartel,
-  splitCampoArbitro,
-  type KitConvocatoria,
+  uniformKitCombo,
+  type KitCombo,
 } from '@/lib/convocatoriaCartel'
 import { ConvocatoriaCartel } from './ConvocatoriaCartel'
 
@@ -85,7 +90,7 @@ export function ConvocatoriaCartelDialog({
 
   const [horaCitacion, setHoraCitacion] = useState('')
   const [lugarCitacion, setLugarCitacion] = useState('')
-  const [kitChoice, setKitChoice] = useState<KitConvocatoria>('local')
+  const [kitCombo, setKitCombo] = useState<KitCombo>(uniformKitCombo('local'))
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState<'jpeg' | 'pdf' | null>(null)
 
@@ -102,7 +107,7 @@ export function ConvocatoriaCartelDialog({
         arbitro: partido.arbitro,
       }),
     )
-    setKitChoice(partido.kit_convocatoria || defaultKitConvocatoria(partido.localia))
+    setKitCombo(parseKitCombo(partido.kit_convocatoria, partido.localia))
   }, [
     open,
     partido.id,
@@ -123,14 +128,14 @@ export function ConvocatoriaCartelDialog({
     for (const k of clubKits || []) map[k.tipo] = k
     return map
   }, [clubKits])
-  const kit = kitsByTipo[kitChoice] ?? null
+  const kit = kitPiecesFromCombo(kitsByTipo, kitCombo)
+  const uniformSide = isUniformKit(kitCombo)
   const filenameBase = slugCartelFilename(partido.rival?.nombre || 'rival', partido.fecha)
   const clubNombre = club.organizacion?.nombre || equipoNombre || 'Equipo'
   const clubLogoUrl = club.theme.logoUrl || club.organizacion?.logo_url || null
   const rivalNombre = partido.rival?.nombre || 'Rival'
   const lugarPartido = venue.lugar || 'Por confirmar'
   const arbitro = venue.arbitro
-  const kitLabel = kitChoice === 'visitante' ? 'visitante' : 'local'
 
   const persist = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -138,8 +143,8 @@ export function ConvocatoriaCartelDialog({
       try {
         await partidosApi.update(partido.id, {
           hora_citacion: horaCitacion.trim() || null,
-          lugar_citacion: splitCampoArbitro(lugarCitacion).lugar || null,
-          kit_convocatoria: kitChoice,
+          lugar_citacion: cleanEstadioNombre(lugarCitacion) || null,
+          kit_convocatoria: serializeKitCombo(kitCombo),
         })
         await mutate(apiKey(`/partidos/${partido.id}`))
         if (!opts?.silent) toast.success('Citación guardada')
@@ -150,7 +155,7 @@ export function ConvocatoriaCartelDialog({
         setSaving(false)
       }
     },
-    [partido.id, horaCitacion, lugarCitacion, kitChoice],
+    [partido.id, horaCitacion, lugarCitacion, kitCombo],
   )
 
   const handleSave = async () => {
@@ -210,8 +215,8 @@ export function ConvocatoriaCartelDialog({
         <DialogHeader className="border-b border-border px-5 py-4 pr-12">
           <DialogTitle>Cartel de convocatoria</DialogTitle>
           <DialogDescription>
-            Todos los convocados por dorsal, sin once titular. Ajusta citación y
-            equipación y exporta JPEG o PDF para WhatsApp o redes.
+            Todos los convocados por dorsal. Elige la equipación completa o mezcla
+            camiseta, calzonas y medias. Exporta JPEG o PDF.
           </DialogDescription>
         </DialogHeader>
         <div className="grid min-h-0 flex-1 overflow-hidden lg:grid-cols-[minmax(260px,320px)_1fr]">
@@ -237,35 +242,86 @@ export function ConvocatoriaCartelDialog({
                 placeholder="Estadio, parking, bus…"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-3">
               <Label>Equipación</Label>
               <div className="grid grid-cols-2 gap-2">
-                {(['local', 'visitante'] as const).map((key) => (
+                {(['local', 'visitante'] as const).map((side) => (
                   <button
-                    key={key}
+                    key={side}
                     type="button"
-                    onClick={() => setKitChoice(key)}
-                    className={`rounded-lg border px-2 py-2 text-center text-sm capitalize transition-colors ${
-                      kitChoice === key
+                    onClick={() => setKitCombo(uniformKitCombo(side))}
+                    className={`rounded-lg border px-2 py-2 text-center text-sm transition-colors ${
+                      uniformSide === side
                         ? 'border-primary bg-primary/10 font-semibold'
                         : 'border-border hover:bg-muted/40'
                     }`}
                   >
-                    {kitsByTipo[key] ? (
-                      <JerseyPreview
-                        colorPrincipal={kitsByTipo[key]!.color_camiseta_principal}
-                        colorSecundario={kitsByTipo[key]!.color_camiseta_secundario || undefined}
-                        patron={kitsByTipo[key]!.patron_camiseta}
-                        size={56}
+                    {kitsByTipo[side] ? (
+                      <KitFullPreview
+                        kit={kitsByTipo[side]}
+                        size={72}
+                        labels={false}
                         escudoUrl={clubLogoUrl}
                       />
                     ) : (
                       <span className="block py-4 text-xs text-muted-foreground">Sin kit</span>
                     )}
-                    <span className="mt-1 block">Jugaremos de {key}</span>
+                    <span className="mt-1 block text-xs">
+                      {side === 'local' ? 'Local completa' : 'Visitante completa'}
+                    </span>
                   </button>
                 ))}
               </div>
+              {(
+                [
+                  ['camiseta', 'Camiseta'],
+                  ['pantalon', 'Calzonas'],
+                  ['medias', 'Medias'],
+                ] as const
+              ).map(([piece, label]) => (
+                <div key={piece} className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['local', 'visitante'] as const).map((side) => {
+                      const kitSide = kitsByTipo[side]
+                      const selected = kitCombo[piece] === side
+                      return (
+                        <button
+                          key={`${piece}-${side}`}
+                          type="button"
+                          onClick={() => setKitCombo((c) => ({ ...c, [piece]: side }))}
+                          className={`flex min-h-[56px] items-center justify-center rounded-lg border px-2 py-2 transition-colors ${
+                            selected
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border hover:bg-muted/40'
+                          }`}
+                          aria-pressed={selected}
+                          aria-label={`${label} ${side}`}
+                        >
+                          {!kitSide ? (
+                            <span className="text-xs text-muted-foreground">Sin kit</span>
+                          ) : piece === 'camiseta' ? (
+                            <JerseyPreview
+                              colorPrincipal={kitSide.color_camiseta_principal}
+                              colorSecundario={kitSide.color_camiseta_secundario || undefined}
+                              patron={kitSide.patron_camiseta}
+                              size={48}
+                              escudoUrl={clubLogoUrl}
+                            />
+                          ) : piece === 'pantalon' ? (
+                            <Shorts color={kitSide.color_pantalon} width={52} height={28} />
+                          ) : (
+                            <div className="flex gap-2" aria-hidden>
+                              <Sock color={kitSide.color_medias} width={16} height={36} />
+                              <Sock color={kitSide.color_medias} width={16} height={36} />
+                            </div>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
             <div className="flex flex-col gap-2 pt-2">
               <Button type="button" variant="outline" className="gap-2" onClick={handleSave} disabled={saving}>
@@ -307,7 +363,6 @@ export function ConvocatoriaCartelDialog({
                 arbitro={arbitro}
                 horaCitacion={horaCitacion}
                 lugarCitacion={lugarCitacion}
-                kitLabel={kitLabel}
                 kit={kit}
                 players={players}
               />

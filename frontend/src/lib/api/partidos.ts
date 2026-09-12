@@ -190,7 +190,7 @@ export interface PartidoCreateData {
   arbitro?: string | null
   hora_citacion?: string | null
   lugar_citacion?: string | null
-  kit_convocatoria?: 'local' | 'visitante' | null
+  kit_convocatoria?: string | null
 }
 
 export interface PartidoUpdateData extends Partial<Omit<PartidoCreateData, 'equipo_id'>> {}
