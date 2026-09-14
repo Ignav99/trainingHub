@@ -68,44 +68,64 @@ def _pct_victoria(pg: int | None, pe: int | None, pp: int | None) -> float | Non
     return round(pg / pj * 100, 1)
 
 
+def _clasificacion_match_rank(rival_nombre: str, equipo_nombre: str) -> int | None:
+    """Lower is better. Exact name beats core name beats fuzzy substring."""
+    a = rival_nombre.lower().strip()
+    b = (equipo_nombre or "").lower().strip()
+    if not a or not b or not _match_rival_name(a, b):
+        return None
+    if a == b:
+        return 0
+    core_a = _extract_core_name(a).lower()
+    core_b = _extract_core_name(b).lower()
+    if core_a and core_b and core_a == core_b:
+        return 1
+    return 2 + abs(len(a) - len(b))
+
+
 def _get_clasificacion(comp: dict, rival_nombre: str) -> dict | None:
     """Extract rival's standing from competition clasificacion."""
     clasificacion = comp.get("clasificacion") or []
     rival_lower = rival_nombre.lower()
 
+    ranked: list[tuple[int, dict]] = []
     for equipo in clasificacion:
-        equipo_nombre = (equipo.get("equipo") or "").lower()
-        if _match_rival_name(rival_lower, equipo_nombre):
-            pg_casa = equipo.get("pg_casa")
-            pe_casa = equipo.get("pe_casa")
-            pp_casa = equipo.get("pp_casa")
-            pg_fuera = equipo.get("pg_fuera")
-            pe_fuera = equipo.get("pe_fuera")
-            pp_fuera = equipo.get("pp_fuera")
-            pj_casa = (pg_casa or 0) + (pe_casa or 0) + (pp_casa or 0)
-            pj_fuera = (pg_fuera or 0) + (pe_fuera or 0) + (pp_fuera or 0)
-            return {
-                "posicion": equipo.get("posicion"),
-                "puntos": equipo.get("puntos"),
-                "pj": equipo.get("pj"),
-                "pg": equipo.get("pg"),
-                "pe": equipo.get("pe"),
-                "pp": equipo.get("pp"),
-                "gf": equipo.get("gf"),
-                "gc": equipo.get("gc"),
-                "ultimos_5": equipo.get("ultimos_5", []),
-                "pg_casa": pg_casa,
-                "pe_casa": pe_casa,
-                "pp_casa": pp_casa,
-                "pg_fuera": pg_fuera,
-                "pe_fuera": pe_fuera,
-                "pp_fuera": pp_fuera,
-                "pj_casa": pj_casa or None,
-                "pj_fuera": pj_fuera or None,
-                "pct_victoria_casa": _pct_victoria(pg_casa, pe_casa, pp_casa),
-                "pct_victoria_fuera": _pct_victoria(pg_fuera, pe_fuera, pp_fuera),
-            }
-    return None
+        rank = _clasificacion_match_rank(rival_lower, equipo.get("equipo") or "")
+        if rank is not None:
+            ranked.append((rank, equipo))
+    if not ranked:
+        return None
+    ranked.sort(key=lambda item: item[0])
+    equipo = ranked[0][1]
+    pg_casa = equipo.get("pg_casa")
+    pe_casa = equipo.get("pe_casa")
+    pp_casa = equipo.get("pp_casa")
+    pg_fuera = equipo.get("pg_fuera")
+    pe_fuera = equipo.get("pe_fuera")
+    pp_fuera = equipo.get("pp_fuera")
+    pj_casa = (pg_casa or 0) + (pe_casa or 0) + (pp_casa or 0)
+    pj_fuera = (pg_fuera or 0) + (pe_fuera or 0) + (pp_fuera or 0)
+    return {
+        "posicion": equipo.get("posicion"),
+        "puntos": equipo.get("puntos"),
+        "pj": equipo.get("pj"),
+        "pg": equipo.get("pg"),
+        "pe": equipo.get("pe"),
+        "pp": equipo.get("pp"),
+        "gf": equipo.get("gf"),
+        "gc": equipo.get("gc"),
+        "ultimos_5": equipo.get("ultimos_5", []),
+        "pg_casa": pg_casa,
+        "pe_casa": pe_casa,
+        "pp_casa": pp_casa,
+        "pg_fuera": pg_fuera,
+        "pe_fuera": pe_fuera,
+        "pp_fuera": pp_fuera,
+        "pj_casa": pj_casa or None,
+        "pj_fuera": pj_fuera or None,
+        "pct_victoria_casa": _pct_victoria(pg_casa, pe_casa, pp_casa),
+        "pct_victoria_fuera": _pct_victoria(pg_fuera, pe_fuera, pp_fuera),
+    }
 
 
 MINUTE_BUCKETS: list[tuple[str, int, int]] = [
@@ -155,6 +175,28 @@ def _roster_names(acta: dict, rival_nombre: str) -> tuple[set[str], set[str] | N
     return rival_players, opponent_players
 
 
+def _parcial_scored_by_rival(
+    gol: dict,
+    is_local: bool | None,
+    prev_parcial: tuple[int, int] | None,
+) -> bool | None:
+    """Attribute a goal from the scoreboard delta. Marcador is source of truth."""
+    if is_local is None or prev_parcial is None:
+        return None
+    pl = gol.get("parcial_local")
+    pv = gol.get("parcial_visitante")
+    if pl is None or pv is None:
+        return None
+    prev_l, prev_v = prev_parcial
+    local_scored = int(pl) > prev_l
+    visitante_scored = int(pv) > prev_v
+    if local_scored and not visitante_scored:
+        return is_local
+    if visitante_scored and not local_scored:
+        return not is_local
+    return None
+
+
 def _goal_scored_by_rival(
     gol: dict,
     rival_players: set[str],
@@ -162,26 +204,100 @@ def _goal_scored_by_rival(
     is_local: bool | None,
     prev_parcial: tuple[int, int] | None,
 ) -> bool | None:
-    """Return True if rival scored, False if conceded, None if unknown."""
+    """Return True if rival scored, False if conceded, None if unknown.
+
+    Scoreboard parcials win over player-name matching so own-goals and
+    shared surnames cannot invert GF/GC against the acta marcador.
+    """
+    from_parcial = _parcial_scored_by_rival(gol, is_local, prev_parcial)
+    if from_parcial is not None:
+        return from_parcial
+
     jugador = (gol.get("jugador") or "").strip().lower()
-    if jugador and jugador in rival_players:
-        return True
-    if jugador and opponent_players and jugador in opponent_players:
-        return False
-
-    pl = gol.get("parcial_local")
-    pv = gol.get("parcial_visitante")
-    if pl is None or pv is None or prev_parcial is None or is_local is None:
+    if not jugador:
         return None
-
-    prev_l, prev_v = prev_parcial
-    local_scored = pl > prev_l
-    visitante_scored = pv > prev_v
-    if local_scored and not visitante_scored:
-        return is_local
-    if visitante_scored and not local_scored:
-        return not is_local
+    in_rival = jugador in rival_players
+    in_opp = bool(opponent_players) and jugador in opponent_players
+    if in_rival and not in_opp:
+        return True
+    if in_opp and not in_rival:
+        return False
     return None
+
+
+def _iter_goal_attributions(
+    goles_list: list,
+    is_local: bool,
+    rival_players: set[str],
+    opponent_players: set[str] | None,
+) -> list[tuple[int, bool]]:
+    """(minuto, scored_by_rival) from an acta, walking parcials in order."""
+    events: list[tuple[int, bool]] = []
+    prev_parcial: tuple[int, int] | None = (0, 0)
+    for gol in sorted(
+        goles_list,
+        key=lambda g: (g.get("minuto") is None, g.get("minuto") or 0),
+    ):
+        scored = _goal_scored_by_rival(
+            gol, rival_players, opponent_players, is_local, prev_parcial,
+        )
+        pl = gol.get("parcial_local")
+        pv = gol.get("parcial_visitante")
+        if pl is not None and pv is not None:
+            prev_parcial = (int(pl), int(pv))
+        minuto = gol.get("minuto")
+        if minuto is None or scored is None:
+            continue
+        events.append((int(minuto), scored))
+    return events
+
+
+def _iter_parcial_attributions(goles_list: list, is_local: bool) -> list[tuple[int, bool]]:
+    """Attribute only from scoreboard deltas, ignoring player names."""
+    events: list[tuple[int, bool]] = []
+    prev_l, prev_v = 0, 0
+    for gol in sorted(
+        goles_list,
+        key=lambda g: (g.get("minuto") is None, g.get("minuto") or 0),
+    ):
+        pl = gol.get("parcial_local")
+        pv = gol.get("parcial_visitante")
+        if pl is None or pv is None:
+            continue
+        pl_i, pv_i = int(pl), int(pv)
+        minuto = gol.get("minuto")
+        d_l = pl_i - prev_l
+        d_v = pv_i - prev_v
+        prev_l, prev_v = pl_i, pv_i
+        if minuto is None:
+            continue
+        if d_l > 0:
+            events.append((int(minuto), is_local))
+        if d_v > 0:
+            events.append((int(minuto), not is_local))
+    return events
+
+
+def _goals_matching_marcador(
+    goles_list: list,
+    is_local: bool,
+    rival_players: set[str],
+    opponent_players: set[str] | None,
+    gf: int,
+    gc: int,
+) -> list[tuple[int, bool]]:
+    """Keep minute attributions only when they reconcile with the acta score."""
+    events = _iter_goal_attributions(goles_list, is_local, rival_players, opponent_players)
+    attr_gf = sum(1 for _, scored in events if scored)
+    attr_gc = sum(1 for _, scored in events if not scored)
+    if attr_gf == gf and attr_gc == gc:
+        return events
+    events = _iter_parcial_attributions(goles_list, is_local)
+    attr_gf = sum(1 for _, scored in events if scored)
+    attr_gc = sum(1 for _, scored in events if not scored)
+    if attr_gf == gf and attr_gc == gc:
+        return events
+    return []
 
 
 def _compute_racha_estado(ultimos_5: list[str]) -> dict:
@@ -255,66 +371,52 @@ def _compute_contexto_stats(
     casa = _empty_side_stats()
     fuera = _empty_side_stats()
     actas_con_goles_minuto = 0
+    actas_rival = [a for a in actas if _is_rival_local(a, rival_nombre) is not None]
+    actas_resultado = 0
+    actas_detalle = 0
 
-    for acta in actas:
+    for acta in actas_rival:
         is_local = _is_rival_local(acta, rival_nombre)
         gl = acta.get("goles_local")
         gv = acta.get("goles_visitante")
-        if gl is None or gv is None:
+        if is_local is None or gl is None or gv is None:
             continue
 
-        if is_local is True:
-            side_stats = casa
-            gf, gc = gl, gv
-        elif is_local is False:
-            side_stats = fuera
-            gf, gc = gv, gl
+        side_stats = casa if is_local else fuera
+        gf, gc = (gl, gv) if is_local else (gv, gl)
+        actas_resultado += 1
+        side_stats["pj"] += 1
+        side_stats["gf"] += gf
+        side_stats["gc"] += gc
+        if gf > gc:
+            side_stats["pg"] += 1
+        elif gf == gc:
+            side_stats["pe"] += 1
         else:
-            side_stats = None
-            gf = gc = None
-
-        if side_stats is not None and gf is not None and gc is not None:
-            side_stats["pj"] += 1
-            side_stats["gf"] += gf
-            side_stats["gc"] += gc
-            if gf > gc:
-                side_stats["pg"] += 1
-            elif gf == gc:
-                side_stats["pe"] += 1
-            else:
-                side_stats["pp"] += 1
+            side_stats["pp"] += 1
 
         goles_list = acta.get("goles") or []
         if not goles_list:
             continue
+        actas_detalle += 1
 
         rival_players, opponent_players = _roster_names(acta, rival_nombre)
-        prev_parcial: tuple[int, int] | None = (0, 0)
-        had_minute = False
+        events = _goals_matching_marcador(
+            goles_list, is_local, rival_players, opponent_players, gf, gc,
+        )
+        if not events:
+            continue
 
-        for gol in sorted(goles_list, key=lambda g: g.get("minuto") or 0):
-            minuto = gol.get("minuto")
-            if minuto is None:
-                continue
-            had_minute = True
-            scored = _goal_scored_by_rival(gol, rival_players, opponent_players, is_local, prev_parcial)
-            bucket = _minute_bucket(int(minuto))
-            half = "1t" if int(minuto) <= 45 else "2t"
-
-            if scored is True:
+        actas_con_goles_minuto += 1
+        for minuto, scored in events:
+            bucket = _minute_bucket(minuto)
+            half = "1t" if minuto <= 45 else "2t"
+            if scored:
                 buckets_marcados[bucket] += 1
                 mitad_marcados[half] += 1
-            elif scored is False:
+            else:
                 buckets_encajados[bucket] += 1
                 mitad_encajados[half] += 1
-
-            pl = gol.get("parcial_local")
-            pv = gol.get("parcial_visitante")
-            if pl is not None and pv is not None:
-                prev_parcial = (pl, pv)
-
-        if had_minute:
-            actas_con_goles_minuto += 1
 
     ultimos_5 = (clasificacion or {}).get("ultimos_5") or []
     racha = _compute_racha_estado(ultimos_5)
@@ -332,19 +434,19 @@ def _compute_contexto_stats(
             "media_gc": round(stats["gc"] / pj, 2) if pj else None,
         }
 
+    liga_gf = total_gf if total_pj else ((clasificacion or {}).get("gf"))
+    liga_gc = total_gc if total_pj else ((clasificacion or {}).get("gc"))
+
     return {
-        "actas_analizadas": len(actas),
-        "actas_con_resultado": sum(
-            1 for a in actas
-            if a.get("goles_local") is not None and a.get("goles_visitante") is not None
-        ),
-        "actas_con_goles_detalle": sum(1 for a in actas if a.get("goles")),
+        "actas_analizadas": len(actas_rival),
+        "actas_con_resultado": actas_resultado,
+        "actas_con_goles_detalle": actas_detalle,
         "actas_con_goles_minuto": actas_con_goles_minuto,
         "datos_minuto_disponibles": actas_con_goles_minuto > 0,
         "racha": racha,
         "liga": {
-            "gf": clasificacion.get("gf") if clasificacion else total_gf,
-            "gc": clasificacion.get("gc") if clasificacion else total_gc,
+            "gf": liga_gf,
+            "gc": liga_gc,
             "media_gf": round(total_gf / total_pj, 2) if total_pj else None,
             "media_gc": round(total_gc / total_pj, 2) if total_pj else None,
         },
@@ -426,6 +528,8 @@ def _get_goleadores_from_actas(supabase, comp_id: str, rival_nombre: str) -> lis
         goles_list = acta.get("goles") or []
         if not goles_list:
             continue
+        if _is_rival_local(acta, rival_nombre) is None:
+            continue
 
         # Build set of rival player names from this acta's lineups
         titulares = _get_rival_data(acta, rival_nombre, "titulares_local", "titulares_visitante")
@@ -474,9 +578,10 @@ def _query_actas(supabase, comp_id: str, rival_nombre: str, columns: str, desc: 
             query = query.limit(limit)
         res = query.execute()
         actas = res.data or []
-        if actas:
-            logger.info("Actas for '%s': %d rows (name search='%s')", rival_nombre, len(actas), name)
-            return actas
+        matched = [a for a in actas if _is_rival_local(a, rival_nombre) is not None]
+        if matched:
+            logger.info("Actas for '%s': %d rows (name search='%s')", rival_nombre, len(matched), name)
+            return matched
 
     # Strategy 3: find cod_actas via jornadas (jornadas always have correct team names)
     try:
@@ -527,6 +632,9 @@ def _query_actas(supabase, comp_id: str, rival_nombre: str, columns: str, desc: 
                         if names:
                             acta["local_nombre"] = names.get("local", "")
                             acta["visitante_nombre"] = names.get("visitante", "")
+                matched = [a for a in actas if _is_rival_local(a, rival_nombre) is not None]
+                if matched:
+                    actas = matched
                 logger.info(
                     "Actas for '%s': %d rows (jornadas fallback, %d cod_actas matched)",
                     rival_nombre, len(actas), len(cod_actas),
@@ -544,21 +652,30 @@ def _is_rival_local(acta: dict, rival_nombre: str) -> bool | None:
     """Determine if the rival is the local team in an acta.
 
     Tries full name and core name matching against both local_nombre
-    and visitante_nombre. Returns None if names are empty/unknown
-    (caller should try both sides).
+    and visitante_nombre. Returns None if names are empty/unknown or
+    if both sides match (ambiguous).
     """
     local = (acta.get("local_nombre") or "").lower()
     visitante = (acta.get("visitante_nombre") or "").lower()
     rival_lower = rival_nombre.lower()
     core_lower = _extract_core_name(rival_nombre).lower()
 
-    # Check if rival is local
-    if local and (_match_rival_name(rival_lower, local) or _match_rival_name(core_lower, local)):
+    local_hit = bool(local) and (
+        _match_rival_name(rival_lower, local) or _match_rival_name(core_lower, local)
+    )
+    visitante_hit = bool(visitante) and (
+        _match_rival_name(rival_lower, visitante) or _match_rival_name(core_lower, visitante)
+    )
+    if local_hit and visitante_hit:
+        if rival_lower == local and rival_lower != visitante:
+            return True
+        if rival_lower == visitante and rival_lower != local:
+            return False
+        return None
+    if local_hit:
         return True
-    # Check if rival is visitante
-    if visitante and (_match_rival_name(rival_lower, visitante) or _match_rival_name(core_lower, visitante)):
+    if visitante_hit:
         return False
-    # Names are empty — unknown
     return None
 
 
