@@ -986,31 +986,29 @@ function minutesFromLineEvents(
     ))
   if (timed.length === 0) return null
 
-  const open = new Map<string, number>()
-  for (const id of startingLineupIds(snapshot)) open.set(id, 0)
+  const open: Record<string, number> = {}
+  for (const id of Array.from(startingLineupIds(snapshot))) open[id] = 0
   const acc: Record<string, number> = {}
 
   timed.sort((a, b) => (a.ev.minute - b.ev.minute) || (a.index - b.index))
   for (const { ev } of timed) {
     if (ev.type === 'cambio' && ev.convId && ev.relatedConvId) {
-      const entered = open.get(ev.convId)
-      if (entered != null) {
-        addPlayed(acc, ev.convId, entered, ev.minute)
-        open.delete(ev.convId)
+      if (open[ev.convId] != null) {
+        addPlayed(acc, ev.convId, open[ev.convId], ev.minute)
+        delete open[ev.convId]
       }
-      open.set(ev.relatedConvId, ev.minute)
+      open[ev.relatedConvId] = ev.minute
       continue
     }
     if (ev.type === 'roja' && ev.convId) {
-      const entered = open.get(ev.convId)
-      if (entered != null) {
-        addPlayed(acc, ev.convId, entered, ev.minute)
-        open.delete(ev.convId)
+      if (open[ev.convId] != null) {
+        addPlayed(acc, ev.convId, open[ev.convId], ev.minute)
+        delete open[ev.convId]
       }
     }
   }
-  for (const [id, enter] of open) {
-    addPlayed(acc, id, enter, nowMinute)
+  for (const id of Object.keys(open)) {
+    addPlayed(acc, id, open[id], nowMinute)
   }
   const out: Record<string, number> = {}
   for (const id of convIds) out[id] = acc[id] || 0
