@@ -50,17 +50,35 @@ test('minuto de partido: 1ª y 2ª', () => {
   assert.equal(formatClock(2, 3 * 60000 + 9000), '48:09')
 })
 
-test('once inicial y cambio cierran minutos del que sale', () => {
+test('jugador que sale y vuelve a entrar suma ambos tramos', () => {
+  const snap: AnotadorSnapshot = {
+    ...DEFAULT_ANOTADOR,
+    started: true,
+    closed: true,
+    slots: { POR: 'a', DC: 'b' },
+    events: [
+      { id: 's1', minute: 30, half: 1, type: 'cambio', convId: 'b', relatedConvId: 'c', slotId: 'DC' },
+      { id: 's2', minute: 70, half: 2, type: 'cambio', convId: 'c', relatedConvId: 'b', slotId: 'DC' },
+    ],
+  }
+  const dumped = informeFromSnapshot(snap, ['a', 'b', 'c'], () => '')
+  assert.equal(dumped.playerRows.a.minutos_jugados, 90)
+  assert.equal(dumped.playerRows.b.minutos_jugados, 50)
+  assert.equal(dumped.playerRows.c.minutos_jugados, 40)
+})
+
+test('reentrada en vivo via applySub acumula minutos', () => {
   let snap: AnotadorSnapshot = {
     ...DEFAULT_ANOTADOR,
     slots: { POR: 'a', DC: 'b' },
   }
   snap = startEleven(snap)
-  snap = applySub(snap, 'b', 'c', 'DC', 60)
+  snap = applySub(snap, 'b', 'c', 'DC', 30)
+  snap = applySub(snap, 'c', 'b', 'DC', 70)
   const rows = computePlayerRows(snap, ['a', 'b', 'c'], 90)
   assert.equal(rows.a.minutos_jugados, 90)
-  assert.equal(rows.b.minutos_jugados, 60)
-  assert.equal(rows.c.minutos_jugados, 30)
+  assert.equal(rows.b.minutos_jugados, 50)
+  assert.equal(rows.c.minutos_jugados, 40)
 })
 
 test('minutos del informe: titular sin reloj ni startEleven juega 90; el cambio congela', () => {
@@ -283,17 +301,30 @@ test('1ª y 2ª parte guardan stats en espacios distintos y el total suma', () =
   assert.equal(report.lanes.find((r) => r.key === 'oc_dch')?.p2us, 2)
 })
 
-test('cambiar de parte conserva el reloj de cada mitad', () => {
+test('cambiar de parte sella la mitad anterior y el reloj vuelve al inicio', () => {
   let snap: AnotadorSnapshot = { ...DEFAULT_ANOTADOR, elapsedMs: 12 * 60000, started: true }
   snap = setActiveHalf(snap, 2)
   assert.equal(snap.half, 2)
   assert.equal(snap.half1Ms, 12 * 60000)
   assert.equal(snap.elapsedMs, 0)
+  assert.equal(formatClock(2, snap.elapsedMs), '45:00')
   snap = { ...snap, elapsedMs: 8 * 60000 }
   snap = setActiveHalf(snap, 1)
   assert.equal(snap.half, 1)
-  assert.equal(snap.elapsedMs, 12 * 60000)
+  assert.equal(snap.elapsedMs, 0)
+  assert.equal(formatClock(1, snap.elapsedMs), '00:00')
+  assert.equal(snap.half1Ms, 12 * 60000)
   assert.equal(snap.half2Ms, 8 * 60000)
+})
+
+test('botones 1ª/2ª no ponen el reloj en 45′ ni 90′', () => {
+  let snap: AnotadorSnapshot = { ...DEFAULT_ANOTADOR, started: true, elapsedMs: 0 }
+  snap = setActiveHalf(snap, 2)
+  assert.equal(formatClock(2, snap.elapsedMs), '45:00')
+  snap = setActiveHalf(snap, 1)
+  assert.equal(formatClock(1, snap.elapsedMs), '00:00')
+  snap = setActiveHalf(snap, 2)
+  assert.equal(formatClock(2, snap.elapsedMs), '45:00')
 })
 
 test('cerrar el partido marca cierre y se puede reabrir', () => {

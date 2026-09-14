@@ -273,7 +273,8 @@ export function setActiveHalf(snapshot: AnotadorSnapshot, half: AnotadorHalf): A
   }
   if (snapshot.half === 1) next.half1Ms = stampedHalfMs(snapshot.elapsedMs, snapshot.half1Ms)
   if (snapshot.half === 2) next.half2Ms = stampedHalfMs(snapshot.elapsedMs, snapshot.half2Ms)
-  next.elapsedMs = half === 1 ? (snapshot.half1Ms || 0) : (snapshot.half2Ms || 0)
+  // Visible clock always jumps to the start of the selected half (0′ / 45′).
+  next.elapsedMs = 0
   return next
 }
 
@@ -941,50 +942,78 @@ export function startingLineupIds(snapshot: AnotadorSnapshot): Set<string> {
 
 /**
  * Minutos desde el once y las sustituciones anotadas.
- * Titular: desde 0′ hasta el cambio (o hasta el final si no sale).
- * Entra: desde el minuto del cambio hasta que salga o hasta el final.
+ * Suma todos los tramos: titular que sale y vuelve a entrar cuenta 0–salida + reentrada–final.
  */
 export function computeMinutes(
   snapshot: AnotadorSnapshot,
   convIds: string[],
   nowMinute: number,
 ): Record<string, number> {
-  const enter: Record<string, number> = {}
-  const exit: Record<string, number> = {}
-  for (const id of Array.from(startingLineupIds(snapshot))) enter[id] = 0
-  for (const sub of sortedCambios(snapshot)) {
-    if (sub.convId) exit[sub.convId] = sub.minute
-    if (sub.relatedConvId) enter[sub.relatedConvId] = sub.minute
-  }
-  for (const ev of snapshot.events || []) {
-    if (ev.type === 'roja' && ev.side !== 'rival' && ev.convId && exit[ev.convId] == null) {
-      exit[ev.convId] = ev.minute
-    }
-  }
+  const fromEvents = minutesFromLineEvents(snapshot, convIds, nowMinute)
+  if (fromEvents) return fromEvents
 
-  const out: Record<string, number> = {}
+  const starters = startingLineupIds(snapshot)
   const onField = new Set(Object.values(snapshot.slots || {}).filter(Boolean))
+  const out: Record<string, number> = {}
   for (const id of convIds) {
-    if (enter[id] != null) {
-      let end = nowMinute
-      if (exit[id] != null) {
-        end = exit[id]
-      } else if (!onField.has(id) && (snapshot.playedOff[id] || 0) > 0) {
-        end = enter[id] + snapshot.playedOff[id]
-      }
-      out[id] = Math.max(0, end - enter[id])
-      continue
-    }
     const closed = snapshot.playedOff[id] || 0
     const entered = snapshot.enteredAt[id]
-    if (onField.has(id) && entered != null) {
-      out[id] = closed + Math.max(0, nowMinute - entered)
-    } else if (onField.has(id) && nowMinute > 0) {
-      out[id] = nowMinute
+    if (onField.has(id)) {
+      const start = entered ?? (starters.has(id) ? 0 : nowMinute)
+      out[id] = closed + Math.max(0, nowMinute - start)
     } else {
       out[id] = closed
     }
   }
+  return out
+}
+
+function addPlayed(acc: Record<string, number>, id: string, enter: number, exit: number) {
+  acc[id] = (acc[id] || 0) + Math.max(0, exit - enter)
+}
+
+/** Reconstruct on-field stints from starting XI + cambio/roja events. */
+function minutesFromLineEvents(
+  snapshot: AnotadorSnapshot,
+  convIds: string[],
+  nowMinute: number,
+): Record<string, number> | null {
+  const timed = (snapshot.events || [])
+    .map((ev, index) => ({ ev, index }))
+    .filter(({ ev }) => (
+      (ev.type === 'cambio' && ev.convId && ev.relatedConvId)
+      || (ev.type === 'roja' && ev.side !== 'rival' && Boolean(ev.convId))
+    ))
+  if (timed.length === 0) return null
+
+  const open = new Map<string, number>()
+  for (const id of startingLineupIds(snapshot)) open.set(id, 0)
+  const acc: Record<string, number> = {}
+
+  timed.sort((a, b) => (a.ev.minute - b.ev.minute) || (a.index - b.index))
+  for (const { ev } of timed) {
+    if (ev.type === 'cambio' && ev.convId && ev.relatedConvId) {
+      const entered = open.get(ev.convId)
+      if (entered != null) {
+        addPlayed(acc, ev.convId, entered, ev.minute)
+        open.delete(ev.convId)
+      }
+      open.set(ev.relatedConvId, ev.minute)
+      continue
+    }
+    if (ev.type === 'roja' && ev.convId) {
+      const entered = open.get(ev.convId)
+      if (entered != null) {
+        addPlayed(acc, ev.convId, entered, ev.minute)
+        open.delete(ev.convId)
+      }
+    }
+  }
+  for (const [id, enter] of open) {
+    addPlayed(acc, id, enter, nowMinute)
+  }
+  const out: Record<string, number> = {}
+  for (const id of convIds) out[id] = acc[id] || 0
   return out
 }
 

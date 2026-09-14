@@ -541,11 +541,11 @@ export function RivalContextoIntel({ rivalId, competicionId, rivalNombre }: Riva
           <span className="text-xs font-semibold">Liga total</span>
           <div className="grid grid-cols-2 gap-2 text-center">
             <div>
-              <div className="text-sm font-bold text-emerald-600">{intel.clasificacion?.gf ?? ctx?.liga.gf ?? '-'}</div>
+              <div className="text-sm font-bold text-emerald-600">{ctx?.liga.gf ?? intel.clasificacion?.gf ?? '-'}</div>
               <div className="text-[9px] text-muted-foreground uppercase">GF</div>
             </div>
             <div>
-              <div className="text-sm font-bold text-red-500">{intel.clasificacion?.gc ?? ctx?.liga.gc ?? '-'}</div>
+              <div className="text-sm font-bold text-red-500">{ctx?.liga.gc ?? intel.clasificacion?.gc ?? '-'}</div>
               <div className="text-[9px] text-muted-foreground uppercase">GC</div>
             </div>
           </div>
@@ -650,8 +650,8 @@ export function RivalContextoIntel({ rivalId, competicionId, rivalNombre }: Riva
                   </li>
                 </ul>
                 <p className="text-[10px]">
-                  Los goles totales (GF/GC, casa/fuera, mitades) sí salen del marcador de jornada/acta.
-                  Las gráficas temporales requieren el campo <code className="text-[10px]">goles[].minuto</code> del acta.
+                  Los goles totales (GF/GC, casa/fuera) salen del marcador de cada acta del rival.
+                  Las gráficas temporales y las mitades usan el detalle de goles sólo cuando cuadra con ese marcador.
                 </p>
               </div>
             )}
