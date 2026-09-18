@@ -19,8 +19,10 @@ import {
   formatLocalia,
   hexToRgb,
   informeRivalPdfFilename,
+  PITCH_PDF_MAX_MM,
   pitchDisplaySize,
 } from './planPartidoPdfLayout'
+import { resolvePizarraPng } from './capturePizarraForPdf'
 
 const FASE_LABELS: Record<FaseRival, string> = {
   ataque_organizado: 'Ataque organizado',
@@ -153,14 +155,15 @@ function addPizarraImage(
   if (!png?.startsWith('data:image')) return y
   try {
     const props = doc.getImageProperties(png)
-    const { w, h } = pitchDisplaySize(contentWidth, props.width, props.height, 92)
+    const { w, h } = pitchDisplaySize(contentWidth, props.width, props.height, PITCH_PDF_MAX_MM)
     y = ensureSpace(doc, y, h + 8, margin)
     const x = margin + (contentWidth - w) / 2
     doc.setDrawColor(226, 232, 240)
     doc.setFillColor(15, 40, 12)
     doc.roundedRect(x - 1, y - 1, w + 2, h + 2, 1.5, 1.5, 'FD')
     const format = png.includes('image/jpeg') ? 'JPEG' : 'PNG'
-    doc.addImage(png, format, x, y, w, h)
+    const alias = `pz-${doc.getNumberOfPages()}-${Math.round(y)}-${png.length}`
+    doc.addImage(png, format, x, y, w, h, alias, 'FAST')
     return y + h + 5
   } catch {
     return y
@@ -359,7 +362,13 @@ export async function exportRivalScoutPDF(
             : 'creacion_progresion'
         const roles = resolveRoles(sub.roles, sub.pizarra_diagrama)
         y = writeRoles(doc, roles, ctx, margin, y, contentWidth)
-        y = addPizarraImage(doc, sub.pizarra_tactica, margin, y, contentWidth)
+        y = addPizarraImage(
+          doc,
+          await resolvePizarraPng(sub.pizarra_tactica, sub.pizarra_diagrama),
+          margin,
+          y,
+          contentWidth,
+        )
       }
     }
 
@@ -393,7 +402,13 @@ export async function exportRivalScoutPDF(
     }
 
     if (phase && !phase.subfases && (phase.pizarra_tactica || diagramHasContent(phase.pizarra_diagrama))) {
-      y = addPizarraImage(doc, phase.pizarra_tactica, margin, y, contentWidth)
+      y = addPizarraImage(
+        doc,
+        await resolvePizarraPng(phase.pizarra_tactica, phase.pizarra_diagrama),
+        margin,
+        y,
+        contentWidth,
+      )
     }
 
     if (phase?.fortalezas?.length) {

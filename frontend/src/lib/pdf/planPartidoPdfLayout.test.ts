@@ -52,5 +52,7 @@ describe('plan partido PDF layout', () => {
     assert.equal(src.includes('Generado:'), false)
     assert.equal(src.includes('imgH = 45'), false)
     assert.equal(src.includes('pitchDisplaySize'), true)
+    assert.equal(src.includes('resolvePizarraPng'), true)
+    assert.equal(src.includes('PITCH_PDF_MAX_MM'), true)
   })
 })

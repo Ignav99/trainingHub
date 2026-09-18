@@ -92,6 +92,8 @@ describe('partidos workspace and dossier export', () => {
     assert.match(player, /video-fullscreen-toggle/)
     assert.equal(plan.includes('Exportar PDF'), false)
     assert.equal(scout.includes('Exportar PDF'), false)
+    assert.match(plan, /exportPlanPartidoPDF/)
+    assert.match(scout, /exportRivalScoutPDF/)
   })
 
   it('opens Informe Rival as the first match tab, linked to the rival ficha', () => {

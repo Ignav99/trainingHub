@@ -89,6 +89,8 @@ export default function ABPPitch({
   return (
     <svg
       viewBox={`0 0 ${svgVbW} ${svgVbH}`}
+      xmlns="http://www.w3.org/2000/svg"
+      data-tactical-pitch="1"
       className={`w-full h-full ${className}`}
       onClick={onClick}
       onMouseDown={onMouseDown}

@@ -10,7 +10,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Film, Save, Settings2, X } from 'lucide-react'
 import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
 import TacticalBoardEditor from '@/components/tactical-board/TacticalBoardEditor'
-import { captureBoardPreview } from '@/components/tactical-board/utils'
+import { captureBoardPreview, selectPitchSvg } from '@/components/tactical-board/utils'
 import { compactKeyframes } from '@/components/tactical-board/interpolate'
 import { generateId, TEAM_COLORS } from '@/components/tarea-editor/types'
 import {
@@ -146,7 +146,7 @@ export default function ABPBoardEditor({
     const start = frames[0]
 
     let preview = previewRef.current
-    const svg = rootRef.current?.querySelector('svg')
+    const svg = selectPitchSvg(rootRef.current)
     if (svg) {
       try {
         preview = await captureBoardPreview(svg as SVGSVGElement)

@@ -8,7 +8,7 @@ import { BoardDefs, ElementSymbol, ROTATABLE_ELEMENTS } from '@/components/tacti
 import BoardArrow from '@/components/tactical-board/BoardArrow'
 import { sampleAnimation, totalDuration, compactKeyframes } from '@/components/tactical-board/interpolate'
 import type { Keyframe, TareaPizarraData } from '@/components/tactical-board/types'
-import { captureBoardPreview } from '@/components/tactical-board/utils'
+import { captureBoardPreview, selectPitchSvg } from '@/components/tactical-board/utils'
 
 interface TacticalBoardMiniProps {
   data?: TareaPizarraData | null
@@ -148,7 +148,7 @@ function TacticalBoardMiniInner({
   useEffect(() => {
     if (!onPreviewReady || previewDoneRef.current) return
     const timer = setTimeout(async () => {
-      const svg = containerRef.current?.querySelector('svg')
+      const svg = selectPitchSvg(containerRef.current)
       if (!svg) return
       try {
         const preview = await captureBoardPreview(svg as SVGSVGElement)
