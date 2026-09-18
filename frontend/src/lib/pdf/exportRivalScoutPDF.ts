@@ -1,6 +1,8 @@
 import { jsPDF } from 'jspdf'
 import type {
+  AsignacionRolTactico,
   FaseRival,
+  PreMatchIntel,
   RivalPhaseAnalysis,
   RivalScoutData,
   RivalSubfaseAtaque,
@@ -13,7 +15,6 @@ import {
   rolLabel,
   type ContextoRoles,
 } from '@/lib/tacticalRoles'
-import type { AsignacionRolTactico } from '@/types'
 import { useClubStore } from '@/stores/clubStore'
 import {
   formatLocalia,
@@ -23,6 +24,8 @@ import {
   pitchDisplaySize,
 } from './planPartidoPdfLayout'
 import { resolvePizarraPng } from './capturePizarraForPdf'
+import { collectContextoPdfBlocks, collectOncePdfBlock } from './informeRivalPdfBlocks'
+import { rivalesApi } from '@/lib/api/partidos'
 
 const FASE_LABELS: Record<FaseRival, string> = {
   ataque_organizado: 'Ataque organizado',
@@ -59,6 +62,8 @@ export interface InformeRivalPdfMeta {
   clubNombre?: string
   clubLogoUrl?: string
   colorPrimario?: string
+  rivalId?: string
+  competicionId?: string
 }
 
 function ensureSpace(doc: jsPDF, y: number, needed: number, margin: number): number {
@@ -196,6 +201,41 @@ function phaseHasContent(phase: RivalPhaseAnalysis | undefined): boolean {
   return false
 }
 
+function writePdfBlock(
+  doc: jsPDF,
+  title: string,
+  lines: string[],
+  margin: number,
+  y: number,
+  contentWidth: number
+): number {
+  y = ensureSpace(doc, y, 10, margin)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8)
+  doc.setTextColor(100, 116, 139)
+  doc.text(title, margin, y)
+  y += 5
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(51, 65, 85)
+  for (const line of lines) {
+    if (!line.trim()) continue
+    y = ensureSpace(doc, y, 8, margin)
+    y = writeWrapped(doc, line, margin, y, contentWidth)
+    y += 1.5
+  }
+  return y + 4
+}
+
+async function loadIntelForPdf(meta: InformeRivalPdfMeta): Promise<PreMatchIntel | null> {
+  if (!meta.rivalId || !meta.competicionId) return null
+  try {
+    return await rivalesApi.getIntel(meta.rivalId, meta.competicionId)
+  } catch {
+    return null
+  }
+}
+
 function drawHeader(
   doc: jsPDF,
   meta: InformeRivalPdfMeta,
@@ -281,11 +321,14 @@ export async function exportRivalScoutPDF(
     rivalNombre: meta.rivalNombre,
     rivalEscudoUrl: meta.rivalEscudoUrl,
     localia: meta.localia,
+    rivalId: meta.rivalId,
+    competicionId: meta.competicionId,
   }
 
-  const [clubLogo, rivalCrest] = await Promise.all([
+  const [clubLogo, rivalCrest, intel] = await Promise.all([
     loadImageDataUrl(resolved.clubLogoUrl),
     loadImageDataUrl(resolved.rivalEscudoUrl),
+    loadIntelForPdf(resolved),
   ])
 
   const doc = new jsPDF()
@@ -295,17 +338,14 @@ export async function exportRivalScoutPDF(
   drawHeader(doc, resolved, { club: clubLogo, rival: rivalCrest })
   let y = 44
 
-  if (data.estrategia?.notas?.trim()) {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8)
-    doc.setTextColor(100, 116, 139)
-    doc.text('CONTEXTO', margin, y)
-    y += 5
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)
-    doc.setTextColor(51, 65, 85)
-    y = writeWrapped(doc, data.estrategia.notas, margin, y, contentWidth)
-    y += 5
+  const contextoBlocks = collectContextoPdfBlocks(data.estrategia, intel)
+  for (const block of contextoBlocks) {
+    y = writePdfBlock(doc, block.title, block.lines, margin, y, contentWidth)
+  }
+
+  const onceBlock = collectOncePdfBlock(data.estrategia)
+  if (onceBlock) {
+    y = writePdfBlock(doc, onceBlock.title, onceBlock.lines, margin, y, contentWidth)
   }
 
   for (const faseKey of FASE_ORDER) {

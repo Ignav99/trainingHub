@@ -272,6 +272,8 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
               rivalNombre,
               rivalEscudoUrl,
               localia,
+              rivalId,
+              competicionId,
             })}
             onPresentacion={async () => {
               setExportingDeck(true)
@@ -336,6 +338,18 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
                 placeholder="Actitud, estilo, intensidad, agresividad, cualquier otra consideración sobre el rival..."
                 rows={4}
                 className="text-sm resize-none"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Actitud / estilo</Label>
+              <Input
+                value={estrategia.actitud_estilo ?? ''}
+                onChange={(e) =>
+                  update({ estrategia: { ...estrategia, actitud_estilo: e.target.value } })
+                }
+                placeholder="Directo, presiona alto, bloque medio..."
+                className="h-8 text-sm"
               />
             </div>
 

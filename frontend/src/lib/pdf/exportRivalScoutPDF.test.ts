@@ -17,5 +17,8 @@ describe('informe rival PDF', () => {
     assert.match(src, /useClubStore/)
     assert.match(src, /resolvePizarraPng/)
     assert.match(src, /PITCH_PDF_MAX_MM/)
+    assert.match(src, /collectContextoPdfBlocks/)
+    assert.match(src, /collectOncePdfBlock/)
+    assert.match(src, /getIntel/)
   })
 })

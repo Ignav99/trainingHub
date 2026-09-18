@@ -112,10 +112,17 @@ function nameKey(nombre: string): string {
   return nombre.trim().toLowerCase()
 }
 
+export type RivalJugadorExtras = {
+  dorsal?: number | null
+  posicion?: string
+  apariciones?: number
+  sancionado?: boolean
+}
+
 export function upsertRivalJugador(
   once: RivalScoutStrategy['once_probable'] | undefined,
   nombre: string,
-  extras?: { dorsal?: number | null; posicion?: string }
+  extras?: RivalJugadorExtras
 ): RivalOnceProbable {
   const next = ensureOnceProbable(once)
   const trimmed = nombre.trim()
@@ -127,9 +134,30 @@ export function upsertRivalJugador(
       nombre: trimmed,
       ...(extras?.dorsal !== undefined ? { dorsal: extras.dorsal } : {}),
       ...(extras?.posicion ? { posicion: extras.posicion } : {}),
+      ...(extras?.apariciones !== undefined ? { apariciones: extras.apariciones } : {}),
+      ...(extras?.sancionado !== undefined ? { sancionado: extras.sancionado } : {}),
     }
   } else {
     next.jugadores.push(emptyJugadorEvaluacion({ nombre: trimmed, ...extras }))
+  }
+  return next
+}
+
+/** Añade un jugador de acta (o a mano) y, si hay puesto, lo coloca en el 11. */
+export function placeRivalPlayer(
+  once: RivalScoutStrategy['once_probable'] | undefined,
+  nombre: string,
+  extras?: RivalJugadorExtras & { actasAnalizadas?: number },
+  slotId?: string | null
+): RivalOnceProbable {
+  const { actasAnalizadas, ...playerExtras } = extras ?? {}
+  let next = upsertRivalJugador(once, nombre, playerExtras)
+  if (actasAnalizadas && actasAnalizadas > (next.actas_analizadas ?? 0)) {
+    next.actas_analizadas = actasAnalizadas
+  }
+  if (slotId) {
+    next = assignRivalSlot(next, slotId, nombre)
+    next = upsertRivalJugador(next, nombre, playerExtras)
   }
   return next
 }

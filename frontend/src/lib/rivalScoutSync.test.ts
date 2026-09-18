@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import type { RivalScoutData } from '@/types'
 import {
   upsertRivalJugador,
+  placeRivalPlayer,
   renameRivalJugador,
   removeRivalJugador,
   assignRivalSlot,
@@ -19,6 +20,19 @@ describe('manual once probable', () => {
     assert.equal(once.jugadores.length, 1)
     assert.equal(once.jugadores[0].nombre, 'García, Pedro')
     assert.equal(once.jugadores[0].dorsal, 10)
+  })
+
+  it('places an acta player on a slot keeping frequency', () => {
+    const once = placeRivalPlayer(
+      undefined,
+      'García, Pedro',
+      { dorsal: 9, apariciones: 4, sancionado: false, actasAnalizadas: 5 },
+      'ST'
+    )
+    assert.equal(once.colocacion.ST, 'García, Pedro')
+    assert.equal(once.jugadores[0].apariciones, 4)
+    assert.equal(once.jugadores[0].dorsal, 9)
+    assert.equal(once.actas_analizadas, 5)
   })
 
   it('places a player on a slot and moves them if reassigned', () => {

@@ -28,6 +28,9 @@ INFORME = {
     ],
     "estrategia": {
         "sistema": "4-3-3",
+        "notas": "Presiona alto",
+        "dimensiones_campo": "105 x 68",
+        "actitud_estilo": "Directo",
         "once_probable": {
             "jugadores": [{"nombre": "García", "dorsal": 9}, {"nombre": "López", "dorsal": 10}],
         },
@@ -55,6 +58,8 @@ class TestBriefing:
         assert brief["tipo"] == "informe"
         assert brief["rival"] == "Atlético"
         assert "García" in brief["once"]
+        assert brief["campo"] == "105 x 68"
+        assert brief["actitud"] == "Directo"
         dumped = briefing_to_prompt(brief)
         assert "pizarra" not in dumped
         assert "http://x" not in dumped
@@ -71,6 +76,7 @@ class TestDeck:
         deck = fallback_deck(briefing_from_informe(INFORME, {"rival_nombre": "Atlético"}))
         assert 1 <= len(deck["slides"]) <= MAX_SLIDES
         assert deck["slides"][0]["layout"] == "portada"
+        assert any(s["title"] == "Contexto" for s in deck["slides"])
         assert any(s["layout"] == "claves" for s in deck["slides"])
 
     def test_parse_json_strips_markdown(self):
