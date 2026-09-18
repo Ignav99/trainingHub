@@ -27,6 +27,19 @@ describe('ficha rival tabs', () => {
     assert.match(page, /isTabId/)
   })
 
+  it('lets the once pick acta players from a dropdown without dropping manual names', () => {
+    const strategy = readFileSync(join(src, 'components/microciclos/RivalStrategy.tsx'), 'utf8')
+    assert.match(strategy, /once-probable/)
+    assert.match(strategy, /ActaPlayerSelect/)
+    assert.match(strategy, /Añadir al 11 desde actas/)
+    assert.match(strategy, /Añadir jugador a mano/)
+    assert.match(strategy, /placeRivalPlayer/)
+    assert.equal(strategy.includes('handleLoadOnceProbable({ silent: true })'), false)
+    const scout = readFileSync(join(src, 'components/microciclos/RivalScout.tsx'), 'utf8')
+    assert.match(scout, /Actitud \/ estilo/)
+    assert.match(scout, /competicionId/)
+  })
+
   it('splits match plans into ida and vuelta without wiping the other leg', () => {
     const tab = readFileSync(join(src, 'components/rivales/RivalPlanPartidoTab.tsx'), 'utf8')
     assert.match(tab, /PlanTramoToggle/)

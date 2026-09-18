@@ -126,6 +126,8 @@ def briefing_from_informe(data: dict | None, meta: dict | None = None) -> dict[s
         "fortalezas": _tags(data.get("fortalezas")),
         "debilidades": _tags(data.get("debilidades")),
         "anotaciones": _clip(data.get("anotaciones") or (estrategia.get("notas") if isinstance(estrategia, dict) else ""), 320),
+        "campo": _clip(estrategia.get("dimensiones_campo") if isinstance(estrategia, dict) else "", 40),
+        "actitud": _clip(estrategia.get("actitud_estilo") if isinstance(estrategia, dict) else "", 80),
         "once": jugadores,
         "fases": fases,
     }

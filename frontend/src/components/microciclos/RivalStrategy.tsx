@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import useSWR from 'swr'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -12,12 +13,15 @@ import type {
   RivalJugadorEvaluacion,
   RivalAtributoEmoji,
   RivalJugadorAtributos,
+  OnceProbableJugador,
+  OnceProbableResponse,
 } from '@/types'
 import { rivalesApi } from '@/lib/api/partidos'
+import { apiKey } from '@/lib/swr'
 import {
   mergeOnceProbableAnnotations,
   ensureOnceProbable,
-  upsertRivalJugador,
+  placeRivalPlayer,
   renameRivalJugador,
   removeRivalJugador,
   assignRivalSlot,
@@ -103,45 +107,44 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
   const [typedName, setTypedName] = useState('')
   const [typedDorsal, setTypedDorsal] = useState('')
   const typedNameRef = useRef<HTMLInputElement>(null)
-  const skipAutoApplyRef = useRef(false)
+
+  const { data: actaRes, isLoading: loadingActaCatalog } = useSWR<OnceProbableResponse>(
+    rivalId && competicionId
+      ? apiKey(`/rivales/${rivalId}/once-probable`, { competicion_id: competicionId })
+      : null
+  )
+  const actaPlayers = actaRes?.once_probable ?? []
 
   const jugadores = onceProbable?.jugadores ?? []
   const placedNames = new Set(Object.values(colocacion).filter(Boolean))
+  const plantillaNames = new Set(jugadores.map((j) => j.nombre))
 
   const updateStrategy = (patch: Partial<RivalScoutStrategy>) => {
     onChange({ ...strategy, ...patch })
   }
 
   const writeOnce = (next: ReturnType<typeof ensureOnceProbable>) => {
-    skipAutoApplyRef.current = true
     updateStrategy({ once_probable: next, sistema })
   }
 
-  const handleLoadOnceProbable = async (opts?: { silent?: boolean }) => {
-    const silent = !!opts?.silent
+  const handleLoadOnceProbable = async () => {
     if (!rivalId) {
-      if (!silent) toast.error('Necesitas un rival para cargar el 11 desde actas')
+      toast.error('Necesitas un rival para cargar el 11 desde actas')
       return
     }
     if (!competicionId) {
-      if (!silent) {
-        toast.error('No hay competición RFEF vinculada. Puedes escribir el 11 a mano.')
-      }
+      toast.error('No hay competición RFEF vinculada. Puedes escribir el 11 a mano.')
       return
     }
 
     setLoadingOnce(true)
     try {
-      const res = await rivalesApi.getOnceProbable(rivalId, competicionId)
-      if (silent && skipAutoApplyRef.current) return
-
+      const res = actaRes ?? (await rivalesApi.getOnceProbable(rivalId, competicionId))
       const fresh = res.once_probable ?? []
       if (!fresh.length) {
-        if (!silent) toast.warning('No hay actas con titulares. Escribe el 11 a mano.')
+        toast.warning('No hay actas con titulares. Elige a mano o escribe el nombre.')
         return
       }
-
-      if (silent && (onceProbable?.jugadores?.length ?? 0) > 0) return
 
       const merged = mergeOnceProbableAnnotations(
         fresh.map((j) => ({
@@ -156,28 +159,17 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
         res.actas_analizadas
       )
 
-      if (!silent) {
-        toast.success(`${merged.jugadores.length} jugadores (${res.actas_analizadas} actas). Puedes editar nombres y puestos.`)
-      }
+      toast.success(
+        `${merged.jugadores.length} jugadores (${res.actas_analizadas} actas). Elige del desplegable o escribe a mano.`
+      )
       updateStrategy({ once_probable: merged })
     } catch (err: unknown) {
-      if (!silent) {
-        const message = err instanceof Error ? err.message : 'Error cargando once probable'
-        toast.error(message)
-      }
+      const message = err instanceof Error ? err.message : 'Error cargando once probable'
+      toast.error(message)
     } finally {
       setLoadingOnce(false)
     }
   }
-
-  const autoLoadedRef = useRef<string | null>(null)
-  useEffect(() => {
-    if (!rivalId || !competicionId || onceProbable?.jugadores?.length) return
-    const key = `${rivalId}:${competicionId}`
-    if (autoLoadedRef.current === key) return
-    autoLoadedRef.current = key
-    void handleLoadOnceProbable({ silent: true })
-  }, [rivalId, competicionId, onceProbable?.jugadores?.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (pickingSlot) {
@@ -188,22 +180,36 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
     }
   }, [pickingSlot])
 
-  const addOrPlace = (nombre: string, dorsal: number | null, slotId?: string | null) => {
+  const addOrPlace = (
+    nombre: string,
+    dorsal: number | null,
+    slotId?: string | null,
+    acta?: Pick<OnceProbableJugador, 'apariciones' | 'sancionado'>
+  ) => {
     const trimmed = nombre.trim()
     if (!trimmed) return
     const slot = slotId ?? pickingSlot
     const slotMeta = slot ? activeFormation.slots.find((s) => s.id === slot) : undefined
-    let next = upsertRivalJugador(onceProbable, trimmed, {
-      dorsal: dorsal ?? undefined,
-      posicion: slotMeta?.position,
-    })
-    if (slot) {
-      next = assignRivalSlot(next, slot, trimmed)
-    }
+    const next = placeRivalPlayer(
+      onceProbable,
+      trimmed,
+      {
+        dorsal: dorsal ?? undefined,
+        posicion: slotMeta?.position,
+        apariciones: acta?.apariciones,
+        sancionado: acta?.sancionado,
+        actasAnalizadas: actaRes?.actas_analizadas,
+      },
+      slot
+    )
     writeOnce(next)
     setPickingSlot(null)
     setTypedName('')
     setTypedDorsal('')
+  }
+
+  const addFromActa = (player: OnceProbableJugador, slotId?: string | null) => {
+    addOrPlace(player.nombre, player.dorsal, slotId ?? pickingSlot, player)
   }
 
   const assignSlot = (slotId: string, playerName: string) => {
@@ -246,7 +252,7 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
     })
   }
 
-  const totalActas = onceProbable?.actas_analizadas ?? 0
+  const totalActas = onceProbable?.actas_analizadas || actaRes?.actas_analizadas || 0
   const frecuenciaLabel = (apariciones?: number) =>
     totalActas > 0 ? `${apariciones ?? 0}/${totalActas}` : apariciones != null && apariciones > 0 ? String(apariciones) : '—'
 
@@ -259,6 +265,7 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
     : null
 
   const placedCount = Object.values(colocacion).filter(Boolean).length
+  const firstEmptySlot = activeFormation.slots.find((s) => !colocacion[s.id])?.id
 
   return (
     <div className="space-y-4">
@@ -266,7 +273,7 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
         <div>
           <Label className="text-sm font-medium">Sistema y once probable</Label>
           <p className="text-xs text-muted-foreground">
-            Elige el sistema, escribe los nombres o carga el 11 desde las actas RFEF
+            Elige el sistema. Mete jugadores a mano o del desplegable de actas RFEF.
           </p>
         </div>
         <Button
@@ -274,13 +281,10 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
           variant="outline"
           size="sm"
           className="h-8 text-xs shrink-0"
-          onClick={() => {
-            skipAutoApplyRef.current = false
-            void handleLoadOnceProbable({ silent: false })
-          }}
-          disabled={loadingOnce || !rivalId}
+          onClick={() => void handleLoadOnceProbable()}
+          disabled={loadingOnce || loadingActaCatalog || !rivalId}
         >
-          {loadingOnce ? 'Cargando...' : 'Cargar desde actas'}
+          {loadingOnce ? 'Cargando...' : 'Traer plantilla de actas'}
         </Button>
       </div>
 
@@ -313,11 +317,42 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
                 : 'Once manual · 🧱 muro · 🏃 velocidad · 💡 creatividad'}
             </Badge>
           </div>
+          {actaPlayers.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 px-2 py-2">
+              <ActaPlayerSelect
+                players={actaPlayers}
+                excludedNames={pickingSlot ? placedNames : plantillaNames}
+                actas={totalActas}
+                placeholder={
+                  pickingSlot
+                    ? `Detectados en actas → ${pickingSlotLabel}`
+                    : 'Añadir al 11 desde actas…'
+                }
+                onPick={(player) => addFromActa(player, pickingSlot ?? firstEmptySlot ?? null)}
+              />
+              <span className="text-[10px] text-muted-foreground">
+                {actaPlayers.length} detectados
+                {totalActas > 0 ? ` en ${totalActas} actas` : ''}
+              </span>
+            </div>
+          )}
           {pickingSlot && (
             <div className="flex flex-wrap items-end gap-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-2">
               <p className="text-xs text-amber-800 w-full">
-                Posición <strong>{pickingSlotLabel}</strong>: escribe un nombre o elige uno de la tabla
+                Posición <strong>{pickingSlotLabel}</strong>: elige un detectado en actas o escríbelo a
+                mano
               </p>
+              {actaPlayers.length > 0 ? (
+                <ActaPlayerSelect
+                  players={actaPlayers}
+                  excludedNames={placedNames}
+                  actas={totalActas}
+                  placeholder="Jugador de acta…"
+                  onPick={(player) => addFromActa(player, pickingSlot)}
+                />
+              ) : loadingActaCatalog ? (
+                <span className="text-[10px] text-amber-700">Buscando actas…</span>
+              ) : null}
               <Input
                 ref={typedNameRef}
                 value={typedName}
@@ -478,12 +513,17 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
               <tbody>
                 {tablaFilas.map((j, i) => {
                   if (!j) {
+                    const isFirstEmpty = i === jugadores.length
                     return (
                       <EmptyPlayerRow
                         key={`empty-${i}`}
                         index={i}
                         pickingSlot={pickingSlot}
+                        actaPlayers={isFirstEmpty ? actaPlayers : []}
+                        excludedNames={plantillaNames}
+                        actas={totalActas}
                         onAdd={(nombre, dorsal) => addOrPlace(nombre, dorsal, pickingSlot)}
+                        onPickActa={(player) => addFromActa(player, pickingSlot)}
                       />
                     )
                   }
@@ -570,7 +610,8 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
             </table>
           </div>
           <p className="text-[10px] text-muted-foreground">
-            Pincha un puesto en el campo y escribe el nombre, o rellena la tabla. Cargar desde actas no borra los que hayas puesto a mano.
+            Pincha un puesto y elige un jugador de actas o escribe el nombre. Traer plantilla no borra
+            los que hayas puesto a mano.
           </p>
         </div>
       </div>
@@ -578,14 +619,65 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
   )
 }
 
+function actaOptionLabel(player: OnceProbableJugador, actas: number): string {
+  const dorsal = player.dorsal != null ? `${player.dorsal}. ` : ''
+  const freq =
+    actas > 0 ? ` · ${player.apariciones}/${actas}` : player.apariciones ? ` · ${player.apariciones}` : ''
+  const sanc = player.sancionado ? ' · SANC' : ''
+  return `${dorsal}${player.nombre}${freq}${sanc}`
+}
+
+function ActaPlayerSelect({
+  players,
+  excludedNames,
+  actas,
+  placeholder,
+  onPick,
+}: {
+  players: OnceProbableJugador[]
+  excludedNames: Set<string>
+  actas: number
+  placeholder: string
+  onPick: (player: OnceProbableJugador) => void
+}) {
+  const options = players.filter((p) => !excludedNames.has(p.nombre))
+  if (!options.length) return null
+  return (
+    <select
+      value=""
+      onChange={(e) => {
+        const player = players.find((j) => j.nombre === e.target.value)
+        if (player) onPick(player)
+      }}
+      className="h-8 max-w-[280px] text-xs rounded-md border border-input bg-background px-2"
+      aria-label={placeholder}
+    >
+      <option value="">{placeholder}</option>
+      {options.map((player) => (
+        <option key={player.nombre} value={player.nombre}>
+          {actaOptionLabel(player, actas)}
+        </option>
+      ))}
+    </select>
+  )
+}
+
 function EmptyPlayerRow({
   index,
   pickingSlot,
+  actaPlayers,
+  excludedNames,
+  actas,
   onAdd,
+  onPickActa,
 }: {
   index: number
   pickingSlot: string | null
+  actaPlayers: OnceProbableJugador[]
+  excludedNames: Set<string>
+  actas: number
   onAdd: (nombre: string, dorsal: number | null) => void
+  onPickActa: (player: OnceProbableJugador) => void
 }) {
   const [nombre, setNombre] = useState('')
   const [dorsal, setDorsal] = useState('')
@@ -617,21 +709,32 @@ function EmptyPlayerRow({
         />
       </td>
       <td className="px-1 py-1" colSpan={5}>
-        <Input
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          onBlur={() => {
-            if (nombre.trim()) commit()
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              commit()
-            }
-          }}
-          placeholder={pickingSlot ? 'Nombre para este puesto…' : 'Añadir jugador a mano'}
-          className="h-7 text-[11px]"
-        />
+        <div className="flex flex-wrap items-center gap-1.5">
+          {actaPlayers.length > 0 ? (
+            <ActaPlayerSelect
+              players={actaPlayers}
+              excludedNames={excludedNames}
+              actas={actas}
+              placeholder="De actas…"
+              onPick={onPickActa}
+            />
+          ) : null}
+          <Input
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            onBlur={() => {
+              if (nombre.trim()) commit()
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                commit()
+              }
+            }}
+            placeholder={pickingSlot ? 'O escribe el nombre para este puesto…' : 'Añadir jugador a mano'}
+            className="h-7 text-[11px] min-w-[140px] flex-1"
+          />
+        </div>
       </td>
       <td />
     </tr>

@@ -210,6 +210,15 @@ def fallback_deck(briefing: dict[str, Any]) -> dict[str, Any]:
             "keywords": [],
         }
     ]
+    contexto = [x for x in [briefing.get("anotaciones"), briefing.get("campo") and f"Campo {briefing.get('campo')}", briefing.get("actitud")] if x]
+    if contexto:
+        slides.append({
+            "layout": "bullets",
+            "kicker": "Contexto",
+            "title": "Contexto",
+            "bullets": contexto[:MAX_BULLETS],
+            "keywords": [],
+        })
     if keywords:
         slides.append({
             "layout": "claves",
@@ -247,14 +256,6 @@ def fallback_deck(briefing: dict[str, Any]) -> dict[str, Any]:
             "kicker": briefing.get("sistema") or "Once",
             "title": "Once probable",
             "bullets": briefing["once"][:MAX_BULLETS],
-            "keywords": [],
-        })
-    if briefing.get("anotaciones"):
-        slides.append({
-            "layout": "bullets",
-            "kicker": "Cierre",
-            "title": "Lo que pedimos",
-            "bullets": [briefing["anotaciones"]],
             "keywords": [],
         })
 
