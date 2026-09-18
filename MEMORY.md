@@ -36,6 +36,8 @@ Solo Scouting, Informe Rival, Plan de Partido, ABP y Equipación. Plan ida/vuelt
 
 **Once probable rival:** se puede escribir a mano y elegir del desplegable de titulares detectados en actas RFEF (sin volcar toda la plantilla al abrir). El PDF del informe incluye CONTEXTO (notas, campo, actitud, intel RFEF) y el 11 colocado.
 
+**Contexto RFEF (goles/rachas):** el matching de actas ya no usa subcadenas (`San Vicente` ≠ `San Vicente B`, no se confunde con `mi_equipo_nombre`). GF/GC, racha y goleadores son del rival. Los minutos de gol de las actas (`16'`, `45+2`, texto en el jugador) se vuelcan aunque falten parciales ofuscados; no hace falta que el marcador cuadre gol a gol.
+
 ## Partidos: el calendario no puede desaparecer
 Listar `/v1/partidos` **nunca** debe devolver 500 (ni un dashboard vacío) porque falte una columna SQL opcional (`arbitro`, etc.). El API reintenta el SELECT sin esa columna. El linker RFEF **no borra** `auto_creado` si el scrape viene vacío o incompleto (menos de la mitad de jornadas). Amistosos (`auto_creado=false`) no entran en ese purge. Si el calendario se ve vacío, es un error de lectura, no un borrado: mostrar aviso, no «Sin partidos». Migración 083: `ALTER TABLE partidos ADD COLUMN IF NOT EXISTS arbitro TEXT;`
 

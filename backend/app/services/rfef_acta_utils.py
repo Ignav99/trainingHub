@@ -1,5 +1,54 @@
 """Helpers to decide if an RFEF acta row needs re-scraping."""
 
+import re
+
+_MINUTE_ADDED = re.compile(r"(\d{1,3})\s*\+\s*(\d{1,2})")
+_MINUTE_PARENS = re.compile(r"\((\d{1,3})(?:\s*\+\s*(\d{1,2}))?'?\)")
+_MINUTE_QUOTE = re.compile(r"(\d{1,3})\s*'")
+_MINUTE_BARE = re.compile(r"(\d{1,3})")
+
+
+def parse_acta_minuto(value, *, allow_bare: bool = True) -> int | None:
+    """Coerce RFEF minute fields: 16, '16', \"16'\", '(16')', '45+2'."""
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        n = int(value)
+        return n if 0 <= n <= 130 else None
+    text = str(value).strip()
+    if not text:
+        return None
+    m = _MINUTE_ADDED.search(text)
+    if m:
+        total = int(m.group(1)) + int(m.group(2))
+        return min(total, 130) if total >= 0 else None
+    m = _MINUTE_PARENS.search(text)
+    if m:
+        n = int(m.group(1)) + (int(m.group(2)) if m.group(2) else 0)
+        return n if 0 <= n <= 130 else None
+    m = _MINUTE_QUOTE.search(text)
+    if m:
+        n = int(m.group(1))
+        return n if 0 <= n <= 130 else None
+    if not allow_bare:
+        return None
+    m = _MINUTE_BARE.fullmatch(text)
+    if m:
+        n = int(m.group(1))
+        return n if 0 <= n <= 130 else None
+    return None
+
+
+def goal_minuto(gol: dict | None) -> int | None:
+    """Minute of a scraped goal, including minutes buried in the player string."""
+    if not gol:
+        return None
+    for key in ("minuto", "minute", "min", "m"):
+        parsed = parse_acta_minuto(gol.get(key))
+        if parsed is not None:
+            return parsed
+    return parse_acta_minuto(gol.get("jugador"))
+
 
 def acta_has_lineups(acta: dict) -> bool:
     titulares = acta.get("titulares_local") or []
@@ -24,7 +73,7 @@ def acta_needs_goles_rescrape(acta: dict) -> bool:
     if not goles:
         return True
 
-    return not any(g.get("minuto") is not None for g in goles)
+    return not any(goal_minuto(g) is not None for g in goles)
 
 
 def is_acta_complete(acta: dict) -> bool:

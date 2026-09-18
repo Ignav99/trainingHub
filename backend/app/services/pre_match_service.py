@@ -6,17 +6,32 @@ once probable, tarjetas, sanciones, resultados, head-to-head).
 
 import logging
 import re
+import unicodedata
 from collections import Counter
 from datetime import datetime, date, timedelta
+
+from app.services.rfef_acta_utils import goal_minuto
 
 logger = logging.getLogger(__name__)
 
 # Common Spanish club prefixes to strip for fuzzy acta matching
 _CLUB_PREFIXES = re.compile(
     r"^(AA\.?\s*AA\.?|A\.?A\.?|C\.?D\.?|C\.?F\.?|U\.?D\.?|S\.?D\.?|R\.?C\.?D\.?|"
-    r"A\.?D\.?|E\.?F\.?|C\.?P\.?|F\.?C\.?|R\.?C\.?|Atco\.?|Atletico|Club|Agrupacion)\s+",
+    r"A\.?D\.?|E\.?F\.?|C\.?P\.?|F\.?C\.?|R\.?C\.?|Atco\.?|Atletico|Atlético|"
+    r"Club|Agrupacion|Agrupación)\s+",
     re.IGNORECASE,
 )
+# Filial / category suffixes: "San Vicente" is not "San Vicente B"
+_TEAM_SUFFIXES = re.compile(
+    r"\s+(b|c|d|a|fem(?:enino)?|femenina|juvenil|cadete|infantil|filial)$",
+    re.IGNORECASE,
+)
+_NAME_STOPWORDS = {"de", "del", "la", "el", "los", "las", "y", "i", "da", "do"}
+
+
+def _fold_name(name: str) -> str:
+    nfd = unicodedata.normalize("NFD", (name or "").lower().strip())
+    return "".join(c for c in nfd if unicodedata.category(c) != "Mn")
 
 
 def _extract_core_name(name: str) -> str:
@@ -26,35 +41,60 @@ def _extract_core_name(name: str) -> str:
     'C.D. Mirandés' -> 'Mirandés'
     'U.D. Almería'  -> 'Almería'
     """
-    core = _CLUB_PREFIXES.sub("", name.strip())
+    core = _CLUB_PREFIXES.sub("", (name or "").strip())
     # If stripping removed everything or left < 3 chars, use original
     if len(core) < 3:
-        return name.strip()
+        return (name or "").strip()
     return core.strip()
 
 
+def _split_team_identity(name: str) -> tuple[str, str]:
+    """Return (folded core without filial suffix, suffix like 'b' or '')."""
+    folded = _fold_name(_extract_core_name(name))
+    m = _TEAM_SUFFIXES.search(folded)
+    if m:
+        return folded[: m.start()].strip(), m.group(1).lower()
+    return folded, ""
+
+
+def _name_tokens(name: str) -> list[str]:
+    base, _suffix = _split_team_identity(name)
+    return [
+        t for t in re.split(r"[\s.\-,/]+", base)
+        if t and t not in _NAME_STOPWORDS and len(t) >= 2
+    ]
+
+
 def _match_rival_name(rival_nombre: str, team_name: str) -> bool:
-    """Case-insensitive match for rival names, with core-name fallback."""
-    a = rival_nombre.lower().strip()
-    b = team_name.lower().strip()
+    """Match club names without treating the user's club as the rival.
+
+    Senior vs B/filial are different teams. Raw substring matching
+    ('san vicente' in 'san vicente b', 'alcoy' in 'alcoyano') is not enough.
+    """
+    a = (rival_nombre or "").strip()
+    b = (team_name or "").strip()
     if not a or not b:
         return False
-    if a == b:
+    if _fold_name(a) == _fold_name(b):
         return True
-    # Substring match (both >= 6 chars)
-    if len(a) >= 6 and len(b) >= 6:
-        if a in b or b in a:
-            return True
-    # Core-name match (strip C.D., U.D., A.D. etc.)
-    core_a = _extract_core_name(a).lower()
-    core_b = _extract_core_name(b).lower()
-    if core_a and core_b and len(core_a) >= 3 and len(core_b) >= 3:
-        if core_a == core_b:
-            return True
-        if len(core_a) >= 5 and len(core_b) >= 5:
-            if core_a in core_b or core_b in core_a:
-                return True
-    return False
+    base_a, suf_a = _split_team_identity(a)
+    base_b, suf_b = _split_team_identity(b)
+    if suf_a != suf_b:
+        return False
+    if base_a and base_a == base_b:
+        return True
+    tokens_a = _name_tokens(a)
+    tokens_b = _name_tokens(b)
+    if not tokens_a or not tokens_b:
+        return False
+    if tokens_a == tokens_b:
+        return True
+    shorter, longer = (
+        (tokens_a, tokens_b) if len(tokens_a) <= len(tokens_b) else (tokens_b, tokens_a)
+    )
+    if not all(t in longer for t in shorter):
+        return False
+    return any(len(t) >= 4 for t in shorter)
 
 
 def _pct_victoria(pg: int | None, pe: int | None, pp: int | None) -> float | None:
@@ -69,28 +109,48 @@ def _pct_victoria(pg: int | None, pe: int | None, pp: int | None) -> float | Non
 
 
 def _clasificacion_match_rank(rival_nombre: str, equipo_nombre: str) -> int | None:
-    """Lower is better. Exact name beats core name beats fuzzy substring."""
-    a = rival_nombre.lower().strip()
-    b = (equipo_nombre or "").lower().strip()
+    """Lower is better. Exact name beats core name beats token overlap."""
+    a = (rival_nombre or "").strip()
+    b = (equipo_nombre or "").strip()
     if not a or not b or not _match_rival_name(a, b):
         return None
-    if a == b:
+    if _fold_name(a) == _fold_name(b):
         return 0
-    core_a = _extract_core_name(a).lower()
-    core_b = _extract_core_name(b).lower()
-    if core_a and core_b and core_a == core_b:
+    base_a, suf_a = _split_team_identity(a)
+    base_b, suf_b = _split_team_identity(b)
+    if base_a and base_a == base_b and suf_a == suf_b:
         return 1
-    return 2 + abs(len(a) - len(b))
+    return 2 + abs(len(base_a) - len(base_b))
 
 
-def _get_clasificacion(comp: dict, rival_nombre: str) -> dict | None:
+def _is_mi_equipo_row(equipo_nombre: str, mi_equipo: str | None, rival_nombre: str) -> bool:
+    """True when this standing/acta side is the user's club, not the rival."""
+    if not mi_equipo:
+        return False
+    # Looking up ourselves (plantilla cards, etc.) — do not exclude.
+    if _match_rival_name(mi_equipo, rival_nombre):
+        return False
+    mi_rank = _clasificacion_match_rank(mi_equipo, equipo_nombre)
+    if mi_rank is None:
+        return False
+    rival_rank = _clasificacion_match_rank(rival_nombre, equipo_nombre)
+    if rival_rank is None:
+        return True
+    return mi_rank <= rival_rank
+
+
+def _get_clasificacion(
+    comp: dict, rival_nombre: str, mi_equipo: str | None = None,
+) -> dict | None:
     """Extract rival's standing from competition clasificacion."""
     clasificacion = comp.get("clasificacion") or []
-    rival_lower = rival_nombre.lower()
 
     ranked: list[tuple[int, dict]] = []
     for equipo in clasificacion:
-        rank = _clasificacion_match_rank(rival_lower, equipo.get("equipo") or "")
+        eq_name = equipo.get("equipo") or ""
+        if _is_mi_equipo_row(eq_name, mi_equipo, rival_nombre):
+            continue
+        rank = _clasificacion_match_rank(rival_nombre, eq_name)
         if rank is not None:
             ranked.append((rank, equipo))
     if not ranked:
@@ -145,32 +205,61 @@ def _minute_bucket(minuto: int) -> str:
     return "76-90+"
 
 
-def _roster_names(acta: dict, rival_nombre: str) -> tuple[set[str], set[str] | None]:
-    """Return (rival_players, opponent_players) name sets for an acta."""
-    titulares_rival = _get_rival_data(acta, rival_nombre, "titulares_local", "titulares_visitante")
-    suplentes_rival = _get_rival_data(acta, rival_nombre, "suplentes_local", "suplentes_visitante")
-    rival_players = {
-        (j.get("nombre") or "").strip().lower()
-        for j in titulares_rival + suplentes_rival
-        if (j.get("nombre") or "").strip()
-    }
+def _fold_player(name: str) -> str:
+    return _fold_name(name)
 
-    side = _is_rival_local(acta, rival_nombre)
+
+def _normalize_roster(players: list) -> set[str]:
+    names: set[str] = set()
+    for j in players:
+        name = _fold_player((j.get("nombre") or "").strip())
+        if name:
+            names.add(name)
+    return names
+
+
+def _player_in_set(jugador: str, players: set[str]) -> bool:
+    """Match a scorer to a roster allowing last-name uniqueness and accents."""
+    j = _fold_player(jugador)
+    if not j or not players:
+        return False
+    folded = {_fold_player(p) for p in players}
+    if j in folded:
+        return True
+    last = j.split()[-1]
+    if len(last) < 4:
+        return False
+    hits = 0
+    for p in folded:
+        parts = p.split()
+        pl = parts[-1] if parts else ""
+        if p == last or pl == last or last in parts:
+            hits += 1
+            if hits > 1:
+                return False
+    return hits == 1
+
+
+def _roster_names(
+    acta: dict, rival_nombre: str, mi_equipo: str | None = None,
+) -> tuple[set[str], set[str] | None]:
+    """Return (rival_players, opponent_players) name sets for an acta."""
+    titulares_rival = _get_rival_data(
+        acta, rival_nombre, "titulares_local", "titulares_visitante", mi_equipo,
+    )
+    suplentes_rival = _get_rival_data(
+        acta, rival_nombre, "suplentes_local", "suplentes_visitante", mi_equipo,
+    )
+    rival_players = _normalize_roster(titulares_rival + suplentes_rival)
+
+    side = _is_rival_local(acta, rival_nombre, mi_equipo)
     opponent_players: set[str] | None = None
     if side is True:
         opponent_list = (acta.get("titulares_visitante") or []) + (acta.get("suplentes_visitante") or [])
-        opponent_players = {
-            (j.get("nombre") or "").strip().lower()
-            for j in opponent_list
-            if (j.get("nombre") or "").strip()
-        }
+        opponent_players = _normalize_roster(opponent_list)
     elif side is False:
         opponent_list = (acta.get("titulares_local") or []) + (acta.get("suplentes_local") or [])
-        opponent_players = {
-            (j.get("nombre") or "").strip().lower()
-            for j in opponent_list
-            if (j.get("nombre") or "").strip()
-        }
+        opponent_players = _normalize_roster(opponent_list)
 
     return rival_players, opponent_players
 
@@ -213,11 +302,11 @@ def _goal_scored_by_rival(
     if from_parcial is not None:
         return from_parcial
 
-    jugador = (gol.get("jugador") or "").strip().lower()
+    jugador = (gol.get("jugador") or "").strip()
     if not jugador:
         return None
-    in_rival = jugador in rival_players
-    in_opp = bool(opponent_players) and jugador in opponent_players
+    in_rival = _player_in_set(jugador, rival_players)
+    in_opp = bool(opponent_players) and _player_in_set(jugador, opponent_players)
     if in_rival and not in_opp:
         return True
     if in_opp and not in_rival:
@@ -236,7 +325,7 @@ def _iter_goal_attributions(
     prev_parcial: tuple[int, int] | None = (0, 0)
     for gol in sorted(
         goles_list,
-        key=lambda g: (g.get("minuto") is None, g.get("minuto") or 0),
+        key=lambda g: (goal_minuto(g) is None, goal_minuto(g) or 0),
     ):
         scored = _goal_scored_by_rival(
             gol, rival_players, opponent_players, is_local, prev_parcial,
@@ -245,7 +334,7 @@ def _iter_goal_attributions(
         pv = gol.get("parcial_visitante")
         if pl is not None and pv is not None:
             prev_parcial = (int(pl), int(pv))
-        minuto = gol.get("minuto")
+        minuto = goal_minuto(gol)
         if minuto is None or scored is None:
             continue
         events.append((int(minuto), scored))
@@ -258,14 +347,14 @@ def _iter_parcial_attributions(goles_list: list, is_local: bool) -> list[tuple[i
     prev_l, prev_v = 0, 0
     for gol in sorted(
         goles_list,
-        key=lambda g: (g.get("minuto") is None, g.get("minuto") or 0),
+        key=lambda g: (goal_minuto(g) is None, goal_minuto(g) or 0),
     ):
         pl = gol.get("parcial_local")
         pv = gol.get("parcial_visitante")
         if pl is None or pv is None:
             continue
         pl_i, pv_i = int(pl), int(pv)
-        minuto = gol.get("minuto")
+        minuto = goal_minuto(gol)
         d_l = pl_i - prev_l
         d_v = pv_i - prev_v
         prev_l, prev_v = pl_i, pv_i
@@ -278,6 +367,18 @@ def _iter_parcial_attributions(goles_list: list, is_local: bool) -> list[tuple[i
     return events
 
 
+def _events_fit_score(events: list[tuple[int, bool]], gf: int, gc: int) -> bool:
+    attr_gf = sum(1 for _, scored in events if scored)
+    attr_gc = sum(1 for _, scored in events if not scored)
+    return attr_gf == gf and attr_gc == gc
+
+
+def _events_within_score(events: list[tuple[int, bool]], gf: int, gc: int) -> bool:
+    attr_gf = sum(1 for _, scored in events if scored)
+    attr_gc = sum(1 for _, scored in events if not scored)
+    return bool(events) and attr_gf <= gf and attr_gc <= gc
+
+
 def _goals_matching_marcador(
     goles_list: list,
     is_local: bool,
@@ -286,17 +387,22 @@ def _goals_matching_marcador(
     gf: int,
     gc: int,
 ) -> list[tuple[int, bool]]:
-    """Keep minute attributions only when they reconcile with the acta score."""
-    events = _iter_goal_attributions(goles_list, is_local, rival_players, opponent_players)
-    attr_gf = sum(1 for _, scored in events if scored)
-    attr_gc = sum(1 for _, scored in events if not scored)
-    if attr_gf == gf and attr_gc == gc:
-        return events
-    events = _iter_parcial_attributions(goles_list, is_local)
-    attr_gf = sum(1 for _, scored in events if scored)
-    attr_gc = sum(1 for _, scored in events if not scored)
-    if attr_gf == gf and attr_gc == gc:
-        return events
+    """Keep minute attributions when they don't contradict the acta score.
+
+    Competition actas often have minutes + player names but missing
+    obfuscated parcials. We still dump those minutes if the roster
+    (or remaining scoreboard) can tell who scored.
+    """
+    named = _iter_goal_attributions(goles_list, is_local, rival_players, opponent_players)
+    if _events_fit_score(named, gf, gc):
+        return named
+    parcials = _iter_parcial_attributions(goles_list, is_local)
+    if _events_fit_score(parcials, gf, gc):
+        return parcials
+    if _events_within_score(named, gf, gc):
+        return named
+    if _events_within_score(parcials, gf, gc):
+        return parcials
     return []
 
 
@@ -352,6 +458,7 @@ def _compute_contexto_stats(
     comp_id: str,
     rival_nombre: str,
     clasificacion: dict | None = None,
+    mi_equipo: str | None = None,
 ) -> dict | None:
     """Aggregate contextual stats from actas: goals by minute, halves, home/away."""
     actas = _query_actas(
@@ -360,6 +467,7 @@ def _compute_contexto_stats(
         rival_nombre,
         "local_nombre, visitante_nombre, goles, goles_local, goles_visitante, "
         "titulares_local, titulares_visitante, suplentes_local, suplentes_visitante, jornada_numero",
+        mi_equipo=mi_equipo,
     )
     if not actas:
         return None
@@ -371,12 +479,14 @@ def _compute_contexto_stats(
     casa = _empty_side_stats()
     fuera = _empty_side_stats()
     actas_con_goles_minuto = 0
-    actas_rival = [a for a in actas if _is_rival_local(a, rival_nombre) is not None]
+    actas_rival = [
+        a for a in actas if _is_rival_local(a, rival_nombre, mi_equipo) is not None
+    ]
     actas_resultado = 0
     actas_detalle = 0
 
     for acta in actas_rival:
-        is_local = _is_rival_local(acta, rival_nombre)
+        is_local = _is_rival_local(acta, rival_nombre, mi_equipo)
         gl = acta.get("goles_local")
         gv = acta.get("goles_visitante")
         if is_local is None or gl is None or gv is None:
@@ -400,7 +510,7 @@ def _compute_contexto_stats(
             continue
         actas_detalle += 1
 
-        rival_players, opponent_players = _roster_names(acta, rival_nombre)
+        rival_players, opponent_players = _roster_names(acta, rival_nombre, mi_equipo)
         events = _goals_matching_marcador(
             goles_list, is_local, rival_players, opponent_players, gf, gc,
         )
@@ -466,40 +576,23 @@ def _compute_contexto_stats(
     }
 
 
-def _get_goleadores_rival(comp: dict, rival_nombre: str) -> list[dict]:
+def _get_goleadores_rival(
+    comp: dict, rival_nombre: str, mi_equipo: str | None = None,
+) -> list[dict]:
     """Top 5 goleadores del rival filtrando la tabla de goleadores de la competición."""
     goleadores = comp.get("goleadores") or []
     if not goleadores:
         logger.warning("comp.goleadores is EMPTY for comp %s", comp.get("id", "?"))
         return []
 
-    # Build every possible search token from rival name
-    raw = rival_nombre.lower().strip()
-    core = _extract_core_name(raw).lower().strip()
-    # All words >= 4 chars as individual search tokens
-    tokens = {w for w in re.split(r"[\s.\-,]+", raw) if len(w) >= 4}
-    tokens |= {w for w in re.split(r"[\s.\-,]+", core) if len(w) >= 4}
-    tokens.add(raw)
-    tokens.add(core)
-
-    # Also add clasificacion name if found (it's proven to match)
-    for eq in (comp.get("clasificacion") or []):
-        eq_name = (eq.get("equipo") or "").lower()
-        if _match_rival_name(raw, eq_name):
-            tokens.add(eq_name)
-            tokens.add(_extract_core_name(eq_name).lower())
-            tokens |= {w for w in re.split(r"[\s.\-,]+", eq_name) if len(w) >= 4}
-            break
-
-    # Filter: a goleador's equipo matches if ANY token is found in it (or vice versa)
     result = []
     for g in goleadores:
-        equipo = (g.get("equipo") or "").lower()
+        equipo = g.get("equipo") or ""
         if not equipo:
             continue
-        equipo_core = _extract_core_name(equipo).lower()
-        if any(t in equipo or t in equipo_core or equipo_core in t
-               for t in tokens if len(t) >= 3):
+        if _is_mi_equipo_row(equipo, mi_equipo, rival_nombre):
+            continue
+        if _match_rival_name(rival_nombre, equipo):
             result.append({
                 "jugador": g.get("jugador", ""),
                 "goles": g.get("goles", 0),
@@ -511,12 +604,15 @@ def _get_goleadores_rival(comp: dict, rival_nombre: str) -> list[dict]:
     return result[:5]
 
 
-def _get_goleadores_from_actas(supabase, comp_id: str, rival_nombre: str) -> list[dict]:
+def _get_goleadores_from_actas(
+    supabase, comp_id: str, rival_nombre: str, mi_equipo: str | None = None,
+) -> list[dict]:
     """Fallback: extract rival scorers from actas using lineup roster to filter."""
     actas = _query_actas(
         supabase, comp_id, rival_nombre,
         "local_nombre, visitante_nombre, goles, "
         "titulares_local, titulares_visitante, suplentes_local, suplentes_visitante",
+        mi_equipo=mi_equipo,
     )
     if not actas:
         return []
@@ -528,24 +624,16 @@ def _get_goleadores_from_actas(supabase, comp_id: str, rival_nombre: str) -> lis
         goles_list = acta.get("goles") or []
         if not goles_list:
             continue
-        if _is_rival_local(acta, rival_nombre) is None:
+        if _is_rival_local(acta, rival_nombre, mi_equipo) is None:
             continue
 
-        # Build set of rival player names from this acta's lineups
-        titulares = _get_rival_data(acta, rival_nombre, "titulares_local", "titulares_visitante")
-        suplentes = _get_rival_data(acta, rival_nombre, "suplentes_local", "suplentes_visitante")
-        rival_players = set()
-        for j in titulares + suplentes:
-            name = (j.get("nombre") or "").strip().lower()
-            if name:
-                rival_players.add(name)
-
+        rival_players, _opp = _roster_names(acta, rival_nombre, mi_equipo)
         if not rival_players:
             continue
 
         for gol in goles_list:
             jugador = (gol.get("jugador") or "").strip()
-            if jugador and jugador.lower() in rival_players:
+            if jugador and _player_in_set(jugador, rival_players):
                 goal_counts[jugador] += 1
 
     if not goal_counts:
@@ -556,7 +644,15 @@ def _get_goleadores_from_actas(supabase, comp_id: str, rival_nombre: str) -> lis
     return result[:10]
 
 
-def _query_actas(supabase, comp_id: str, rival_nombre: str, columns: str, desc: bool = False, limit: int | None = None) -> list[dict]:
+def _query_actas(
+    supabase,
+    comp_id: str,
+    rival_nombre: str,
+    columns: str,
+    desc: bool = False,
+    limit: int | None = None,
+    mi_equipo: str | None = None,
+) -> list[dict]:
     """Query rfef_actas with multiple fallbacks:
     1. ilike on local_nombre/visitante_nombre with full rfef_nombre
     2. ilike with core name (stripped prefixes)
@@ -578,7 +674,9 @@ def _query_actas(supabase, comp_id: str, rival_nombre: str, columns: str, desc: 
             query = query.limit(limit)
         res = query.execute()
         actas = res.data or []
-        matched = [a for a in actas if _is_rival_local(a, rival_nombre) is not None]
+        matched = [
+            a for a in actas if _is_rival_local(a, rival_nombre, mi_equipo) is not None
+        ]
         if matched:
             logger.info("Actas for '%s': %d rows (name search='%s')", rival_nombre, len(matched), name)
             return matched
@@ -593,16 +691,11 @@ def _query_actas(supabase, comp_id: str, rival_nombre: str, columns: str, desc: 
         cod_acta_names: dict[str, dict[str, str]] = {}  # cod_acta -> {local, visitante}
         for jornada in jornadas_res.data or []:
             for partido in jornada.get("partidos", []):
-                local = (partido.get("local") or "").lower()
-                visitante = (partido.get("visitante") or "").lower()
-                rival_lower = rival_nombre.lower()
-                core_lower = core.lower()
-
+                local = partido.get("local") or ""
+                visitante = partido.get("visitante") or ""
                 is_match = (
-                    _match_rival_name(rival_lower, local) or
-                    _match_rival_name(rival_lower, visitante) or
-                    _match_rival_name(core_lower, local) or
-                    _match_rival_name(core_lower, visitante)
+                    _match_rival_name(rival_nombre, local)
+                    or _match_rival_name(rival_nombre, visitante)
                 )
                 if is_match and partido.get("cod_acta"):
                     cod_acta = partido["cod_acta"]
@@ -632,7 +725,9 @@ def _query_actas(supabase, comp_id: str, rival_nombre: str, columns: str, desc: 
                         if names:
                             acta["local_nombre"] = names.get("local", "")
                             acta["visitante_nombre"] = names.get("visitante", "")
-                matched = [a for a in actas if _is_rival_local(a, rival_nombre) is not None]
+                matched = [
+                    a for a in actas if _is_rival_local(a, rival_nombre, mi_equipo) is not None
+                ]
                 if matched:
                     actas = matched
                 logger.info(
@@ -648,64 +743,66 @@ def _query_actas(supabase, comp_id: str, rival_nombre: str, columns: str, desc: 
     return []
 
 
-def _is_rival_local(acta: dict, rival_nombre: str) -> bool | None:
+def _is_rival_local(
+    acta: dict, rival_nombre: str, mi_equipo: str | None = None,
+) -> bool | None:
     """Determine if the rival is the local team in an acta.
 
-    Tries full name and core name matching against both local_nombre
-    and visitante_nombre. Returns None if names are empty/unknown or
-    if both sides match (ambiguous).
+    Never attributes the user's club side to the rival. Senior vs B
+    filiales are different teams. Returns None if names are empty/unknown
+    or if both sides still match equally.
     """
-    local = (acta.get("local_nombre") or "").lower()
-    visitante = (acta.get("visitante_nombre") or "").lower()
-    rival_lower = rival_nombre.lower()
-    core_lower = _extract_core_name(rival_nombre).lower()
+    local = acta.get("local_nombre") or ""
+    visitante = acta.get("visitante_nombre") or ""
 
-    local_hit = bool(local) and (
-        _match_rival_name(rival_lower, local) or _match_rival_name(core_lower, local)
-    )
-    visitante_hit = bool(visitante) and (
-        _match_rival_name(rival_lower, visitante) or _match_rival_name(core_lower, visitante)
-    )
-    if local_hit and visitante_hit:
-        if rival_lower == local and rival_lower != visitante:
+    if _is_mi_equipo_row(local, mi_equipo, rival_nombre):
+        local_rank = None
+    else:
+        local_rank = _clasificacion_match_rank(rival_nombre, local)
+
+    if _is_mi_equipo_row(visitante, mi_equipo, rival_nombre):
+        vis_rank = None
+    else:
+        vis_rank = _clasificacion_match_rank(rival_nombre, visitante)
+
+    if local_rank is not None and vis_rank is not None:
+        if local_rank < vis_rank:
             return True
-        if rival_lower == visitante and rival_lower != local:
+        if vis_rank < local_rank:
             return False
         return None
-    if local_hit:
+    if local_rank is not None:
         return True
-    if visitante_hit:
+    if vis_rank is not None:
         return False
     return None
 
 
-def _get_rival_data(acta: dict, rival_nombre: str, local_key: str, visitante_key: str) -> list:
-    """Get the rival's data from acta, handling empty names gracefully.
-
-    When names are empty (can't determine side), takes the side with MORE data
-    as a heuristic (the rival team is more likely to be fully populated).
-    """
-    side = _is_rival_local(acta, rival_nombre)
+def _get_rival_data(
+    acta: dict,
+    rival_nombre: str,
+    local_key: str,
+    visitante_key: str,
+    mi_equipo: str | None = None,
+) -> list:
+    """Get the rival's data from acta. Never guess the side (that dumped the user's club)."""
+    side = _is_rival_local(acta, rival_nombre, mi_equipo)
     if side is True:
         return acta.get(local_key) or []
-    elif side is False:
+    if side is False:
         return acta.get(visitante_key) or []
-    else:
-        # Unknown side — pick the one with more data
-        local_data = acta.get(local_key) or []
-        visitante_data = acta.get(visitante_key) or []
-        # Heuristic: we can't tell, so we try both sides — but for most use cases
-        # (once probable, tarjetas), we need to pick one. Use visitante as default
-        # since most queries are for away opponents.
-        return visitante_data if visitante_data else local_data
+    return []
 
 
-def _get_once_probable(supabase, comp_id: str, rival_nombre: str, tarjetas_data: dict | None = None) -> dict:
+def _get_once_probable(
+    supabase, comp_id: str, rival_nombre: str, tarjetas_data: dict | None = None,
+    mi_equipo: str | None = None,
+) -> dict:
     """Calculate probable starting XI from last 5 actas, with sanction flags."""
     actas = _query_actas(
         supabase, comp_id, rival_nombre,
         "local_nombre, visitante_nombre, titulares_local, titulares_visitante, jornada_numero",
-        desc=True, limit=5,
+        desc=True, limit=5, mi_equipo=mi_equipo,
     )
 
     player_counts: Counter = Counter()
@@ -713,7 +810,9 @@ def _get_once_probable(supabase, comp_id: str, rival_nombre: str, tarjetas_data:
     actas_with_data = 0
 
     for acta in actas:
-        titulares = _get_rival_data(acta, rival_nombre, "titulares_local", "titulares_visitante")
+        titulares = _get_rival_data(
+            acta, rival_nombre, "titulares_local", "titulares_visitante", mi_equipo,
+        )
 
         if titulares:
             actas_with_data += 1
@@ -755,18 +854,14 @@ def _get_expected_jornadas(supabase, comp_id: str, team_nombre: str) -> set[int]
     ).eq("competicion_id", comp_id).order("numero").execute()
 
     expected = set()
-    team_lower = team_nombre.lower()
-    core_lower = _extract_core_name(team_nombre).lower()
 
     for jornada in jornadas_res.data or []:
         for partido in jornada.get("partidos", []):
-            local = (partido.get("local") or "").lower()
-            visitante = (partido.get("visitante") or "").lower()
+            local = partido.get("local") or ""
+            visitante = partido.get("visitante") or ""
             if (
-                _match_rival_name(team_lower, local) or
-                _match_rival_name(team_lower, visitante) or
-                _match_rival_name(core_lower, local) or
-                _match_rival_name(core_lower, visitante)
+                _match_rival_name(team_nombre, local) or
+                _match_rival_name(team_nombre, visitante)
             ):
                 expected.add(jornada["numero"])
                 break
@@ -781,19 +876,15 @@ def _get_played_jornadas(supabase, comp_id: str, team_nombre: str) -> set[int]:
     ).eq("competicion_id", comp_id).order("numero").execute()
 
     played = set()
-    team_lower = team_nombre.lower()
-    core_lower = _extract_core_name(team_nombre).lower()
 
     for jornada in jornadas_res.data or []:
         for partido in jornada.get("partidos", []):
-            local = (partido.get("local") or "").lower()
-            visitante = (partido.get("visitante") or "").lower()
+            local = partido.get("local") or ""
+            visitante = partido.get("visitante") or ""
             has_result = partido.get("goles_local") is not None
             if has_result and (
-                _match_rival_name(team_lower, local) or
-                _match_rival_name(team_lower, visitante) or
-                _match_rival_name(core_lower, local) or
-                _match_rival_name(core_lower, visitante)
+                _match_rival_name(team_nombre, local) or
+                _match_rival_name(team_nombre, visitante)
             ):
                 played.add(jornada["numero"])
                 break
@@ -888,6 +979,7 @@ def _compute_card_states(
     team_nombre: str,
     target_jornada: int | None = None,
     sanciones_oficiales: list[dict] | None = None,
+    mi_equipo: str | None = None,
 ) -> dict:
     """Build card state from official sanctions (source of truth).
 
@@ -904,6 +996,7 @@ def _compute_card_states(
         supabase, comp_id, team_nombre,
         "local_nombre, visitante_nombre, tarjetas_local, tarjetas_visitante, "
         "titulares_local, titulares_visitante, jornada_numero",
+        mi_equipo=mi_equipo,
     )
 
     actas_by_jornada: dict[int, dict] = {}
@@ -925,7 +1018,9 @@ def _compute_card_states(
 
     actas_with_cards = 0
     for acta in actas:
-        tarjetas = _get_rival_data(acta, team_nombre, "tarjetas_local", "tarjetas_visitante")
+        tarjetas = _get_rival_data(
+            acta, team_nombre, "tarjetas_local", "tarjetas_visitante", mi_equipo,
+        )
         if tarjetas:
             actas_with_cards += 1
 
@@ -1050,6 +1145,7 @@ def _get_tarjetas(
     comp_id: str,
     rival_nombre: str,
     sanciones_oficiales: list[dict] | None = None,
+    mi_equipo: str | None = None,
 ) -> dict:
     """Aggregate card statistics using chronological state machine.
 
@@ -1058,6 +1154,7 @@ def _get_tarjetas(
     return _compute_card_states(
         supabase, comp_id, rival_nombre,
         sanciones_oficiales=sanciones_oficiales,
+        mi_equipo=mi_equipo,
     )
 
 
@@ -1094,8 +1191,6 @@ def _get_sanciones_oficiales(supabase, comp_id: str, rival_nombre: str) -> list[
 
 def _get_ultimos_resultados(supabase, comp_id: str, rival_nombre: str) -> list[dict]:
     """Get last 5 results for the rival from rfef_jornadas."""
-    rival_lower = rival_nombre.lower()
-
     jornadas_res = supabase.table("rfef_jornadas").select("numero, partidos").eq(
         "competicion_id", comp_id
     ).order("numero", desc=True).execute()
@@ -1103,9 +1198,9 @@ def _get_ultimos_resultados(supabase, comp_id: str, rival_nombre: str) -> list[d
     results = []
     for jornada in jornadas_res.data or []:
         for partido in jornada.get("partidos", []):
-            local = (partido.get("local") or "").lower()
-            visitante = (partido.get("visitante") or "").lower()
-            is_involved = _match_rival_name(rival_lower, local) or _match_rival_name(rival_lower, visitante)
+            local = partido.get("local") or ""
+            visitante = partido.get("visitante") or ""
+            is_involved = _match_rival_name(rival_nombre, local) or _match_rival_name(rival_nombre, visitante)
 
             if is_involved and partido.get("goles_local") is not None:
                 results.append({
@@ -1163,6 +1258,7 @@ def gather_rival_intel_standalone(
     """
     rival_nombre = rival.get("rfef_nombre") or rival.get("nombre", "")
     comp_id = comp["id"]
+    mi_equipo = (comp.get("mi_equipo_nombre") or "").strip() or None
 
     if not rival_nombre:
         return {"error": "No rival name available"}
@@ -1174,14 +1270,16 @@ def gather_rival_intel_standalone(
     }
 
     # Clasificacion
-    clasificacion = _get_clasificacion(comp, rival_nombre)
+    clasificacion = _get_clasificacion(comp, rival_nombre, mi_equipo=mi_equipo)
     if clasificacion:
         intel["clasificacion"] = clasificacion
 
     # Goleadores: competition table first, actas fallback
-    goleadores = _get_goleadores_rival(comp, rival_nombre)
+    goleadores = _get_goleadores_rival(comp, rival_nombre, mi_equipo=mi_equipo)
     if not goleadores:
-        goleadores = _get_goleadores_from_actas(supabase, comp_id, rival_nombre)
+        goleadores = _get_goleadores_from_actas(
+            supabase, comp_id, rival_nombre, mi_equipo=mi_equipo,
+        )
     if goleadores:
         intel["goleadores_rival"] = goleadores
 
@@ -1193,7 +1291,10 @@ def gather_rival_intel_standalone(
     # Tarjetas (fetch before once probable for sanction cross-reference)
     tarjetas = None
     try:
-        tarjetas = _get_tarjetas(supabase, comp_id, rival_nombre, sanciones_oficiales=sanciones or None)
+        tarjetas = _get_tarjetas(
+            supabase, comp_id, rival_nombre,
+            sanciones_oficiales=sanciones or None, mi_equipo=mi_equipo,
+        )
         if tarjetas.get("jugadores"):
             intel["tarjetas"] = tarjetas
     except Exception as e:
@@ -1201,7 +1302,9 @@ def gather_rival_intel_standalone(
 
     # Once probable (with sanction cross-reference)
     try:
-        once = _get_once_probable(supabase, comp_id, rival_nombre, tarjetas_data=tarjetas)
+        once = _get_once_probable(
+            supabase, comp_id, rival_nombre, tarjetas_data=tarjetas, mi_equipo=mi_equipo,
+        )
         if once.get("actas_analizadas", 0) > 0:
             intel["once_probable"] = once
     except Exception as e:
@@ -1227,7 +1330,7 @@ def gather_rival_intel_standalone(
     # Contextual stats (goals by minute, home/away splits, form narrative)
     try:
         contexto = _compute_contexto_stats(
-            supabase, comp_id, rival_nombre, clasificacion=clasificacion
+            supabase, comp_id, rival_nombre, clasificacion=clasificacion, mi_equipo=mi_equipo,
         )
         if contexto:
             intel["contexto_stats"] = contexto
@@ -1376,12 +1479,15 @@ def refresh_rival_intel_contexto(
     if not comp_res.data:
         return intel
 
-    clasificacion = _get_clasificacion(comp_res.data, rival_nombre) or intel.get("clasificacion")
+    mi_equipo = (comp_res.data.get("mi_equipo_nombre") or "").strip() or None
+    clasificacion = _get_clasificacion(
+        comp_res.data, rival_nombre, mi_equipo=mi_equipo,
+    ) or intel.get("clasificacion")
     if clasificacion:
         intel["clasificacion"] = clasificacion
 
     contexto = _compute_contexto_stats(
-        supabase, competicion_id, rival_nombre, clasificacion=clasificacion
+        supabase, competicion_id, rival_nombre, clasificacion=clasificacion, mi_equipo=mi_equipo,
     )
     if contexto:
         intel["contexto_stats"] = contexto

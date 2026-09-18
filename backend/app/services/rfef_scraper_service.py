@@ -1561,9 +1561,9 @@ class RFAFScraper:
             # Minute from span.font-blue: "(36')"
             minute_span = row.find("span", class_="font-blue")
             if minute_span:
-                m = re.search(r"\((\d+)'?\)", minute_span.get_text(strip=True))
-                if m:
-                    minuto = int(m.group(1))
+                minuto = self._extract_minuto_from_text(minute_span.get_text(strip=True))
+            if minuto is None:
+                minuto = self._extract_minuto_from_text(row.get_text(" ", strip=True))
 
             # Player name: text in the td after removing the minute span
             for cell in row.find_all("td"):
@@ -1748,6 +1748,11 @@ class RFAFScraper:
 
         return subs
 
+    def _extract_minuto_from_text(self, text: str, *, allow_bare: bool = False) -> Optional[int]:
+        """Parse RFEF minute strings: (16'), 16', 45+2, (45+2')."""
+        from app.services.rfef_acta_utils import parse_acta_minuto
+        return parse_acta_minuto(text, allow_bare=allow_bare)
+
     def _parse_acta_goles_semantic(self, goles_section) -> list[dict]:
         """Parse goals from the semantic 'Goles' dashboard section."""
         goles = []
@@ -1758,32 +1763,43 @@ class RFAFScraper:
                 parcial_local = None
                 parcial_visitante = None
 
-                # Minute from span.font-blue: "(16')"
                 minute_span = row.find("span", class_="font-blue")
                 if minute_span:
-                    m = re.search(r"\((\d+)'?\)", minute_span.get_text(strip=True))
-                    if m:
-                        minuto = int(m.group(1))
+                    minuto = self._extract_minuto_from_text(minute_span.get_text(strip=True))
 
-                # Player name after the minute span
+                row_text = row.get_text(" ", strip=True)
+                if minuto is None:
+                    minuto = self._extract_minuto_from_text(row_text)
+
                 for cell in row.find_all("td"):
                     font_span = cell.find("span", class_="font-blue")
+                    cell_text = cell.get_text(strip=True)
                     if font_span:
-                        # Get text of td, remove minute part
-                        cell_text = cell.get_text(strip=True)
-                        name = re.sub(r"\(\d+'?\)\s*", "", cell_text).strip()
+                        name = re.sub(
+                            r"\(\d{1,3}(?:\s*\+\s*\d{1,2})?'?\)\s*",
+                            "",
+                            cell_text,
+                        ).strip()
                         if name and len(name) > 2:
                             jugador = name
-
-                # Partial score from the score cell (obfuscated, try ntype)
-                for cell in row.find_all("td"):
-                    text = cell.get_text(strip=True)
-                    pm = re.match(r"(\d+)\s*-\s*(\d+)", text)
+                    pm = re.match(r"(\d+)\s*-\s*(\d+)", cell_text)
                     if pm:
                         parcial_local = int(pm.group(1))
                         parcial_visitante = int(pm.group(2))
 
-                if minuto is not None and jugador:
+                if not jugador:
+                    name = re.sub(
+                        r"\(\d{1,3}(?:\s*\+\s*\d{1,2})?'?\)\s*",
+                        "",
+                        row_text,
+                    )
+                    name = re.sub(r"\d+\s*-\s*\d+", "", name).strip()
+                    name = re.sub(r"\d{1,3}\s*\+\s*\d{1,2}\s*'?", "", name).strip()
+                    name = re.sub(r"\d{1,3}\s*'", "", name).strip()
+                    if name and len(name) > 2:
+                        jugador = name
+
+                if minuto is not None:
                     goles.append({
                         "minuto": minuto,
                         "jugador": jugador,
@@ -1982,22 +1998,28 @@ class RFAFScraper:
             parcial_visitante = None
 
             for text in texts:
-                # Minute: "45" or "45'"
-                m = re.match(r"(\d+)", text.replace("'", ""))
-                if m and minuto is None and int(m.group(1)) <= 130:
-                    minuto = int(m.group(1))
-                    continue
                 # Partial score: "1 - 0"
                 pm = re.match(r"(\d+)\s*-\s*(\d+)", text)
                 if pm:
                     parcial_local = int(pm.group(1))
                     parcial_visitante = int(pm.group(2))
                     continue
+                parsed_min = self._extract_minuto_from_text(
+                    text, allow_bare=text.strip().isdigit(),
+                )
+                if parsed_min is not None and minuto is None and (
+                    "'" in text or "(" in text or "+" in text or text.strip().isdigit()
+                ):
+                    minuto = parsed_min
+                    continue
                 # Player name
                 if not text.isdigit() and len(text) > 2 and not jugador:
                     jugador = text
 
-            if minuto is not None and jugador:
+            if minuto is None:
+                minuto = self._extract_minuto_from_text(" ".join(texts))
+
+            if minuto is not None:
                 goles.append({
                     "minuto": minuto,
                     "jugador": jugador,
