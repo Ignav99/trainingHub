@@ -13,7 +13,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Film, Image as ImageIcon, X } from 'lucide-react'
 import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
 import TacticalBoardEditor from './TacticalBoardEditor'
-import { captureBoardPreview } from './utils'
+import { captureBoardPreview, selectPitchSvg } from './utils'
 import type { TareaPizarraData } from './types'
 import { compactKeyframes } from './interpolate'
 import type { TareaEspacioPatch } from '@/lib/tacticalMetrics'
@@ -118,7 +118,7 @@ export default function TareaPizarraEditor({
 
     if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
     previewTimerRef.current = setTimeout(async () => {
-      const svg = rootRef.current?.querySelector('svg')
+      const svg = selectPitchSvg(rootRef.current)
       if (!svg) return
       try {
         const preview = await captureBoardPreview(svg as SVGSVGElement)

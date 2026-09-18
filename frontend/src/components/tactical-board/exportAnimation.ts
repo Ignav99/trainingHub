@@ -8,7 +8,7 @@
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import TacticalBoardMini from '@/components/task-preview/TacticalBoardMini'
-import { exportBoardPNG } from './utils'
+import { exportBoardPNG, selectPitchSvg } from './utils'
 import { sampleAnimation, totalDuration } from './interpolate'
 import type { TareaPizarraData } from './types'
 
@@ -88,7 +88,7 @@ export async function exportBoardWebM(
       }),
     )
     await waitPaint()
-    const svg = host.querySelector('svg')
+    const svg = selectPitchSvg(host)
     if (!svg) throw new Error('No se pudo renderizar el frame')
     return svg as SVGSVGElement
   }

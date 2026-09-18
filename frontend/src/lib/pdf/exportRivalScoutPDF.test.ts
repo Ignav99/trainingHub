@@ -15,5 +15,7 @@ describe('informe rival PDF', () => {
     assert.match(src, /INFORME RIVAL/)
     assert.match(src, /pitchDisplaySize/)
     assert.match(src, /useClubStore/)
+    assert.match(src, /resolvePizarraPng/)
+    assert.match(src, /PITCH_PDF_MAX_MM/)
   })
 })

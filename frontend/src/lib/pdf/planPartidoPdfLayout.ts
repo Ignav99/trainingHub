@@ -2,6 +2,9 @@
 
 export const PITCH_VIEWBOX = { w: 680, h: 525 }
 
+/** Half-page pitch so the pizarra is readable in the PDF. */
+export const PITCH_PDF_MAX_MM = 148
+
 export function hexToRgb(hex: string | undefined | null): [number, number, number] {
   const raw = (hex || '#0d1117').replace('#', '').trim()
   const n = raw.length === 3 ? raw.split('').map((c) => c + c).join('') : raw
@@ -21,7 +24,7 @@ export function pitchDisplaySize(
   contentWidth: number,
   natW: number,
   natH: number,
-  maxHeight = 92
+  maxHeight = 148
 ): { w: number; h: number } {
   const w0 = natW > 0 ? natW : PITCH_VIEWBOX.w
   const h0 = natH > 0 ? natH : PITCH_VIEWBOX.h

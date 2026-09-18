@@ -22,9 +22,11 @@ import {
   formatPlanHora,
   formatPlanTramo,
   hexToRgb,
+  PITCH_PDF_MAX_MM,
   pitchDisplaySize,
   planPdfFilename,
 } from './planPartidoPdfLayout'
+import { resolvePizarraPng } from './capturePizarraForPdf'
 
 const FASE_LABELS: Record<FasePlanPartido, string> = {
   ataque_organizado: 'Ataque organizado',
@@ -80,6 +82,7 @@ type JugadaInfo = {
   tipo?: string
   codigo?: string
   preview?: string
+  diagrama?: import('@/components/tactical-board/types').TareaPizarraData
 }
 
 function ensureSpace(doc: jsPDF, y: number, needed: number, margin: number): number {
@@ -176,14 +179,15 @@ function addPizarraImage(
   if (!png?.startsWith('data:image')) return y
   try {
     const props = doc.getImageProperties(png)
-    const { w, h } = pitchDisplaySize(contentWidth, props.width, props.height, 92)
+    const { w, h } = pitchDisplaySize(contentWidth, props.width, props.height, PITCH_PDF_MAX_MM)
     y = ensureSpace(doc, y, h + 8, margin)
     const x = margin + (contentWidth - w) / 2
     doc.setDrawColor(226, 232, 240)
     doc.setFillColor(15, 40, 12)
     doc.roundedRect(x - 1, y - 1, w + 2, h + 2, 1.5, 1.5, 'FD')
     const format = png.includes('image/jpeg') ? 'JPEG' : 'PNG'
-    doc.addImage(png, format, x, y, w, h)
+    const alias = `pz-${doc.getNumberOfPages()}-${Math.round(y)}-${png.length}`
+    doc.addImage(png, format, x, y, w, h, alias, 'FAST')
     return y + h + 5
   } catch {
     return y
@@ -297,7 +301,7 @@ function drawFooters(doc: jsPDF, clubNombre?: string) {
   }
 }
 
-function writeAbpItems(
+async function writeAbpItems(
   doc: jsPDF,
   items: NonNullable<PlanPartidoPhase['jugadas_abp']>,
   jugadas: Map<string, JugadaInfo>,
@@ -306,7 +310,7 @@ function writeAbpItems(
   margin: number,
   y: number,
   contentWidth: number
-): number {
+): Promise<number> {
   y = ensureSpace(doc, y, 12, margin)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
@@ -316,8 +320,8 @@ function writeAbpItems(
   for (const item of items) {
     const info = jugadas.get(item.jugada_id)
     const nombre = info?.nombre ?? item.jugada_id.slice(0, 8)
-    const preview = info?.preview
-    const previewH = preview?.startsWith('data:image') ? 38 : 0
+    const preview = await resolvePizarraPng(info?.preview, info?.diagrama)
+    const previewH = preview?.startsWith('data:image') ? PITCH_PDF_MAX_MM : 0
     y = ensureSpace(doc, y, 12 + previewH, margin)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(10)
@@ -382,6 +386,7 @@ export async function exportPlanPartidoPDF(
           tipo: j.tipo,
           codigo: j.codigo,
           preview: j.fases?.[0]?.diagram?.preview,
+          diagrama: j.fases?.[0]?.diagram,
         })
       }
     } catch {
@@ -451,7 +456,13 @@ export async function exportPlanPartidoPDF(
             : 'creacion_progresion'
         const roles = resolveRoles(sub.roles, sub.pizarra_diagrama)
         y = writeRoles(doc, roles, ctx, margin, y, contentWidth)
-        y = addPizarraImage(doc, sub.pizarra_tactica, margin, y, contentWidth)
+        y = addPizarraImage(
+          doc,
+          await resolvePizarraPng(sub.pizarra_tactica, sub.pizarra_diagrama),
+          margin,
+          y,
+          contentWidth,
+        )
       }
     }
 
@@ -465,12 +476,18 @@ export async function exportPlanPartidoPDF(
         phase.fase === 'transicion_ofensiva' ? 'transicion_ofensiva' : 'creacion_progresion'
       const roles = resolveRoles(phase.roles, phase.pizarra_diagrama)
       if (roles.length) y = writeRoles(doc, roles, ctx, margin, y, contentWidth)
-      y = addPizarraImage(doc, phase.pizarra_tactica, margin, y, contentWidth)
+      y = addPizarraImage(
+        doc,
+        await resolvePizarraPng(phase.pizarra_tactica, phase.pizarra_diagrama),
+        margin,
+        y,
+        contentWidth,
+      )
     }
 
     if (phase?.jugadas_abp?.length) {
       const title = faseKey === 'ataque_organizado' ? 'Saques de puerta (balón parado)' : 'Jugadas ABP'
-      y = writeAbpItems(doc, phase.jugadas_abp, jugadas, title, accent, margin, y, contentWidth)
+      y = await writeAbpItems(doc, phase.jugadas_abp, jugadas, title, accent, margin, y, contentWidth)
     }
 
     if (phase?.clips?.length) {
