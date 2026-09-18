@@ -34,6 +34,8 @@ from app.services.pre_match_service import (
     _query_actas,
     _get_rival_data,
     _get_once_probable,
+    _get_clasificacion,
+    _get_ultimos_resultados,
 )
 from app.services.ai_factory import call_ai_with_fallback
 from app.services.ai_errors import AIError
@@ -444,7 +446,14 @@ async def get_once_probable(
     if not comp_filter:
         raise HTTPException(status_code=400, detail="competicion_id es obligatorio")
 
-    once = _get_once_probable(supabase, comp_filter, rival_nombre)
+    mi_equipo = None
+    comp_res = supabase.table("rfef_competiciones").select("mi_equipo_nombre").eq(
+        "id", comp_filter
+    ).single().execute()
+    if comp_res.data:
+        mi_equipo = (comp_res.data.get("mi_equipo_nombre") or "").strip() or None
+
+    once = _get_once_probable(supabase, comp_filter, rival_nombre, mi_equipo=mi_equipo)
 
     logger.info(
         "Once probable rival=%s comp=%s actas=%d jugadores=%d",
@@ -855,7 +864,6 @@ async def get_rival_perfil_competicion(
 
     rival = rival_res.data
     rival_nombre = rival.get("rfef_nombre") or rival.get("nombre", "")
-    rival_nombre_lower = rival_nombre.lower()
 
     competition_stats = None
     last_5_results = []
@@ -863,51 +871,18 @@ async def get_rival_perfil_competicion(
     # If competicion_id provided, get stats from clasificacion
     if competicion_id:
         comp_res = supabase.table("rfef_competiciones").select(
-            "clasificacion"
+            "clasificacion, mi_equipo_nombre"
         ).eq("id", str(competicion_id)).single().execute()
 
         if comp_res.data:
-            clasificacion = comp_res.data.get("clasificacion", [])
-            for equipo in clasificacion:
-                equipo_nombre = equipo.get("equipo", "").lower()
-                if equipo_nombre == rival_nombre_lower or rival_nombre_lower in equipo_nombre or equipo_nombre in rival_nombre_lower:
-                    competition_stats = {
-                        "posicion": equipo.get("posicion"),
-                        "puntos": equipo.get("puntos"),
-                        "pj": equipo.get("pj"),
-                        "pg": equipo.get("pg"),
-                        "pe": equipo.get("pe"),
-                        "pp": equipo.get("pp"),
-                        "gf": equipo.get("gf"),
-                        "gc": equipo.get("gc"),
-                        "ultimos_5": equipo.get("ultimos_5", []),
-                    }
-                    break
+            mi_equipo = (comp_res.data.get("mi_equipo_nombre") or "").strip() or None
+            competition_stats = _get_clasificacion(
+                comp_res.data, rival_nombre, mi_equipo=mi_equipo,
+            )
 
-        # Get last 5 results from jornadas
-        jornadas_res = supabase.table("rfef_jornadas").select("*").eq(
-            "competicion_id", str(competicion_id)
-        ).order("numero", desc=True).execute()
-
-        for jornada in jornadas_res.data or []:
-            for partido in jornada.get("partidos", []):
-                local = (partido.get("local") or "").lower()
-                visitante = (partido.get("visitante") or "").lower()
-                is_involved = rival_nombre_lower in local or local in rival_nombre_lower or rival_nombre_lower in visitante or visitante in rival_nombre_lower
-
-                if is_involved and partido.get("goles_local") is not None:
-                    last_5_results.append({
-                        "jornada": jornada["numero"],
-                        "local": partido.get("local"),
-                        "visitante": partido.get("visitante"),
-                        "goles_local": partido.get("goles_local"),
-                        "goles_visitante": partido.get("goles_visitante"),
-                        "fecha": partido.get("fecha", ""),
-                    })
-                    if len(last_5_results) >= 5:
-                        break
-            if len(last_5_results) >= 5:
-                break
+        last_5_results = _get_ultimos_resultados(
+            supabase, str(competicion_id), rival_nombre,
+        )
 
     # Head-to-head: partidos from our DB against this rival
     h2h_res = supabase.table("partidos").select(
