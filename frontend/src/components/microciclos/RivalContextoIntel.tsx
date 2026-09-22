@@ -475,12 +475,20 @@ export function RivalContextoIntel({ rivalId, competicionId, rivalNombre }: Riva
   const sancionados = (intel.tarjetas?.jugadores ?? []).filter((j) => j.estado === 'Sancionado')
   const apercibidos = (intel.tarjetas?.jugadores ?? []).filter((j) => j.estado === 'Apercibido')
   const goalInsights = ctx ? buildGoalInsights(ctx) : []
+  const historicoTemporadas = Object.values(intel.historico_temporadas ?? {}).sort(
+    (a, b) => Number(b.codigo) - Number(a.codigo),
+  )
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Badge variant="secondary" className="text-[10px]">RFEF Auto</Badge>
+          {intel.temporada?.label && (
+            <Badge variant="outline" className="text-[10px]">
+              {intel.temporada.label}
+            </Badge>
+          )}
           {intel.generated_at && (
             <span className="text-[10px] text-muted-foreground">
               {new Date(intel.generated_at).toLocaleDateString('es-ES', {
@@ -650,11 +658,39 @@ export function RivalContextoIntel({ rivalId, competicionId, rivalNombre }: Riva
                   </li>
                 </ul>
                 <p className="text-[10px]">
-                  Los goles totales (GF/GC, casa/fuera) salen del marcador de cada acta del rival.
-                  Las gráficas temporales y las mitades usan el detalle de goles sólo cuando cuadra con ese marcador.
+                  Los goles a favor de esta temporada son estrictos: marcador de las actas
+                  de la temporada en curso, sin mezclar la pasada, y nunca por encima de la
+                  clasificación oficial. Las gráficas temporales usan el detalle de goles
+                  sólo cuando cuadra con ese marcador.
                 </p>
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {historicoTemporadas.length > 0 && (
+        <Card>
+          <CardContent className="p-4 space-y-2">
+            <p className="text-xs font-semibold">Temporadas anteriores</p>
+            <p className="text-[10px] text-muted-foreground">
+              Datos de la temporada pasada separados; no entran en los totales de ahora.
+            </p>
+            {historicoTemporadas.map((season) => {
+              const prev = season.contexto_stats
+              return (
+                <div
+                  key={season.codigo}
+                  className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2"
+                >
+                  <span className="text-xs font-medium">{season.label}</span>
+                  <span className="text-[11px] text-muted-foreground tabular-nums">
+                    {prev?.liga.gf ?? '-'} GF · {prev?.liga.gc ?? '-'} GC
+                    {prev?.actas_con_resultado != null ? ` · ${prev.actas_con_resultado} PJ` : ''}
+                  </span>
+                </div>
+              )
+            })}
           </CardContent>
         </Card>
       )}

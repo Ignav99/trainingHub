@@ -8,6 +8,9 @@ from app.services.pre_match_service import (
     _goals_matching_marcador,
     _is_rival_local,
     _match_rival_name,
+    _merge_historico_temporadas,
+    _split_actas_by_temporada,
+    _strict_liga_goals,
 )
 
 
@@ -313,3 +316,133 @@ def test_contexto_minutes_from_actas_like_competition():
     assert ctx["actas_con_goles_minuto"] == 1
     assert ctx["goles_por_minuto"]["marcados"][1] == 1  # 16-30 bucket
     assert ctx["mitades"]["marcados_1t"] == 1
+
+
+def test_liga_gf_never_exceeds_clasificacion():
+    extra = {
+        "local_nombre": "C.D. Rival",
+        "visitante_nombre": "U.D. Fantasma",
+        "goles_local": 1,
+        "goles_visitante": 0,
+        "jornada_numero": 34,
+        "cod_acta": "old-34",
+        "fecha": "2025-05-18",
+        "titulares_local": [{"nombre": "Garcia"}],
+        "titulares_visitante": [{"nombre": "Z"}],
+        "suplentes_local": [],
+        "suplentes_visitante": [],
+        "goles": [
+            {"minuto": 10, "jugador": "Garcia", "parcial_local": 1, "parcial_visitante": 0},
+        ],
+    }
+    supabase = _FakeSupabase([_acta_1_1(), extra])
+    ctx = _compute_contexto_stats(
+        supabase, "comp-1", "C.D. Rival",
+        clasificacion={"gf": 1, "gc": 1, "pj": 1, "ultimos_5": ["E"]},
+    )
+    assert ctx["liga"]["gf"] == 1
+    assert ctx["liga"]["gc"] == 1
+
+
+def test_strict_liga_goals_caps_plus_one():
+    gf, gc = _strict_liga_goals(2, 1, 2, {"gf": 1, "gc": 1, "pj": 1})
+    assert gf == 1
+    assert gc == 1
+
+
+def test_split_actas_keeps_current_season_only():
+    current = {
+        "cod_acta": "curr-1",
+        "fecha": "2026-09-07",
+        "jornada_numero": 1,
+        "local_nombre": "C.D. Rival",
+        "visitante_nombre": "U.D. Otro",
+        "goles_local": 1,
+        "goles_visitante": 1,
+    }
+    leftover = {
+        "cod_acta": "old-1",
+        "fecha": "2025-09-08",
+        "jornada_numero": 1,
+        "local_nombre": "C.D. Rival",
+        "visitante_nombre": "U.D. Otro",
+        "goles_local": 3,
+        "goles_visitante": 0,
+    }
+    now, hist = _split_actas_by_temporada(
+        [current, leftover], "22", current_cod_actas={"curr-1"},
+    )
+    assert [a["cod_acta"] for a in now] == ["curr-1"]
+    assert [a["cod_acta"] for a in hist.get("21", [])] == ["old-1"]
+
+
+def test_contexto_drops_last_season_acta():
+    current = {
+        **_acta_1_1(),
+        "cod_acta": "curr-1",
+        "fecha": "2026-09-07",
+    }
+    leftover = {
+        "local_nombre": "C.D. Rival",
+        "visitante_nombre": "U.D. Otro",
+        "goles_local": 3,
+        "goles_visitante": 0,
+        "jornada_numero": 1,
+        "cod_acta": "old-1",
+        "fecha": "2025-09-08",
+        "titulares_local": [{"nombre": "Garcia"}],
+        "titulares_visitante": [{"nombre": "Perez"}],
+        "suplentes_local": [],
+        "suplentes_visitante": [],
+        "goles": [
+            {"minuto": 10, "jugador": "Garcia", "parcial_local": 1, "parcial_visitante": 0},
+            {"minuto": 20, "jugador": "Garcia", "parcial_local": 2, "parcial_visitante": 0},
+            {"minuto": 30, "jugador": "Garcia", "parcial_local": 3, "parcial_visitante": 0},
+        ],
+    }
+    jornadas = [{
+        "numero": 1,
+        "partidos": [{
+            "local": "C.D. Rival",
+            "visitante": "U.D. Otro",
+            "cod_acta": "curr-1",
+            "goles_local": 1,
+            "goles_visitante": 1,
+        }],
+    }]
+    supabase = _FakeSupabase([current, leftover], jornadas=jornadas)
+    ctx = _compute_contexto_stats(
+        supabase, "comp-1", "C.D. Rival",
+        clasificacion={"gf": 1, "gc": 1, "pj": 1, "ultimos_5": ["E"]},
+        temporada_code="22",
+    )
+    assert ctx is not None
+    assert ctx["actas_analizadas"] == 1
+    assert ctx["liga"]["gf"] == 1
+    assert ctx["liga"]["gc"] == 1
+    assert ctx["casa"]["gf"] == 1
+    assert ctx["casa"]["pj"] == 1
+
+
+def test_historico_keeps_last_season_on_the_rival():
+    leftover = {
+        "local_nombre": "C.D. Rival",
+        "visitante_nombre": "U.D. Otro",
+        "goles_local": 3,
+        "goles_visitante": 1,
+        "jornada_numero": 1,
+        "cod_acta": "old-1",
+        "fecha": "2025-09-08",
+        "titulares_local": [{"nombre": "Garcia"}],
+        "titulares_visitante": [{"nombre": "Perez"}],
+        "suplentes_local": [],
+        "suplentes_visitante": [],
+        "goles": [],
+    }
+    hist = _merge_historico_temporadas(
+        {}, {"21": [leftover]}, "C.D. Rival", None,
+    )
+    assert hist["21"]["label"] == "2025-2026"
+    assert hist["21"]["contexto_stats"]["liga"]["gf"] == 3
+    assert hist["21"]["contexto_stats"]["liga"]["gc"] == 1
+    assert hist["21"]["contexto_stats"]["casa"]["pj"] == 1

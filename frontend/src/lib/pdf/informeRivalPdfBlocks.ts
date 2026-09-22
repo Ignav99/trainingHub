@@ -65,8 +65,21 @@ export function collectIntelPdfLines(intel: PreMatchIntel): string[] {
   }
 
   const ctx = intel.contexto_stats
+  if (intel.temporada?.label) {
+    lines.push(`Temporada ${intel.temporada.label}`)
+  }
   if (ctx?.liga && (ctx.liga.gf != null || ctx.liga.gc != null)) {
     lines.push(`Liga: ${ctx.liga.gf ?? '-'} GF · ${ctx.liga.gc ?? '-'} GC`)
+  }
+  const historico = Object.values(intel.historico_temporadas ?? {}).sort(
+    (a, b) => Number(b.codigo) - Number(a.codigo),
+  )
+  for (const season of historico) {
+    const prev = season.contexto_stats?.liga
+    if (!prev) continue
+    lines.push(
+      `Temporada ${season.label}: ${prev.gf ?? '-'} GF · ${prev.gc ?? '-'} GC`,
+    )
   }
   if (ctx?.casa && (ctx.casa.gf != null || ctx.casa.gc != null)) {
     lines.push(`En casa: ${ctx.casa.gf ?? '-'} GF · ${ctx.casa.gc ?? '-'} GC`)
