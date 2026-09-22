@@ -19,6 +19,7 @@ import {
   timingsLabel,
   idsForKeyboardClipDelete,
   removeClipFromPlaylist,
+  removeClipsFromPlaylist,
 } from './videoDesk.ts'
 import type { CodeButton, CodeEvent } from './types.ts'
 
@@ -142,5 +143,8 @@ describe('video desk coding', () => {
     assert.deepEqual(next?.clips.map((c) => c.id), ['a', 'c'])
     assert.equal(next?.startId, 'c')
     assert.equal(removeClipFromPlaylist({ title: 'Ataque', clips: [events[0]], startId: 'a' }, 'a'), null)
+    const afterTwo = removeClipsFromPlaylist({ title: 'Ataque', clips: events, startId: 'b' }, ['b', 'c'])
+    assert.deepEqual(afterTwo?.clips.map((c) => c.id), ['a'])
+    assert.equal(afterTwo?.startId, 'a')
   })
 })

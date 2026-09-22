@@ -16,7 +16,7 @@ import {
   clipDisplayTitle,
   clipsOnLane,
   idsForKeyboardClipDelete,
-  removeClipFromPlaylist,
+  removeClipsFromPlaylist,
   timingsLabel,
 } from './videoDesk'
 import { isClipDeleteKey, isTypingTarget } from './videoJog'
@@ -139,11 +139,7 @@ export function VideoAnalyzer({
       return
     }
     for (const id of unique) removeEvent(videoKey, id)
-    const nextStage = stage
-      ? unique.reduce<typeof stage>((acc, id) => (
-        acc ? removeClipFromPlaylist({ ...acc, startId: id }, id) : null
-      ), stage)
-      : null
+    const nextStage = stage ? removeClipsFromPlaylist(stage, unique) : null
     setStage(nextStage)
     if (nextStage) {
       const nextId = nextStage.startId || nextStage.clips[0].id

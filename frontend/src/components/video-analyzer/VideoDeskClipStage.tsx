@@ -4,15 +4,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, Trash2, X } from 'lucide-react'
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 import type { CodeButton, CodeEvent } from './types'
-import { clipDisplayTitle } from './videoDesk'
+import { clipDisplayTitle, type DeskPlaylist } from './videoDesk'
 import { formatTime } from './utils'
 import { isTypingTarget } from './videoJog'
 
-export type ClipStagePlaylist = {
-  title: string
-  clips: CodeEvent[]
-  startId?: string
-}
+export type ClipStagePlaylist = DeskPlaylist
 
 export function VideoDeskClipStage({
   src,

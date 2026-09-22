@@ -385,3 +385,15 @@ export function removeClipFromPlaylist(
   const next = clips[Math.min(Math.max(oldIndex, 0), clips.length - 1)]
   return { ...playlist, clips, startId: next.id }
 }
+
+export function removeClipsFromPlaylist(
+  playlist: DeskPlaylist,
+  clipIds: string[]
+): DeskPlaylist | null {
+  let next: DeskPlaylist | null = playlist
+  for (const id of clipIds) {
+    next = removeClipFromPlaylist({ ...next, startId: id }, id)
+    if (!next) return null
+  }
+  return next
+}
