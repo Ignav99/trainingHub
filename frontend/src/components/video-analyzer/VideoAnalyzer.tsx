@@ -450,7 +450,6 @@ export function VideoAnalyzer({
         onSelectLane={playLane}
         onPlayClip={playClip}
         onTrim={patchClip}
-        onDelete={(clip) => deleteClips([clip.id])}
       />
 
       {stage && src ? (
