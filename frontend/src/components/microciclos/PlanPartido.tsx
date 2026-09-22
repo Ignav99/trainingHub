@@ -35,6 +35,7 @@ import { api } from '@/lib/api/client'
 import { rivalesApi } from '@/lib/api/partidos'
 import { VideoPlayer } from '@/components/video-analyzer/VideoPlayer'
 import { NutricionPartidoEditor } from './NutricionPartidoEditor'
+import { hasNutricionPartidoContent } from '@/lib/microcicloNutricionSync'
 
 interface PlanPartidoProps {
   data: Partial<PlanPartidoData>
@@ -86,6 +87,8 @@ function isAbpPhase(fase: FasePlanPartido) {
   return fase === 'abp_ofensiva' || fase === 'abp_defensiva'
 }
 
+type PlanTab = FasePlanPartido | 'nutricion'
+
 export function PlanPartido({
   data,
   onChange,
@@ -102,7 +105,7 @@ export function PlanPartido({
   tramo,
   getInformeForCharla,
 }: PlanPartidoProps) {
-  const [activeTab, setActiveTab] = useState<FasePlanPartido>('ataque_organizado')
+  const [activeTab, setActiveTab] = useState<PlanTab>('ataque_organizado')
   const [exportingDeck, setExportingDeck] = useState(false)
   const [liveShow, setLiveShow] = useState<DossierShow | null>(null)
   const [sala, setSala] = useState<{ show: DossierShow; session: RevisionSession } | null>(null)
@@ -283,13 +286,21 @@ export function PlanPartido({
       )}
 
       <CardContent className="space-y-5">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FasePlanPartido)}>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as PlanTab)}>
           <TabsList className="flex flex-wrap h-auto gap-1">
             {FASES.map((f) => (
               <TabsTrigger key={f.fase} value={f.fase} className="text-[10px] px-2 py-1">
                 {f.label}
               </TabsTrigger>
             ))}
+            <TabsTrigger value="nutricion" className="text-[10px] px-2 py-1">
+              Nutrición
+              {hasNutricionPartidoContent(data.nutricion_partido) ? (
+                <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
+              ) : (
+                <span className="ml-1 font-normal text-muted-foreground">opcional</span>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           {FASES.map((section) => {
@@ -426,15 +437,20 @@ export function PlanPartido({
               </TabsContent>
             )
           })}
-        </Tabs>
 
-        <NutricionPartidoEditor
-          data={data.nutricion_partido}
-          horaPartido={horaPartido}
-          fechaPartido={fechaPartido}
-          ciudadPartido={ciudadPartido}
-          onChange={(nutricion_partido) => update({ nutricion_partido })}
-        />
+          <TabsContent value="nutricion" className="space-y-3 mt-4">
+            <p className="text-xs text-muted-foreground">
+              Opcional. Solo si quieres clima y suplementación para este partido.
+            </p>
+            <NutricionPartidoEditor
+              data={data.nutricion_partido}
+              horaPartido={horaPartido}
+              fechaPartido={fechaPartido}
+              ciudadPartido={ciudadPartido}
+              onChange={(nutricion_partido) => update({ nutricion_partido })}
+            />
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   )

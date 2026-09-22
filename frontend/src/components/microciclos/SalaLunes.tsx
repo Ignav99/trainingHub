@@ -41,6 +41,8 @@ import { PlanesEspecialesSemana } from './PlanesEspecialesSemana'
 import {
   defaultPlanForFase,
   isPretemporada,
+  microcicloHasLinkedMatch,
+  microcicloLinkedRival,
   resolveModoPartido,
   showRivalPlanBlocks,
   useMorfocicloCalendario,
@@ -278,7 +280,9 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
   const selectedTipo = TIPO_MICROCICLO_OPTIONS.find((o) => o.value === planCT.tipo_microciclo)
   const pretemporada = isPretemporada(planCT)
   const modoPartido = resolveModoPartido(planCT)
-  const showRivalPlan = showRivalPlanBlocks(planCT, !!micro.rival_id || !!micro.rivales)
+  const linkedRival = microcicloLinkedRival(micro)
+  const hasLinkedMatch = microcicloHasLinkedMatch(micro)
+  const showRivalPlan = showRivalPlanBlocks(planCT, hasLinkedMatch)
   const morfocicloCalendario = useMorfocicloCalendario(planCT)
 
   const handleTipoChange = (v: TipoMicrociclo) => {
@@ -377,20 +381,20 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
               </button>
             )}
           </div>
-        ) : micro.rivales ? (
+        ) : hasLinkedMatch ? (
           <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
             <div className="flex items-center gap-3 min-w-0">
-              <TeamCrest src={micro.rivales.escudo_url} name={micro.rivales.nombre} size="md" />
+              <TeamCrest src={linkedRival?.escudo_url} name={linkedRival?.nombre || 'Rival'} size="md" />
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
                   <Swords className="h-3.5 w-3.5 text-amber-600 shrink-0" />
                   <span className="text-sm font-semibold truncate">
-                    {micro.rivales.nombre_corto || micro.rivales.nombre}
+                    {linkedRival?.nombre_corto || linkedRival?.nombre || 'Partido de la semana'}
                   </span>
                 </div>
-                {micro.partidos && (
+                {micro.partidos ? (
                   <p className="text-[11px] text-muted-foreground truncate">
-                    {micro.partidos.localia === 'local' ? 'Local' : 'Visitante'} · {micro.partidos.competicion}
+                    {micro.partidos.localia === 'local' ? 'Local' : micro.partidos.localia === 'visitante' ? 'Visitante' : 'Neutral'} · {micro.partidos.competicion}
                     {micro.partidos.fecha ? ` · ${formatDateShort(micro.partidos.fecha.slice(0, 10))}` : ''}
                     {micro.partido_id && (
                       <>
@@ -404,6 +408,8 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
                       </>
                     )}
                   </p>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">Asignado automáticamente · editable si no es el correcto</p>
                 )}
               </div>
             </div>
@@ -421,7 +427,7 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
             className="flex items-center justify-center gap-2 w-full rounded-lg border border-dashed px-3 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-primary/50 hover:bg-muted/30 transition-colors"
           >
             <Link2 className="h-3.5 w-3.5" />
-            {pretemporada ? 'Vincular amistoso / rival (opcional)' : 'Vincular rival / partido de competición (opcional)'}
+            {pretemporada ? 'Vincular amistoso / rival (opcional)' : 'Sin partido esta semana — asignar si hace falta'}
           </button>
         ) : null}
 
@@ -545,8 +551,8 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <RivalScout
             data={planCT.rival_scout ?? {}}
-            rivalNombre={data.microciclo.rivales?.nombre}
-            rivalEscudoUrl={data.microciclo.rivales?.escudo_url}
+            rivalNombre={linkedRival?.nombre}
+            rivalEscudoUrl={linkedRival?.escudo_url}
             rivalId={data.microciclo.rival_id}
             microcicloId={data.microciclo.id}
             equipoId={data.microciclo.equipo_id}
@@ -578,10 +584,10 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
               equipoId={data.microciclo.equipo_id}
               horaPartido={data.microciclo.partidos?.hora}
               fechaPartido={data.microciclo.partidos?.fecha}
-              ciudadPartido={data.microciclo.rivales?.ciudad || undefined}
-              rivalNombre={data.microciclo.rivales?.nombre}
-              rivalEscudoUrl={data.microciclo.rivales?.escudo_url}
-              campoPartido={data.microciclo.rivales?.estadio || undefined}
+              ciudadPartido={linkedRival?.ciudad || undefined}
+              rivalNombre={linkedRival?.nombre}
+              rivalEscudoUrl={linkedRival?.escudo_url}
+              campoPartido={linkedRival?.estadio || undefined}
               localia={data.microciclo.partidos?.localia}
               tramo={planTramo}
               onChange={(d) => updatePlanCT({ plan_partido: d })}

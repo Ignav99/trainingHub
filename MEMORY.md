@@ -29,6 +29,12 @@ La pizarra de informe y plan usa el mismo editor que las tareas (`TareaPizarraEd
 ## Sala del lunes
 Al planificar, el recuadro **Cargas** (junto a Disponibilidad) no se queda en el RPE medio: lista **críticos**, **altos**, **subcarga**, **wellness bajo** (≤4) y **sin carga reciente** (≥4 días), con ACWR/aguda. Enlace a `/rpe` y a la ficha del jugador.
 
+**Once probable propio:** césped compacto (`min-h-[220px]`) y desplegable por posición (`SlotPlayerSelect` / `formaciones11`), como en las sesiones. No se borra el 11 al cambiar el sistema.
+
+**Nutrición del plan de partido:** pestaña aparte y opcional (no va debajo de las fases). Vacía no cuenta como contenido del tramo.
+
+**Partido de la semana:** se asigna solo (`partido_id` + `rival_id`) al crear o abrir el microciclo de competición. Editar sigue disponible; vaciar el partido pone `auto_link_partido: false` para que no se vuelva a vincular.
+
 ## Ficha rival
 Solo Scouting, Informe Rival, Plan de Partido, ABP y Equipación. Plan ida/vuelta. PDF Informe Rival alineado con el plan. En el partido, la primera pestaña es **Informe Rival** (el mismo informe de la ficha, enlace a `/rivales/:id?tab=informe`). En la pizarra del plan/informe: colocar jugadores no abre el panel de rol; doble clic para nombre/rol; el editor no tapa el césped.
 
