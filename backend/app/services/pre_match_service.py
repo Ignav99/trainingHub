@@ -8,9 +8,13 @@ import logging
 import re
 import unicodedata
 from collections import Counter
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 
-from app.services.rfef_acta_utils import goal_minuto
+from app.services.rfef_acta_utils import (
+    default_rfaf_temporada,
+    goal_minuto,
+    rfaf_temporada_label,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -453,22 +457,227 @@ def _empty_side_stats() -> dict:
     return {"pj": 0, "pg": 0, "pe": 0, "pp": 0, "gf": 0, "gc": 0}
 
 
+def _effective_temporada_code(comp: dict | None) -> str:
+    """Current RFAF season for this competition (never older than the live season)."""
+    live = str(default_rfaf_temporada())
+    stored = str((comp or {}).get("rfef_codtemporada") or live).strip() or live
+    try:
+        return live if int(live) > int(stored) else stored
+    except (TypeError, ValueError):
+        return live
+
+
+def _temporada_window(code: str) -> tuple[date, date]:
+    year = 2004 + int(str(code).strip())
+    return date(year, 7, 1), date(year + 1, 7, 1)
+
+
+def _temporada_code_for_date(value: date) -> str:
+    start_year = value.year if value.month >= 7 else value.year - 1
+    return str(start_year - 2004)
+
+
+def _parse_acta_fecha(value) -> date | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    text = str(value).strip()[:10]
+    for fmt in ("%Y-%m-%d", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _ensure_acta_columns(columns: str, extra: tuple[str, ...] = ("cod_acta", "fecha")) -> str:
+    parts = [c.strip() for c in columns.split(",") if c.strip()]
+    present = {p.lower() for p in parts}
+    for col in extra:
+        if col.lower() not in present:
+            parts.append(col)
+    return ", ".join(parts)
+
+
+def _dedupe_actas(actas: list[dict]) -> list[dict]:
+    seen: set[tuple] = set()
+    out: list[dict] = []
+    for acta in actas:
+        key = (
+            str(acta.get("cod_acta") or ""),
+            acta.get("jornada_numero"),
+            (acta.get("local_nombre") or "").strip().lower(),
+            (acta.get("visitante_nombre") or "").strip().lower(),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(acta)
+    return out
+
+
+def _jornada_cod_actas(supabase, comp_id: str) -> set[str]:
+    """cod_acta values in the current calendar (rfef_jornadas, overwritten each season)."""
+    cache = getattr(supabase, "_th_jornada_cod_actas", None)
+    if not isinstance(cache, dict):
+        cache = {}
+        try:
+            supabase._th_jornada_cod_actas = cache
+        except Exception:
+            cache = {}
+    if comp_id in cache:
+        return cache[comp_id]
+    codes: set[str] = set()
+    try:
+        res = supabase.table("rfef_jornadas").select("numero, partidos").eq(
+            "competicion_id", comp_id
+        ).execute()
+        for jornada in res.data or []:
+            for partido in jornada.get("partidos") or []:
+                cod = partido.get("cod_acta")
+                if cod:
+                    codes.add(str(cod))
+    except Exception as e:
+        logger.debug("Could not load jornada cod_actas for %s: %s", comp_id, e)
+    cache[comp_id] = codes
+    return codes
+
+
+def _split_actas_by_temporada(
+    actas: list[dict],
+    temporada_code: str,
+    current_cod_actas: set[str] | None = None,
+) -> tuple[list[dict], dict[str, list[dict]]]:
+    """Keep current-season actas; bucket the rest by the season they belong to.
+
+    Current calendar cod_actas (from rfef_jornadas) win. Acta fecha is a
+    safety net when a leftover last-season row still sits on the same
+    competicion_id. Undated actas with no calendar stay current so tests
+    and incomplete scrapes still work.
+    """
+    current_cod_actas = current_cod_actas or set()
+    start, end = _temporada_window(temporada_code)
+    current: list[dict] = []
+    historico: dict[str, list[dict]] = {}
+
+    for acta in actas:
+        cod = str(acta.get("cod_acta") or "")
+        fecha = _parse_acta_fecha(acta.get("fecha"))
+        in_calendar = bool(current_cod_actas) and bool(cod) and cod in current_cod_actas
+        not_in_calendar = bool(current_cod_actas) and bool(cod) and cod not in current_cod_actas
+        in_window = fecha is not None and start <= fecha < end
+        out_of_window = fecha is not None and not (start <= fecha < end)
+
+        if out_of_window or (not_in_calendar and not in_window):
+            hist_code = (
+                _temporada_code_for_date(fecha)
+                if fecha is not None
+                else str(max(int(temporada_code) - 1, 0))
+            )
+            historico.setdefault(hist_code, []).append(acta)
+            continue
+        if in_calendar or in_window or not current_cod_actas:
+            current.append(acta)
+            continue
+        current.append(acta)
+
+    return current, historico
+
+
+def _strict_liga_goals(
+    total_gf: int,
+    total_gc: int,
+    total_pj: int,
+    clasificacion: dict | None,
+) -> tuple:
+    """Liga GF/GC must never exceed the official table or invent extra goals.
+
+    Acta score sums can pick up a leftover last-season match (+1 GF for
+    every team). When the table exists, cap to it. Incomplete actas
+    (fewer PJ than the table) trust the table. If the table is the one
+    that was inflated, the acta sum is kept when it is lower.
+    """
+    clas = clasificacion or {}
+    clas_gf = clas.get("gf")
+    clas_gc = clas.get("gc")
+    clas_pj = clas.get("pj")
+    if not total_pj:
+        return clas_gf, clas_gc
+
+    gf, gc = total_gf, total_gc
+    if clas_pj and total_pj < clas_pj:
+        if clas_gf is not None:
+            gf = clas_gf
+        if clas_gc is not None:
+            gc = clas_gc
+    else:
+        if clas_gf is not None and gf > clas_gf:
+            gf = clas_gf
+        if clas_gc is not None and gc > clas_gc:
+            gc = clas_gc
+    return gf, gc
+
+
+def _merge_historico_temporadas(
+    existing: dict | None,
+    by_season: dict[str, list[dict]],
+    rival_nombre: str,
+    mi_equipo: str | None,
+) -> dict:
+    merged: dict = dict(existing or {})
+    archived_at = datetime.now(timezone.utc).isoformat()
+    for scode, sactas in by_season.items():
+        snap = _compute_contexto_stats(
+            None, "", rival_nombre, clasificacion=None, mi_equipo=mi_equipo, actas=sactas,
+        )
+        if not snap:
+            continue
+        key = str(scode)
+        payload = {
+            "codigo": key,
+            "label": rfaf_temporada_label(key),
+            "contexto_stats": snap,
+            "archived_at": archived_at,
+        }
+        old = merged.get(key) or {}
+        old_pj = ((old.get("contexto_stats") or {}).get("actas_con_resultado") or 0)
+        new_pj = snap.get("actas_con_resultado") or 0
+        if new_pj >= old_pj:
+            merged[key] = payload
+    return merged
+
+
 def _compute_contexto_stats(
     supabase,
     comp_id: str,
     rival_nombre: str,
     clasificacion: dict | None = None,
     mi_equipo: str | None = None,
+    actas: list[dict] | None = None,
+    temporada_code: str | None = None,
 ) -> dict | None:
     """Aggregate contextual stats from actas: goals by minute, halves, home/away."""
-    actas = _query_actas(
-        supabase,
-        comp_id,
-        rival_nombre,
-        "local_nombre, visitante_nombre, goles, goles_local, goles_visitante, "
-        "titulares_local, titulares_visitante, suplentes_local, suplentes_visitante, jornada_numero",
-        mi_equipo=mi_equipo,
-    )
+    if actas is None:
+        if supabase is None:
+            return None
+        actas = _query_actas(
+            supabase,
+            comp_id,
+            rival_nombre,
+            "local_nombre, visitante_nombre, goles, goles_local, goles_visitante, "
+            "titulares_local, titulares_visitante, suplentes_local, suplentes_visitante, "
+            "jornada_numero",
+            mi_equipo=mi_equipo,
+            temporada_code=temporada_code,
+        )
+    elif temporada_code:
+        calendar = _jornada_cod_actas(supabase, comp_id) if supabase else set()
+        actas, _ignored = _split_actas_by_temporada(actas, temporada_code, calendar)
+
+    actas = _dedupe_actas(actas or [])
     if not actas:
         return None
 
@@ -544,8 +753,10 @@ def _compute_contexto_stats(
             "media_gc": round(stats["gc"] / pj, 2) if pj else None,
         }
 
-    liga_gf = total_gf if total_pj else ((clasificacion or {}).get("gf"))
-    liga_gc = total_gc if total_pj else ((clasificacion or {}).get("gc"))
+    liga_gf, liga_gc = _strict_liga_goals(total_gf, total_gc, total_pj, clasificacion)
+    liga_pj = (clasificacion or {}).get("pj") or total_pj or 0
+    if not liga_pj:
+        liga_pj = total_pj
 
     return {
         "actas_analizadas": len(actas_rival),
@@ -557,8 +768,8 @@ def _compute_contexto_stats(
         "liga": {
             "gf": liga_gf,
             "gc": liga_gc,
-            "media_gf": round(total_gf / total_pj, 2) if total_pj else None,
-            "media_gc": round(total_gc / total_pj, 2) if total_pj else None,
+            "media_gf": round(liga_gf / liga_pj, 2) if liga_pj and liga_gf is not None else None,
+            "media_gc": round(liga_gc / liga_pj, 2) if liga_pj and liga_gc is not None else None,
         },
         "casa": _side_payload(casa),
         "fuera": _side_payload(fuera),
@@ -606,6 +817,7 @@ def _get_goleadores_rival(
 
 def _get_goleadores_from_actas(
     supabase, comp_id: str, rival_nombre: str, mi_equipo: str | None = None,
+    temporada_code: str | None = None,
 ) -> list[dict]:
     """Fallback: extract rival scorers from actas using lineup roster to filter."""
     actas = _query_actas(
@@ -613,6 +825,7 @@ def _get_goleadores_from_actas(
         "local_nombre, visitante_nombre, goles, "
         "titulares_local, titulares_visitante, suplentes_local, suplentes_visitante",
         mi_equipo=mi_equipo,
+        temporada_code=temporada_code,
     )
     if not actas:
         return []
@@ -644,6 +857,17 @@ def _get_goleadores_from_actas(
     return result[:10]
 
 
+def _filter_actas_temporada(
+    supabase, comp_id: str, actas: list[dict], temporada_code: str | None,
+) -> list[dict]:
+    if not temporada_code or not actas:
+        return actas
+    current, _hist = _split_actas_by_temporada(
+        actas, temporada_code, _jornada_cod_actas(supabase, comp_id),
+    )
+    return current
+
+
 def _query_actas(
     supabase,
     comp_id: str,
@@ -652,16 +876,25 @@ def _query_actas(
     desc: bool = False,
     limit: int | None = None,
     mi_equipo: str | None = None,
+    temporada_code: str | None = None,
 ) -> list[dict]:
     """Query rfef_actas with multiple fallbacks:
     1. ilike on local_nombre/visitante_nombre with full rfef_nombre
     2. ilike with core name (stripped prefixes)
     3. Lookup cod_actas from rfef_jornadas (works even if acta names are empty)
+
+    When temporada_code is set, leftover last-season rows on the same
+    competicion_id are dropped so current contexto is not mixed.
+    Limit is applied after that cut (once probable needs the last 5 of
+    THIS season, not jornada 34 of the previous one).
     """
+    columns = _ensure_acta_columns(columns)
     search_names = [rival_nombre]
     core = _extract_core_name(rival_nombre)
     if core.lower() != rival_nombre.lower().strip():
         search_names.append(core)
+
+    sql_limit = None if temporada_code else limit
 
     # Strategy 1 & 2: direct name search on actas
     for name in search_names:
@@ -670,16 +903,23 @@ def _query_actas(
         ).or_(
             f"local_nombre.ilike.%{name}%,visitante_nombre.ilike.%{name}%"
         ).order("jornada_numero", desc=desc)
-        if limit:
-            query = query.limit(limit)
+        if sql_limit:
+            query = query.limit(sql_limit)
         res = query.execute()
         actas = res.data or []
         matched = [
             a for a in actas if _is_rival_local(a, rival_nombre, mi_equipo) is not None
         ]
         if matched:
-            logger.info("Actas for '%s': %d rows (name search='%s')", rival_nombre, len(matched), name)
-            return matched
+            matched = _filter_actas_temporada(supabase, comp_id, matched, temporada_code)
+            if limit:
+                matched = matched[:limit]
+            if matched:
+                logger.info(
+                    "Actas for '%s': %d rows (name search='%s', temporada=%s)",
+                    rival_nombre, len(matched), name, temporada_code or "-",
+                )
+                return matched
 
     # Strategy 3: find cod_actas via jornadas (jornadas always have correct team names)
     try:
@@ -706,9 +946,8 @@ def _query_actas(
                     }
 
         if cod_actas:
-            if limit:
+            if limit and not temporada_code:
                 cod_actas = cod_actas[:limit]
-            # Ensure cod_acta is in the select so we can match back
             query_cols = columns
             if "cod_acta" not in columns:
                 query_cols = f"cod_acta, {columns}"
@@ -730,11 +969,15 @@ def _query_actas(
                 ]
                 if matched:
                     actas = matched
-                logger.info(
-                    "Actas for '%s': %d rows (jornadas fallback, %d cod_actas matched)",
-                    rival_nombre, len(actas), len(cod_actas),
-                )
-                return actas
+                actas = _filter_actas_temporada(supabase, comp_id, actas, temporada_code)
+                if limit:
+                    actas = actas[:limit]
+                if actas:
+                    logger.info(
+                        "Actas for '%s': %d rows (jornadas fallback, %d cod_actas matched)",
+                        rival_nombre, len(actas), len(cod_actas),
+                    )
+                    return actas
 
         logger.warning("No actas found for '%s' (tried names + jornadas fallback)", rival_nombre)
     except Exception as e:
@@ -797,12 +1040,13 @@ def _get_rival_data(
 def _get_once_probable(
     supabase, comp_id: str, rival_nombre: str, tarjetas_data: dict | None = None,
     mi_equipo: str | None = None,
+    temporada_code: str | None = None,
 ) -> dict:
     """Calculate probable starting XI from last 5 actas, with sanction flags."""
     actas = _query_actas(
         supabase, comp_id, rival_nombre,
         "local_nombre, visitante_nombre, titulares_local, titulares_visitante, jornada_numero",
-        desc=True, limit=5, mi_equipo=mi_equipo,
+        desc=True, limit=5, mi_equipo=mi_equipo, temporada_code=temporada_code,
     )
 
     player_counts: Counter = Counter()
@@ -980,6 +1224,7 @@ def _compute_card_states(
     target_jornada: int | None = None,
     sanciones_oficiales: list[dict] | None = None,
     mi_equipo: str | None = None,
+    temporada_code: str | None = None,
 ) -> dict:
     """Build card state from official sanctions (source of truth).
 
@@ -997,6 +1242,7 @@ def _compute_card_states(
         "local_nombre, visitante_nombre, tarjetas_local, tarjetas_visitante, "
         "titulares_local, titulares_visitante, jornada_numero",
         mi_equipo=mi_equipo,
+        temporada_code=temporada_code,
     )
 
     actas_by_jornada: dict[int, dict] = {}
@@ -1146,6 +1392,7 @@ def _get_tarjetas(
     rival_nombre: str,
     sanciones_oficiales: list[dict] | None = None,
     mi_equipo: str | None = None,
+    temporada_code: str | None = None,
 ) -> dict:
     """Aggregate card statistics using chronological state machine.
 
@@ -1155,6 +1402,7 @@ def _get_tarjetas(
         supabase, comp_id, rival_nombre,
         sanciones_oficiales=sanciones_oficiales,
         mi_equipo=mi_equipo,
+        temporada_code=temporada_code,
     )
 
 
@@ -1259,6 +1507,7 @@ def gather_rival_intel_standalone(
     rival_nombre = rival.get("rfef_nombre") or rival.get("nombre", "")
     comp_id = comp["id"]
     mi_equipo = (comp.get("mi_equipo_nombre") or "").strip() or None
+    temporada_code = _effective_temporada_code(comp)
 
     if not rival_nombre:
         return {"error": "No rival name available"}
@@ -1267,6 +1516,10 @@ def gather_rival_intel_standalone(
         "generated_at": datetime.utcnow().isoformat(),
         "rival_nombre": rival.get("nombre", rival_nombre),
         "rival_escudo_url": rival.get("escudo_url"),
+        "temporada": {
+            "codigo": temporada_code,
+            "label": rfaf_temporada_label(temporada_code),
+        },
     }
 
     # Clasificacion
@@ -1279,6 +1532,7 @@ def gather_rival_intel_standalone(
     if not goleadores:
         goleadores = _get_goleadores_from_actas(
             supabase, comp_id, rival_nombre, mi_equipo=mi_equipo,
+            temporada_code=temporada_code,
         )
     if goleadores:
         intel["goleadores_rival"] = goleadores
@@ -1294,6 +1548,7 @@ def gather_rival_intel_standalone(
         tarjetas = _get_tarjetas(
             supabase, comp_id, rival_nombre,
             sanciones_oficiales=sanciones or None, mi_equipo=mi_equipo,
+            temporada_code=temporada_code,
         )
         if tarjetas.get("jugadores"):
             intel["tarjetas"] = tarjetas
@@ -1304,6 +1559,7 @@ def gather_rival_intel_standalone(
     try:
         once = _get_once_probable(
             supabase, comp_id, rival_nombre, tarjetas_data=tarjetas, mi_equipo=mi_equipo,
+            temporada_code=temporada_code,
         )
         if once.get("actas_analizadas", 0) > 0:
             intel["once_probable"] = once
@@ -1327,13 +1583,31 @@ def gather_rival_intel_standalone(
         except Exception as e:
             logger.debug("Error getting head to head: %s", e)
 
-    # Contextual stats (goals by minute, home/away splits, form narrative)
+    # Contextual stats: query unfiltered, then split so last season is
+    # archived on the rival instead of mixed into the current totals.
     try:
+        all_actas = _query_actas(
+            supabase, comp_id, rival_nombre,
+            "local_nombre, visitante_nombre, goles, goles_local, goles_visitante, "
+            "titulares_local, titulares_visitante, suplentes_local, suplentes_visitante, "
+            "jornada_numero",
+            mi_equipo=mi_equipo,
+        )
+        current_actas, leftover = _split_actas_by_temporada(
+            all_actas, temporada_code, _jornada_cod_actas(supabase, comp_id),
+        )
         contexto = _compute_contexto_stats(
-            supabase, comp_id, rival_nombre, clasificacion=clasificacion, mi_equipo=mi_equipo,
+            supabase, comp_id, rival_nombre,
+            clasificacion=clasificacion, mi_equipo=mi_equipo, actas=current_actas,
         )
         if contexto:
             intel["contexto_stats"] = contexto
+        existing_hist = (rival.get("rival_intel") or {}).get("historico_temporadas")
+        historico = _merge_historico_temporadas(
+            existing_hist, leftover, rival_nombre, mi_equipo,
+        )
+        if historico:
+            intel["historico_temporadas"] = historico
     except Exception as e:
         logger.warning("Error computing contexto stats for '%s': %s", rival_nombre, e)
 
@@ -1480,16 +1754,41 @@ def refresh_rival_intel_contexto(
         return intel
 
     mi_equipo = (comp_res.data.get("mi_equipo_nombre") or "").strip() or None
+    temporada_code = _effective_temporada_code(comp_res.data)
     clasificacion = _get_clasificacion(
         comp_res.data, rival_nombre, mi_equipo=mi_equipo,
     ) or intel.get("clasificacion")
     if clasificacion:
         intel["clasificacion"] = clasificacion
 
+    intel["temporada"] = {
+        "codigo": temporada_code,
+        "label": rfaf_temporada_label(temporada_code),
+    }
+
+    all_actas = _query_actas(
+        supabase, competicion_id, rival_nombre,
+        "local_nombre, visitante_nombre, goles, goles_local, goles_visitante, "
+        "titulares_local, titulares_visitante, suplentes_local, suplentes_visitante, "
+        "jornada_numero",
+        mi_equipo=mi_equipo,
+    )
+    current_actas, leftover = _split_actas_by_temporada(
+        all_actas, temporada_code, _jornada_cod_actas(supabase, competicion_id),
+    )
     contexto = _compute_contexto_stats(
-        supabase, competicion_id, rival_nombre, clasificacion=clasificacion, mi_equipo=mi_equipo,
+        supabase, competicion_id, rival_nombre,
+        clasificacion=clasificacion, mi_equipo=mi_equipo, actas=current_actas,
     )
     if contexto:
         intel["contexto_stats"] = contexto
+    else:
+        intel.pop("contexto_stats", None)
+
+    historico = _merge_historico_temporadas(
+        intel.get("historico_temporadas"), leftover, rival_nombre, mi_equipo,
+    )
+    if historico:
+        intel["historico_temporadas"] = historico
 
     return intel

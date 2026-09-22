@@ -1,6 +1,32 @@
 """Helpers to decide if an RFEF acta row needs re-scraping."""
 
 import re
+from datetime import datetime
+from typing import Optional
+
+_MINUTE_ADDED = re.compile(r"(\d{1,3})\s*\+\s*(\d{1,2})")
+_MINUTE_PARENS = re.compile(r"\((\d{1,3})(?:\s*\+\s*(\d{1,2}))?'?\)")
+_MINUTE_QUOTE = re.compile(r"(\d{1,3})\s*'")
+_MINUTE_BARE = re.compile(r"(\d{1,3})")
+
+# Códigos RFAF: 22 = 2026-2027. año_inicio = 2004 + int(código). Nueva temporada desde julio.
+_RFAF_TEMPORADA_EPOCH_YEAR = 2004
+
+
+def default_rfaf_temporada(now: Optional[datetime] = None) -> str:
+    """Código RFAF de la temporada en curso (julio → junio)."""
+    now = now or datetime.now()
+    start_year = now.year if now.month >= 7 else now.year - 1
+    return str(start_year - _RFAF_TEMPORADA_EPOCH_YEAR)
+
+
+def rfaf_temporada_label(code: str) -> str:
+    """Etiqueta legible: '22' → '2026-2027'."""
+    try:
+        y = _RFAF_TEMPORADA_EPOCH_YEAR + int(str(code).strip())
+        return f"{y}-{y + 1}"
+    except (TypeError, ValueError):
+        return f"Temporada {code}"
 
 _MINUTE_ADDED = re.compile(r"(\d{1,3})\s*\+\s*(\d{1,2})")
 _MINUTE_PARENS = re.compile(r"\((\d{1,3})(?:\s*\+\s*(\d{1,2}))?'?\)")

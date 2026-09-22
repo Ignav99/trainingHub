@@ -1957,6 +1957,18 @@ export interface PreMatchContextoStats {
   }
 }
 
+export interface PreMatchTemporadaMeta {
+  codigo: string
+  label: string
+}
+
+export interface PreMatchHistoricoTemporada {
+  codigo: string
+  label: string
+  contexto_stats?: PreMatchContextoStats
+  archived_at?: string
+}
+
 export interface PreMatchGoleador {
   jugador: string
   goles: number
@@ -2006,6 +2018,7 @@ export interface PreMatchIntel {
   generated_at: string
   rival_nombre: string
   rival_escudo_url?: string
+  temporada?: PreMatchTemporadaMeta
   clasificacion?: PreMatchClasificacion
   goleadores_rival?: PreMatchGoleador[]
   once_probable?: PreMatchOnceProbable
@@ -2014,6 +2027,7 @@ export interface PreMatchIntel {
   ultimos_resultados?: PreMatchResultado[]
   head_to_head?: PreMatchH2H[]
   contexto_stats?: PreMatchContextoStats
+  historico_temporadas?: Record<string, PreMatchHistoricoTemporada>
 }
 
 // ============================================
