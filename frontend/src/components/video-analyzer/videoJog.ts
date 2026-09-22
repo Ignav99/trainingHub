@@ -84,6 +84,117 @@ export function wheelPixelsToSeconds(pixels: number, fps: number): number {
   return (frames * gain) / rate
 }
 
+export const PLAYBACK_SPEEDS = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8] as const
+export type PlaybackSpeed = (typeof PLAYBACK_SPEEDS)[number]
+
+export function nextPlaybackSpeed(current: number): PlaybackSpeed {
+  const idx = PLAYBACK_SPEEDS.findIndex((s) => Math.abs(s - current) < 0.001)
+  return PLAYBACK_SPEEDS[(idx + 1) % PLAYBACK_SPEEDS.length]
+}
+
+export function isPlaybackSpeed(value: number): value is PlaybackSpeed {
+  return PLAYBACK_SPEEDS.some((s) => Math.abs(s - value) < 0.001)
+}
+
+/** Slow pad motion stays on presented frames; flicks still shuttle. */
+export function isFineJogPixels(pixels: number, fps: number): boolean {
+  const frames = Math.abs(pixels) / PIXELS_PER_FRAME
+  return frames <= 2.2 && Math.abs(wheelPixelsToSeconds(pixels, fps)) <= frameDuration(fps) * 2.4
+}
+
+export type CachedFrame = { mediaTime: number; bitmap: ImageBitmap }
+
+export class PresentedFrameCache {
+  private items: CachedFrame[] = []
+  private max: number
+  constructor(max = 90) {
+    this.max = max
+  }
+
+  push(mediaTime: number, bitmap: ImageBitmap) {
+    const last = this.items[this.items.length - 1]
+    if (last && Math.abs(last.mediaTime - mediaTime) < 0.0004) {
+      last.bitmap.close?.()
+      last.bitmap = bitmap
+      last.mediaTime = mediaTime
+      return
+    }
+    this.items.push({ mediaTime, bitmap })
+    while (this.items.length > this.max) {
+      this.items.shift()?.bitmap.close?.()
+    }
+  }
+
+  nearestBefore(time: number, minDelta = 0.008): CachedFrame | null {
+    let hit: CachedFrame | null = null
+    for (const item of this.items) {
+      const dt = time - item.mediaTime
+      if (dt >= minDelta && (!hit || item.mediaTime > hit.mediaTime)) hit = item
+    }
+    return hit
+  }
+
+  nearestAfter(time: number, minDelta = 0.008): CachedFrame | null {
+    let hit: CachedFrame | null = null
+    for (const item of this.items) {
+      const dt = item.mediaTime - time
+      if (dt >= minDelta && (!hit || item.mediaTime < hit.mediaTime)) hit = item
+    }
+    return hit
+  }
+
+  clear() {
+    for (const item of this.items) item.bitmap.close?.()
+    this.items = []
+  }
+
+  get size() {
+    return this.items.length
+  }
+}
+
+export function waitNextVideoFrame(
+  video: HTMLVideoElement & {
+    requestVideoFrameCallback?: (cb: (now: number, metadata: { mediaTime: number; presentedFrames: number }) => void) => number
+    cancelVideoFrameCallback?: (id: number) => void
+  },
+  ms = 80
+): Promise<number> {
+  return new Promise((resolve) => {
+    if (typeof video.requestVideoFrameCallback !== 'function') {
+      requestAnimationFrame(() => resolve(video.currentTime))
+      return
+    }
+    let settled = false
+    const done = (time: number) => {
+      if (settled) return
+      settled = true
+      window.clearTimeout(timer)
+      resolve(time)
+    }
+    const id = video.requestVideoFrameCallback((_now, meta) => done(meta.mediaTime))
+    const timer = window.setTimeout(() => {
+      video.cancelVideoFrameCallback?.(id)
+      done(video.currentTime)
+    }, ms)
+  })
+}
+
+/** Advance one presented frame by playing, not seeking (avoids GOP jerks). */
+export async function playOnePresentedFrame(video: HTMLVideoElement): Promise<number> {
+  const before = video.currentTime
+  try {
+    video.playbackRate = 1
+    await video.play()
+    const time = await waitNextVideoFrame(video)
+    video.pause()
+    return time > before ? time : video.currentTime
+  } catch {
+    video.pause()
+    return video.currentTime
+  }
+}
+
 export function estimateFps(presentedFrames: number, mediaSeconds: number): number | null {
   if (presentedFrames < 5 || mediaSeconds < 0.12) return null
   return snapFps(presentedFrames / mediaSeconds)

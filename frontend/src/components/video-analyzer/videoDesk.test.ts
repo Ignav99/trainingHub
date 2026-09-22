@@ -14,6 +14,9 @@ import {
   cintaWindow,
   cintaTickStep,
   clipsOnLane,
+  normalizeShortcut,
+  shortcutTaken,
+  timingsLabel,
 } from './videoDesk.ts'
 import type { CodeButton, CodeEvent } from './types.ts'
 
@@ -107,5 +110,19 @@ describe('video desk coding', () => {
     ]
     const lane = clipsOnLane(events, 'fase-ataque-org')
     assert.deepEqual(lane.map((c) => c.id), ['a', 'b'])
+  })
+
+  it('keeps keyboard shortcuts unique and reserved keys free', () => {
+    assert.equal(normalizeShortcut('A'), 'a')
+    assert.equal(normalizeShortcut(' '), undefined)
+    assert.equal(normalizeShortcut('h'), undefined)
+    const buttons: CodeButton[] = [
+      { id: 'a', label: 'A', color: '#000', shortcut: '1', preRoll: 1, postRoll: 1 },
+      { id: 'b', label: 'B', color: '#000', shortcut: '2', preRoll: 1, postRoll: 1 },
+    ]
+    assert.equal(shortcutTaken(buttons, '1'), true)
+    assert.equal(shortcutTaken(buttons, '1', 'a'), false)
+    assert.equal(shortcutTaken(buttons, '9'), false)
+    assert.equal(timingsLabel({ ...buttons[0], captureMode: 'range' }), 'inicio → fin')
   })
 })

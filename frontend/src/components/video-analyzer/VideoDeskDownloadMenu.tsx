@@ -36,7 +36,7 @@ export function VideoDeskDownloadMenu({
           <button type="button" onClick={() => { setOpen(false); onPick('all-folders') }}>Todas las carpetas (zip)</button>
           <button type="button" onClick={() => { setOpen(false); onPick('all-flat') }}>Todos los clips sueltos (zip)</button>
           <p className="vd-menu-hint">
-            MP4 sin audio, misma resolución, peso contenido. El partido no se sube.
+            MP4 copia del original cuando se puede. El archivo grande no se sube.
           </p>
         </div>
       ) : null}

@@ -27,7 +27,7 @@ interface CodeWindowState {
   removeButton: (id: string) => void
   reorderButtons: (ids: string[]) => void
 
-  recordEvent: (buttonId: string, timestamp: number, duration: number) => CodeEvent
+  recordEvent: (buttonId: string, timestamp: number, duration: number, range?: { startTime: number; endTime: number }) => CodeEvent
   updateEvent: (
     videoKey: string,
     eventId: string,
@@ -58,16 +58,26 @@ export const useCodeWindowStore = create<CodeWindowState>()(
           ...btn,
           id: generateId(),
           size: btn.size || 'm',
+          captureMode: btn.captureMode === 'range' ? 'range' : 'window',
+          shortcut: btn.shortcut,
           preRoll: Number.isFinite(btn.preRoll) ? btn.preRoll : 5,
           postRoll: Number.isFinite(btn.postRoll) ? btn.postRoll : 5,
         }
-        set((s) => ({ buttons: [...s.buttons, newBtn] }))
+        set((s) => ({
+          buttons: [...s.buttons.map((b) => (
+            newBtn.shortcut && b.shortcut === newBtn.shortcut ? { ...b, shortcut: undefined } : b
+          )), newBtn],
+        }))
         return newBtn
       },
 
       updateButton: (id, patch) => {
         set((s) => ({
-          buttons: s.buttons.map((b) => (b.id === id ? { ...b, ...patch } : b)),
+          buttons: s.buttons.map((b) => {
+            if (b.id === id) return { ...b, ...patch }
+            if (patch.shortcut && b.shortcut === patch.shortcut) return { ...b, shortcut: undefined }
+            return b
+          }),
         }))
       },
 
@@ -85,18 +95,20 @@ export const useCodeWindowStore = create<CodeWindowState>()(
         })
       },
 
-      recordEvent: (buttonId, timestamp, duration) => {
+      recordEvent: (buttonId, timestamp, duration, range) => {
         const { currentVideoKey, buttons, events } = get()
         const btn = buttons.find((b) => b.id === buttonId)
         if (!btn) throw new Error(`Button ${buttonId} not found`)
 
-        const range = clipRangeFromPress(timestamp, duration, btn.preRoll, btn.postRoll)
+        const rangeFromPress = range
+          ? clampClipTimes(range.startTime, range.endTime, duration)
+          : clipRangeFromPress(timestamp, duration, btn.preRoll, btn.postRoll)
         const event: CodeEvent = {
           id: generateId(),
           buttonId,
           timestamp,
-          startTime: range.startTime,
-          endTime: range.endTime,
+          startTime: rangeFromPress.startTime,
+          endTime: rangeFromPress.endTime,
         }
 
         const key = currentVideoKey || '_default'
@@ -152,7 +164,7 @@ export const useCodeWindowStore = create<CodeWindowState>()(
     }),
     {
       name: 'kabin-code-window',
-      version: 2,
+      version: 3,
       partialize: (s) => ({ buttons: s.buttons, events: s.events }),
       migrate: (persisted, version) => {
         const state = (persisted || {}) as { buttons?: CodeButton[]; events?: Record<string, CodeEvent[]> }

@@ -23,6 +23,7 @@ export function VideoDeskTimeline({
   onSeek,
   onSelect,
   onSelectLane,
+  onPlayClip,
   onTrim,
 }: {
   buttons: CodeButton[]
@@ -35,6 +36,7 @@ export function VideoDeskTimeline({
   onSeek: (time: number) => void
   onSelect: (clip: CodeEvent) => void
   onSelectLane: (buttonId: string) => void
+  onPlayClip?: (clip: CodeEvent) => void
   onTrim: (clip: CodeEvent, startTime: number, endTime: number) => void
 }) {
   const trackRef = useRef<HTMLDivElement>(null)
@@ -48,6 +50,7 @@ export function VideoDeskTimeline({
     originX: number
     start: number
     end: number
+    moved: boolean
   } | null>(null)
   const panRef = useRef<{ originX: number; startView: number } | null>(null)
   const handPanRef = useRef<{ pointerId: number; originX: number; startView: number; moved: boolean } | null>(null)
@@ -174,6 +177,7 @@ export function VideoDeskTimeline({
       originX: e.clientX,
       start: clip.startTime,
       end: clip.endTime,
+      moved: false,
     }
     onSelect(clip)
   }
@@ -183,6 +187,7 @@ export function VideoDeskTimeline({
     const el = trackRef.current
     if (!drag || !el || view.visible <= 0) return
     const dt = ((e.clientX - drag.originX) / el.getBoundingClientRect().width) * view.visible
+    if (Math.abs(e.clientX - drag.originX) > 4) drag.moved = true
     if (drag.edge === 'start') {
       onTrim(drag.clip, drag.start + dt, drag.end)
     } else if (drag.edge === 'end') {
@@ -195,8 +200,10 @@ export function VideoDeskTimeline({
   }
 
   const onBlockPointerUp = (e: React.PointerEvent) => {
+    const drag = dragRef.current
     try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId) } catch { /* ignore */ }
     dragRef.current = null
+    if (drag && !drag.moved && drag.edge === 'body') onPlayClip?.(drag.clip)
   }
 
   const step = cintaTickStep(view.visible)
@@ -234,7 +241,7 @@ export function VideoDeskTimeline({
             key={btn.id}
             type="button"
             className={`vd-lane-label${selectedLaneId === btn.id ? ' is-selected' : ''}`}
-            title={`Seleccionar todos los recortes de ${btn.label}`}
+            title={`Reproducir todos los recortes de ${btn.label}`}
             onClick={() => { if (btn.id !== '_none') onSelectLane(btn.id) }}
           >
             {btn.label}

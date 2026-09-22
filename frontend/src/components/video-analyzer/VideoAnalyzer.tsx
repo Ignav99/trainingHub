@@ -10,8 +10,9 @@ import { VideoDeskBotonera } from './VideoDeskBotonera'
 import { VideoDeskFolders } from './VideoDeskFolders'
 import { VideoDeskTimeline } from './VideoDeskTimeline'
 import { VideoDeskDownloadMenu } from './VideoDeskDownloadMenu'
+import { VideoDeskClipStage, type ClipStagePlaylist } from './VideoDeskClipStage'
 import { extractAndDownloadDeskClips, type DeskDownloadKind } from './videoDeskDownload'
-import { clipDisplayTitle, clipsOnLane } from './videoDesk'
+import { clipDisplayTitle, clipsOnLane, timingsLabel } from './videoDesk'
 import type { CodeButton, CodeEvent } from './types'
 import './video-desk.css'
 
@@ -19,7 +20,7 @@ interface VideoAnalyzerProps {
   localFile?: File
   videoUrl?: string
   videoTitle?: string
-  partidoId: string
+  partidoId?: string
   equipoId: string
   videoId?: string
   rivalId?: string
@@ -38,7 +39,7 @@ export function VideoAnalyzer({
 }: VideoAnalyzerProps) {
   const playerRef = useRef<VideoPlayerHandle>(null)
   const currentTimeRef = useRef(0)
-  const clipHoldRef = useRef<number | null>(null)
+  const rangeArmRef = useRef<{ buttonId: string; startTime: number } | null>(null)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [railWidth, setRailWidth] = useState(360)
@@ -49,6 +50,8 @@ export function VideoAnalyzer({
   const [sendClipId, setSendClipId] = useState<string | null>(null)
   const [progress, setProgress] = useState<string | null>(null)
   const [objectUrl, setObjectUrl] = useState('')
+  const [armedButtonId, setArmedButtonId] = useState<string | null>(null)
+  const [stage, setStage] = useState<ClipStagePlaylist | null>(null)
 
   const buttons = useCodeWindowStore((s) => s.buttons)
   const activeButtonId = useCodeWindowStore((s) => s.activeButtonId)
@@ -86,6 +89,7 @@ export function VideoAnalyzer({
   const selectedClip = events.find((e) => e.id === selectedClipId) || null
   const sendClip = events.find((e) => e.id === sendClipId) || null
   const sendButton = sendClip ? buttons.find((b) => b.id === sendClip.buttonId) : null
+  const canSendToRevision = Boolean(partidoId || rivalId)
 
   const seekTo = useCallback((time: number) => {
     playerRef.current?.seekTo(time)
@@ -96,21 +100,23 @@ export function VideoAnalyzer({
   const handleTimeUpdate = useCallback((time: number) => {
     currentTimeRef.current = time
     setCurrentTime(time)
-    const hold = clipHoldRef.current
-    if (hold != null && time >= hold) {
-      clipHoldRef.current = null
-      playerRef.current?.pause()
+  }, [])
+
+  const openClipStage = useCallback((clips: CodeEvent[], title: string, startId?: string) => {
+    if (!clips.length) {
+      toast.message(`No hay recortes en ${title}`)
+      return
     }
+    setSelectedClipId(startId || clips[0].id)
+    setSelectedClipIds(clips.map((c) => c.id))
+    setStage({ title, clips, startId: startId || clips[0].id })
   }, [])
 
   const playClip = useCallback((clip: CodeEvent) => {
-    setSelectedClipId(clip.id)
-    setSelectedClipIds([clip.id])
+    const btn = buttons.find((b) => b.id === clip.buttonId)
     setSelectedLaneId(null)
-    clipHoldRef.current = clip.endTime
-    seekTo(clip.startTime)
-    playerRef.current?.play()
-  }, [seekTo])
+    openClipStage([clip], clipDisplayTitle(clip, btn), clip.id)
+  }, [buttons, openClipStage])
 
   const selectClip = useCallback((clip: CodeEvent) => {
     setSelectedClipId(clip.id)
@@ -119,25 +125,45 @@ export function VideoAnalyzer({
     setActiveButtonId(clip.buttonId)
   }, [setActiveButtonId])
 
-  const selectLane = useCallback((buttonId: string) => {
+  const playLane = useCallback((buttonId: string) => {
     const clips = clipsOnLane(events, buttonId)
     const btn = buttons.find((b) => b.id === buttonId)
     setSelectedLaneId(buttonId)
     setActiveButtonId(buttonId)
-    setSelectedClipIds(clips.map((c) => c.id))
-    setSelectedClipId(clips[0]?.id || null)
-    if (clips.length) toast.success(`${clips.length} recortes de ${btn?.label || 'esta línea'}`)
-    else toast.message(`No hay recortes en ${btn?.label || 'esta línea'}`)
-  }, [buttons, events, setActiveButtonId])
+    openClipStage(clips, btn?.label || 'Esta línea')
+  }, [buttons, events, openClipStage, setActiveButtonId])
 
   const pressButton = useCallback((btn: CodeButton) => {
     const videoDur = duration || playerRef.current?.getVideoElement()?.duration || 0
-    const event = recordEvent(btn.id, currentTimeRef.current, videoDur)
+    const now = currentTimeRef.current
+    if (btn.captureMode === 'range') {
+      const armed = rangeArmRef.current
+      if (!armed || armed.buttonId !== btn.id) {
+        rangeArmRef.current = { buttonId: btn.id, startTime: now }
+        setArmedButtonId(btn.id)
+        setActiveButtonId(btn.id)
+        toast.message(`${btn.label}: marca el final`)
+        return
+      }
+      const start = Math.min(armed.startTime, now)
+      const end = Math.max(armed.startTime, now)
+      rangeArmRef.current = null
+      setArmedButtonId(null)
+      const event = recordEvent(btn.id, now, videoDur, { startTime: start, endTime: end })
+      setSelectedClipId(event.id)
+      setSelectedClipIds([event.id])
+      setSelectedLaneId(null)
+      toast.success(`${btn.label} · inicio/fin`)
+      return
+    }
+    rangeArmRef.current = null
+    setArmedButtonId(null)
+    const event = recordEvent(btn.id, now, videoDur)
     setSelectedClipId(event.id)
     setSelectedClipIds([event.id])
     setSelectedLaneId(null)
-    toast.success(`${btn.label} · −${btn.preRoll}s / +${btn.postRoll}s`)
-  }, [duration, recordEvent])
+    toast.success(`${btn.label} · ${timingsLabel(btn)}`)
+  }, [duration, recordEvent, setActiveButtonId])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -145,6 +171,15 @@ export function VideoAnalyzer({
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
       if (e.key === 'Escape') {
         e.preventDefault()
+        if (stage) {
+          setStage(null)
+          return
+        }
+        if (armedButtonId) {
+          rangeArmRef.current = null
+          setArmedButtonId(null)
+          return
+        }
         onClose()
         return
       }
@@ -163,7 +198,7 @@ export function VideoAnalyzer({
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [buttons, onClose, pressButton])
+  }, [armedButtonId, buttons, onClose, pressButton, stage])
 
   const patchClip = useCallback((clip: CodeEvent, startTime: number, endTime: number) => {
     updateEvent(videoKey, clip.id, { startTime, endTime }, duration)
@@ -237,14 +272,15 @@ export function VideoAnalyzer({
         </button>
         <div style={{ minWidth: 0 }}>
           <div className="vd-header-title">{title}</div>
-          <div className="vd-header-meta">{events.length} recortes · dos dedos o flechas para los frames · el partido se queda en el PC</div>
+          <div className="vd-header-meta">{events.length} recortes · dos dedos o flechas para los frames · el archivo se queda en el PC</div>
         </div>
         <div className="vd-header-actions">
           <VideoDeskDownloadMenu disabled={!events.length} onPick={(kind) => void runDownload(kind)} />
           <button
             type="button"
             className="vd-btn vd-btn-accent"
-            disabled={!selectedClip}
+            disabled={!selectedClip || !canSendToRevision}
+            title={!canSendToRevision ? 'Asocia un partido para enviar a Revisión' : 'Enviar recorte'}
             onClick={() => selectedClip && setSendClipId(selectedClip.id)}
           >
             <Send size={14} />
@@ -280,35 +316,20 @@ export function VideoAnalyzer({
           <VideoDeskBotonera
             buttons={buttons}
             activeButtonId={activeButtonId}
+            armedButtonId={armedButtonId}
             onPress={pressButton}
             onAdd={addButton}
             onUpdate={updateButton}
             onRemove={removeButton}
           />
-          <div className="vd-section-label">Carpetas</div>
+          <div className="vd-section-label">Líneas</div>
           <VideoDeskFolders
             buttons={buttons}
             events={events}
             selectedClipId={selectedClipId}
-            selectedClipIds={selectedClipIds}
             selectedLaneId={selectedLaneId}
-            onSelect={(clip) => {
-              selectClip(clip)
-              seekTo(clip.startTime)
-            }}
-            onPlay={playClip}
-            onRename={(clip, title) => updateEvent(videoKey, clip.id, { title })}
-            onNudge={(clip, edge, delta) => {
-              if (edge === 'start') patchClip(clip, clip.startTime + delta, clip.endTime)
-              else patchClip(clip, clip.startTime, clip.endTime + delta)
-            }}
-            onDownload={(clip) => void runDownload('clip', clip)}
-            onSend={(clip) => setSendClipId(clip.id)}
-            onDelete={(clip) => {
-              removeEvent(videoKey, clip.id)
-              setSelectedClipIds((ids) => ids.filter((id) => id !== clip.id))
-              if (selectedClipId === clip.id) setSelectedClipId(null)
-            }}
+            onPlayClip={playClip}
+            onPlayLane={playLane}
           />
         </aside>
       </div>
@@ -325,11 +346,22 @@ export function VideoAnalyzer({
         selectedLaneId={selectedLaneId}
         onSeek={seekTo}
         onSelect={selectClip}
-        onSelectLane={selectLane}
+        onSelectLane={playLane}
+        onPlayClip={playClip}
         onTrim={patchClip}
       />
 
-      {sendClip ? (
+      {stage && src ? (
+        <VideoDeskClipStage
+          src={src}
+          buttons={buttons}
+          playlist={stage}
+          onClose={() => setStage(null)}
+          onSelect={selectClip}
+        />
+      ) : null}
+
+      {sendClip && canSendToRevision ? (
         <SendToRevisionDialog
           open
           onOpenChange={(v) => { if (!v) setSendClipId(null) }}
@@ -337,6 +369,7 @@ export function VideoAnalyzer({
           partidoId={partidoId}
           rivalId={rivalId}
           videoElement={playerRef.current?.getVideoElement() || null}
+          sourceFile={localFile}
           clipTitle={clipDisplayTitle(sendClip, sendButton)}
           startTime={sendClip.startTime}
           endTime={sendClip.endTime}

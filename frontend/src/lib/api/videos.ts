@@ -41,7 +41,7 @@ export const videosApi = {
   },
 
   async createLocalSession(data: {
-    partido_id: string
+    partido_id?: string | null
     equipo_id: string
     filename: string
     size_bytes?: number

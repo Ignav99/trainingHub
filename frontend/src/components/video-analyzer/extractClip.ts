@@ -1,6 +1,11 @@
 /**
  * Recorta un rango del vídeo local. El partido no sale del ordenador.
- * MP4 H.264 a resolución nativa, sin audio: nitidez de análisis con un peso razonable.
+ *
+ * 1. Copia GOP-aligned del MP4 original (`-c copy` en el navegador) — calidad
+ *    idéntica, audio incluido, segundos aunque el partido pese 4–5 GB.
+ * 2. ffmpeg.wasm `-c copy` si el archivo cabe en WASM.
+ * 3. Re-encode libx264 CRF 21 sin audio.
+ * 4. Captura nativa (tiempo real) solo si lo anterior falla.
  */
 
 export const REVISION_CLIP_MAX_SECONDS = 180
@@ -47,6 +52,19 @@ export function h264EncodeArgs(inName: string, width: number, height: number): s
     '-bufsize', bufsize,
     '-pix_fmt', 'yuv420p',
     '-profile:v', 'high',
+    '-movflags', '+faststart',
+    'out.mp4',
+  ]
+}
+
+/** Stream copy: no re-encode, keeps audio, GOP-aligned by ffmpeg. */
+export function copyCodecArgs(ss: string, dur: string, inName: string): string[] {
+  return [
+    '-ss', ss,
+    '-i', inName,
+    '-t', dur,
+    '-c', 'copy',
+    '-avoid_negative_ts', 'make_zero',
     '-movflags', '+faststart',
     'out.mp4',
   ]
@@ -195,6 +213,7 @@ async function encodeFromOriginalFile(
   const dur = (endTime - startTime).toFixed(3)
   const ss = startTime.toFixed(3)
   const attempts = [
+    copyCodecArgs(ss, dur, 'src.bin'),
     ['-ss', ss, '-i', 'src.bin', '-t', dur, ...h264EncodeArgs('src.bin', width, height).slice(2)],
     ['-ss', ss, '-i', 'src.bin', '-t', dur, ...mpeg4EncodeArgs('src.bin', width, height).slice(2)],
   ]
@@ -310,9 +329,20 @@ export async function extractClipRange(
   const height = videoElement.videoHeight || 1080
 
   if (options?.sourceFile) {
+    const sourceFile = options.sourceFile
+    try {
+      const { copyMp4Range, isFastCopyCandidate } = await import('./mp4FastCopy')
+      if (isFastCopyCandidate(sourceFile)) {
+        options.onProgress?.('Copia rápida del original…')
+        const copied = await copyMp4Range(sourceFile, startTime, endTime, options.onProgress)
+        if (copied?.blob && copied.blob.size > 64) return copied.blob
+      }
+    } catch {
+      // Sigue por ffmpeg / captura.
+    }
     try {
       const encoded = await encodeFromOriginalFile(
-        options.sourceFile,
+        sourceFile,
         startTime,
         endTime,
         width,

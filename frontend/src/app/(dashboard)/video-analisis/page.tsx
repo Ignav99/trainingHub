@@ -3,6 +3,7 @@
 import { useState, useRef, lazy, Suspense } from 'react'
 import useSWR from 'swr'
 import { useEquipoStore } from '@/stores/equipoStore'
+import { useClubStore } from '@/stores/clubStore'
 import { partidosApi } from '@/lib/api/partidos'
 import { videoAnotacionesApi } from '@/lib/api/videoAnotaciones'
 import { videosApi } from '@/lib/api/videos'
@@ -10,6 +11,7 @@ import type { Partido, VideoAnotacion } from '@/types'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { TeamCrest } from '@/components/ui/team-crest'
 import { toast } from 'sonner'
 import {
   ScanSearch,
@@ -17,10 +19,11 @@ import {
   Clock,
   Trash2,
   Film,
-  ChevronDown,
+  Clapperboard,
 } from 'lucide-react'
 import { formatTime } from '@/components/video-analyzer/utils'
 import { readLocalVideoFingerprint } from '@/components/video-analyzer/extractClip'
+import { groupPartidosByMonth, localiaLabel } from '@/components/video-analyzer/videoAnalisisPicker'
 
 const VideoAnalyzer = lazy(() =>
   import('@/components/video-analyzer/VideoAnalyzer').then((m) => ({ default: m.VideoAnalyzer }))
@@ -29,27 +32,24 @@ const VideoAnalyzer = lazy(() =>
 export default function VideoAnalisisPage() {
   const equipoActivo = useEquipoStore((s) => s.equipoActivo)
   const equipoId = equipoActivo?.id || ''
+  const clubName = useClubStore((s) => s.organizacion?.nombre || equipoActivo?.nombre || 'Nosotros')
+  const clubCrest = useClubStore((s) => s.theme.logoUrl || s.organizacion?.logo_url)
 
-  // Partido selector
-  const [selectedPartidoId, setSelectedPartidoId] = useState<string | null>(null)
-  const [dropdownOpen, setDropdownOpen] = useState(false)
-
-  // Analyzer state
+  const [source, setSource] = useState<{ kind: 'loose' } | { kind: 'match'; id: string } | null>(null)
   const [analyzerFile, setAnalyzerFile] = useState<File | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  // Fetch partidos for selector
   const { data: partidosData } = useSWR(
-    equipoId ? `/partidos?equipo_id=${equipoId}&limit=50&orden=fecha&direccion=desc` : null,
-    () => partidosApi.list({ equipo_id: equipoId, limit: 50, orden: 'fecha', direccion: 'desc' })
+    equipoId ? `/partidos?equipo_id=${equipoId}&limit=80&orden=fecha&direccion=desc` : null,
+    () => partidosApi.list({ equipo_id: equipoId, limit: 80, orden: 'fecha', direccion: 'desc' })
   )
   const partidos = partidosData?.data || []
-  const selectedPartido = partidos.find((p) => p.id === selectedPartidoId) || null
+  const selectedPartido = source?.kind === 'match' ? partidos.find((p) => p.id === source.id) || null : null
+  const months = groupPartidosByMonth(partidos)
 
-  // Fetch anotaciones for selected partido
   const { data: anotacionesData, mutate: mutateAnotaciones } = useSWR(
-    selectedPartidoId && equipoId ? `/video-anotaciones/partido/${selectedPartidoId}` : null,
-    () => videoAnotacionesApi.list(selectedPartidoId!, equipoId)
+    selectedPartido && equipoId ? `/video-anotaciones/partido/${selectedPartido.id}` : null,
+    () => videoAnotacionesApi.list(selectedPartido!.id, equipoId)
   )
   const anotaciones = anotacionesData?.data || []
 
@@ -57,8 +57,8 @@ export default function VideoAnalisisPage() {
   const [localVideoId, setLocalVideoId] = useState<string | null>(null)
 
   const handleFileSelect = () => {
-    if (!selectedPartidoId) {
-      toast.error('Selecciona un partido primero')
+    if (!source) {
+      toast.error('Elige un partido o un vídeo suelto')
       return
     }
     fileRef.current?.click()
@@ -72,11 +72,10 @@ export default function VideoAnalisisPage() {
       return
     }
 
-    // Register a local session to enable tagging — reuse by file fingerprint
     try {
       const { fingerprint, durationMs } = await readLocalVideoFingerprint(f)
       const session = await videosApi.createLocalSession({
-        partido_id: selectedPartidoId!,
+        partido_id: selectedPartido?.id,
         equipo_id: equipoId,
         filename: f.name,
         size_bytes: f.size,
@@ -85,7 +84,7 @@ export default function VideoAnalisisPage() {
       })
       setLocalVideoId(session.id)
     } catch {
-      setLocalVideoId(null) // tagging disabled, but video still loads
+      setLocalVideoId(null)
     }
 
     setAnalyzerFile(f)
@@ -106,13 +105,6 @@ export default function VideoAnalisisPage() {
     }
   }
 
-  const formatPartidoLabel = (p: Partido) => {
-    const fecha = new Date(p.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
-    const jornada = p.jornada ? `J${p.jornada}` : ''
-    const rivalNombre = p.rival?.nombre_corto || p.rival?.nombre || '—'
-    return `${fecha} ${jornada} · ${p.localia === 'local' ? 'vs' : '@'} ${rivalNombre}`.trim()
-  }
-
   if (!equipoActivo) {
     return (
       <div className="text-center py-12 text-muted-foreground">
@@ -125,7 +117,7 @@ export default function VideoAnalisisPage() {
     <>
       <PageHeader
         title="Video Análisis"
-        description="Carga el partido en el ordenador, recorta con la botonera y descarga o envía solo esos clips"
+        description="Elige un partido por fecha o un vídeo suelto. El archivo se queda en el ordenador; solo recortas lo que importa"
       />
 
       <input
@@ -137,65 +129,67 @@ export default function VideoAnalisisPage() {
       />
 
       <div className="space-y-6">
-        {/* Controls row */}
         <Card className="p-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            {/* Partido selector */}
-            <div className="relative flex-1 min-w-0 w-full sm:w-auto">
-              <button
-                className="flex w-full items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted transition-colors"
-                onClick={() => setDropdownOpen(!dropdownOpen)}
-              >
-                <span className="truncate">
-                  {selectedPartido
-                    ? formatPartidoLabel(selectedPartido)
-                    : 'Seleccionar partido...'}
-                </span>
-                <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {dropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setDropdownOpen(false)} />
-                  <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-popover border rounded-md shadow-lg max-h-60 overflow-y-auto">
-                    {partidos.length === 0 ? (
-                      <div className="px-3 py-4 text-sm text-muted-foreground text-center">
-                        No hay partidos
-                      </div>
-                    ) : (
-                      partidos.map((p) => (
-                        <button
-                          key={p.id}
-                          className={`w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors ${
-                            selectedPartidoId === p.id ? 'bg-muted font-medium' : ''
-                          }`}
-                          onClick={() => {
-                            setSelectedPartidoId(p.id)
-                            setDropdownOpen(false)
-                          }}
-                        >
-                          {formatPartidoLabel(p)}
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Load video button */}
-            <Button onClick={handleFileSelect} disabled={!selectedPartidoId}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              {source?.kind === 'loose'
+                ? 'Vídeo suelto — entrenamiento, charla o lo que sea, sin asociar a un partido'
+                : selectedPartido
+                  ? `${selectedPartido.rival?.nombre_corto || selectedPartido.rival?.nombre || 'Partido'} · ${localiaLabel(selectedPartido.localia)}`
+                  : 'Elige un partido (escudos, casa/fuera) o un vídeo que no va a ningún partido'}
+            </p>
+            <Button onClick={handleFileSelect} disabled={!source}>
               <Upload className="h-4 w-4 mr-2" />
               Cargar video local
             </Button>
           </div>
-
-          <p className="text-xs text-muted-foreground mt-2">
-            El partido entero se queda en tu ordenador. Cada botón tiene sus tiempos (un ABP no recorta igual que un ataque). Descarga por clip, carpeta o todo; a Revisión solo van los recortes que elijas.
-          </p>
         </Card>
 
-        {/* Saved anotaciones for selected partido */}
-        {selectedPartidoId && (
+        <button
+          type="button"
+          onClick={() => setSource({ kind: 'loose' })}
+          className={`flex w-full items-center gap-4 rounded-lg border p-4 text-left transition-colors ${
+            source?.kind === 'loose' ? 'border-foreground bg-muted' : 'hover:bg-muted/60'
+          }`}
+        >
+          <span className="grid h-12 w-12 place-items-center rounded-md border bg-background">
+            <Clapperboard className="h-5 w-5" />
+          </span>
+          <span>
+            <span className="block font-medium">Vídeo suelto</span>
+            <span className="block text-sm text-muted-foreground">
+              Entrenamiento, ejercicio o cualquier vídeo. No se asocia a un partido.
+            </span>
+          </span>
+        </button>
+
+        {months.map((month) => (
+          <section key={month.key} className="space-y-2">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              {month.label}
+            </h2>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {month.partidos.map((p) => (
+                <MatchPickCard
+                  key={p.id}
+                  partido={p}
+                  clubName={clubName}
+                  clubCrest={clubCrest}
+                  selected={source?.kind === 'match' && source.id === p.id}
+                  onSelect={() => setSource({ kind: 'match', id: p.id })}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
+
+        {partidos.length === 0 ? (
+          <Card className="p-8 text-center text-sm text-muted-foreground">
+            No hay partidos en este equipo. Puedes cargar un vídeo suelto igual.
+          </Card>
+        ) : null}
+
+        {selectedPartido ? (
           <div>
             <h3 className="text-sm font-semibold mb-3 flex items-center gap-1.5">
               <Film className="h-4 w-4" />
@@ -208,8 +202,7 @@ export default function VideoAnalisisPage() {
             {anotaciones.length === 0 ? (
               <Card className="p-6 text-center text-muted-foreground text-sm">
                 <ScanSearch className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                <p>Pulsa un botón en el momento. El recorte entra en esa carpeta.</p>
-                <p className="text-xs mt-1">Carga un video para abrir la mesa de trabajo</p>
+                <p>Pulsa un botón en el momento. El recorte entra en esa línea.</p>
               </Card>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -224,24 +217,14 @@ export default function VideoAnalisisPage() {
               </div>
             )}
           </div>
-        )}
-
-        {/* Empty state when no partido selected */}
-        {!selectedPartidoId && (
-          <Card className="p-12 text-center text-muted-foreground">
-            <ScanSearch className="h-12 w-12 mx-auto mb-3 opacity-20" />
-            <p className="text-lg font-medium">Selecciona un partido</p>
-            <p className="text-sm mt-1">Elige un partido del desplegable y carga un video para empezar a analizar</p>
-          </Card>
-        )}
+        ) : null}
       </div>
 
-      {/* Full-screen analyzer */}
-      {analyzerFile && selectedPartidoId && (
+      {analyzerFile && source ? (
         <Suspense fallback={null}>
           <VideoAnalyzer
             localFile={analyzerFile}
-            partidoId={selectedPartidoId}
+            partidoId={selectedPartido?.id}
             equipoId={equipoId}
             videoId={localVideoId || undefined}
             rivalId={selectedPartido?.rival_id}
@@ -252,12 +235,60 @@ export default function VideoAnalisisPage() {
             }}
           />
         </Suspense>
-      )}
+      ) : null}
     </>
   )
 }
 
-// ============ Anotacion Card ============
+function MatchPickCard({
+  partido,
+  clubName,
+  clubCrest,
+  selected,
+  onSelect,
+}: {
+  partido: Partido
+  clubName: string
+  clubCrest?: string | null
+  selected: boolean
+  onSelect: () => void
+}) {
+  const fecha = new Date(partido.fecha)
+  const dateLabel = Number.isNaN(fecha.getTime())
+    ? 'Sin fecha'
+    : fecha.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })
+  const rivalName = partido.rival?.nombre_corto || partido.rival?.nombre || 'Rival'
+  const home = partido.localia === 'local'
+  const leftName = home ? clubName : rivalName
+  const rightName = home ? rivalName : clubName
+  const leftCrest = home ? clubCrest : partido.rival?.escudo_url
+  const rightCrest = home ? partido.rival?.escudo_url : clubCrest
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`flex items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
+        selected ? 'border-foreground bg-muted' : 'hover:bg-muted/60'
+      }`}
+    >
+      <div className="min-w-[4.5rem] tabular-nums">
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">{dateLabel}</p>
+        {partido.jornada ? <p className="text-[11px] text-muted-foreground">J{partido.jornada}</p> : null}
+      </div>
+      <div className="flex min-w-0 flex-1 items-center justify-center gap-2">
+        <TeamCrest src={leftCrest} name={leftName} size="md" />
+        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          {home ? 'vs' : '@'}
+        </span>
+        <TeamCrest src={rightCrest} name={rightName} size="md" />
+      </div>
+      <span className="shrink-0 rounded border px-2 py-0.5 text-[10px] uppercase tracking-wide">
+        {localiaLabel(partido.localia)}
+      </span>
+    </button>
+  )
+}
 
 function AnotacionCard({
   anotacion,
