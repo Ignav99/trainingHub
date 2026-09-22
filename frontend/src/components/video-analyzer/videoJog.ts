@@ -7,7 +7,8 @@
  *  - Never use fastSeek for review: it snaps to keyframes and can even go backwards.
  *  - Issue at most one currentTime seek at a time; keep an optimistic playhead.
  *  - Map slow two-finger motion to whole frames; boost only when the swipe is fast.
- *  - Arrow keys skip 5s like a normal player; Shift+arrows still step one frame.
+ *  - Arrow keys step one presented frame while paused. Hold starts slow, then
+ *    speeds up. The video stays paused when you let go.
  */
 
 export const BROADCAST_FPS = 25
@@ -179,18 +180,25 @@ export function waitNextVideoFrame(
   })
 }
 
-/** Advance one presented frame by playing, not seeking (avoids GOP jerks). */
+/**
+ * Advance one presented frame while staying paused.
+ * Chrome only decodes the next non-keyframe if we play briefly; we mute,
+ * wait one rVFC, then pause in `finally` so the pad/arrows never leave play.
+ */
 export async function playOnePresentedFrame(video: HTMLVideoElement): Promise<number> {
   const before = video.currentTime
+  const wasMuted = video.muted
   try {
+    video.muted = true
     video.playbackRate = 1
     await video.play()
-    const time = await waitNextVideoFrame(video)
-    video.pause()
+    const time = await waitNextVideoFrame(video, 48)
     return time > before ? time : video.currentTime
   } catch {
-    video.pause()
     return video.currentTime
+  } finally {
+    video.pause()
+    video.muted = wasMuted
   }
 }
 
@@ -199,25 +207,48 @@ export function estimateFps(presentedFrames: number, mediaSeconds: number): numb
   return snapFps(presentedFrames / mediaSeconds)
 }
 
-/** Skip used by ←/→, like YouTube / VLC. */
+/** Skip used by the ±5s buttons, not by the arrow keys. */
 export const PLAYER_SKIP_SECONDS = 5
-/** While the arrow is held, shuttle in 1s steps so rewind stays readable. */
-export const PLAYER_HOLD_SKIP_SECONDS = 1
 
-export type ArrowJog =
-  | { kind: 'frame'; direction: 1 | -1 }
-  | { kind: 'skip'; direction: 1 | -1; seconds: number }
+export type ArrowJog = { kind: 'frame'; direction: 1 | -1 }
 
-export function arrowJog(key: string, shiftKey: boolean): ArrowJog | null {
+/** ←/→ always one frame. Hold acceleration lives in the player. */
+export function arrowJog(key: string, _shiftKey?: boolean): ArrowJog | null {
   if (key !== 'ArrowLeft' && key !== 'ArrowRight') return null
   const direction: 1 | -1 = key === 'ArrowRight' ? 1 : -1
-  return shiftKey
-    ? { kind: 'frame', direction }
-    : { kind: 'skip', direction, seconds: PLAYER_SKIP_SECONDS }
+  return { kind: 'frame', direction }
 }
 
-export function isClipDeleteKey(key: string): boolean {
-  return key === 'Delete' || key === 'Backspace'
+/** Hold rewind: first frames slow, then quicker. Interval in ms. */
+export function holdFrameInterval(heldMs: number): number {
+  if (heldMs < 280) return 150
+  if (heldMs < 700) return 88
+  if (heldMs < 1400) return 48
+  return 28
+}
+
+type DeleteKeyInput = string | {
+  key?: string
+  code?: string
+  keyCode?: number
+  metaKey?: boolean
+  ctrlKey?: boolean
+  altKey?: boolean
+  repeat?: boolean
+}
+
+/**
+ * Mac laptop ⌫ sends Backspace; Windows Supr / Mac fn+⌫ send Delete.
+ * Ignore Cmd/Ctrl so we do not steal browser shortcuts.
+ */
+export function isClipDeleteKey(input: DeleteKeyInput): boolean {
+  if (typeof input === 'string') {
+    return input === 'Delete' || input === 'Backspace' || input === 'Del'
+  }
+  if (input.metaKey || input.ctrlKey || input.altKey) return false
+  if (input.repeat) return false
+  if (isClipDeleteKey(input.key || '')) return true
+  return input.code === 'Delete' || input.code === 'Backspace' || input.keyCode === 8 || input.keyCode === 46
 }
 
 export function waitUntilSeeked(video: HTMLMediaElement, ms = SEEK_WAIT_MS): Promise<void> {

@@ -35,7 +35,7 @@ import {
   wheelPixelsToSeconds,
   PLAYBACK_SPEEDS,
   PLAYER_SKIP_SECONDS,
-  PLAYER_HOLD_SKIP_SECONDS,
+  holdFrameInterval,
   nextPlaybackSpeed,
   isFineJogPixels,
   playOnePresentedFrame,
@@ -84,7 +84,7 @@ interface VideoPlayerProps {
    */
   fillFrame?: boolean
   /**
-   * Window-level ←/→ skip. Defaults to fillFrame. Set false when another
+   * Window-level ←/→ frame jog. Defaults to fillFrame. Set false when another
    * player (clip stage) is the one that should receive the arrows.
    */
   keyboardJog?: boolean
@@ -141,6 +141,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const pendingFramesRef = useRef(0)
     const heldJogRef = useRef<ArrowJog | null>(null)
     const holdTimerRef = useRef<number | null>(null)
+    const holdStartedAtRef = useRef(0)
+    const jogSilentRef = useRef(false)
+    const padActiveRef = useRef(false)
+    const padIdleTimerRef = useRef<number | null>(null)
     const frameCacheRef = useRef(new PresentedFrameCache(90))
     const overlayRef = useRef<HTMLCanvasElement | null>(null)
     const onTimeUpdateRef = useRef(onTimeUpdate)
@@ -243,32 +247,28 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       seekToTime(min + ratio * Math.max(0, max - min))
     }, [rangeBounds, seekToTime])
 
-    // Frame step: forward plays one presented frame (no GOP seek). Reverse uses
-    // the rVFC cache, then a coalesced seek only if the cache missed.
+    // One paused frame per call. Never pump from the hold flag — that stacked
+    // GOP seeks and jumped to the start of the action. Hold cadence is the timer.
     const runFrameQueue = useCallback(async () => {
       const v = videoRef.current
       if (!v || frameBusyRef.current) return
+      if (pendingFramesRef.current === 0) return
       frameBusyRef.current = true
+      const dir: 1 | -1 = pendingFramesRef.current > 0 ? 1 : -1
+      pendingFramesRef.current -= dir
       try {
-        while (true) {
-          let dir: 1 | -1 | 0 = 0
-          if (pendingFramesRef.current !== 0) {
-            dir = pendingFramesRef.current > 0 ? 1 : -1
-            pendingFramesRef.current -= dir
-          } else if (heldJogRef.current?.kind === 'frame') {
-            dir = heldJogRef.current.direction
-          }
-          if (dir === 0) break
-          if (!v.paused) v.pause()
-          const { min, max } = rangeBounds()
-          if (dir === 1) {
-            const next = await playOnePresentedFrame(v)
-            const clamped = clampTime(next, min, max)
-            currentTimeRef.current = clamped
-            setCurrentTime(clamped)
-            onTimeUpdateRef.current?.(clamped)
-            continue
-          }
+        if (!v.paused) v.pause()
+        const { min, max } = rangeBounds()
+        if (dir === 1) {
+          jogSilentRef.current = true
+          const next = await playOnePresentedFrame(v)
+          jogSilentRef.current = false
+          v.pause()
+          const clamped = clampTime(next, min, max)
+          currentTimeRef.current = clamped
+          setCurrentTime(clamped)
+          onTimeUpdateRef.current?.(clamped)
+        } else {
           const cached = frameCacheRef.current.nearestBefore(v.currentTime)
           if (cached) {
             const canvas = overlayRef.current
@@ -282,28 +282,40 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             setCurrentTime(cached.mediaTime)
             onTimeUpdateRef.current?.(cached.mediaTime)
             v.currentTime = cached.mediaTime
-            continue
+            if (v.seeking) await waitUntilSeeked(v)
+          } else {
+            const from = v.currentTime
+            let next = nextFrameTime(from, dir, fpsRef.current, min, max)
+            if (Math.abs(next - from) < 0.0004) return
+            currentTimeRef.current = next
+            setCurrentTime(next)
+            v.currentTime = next
+            onTimeUpdateRef.current?.(next)
+            if (v.seeking) await waitUntilSeeked(v)
+            else await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+            const frameLen = 1 / Math.max(1, fpsRef.current)
+            if (v.currentTime > from - frameLen * 0.4 && next > min) {
+              next = nextFrameTime(v.currentTime, -1, fpsRef.current, min, max)
+              currentTimeRef.current = next
+              setCurrentTime(next)
+              v.currentTime = next
+              onTimeUpdateRef.current?.(next)
+              if (v.seeking) await waitUntilSeeked(v)
+            }
           }
-          const from = v.currentTime
-          const next = nextFrameTime(from, dir, fpsRef.current, min, max)
-          if (Math.abs(next - from) < 0.0004) break
-          currentTimeRef.current = next
-          setCurrentTime(next)
-          v.currentTime = next
-          onTimeUpdateRef.current?.(next)
-          if (v.seeking) await waitUntilSeeked(v)
-          else await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
         }
       } finally {
+        jogSilentRef.current = false
+        v.pause()
         frameBusyRef.current = false
-        if (pendingFramesRef.current !== 0 || heldJogRef.current?.kind === 'frame') {
-          void runFrameQueue()
-        }
+        if (pendingFramesRef.current !== 0) void runFrameQueue()
       }
     }, [rangeBounds])
 
     const frameStep = useCallback((direction: 1 | -1) => {
-      pendingFramesRef.current = Math.max(-8, Math.min(8, pendingFramesRef.current + direction))
+      const v = videoRef.current
+      if (v && !v.paused) v.pause()
+      pendingFramesRef.current = Math.max(-2, Math.min(2, pendingFramesRef.current + direction))
       void runFrameQueue()
     }, [runFrameQueue])
 
@@ -353,10 +365,16 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         onTimeUpdate?.(v.currentTime)
       }
       const handlePlay = () => {
+        if (jogSilentRef.current) return
+        if (padActiveRef.current || heldJogRef.current) {
+          v.pause()
+          return
+        }
         setPlaying(true)
         onPlayStateChange?.(true)
       }
       const handlePause = () => {
+        if (jogSilentRef.current) return
         setPlaying(false)
         onPlayStateChange?.(false)
       }
@@ -448,6 +466,18 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       let pendingTarget: number | null = null
       let rafId: number | null = null
 
+      const markPadActive = () => {
+        padActiveRef.current = true
+        const video = videoRef.current
+        if (video && !video.paused && !jogSilentRef.current) video.pause()
+        if (padIdleTimerRef.current != null) window.clearTimeout(padIdleTimerRef.current)
+        padIdleTimerRef.current = window.setTimeout(() => {
+          padActiveRef.current = false
+          padIdleTimerRef.current = null
+          videoRef.current?.pause()
+        }, 180)
+      }
+
       const bounds = () => {
         const v = videoRef.current
         const min = clipRange?.start ?? 0
@@ -505,6 +535,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       const handler = (e: WheelEvent) => {
         if (!isScrubGesture(e.deltaX, e.deltaY)) return
         e.preventDefault()
+        markPadActive()
         pendingPx += scrubPixels(e.deltaX, e.deltaY)
         if (rafId === null) rafId = requestAnimationFrame(flush)
       }
@@ -516,11 +547,16 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         v?.removeEventListener('seeked', onSeeked)
         el.removeEventListener('wheel', handler)
         if (rafId !== null) cancelAnimationFrame(rafId)
+        if (padIdleTimerRef.current != null) window.clearTimeout(padIdleTimerRef.current)
+        padActiveRef.current = false
       }
     }, [jogPointer, clipRange, frameStep])
 
     const stopHoldJog = useCallback(() => {
       heldJogRef.current = null
+      jogSilentRef.current = false
+      pendingFramesRef.current = 0
+      videoRef.current?.pause()
       if (holdTimerRef.current != null) {
         window.clearTimeout(holdTimerRef.current)
         holdTimerRef.current = null
@@ -528,16 +564,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     }, [])
 
     const applyArrowJog = useCallback((jog: ArrowJog) => {
-      if (jog.kind === 'frame') {
-        frameStep(jog.direction)
-        return
-      }
       const v = videoRef.current
-      if (!v) return
-      if (!v.paused) v.pause()
-      const amount = jog.seconds > 0 ? jog.seconds : PLAYER_SKIP_SECONDS
-      seekToTime(v.currentTime + jog.direction * amount)
-    }, [frameStep, seekToTime])
+      if (v && !v.paused) v.pause()
+      frameStep(jog.direction)
+    }, [frameStep])
 
     const onJogKeyDown = useCallback((e: KeyboardEvent | React.KeyboardEvent) => {
       if (presenterEmbed) return false
@@ -546,31 +576,29 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       if (!jog) return false
       e.preventDefault()
       if ('repeat' in e && e.repeat) return true
+      const v = videoRef.current
+      if (v && !v.paused) v.pause()
       applyArrowJog(jog)
       if (holdTimerRef.current != null) window.clearTimeout(holdTimerRef.current)
+      holdStartedAtRef.current = typeof performance !== 'undefined' ? performance.now() : Date.now()
       holdTimerRef.current = window.setTimeout(() => {
-        heldJogRef.current = jog.kind === 'skip'
-          ? { ...jog, seconds: PLAYER_HOLD_SKIP_SECONDS }
-          : jog
-        if (heldJogRef.current.kind === 'frame') {
-          void runFrameQueue()
-          return
-        }
+        heldJogRef.current = jog
         const tick = () => {
-          if (heldJogRef.current?.kind !== 'skip') return
+          if (!heldJogRef.current) return
           applyArrowJog(heldJogRef.current)
-          holdTimerRef.current = window.setTimeout(tick, 90)
+          const held = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - holdStartedAtRef.current
+          holdTimerRef.current = window.setTimeout(tick, holdFrameInterval(held))
         }
         tick()
       }, ARROW_HOLD_MS)
       return true
-    }, [applyArrowJog, presenterEmbed, runFrameQueue])
+    }, [applyArrowJog, presenterEmbed])
 
     const onJogKeyUp = useCallback((e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') stopHoldJog()
     }, [stopHoldJog])
 
-    // Left/Right: ±5s like other players. Shift+arrows: one frame. Hold shuttles.
+    // Left/Right: one frame while paused. Hold starts slow, then faster.
     const handleContainerKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
       if (!jogKeysContainer) return
       if (e.key === ' ') {
@@ -695,17 +723,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
               seekFromClientX(e.clientX)
             }}
             onKeyDown={(e) => {
-              if (e.key === 'ArrowLeft') {
-                e.preventDefault()
+              if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
                 e.stopPropagation()
-                if (e.shiftKey) frameStep(-1)
-                else seek(-PLAYER_SKIP_SECONDS)
-              } else if (e.key === 'ArrowRight') {
-                e.preventDefault()
-                e.stopPropagation()
-                if (e.shiftKey) frameStep(1)
-                else seek(PLAYER_SKIP_SECONDS)
-              } else if (e.key === 'Home') {
+                onJogKeyDown(e)
+                return
+              }
+              if (e.key === 'Home') {
                 e.preventDefault()
                 e.stopPropagation()
                 seekToTime(rangeBounds().min)
@@ -756,7 +779,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             size="icon"
             className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20"
             onClick={() => seek(-PLAYER_SKIP_SECONDS)}
-            title={`-${PLAYER_SKIP_SECONDS}s (←)`}
+            title={`-${PLAYER_SKIP_SECONDS}s`}
           >
             <SkipBack className="h-3.5 w-3.5" />
           </Button>
@@ -766,7 +789,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             size="icon"
             className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20"
             onClick={() => frameStep(-1)}
-            title="Frame anterior (Mayús+←)"
+            title="Frame anterior (←)"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
@@ -776,7 +799,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             size="icon"
             className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20"
             onClick={() => frameStep(1)}
-            title="Frame siguiente (Mayús+→)"
+            title="Frame siguiente (→)"
           >
             <ChevronRight className="h-3.5 w-3.5" />
           </Button>
@@ -786,7 +809,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             size="icon"
             className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20"
             onClick={() => seek(PLAYER_SKIP_SECONDS)}
-            title={`+${PLAYER_SKIP_SECONDS}s (→)`}
+            title={`+${PLAYER_SKIP_SECONDS}s`}
           >
             <SkipForward className="h-3.5 w-3.5" />
           </Button>

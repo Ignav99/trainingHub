@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Send, X } from 'lucide-react'
+import { Send, Trash2, X } from 'lucide-react'
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 import { useCodeWindowStore } from './useCodeWindowStore'
 import { SendToRevisionDialog } from '@/components/revision/SendToRevisionDialog'
@@ -51,6 +51,8 @@ export function VideoAnalyzer({
   const [duration, setDuration] = useState(0)
   const [railWidth, setRailWidth] = useState(360)
   const [cintaHeight, setCintaHeight] = useState(168)
+  const [botoneraPct, setBotoneraPct] = useState(46)
+  const railRef = useRef<HTMLElement | null>(null)
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null)
   const [selectedClipIds, setSelectedClipIds] = useState<string[]>([])
   const [selectedLaneId, setSelectedLaneId] = useState<string | null>(null)
@@ -93,6 +95,12 @@ export function VideoAnalyzer({
 
   const src = localFile ? objectUrl : (videoUrl || '')
   const title = videoTitle || localFile?.name || 'Video local'
+  const selectedClipIdRef = useRef<string | null>(null)
+  const selectedClipIdsRef = useRef<string[]>([])
+  const stageRef = useRef<ClipStagePlaylist | null>(null)
+  selectedClipIdRef.current = selectedClipId
+  selectedClipIdsRef.current = selectedClipIds
+  stageRef.current = stage
   const selectedClip = events.find((e) => e.id === selectedClipId) || null
   const sendClip = events.find((e) => e.id === sendClipId) || null
   const sendButton = sendClip ? buttons.find((b) => b.id === sendClip.buttonId) : null
@@ -158,8 +166,9 @@ export function VideoAnalyzer({
   }, [selectClip])
 
   const deleteSelectedClips = useCallback(() => {
-    deleteClips(idsForKeyboardClipDelete(selectedClipId, selectedClipIds))
-  }, [deleteClips, selectedClipId, selectedClipIds])
+    const playingId = stageRef.current?.startId || selectedClipIdRef.current
+    deleteClips(idsForKeyboardClipDelete(playingId, playingId ? [] : selectedClipIdsRef.current))
+  }, [deleteClips])
 
   const playLane = useCallback((buttonId: string) => {
     const clips = clipsOnLane(events, buttonId)
@@ -218,7 +227,7 @@ export function VideoAnalyzer({
         onClose()
         return
       }
-      if (isClipDeleteKey(e.key)) {
+      if (isClipDeleteKey(e)) {
         e.preventDefault()
         deleteSelectedClips()
         return
@@ -237,12 +246,16 @@ export function VideoAnalyzer({
         pressButton(btn)
       }
     }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
   }, [armedButtonId, buttons, deleteSelectedClips, onClose, pressButton, stage])
 
   const patchClip = useCallback((clip: CodeEvent, startTime: number, endTime: number) => {
     updateEvent(videoKey, clip.id, { startTime, endTime }, duration)
+  }, [duration, updateEvent, videoKey])
+
+  const renameClip = useCallback((clip: CodeEvent, title: string) => {
+    updateEvent(videoKey, clip.id, { title: title.trim() }, duration)
   }, [duration, updateEvent, videoKey])
 
   const runDownload = useCallback(async (kind: DeskDownloadKind, clip?: CodeEvent) => {
@@ -301,10 +314,31 @@ export function VideoAnalyzer({
     window.addEventListener('pointerup', up)
   }
 
+  const onRailSplit = (e: React.PointerEvent) => {
+    const rail = railRef.current
+    if (!rail) return
+    const rect = rail.getBoundingClientRect()
+    const move = (ev: PointerEvent) => {
+      const y = ev.clientY - rect.top
+      const pct = (y / Math.max(1, rect.height)) * 100
+      setBotoneraPct(Math.max(22, Math.min(78, pct)))
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
   return (
     <div
       className="vd-root"
-      style={{ ['--vd-rail' as string]: `${railWidth}px`, ['--vd-cinta' as string]: `${cintaHeight}px` }}
+      style={{
+        ['--vd-rail' as string]: `${railWidth}px`,
+        ['--vd-cinta' as string]: `${cintaHeight}px`,
+        ['--vd-botonera' as string]: `${botoneraPct}%`,
+      }}
     >
       <header className="vd-header">
         <button type="button" className="vd-btn vd-btn-ghost" onClick={onClose}>
@@ -313,10 +347,20 @@ export function VideoAnalyzer({
         </button>
         <div style={{ minWidth: 0 }}>
           <div className="vd-header-title">{title}</div>
-          <div className="vd-header-meta">{events.length} recortes · ←/→ 5 s · Mayús fotograma · Supr borra el recorte · el archivo se queda en el PC</div>
+          <div className="vd-header-meta">{events.length} recortes · ←/→ fotograma · mantén para acelerar · ⌫ borra · el archivo se queda en el PC</div>
         </div>
         <div className="vd-header-actions">
           <VideoDeskDownloadMenu disabled={!events.length} onPick={(kind) => void runDownload(kind)} />
+          <button
+            type="button"
+            className="vd-btn vd-btn-danger"
+            disabled={!selectedClip}
+            title="Eliminar recorte (⌫ o Supr)"
+            onClick={() => selectedClip && deleteClips([selectedClip.id])}
+          >
+            <Trash2 size={14} />
+            Eliminar
+          </button>
           <button
             type="button"
             className="vd-btn vd-btn-accent"
@@ -353,27 +397,41 @@ export function VideoAnalyzer({
 
         <div className="vd-vsplit" onPointerDown={onVSplit} role="separator" aria-orientation="vertical" />
 
-        <aside className="vd-rail">
-          <div className="vd-section-label">Botonera</div>
-          <VideoDeskBotonera
-            buttons={buttons}
-            activeButtonId={activeButtonId}
-            armedButtonId={armedButtonId}
-            onPress={pressButton}
-            onAdd={addButton}
-            onUpdate={updateButton}
-            onRemove={removeButton}
+        <aside ref={railRef} className="vd-rail">
+          <div className="vd-rail-botonera">
+            <div className="vd-section-label">Botonera</div>
+            <VideoDeskBotonera
+              buttons={buttons}
+              activeButtonId={activeButtonId}
+              armedButtonId={armedButtonId}
+              onPress={pressButton}
+              onAdd={addButton}
+              onUpdate={updateButton}
+              onRemove={removeButton}
+            />
+          </div>
+          <div
+            className="vd-rail-split"
+            onPointerDown={onRailSplit}
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Repartir botonera y organizador"
+            title="Arrastra para variar el espacio"
           />
-          <div className="vd-section-label">Líneas</div>
-          <VideoDeskFolders
-            buttons={buttons}
-            events={events}
-            selectedClipId={selectedClipId}
-            selectedLaneId={selectedLaneId}
-            onSelectClip={selectClip}
-            onPlayClip={playClip}
-            onPlayLane={playLane}
-          />
+          <div className="vd-rail-organizer">
+            <div className="vd-section-label">Organizador</div>
+            <VideoDeskFolders
+              buttons={buttons}
+              events={events}
+              selectedClipId={selectedClipId}
+              selectedLaneId={selectedLaneId}
+              onSelectClip={selectClip}
+              onPlayClip={playClip}
+              onPlayLane={playLane}
+              onDeleteClip={(clip) => deleteClips([clip.id])}
+              onRenameClip={renameClip}
+            />
+          </div>
         </aside>
       </div>
 
@@ -392,6 +450,7 @@ export function VideoAnalyzer({
         onSelectLane={playLane}
         onPlayClip={playClip}
         onTrim={patchClip}
+        onDelete={(clip) => deleteClips([clip.id])}
       />
 
       {stage && src ? (

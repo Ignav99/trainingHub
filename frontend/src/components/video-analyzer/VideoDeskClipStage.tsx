@@ -89,27 +89,29 @@ export function VideoDeskClipStage({
       <button type="button" className="vd-modal-backdrop" aria-label="Cerrar" onClick={onClose} />
       <div className="vd-stage">
         <header className="vd-stage-head">
-          <div>
+          <div className="vd-stage-head-copy">
             <div className="vd-header-title">{clipDisplayTitle(clip, button)}</div>
             <div className="vd-header-meta">
-              {playlist.title} · {index + 1}/{clips.length} · {formatTime(clip.startTime)}–{formatTime(clip.endTime)} · ←/→ 5 s · Supr borra
+              {playlist.title} · {index + 1}/{clips.length} · {formatTime(clip.startTime)}–{formatTime(clip.endTime)} · ←/→ fotograma
             </div>
           </div>
-          {onDelete ? (
-            <button
-              type="button"
-              className="vd-btn vd-btn-ghost"
-              title="Eliminar recorte (Supr)"
-              onClick={() => onDelete(clip)}
-            >
-              <Trash2 size={14} />
-              Eliminar
+          <div className="vd-stage-head-actions">
+            {onDelete ? (
+              <button
+                type="button"
+                className="vd-btn vd-btn-danger"
+                title="Eliminar recorte (⌫ en Mac, Supr en Windows)"
+                onClick={() => onDelete(clip)}
+              >
+                <Trash2 size={14} />
+                Eliminar recorte
+              </button>
+            ) : null}
+            <button type="button" className="vd-btn vd-btn-ghost" onClick={onClose}>
+              <X size={14} />
+              Cerrar
             </button>
-          ) : null}
-          <button type="button" className="vd-btn vd-btn-ghost" onClick={onClose}>
-            <X size={14} />
-            Cerrar
-          </button>
+          </div>
         </header>
         <div className="vd-stage-player">
           <VideoPlayer
@@ -135,7 +137,7 @@ export function VideoDeskClipStage({
             {clips.map((c, i) => {
               const btn = buttons.find((b) => b.id === c.buttonId)
               return (
-                <li key={c.id}>
+                <li key={c.id} className="vd-stage-item">
                   <button
                     type="button"
                     className={i === index ? 'is-on' : ''}
@@ -143,6 +145,17 @@ export function VideoDeskClipStage({
                   >
                     {clipDisplayTitle(c, btn)}
                   </button>
+                  {onDelete ? (
+                    <button
+                      type="button"
+                      className="vd-clip-delete"
+                      aria-label={`Eliminar ${clipDisplayTitle(c, btn)}`}
+                      title="Eliminar recorte"
+                      onClick={() => onDelete(c)}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  ) : null}
                 </li>
               )
             })}
