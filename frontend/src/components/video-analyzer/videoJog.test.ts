@@ -4,6 +4,8 @@ import {
   BROADCAST_FPS,
   PIXELS_PER_FRAME,
   arrowJog,
+  isClipDeleteKey,
+  PLAYER_SKIP_SECONDS,
   clampTime,
   estimateFps,
   isScrubGesture,
@@ -56,11 +58,14 @@ describe('video jog', () => {
     assert.equal(clampTime(200, 0, 90), 90)
   })
 
-  it('treats arrows as frames and Shift+arrows as one second', () => {
-    assert.deepEqual(arrowJog('ArrowLeft', false), { kind: 'frame', direction: -1 })
-    assert.deepEqual(arrowJog('ArrowRight', false), { kind: 'frame', direction: 1 })
-    assert.deepEqual(arrowJog('ArrowLeft', true), { kind: 'second', direction: -1 })
+  it('treats arrows as player skip and Shift+arrows as one frame', () => {
+    assert.deepEqual(arrowJog('ArrowLeft', false), { kind: 'skip', direction: -1, seconds: PLAYER_SKIP_SECONDS })
+    assert.deepEqual(arrowJog('ArrowRight', false), { kind: 'skip', direction: 1, seconds: PLAYER_SKIP_SECONDS })
+    assert.deepEqual(arrowJog('ArrowLeft', true), { kind: 'frame', direction: -1 })
     assert.equal(arrowJog(' ', false), null)
+    assert.equal(isClipDeleteKey('Delete'), true)
+    assert.equal(isClipDeleteKey('Backspace'), true)
+    assert.equal(isClipDeleteKey('d'), false)
   })
 
   it('estimates fps from presented frames and ignores tiny samples', () => {

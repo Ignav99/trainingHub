@@ -17,6 +17,9 @@ import {
   normalizeShortcut,
   shortcutTaken,
   timingsLabel,
+  idsForKeyboardClipDelete,
+  removeClipFromPlaylist,
+  removeClipsFromPlaylist,
 } from './videoDesk.ts'
 import type { CodeButton, CodeEvent } from './types.ts'
 
@@ -116,6 +119,8 @@ describe('video desk coding', () => {
     assert.equal(normalizeShortcut('A'), 'a')
     assert.equal(normalizeShortcut(' '), undefined)
     assert.equal(normalizeShortcut('h'), undefined)
+    assert.equal(normalizeShortcut('Delete'), undefined)
+    assert.equal(normalizeShortcut('Backspace'), undefined)
     const buttons: CodeButton[] = [
       { id: 'a', label: 'A', color: '#000', shortcut: '1', preRoll: 1, postRoll: 1 },
       { id: 'b', label: 'B', color: '#000', shortcut: '2', preRoll: 1, postRoll: 1 },
@@ -124,5 +129,22 @@ describe('video desk coding', () => {
     assert.equal(shortcutTaken(buttons, '1', 'a'), false)
     assert.equal(shortcutTaken(buttons, '9'), false)
     assert.equal(timingsLabel({ ...buttons[0], captureMode: 'range' }), 'inicio → fin')
+  })
+
+  it('deletes the focused clip from a playlist and keeps the rest playing', () => {
+    const events: CodeEvent[] = [
+      { id: 'a', buttonId: 'x', timestamp: 1, startTime: 0, endTime: 4 },
+      { id: 'b', buttonId: 'x', timestamp: 8, startTime: 6, endTime: 10 },
+      { id: 'c', buttonId: 'x', timestamp: 14, startTime: 12, endTime: 16 },
+    ]
+    assert.deepEqual(idsForKeyboardClipDelete('b', ['a', 'b', 'c']), ['b'])
+    assert.deepEqual(idsForKeyboardClipDelete(null, ['a', 'c']), ['a', 'c'])
+    const next = removeClipFromPlaylist({ title: 'Ataque', clips: events, startId: 'b' }, 'b')
+    assert.deepEqual(next?.clips.map((c) => c.id), ['a', 'c'])
+    assert.equal(next?.startId, 'c')
+    assert.equal(removeClipFromPlaylist({ title: 'Ataque', clips: [events[0]], startId: 'a' }, 'a'), null)
+    const afterTwo = removeClipsFromPlaylist({ title: 'Ataque', clips: events, startId: 'b' }, ['b', 'c'])
+    assert.deepEqual(afterTwo?.clips.map((c) => c.id), ['a'])
+    assert.equal(afterTwo?.startId, 'a')
   })
 })

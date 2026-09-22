@@ -9,6 +9,7 @@ export function VideoDeskFolders({
   events,
   selectedClipId,
   selectedLaneId,
+  onSelectClip,
   onPlayClip,
   onPlayLane,
 }: {
@@ -16,6 +17,7 @@ export function VideoDeskFolders({
   events: CodeEvent[]
   selectedClipId: string | null
   selectedLaneId: string | null
+  onSelectClip: (clip: CodeEvent) => void
   onPlayClip: (clip: CodeEvent) => void
   onPlayLane: (buttonId: string) => void
 }) {
@@ -46,7 +48,9 @@ export function VideoDeskFolders({
                 key={clip.id}
                 type="button"
                 className={`vd-clip-mini${selectedClipId === clip.id ? ' is-selected' : ''}`}
-                onClick={() => onPlayClip(clip)}
+                title="Clic para seleccionar · doble clic para reproducir · Supr para borrar"
+                onClick={() => onSelectClip(clip)}
+                onDoubleClick={() => onPlayClip(clip)}
               >
                 <span className="vd-clip-title">{clipDisplayTitle(clip, group.button)}</span>
                 <span className="vd-clip-time">{formatTime(clip.startTime)}</span>

@@ -7,8 +7,7 @@
  *  - Never use fastSeek for review: it snaps to keyframes and can even go backwards.
  *  - Issue at most one currentTime seek at a time; keep an optimistic playhead.
  *  - Map slow two-finger motion to whole frames; boost only when the swipe is fast.
- *  - Arrow keys step one presented frame and wait for `seeked` so the GOP decode
- *    of a 90-minute file stays in lockstep with the fingers.
+ *  - Arrow keys skip 5s like a normal player; Shift+arrows still step one frame.
  */
 
 export const BROADCAST_FPS = 25
@@ -200,14 +199,25 @@ export function estimateFps(presentedFrames: number, mediaSeconds: number): numb
   return snapFps(presentedFrames / mediaSeconds)
 }
 
+/** Skip used by ←/→, like YouTube / VLC. */
+export const PLAYER_SKIP_SECONDS = 5
+/** While the arrow is held, shuttle in 1s steps so rewind stays readable. */
+export const PLAYER_HOLD_SKIP_SECONDS = 1
+
 export type ArrowJog =
   | { kind: 'frame'; direction: 1 | -1 }
-  | { kind: 'second'; direction: 1 | -1 }
+  | { kind: 'skip'; direction: 1 | -1; seconds: number }
 
 export function arrowJog(key: string, shiftKey: boolean): ArrowJog | null {
   if (key !== 'ArrowLeft' && key !== 'ArrowRight') return null
   const direction: 1 | -1 = key === 'ArrowRight' ? 1 : -1
-  return shiftKey ? { kind: 'second', direction } : { kind: 'frame', direction }
+  return shiftKey
+    ? { kind: 'frame', direction }
+    : { kind: 'skip', direction, seconds: PLAYER_SKIP_SECONDS }
+}
+
+export function isClipDeleteKey(key: string): boolean {
+  return key === 'Delete' || key === 'Backspace'
 }
 
 export function waitUntilSeeked(video: HTMLMediaElement, ms = SEEK_WAIT_MS): Promise<void> {

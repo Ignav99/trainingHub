@@ -12,7 +12,14 @@ import { VideoDeskTimeline } from './VideoDeskTimeline'
 import { VideoDeskDownloadMenu } from './VideoDeskDownloadMenu'
 import { VideoDeskClipStage, type ClipStagePlaylist } from './VideoDeskClipStage'
 import { extractAndDownloadDeskClips, type DeskDownloadKind } from './videoDeskDownload'
-import { clipDisplayTitle, clipsOnLane, timingsLabel } from './videoDesk'
+import {
+  clipDisplayTitle,
+  clipsOnLane,
+  idsForKeyboardClipDelete,
+  removeClipsFromPlaylist,
+  timingsLabel,
+} from './videoDesk'
+import { isClipDeleteKey, isTypingTarget } from './videoJog'
 import type { CodeButton, CodeEvent } from './types'
 import './video-desk.css'
 
@@ -125,6 +132,35 @@ export function VideoAnalyzer({
     setActiveButtonId(clip.buttonId)
   }, [setActiveButtonId])
 
+  const deleteClips = useCallback((clipIds: string[]) => {
+    const unique = Array.from(new Set(clipIds.filter(Boolean)))
+    if (!unique.length) {
+      toast.message('Clica un recorte y pulsa Supr para borrarlo')
+      return
+    }
+    for (const id of unique) removeEvent(videoKey, id)
+    const nextStage = stage ? removeClipsFromPlaylist(stage, unique) : null
+    setStage(nextStage)
+    if (nextStage) {
+      const nextId = nextStage.startId || nextStage.clips[0].id
+      setSelectedClipId(nextId)
+      setSelectedClipIds(nextStage.clips.map((c) => c.id))
+    } else {
+      setSelectedClipId((curr) => (curr && unique.includes(curr) ? null : curr))
+      setSelectedClipIds((ids) => ids.filter((id) => !unique.includes(id)))
+    }
+    toast.success(unique.length > 1 ? `${unique.length} recortes eliminados` : 'Recorte eliminado')
+  }, [removeEvent, stage, videoKey])
+
+  const handleStageSelect = useCallback((clip: CodeEvent) => {
+    selectClip(clip)
+    setStage((prev) => (prev && prev.startId !== clip.id ? { ...prev, startId: clip.id } : prev))
+  }, [selectClip])
+
+  const deleteSelectedClips = useCallback(() => {
+    deleteClips(idsForKeyboardClipDelete(selectedClipId, selectedClipIds))
+  }, [deleteClips, selectedClipId, selectedClipIds])
+
   const playLane = useCallback((buttonId: string) => {
     const clips = clipsOnLane(events, buttonId)
     const btn = buttons.find((b) => b.id === buttonId)
@@ -167,8 +203,7 @@ export function VideoAnalyzer({
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (isTypingTarget(e.target)) return
       if (e.key === 'Escape') {
         e.preventDefault()
         if (stage) {
@@ -183,7 +218,13 @@ export function VideoAnalyzer({
         onClose()
         return
       }
+      if (isClipDeleteKey(e.key)) {
+        e.preventDefault()
+        deleteSelectedClips()
+        return
+      }
       if (e.key === ' ') {
+        if (stage) return
         e.preventDefault()
         const video = playerRef.current?.getVideoElement()
         if (video?.paused) playerRef.current?.play()
@@ -198,7 +239,7 @@ export function VideoAnalyzer({
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [armedButtonId, buttons, onClose, pressButton, stage])
+  }, [armedButtonId, buttons, deleteSelectedClips, onClose, pressButton, stage])
 
   const patchClip = useCallback((clip: CodeEvent, startTime: number, endTime: number) => {
     updateEvent(videoKey, clip.id, { startTime, endTime }, duration)
@@ -272,7 +313,7 @@ export function VideoAnalyzer({
         </button>
         <div style={{ minWidth: 0 }}>
           <div className="vd-header-title">{title}</div>
-          <div className="vd-header-meta">{events.length} recortes · dos dedos o flechas para los frames · el archivo se queda en el PC</div>
+          <div className="vd-header-meta">{events.length} recortes · ←/→ 5 s · Mayús fotograma · Supr borra el recorte · el archivo se queda en el PC</div>
         </div>
         <div className="vd-header-actions">
           <VideoDeskDownloadMenu disabled={!events.length} onPick={(kind) => void runDownload(kind)} />
@@ -297,6 +338,7 @@ export function VideoAnalyzer({
                 ref={playerRef}
                 src={src}
                 fillFrame
+                keyboardJog={!stage}
                 onTimeUpdate={handleTimeUpdate}
                 onDurationChange={setDuration}
                 onSeeked={(t) => {
@@ -328,6 +370,7 @@ export function VideoAnalyzer({
             events={events}
             selectedClipId={selectedClipId}
             selectedLaneId={selectedLaneId}
+            onSelectClip={selectClip}
             onPlayClip={playClip}
             onPlayLane={playLane}
           />
@@ -357,7 +400,8 @@ export function VideoAnalyzer({
           buttons={buttons}
           playlist={stage}
           onClose={() => setStage(null)}
-          onSelect={selectClip}
+          onSelect={handleStageSelect}
+          onDelete={(clip) => deleteClips([clip.id])}
         />
       ) : null}
 
