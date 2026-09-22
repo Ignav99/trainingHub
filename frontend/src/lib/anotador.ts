@@ -133,6 +133,7 @@ export interface AnotadorPlayerRow {
   asistencias: number
   tarjeta_amarilla: boolean
   tarjeta_roja: boolean
+  rpe?: number | null
 }
 
 export function emptyTeamStats(): TeamStatsState {

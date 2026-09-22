@@ -228,13 +228,6 @@ export function SesionBloquesPanel({
       0
     )
     const partidoMin = isPartidoCondicionado(bloque) ? duracionBloquePartido(bloque) : 0
-    const displayDuration =
-      bloque.duracion_objetivo ??
-      (isCompensatorio
-        ? compensatorioMin || null
-        : hasTareas
-          ? tareasDuration
-          : partidoMin || null)
     const isVideo = bloque.tipo === 'videoanalisis'
     const isPartido = isPartidoCondicionado(bloque)
     const isCompensatorio = isCompensatorioBloque(bloque)
@@ -244,6 +237,13 @@ export function SesionBloquesPanel({
         )
       : []
     const compensatorioMin = isCompensatorio ? Math.max(0, ...laneDurations) : 0
+    const displayDuration =
+      bloque.duracion_objetivo ??
+      (isCompensatorio
+        ? compensatorioMin || null
+        : hasTareas
+          ? tareasDuration
+          : partidoMin || null)
     const removable = canRemoveBloque(bloque, tareas)
 
     return (

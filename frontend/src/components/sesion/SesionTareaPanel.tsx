@@ -24,6 +24,7 @@ import TareaFichaBody from '@/components/tareas/TareaFichaBody'
 import type { FormacionEquipos, SesionTarea } from '@/types'
 import { cn } from '@/lib/utils'
 import { defaultEfectivosForTarea, clockMinutosSesionTarea } from '@/lib/duracionEfectiva'
+import { patchFromPizarraData } from '@/lib/tacticalMetrics'
 import { computeComplejidadScore, complejidadToLabel } from '@/lib/complejidadSiate'
 import {
   isTareaMadre,
