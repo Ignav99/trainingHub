@@ -7,10 +7,12 @@ from app.services.pre_match_service import (
     _goal_scored_by_rival,
     _goals_matching_marcador,
     _is_rival_local,
+    _jornada_resultados_rival,
     _match_rival_name,
     _merge_historico_temporadas,
     _split_actas_by_temporada,
     _strict_liga_goals,
+    _team_is_local,
 )
 
 
@@ -422,6 +424,130 @@ def test_contexto_drops_last_season_acta():
     assert ctx["liga"]["gc"] == 1
     assert ctx["casa"]["gf"] == 1
     assert ctx["casa"]["pj"] == 1
+
+
+def test_team_is_local_uses_calendar_names():
+    assert _team_is_local("C.D. Calavera", "C.D. Rival", "C.D. Calavera") is False
+    assert _team_is_local("C.D. Calavera", "C.D. Calavera", "U.D. Otro") is True
+
+
+def test_contexto_calavera_away_win_then_home_draw():
+    """Actas list the rival as local both times; calendar has away 1-3 then home 0-0.
+
+    Casa must be the 0-0, fuera the 3 GF / 1 GC, liga 3-1. Minutes stay on
+    the acta POV so the three first-half goals are still counted as scored.
+    """
+    away_as_local = {
+        "local_nombre": "C.D. Calavera",
+        "visitante_nombre": "Atletico Inventado",
+        "goles_local": 3,
+        "goles_visitante": 1,
+        "jornada_numero": 1,
+        "cod_acta": "j1",
+        "fecha": "2026-09-07",
+        "titulares_local": [{"nombre": "Garcia"}, {"nombre": "Lopez"}],
+        "suplentes_local": [],
+        "titulares_visitante": [{"nombre": "Perez"}, {"nombre": "Ruiz"}],
+        "suplentes_visitante": [],
+        "goles": [
+            {"minuto": 10, "jugador": "Garcia", "parcial_local": 1, "parcial_visitante": 0},
+            {"minuto": 20, "jugador": "Garcia", "parcial_local": 2, "parcial_visitante": 0},
+            {"minuto": 30, "jugador": "Lopez", "parcial_local": 3, "parcial_visitante": 0},
+            {"minuto": 70, "jugador": "Perez", "parcial_local": 3, "parcial_visitante": 1},
+        ],
+    }
+    home_draw = {
+        "local_nombre": "C.D. Calavera",
+        "visitante_nombre": "U.D. Otro",
+        "goles_local": 0,
+        "goles_visitante": 0,
+        "jornada_numero": 2,
+        "cod_acta": "j2",
+        "fecha": "2026-09-14",
+        "titulares_local": [{"nombre": "Garcia"}],
+        "suplentes_local": [],
+        "titulares_visitante": [{"nombre": "Perez"}],
+        "suplentes_visitante": [],
+        "goles": [],
+    }
+    leftover = {
+        "local_nombre": "C.D. Calavera",
+        "visitante_nombre": "U.D. Fantasma",
+        "goles_local": 1,
+        "goles_visitante": 0,
+        "jornada_numero": 1,
+        "cod_acta": "old-1",
+        "fecha": "2025-09-08",
+        "titulares_local": [{"nombre": "Garcia"}],
+        "titulares_visitante": [{"nombre": "Z"}],
+        "suplentes_local": [],
+        "suplentes_visitante": [],
+        "goles": [
+            {"minuto": 12, "jugador": "Garcia", "parcial_local": 1, "parcial_visitante": 0},
+        ],
+    }
+    jornadas = [
+        {
+            "numero": 1,
+            "partidos": [{
+                "local": "Atletico Inventado",
+                "visitante": "C.D. Calavera",
+                "cod_acta": "j1",
+                "goles_local": 1,
+                "goles_visitante": 3,
+            }],
+        },
+        {
+            "numero": 2,
+            "partidos": [{
+                "local": "C.D. Calavera",
+                "visitante": "U.D. Otro",
+                "cod_acta": "j2",
+                "goles_local": 0,
+                "goles_visitante": 0,
+            }],
+        },
+    ]
+    clasificacion = {
+        "gf": 3, "gc": 1, "pj": 2,
+        "pg_casa": 0, "pe_casa": 1, "pp_casa": 0,
+        "pg_fuera": 1, "pe_fuera": 0, "pp_fuera": 0,
+        "ultimos_5": ["V", "E"],
+    }
+    supabase = _FakeSupabase(
+        [away_as_local, home_draw, leftover], jornadas=jornadas,
+    )
+    ctx = _compute_contexto_stats(
+        supabase, "comp-1", "C.D. Calavera",
+        clasificacion=clasificacion,
+        temporada_code="22",
+    )
+    assert ctx is not None
+    assert ctx["casa"]["pj"] == 1
+    assert ctx["casa"]["gf"] == 0
+    assert ctx["casa"]["gc"] == 0
+    assert ctx["casa"]["pe"] == 1
+    assert ctx["casa"]["pg"] == 0
+    assert ctx["casa"]["pct_victoria"] == 0
+    assert ctx["fuera"]["pj"] == 1
+    assert ctx["fuera"]["gf"] == 3
+    assert ctx["fuera"]["gc"] == 1
+    assert ctx["fuera"]["pg"] == 1
+    assert ctx["fuera"]["pct_victoria"] == 100
+    assert ctx["liga"]["gf"] == 3
+    assert ctx["liga"]["gc"] == 1
+    assert ctx["liga"]["media_gf"] == 1.5
+    assert ctx["liga"]["media_gc"] == 0.5
+    assert ctx["mitades"]["marcados_1t"] == 3
+    assert ctx["mitades"]["marcados_2t"] == 0
+    assert ctx["mitades"]["encajados_2t"] == 1
+    assert ctx["goles_por_minuto"]["marcados"][0] == 1  # 0-15
+    assert ctx["goles_por_minuto"]["marcados"][1] == 2  # 16-30
+    results = _jornada_resultados_rival(supabase, "comp-1", "C.D. Calavera")
+    assert [(r["is_local"], r["gf"], r["gc"]) for r in results] == [
+        (False, 3, 1),
+        (True, 0, 0),
+    ]
 
 
 def test_historico_keeps_last_season_on_the_rival():
