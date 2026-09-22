@@ -47,6 +47,9 @@ FASE_NOMBRES = {
     "desarrollo_5": "Desarrollo 5",
     "desarrollo_6": "Desarrollo 6",
     "vuelta_calma": "Vuelta a calma",
+    "compensatorio_1": "Compensatorio A",
+    "compensatorio_2": "Compensatorio B",
+    "compensatorio_3": "Compensatorio C",
 }
 
 # Mapping from app team colors to peto CSS class + label
@@ -446,6 +449,11 @@ async def generate_sesion_pdf(
         categoria = tarea.get("categorias_tarea", {}) or {}
         fase_key = tarea_sesion.get("fase_sesion", "desarrollo_1")
 
+        if fase_key not in fases:
+            fases[fase_key] = {
+                "nombre": FASE_NOMBRES.get(fase_key, str(fase_key).replace("_", " ").title()),
+                "tareas": [],
+            }
         if fase_key in fases:
             fases[fase_key]["tareas"].append({
                 "titulo": tarea.get("titulo", ""),
@@ -807,6 +815,19 @@ async def generate_sesion_pdf_v2(
                     "partido": partido if isinstance(partido, dict) else None,
                 }
                 continue
+            if tipo == "compensatorio":
+                lanes = (bloque.get("compensatorio") or {}).get("lanes") or []
+                for i, lane_key in enumerate(("compensatorio_1", "compensatorio_2", "compensatorio_3")):
+                    label = None
+                    if i < len(lanes) and isinstance(lanes[i], dict):
+                        label = lanes[i].get("label")
+                    if lane_key not in fases:
+                        fases[lane_key] = {
+                            "nombre": label or FASE_NOMBRES.get(lane_key, lane_key),
+                            "tareas": [],
+                            "duracion_objetivo": bloque.get("duracion_objetivo"),
+                        }
+                continue
             fk = tipo
             if fk not in fases:
                 fases[fk] = {
@@ -825,6 +846,8 @@ async def generate_sesion_pdf_v2(
             tipo = bloque.get("tipo")
             if tipo in ("videoanalisis", "partido_condicionado"):
                 ordered_keys.append(f"bloque_{bloque.get('id', tipo)}")
+            elif tipo == "compensatorio":
+                ordered_keys.extend(["compensatorio_1", "compensatorio_2", "compensatorio_3"])
             elif tipo:
                 ordered_keys.append(tipo)
         for fk in fases:
@@ -832,11 +855,25 @@ async def generate_sesion_pdf_v2(
                 ordered_keys.append(fk)
         fases = {k: fases[k] for k in ordered_keys if k in fases}
     else:
-        fase_order = ["activacion", "desarrollo_1", "desarrollo_2", "desarrollo_3", "desarrollo_4", "desarrollo_5", "desarrollo_6", "vuelta_calma"]
+        fase_order = [
+            "activacion",
+            "desarrollo_1",
+            "desarrollo_2",
+            "desarrollo_3",
+            "desarrollo_4",
+            "desarrollo_5",
+            "desarrollo_6",
+            "compensatorio_1",
+            "compensatorio_2",
+            "compensatorio_3",
+            "vuelta_calma",
+        ]
         fases = {k: fases[k] for k in fase_order if k in fases}
 
     all_tareas = []
-    duracion_total = 0
+    sequential_dur = 0
+    lane_durs = [0, 0, 0]
+    _COMP_FASES = ("compensatorio_1", "compensatorio_2", "compensatorio_3")
 
     def _ensure_list(val):
         """Coerce string/None to list for template iteration safety."""
@@ -861,7 +898,14 @@ async def generate_sesion_pdf_v2(
         grafico_data = tarea.get("grafico_data")
 
         duracion = tarea_sesion.get("duracion_override") or tarea.get("duracion_total", 0)
-        duracion_total += duracion
+        try:
+            dur_i = int(duracion or 0)
+        except (TypeError, ValueError):
+            dur_i = 0
+        if str(fase_key) in _COMP_FASES:
+            lane_durs[_COMP_FASES.index(str(fase_key))] += dur_i
+        else:
+            sequential_dur += dur_i
 
         # Preferir instantánea real del editor; SVG como fallback
         from app.services.informe_boards import is_poisoned_preview
@@ -942,6 +986,8 @@ async def generate_sesion_pdf_v2(
 
         if fase_key in fases:
             fases[fase_key]["tareas"].append(tarea_enriched)
+
+    duracion_total = sequential_dur + max(lane_durs)
 
     def _ids_to_names(ids_or_map) -> str:
         ids: list = []

@@ -1,4 +1,5 @@
 import type { FaseSesion, PartidoCondicionadoData, SesionBloque, SesionTarea, TipoBloqueSesion } from '@/types'
+import { emptyCompensatorioLanes } from '@/lib/duracionEfectiva'
 
 export type { TipoBloqueSesion }
 
@@ -8,6 +9,7 @@ export type AddBloqueKind =
   | 'vuelta_calma'
   | 'videoanalisis'
   | 'partido_condicionado'
+  | 'compensatorio'
 
 export const FASE_LABELS: Record<FaseSesion, string> = {
   activacion: 'Activación',
@@ -18,6 +20,9 @@ export const FASE_LABELS: Record<FaseSesion, string> = {
   desarrollo_5: 'Desarrollo 5',
   desarrollo_6: 'Desarrollo 6',
   vuelta_calma: 'Vuelta a la calma',
+  compensatorio_1: 'Compensatorio A',
+  compensatorio_2: 'Compensatorio B',
+  compensatorio_3: 'Compensatorio C',
 }
 
 export const ALL_DESARROLLO_FASES: FaseSesion[] = [
@@ -36,6 +41,11 @@ export const ADD_BLOQUE_OPTIONS: { kind: AddBloqueKind; label: string; descripti
     kind: 'partido_condicionado',
     label: 'Partido condicionado',
     description: '11 vs 11 a campo normal: alineaciones, normas y carga PCO',
+  },
+  {
+    kind: 'compensatorio',
+    label: 'Compensatorio',
+    description: 'Tres grupos en paralelo: jugadores, tarea y tiempo distintos',
   },
   { kind: 'vuelta_calma', label: 'Vuelta a la calma', description: 'Estiramientos y cierre físico' },
   { kind: 'videoanalisis', label: 'Videoanálisis', description: 'Revisión en sala o campo' },
@@ -61,11 +71,17 @@ export function isPartidoCondicionado(bloque: Pick<SesionBloque, 'tipo'>): boole
 }
 
 export function bloqueSupportsTareas(tipo: TipoBloqueSesion): boolean {
-  return tipo !== 'videoanalisis' && tipo !== 'partido_condicionado'
+  return tipo !== 'videoanalisis' && tipo !== 'partido_condicionado' && tipo !== 'compensatorio'
+}
+
+export function isCompensatorioBloque(bloque: Pick<SesionBloque, 'tipo'>): boolean {
+  return bloque.tipo === 'compensatorio'
 }
 
 export function faseSesionFromBloque(bloque: SesionBloque): FaseSesion | null {
-  if (bloque.tipo === 'videoanalisis' || bloque.tipo === 'partido_condicionado') return null
+  if (bloque.tipo === 'videoanalisis' || bloque.tipo === 'partido_condicionado' || bloque.tipo === 'compensatorio') {
+    return null
+  }
   return bloque.tipo as FaseSesion
 }
 
@@ -109,6 +125,15 @@ export function createBloque(kind: AddBloqueKind, bloques: SesionBloque[]): Sesi
         duracion_objetivo: 20,
         partido: emptyPartido(20),
       }
+    case 'compensatorio':
+      if (bloques.some((b) => b.tipo === 'compensatorio')) return null
+      return {
+        id,
+        tipo: 'compensatorio',
+        label: 'Compensatorio',
+        orden,
+        compensatorio: { lanes: emptyCompensatorioLanes() },
+      }
     default:
       return null
   }
@@ -116,6 +141,9 @@ export function createBloque(kind: AddBloqueKind, bloques: SesionBloque[]): Sesi
 
 export function canRemoveBloque(bloque: SesionBloque, tareas: SesionTarea[]): boolean {
   if (bloque.tipo === 'videoanalisis' || bloque.tipo === 'partido_condicionado') return true
+  if (bloque.tipo === 'compensatorio') {
+    return !tareas.some((t) => String(t.fase_sesion || '').startsWith('compensatorio_'))
+  }
   return !tareas.some((t) => t.fase_sesion === bloque.tipo)
 }
 
@@ -129,7 +157,9 @@ export function resolveEstructura(
       .map((b) =>
         b.tipo === 'partido_condicionado' && !b.partido
           ? { ...b, partido: emptyPartido(b.duracion_objetivo || 20) }
-          : b
+          : b.tipo === 'compensatorio' && !b.compensatorio
+            ? { ...b, compensatorio: { lanes: emptyCompensatorioLanes() } }
+            : b
       )
       .sort((a, b) => a.orden - b.orden)
   }
@@ -152,6 +182,15 @@ export function resolveEstructura(
       })
     }
   }
+  if (tareas.some((t) => String(t.fase_sesion || '').startsWith('compensatorio_'))) {
+    blocks.push({
+      id: 'legacy-compensatorio',
+      tipo: 'compensatorio',
+      label: 'Compensatorio',
+      orden: orden++,
+      compensatorio: { lanes: emptyCompensatorioLanes() },
+    })
+  }
   return blocks
 }
 
@@ -161,6 +200,10 @@ export function normalizeOrden(bloques: SesionBloque[]): SesionBloque[] {
 
 /** Crea un bloque concreto si aún no existe (p. ej. al añadir tarea desde IA o biblioteca). */
 export function createBloqueForFase(fase: FaseSesion, bloques: SesionBloque[]): SesionBloque | null {
+  if (fase === 'compensatorio_1' || fase === 'compensatorio_2' || fase === 'compensatorio_3') {
+    if (bloques.some((b) => b.tipo === 'compensatorio')) return null
+    return createBloque('compensatorio', bloques)
+  }
   if (bloques.some((b) => b.tipo === fase)) return null
   if (fase === 'activacion' && bloques.some((b) => b.tipo === 'activacion')) return null
   if (fase === 'vuelta_calma' && bloques.some((b) => b.tipo === 'vuelta_calma')) return null

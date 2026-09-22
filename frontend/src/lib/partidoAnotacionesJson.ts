@@ -93,6 +93,7 @@ export interface PlayerStatRow {
   asistencias: number
   tarjeta_amarilla: boolean
   tarjeta_roja: boolean
+  rpe?: number | null
 }
 
 export const TEAM_STAT_KEYS = [
@@ -1282,6 +1283,7 @@ export function planAnotacionesImport(args: {
       asistencias: mergeNumber(cur.asistencias, row.asistencias),
       tarjeta_amarilla: mergeBool(cur.tarjeta_amarilla, row.amarilla),
       tarjeta_roja: mergeBool(cur.tarjeta_roja, row.roja),
+      rpe: cur.rpe ?? null,
     }
     if (
       cur.minutos_jugados

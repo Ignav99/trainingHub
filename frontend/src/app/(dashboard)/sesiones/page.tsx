@@ -19,7 +19,8 @@ import {
   Filter,
   ListChecks,
   Eye,
-  Library
+  Library,
+  Activity,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ListPageSkeleton } from '@/components/ui/page-skeletons'
@@ -32,6 +33,7 @@ import { uniqueById } from '@/lib/uniqueById'
 import { FASES_JUEGO, MATERIALES } from '@/lib/catalogos/canonico'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { AsignarRpeDialog } from '@/components/sesiones/AsignarRpeDialog'
 
 // Badge de Match Day
 function MatchDayBadge({ matchDay }: { matchDay: string }) {
@@ -95,6 +97,7 @@ export default function SesionesPage() {
 
   // Menú de acciones
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
+  const [rpeSesionId, setRpeSesionId] = useState<string | null>(null)
 
   // SWR data fetching
   const { data, error, isLoading } = useSWR<PaginatedResponse<Sesion>>(
@@ -565,6 +568,18 @@ export default function SesionesPage() {
                         PDF extendido
                       </button>
                       <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setActiveMenu(null)
+                          setRpeSesionId(sesion.id)
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
+                      >
+                        <Activity className="h-4 w-4" />
+                        Asignar RPE
+                      </button>
+                      <button
                         onClick={(e) => handleDelete(sesion.id, e)}
                         className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full"
                       >
@@ -707,6 +722,18 @@ export default function SesionesPage() {
                               PDF extendido
                             </button>
                             <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setActiveMenu(null)
+                                setRpeSesionId(sesion.id)
+                              }}
+                              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
+                            >
+                              <Activity className="h-4 w-4" />
+                              Asignar RPE
+                            </button>
+                            <button
                               onClick={(e) => handleDelete(sesion.id, e)}
                               className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full"
                             >
@@ -752,6 +779,13 @@ export default function SesionesPage() {
           )}
         </>
       )}
+      <AsignarRpeDialog
+        open={Boolean(rpeSesionId)}
+        onOpenChange={(open) => {
+          if (!open) setRpeSesionId(null)
+        }}
+        sesionId={rpeSesionId}
+      />
     </div>
   )
 }

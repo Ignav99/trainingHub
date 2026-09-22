@@ -40,6 +40,9 @@ const FASE_LABELS: Record<string, string> = {
   desarrollo_5: 'Desarrollo 5',
   desarrollo_6: 'Desarrollo 6',
   vuelta_calma: 'Vuelta a la calma',
+  compensatorio_1: 'Compensatorio A',
+  compensatorio_2: 'Compensatorio B',
+  compensatorio_3: 'Compensatorio C',
 }
 
 export default function ShareSesionPage() {

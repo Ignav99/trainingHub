@@ -28,6 +28,7 @@ import {
 import type { SpaceClassification } from '@/lib/tacticalMetrics'
 import type { TareaCreatorData, TareaFichaVariant } from '@/lib/tareaFicha'
 import { combineDescanso, splitDescanso } from '@/lib/tareaDescanso'
+import { minutosEfectivosCatalogo } from '@/lib/duracionEfectiva'
 import { cn } from '@/lib/utils'
 
 export function categoriasForVariant(variant: TareaFichaVariant) {
@@ -85,6 +86,11 @@ export default function TareaFichaBody({
   const showFaseJuego = variant === 'campo' || variant === 'portero' || variant === 'all'
   const nombreCategoria = categorias.find((c) => c.codigo === form.categoria_id)?.nombre || ''
   const descansoParts = splitDescanso(form.tiempo_descanso)
+  const minutosEfectivos = minutosEfectivosCatalogo(
+    form.duracion_total,
+    form.tiempo_descanso,
+    form.num_series,
+  )
 
   const toggleOrientacion = (codigo: string) => {
     if (readOnly) return
@@ -475,6 +481,17 @@ export default function TareaFichaBody({
                 <span className="text-xs text-muted-foreground shrink-0">s</span>
               </div>
             </Field>
+          </div>
+        )}
+        {!hideVolumen && (
+          <div className="rounded-lg border bg-muted/20 px-3 py-2 flex items-baseline justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium">Tiempo efectivo</p>
+              <p className="text-[11px] text-muted-foreground">
+                Reloj de la tarea menos descansos. En sesión se puede ajustar por bloque.
+              </p>
+            </div>
+            <p className="text-lg font-semibold tabular-nums">{minutosEfectivos}′</p>
           </div>
         )}
 

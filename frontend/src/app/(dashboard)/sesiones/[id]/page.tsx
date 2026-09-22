@@ -116,6 +116,9 @@ const FASE_LABELS: Record<string, string> = {
   desarrollo_5: 'Desarrollo 5',
   desarrollo_6: 'Desarrollo 6',
   vuelta_calma: 'Vuelta a calma',
+  compensatorio_1: 'Compensatorio A',
+  compensatorio_2: 'Compensatorio B',
+  compensatorio_3: 'Compensatorio C',
 }
 
 const ALL_DESARROLLO_FASES: FaseSesion[] = ['desarrollo_1', 'desarrollo_2', 'desarrollo_3', 'desarrollo_4', 'desarrollo_5', 'desarrollo_6']
@@ -491,6 +494,7 @@ export default function SesionDetailPage() {
         orden: i + 1,
         fase_sesion: t.fase_sesion || 'desarrollo_1',
         duracion_override: t.duracion_override ?? undefined,
+        minutos_efectivos: t.minutos_efectivos ?? undefined,
         notas: t.notas || undefined,
         responsable: t.responsable || undefined,
       }))
@@ -552,12 +556,14 @@ export default function SesionDetailPage() {
     ;[faseTareas[idx], faseTareas[swapIdx]] = [faseTareas[swapIdx], faseTareas[idx]]
 
     const newAll: SesionTarea[] = []
+    const used = new Set<string>()
     for (const f of bloqueOrder) {
-      if (f === fase) {
-        newAll.push(...faseTareas)
-      } else {
-        newAll.push(...(tareasByFase[f] || []))
-      }
+      const list = f === fase ? faseTareas : (tareasByFase[f] || [])
+      newAll.push(...list)
+      list.forEach((t) => used.add(t.id))
+    }
+    for (const t of allTareas) {
+      if (!used.has(t.id)) newAll.push(t)
     }
     setSesion((prev) => (prev ? { ...prev, tareas: newAll } : prev))
     await saveTareasBatch(newAll)
@@ -573,6 +579,26 @@ export default function SesionDetailPage() {
   const handleCommitTareaDuration = (tareaId: string) => {
     // Save current state on blur/Enter — avoids race conditions with debounce
     saveTareasBatch(allTareas)
+  }
+
+  const handleUpdateTareaEfectivos = (tareaId: string, minutos: number | null) => {
+    const newAll = allTareas.map((t) =>
+      t.id === tareaId ? { ...t, minutos_efectivos: minutos } : t
+    )
+    setSesion((prev) => (prev ? { ...prev, tareas: newAll } : prev))
+  }
+
+  const handleCommitTareaEfectivos = async (tareaId: string) => {
+    const t = allTareas.find((x) => x.id === tareaId)
+    if (!t) return
+    try {
+      const updated = await sesionesApi.updateTarea(sesionId, tareaId, {
+        minutos_efectivos: t.minutos_efectivos ?? null,
+      })
+      setSesion(updated)
+    } catch (err: any) {
+      toast.error(err?.message || 'No se pudo guardar el tiempo efectivo')
+    }
   }
 
   const handleUpdateTareaNotas = (tareaId: string, notas: string) => {
@@ -1415,6 +1441,8 @@ export default function SesionDetailPage() {
             onRemoveTarea={handleRemoveTarea}
             onDurationChange={handleUpdateTareaDuration}
             onDurationCommit={handleCommitTareaDuration}
+            onEfectivosChange={handleUpdateTareaEfectivos}
+            onEfectivosCommit={handleCommitTareaEfectivos}
             onResponsableChange={handleUpdateTareaResponsable}
             onResponsableBlur={() => debouncedSaveTareasBatch(allTareas)}
             onNotasChange={handleUpdateTareaNotas}

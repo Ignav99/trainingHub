@@ -23,6 +23,7 @@ import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
 import TareaFichaBody from '@/components/tareas/TareaFichaBody'
 import type { FormacionEquipos, SesionTarea } from '@/types'
 import { cn } from '@/lib/utils'
+import { defaultEfectivosForTarea, clockMinutosSesionTarea } from '@/lib/duracionEfectiva'
 import { patchFromPizarraData } from '@/lib/tacticalMetrics'
 import { computeComplejidadScore, complejidadToLabel } from '@/lib/complejidadSiate'
 import {
@@ -43,6 +44,8 @@ export interface SesionTareaPanelProps {
   onRemove: () => void
   onDurationChange: (val: number) => void
   onDurationCommit: () => void
+  onEfectivosChange?: (val: number | null) => void
+  onEfectivosCommit?: () => void
   onResponsableChange: (val: string) => void
   onResponsableBlur: () => void
   onNotasChange: (val: string) => void
@@ -101,6 +104,8 @@ export default function SesionTareaPanel({
   onRemove,
   onDurationChange,
   onDurationCommit,
+  onEfectivosChange,
+  onEfectivosCommit,
   onResponsableChange,
   onResponsableBlur,
   onNotasChange,
@@ -282,6 +287,8 @@ export default function SesionTareaPanel({
   const grafico = form.grafico_data as any
   const hasAnim = boardHasAnimation(grafico)
   const totalMin = st.duracion_override || form.duracion_total || tarea?.duracion_total || 0
+  const defaultEfe = defaultEfectivosForTarea(tarea || form, clockMinutosSesionTarea(st) || totalMin)
+  const efectivoVal = st.minutos_efectivos != null ? st.minutos_efectivos : defaultEfe
   const equipos = useMemo(() => gruposResumen(st.formacion_equipos), [st.formacion_equipos])
   const desarrollo = (form.desarrollo || form.descripcion || '').trim()
   const reglas = (form.reglas || '').trim()
@@ -355,9 +362,27 @@ export default function SesionTareaPanel({
             value={totalMin || ''}
             onChange={(e) => onDurationChange(parseInt(e.target.value) || 0)}
             onBlur={onDurationCommit}
-            title="Minutos en esta sesión (no modifica la biblioteca)"
+            title="Minutos de reloj en esta sesión (no modifica la biblioteca)"
           />
           min
+        </label>
+        <label
+          className="flex items-center gap-1 shrink-0 text-[10px] text-muted-foreground"
+          title="Tiempo efectivo = reloj − descansos. Editable. Si cambias esto con la sesión completada, se recalcula la carga."
+        >
+          <span className="hidden sm:inline">efe.</span>
+          <Input
+            type="number"
+            min={0}
+            className="h-7 w-12 rounded-md border border-primary/30 bg-primary/5 px-1.5 text-xs tabular-nums text-center font-semibold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            value={efectivoVal || 0}
+            onChange={(e) => {
+              const raw = e.target.value
+              const n = raw === '' ? 0 : Math.max(0, parseInt(raw, 10) || 0)
+              onEfectivosChange?.(n === defaultEfe ? null : n)
+            }}
+            onBlur={() => onEfectivosCommit?.()}
+          />
         </label>
 
         <div className="flex items-center gap-0.5 shrink-0">

@@ -75,7 +75,7 @@ import { GoalDetailEditor } from './GoalDetailEditor'
 import { FoulMapEditor } from './FoulMapEditor'
 import { AnotacionesImportDialog } from './AnotacionesImportDialog'
 import { ConvocatoriaCartelDialog } from './ConvocatoriaCartelDialog'
-import type { AnotacionesPlan } from '@/lib/partidoAnotacionesJson'
+import type { AnotacionesPlan, PlayerStatRow } from '@/lib/partidoAnotacionesJson'
 import { periodReportFromNotasPre, parseNotasPre, informeFromSnapshot, hasAnotadorLiveData, resolveGolDetalleNames, remapFormationSlots } from '@/lib/anotador'
 import { hydrateLineup, mergeLineupIntoNotasPre, shouldPersistLineup } from '@/lib/lineupPersistence'
 
@@ -215,7 +215,7 @@ export function MatchDetailPanel({
   const [teamStats, setTeamStats] = useState<Record<string, number>>({})
   const [reflexionEntrenador, setReflexionEntrenador] = useState('')
   const reflexionRef = useRef<HTMLTextAreaElement>(null)
-  const [playerStats, setPlayerStats] = useState<Record<string, { minutos_jugados: number; goles: number; asistencias: number; tarjeta_amarilla: boolean; tarjeta_roja: boolean }>>({})
+  const [playerStats, setPlayerStats] = useState<Record<string, PlayerStatRow>>({})
   /** Media colaborativa + mi nota por convocatoria */
   const [rendimientoByConv, setRendimientoByConv] = useState<Record<string, { media: number | null; num: number; miNota: number | null }>>({})
   const [savingRendimientoId, setSavingRendimientoId] = useState<string | null>(null)
@@ -285,7 +285,7 @@ export function MatchDetailPanel({
     )
 
     if (convocados.length > 0) {
-      const ps: Record<string, { minutos_jugados: number; goles: number; asistencias: number; tarjeta_amarilla: boolean; tarjeta_roja: boolean }> = {}
+      const ps: Record<string, PlayerStatRow> = {}
       const rend: Record<string, { media: number | null; num: number; miNota: number | null }> = {}
       for (const c of convocados) {
         const row = fromAnotador?.playerRows[c.id]
@@ -295,6 +295,7 @@ export function MatchDetailPanel({
           asistencias: Math.max(c.asistencias || 0, row?.asistencias || 0),
           tarjeta_amarilla: Boolean(c.tarjeta_amarilla || row?.tarjeta_amarilla),
           tarjeta_roja: Boolean(c.tarjeta_roja || row?.tarjeta_roja),
+          rpe: c.rpe ?? row?.rpe ?? null,
         }
         rend[c.id] = {
           media: c.rendimiento_media ?? null,
@@ -749,7 +750,13 @@ export function MatchDetailPanel({
       await partidosApi.registrarResultado(selectedId, plan.score.gf, plan.score.gc)
     }
     setTeamStats(plan.teamStats)
-    setPlayerStats(plan.playerStats)
+    setPlayerStats((prev) => {
+      const next = { ...plan.playerStats }
+      for (const id of Object.keys(next)) {
+        next[id] = { ...next[id], rpe: next[id].rpe ?? prev[id]?.rpe ?? null }
+      }
+      return next
+    })
     setGolesDetalleFavor(plan.golesFavor)
     setGolesDetalleContra(plan.golesContra)
     setReflexionEntrenador(plan.reflexion)
@@ -1338,7 +1345,7 @@ export function MatchDetailPanel({
                   Rendimiento jugadores
                 </CardTitle>
                 <p className="text-[11px] text-muted-foreground font-normal">
-                  Minutos, goles, asistencias y tarjetas salen del anotador: el once titular acumula hasta el cambio o hasta el final (90′ o lo que dure).
+                  Minutos, goles, asistencias y tarjetas salen del anotador: el once titular acumula hasta el cambio o hasta el final (90′ o lo que dure). El RPE se rellena aquí al final del partido.
                 </p>
               </CardHeader>
               <CardContent className="p-0">
@@ -1354,6 +1361,9 @@ export function MatchDetailPanel({
                         <th className="px-2 pb-2 font-medium text-center">Ast</th>
                         <th className="px-1 pb-2 font-medium text-center"><div className="w-3.5 h-4.5 rounded-sm bg-yellow-400 mx-auto" /></th>
                         <th className="px-1 pb-2 font-medium text-center"><div className="w-3.5 h-4.5 rounded-sm bg-red-500 mx-auto" /></th>
+                        <th className="px-2 pb-2 font-medium text-center" title="RPE 1-10 post-partido">
+                          RPE
+                        </th>
                         <th className="px-2 pb-2 font-medium text-center" title="Nota colaborativa CT">
                           <span className="inline-flex items-center gap-0.5"><Star className="h-3.5 w-3.5 text-amber-500" /> Rend.</span>
                         </th>
@@ -1364,7 +1374,7 @@ export function MatchDetailPanel({
                         const player = getPlayerData(conv)
                         const pos = conv.posicion_asignada || player?.posicion_principal || ''
                         const posColor = getPositionColor(pos)
-                        const ps = playerStats[conv.id] || { minutos_jugados: 0, goles: 0, asistencias: 0, tarjeta_amarilla: false, tarjeta_roja: false }
+                        const ps = playerStats[conv.id] || { minutos_jugados: 0, goles: 0, asistencias: 0, tarjeta_amarilla: false, tarjeta_roja: false, rpe: null }
                         const rend = rendimientoByConv[conv.id] || { media: null, num: 0, miNota: null }
                         const participated = (ps.minutos_jugados || 0) > 0
                         const updatePS = (field: string, value: any) => {
@@ -1409,6 +1419,26 @@ export function MatchDetailPanel({
                                 onClick={() => updatePS('tarjeta_roja', !ps.tarjeta_roja)}
                                 className={`w-5 h-6 rounded-sm mx-auto transition-all ${ps.tarjeta_roja ? 'bg-red-500 shadow-md scale-110' : 'bg-red-500/20 hover:bg-red-500/40'}`}
                               />
+                            </td>
+                            <td className="px-2 py-2 text-center">
+                              {participated ? (
+                                <select
+                                  className="h-9 min-w-[3.25rem] mx-auto rounded-md border bg-background text-center text-sm font-semibold"
+                                  value={ps.rpe ?? ''}
+                                  onChange={(e) => {
+                                    const v = e.target.value
+                                    updatePS('rpe', v === '' ? null : parseInt(v, 10))
+                                  }}
+                                  aria-label={`RPE de ${player?.apodo || getPlayerFullName(conv)}`}
+                                >
+                                  <option value="">—</option>
+                                  {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                                    <option key={n} value={n}>{n}</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground">—</span>
+                              )}
                             </td>
                             <td className="px-2 py-2 text-center">
                               {participated ? (

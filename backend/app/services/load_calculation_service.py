@@ -14,6 +14,11 @@ from uuid import UUID
 
 from app.database import get_supabase
 from app.services.jugador_tipo import incluye_tracking_carga
+from app.services.duracion_efectiva import (
+    is_compensatorio_fase,
+    minutos_carga_sesion_tarea,
+    player_compensatorio_fases,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -132,13 +137,23 @@ def estimate_gk_session_load(
     return (gk_rpe, total_duration, gk_load)
 
 
-def calculate_match_load(minutos: int, es_portero: bool = False) -> tuple[float, float]:
-    """Calculate match load from minutes played."""
+def calculate_match_load(
+    minutos: int,
+    es_portero: bool = False,
+    rpe: Optional[float] = None,
+) -> tuple[float, float]:
+    """Calculate match load from minutes played, using real RPE when present."""
     if minutos <= 0:
         return (0.0, 0.0)
 
     rpe_max = GK_MATCH_RPE_MAX if es_portero else 10.0
-    match_rpe = min(round(rpe_max * minutos / 90.0, 2), rpe_max)
+    if rpe is not None:
+        try:
+            match_rpe = min(max(float(rpe), 1.0), 10.0)
+        except (TypeError, ValueError):
+            match_rpe = min(round(rpe_max * minutos / 90.0, 2), rpe_max)
+    else:
+        match_rpe = min(round(rpe_max * minutos / 90.0, 2), rpe_max)
     match_load = round(match_rpe * minutos, 2)
     return (match_rpe, match_load)
 
@@ -209,7 +224,7 @@ def _gather_session_loads(
         # Batch fetch sessions (completed, within lookback)
         sesiones = (
             supabase.table("sesiones")
-            .select("id, fecha, intensidad_objetivo, duracion_total, estado")
+            .select("id, fecha, intensidad_objetivo, duracion_total, estado, estructura_fases")
             .eq("estado", "completada")
             .gte("fecha", since.isoformat())
             .in_("id", all_sesion_ids)
@@ -247,21 +262,42 @@ def _gather_session_loads(
         # Batch fetch sesion_tareas (duracion_override is on sesion_tareas, base duration on tareas)
         tareas_by_sesion: dict[str, list[dict]] = defaultdict(list)
         if needs_auto:
-            st_resp = (
-                supabase.table("sesion_tareas")
-                .select("sesion_id, tarea_id, duracion_override, tareas(duracion_total, densidad, nivel_cognitivo)")
-                .in_("sesion_id", list(needs_auto))
-                .execute()
-            )
+            try:
+                st_resp = (
+                    supabase.table("sesion_tareas")
+                    .select(
+                        "sesion_id, tarea_id, duracion_override, minutos_efectivos, fase_sesion, "
+                        "tareas(duracion_total, tiempo_descanso, num_series, densidad, nivel_cognitivo)"
+                    )
+                    .in_("sesion_id", list(needs_auto))
+                    .execute()
+                )
+            except Exception:
+                st_resp = (
+                    supabase.table("sesion_tareas")
+                    .select(
+                        "sesion_id, tarea_id, duracion_override, fase_sesion, "
+                        "tareas(duracion_total, tiempo_descanso, num_series, densidad, nivel_cognitivo)"
+                    )
+                    .in_("sesion_id", list(needs_auto))
+                    .execute()
+                )
 
             for st in (st_resp.data or []):
                 sid = st["sesion_id"]
                 t_info = st.get("tareas") or {}
-                duracion = st.get("duracion_override") or t_info.get("duracion_total", 0)
+                row = {
+                    "duracion_override": st.get("duracion_override"),
+                    "minutos_efectivos": st.get("minutos_efectivos"),
+                    "fase_sesion": st.get("fase_sesion"),
+                    "tarea": t_info,
+                }
+                duracion = minutos_carga_sesion_tarea(row)
                 tareas_by_sesion[sid].append({
                     "duracion": duracion,
                     "densidad": t_info.get("densidad"),
                     "nivel_cognitivo": t_info.get("nivel_cognitivo"),
+                    "fase_sesion": st.get("fase_sesion"),
                 })
 
         # Process each session
@@ -284,10 +320,18 @@ def _gather_session_loads(
             if tipos and "sesion" not in tipos and "margen" not in tipos:
                 continue
 
-            # 3. Auto-estimate from tasks
+            # 3. Auto-estimate from tasks this player actually did
+            estructura = s.get("estructura_fases") or []
+            fases_comp = player_compensatorio_fases(estructura, jid)
+            player_tasks = []
+            for t in tareas_by_sesion.get(sid, []):
+                fase = t.get("fase_sesion")
+                if is_compensatorio_fase(fase) and fase not in fases_comp:
+                    continue
+                player_tasks.append(t)
             _, _, session_load = estimate_session_load(
                 s.get("intensidad_objetivo"),
-                tareas_by_sesion.get(sid, []),
+                player_tasks,
             )
 
             if session_load > 0:
@@ -310,13 +354,22 @@ def _gather_match_loads(
     loads: dict[date, float] = defaultdict(float)
 
     try:
-        convs = (
-            supabase.table("convocatorias")
-            .select("partido_id, minutos_jugados")
-            .eq("jugador_id", jid)
-            .gt("minutos_jugados", 0)
-            .execute()
-        )
+        try:
+            convs = (
+                supabase.table("convocatorias")
+                .select("partido_id, minutos_jugados, rpe")
+                .eq("jugador_id", jid)
+                .gt("minutos_jugados", 0)
+                .execute()
+            )
+        except Exception:
+            convs = (
+                supabase.table("convocatorias")
+                .select("partido_id, minutos_jugados")
+                .eq("jugador_id", jid)
+                .gt("minutos_jugados", 0)
+                .execute()
+            )
 
         if not convs.data:
             return loads
@@ -339,7 +392,11 @@ def _gather_match_loads(
             pid = c["partido_id"]
             if pid in partido_fechas and c.get("minutos_jugados"):
                 fecha = date.fromisoformat(partido_fechas[pid])
-                _, match_load = calculate_match_load(c["minutos_jugados"], es_portero=es_portero)
+                _, match_load = calculate_match_load(
+                    c["minutos_jugados"],
+                    es_portero=es_portero,
+                    rpe=c.get("rpe"),
+                )
                 if match_load > 0:
                     loads[fecha] += match_load
 
