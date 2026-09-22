@@ -36,6 +36,11 @@ class FaseSesion(str, Enum):
     COMPENSATORIO_1 = "compensatorio_1"
     COMPENSATORIO_2 = "compensatorio_2"
     COMPENSATORIO_3 = "compensatorio_3"
+    COMPENSATORIO_4 = "compensatorio_4"
+    COMPENSATORIO_5 = "compensatorio_5"
+    COMPENSATORIO_6 = "compensatorio_6"
+    COMPENSATORIO_7 = "compensatorio_7"
+    COMPENSATORIO_8 = "compensatorio_8"
 
 
 class EstadoSesion(str, Enum):

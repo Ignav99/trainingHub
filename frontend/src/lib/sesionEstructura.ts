@@ -1,5 +1,5 @@
 import type { FaseSesion, PartidoCondicionadoData, SesionBloque, SesionTarea, TipoBloqueSesion } from '@/types'
-import { emptyCompensatorioLanes } from '@/lib/duracionEfectiva'
+import { emptyCompensatorioLanes, isCompensatorioFase, laneCountFromTareas, lanesFromBloque } from '@/lib/duracionEfectiva'
 
 export type { TipoBloqueSesion }
 
@@ -20,9 +20,14 @@ export const FASE_LABELS: Record<FaseSesion, string> = {
   desarrollo_5: 'Desarrollo 5',
   desarrollo_6: 'Desarrollo 6',
   vuelta_calma: 'Vuelta a la calma',
-  compensatorio_1: 'Compensatorio A',
-  compensatorio_2: 'Compensatorio B',
-  compensatorio_3: 'Compensatorio C',
+  compensatorio_1: 'Grupo A',
+  compensatorio_2: 'Grupo B',
+  compensatorio_3: 'Grupo C',
+  compensatorio_4: 'Grupo D',
+  compensatorio_5: 'Grupo E',
+  compensatorio_6: 'Grupo F',
+  compensatorio_7: 'Grupo G',
+  compensatorio_8: 'Grupo H',
 }
 
 export const ALL_DESARROLLO_FASES: FaseSesion[] = [
@@ -45,7 +50,7 @@ export const ADD_BLOQUE_OPTIONS: { kind: AddBloqueKind; label: string; descripti
   {
     kind: 'compensatorio',
     label: 'Compensatorio',
-    description: 'Tres grupos en paralelo: jugadores, tarea y tiempo distintos',
+    description: 'Grupos en paralelo (2 por defecto): jugadores, tarea y tiempo distintos',
   },
   { kind: 'vuelta_calma', label: 'Vuelta a la calma', description: 'Estiramientos y cierre físico' },
   { kind: 'videoanalisis', label: 'Videoanálisis', description: 'Revisión en sala o campo' },
@@ -157,8 +162,8 @@ export function resolveEstructura(
       .map((b) =>
         b.tipo === 'partido_condicionado' && !b.partido
           ? { ...b, partido: emptyPartido(b.duracion_objetivo || 20) }
-          : b.tipo === 'compensatorio' && !b.compensatorio
-            ? { ...b, compensatorio: { lanes: emptyCompensatorioLanes() } }
+          : b.tipo === 'compensatorio'
+            ? { ...b, compensatorio: { lanes: lanesFromBloque(b) } }
             : b
       )
       .sort((a, b) => a.orden - b.orden)
@@ -182,13 +187,13 @@ export function resolveEstructura(
       })
     }
   }
-  if (tareas.some((t) => String(t.fase_sesion || '').startsWith('compensatorio_'))) {
+  if (tareas.some((t) => isCompensatorioFase(t.fase_sesion))) {
     blocks.push({
       id: 'legacy-compensatorio',
       tipo: 'compensatorio',
       label: 'Compensatorio',
       orden: orden++,
-      compensatorio: { lanes: emptyCompensatorioLanes() },
+      compensatorio: { lanes: emptyCompensatorioLanes(laneCountFromTareas(tareas)) },
     })
   }
   return blocks
@@ -200,7 +205,7 @@ export function normalizeOrden(bloques: SesionBloque[]): SesionBloque[] {
 
 /** Crea un bloque concreto si aún no existe (p. ej. al añadir tarea desde IA o biblioteca). */
 export function createBloqueForFase(fase: FaseSesion, bloques: SesionBloque[]): SesionBloque | null {
-  if (fase === 'compensatorio_1' || fase === 'compensatorio_2' || fase === 'compensatorio_3') {
+  if (isCompensatorioFase(fase)) {
     if (bloques.some((b) => b.tipo === 'compensatorio')) return null
     return createBloque('compensatorio', bloques)
   }

@@ -1,4 +1,6 @@
 from app.services.duracion_efectiva import (
+    empty_compensatorio_lanes,
+    lanes_from_bloque,
     minutos_carga_sesion_tarea,
     minutos_efectivos_catalogo,
     normalize_descanso_seconds,
@@ -108,3 +110,79 @@ class TestCompensatorioParallel:
         assert player_session_minutes(tareas, estructura, "p1") == 28
         assert player_session_minutes(tareas, estructura, "p2") == 22
         assert player_session_minutes(tareas, estructura, "p3") == 10
+
+
+class TestCompensatorioLaneCount:
+    def test_default_is_two_groups(self):
+        lanes = empty_compensatorio_lanes()
+        assert len(lanes) == 2
+        assert [l["label"] for l in lanes] == ["Grupo A", "Grupo B"]
+
+    def test_keeps_three_saved_groups(self):
+        bloque = {
+            "tipo": "compensatorio",
+            "compensatorio": {
+                "lanes": [
+                    {"id": "lane-1", "label": "A", "jugador_ids": ["p1"]},
+                    {"id": "lane-2", "label": "B", "jugador_ids": []},
+                    {"id": "lane-3", "label": "C", "jugador_ids": ["p2"]},
+                ]
+            },
+        }
+        lanes = lanes_from_bloque(bloque)
+        assert len(lanes) == 3
+        assert lanes[2]["jugador_ids"] == ["p2"]
+
+    def test_two_lane_clock_is_max(self):
+        tareas = [
+            {
+                "fase_sesion": "activacion",
+                "duracion_override": 8,
+                "tarea": {"duracion_total": 8, "densidad": "baja"},
+            },
+            {
+                "fase_sesion": "compensatorio_1",
+                "duracion_override": 15,
+                "tarea": {"duracion_total": 15, "densidad": "alta"},
+            },
+            {
+                "fase_sesion": "compensatorio_2",
+                "duracion_override": 10,
+                "tarea": {"duracion_total": 10, "densidad": "media"},
+            },
+        ]
+        _, _, dur = aggregate_sesion_carga(tareas, [])
+        assert dur == 23  # 8 sequential + max(15, 10)
+
+    def test_four_lanes_player_own_group(self):
+        estructura = [
+            {
+                "tipo": "compensatorio",
+                "compensatorio": {
+                    "lanes": [
+                        {"id": "lane-1", "label": "A", "jugador_ids": ["p1"]},
+                        {"id": "lane-2", "label": "B", "jugador_ids": ["p2"]},
+                        {"id": "lane-3", "label": "C", "jugador_ids": []},
+                        {"id": "lane-4", "label": "D", "jugador_ids": ["p4"]},
+                    ]
+                },
+            }
+        ]
+        tareas = [
+            {
+                "fase_sesion": "compensatorio_1",
+                "duracion_override": 20,
+                "minutos_efectivos": 20,
+                "tarea": {},
+            },
+            {
+                "fase_sesion": "compensatorio_4",
+                "duracion_override": 12,
+                "minutos_efectivos": 12,
+                "tarea": {},
+            },
+        ]
+        assert player_session_minutes(tareas, estructura, "p1") == 20
+        assert player_session_minutes(tareas, estructura, "p4") == 12
+        assert player_session_minutes(tareas, estructura, "p2") == 0
+

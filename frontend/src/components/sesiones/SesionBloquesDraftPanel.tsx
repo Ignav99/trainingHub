@@ -45,6 +45,7 @@ import {
   normalizeOrden,
   type AddBloqueKind,
 } from '@/lib/sesionEstructura'
+import { faseForLane, lanesFromBloque } from '@/lib/duracionEfectiva'
 import { cn } from '@/lib/utils'
 
 export interface DraftTareaItem {
@@ -206,6 +207,10 @@ export function SesionBloquesDraftPanel({
     const isPartido = isPartidoCondicionado(bloque)
     const isCompensatorio = isCompensatorioBloque(bloque)
     const removable = canRemoveDraftBloque(bloque, tareas)
+    const lanes = isCompensatorio ? lanesFromBloque(bloque) : []
+    const laneTaskCounts = isCompensatorio
+      ? lanes.map((_, i) => (tareasByFase[faseForLane(i)] || []).length)
+      : []
 
     return (
       <Card key={bloque.id} className={cn('card-hover', !hasTareas && !bloque.notas && !isPartido && !isCompensatorio && 'border-dashed')}>
@@ -280,6 +285,7 @@ export function SesionBloquesDraftPanel({
             bloque={bloque}
             onChange={(compensatorio) => updateBloque(bloque.id, { compensatorio })}
             onOpenTaskPicker={onOpenTaskPicker}
+            laneTaskCounts={laneTaskCounts}
             renderLaneTasks={(fase) => {
               const laneTareas = tareasByFase[fase] || []
               if (!laneTareas.length) {
@@ -417,7 +423,7 @@ export function SesionBloquesDraftPanel({
           <Pencil className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
           <p className="font-medium text-foreground">Empieza añadiendo bloques</p>
           <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-            Añade activación, desarrollo, compensatorio (3 grupos en paralelo), partido condicionado,
+            Añade activación, desarrollo, compensatorio (grupos en paralelo), partido condicionado,
             vuelta a la calma o videoanálisis. En cada bloque de tareas podrás elegir de la biblioteca o crear ejercicios.
           </p>
           <Button className="mt-4" size="sm" onClick={() => setShowAddMenu(true)}>

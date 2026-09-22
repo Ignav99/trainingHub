@@ -116,9 +116,14 @@ const FASE_LABELS: Record<string, string> = {
   desarrollo_5: 'Desarrollo 5',
   desarrollo_6: 'Desarrollo 6',
   vuelta_calma: 'Vuelta a calma',
-  compensatorio_1: 'Compensatorio A',
-  compensatorio_2: 'Compensatorio B',
-  compensatorio_3: 'Compensatorio C',
+  compensatorio_1: 'Grupo A',
+  compensatorio_2: 'Grupo B',
+  compensatorio_3: 'Grupo C',
+  compensatorio_4: 'Grupo D',
+  compensatorio_5: 'Grupo E',
+  compensatorio_6: 'Grupo F',
+  compensatorio_7: 'Grupo G',
+  compensatorio_8: 'Grupo H',
 }
 
 const ALL_DESARROLLO_FASES: FaseSesion[] = ['desarrollo_1', 'desarrollo_2', 'desarrollo_3', 'desarrollo_4', 'desarrollo_5', 'desarrollo_6']

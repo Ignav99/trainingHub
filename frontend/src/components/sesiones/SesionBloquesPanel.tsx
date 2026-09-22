@@ -47,7 +47,7 @@ import {
   resolveEstructura,
   type AddBloqueKind,
 } from '@/lib/sesionEstructura'
-import { COMPENSATORIO_FASES, clockMinutosSesionTarea } from '@/lib/duracionEfectiva'
+import { clockMinutosSesionTarea, faseForLane, lanesFromBloque } from '@/lib/duracionEfectiva'
 import { cn } from '@/lib/utils'
 
 function SortableBloqueWrapper({
@@ -172,7 +172,7 @@ export function SesionBloquesPanel({
     const out: FaseSesion[] = []
     for (const b of bloques) {
       if (isCompensatorioBloque(b)) {
-        out.push(...COMPENSATORIO_FASES)
+        out.push(...lanesFromBloque(b).map((_, i) => faseForLane(i)))
       } else {
         const f = faseSesionFromBloque(b)
         if (f) out.push(f)
@@ -231,10 +231,14 @@ export function SesionBloquesPanel({
     const isVideo = bloque.tipo === 'videoanalisis'
     const isPartido = isPartidoCondicionado(bloque)
     const isCompensatorio = isCompensatorioBloque(bloque)
+    const lanes = isCompensatorio ? lanesFromBloque(bloque) : []
     const laneDurations = isCompensatorio
-      ? COMPENSATORIO_FASES.map((f) =>
-          (tareasByFase[f] || []).reduce((s, t) => s + clockMinutosSesionTarea(t), 0),
+      ? lanes.map((_, i) =>
+          (tareasByFase[faseForLane(i)] || []).reduce((s, t) => s + clockMinutosSesionTarea(t), 0),
         )
+      : []
+    const laneTaskCounts = isCompensatorio
+      ? lanes.map((_, i) => (tareasByFase[faseForLane(i)] || []).length)
       : []
     const compensatorioMin = isCompensatorio ? Math.max(0, ...laneDurations) : 0
     const displayDuration =
@@ -323,6 +327,7 @@ export function SesionBloquesPanel({
             bloque={bloque}
             jugadores={jugadores}
             laneDurations={laneDurations}
+            laneTaskCounts={laneTaskCounts}
             onChange={(compensatorio) => updateBloque(bloque.id, { compensatorio })}
             onOpenTaskPicker={onOpenTaskPicker}
             renderLaneTasks={(fase) => {
@@ -461,7 +466,7 @@ export function SesionBloquesPanel({
           <Pencil className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
           <p className="font-medium text-foreground">Sesión sin bloques todavía</p>
           <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-            Añade activación, desarrollo, compensatorio (3 grupos en paralelo), partido condicionado,
+            Añade activación, desarrollo, compensatorio (grupos en paralelo), partido condicionado,
             vuelta a la calma o videoanálisis. El partido reducido sigue siendo una tarea.
           </p>
           <Button className="mt-4" size="sm" onClick={() => setShowAddMenu(true)}>

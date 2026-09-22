@@ -8,7 +8,10 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-COMPENSATORIO_FASES = ("compensatorio_1", "compensatorio_2", "compensatorio_3")
+COMPENSATORIO_MIN_LANES = 2
+COMPENSATORIO_MAX_LANES = 8
+COMPENSATORIO_DEFAULT_LANES = 2
+COMPENSATORIO_FASES = tuple(f"compensatorio_{i}" for i in range(1, COMPENSATORIO_MAX_LANES + 1))
 LEGACY_MINUTES_MAX = 10
 
 
@@ -73,21 +76,60 @@ def minutos_carga_sesion_tarea(st: dict) -> int:
 
 
 def is_compensatorio_fase(fase: Optional[str]) -> bool:
-    return str(fase or "") in COMPENSATORIO_FASES
+    return compensatorio_lane_index(fase) is not None
 
 
 def compensatorio_lane_index(fase: Optional[str]) -> Optional[int]:
     fase_s = str(fase or "")
-    if fase_s in COMPENSATORIO_FASES:
-        return COMPENSATORIO_FASES.index(fase_s)
+    if not fase_s.startswith("compensatorio_"):
+        return None
+    try:
+        n = int(fase_s.split("_", 1)[1])
+    except (IndexError, ValueError):
+        return None
+    if 1 <= n <= COMPENSATORIO_MAX_LANES:
+        return n - 1
     return None
 
 
-def empty_compensatorio_lanes() -> list[dict]:
-    return [
-        {"id": f"lane-{i+1}", "label": label, "jugador_ids": []}
-        for i, label in enumerate(("Grupo A", "Grupo B", "Grupo C"))
-    ]
+def fase_for_lane(index: int) -> str:
+    n = max(1, min(COMPENSATORIO_MAX_LANES, int(index) + 1))
+    return f"compensatorio_{n}"
+
+
+def clamp_lane_count(n: Any) -> int:
+    try:
+        count = int(n)
+    except (TypeError, ValueError):
+        count = COMPENSATORIO_DEFAULT_LANES
+    return max(COMPENSATORIO_MIN_LANES, min(COMPENSATORIO_MAX_LANES, count))
+
+
+def empty_compensatorio_lane(index: int) -> dict:
+    return {
+        "id": f"lane-{index + 1}",
+        "label": f"Grupo {chr(65 + index)}",
+        "jugador_ids": [],
+    }
+
+
+def empty_compensatorio_lanes(count: int = COMPENSATORIO_DEFAULT_LANES) -> list[dict]:
+    n = clamp_lane_count(count)
+    return [empty_compensatorio_lane(i) for i in range(n)]
+
+
+def _normalize_lane(lane: Any, index: int) -> dict:
+    fallback = empty_compensatorio_lane(index)
+    if not isinstance(lane, dict):
+        return fallback
+    ids = lane.get("jugador_ids") or []
+    if not isinstance(ids, list):
+        ids = []
+    return {
+        "id": lane.get("id") or fallback["id"],
+        "label": lane.get("label") or fallback["label"],
+        "jugador_ids": [str(x) for x in ids if x],
+    }
 
 
 def lanes_from_bloque(bloque: dict | None) -> list[dict]:
@@ -95,27 +137,10 @@ def lanes_from_bloque(bloque: dict | None) -> list[dict]:
         return empty_compensatorio_lanes()
     data = bloque.get("compensatorio") or {}
     lanes = data.get("lanes") if isinstance(data, dict) else None
-    if not isinstance(lanes, list) or len(lanes) < 3:
-        base = empty_compensatorio_lanes()
-        if isinstance(lanes, list):
-            for i, lane in enumerate(lanes[:3]):
-                if isinstance(lane, dict):
-                    base[i] = {**base[i], **lane}
-        return base
-    out = []
-    for i, lane in enumerate(lanes[:3]):
-        if not isinstance(lane, dict):
-            out.append(empty_compensatorio_lanes()[i])
-            continue
-        ids = lane.get("jugador_ids") or []
-        if not isinstance(ids, list):
-            ids = []
-        out.append({
-            "id": lane.get("id") or f"lane-{i+1}",
-            "label": lane.get("label") or f"Grupo {chr(65+i)}",
-            "jugador_ids": [str(x) for x in ids if x],
-        })
-    return out
+    if not isinstance(lanes, list) or not lanes:
+        return empty_compensatorio_lanes()
+    n = clamp_lane_count(len(lanes))
+    return [_normalize_lane(lanes[i] if i < len(lanes) else None, i) for i in range(n)]
 
 
 def player_compensatorio_fases(estructura: list | None, jugador_id: str) -> set[str]:
@@ -127,7 +152,7 @@ def player_compensatorio_fases(estructura: list | None, jugador_id: str) -> set[
             continue
         for i, lane in enumerate(lanes_from_bloque(bloque)):
             if jid in {str(x) for x in lane.get("jugador_ids") or []}:
-                fases.add(COMPENSATORIO_FASES[i])
+                fases.add(fase_for_lane(i))
     return fases
 
 
