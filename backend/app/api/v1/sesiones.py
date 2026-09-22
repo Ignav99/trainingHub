@@ -141,12 +141,14 @@ def _sanitize_tarea_constraints(tarea_data: dict) -> dict:
         else:
             tarea_data[field] = []
 
-    # Densidad + cognitivo: siempre la misma fórmula canónica
+    # Densidad + cognitivo: siempre la misma fórmula canónica.
+    # Nunca clear()+update con el mismo objeto: si no hay espacio, apply_auto_load
+    # devolvía la misma referencia y el clear() vaciaba titulo y el resto.
     try:
         from app.services.task_load_metrics import apply_auto_load
         loaded = apply_auto_load(tarea_data)
-        tarea_data.clear()
-        tarea_data.update(loaded)
+        if loaded is not tarea_data:
+            tarea_data.update(loaded)
     except Exception:
         pass
 
@@ -1502,10 +1504,44 @@ def _should_fork_tarea(tarea: dict) -> bool:
 
 
 def _strip_editada_prefix(titulo: str | None) -> str:
-    base = titulo or "Sin titulo"
+    base = (titulo or "").strip() or "Sin titulo"
     while base.startswith("(Editada) "):
-        base = base[len("(Editada) "):]
+        base = base[len("(Editada) "):].strip() or "Sin titulo"
     return base
+
+
+def _is_blank_titulo(val) -> bool:
+    return val is None or (isinstance(val, str) and not val.strip())
+
+
+def _cambios_for_fork(cambios: dict) -> dict:
+    """Overlay de edición: no borres identidad ni mandes NULL a columnas NOT NULL."""
+    out = {}
+    for k, v in cambios.items():
+        if k in _PROTECTED_FORK_FIELDS:
+            continue
+        if k == "titulo" and _is_blank_titulo(v):
+            continue
+        if v is None:
+            continue
+        out[k] = v
+    return out
+
+
+def _ensure_required_tarea_fields(row: dict, original: dict, user_id: str) -> dict:
+    """La insert de variante nunca puede irse sin titulo / org / duración / jugadores."""
+    row["titulo"] = _strip_editada_prefix(row.get("titulo") or original.get("titulo"))
+    if not row.get("creado_por"):
+        row["creado_por"] = user_id
+    if not row.get("organizacion_id") and original.get("organizacion_id"):
+        row["organizacion_id"] = original["organizacion_id"]
+    if not row.get("equipo_id") and original.get("equipo_id"):
+        row["equipo_id"] = original["equipo_id"]
+    if row.get("duracion_total") is None:
+        row["duracion_total"] = original.get("duracion_total") or 0
+    if row.get("num_jugadores_min") is None:
+        row["num_jugadores_min"] = original.get("num_jugadores_min") or 1
+    return row
 
 
 def _build_session_variant_row(original: dict, cambios: dict, user_id: str) -> dict:
@@ -1513,15 +1549,17 @@ def _build_session_variant_row(original: dict, cambios: dict, user_id: str) -> d
     nueva = _copy_tarea_columns(original)
     nueva["titulo"] = _strip_editada_prefix(original.get("titulo"))
     nueva["creado_por"] = user_id
-    nueva.update(cambios)
+    nueva.update(_cambios_for_fork(cambios))
     nueva["es_plantilla"] = False
     nueva["tarea_origen_id"] = original.get("tarea_origen_id") or original["id"]
     tipo = original.get("tipo_variante") or "original"
     nueva["tipo_variante"] = "adaptacion" if tipo == "original" else tipo
+    _ensure_required_tarea_fields(nueva, original, user_id)
     return {
         k: v
         for k, v in nueva.items()
         if k in VALID_TAREA_COLUMNS | {"titulo", "es_plantilla", "creado_por"}
+        and v is not None
     }
 
 
@@ -1534,7 +1572,7 @@ def _persist_cambios_en_sesion_tarea(
     user_id: str,
 ) -> bool:
     """Update in place or fork a variant. Returns True if a new variant was created."""
-    cambios_safe = {k: v for k, v in cambios.items() if k not in _PROTECTED_FORK_FIELDS}
+    cambios_safe = _cambios_for_fork(cambios)
     _resolve_categoria_codigo(supabase, cambios_safe)
     if not _should_fork_tarea(original_tarea):
         if cambios_safe:
@@ -1545,6 +1583,7 @@ def _persist_cambios_en_sesion_tarea(
     _resolve_categoria_codigo(supabase, nueva)
     _sanitize_tarea_constraints(nueva)
     _sync_tarea_narrative(nueva)
+    _ensure_required_tarea_fields(nueva, original_tarea, user_id)
     insert_response = _insert_tarea_with_schema_fallback(supabase, nueva)
     if not insert_response.data:
         raise HTTPException(status_code=500, detail="Error al duplicar tarea")
@@ -1651,6 +1690,8 @@ async def duplicar_y_editar_tarea(
         raise HTTPException(status_code=404, detail="Tarea original no encontrada")
 
     cambios_dict = cambios.model_dump(exclude_none=True)
+    if _is_blank_titulo(cambios_dict.get("titulo")):
+        cambios_dict.pop("titulo", None)
     cambios_filtered = {k: v for k, v in cambios_dict.items() if k in VALID_TAREA_COLUMNS | {"titulo"}}
     _resolve_categoria_codigo(supabase, cambios_filtered)
     _sanitize_tarea_constraints(cambios_filtered)
@@ -1734,6 +1775,8 @@ async def ai_edit_tarea(
         raise HTTPException(status_code=400, detail="La IA no genero cambios")
 
     cambios_filtered = {k: v for k, v in cambios_ia.items() if k in VALID_TAREA_COLUMNS | {"titulo"}}
+    if _is_blank_titulo(cambios_filtered.get("titulo")):
+        cambios_filtered.pop("titulo", None)
     _sanitize_tarea_constraints(cambios_filtered)
     _sync_tarea_narrative(cambios_filtered)
 

@@ -205,7 +205,7 @@ export function payloadFromCreatorForm(form: TareaCreatorData): Record<string, u
     espacio_forma: form.espacio_forma || 'rectangular',
   })
   return {
-    titulo: loaded.titulo,
+    titulo: (typeof loaded.titulo === 'string' ? loaded.titulo.trim() : '') || undefined,
     categoria_id: loaded.categoria_id,
     modalidad: loaded.modalidad,
     desarrollo: desarrollo || undefined,

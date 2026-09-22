@@ -2,7 +2,9 @@ from app.api.v1.sesiones import (
     DuplicarYEditarTareaRequest,
     _build_session_variant_row,
     _copy_tarea_columns,
+    _ensure_required_tarea_fields,
     _is_madre,
+    _sanitize_tarea_constraints,
     _should_fork_tarea,
 )
 
@@ -113,3 +115,97 @@ class TestSessionVariantFork:
         assert row["tipo_variante"] == "espacio"
         assert row["es_plantilla"] is False
         assert row["reglas"] == "2 toques"
+
+    def test_duration_only_edit_does_not_wipe_titulo(self):
+        original = {
+            "id": "madre-1",
+            "titulo": "Movilidad + activación",
+            "tipo_variante": "original",
+            "organizacion_id": "org-1",
+            "equipo_id": "eq-1",
+            "duracion_total": 8,
+            "num_jugadores_min": 16,
+            "es_plantilla": True,
+        }
+        row = _build_session_variant_row(
+            original,
+            {"titulo": "", "duracion_total": 12, "espacio_forma": "rectangular"},
+            "user-1",
+        )
+        assert row["titulo"] == "Movilidad + activación"
+        assert row["duracion_total"] == 12
+        assert row["organizacion_id"] == "org-1"
+        assert row["creado_por"] == "user-1"
+        assert row["num_jugadores_min"] == 16
+
+    def test_blank_original_titulo_gets_fallback(self):
+        original = {"id": "madre-1", "titulo": None, "tipo_variante": "original"}
+        row = _build_session_variant_row(original, {"duracion_total": 10}, "user-1")
+        assert row["titulo"] == "Sin titulo"
+        assert "titulo" in row
+        assert row["titulo"] not in (None, "")
+
+    def test_null_titulo_in_cambios_keeps_original(self):
+        original = {
+            "id": "madre-1",
+            "titulo": "Circuito COD",
+            "tipo_variante": "original",
+            "duracion_total": 6,
+        }
+        row = _build_session_variant_row(
+            original, {"titulo": None, "duracion_total": 7}, "user-1"
+        )
+        assert row["titulo"] == "Circuito COD"
+        assert row["duracion_total"] == 7
+
+
+class TestSanitizeDoesNotWipeTarea:
+    def test_movilidad_without_space_keeps_titulo(self):
+        data = {
+            "titulo": "Movilidad cadera",
+            "duracion_total": 10,
+            "categoria_id": "MOV",
+            "espacio_forma": "rectangular",
+            "creado_por": "user-1",
+            "organizacion_id": "org-1",
+        }
+        _sanitize_tarea_constraints(data)
+        assert data["titulo"] == "Movilidad cadera"
+        assert data["duracion_total"] == 10
+        assert data["organizacion_id"] == "org-1"
+        assert data["creado_por"] == "user-1"
+
+    def test_fork_then_sanitize_keeps_required_fields(self):
+        original = {
+            "id": "madre-1",
+            "titulo": "Activación MOV",
+            "tipo_variante": "original",
+            "organizacion_id": "org-1",
+            "duracion_total": 8,
+            "num_jugadores_min": 18,
+            "es_plantilla": True,
+        }
+        row = _build_session_variant_row(original, {"duracion_total": 11}, "user-1")
+        _sanitize_tarea_constraints(row)
+        _ensure_required_tarea_fields(row, original, "user-1")
+        assert row["titulo"] == "Activación MOV"
+        assert row["duracion_total"] == 11
+        assert row["organizacion_id"] == "org-1"
+        assert row["num_jugadores_min"] == 18
+        assert row["creado_por"] == "user-1"
+
+    def test_ensure_restores_titulo_after_wipe(self):
+        original = {
+            "id": "madre-1",
+            "titulo": "Movilidad",
+            "organizacion_id": "org-1",
+            "duracion_total": 8,
+            "num_jugadores_min": 16,
+        }
+        wiped = {"es_plantilla": False, "espacio_forma": "rectangular"}
+        _ensure_required_tarea_fields(wiped, original, "user-1")
+        assert wiped["titulo"] == "Movilidad"
+        assert wiped["organizacion_id"] == "org-1"
+        assert wiped["duracion_total"] == 8
+        assert wiped["num_jugadores_min"] == 16
+        assert wiped["creado_por"] == "user-1"

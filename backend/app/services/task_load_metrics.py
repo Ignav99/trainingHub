@@ -92,16 +92,19 @@ def compute_task_load_metrics(
 
 
 def apply_auto_load(tarea_data: dict[str, Any]) -> dict[str, Any]:
-    """Sobrescribe densididad/cognitivo/esfuerzo con el cálculo canónico."""
-    metrics = compute_task_load_metrics(
-        espacio_largo=tarea_data.get("espacio_largo"),
-        espacio_ancho=tarea_data.get("espacio_ancho"),
-        num_jugadores=tarea_data.get("num_jugadores_min") or tarea_data.get("num_jugadores"),
-        num_porteros=tarea_data.get("num_porteros"),
-        espacio_forma=tarea_data.get("espacio_forma"),
-    )
-    if not metrics:
-        return tarea_data
+    """Sobrescribe densididad/cognitivo/esfuerzo con el cálculo canónico.
+
+    Siempre devuelve una copia. Si no hay espacio/jugadores para calcular,
+    no se tocan el resto de campos (titulo incluido).
+    """
     out = dict(tarea_data)
-    out.update(metrics)
+    metrics = compute_task_load_metrics(
+        espacio_largo=out.get("espacio_largo"),
+        espacio_ancho=out.get("espacio_ancho"),
+        num_jugadores=out.get("num_jugadores_min") or out.get("num_jugadores"),
+        num_porteros=out.get("num_porteros"),
+        espacio_forma=out.get("espacio_forma"),
+    )
+    if metrics:
+        out.update(metrics)
     return out
