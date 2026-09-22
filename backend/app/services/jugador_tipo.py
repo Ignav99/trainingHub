@@ -26,3 +26,19 @@ def auto_include_in_sesion_asistencia(jugador: Mapping) -> bool:
 def incluye_tracking_carga(jugador: Mapping) -> bool:
     """Plantilla, filial (juvenil) y prueba: mismas cargas/RPE. Invitado no."""
     return resolve_tipo_jugador(jugador) in TRACKING_TIPOS
+
+
+def _dorsal_int(raw) -> int:
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return 999
+    return n if n >= 0 else 999
+
+
+def rpe_roster_sort_key(jugador: Mapping) -> tuple:
+    """Plantilla por dorsal; filial, prueba e invitados al final (también por dorsal)."""
+    trailing = 0 if resolve_tipo_jugador(jugador) == "plantilla" else 1
+    apellidos = str(jugador.get("apellidos") or "").casefold()
+    nombre = str(jugador.get("nombre") or "").casefold()
+    return (trailing, _dorsal_int(jugador.get("dorsal")), apellidos, nombre)

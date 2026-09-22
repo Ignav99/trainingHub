@@ -29,6 +29,7 @@ from app.services.rpe_sync import (
     player_minutes_for_sesion,
     upsert_rpe_sesion,
 )
+from app.services.jugador_tipo import resolve_tipo_jugador, rpe_roster_sort_key
 
 logger = logging.getLogger(__name__)
 
@@ -271,7 +272,7 @@ def _sesion_rpe_jugadores(supabase, sesion_id: str) -> RPESesionAssignResponse:
 
     jugadores = (
         supabase.table("jugadores")
-        .select("id, nombre, apellidos, apodo, dorsal, estado")
+        .select("id, nombre, apellidos, apodo, dorsal, estado, tipo_jugador, es_invitado")
         .eq("equipo_id", str(equipo_id))
         .execute()
         if equipo_id
@@ -313,6 +314,7 @@ def _sesion_rpe_jugadores(supabase, sesion_id: str) -> RPESesionAssignResponse:
                 apellidos=j.get("apellidos"),
                 apodo=j.get("apodo"),
                 dorsal=j.get("dorsal"),
+                tipo_jugador=resolve_tipo_jugador(j),
                 presente=jid in presente_ids or jid in sesion_ids,
                 rpe=rec.get("rpe"),
                 minutos_efectivos=mins,
@@ -322,10 +324,13 @@ def _sesion_rpe_jugadores(supabase, sesion_id: str) -> RPESesionAssignResponse:
         )
 
     items.sort(
-        key=lambda x: (
-            0 if x.presente else 1,
-            x.apellidos or x.nombre or "",
-            x.nombre,
+        key=lambda x: rpe_roster_sort_key(
+            {
+                "tipo_jugador": x.tipo_jugador,
+                "dorsal": x.dorsal,
+                "apellidos": x.apellidos,
+                "nombre": x.nombre,
+            }
         )
     )
     return RPESesionAssignResponse(
