@@ -10,6 +10,7 @@ export const DEFAULT_DESK_BUTTONS: CodeButton[] = [
     preRoll: 5,
     postRoll: 8,
     size: 'l',
+    captureMode: 'window',
     fase: 'ataque_organizado',
   },
   {
@@ -20,6 +21,7 @@ export const DEFAULT_DESK_BUTTONS: CodeButton[] = [
     preRoll: 5,
     postRoll: 8,
     size: 'l',
+    captureMode: 'window',
     fase: 'defensa_organizada',
   },
   {
@@ -30,6 +32,7 @@ export const DEFAULT_DESK_BUTTONS: CodeButton[] = [
     preRoll: 3,
     postRoll: 6,
     size: 'm',
+    captureMode: 'window',
     fase: 'transicion_ofensiva',
   },
   {
@@ -40,6 +43,7 @@ export const DEFAULT_DESK_BUTTONS: CodeButton[] = [
     preRoll: 3,
     postRoll: 6,
     size: 'm',
+    captureMode: 'window',
     fase: 'transicion_defensiva',
   },
   {
@@ -50,6 +54,7 @@ export const DEFAULT_DESK_BUTTONS: CodeButton[] = [
     preRoll: 8,
     postRoll: 12,
     size: 'l',
+    captureMode: 'window',
     fase: 'abp_ofensiva',
   },
   {
@@ -60,9 +65,34 @@ export const DEFAULT_DESK_BUTTONS: CodeButton[] = [
     preRoll: 8,
     postRoll: 12,
     size: 'l',
+    captureMode: 'window',
     fase: 'abp_defensiva',
   },
 ]
+
+export const RESERVED_SHORTCUTS = new Set([' ', 'escape', 'h', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown'])
+
+export function normalizeShortcut(raw: string | undefined | null): string | undefined {
+  const value = (raw || '').trim().toLowerCase()
+  if (!value) return undefined
+  const key = value.length === 1 ? value : value
+  if (RESERVED_SHORTCUTS.has(key)) return undefined
+  return key.slice(0, 1)
+}
+
+export function shortcutTaken(
+  buttons: Pick<CodeButton, 'id' | 'shortcut'>[],
+  shortcut: string | undefined,
+  exceptId?: string
+): boolean {
+  if (!shortcut) return false
+  return buttons.some((b) => b.shortcut === shortcut && b.id !== exceptId)
+}
+
+export function timingsLabel(btn: CodeButton): string {
+  if (btn.captureMode === 'range') return 'inicio → fin'
+  return `−${btn.preRoll}s / +${btn.postRoll}s`
+}
 
 export const BUTTON_SIZE_ORDER: CodeButtonSize[] = ['s', 'm', 'l']
 
@@ -139,6 +169,8 @@ export function migrateDeskButtons(buttons: CodeButton[] | undefined): CodeButto
   return buttons.map((b) => ({
     ...b,
     size: b.size || 'm',
+    captureMode: b.captureMode === 'range' ? 'range' : 'window',
+    shortcut: normalizeShortcut(b.shortcut),
     preRoll: Number.isFinite(b.preRoll) ? b.preRoll : 5,
     postRoll: Number.isFinite(b.postRoll) ? b.postRoll : 5,
   }))

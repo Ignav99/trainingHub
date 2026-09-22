@@ -90,7 +90,7 @@ async def create_local_session(
     Creates a minimal videos_partido record so the frontend can use videoId
     for tag persistence when analyzing a local file (not uploaded to storage).
     """
-    partido_id = data.get("partido_id")
+    partido_id = data.get("partido_id") or None
     equipo_id = data.get("equipo_id")
     filename = data.get("filename", "local_video")
     fingerprint = data.get("fingerprint") or make_fingerprint(
@@ -99,25 +99,27 @@ async def create_local_session(
         data.get("duration_ms"),
     )
 
-    if not partido_id or not equipo_id:
-        raise HTTPException(status_code=400, detail="partido_id y equipo_id son requeridos.")
+    if not equipo_id:
+        raise HTTPException(status_code=400, detail="equipo_id es requerido.")
 
     supabase = get_supabase()
 
-    if not _verify_partido(supabase, partido_id, equipo_id):
+    if partido_id and not _verify_partido(supabase, partido_id, equipo_id):
         raise HTTPException(status_code=404, detail="Partido no encontrado.")
 
     try:
         existing = (
             supabase.table("videos_partido")
             .select("id, titulo, local_file_fingerprint")
-            .eq("partido_id", partido_id)
             .eq("equipo_id", equipo_id)
             .eq("tipo", "local_session")
             .eq("local_file_fingerprint", fingerprint)
-            .limit(1)
-            .execute()
         )
+        if partido_id:
+            existing = existing.eq("partido_id", partido_id)
+        else:
+            existing = existing.is_("partido_id", "null")
+        existing = existing.limit(1).execute()
         if existing.data:
             return existing.data[0]
     except Exception:

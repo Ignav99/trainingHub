@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import type { CodeButton, CodeEvent } from './types'
 import { clipDisplayTitle, groupClipsByButton } from './videoDesk'
 import { formatTime } from './utils'
@@ -9,86 +8,50 @@ export function VideoDeskFolders({
   buttons,
   events,
   selectedClipId,
-  selectedClipIds,
   selectedLaneId,
-  onSelect,
-  onPlay,
-  onRename,
-  onNudge,
-  onDownload,
-  onSend,
-  onDelete,
+  onPlayClip,
+  onPlayLane,
 }: {
   buttons: CodeButton[]
   events: CodeEvent[]
   selectedClipId: string | null
-  selectedClipIds: string[]
   selectedLaneId: string | null
-  onSelect: (clip: CodeEvent) => void
-  onPlay: (clip: CodeEvent) => void
-  onRename: (clip: CodeEvent, title: string) => void
-  onNudge: (clip: CodeEvent, edge: 'start' | 'end', delta: number) => void
-  onDownload: (clip: CodeEvent) => void
-  onSend: (clip: CodeEvent) => void
-  onDelete: (clip: CodeEvent) => void
+  onPlayClip: (clip: CodeEvent) => void
+  onPlayLane: (buttonId: string) => void
 }) {
   const groups = groupClipsByButton(buttons, events)
-  const [open, setOpen] = useState<Record<string, boolean>>({})
-  const keyOf = (label: string, id: string | null) => id || `orphan:${label}`
 
   if (!events.length) {
-    return <p className="vd-empty">Pulsa un botón en el momento. El recorte entra en esa carpeta con los tiempos de ese botón.</p>
+    return <p className="vd-empty">Pulsa un botón en el momento. El recorte entra en esa línea.</p>
   }
 
   return (
-    <div className="vd-folders">
+    <div className="vd-folders vd-folders-slim">
       {groups.map((group) => {
-        const key = keyOf(group.label, group.button?.id || null)
-        const expanded = open[key] ?? (group.clips.length > 0)
+        const key = group.button?.id || `orphan:${group.label}`
         return (
           <div key={key} className="vd-folder">
             <button
               type="button"
               className={`vd-folder-head${selectedLaneId && selectedLaneId === group.button?.id ? ' is-selected' : ''}`}
-              onClick={() => setOpen((s) => ({ ...s, [key]: !expanded }))}
+              onClick={() => group.button && onPlayLane(group.button.id)}
+              title={group.button ? `Reproducir ${group.clips.length} recortes de ${group.label}` : group.label}
             >
               <span className="vd-folder-swatch" style={{ background: group.color }} />
               <span>{group.label}</span>
               <span className="vd-folder-count">{group.clips.length}</span>
             </button>
-            {expanded
-              ? group.clips.map((clip) => {
-                  const title = clipDisplayTitle(clip, group.button)
-                  const selected = selectedClipIds.includes(clip.id) || selectedClipId === clip.id
-                  return (
-                    <div
-                      key={clip.id}
-                      className={`vd-clip${selected ? ' is-selected' : ''}`}
-                      onClick={() => onSelect(clip)}
-                    >
-                      <input
-                        className="vd-clip-title"
-                        value={title}
-                        onChange={(e) => onRename(clip, e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <span className="vd-clip-time">
-                        {formatTime(clip.startTime)}–{formatTime(clip.endTime)}
-                      </span>
-                      <div className="vd-clip-actions">
-                        <button type="button" onClick={(e) => { e.stopPropagation(); onPlay(clip) }}>Ver</button>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); onNudge(clip, 'start', -1) }}>Inicio −1s</button>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); onNudge(clip, 'start', 1) }}>Inicio +1s</button>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); onNudge(clip, 'end', -1) }}>Final −1s</button>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); onNudge(clip, 'end', 1) }}>Final +1s</button>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); onDownload(clip) }}>Descargar</button>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); onSend(clip) }}>A revisión</button>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); onDelete(clip) }}>Quitar</button>
-                      </div>
-                    </div>
-                  )
-                })
-              : null}
+            {group.clips.slice(0, 8).map((clip) => (
+              <button
+                key={clip.id}
+                type="button"
+                className={`vd-clip-mini${selectedClipId === clip.id ? ' is-selected' : ''}`}
+                onClick={() => onPlayClip(clip)}
+              >
+                <span className="vd-clip-title">{clipDisplayTitle(clip, group.button)}</span>
+                <span className="vd-clip-time">{formatTime(clip.startTime)}</span>
+              </button>
+            ))}
           </div>
         )
       })}

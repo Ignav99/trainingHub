@@ -12,6 +12,10 @@ import {
   scrubPixels,
   snapFps,
   wheelPixelsToSeconds,
+  nextPlaybackSpeed,
+  isPlaybackSpeed,
+  isFineJogPixels,
+  PLAYBACK_SPEEDS,
 } from './videoJog.ts'
 
 describe('video jog', () => {
@@ -67,5 +71,15 @@ describe('video jog', () => {
   it('ignores arrow jog while typing a clip title', () => {
     assert.equal(isTypingTarget({ tagName: 'INPUT' } as EventTarget), true)
     assert.equal(isTypingTarget({ tagName: 'DIV' } as EventTarget), false)
+  })
+
+  it('offers x4 and faster playback steps', () => {
+    assert.equal(nextPlaybackSpeed(2), 3)
+    assert.equal(nextPlaybackSpeed(3), 4)
+    assert.equal(nextPlaybackSpeed(8), 0.25)
+    assert.ok(PLAYBACK_SPEEDS.includes(4))
+    assert.ok(PLAYBACK_SPEEDS.includes(8))
+    assert.equal(isFineJogPixels(PIXELS_PER_FRAME, 25), true)
+    assert.equal(isFineJogPixels(180, 25), false)
   })
 })

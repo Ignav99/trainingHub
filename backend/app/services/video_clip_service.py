@@ -11,6 +11,37 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
+def clip_copy_cmd(video_url: str, start_secs: float, duration_secs: float, output_path: str) -> list[str]:
+    return [
+        "ffmpeg", "-y",
+        "-ss", str(start_secs),
+        "-i", video_url,
+        "-t", str(duration_secs),
+        "-c", "copy",
+        "-avoid_negative_ts", "make_zero",
+        "-movflags", "+faststart",
+        output_path,
+    ]
+
+
+def clip_encode_cmd(video_url: str, start_secs: float, duration_secs: float, output_path: str) -> list[str]:
+    return [
+        "ffmpeg", "-y",
+        "-ss", str(start_secs),
+        "-i", video_url,
+        "-t", str(duration_secs),
+        "-c:v", "libx264",
+        "-c:a", "aac",
+        "-movflags", "+faststart",
+        "-preset", "fast",
+        output_path,
+    ]
+
+
+def _run_ffmpeg(cmd: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+
+
 async def extract_clip(
     video_url: str,
     start_ms: int,
@@ -19,7 +50,7 @@ async def extract_clip(
 ) -> Path:
     """
     Extract a clip from a video URL using ffmpeg.
-    Returns path to the temporary output file.
+    Prefers stream copy (seconds, original quality) and falls back to encode.
     """
     start_secs = start_ms / 1000.0
     duration_secs = (end_ms - start_ms) / 1000.0
@@ -29,27 +60,16 @@ async def extract_clip(
     output_path = Path(output_file.name)
     output_file.close()
 
-    cmd = [
-        "ffmpeg", "-y",
-        "-ss", str(start_secs),
-        "-i", video_url,
-        "-t", str(duration_secs),
-        "-c:v", "libx264",
-        "-c:a", "aac",
-        "-movflags", "+faststart",
-        "-preset", "fast",
-        output_path.as_posix(),
-    ]
+    copy_cmd = clip_copy_cmd(video_url, start_secs, duration_secs, output_path.as_posix())
+    encode_cmd = clip_encode_cmd(video_url, start_secs, duration_secs, output_path.as_posix())
 
     logger.info(f"Extracting clip: {start_ms}ms-{end_ms}ms from {video_url[:80]}...")
 
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
+        result = _run_ffmpeg(copy_cmd, timeout=30)
+        if result.returncode != 0 or not output_path.exists() or output_path.stat().st_size == 0:
+            logger.info("stream copy failed; encoding")
+            result = _run_ffmpeg(encode_cmd, timeout=120)
         if result.returncode != 0:
             logger.error(f"ffmpeg error: {result.stderr[:500]}")
             raise RuntimeError(f"ffmpeg failed: {result.stderr[:200]}")
@@ -62,7 +82,7 @@ async def extract_clip(
 
     except subprocess.TimeoutExpired:
         output_path.unlink(missing_ok=True)
-        raise RuntimeError("ffmpeg timed out after 120s")
+        raise RuntimeError("ffmpeg timed out")
     except Exception:
         output_path.unlink(missing_ok=True)
         raise

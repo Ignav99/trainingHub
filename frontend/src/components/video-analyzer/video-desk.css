@@ -621,6 +621,138 @@
   color: var(--vd-muted);
 }
 
+.vd-code-btn.is-armed {
+  outline: 2px solid var(--vd-playhead);
+  outline-offset: 1px;
+}
+
+.vd-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.vd-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(8, 10, 6, 0.72);
+  cursor: pointer;
+}
+
+.vd-editor-modal {
+  position: relative;
+  z-index: 1;
+  width: min(420px, 100%);
+  max-height: min(90vh, 640px);
+  overflow: auto;
+  margin: 0;
+}
+
+.vd-editor-kicker {
+  font-family: var(--vd-display);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0 0 4px;
+}
+
+.vd-editor-hint,
+.vd-editor-error {
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.vd-editor-error {
+  color: var(--vd-danger);
+}
+
+.vd-folders-slim {
+  flex: 1;
+}
+
+.vd-clip-mini {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 6px 28px;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.vd-clip-mini.is-selected,
+.vd-clip-mini:hover {
+  background: color-mix(in srgb, var(--vd-playhead) 12%, transparent);
+}
+
+.vd-stage {
+  position: relative;
+  z-index: 1;
+  width: min(1100px, 96vw);
+  height: min(720px, 90vh);
+  display: flex;
+  flex-direction: column;
+  background: var(--vd-panel);
+  border: 1px solid color-mix(in srgb, var(--vd-line) 35%, transparent);
+}
+
+.vd-stage-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--vd-line) 25%, transparent);
+}
+
+.vd-stage-player {
+  flex: 1;
+  min-height: 0;
+  background: #000;
+}
+
+.vd-stage-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid color-mix(in srgb, var(--vd-line) 25%, transparent);
+}
+
+.vd-stage-list {
+  flex: 1;
+  display: flex;
+  gap: 6px;
+  overflow: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.vd-stage-list button {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--vd-text) 16%, transparent);
+  background: var(--vd-bg);
+  color: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.vd-stage-list button.is-on {
+  border-color: var(--vd-playhead);
+  color: var(--vd-playhead);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .vd-code-btn,
   .vd-btn {

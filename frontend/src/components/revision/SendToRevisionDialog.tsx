@@ -21,9 +21,10 @@ interface SendToRevisionDialogProps {
   open: boolean
   onOpenChange: (v: boolean) => void
   equipoId: string
-  partidoId: string
+  partidoId?: string
   rivalId?: string
   videoElement: HTMLVideoElement | null
+  sourceFile?: File
   clipTitle: string
   startTime: number
   endTime: number
@@ -38,13 +39,14 @@ export function SendToRevisionDialog({
   partidoId,
   rivalId,
   videoElement,
+  sourceFile,
   clipTitle,
   startTime,
   endTime,
   sourceVideoId,
   preferredFase,
 }: SendToRevisionDialogProps) {
-  const [ambito, setAmbito] = useState<RevisionAmbito>('partido_post')
+  const [ambito, setAmbito] = useState<RevisionAmbito>(partidoId ? 'partido_post' : 'rival')
   const [pack, setPack] = useState<RevisionPack | null>(null)
   const [folderId, setFolderId] = useState<string>('')
   const [titulo, setTitulo] = useState(clipTitle)
@@ -59,12 +61,14 @@ export function SendToRevisionDialog({
   )
 
   const loadPack = async (next: RevisionAmbito) => {
+    if ((next === 'partido_post' || next === 'partido_plan') && !partidoId) return
+    if (next === 'rival' && !rivalId) return
     setLoadingPack(true)
     try {
       const p = await revisionApi.getOrCreatePack({
         equipo_id: equipoId,
         ambito: next,
-        partido_id: next === 'partido_post' || next === 'partido_plan' ? partidoId : undefined,
+        partido_id: (next === 'partido_post' || next === 'partido_plan') && partidoId ? partidoId : undefined,
         rival_id: next === 'rival' ? rivalId : undefined,
       })
       setPack(p)
@@ -97,7 +101,10 @@ export function SendToRevisionDialog({
     setProgress(null)
     try {
       toast.message('Recortando en el ordenador… el partido no se sube')
-      const blob = await extractClipRange(videoElement, startTime, endTime)
+      const blob = await extractClipRange(videoElement, startTime, endTime, {
+        sourceFile,
+        onProgress: (msg) => toast.message(msg),
+      })
       const ext = (blob.type || '').includes('mp4') ? 'mp4' : 'webm'
       const clipFile = new File(
         [blob],
@@ -143,6 +150,7 @@ export function SendToRevisionDialog({
               type="button"
               size="sm"
               variant={ambito === 'partido_post' ? 'default' : 'outline'}
+              disabled={!partidoId}
               onClick={() => { setAmbito('partido_post'); void loadPack('partido_post') }}
             >
               Informe de partido
@@ -160,6 +168,7 @@ export function SendToRevisionDialog({
               type="button"
               size="sm"
               variant={ambito === 'partido_plan' ? 'default' : 'outline'}
+              disabled={!partidoId}
               onClick={() => { setAmbito('partido_plan'); void loadPack('partido_plan') }}
             >
               Plan de Partido

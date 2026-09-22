@@ -33,6 +33,11 @@ import {
   scrubPixels,
   waitUntilSeeked,
   wheelPixelsToSeconds,
+  PLAYBACK_SPEEDS,
+  nextPlaybackSpeed,
+  isFineJogPixels,
+  playOnePresentedFrame,
+  PresentedFrameCache,
   type ArrowJog,
 } from './videoJog'
 
@@ -114,6 +119,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const [duration, setDuration] = useState(0)
     const [internalMuted, setInternalMuted] = useState(!!defaultMuted)
     const [speed, setSpeed] = useState(1)
+    const [speedOpen, setSpeedOpen] = useState(false)
     const [internalFullscreen, setIsFullscreen] = useState(false)
     const [isExpanded, setIsExpanded] = useState(false)
     const currentTimeRef = useRef(0)
@@ -127,6 +133,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const pendingFramesRef = useRef(0)
     const heldJogRef = useRef<ArrowJog | null>(null)
     const holdTimerRef = useRef<number | null>(null)
+    const frameCacheRef = useRef(new PresentedFrameCache(90))
+    const overlayRef = useRef<HTMLCanvasElement | null>(null)
     const onTimeUpdateRef = useRef(onTimeUpdate)
     onTimeUpdateRef.current = onTimeUpdate
     const jogPointer = (standalonePreview || fillFrame) && !presenterEmbed
@@ -227,8 +235,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       seekToTime(min + ratio * Math.max(0, max - min))
     }, [rangeBounds, seekToTime])
 
-    // Frame step: pause, nudge by 1/fps, wait for seeked so long-GOP H.264
-    // match files stay in lockstep with the keys (web.dev rVFC + MDN currentTime).
+    // Frame step: forward plays one presented frame (no GOP seek). Reverse uses
+    // the rVFC cache, then a coalesced seek only if the cache missed.
     const runFrameQueue = useCallback(async () => {
       const v = videoRef.current
       if (!v || frameBusyRef.current) return
@@ -245,6 +253,29 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           if (dir === 0) break
           if (!v.paused) v.pause()
           const { min, max } = rangeBounds()
+          if (dir === 1) {
+            const next = await playOnePresentedFrame(v)
+            const clamped = clampTime(next, min, max)
+            currentTimeRef.current = clamped
+            setCurrentTime(clamped)
+            onTimeUpdateRef.current?.(clamped)
+            continue
+          }
+          const cached = frameCacheRef.current.nearestBefore(v.currentTime)
+          if (cached) {
+            const canvas = overlayRef.current
+            if (canvas) {
+              canvas.width = cached.bitmap.width
+              canvas.height = cached.bitmap.height
+              canvas.getContext('2d')?.drawImage(cached.bitmap, 0, 0)
+              canvas.style.opacity = '1'
+            }
+            currentTimeRef.current = cached.mediaTime
+            setCurrentTime(cached.mediaTime)
+            onTimeUpdateRef.current?.(cached.mediaTime)
+            v.currentTime = cached.mediaTime
+            continue
+          }
           const from = v.currentTime
           const next = nextFrameTime(from, dir, fpsRef.current, min, max)
           if (Math.abs(next - from) < 0.0004) break
@@ -288,12 +319,16 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     }), [frameStep, seek, seekToTime, playbackMuted, onMutedChange])
 
     const cycleSpeed = useCallback(() => {
-      const speeds = [0.25, 0.5, 1, 1.5, 2]
-      const idx = speeds.indexOf(speed)
-      const next = speeds[(idx + 1) % speeds.length]
+      const next = nextPlaybackSpeed(speed)
       setSpeed(next)
       if (videoRef.current) videoRef.current.playbackRate = next
     }, [speed])
+
+    const applySpeed = useCallback((next: number) => {
+      setSpeed(next)
+      setSpeedOpen(false)
+      if (videoRef.current) videoRef.current.playbackRate = next
+    }, [])
 
     useEffect(() => {
       const v = videoRef.current
@@ -359,6 +394,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           if (fps) fpsRef.current = fps
         }
         last = { frames: meta.presentedFrames, mediaTime: meta.mediaTime }
+        if (typeof createImageBitmap === 'function' && (v.paused || meta.presentedFrames % 4 === 0)) {
+          void createImageBitmap(v).then((bmp) => frameCacheRef.current.push(meta.mediaTime, bmp)).catch(() => undefined)
+        }
+        const canvas = overlayRef.current
+        if (canvas) canvas.style.opacity = '0'
         if (!v.paused) v.requestVideoFrameCallback!(sample)
       }
       const onPlay = () => {
@@ -382,6 +422,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     useEffect(() => {
       if (videoRef.current) videoRef.current.muted = elementMuted
     }, [elementMuted])
+
+    useEffect(() => {
+      frameCacheRef.current.clear()
+      const canvas = overlayRef.current
+      if (canvas) canvas.style.opacity = '0'
+    }, [src])
 
     // Two-finger trackpad jog. One decoder seek in flight; playhead is optimistic
     // so a 90-minute file stays fluid instead of queueing dozens of GOP decodes.
@@ -419,13 +465,18 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         const v = videoRef.current
         if (!v) return
         if (pendingPx !== 0) {
+          const px = pendingPx
+          pendingPx = 0
           const { min, max } = bounds()
+          if (isFineJogPixels(px, fpsRef.current)) {
+            frameStep(px > 0 ? 1 : -1)
+            return
+          }
           const next = clampTime(
-            currentTimeRef.current + wheelPixelsToSeconds(pendingPx, fpsRef.current),
+            currentTimeRef.current + wheelPixelsToSeconds(px, fpsRef.current),
             min,
             max
           )
-          pendingPx = 0
           currentTimeRef.current = next
           setCurrentTime(next)
           onTimeUpdateRef.current?.(next)
@@ -458,7 +509,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         el.removeEventListener('wheel', handler)
         if (rafId !== null) cancelAnimationFrame(rafId)
       }
-    }, [jogPointer, clipRange])
+    }, [jogPointer, clipRange, frameStep])
 
     const stopHoldJog = useCallback(() => {
       heldJogRef.current = null
@@ -588,20 +639,27 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') stopHoldJog()
         }}
       >
-        <video
-          ref={videoRef}
-          src={src.includes('.m3u8') ? undefined : src}
-          preload="auto"
-          muted={elementMuted}
-          playsInline
-          className={
-            fillVideo
-              ? 'flex-1 min-h-0 w-full object-contain bg-black'
-              : 'w-full h-full object-contain bg-black'
-          }
-          style={contentTransform}
-          onClick={togglePlay}
-        />
+        <div className={fillVideo ? 'relative flex-1 min-h-0 w-full bg-black' : 'relative w-full bg-black'}>
+          <video
+            ref={videoRef}
+            src={src.includes('.m3u8') ? undefined : src}
+            preload="auto"
+            muted={elementMuted}
+            playsInline
+            className={
+              fillVideo
+                ? 'h-full w-full object-contain bg-black'
+                : 'w-full h-full object-contain bg-black'
+            }
+            style={contentTransform}
+            onClick={togglePlay}
+          />
+          <canvas
+            ref={overlayRef}
+            className="pointer-events-none absolute inset-0 h-full w-full object-contain opacity-0"
+            aria-hidden
+          />
+        </div>
 
         {/* Controls: seek bar + [Play] [Rewind] [-5] [<f] [f>] [+5] | time | mute | speed */}
         <div className="bg-black/80 text-white text-xs relative z-10 shrink-0">
@@ -745,12 +803,34 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             {uiMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
           </Button>
 
-          <button
-            className="px-1.5 py-0.5 rounded text-[10px] font-mono hover:bg-white/20 min-w-[32px] text-white/70"
-            onClick={cycleSpeed}
-          >
-            {speed}x
-          </button>
+          <div className="relative">
+            <button
+              type="button"
+              className="px-1.5 py-0.5 rounded text-[10px] font-mono hover:bg-white/20 min-w-[36px] text-white/70"
+              onClick={() => setSpeedOpen((v) => !v)}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                cycleSpeed()
+              }}
+              title="Velocidad. Clic para elegir, derecho para ciclar"
+            >
+              {speed}×
+            </button>
+            {speedOpen ? (
+              <div className="absolute bottom-8 right-0 z-20 min-w-[72px] overflow-hidden rounded border border-white/15 bg-black/95 py-1">
+                {PLAYBACK_SPEEDS.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className={`block w-full px-3 py-1 text-left font-mono text-[11px] hover:bg-white/15 ${Math.abs(s - speed) < 0.001 ? 'text-orange-400' : 'text-white/80'}`}
+                    onClick={() => applySpeed(s)}
+                  >
+                    {s}×
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
 
           {(standalonePreview || presenterEmbed) && (
             <>

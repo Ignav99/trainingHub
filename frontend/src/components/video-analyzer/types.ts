@@ -57,6 +57,7 @@ export const STROKE_WIDTHS = [2, 4, 6, 10]
 // ─── Code Window (Sportscode-style event coding) ───────────────────────────
 
 export type CodeButtonSize = 's' | 'm' | 'l'
+export type CodeCaptureMode = 'window' | 'range'
 
 export interface CodeButton {
   id: string
@@ -67,6 +68,8 @@ export interface CodeButton {
   postRoll: number    // seconds after press included in clip (default 5)
   description?: string
   size?: CodeButtonSize
+  /** window = pre/post around the press. range = click in, click out. */
+  captureMode?: CodeCaptureMode
   /** Maps the folder to Revisión (ataque_organizado, abp_ofensiva, …). */
   fase?: string
 }
