@@ -34,9 +34,17 @@ from app.services.microciclo_estado import (
     estado_desde_fechas,
     persist_estado,
 )
+from app.services.microciclo_partido import apply_auto_link_partido
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+MICRO_JOINS = (
+    "*, equipos(id, nombre, categoria), "
+    "partidos(*, rivales(nombre, nombre_corto, escudo_url, ciudad, estadio)), "
+    "rivales(nombre, nombre_corto, escudo_url, ciudad, estadio), "
+    "game_models(id, nombre, sistema_juego, estilo)"
+)
 
 
 def _jugadores_apercibidos(supabase, equipo_id: str, jugadores: list) -> list:
@@ -181,7 +189,7 @@ async def get_microciclo_completo(
     try:
             # 1. Microciclo con todos los joins
         micro_resp = supabase.table("microciclos").select(
-            "*, equipos(id, nombre, categoria), partidos(*, rivales(nombre, nombre_corto, escudo_url)), rivales(nombre, nombre_corto, escudo_url), game_models(id, nombre, sistema_juego, estilo)"
+            MICRO_JOINS
         ).eq("id", str(microciclo_id)).single().execute()
 
         if not micro_resp.data:
@@ -196,31 +204,15 @@ async def get_microciclo_completo(
         fecha_inicio = micro["fecha_inicio"]
         fecha_fin = micro["fecha_fin"]
 
-        # Auto-link partido solo en microciclos de competición (no pretemporada / sin partido)
-        plan_ct = micro.get("plan_ct") or {}
-        tipo_mc = plan_ct.get("tipo_microciclo")
-        modo_partido = plan_ct.get("modo_partido")
-        fase = plan_ct.get("fase_temporada")
-        skip_auto_link = (
-            tipo_mc == "pretemporada"
-            or fase == "pretemporada"
-            or modo_partido in ("none", "amistoso_interno")
-            or plan_ct.get("auto_link_partido") is False
-        )
-        if not micro.get("partido_id") and not skip_auto_link:
-            partido_auto = supabase.table("partidos").select("id").eq(
-                "equipo_id", equipo_id
-            ).gte("fecha", fecha_inicio).lte("fecha", fecha_fin).limit(1).execute()
-            if partido_auto.data:
-                pid = partido_auto.data[0]["id"]
-                supabase.table("microciclos").update({
-                    "partido_id": str(pid)
-                }).eq("id", str(microciclo_id)).execute()
-                # Reload
-                micro_resp = supabase.table("microciclos").select(
-                    "*, equipos(id, nombre, categoria), partidos(*, rivales(nombre, nombre_corto, escudo_url)), rivales(nombre, nombre_corto, escudo_url), game_models(id, nombre, sistema_juego, estilo)"
-                ).eq("id", str(microciclo_id)).single().execute()
-                micro = micro_resp.data
+        if apply_auto_link_partido(supabase, micro):
+            micro_resp = supabase.table("microciclos").select(
+                MICRO_JOINS
+            ).eq("id", str(microciclo_id)).single().execute()
+            micro = micro_resp.data
+            equipo_id = micro["equipo_id"]
+            rival_id = micro.get("rival_id")
+            fecha_inicio = micro["fecha_inicio"]
+            fecha_fin = micro["fecha_fin"]
 
         # 2. Sesiones con count de tareas + dia_numero + orden
         sesiones_resp = supabase.table("sesiones").select(
@@ -490,7 +482,18 @@ async def create_microciclo(
             detail="Error al crear microciclo"
         )
 
-    return MicrocicloResponse(**aplicar_estado(response.data[0]))
+    created = response.data[0]
+    try:
+        if apply_auto_link_partido(supabase, created):
+            refreshed = supabase.table("microciclos").select("*").eq(
+                "id", created["id"]
+            ).single().execute()
+            if refreshed.data:
+                created = refreshed.data
+    except Exception:
+        logger.exception("Auto-link partido failed for microciclo %s", created.get("id"))
+
+    return MicrocicloResponse(**aplicar_estado(created))
 
 
 @router.put("/{microciclo_id}", response_model=MicrocicloResponse)
@@ -594,34 +597,11 @@ async def link_sesiones_to_microciclo(
 
     # Link partido solo si el microciclo no es de pretemporada / sin partido
     micro_full = supabase.table("microciclos").select(
-        "partido_id, plan_ct"
+        "*"
     ).eq("id", str(microciclo_id)).single().execute()
-    plan_ct = (micro_full.data or {}).get("plan_ct") or {}
-    skip_auto_link = (
-        plan_ct.get("tipo_microciclo") == "pretemporada"
-        or plan_ct.get("fase_temporada") == "pretemporada"
-        or plan_ct.get("modo_partido") in ("none", "amistoso_interno")
-        or plan_ct.get("auto_link_partido") is False
-        or bool((micro_full.data or {}).get("partido_id"))
-    )
+    partido_linked = apply_auto_link_partido(supabase, micro_full.data or {})
 
-    partido_id = None
-    if not skip_auto_link:
-        partido_result = supabase.table("partidos").select("id").eq(
-            "equipo_id", equipo_id
-        ).gte(
-            "fecha", fecha_inicio
-        ).lte(
-            "fecha", fecha_fin
-        ).limit(1).execute()
-
-        if partido_result.data:
-            partido_id = partido_result.data[0]["id"]
-            supabase.table("microciclos").update({
-                "partido_id": str(partido_id)
-            }).eq("id", str(microciclo_id)).execute()
-
-    return {"linked": linked, "partido_linked": partido_id is not None, "microciclo_id": str(microciclo_id)}
+    return {"linked": linked, "partido_linked": partido_linked, "microciclo_id": str(microciclo_id)}
 
 
 @router.put("/{microciclo_id}/reordenar")

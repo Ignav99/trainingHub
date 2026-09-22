@@ -1,4 +1,5 @@
 import type { PlanPartidoData } from '@/types'
+import { hasNutricionPartidoContent } from '@/lib/microcicloNutricionSync'
 
 export const PLAN_TRAMOS = ['ida', 'vuelta'] as const
 export type PlanTramo = (typeof PLAN_TRAMOS)[number]
@@ -65,7 +66,7 @@ export function mergeTramoIntoStore(
 }
 
 export function tramoHasContent(plan: Partial<PlanPartidoData> | undefined | null): boolean {
-  return (plan?.fases?.length ?? 0) > 0 || !!plan?.nutricion_partido
+  return (plan?.fases?.length ?? 0) > 0 || hasNutricionPartidoContent(plan?.nutricion_partido)
 }
 
 /** Prefer the current tramo if it has content; otherwise the first tramo with a plan. */

@@ -1,4 +1,4 @@
-import type { FaseTemporada, ModoPartidoMicrociclo, PlanCT, TipoMicrociclo } from '@/types'
+import type { FaseTemporada, Microciclo, ModoPartidoMicrociclo, Partido, PlanCT, Rival, TipoMicrociclo } from '@/types'
 
 export function resolveFaseTemporada(plan?: Partial<PlanCT> | null): FaseTemporada {
   if (plan?.fase_temporada) return plan.fase_temporada
@@ -27,6 +27,29 @@ export function showRivalPlanBlocks(plan?: Partial<PlanCT> | null, hasRival?: bo
 /** Usar morfociclo por días de calendario en vez de MD+/- */
 export function useMorfocicloCalendario(plan?: Partial<PlanCT> | null): boolean {
   return isPretemporada(plan) || resolveModoPartido(plan) === 'none'
+}
+
+type PartidoWithRivalJoin = Partido & { rivales?: Rival }
+
+/** PostgREST may nest the opponent as `rival` or `rivales`. */
+export function rivalFromPartido(partido?: Partido | null): Rival | undefined {
+  if (!partido) return undefined
+  if (partido.rival) return partido.rival
+  return (partido as PartidoWithRivalJoin).rivales
+}
+
+export function microcicloLinkedRival(
+  micro?: Pick<Microciclo, 'rivales' | 'partidos'> | null
+): Rival | undefined {
+  if (!micro) return undefined
+  return micro.rivales ?? rivalFromPartido(micro.partidos)
+}
+
+export function microcicloHasLinkedMatch(
+  micro?: Pick<Microciclo, 'partido_id' | 'rival_id' | 'rivales' | 'partidos'> | null
+): boolean {
+  if (!micro) return false
+  return Boolean(micro.partido_id || micro.rival_id || micro.rivales || micro.partidos)
 }
 
 export function defaultPlanForFase(fase: FaseTemporada): Partial<PlanCT> {

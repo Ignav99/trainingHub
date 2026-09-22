@@ -96,6 +96,11 @@ export default function MicrocicloDetallePage() {
       : null
   )
   const upcomingMatches = matchesResponse?.data || []
+  const currentPartido = data?.microciclo?.partidos
+  const partidoOptions =
+    currentPartido && !upcomingMatches.some((m) => m.id === currentPartido.id)
+      ? [currentPartido, ...upcomingMatches]
+      : upcomingMatches
 
   // Edit dialog state
   const [showEdit, setShowEdit] = useState(false)
@@ -129,10 +134,14 @@ export default function MicrocicloDetallePage() {
     if (!data) return
     setSaving(true)
     try {
+      const cleared = !form.partido_id
       await microciclosApi.update(data.microciclo.id, {
         // null limpia el FK; undefined no envía el campo
         partido_id: form.partido_id || null,
         rival_id: form.rival_id || null,
+        ...(cleared
+          ? { plan_ct: { ...(data.microciclo.plan_ct ?? {}), auto_link_partido: false } }
+          : {}),
       } as Parameters<typeof microciclosApi.update>[1])
       setShowEdit(false)
       mutate((key: string) => typeof key === 'string' && key.includes('/microciclos'), undefined, { revalidate: true })
@@ -273,9 +282,9 @@ export default function MicrocicloDetallePage() {
       <Dialog open={showEdit} onOpenChange={(open) => !open && setShowEdit(false)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Vincular rival y partido</DialogTitle>
+            <DialogTitle>Partido de la semana</DialogTitle>
             <DialogDescription>
-              Semana del {rangeLabel}
+              Se asigna solo el partido de estas fechas. Cámbialo únicamente si no es el correcto.
             </DialogDescription>
           </DialogHeader>
 
@@ -287,7 +296,7 @@ export default function MicrocicloDetallePage() {
                 value={form.partido_id}
                 onChange={(e) => {
                   const partidoId = e.target.value
-                  const match = upcomingMatches.find((m) => m.id === partidoId)
+                  const match = partidoOptions.find((m) => m.id === partidoId)
                   setForm({
                     partido_id: partidoId,
                     rival_id: match?.rival_id || form.rival_id,
@@ -295,12 +304,15 @@ export default function MicrocicloDetallePage() {
                 }}
               >
                 <option value="">Sin partido asignado</option>
-                {upcomingMatches.map((m) => (
+                {partidoOptions.map((m) => (
                   <option key={m.id} value={m.id}>
                     {formatDate(m.fecha)} - {m.localia === 'local' ? 'vs' : '@'} {m.rival?.nombre || 'Rival'} ({m.competicion})
                   </option>
                 ))}
               </select>
+              <p className="text-[11px] text-muted-foreground">
+                Dejar vacío desactiva la asignación automática de esta semana.
+              </p>
             </div>
 
             <div className="space-y-2">

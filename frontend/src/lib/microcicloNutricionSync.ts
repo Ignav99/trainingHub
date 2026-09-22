@@ -121,3 +121,15 @@ export function defaultNutricionPartidoPlan(): NutricionPartidoPlan {
     notas: '',
   }
 }
+
+/** True only when the staff actually filled nutrition — empty defaults do not count. */
+export function hasNutricionPartidoContent(plan?: NutricionPartidoPlan | null): boolean {
+  if (!plan) return false
+  if (plan.argumento_suplementacion?.trim()) return true
+  if (plan.comida_recomendada?.trim()) return true
+  if (plan.notas?.trim()) return true
+  if (plan.clima_estimacion?.trim()) return true
+  if ((plan.etiquetas ?? []).some((t) => t.trim())) return true
+  if ((plan.suplementaciones ?? []).length > 0) return true
+  return false
+}
