@@ -97,8 +97,19 @@
   font-weight: 600;
 }
 
-.vd-btn-accent:hover {
-  filter: brightness(1.05);
+.vd-btn-danger {
+  background: #7A2E2A;
+  color: #F6E6E2;
+  border-color: #C45C4A;
+  font-weight: 600;
+}
+
+.vd-btn-danger:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.vd-btn-danger:disabled {
+  opacity: 0.4;
 }
 
 .vd-body {
@@ -146,6 +157,33 @@
   border-left: 1px solid color-mix(in srgb, var(--vd-line) 22%, transparent);
 }
 
+.vd-rail-botonera {
+  flex: 0 0 var(--vd-botonera, 46%);
+  min-height: 88px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.vd-rail-organizer {
+  flex: 1 1 auto;
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.vd-rail-split {
+  height: 6px;
+  flex-shrink: 0;
+  cursor: row-resize;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--vd-line) 45%, transparent), transparent);
+}
+
+.vd-rail-split:hover {
+  background: var(--vd-line);
+}
+
 .vd-section-label {
   font-family: var(--vd-display);
   font-size: 11px;
@@ -159,7 +197,8 @@
 .vd-botonera {
   padding: 4px 10px 10px;
   overflow: auto;
-  max-height: 48%;
+  flex: 1;
+  min-height: 0;
 }
 
 .vd-botonera-grid {
@@ -313,7 +352,7 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  border-top: 1px solid color-mix(in srgb, var(--vd-line) 18%, transparent);
+  border-top: 0;
   padding-bottom: 8px;
 }
 
@@ -693,6 +732,65 @@
   background: color-mix(in srgb, var(--vd-playhead) 12%, transparent);
 }
 
+.vd-clip-row {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.vd-clip-row.is-selected,
+.vd-clip-row:hover {
+  background: color-mix(in srgb, var(--vd-playhead) 12%, transparent);
+}
+
+.vd-clip-row .vd-clip-mini {
+  flex: 1;
+  min-width: 0;
+}
+
+.vd-clip-name-input {
+  width: 100%;
+  min-width: 0;
+  height: 22px;
+  margin: 0;
+  padding: 0 4px;
+  border: 1px solid var(--vd-line);
+  background: var(--vd-bg);
+  color: var(--vd-text);
+  font: inherit;
+  border-radius: 2px;
+}
+
+.vd-clip-act,
+.vd-clip-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.vd-clip-act {
+  color: color-mix(in srgb, var(--vd-text) 75%, var(--vd-line));
+}
+
+.vd-clip-act:hover {
+  color: var(--vd-line);
+  background: color-mix(in srgb, var(--vd-line) 14%, transparent);
+}
+
+.vd-clip-delete {
+  color: color-mix(in srgb, var(--vd-text) 70%, #C45C4A);
+}
+
+.vd-clip-delete:hover {
+  color: #E07060;
+  background: color-mix(in srgb, #C45C4A 16%, transparent);
+}
+
 .vd-stage {
   position: relative;
   z-index: 1;
@@ -711,6 +809,18 @@
   gap: 12px;
   padding: 8px 12px;
   border-bottom: 1px solid color-mix(in srgb, var(--vd-line) 25%, transparent);
+}
+
+.vd-stage-head-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.vd-stage-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .vd-stage-player {
@@ -748,9 +858,35 @@
   white-space: nowrap;
 }
 
-.vd-stage-list button.is-on {
-  border-color: var(--vd-playhead);
-  color: var(--vd-playhead);
+.vd-stage-item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.vd-block-delete {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  z-index: 2;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: color-mix(in srgb, #1a120f 70%, transparent);
+  color: #F6E6E2;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.vd-block.is-selected .vd-block-delete,
+.vd-block:hover .vd-block-delete {
+  display: flex;
 }
 
 @media (prefers-reduced-motion: reduce) {

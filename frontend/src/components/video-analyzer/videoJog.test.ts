@@ -5,7 +5,7 @@ import {
   PIXELS_PER_FRAME,
   arrowJog,
   isClipDeleteKey,
-  PLAYER_SKIP_SECONDS,
+  holdFrameInterval,
   clampTime,
   estimateFps,
   isScrubGesture,
@@ -58,14 +58,26 @@ describe('video jog', () => {
     assert.equal(clampTime(200, 0, 90), 90)
   })
 
-  it('treats arrows as player skip and Shift+arrows as one frame', () => {
-    assert.deepEqual(arrowJog('ArrowLeft', false), { kind: 'skip', direction: -1, seconds: PLAYER_SKIP_SECONDS })
-    assert.deepEqual(arrowJog('ArrowRight', false), { kind: 'skip', direction: 1, seconds: PLAYER_SKIP_SECONDS })
+  it('treats arrows as one frame, never a 5s skip', () => {
+    assert.deepEqual(arrowJog('ArrowLeft', false), { kind: 'frame', direction: -1 })
+    assert.deepEqual(arrowJog('ArrowRight', false), { kind: 'frame', direction: 1 })
     assert.deepEqual(arrowJog('ArrowLeft', true), { kind: 'frame', direction: -1 })
     assert.equal(arrowJog(' ', false), null)
     assert.equal(isClipDeleteKey('Delete'), true)
     assert.equal(isClipDeleteKey('Backspace'), true)
     assert.equal(isClipDeleteKey('d'), false)
+    assert.equal(isClipDeleteKey({ key: 'Backspace', code: 'Backspace' }), true)
+    assert.equal(isClipDeleteKey({ key: 'Unidentified', code: 'Backspace' }), true)
+    assert.equal(isClipDeleteKey({ key: 'Backspace', metaKey: true }), false)
+    assert.equal(isClipDeleteKey({ key: 'Backspace', repeat: true }), false)
+  })
+
+  it('hold rewind starts slow and then shortens the gap between frames', () => {
+    const first = holdFrameInterval(0)
+    const later = holdFrameInterval(2000)
+    assert.ok(first > later)
+    assert.ok(first >= 120)
+    assert.ok(later <= 40)
   })
 
   it('estimates fps from presented frames and ignores tiny samples', () => {
