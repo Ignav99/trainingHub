@@ -15,6 +15,12 @@ from jinja2 import Environment, FileSystemLoader
 
 from app.services.tarea_descanso import format_descanso
 from app.services.partido_campo import clean_estadio_nombre, format_kit_convocatoria_label, split_campo_arbitro
+from app.services.duracion_efectiva import (
+    compensatorio_lane_index,
+    fase_for_lane,
+    is_compensatorio_fase,
+    lanes_from_bloque,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +53,14 @@ FASE_NOMBRES = {
     "desarrollo_5": "Desarrollo 5",
     "desarrollo_6": "Desarrollo 6",
     "vuelta_calma": "Vuelta a calma",
-    "compensatorio_1": "Compensatorio A",
-    "compensatorio_2": "Compensatorio B",
-    "compensatorio_3": "Compensatorio C",
+    "compensatorio_1": "Grupo A",
+    "compensatorio_2": "Grupo B",
+    "compensatorio_3": "Grupo C",
+    "compensatorio_4": "Grupo D",
+    "compensatorio_5": "Grupo E",
+    "compensatorio_6": "Grupo F",
+    "compensatorio_7": "Grupo G",
+    "compensatorio_8": "Grupo H",
 }
 
 # Mapping from app team colors to peto CSS class + label
@@ -816,14 +827,12 @@ async def generate_sesion_pdf_v2(
                 }
                 continue
             if tipo == "compensatorio":
-                lanes = (bloque.get("compensatorio") or {}).get("lanes") or []
-                for i, lane_key in enumerate(("compensatorio_1", "compensatorio_2", "compensatorio_3")):
-                    label = None
-                    if i < len(lanes) and isinstance(lanes[i], dict):
-                        label = lanes[i].get("label")
+                lanes = lanes_from_bloque(bloque)
+                for i, lane in enumerate(lanes):
+                    lane_key = fase_for_lane(i)
                     if lane_key not in fases:
                         fases[lane_key] = {
-                            "nombre": label or FASE_NOMBRES.get(lane_key, lane_key),
+                            "nombre": lane.get("label") or FASE_NOMBRES.get(lane_key, lane_key),
                             "tareas": [],
                             "duracion_objetivo": bloque.get("duracion_objetivo"),
                         }
@@ -847,7 +856,7 @@ async def generate_sesion_pdf_v2(
             if tipo in ("videoanalisis", "partido_condicionado"):
                 ordered_keys.append(f"bloque_{bloque.get('id', tipo)}")
             elif tipo == "compensatorio":
-                ordered_keys.extend(["compensatorio_1", "compensatorio_2", "compensatorio_3"])
+                ordered_keys.extend([fase_for_lane(i) for i in range(len(lanes_from_bloque(bloque)))])
             elif tipo:
                 ordered_keys.append(tipo)
         for fk in fases:
@@ -866,14 +875,18 @@ async def generate_sesion_pdf_v2(
             "compensatorio_1",
             "compensatorio_2",
             "compensatorio_3",
+            "compensatorio_4",
+            "compensatorio_5",
+            "compensatorio_6",
+            "compensatorio_7",
+            "compensatorio_8",
             "vuelta_calma",
         ]
         fases = {k: fases[k] for k in fase_order if k in fases}
 
     all_tareas = []
     sequential_dur = 0
-    lane_durs = [0, 0, 0]
-    _COMP_FASES = ("compensatorio_1", "compensatorio_2", "compensatorio_3")
+    lane_durs: dict[int, int] = {}
 
     def _ensure_list(val):
         """Coerce string/None to list for template iteration safety."""
@@ -902,8 +915,10 @@ async def generate_sesion_pdf_v2(
             dur_i = int(duracion or 0)
         except (TypeError, ValueError):
             dur_i = 0
-        if str(fase_key) in _COMP_FASES:
-            lane_durs[_COMP_FASES.index(str(fase_key))] += dur_i
+        if is_compensatorio_fase(fase_key):
+            idx = compensatorio_lane_index(str(fase_key))
+            if idx is not None:
+                lane_durs[idx] = lane_durs.get(idx, 0) + dur_i
         else:
             sequential_dur += dur_i
 
@@ -987,7 +1002,7 @@ async def generate_sesion_pdf_v2(
         if fase_key in fases:
             fases[fase_key]["tareas"].append(tarea_enriched)
 
-    duracion_total = sequential_dur + max(lane_durs)
+    duracion_total = sequential_dur + (max(lane_durs.values()) if lane_durs else 0)
 
     def _ids_to_names(ids_or_map) -> str:
         ids: list = []

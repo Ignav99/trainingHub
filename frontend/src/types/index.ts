@@ -27,7 +27,7 @@ export type RolUsuario =
   | 'tutor'
 export type MatchDay = 'MD+1' | 'MD+2' | 'MD-4' | 'MD-3' | 'MD-2' | 'MD-1' | 'MD'
 export type FaseJuego = 'ataque_organizado' | 'defensa_organizada' | 'transicion_ataque_defensa' | 'transicion_defensa_ataque'
-export type FaseSesion = 'activacion' | 'desarrollo_1' | 'desarrollo_2' | 'desarrollo_3' | 'desarrollo_4' | 'desarrollo_5' | 'desarrollo_6' | 'vuelta_calma' | 'compensatorio_1' | 'compensatorio_2' | 'compensatorio_3'
+export type FaseSesion = 'activacion' | 'desarrollo_1' | 'desarrollo_2' | 'desarrollo_3' | 'desarrollo_4' | 'desarrollo_5' | 'desarrollo_6' | 'vuelta_calma' | 'compensatorio_1' | 'compensatorio_2' | 'compensatorio_3' | 'compensatorio_4' | 'compensatorio_5' | 'compensatorio_6' | 'compensatorio_7' | 'compensatorio_8'
 
 /** Bloque de sesión definido por el usuario (persistido en sesiones.estructura_fases). */
 export type TipoBloqueSesion = FaseSesion | 'videoanalisis' | 'partido_condicionado' | 'compensatorio'
@@ -67,7 +67,7 @@ export interface SesionBloque {
   notas?: string
   orden: number
   partido?: PartidoCondicionadoData
-  /** Tres lanes paralelos: jugadores + tareas distintas, misma franja de tiempo. */
+  /** N lanes paralelos (mín. 2): jugadores + tareas distintas, misma franja de tiempo. */
   compensatorio?: CompensatorioData
 }
 export type EstadoSesion = 'borrador' | 'planificada' | 'completada' | 'cancelada'

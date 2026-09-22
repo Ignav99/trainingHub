@@ -7,8 +7,8 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.services.duracion_efectiva import (
-    COMPENSATORIO_FASES,
     clock_minutos_sesion_tarea,
+    compensatorio_lane_index,
     is_compensatorio_fase,
     minutos_carga_sesion_tarea,
 )
@@ -130,15 +130,16 @@ def aggregate_sesion_carga(
     """
     total_carga = 0.0
     sequential_dur = 0
-    lane_durs = [0, 0, 0]
+    lane_durs: dict[int, int] = {}
     for st in sesion_tareas or []:
         tarea = st.get("tarea") or st.get("tareas") or {}
         if not isinstance(tarea, dict):
             tarea = {}
         clock = clock_minutos_sesion_tarea(st)
         fase = st.get("fase_sesion")
-        if is_compensatorio_fase(fase) and fase in COMPENSATORIO_FASES:
-            lane_durs[COMPENSATORIO_FASES.index(fase)] += clock
+        lane_idx = compensatorio_lane_index(fase) if is_compensatorio_fase(fase) else None
+        if lane_idx is not None:
+            lane_durs[lane_idx] = lane_durs.get(lane_idx, 0) + clock
         else:
             sequential_dur += clock
         total_carga += carga_from_sesion_tarea(st)
@@ -152,6 +153,6 @@ def aggregate_sesion_carga(
             partido_dur += dur_p
             total_carga += carga_p
 
-    total_dur = sequential_dur + max(lane_durs) + partido_dur
+    total_dur = sequential_dur + (max(lane_durs.values()) if lane_durs else 0) + partido_dur
     intensidad = intensidad_from_carga(total_carga, total_dur)
     return round(total_carga, 2), intensidad, total_dur
