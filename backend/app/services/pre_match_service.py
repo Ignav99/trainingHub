@@ -457,6 +457,27 @@ def _empty_side_stats() -> dict:
     return {"pj": 0, "pg": 0, "pe": 0, "pp": 0, "gf": 0, "gc": 0}
 
 
+def _int_score(value) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _apply_side_result(side_stats: dict, gf: int, gc: int) -> None:
+    side_stats["pj"] += 1
+    side_stats["gf"] += gf
+    side_stats["gc"] += gc
+    if gf > gc:
+        side_stats["pg"] += 1
+    elif gf == gc:
+        side_stats["pe"] += 1
+    else:
+        side_stats["pp"] += 1
+
+
 def _effective_temporada_code(comp: dict | None) -> str:
     """Current RFAF season for this competition (never older than the live season)."""
     live = str(default_rfaf_temporada())
@@ -519,31 +540,89 @@ def _dedupe_actas(actas: list[dict]) -> list[dict]:
     return out
 
 
-def _jornada_cod_actas(supabase, comp_id: str) -> set[str]:
-    """cod_acta values in the current calendar (rfef_jornadas, overwritten each season)."""
-    cache = getattr(supabase, "_th_jornada_cod_actas", None)
+def _jornadas_partidos(supabase, comp_id: str) -> list[dict]:
+    """Flatten current-calendar fixtures. Cached per supabase client."""
+    cache = getattr(supabase, "_th_jornadas_partidos", None)
     if not isinstance(cache, dict):
         cache = {}
         try:
-            supabase._th_jornada_cod_actas = cache
+            supabase._th_jornadas_partidos = cache
         except Exception:
             cache = {}
     if comp_id in cache:
         return cache[comp_id]
-    codes: set[str] = set()
+    rows: list[dict] = []
     try:
         res = supabase.table("rfef_jornadas").select("numero, partidos").eq(
             "competicion_id", comp_id
         ).execute()
         for jornada in res.data or []:
+            numero = jornada.get("numero")
             for partido in jornada.get("partidos") or []:
-                cod = partido.get("cod_acta")
-                if cod:
-                    codes.add(str(cod))
+                rows.append({**partido, "jornada_numero": numero})
     except Exception as e:
-        logger.debug("Could not load jornada cod_actas for %s: %s", comp_id, e)
-    cache[comp_id] = codes
+        logger.debug("Could not load jornadas for %s: %s", comp_id, e)
+    cache[comp_id] = rows
+    return rows
+
+
+def _jornada_cod_actas(supabase, comp_id: str) -> set[str]:
+    """cod_acta values in the current calendar (rfef_jornadas, overwritten each season)."""
+    codes: set[str] = set()
+    for partido in _jornadas_partidos(supabase, comp_id):
+        cod = partido.get("cod_acta")
+        if cod:
+            codes.add(str(cod))
     return codes
+
+
+def _team_is_local(
+    rival_nombre: str,
+    local: str,
+    visitante: str,
+    mi_equipo: str | None = None,
+) -> bool | None:
+    """Venue of the rival from calendar names (not from scraped acta sides)."""
+    return _is_rival_local(
+        {"local_nombre": local, "visitante_nombre": visitante},
+        rival_nombre,
+        mi_equipo,
+    )
+
+
+def _jornada_resultados_rival(
+    supabase,
+    comp_id: str,
+    rival_nombre: str,
+    mi_equipo: str | None = None,
+) -> list[dict]:
+    """Finished current-calendar fixtures for the rival: true venue + score.
+
+    rfef_jornadas is overwritten each season and stores local/visitante as
+    they actually played. Acta rows often list the rival as local with
+    their GF in goles_local even when they played away — do not use those
+    names for casa/fuera totals.
+    """
+    results: list[dict] = []
+    for partido in _jornadas_partidos(supabase, comp_id):
+        local = partido.get("local") or ""
+        visitante = partido.get("visitante") or ""
+        is_local = _team_is_local(rival_nombre, local, visitante, mi_equipo)
+        if is_local is None:
+            continue
+        gl = _int_score(partido.get("goles_local"))
+        gv = _int_score(partido.get("goles_visitante"))
+        if gl is None or gv is None:
+            continue
+        gf, gc = (gl, gv) if is_local else (gv, gl)
+        results.append({
+            "is_local": is_local,
+            "gf": gf,
+            "gc": gc,
+            "jornada": partido.get("jornada_numero"),
+            "cod_acta": str(partido.get("cod_acta") or "") or None,
+        })
+    return results
 
 
 def _split_actas_by_temporada(
@@ -659,7 +738,7 @@ def _compute_contexto_stats(
     actas: list[dict] | None = None,
     temporada_code: str | None = None,
 ) -> dict | None:
-    """Aggregate contextual stats from actas: goals by minute, halves, home/away."""
+    """Aggregate contextual stats: calendar venue/score + acta goal minutes."""
     if actas is None:
         if supabase is None:
             return None
@@ -678,7 +757,12 @@ def _compute_contexto_stats(
         actas, _ignored = _split_actas_by_temporada(actas, temporada_code, calendar)
 
     actas = _dedupe_actas(actas or [])
-    if not actas:
+    jornada_resultados = (
+        _jornada_resultados_rival(supabase, comp_id, rival_nombre, mi_equipo)
+        if supabase is not None
+        else []
+    )
+    if not actas and not jornada_resultados:
         return None
 
     buckets_marcados: Counter = Counter()
@@ -694,25 +778,41 @@ def _compute_contexto_stats(
     actas_resultado = 0
     actas_detalle = 0
 
+    # Casa/fuera GF-GC and W-D-L come from the calendar when it has
+    # finished scores. Acta local_nombre is often the rival even away.
+    if jornada_resultados:
+        for match in jornada_resultados:
+            side_stats = casa if match["is_local"] else fuera
+            _apply_side_result(side_stats, match["gf"], match["gc"])
+            actas_resultado += 1
+    else:
+        for acta in actas_rival:
+            is_local = _is_rival_local(acta, rival_nombre, mi_equipo)
+            gl = _int_score(acta.get("goles_local"))
+            gv = _int_score(acta.get("goles_visitante"))
+            if is_local is None or gl is None or gv is None:
+                continue
+            gf, gc = (gl, gv) if is_local else (gv, gl)
+            side_stats = casa if is_local else fuera
+            _apply_side_result(side_stats, gf, gc)
+            actas_resultado += 1
+
+    # Minutes stay on the acta POV (parcials / roster). Do not flip
+    # is_local from the calendar or own-goals get inverted.
+    jornada_cods = {
+        str(m["cod_acta"]) for m in jornada_resultados if m.get("cod_acta")
+    }
     for acta in actas_rival:
+        if jornada_cods:
+            cod = str(acta.get("cod_acta") or "")
+            if cod and cod not in jornada_cods:
+                continue
         is_local = _is_rival_local(acta, rival_nombre, mi_equipo)
-        gl = acta.get("goles_local")
-        gv = acta.get("goles_visitante")
+        gl = _int_score(acta.get("goles_local"))
+        gv = _int_score(acta.get("goles_visitante"))
         if is_local is None or gl is None or gv is None:
             continue
-
-        side_stats = casa if is_local else fuera
         gf, gc = (gl, gv) if is_local else (gv, gl)
-        actas_resultado += 1
-        side_stats["pj"] += 1
-        side_stats["gf"] += gf
-        side_stats["gc"] += gc
-        if gf > gc:
-            side_stats["pg"] += 1
-        elif gf == gc:
-            side_stats["pe"] += 1
-        else:
-            side_stats["pp"] += 1
 
         goles_list = acta.get("goles") or []
         if not goles_list:
@@ -957,7 +1057,10 @@ def _query_actas(
             res = actas_query.execute()
             actas = res.data or []
             if actas:
-                # Enrich actas with team names from jornadas when acta names are empty
+                # Fill EMPTY names from the calendar only. Never overwrite
+                # scraped names: actas often list the rival as local with
+                # parcials from that POV even when they played away.
+                # Overlaying venue names would invert minute attribution.
                 for acta in actas:
                     if not acta.get("local_nombre") and not acta.get("visitante_nombre"):
                         names = cod_acta_names.get(str(acta.get("cod_acta", "")), {})

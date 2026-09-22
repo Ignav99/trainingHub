@@ -374,7 +374,7 @@ function SideStatsBlock({
   stats?: { pj: number; pg: number; gf: number; gc: number; pct_victoria?: number | null; media_gf?: number | null; media_gc?: number | null }
   clasPct?: number
 }) {
-  const pct = clasPct ?? stats?.pct_victoria
+  const pct = stats?.pct_victoria ?? clasPct
   if (!stats?.pj && pct == null) return null
 
   return (
