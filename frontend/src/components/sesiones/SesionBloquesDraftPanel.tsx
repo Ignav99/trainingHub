@@ -28,16 +28,19 @@ import {
   Clock,
   Trash2,
   Shirt,
+  Layers,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { CompensatorioBloquePanel } from '@/components/sesiones/CompensatorioBloquePanel'
 import type { Tarea, SesionBloque, FaseSesion } from '@/types'
 import {
   ADD_BLOQUE_OPTIONS,
   createBloque,
   emptyPartido,
   faseSesionFromBloque,
+  isCompensatorioBloque,
   isPartidoCondicionado,
   normalizeOrden,
   type AddBloqueKind,
@@ -92,6 +95,9 @@ function SortableBloqueWrapper({
 
 function canRemoveDraftBloque(bloque: SesionBloque, tareas: DraftTareaItem[]): boolean {
   if (bloque.tipo === 'videoanalisis' || bloque.tipo === 'partido_condicionado') return true
+  if (bloque.tipo === 'compensatorio') {
+    return !tareas.some((t) => String(t.fase || '').startsWith('compensatorio_'))
+  }
   return !tareas.some((t) => t.fase === bloque.tipo)
 }
 
@@ -198,10 +204,11 @@ export function SesionBloquesDraftPanel({
     const displayDuration = bloque.duracion_objetivo ?? (hasTareas ? tareasDuration : null)
     const isVideo = bloque.tipo === 'videoanalisis'
     const isPartido = isPartidoCondicionado(bloque)
+    const isCompensatorio = isCompensatorioBloque(bloque)
     const removable = canRemoveDraftBloque(bloque, tareas)
 
     return (
-      <Card key={bloque.id} className={cn('card-hover', !hasTareas && !bloque.notas && !isPartido && 'border-dashed')}>
+      <Card key={bloque.id} className={cn('card-hover', !hasTareas && !bloque.notas && !isPartido && !isCompensatorio && 'border-dashed')}>
         <div className="flex items-center justify-between gap-2 px-4 py-3 border-b bg-muted/30">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             {dragHandle}
@@ -209,6 +216,8 @@ export function SesionBloquesDraftPanel({
               <Video className="h-4 w-4 text-violet-600 shrink-0" />
             ) : isPartido ? (
               <Shirt className="h-4 w-4 text-amber-700 shrink-0" />
+            ) : isCompensatorio ? (
+              <Layers className="h-4 w-4 text-teal-700 shrink-0" />
             ) : (
               <CircleDot className={cn('h-4 w-4 shrink-0', hasTareas ? 'text-primary' : 'text-muted-foreground')} />
             )}
@@ -248,7 +257,7 @@ export function SesionBloquesDraftPanel({
             </div>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            {fase && !isPartido && (
+            {fase && !isPartido && !isCompensatorio && (
               <Button variant="ghost" size="sm" onClick={() => onOpenTaskPicker(fase)}>
                 <Plus className="h-4 w-4 mr-1" /> Añadir tarea
               </Button>
@@ -266,7 +275,35 @@ export function SesionBloquesDraftPanel({
           </div>
         </div>
 
-        {hasTareas ? (
+        {isCompensatorio ? (
+          <CompensatorioBloquePanel
+            bloque={bloque}
+            onChange={(compensatorio) => updateBloque(bloque.id, { compensatorio })}
+            onOpenTaskPicker={onOpenTaskPicker}
+            renderLaneTasks={(fase) => {
+              const laneTareas = tareasByFase[fase] || []
+              if (!laneTareas.length) {
+                return <p className="text-xs text-muted-foreground">Sin tarea en este grupo</p>
+              }
+              return (
+                <div className="divide-y rounded-md border bg-background">
+                  {laneTareas.map((item) => (
+                    <div key={`${item.tarea.id}-${item._index}`} className="flex items-center gap-2 px-2 py-1.5">
+                      <p className="text-xs font-medium truncate flex-1">{item.tarea.titulo}</p>
+                      <button
+                        type="button"
+                        onClick={() => onRemoveTarea(item._index)}
+                        className="p-1 rounded-md text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )
+            }}
+          />
+        ) : hasTareas ? (
           <div className="divide-y">
             {tareasBloque.map((item) => (
               <div
@@ -380,8 +417,8 @@ export function SesionBloquesDraftPanel({
           <Pencil className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
           <p className="font-medium text-foreground">Empieza añadiendo bloques</p>
           <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-            Añade activación, desarrollo, partido condicionado (11 vs 11), vuelta a la calma o
-            videoanálisis. En cada bloque de tareas podrás elegir de la biblioteca o crear ejercicios.
+            Añade activación, desarrollo, compensatorio (3 grupos en paralelo), partido condicionado,
+            vuelta a la calma o videoanálisis. En cada bloque de tareas podrás elegir de la biblioteca o crear ejercicios.
           </p>
           <Button className="mt-4" size="sm" onClick={() => setShowAddMenu(true)}>
             <Plus className="h-4 w-4 mr-1" /> Añadir primer bloque

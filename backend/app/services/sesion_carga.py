@@ -6,6 +6,13 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.services.duracion_efectiva import (
+    COMPENSATORIO_FASES,
+    clock_minutos_sesion_tarea,
+    is_compensatorio_fase,
+    minutos_carga_sesion_tarea,
+)
+
 
 DENSIDAD_FACTOR = {
     "alta": 1.35,
@@ -67,7 +74,7 @@ def carga_from_sesion_tarea(st: Dict[str, Any]) -> float:
     tarea = st.get("tarea") or st.get("tareas") or {}
     if not isinstance(tarea, dict):
         tarea = {}
-    dur = st.get("duracion_override") or tarea.get("duracion_total") or 0
+    dur = minutos_carga_sesion_tarea(st)
     dens = tarea.get("densidad")
     cat = _categoria_codigo(tarea)
     njug = tarea.get("num_jugadores_min") or tarea.get("num_jugadores_max")
@@ -122,22 +129,29 @@ def aggregate_sesion_carga(
     Incluye bloques de partido condicionado (no son tareas).
     """
     total_carga = 0.0
-    total_dur = 0
+    sequential_dur = 0
+    lane_durs = [0, 0, 0]
     for st in sesion_tareas or []:
         tarea = st.get("tarea") or st.get("tareas") or {}
         if not isinstance(tarea, dict):
             tarea = {}
-        dur = int(st.get("duracion_override") or tarea.get("duracion_total") or 0)
-        total_dur += dur
+        clock = clock_minutos_sesion_tarea(st)
+        fase = st.get("fase_sesion")
+        if is_compensatorio_fase(fase) and fase in COMPENSATORIO_FASES:
+            lane_durs[COMPENSATORIO_FASES.index(fase)] += clock
+        else:
+            sequential_dur += clock
         total_carga += carga_from_sesion_tarea(st)
 
+    partido_dur = 0
     for bloque in estructura_fases or []:
         if not isinstance(bloque, dict):
             continue
         carga_p, dur_p = carga_from_partido_bloque(bloque)
         if dur_p:
-            total_dur += dur_p
+            partido_dur += dur_p
             total_carga += carga_p
 
+    total_dur = sequential_dur + max(lane_durs) + partido_dur
     intensidad = intensidad_from_carga(total_carga, total_dur)
     return round(total_carga, 2), intensidad, total_dur

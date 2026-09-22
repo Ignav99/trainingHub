@@ -131,6 +131,7 @@ export const sesionesApi = {
     orden?: number
     fase_sesion?: string
     duracion_override?: number
+    minutos_efectivos?: number | null
     notas?: string
     responsable?: string
   }): Promise<Sesion> {
@@ -142,6 +143,7 @@ export const sesionesApi = {
     orden: number
     fase_sesion: string
     duracion_override?: number
+    minutos_efectivos?: number | null
     notas?: string
     responsable?: string
   }[]): Promise<Sesion> {

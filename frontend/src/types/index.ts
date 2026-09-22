@@ -27,10 +27,20 @@ export type RolUsuario =
   | 'tutor'
 export type MatchDay = 'MD+1' | 'MD+2' | 'MD-4' | 'MD-3' | 'MD-2' | 'MD-1' | 'MD'
 export type FaseJuego = 'ataque_organizado' | 'defensa_organizada' | 'transicion_ataque_defensa' | 'transicion_defensa_ataque'
-export type FaseSesion = 'activacion' | 'desarrollo_1' | 'desarrollo_2' | 'desarrollo_3' | 'desarrollo_4' | 'desarrollo_5' | 'desarrollo_6' | 'vuelta_calma'
+export type FaseSesion = 'activacion' | 'desarrollo_1' | 'desarrollo_2' | 'desarrollo_3' | 'desarrollo_4' | 'desarrollo_5' | 'desarrollo_6' | 'vuelta_calma' | 'compensatorio_1' | 'compensatorio_2' | 'compensatorio_3'
 
 /** Bloque de sesión definido por el usuario (persistido en sesiones.estructura_fases). */
-export type TipoBloqueSesion = FaseSesion | 'videoanalisis' | 'partido_condicionado'
+export type TipoBloqueSesion = FaseSesion | 'videoanalisis' | 'partido_condicionado' | 'compensatorio'
+
+export interface CompensatorioLane {
+  id: string
+  label: string
+  jugador_ids: string[]
+}
+
+export interface CompensatorioData {
+  lanes: CompensatorioLane[]
+}
 
 /** Partido 11 vs 11 a campo normal: parte de la sesión, no una tarea. */
 export interface PartidoCondicionadoData {
@@ -57,6 +67,8 @@ export interface SesionBloque {
   notas?: string
   orden: number
   partido?: PartidoCondicionadoData
+  /** Tres lanes paralelos: jugadores + tareas distintas, misma franja de tiempo. */
+  compensatorio?: CompensatorioData
 }
 export type EstadoSesion = 'borrador' | 'planificada' | 'completada' | 'cancelada'
 export type Densidad = 'alta' | 'media' | 'baja'
@@ -175,6 +187,8 @@ export interface Tarea {
   duracion_serie?: number
   /** Segundos entre series (valores 1–10 heredados se leen como minutos). */
   tiempo_descanso: number
+  /** Minutos de trabajo (duración − descanso). Calculado en cliente si no viene. */
+  minutos_efectivos?: number
   
   // Espacio
   espacio_largo?: number
@@ -349,6 +363,8 @@ export interface SesionTarea {
   orden: number
   fase_sesion: FaseSesion
   duracion_override?: number
+  /** Minutos de trabajo para carga. NULL = reloj − descanso de la ficha. */
+  minutos_efectivos?: number | null
   notas?: string
   responsable?: string
   carga_calculada?: number
@@ -757,8 +773,10 @@ export interface RPERegistro {
   id: string
   jugador_id: string
   sesion_id?: string
+  partido_id?: string
   fecha: string
   rpe: number
+  tipo?: 'sesion' | 'manual' | 'wellness' | 'partido'
   duracion_percibida?: number
   sueno?: number
   fatiga?: number
@@ -847,6 +865,8 @@ export interface Convocatoria {
   asistencias: number
   tarjeta_amarilla: boolean
   tarjeta_roja: boolean
+  /** RPE 1-10 post-partido (Foster × minutos). */
+  rpe?: number | null
   notas?: string
   /** Media colaborativa de notas CT (1-10) */
   rendimiento_media?: number | null

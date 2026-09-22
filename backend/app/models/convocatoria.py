@@ -23,6 +23,7 @@ class ConvocatoriaBase(BaseModel):
     asistencias: int = Field(default=0, ge=0)
     tarjeta_amarilla: bool = False
     tarjeta_roja: bool = False
+    rpe: Optional[int] = Field(None, ge=1, le=10)
     notas: Optional[str] = None
 
 
@@ -41,6 +42,7 @@ class ConvocatoriaUpdate(BaseModel):
     asistencias: Optional[int] = Field(None, ge=0)
     tarjeta_amarilla: Optional[bool] = None
     tarjeta_roja: Optional[bool] = None
+    rpe: Optional[int] = Field(None, ge=1, le=10)
     notas: Optional[str] = None
 
 

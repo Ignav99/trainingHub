@@ -4,10 +4,11 @@ import { RPERegistro, RPEResumenEquipo } from '@/types'
 export interface CreateRPEData {
   jugador_id: string
   sesion_id?: string
+  partido_id?: string
   fecha: string
   rpe?: number
   duracion_percibida?: number
-  tipo?: 'sesion' | 'manual' | 'wellness'
+  tipo?: 'sesion' | 'manual' | 'wellness' | 'partido'
   titulo?: string
   sueno?: number
   fatiga?: number
@@ -45,4 +46,31 @@ export const rpeApi = {
 
   delete: (id: string) =>
     api.delete(`/rpe/${id}`),
+
+  getSesionAsignacion: (sesionId: string) =>
+    api.get<SesionRpeAsignacion>(`/rpe/sesion/${sesionId}/asignacion`),
+
+  putSesionAsignacion: (sesionId: string, items: { jugador_id: string; rpe: number | null }[]) =>
+    api.put<SesionRpeAsignacion>(`/rpe/sesion/${sesionId}/asignacion`, { items }),
+}
+
+export interface SesionRpeJugador {
+  jugador_id: string
+  nombre: string
+  apellidos?: string | null
+  apodo?: string | null
+  dorsal?: number | null
+  presente: boolean
+  rpe?: number | null
+  minutos_efectivos: number
+  registro_id?: string | null
+  carga_sesion?: number | null
+}
+
+export interface SesionRpeAsignacion {
+  sesion_id: string
+  fecha: string
+  titulo?: string | null
+  jugadores: SesionRpeJugador[]
+  saved?: number
 }

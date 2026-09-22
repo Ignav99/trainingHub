@@ -15,6 +15,7 @@ class RPEBase(BaseModel):
     """Schema base de registro RPE."""
     jugador_id: UUID
     sesion_id: Optional[UUID] = None
+    partido_id: Optional[UUID] = None
     fecha: date = Field(default_factory=date.today)
     rpe: Optional[int] = Field(None, ge=1, le=10)
     duracion_percibida: Optional[int] = Field(None, ge=0, description="Minutos percibidos")
@@ -30,7 +31,37 @@ class RPEBase(BaseModel):
 
 class RPECreate(RPEBase):
     """Schema para crear registro RPE."""
-    tipo: Literal["sesion", "manual", "wellness"] = "sesion"
+    tipo: Literal["sesion", "manual", "wellness", "partido"] = "sesion"
+
+
+class RPESesionAssignItem(BaseModel):
+    jugador_id: UUID
+    rpe: Optional[int] = Field(None, ge=1, le=10)
+
+
+class RPESesionAssignRequest(BaseModel):
+    items: List[RPESesionAssignItem]
+
+
+class RPESesionJugador(BaseModel):
+    jugador_id: UUID
+    nombre: str
+    apellidos: Optional[str] = None
+    apodo: Optional[str] = None
+    dorsal: Optional[int] = None
+    presente: bool = False
+    rpe: Optional[int] = None
+    minutos_efectivos: int = 0
+    registro_id: Optional[UUID] = None
+    carga_sesion: Optional[float] = None
+
+
+class RPESesionAssignResponse(BaseModel):
+    sesion_id: UUID
+    fecha: date
+    titulo: Optional[str] = None
+    jugadores: List[RPESesionJugador]
+    saved: int = 0
 
 
 class RPEUpdate(BaseModel):

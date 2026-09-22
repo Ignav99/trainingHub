@@ -421,7 +421,14 @@ async def batch_update_convocatorias(
     """Actualiza múltiples convocatorias de una vez (stats de jugadores post-partido)."""
     supabase = get_supabase()
 
-    allowed_fields = {"minutos_jugados", "goles", "asistencias", "tarjeta_amarilla", "tarjeta_roja"}
+    allowed_fields = {
+        "minutos_jugados",
+        "goles",
+        "asistencias",
+        "tarjeta_amarilla",
+        "tarjeta_roja",
+        "rpe",
+    }
     results = []
 
     for item in updates:
@@ -429,21 +436,45 @@ async def batch_update_convocatorias(
         if not conv_id:
             continue
 
-        update_data = {k: v for k, v in item.items() if k in allowed_fields and v is not None}
+        update_data = {}
+        for k, v in item.items():
+            if k not in allowed_fields:
+                continue
+            if k == "rpe" or v is not None:
+                update_data[k] = v
         if not update_data:
             continue
 
-        response = supabase.table("convocatorias").update(update_data).eq(
-            "id", str(conv_id)
-        ).execute()
+        try:
+            response = supabase.table("convocatorias").update(update_data).eq(
+                "id", str(conv_id)
+            ).execute()
+        except Exception as e:
+            logger.warning("batch-update convocatoria %s (¿falta columna rpe?): %s", conv_id, e)
+            fallback = {k: v for k, v in update_data.items() if k != "rpe"}
+            if not fallback:
+                continue
+            response = supabase.table("convocatorias").update(fallback).eq(
+                "id", str(conv_id)
+            ).execute()
 
         if response.data:
             results.append(response.data[0])
 
-    # Trigger load recalculation in background for players with updated minutes
+    from app.services.rpe_sync import sync_convocatoria_rpe
+
+    # Trigger load recalculation in background for players with updated minutes/RPE
+    seen: set[str] = set()
     for item in results:
-        if item.get("minutos_jugados") and item.get("jugador_id"):
-            bg.add_task(_recalc_jugador, supabase, item["jugador_id"])
+        jid = item.get("jugador_id")
+        if item.get("rpe") is not None or "rpe" in (item or {}):
+            try:
+                sync_convocatoria_rpe(supabase, item)
+            except Exception as e:
+                logger.warning("sync RPE partido %s: %s", jid, e)
+        if jid and jid not in seen:
+            seen.add(jid)
+            bg.add_task(_recalc_jugador, supabase, jid)
 
     return {"updated": len(results), "data": results}
 
@@ -452,12 +483,13 @@ async def batch_update_convocatorias(
 async def update_convocatoria(
     convocatoria_id: UUID,
     convocatoria: ConvocatoriaUpdate,
+    bg: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_UPDATE)),
 ):
     """Actualiza una convocatoria (ej: registrar estadísticas post-partido)."""
     supabase = get_supabase()
 
-    existing = supabase.table("convocatorias").select("id").eq(
+    existing = supabase.table("convocatorias").select("*").eq(
         "id", str(convocatoria_id)
     ).single().execute()
 
@@ -475,11 +507,27 @@ async def update_convocatoria(
             detail="No hay datos para actualizar"
         )
 
-    response = supabase.table("convocatorias").update(update_data).eq(
-        "id", str(convocatoria_id)
-    ).execute()
+    try:
+        response = supabase.table("convocatorias").update(update_data).eq(
+            "id", str(convocatoria_id)
+        ).execute()
+    except Exception:
+        fallback = {k: v for k, v in update_data.items() if k != "rpe"}
+        response = supabase.table("convocatorias").update(fallback).eq(
+            "id", str(convocatoria_id)
+        ).execute()
 
-    return ConvocatoriaResponse(**response.data[0])
+    row = response.data[0] if response.data else {**existing.data, **update_data}
+    if "rpe" in update_data or row.get("rpe") is not None:
+        try:
+            from app.services.rpe_sync import sync_convocatoria_rpe
+            sync_convocatoria_rpe(supabase, row)
+        except Exception as e:
+            logger.warning("sync RPE partido: %s", e)
+    if row.get("jugador_id"):
+        bg.add_task(_recalc_jugador, supabase, row["jugador_id"])
+
+    return ConvocatoriaResponse(**row)
 
 
 @router.delete("/{convocatoria_id}", status_code=status.HTTP_204_NO_CONTENT)

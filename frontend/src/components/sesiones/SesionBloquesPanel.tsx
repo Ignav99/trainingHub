@@ -27,11 +27,13 @@ import {
   Video,
   Pencil,
   Shirt,
+  Layers,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { PartidoCondicionadoPanel, SesionTareaPanel } from '@/components/sesion'
+import { CompensatorioBloquePanel } from '@/components/sesiones/CompensatorioBloquePanel'
 import type { Sesion, SesionBloque, SesionTarea, FaseSesion, Jugador } from '@/types'
 import {
   ADD_BLOQUE_OPTIONS,
@@ -39,11 +41,13 @@ import {
   createBloque,
   duracionBloquePartido,
   faseSesionFromBloque,
+  isCompensatorioBloque,
   isPartidoCondicionado,
   normalizeOrden,
   resolveEstructura,
   type AddBloqueKind,
 } from '@/lib/sesionEstructura'
+import { COMPENSATORIO_FASES, clockMinutosSesionTarea } from '@/lib/duracionEfectiva'
 import { cn } from '@/lib/utils'
 
 function SortableBloqueWrapper({
@@ -97,6 +101,8 @@ export interface SesionBloquesPanelProps {
   onRemoveTarea: (tarea: SesionTarea) => void
   onDurationChange: (tareaId: string, duration: number) => void
   onDurationCommit: (tareaId: string) => void
+  onEfectivosChange: (tareaId: string, minutos: number | null) => void
+  onEfectivosCommit: (tareaId: string) => void
   onResponsableChange: (tareaId: string, val: string) => void
   onResponsableBlur: () => void
   onNotasChange: (tareaId: string, val: string) => void
@@ -118,6 +124,8 @@ export function SesionBloquesPanel({
   onRemoveTarea,
   onDurationChange,
   onDurationCommit,
+  onEfectivosChange,
+  onEfectivosCommit,
   onResponsableChange,
   onResponsableBlur,
   onNotasChange,
@@ -160,13 +168,18 @@ export function SesionBloquesPanel({
     [onEstructuraChange]
   )
 
-  const bloqueOrderFases = useMemo(
-    () =>
-      bloques
-        .map((b) => faseSesionFromBloque(b))
-        .filter((f): f is FaseSesion => f !== null),
-    [bloques]
-  )
+  const bloqueOrderFases = useMemo(() => {
+    const out: FaseSesion[] = []
+    for (const b of bloques) {
+      if (isCompensatorioBloque(b)) {
+        out.push(...COMPENSATORIO_FASES)
+      } else {
+        const f = faseSesionFromBloque(b)
+        if (f) out.push(f)
+      }
+    }
+    return out
+  }, [bloques])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -216,13 +229,25 @@ export function SesionBloquesPanel({
     )
     const partidoMin = isPartidoCondicionado(bloque) ? duracionBloquePartido(bloque) : 0
     const displayDuration =
-      bloque.duracion_objetivo ?? (hasTareas ? tareasDuration : partidoMin || null)
+      bloque.duracion_objetivo ??
+      (isCompensatorio
+        ? compensatorioMin || null
+        : hasTareas
+          ? tareasDuration
+          : partidoMin || null)
     const isVideo = bloque.tipo === 'videoanalisis'
     const isPartido = isPartidoCondicionado(bloque)
+    const isCompensatorio = isCompensatorioBloque(bloque)
+    const laneDurations = isCompensatorio
+      ? COMPENSATORIO_FASES.map((f) =>
+          (tareasByFase[f] || []).reduce((s, t) => s + clockMinutosSesionTarea(t), 0),
+        )
+      : []
+    const compensatorioMin = isCompensatorio ? Math.max(0, ...laneDurations) : 0
     const removable = canRemoveBloque(bloque, tareas)
 
     return (
-      <Card key={bloque.id} className={cn('card-hover', !hasTareas && !bloque.notas && !isPartido && 'border-dashed')}>
+      <Card key={bloque.id} className={cn('card-hover', !hasTareas && !bloque.notas && !isPartido && !isCompensatorio && 'border-dashed')}>
         <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-muted/30">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             {dragHandle}
@@ -230,6 +255,8 @@ export function SesionBloquesPanel({
               <Video className="h-4 w-4 text-violet-600 shrink-0" />
             ) : isPartido ? (
               <Shirt className="h-4 w-4 text-amber-700 shrink-0" />
+            ) : isCompensatorio ? (
+              <Layers className="h-4 w-4 text-teal-700 shrink-0" />
             ) : (
               <CircleDot className={cn('h-4 w-4 shrink-0', hasTareas ? 'text-primary' : 'text-muted-foreground')} />
             )}
@@ -291,6 +318,48 @@ export function SesionBloquesPanel({
             equipoId={sesion.equipo_id}
             onChange={(patch) => updateBloque(bloque.id, patch)}
           />
+        ) : isCompensatorio ? (
+          <CompensatorioBloquePanel
+            bloque={bloque}
+            jugadores={jugadores}
+            laneDurations={laneDurations}
+            onChange={(compensatorio) => updateBloque(bloque.id, { compensatorio })}
+            onOpenTaskPicker={onOpenTaskPicker}
+            renderLaneTasks={(fase) => {
+              const laneTareas = tareasByFase[fase] || []
+              if (!laneTareas.length) {
+                return <p className="text-xs text-muted-foreground">Sin tarea en este grupo</p>
+              }
+              return (
+                <div className="-mx-1">
+                  {laneTareas.map((st, idx) => (
+                    <SesionTareaPanel
+                      key={st.id}
+                      st={st}
+                      index={idx}
+                      totalInFase={laneTareas.length}
+                      staffOptions={staffOptions}
+                      isFormacionExpanded={formacionDialogStId === st.id}
+                      onMoveUp={() => onMoveTarea(st, 'up', bloqueOrderFases)}
+                      onMoveDown={() => onMoveTarea(st, 'down', bloqueOrderFases)}
+                      onRemove={() => onRemoveTarea(st)}
+                      onDurationChange={(val) => onDurationChange(st.id, val)}
+                      onDurationCommit={() => onDurationCommit(st.id)}
+                      onEfectivosChange={(val) => onEfectivosChange(st.id, val)}
+                      onEfectivosCommit={() => onEfectivosCommit(st.id)}
+                      onResponsableChange={(val) => onResponsableChange(st.id, val)}
+                      onResponsableBlur={onResponsableBlur}
+                      onNotasChange={(val) => onNotasChange(st.id, val)}
+                      onNotasBlur={onNotasBlur}
+                      onToggleFormacion={() => onToggleFormacion(st.id)}
+                      onSaveEdit={async (form) => { await onSaveEdit(st.id, form) }}
+                      onAiEdit={async (instruction) => { await onAiEdit(st.id, instruction) }}
+                    />
+                  ))}
+                </div>
+              )
+            }}
+          />
         ) : hasTareas ? (
           <div>
             {tareasBloque.map((st, idx) => (
@@ -306,6 +375,8 @@ export function SesionBloquesPanel({
                   onRemove={() => onRemoveTarea(st)}
                   onDurationChange={(val) => onDurationChange(st.id, val)}
                   onDurationCommit={() => onDurationCommit(st.id)}
+                  onEfectivosChange={(val) => onEfectivosChange(st.id, val)}
+                  onEfectivosCommit={() => onEfectivosCommit(st.id)}
                   onResponsableChange={(val) => onResponsableChange(st.id, val)}
                   onResponsableBlur={onResponsableBlur}
                   onNotasChange={(val) => onNotasChange(st.id, val)}
@@ -390,8 +461,8 @@ export function SesionBloquesPanel({
           <Pencil className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
           <p className="font-medium text-foreground">Sesión sin bloques todavía</p>
           <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-            Añade activación, desarrollo, partido condicionado (11 vs 11), vuelta a la calma o
-            videoanálisis. El partido reducido sigue siendo una tarea.
+            Añade activación, desarrollo, compensatorio (3 grupos en paralelo), partido condicionado,
+            vuelta a la calma o videoanálisis. El partido reducido sigue siendo una tarea.
           </p>
           <Button className="mt-4" size="sm" onClick={() => setShowAddMenu(true)}>
             <Plus className="h-4 w-4 mr-1" /> Añadir primer bloque

@@ -33,6 +33,9 @@ class FaseSesion(str, Enum):
     DESARROLLO_5 = "desarrollo_5"
     DESARROLLO_6 = "desarrollo_6"
     VUELTA_CALMA = "vuelta_calma"
+    COMPENSATORIO_1 = "compensatorio_1"
+    COMPENSATORIO_2 = "compensatorio_2"
+    COMPENSATORIO_3 = "compensatorio_3"
 
 
 class EstadoSesion(str, Enum):
@@ -188,6 +191,7 @@ class SesionTareaBase(BaseModel):
     # Opcional en el nuevo diseño libre; default DB-compatible
     fase_sesion: Optional[FaseSesion] = FaseSesion.DESARROLLO_1
     duracion_override: Optional[int] = None
+    minutos_efectivos: Optional[int] = Field(None, ge=0)
     notas: Optional[str] = None
     responsable: Optional[str] = None
     carga_calculada: Optional[float] = None
@@ -231,6 +235,7 @@ class SesionTareaUpdate(BaseModel):
     orden: Optional[int] = None
     fase_sesion: Optional[FaseSesion] = None
     duracion_override: Optional[int] = None
+    minutos_efectivos: Optional[int] = Field(None, ge=0)
     notas: Optional[str] = None
     responsable: Optional[str] = None
 

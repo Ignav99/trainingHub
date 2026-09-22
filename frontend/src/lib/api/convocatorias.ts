@@ -18,6 +18,7 @@ export interface UpdateConvocatoriaData {
   asistencias?: number
   tarjeta_amarilla?: boolean
   tarjeta_roja?: boolean
+  rpe?: number
   notas?: string
 }
 
@@ -55,7 +56,7 @@ export const convocatoriasApi = {
   delete: (id: string) =>
     api.delete(`/convocatorias/${id}`),
 
-  batchUpdateStats: (updates: Array<{ id: string; minutos_jugados?: number; goles?: number; asistencias?: number; tarjeta_amarilla?: boolean; tarjeta_roja?: boolean }>) =>
+  batchUpdateStats: (updates: Array<{ id: string; minutos_jugados?: number; goles?: number; asistencias?: number; tarjeta_amarilla?: boolean; tarjeta_roja?: boolean; rpe?: number | null }>) =>
     api.put<{ updated: number; data: any[] }>('/convocatorias/batch-update', updates),
 
   upsertRendimiento: (convocatoriaId: string, nota: number) =>

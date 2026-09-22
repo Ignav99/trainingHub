@@ -15,12 +15,20 @@ from app.models import (
     RPEUpdate,
     RPEResponse,
     RPEListResponse,
+    RPESesionAssignRequest,
+    RPESesionAssignResponse,
+    RPESesionJugador,
 )
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
 from app.services.notification_service import notify_rpe_alerta
 from app.services.load_calculation_service import recalculate_player_load
+from app.services.rpe_sync import (
+    load_sesion_tareas_rows,
+    player_minutes_for_sesion,
+    upsert_rpe_sesion,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -203,6 +211,180 @@ async def list_rpe_by_jugador(
     return {"data": response.data or []}
 
 
+def _sesion_rpe_jugadores(supabase, sesion_id: str) -> RPESesionAssignResponse:
+    ses = (
+        supabase.table("sesiones")
+        .select("id, fecha, titulo, equipo_id, estructura_fases, estado")
+        .eq("id", sesion_id)
+        .maybe_single()
+        .execute()
+    )
+    if not ses.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sesión no encontrada")
+
+    equipo_id = ses.data.get("equipo_id")
+    estructura = ses.data.get("estructura_fases") or []
+    if not isinstance(estructura, list):
+        estructura = []
+    fecha = ses.data.get("fecha")
+    rows = load_sesion_tareas_rows(supabase, sesion_id)
+
+    asist = (
+        supabase.table("asistencias_sesion")
+        .select("jugador_id, presente, tipo_participacion")
+        .eq("sesion_id", sesion_id)
+        .execute()
+    )
+    presente_ids: set[str] = set()
+    sesion_ids: set[str] = set()
+    for a in asist.data or []:
+        jid = str(a.get("jugador_id") or "")
+        if not jid or not a.get("presente"):
+            continue
+        presente_ids.add(jid)
+        tipos = a.get("tipo_participacion") or ["sesion"]
+        if not tipos or "sesion" in tipos or "margen" in tipos:
+            sesion_ids.add(jid)
+
+    assigned: set[str] = set()
+    for bloque in estructura:
+        if not isinstance(bloque, dict):
+            continue
+        if bloque.get("tipo") == "compensatorio":
+            data = bloque.get("compensatorio") or {}
+            for lane in (data.get("lanes") or []) if isinstance(data, dict) else []:
+                if not isinstance(lane, dict):
+                    continue
+                for x in lane.get("jugador_ids") or []:
+                    if x:
+                        assigned.add(str(x))
+        if bloque.get("tipo") == "partido_condicionado":
+            partido = bloque.get("partido") or {}
+            if isinstance(partido, dict):
+                peto = list((partido.get("equipo_peto") or {}).values())
+                sin = list((partido.get("equipo_sin_peto") or {}).values())
+                for x in peto + sin:
+                    if x:
+                        assigned.add(str(x))
+
+    eligible = sesion_ids or presente_ids or assigned
+
+    jugadores = (
+        supabase.table("jugadores")
+        .select("id, nombre, apellidos, apodo, dorsal, estado")
+        .eq("equipo_id", str(equipo_id))
+        .execute()
+        if equipo_id
+        else type("R", (), {"data": []})()
+    )
+
+    if not eligible:
+        eligible = {
+            str(j["id"])
+            for j in (jugadores.data or [])
+            if j.get("estado") in ("activo", None, "disponible")
+        }
+
+    rpe_rows = (
+        supabase.table("registros_rpe")
+        .select("id, jugador_id, rpe, duracion_percibida, carga_sesion, tipo")
+        .eq("sesion_id", sesion_id)
+        .execute()
+    )
+    rpe_map: dict[str, dict] = {}
+    for r in rpe_rows.data or []:
+        if (r.get("tipo") or "sesion") != "sesion":
+            continue
+        rpe_map[str(r["jugador_id"])] = r
+
+    items: list[RPESesionJugador] = []
+    for j in jugadores.data or []:
+        jid = str(j["id"])
+        if jid not in eligible:
+            continue
+        rec = rpe_map.get(jid) or {}
+        mins = player_minutes_for_sesion(
+            supabase, sesion_id, jid, estructura=estructura, rows=rows
+        )
+        items.append(
+            RPESesionJugador(
+                jugador_id=j["id"],
+                nombre=j.get("nombre") or "",
+                apellidos=j.get("apellidos"),
+                apodo=j.get("apodo"),
+                dorsal=j.get("dorsal"),
+                presente=jid in presente_ids or jid in sesion_ids,
+                rpe=rec.get("rpe"),
+                minutos_efectivos=mins,
+                registro_id=rec.get("id"),
+                carga_sesion=rec.get("carga_sesion"),
+            )
+        )
+
+    items.sort(
+        key=lambda x: (
+            0 if x.presente else 1,
+            x.apellidos or x.nombre or "",
+            x.nombre,
+        )
+    )
+    return RPESesionAssignResponse(
+        sesion_id=ses.data["id"],
+        fecha=fecha,
+        titulo=ses.data.get("titulo"),
+        jugadores=items,
+    )
+
+
+@router.get("/sesion/{sesion_id}/asignacion", response_model=RPESesionAssignResponse)
+async def get_rpe_sesion_asignacion(
+    sesion_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.RPE_READ)),
+):
+    """Jugadores que participaron + RPE actual (UI móvil de fin de sesión)."""
+    return _sesion_rpe_jugadores(get_supabase(), str(sesion_id))
+
+
+@router.put("/sesion/{sesion_id}/asignacion", response_model=RPESesionAssignResponse)
+async def put_rpe_sesion_asignacion(
+    sesion_id: UUID,
+    body: RPESesionAssignRequest,
+    bg: BackgroundTasks,
+    auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
+):
+    """Upsert RPE de los participantes. Carga interna = RPE × minutos efectivos del jugador."""
+    supabase = get_supabase()
+    snapshot = _sesion_rpe_jugadores(supabase, str(sesion_id))
+    fecha = snapshot.fecha.isoformat() if hasattr(snapshot.fecha, "isoformat") else str(snapshot.fecha)
+    allowed = {str(j.jugador_id) for j in snapshot.jugadores}
+    mins_map = {str(j.jugador_id): j.minutos_efectivos for j in snapshot.jugadores}
+    saved = 0
+    seen: set[str] = set()
+    for item in body.items:
+        jid = str(item.jugador_id)
+        if jid not in allowed:
+            continue
+        if item.rpe is None:
+            continue
+        mins = mins_map.get(jid, 0)
+        upsert_rpe_sesion(
+            supabase,
+            jugador_id=jid,
+            sesion_id=str(sesion_id),
+            fecha=fecha,
+            rpe=item.rpe,
+            duracion_percibida=mins,
+        )
+        saved += 1
+        if jid not in seen:
+            seen.add(jid)
+            bg.add_task(_recalc_jugador, jid)
+
+    out = _sesion_rpe_jugadores(supabase, str(sesion_id))
+    out.saved = saved
+    return out
+
+
 @router.get("/{rpe_id}", response_model=RPEResponse)
 async def get_rpe(
     rpe_id: UUID,
@@ -237,6 +419,8 @@ async def create_rpe(
     data["jugador_id"] = str(data["jugador_id"])
     if data.get("sesion_id"):
         data["sesion_id"] = str(data["sesion_id"])
+    if data.get("partido_id"):
+        data["partido_id"] = str(data["partido_id"])
 
     tipo = data.get("tipo", "sesion")
 
@@ -248,7 +432,7 @@ async def create_rpe(
         )
 
     # RPE value required for sesion and manual types
-    if tipo in ("sesion", "manual") and data.get("rpe") is None:
+    if tipo in ("sesion", "manual", "partido") and data.get("rpe") is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="RPE es obligatorio para registros de tipo sesión o manual"
@@ -339,6 +523,8 @@ async def create_rpe_batch(
         data["jugador_id"] = str(data["jugador_id"])
         if data.get("sesion_id"):
             data["sesion_id"] = str(data["sesion_id"])
+        if data.get("partido_id"):
+            data["partido_id"] = str(data["partido_id"])
         if data.get("rpe") and data.get("duracion_percibida"):
             data["carga_sesion"] = round(data["rpe"] * data["duracion_percibida"], 1)
         items.append(data)

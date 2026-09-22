@@ -146,6 +146,10 @@ from app.models.rpe import (
     RPEUpdate,
     RPEResponse,
     RPEListResponse,
+    RPESesionAssignItem,
+    RPESesionAssignRequest,
+    RPESesionJugador,
+    RPESesionAssignResponse,
     WellnessCreate,
     WellnessResponse,
     WellnessBulkItem,
@@ -503,6 +507,8 @@ __all__ = [
     "MicrocicloResponse", "MicrocicloListResponse",
     # RPE
     "RPEBase", "RPECreate", "RPEUpdate", "RPEResponse", "RPEListResponse",
+    "RPESesionAssignItem", "RPESesionAssignRequest", "RPESesionJugador",
+    "RPESesionAssignResponse",
     "WellnessCreate", "WellnessResponse", "WellnessBulkItem",
     # Carga
     "NivelCarga", "CargaJugadorResponse", "CargaEquipoResponse", "WellnessUpdate",

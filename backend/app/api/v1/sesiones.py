@@ -239,11 +239,51 @@ from app.services.storage_service import upload_file
 from app.services.audit_service import log_create, log_update, log_delete
 from app.services.notification_service import notify_sesion_created
 from app.services.load_calculation_service import recalculate_player_load
+from app.services.duracion_efectiva import player_session_minutes
 from app.services.jugador_tipo import is_filial
 from app.config import get_settings
 
 
 router = APIRouter()
+
+
+def _sync_rpe_durations_for_sesion(supabase, sesion_id: str, rows: list, estructura: list) -> None:
+    """Foster (RPE × minutos efectivos del jugador) tras editar tareas de una sesión completada."""
+    ses = (
+        supabase.table("sesiones")
+        .select("id, estado, equipo_id")
+        .eq("id", sesion_id)
+        .maybe_single()
+        .execute()
+    )
+    if not ses.data or ses.data.get("estado") != "completada":
+        return
+    rpes = (
+        supabase.table("registros_rpe")
+        .select("id, jugador_id, rpe, tipo")
+        .eq("sesion_id", sesion_id)
+        .execute()
+    )
+    equipo_id = ses.data.get("equipo_id")
+    seen: set[str] = set()
+    for row in rpes.data or []:
+        if (row.get("tipo") or "sesion") not in ("sesion", None, ""):
+            continue
+        jid = str(row.get("jugador_id") or "")
+        if not jid:
+            continue
+        mins = player_session_minutes(rows, estructura, jid)
+        rpe_val = row.get("rpe")
+        payload: dict = {"duracion_percibida": mins}
+        if rpe_val and mins:
+            payload["carga_sesion"] = round(float(rpe_val) * mins, 1)
+        supabase.table("registros_rpe").update(payload).eq("id", row["id"]).execute()
+        if jid not in seen and equipo_id:
+            seen.add(jid)
+            try:
+                recalculate_player_load(UUID(jid), UUID(equipo_id))
+            except Exception as e:
+                logger.warning("recalc load %s tras sync RPE: %s", jid, e)
 
 
 def _recalc_sesion_carga(supabase, sesion_id: str) -> dict:
@@ -254,12 +294,16 @@ def _recalc_sesion_carga(supabase, sesion_id: str) -> dict:
     try:
         try:
             tareas = supabase.table("sesion_tareas").select(
-                "id, duracion_override, tareas(duracion_total, densidad, num_jugadores_min, num_jugadores_max, categorias_tarea(codigo, nombre_corto))"
+                "id, duracion_override, minutos_efectivos, fase_sesion, "
+                "tareas(duracion_total, tiempo_descanso, num_series, densidad, "
+                "num_jugadores_min, num_jugadores_max, categorias_tarea(codigo, nombre_corto))"
             ).eq("sesion_id", sesion_id).execute()
         except Exception:
             # Fallback sin join de categoría (compat / schema parcial)
             tareas = supabase.table("sesion_tareas").select(
-                "id, duracion_override, tareas(duracion_total, densidad, num_jugadores_min, num_jugadores_max)"
+                "id, duracion_override, minutos_efectivos, fase_sesion, "
+                "tareas(duracion_total, tiempo_descanso, num_series, densidad, "
+                "num_jugadores_min, num_jugadores_max)"
             ).eq("sesion_id", sesion_id).execute()
 
         rows = []
@@ -276,6 +320,8 @@ def _recalc_sesion_carga(supabase, sesion_id: str) -> dict:
             row = {
                 "id": st.get("id"),
                 "duracion_override": st.get("duracion_override"),
+                "minutos_efectivos": st.get("minutos_efectivos"),
+                "fase_sesion": st.get("fase_sesion"),
                 "tarea": tarea,
                 "tareas": tarea,
             }
@@ -316,6 +362,13 @@ def _recalc_sesion_carga(supabase, sesion_id: str) -> dict:
             estructura = []
 
         carga_sesion, intensidad, duracion_total = aggregate_sesion_carga(rows, estructura)
+
+        # Si la sesión ya está jugada, Foster de cada RPE usa los minutos
+        # efectivos nuevos (lanes compensatorio incluidos).
+        try:
+            _sync_rpe_durations_for_sesion(supabase, sesion_id, rows, estructura)
+        except Exception as e:
+            logger.warning("sync RPE tras recálculo de %s falló: %s", sesion_id, e)
 
         # 1) siempre intentar duración
         try:
@@ -1032,6 +1085,7 @@ async def add_tarea_to_sesion(
         "orden": tarea_data.orden,
         "fase_sesion": fase,
         "duracion_override": tarea_data.duracion_override,
+        "minutos_efectivos": tarea_data.minutos_efectivos,
         "notas": tarea_data.notas,
         "responsable": tarea_data.responsable,
     }
@@ -1120,6 +1174,7 @@ async def batch_update_tareas(
             "orden": tarea.orden,
             "fase_sesion": (tarea.fase_sesion.value if tarea.fase_sesion else "desarrollo_1"),
             "duracion_override": tarea.duracion_override,
+            "minutos_efectivos": tarea.minutos_efectivos,
             "notas": tarea.notas,
             "responsable": tarea.responsable,
         }
