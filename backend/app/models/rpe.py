@@ -49,6 +49,7 @@ class RPESesionJugador(BaseModel):
     apellidos: Optional[str] = None
     apodo: Optional[str] = None
     dorsal: Optional[int] = None
+    tipo_jugador: Optional[str] = None
     presente: bool = False
     rpe: Optional[int] = None
     minutos_efectivos: int = 0

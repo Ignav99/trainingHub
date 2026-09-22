@@ -1,5 +1,5 @@
 import { api } from './client'
-import { RPERegistro, RPEResumenEquipo } from '@/types'
+import { RPERegistro, RPEResumenEquipo, TipoJugador } from '@/types'
 
 export interface CreateRPEData {
   jugador_id: string
@@ -60,6 +60,7 @@ export interface SesionRpeJugador {
   apellidos?: string | null
   apodo?: string | null
   dorsal?: number | null
+  tipo_jugador?: TipoJugador | null
   presente: boolean
   rpe?: number | null
   minutos_efectivos: number

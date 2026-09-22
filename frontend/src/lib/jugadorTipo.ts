@@ -57,6 +57,33 @@ export function isPlantilla(j: Pick<Jugador, 'tipo_jugador' | 'es_invitado'>): b
   return resolveTipoJugador(j) === 'plantilla'
 }
 
+/** Plantilla por dorsal; filial, prueba e invitados al final (también por dorsal). */
+export function rpeRosterSortKey(j: {
+  tipo_jugador?: TipoJugador | null
+  es_invitado?: boolean
+  dorsal?: number | null
+  apellidos?: string | null
+  nombre?: string | null
+}): [number, number, string, string] {
+  const tipo = j.tipo_jugador || (j.es_invitado ? 'invitado' : 'plantilla')
+  const trailing = tipo === 'plantilla' ? 0 : 1
+  const raw = j.dorsal
+  const dorsal = typeof raw === 'number' && Number.isFinite(raw) && raw >= 0 ? raw : 999
+  return [trailing, dorsal, (j.apellidos || '').toLocaleLowerCase('es'), (j.nombre || '').toLocaleLowerCase('es')]
+}
+
+export function sortRpeRoster<T extends Parameters<typeof rpeRosterSortKey>[0]>(players: T[]): T[] {
+  return [...players].sort((a, b) => {
+    const ka = rpeRosterSortKey(a)
+    const kb = rpeRosterSortKey(b)
+    for (let i = 0; i < ka.length; i++) {
+      if (ka[i] < kb[i]) return -1
+      if (ka[i] > kb[i]) return 1
+    }
+    return 0
+  })
+}
+
 /** Cantera / filial (valor persistido: tipo_jugador = juvenil). */
 export function isFilial(j: Pick<Jugador, 'tipo_jugador' | 'es_invitado'>): boolean {
   return resolveTipoJugador(j) === 'juvenil'

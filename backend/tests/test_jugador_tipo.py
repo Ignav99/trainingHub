@@ -3,6 +3,7 @@ from app.services.jugador_tipo import (
     incluye_tracking_carga,
     is_filial,
     resolve_tipo_jugador,
+    rpe_roster_sort_key,
 )
 
 
@@ -31,3 +32,16 @@ def test_filial_and_prueba_have_load_tracking():
     assert incluye_tracking_carga({"tipo_jugador": "plantilla"})
     assert not incluye_tracking_carga({"tipo_jugador": "invitado", "es_invitado": True})
     assert not incluye_tracking_carga({"es_invitado": True})
+
+
+def test_rpe_roster_sorts_plantilla_by_dorsal_then_filial_externos():
+    roster = [
+        {"nombre": "Filial", "apellidos": "Diez", "dorsal": 2, "tipo_jugador": "juvenil"},
+        {"nombre": "Invitado", "apellidos": "Once", "dorsal": 11, "es_invitado": True},
+        {"nombre": "Beto", "apellidos": "Baja", "dorsal": 9, "tipo_jugador": "plantilla"},
+        {"nombre": "Ana", "apellidos": "Alta", "dorsal": 4, "tipo_jugador": "plantilla"},
+        {"nombre": "Cero", "apellidos": "Sin", "dorsal": None, "tipo_jugador": "plantilla"},
+        {"nombre": "Prueba", "apellidos": "Ocho", "dorsal": 8, "tipo_jugador": "prueba"},
+    ]
+    ordered = sorted(roster, key=rpe_roster_sort_key)
+    assert [p["nombre"] for p in ordered] == ["Ana", "Beto", "Cero", "Filial", "Prueba", "Invitado"]

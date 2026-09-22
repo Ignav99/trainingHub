@@ -14,6 +14,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { rpeApi, type SesionRpeAsignacion } from '@/lib/api/rpe'
+import { TIPO_JUGADOR_LABELS, sortRpeRoster } from '@/lib/jugadorTipo'
 import { cn } from '@/lib/utils'
 
 const RPE_VALUES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const
@@ -46,7 +47,7 @@ export function AsignarRpeDialog({
       .getSesionAsignacion(sesionId)
       .then((res) => {
         if (cancelled) return
-        setData(res)
+        setData({ ...res, jugadores: sortRpeRoster(res.jugadores) })
         const next: Record<string, number | null> = {}
         for (const j of res.jugadores) next[j.jugador_id] = j.rpe ?? null
         setDraft(next)
@@ -120,6 +121,11 @@ export function AsignarRpeDialog({
                         <span className="tabular-nums text-muted-foreground mr-1">{j.dorsal}</span>
                       ) : null}
                       {name}
+                      {j.tipo_jugador && j.tipo_jugador !== 'plantilla' ? (
+                        <span className="ml-1.5 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
+                          {TIPO_JUGADOR_LABELS[j.tipo_jugador]}
+                        </span>
+                      ) : null}
                     </p>
                     <p className="text-[11px] text-muted-foreground tabular-nums">
                       {j.minutos_efectivos}′ efe.
