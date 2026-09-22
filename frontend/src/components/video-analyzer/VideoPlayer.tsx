@@ -34,6 +34,8 @@ import {
   waitUntilSeeked,
   wheelPixelsToSeconds,
   PLAYBACK_SPEEDS,
+  PLAYER_SKIP_SECONDS,
+  PLAYER_HOLD_SKIP_SECONDS,
   nextPlaybackSpeed,
   isFineJogPixels,
   playOnePresentedFrame,
@@ -68,7 +70,7 @@ interface VideoPlayerProps {
   /**
    * Enables extra controls meant for standalone/embedded previews (e.g. rival clips
    * list): OS fullscreen, expand overlay, and (unless presenterEmbed) the same
-   * frame jog as the coding desk (two-finger trackpad + arrow keys).
+   * jog as the coding desk (two-finger trackpad + arrow skip).
    */
   standalonePreview?: boolean
   /**
@@ -81,6 +83,11 @@ interface VideoPlayerProps {
    * without hiding standalone controls or stealing arrow keys.
    */
   fillFrame?: boolean
+  /**
+   * Window-level ←/→ skip. Defaults to fillFrame. Set false when another
+   * player (clip stage) is the one that should receive the arrows.
+   */
+  keyboardJog?: boolean
   defaultMuted?: boolean
   /** Tablet: el altavoz local se queda mudo; el botón mute controla el PC. */
   playbackMuted?: boolean
@@ -104,6 +111,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     standalonePreview,
     presenterEmbed,
     fillFrame,
+    keyboardJog,
     defaultMuted,
     playbackMuted,
     muted: mutedProp,
@@ -138,7 +146,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const onTimeUpdateRef = useRef(onTimeUpdate)
     onTimeUpdateRef.current = onTimeUpdate
     const jogPointer = (standalonePreview || fillFrame) && !presenterEmbed
-    const jogKeysWindow = !!fillFrame && !presenterEmbed
+    const jogKeysWindow = (keyboardJog ?? !!fillFrame) && !presenterEmbed
     const jogKeysContainer = !!standalonePreview && !presenterEmbed
 
     // HLS.js support for .m3u8 streams
@@ -527,7 +535,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       const v = videoRef.current
       if (!v) return
       if (!v.paused) v.pause()
-      seekToTime(v.currentTime + jog.direction)
+      const amount = jog.seconds > 0 ? jog.seconds : PLAYER_SKIP_SECONDS
+      seekToTime(v.currentTime + jog.direction * amount)
     }, [frameStep, seekToTime])
 
     const onJogKeyDown = useCallback((e: KeyboardEvent | React.KeyboardEvent) => {
@@ -540,13 +549,15 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       applyArrowJog(jog)
       if (holdTimerRef.current != null) window.clearTimeout(holdTimerRef.current)
       holdTimerRef.current = window.setTimeout(() => {
-        heldJogRef.current = jog
-        if (jog.kind === 'frame') {
+        heldJogRef.current = jog.kind === 'skip'
+          ? { ...jog, seconds: PLAYER_HOLD_SKIP_SECONDS }
+          : jog
+        if (heldJogRef.current.kind === 'frame') {
           void runFrameQueue()
           return
         }
         const tick = () => {
-          if (heldJogRef.current?.kind !== 'second') return
+          if (heldJogRef.current?.kind !== 'skip') return
           applyArrowJog(heldJogRef.current)
           holdTimerRef.current = window.setTimeout(tick, 90)
         }
@@ -559,7 +570,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') stopHoldJog()
     }, [stopHoldJog])
 
-    // Left/Right: one frame. Shift+Left/Right: 1s. Hold keeps stepping at decoder pace.
+    // Left/Right: ±5s like other players. Shift+arrows: one frame. Hold shuttles.
     const handleContainerKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
       if (!jogKeysContainer) return
       if (e.key === ' ') {
@@ -687,13 +698,13 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
               if (e.key === 'ArrowLeft') {
                 e.preventDefault()
                 e.stopPropagation()
-                if (e.shiftKey) seek(-1)
-                else frameStep(-1)
+                if (e.shiftKey) frameStep(-1)
+                else seek(-PLAYER_SKIP_SECONDS)
               } else if (e.key === 'ArrowRight') {
                 e.preventDefault()
                 e.stopPropagation()
-                if (e.shiftKey) seek(1)
-                else frameStep(1)
+                if (e.shiftKey) frameStep(1)
+                else seek(PLAYER_SKIP_SECONDS)
               } else if (e.key === 'Home') {
                 e.preventDefault()
                 e.stopPropagation()
@@ -744,8 +755,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             variant="ghost"
             size="icon"
             className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20"
-            onClick={() => seek(-5)}
-            title="-5s"
+            onClick={() => seek(-PLAYER_SKIP_SECONDS)}
+            title={`-${PLAYER_SKIP_SECONDS}s (←)`}
           >
             <SkipBack className="h-3.5 w-3.5" />
           </Button>
@@ -755,7 +766,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             size="icon"
             className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20"
             onClick={() => frameStep(-1)}
-            title="Frame anterior (←)"
+            title="Frame anterior (Mayús+←)"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
@@ -765,7 +776,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             size="icon"
             className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20"
             onClick={() => frameStep(1)}
-            title="Frame siguiente (→)"
+            title="Frame siguiente (Mayús+→)"
           >
             <ChevronRight className="h-3.5 w-3.5" />
           </Button>
@@ -774,8 +785,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             variant="ghost"
             size="icon"
             className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20"
-            onClick={() => seek(5)}
-            title="+5s"
+            onClick={() => seek(PLAYER_SKIP_SECONDS)}
+            title={`+${PLAYER_SKIP_SECONDS}s (→)`}
           >
             <SkipForward className="h-3.5 w-3.5" />
           </Button>

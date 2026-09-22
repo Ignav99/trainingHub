@@ -290,10 +290,15 @@ export function VideoDeskTimeline({
                         width: `max(4px, ${Math.max(0.3, right - left)}%)`,
                         background: btn.color,
                       }}
-                      title={btn.label}
+                      title={`${btn.label} · clic para seleccionar · doble clic reproduce · Supr borra`}
                       onPointerDown={(e) => onBlockPointerDown(e, clip, 'body')}
                       onPointerMove={onBlockPointerMove}
                       onPointerUp={onBlockPointerUp}
+                      onDoubleClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        onPlayClip?.(clip)
+                      }}
                     >
                       <span
                         className="vd-block-handle is-start"

@@ -70,7 +70,17 @@ export const DEFAULT_DESK_BUTTONS: CodeButton[] = [
   },
 ]
 
-export const RESERVED_SHORTCUTS = new Set([' ', 'escape', 'h', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown'])
+export const RESERVED_SHORTCUTS = new Set([
+  ' ',
+  'escape',
+  'h',
+  'arrowleft',
+  'arrowright',
+  'arrowup',
+  'arrowdown',
+  'delete',
+  'backspace',
+])
 
 export function normalizeShortcut(raw: string | undefined | null): string | undefined {
   const value = (raw || '').trim().toLowerCase()
@@ -345,4 +355,33 @@ export function clipsOnLane(events: CodeEvent[], buttonId: string): CodeEvent[] 
     .filter((e) => e.buttonId === buttonId)
     .slice()
     .sort((a, b) => a.startTime - b.startTime)
+}
+
+export type DeskPlaylist = {
+  title: string
+  clips: CodeEvent[]
+  startId?: string
+}
+
+/** Focused clip first so Delete never wipes a whole lane playlist. */
+export function idsForKeyboardClipDelete(
+  selectedClipId: string | null,
+  selectedClipIds: string[] = []
+): string[] {
+  if (selectedClipId) return [selectedClipId]
+  return selectedClipIds.filter(Boolean)
+}
+
+export function removeClipFromPlaylist(
+  playlist: DeskPlaylist,
+  clipId: string
+): DeskPlaylist | null {
+  const clips = playlist.clips.filter((c) => c.id !== clipId)
+  if (!clips.length) return null
+  if (playlist.startId && playlist.startId !== clipId && clips.some((c) => c.id === playlist.startId)) {
+    return { ...playlist, clips }
+  }
+  const oldIndex = playlist.clips.findIndex((c) => c.id === clipId)
+  const next = clips[Math.min(Math.max(oldIndex, 0), clips.length - 1)]
+  return { ...playlist, clips, startId: next.id }
 }
