@@ -25,7 +25,6 @@ export function VideoDeskTimeline({
   onSelectLane,
   onPlayClip,
   onTrim,
-  onDelete,
 }: {
   buttons: CodeButton[]
   events: CodeEvent[]
@@ -39,7 +38,6 @@ export function VideoDeskTimeline({
   onSelectLane: (buttonId: string) => void
   onPlayClip?: (clip: CodeEvent) => void
   onTrim: (clip: CodeEvent, startTime: number, endTime: number) => void
-  onDelete?: (clip: CodeEvent) => void
 }) {
   const trackRef = useRef<HTMLDivElement>(null)
   const [zoom, setZoom] = useState(1)
@@ -292,7 +290,7 @@ export function VideoDeskTimeline({
                         width: `max(4px, ${Math.max(0.3, right - left)}%)`,
                         background: btn.color,
                       }}
-                      title={`${btn.label} · clic selecciona · doble clic reproduce · ⌫ borra`}
+                      title={`${btn.label} · clic selecciona · doble clic reproduce`}
                       onPointerDown={(e) => onBlockPointerDown(e, clip, 'body')}
                       onPointerMove={onBlockPointerMove}
                       onPointerUp={onBlockPointerUp}
@@ -310,24 +308,6 @@ export function VideoDeskTimeline({
                         className="vd-block-handle is-end"
                         onPointerDown={(e) => onBlockPointerDown(e, clip, 'end')}
                       />
-                      {onDelete ? (
-                        <button
-                          type="button"
-                          className="vd-block-delete"
-                          aria-label={`Eliminar ${btn.label}`}
-                          title="Eliminar recorte"
-                          onPointerDown={(e) => {
-                            e.stopPropagation()
-                            e.preventDefault()
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onDelete(clip)
-                          }}
-                        >
-                          ×
-                        </button>
-                      ) : null}
                     </div>
                   )
                 })}
