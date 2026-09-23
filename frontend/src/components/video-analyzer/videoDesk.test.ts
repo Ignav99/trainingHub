@@ -5,6 +5,14 @@ import {
   clipRangeFromPress,
   migrateDeskButtons,
   looksLikeLegacyDefaultButtons,
+  clampLayout,
+  exposeLayouts,
+  packDefaultLayouts,
+  placeButtonLayout,
+  resolveButtonLayouts,
+  sanitizeLayout,
+  shiftLayout,
+  layoutsOverlap,
   clipFileName,
   matchRevisionFolderId,
   groupClipsByButton,
@@ -50,6 +58,59 @@ describe('video desk coding', () => {
     assert.ok(next.some((b) => b.fase === 'abp_defensiva' && b.preRoll === 8 && b.postRoll === 12))
   })
 
+  it('packs the default botonera into free zones without a fixed size scale', () => {
+    const layouts = Object.values(packDefaultLayouts(DEFAULT_DESK_BUTTONS))
+    assert.equal(layouts.length, 6)
+    for (const layout of layouts) {
+      assert.ok(layout.x >= 0 && layout.y >= 0)
+      assert.ok(layout.x + layout.w <= 100.05)
+      assert.ok(layout.y + layout.h <= 100.05)
+    }
+    for (let i = 0; i < layouts.length; i++) {
+      for (let j = i + 1; j < layouts.length; j++) {
+        assert.equal(layoutsOverlap(layouts[i], layouts[j], -0.25), false)
+      }
+    }
+    const wide = packDefaultLayouts(DEFAULT_DESK_BUTTONS)['fase-ataque-org']
+    const pairA = packDefaultLayouts(DEFAULT_DESK_BUTTONS)['fase-trans-of']
+    const pairB = packDefaultLayouts(DEFAULT_DESK_BUTTONS)['fase-trans-def']
+    assert.ok(wide.w > 80)
+    assert.equal(pairA.y, pairB.y)
+    assert.ok(pairA.w < 60 && pairB.w < 60)
+  })
+
+  it('keeps a saved zone and parks a new button in a free gap', () => {
+    const saved = { x: 4, y: 4, w: 90, h: 20 }
+    const buttons: CodeButton[] = [
+      { id: 'a', label: 'A', color: '#000', preRoll: 1, postRoll: 1, layout: saved },
+      { id: 'b', label: 'B', color: '#111', preRoll: 1, postRoll: 1 },
+    ]
+    const resolved = resolveButtonLayouts(buttons)
+    assert.deepEqual(resolved.a, saved)
+    assert.equal(layoutsOverlap(resolved.a, resolved.b, -0.2), false)
+    assert.equal(sanitizeLayout({ x: 10 }), undefined)
+    assert.deepEqual(clampLayout({ x: 90, y: 90, w: 40, h: 40 }), { x: 60, y: 60, w: 40, h: 40 })
+    assert.deepEqual(shiftLayout({ x: 10, y: 10, w: 20, h: 20 }, -30, 5), { x: 0, y: 15, w: 20, h: 20 })
+    const parked = placeButtonLayout([saved])
+    assert.equal(layoutsOverlap(saved, parked, -0.2), false)
+  })
+
+  it('keeps a covered button visible when a larger one is dropped on it', () => {
+    const exposed = exposeLayouts({
+      big: { x: 2, y: 2, w: 90, h: 40, z: 3 },
+      small: { x: 12, y: 10, w: 28, h: 14, z: 1 },
+    })
+    assert.ok((exposed.small.z ?? 0) > (exposed.big.z ?? 0))
+    const same = exposeLayouts({
+      a: { x: 10, y: 10, w: 40, h: 22, z: 4 },
+      b: { x: 10, y: 10, w: 40, h: 22, z: 1 },
+    })
+    const area = same.b.w * same.b.h
+    const overlapW = Math.max(0, Math.min(same.a.x + same.a.w, same.b.x + same.b.w) - Math.max(same.a.x, same.b.x))
+    const overlapH = Math.max(0, Math.min(same.a.y + same.a.h, same.b.y + same.b.h) - Math.max(same.a.y, same.b.y))
+    assert.ok((overlapW * overlapH) / area < 0.9)
+  })
+
   it('keeps extra custom buttons and fills size', () => {
     const custom: CodeButton[] = [
       { id: 'x', label: '2v1 banda', color: '#fff', preRoll: 2, postRoll: 4 },
@@ -58,6 +119,14 @@ describe('video desk coding', () => {
     assert.equal(next[0].label, '2v1 banda')
     assert.equal(next[0].size, 'm')
     assert.equal(next[0].preRoll, 2)
+    assert.equal(next[0].layout, undefined)
+  })
+
+  it('keeps a valid button zone through migration', () => {
+    const custom: CodeButton[] = [
+      { id: 'x', label: '2v1 banda', color: '#fff', preRoll: 2, postRoll: 4, layout: { x: 12, y: 8, w: 40, h: 22 } },
+    ]
+    assert.deepEqual(migrateDeskButtons(custom)[0].layout, { x: 12, y: 8, w: 40, h: 22 })
   })
 
   it('names clip files so they can be dropped into another PC folder', () => {
