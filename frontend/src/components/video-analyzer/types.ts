@@ -59,6 +59,16 @@ export const STROKE_WIDTHS = [2, 4, 6, 10]
 export type CodeButtonSize = 's' | 'm' | 'l'
 export type CodeCaptureMode = 'window' | 'range'
 
+/** Free position inside the botonera canvas, in percent (0–100). */
+export interface ButtonLayout {
+  x: number
+  y: number
+  w: number
+  h: number
+  /** Stacking order. The button you last moved stays in front. */
+  z?: number
+}
+
 export interface CodeButton {
   id: string
   label: string
@@ -72,6 +82,8 @@ export interface CodeButton {
   captureMode?: CodeCaptureMode
   /** Maps the folder to Revisión (ataque_organizado, abp_ofensiva, …). */
   fase?: string
+  /** Saved zone. Absent until the coach accepts a layout edit. */
+  layout?: ButtonLayout
 }
 
 export interface CodeEvent {

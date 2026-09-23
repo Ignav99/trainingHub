@@ -1,4 +1,4 @@
-import type { CodeButton, CodeButtonSize, CodeEvent } from './types'
+import type { ButtonLayout, CodeButton, CodeButtonSize, CodeEvent } from './types'
 import type { RevisionFolder } from '@/lib/api/revision'
 
 export const DEFAULT_DESK_BUTTONS: CodeButton[] = [
@@ -166,6 +166,202 @@ export function clipRangeFromPress(
   return { startTime, endTime }
 }
 
+const LAYOUT_GAP = 1.8
+
+function round1(n: number): number {
+  return Math.round(n * 10) / 10
+}
+
+function clampNum(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n))
+}
+
+export function clampLayout(layout: ButtonLayout, minW = 4, minH = 4): ButtonLayout {
+  const w = clampNum(round1(layout.w), Math.min(minW, 80), 100)
+  const h = clampNum(round1(layout.h), Math.min(minH, 80), 100)
+  let x = clampNum(round1(layout.x), 0, 100 - w)
+  let y = clampNum(round1(layout.y), 0, 100 - h)
+  if (x + w > 100) x = round1(100 - w)
+  if (y + h > 100) y = round1(100 - h)
+  const next: ButtonLayout = { x, y, w, h }
+  if (typeof layout.z === 'number' && Number.isFinite(layout.z)) next.z = Math.round(layout.z)
+  return next
+}
+
+export function sanitizeLayout(raw: unknown): ButtonLayout | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const layout = raw as Partial<ButtonLayout>
+  const values = [layout.x, layout.y, layout.w, layout.h]
+  if (!values.every((n) => typeof n === 'number' && Number.isFinite(n))) return undefined
+  return clampLayout({ x: layout.x as number, y: layout.y as number, w: layout.w as number, h: layout.h as number })
+}
+
+/** Pixel floor so a button stays grabbable, expressed as a percent of the canvas. */
+export function layoutMins(canvasW: number, canvasH: number): { minW: number; minH: number } {
+  const minW = canvasW > 0 ? Math.min(48, (64 / canvasW) * 100) : 18
+  const minH = canvasH > 0 ? Math.min(48, (40 / canvasH) * 100) : 12
+  return { minW, minH }
+}
+
+export function shiftLayout(
+  origin: ButtonLayout,
+  dx: number,
+  dy: number,
+  dw = 0,
+  dh = 0,
+  minW = 4,
+  minH = 4,
+): ButtonLayout {
+  return clampLayout({
+    x: origin.x + dx,
+    y: origin.y + dy,
+    w: origin.w + dw,
+    h: origin.h + dh,
+  }, minW, minH)
+}
+
+export function layoutsEqual(a?: ButtonLayout | null, b?: ButtonLayout | null): boolean {
+  if (!a || !b) return false
+  return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h && (a.z ?? 0) === (b.z ?? 0)
+}
+
+export function layoutsOverlap(a: ButtonLayout, b: ButtonLayout, gap = 0): boolean {
+  return a.x < b.x + b.w + gap
+    && a.x + a.w + gap > b.x
+    && a.y < b.y + b.h + gap
+    && a.y + a.h + gap > b.y
+}
+
+function rowWeight(row: CodeButton[]): number {
+  if (row.length === 1 && (row[0].size || 'm') === 'l') return 1.2
+  if (row.some((b) => b.size === 's')) return 0.78
+  return 1
+}
+
+/** First-open arrangement: wide buttons on their own row, the rest in pairs. */
+export function packDefaultLayouts(buttons: CodeButton[]): Record<string, ButtonLayout> {
+  const rows: CodeButton[][] = []
+  let pending: CodeButton[] = []
+  const flush = () => {
+    if (!pending.length) return
+    rows.push(pending)
+    pending = []
+  }
+  for (const button of buttons) {
+    if ((button.size || 'm') === 'l') {
+      flush()
+      rows.push([button])
+    } else {
+      pending.push(button)
+      if (pending.length === 2) flush()
+    }
+  }
+  flush()
+  if (!rows.length) return {}
+
+  const weights = rows.map(rowWeight)
+  const total = weights.reduce((sum, weight) => sum + weight, 0)
+  const usable = 100 - LAYOUT_GAP * (rows.length + 1)
+  let y = LAYOUT_GAP
+  const out: Record<string, ButtonLayout> = {}
+  rows.forEach((row, index) => {
+    const h = (usable * weights[index]) / total
+    const count = row.length
+    const inner = count > 1 ? LAYOUT_GAP : 0
+    const w = (100 - LAYOUT_GAP * 2 - inner * (count - 1)) / count
+    row.forEach((button, col) => {
+      out[button.id] = clampLayout({
+        x: LAYOUT_GAP + col * (w + inner),
+        y,
+        w,
+        h,
+      })
+    })
+    y += h + LAYOUT_GAP
+  })
+  return out
+}
+
+export function placeButtonLayout(existing: ButtonLayout[]): ButtonLayout {
+  const w = 42
+  const h = 16
+  for (let y = LAYOUT_GAP; y <= 100 - h + 0.01; y += 2) {
+    for (let x = LAYOUT_GAP; x <= 100 - w + 0.01; x += 2) {
+      const candidate = { x, y, w, h }
+      if (!existing.some((other) => layoutsOverlap(candidate, other, 0.6))) {
+        return clampLayout(candidate)
+      }
+    }
+  }
+  return clampLayout({ x: LAYOUT_GAP, y: LAYOUT_GAP, w: 36, h: 14 })
+}
+
+function intersectionArea(a: ButtonLayout, b: ButtonLayout): number {
+  const width = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x))
+  const height = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y))
+  return width * height
+}
+
+function coverageOf(inner: ButtonLayout, outer: ButtonLayout): number {
+  const area = inner.w * inner.h
+  if (area <= 0) return 0
+  return intersectionArea(inner, outer) / area
+}
+
+function nudgeOut(box: ButtonLayout, cover: ButtonLayout): ButtonLayout {
+  const stickW = box.w * 0.34
+  const stickH = box.h * 0.34
+  const distLeft = box.x + box.w - cover.x
+  const distRight = cover.x + cover.w - box.x
+  const distTop = box.y + box.h - cover.y
+  const distBottom = cover.y + cover.h - box.y
+  const min = Math.min(distLeft, distRight, distTop, distBottom)
+  if (min === distLeft) return { ...box, x: cover.x - box.w + stickW }
+  if (min === distRight) return { ...box, x: cover.x + cover.w - stickW }
+  if (min === distTop) return { ...box, y: cover.y - box.h + stickH }
+  return { ...box, y: cover.y + cover.h - stickH }
+}
+
+/** Keep every button reachable: a smaller one pops above a cover, equals slide out a strip. */
+export function exposeLayouts(layouts: Record<string, ButtonLayout>): Record<string, ButtonLayout> {
+  const ids = Object.keys(layouts)
+  const next: Record<string, ButtonLayout> = { ...layouts }
+  for (const id of ids) {
+    let box = next[id]
+    for (const otherId of ids) {
+      if (otherId === id) continue
+      const other = next[otherId]
+      if ((other.z ?? 0) < (box.z ?? 0)) continue
+      if (coverageOf(box, other) < 0.88) continue
+      if (other.w * other.h > box.w * box.h * 1.2) {
+        box = { ...box, z: Math.round(other.z ?? 0) + 1 }
+      } else {
+        box = nudgeOut(box, other)
+      }
+    }
+    next[id] = clampLayout(box, 4, 4)
+  }
+  return next
+}
+
+export function resolveButtonLayouts(buttons: CodeButton[]): Record<string, ButtonLayout> {
+  const saved: Record<string, ButtonLayout> = {}
+  const missing: CodeButton[] = []
+  for (const button of buttons) {
+    const layout = sanitizeLayout(button.layout)
+    if (layout) saved[button.id] = layout
+    else missing.push(button)
+  }
+  if (missing.length === buttons.length) return packDefaultLayouts(buttons)
+  const placed = Object.values(saved)
+  for (const button of missing) {
+    const spot = placeButtonLayout(placed)
+    saved[button.id] = spot
+    placed.push(spot)
+  }
+  return saved
+}
+
 export function looksLikeLegacyDefaultButtons(buttons: CodeButton[]): boolean {
   if (buttons.length !== 4) return false
   const labels = buttons.map((b) => b.label).join('|')
@@ -183,6 +379,7 @@ export function migrateDeskButtons(buttons: CodeButton[] | undefined): CodeButto
     shortcut: normalizeShortcut(b.shortcut),
     preRoll: Number.isFinite(b.preRoll) ? b.preRoll : 5,
     postRoll: Number.isFinite(b.postRoll) ? b.postRoll : 5,
+    layout: sanitizeLayout(b.layout),
   }))
 }
 

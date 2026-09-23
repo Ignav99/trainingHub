@@ -20,6 +20,7 @@ import {
   timingsLabel,
 } from './videoDesk'
 import { isClipDeleteKey, isTypingTarget } from './videoJog'
+import type { BotoneraEditGate } from './VideoDeskBotonera'
 import type { CodeButton, CodeEvent } from './types'
 import './video-desk.css'
 
@@ -45,6 +46,7 @@ export function VideoAnalyzer({
   onClose,
 }: VideoAnalyzerProps) {
   const playerRef = useRef<VideoPlayerHandle>(null)
+  const botoneraEditRef = useRef<BotoneraEditGate>({ on: false, cancel: () => {} })
   const currentTimeRef = useRef(0)
   const rangeArmRef = useRef<{ buttonId: string; startTime: number } | null>(null)
   const [currentTime, setCurrentTime] = useState(0)
@@ -213,6 +215,10 @@ export function VideoAnalyzer({
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (isTypingTarget(e.target)) return
+      if (botoneraEditRef.current.on) {
+        e.preventDefault()
+        return
+      }
       if (e.key === 'Escape') {
         e.preventDefault()
         if (stage) {
@@ -399,7 +405,6 @@ export function VideoAnalyzer({
 
         <aside ref={railRef} className="vd-rail">
           <div className="vd-rail-botonera">
-            <div className="vd-section-label">Botonera</div>
             <VideoDeskBotonera
               buttons={buttons}
               activeButtonId={activeButtonId}
@@ -408,6 +413,7 @@ export function VideoAnalyzer({
               onAdd={addButton}
               onUpdate={updateButton}
               onRemove={removeButton}
+              editGateRef={botoneraEditRef}
             />
           </div>
           <div

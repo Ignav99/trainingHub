@@ -25,10 +25,13 @@ describe('video desk wiring', () => {
     assert.equal(analyzer.includes('handleOpenBotonera'), false)
   })
 
-  it('lets the coach add buttons, size them, time them, assign a unique key, and mark in/out', () => {
+  it('lets the coach place buttons freely, time them, assign a unique key, and mark in/out', () => {
     const botonera = read('VideoDeskBotonera.tsx')
+    const analyzer = read('VideoAnalyzer.tsx')
     assert.match(botonera, /Momento/)
-    assert.match(botonera, /Tamaño del botón/)
+    assert.match(botonera, /Editar botonera/)
+    assert.match(botonera, /Aceptar/)
+    assert.match(botonera, /Arrastra para mover/)
     assert.match(botonera, /Antes \(s\)/)
     assert.match(botonera, /Después \(s\)/)
     assert.match(botonera, /Inicio \/ fin/)
@@ -37,7 +40,10 @@ describe('video desk wiring', () => {
     assert.match(botonera, /preRoll/)
     assert.match(botonera, /postRoll/)
     assert.match(botonera, /captureMode/)
-    assert.match(botonera, /size/)
+    assert.match(botonera, /layout/)
+    assert.equal(botonera.includes('Tamaño del botón'), false)
+    assert.equal(botonera.includes('BUTTON_SIZE_ORDER'), false)
+    assert.match(analyzer, /botoneraEditRef/)
   })
 
   it('offers clip, folder, and full-pack MP4 downloads without uploading the match', () => {
