@@ -39,7 +39,10 @@ import {
   nextPlaybackSpeed,
   isFineJogPixels,
   playOnePresentedFrame,
+  playForwardToTime,
   PresentedFrameCache,
+  seekSnappedAway,
+  snapshotVideoFrame,
   type ArrowJog,
 } from './videoJog'
 
@@ -145,10 +148,17 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const jogSilentRef = useRef(false)
     const padActiveRef = useRef(false)
     const padIdleTimerRef = useRef<number | null>(null)
-    const frameCacheRef = useRef(new PresentedFrameCache(90))
+    const frameCacheRef = useRef(new PresentedFrameCache(140))
     const overlayRef = useRef<HTMLCanvasElement | null>(null)
+    const jogLockRef = useRef(false)
+    const reverseHoldRef = useRef(false)
+    const jogTokenRef = useRef(0)
+    const pendingShuttleRef = useRef<number | null>(null)
+    const snapBusyRef = useRef(false)
+    const speedRef = useRef(1)
     const onTimeUpdateRef = useRef(onTimeUpdate)
     onTimeUpdateRef.current = onTimeUpdate
+    speedRef.current = speed
     const jogPointer = (standalonePreview || fillFrame) && !presenterEmbed
     const jogKeysWindow = (keyboardJog ?? !!fillFrame) && !presenterEmbed
     const jogKeysContainer = !!standalonePreview && !presenterEmbed
@@ -182,11 +192,31 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       const v = videoRef.current
       if (!v) return
       if (v.paused) {
-        // If at clip end, loop back to start
-        if (clipRange && v.currentTime >= clipRange.end - 0.05) {
+        const clock = currentTimeRef.current
+        if (clipRange && clock >= clipRange.end - 0.05) {
           v.currentTime = clipRange.start
+          currentTimeRef.current = clipRange.start
         }
-        v.play()
+        if (reverseHoldRef.current && seekSnappedAway(currentTimeRef.current, v.currentTime, fpsRef.current)) {
+          const resumeAt = currentTimeRef.current
+          jogLockRef.current = true
+          v.currentTime = resumeAt
+          void waitUntilSeeked(v).finally(() => {
+            jogLockRef.current = false
+            if (
+              typeof v.requestVideoFrameCallback !== 'function'
+              || !seekSnappedAway(resumeAt, v.currentTime, fpsRef.current)
+            ) {
+              reverseHoldRef.current = false
+              if (overlayRef.current) overlayRef.current.style.opacity = '0'
+            }
+            void v.play()?.catch(() => undefined)
+          })
+          return
+        }
+        reverseHoldRef.current = false
+        if (overlayRef.current) overlayRef.current.style.opacity = '0'
+        void v.play()?.catch(() => undefined)
       } else {
         v.pause()
       }
@@ -200,21 +230,69 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       return { min, max }
     }, [clipRange, duration])
 
+    const publishTime = useCallback((time: number) => {
+      const { min, max } = rangeBounds()
+      const next = clampTime(time, min, max)
+      currentTimeRef.current = next
+      setCurrentTime(next)
+      onTimeUpdateRef.current?.(next)
+      return next
+    }, [rangeBounds])
+
+    const showCached = useCallback((frame: { mediaTime: number; bitmap: ImageBitmap }) => {
+      const canvas = overlayRef.current
+      if (!canvas) return
+      canvas.width = frame.bitmap.width
+      canvas.height = frame.bitmap.height
+      canvas.getContext('2d')?.drawImage(frame.bitmap, 0, 0)
+      canvas.style.opacity = '1'
+      reverseHoldRef.current = true
+      const v = videoRef.current
+      if (v) v.style.opacity = '0'
+    }, [])
+
+    const hideOverlay = useCallback(() => {
+      reverseHoldRef.current = false
+      const canvas = overlayRef.current
+      if (canvas) canvas.style.opacity = '0'
+      const v = videoRef.current
+      if (v) v.style.opacity = ''
+    }, [])
+
+    const rememberFrame = useCallback((mediaTime: number) => {
+      const v = videoRef.current
+      if (!v || snapBusyRef.current) return
+      snapBusyRef.current = true
+      void snapshotVideoFrame(v).then((bmp) => {
+        snapBusyRef.current = false
+        if (bmp) frameCacheRef.current.push(mediaTime, bmp)
+      })
+    }, [])
+
+    const releaseJogHold = useCallback(() => {
+      jogTokenRef.current += 1
+      jogLockRef.current = false
+      jogSilentRef.current = false
+      pendingShuttleRef.current = null
+      hideOverlay()
+      const v = videoRef.current
+      if (v) v.style.opacity = ''
+    }, [hideOverlay])
+
     const seekToTime = useCallback((time: number) => {
       const v = videoRef.current
       if (!v) return
+      releaseJogHold()
       const { min, max } = rangeBounds()
       const next = clampTime(time, min, max)
       currentTimeRef.current = next
       setCurrentTime(next)
       v.currentTime = next
       onTimeUpdateRef.current?.(next)
-    }, [rangeBounds])
+    }, [rangeBounds, releaseJogHold])
 
     const seek = useCallback((delta: number) => {
-      const v = videoRef.current
-      if (!v) return
-      seekToTime(v.currentTime + delta)
+      seekToTime(currentTimeRef.current + delta)
     }, [seekToTime])
 
     const stopHoldRewind = useCallback(() => {
@@ -247,6 +325,78 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       seekToTime(min + ratio * Math.max(0, max - min))
     }, [rangeBounds, seekToTime])
 
+    // Seek to `target`, then play through the GOP until that instant.
+    // The keyframe Chrome lands on is never published as the playhead.
+    const decodeOnce = useCallback(async (target: number) => {
+      const v = videoRef.current
+      if (!v) return
+      const token = jogTokenRef.current
+      const { min, max } = rangeBounds()
+      const goal = clampTime(target, min, max)
+      const from = currentTimeRef.current
+      if (Math.abs(goal - from) < 0.0004 && !seekSnappedAway(goal, v.currentTime, fpsRef.current)) {
+        hideOverlay()
+        return
+      }
+      const cached = frameCacheRef.current.frameForJog(from, goal, fpsRef.current)
+      if (cached) {
+        showCached(cached)
+        publishTime(cached.mediaTime)
+        return
+      }
+      jogLockRef.current = true
+      jogSilentRef.current = true
+      reverseHoldRef.current = true
+      try {
+        if (!v.paused) v.pause()
+        const canvas = overlayRef.current
+        if (canvas && canvas.style.opacity !== '1') {
+          const bmp = await snapshotVideoFrame(v)
+          if (token !== jogTokenRef.current) {
+            bmp?.close()
+            return
+          }
+          if (bmp) {
+            frameCacheRef.current.push(from, bmp)
+            showCached({ mediaTime: from, bitmap: bmp })
+          }
+        }
+        if (token !== jogTokenRef.current) return
+        v.playbackRate = 1
+        v.style.opacity = '0'
+        v.currentTime = goal
+        if (v.seeking) await waitUntilSeeked(v)
+        if (token !== jogTokenRef.current) return
+        const landed = await playForwardToTime(v, goal, {
+          cancelled: () => token !== jogTokenRef.current,
+          onPresented: (mediaTime) => {
+            void snapshotVideoFrame(v).then((bmp) => {
+              if (bmp && token === jogTokenRef.current) frameCacheRef.current.push(mediaTime, bmp)
+            })
+          },
+        })
+        if (token !== jogTokenRef.current) return
+        if (seekSnappedAway(goal, landed, fpsRef.current)) return
+        const bmp = await snapshotVideoFrame(v)
+        if (token !== jogTokenRef.current) {
+          bmp?.close()
+          return
+        }
+        if (bmp) frameCacheRef.current.push(landed, bmp)
+        publishTime(landed)
+        hideOverlay()
+      } finally {
+        if (token === jogTokenRef.current) {
+          jogLockRef.current = false
+          jogSilentRef.current = false
+          v.pause()
+          v.playbackRate = speedRef.current
+        }
+      }
+    }, [hideOverlay, publishTime, rangeBounds, showCached])
+
+    const shuttleToRef = useRef<(time: number) => void>(() => {})
+
     // One paused frame per call. Never pump from the hold flag — that stacked
     // GOP seeks and jumped to the start of the action. Hold cadence is the timer.
     const runFrameQueue = useCallback(async () => {
@@ -259,58 +409,69 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       try {
         if (!v.paused) v.pause()
         const { min, max } = rangeBounds()
+        const clock = currentTimeRef.current
         if (dir === 1) {
-          jogSilentRef.current = true
-          const next = await playOnePresentedFrame(v)
-          jogSilentRef.current = false
-          v.pause()
-          const clamped = clampTime(next, min, max)
-          currentTimeRef.current = clamped
-          setCurrentTime(clamped)
-          onTimeUpdateRef.current?.(clamped)
-        } else {
-          const cached = frameCacheRef.current.nearestBefore(v.currentTime)
-          if (cached) {
-            const canvas = overlayRef.current
-            if (canvas) {
-              canvas.width = cached.bitmap.width
-              canvas.height = cached.bitmap.height
-              canvas.getContext('2d')?.drawImage(cached.bitmap, 0, 0)
-              canvas.style.opacity = '1'
-            }
-            currentTimeRef.current = cached.mediaTime
-            setCurrentTime(cached.mediaTime)
-            onTimeUpdateRef.current?.(cached.mediaTime)
-            v.currentTime = cached.mediaTime
-            if (v.seeking) await waitUntilSeeked(v)
+          const cachedNext = reverseHoldRef.current
+            ? frameCacheRef.current.adjacentAfter(clock, fpsRef.current)
+            : null
+          if (cachedNext) {
+            showCached(cachedNext)
+            publishTime(cachedNext.mediaTime)
+          } else if (reverseHoldRef.current && v.currentTime > clock + (1 / Math.max(1, fpsRef.current)) * 0.5) {
+            await decodeOnce(nextFrameTime(clock, 1, fpsRef.current, min, max))
           } else {
-            const from = v.currentTime
-            let next = nextFrameTime(from, dir, fpsRef.current, min, max)
-            if (Math.abs(next - from) < 0.0004) return
-            currentTimeRef.current = next
-            setCurrentTime(next)
-            v.currentTime = next
-            onTimeUpdateRef.current?.(next)
-            if (v.seeking) await waitUntilSeeked(v)
-            else await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
-            const frameLen = 1 / Math.max(1, fpsRef.current)
-            if (v.currentTime > from - frameLen * 0.4 && next > min) {
-              next = nextFrameTime(v.currentTime, -1, fpsRef.current, min, max)
-              currentTimeRef.current = next
-              setCurrentTime(next)
-              v.currentTime = next
-              onTimeUpdateRef.current?.(next)
-              if (v.seeking) await waitUntilSeeked(v)
-            }
+            jogSilentRef.current = true
+            const next = await playOnePresentedFrame(v)
+            jogSilentRef.current = false
+            v.pause()
+            publishTime(next)
+            hideOverlay()
+            rememberFrame(currentTimeRef.current)
+          }
+        } else {
+          const cached = frameCacheRef.current.adjacentBefore(clock, fpsRef.current)
+          if (cached) {
+            showCached(cached)
+            publishTime(cached.mediaTime)
+          } else {
+            await decodeOnce(nextFrameTime(clock, -1, fpsRef.current, min, max))
           }
         }
       } finally {
-        jogSilentRef.current = false
         v.pause()
         frameBusyRef.current = false
-        if (pendingFramesRef.current !== 0) void runFrameQueue()
+        if (pendingShuttleRef.current != null) {
+          const target = pendingShuttleRef.current
+          pendingShuttleRef.current = null
+          shuttleToRef.current(target)
+        } else if (pendingFramesRef.current !== 0) {
+          void runFrameQueue()
+        }
       }
-    }, [rangeBounds])
+    }, [decodeOnce, hideOverlay, publishTime, rangeBounds, rememberFrame, showCached])
+
+    const shuttleTo = useCallback((time: number) => {
+      const { min, max } = rangeBounds()
+      pendingShuttleRef.current = clampTime(time, min, max)
+      if (frameBusyRef.current) {
+        jogTokenRef.current += 1
+        return
+      }
+      frameBusyRef.current = true
+      void (async () => {
+        try {
+          while (pendingShuttleRef.current != null) {
+            const goal = pendingShuttleRef.current
+            pendingShuttleRef.current = null
+            await decodeOnce(goal)
+          }
+        } finally {
+          frameBusyRef.current = false
+          if (pendingFramesRef.current !== 0) void runFrameQueue()
+        }
+      })()
+    }, [decodeOnce, rangeBounds, runFrameQueue])
+    shuttleToRef.current = shuttleTo
 
     const frameStep = useCallback((direction: 1 | -1) => {
       const v = videoRef.current
@@ -321,7 +482,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
 
     useImperativeHandle(ref, () => ({
       getVideoElement: () => videoRef.current,
-      getCurrentTime: () => videoRef.current?.currentTime || 0,
+      getCurrentTime: () => (
+        Number.isFinite(currentTimeRef.current) ? currentTimeRef.current : (videoRef.current?.currentTime || 0)
+      ),
       seekTo: (time: number) => {
         seekToTime(time)
       },
@@ -330,13 +493,35 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       },
       frameStep,
       pause: () => videoRef.current?.pause(),
-      play: () => { void videoRef.current?.play()?.catch(() => undefined) },
+      play: () => {
+        const v = videoRef.current
+        if (!v) return
+        if (reverseHoldRef.current && seekSnappedAway(currentTimeRef.current, v.currentTime, fpsRef.current)) {
+          const resumeAt = currentTimeRef.current
+          jogLockRef.current = true
+          v.currentTime = resumeAt
+          void waitUntilSeeked(v).finally(() => {
+            jogLockRef.current = false
+            if (
+              typeof v.requestVideoFrameCallback !== 'function'
+              || !seekSnappedAway(resumeAt, v.currentTime, fpsRef.current)
+            ) {
+              reverseHoldRef.current = false
+              if (overlayRef.current) overlayRef.current.style.opacity = '0'
+            }
+            void v.play()?.catch(() => undefined)
+          })
+          return
+        }
+        hideOverlay()
+        void v.play()?.catch(() => undefined)
+      },
       setMuted: (next) => {
         setInternalMuted(next)
         if (videoRef.current && !playbackMuted) videoRef.current.muted = next
         onMutedChange?.(next)
       },
-    }), [frameStep, seek, seekToTime, playbackMuted, onMutedChange])
+    }), [frameStep, hideOverlay, seek, seekToTime, playbackMuted, onMutedChange])
 
     const cycleSpeed = useCallback(() => {
       const next = nextPlaybackSpeed(speed)
@@ -355,7 +540,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       if (!v) return
 
       const handleTime = () => {
-        // Auto-pause at clip end
+        if (jogLockRef.current || jogSilentRef.current || reverseHoldRef.current) return
         if (clipRange && v.currentTime >= clipRange.end) {
           v.currentTime = clipRange.end
           v.pause()
@@ -383,6 +568,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         onDurationChange?.(v.duration)
       }
       const handleSeeked = () => {
+        if (jogLockRef.current || jogSilentRef.current || reverseHoldRef.current) return
         onSeeked?.(v.currentTime)
       }
       const handleError = () => {
@@ -420,11 +606,24 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           if (fps) fpsRef.current = fps
         }
         last = { frames: meta.presentedFrames, mediaTime: meta.mediaTime }
-        if (typeof createImageBitmap === 'function' && (v.paused || meta.presentedFrames % 4 === 0)) {
-          void createImageBitmap(v).then((bmp) => frameCacheRef.current.push(meta.mediaTime, bmp)).catch(() => undefined)
+        if (!snapBusyRef.current) {
+          snapBusyRef.current = true
+          void snapshotVideoFrame(v).then((bmp) => {
+            snapBusyRef.current = false
+            if (bmp) frameCacheRef.current.push(meta.mediaTime, bmp)
+          })
         }
         const canvas = overlayRef.current
-        if (canvas) canvas.style.opacity = '0'
+        if (reverseHoldRef.current && !jogLockRef.current && meta.mediaTime + 0.04 >= currentTimeRef.current) {
+          reverseHoldRef.current = false
+          if (canvas) canvas.style.opacity = '0'
+          v.style.opacity = ''
+          currentTimeRef.current = meta.mediaTime
+          setCurrentTime(meta.mediaTime)
+          onTimeUpdateRef.current?.(meta.mediaTime)
+        } else if (!jogLockRef.current && !reverseHoldRef.current && canvas) {
+          canvas.style.opacity = '0'
+        }
         if (!v.paused) v.requestVideoFrameCallback!(sample)
       }
       const onPlay = () => {
@@ -451,8 +650,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
 
     useEffect(() => {
       frameCacheRef.current.clear()
+      reverseHoldRef.current = false
+      jogLockRef.current = false
       const canvas = overlayRef.current
       if (canvas) canvas.style.opacity = '0'
+      if (videoRef.current) videoRef.current.style.opacity = ''
     }, [src])
 
     // Two-finger trackpad jog. One decoder seek in flight; playhead is optimistic
@@ -463,7 +665,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       if (!el) return
 
       let pendingPx = 0
-      let pendingTarget: number | null = null
       let rafId: number | null = null
 
       const markPadActive = () => {
@@ -485,19 +686,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         return { min, max: Number.isFinite(rawMax) ? rawMax : min }
       }
 
-      const commitDecoder = (time: number) => {
-        const v = videoRef.current
-        if (!v) return
-        if (!v.paused) v.pause()
-        if (v.seeking) {
-          pendingTarget = time
-          return
-        }
-        pendingTarget = null
-        if (Math.abs(v.currentTime - time) < 0.0008) return
-        v.currentTime = time
-      }
-
       const flush = () => {
         rafId = null
         const v = videoRef.current
@@ -515,21 +703,28 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             min,
             max
           )
-          currentTimeRef.current = next
-          setCurrentTime(next)
-          onTimeUpdateRef.current?.(next)
-          commitDecoder(next)
+          const cached = frameCacheRef.current.frameForJog(currentTimeRef.current, next, fpsRef.current)
+          if (cached) {
+            const canvas = overlayRef.current
+            if (canvas) {
+              canvas.width = cached.bitmap.width
+              canvas.height = cached.bitmap.height
+              canvas.getContext('2d')?.drawImage(cached.bitmap, 0, 0)
+              canvas.style.opacity = '1'
+              reverseHoldRef.current = true
+              v.style.opacity = '0'
+            }
+            currentTimeRef.current = cached.mediaTime
+            setCurrentTime(cached.mediaTime)
+            onTimeUpdateRef.current?.(cached.mediaTime)
+            return
+          }
+          shuttleToRef.current(next)
         }
       }
 
       const onSeeked = () => {
-        if (pendingTarget != null) {
-          const t = pendingTarget
-          pendingTarget = null
-          commitDecoder(t)
-        } else if (pendingPx !== 0 && rafId === null) {
-          rafId = requestAnimationFrame(flush)
-        }
+        if (pendingPx !== 0 && rafId === null) rafId = requestAnimationFrame(flush)
       }
 
       const handler = (e: WheelEvent) => {

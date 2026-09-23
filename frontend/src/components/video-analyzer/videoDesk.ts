@@ -547,6 +547,24 @@ export function viewPctToTime(pct: number, viewStart: number, visible: number): 
   return viewStart + (pct / 100) * visible
 }
 
+/**
+ * Timeline rows exist only after the first event of that button.
+ * Order is first-seen (creation) order, and a row disappears when its last event does.
+ */
+export function lanesWithEvents(buttons: CodeButton[], events: CodeEvent[]): CodeButton[] {
+  const byId = new Map(buttons.map((button) => [button.id, button]))
+  const lanes: CodeButton[] = []
+  const seen = new Set<string>()
+  for (const event of events) {
+    if (seen.has(event.buttonId)) continue
+    const button = byId.get(event.buttonId)
+    if (!button) continue
+    seen.add(event.buttonId)
+    lanes.push(button)
+  }
+  return lanes
+}
+
 export function clipsOnLane(events: CodeEvent[], buttonId: string): CodeEvent[] {
   return events
     .filter((e) => e.buttonId === buttonId)

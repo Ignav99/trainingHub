@@ -16,6 +16,7 @@ import {
   clipFileName,
   matchRevisionFolderId,
   groupClipsByButton,
+  lanesWithEvents,
   clipDisplayTitle,
   zoomCinta,
   panCinta,
@@ -172,6 +173,26 @@ describe('video desk coding', () => {
     assert.ok(panned.viewStart > inAt.viewStart - 0.001)
     assert.equal(cintaTickStep(8), 1)
     assert.equal(cintaTickStep(900), 60)
+  })
+
+  it('creates a timeline lane only after the first event of that type', () => {
+    const buttons: CodeButton[] = [
+      { id: 'a', label: 'Ataque', color: '#111', preRoll: 1, postRoll: 1 },
+      { id: 'b', label: 'Defensa', color: '#222', preRoll: 1, postRoll: 1 },
+      { id: 'c', label: 'ABP', color: '#333', preRoll: 1, postRoll: 1 },
+    ]
+    assert.deepEqual(lanesWithEvents(buttons, []), [])
+    const first = lanesWithEvents(buttons, [
+      { id: '1', buttonId: 'b', timestamp: 40, startTime: 35, endTime: 45 },
+    ])
+    assert.deepEqual(first.map((b) => b.id), ['b'])
+    const later = lanesWithEvents(buttons, [
+      { id: '1', buttonId: 'b', timestamp: 40, startTime: 35, endTime: 45 },
+      { id: '2', buttonId: 'a', timestamp: 10, startTime: 5, endTime: 15 },
+      { id: '3', buttonId: 'b', timestamp: 50, startTime: 48, endTime: 55 },
+      { id: '4', buttonId: 'gone', timestamp: 3, startTime: 1, endTime: 4 },
+    ])
+    assert.deepEqual(later.map((b) => b.id), ['b', 'a'])
   })
 
   it('collects every clip on a timeline lane so that row can be exported together', () => {
