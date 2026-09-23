@@ -6,6 +6,8 @@
  *  - Identify frames with requestVideoFrameCallback mediaTime, not currentTime.
  *  - Never use fastSeek for review: it snaps to keyframes and can even go backwards.
  *  - Issue at most one currentTime seek at a time; keep an optimistic playhead.
+ *  - A backward currentTime lands on the previous keyframe. Never publish that
+ *    snap: play forward to the requested instant, or show a cached frame.
  *  - Map slow two-finger motion to whole frames; boost only when the swipe is fast.
  *  - Arrow keys step one presented frame while paused. Hold starts slow, then
  *    speeds up. The video stays paused when you let go.
@@ -102,6 +104,29 @@ export function isFineJogPixels(pixels: number, fps: number): boolean {
   return frames <= 2.2 && Math.abs(wheelPixelsToSeconds(pixels, fps)) <= frameDuration(fps) * 2.4
 }
 
+/**
+ * Chrome reports a keyframe when currentTime asked for a delta frame.
+ * A few presented frames of error is a successful land; a GOP snap is not.
+ */
+export const JOG_LAND_FRAMES = 6
+
+export function seekSnappedAway(requested: number, landed: number, fps: number): boolean {
+  if (!Number.isFinite(requested) || !Number.isFinite(landed)) return true
+  return Math.abs(landed - requested) > frameDuration(fps) * JOG_LAND_FRAMES
+}
+
+export function isAdjacentEarlierFrame(clock: number, mediaTime: number, fps: number): boolean {
+  const gap = clock - mediaTime
+  const frame = frameDuration(fps)
+  return gap >= frame * 0.35 && gap <= frame * 1.85
+}
+
+export function isAdjacentLaterFrame(clock: number, mediaTime: number, fps: number): boolean {
+  const gap = mediaTime - clock
+  const frame = frameDuration(fps)
+  return gap >= frame * 0.35 && gap <= frame * 1.85
+}
+
 export type CachedFrame = { mediaTime: number; bitmap: ImageBitmap }
 
 export class PresentedFrameCache {
@@ -140,6 +165,48 @@ export class PresentedFrameCache {
       const dt = item.mediaTime - time
       if (dt >= minDelta && (!hit || item.mediaTime < hit.mediaTime)) hit = item
     }
+    return hit
+  }
+
+  /** The presented frame just before `time`, not an older keyframe in the cache. */
+  adjacentBefore(time: number, fps: number): CachedFrame | null {
+    let hit: CachedFrame | null = null
+    for (const item of this.items) {
+      if (!isAdjacentEarlierFrame(time, item.mediaTime, fps)) continue
+      if (!hit || item.mediaTime > hit.mediaTime) hit = item
+    }
+    return hit
+  }
+
+  adjacentAfter(time: number, fps: number): CachedFrame | null {
+    let hit: CachedFrame | null = null
+    for (const item of this.items) {
+      if (!isAdjacentLaterFrame(time, item.mediaTime, fps)) continue
+      if (!hit || item.mediaTime < hit.mediaTime) hit = item
+    }
+    return hit
+  }
+
+  /**
+   * A cached picture that sits on the jog target.
+   * The frame already on screen does not count: that would freeze the rewind.
+   */
+  frameForJog(from: number, goal: number, fps: number): CachedFrame | null {
+    const frame = frameDuration(fps)
+    const maxDelta = frame * 1.25
+    let hit: CachedFrame | null = null
+    let best = maxDelta
+    for (const item of this.items) {
+      const d = Math.abs(item.mediaTime - goal)
+      if (d <= best) {
+        best = d
+        hit = item
+      }
+    }
+    if (!hit) return null
+    const sameAsFrom = Math.abs(hit.mediaTime - from) < frame * 0.35
+    const wantsMove = Math.abs(goal - from) > frame * 0.5
+    if (sameAsFrom && wantsMove) return null
     return hit
   }
 
@@ -185,6 +252,72 @@ export function waitNextVideoFrame(
  * Chrome only decodes the next non-keyframe if we play briefly; we mute,
  * wait one rVFC, then pause in `finally` so the pad/arrows never leave play.
  */
+/**
+ * After a keyframe seek, play (muted) until `target`.
+ * High rate only while far away; the last half-second is 1x so frames are not skipped.
+ * The caller must ignore timeupdate until this resolves — the keyframe is not the clock.
+ */
+export async function playForwardToTime(
+  video: HTMLVideoElement,
+  target: number,
+  opts?: {
+    cancelled?: () => boolean
+    onPresented?: (mediaTime: number) => void | Promise<void>
+  }
+): Promise<number> {
+  const wasMuted = video.muted
+  const wasRate = video.playbackRate || 1
+  const tune = () => {
+    const remain = target - video.currentTime
+    video.playbackRate = remain > 2.5 ? 4 : remain > 0.45 ? 2 : 1
+  }
+  try {
+    video.muted = true
+    let time = video.currentTime
+    if (time >= target - 0.0008) return time
+    tune()
+    await video.play()
+    const deadline = performance.now() + 5000
+    while (time < target - 0.0008 && performance.now() < deadline) {
+      if (opts?.cancelled?.()) return video.currentTime
+      time = await waitNextVideoFrame(video, 100)
+      await opts?.onPresented?.(time)
+      tune()
+      if (time >= target - 0.0008) break
+    }
+    return video.currentTime
+  } catch {
+    return video.currentTime
+  } finally {
+    video.pause()
+    video.muted = wasMuted
+    video.playbackRate = wasRate
+  }
+}
+
+/** Small bitmap so reverse jog can show the real frame without keeping full-HD copies. */
+export async function snapshotVideoFrame(
+  video: HTMLVideoElement,
+  maxWidth = 420
+): Promise<ImageBitmap | null> {
+  if (typeof createImageBitmap !== 'function') return null
+  const w = video.videoWidth
+  const h = video.videoHeight
+  if (!w || !h) return null
+  try {
+    if (w <= maxWidth) return await createImageBitmap(video)
+    const canvas = document.createElement('canvas')
+    canvas.width = maxWidth
+    canvas.height = Math.max(2, Math.round(h * (maxWidth / w)))
+    const ctx = canvas.getContext('2d', { alpha: false })
+    if (!ctx) return null
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    return await createImageBitmap(canvas)
+  } catch {
+    return null
+  }
+}
+
 export async function playOnePresentedFrame(video: HTMLVideoElement): Promise<number> {
   const before = video.currentTime
   const wasMuted = video.muted

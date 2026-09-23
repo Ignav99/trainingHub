@@ -18,6 +18,9 @@ import {
   isPlaybackSpeed,
   isFineJogPixels,
   PLAYBACK_SPEEDS,
+  PresentedFrameCache,
+  seekSnappedAway,
+  isAdjacentEarlierFrame,
 } from './videoJog.ts'
 
 describe('video jog', () => {
@@ -88,6 +91,26 @@ describe('video jog', () => {
   it('ignores arrow jog while typing a clip title', () => {
     assert.equal(isTypingTarget({ tagName: 'INPUT' } as EventTarget), true)
     assert.equal(isTypingTarget({ tagName: 'DIV' } as EventTarget), false)
+  })
+
+  it('rejects a keyframe snap and keeps the adjacent cached frame', () => {
+    assert.equal(seekSnappedAway(10, 10.04, 25), false)
+    assert.equal(seekSnappedAway(10, 8, 25), true)
+    assert.equal(isAdjacentEarlierFrame(10, 10 - 1 / 25, 25), true)
+    assert.equal(isAdjacentEarlierFrame(10, 8, 25), false)
+    const cache = new PresentedFrameCache()
+    const bmp = { close() {} } as ImageBitmap
+    cache.push(10, bmp)
+    cache.push(10 - 1 / 25, bmp)
+    cache.push(8, bmp)
+    assert.equal(cache.adjacentBefore(10, 25)?.mediaTime, 10 - 1 / 25)
+    assert.equal(cache.frameForJog(10, 10 - 1 / 25, 25)?.mediaTime, 10 - 1 / 25)
+    assert.equal(cache.frameForJog(10, 9.2, 25), null)
+    cache.clear()
+    const stuck = new PresentedFrameCache()
+    stuck.push(10, bmp)
+    assert.equal(stuck.frameForJog(10, 10 - 1 / 25, 25), null)
+    stuck.clear()
   })
 
   it('offers x4 and faster playback steps', () => {

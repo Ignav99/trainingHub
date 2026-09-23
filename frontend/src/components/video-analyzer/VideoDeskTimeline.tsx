@@ -7,6 +7,7 @@ import { formatTime } from './utils'
 import {
   cintaTickStep,
   cintaWindow,
+  lanesWithEvents,
   panCinta,
   timeToViewPct,
   zoomCinta,
@@ -40,6 +41,7 @@ export function VideoDeskTimeline({
   onTrim: (clip: CodeEvent, startTime: number, endTime: number) => void
 }) {
   const trackRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const [zoom, setZoom] = useState(1)
   const [viewStart, setViewStart] = useState(0)
   const [handTool, setHandTool] = useState(false)
@@ -53,7 +55,7 @@ export function VideoDeskTimeline({
     moved: boolean
   } | null>(null)
   const panRef = useRef<{ originX: number; startView: number } | null>(null)
-  const handPanRef = useRef<{ pointerId: number; originX: number; startView: number; moved: boolean } | null>(null)
+  const handPanRef = useRef<{ pointerId: number; originX: number; startView: number } | null>(null)
 
   const view = cintaWindow(duration, zoom, viewStart)
 
@@ -78,21 +80,32 @@ export function VideoDeskTimeline({
   }
 
   useEffect(() => {
-    const el = trackRef.current
+    const el = scrollRef.current
     if (!el) return
     const onWheel = (e: WheelEvent) => {
-      e.preventDefault()
-      if (e.shiftKey) {
-        const delta = (e.deltaY / Math.max(1, el.getBoundingClientRect().width)) * view.visible
-        applyView(panCinta(duration, zoom, viewStart, delta))
-        return
+      const track = trackRef.current
+      const scroll = scrollRef.current
+      if (!track) return
+      let panPx = e.deltaX
+      let scrollPx = e.deltaY
+      if (e.shiftKey && Math.abs(e.deltaX) < 0.5) {
+        panPx = e.deltaY
+        scrollPx = 0
       }
-      const factor = e.deltaY < 0 ? 1.18 : 1 / 1.18
-      applyView(zoomCinta(duration, zoom, viewStart, timeFromClientX(e.clientX), factor))
+      const absX = Math.abs(panPx)
+      const absY = Math.abs(scrollPx)
+      const pans = absX >= 0.4 && absX >= absY * 0.65
+      const scrolls = absY >= 0.4 && absY >= absX * 0.65
+      if (!pans) return
+      e.preventDefault()
+      const width = Math.max(1, track.getBoundingClientRect().width)
+      const delta = (panPx / width) * view.visible
+      applyView(panCinta(duration, zoom, viewStart, delta))
+      if (scrolls && scroll) scroll.scrollTop += scrollPx
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
-  }, [duration, zoom, viewStart, timeFromClientX, view.visible])
+  }, [duration, zoom, viewStart, view.visible])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -117,7 +130,6 @@ export function VideoDeskTimeline({
         pointerId: e.pointerId,
         originX: e.clientX,
         startView: viewStart,
-        moved: false,
       }
       setPanning(true)
       return
@@ -129,7 +141,6 @@ export function VideoDeskTimeline({
     const pan = handPanRef.current
     const el = trackRef.current
     if (!pan || pan.pointerId !== e.pointerId || !el || view.visible <= 0) return
-    if (Math.abs(e.clientX - pan.originX) > 4) pan.moved = true
     const dt = -((e.clientX - pan.originX) / el.getBoundingClientRect().width) * view.visible
     applyView(panCinta(duration, zoom, pan.startView, dt))
   }, [duration, view.visible, zoom])
@@ -140,8 +151,7 @@ export function VideoDeskTimeline({
     try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId) } catch { /* ignore */ }
     handPanRef.current = null
     setPanning(false)
-    if (!pan.moved) onSeek(timeFromClientX(e.clientX))
-  }, [onSeek, timeFromClientX])
+  }, [])
 
   const onRulerPointerDown = (e: React.PointerEvent) => {
     e.stopPropagation()
@@ -213,13 +223,18 @@ export function VideoDeskTimeline({
     for (let t = first; t <= view.viewEnd + 0.001; t += step) ticks.push(t)
   }
 
-  const lanes = buttons.length ? buttons : [{ id: '_none', label: '—', color: '#94A3B8' } as CodeButton]
-  const laneH = Math.max(22, Math.min(36, 140 / Math.max(lanes.length, 1)))
+  const lanes = lanesWithEvents(buttons, events)
   const playheadInView = currentTime >= view.viewStart && currentTime <= view.viewEnd
   const zoomLabel = zoom <= 1.05 ? 'partido' : `${Math.round(zoom)}×`
 
   return (
-    <div className="vd-cinta" style={{ ['--vd-lane-h' as string]: `${laneH}px` }}>
+    <div className="vd-cinta">
+      <div
+        className="vd-cinta-scroll"
+        ref={scrollRef}
+        aria-label="Fases de la cinta"
+      >
+      <div className="vd-cinta-scroll-inner">
       <div className="vd-cinta-gutter">
         <div className="vd-ruler vd-cinta-zoom" role="group" aria-label="Zoom y mano de la cinta">
           <button
@@ -242,7 +257,7 @@ export function VideoDeskTimeline({
             type="button"
             className={`vd-lane-label${selectedLaneId === btn.id ? ' is-selected' : ''}`}
             title={`Reproducir todos los recortes de ${btn.label}`}
-            onClick={() => { if (btn.id !== '_none') onSelectLane(btn.id) }}
+            onClick={() => onSelectLane(btn.id)}
           >
             {btn.label}
           </button>
@@ -261,7 +276,7 @@ export function VideoDeskTimeline({
           onPointerDown={onRulerPointerDown}
           onPointerMove={onRulerPointerMove}
           onPointerUp={onRulerPointerUp}
-          title="Rueda: zoom. Mayús + rueda o arrastrar la regla: desplazar"
+          title="Trackpad: izquierda y derecha mueven el tiempo. Arriba y abajo, las fases. Zoom solo con + y −"
         >
           {ticks.map((t) => (
             <span
@@ -316,6 +331,8 @@ export function VideoDeskTimeline({
           )
         })}
         {playheadInView ? <div className="vd-playhead" style={{ left: pct(currentTime) }} /> : null}
+      </div>
+      </div>
       </div>
     </div>
   )
