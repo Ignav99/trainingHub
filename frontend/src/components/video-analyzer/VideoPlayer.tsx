@@ -200,7 +200,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const padActiveRef = useRef(false)
     const catchupRef = useRef<number | null>(null)
     const padIdleTimerRef = useRef<number | null>(null)
-    const frameCacheRef = useRef(new PresentedFrameCache(140))
+    const frameCacheRef = useRef(new PresentedFrameCache(16))
     const overlayRef = useRef<HTMLCanvasElement | null>(null)
     const jogLockRef = useRef(false)
     const reverseHoldRef = useRef(false)
@@ -628,7 +628,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         if (jogSilentRef.current) return
         setPlaying(false)
         onPlayStateChange?.(false)
-        holdPoster()
+        if (!reverseHoldRef.current) hideOverlay()
       }
       const handleDuration = () => {
         setDuration(v.duration)
