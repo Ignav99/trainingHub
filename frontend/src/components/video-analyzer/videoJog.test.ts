@@ -21,6 +21,9 @@ import {
   PresentedFrameCache,
   seekSnappedAway,
   isAdjacentEarlierFrame,
+  assignSkipKey,
+  defaultSkipKeys,
+  skipDeltaForKey,
 } from './videoJog.ts'
 
 describe('video jog', () => {
@@ -111,6 +114,21 @@ describe('video jog', () => {
     stuck.push(10, bmp)
     assert.equal(stuck.frameForJog(10, 10 - 1 / 25, 25), null)
     stuck.clear()
+  })
+
+  it('maps A S D and K L Ñ to the skip jumps and lets the coach replace a key', () => {
+    const keys = defaultSkipKeys()
+    assert.equal(skipDeltaForKey('a', keys), -10)
+    assert.equal(skipDeltaForKey('S', keys), -5)
+    assert.equal(skipDeltaForKey('d', keys), -1)
+    assert.equal(skipDeltaForKey('k', keys), 1)
+    assert.equal(skipDeltaForKey('l', keys), 5)
+    assert.equal(skipDeltaForKey('Ñ', keys), 10)
+    assert.equal(skipDeltaForKey('ArrowLeft', keys), null)
+    const next = assignSkipKey(keys, 10, 'p')
+    assert.equal(next && skipDeltaForKey('p', next), 10)
+    assert.equal(next && skipDeltaForKey('ñ', next), null)
+    assert.equal(assignSkipKey(keys, 1, 'Escape'), null)
   })
 
   it('offers x4 and faster playback steps', () => {

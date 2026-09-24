@@ -19,7 +19,7 @@ import {
   removeClipsFromPlaylist,
   timingsLabel,
 } from './videoDesk'
-import { isClipDeleteKey, isTypingTarget } from './videoJog'
+import { isClipDeleteKey, isSkipRebindActive, isTypingTarget, loadSkipKeys, skipDeltaForKey } from './videoJog'
 import type { BotoneraEditGate } from './VideoDeskBotonera'
 import type { CodeButton, CodeEvent } from './types'
 import './video-desk.css'
@@ -244,6 +244,13 @@ export function VideoAnalyzer({
         const video = playerRef.current?.getVideoElement()
         if (video?.paused) playerRef.current?.play()
         else playerRef.current?.pause()
+        return
+      }
+      if (isSkipRebindActive()) return
+      const skip = skipDeltaForKey(e.key, loadSkipKeys())
+      if (skip != null) {
+        e.preventDefault()
+        if (!e.repeat) playerRef.current?.seekBy(skip)
         return
       }
       const btn = buttons.find((b) => b.shortcut === e.key.toLowerCase())

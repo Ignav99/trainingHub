@@ -38,6 +38,14 @@ import {
   holdFrameInterval,
   nextPlaybackSpeed,
   isFineJogPixels,
+  assignSkipKey,
+  isSkipRebindActive,
+  loadSkipKeys,
+  saveSkipKeys,
+  setSkipRebindActive,
+  skipDeltaForKey,
+  SKIP_DELTAS,
+  type SkipDelta,
   playOnePresentedFrame,
   playForwardToTime,
   PresentedFrameCache,
@@ -47,6 +55,47 @@ import {
 } from './videoJog'
 
 const HOLD_REWIND_INTERVAL_MS = 70
+
+function skipKeyLabel(key: string) {
+  if (!key) return '·'
+  return key === 'ñ' ? 'Ñ' : key.toUpperCase()
+}
+
+function SkipChip({
+  delta,
+  shortcut,
+  rebinding,
+  onSeek,
+  onRebind,
+}: {
+  delta: SkipDelta
+  shortcut: string
+  rebinding: boolean
+  onSeek: () => void
+  onRebind: () => void
+}) {
+  const sign = delta > 0 ? '+' : '−'
+  return (
+    <span className={`inline-flex h-5 overflow-hidden rounded border text-[10px] tabular-nums ${rebinding ? 'border-orange-300' : 'border-white/15'}`}>
+      <button
+        type="button"
+        className="bg-white/10 px-1 font-mono text-white hover:bg-white/20"
+        title={rebinding ? 'Pulsa la nueva tecla. Escape cancela.' : 'Cambiar atajo'}
+        onClick={onRebind}
+      >
+        {skipKeyLabel(shortcut)}
+      </button>
+      <button
+        type="button"
+        className="px-1 text-white/80 hover:bg-white/15"
+        title={delta < 0 ? `Retroceder ${Math.abs(delta)} s` : `Avanzar ${delta} s`}
+        onClick={onSeek}
+      >
+        {sign}{Math.abs(delta)}s
+      </button>
+    </span>
+  )
+}
 
 /** Alto de la barra de controles (seek + botones). La sala deja este hueco para pintar encima del vídeo. */
 export const VIDEO_PLAYER_CHROME_CLASS = 'bottom-16'
@@ -131,6 +180,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const [internalMuted, setInternalMuted] = useState(!!defaultMuted)
     const [speed, setSpeed] = useState(1)
     const [speedOpen, setSpeedOpen] = useState(false)
+    const [skipKeys, setSkipKeys] = useState(loadSkipKeys)
+    const [rebinding, setRebinding] = useState<SkipDelta | null>(null)
     const [internalFullscreen, setIsFullscreen] = useState(false)
     const [isExpanded, setIsExpanded] = useState(false)
     const currentTimeRef = useRef(0)
@@ -784,6 +835,15 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const onJogKeyDown = useCallback((e: KeyboardEvent | React.KeyboardEvent) => {
       if (presenterEmbed) return false
       if (isTypingTarget(e.target)) return false
+      if (e.defaultPrevented || isSkipRebindActive()) return false
+      if (e.metaKey || e.ctrlKey || e.altKey) return false
+      const skip = skipDeltaForKey(e.key, skipKeys)
+      if (skip != null) {
+        e.preventDefault()
+        if ('repeat' in e && e.repeat) return true
+        seek(skip)
+        return true
+      }
       const jog = arrowJog(e.key, e.shiftKey)
       if (!jog) return false
       e.preventDefault()
@@ -804,7 +864,30 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         tick()
       }, ARROW_HOLD_MS)
       return true
-    }, [applyArrowJog, presenterEmbed])
+    }, [applyArrowJog, presenterEmbed, seek, skipKeys])
+
+    useEffect(() => {
+      setSkipRebindActive(rebinding != null)
+      if (rebinding == null) return
+      const onKey = (e: KeyboardEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
+        if (e.key === 'Escape') {
+          setRebinding(null)
+          return
+        }
+        const next = assignSkipKey(skipKeys, rebinding, e.key)
+        if (!next) return
+        setSkipKeys(next)
+        saveSkipKeys(next)
+        setRebinding(null)
+      }
+      window.addEventListener('keydown', onKey, true)
+      return () => {
+        window.removeEventListener('keydown', onKey, true)
+        setSkipRebindActive(false)
+      }
+    }, [rebinding, skipKeys])
 
     const onJogKeyUp = useCallback((e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') stopHoldJog()
@@ -916,29 +999,27 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         <div className="bg-black/80 text-white text-xs relative z-10 shrink-0">
           <div className="flex items-center justify-between gap-2 px-2 pt-1" aria-label="Saltos de tiempo">
             <div className="flex items-center gap-1">
-              {[10, 5, 1].map((seconds) => (
-                <button
-                  key={`back-${seconds}`}
-                  type="button"
-                  className="h-5 min-w-[2.1rem] rounded border border-white/15 px-1 text-[10px] tabular-nums text-white/80 hover:bg-white/15"
-                  onClick={() => seek(-seconds)}
-                  title={`Retroceder ${seconds} s`}
-                >
-                  −{seconds}s
-                </button>
+              {SKIP_DELTAS.filter((delta) => delta < 0).map((delta) => (
+                <SkipChip
+                  key={delta}
+                  delta={delta}
+                  shortcut={skipKeys[delta]}
+                  rebinding={rebinding === delta}
+                  onSeek={() => seek(delta)}
+                  onRebind={() => setRebinding(delta)}
+                />
               ))}
             </div>
             <div className="flex items-center gap-1">
-              {[1, 5, 10].map((seconds) => (
-                <button
-                  key={`fwd-${seconds}`}
-                  type="button"
-                  className="h-5 min-w-[2.1rem] rounded border border-white/15 px-1 text-[10px] tabular-nums text-white/80 hover:bg-white/15"
-                  onClick={() => seek(seconds)}
-                  title={`Avanzar ${seconds} s`}
-                >
-                  +{seconds}s
-                </button>
+              {SKIP_DELTAS.filter((delta) => delta > 0).map((delta) => (
+                <SkipChip
+                  key={delta}
+                  delta={delta}
+                  shortcut={skipKeys[delta]}
+                  rebinding={rebinding === delta}
+                  onSeek={() => seek(delta)}
+                  onRebind={() => setRebinding(delta)}
+                />
               ))}
             </div>
           </div>
