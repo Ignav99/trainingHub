@@ -970,6 +970,30 @@
   background: color-mix(in srgb, var(--vd-playhead) 12%, transparent);
 }
 
+.vd-clip-row.is-revision {
+  background: color-mix(in srgb, var(--vd-line) 28%, transparent);
+  box-shadow: inset 3px 0 0 var(--vd-line);
+}
+
+.vd-clip-mini .vd-clip-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vd-clip-mark {
+  flex-shrink: 0;
+  font-family: var(--vd-display);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vd-ink);
+  background: var(--vd-line);
+  padding: 1px 4px;
+}
+
 .vd-clip-row .vd-clip-mini {
   flex: 1;
   min-width: 0;
@@ -1107,6 +1131,12 @@
   display: flex;
   align-items: center;
   gap: 2px;
+}
+
+.vd-stage-list button.is-revision {
+  background: var(--vd-line);
+  color: var(--vd-ink);
+  border-color: var(--vd-line);
 }
 
 @media (prefers-reduced-motion: reduce) {

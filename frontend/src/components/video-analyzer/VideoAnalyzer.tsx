@@ -129,7 +129,6 @@ export function VideoAnalyzer({
       return
     }
     setSelectedClipId(startId || clips[0].id)
-    setSelectedClipIds(clips.map((c) => c.id))
     setStage({ title, clips, startId: startId || clips[0].id })
   }, [])
 
@@ -152,7 +151,6 @@ export function VideoAnalyzer({
       return
     }
     setSelectedClipId(clip.id)
-    setSelectedClipIds([clip.id])
   }, [setActiveButtonId])
 
   const deleteClips = useCallback((clipIds: string[]) => {
@@ -164,16 +162,21 @@ export function VideoAnalyzer({
     for (const id of unique) removeEvent(videoKey, id)
     const nextStage = stage ? removeClipsFromPlaylist(stage, unique) : null
     setStage(nextStage)
+    setSelectedClipIds((ids) => ids.filter((id) => !unique.includes(id)))
     if (nextStage) {
       const nextId = nextStage.startId || nextStage.clips[0].id
       setSelectedClipId(nextId)
-      setSelectedClipIds(nextStage.clips.map((c) => c.id))
     } else {
       setSelectedClipId((curr) => (curr && unique.includes(curr) ? null : curr))
-      setSelectedClipIds((ids) => ids.filter((id) => !unique.includes(id)))
     }
     toast.success(unique.length > 1 ? `${unique.length} recortes eliminados` : 'Recorte eliminado')
   }, [removeEvent, stage, videoKey])
+
+  const toggleRevision = useCallback((clip: CodeEvent) => {
+    setSelectedClipIds((prev) => (
+      prev.includes(clip.id) ? prev.filter((id) => id !== clip.id) : [...prev, clip.id]
+    ))
+  }, [])
 
   const handleStageSelect = useCallback((clip: CodeEvent) => {
     setSelectedClipId(clip.id)
@@ -212,7 +215,6 @@ export function VideoAnalyzer({
       setArmedButtonId(null)
       const event = recordEvent(btn.id, now, videoDur, { startTime: start, endTime: end })
       setSelectedClipId(event.id)
-      setSelectedClipIds([event.id])
       setSelectedLaneId(null)
       toast.success(`${btn.label} · inicio/fin`)
       return
@@ -221,7 +223,6 @@ export function VideoAnalyzer({
     setArmedButtonId(null)
     const event = recordEvent(btn.id, now, videoDur)
     setSelectedClipId(event.id)
-    setSelectedClipIds([event.id])
     setSelectedLaneId(null)
     toast.success(`${btn.label} · ${timingsLabel(btn)}`)
   }, [duration, recordEvent, setActiveButtonId])
@@ -399,7 +400,7 @@ export function VideoAnalyzer({
             type="button"
             className="vd-btn vd-btn-accent"
             disabled={revisionClips.length === 0 || !canSendToRevision}
-            title={!canSendToRevision ? 'Asocia un partido para enviar a Revisión' : 'Enviar los recortes marcados. ⌘+clic marca varios en el organizador.'}
+            title={!canSendToRevision ? 'Asocia un partido para enviar a Revisión' : 'Enviar los recortes marcados en el previsualizador o con ⌘+clic.'}
             onClick={() => revisionClips[0] && setSendClipId(revisionClips[0].id)}
           >
             <Send size={14} />
@@ -494,8 +495,11 @@ export function VideoAnalyzer({
           buttons={buttons}
           playlist={stage}
           onClose={() => setStage(null)}
+          revisionIds={selectedClipIds}
           onSelect={handleStageSelect}
           onRename={renameClip}
+          onToggleRevision={toggleRevision}
+          onSendRevision={canSendToRevision && selectedClipIds.length > 0 ? () => setSendClipId(selectedClipIds[0]) : undefined}
           onDelete={(clip) => deleteClips([clip.id])}
         />
       ) : null}

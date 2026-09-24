@@ -69,7 +69,8 @@ export function VideoDeskFolders({
               <span className="vd-folder-count">{group.clips.length}</span>
             </button>
             {group.clips.map((clip) => {
-              const selected = selectedClipIds.includes(clip.id) || selectedClipId === clip.id
+              const focused = selectedClipId === clip.id
+              const marked = selectedClipIds.includes(clip.id)
               const editing = editingId === clip.id
               const nameInput = (
                 <input
@@ -94,7 +95,7 @@ export function VideoDeskFolders({
                 />
               )
               return (
-                <div key={clip.id} className={`vd-clip-row${selected ? ' is-selected' : ''}`}>
+                <div key={clip.id} className={`vd-clip-row${focused ? ' is-selected' : ''}${marked ? ' is-revision' : ''}`}>
                   {editing ? (
                     <div className="vd-clip-mini">
                       {nameInput}
@@ -104,7 +105,7 @@ export function VideoDeskFolders({
                     <button
                       type="button"
                       className="vd-clip-mini"
-                      title="Clic selecciona · ⌘ o Ctrl+clic añade varios para revisión · doble clic renombra"
+                      title="Clic selecciona · ⌘ o Ctrl+clic marca para revisión · doble clic renombra"
                       onClick={(e) => onSelectClip(clip, { toggle: e.metaKey || e.ctrlKey })}
                       onDoubleClick={(e) => {
                         e.preventDefault()
@@ -112,6 +113,7 @@ export function VideoDeskFolders({
                       }}
                     >
                       <span className="vd-clip-title">{clipDisplayTitle(clip, group.button)}</span>
+                      {marked ? <span className="vd-clip-mark">Revisión</span> : null}
                       <span className="vd-clip-time">{formatTime(clip.startTime)}</span>
                     </button>
                   )}
