@@ -9,6 +9,7 @@ import {
   clipRangeFromPress,
   clampClipTimes,
   migrateDeskButtons,
+  orderEventsByLanes,
 } from './videoDesk'
 
 interface CodeWindowState {
@@ -26,6 +27,7 @@ interface CodeWindowState {
   updateButton: (id: string, patch: Partial<Omit<CodeButton, 'id'>>) => void
   removeButton: (id: string) => void
   reorderButtons: (ids: string[]) => void
+  reorderLanes: (videoKey: string, laneIds: string[]) => void
 
   recordEvent: (buttonId: string, timestamp: number, duration: number, range?: { startTime: number; endTime: number }) => CodeEvent
   updateEvent: (
@@ -92,6 +94,13 @@ export const useCodeWindowStore = create<CodeWindowState>()(
         set((s) => {
           const map = new Map(s.buttons.map((b) => [b.id, b]))
           return { buttons: ids.map((id) => map.get(id)).filter(Boolean) as CodeButton[] }
+        })
+      },
+
+      reorderLanes: (videoKey, laneIds) => {
+        set((s) => {
+          const existing = s.events[videoKey] || []
+          return { events: { ...s.events, [videoKey]: orderEventsByLanes(existing, laneIds) } }
         })
       },
 

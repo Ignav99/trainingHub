@@ -7,7 +7,10 @@ import { formatTime } from './utils'
 import {
   cintaTickStep,
   cintaWindow,
+  laneDropIndex,
+  laneLabelInk,
   lanesWithEvents,
+  moveLane,
   panCinta,
   timeToViewPct,
   zoomCinta,
@@ -24,6 +27,7 @@ export function VideoDeskTimeline({
   onSeek,
   onSelect,
   onSelectLane,
+  onReorderLanes,
   onPlayClip,
   onTrim,
 }: {
@@ -37,6 +41,7 @@ export function VideoDeskTimeline({
   onSeek: (time: number) => void
   onSelect: (clip: CodeEvent) => void
   onSelectLane: (buttonId: string) => void
+  onReorderLanes?: (laneIds: string[]) => void
   onPlayClip?: (clip: CodeEvent) => void
   onTrim: (clip: CodeEvent, startTime: number, endTime: number) => void
 }) {
@@ -56,6 +61,9 @@ export function VideoDeskTimeline({
   } | null>(null)
   const panRef = useRef<{ originX: number; startView: number } | null>(null)
   const handPanRef = useRef<{ pointerId: number; originX: number; startView: number } | null>(null)
+  const gutterRef = useRef<HTMLDivElement>(null)
+  const laneDragRef = useRef<{ id: string; startY: number; moved: boolean } | null>(null)
+  const [draggingLaneId, setDraggingLaneId] = useState<string | null>(null)
 
   const view = cintaWindow(duration, zoom, viewStart)
 
@@ -224,6 +232,40 @@ export function VideoDeskTimeline({
   }
 
   const lanes = lanesWithEvents(buttons, events)
+
+  const onLanePointerDown = (e: React.PointerEvent<HTMLButtonElement>, id: string) => {
+    laneDragRef.current = { id, startY: e.clientY, moved: false }
+    try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* ignore */ }
+  }
+
+  const onLanePointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = laneDragRef.current
+    const gutter = gutterRef.current
+    if (!drag || !gutter || !onReorderLanes) return
+    if (!drag.moved && Math.abs(e.clientY - drag.startY) < 4) return
+    if (!drag.moved) setDraggingLaneId(drag.id)
+    drag.moved = true
+    const rows = Array.from(gutter.querySelectorAll<HTMLElement>('[data-lane-id]'))
+    const ids = rows.map((row) => row.dataset.laneId || '')
+    const to = laneDropIndex(
+      rows.map((row) => {
+        const rect = row.getBoundingClientRect()
+        return { id: row.dataset.laneId || '', top: rect.top, height: rect.height }
+      }),
+      drag.id,
+      e.clientY,
+    )
+    const next = moveLane(ids, drag.id, to)
+    if (next !== ids && next.some((id, i) => id !== ids[i])) onReorderLanes(next)
+  }
+
+  const onLanePointerUp = (e: React.PointerEvent<HTMLButtonElement>, id: string) => {
+    const drag = laneDragRef.current
+    laneDragRef.current = null
+    setDraggingLaneId(null)
+    try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { /* ignore */ }
+    if (!drag?.moved) onSelectLane(id)
+  }
   const playheadInView = currentTime >= view.viewStart && currentTime <= view.viewEnd
   const zoomLabel = zoom <= 1.05 ? 'partido' : `${Math.round(zoom)}×`
 
@@ -235,7 +277,7 @@ export function VideoDeskTimeline({
         aria-label="Fases de la cinta"
       >
       <div className="vd-cinta-scroll-inner">
-      <div className="vd-cinta-gutter">
+      <div className="vd-cinta-gutter" ref={gutterRef}>
         <div className="vd-ruler vd-cinta-zoom" role="group" aria-label="Zoom y mano de la cinta">
           <button
             type="button"
@@ -255,9 +297,14 @@ export function VideoDeskTimeline({
           <button
             key={btn.id}
             type="button"
-            className={`vd-lane-label${selectedLaneId === btn.id ? ' is-selected' : ''}`}
-            title={`Reproducir todos los recortes de ${btn.label}`}
-            onClick={() => onSelectLane(btn.id)}
+            data-lane-id={btn.id}
+            className={`vd-lane-label${selectedLaneId === btn.id ? ' is-selected' : ''}${draggingLaneId === btn.id ? ' is-dragging' : ''}`}
+            style={{ background: btn.color, color: laneLabelInk(btn.color) }}
+            title={`${btn.label}. Arrastra arriba o abajo para ordenar la fase. Clic reproduce.`}
+            onPointerDown={(e) => onLanePointerDown(e, btn.id)}
+            onPointerMove={onLanePointerMove}
+            onPointerUp={(e) => onLanePointerUp(e, btn.id)}
+            onPointerCancel={(e) => onLanePointerUp(e, btn.id)}
           >
             {btn.label}
           </button>
