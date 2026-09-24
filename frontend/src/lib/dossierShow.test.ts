@@ -32,6 +32,21 @@ describe('dossier live show builder', () => {
       { rivalNombre: 'Racing' }
     )
 
+    const long = 'El rival sale por fuera con el lateral y el interior llega al segundo palo sin perder el centro'
+    const full = buildInformeShow(
+      { fases: [{ fase: 'ataque_organizado', fortalezas: [long], debilidades: [], clips: [] }] },
+      { rivalNombre: 'Racing' }
+    )
+    const fase = full.slides.find((slide) => slide.kind === 'fase')
+    assert.equal(fase && 'bullets' in fase && fase.bullets[0], long)
+    const many = Array.from({ length: 8 }, (_, i) => `Idea ${i + 1} del informe`)
+    const all = buildInformeShow(
+      { fases: [{ fase: 'ataque_organizado', fortalezas: many, debilidades: [], clips: [] }] },
+      { rivalNombre: 'Racing' }
+    )
+    const allFase = all.slides.find((slide) => slide.kind === 'fase')
+    assert.deepEqual(allFase && 'bullets' in allFase ? allFase.bullets : [], many)
+
     assert.equal(show.slides[0].kind, 'portada')
     assert.equal(show.slides[0].title, 'Racing')
     assert.deepEqual(

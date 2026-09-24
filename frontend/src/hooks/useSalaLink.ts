@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { trainingHubWsUrl } from '@/lib/wsUrl'
+import { trainingHubSalaGuestUrl, trainingHubWsUrl } from '@/lib/wsUrl'
 import {
   SALA_ICE_SERVERS,
   SALA_PING_MS,
@@ -297,11 +297,16 @@ export function useSalaLink({
 
   useEffect(() => {
     unmountedRef.current = false
-    if (!accessToken || !equipoId) return
+    if (!accessToken && !code) return
+    if (accessToken && !equipoId) return
 
     const connect = () => {
       if (unmountedRef.current) return
-      const ws = new WebSocket(trainingHubWsUrl(accessToken, equipoId))
+      const ws = new WebSocket(
+        accessToken && equipoId
+          ? trainingHubWsUrl(accessToken, equipoId)
+          : trainingHubSalaGuestUrl(code)
+      )
       wsRef.current = ws
       ws.onopen = () => {
         attemptRef.current = 0

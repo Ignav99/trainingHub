@@ -26,8 +26,8 @@ export function PortadaSlide({ slide }: { slide: Extract<ShowSlide, { kind: 'por
   return (
     <div data-testid="dossier-slide-portada" className="flex h-full flex-col justify-end pb-10">
       <p
-        className="text-sm font-semibold uppercase tracking-[0.35em]"
-        style={{ color: '#F0C35A', fontFamily: DISPLAY_FONT }}
+        className="font-semibold uppercase tracking-[0.28em]"
+        style={{ color: '#F0C35A', fontFamily: DISPLAY_FONT, fontSize: 'clamp(0.95rem, 2.2vmin, 3.2vmin)' }}
       >
         {slide.kicker}
       </p>
@@ -38,23 +38,24 @@ export function PortadaSlide({ slide }: { slide: Extract<ShowSlide, { kind: 'por
             src={slide.rivalEscudoUrl}
             alt=""
             data-testid="dossier-rival-crest"
-            className="h-16 w-16 shrink-0 object-contain sm:h-20 sm:w-20"
+            className="shrink-0 object-contain"
+            style={{ width: 'clamp(4rem, 12vmin, 18vmin)', height: 'clamp(4rem, 12vmin, 18vmin)' }}
           />
         ) : null}
         <h1
-          className="max-w-[16ch] text-5xl font-extrabold leading-[0.95] tracking-tight sm:text-7xl"
-          style={{ fontFamily: DISPLAY_FONT }}
+          className="font-extrabold leading-[0.95] tracking-tight"
+          style={{ fontFamily: DISPLAY_FONT, fontSize: 'clamp(2.6rem, 8.5vmin, 14vmin)' }}
         >
           {slide.title}
         </h1>
       </div>
       {slide.subtitle && (
-        <p className="mt-4 text-lg" style={{ color: '#9AA59B' }}>
+        <p className="mt-4" style={{ color: '#9AA59B', fontSize: 'clamp(1.15rem, 3.2vmin, 5.5vmin)' }}>
           {slide.subtitle}
         </p>
       )}
       {slide.meta.length > 0 && (
-        <p className="mt-3 text-sm uppercase tracking-[0.18em]" style={{ color: '#C5CDC7' }}>
+        <p className="mt-3 uppercase tracking-[0.14em]" style={{ color: '#C5CDC7', fontSize: 'clamp(0.9rem, 2.2vmin, 3.4vmin)' }}>
           {slide.meta.join('  ·  ')}
         </p>
       )}
@@ -68,16 +69,16 @@ export function NotesSlide({
   slide: Extract<ShowSlide, { kind: 'contexto' }>
 }) {
   return (
-    <div data-testid={`dossier-slide-${slide.kind}`} className="flex h-full min-h-0 flex-col justify-center py-4">
+    <div data-testid={`dossier-slide-${slide.kind}`} className="flex h-full min-h-0 flex-col justify-center overflow-y-auto py-4">
       <h2
-        className="text-4xl font-extrabold leading-none tracking-tight sm:text-6xl"
-        style={{ fontFamily: DISPLAY_FONT }}
+        className="font-extrabold leading-none tracking-tight"
+        style={{ fontFamily: DISPLAY_FONT, fontSize: 'clamp(2.2rem, 7vmin, 12vmin)' }}
       >
         {slide.title}
       </h2>
-      <ul className="mt-8 max-w-3xl space-y-3">
+      <ul className="mt-8 space-y-3">
         {slide.bullets.map((bullet) => (
-          <li key={bullet} className="flex gap-3 text-lg leading-snug sm:text-xl">
+          <li key={bullet} className="flex gap-3 leading-snug" style={{ fontSize: 'clamp(1.35rem, 2.8vw, 3.2rem)' }}>
             <span className="mt-2 h-2 w-2 shrink-0 rounded-full" style={{ background: '#F0C35A' }} />
             <span>{bullet}</span>
           </li>
@@ -94,19 +95,19 @@ export function FaseSlide({ slide }: { slide: Extract<ShowSlide, { kind: 'fase' 
   return (
     <div
       data-testid="dossier-slide-fase"
-      className={`grid h-full min-h-0 grid-cols-1 gap-6 py-4 ${showBoard ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]' : ''}`}
+      className={`grid h-full min-h-0 grid-cols-1 gap-6 overflow-y-auto py-4 ${showBoard ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]' : ''}`}
     >
       <div className="flex min-h-0 flex-col justify-center">
         <h2
-          className="text-4xl font-extrabold leading-none tracking-tight sm:text-6xl"
-          style={{ fontFamily: DISPLAY_FONT }}
+          className="font-extrabold leading-none tracking-tight"
+          style={{ fontFamily: DISPLAY_FONT, fontSize: 'clamp(2.2rem, 7vmin, 12vmin)' }}
         >
           {slide.title}
         </h2>
         {slide.bullets.length > 0 ? (
           <ul className="mt-8 space-y-3">
             {slide.bullets.map((bullet) => (
-              <li key={bullet} className="flex gap-3 text-lg leading-snug sm:text-xl">
+              <li key={bullet} className="flex gap-3 leading-snug break-words" style={{ fontSize: 'clamp(1.35rem, 4.4vmin, 7.5vmin)' }}>
                 <span className="mt-2 h-2 w-2 shrink-0 rounded-full" style={{ background: '#F0C35A' }} />
                 <span>{bullet}</span>
               </li>
@@ -144,24 +145,24 @@ export function OnceSlide({ slide }: { slide: Extract<ShowSlide, { kind: 'once' 
   return (
     <div
       data-testid="dossier-slide-once"
-      className={`grid h-full min-h-0 grid-cols-1 gap-6 py-4 ${showPitch && slide.bullets.length > 0 ? 'lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.2fr)]' : ''}`}
+      className={`grid h-full min-h-0 grid-cols-1 gap-6 overflow-y-auto py-4 ${showPitch && slide.bullets.length > 0 ? 'lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.2fr)]' : ''}`}
     >
       <div className="flex min-h-0 flex-col justify-center">
         <h2
-          className="text-4xl font-extrabold leading-none tracking-tight sm:text-6xl"
-          style={{ fontFamily: DISPLAY_FONT }}
+          className="font-extrabold leading-none tracking-tight"
+          style={{ fontFamily: DISPLAY_FONT, fontSize: 'clamp(2.2rem, 7vmin, 12vmin)' }}
         >
           {slide.title}
         </h2>
         {slide.sistema ? (
-          <p className="mt-3 text-lg uppercase tracking-[0.18em]" style={{ color: '#F0C35A', fontFamily: DISPLAY_FONT }}>
+          <p className="mt-3 uppercase tracking-[0.14em]" style={{ color: '#F0C35A', fontFamily: DISPLAY_FONT, fontSize: 'clamp(1.05rem, 2.8vmin, 4.5vmin)' }}>
             {slide.sistema}
           </p>
         ) : null}
         {slide.bullets.length > 0 && (
           <ul className="mt-6 space-y-3">
             {slide.bullets.map((bullet) => (
-              <li key={bullet} className="flex gap-3 text-lg leading-snug sm:text-xl">
+              <li key={bullet} className="flex gap-3 leading-snug break-words" style={{ fontSize: 'clamp(1.35rem, 4.4vmin, 7.5vmin)' }}>
                 <span className="mt-2 h-2 w-2 shrink-0 rounded-full" style={{ background: '#F0C35A' }} />
                 <span>{bullet}</span>
               </li>
@@ -173,7 +174,7 @@ export function OnceSlide({ slide }: { slide: Extract<ShowSlide, { kind: 'once' 
         <div className="flex min-h-0 items-center justify-center">
           <div
             data-testid="dossier-once-pitch"
-            className="relative w-full max-w-3xl overflow-hidden rounded-md"
+            className="relative h-full w-full overflow-hidden rounded-md"
             style={{ aspectRatio: '4 / 3', background: '#1a3a12' }}
           >
             <div className="absolute inset-3">
@@ -190,12 +191,12 @@ export function OnceSlide({ slide }: { slide: Extract<ShowSlide, { kind: 'once' 
                 style={{ top: `${token.topPct}%`, left: `${token.leftPct}%` }}
               >
                 <div
-                  className="mx-auto flex h-9 w-9 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-md"
-                  style={{ background: token.color }}
+                  className="mx-auto flex items-center justify-center rounded-full font-bold text-white shadow-md"
+                  style={{ background: token.color, width: 'clamp(2.25rem, 5vmin, 8vmin)', height: 'clamp(2.25rem, 5vmin, 8vmin)', fontSize: 'clamp(11px, 1.6vmin, 2.4vmin)' }}
                 >
                   {token.dorsal || (token.nombre ? token.nombre.slice(0, 1) : token.label)}
                 </div>
-                <span className="mt-0.5 block max-w-[72px] truncate text-[11px] font-semibold text-white drop-shadow">
+                <span className="mt-0.5 block max-w-[14vmin] whitespace-normal text-center font-semibold leading-tight text-white drop-shadow" style={{ fontSize: 'clamp(11px, 1.8vmin, 3vmin)' }}>
                   {token.nombre || token.label}
                 </span>
               </div>

@@ -46,8 +46,7 @@ const SUBFASE_ORDER = [
   'bloque_bajo',
 ] as const
 
-const MAX_BULLETS = 6
-const MAX_BULLET_CHARS = 140
+const MAX_BULLET_CHARS = 4000
 
 export type ShowKind = 'informe' | 'plan' | 'charla'
 export type ShowSection = 'informe' | 'plan'
@@ -689,14 +688,13 @@ function pushLine(out: string[], value?: string) {
 }
 
 function finalizeBullets(values: string[]): string[] {
-  return values.slice(0, MAX_BULLETS)
+  return values
 }
 
 function clipText(value?: string, max = MAX_BULLET_CHARS): string {
   const text = (value || '').replace(/\s+/g, ' ').trim()
-  if (!text) return ''
   if (text.length <= max) return text
-  return `${text.slice(0, max - 1).replace(/\s+\S*$/, '').trimEnd()}…`
+  return text.slice(0, max).trim()
 }
 
 function formatLocalia(value?: string): string | undefined {

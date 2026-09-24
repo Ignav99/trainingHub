@@ -10,7 +10,7 @@ import tempfile
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Request, UploadFile
 
 from app.config import get_settings
 from app.database import get_supabase
@@ -709,8 +709,9 @@ async def create_session(
 @router.get("/sessions/by-code/{code}")
 async def get_session_by_code(
     code: str,
-    auth: AuthContext = Depends(require_permission(Permission.VIDEO_READ)),
+    authorization: str | None = Header(None),
 ):
+    """El código del QR abre la sala. Con sesión de usuario se devuelve el pack entero."""
     supabase = get_supabase()
     result = (
         supabase.table("revision_sessions")
@@ -722,7 +723,11 @@ async def get_session_by_code(
     if not result.data:
         raise HTTPException(status_code=404, detail="Sala no encontrada. Revisa el código.")
     session = result.data[0]
-    pack = _pack_payload(supabase, _get_pack(supabase, session["pack_id"]))
+    signed_in = False
+    if authorization and authorization.lower().startswith("bearer "):
+        from app.api.v1.websocket import _authenticate_ws
+        signed_in = bool(await _authenticate_ws(authorization.split(" ", 1)[1].strip()))
+    pack = _pack_payload(supabase, _get_pack(supabase, session["pack_id"])) if signed_in else None
     current_clip = None
     if session.get("current_clip_id"):
         clip = (
