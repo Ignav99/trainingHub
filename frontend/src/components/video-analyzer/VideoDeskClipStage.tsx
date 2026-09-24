@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, Trash2, X } from 'lucide-react'
+import { BookmarkPlus, ChevronLeft, ChevronRight, Send, Trash2, X } from 'lucide-react'
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 import type { CodeButton, CodeEvent } from './types'
 import { clipDisplayTitle, type DeskPlaylist } from './videoDesk'
@@ -50,16 +50,22 @@ export function VideoDeskClipStage({
   buttons,
   playlist,
   onClose,
+  revisionIds = [],
   onSelect,
   onRename,
+  onToggleRevision,
+  onSendRevision,
   onDelete,
 }: {
   src: string
   buttons: CodeButton[]
   playlist: ClipStagePlaylist
+  revisionIds?: string[]
   onClose: () => void
   onSelect?: (clip: CodeEvent) => void
   onRename?: (clip: CodeEvent, title: string) => void
+  onToggleRevision?: (clip: CodeEvent) => void
+  onSendRevision?: () => void
   onDelete?: (clip: CodeEvent) => void
 }) {
   const playerRef = useRef<VideoPlayerHandle>(null)
@@ -68,6 +74,8 @@ export function VideoDeskClipStage({
   const [index, setIndex] = useState(startIndex < 0 ? 0 : startIndex)
   const clip = clips[index]
   const button = clip ? buttons.find((b) => b.id === clip.buttonId) : null
+  const marked = clip ? revisionIds.includes(clip.id) : false
+  const markedCount = clips.filter((c) => revisionIds.includes(c.id)).length
   const holdRef = useRef<number | null>(null)
 
   const range = useMemo(
@@ -133,6 +141,28 @@ export function VideoDeskClipStage({
             </div>
           </div>
           <div className="vd-stage-head-actions">
+            {onToggleRevision ? (
+              <button
+                type="button"
+                className={`vd-btn${marked ? ' vd-btn-accent' : ''}`}
+                aria-pressed={marked}
+                title={marked ? 'Quitar este recorte de la lista de revisión' : 'Marcar este recorte para enviarlo a revisión'}
+                onClick={() => onToggleRevision(clip)}
+              >
+                <BookmarkPlus size={14} />
+                {marked ? 'Quitar de revisión' : 'Marcar a revisión'}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="vd-btn vd-btn-accent"
+              disabled={!onSendRevision || markedCount === 0}
+              title={markedCount === 0 ? 'Marca recortes mientras los ves' : onSendRevision ? `Enviar ${markedCount} recortes marcados` : 'Asocia un partido para enviar a Revisión'}
+              onClick={() => onSendRevision?.()}
+            >
+              <Send size={14} />
+              {markedCount > 0 ? `Enviar marcados (${markedCount})` : 'Enviar marcados'}
+            </button>
             {onDelete ? (
               <button
                 type="button"
@@ -174,10 +204,10 @@ export function VideoDeskClipStage({
             {clips.map((c, i) => {
               const btn = buttons.find((b) => b.id === c.buttonId)
               return (
-                <li key={c.id} className="vd-stage-item">
+                <li key={c.id} className={`vd-stage-item${revisionIds.includes(c.id) ? ' is-revision' : ''}`}>
                   <button
                     type="button"
-                    className={i === index ? 'is-on' : ''}
+                    className={`${i === index ? 'is-on' : ''}${revisionIds.includes(c.id) ? ' is-revision' : ''}`}
                     onClick={() => setIndex(i)}
                   >
                     {clipDisplayTitle(c, btn)}
