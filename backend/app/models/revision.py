@@ -18,6 +18,7 @@ class PackGetOrCreate(BaseModel):
     partido_id: Optional[UUID] = None
     rival_id: Optional[UUID] = None
     microciclo_id: Optional[UUID] = None
+    folders_only: bool = False
 
 
 class FolderCreate(BaseModel):

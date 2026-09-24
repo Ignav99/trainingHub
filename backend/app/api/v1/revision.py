@@ -143,8 +143,12 @@ def _decorate_clip(clip: dict | None) -> dict | None:
     return out
 
 
-def _pack_payload(supabase, pack: dict) -> dict:
+def _pack_payload(supabase, pack: dict, *, folders_only: bool = False) -> dict:
     folders = _ensure_default_folders(supabase, pack)
+    if folders_only:
+        # The send dialog only needs the folder list. Signing every clip URL
+        # walks R2 once per recorte and can take the better part of a minute.
+        return {**pack, "folders": folders, "clips": [], "links": []}
     clip_rows, links = _load_clips_and_links(supabase, pack["id"])
     try:
         retention = pack_retention_payload(supabase, pack, clip_rows)
@@ -202,7 +206,7 @@ async def get_or_create_pack(
 
     existing = query.limit(1).execute()
     if existing.data:
-        return _pack_payload(supabase, existing.data[0])
+        return _pack_payload(supabase, existing.data[0], folders_only=data.folders_only)
 
     row = {
         "equipo_id": equipo_id,
@@ -222,9 +226,9 @@ async def get_or_create_pack(
         logger.warning("revision pack insert conflict: %s", exc)
         raced = query.limit(1).execute()
         if raced.data:
-            return _pack_payload(supabase, raced.data[0])
+            return _pack_payload(supabase, raced.data[0], folders_only=data.folders_only)
         raise HTTPException(status_code=500, detail="No se pudo abrir la librería de revisión.") from exc
-    return _pack_payload(supabase, pack)
+    return _pack_payload(supabase, pack, folders_only=data.folders_only)
 
 
 @router.get("/packs/{pack_id}")

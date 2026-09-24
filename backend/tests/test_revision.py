@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from unittest.mock import MagicMock, patch
 
+from app.api.v1.revision import _pack_payload
 from app.services.revision_service import (
     HOT_DAYS,
     MAX_CLIP_BYTES,
@@ -667,4 +668,29 @@ class TestSalaSync:
         assert "VideoPlayer" in library
         assert "VideoPlayer" in organizer
         assert "Mini scrub bar" not in studio
+
+
+class TestFoldersOnlyPayload:
+    def test_skips_clips_and_signed_urls(self):
+        query = MagicMock()
+        query.select.return_value = query
+        query.eq.return_value = query
+        query.order.return_value = query
+        query.execute.return_value = MagicMock(data=[{"id": "f1", "nombre": "Ataque", "orden": 0}])
+        supabase = MagicMock()
+
+        def table(name):
+            assert name == "revision_folders"
+            return query
+
+        supabase.table.side_effect = table
+        out = _pack_payload(
+            supabase,
+            {"id": "pack-1", "ambito": "partido_post"},
+            folders_only=True,
+        )
+        assert out["folders"][0]["nombre"] == "Ataque"
+        assert out["clips"] == []
+        assert out["links"] == []
+        assert "retention" not in out
 
