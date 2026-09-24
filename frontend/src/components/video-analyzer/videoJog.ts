@@ -210,6 +210,20 @@ export class PresentedFrameCache {
     return hit
   }
 
+  /** Last painted picture, even if it is a few frames off. Used so a seek never flashes black. */
+  closest(time: number): CachedFrame | null {
+    let hit: CachedFrame | null = null
+    let best = Infinity
+    for (const item of this.items) {
+      const d = Math.abs(item.mediaTime - time)
+      if (d < best) {
+        best = d
+        hit = item
+      }
+    }
+    return hit
+  }
+
   clear() {
     for (const item of this.items) item.bitmap.close?.()
     this.items = []
