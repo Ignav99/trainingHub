@@ -357,6 +357,91 @@ export function estimateFps(presentedFrames: number, mediaSeconds: number): numb
 /** Skip used by the ±5s buttons, not by the arrow keys. */
 export const PLAYER_SKIP_SECONDS = 5
 
+export const SKIP_DELTAS = [-10, -5, -1, 1, 5, 10] as const
+export type SkipDelta = (typeof SKIP_DELTAS)[number]
+
+/** A −10, S −5, D −1, K +1, L +5, Ñ +10. The coach can replace them. */
+export const DEFAULT_SKIP_KEYS: Record<SkipDelta, string> = {
+  [-10]: 'a',
+  [-5]: 's',
+  [-1]: 'd',
+  1: 'k',
+  5: 'l',
+  10: 'ñ',
+}
+
+const SKIP_KEYS_STORAGE = 'video-skip-keys:v1'
+const SKIP_KEY_BLOCKED = new Set(['', ' ', 'escape', 'enter', 'tab', 'backspace', 'delete', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown'])
+
+let skipRebindActive = false
+
+export function setSkipRebindActive(active: boolean) {
+  skipRebindActive = active
+}
+
+export function isSkipRebindActive() {
+  return skipRebindActive
+}
+
+export function normalizeSkipKey(raw: string | undefined | null): string | null {
+  const key = (raw || '').trim().toLowerCase()
+  if (key.length !== 1 || SKIP_KEY_BLOCKED.has(key)) return null
+  return key
+}
+
+export function defaultSkipKeys(): Record<SkipDelta, string> {
+  return { ...DEFAULT_SKIP_KEYS }
+}
+
+export function loadSkipKeys(): Record<SkipDelta, string> {
+  const next = defaultSkipKeys()
+  if (typeof localStorage === 'undefined') return next
+  try {
+    const raw = localStorage.getItem(SKIP_KEYS_STORAGE)
+    if (!raw) return next
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    for (const delta of SKIP_DELTAS) {
+      const key = normalizeSkipKey(typeof parsed[String(delta)] === 'string' ? parsed[String(delta)] as string : '')
+      if (key) next[delta] = key
+    }
+  } catch {
+    return defaultSkipKeys()
+  }
+  return next
+}
+
+export function saveSkipKeys(keys: Record<SkipDelta, string>) {
+  try {
+    localStorage.setItem(SKIP_KEYS_STORAGE, JSON.stringify(keys))
+  } catch {
+    /* private mode */
+  }
+}
+
+export function skipDeltaForKey(key: string, keys: Record<SkipDelta, string>): SkipDelta | null {
+  const normalized = normalizeSkipKey(key)
+  if (!normalized) return null
+  for (const delta of SKIP_DELTAS) {
+    if (keys[delta] === normalized) return delta
+  }
+  return null
+}
+
+/** Assign a key to one jump. The previous owner of that key loses it. */
+export function assignSkipKey(
+  keys: Record<SkipDelta, string>,
+  delta: SkipDelta,
+  raw: string
+): Record<SkipDelta, string> | null {
+  const key = normalizeSkipKey(raw)
+  if (!key) return null
+  const next = { ...keys, [delta]: key }
+  for (const other of SKIP_DELTAS) {
+    if (other !== delta && next[other] === key) next[other] = ''
+  }
+  return next
+}
+
 export type ArrowJog = { kind: 'frame'; direction: 1 | -1 }
 
 /** ←/→ always one frame. Hold acceleration lives in the player. */
