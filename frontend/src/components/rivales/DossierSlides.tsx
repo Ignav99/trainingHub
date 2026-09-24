@@ -6,6 +6,13 @@ import { buildOncePitchTokens } from '@/lib/oncePitch'
 
 export const DISPLAY_FONT = '"Archivo Narrow", "Arial Narrow", sans-serif'
 
+// Crece con la pantalla y se detiene antes de llenarla. Título ~1,6× el cuerpo.
+const SLIDE_TITLE = 'clamp(1.85rem, calc(1.4rem + 2.4vh), 3.6rem)'
+const SLIDE_BODY = 'clamp(1.2rem, calc(1.15rem + 1.6vh), 2.15rem)'
+const SLIDE_KICKER = 'clamp(0.8rem, calc(0.7rem + 0.7vh), 1.15rem)'
+const SLIDE_META = 'clamp(1rem, calc(0.9rem + 0.85vh), 1.45rem)'
+const PORTADA_TITLE = 'clamp(2.25rem, calc(1.6rem + 3vh), 4.75rem)'
+
 export function ClubCrest({ src, size = 32 }: { src?: string; size?: number }) {
   if (!src) return null
   return (
@@ -27,7 +34,7 @@ export function PortadaSlide({ slide }: { slide: Extract<ShowSlide, { kind: 'por
     <div data-testid="dossier-slide-portada" className="flex h-full flex-col justify-end pb-10">
       <p
         className="font-semibold uppercase tracking-[0.28em]"
-        style={{ color: '#F0C35A', fontFamily: DISPLAY_FONT, fontSize: 'clamp(0.95rem, 2.2vmin, 3.2vmin)' }}
+        style={{ color: '#F0C35A', fontFamily: DISPLAY_FONT, fontSize: SLIDE_KICKER }}
       >
         {slide.kicker}
       </p>
@@ -39,23 +46,23 @@ export function PortadaSlide({ slide }: { slide: Extract<ShowSlide, { kind: 'por
             alt=""
             data-testid="dossier-rival-crest"
             className="shrink-0 object-contain"
-            style={{ width: 'clamp(4rem, 12vmin, 18vmin)', height: 'clamp(4rem, 12vmin, 18vmin)' }}
+            style={{ width: 'clamp(3.5rem, 8vh, 6.25rem)', height: 'clamp(3.5rem, 8vh, 6.25rem)' }}
           />
         ) : null}
         <h1
           className="font-extrabold leading-[0.95] tracking-tight"
-          style={{ fontFamily: DISPLAY_FONT, fontSize: 'clamp(2.6rem, 8.5vmin, 14vmin)' }}
+          style={{ fontFamily: DISPLAY_FONT, fontSize: PORTADA_TITLE }}
         >
           {slide.title}
         </h1>
       </div>
       {slide.subtitle && (
-        <p className="mt-4" style={{ color: '#9AA59B', fontSize: 'clamp(1.15rem, 3.2vmin, 5.5vmin)' }}>
+        <p className="mt-4" style={{ color: '#9AA59B', fontSize: SLIDE_META }}>
           {slide.subtitle}
         </p>
       )}
       {slide.meta.length > 0 && (
-        <p className="mt-3 uppercase tracking-[0.14em]" style={{ color: '#C5CDC7', fontSize: 'clamp(0.9rem, 2.2vmin, 3.4vmin)' }}>
+        <p className="mt-3 uppercase tracking-[0.14em]" style={{ color: '#C5CDC7', fontSize: SLIDE_KICKER }}>
           {slide.meta.join('  ·  ')}
         </p>
       )}
@@ -72,13 +79,13 @@ export function NotesSlide({
     <div data-testid={`dossier-slide-${slide.kind}`} className="flex h-full min-h-0 flex-col justify-center overflow-y-auto py-4">
       <h2
         className="font-extrabold leading-none tracking-tight"
-        style={{ fontFamily: DISPLAY_FONT, fontSize: 'clamp(2.2rem, 7vmin, 12vmin)' }}
+        style={{ fontFamily: DISPLAY_FONT, fontSize: SLIDE_TITLE }}
       >
         {slide.title}
       </h2>
       <ul className="mt-8 space-y-3">
         {slide.bullets.map((bullet) => (
-          <li key={bullet} className="flex gap-3 leading-snug" style={{ fontSize: 'clamp(1.35rem, 2.8vw, 3.2rem)' }}>
+            <li key={bullet} className="flex gap-3 leading-snug break-words" style={{ fontSize: SLIDE_BODY }}>
             <span className="mt-2 h-2 w-2 shrink-0 rounded-full" style={{ background: '#F0C35A' }} />
             <span>{bullet}</span>
           </li>
@@ -100,14 +107,14 @@ export function FaseSlide({ slide }: { slide: Extract<ShowSlide, { kind: 'fase' 
       <div className="flex min-h-0 flex-col justify-center">
         <h2
           className="font-extrabold leading-none tracking-tight"
-          style={{ fontFamily: DISPLAY_FONT, fontSize: 'clamp(2.2rem, 7vmin, 12vmin)' }}
+          style={{ fontFamily: DISPLAY_FONT, fontSize: SLIDE_TITLE }}
         >
           {slide.title}
         </h2>
         {slide.bullets.length > 0 ? (
           <ul className="mt-8 space-y-3">
             {slide.bullets.map((bullet) => (
-              <li key={bullet} className="flex gap-3 leading-snug break-words" style={{ fontSize: 'clamp(1.35rem, 4.4vmin, 7.5vmin)' }}>
+              <li key={bullet} className="flex gap-3 leading-snug break-words" style={{ fontSize: SLIDE_BODY }}>
                 <span className="mt-2 h-2 w-2 shrink-0 rounded-full" style={{ background: '#F0C35A' }} />
                 <span>{bullet}</span>
               </li>
@@ -150,19 +157,19 @@ export function OnceSlide({ slide }: { slide: Extract<ShowSlide, { kind: 'once' 
       <div className="flex min-h-0 flex-col justify-center">
         <h2
           className="font-extrabold leading-none tracking-tight"
-          style={{ fontFamily: DISPLAY_FONT, fontSize: 'clamp(2.2rem, 7vmin, 12vmin)' }}
+          style={{ fontFamily: DISPLAY_FONT, fontSize: SLIDE_TITLE }}
         >
           {slide.title}
         </h2>
         {slide.sistema ? (
-          <p className="mt-3 uppercase tracking-[0.14em]" style={{ color: '#F0C35A', fontFamily: DISPLAY_FONT, fontSize: 'clamp(1.05rem, 2.8vmin, 4.5vmin)' }}>
+          <p className="mt-3 uppercase tracking-[0.14em]" style={{ color: '#F0C35A', fontFamily: DISPLAY_FONT, fontSize: SLIDE_META }}>
             {slide.sistema}
           </p>
         ) : null}
         {slide.bullets.length > 0 && (
           <ul className="mt-6 space-y-3">
             {slide.bullets.map((bullet) => (
-              <li key={bullet} className="flex gap-3 leading-snug break-words" style={{ fontSize: 'clamp(1.35rem, 4.4vmin, 7.5vmin)' }}>
+              <li key={bullet} className="flex gap-3 leading-snug break-words" style={{ fontSize: SLIDE_BODY }}>
                 <span className="mt-2 h-2 w-2 shrink-0 rounded-full" style={{ background: '#F0C35A' }} />
                 <span>{bullet}</span>
               </li>
@@ -192,11 +199,11 @@ export function OnceSlide({ slide }: { slide: Extract<ShowSlide, { kind: 'once' 
               >
                 <div
                   className="mx-auto flex items-center justify-center rounded-full font-bold text-white shadow-md"
-                  style={{ background: token.color, width: 'clamp(2.25rem, 5vmin, 8vmin)', height: 'clamp(2.25rem, 5vmin, 8vmin)', fontSize: 'clamp(11px, 1.6vmin, 2.4vmin)' }}
+                  style={{ background: token.color, width: 'clamp(2rem, 4vh, 2.75rem)', height: 'clamp(2rem, 4vh, 2.75rem)', fontSize: 'clamp(11px, 1.3vh, 15px)' }}
                 >
                   {token.dorsal || (token.nombre ? token.nombre.slice(0, 1) : token.label)}
                 </div>
-                <span className="mt-0.5 block max-w-[14vmin] whitespace-normal text-center font-semibold leading-tight text-white drop-shadow" style={{ fontSize: 'clamp(11px, 1.8vmin, 3vmin)' }}>
+                <span className="mt-0.5 block max-w-[7.5rem] whitespace-normal text-center font-semibold leading-tight text-white drop-shadow" style={{ fontSize: 'clamp(11px, 1.35vh, 15px)' }}>
                   {token.nombre || token.label}
                 </span>
               </div>
