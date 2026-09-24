@@ -266,7 +266,7 @@ function VideoSlide({
   return (
     <div data-testid="dossier-slide-video" className="flex h-full min-h-0 flex-col">
       <div className="mb-2 flex items-end justify-between gap-3">
-        <h2 className="font-extrabold tracking-tight" style={{ fontFamily: DISPLAY_FONT, fontSize: 'clamp(1.6rem, 4.5vmin, 8vmin)' }}>
+        <h2 className="font-extrabold tracking-tight" style={{ fontFamily: DISPLAY_FONT, fontSize: 'clamp(1.5rem, calc(1.2rem + 1.8vh), 2.6rem)' }}>
           {slide.title}
         </h2>
         <span className="text-[11px] uppercase tracking-[0.2em]" style={{ color: '#9AA59B' }}>
