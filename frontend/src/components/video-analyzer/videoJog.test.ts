@@ -11,6 +11,7 @@ import {
   isScrubGesture,
   isTypingTarget,
   nextFrameTime,
+  quantizeFrame,
   scrubPixels,
   snapFps,
   wheelPixelsToSeconds,
@@ -33,6 +34,12 @@ describe('video jog', () => {
     assert.equal(snapFps(49.6), 50)
     assert.equal(snapFps(23.97), 23.976)
     assert.equal(snapFps(2), BROADCAST_FPS)
+  })
+
+  it('quantizes a jog target onto the frame grid', () => {
+    assert.ok(Math.abs(quantizeFrame(10.01, 25) - 10) < 1e-9)
+    assert.ok(Math.abs(quantizeFrame(10.03, 25) - 10.04) < 1e-9)
+    assert.equal(quantizeFrame(0, 25), 0)
   })
 
   it('maps a short two-finger swipe to about one frame at 25fps', () => {
