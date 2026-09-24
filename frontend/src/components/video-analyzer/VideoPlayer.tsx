@@ -49,10 +49,13 @@ import {
   playOnePresentedFrame,
   playForwardToTime,
   PresentedFrameCache,
+  quantizeFrame,
   seekSnappedAway,
   snapshotVideoFrame,
+  frameDuration,
   type ArrowJog,
 } from './videoJog'
+import { ExactFrameDeck } from './exactFrames'
 
 const HOLD_REWIND_INTERVAL_MS = 70
 
@@ -201,6 +204,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const catchupRef = useRef<number | null>(null)
     const padIdleTimerRef = useRef<number | null>(null)
     const frameCacheRef = useRef(new PresentedFrameCache(16))
+    const deckRef = useRef(new ExactFrameDeck())
+    const exactTokenRef = useRef(0)
+    const frameSpanRef = useRef(1 / BROADCAST_FPS)
     const overlayRef = useRef<HTMLCanvasElement | null>(null)
     const jogLockRef = useRef(false)
     const reverseHoldRef = useRef(false)
@@ -238,6 +244,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         v.src = src
       }
       // For non-HLS, the src attribute on <video> handles it
+    }, [src])
+
+    useEffect(() => {
+      const deck = deckRef.current
+      void deck.open(src)
+      return () => deck.close()
     }, [src])
 
     const togglePlay = useCallback(() => {
@@ -305,6 +317,31 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       }
     }, [])
 
+    const landExact = useCallback((time: number) => {
+      const deck = deckRef.current
+      if (!deck.isReady()) return false
+      const { min, max } = rangeBounds()
+      const goal = clampTime(quantizeFrame(time, fpsRef.current), min, max)
+      const token = ++exactTokenRef.current
+      reverseHoldRef.current = true
+      publishTime(goal)
+      void deck.frameAt(goal).then((frame) => {
+        if (!frame || token !== exactTokenRef.current) {
+          frame?.bitmap.close?.()
+          return
+        }
+        if (Math.abs(frame.timestamp - currentTimeRef.current) > frameDuration(fpsRef.current) * 1.25) {
+          frame.bitmap.close?.()
+          return
+        }
+        showCached({ mediaTime: frame.timestamp, bitmap: frame.bitmap }, { hideVideo: true })
+        frame.bitmap.close?.()
+        if (frame.duration > 0.008 && frame.duration < 0.08) frameSpanRef.current = frame.duration
+        publishTime(frame.timestamp)
+      })
+      return true
+    }, [publishTime, rangeBounds, showCached])
+
     /** Keep the last good frame on top of the video so a pause, a tag, or a seek cannot flash black. */
     const holdPoster = useCallback(() => {
       const v = videoRef.current
@@ -346,6 +383,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const seekToTime = useCallback((time: number) => {
       const v = videoRef.current
       if (!v) return
+      if (landExact(time)) return
       holdPoster()
       releaseJogHold({ keepPoster: true })
       const { min, max } = rangeBounds()
@@ -355,7 +393,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       if (Math.abs((v.currentTime || 0) - next) > 0.04) v.currentTime = next
       else hideOverlay()
       onTimeUpdateRef.current?.(next)
-    }, [hideOverlay, holdPoster, rangeBounds, releaseJogHold])
+    }, [hideOverlay, holdPoster, landExact, rangeBounds, releaseJogHold])
 
     const seek = useCallback((delta: number) => {
       seekToTime(currentTimeRef.current + delta)
@@ -442,7 +480,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           },
         })
         if (token !== jogTokenRef.current) return
-        if (seekSnappedAway(goal, landed, fpsRef.current)) return
+        if (Math.abs(landed - goal) > frameDuration(fpsRef.current) * 0.6) return
         const bmp = await snapshotVideoFrame(v)
         if (token !== jogTokenRef.current) {
           bmp?.close()
@@ -542,9 +580,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const frameStep = useCallback((direction: 1 | -1) => {
       const v = videoRef.current
       if (v && !v.paused) v.pause()
+      const { min, max } = rangeBounds()
+      const step = frameSpanRef.current || frameDuration(fpsRef.current)
+      if (landExact(clampTime(currentTimeRef.current + direction * step, min, max))) return
       pendingFramesRef.current = Math.max(-2, Math.min(2, pendingFramesRef.current + direction))
       void runFrameQueue()
-    }, [runFrameQueue])
+    }, [landExact, rangeBounds, runFrameQueue])
 
     useImperativeHandle(ref, () => ({
       getVideoElement: () => videoRef.current,
@@ -765,16 +806,17 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           const px = pendingPx
           pendingPx = 0
           const { min, max } = bounds()
-          const backward = px < 0
-          if (!backward && isFineJogPixels(px, fpsRef.current)) {
-            frameStep(1)
-            return
-          }
           const next = clampTime(
             currentTimeRef.current + wheelPixelsToSeconds(px, fpsRef.current),
             min,
             max
           )
+          if (landExact(next)) return
+          const backward = px < 0
+          if (!backward && isFineJogPixels(px, fpsRef.current)) {
+            frameStep(1)
+            return
+          }
           const cached = frameCacheRef.current.frameForJog(currentTimeRef.current, next, fpsRef.current)
           if (cached) {
             showCached(cached, { hideVideo: true })
@@ -813,7 +855,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         if (padIdleTimerRef.current != null) window.clearTimeout(padIdleTimerRef.current)
         padActiveRef.current = false
       }
-    }, [jogPointer, clipRange, frameStep])
+    }, [jogPointer, clipRange, frameStep, landExact])
 
     const stopHoldJog = useCallback(() => {
       heldJogRef.current = null

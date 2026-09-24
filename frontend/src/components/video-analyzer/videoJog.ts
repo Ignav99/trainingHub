@@ -38,6 +38,13 @@ export function frameDuration(fps: number): number {
   return 1 / Math.max(1, fps)
 }
 
+/** Nearest frame boundary. Jog targets land on a frame, not between two. */
+export function quantizeFrame(time: number, fps: number): number {
+  const frame = frameDuration(fps)
+  if (!Number.isFinite(time) || frame <= 0) return time
+  return Math.round(time / frame) * frame
+}
+
 export function clampTime(time: number, min: number, max: number): number {
   if (!Number.isFinite(time)) return min
   const hi = Number.isFinite(max) ? max : time
@@ -193,7 +200,7 @@ export class PresentedFrameCache {
    */
   frameForJog(from: number, goal: number, fps: number): CachedFrame | null {
     const frame = frameDuration(fps)
-    const maxDelta = frame * 1.25
+    const maxDelta = frame * 0.45
     let hit: CachedFrame | null = null
     let best = maxDelta
     for (const item of this.items) {
@@ -283,7 +290,9 @@ export async function playForwardToTime(
   const wasRate = video.playbackRate || 1
   const tune = () => {
     const remain = target - video.currentTime
-    video.playbackRate = remain > 2.5 ? 4 : remain > 0.45 ? 2 : 1
+    // Stay at 1x once the landing is close. 4x presents several frames per
+    // callback and the playhead then jumps past the requested frame.
+    video.playbackRate = remain > 8 ? 4 : remain > 1.2 ? 2 : 1
   }
   try {
     video.muted = true
@@ -297,6 +306,7 @@ export async function playForwardToTime(
       time = await waitNextVideoFrame(video, 100)
       await opts?.onPresented?.(time)
       tune()
+      if (time > target + 0.02) break
       if (time >= target - 0.0008) break
     }
     return video.currentTime
