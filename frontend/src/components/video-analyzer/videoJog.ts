@@ -309,24 +309,16 @@ export async function playForwardToTime(
   }
 }
 
-/** Small bitmap so reverse jog can show the real frame without keeping full-HD copies. */
+/** Native frame. A downscaled copy looks soft when it covers the paused video. */
 export async function snapshotVideoFrame(
-  video: HTMLVideoElement,
-  maxWidth = 420
+  video: HTMLVideoElement
 ): Promise<ImageBitmap | null> {
   if (typeof createImageBitmap !== 'function') return null
   const w = video.videoWidth
   const h = video.videoHeight
   if (!w || !h) return null
   try {
-    if (w <= maxWidth) return await createImageBitmap(video)
-    const canvas = document.createElement('canvas')
-    canvas.width = maxWidth
-    canvas.height = Math.max(2, Math.round(h * (maxWidth / w)))
-    const ctx = canvas.getContext('2d', { alpha: false })
-    if (!ctx) return null
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-    return await createImageBitmap(canvas)
+    return await createImageBitmap(video)
   } catch {
     return null
   }
