@@ -147,6 +147,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const holdStartedAtRef = useRef(0)
     const jogSilentRef = useRef(false)
     const padActiveRef = useRef(false)
+    const catchupRef = useRef<number | null>(null)
     const padIdleTimerRef = useRef<number | null>(null)
     const frameCacheRef = useRef(new PresentedFrameCache(140))
     const overlayRef = useRef<HTMLCanvasElement | null>(null)
@@ -239,17 +240,30 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       return next
     }, [rangeBounds])
 
-    const showCached = useCallback((frame: { mediaTime: number; bitmap: ImageBitmap }) => {
+    const showCached = useCallback((frame: { mediaTime: number; bitmap: ImageBitmap }, opts?: { hideVideo?: boolean }) => {
       const canvas = overlayRef.current
       if (!canvas) return
       canvas.width = frame.bitmap.width
       canvas.height = frame.bitmap.height
       canvas.getContext('2d')?.drawImage(frame.bitmap, 0, 0)
       canvas.style.opacity = '1'
-      reverseHoldRef.current = true
-      const v = videoRef.current
-      if (v) v.style.opacity = '0'
+      if (opts?.hideVideo) {
+        reverseHoldRef.current = true
+        const v = videoRef.current
+        if (v) v.style.opacity = '0'
+      }
     }, [])
+
+    /** Keep the last good frame on top of the video so a pause, a tag, or a seek cannot flash black. */
+    const holdPoster = useCallback(() => {
+      const v = videoRef.current
+      const canvas = overlayRef.current
+      if (!v || !canvas) return
+      if (canvas.style.opacity === '1') return
+      const hit = frameCacheRef.current.closest(currentTimeRef.current)
+      if (!hit) return
+      showCached(hit)
+    }, [showCached])
 
     const hideOverlay = useCallback(() => {
       reverseHoldRef.current = false
@@ -269,27 +283,28 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       })
     }, [])
 
-    const releaseJogHold = useCallback(() => {
+    const releaseJogHold = useCallback((opts?: { keepPoster?: boolean }) => {
       jogTokenRef.current += 1
       jogLockRef.current = false
       jogSilentRef.current = false
       pendingShuttleRef.current = null
-      hideOverlay()
-      const v = videoRef.current
-      if (v) v.style.opacity = ''
+      if (!opts?.keepPoster) hideOverlay()
+      else reverseHoldRef.current = false
     }, [hideOverlay])
 
     const seekToTime = useCallback((time: number) => {
       const v = videoRef.current
       if (!v) return
-      releaseJogHold()
+      holdPoster()
+      releaseJogHold({ keepPoster: true })
       const { min, max } = rangeBounds()
       const next = clampTime(time, min, max)
       currentTimeRef.current = next
       setCurrentTime(next)
-      v.currentTime = next
+      if (Math.abs((v.currentTime || 0) - next) > 0.04) v.currentTime = next
+      else hideOverlay()
       onTimeUpdateRef.current?.(next)
-    }, [rangeBounds, releaseJogHold])
+    }, [hideOverlay, holdPoster, rangeBounds, releaseJogHold])
 
     const seek = useCallback((delta: number) => {
       seekToTime(currentTimeRef.current + delta)
@@ -358,12 +373,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           }
           if (bmp) {
             frameCacheRef.current.push(from, bmp)
-            showCached({ mediaTime: from, bitmap: bmp })
+            showCached({ mediaTime: from, bitmap: bmp }, { hideVideo: true })
           }
         }
         if (token !== jogTokenRef.current) return
         v.playbackRate = 1
-        v.style.opacity = '0'
+        if (overlayRef.current?.style.opacity === '1') v.style.opacity = '0'
         v.currentTime = goal
         if (v.seeking) await waitUntilSeeked(v)
         if (token !== jogTokenRef.current) return
@@ -562,6 +577,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         if (jogSilentRef.current) return
         setPlaying(false)
         onPlayStateChange?.(false)
+        holdPoster()
       }
       const handleDuration = () => {
         setDuration(v.duration)
@@ -569,6 +585,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       }
       const handleSeeked = () => {
         if (jogLockRef.current || jogSilentRef.current || reverseHoldRef.current) return
+        if (v.readyState >= 2) hideOverlay()
         onSeeked?.(v.currentTime)
       }
       const handleError = () => {
@@ -676,7 +693,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           padActiveRef.current = false
           padIdleTimerRef.current = null
           videoRef.current?.pause()
-        }, 180)
+          const target = catchupRef.current
+          catchupRef.current = null
+          if (target != null) shuttleToRef.current(target)
+        }, 90)
       }
 
       const bounds = () => {
@@ -694,8 +714,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           const px = pendingPx
           pendingPx = 0
           const { min, max } = bounds()
-          if (isFineJogPixels(px, fpsRef.current)) {
-            frameStep(px > 0 ? 1 : -1)
+          const backward = px < 0
+          if (!backward && isFineJogPixels(px, fpsRef.current)) {
+            frameStep(1)
             return
           }
           const next = clampTime(
@@ -705,21 +726,17 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           )
           const cached = frameCacheRef.current.frameForJog(currentTimeRef.current, next, fpsRef.current)
           if (cached) {
-            const canvas = overlayRef.current
-            if (canvas) {
-              canvas.width = cached.bitmap.width
-              canvas.height = cached.bitmap.height
-              canvas.getContext('2d')?.drawImage(cached.bitmap, 0, 0)
-              canvas.style.opacity = '1'
-              reverseHoldRef.current = true
-              v.style.opacity = '0'
-            }
+            showCached(cached, { hideVideo: true })
             currentTimeRef.current = cached.mediaTime
             setCurrentTime(cached.mediaTime)
             onTimeUpdateRef.current?.(cached.mediaTime)
             return
           }
-          shuttleToRef.current(next)
+          holdPoster()
+          currentTimeRef.current = next
+          setCurrentTime(next)
+          onTimeUpdateRef.current?.(next)
+          catchupRef.current = next
         }
       }
 
@@ -895,8 +912,36 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           />
         </div>
 
-        {/* Controls: seek bar + [Play] [Rewind] [-5] [<f] [f>] [+5] | time | mute | speed */}
+        {/* Controls: skip bar + seek bar + [Play] [Rewind] [-5] [<f] [f>] [+5] | time | mute | speed */}
         <div className="bg-black/80 text-white text-xs relative z-10 shrink-0">
+          <div className="flex items-center justify-between gap-2 px-2 pt-1" aria-label="Saltos de tiempo">
+            <div className="flex items-center gap-1">
+              {[10, 5, 1].map((seconds) => (
+                <button
+                  key={`back-${seconds}`}
+                  type="button"
+                  className="h-5 min-w-[2.1rem] rounded border border-white/15 px-1 text-[10px] tabular-nums text-white/80 hover:bg-white/15"
+                  onClick={() => seek(-seconds)}
+                  title={`Retroceder ${seconds} s`}
+                >
+                  −{seconds}s
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1">
+              {[1, 5, 10].map((seconds) => (
+                <button
+                  key={`fwd-${seconds}`}
+                  type="button"
+                  className="h-5 min-w-[2.1rem] rounded border border-white/15 px-1 text-[10px] tabular-nums text-white/80 hover:bg-white/15"
+                  onClick={() => seek(seconds)}
+                  title={`Avanzar ${seconds} s`}
+                >
+                  +{seconds}s
+                </button>
+              ))}
+            </div>
+          </div>
           <div
             ref={seekBarRef}
             role="slider"
