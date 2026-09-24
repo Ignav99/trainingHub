@@ -176,6 +176,44 @@ async def _authenticate_ws(token: str) -> Optional[dict]:
 
 # ============ WebSocket Endpoints ============
 
+SALA_PASS_HOURS = 8
+
+
+def sala_guest_code(token: str) -> Optional[str]:
+    if not token.startswith("sala:"):
+        return None
+    code = token[5:].upper().strip()
+    if len(code) < 4:
+        return None
+    return code
+
+
+def sala_pass_is_live(code: str) -> bool:
+    """El QR vale mientras la sala siga abierta y no haya pasado el pase."""
+    from datetime import datetime, timedelta, timezone
+
+    supabase = get_supabase()
+    result = (
+        supabase.table("revision_sessions")
+        .select("created_at,updated_at")
+        .eq("code", code)
+        .limit(1)
+        .execute()
+    )
+    if not result.data:
+        return False
+    raw = result.data[0].get("updated_at") or result.data[0].get("created_at")
+    if not raw:
+        return True
+    try:
+        stamp = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError:
+        return True
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - stamp <= timedelta(hours=SALA_PASS_HOURS)
+
+
 @router.websocket("/ws")
 async def websocket_endpoint(
     websocket: WebSocket,
@@ -196,6 +234,15 @@ async def websocket_endpoint(
     - chat_send: Send a chat message to team
     - ping: Keep alive
     """
+    guest_code = sala_guest_code(token)
+    if guest_code:
+        if not sala_pass_is_live(guest_code):
+            await websocket.accept()
+            await websocket.close(code=4003, reason="Pase de sala caducado")
+            return
+        await _serve_sala_guest(websocket, guest_code)
+        return
+
     # Authenticate
     user = await _authenticate_ws(token)
     if not user:
@@ -363,6 +410,82 @@ async def websocket_endpoint(
                     "session_code": code,
                     "peers": manager.sala_peer_count(code),
                 },
+            )
+
+
+async def _serve_sala_guest(websocket: WebSocket, code: str) -> None:
+    """Invitado del QR: solo la sala, sin usuario ni equipo."""
+    await websocket.accept()
+    user_id = f"guest:{code}"
+    try:
+        while True:
+            data = await websocket.receive_json()
+            msg_type = data.get("type")
+            if msg_type == "ping":
+                await websocket.send_json({"type": "pong"})
+                continue
+            if msg_type == "sala_join":
+                join_code = (data.get("session_code") or code).upper().strip()
+                if join_code != code:
+                    continue
+                peers = manager.join_sala(websocket, join_code)
+                await websocket.send_json({
+                    "type": "sala_joined",
+                    "session_code": join_code,
+                    "role": data.get("role") or "tablet",
+                    "peers": peers,
+                })
+                await manager.broadcast_sala(
+                    join_code,
+                    {
+                        "type": "sala_peer_joined",
+                        "session_code": join_code,
+                        "role": data.get("role") or "tablet",
+                        "peers": peers,
+                    },
+                    exclude=websocket,
+                )
+                continue
+            if msg_type not in {"sala_sync", "sala_sync_request", "sala_sync_ack", "sala_signal"}:
+                continue
+            msg_code = (data.get("session_code") or "").upper().strip()
+            if msg_code != code:
+                continue
+            if msg_type == "sala_sync":
+                await manager.broadcast_sala(code, sala_sync_payload(data, user_id), exclude=websocket)
+            elif msg_type == "sala_sync_request":
+                await manager.broadcast_sala(
+                    code,
+                    {"type": "sala_sync_request", "session_code": code, "role": data.get("role") or "tablet"},
+                    exclude=websocket,
+                )
+            elif msg_type == "sala_sync_ack":
+                await manager.broadcast_sala(
+                    code,
+                    {"type": "sala_sync_ack", "session_code": code, "role": data.get("role"), "seq": data.get("seq")},
+                    exclude=websocket,
+                )
+            elif msg_type == "sala_signal":
+                await manager.broadcast_sala(
+                    code,
+                    {
+                        "type": "sala_signal",
+                        "session_code": code,
+                        "role": data.get("role"),
+                        "signal": data.get("signal"),
+                        "user_id": user_id,
+                    },
+                    exclude=websocket,
+                )
+    except WebSocketDisconnect:
+        pass
+    finally:
+        salas = list(manager.ws_salas.get(id(websocket), []))
+        manager.leave_all_salas(websocket)
+        for room in salas:
+            await manager.broadcast_sala(
+                room,
+                {"type": "sala_peer_left", "session_code": room, "peers": manager.sala_peer_count(room)},
             )
 
 

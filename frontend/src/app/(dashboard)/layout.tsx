@@ -123,11 +123,14 @@ export default function DashboardLayout({
   const [dataReady, setDataReady] = useState(false)
   const genRef = useRef(0)
 
+  const isRevisionSala = pathname.startsWith('/revision/')
+
   useEffect(() => {
+    if (isRevisionSala) return
     if (!isLoading && !isAuthenticated) {
       router.push('/login')
     }
-  }, [isLoading, isAuthenticated, router])
+  }, [isLoading, isAuthenticated, router, isRevisionSala])
 
   useEffect(() => {
     // Platform superadmin has no club — never show it the regular club
@@ -248,7 +251,16 @@ export default function DashboardLayout({
   const handleOpenSidebar = useCallback(() => setSidebarOpen(true), [])
 
   const activeTeam = equipoActivo ?? equipos[0] ?? null
-  const isRevisionSala = pathname.startsWith('/revision/')
+
+  // El QR de la sala es la invitación. Quien entra por ahí no inicia sesión.
+  if (isRevisionSala && !isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-black">
+        {children}
+        <Toaster />
+      </div>
+    )
+  }
 
   // Club-admin/superadmin have no single "active team" (they manage the whole
   // club) — only gate on team data for the operational, single-team roles.

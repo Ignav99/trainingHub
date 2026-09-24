@@ -7,6 +7,7 @@ import {
   wrapSalaEnvelope,
   SALA_RECONNECT_MAX_MS,
 } from './salaLink.ts'
+import { trainingHubSalaGuestUrl } from './wsUrl.ts'
 
 describe('sala link helpers', () => {
   it('applies a newer seq and ignores an older one so a delayed tap cannot rewind the TV', () => {
@@ -36,5 +37,10 @@ describe('sala link helpers', () => {
     assert.equal(env.role, 'tablet')
     assert.equal(env.slide, 2)
     assert.equal(env.seq, 9)
+  })
+
+  it('opens the sala websocket with the QR code and without a user token', () => {
+    const url = trainingHubSalaGuestUrl('ab12cd', 'https://api.example.com/v1')
+    assert.equal(url, 'wss://api.example.com/v1/ws?token=sala%3AAB12CD')
   })
 })

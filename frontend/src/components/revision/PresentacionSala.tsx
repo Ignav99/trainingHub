@@ -517,7 +517,7 @@ export function PresentacionSala({
             {slide?.kind === 'video' && (
               <div data-testid="dossier-slide-video" className="flex h-full min-h-0 flex-col">
                 <div className="mb-2 flex items-end justify-between gap-3">
-                  <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ fontFamily: DISPLAY_FONT }}>
+                  <h2 className="font-extrabold tracking-tight" style={{ fontFamily: DISPLAY_FONT, fontSize: 'clamp(1.6rem, 4.5vmin, 8vmin)' }}>
                     {slide.title}
                   </h2>
                   <span className="text-[11px] uppercase tracking-[0.2em]" style={{ color: '#9AA59B' }}>

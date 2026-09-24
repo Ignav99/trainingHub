@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 from app.api.v1.revision import _pack_payload
+from app.api.v1.websocket import sala_guest_code
 from app.services.revision_service import (
     HOT_DAYS,
     MAX_CLIP_BYTES,
@@ -693,4 +694,10 @@ class TestFoldersOnlyPayload:
         assert out["clips"] == []
         assert out["links"] == []
         assert "retention" not in out
+
+
+class TestSalaGuestPass:
+    def test_reads_the_code_from_the_qr_token(self):
+        assert sala_guest_code("sala:ab12cd") == "AB12CD"
+        assert sala_guest_code("jwt.token") is None
 
