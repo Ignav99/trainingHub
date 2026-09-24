@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Loader2, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { revisionApi, type RevisionAmbito, type RevisionPack } from '@/lib/api/revision'
+import { peekRevisionFolders, prefetchRevisionFolders, revisionApi, type RevisionAmbito, type RevisionPack } from '@/lib/api/revision'
 import { extractClipRange } from '@/components/video-analyzer/extractClip'
 import { matchRevisionFolderId } from '@/components/video-analyzer/videoDesk'
 
@@ -31,6 +31,7 @@ interface SendToRevisionDialogProps {
   clips?: { title: string; startTime: number; endTime: number }[]
   sourceVideoId?: string
   preferredFase?: string
+  onSent?: () => void
 }
 
 export function SendToRevisionDialog({
@@ -47,13 +48,20 @@ export function SendToRevisionDialog({
   clips,
   sourceVideoId,
   preferredFase,
+  onSent,
 }: SendToRevisionDialogProps) {
   const [ambito, setAmbito] = useState<RevisionAmbito>(partidoId ? 'partido_post' : 'rival')
-  const [pack, setPack] = useState<RevisionPack | null>(null)
-  const [folderId, setFolderId] = useState<string>('')
+  const initialPack = peekRevisionFolders({
+    equipo_id: equipoId,
+    ambito: partidoId ? 'partido_post' : 'rival',
+    partido_id: partidoId,
+    rival_id: partidoId ? undefined : rivalId,
+  })
+  const [pack, setPack] = useState<RevisionPack | null>(initialPack)
+  const [folderId, setFolderId] = useState<string>(initialPack ? matchRevisionFolderId(initialPack.folders, preferredFase) : '')
   const [titulo, setTitulo] = useState(clipTitle)
   const [frase, setFrase] = useState('')
-  const [loadingPack, setLoadingPack] = useState(false)
+  const [loadingPack, setLoadingPack] = useState(!initialPack)
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<number | null>(null)
 
@@ -67,30 +75,41 @@ export function SendToRevisionDialog({
   const loadPack = async (next: RevisionAmbito) => {
     if ((next === 'partido_post' || next === 'partido_plan') && !partidoId) return
     if (next === 'rival' && !rivalId) return
-    setLoadingPack(true)
+    const query = {
+      equipo_id: equipoId,
+      ambito: next,
+      partido_id: (next === 'partido_post' || next === 'partido_plan') && partidoId ? partidoId : undefined,
+      rival_id: next === 'rival' ? rivalId : undefined,
+    }
+    const cached = peekRevisionFolders(query)
+    if (cached) {
+      setPack(cached)
+      setFolderId((prev) => (prev && cached.folders.some((f) => f.id === prev) ? prev : matchRevisionFolderId(cached.folders, preferredFase)))
+      setLoadingPack(false)
+    } else {
+      setLoadingPack(true)
+    }
     try {
-      const p = await revisionApi.getOrCreatePack({
-        equipo_id: equipoId,
-        ambito: next,
-        partido_id: (next === 'partido_post' || next === 'partido_plan') && partidoId ? partidoId : undefined,
-        rival_id: next === 'rival' ? rivalId : undefined,
-        folders_only: true,
-      })
+      const p = await prefetchRevisionFolders(query)
       setPack(p)
-      setFolderId(matchRevisionFolderId(p.folders, preferredFase))
+      setFolderId((prev) => (prev && p.folders.some((f) => f.id === prev) ? prev : matchRevisionFolderId(p.folders, preferredFase)))
     } catch {
-      toast.error('No se pudo abrir la librería de revisión')
+      if (!cached) toast.error('No se pudo abrir la librería de revisión')
     } finally {
       setLoadingPack(false)
     }
   }
 
+  useEffect(() => {
+    if (!open) return
+    setTitulo(clipTitle)
+    void loadPack(ambito)
+    // The folder list is prefetched with the match. Re-read it when the dialog opens or the informe changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, ambito, equipoId, partidoId, rivalId])
+
   const handleOpen = (v: boolean) => {
     onOpenChange(v)
-    if (v) {
-      setTitulo(clipTitle)
-      void loadPack(ambito)
-    }
   }
 
   const submit = async () => {
@@ -136,6 +155,7 @@ export function SendToRevisionDialog({
         }, setProgress)
       }
       toast.success(queue.length > 1 ? `${queue.length} recortes enviados a Revisión` : 'Recorte enviado a Revisión')
+      onSent?.()
       onOpenChange(false)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'No se pudo enviar el recorte')
