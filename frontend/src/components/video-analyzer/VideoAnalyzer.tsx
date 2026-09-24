@@ -106,6 +106,9 @@ export function VideoAnalyzer({
   const selectedClip = events.find((e) => e.id === selectedClipId) || null
   const sendClip = events.find((e) => e.id === sendClipId) || null
   const sendButton = sendClip ? buttons.find((b) => b.id === sendClip.buttonId) : null
+  const revisionClips = (selectedClipIds.length ? selectedClipIds : (selectedClipId ? [selectedClipId] : []))
+    .map((id) => events.find((e) => e.id === id))
+    .filter((e): e is CodeEvent => !!e)
   const canSendToRevision = Boolean(partidoId || rivalId)
 
   const seekTo = useCallback((time: number) => {
@@ -135,11 +138,20 @@ export function VideoAnalyzer({
     openClipStage([clip], clipDisplayTitle(clip, btn), clip.id)
   }, [buttons, openClipStage])
 
-  const selectClip = useCallback((clip: CodeEvent) => {
-    setSelectedClipId(clip.id)
-    setSelectedClipIds([clip.id])
+  const selectClip = useCallback((clip: CodeEvent, opts?: { toggle?: boolean }) => {
     setSelectedLaneId(null)
     setActiveButtonId(clip.buttonId)
+    if (opts?.toggle) {
+      setSelectedClipIds((prev) => {
+        const base = prev.length ? prev : []
+        const next = base.includes(clip.id) ? base.filter((id) => id !== clip.id) : [...base, clip.id]
+        setSelectedClipId(next.includes(clip.id) ? clip.id : (next[next.length - 1] ?? null))
+        return next
+      })
+      return
+    }
+    setSelectedClipId(clip.id)
+    setSelectedClipIds([clip.id])
   }, [setActiveButtonId])
 
   const deleteClips = useCallback((clipIds: string[]) => {
@@ -163,9 +175,10 @@ export function VideoAnalyzer({
   }, [removeEvent, stage, videoKey])
 
   const handleStageSelect = useCallback((clip: CodeEvent) => {
-    selectClip(clip)
+    setSelectedClipId(clip.id)
+    setActiveButtonId(clip.buttonId)
     setStage((prev) => (prev && prev.startId !== clip.id ? { ...prev, startId: clip.id } : prev))
-  }, [selectClip])
+  }, [setActiveButtonId])
 
   const deleteSelectedClips = useCallback(() => {
     const playingId = stageRef.current?.startId || selectedClipIdRef.current
@@ -268,7 +281,14 @@ export function VideoAnalyzer({
   }, [duration, updateEvent, videoKey])
 
   const renameClip = useCallback((clip: CodeEvent, title: string) => {
-    updateEvent(videoKey, clip.id, { title: title.trim() }, duration)
+    const next = title.trim()
+    if (!next) return
+    updateEvent(videoKey, clip.id, { title: next }, duration)
+    setStage((prev) => (
+      prev
+        ? { ...prev, clips: prev.clips.map((c) => (c.id === clip.id ? { ...c, title: next } : c)) }
+        : prev
+    ))
   }, [duration, updateEvent, videoKey])
 
   const runDownload = useCallback(async (kind: DeskDownloadKind, clip?: CodeEvent) => {
@@ -377,12 +397,12 @@ export function VideoAnalyzer({
           <button
             type="button"
             className="vd-btn vd-btn-accent"
-            disabled={!selectedClip || !canSendToRevision}
-            title={!canSendToRevision ? 'Asocia un partido para enviar a Revisión' : 'Enviar recorte'}
-            onClick={() => selectedClip && setSendClipId(selectedClip.id)}
+            disabled={revisionClips.length === 0 || !canSendToRevision}
+            title={!canSendToRevision ? 'Asocia un partido para enviar a Revisión' : 'Enviar los recortes marcados. ⌘+clic marca varios en el organizador.'}
+            onClick={() => revisionClips[0] && setSendClipId(revisionClips[0].id)}
           >
             <Send size={14} />
-            A revisión
+            {revisionClips.length > 1 ? `A revisión (${revisionClips.length})` : 'A revisión'}
           </button>
         </div>
       </header>
@@ -437,6 +457,7 @@ export function VideoAnalyzer({
               buttons={buttons}
               events={events}
               selectedClipId={selectedClipId}
+              selectedClipIds={selectedClipIds}
               selectedLaneId={selectedLaneId}
               onSelectClip={selectClip}
               onPlayClip={playClip}
@@ -472,6 +493,7 @@ export function VideoAnalyzer({
           playlist={stage}
           onClose={() => setStage(null)}
           onSelect={handleStageSelect}
+          onRename={renameClip}
           onDelete={(clip) => deleteClips([clip.id])}
         />
       ) : null}
@@ -488,6 +510,11 @@ export function VideoAnalyzer({
           clipTitle={clipDisplayTitle(sendClip, sendButton)}
           startTime={sendClip.startTime}
           endTime={sendClip.endTime}
+          clips={revisionClips.map((clip) => ({
+            title: clipDisplayTitle(clip, buttons.find((b) => b.id === clip.buttonId)),
+            startTime: clip.startTime,
+            endTime: clip.endTime,
+          }))}
           sourceVideoId={videoId}
           preferredFase={sendButton?.fase}
         />

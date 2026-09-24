@@ -10,12 +10,48 @@ import { isTypingTarget } from './videoJog'
 
 export type ClipStagePlaylist = DeskPlaylist
 
+function StageNameField({
+  clip,
+  button,
+  onRename,
+}: {
+  clip: CodeEvent
+  button?: CodeButton | null
+  onRename?: (clip: CodeEvent, title: string) => void
+}) {
+  const shown = clipDisplayTitle(clip, button)
+  const [draft, setDraft] = useState(shown)
+  useEffect(() => { setDraft(shown) }, [clip.id, shown])
+  const commit = () => {
+    const next = draft.trim()
+    if (next && next !== shown) onRename?.(clip, next)
+    else setDraft(shown)
+  }
+  return (
+    <input
+      className="vd-stage-name"
+      aria-label="Nombre del recorte"
+      value={draft}
+      title="Este nombre es el que verás en el organizador"
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          ;(e.target as HTMLInputElement).blur()
+        }
+      }}
+    />
+  )
+}
+
 export function VideoDeskClipStage({
   src,
   buttons,
   playlist,
   onClose,
   onSelect,
+  onRename,
   onDelete,
 }: {
   src: string
@@ -23,6 +59,7 @@ export function VideoDeskClipStage({
   playlist: ClipStagePlaylist
   onClose: () => void
   onSelect?: (clip: CodeEvent) => void
+  onRename?: (clip: CodeEvent, title: string) => void
   onDelete?: (clip: CodeEvent) => void
 }) {
   const playerRef = useRef<VideoPlayerHandle>(null)
@@ -90,7 +127,7 @@ export function VideoDeskClipStage({
       <div className="vd-stage">
         <header className="vd-stage-head">
           <div className="vd-stage-head-copy">
-            <div className="vd-header-title">{clipDisplayTitle(clip, button)}</div>
+            <StageNameField clip={clip} button={button} onRename={onRename} />
             <div className="vd-header-meta">
               {playlist.title} · {index + 1}/{clips.length} · {formatTime(clip.startTime)}–{formatTime(clip.endTime)} · ←/→ fotograma
             </div>

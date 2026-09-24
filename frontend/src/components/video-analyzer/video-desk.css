@@ -1029,6 +1029,24 @@
   border-bottom: 1px solid color-mix(in srgb, var(--vd-line) 25%, transparent);
 }
 
+.vd-stage-name {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: var(--vd-text);
+  font: inherit;
+  font-weight: 650;
+  padding: 0;
+}
+
+.vd-stage-name:hover,
+.vd-stage-name:focus {
+  border-bottom-color: var(--vd-line);
+  outline: none;
+}
+
 .vd-stage-head-copy {
   min-width: 0;
   flex: 1;

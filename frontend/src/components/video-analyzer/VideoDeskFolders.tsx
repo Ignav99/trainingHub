@@ -10,6 +10,7 @@ export function VideoDeskFolders({
   buttons,
   events,
   selectedClipId,
+  selectedClipIds = [],
   selectedLaneId,
   onSelectClip,
   onPlayClip,
@@ -20,8 +21,9 @@ export function VideoDeskFolders({
   buttons: CodeButton[]
   events: CodeEvent[]
   selectedClipId: string | null
+  selectedClipIds?: string[]
   selectedLaneId: string | null
-  onSelectClip: (clip: CodeEvent) => void
+  onSelectClip: (clip: CodeEvent, opts?: { toggle?: boolean }) => void
   onPlayClip: (clip: CodeEvent) => void
   onPlayLane: (buttonId: string) => void
   onDeleteClip: (clip: CodeEvent) => void
@@ -67,7 +69,7 @@ export function VideoDeskFolders({
               <span className="vd-folder-count">{group.clips.length}</span>
             </button>
             {group.clips.map((clip) => {
-              const selected = selectedClipId === clip.id
+              const selected = selectedClipIds.includes(clip.id) || selectedClipId === clip.id
               const editing = editingId === clip.id
               const nameInput = (
                 <input
@@ -102,8 +104,8 @@ export function VideoDeskFolders({
                     <button
                       type="button"
                       className="vd-clip-mini"
-                      title="Clic selecciona · doble clic renombra"
-                      onClick={() => onSelectClip(clip)}
+                      title="Clic selecciona · ⌘ o Ctrl+clic añade varios para revisión · doble clic renombra"
+                      onClick={(e) => onSelectClip(clip, { toggle: e.metaKey || e.ctrlKey })}
                       onDoubleClick={(e) => {
                         e.preventDefault()
                         startRename(clip, group.button)
