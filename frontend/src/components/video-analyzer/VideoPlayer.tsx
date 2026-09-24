@@ -49,13 +49,11 @@ import {
   playOnePresentedFrame,
   playForwardToTime,
   PresentedFrameCache,
-  quantizeFrame,
   seekSnappedAway,
   snapshotVideoFrame,
   frameDuration,
   type ArrowJog,
 } from './videoJog'
-import { ExactFrameDeck } from './exactFrames'
 
 const HOLD_REWIND_INTERVAL_MS = 70
 
@@ -204,9 +202,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const catchupRef = useRef<number | null>(null)
     const padIdleTimerRef = useRef<number | null>(null)
     const frameCacheRef = useRef(new PresentedFrameCache(16))
-    const deckRef = useRef(new ExactFrameDeck())
-    const exactTokenRef = useRef(0)
-    const frameSpanRef = useRef(1 / BROADCAST_FPS)
     const overlayRef = useRef<HTMLCanvasElement | null>(null)
     const jogLockRef = useRef(false)
     const reverseHoldRef = useRef(false)
@@ -246,12 +241,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       // For non-HLS, the src attribute on <video> handles it
     }, [src])
 
-    useEffect(() => {
-      const deck = deckRef.current
-      void deck.open(src)
-      return () => deck.close()
-    }, [src])
-
     const togglePlay = useCallback(() => {
       const v = videoRef.current
       if (!v) return
@@ -267,18 +256,15 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           v.currentTime = resumeAt
           void waitUntilSeeked(v).finally(() => {
             jogLockRef.current = false
-            if (
-              typeof v.requestVideoFrameCallback !== 'function'
-              || !seekSnappedAway(resumeAt, v.currentTime, fpsRef.current)
-            ) {
-              reverseHoldRef.current = false
-              if (overlayRef.current) overlayRef.current.style.opacity = '0'
-            }
+            reverseHoldRef.current = false
+            v.style.opacity = ''
+            if (overlayRef.current) overlayRef.current.style.opacity = '0'
             void v.play()?.catch(() => undefined)
           })
           return
         }
         reverseHoldRef.current = false
+        v.style.opacity = ''
         if (overlayRef.current) overlayRef.current.style.opacity = '0'
         void v.play()?.catch(() => undefined)
       } else {
@@ -316,31 +302,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         if (v) v.style.opacity = '0'
       }
     }, [])
-
-    const landExact = useCallback((time: number) => {
-      const deck = deckRef.current
-      if (!deck.isReady()) return false
-      const { min, max } = rangeBounds()
-      const goal = clampTime(quantizeFrame(time, fpsRef.current), min, max)
-      const token = ++exactTokenRef.current
-      reverseHoldRef.current = true
-      publishTime(goal)
-      void deck.frameAt(goal).then((frame) => {
-        if (!frame || token !== exactTokenRef.current) {
-          frame?.bitmap.close?.()
-          return
-        }
-        if (Math.abs(frame.timestamp - currentTimeRef.current) > frameDuration(fpsRef.current) * 1.25) {
-          frame.bitmap.close?.()
-          return
-        }
-        showCached({ mediaTime: frame.timestamp, bitmap: frame.bitmap }, { hideVideo: true })
-        frame.bitmap.close?.()
-        if (frame.duration > 0.008 && frame.duration < 0.08) frameSpanRef.current = frame.duration
-        publishTime(frame.timestamp)
-      })
-      return true
-    }, [publishTime, rangeBounds, showCached])
 
     /** Keep the last good frame on top of the video so a pause, a tag, or a seek cannot flash black. */
     const holdPoster = useCallback(() => {
@@ -383,7 +344,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const seekToTime = useCallback((time: number) => {
       const v = videoRef.current
       if (!v) return
-      if (landExact(time)) return
       holdPoster()
       releaseJogHold({ keepPoster: true })
       const { min, max } = rangeBounds()
@@ -393,7 +353,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       if (Math.abs((v.currentTime || 0) - next) > 0.04) v.currentTime = next
       else hideOverlay()
       onTimeUpdateRef.current?.(next)
-    }, [hideOverlay, holdPoster, landExact, rangeBounds, releaseJogHold])
+    }, [hideOverlay, holdPoster, rangeBounds, releaseJogHold])
 
     const seek = useCallback((delta: number) => {
       seekToTime(currentTimeRef.current + delta)
@@ -443,31 +403,18 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         return
       }
       const cached = frameCacheRef.current.frameForJog(from, goal, fpsRef.current)
-      if (cached) {
-        showCached(cached)
-        publishTime(cached.mediaTime)
+      if (cached && Math.abs(v.currentTime - cached.mediaTime) <= frameDuration(fpsRef.current) * 0.6) {
+        publishTime(v.currentTime)
+        hideOverlay()
         return
       }
       jogLockRef.current = true
       jogSilentRef.current = true
-      reverseHoldRef.current = true
       try {
         if (!v.paused) v.pause()
-        const canvas = overlayRef.current
-        if (canvas && canvas.style.opacity !== '1') {
-          const bmp = await snapshotVideoFrame(v)
-          if (token !== jogTokenRef.current) {
-            bmp?.close()
-            return
-          }
-          if (bmp) {
-            frameCacheRef.current.push(from, bmp)
-            showCached({ mediaTime: from, bitmap: bmp }, { hideVideo: true })
-          }
-        }
         if (token !== jogTokenRef.current) return
         v.playbackRate = 1
-        if (overlayRef.current?.style.opacity === '1') v.style.opacity = '0'
+        v.style.opacity = ''
         v.currentTime = goal
         if (v.seeking) await waitUntilSeeked(v)
         if (token !== jogTokenRef.current) return
@@ -480,21 +427,19 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           },
         })
         if (token !== jogTokenRef.current) return
-        if (Math.abs(landed - goal) > frameDuration(fpsRef.current) * 0.6) return
         const bmp = await snapshotVideoFrame(v)
-        if (token !== jogTokenRef.current) {
-          bmp?.close()
-          return
-        }
-        if (bmp) frameCacheRef.current.push(landed, bmp)
-        publishTime(landed)
+        if (bmp) frameCacheRef.current.push(Number.isFinite(landed) ? landed : goal, bmp)
+        publishTime(Math.abs(landed - goal) <= frameDuration(fpsRef.current) * 0.6 ? landed : goal)
         hideOverlay()
       } finally {
         if (token === jogTokenRef.current) {
           jogLockRef.current = false
           jogSilentRef.current = false
+          reverseHoldRef.current = false
+          v.style.opacity = ''
           v.pause()
           v.playbackRate = speedRef.current
+          if (overlayRef.current) overlayRef.current.style.opacity = '0'
         }
       }
     }, [hideOverlay, publishTime, rangeBounds, showCached])
@@ -515,31 +460,16 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         const { min, max } = rangeBounds()
         const clock = currentTimeRef.current
         if (dir === 1) {
-          const cachedNext = reverseHoldRef.current
-            ? frameCacheRef.current.adjacentAfter(clock, fpsRef.current)
-            : null
-          if (cachedNext) {
-            showCached(cachedNext)
-            publishTime(cachedNext.mediaTime)
-          } else if (reverseHoldRef.current && v.currentTime > clock + (1 / Math.max(1, fpsRef.current)) * 0.5) {
-            await decodeOnce(nextFrameTime(clock, 1, fpsRef.current, min, max))
-          } else {
-            jogSilentRef.current = true
-            const next = await playOnePresentedFrame(v)
-            jogSilentRef.current = false
-            v.pause()
-            publishTime(next)
-            hideOverlay()
-            rememberFrame(currentTimeRef.current)
-          }
+          jogSilentRef.current = true
+          const next = await playOnePresentedFrame(v)
+          jogSilentRef.current = false
+          v.pause()
+          v.style.opacity = ''
+          publishTime(next)
+          hideOverlay()
+          rememberFrame(currentTimeRef.current)
         } else {
-          const cached = frameCacheRef.current.adjacentBefore(clock, fpsRef.current)
-          if (cached) {
-            showCached(cached)
-            publishTime(cached.mediaTime)
-          } else {
-            await decodeOnce(nextFrameTime(clock, -1, fpsRef.current, min, max))
-          }
+          await decodeOnce(nextFrameTime(clock, -1, fpsRef.current, min, max))
         }
       } finally {
         v.pause()
@@ -552,7 +482,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           void runFrameQueue()
         }
       }
-    }, [decodeOnce, hideOverlay, publishTime, rangeBounds, rememberFrame, showCached])
+    }, [decodeOnce, hideOverlay, publishTime, rangeBounds, rememberFrame])
 
     const shuttleTo = useCallback((time: number) => {
       const { min, max } = rangeBounds()
@@ -580,12 +510,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const frameStep = useCallback((direction: 1 | -1) => {
       const v = videoRef.current
       if (v && !v.paused) v.pause()
-      const { min, max } = rangeBounds()
-      const step = frameSpanRef.current || frameDuration(fpsRef.current)
-      if (landExact(clampTime(currentTimeRef.current + direction * step, min, max))) return
       pendingFramesRef.current = Math.max(-2, Math.min(2, pendingFramesRef.current + direction))
       void runFrameQueue()
-    }, [landExact, rangeBounds, runFrameQueue])
+    }, [runFrameQueue])
 
     useImperativeHandle(ref, () => ({
       getVideoElement: () => videoRef.current,
@@ -609,13 +536,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           v.currentTime = resumeAt
           void waitUntilSeeked(v).finally(() => {
             jogLockRef.current = false
-            if (
-              typeof v.requestVideoFrameCallback !== 'function'
-              || !seekSnappedAway(resumeAt, v.currentTime, fpsRef.current)
-            ) {
-              reverseHoldRef.current = false
-              if (overlayRef.current) overlayRef.current.style.opacity = '0'
-            }
+            reverseHoldRef.current = false
+            v.style.opacity = ''
+            if (overlayRef.current) overlayRef.current.style.opacity = '0'
             void v.play()?.catch(() => undefined)
           })
           return
@@ -811,21 +734,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             min,
             max
           )
-          if (landExact(next)) return
           const backward = px < 0
           if (!backward && isFineJogPixels(px, fpsRef.current)) {
             frameStep(1)
             return
           }
-          const cached = frameCacheRef.current.frameForJog(currentTimeRef.current, next, fpsRef.current)
-          if (cached) {
-            showCached(cached, { hideVideo: true })
-            currentTimeRef.current = cached.mediaTime
-            setCurrentTime(cached.mediaTime)
-            onTimeUpdateRef.current?.(cached.mediaTime)
-            return
-          }
-          holdPoster()
           currentTimeRef.current = next
           setCurrentTime(next)
           onTimeUpdateRef.current?.(next)
@@ -855,7 +768,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         if (padIdleTimerRef.current != null) window.clearTimeout(padIdleTimerRef.current)
         padActiveRef.current = false
       }
-    }, [jogPointer, clipRange, frameStep, landExact])
+    }, [jogPointer, clipRange, frameStep])
 
     const stopHoldJog = useCallback(() => {
       heldJogRef.current = null
