@@ -37,7 +37,6 @@ import {
   PLAYER_SKIP_SECONDS,
   holdFrameInterval,
   nextPlaybackSpeed,
-  isFineJogPixels,
   assignSkipKey,
   isSkipRebindActive,
   loadSkipKeys,
@@ -344,8 +343,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const seekToTime = useCallback((time: number) => {
       const v = videoRef.current
       if (!v) return
-      holdPoster()
-      releaseJogHold({ keepPoster: true })
+      hideOverlay()
+      releaseJogHold()
       const { min, max } = rangeBounds()
       const next = clampTime(time, min, max)
       currentTimeRef.current = next
@@ -353,7 +352,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       if (Math.abs((v.currentTime || 0) - next) > 0.04) v.currentTime = next
       else hideOverlay()
       onTimeUpdateRef.current?.(next)
-    }, [hideOverlay, holdPoster, rangeBounds, releaseJogHold])
+    }, [hideOverlay, rangeBounds, releaseJogHold])
 
     const seek = useCallback((delta: number) => {
       seekToTime(currentTimeRef.current + delta)
@@ -689,8 +688,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       if (videoRef.current) videoRef.current.style.opacity = ''
     }, [src])
 
-    // Two-finger trackpad jog. One decoder seek in flight; playhead is optimistic
-    // so a 90-minute file stays fluid instead of queueing dozens of GOP decodes.
+    // Trackpad like QuickTime / Sportscode: the <video> element is the picture.
+    // One currentTime at a time, latest position wins. No canvas, no second decoder,
+    // no play-through of the GOP (that is what made the swipe stutter and look soft).
     useEffect(() => {
       if (!jogPointer) return
       const el = containerRef.current
@@ -703,15 +703,18 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         padActiveRef.current = true
         const video = videoRef.current
         if (video && !video.paused && !jogSilentRef.current) video.pause()
+        if (video) {
+          video.style.opacity = ''
+          if (video.playbackRate !== speedRef.current) video.playbackRate = speedRef.current
+        }
+        reverseHoldRef.current = false
+        if (overlayRef.current) overlayRef.current.style.opacity = '0'
         if (padIdleTimerRef.current != null) window.clearTimeout(padIdleTimerRef.current)
         padIdleTimerRef.current = window.setTimeout(() => {
           padActiveRef.current = false
           padIdleTimerRef.current = null
           videoRef.current?.pause()
-          const target = catchupRef.current
-          catchupRef.current = null
-          if (target != null) shuttleToRef.current(target)
-        }, 90)
+        }, 120)
       }
 
       const bounds = () => {
@@ -729,25 +732,28 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           const px = pendingPx
           pendingPx = 0
           const { min, max } = bounds()
-          const next = clampTime(
-            currentTimeRef.current + wheelPixelsToSeconds(px, fpsRef.current),
-            min,
-            max
-          )
-          const backward = px < 0
-          if (!backward && isFineJogPixels(px, fpsRef.current)) {
-            frameStep(1)
-            return
-          }
+          const base = v.seeking
+            ? currentTimeRef.current
+            : (Number.isFinite(v.currentTime) ? v.currentTime : currentTimeRef.current)
+          const next = clampTime(base + wheelPixelsToSeconds(px, fpsRef.current), min, max)
           currentTimeRef.current = next
           setCurrentTime(next)
           onTimeUpdateRef.current?.(next)
-          catchupRef.current = next
+          if (!v.seeking) v.currentTime = next
+          else catchupRef.current = next
         }
       }
 
       const onSeeked = () => {
-        if (pendingPx !== 0 && rafId === null) rafId = requestAnimationFrame(flush)
+        const video = videoRef.current
+        const pending = catchupRef.current
+        if (!video || pending == null) {
+          if (pendingPx !== 0 && rafId === null) rafId = requestAnimationFrame(flush)
+          return
+        }
+        catchupRef.current = null
+        if (Math.abs(video.currentTime - pending) > 0.03) video.currentTime = pending
+        else if (pendingPx !== 0 && rafId === null) rafId = requestAnimationFrame(flush)
       }
 
       const handler = (e: WheelEvent) => {
@@ -768,7 +774,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         if (padIdleTimerRef.current != null) window.clearTimeout(padIdleTimerRef.current)
         padActiveRef.current = false
       }
-    }, [jogPointer, clipRange, frameStep])
+    }, [jogPointer, clipRange])
 
     const stopHoldJog = useCallback(() => {
       heldJogRef.current = null
