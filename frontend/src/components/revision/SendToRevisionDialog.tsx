@@ -28,6 +28,7 @@ interface SendToRevisionDialogProps {
   clipTitle: string
   startTime: number
   endTime: number
+  clips?: { title: string; startTime: number; endTime: number }[]
   sourceVideoId?: string
   preferredFase?: string
 }
@@ -43,6 +44,7 @@ export function SendToRevisionDialog({
   clipTitle,
   startTime,
   endTime,
+  clips,
   sourceVideoId,
   preferredFase,
 }: SendToRevisionDialogProps) {
@@ -54,6 +56,8 @@ export function SendToRevisionDialog({
   const [loadingPack, setLoadingPack] = useState(false)
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<number | null>(null)
+
+  const batch = clips && clips.length > 1 ? clips : null
 
   const folders = useMemo(
     () => (pack?.folders || []).filter((f) => !f.parent_id).sort((a, b) => a.orden - b.orden),
@@ -100,32 +104,37 @@ export function SendToRevisionDialog({
     setBusy(true)
     setProgress(null)
     try {
-      toast.message('Recortando en el ordenador… el partido no se sube')
-      const blob = await extractClipRange(videoElement, startTime, endTime, {
-        sourceFile,
-        onProgress: (msg) => toast.message(msg),
-      })
-      const ext = (blob.type || '').includes('mp4') ? 'mp4' : 'webm'
-      const clipFile = new File(
-        [blob],
-        `${(titulo || 'clip').replace(/[^\w.-]+/g, '_')}.${ext}`,
-        { type: blob.type || 'video/mp4' }
-      )
+      const queue = batch || [{ title: titulo.trim() || clipTitle, startTime, endTime }]
+      toast.message(queue.length > 1 ? `Recortando ${queue.length} vídeos… el partido no se sube` : 'Recortando en el ordenador… el partido no se sube')
       const fase = pack.folders.find((f) => f.id === folderId)?.fase
-      setProgress(0)
-      await revisionApi.uploadClip(clipFile, {
-        pack_id: pack.id,
-        equipo_id: equipoId,
-        titulo: titulo.trim() || clipTitle,
-        frase: frase.trim() || undefined,
-        folder_id: folderId,
-        duration_ms: Math.round((endTime - startTime) * 1000),
-        start_ms: Math.round(startTime * 1000),
-        end_ms: Math.round(endTime * 1000),
-        source_video_id: sourceVideoId,
-        fase: fase || undefined,
-      }, setProgress)
-      toast.success('Recorte enviado a Revisión')
+      for (let i = 0; i < queue.length; i++) {
+        const item = queue[i]
+        const blob = await extractClipRange(videoElement, item.startTime, item.endTime, {
+          sourceFile,
+          onProgress: (msg) => toast.message(queue.length > 1 ? `${i + 1}/${queue.length} · ${msg}` : msg),
+        })
+        const ext = (blob.type || '').includes('mp4') ? 'mp4' : 'webm'
+        const name = item.title.trim() || clipTitle
+        const clipFile = new File(
+          [blob],
+          `${name.replace(/[^\w.-]+/g, '_')}.${ext}`,
+          { type: blob.type || 'video/mp4' }
+        )
+        setProgress(0)
+        await revisionApi.uploadClip(clipFile, {
+          pack_id: pack.id,
+          equipo_id: equipoId,
+          titulo: name,
+          frase: frase.trim() || undefined,
+          folder_id: folderId,
+          duration_ms: Math.round((item.endTime - item.startTime) * 1000),
+          start_ms: Math.round(item.startTime * 1000),
+          end_ms: Math.round(item.endTime * 1000),
+          source_video_id: sourceVideoId,
+          fase: fase || undefined,
+        }, setProgress)
+      }
+      toast.success(queue.length > 1 ? `${queue.length} recortes enviados a Revisión` : 'Recorte enviado a Revisión')
       onOpenChange(false)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'No se pudo enviar el recorte')
@@ -187,10 +196,19 @@ export function SendToRevisionDialog({
               ))}
             </select>
           </div>
-          <div className="space-y-1">
-            <Label>Título</Label>
-            <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
-          </div>
+          {batch ? (
+            <div className="space-y-1">
+              <Label>{batch.length} recortes</Label>
+              <ul className="max-h-28 overflow-auto text-xs text-muted-foreground">
+                {batch.map((item) => <li key={`${item.startTime}-${item.title}`}>{item.title}</li>)}
+              </ul>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <Label>Título</Label>
+              <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+            </div>
+          )}
           <div className="space-y-1">
             <Label>Frase corta</Label>
             <Input value={frase} onChange={(e) => setFrase(e.target.value)} placeholder="Lo que quieres decir en la charla" />
@@ -202,7 +220,7 @@ export function SendToRevisionDialog({
         <DialogFooter>
           <Button onClick={submit} disabled={busy || loadingPack}>
             {busy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
-            {busy ? (progress != null ? `Subiendo… ${progress}%` : 'Recortando…') : 'Enviar recorte'}
+            {busy ? (progress != null ? `Subiendo… ${progress}%` : 'Recortando…') : (batch ? `Enviar ${batch.length}` : 'Enviar recorte')}
           </Button>
         </DialogFooter>
       </DialogContent>
