@@ -1,136 +1,195 @@
-import { formacionSlotKeys, getFormacionLayout } from './formaciones11'
+import { getFormacionLayout, SISTEMAS_11 } from './formaciones11'
 import { canonicalPosicion } from './posiciones'
 import { isPortero, type SlotPlayer } from './slotPlayerGroups'
 
 export const CAMPOGRAMA_ESTIMADO_KEY = '_campograma_estimado'
 
+/** Varios jugadores por código de posición (DFC, EXI, POR…). El orden del array es el orden de la sesión. */
 export interface CampogramaEstimado {
   sistema: string
-  titulares: Record<string, string>
+  porPosicion: Record<string, string[]>
 }
 
 export const EMPTY_CAMPOGRAMA: CampogramaEstimado = {
   sistema: '4-3-3',
-  titulares: {},
+  porPosicion: {},
 }
 
-/** Familias que el cuerpo técnico mira al armar el once de la sesión. */
-export const ROLES_SESION = [
-  { id: 'POR', label: 'Porteros', codes: ['POR'] },
-  { id: 'DFC', label: 'Centrales', codes: ['DFC'] },
-  { id: 'LAT', label: 'Laterales', codes: ['LTD', 'LTI'] },
-  { id: 'CAR', label: 'Carrileros', codes: ['CAD', 'CAI'] },
-  { id: 'MED', label: 'Medios', codes: ['MCD', 'MC', 'MCO', 'MID', 'MII'] },
-  { id: 'EXT', label: 'Extremos', codes: ['EXD', 'EXI'] },
-  { id: 'DEL', label: 'Delanteros', codes: ['DC', 'SD', 'MP'] },
-] as const
+export function pitchRows(sistema: string): { label: string }[][] {
+  const layout = getFormacionLayout(sistema)
+  return layout.rows.map((row) => {
+    const seen = new Set<string>()
+    const stations: { label: string }[] = []
+    for (const slot of row) {
+      const label = canonicalPosicion(slot.label) || slot.label
+      if (seen.has(label)) continue
+      seen.add(label)
+      stations.push({ label })
+    }
+    return stations
+  })
+}
+
+export function labelsOnPitch(sistema: string): string[] {
+  const seen = new Set<string>()
+  const labels: string[] = []
+  for (const row of pitchRows(sistema)) {
+    for (const station of row) {
+      if (seen.has(station.label)) continue
+      seen.add(station.label)
+      labels.push(station.label)
+    }
+  }
+  return labels
+}
+
+function asIdList(value: unknown): string[] {
+  if (typeof value === 'string' && value) return [value]
+  if (!Array.isArray(value)) return []
+  const ids: string[] = []
+  for (const item of value) {
+    if (typeof item === 'string' && item && !ids.includes(item)) ids.push(item)
+  }
+  return ids
+}
 
 export function parseCampograma(raw: string | undefined | null): CampogramaEstimado {
-  if (!raw) return { ...EMPTY_CAMPOGRAMA, titulares: {} }
+  if (!raw) return { sistema: '4-3-3', porPosicion: {} }
   try {
-    const parsed = JSON.parse(raw) as Partial<CampogramaEstimado>
-    const sistema = typeof parsed.sistema === 'string' && parsed.sistema ? parsed.sistema : '4-3-3'
-    const titulares: Record<string, string> = {}
-    if (parsed.titulares && typeof parsed.titulares === 'object') {
-      for (const [slot, id] of Object.entries(parsed.titulares)) {
-        if (typeof id === 'string' && id) titulares[slot] = id
+    const parsed = JSON.parse(raw) as {
+      sistema?: unknown
+      porPosicion?: unknown
+      titulares?: unknown
+    }
+    const sistema = typeof parsed.sistema === 'string' && SISTEMAS_11.includes(parsed.sistema)
+      ? parsed.sistema
+      : '4-3-3'
+    const porPosicion: Record<string, string[]> = {}
+    if (parsed.porPosicion && typeof parsed.porPosicion === 'object') {
+      for (const [label, ids] of Object.entries(parsed.porPosicion as Record<string, unknown>)) {
+        const list = asIdList(ids)
+        if (list.length) porPosicion[canonicalPosicion(label) || label] = list
+      }
+    } else if (parsed.titulares && typeof parsed.titulares === 'object') {
+      const layout = getFormacionLayout(sistema)
+      const slotLabel = new Map<string, string>()
+      for (const row of layout.rows) {
+        for (const slot of row) slotLabel.set(slot.slotKey, canonicalPosicion(slot.label) || slot.label)
+      }
+      for (const [slot, id] of Object.entries(parsed.titulares as Record<string, unknown>)) {
+        const playerId = typeof id === 'string' ? id : ''
+        const label = slotLabel.get(slot)
+        if (!playerId || !label) continue
+        const list = porPosicion[label] || []
+        if (!list.includes(playerId)) list.push(playerId)
+        porPosicion[label] = list
       }
     }
-    return { sistema, titulares }
+    return { sistema, porPosicion }
   } catch {
-    return { ...EMPTY_CAMPOGRAMA, titulares: {} }
+    return { sistema: '4-3-3', porPosicion: {} }
   }
 }
 
 export function serializeCampograma(value: CampogramaEstimado): string {
-  return JSON.stringify({ sistema: value.sistema, titulares: value.titulares })
+  return JSON.stringify({ sistema: value.sistema, porPosicion: value.porPosicion })
 }
 
-function playerCodes(j: SlotPlayer): Set<string> {
-  const set = new Set<string>()
-  const principal = canonicalPosicion(j.posicion_principal)
-  if (principal) set.add(principal)
-  for (const raw of j.posiciones_secundarias || []) {
-    const code = canonicalPosicion(raw)
-    if (code) set.add(code)
-  }
-  if (isPortero(j)) set.add('POR')
-  return set
-}
-
-export function roleOfPlayer(j: SlotPlayer): (typeof ROLES_SESION)[number]['id'] | null {
-  const principal = isPortero(j) ? 'POR' : canonicalPosicion(j.posicion_principal)
-  if (!principal) return null
-  const role = ROLES_SESION.find((r) => (r.codes as readonly string[]).includes(principal))
-  return role?.id ?? null
-}
-
-export function countByRole(jugadores: SlotPlayer[]): { id: string; label: string; count: number }[] {
-  const counts = new Map<string, number>()
-  for (const role of ROLES_SESION) counts.set(role.id, 0)
-  for (const j of jugadores) {
-    const id = roleOfPlayer(j)
-    if (!id) continue
-    counts.set(id, (counts.get(id) || 0) + 1)
-  }
-  return ROLES_SESION.map((role) => ({
-    id: role.id,
-    label: role.label,
-    count: counts.get(role.id) || 0,
-  })).filter((row) => row.count > 0)
-}
-
-export function slotsAsked(sistema: string): { label: string; count: number }[] {
-  const layout = getFormacionLayout(sistema)
-  const counts = new Map<string, number>()
-  for (const row of layout.rows) {
-    for (const slot of row) {
-      counts.set(slot.label, (counts.get(slot.label) || 0) + 1)
+export function placedIds(value: CampogramaEstimado): string[] {
+  const ids: string[] = []
+  for (const list of Object.values(value.porPosicion)) {
+    for (const id of list) {
+      if (id && !ids.includes(id)) ids.push(id)
     }
   }
-  return Array.from(counts.entries()).map(([label, count]) => ({ label, count }))
+  return ids
 }
 
-export function assignSlot(
+function withoutPlayer(porPosicion: Record<string, string[]>, jugadorId: string): Record<string, string[]> {
+  const next: Record<string, string[]> = {}
+  for (const [label, list] of Object.entries(porPosicion)) {
+    const kept = list.filter((id) => id !== jugadorId)
+    if (kept.length) next[label] = kept
+  }
+  return next
+}
+
+export function addToPosicion(
   current: CampogramaEstimado,
-  slotKey: string,
+  label: string,
   jugadorId: string
 ): CampogramaEstimado {
-  const titulares = { ...current.titulares }
-  if (!jugadorId) {
-    delete titulares[slotKey]
-    return { ...current, titulares }
-  }
-  for (const key of Object.keys(titulares)) {
-    if (titulares[key] === jugadorId && key !== slotKey) delete titulares[key]
-  }
-  titulares[slotKey] = jugadorId
-  return { ...current, titulares }
+  const code = canonicalPosicion(label) || label
+  if (!jugadorId) return current
+  const porPosicion = withoutPlayer(current.porPosicion, jugadorId)
+  const list = porPosicion[code] ? [...porPosicion[code]] : []
+  list.push(jugadorId)
+  porPosicion[code] = list
+  return { ...current, porPosicion }
+}
+
+export function removeFromPosicion(
+  current: CampogramaEstimado,
+  label: string,
+  jugadorId: string
+): CampogramaEstimado {
+  const code = canonicalPosicion(label) || label
+  const list = (current.porPosicion[code] || []).filter((id) => id !== jugadorId)
+  const porPosicion = { ...current.porPosicion }
+  if (list.length) porPosicion[code] = list
+  else delete porPosicion[code]
+  return { ...current, porPosicion }
+}
+
+export function moveInPosicion(
+  current: CampogramaEstimado,
+  label: string,
+  jugadorId: string,
+  direction: -1 | 1
+): CampogramaEstimado {
+  const code = canonicalPosicion(label) || label
+  const list = [...(current.porPosicion[code] || [])]
+  const index = list.indexOf(jugadorId)
+  const target = index + direction
+  if (index < 0 || target < 0 || target >= list.length) return current
+  const swap = list[target]
+  list[target] = list[index]
+  list[index] = swap
+  return { ...current, porPosicion: { ...current.porPosicion, [code]: list } }
 }
 
 export function changeSistema(current: CampogramaEstimado, sistema: string): CampogramaEstimado {
-  const valid = new Set(formacionSlotKeys(sistema))
-  const titulares: Record<string, string> = {}
-  for (const [slot, id] of Object.entries(current.titulares)) {
-    if (valid.has(slot) && id) titulares[slot] = id
+  const valid = new Set(labelsOnPitch(sistema))
+  const porPosicion: Record<string, string[]> = {}
+  for (const [label, ids] of Object.entries(current.porPosicion)) {
+    if (valid.has(label) && ids.length) porPosicion[label] = ids
   }
-  return { sistema, titulares }
+  return { sistema, porPosicion }
 }
 
-/** Rellena huecos vacíos con quien tiene esa posición como habitual. No pisa lo ya colocado. */
-export function suggestEmptySlots(current: CampogramaEstimado, jugadores: SlotPlayer[]): CampogramaEstimado {
-  const taken = new Set(Object.values(current.titulares))
-  const titulares = { ...current.titulares }
-  const layout = getFormacionLayout(current.sistema)
-  for (const row of layout.rows) {
-    for (const slot of row) {
-      if (titulares[slot.slotKey]) continue
-      const want = canonicalPosicion(slot.label)
-      const pick = jugadores.find((j) => !taken.has(j.id) && playerCodes(j).has(want))
-      if (!pick) continue
-      titulares[slot.slotKey] = pick.id
-      taken.add(pick.id)
-    }
+function playerCodes(j: SlotPlayer): string[] {
+  const codes: string[] = []
+  const principal = isPortero(j) ? 'POR' : canonicalPosicion(j.posicion_principal)
+  if (principal) codes.push(principal)
+  for (const raw of j.posiciones_secundarias || []) {
+    const code = canonicalPosicion(raw)
+    if (code && !codes.includes(code)) codes.push(code)
   }
-  return { ...current, titulares }
+  if (isPortero(j) && !codes.includes('POR')) codes.unshift('POR')
+  return codes
+}
+
+/** Mete en cada posición a todos los que la tienen como habitual. No pisa el orden de quien ya está. */
+export function placeAllByPosition(current: CampogramaEstimado, jugadores: SlotPlayer[]): CampogramaEstimado {
+  const valid = new Set(labelsOnPitch(current.sistema))
+  let next = current
+  const taken = new Set(placedIds(current))
+  for (const jugador of jugadores) {
+    if (taken.has(jugador.id)) continue
+    const label = playerCodes(jugador).find((code) => valid.has(code))
+    if (!label) continue
+    next = addToPosicion(next, label, jugador.id)
+    taken.add(jugador.id)
+  }
+  return next
 }
