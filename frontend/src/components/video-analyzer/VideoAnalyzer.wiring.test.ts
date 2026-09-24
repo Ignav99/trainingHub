@@ -174,6 +174,7 @@ describe('video desk wiring', () => {
   it('sends a clip to revisión with the button phase preselected', () => {
     const send = readFileSync(join(here, '../revision/SendToRevisionDialog.tsx'), 'utf8')
     assert.match(send, /preferredFase/)
+    assert.match(send, /folders_only: true/)
     assert.match(send, /matchRevisionFolderId/)
     assert.match(send, /partido_plan/)
     assert.match(send, /sourceFile/)

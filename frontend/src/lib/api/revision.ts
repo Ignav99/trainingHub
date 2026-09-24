@@ -221,6 +221,7 @@ export const revisionApi = {
     partido_id?: string
     rival_id?: string
     microciclo_id?: string
+    folders_only?: boolean
   }): Promise<RevisionPack> {
     return api.post('/revision/packs', data, { timeout: 15000 })
   },

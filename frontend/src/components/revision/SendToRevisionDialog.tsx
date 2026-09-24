@@ -74,6 +74,7 @@ export function SendToRevisionDialog({
         ambito: next,
         partido_id: (next === 'partido_post' || next === 'partido_plan') && partidoId ? partidoId : undefined,
         rival_id: next === 'rival' ? rivalId : undefined,
+        folders_only: true,
       })
       setPack(p)
       setFolderId(matchRevisionFolderId(p.folders, preferredFase))
