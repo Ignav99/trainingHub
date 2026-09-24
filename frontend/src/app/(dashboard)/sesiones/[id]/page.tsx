@@ -88,6 +88,13 @@ import type { CargaJugador } from '@/types'
 import { MATCH_DAYS as MATCH_DAYS_CATALOG, DIAS_CARGA } from '@/lib/catalogos/canonico'
 import { TaskPickerDialog } from '@/components/tareas/TaskPickerDialog'
 import MargenPanel from '@/components/margen/MargenPanel'
+import { CampogramaEstimadoPanel } from '@/components/sesion/CampogramaEstimadoPanel'
+import {
+  CAMPOGRAMA_ESTIMADO_KEY,
+  parseCampograma,
+  serializeCampograma,
+  type CampogramaEstimado,
+} from '@/lib/campogramaEstimado'
 import { duracionBloquePartido, faseSesionFromBloque, isPartidoCondicionado, resolveEstructura } from '@/lib/sesionEstructura'
 import { tipoDesdePlan } from '@/lib/sesionMicrociclo'
 
@@ -265,7 +272,7 @@ export default function SesionDetailPage() {
   // Entrenamientos al margen
   const [margenMap, setMargenMap] = useState<Map<string, EntrenamientoMargen>>(new Map())
   const [margenLoaded, setMargenLoaded] = useState(false)
-  const [convocatoriaTab, setConvocatoriaTab] = useState<'asistencia' | 'margen'>('asistencia')
+  const [convocatoriaTab, setConvocatoriaTab] = useState<'asistencia' | 'margen' | 'campograma'>('asistencia')
 
   // Per-task formation panel state
   const [formacionDialogStId, setFormacionDialogStId] = useState<string | null>(null)
@@ -388,6 +395,18 @@ export default function SesionDetailPage() {
   const updateField = (field: string, value: any) => {
     setSesion((prev) => prev ? { ...prev, [field]: value } : prev)
     autoSave({ [field]: value } as SesionUpdateData)
+  }
+
+  const saveCampograma = (next: CampogramaEstimado) => {
+    setSesion((prev) => {
+      if (!prev) return prev
+      const fase_notas = {
+        ...(prev.fase_notas || {}),
+        [CAMPOGRAMA_ESTIMADO_KEY]: serializeCampograma(next),
+      }
+      autoSave({ fase_notas })
+      return { ...prev, fase_notas }
+    })
   }
 
   /** Aplica varios campos en un solo autosave (evita que keywords pise objetivo). */
@@ -1584,6 +1603,17 @@ export default function SesionDetailPage() {
                     </span>
                   )}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setConvocatoriaTab('campograma')}
+                  className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    convocatoriaTab === 'campograma'
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Campograma estimado
+                </button>
               </div>
             </CardHeader>
             <CardContent>
@@ -1607,6 +1637,21 @@ export default function SesionDetailPage() {
                   })}
                   margenMap={margenMap}
                   onReload={reloadMargen}
+                />
+              ) : convocatoriaTab === 'campograma' ? (
+                <CampogramaEstimadoPanel
+                  value={parseCampograma(sesion.fase_notas?.[CAMPOGRAMA_ESTIMADO_KEY])}
+                  jugadores={jugadoresVisibles.flatMap((jugador) => {
+                    const asistencia = asistencias.get(jugador.id)
+                    const suggestion = !asistencia ? suggestAttendanceFromDisponibilidad(jugador) : null
+                    const presente = asistencia?.presente ?? suggestion?.presente ?? true
+                    const tipos = asistencia?.tipo_participacion
+                      || (suggestion?.tipo_participacion as TipoParticipacion[] | undefined)
+                      || (presente ? ['sesion'] : [])
+                    if (!presente || !tipos.includes('sesion')) return []
+                    return [jugador]
+                  })}
+                  onChange={saveCampograma}
                 />
               ) : jugadores.length === 0 ? (
                 <div className="text-center py-8">
