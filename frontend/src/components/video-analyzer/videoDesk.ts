@@ -547,9 +547,67 @@ export function viewPctToTime(pct: number, viewStart: number, visible: number): 
   return viewStart + (pct / 100) * visible
 }
 
+/** Readable label ink on a button-colored lane title. */
+export function laneLabelInk(hex: string): string {
+  const h = hex.replace('#', '')
+  if (h.length < 6) return '#f4f7ef'
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  if ([r, g, b].some((n) => Number.isNaN(n))) return '#f4f7ef'
+  const y = (r * 299 + g * 587 + b * 114) / 1000
+  return y > 160 ? '#14210c' : '#f4f7ef'
+}
+
+/** Move one lane id to a new index. The other lanes keep their relative order. */
+export function moveLane(ids: string[], id: string, toIndex: number): string[] {
+  const from = ids.indexOf(id)
+  if (from < 0 || toIndex < 0 || toIndex >= ids.length || from === toIndex) return ids
+  const next = ids.slice()
+  const [item] = next.splice(from, 1)
+  next.splice(toIndex, 0, item)
+  return next
+}
+
+/** Index to drop `dragId`, counting only the other rows the pointer has passed. */
+export function laneDropIndex(
+  rows: { id: string; top: number; height: number }[],
+  dragId: string,
+  clientY: number,
+): number {
+  let to = 0
+  for (const row of rows) {
+    if (row.id === dragId) continue
+    if (clientY > row.top + row.height / 2) to += 1
+  }
+  return to
+}
+
+/**
+ * Rewrite events so lanesWithEvents follows `laneIds`.
+ * Clips inside a phase stay in their previous order.
+ */
+export function orderEventsByLanes(events: CodeEvent[], laneIds: string[]): CodeEvent[] {
+  const groups = new Map<string, CodeEvent[]>()
+  for (const event of events) {
+    const list = groups.get(event.buttonId)
+    if (list) list.push(event)
+    else groups.set(event.buttonId, [event])
+  }
+  const out: CodeEvent[] = []
+  for (const id of laneIds) {
+    const list = groups.get(id)
+    if (!list) continue
+    out.push(...list)
+    groups.delete(id)
+  }
+  for (const list of Array.from(groups.values())) out.push(...list)
+  return out
+}
+
 /**
  * Timeline rows exist only after the first event of that button.
- * Order is first-seen (creation) order, and a row disappears when its last event does.
+ * Order is first-seen until the user drags a lane. A row disappears when its last event does.
  */
 export function lanesWithEvents(buttons: CodeButton[], events: CodeEvent[]): CodeButton[] {
   const byId = new Map(buttons.map((button) => [button.id, button]))

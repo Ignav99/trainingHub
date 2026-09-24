@@ -70,6 +70,7 @@ export function VideoAnalyzer({
   const recordEvent = useCodeWindowStore((s) => s.recordEvent)
   const updateEvent = useCodeWindowStore((s) => s.updateEvent)
   const removeEvent = useCodeWindowStore((s) => s.removeEvent)
+  const reorderLanes = useCodeWindowStore((s) => s.reorderLanes)
   const addButton = useCodeWindowStore((s) => s.addButton)
   const updateButton = useCodeWindowStore((s) => s.updateButton)
   const removeButton = useCodeWindowStore((s) => s.removeButton)
@@ -482,6 +483,7 @@ export function VideoAnalyzer({
         onSeek={seekTo}
         onSelect={selectClip}
         onSelectLane={playLane}
+        onReorderLanes={(laneIds) => reorderLanes(videoKey, laneIds)}
         onPlayClip={playClip}
         onTrim={patchClip}
       />

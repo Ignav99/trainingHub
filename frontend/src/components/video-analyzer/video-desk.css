@@ -758,15 +758,24 @@
   border-bottom: 1px solid color-mix(in srgb, var(--vd-text) 10%, transparent);
   background: transparent;
   text-align: left;
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
 
 .vd-lane-label:hover {
-  color: var(--vd-text);
-  background: color-mix(in srgb, var(--vd-line) 10%, transparent);
+  filter: brightness(1.08);
 }
 
-.vd-lane-label.is-selected,
+.vd-lane-label.is-dragging {
+  cursor: grabbing;
+  z-index: 2;
+}
+
+.vd-lane-label.is-selected {
+  box-shadow: inset 0 0 0 2px var(--vd-ink);
+}
+
 .vd-folder-head.is-selected {
   color: var(--vd-ink);
   background: var(--vd-playhead);

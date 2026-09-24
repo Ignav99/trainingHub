@@ -17,6 +17,10 @@ import {
   matchRevisionFolderId,
   groupClipsByButton,
   lanesWithEvents,
+  moveLane,
+  orderEventsByLanes,
+  laneDropIndex,
+  laneLabelInk,
   clipDisplayTitle,
   zoomCinta,
   panCinta,
@@ -186,13 +190,26 @@ describe('video desk coding', () => {
       { id: '1', buttonId: 'b', timestamp: 40, startTime: 35, endTime: 45 },
     ])
     assert.deepEqual(first.map((b) => b.id), ['b'])
-    const later = lanesWithEvents(buttons, [
+    const events: CodeEvent[] = [
       { id: '1', buttonId: 'b', timestamp: 40, startTime: 35, endTime: 45 },
       { id: '2', buttonId: 'a', timestamp: 10, startTime: 5, endTime: 15 },
       { id: '3', buttonId: 'b', timestamp: 50, startTime: 48, endTime: 55 },
       { id: '4', buttonId: 'gone', timestamp: 3, startTime: 1, endTime: 4 },
-    ])
+    ]
+    const later = lanesWithEvents(buttons, events)
     assert.deepEqual(later.map((b) => b.id), ['b', 'a'])
+    const ordered = orderEventsByLanes(events, ['a', 'b'])
+    assert.deepEqual(lanesWithEvents(buttons, ordered).map((b) => b.id), ['a', 'b'])
+    assert.deepEqual(moveLane(['b', 'a'], 'a', 0), ['a', 'b'])
+    const rows = [
+      { id: 'a', top: 0, height: 24 },
+      { id: 'b', top: 24, height: 24 },
+      { id: 'c', top: 48, height: 24 },
+    ]
+    assert.equal(laneDropIndex(rows, 'a', 40), 1)
+    assert.equal(laneDropIndex(rows, 'c', 10), 0)
+    assert.equal(laneLabelInk('#ffffff'), '#14210c')
+    assert.equal(laneLabelInk('#111111'), '#f4f7ef')
   })
 
   it('collects every clip on a timeline lane so that row can be exported together', () => {
