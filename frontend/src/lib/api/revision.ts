@@ -344,3 +344,42 @@ export const revisionApi = {
     return api.patch(`/revision/sessions/${code}`, data)
   },
 }
+
+type FolderPackQuery = {
+  equipo_id: string
+  ambito: RevisionAmbito
+  partido_id?: string
+  rival_id?: string
+  microciclo_id?: string
+}
+
+const folderPackCache = new Map<string, RevisionPack>()
+const folderPackInflight = new Map<string, Promise<RevisionPack>>()
+
+function folderPackKey(data: FolderPackQuery): string {
+  return [data.equipo_id, data.ambito, data.partido_id || '', data.rival_id || '', data.microciclo_id || ''].join('|')
+}
+
+/** Carpetas ya pedidas en esta sesión, listas antes de abrir el diálogo. */
+export function peekRevisionFolders(data: FolderPackQuery): RevisionPack | null {
+  return folderPackCache.get(folderPackKey(data)) ?? null
+}
+
+/** Una sola petición por pack. El clic de «A revisión» reutiliza la que empezó al abrir el vídeo. */
+export function prefetchRevisionFolders(data: FolderPackQuery): Promise<RevisionPack> {
+  const key = folderPackKey(data)
+  const cached = folderPackCache.get(key)
+  if (cached) return Promise.resolve(cached)
+  const pending = folderPackInflight.get(key)
+  if (pending) return pending
+  const request = revisionApi.getOrCreatePack({ ...data, folders_only: true }).then((pack) => {
+    folderPackCache.set(key, pack)
+    folderPackInflight.delete(key)
+    return pack
+  }, (error: unknown) => {
+    folderPackInflight.delete(key)
+    throw error
+  })
+  folderPackInflight.set(key, request)
+  return request
+}

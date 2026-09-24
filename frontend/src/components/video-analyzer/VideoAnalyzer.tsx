@@ -6,6 +6,7 @@ import { Send, Trash2, X } from 'lucide-react'
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 import { useCodeWindowStore } from './useCodeWindowStore'
 import { SendToRevisionDialog } from '@/components/revision/SendToRevisionDialog'
+import { prefetchRevisionFolders } from '@/lib/api/revision'
 import { VideoDeskBotonera } from './VideoDeskBotonera'
 import { VideoDeskFolders } from './VideoDeskFolders'
 import { VideoDeskTimeline } from './VideoDeskTimeline'
@@ -111,6 +112,16 @@ export function VideoAnalyzer({
     .map((id) => events.find((e) => e.id === id))
     .filter((e): e is CodeEvent => !!e)
   const canSendToRevision = Boolean(partidoId || rivalId)
+
+  useEffect(() => {
+    if (partidoId) {
+      void prefetchRevisionFolders({ equipo_id: equipoId, ambito: 'partido_post', partido_id: partidoId }).catch(() => {})
+      void prefetchRevisionFolders({ equipo_id: equipoId, ambito: 'partido_plan', partido_id: partidoId }).catch(() => {})
+    }
+    if (rivalId) {
+      void prefetchRevisionFolders({ equipo_id: equipoId, ambito: 'rival', rival_id: rivalId }).catch(() => {})
+    }
+  }, [equipoId, partidoId, rivalId])
 
   const seekTo = useCallback((time: number) => {
     playerRef.current?.seekTo(time)
@@ -508,6 +519,7 @@ export function VideoAnalyzer({
         <SendToRevisionDialog
           open
           onOpenChange={(v) => { if (!v) setSendClipId(null) }}
+          onSent={() => setSelectedClipIds([])}
           equipoId={equipoId}
           partidoId={partidoId}
           rivalId={rivalId}
