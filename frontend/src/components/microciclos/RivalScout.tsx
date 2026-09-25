@@ -30,7 +30,7 @@ import { DossierTacticalBoard } from '@/components/rivales/DossierTacticalBoard'
 import { PresentacionSala } from '@/components/revision/PresentacionSala'
 import { exportPresentacionDossier } from '@/lib/api/presentaciones'
 import { buildInformeShow, buildPlanShow, type DossierShow } from '@/lib/dossierShow'
-import { loadPlanDataForCharla, prepareCharlaSala, prepareDossierSala } from '@/lib/dossierPresentar'
+import { loadContextoIntelLines, loadPlanDataForCharla, prepareCharlaSala, prepareDossierSala } from '@/lib/dossierPresentar'
 import type { RevisionSession } from '@/lib/api/revision'
 import { useClubStore } from '@/stores/clubStore'
 import { RivalStrategy } from './RivalStrategy'
@@ -222,12 +222,14 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
             onPresentar={async () => {
               setPresenting(true)
               try {
+                const intelLines = await loadContextoIntelLines(equipoId, rivalId)
                 const built = buildInformeShow(dataRef.current, {
                   rivalNombre,
                   clubNombre,
                   clubEscudoUrl: clubEscudoUrl || undefined,
                   rivalEscudoUrl,
                   localia,
+                  intelLines,
                 })
                 const ready = await prepareDossierSala({
                   show: built,
@@ -252,7 +254,10 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
                   rivalEscudoUrl,
                   localia,
                 }
-                const informe = buildInformeShow(dataRef.current, meta)
+                const informe = buildInformeShow(dataRef.current, {
+                  ...meta,
+                  intelLines: await loadContextoIntelLines(equipoId, rivalId),
+                })
                 const planData = await loadPlanDataForCharla(getPlanForCharla?.() ?? null, rivalId)
                 const plan = buildPlanShow(planData, meta)
                 const ready = await prepareCharlaSala({

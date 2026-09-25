@@ -146,6 +146,13 @@ describe('dossier live show builder', () => {
     )
     assert.equal(show.slides[1].kind === 'contexto' && show.slides[1].bullets[0], 'Presiona alto y corta por dentro')
     assert.equal(show.slides[1].kind === 'contexto' && show.slides[1].bullets.includes('Campo 105 x 68'), true)
+    const withIntel = buildInformeShow(
+      { estrategia: { sistema: '4-3-3', once_probable: { actas_analizadas: 1, jugadores: [{ nombre: 'López', apariciones: 1 }], colocacion: { DC: 'López' } } } },
+      { intelLines: ['Clasificación: 3º · 21 pts'] },
+    )
+    assert.equal(withIntel.slides[1]?.kind, 'contexto')
+    assert.equal(withIntel.slides[1]?.kind === 'contexto' && withIntel.slides[1].bullets[0], 'Clasificación: 3º · 21 pts')
+    assert.equal(withIntel.slides[2]?.kind, 'once')
     assert.equal(show.slides[2].kind === 'once' && show.slides[2].sistema, '4-3-3')
     assert.equal(
       show.slides[2].kind === 'once' && show.slides[2].bullets.some((b) => b.includes('García') && b.includes('llega tarde')),

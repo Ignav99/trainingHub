@@ -28,6 +28,8 @@ interface TacticalBoardMiniProps {
    * Captura una JPEG del SVG real del editor (pisa fotos inventadas del PDF).
    */
   onPreviewReady?: (previewDataUrl: string) => void
+  /** Solo la charla: agranda los círculos de jugador sin tocar el editor. */
+  playerScale?: number
 }
 
 // Normalize element position: seed data uses {x, y} directly, frontend uses {position: {x, y}}
@@ -123,6 +125,7 @@ function TacticalBoardMiniInner({
   showPlayBadge = true,
   autoplay = true,
   onPreviewReady,
+  playerScale = 1,
 }: TacticalBoardMiniProps) {
   const uid = useId().replace(/:/g, '')
   const containerRef = useRef<HTMLDivElement>(null)
@@ -299,10 +302,12 @@ function TacticalBoardMiniInner({
               )
             }
             const rotatable = ROTATABLE_ELEMENTS.includes(element.type)
+            const isPlayer = element.type === 'player' || element.type === 'opponent' || element.type === 'player_gk' || element.type === 'player_joker'
+            const zoom = isPlayer && playerScale > 1 ? ` scale(${playerScale})` : ''
             return (
               <g
                 key={element.id}
-                transform={`translate(${element.position.x}, ${element.position.y})${rotatable && element.rotation ? ` rotate(${element.rotation})` : ''}`}
+                transform={`translate(${element.position.x}, ${element.position.y})${rotatable && element.rotation ? ` rotate(${element.rotation})` : ''}${zoom}`}
               >
                 <ElementSymbol element={element} uid={uid} />
               </g>
@@ -335,6 +340,7 @@ const TacticalBoardMini = memo(TacticalBoardMiniInner, (prev, next) => (
   && prev.animate === next.animate
   && prev.showPlayBadge === next.showPlayBadge
   && prev.autoplay === next.autoplay
+  && prev.playerScale === next.playerScale
 ))
 
 TacticalBoardMini.displayName = 'TacticalBoardMini'

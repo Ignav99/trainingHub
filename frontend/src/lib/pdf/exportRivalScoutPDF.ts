@@ -25,6 +25,7 @@ import {
 } from './planPartidoPdfLayout'
 import { resolvePizarraPng } from './capturePizarraForPdf'
 import { collectContextoPdfBlocks, collectOncePdfBlock } from './informeRivalPdfBlocks'
+import { buildOncePitchTokens } from '@/lib/oncePitch'
 import { rivalesApi } from '@/lib/api/partidos'
 
 const FASE_LABELS: Record<FaseRival, string> = {
@@ -66,9 +67,12 @@ export interface InformeRivalPdfMeta {
   competicionId?: string
 }
 
+let lockPage = false
+
 function ensureSpace(doc: jsPDF, y: number, needed: number, margin: number): number {
   const pageHeight = doc.internal.pageSize.getHeight()
   if (y + needed > pageHeight - margin - 8) {
+    if (lockPage) return y
     doc.addPage()
     return margin + 6
   }
@@ -83,6 +87,7 @@ function writeWrapped(
   maxWidth: number,
   lineHeight = 4.4
 ): number {
+  if (y > pageFloor(doc)) return y
   const lines = doc.splitTextToSize(text, maxWidth) as string[]
   doc.text(lines, x, y)
   return y + lines.length * lineHeight
@@ -150,18 +155,24 @@ function writeRoles(
   return (col === 0 ? rowY : maxY) + 3
 }
 
+function pageFloor(doc: jsPDF): number {
+  return doc.internal.pageSize.getHeight() - 16
+}
+
 function addPizarraImage(
   doc: jsPDF,
   png: string | undefined,
   margin: number,
   y: number,
-  contentWidth: number
+  contentWidth: number,
+  maxHeight?: number,
 ): number {
   if (!png?.startsWith('data:image')) return y
+  const room = Math.min(maxHeight ?? PITCH_PDF_MAX_MM, pageFloor(doc) - y - 2)
+  if (room < 28) return y
   try {
     const props = doc.getImageProperties(png)
-    const { w, h } = pitchDisplaySize(contentWidth, props.width, props.height, PITCH_PDF_MAX_MM)
-    y = ensureSpace(doc, y, h + 8, margin)
+    const { w, h } = pitchDisplaySize(contentWidth, props.width, props.height, room)
     const x = margin + (contentWidth - w) / 2
     doc.setDrawColor(226, 232, 240)
     doc.setFillColor(15, 40, 12)
@@ -169,7 +180,7 @@ function addPizarraImage(
     const format = png.includes('image/jpeg') ? 'JPEG' : 'PNG'
     const alias = `pz-${doc.getNumberOfPages()}-${Math.round(y)}-${png.length}`
     doc.addImage(png, format, x, y, w, h, alias, 'FAST')
-    return y + h + 5
+    return y + h + 4
   } catch {
     return y
   }
@@ -293,6 +304,40 @@ function drawHeader(
   if (localia) doc.text(localia, x, 28)
 }
 
+function drawOncePitch(
+  doc: jsPDF,
+  estrategia: RivalScoutData['estrategia'],
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+) {
+  doc.setFillColor(16, 42, 18)
+  doc.roundedRect(x, y, w, h, 1.5, 1.5, 'F')
+  doc.setDrawColor(255, 255, 255)
+  doc.setLineWidth(0.3)
+  const inset = 3
+  doc.rect(x + inset, y + inset, w - inset * 2, h - inset * 2)
+  doc.line(x + w / 2, y + inset, x + w / 2, y + h - inset)
+  const tokens = buildOncePitchTokens(
+    estrategia?.sistema,
+    estrategia?.once_probable?.colocacion,
+    estrategia?.once_probable?.jugadores,
+  )
+  for (const token of tokens) {
+    if (!token.nombre && !token.dorsal) continue
+    const cx = x + inset + ((token.leftPct / 100) * (w - inset * 2))
+    const cy = y + inset + ((token.topPct / 100) * (h - inset * 2))
+    doc.setFillColor(255, 255, 255)
+    doc.circle(cx, cy - 1.6, 1.5, 'F')
+    doc.circle(cx, cy + 1.3, 2.3, 'F')
+    const caption = token.dorsal || token.nombre || token.label
+    doc.setFontSize(6)
+    doc.setTextColor(255, 255, 255)
+    doc.text(caption, cx, cy + 5.2, { align: 'center' })
+  }
+}
+
 function drawFooters(doc: jsPDF, clubNombre?: string) {
   const total = doc.getNumberOfPages()
   const pageWidth = doc.internal.pageSize.getWidth()
@@ -336,23 +381,40 @@ export async function exportRivalScoutPDF(
   const margin = 14
   const contentWidth = pageWidth - margin * 2
   drawHeader(doc, resolved, { club: clubLogo, rival: rivalCrest })
-  let y = 44
 
   const contextoBlocks = collectContextoPdfBlocks(data.estrategia, intel)
-  for (const block of contextoBlocks) {
-    y = writePdfBlock(doc, block.title, block.lines, margin, y, contentWidth)
-  }
-
   const onceBlock = collectOncePdfBlock(data.estrategia)
-  if (onceBlock) {
-    y = writePdfBlock(doc, onceBlock.title, onceBlock.lines, margin, y, contentWidth)
+  const hasContextPage = contextoBlocks.length > 0 || Boolean(onceBlock)
+  if (hasContextPage) {
+    doc.addPage()
+    lockPage = true
+    let y = margin + 4
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(14)
+    doc.setTextColor(15, 23, 42)
+    doc.text('Contexto y once probable', margin, y)
+    y += 8
+    const pitchW = 78
+    const pitchH = 96
+    const textW = contentWidth - pitchW - 8
+    let textY = y
+    for (const block of contextoBlocks) {
+      textY = writePdfBlock(doc, block.title, block.lines, margin, textY, textW)
+    }
+    if (onceBlock) {
+      textY = writePdfBlock(doc, onceBlock.title, onceBlock.lines, margin, textY, textW)
+    }
+    drawOncePitch(doc, data.estrategia, margin + textW + 8, y, pitchW, pitchH)
+    lockPage = false
   }
 
   for (const faseKey of FASE_ORDER) {
     const phase = (data.fases ?? []).find((f) => f.fase === faseKey)
     if (!phaseHasContent(phase)) continue
 
-    y = ensureSpace(doc, y, 16, margin)
+    doc.addPage()
+    lockPage = true
+    let y = margin + 2
     doc.setFillColor(241, 245, 249)
     doc.roundedRect(margin, y, contentWidth, 8, 1, 1, 'F')
     doc.setTextColor(15, 23, 42)
@@ -408,6 +470,7 @@ export async function exportRivalScoutPDF(
           margin,
           y,
           contentWidth,
+          72,
         )
       }
     }
@@ -448,6 +511,7 @@ export async function exportRivalScoutPDF(
         margin,
         y,
         contentWidth,
+        90,
       )
     }
 
@@ -487,7 +551,7 @@ export async function exportRivalScoutPDF(
       y += 3
     }
 
-    y += 4
+    lockPage = false
   }
 
   drawFooters(doc, resolved.clubNombre)
