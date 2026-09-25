@@ -18,6 +18,8 @@ import {
 import { useClubStore } from '@/stores/clubStore'
 import {
   formatLocalia,
+  formatPlanFecha,
+  formatPlanTramo,
   hexToRgb,
   informeRivalPdfFilename,
   PITCH_PDF_MAX_MM,
@@ -60,6 +62,9 @@ export interface InformeRivalPdfMeta {
   rivalNombre?: string
   rivalEscudoUrl?: string
   localia?: string
+  fecha?: string
+  jornada?: number | null
+  tramo?: string
   clubNombre?: string
   clubLogoUrl?: string
   colorPrimario?: string
@@ -297,14 +302,29 @@ function drawHeader(
     }
   }
 
-  const localia = formatLocalia(meta.localia)
+  const matchLine = [
+    formatPlanFecha(meta.fecha),
+    meta.jornada != null && Number.isFinite(meta.jornada) ? `Jornada ${meta.jornada}` : '',
+    formatPlanTramo(meta.tramo),
+    formatLocalia(meta.localia),
+  ].filter(Boolean).join('  ·  ')
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8.5)
   doc.setTextColor(203, 213, 225)
-  if (localia) doc.text(localia, x, 28)
+  if (matchLine) doc.text(matchLine, x, 28)
 }
 
-function drawOncePitch(
+function fillHex(doc: jsPDF, hex: string) {
+  const raw = hex.replace('#', '')
+  const n = raw.length === 3 ? raw.split('').map((c) => c + c).join('') : raw
+  doc.setFillColor(
+    parseInt(n.slice(0, 2), 16) || 100,
+    parseInt(n.slice(2, 4), 16) || 116,
+    parseInt(n.slice(4, 6), 16) || 139,
+  )
+}
+
+function drawMatchPitch(
   doc: jsPDF,
   estrategia: RivalScoutData['estrategia'],
   x: number,
@@ -312,13 +332,28 @@ function drawOncePitch(
   w: number,
   h: number,
 ) {
-  doc.setFillColor(16, 42, 18)
-  doc.roundedRect(x, y, w, h, 1.5, 1.5, 'F')
+  doc.setFillColor(21, 128, 61)
+  doc.roundedRect(x, y, w, h, 2, 2, 'F')
+  const ix = x + 5
+  const iy = y + 5
+  const iw = w - 10
+  const ih = h - 10
   doc.setDrawColor(255, 255, 255)
-  doc.setLineWidth(0.3)
-  const inset = 3
-  doc.rect(x + inset, y + inset, w - inset * 2, h - inset * 2)
-  doc.line(x + w / 2, y + inset, x + w / 2, y + h - inset)
+  doc.setLineWidth(0.45)
+  doc.rect(ix, iy, iw, ih)
+  doc.line(ix + iw / 2, iy, ix + iw / 2, iy + ih)
+  doc.circle(ix + iw / 2, iy + ih / 2, Math.min(iw, ih) * 0.11)
+  const boxW = iw * 0.16
+  const boxH = ih * 0.62
+  const boxY = iy + (ih - boxH) / 2
+  doc.rect(ix, boxY, boxW, boxH)
+  doc.rect(ix + iw - boxW, boxY, boxW, boxH)
+  const goalW = iw * 0.07
+  const goalH = ih * 0.32
+  const goalY = iy + (ih - goalH) / 2
+  doc.rect(ix, goalY, goalW, goalH)
+  doc.rect(ix + iw - goalW, goalY, goalW, goalH)
+
   const tokens = buildOncePitchTokens(
     estrategia?.sistema,
     estrategia?.once_probable?.colocacion,
@@ -326,15 +361,22 @@ function drawOncePitch(
   )
   for (const token of tokens) {
     if (!token.nombre && !token.dorsal) continue
-    const cx = x + inset + ((token.leftPct / 100) * (w - inset * 2))
-    const cy = y + inset + ((token.topPct / 100) * (h - inset * 2))
-    doc.setFillColor(255, 255, 255)
-    doc.circle(cx, cy - 1.6, 1.5, 'F')
-    doc.circle(cx, cy + 1.3, 2.3, 'F')
-    const caption = token.dorsal || token.nombre || token.label
-    doc.setFontSize(6)
+    const cx = ix + (token.leftPct / 100) * iw
+    const cy = iy + (token.topPct / 100) * ih
+    fillHex(doc, token.color)
+    doc.circle(cx, cy, 3.4, 'F')
+    doc.setDrawColor(255, 255, 255)
+    doc.setLineWidth(0.3)
+    doc.circle(cx, cy, 3.4, 'S')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7)
     doc.setTextColor(255, 255, 255)
-    doc.text(caption, cx, cy + 5.2, { align: 'center' })
+    doc.text(token.dorsal || token.label.slice(0, 3), cx, cy + 1.1, { align: 'center' })
+    if (token.nombre) {
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(6.5)
+      doc.text(token.nombre, cx, cy + 6.2, { align: 'center' })
+    }
   }
 }
 
@@ -366,6 +408,9 @@ export async function exportRivalScoutPDF(
     rivalNombre: meta.rivalNombre,
     rivalEscudoUrl: meta.rivalEscudoUrl,
     localia: meta.localia,
+    fecha: meta.fecha,
+    jornada: meta.jornada,
+    tramo: meta.tramo,
     rivalId: meta.rivalId,
     competicionId: meta.competicionId,
   }
@@ -382,31 +427,29 @@ export async function exportRivalScoutPDF(
   const contentWidth = pageWidth - margin * 2
   drawHeader(doc, resolved, { club: clubLogo, rival: rivalCrest })
 
+  lockPage = true
+  let y = 46
   const contextoBlocks = collectContextoPdfBlocks(data.estrategia, intel)
-  const onceBlock = collectOncePdfBlock(data.estrategia)
-  const hasContextPage = contextoBlocks.length > 0 || Boolean(onceBlock)
-  if (hasContextPage) {
-    doc.addPage()
-    lockPage = true
-    let y = margin + 4
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(14)
-    doc.setTextColor(15, 23, 42)
-    doc.text('Contexto y once probable', margin, y)
-    y += 8
-    const pitchW = 78
-    const pitchH = 96
-    const textW = contentWidth - pitchW - 8
-    let textY = y
-    for (const block of contextoBlocks) {
-      textY = writePdfBlock(doc, block.title, block.lines, margin, textY, textW)
-    }
-    if (onceBlock) {
-      textY = writePdfBlock(doc, onceBlock.title, onceBlock.lines, margin, textY, textW)
-    }
-    drawOncePitch(doc, data.estrategia, margin + textW + 8, y, pitchW, pitchH)
-    lockPage = false
+  for (const block of contextoBlocks) {
+    y = writePdfBlock(doc, block.title, block.lines, margin, y, contentWidth)
   }
+  const pitchH = 108
+  if (y + pitchH < pageFloor(doc)) {
+    if (data.estrategia?.sistema) {
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.setTextColor(15, 23, 42)
+      doc.text(data.estrategia.sistema, margin, y)
+      y += 4
+    }
+    drawMatchPitch(doc, data.estrategia, margin, y, contentWidth, pitchH)
+    y += pitchH + 4
+  }
+  const onceBlock = collectOncePdfBlock(data.estrategia)
+  if (onceBlock && y < pageFloor(doc) - 12) {
+    y = writePdfBlock(doc, 'COMENTARIOS', onceBlock.lines, margin, y, contentWidth)
+  }
+  lockPage = false
 
   for (const faseKey of FASE_ORDER) {
     const phase = (data.fases ?? []).find((f) => f.fase === faseKey)

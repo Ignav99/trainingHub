@@ -557,6 +557,9 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
             microcicloId={data.microciclo.id}
             equipoId={data.microciclo.equipo_id}
             localia={data.microciclo.partidos?.localia}
+            fecha={data.microciclo.partidos?.fecha}
+            jornada={data.microciclo.partidos?.jornada}
+            tramo={planTramo}
             onChange={(d) => updatePlanCT({ rival_scout: d })}
             getPlanForCharla={() => planCT.plan_partido ?? {}}
           />

@@ -51,6 +51,9 @@ interface RivalScoutProps {
   microcicloId?: string
   equipoId?: string
   localia?: LocaliaPartido
+  fecha?: string
+  jornada?: number | null
+  tramo?: 'ida' | 'vuelta'
   onChange: (data: Partial<RivalScoutData>) => void
   getPlanForCharla?: () => Partial<PlanPartidoData> | null
 }
@@ -88,7 +91,7 @@ const SUBFASES_DEFENSA: { key: RivalSubfaseDefensa; label: string }[] = [
 
 type TabValue = 'contexto' | 'once_probable' | FaseRival
 
-export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microcicloId, equipoId, localia, onChange, getPlanForCharla }: RivalScoutProps) {
+export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microcicloId, equipoId, localia, fecha, jornada, tramo, onChange, getPlanForCharla }: RivalScoutProps) {
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({})
   const [activeTab, setActiveTab] = useState<TabValue>('contexto')
   const [exportingDeck, setExportingDeck] = useState(false)
@@ -229,6 +232,9 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
                   clubEscudoUrl: clubEscudoUrl || undefined,
                   rivalEscudoUrl,
                   localia,
+                  fecha,
+                  jornada: jornada ?? undefined,
+                  tramo,
                   intelLines,
                 })
                 const ready = await prepareDossierSala({
@@ -253,6 +259,9 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
                   clubEscudoUrl: clubEscudoUrl || undefined,
                   rivalEscudoUrl,
                   localia,
+                  fecha,
+                  jornada: jornada ?? undefined,
+                  tramo,
                 }
                 const informe = buildInformeShow(dataRef.current, {
                   ...meta,
@@ -277,6 +286,9 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
               rivalNombre,
               rivalEscudoUrl,
               localia,
+              fecha,
+              jornada,
+              tramo,
               rivalId,
               competicionId,
             })}
@@ -287,6 +299,8 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
                   rival_nombre: rivalNombre,
                   rival_escudo_url: rivalEscudoUrl,
                   localia,
+                  fecha,
+                  tramo,
                 })
               } catch (err: unknown) {
                 toast.error(err instanceof Error ? err.message : 'No se pudo crear la presentación')
