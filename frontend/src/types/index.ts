@@ -2122,6 +2122,15 @@ export interface CargaJugador {
   // Aggregated from convocatorias
   tarjetas_amarillas: number
   tarjetas_rojas: number
+  rpe_ultimo?: number | null
+  rpe_ultimo_tipo?: 'sesion' | 'partido' | null
+  rpe_ultimo_fecha?: string | null
+  minutos_ultimo?: number | null
+  carga_ua_ultimo?: number | null
+  rpe_media_martes?: number | null
+  rpe_media_jueves?: number | null
+  rpe_media_viernes?: number | null
+  rpe_media_partido?: number | null
 }
 
 export interface CargaDiaria {

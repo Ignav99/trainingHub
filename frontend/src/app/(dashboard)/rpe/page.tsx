@@ -33,11 +33,12 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { SaludTabs } from '@/components/salud/SaludTabs'
 import { ManualRPEDialog } from '@/components/rpe/ManualRPEDialog'
 import { WellnessDialog } from '@/components/rpe/WellnessDialog'
+import { ExcelImportDialog } from '@/components/rpe/ExcelImportDialog'
+import { PlayerRpeCharts } from '@/components/rpe/PlayerRpeCharts'
 import dynamic from 'next/dynamic'
 
 const WellnessChartDialog = dynamic(() => import('@/components/rpe/WellnessChartDialog').then(m => ({ default: m.WellnessChartDialog })), { ssr: false })
 const LoadChartDialog = dynamic(() => import('@/components/rpe/LoadChartDialog').then(m => ({ default: m.LoadChartDialog })), { ssr: false })
-const ExcelImportDialog = dynamic(() => import('@/components/rpe/ExcelImportDialog').then(m => ({ default: m.ExcelImportDialog })), { ssr: false })
 import { useEquipoStore } from '@/stores/equipoStore'
 import { useFilialVisibilityStore } from '@/stores/filialVisibilityStore'
 import { MostrarFilialToggle } from '@/components/jugadores/MostrarFilialToggle'
@@ -162,6 +163,8 @@ export default function RPEPage() {
 
   // Expanded rows for mini-charts
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
+  const [wellnessCols, setWellnessCols] = useState(false)
+  const [rpeCols, setRpeCols] = useState(false)
 
   const tipoById = new Map(
     (jugadoresData?.data || []).map((j) => [j.id, resolveTipoJugador(j)] as const)
@@ -325,7 +328,7 @@ export default function RPEPage() {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">Jugadores</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Carga = EWMA aguda · ACWR = aguda/crónica · Wellness = sueño+fatiga+dolor+estrés+humor (/25)
+            Carga (UA) = RPE × minutos efectivos · EWMA y ACWR siguen igual · Wellness y RPE se despliegan al pulsar la columna
           </p>
         </CardHeader>
         <CardContent>
@@ -352,12 +355,34 @@ export default function RPEPage() {
                   <tr className="border-b text-left">
                     <th className="pb-2 font-medium w-8">#</th>
                     <th className="pb-2 font-medium">Jugador</th>
+                    <th className="pb-2 font-medium text-center">Nivel</th>
                     <th className="pb-2 font-medium text-center">EWMA aguda</th>
                     <th className="pb-2 font-medium text-center">ACWR</th>
-                    <th className="pb-2 font-medium text-center">Nivel</th>
-                    <th className="pb-2 font-medium text-center">Wellness</th>
-                    <th className="pb-2 font-medium text-center">Últ. 7d</th>
-                    <th className="pb-2 font-medium text-center">Último</th>
+                    <th className="pb-2 font-medium text-center">
+                      <button type="button" className="font-medium hover:text-foreground" onClick={() => setWellnessCols((v) => !v)}>
+                        Wellness {wellnessCols ? '−' : '+'}
+                      </button>
+                    </th>
+                    {wellnessCols && (
+                      <>
+                        <th className="pb-2 font-medium text-center">Últ. 7d</th>
+                        <th className="pb-2 font-medium text-center">Último</th>
+                      </>
+                    )}
+                    <th className="pb-2 font-medium text-center">
+                      <button type="button" className="font-medium hover:text-foreground" onClick={() => setRpeCols((v) => !v)}>
+                        RPE {rpeCols ? '−' : '+'}
+                      </button>
+                    </th>
+                    {rpeCols && (
+                      <>
+                        <th className="pb-2 font-medium text-center">Martes</th>
+                        <th className="pb-2 font-medium text-center">Jueves</th>
+                        <th className="pb-2 font-medium text-center">Viernes</th>
+                        <th className="pb-2 font-medium text-center">Partido</th>
+                      </>
+                    )}
+                    <th className="pb-2 font-medium text-center">Carga (UA)</th>
                     <th className="pb-2 font-medium text-center w-8"></th>
                   </tr>
                 </thead>
@@ -390,6 +415,11 @@ export default function RPEPage() {
                             </div>
                           </td>
                           <td className="py-2.5 text-center">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${getNivelBadgeClass(item.nivel_carga)}`}>
+                              {item.nivel_carga}
+                            </span>
+                          </td>
+                          <td className="py-2.5 text-center">
                             <div className="flex items-center justify-center gap-1.5">
                               <span className={`inline-block w-2 h-2 rounded-full ${getNivelColor(item.nivel_carga)}`} />
                               <span className="font-medium">{item.carga_aguda.toFixed(0)}</span>
@@ -400,26 +430,45 @@ export default function RPEPage() {
                               {item.ratio_acwr != null ? item.ratio_acwr.toFixed(2) : '-'}
                             </span>
                           </td>
-                          <td className="py-2.5 text-center">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${getNivelBadgeClass(item.nivel_carga)}`}>
-                              {item.nivel_carga}
-                            </span>
-                          </td>
-                          {/* Wellness columns */}
                           <td className={`py-2.5 text-center ${getWellnessBg(w?.wellness_general_avg ?? null)}`}>
                             <span className={`font-bold text-xs ${getWellnessColor(w?.wellness_general_avg ?? null)}`}>
                               {w?.wellness_general_avg != null ? w.wellness_general_avg.toFixed(1) : '-'}
                             </span>
                           </td>
-                          <td className={`py-2.5 text-center ${getWellnessBg(w?.wellness_7d_avg ?? null)}`}>
-                            <span className={`font-bold text-xs ${getWellnessColor(w?.wellness_7d_avg ?? null)}`}>
-                              {w?.wellness_7d_avg != null ? w.wellness_7d_avg.toFixed(1) : '-'}
+                          {wellnessCols && (
+                            <>
+                              <td className={`py-2.5 text-center ${getWellnessBg(w?.wellness_7d_avg ?? null)}`}>
+                                <span className={`font-bold text-xs ${getWellnessColor(w?.wellness_7d_avg ?? null)}`}>
+                                  {w?.wellness_7d_avg != null ? w.wellness_7d_avg.toFixed(1) : '-'}
+                                </span>
+                              </td>
+                              <td className={`py-2.5 text-center ${getWellnessBg(w?.wellness_last ?? null)}`}>
+                                <span className={`font-bold text-xs ${getWellnessColor(w?.wellness_last ?? null)}`}>
+                                  {w?.wellness_last != null ? w.wellness_last : '-'}
+                                </span>
+                              </td>
+                            </>
+                          )}
+                          <td className="py-2.5 text-center">
+                            <span className="font-bold text-xs">
+                              {item.rpe_ultimo != null ? item.rpe_ultimo.toFixed(1) : '-'}
                             </span>
+                            {item.rpe_ultimo_tipo && (
+                              <span className="block text-[9px] text-muted-foreground">
+                                {item.rpe_ultimo_tipo === 'partido' ? 'partido' : 'sesión'}
+                              </span>
+                            )}
                           </td>
-                          <td className={`py-2.5 text-center ${getWellnessBg(w?.wellness_last ?? null)}`}>
-                            <span className={`font-bold text-xs ${getWellnessColor(w?.wellness_last ?? null)}`}>
-                              {w?.wellness_last != null ? w.wellness_last : '-'}
-                            </span>
+                          {rpeCols && (
+                            <>
+                              <td className="py-2.5 text-center text-xs">{item.rpe_media_martes ?? '-'}</td>
+                              <td className="py-2.5 text-center text-xs">{item.rpe_media_jueves ?? '-'}</td>
+                              <td className="py-2.5 text-center text-xs">{item.rpe_media_viernes ?? '-'}</td>
+                              <td className="py-2.5 text-center text-xs">{item.rpe_media_partido ?? '-'}</td>
+                            </>
+                          )}
+                          <td className="py-2.5 text-center font-medium tabular-nums">
+                            {item.carga_ua_ultimo != null ? Math.round(item.carga_ua_ultimo) : '-'}
                           </td>
                           <td className="py-2.5 text-center">
                             {isExpanded ? (
@@ -431,7 +480,7 @@ export default function RPEPage() {
                         </tr>
                         {isExpanded && (
                           <tr key={`${item.jugador_id}-expanded`}>
-                            <td colSpan={9} className="p-0">
+                            <td colSpan={9 + (wellnessCols ? 2 : 0) + (rpeCols ? 4 : 0)} className="p-0">
                               {/* Load metrics bar */}
                               <div className="px-4 pt-3 pb-1 bg-muted/20 border-t flex flex-wrap items-center gap-4 text-xs">
                                 <div>
@@ -464,6 +513,7 @@ export default function RPEPage() {
                                   Ver gráfica
                                 </Button>
                               </div>
+                              <PlayerRpeCharts jugadorId={item.jugador_id} />
                               <ExpandedRPERow jugadorId={item.jugador_id} />
                               <ExpandedWellnessRow jugadorId={item.jugador_id} />
                             </td>

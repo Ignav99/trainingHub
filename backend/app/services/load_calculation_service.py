@@ -14,18 +14,12 @@ from uuid import UUID
 
 from app.database import get_supabase
 from app.services.jugador_tipo import incluye_tracking_carga
-from app.services.duracion_efectiva import (
-    is_compensatorio_fase,
-    minutos_carga_sesion_tarea,
-    player_compensatorio_fases,
-)
 
 logger = logging.getLogger(__name__)
 
 # --- EWMA constants ---
 EWMA_ACUTE_LAMBDA = 2.0 / (7 + 1)    # ~0.25
 EWMA_CHRONIC_LAMBDA = 2.0 / (28 + 1)  # ~0.069
-MARGEN_LOAD_FACTOR = 0.35
 HISTORY_LOOKBACK_DAYS = 56  # fetch 56 days for EWMA warm-up
 UPSERT_DAYS = 28            # persist last 28 days to DB
 
@@ -146,14 +140,12 @@ def calculate_match_load(
     if minutos <= 0:
         return (0.0, 0.0)
 
-    rpe_max = GK_MATCH_RPE_MAX if es_portero else 10.0
-    if rpe is not None:
-        try:
-            match_rpe = min(max(float(rpe), 1.0), 10.0)
-        except (TypeError, ValueError):
-            match_rpe = min(round(rpe_max * minutos / 90.0, 2), rpe_max)
-    else:
-        match_rpe = min(round(rpe_max * minutos / 90.0, 2), rpe_max)
+    if rpe is None:
+        return (0.0, 0.0)
+    try:
+        match_rpe = min(max(float(rpe), 1.0), 10.0)
+    except (TypeError, ValueError):
+        return (0.0, 0.0)
     match_load = round(match_rpe * minutos, 2)
     return (match_rpe, match_load)
 
@@ -190,10 +182,10 @@ def _gather_session_loads(
 ) -> dict[date, float]:
     """
     Gather session loads for a player.
-    - Manual RPE linked to session → use carga_sesion directly
-    - 'sesion' tipo → auto-estimate from tasks
-    - 'margen' tipo → auto-estimate × MARGEN_LOAD_FACTOR
-    - 'fisio' only → skip (0 load)
+
+    Only a recorded RPE counts. Load = RPE × minutes stored with that RPE
+    (effective minutes when assigned from the session). Estimated task load
+    is not used.
     """
     loads: dict[date, float] = defaultdict(float)
 
@@ -209,14 +201,7 @@ def _gather_session_loads(
         if not asistencias.data:
             return loads
 
-        # Classify sessions by participation type
-        sesion_tipo_map: dict[str, list[str]] = {}  # sesion_id -> tipos
-        all_sesion_ids = []
-        for a in asistencias.data:
-            sid = a["sesion_id"]
-            all_sesion_ids.append(sid)
-            tipos = a.get("tipo_participacion") or []
-            sesion_tipo_map[sid] = tipos
+        all_sesion_ids = [a["sesion_id"] for a in asistencias.data if a.get("sesion_id")]
 
         if not all_sesion_ids:
             return loads
@@ -249,97 +234,17 @@ def _gather_session_loads(
             if r.get("sesion_id"):
                 rpe_map[r["sesion_id"]] = r
 
-        # Batch fetch all sesion_tareas for sessions that need auto-estimation
-        needs_auto = set()
         for s in sesiones.data:
             sid = s["id"]
-            if sid in rpe_map:
-                continue  # has manual RPE
-            tipos = sesion_tipo_map.get(sid, [])
-            if not tipos or "sesion" in tipos or "margen" in tipos:
-                needs_auto.add(sid)
-
-        # Batch fetch sesion_tareas (duracion_override is on sesion_tareas, base duration on tareas)
-        tareas_by_sesion: dict[str, list[dict]] = defaultdict(list)
-        if needs_auto:
-            try:
-                st_resp = (
-                    supabase.table("sesion_tareas")
-                    .select(
-                        "sesion_id, tarea_id, duracion_override, minutos_efectivos, fase_sesion, "
-                        "tareas(duracion_total, tiempo_descanso, num_series, densidad, nivel_cognitivo)"
-                    )
-                    .in_("sesion_id", list(needs_auto))
-                    .execute()
-                )
-            except Exception:
-                st_resp = (
-                    supabase.table("sesion_tareas")
-                    .select(
-                        "sesion_id, tarea_id, duracion_override, fase_sesion, "
-                        "tareas(duracion_total, tiempo_descanso, num_series, densidad, nivel_cognitivo)"
-                    )
-                    .in_("sesion_id", list(needs_auto))
-                    .execute()
-                )
-
-            for st in (st_resp.data or []):
-                sid = st["sesion_id"]
-                t_info = st.get("tareas") or {}
-                row = {
-                    "duracion_override": st.get("duracion_override"),
-                    "minutos_efectivos": st.get("minutos_efectivos"),
-                    "fase_sesion": st.get("fase_sesion"),
-                    "tarea": t_info,
-                }
-                duracion = minutos_carga_sesion_tarea(row)
-                tareas_by_sesion[sid].append({
-                    "duracion": duracion,
-                    "densidad": t_info.get("densidad"),
-                    "nivel_cognitivo": t_info.get("nivel_cognitivo"),
-                    "fase_sesion": st.get("fase_sesion"),
-                })
-
-        # Process each session
-        for s in sesiones.data:
-            sid = s["id"]
-            fecha = date.fromisoformat(s["fecha"])
-            tipos = sesion_tipo_map.get(sid, [])
-
-            # 1. Manual RPE linked to session
-            if sid in rpe_map:
-                mr = rpe_map[sid]
-                load = mr.get("carga_sesion") or 0
-                if not load and mr.get("rpe") and mr.get("duracion_percibida"):
-                    load = mr["rpe"] * mr["duracion_percibida"]
-                if load:
-                    loads[fecha] += float(load)
+            if sid not in rpe_map:
                 continue
-
-            # 2. Fisio-only → skip
-            if tipos and "sesion" not in tipos and "margen" not in tipos:
-                continue
-
-            # 3. Auto-estimate from tasks this player actually did
-            estructura = s.get("estructura_fases") or []
-            fases_comp = player_compensatorio_fases(estructura, jid)
-            player_tasks = []
-            for t in tareas_by_sesion.get(sid, []):
-                fase = t.get("fase_sesion")
-                if is_compensatorio_fase(fase) and fase not in fases_comp:
-                    continue
-                player_tasks.append(t)
-            _, _, session_load = estimate_session_load(
-                s.get("intensidad_objetivo"),
-                player_tasks,
-            )
-
-            if session_load > 0:
-                # Margen → reduced load
-                is_margen = tipos and "margen" in tipos and "sesion" not in tipos
-                if is_margen:
-                    session_load *= MARGEN_LOAD_FACTOR
-                loads[fecha] += round(session_load, 2)
+            fecha = date.fromisoformat(s["fecha"][:10])
+            mr = rpe_map[sid]
+            load = mr.get("carga_sesion") or 0
+            if not load and mr.get("rpe") and mr.get("duracion_percibida"):
+                load = float(mr["rpe"]) * float(mr["duracion_percibida"])
+            if load:
+                loads[fecha] += float(load)
 
     except Exception as e:
         logger.error(f"Error gathering session loads for {jid}: {e}")
@@ -440,7 +345,8 @@ def _gather_manual_loads(
 def _gather_gk_training_loads(
     supabase, jid: str, eid: str, since: date
 ) -> dict[date, float]:
-    """Gather GK-specific training loads from portero_tareas for sessions the GK attended."""
+    """Estimated GK task load is retired. Keeper load is their session RPE × minutes."""
+    return {}
     loads: dict[date, float] = defaultdict(float)
 
     try:
