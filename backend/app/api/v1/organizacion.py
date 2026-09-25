@@ -142,7 +142,7 @@ async def upsert_equipacion_organizacion(
     """Crea o actualiza la equipacion (local/visitante) del club."""
     from app.database import get_supabase
 
-    if tipo not in ("local", "visitante"):
+    if tipo not in ("local", "visitante", "portero_local", "portero_visitante"):
         raise HTTPException(status_code=400, detail="Tipo invalido")
 
     supabase = get_supabase()

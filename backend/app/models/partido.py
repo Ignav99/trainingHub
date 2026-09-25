@@ -138,6 +138,7 @@ class PartidoBase(BaseModel):
         max_length=40,
         pattern=r"^(local|visitante)(:(local|visitante)){0,2}$",
     )
+    kit_portero: Optional[Literal["local", "visitante"]] = None
 
     # Auto-generated pre-match intelligence
     pre_match_intel: Optional[dict] = None
@@ -177,6 +178,7 @@ class PartidoUpdate(BaseModel):
         max_length=40,
         pattern=r"^(local|visitante)(:(local|visitante)){0,2}$",
     )
+    kit_portero: Optional[Literal["local", "visitante"]] = None
 
 
 class PartidoResponse(PartidoBase):

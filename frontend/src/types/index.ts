@@ -1775,6 +1775,7 @@ export interface Partido {
   hora_citacion?: string | null
   lugar_citacion?: string | null
   kit_convocatoria?: string | null
+  kit_portero?: 'local' | 'visitante' | null
 
   // Auto-generated pre-match intelligence
   pre_match_intel?: PreMatchIntel | null

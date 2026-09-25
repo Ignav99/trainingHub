@@ -44,6 +44,8 @@ describe('cartel kit callout', () => {
     assert.ok(namesIdx > 0 && metaIdx > namesIdx)
     assert.ok(metaIdx < kitIdx)
     assert.ok(kitIdx < citacionIdx)
+    assert.match(src, /PORTERO/)
+    assert.match(src, /kitPortero/)
     assert.doesNotMatch(src, /marginTop: 22/)
     assert.doesNotMatch(src, /layout="strip"/)
   })
