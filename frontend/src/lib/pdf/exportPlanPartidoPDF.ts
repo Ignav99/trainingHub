@@ -85,9 +85,15 @@ type JugadaInfo = {
   diagrama?: import('@/components/tactical-board/types').TareaPizarraData
 }
 
+let lockPage = false
+
+function pageFloor(doc: jsPDF): number {
+  return doc.internal.pageSize.getHeight() - 16
+}
+
 function ensureSpace(doc: jsPDF, y: number, needed: number, margin: number): number {
-  const pageHeight = doc.internal.pageSize.getHeight()
-  if (y + needed > pageHeight - margin - 8) {
+  if (y + needed > pageFloor(doc)) {
+    if (lockPage) return y
     doc.addPage()
     return margin + 6
   }
@@ -102,6 +108,7 @@ function writeWrapped(
   maxWidth: number,
   lineHeight = 4.4
 ): number {
+  if (lockPage && y > pageFloor(doc)) return y
   const lines = doc.splitTextToSize(text, maxWidth) as string[]
   doc.text(lines, x, y)
   return y + lines.length * lineHeight
@@ -174,13 +181,15 @@ function addPizarraImage(
   png: string | undefined,
   margin: number,
   y: number,
-  contentWidth: number
+  contentWidth: number,
+  maxHeight?: number,
 ): number {
   if (!png?.startsWith('data:image')) return y
+  const room = Math.min(maxHeight ?? PITCH_PDF_MAX_MM, pageFloor(doc) - y - 2)
+  if (room < 28) return y
   try {
     const props = doc.getImageProperties(png)
-    const { w, h } = pitchDisplaySize(contentWidth, props.width, props.height, PITCH_PDF_MAX_MM)
-    y = ensureSpace(doc, y, h + 8, margin)
+    const { w, h } = pitchDisplaySize(contentWidth, props.width, props.height, room)
     const x = margin + (contentWidth - w) / 2
     doc.setDrawColor(226, 232, 240)
     doc.setFillColor(15, 40, 12)
@@ -309,7 +318,8 @@ async function writeAbpItems(
   accent: [number, number, number],
   margin: number,
   y: number,
-  contentWidth: number
+  contentWidth: number,
+  imageMax?: number,
 ): Promise<number> {
   y = ensureSpace(doc, y, 12, margin)
   doc.setFont('helvetica', 'bold')
@@ -321,8 +331,7 @@ async function writeAbpItems(
     const info = jugadas.get(item.jugada_id)
     const nombre = info?.nombre ?? item.jugada_id.slice(0, 8)
     const preview = await resolvePizarraPng(info?.preview, info?.diagrama)
-    const previewH = preview?.startsWith('data:image') ? PITCH_PDF_MAX_MM : 0
-    y = ensureSpace(doc, y, 12 + previewH, margin)
+    y = ensureSpace(doc, y, 12, margin)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(10)
     doc.setTextColor(15, 23, 42)
@@ -345,11 +354,62 @@ async function writeAbpItems(
       y += 2
     }
     if (preview?.startsWith('data:image')) {
-      y = addPizarraImage(doc, preview, margin, y, contentWidth)
+      y = addPizarraImage(doc, preview, margin, y, contentWidth, imageMax)
     }
     y += 2
   }
   return y
+}
+
+function wrappedMm(doc: jsPDF, text: string | undefined, width: number): number {
+  const value = (text || '').trim()
+  if (!value) return 0
+  return (doc.splitTextToSize(value, width) as string[]).length * 4.4 + 3
+}
+
+function planPhaseHeight(
+  doc: jsPDF,
+  phase: PlanPartidoPhase,
+  contentWidth: number,
+  imageMax: number,
+  jugadas: Map<string, JugadaInfo>,
+): number {
+  let h = 16
+  if (phase.subfases) {
+    for (const sub of Object.values(phase.subfases)) {
+      if (
+        !sub?.notas?.trim() &&
+        !sub?.sistema?.trim() &&
+        !sub?.roles?.length &&
+        !sub?.pizarra_tactica &&
+        !diagramHasContent(sub?.pizarra_diagrama)
+      ) continue
+      h += 10
+      if (sub?.sistema?.trim()) h += 5
+      h += wrappedMm(doc, sub?.notas, contentWidth)
+      h += (sub?.roles?.length ?? 0) * 5
+      if (sub?.pizarra_tactica || diagramHasContent(sub?.pizarra_diagrama)) h += imageMax + 6
+    }
+  }
+  if (phase.texto?.trim() && !phase.subfases) h += wrappedMm(doc, phase.texto, contentWidth)
+  if (!phase.subfases) {
+    h += (phase.roles?.length ?? 0) * 5
+    if (phase.pizarra_tactica || diagramHasContent(phase.pizarra_diagrama)) h += imageMax + 6
+  }
+  if (phase.jugadas_abp?.length) {
+    h += 8
+    for (const item of phase.jugadas_abp) {
+      h += 14
+      h += wrappedMm(doc, item.comentario, contentWidth)
+      const info = jugadas.get(item.jugada_id)
+      if (info?.preview || info?.diagrama) h += imageMax + 6
+    }
+  }
+  if (phase.clips?.length) {
+    h += 8
+    for (const clip of phase.clips) h += wrappedMm(doc, clip.titulo, contentWidth)
+  }
+  return h + 4
 }
 
 export async function exportPlanPartidoPDF(
@@ -405,9 +465,20 @@ export async function exportPlanPartidoPDF(
 
   for (const faseKey of FASE_ORDER) {
     const phase = fases.find((f) => f.fase === faseKey)
-    if (!phaseHasContent(phase)) continue
+    if (!phase || !phaseHasContent(phase)) continue
 
-    y = ensureSpace(doc, y, 16, margin)
+    const pageCap = pageFloor(doc) - (margin + 2)
+    let imageMax = 72
+    let need = planPhaseHeight(doc, phase, contentWidth, imageMax, jugadas)
+    while (need > pageCap && imageMax > 40) {
+      imageMax -= 8
+      need = planPhaseHeight(doc, phase, contentWidth, imageMax, jugadas)
+    }
+    if (y + need > pageFloor(doc)) {
+      doc.addPage()
+      y = margin + 6
+    }
+    lockPage = true
     const accent = FASE_COLORS[faseKey]
     doc.setFillColor(accent[0], accent[1], accent[2])
     doc.roundedRect(margin, y, contentWidth, 8, 1.2, 1.2, 'F')
@@ -462,6 +533,7 @@ export async function exportPlanPartidoPDF(
           margin,
           y,
           contentWidth,
+          imageMax,
         )
       }
     }
@@ -482,12 +554,13 @@ export async function exportPlanPartidoPDF(
         margin,
         y,
         contentWidth,
+        imageMax,
       )
     }
 
     if (phase?.jugadas_abp?.length) {
       const title = faseKey === 'ataque_organizado' ? 'Saques de puerta (balón parado)' : 'Jugadas ABP'
-      y = await writeAbpItems(doc, phase.jugadas_abp, jugadas, title, accent, margin, y, contentWidth)
+      y = await writeAbpItems(doc, phase.jugadas_abp, jugadas, title, accent, margin, y, contentWidth, imageMax)
     }
 
     if (phase?.clips?.length) {
@@ -507,6 +580,7 @@ export async function exportPlanPartidoPDF(
     }
 
     y += 4
+    lockPage = false
   }
 
   drawFooters(doc, meta.clubNombre)
